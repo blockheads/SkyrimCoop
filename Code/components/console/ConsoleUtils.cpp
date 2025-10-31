@@ -3,7 +3,7 @@
 #include <console/ConsoleUtils.h>
 #include <TiltedCore/Stl.hpp>
 
-namespace Console
+namespace ServerConsole
 {
 bool CheckIsValidUTF8(const TiltedPhoques::String& string)
 {
@@ -34,4 +34,4 @@ bool CheckIsValidUTF8(const TiltedPhoques::String& string)
     }
     return true;
 }
-} // namespace Console
+} // namespace ServerConsole

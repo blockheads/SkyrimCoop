@@ -25,50 +25,50 @@
 constexpr size_t kMaxServerNameLength = 128u;
 
 // -- Cvars --
-Console::Setting uServerPort{"GameServer:uPort", "Which port to host the server on", 10578u};
-Console::Setting uMaxPlayerCount{"GameServer:uMaxPlayerCount", "Maximum number of players allowed on the server (going over the default of 8 is not recommended)", 8u};
-Console::Setting bPremiumTickrate{"GameServer:bPremiumMode", "Use premium tick rate", true};
+ServerConsole::Setting uServerPort{"GameServer:uPort", "Which port to host the server on", 10578u};
+ServerConsole::Setting uMaxPlayerCount{"GameServer:uMaxPlayerCount", "Maximum number of players allowed on the server (going over the default of 8 is not recommended)", 8u};
+ServerConsole::Setting bPremiumTickrate{"GameServer:bPremiumMode", "Use premium tick rate", true};
 
-Console::StringSetting sServerName{"GameServer:sServerName", "Name that shows up in the server list", "Dedicated Together Server"};
-Console::StringSetting sAdminPassword{"GameServer:sAdminPassword", "Admin authentication password", ""};
-Console::StringSetting sPassword{"GameServer:sPassword", "Server password", ""};
+ServerConsole::StringSetting sServerName{"GameServer:sServerName", "Name that shows up in the server list", "Dedicated Together Server"};
+ServerConsole::StringSetting sAdminPassword{"GameServer:sAdminPassword", "Admin authentication password", ""};
+ServerConsole::StringSetting sPassword{"GameServer:sPassword", "Server password", ""};
 
 // Gameplay
 // TODO: to make this easier for users, use game names for difficulty instead of int
-Console::Setting uDifficulty{"Gameplay:uDifficulty", "In game difficulty (0 to 5)", 4u};
-Console::Setting bEnableGreetings{"Gameplay:bEnableGreetings", "Enables NPC greetings (disabled by default since they can be spammy with dialogue sync)", false};
-Console::Setting bEnablePvp{"Gameplay:bEnablePvp", "Enables pvp", false};
-Console::Setting bSyncPlayerHomes{"Gameplay:bSyncPlayerHomes", "Sync chests and displays in player homes and other NoResetZones", false};
-Console::Setting bEnableDeathSystem{"Gameplay:bEnableDeathSystem", "Enables the custom multiplayer death system", true};
-Console::Setting uTimeScale{"Gameplay:uTimeScale", "How many seconds pass ingame for every real second (0 to 1000). Changing this can make the game unstable", 20u};
-Console::Setting bSyncPlayerCalendar{"Gameplay:bSyncPlayerCalendar", "Syncs up all player calendars to be the same day, month, and year. This uses the date of the player with the furthest ahead date at connection.", false};
-Console::Setting bAutoPartyJoin{"Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
+ServerConsole::Setting uDifficulty{"Gameplay:uDifficulty", "In game difficulty (0 to 5)", 4u};
+ServerConsole::Setting bEnableGreetings{"Gameplay:bEnableGreetings", "Enables NPC greetings (disabled by default since they can be spammy with dialogue sync)", false};
+ServerConsole::Setting bEnablePvp{"Gameplay:bEnablePvp", "Enables pvp", false};
+ServerConsole::Setting bSyncPlayerHomes{"Gameplay:bSyncPlayerHomes", "Sync chests and displays in player homes and other NoResetZones", false};
+ServerConsole::Setting bEnableDeathSystem{"Gameplay:bEnableDeathSystem", "Enables the custom multiplayer death system", true};
+ServerConsole::Setting uTimeScale{"Gameplay:uTimeScale", "How many seconds pass ingame for every real second (0 to 1000). Changing this can make the game unstable", 20u};
+ServerConsole::Setting bSyncPlayerCalendar{"Gameplay:bSyncPlayerCalendar", "Syncs up all player calendars to be the same day, month, and year. This uses the date of the player with the furthest ahead date at connection.", false};
+ServerConsole::Setting bAutoPartyJoin{"Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
 // ModPolicy Stuff
-Console::Setting bEnableModCheck{"ModPolicy:bEnableModCheck", "Bypass the checking of mods on the server", false, Console::SettingsFlags::kLocked};
-Console::Setting bAllowSKSE{"ModPolicy:bAllowSKSE", "Allow clients with SKSE active to join", true, Console::SettingsFlags::kLocked};
-Console::Setting bAllowMO2{"ModPolicy:bAllowMO2", "Allow clients running Mod Organizer 2 to join", true, Console::SettingsFlags::kLocked};
+ServerConsole::Setting bEnableModCheck{"ModPolicy:bEnableModCheck", "Bypass the checking of mods on the server", false, ServerConsole::SettingsFlags::kLocked};
+ServerConsole::Setting bAllowSKSE{"ModPolicy:bAllowSKSE", "Allow clients with SKSE active to join", true, ServerConsole::SettingsFlags::kLocked};
+ServerConsole::Setting bAllowMO2{"ModPolicy:bAllowMO2", "Allow clients running Mod Organizer 2 to join", true, ServerConsole::SettingsFlags::kLocked};
 
 // -- Commands --
-Console::Command<> TogglePremium(
+ServerConsole::Command<> TogglePremium(
     "TogglePremium", "Toggle Premium Tickrate on/off",
-    [](Console::ArgStack&)
+    [](ServerConsole::ArgStack&)
     {
         bPremiumTickrate = !bPremiumTickrate;
         spdlog::get("ConOut")->info("Premium Tickrate has been {}.", bPremiumTickrate == true ? "enabled" : "disabled");
     });
 
-Console::Command<> TogglePvp(
+ServerConsole::Command<> TogglePvp(
     "TogglePvp", "Toggle PvP on/off",
-    [](Console::ArgStack&)
+    [](ServerConsole::ArgStack&)
     {
         bEnablePvp = !bEnablePvp;
         spdlog::get("ConOut")->info("PvP has been {}.", bEnablePvp == true ? "enabled" : "disabled");
         GameServer::Get()->UpdateSettings();
     });
 
-Console::Command<int64_t> SetDifficulty(
+ServerConsole::Command<int64_t> SetDifficulty(
     "SetDifficulty", "Set server difficulty (0 being Novice and 5 being Legendary; default is 4)",
-    [](Console::ArgStack& aStack)
+    [](ServerConsole::ArgStack& aStack)
     {
         auto aDiff = aStack.Pop<int64_t>();
 
@@ -88,19 +88,19 @@ Console::Command<int64_t> SetDifficulty(
         spdlog::get("ConOut")->info("Difficulty has been set to {}.", aDiff);
     });
 
-Console::Command<> ShowVersion("version", "Show the version the server was compiled with", [](Console::ArgStack&) { spdlog::get("ConOut")->info("Server " BUILD_COMMIT); });
+ServerConsole::Command<> ShowVersion("version", "Show the version the server was compiled with", [](ServerConsole::ArgStack&) { spdlog::get("ConOut")->info("Server " BUILD_COMMIT); });
 
-Console::Command<> CrashServer(
+ServerConsole::Command<> CrashServer(
     "crash", "Crashes the server, don't use!",
-    [](Console::ArgStack&)
+    [](ServerConsole::ArgStack&)
     {
         int* i = 0;
         *i = 42;
     });
 
-Console::Command<> ShowMoPoStatus(
+ServerConsole::Command<> ShowMoPoStatus(
     "ShowMOPOStats", "Shows the status of ModPolicy",
-    [](Console::ArgStack&)
+    [](ServerConsole::ArgStack&)
     {
         auto formatStatus = [](bool aToggle)
         {
@@ -146,7 +146,7 @@ ServerSettings GetSettings()
     return settings;
 }
 
-GameServer::GameServer(Console::ConsoleRegistry& aConsole) noexcept
+GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept
     : m_lastFrameTime(std::chrono::high_resolution_clock::now())
     , m_startTime(std::chrono::high_resolution_clock::now())
     , m_commands(aConsole)
@@ -294,7 +294,7 @@ void GameServer::BindServerCommands()
 {
     m_commands.RegisterCommand<>(
         "uptime", "Show how long the server has been running for",
-        [this](Console::ArgStack&)
+        [this](ServerConsole::ArgStack&)
         {
             Uptime uptime = GetUptime();
             spdlog::get("ConOut")->info("Server uptime: {}w {}d {}h {}m", uptime.weeks, uptime.days, uptime.hours, uptime.minutes);
@@ -302,7 +302,7 @@ void GameServer::BindServerCommands()
 
     m_commands.RegisterCommand<>(
         "players", "List all players on this server",
-        [&](Console::ArgStack&)
+        [&](ServerConsole::ArgStack&)
         {
             auto out = spdlog::get("ConOut");
             uint32_t count = m_pWorld->GetPlayerManager().Count();
@@ -321,7 +321,7 @@ void GameServer::BindServerCommands()
 
     m_commands.RegisterCommand<>(
         "mods", "List all installed mods on this server",
-        [&](Console::ArgStack&)
+        [&](ServerConsole::ArgStack&)
         {
             auto out = spdlog::get("ConOut");
             auto& mods = m_pWorld->ctx().at<ModsComponent>().GetServerMods();
@@ -340,7 +340,7 @@ void GameServer::BindServerCommands()
 
     m_commands.RegisterCommand<>(
         "resources", "List all loaded resources on the server",
-        [&](Console::ArgStack&)
+        [&](ServerConsole::ArgStack&)
         {
             auto out = spdlog::get("ConOut");
             if (!m_pResources || m_pResources->GetManifests().size() == 0)
@@ -353,11 +353,11 @@ void GameServer::BindServerCommands()
             m_pResources->ForEachManifest([&](const auto& aManifest) { out->info("{} -> {}", aManifest.Name.c_str(), aManifest.Description.c_str()); });
         });
 
-    m_commands.RegisterCommand<>("quit", "Stop the server", [&](Console::ArgStack&) { Kill(); });
+    m_commands.RegisterCommand<>("quit", "Stop the server", [&](ServerConsole::ArgStack&) { Kill(); });
 
     m_commands.RegisterCommand<int64_t, int64_t>(
         "SetTime", "Set ingame hour and minute",
-        [&](Console::ArgStack& aStack)
+        [&](ServerConsole::ArgStack& aStack)
         {
             auto out = spdlog::get("ConOut");
 
@@ -379,7 +379,7 @@ void GameServer::BindServerCommands()
 
     m_commands.RegisterCommand<int64_t, int64_t, int64_t>(
         "SetDate", "Set ingame day, month, and year",
-        [&](Console::ArgStack& aStack)
+        [&](ServerConsole::ArgStack& aStack)
         {
             auto out = spdlog::get("ConOut");
 
@@ -401,7 +401,7 @@ void GameServer::BindServerCommands()
 
     m_commands.RegisterCommand<std::string>(
         "AddAdmin", "Add admin privileges to player",
-        [&](Console::ArgStack& aStack)
+        [&](ServerConsole::ArgStack& aStack)
         {
             auto out = spdlog::get("ConOut");
 
@@ -437,7 +437,7 @@ void GameServer::BindServerCommands()
         });
     m_commands.RegisterCommand<std::string>(
         "RemoveAdmin", "Remove admin privileges from player",
-        [&](Console::ArgStack& aStack)
+        [&](ServerConsole::ArgStack& aStack)
         {
             auto out = spdlog::get("ConOut");
 
@@ -468,7 +468,7 @@ void GameServer::BindServerCommands()
         });
     m_commands.RegisterCommand<>(
         "admins", "List all admins",
-        [&](Console::ArgStack&)
+        [&](ServerConsole::ArgStack&)
         {
             auto out = spdlog::get("ConOut");
             if (m_adminSessions.size() == 0)

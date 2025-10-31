@@ -16,7 +16,7 @@ constexpr char kBuildTag[]{BUILD_BRANCH "@" BUILD_COMMIT};
 
 struct GameServerInstance final : IGameServerInstance
 {
-    GameServerInstance(Console::ConsoleRegistry& aConsole)
+    GameServerInstance(ServerConsole::ConsoleRegistry& aConsole)
         : m_gameServer(aConsole)
     {
     }
@@ -72,7 +72,7 @@ GS_EXPORT bool CheckBuildTag(const char* apBuildTag)
     return std::strcmp(apBuildTag, kBuildTag) == 0;
 }
 
-GS_EXPORT UniquePtr<IGameServerInstance> CreateGameServer(Console::ConsoleRegistry& aConReg, const std::function<void()>& aCallback)
+GS_EXPORT UniquePtr<IGameServerInstance> CreateGameServer(ServerConsole::ConsoleRegistry& aConReg, const std::function<void()>& aCallback)
 {
     BASE_ASSERT(aCallback, "CreateGameServer(): Callback was not provided");
 

@@ -12,9 +12,9 @@
 #include <common/GameServerInstance.h>
 
 #ifdef _WIN32
-#define GS_IMPORT extern __declspec(dllimport)
+#define GS_IMPORT extern  // Changed from dllimport to extern for static library
 #else
-#define GS_IMPORT extern __attribute__((visibility("default")))
+#define GS_IMPORT extern
 #endif
 
 namespace fs = std::filesystem;
@@ -49,7 +49,7 @@ private:
     uv_tty_t m_tty;
     fs::path m_SettingsPath;
     bool m_useIni{false};
-    Console::ConsoleRegistry m_console;
+    ServerConsole::ConsoleRegistry m_console;
     TiltedPhoques::UniquePtr<IGameServerInstance> m_pServerInstance;
 };
 

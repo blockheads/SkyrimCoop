@@ -21,7 +21,7 @@
 #include <Setting.h>
 namespace
 {
-Console::Setting fGoldLossFactor{"Gameplay:fGoldLossFactor", "Factor of the amount of gold lost on death", 0.0f};
+ServerConsole::Setting fGoldLossFactor{"Gameplay:fGoldLossFactor", "Factor of the amount of gold lost on death", 0.0f};
 }
 
 PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher) noexcept

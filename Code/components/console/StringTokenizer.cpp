@@ -3,7 +3,7 @@
 
 #include <console/StringTokenizer.h>
 
-namespace Console
+namespace ServerConsole
 {
 StringTokenizer::StringTokenizer(TiltedPhoques::String acInput, const char* acpDelim)
     : m_string(std::move(acInput))
@@ -58,4 +58,4 @@ void StringTokenizer::GetNext(TiltedPhoques::String& s)
         m_begin = m_string.find_first_not_of(m_delim, m_end);
     }
 }
-} // namespace Console
+} // namespace ServerConsole

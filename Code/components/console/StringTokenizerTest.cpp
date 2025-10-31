@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <console/StringTokenizer.h>
 
-namespace Console
+namespace ServerConsole
 {
 namespace
 {
@@ -59,4 +59,4 @@ TEST(StringTokenizer, Tokinize)
     }
 }
 } // namespace
-} // namespace Console
+} // namespace ServerConsole

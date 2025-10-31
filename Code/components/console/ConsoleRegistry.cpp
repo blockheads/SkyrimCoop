@@ -7,7 +7,7 @@
 #include <console/ConsoleUtils.h>
 #include <console/StringTokenizer.h>
 
-namespace Console
+namespace ServerConsole
 {
 namespace
 {
@@ -341,4 +341,4 @@ bool ConsoleRegistry::Update()
 
     return false;
 }
-} // namespace Console
+} // namespace ServerConsole

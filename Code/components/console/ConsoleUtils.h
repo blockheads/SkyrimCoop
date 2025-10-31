@@ -8,7 +8,7 @@
 #include <charconv>
 #include <TiltedCore/Stl.hpp>
 
-namespace Console
+namespace ServerConsole
 {
 // taken from
 // https://stackoverflow.com/questions/29169153/how-do-i-verify-a-string-is-valid-double-even-if-it-has-a-point-in-it
@@ -26,4 +26,4 @@ template <typename T> T ConvertStringValue(const char* szValue, T acDefault)
 }
 
 bool CheckIsValidUTF8(const TiltedPhoques::String& string);
-} // namespace Console
+} // namespace ServerConsole

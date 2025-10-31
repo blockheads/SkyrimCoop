@@ -15,9 +15,9 @@ DediRunner* s_pRunner{nullptr};
 } // namespace
 
 // imports
-GS_IMPORT TiltedPhoques::UniquePtr<IGameServerInstance> CreateGameServer(Console::ConsoleRegistry& conReg, const std::function<void()>& aCallback);
+GS_IMPORT TiltedPhoques::UniquePtr<IGameServerInstance> CreateGameServer(ServerConsole::ConsoleRegistry& conReg, const std::function<void()>& aCallback);
 // needs to be global
-Console::Setting bConsole{"bConsole", "Enable the console", true};
+ServerConsole::Setting bConsole{"bConsole", "Enable the console", true};
 
 DediRunner* GetDediRunner() noexcept
 {
@@ -164,7 +164,7 @@ void DediRunner::RequestKill()
 
 void DediRunner::HandleConsole(const TiltedPhoques::String& acCommand)
 {
-    using exr = Console::ConsoleRegistry::ExecutionResult;
+    using exr = ServerConsole::ConsoleRegistry::ExecutionResult;
 
     exr r = m_console.TryExecuteCommand(acCommand);
 

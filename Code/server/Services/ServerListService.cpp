@@ -10,13 +10,13 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 
-extern Console::Setting<uint32_t> uMaxPlayerCount;
+extern ServerConsole::Setting<uint32_t> uMaxPlayerCount;
 
 static constexpr char kMasterServerEndpoint[] =
     //"http://127.0.0.1:8000";
     "https://skyrim-reborn-list.skyrim-together.com";
 
-static Console::Setting bAnnounceServer{"LiveServices:bAnnounceServer", "Whether to list the server on the public server list", false};
+static ServerConsole::Setting bAnnounceServer{"LiveServices:bAnnounceServer", "Whether to list the server on the public server list", false};
 
 ServerListService::ServerListService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)

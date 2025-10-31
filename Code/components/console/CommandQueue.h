@@ -6,7 +6,7 @@
 #include <console/ArgStack.h>
 #include <console/Command.h>
 
-namespace Console
+namespace ServerConsole
 {
 class CommandQueue
 {
@@ -47,4 +47,4 @@ private:
     // (8 would be 256)
     fast_queue<Item, 2> m_queue;
 };
-} // namespace Console
+} // namespace ServerConsole

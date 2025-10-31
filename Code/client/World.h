@@ -8,6 +8,7 @@
 #include <Services/CharacterService.h>
 #include <Services/MagicService.h>
 #include <Services/DebugService.h>
+#include <Services/HostService.h>
 
 #include <Systems/ModSystem.h>
 
@@ -34,6 +35,8 @@ struct World : entt::registry
     const DebugService& GetDebugService() const noexcept { return ctx().at<const DebugService>(); }
     MagicService& GetMagicService() noexcept { return ctx().at<MagicService>(); }
     const MagicService& GetMagicService() const noexcept { return ctx().at<const MagicService>(); }
+    HostService& GetHostService() noexcept { return ctx().at<HostService>(); }
+    const HostService& GetHostService() const noexcept { return ctx().at<const HostService>(); }
 
     auto& GetDispatcher() noexcept { return m_dispatcher; }
 

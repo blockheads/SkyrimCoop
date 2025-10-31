@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Server.hpp>
 #include <AdminMessages/Message.h>
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/Message.h>
@@ -18,7 +19,7 @@ namespace Resources
 struct ResourceCollection;
 }
 
-namespace Console
+namespace ServerConsole
 {
 class ConsoleRegistry;
 }
@@ -35,7 +36,7 @@ struct GameServer final : Server
         uint16_t tick_rate;
     };
 
-    GameServer(Console::ConsoleRegistry& aConsole) noexcept;
+    GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept;
     virtual ~GameServer();
 
     TP_NOCOPYMOVE(GameServer);
@@ -117,7 +118,7 @@ private:
 
     Info m_info{};
     UniquePtr<Resources::ResourceCollection> m_pResources;
-    Console::ConsoleRegistry& m_commands;
+    ServerConsole::ConsoleRegistry& m_commands;
 
     TiltedPhoques::Set<ConnectionId_t> m_adminSessions;
     TiltedPhoques::Map<ConnectionId_t, entt::entity> m_connectionToEntity;

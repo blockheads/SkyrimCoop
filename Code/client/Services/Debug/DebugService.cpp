@@ -160,6 +160,7 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     static std::atomic<bool> s_f8Pressed = false;
     static std::atomic<bool> s_f7Pressed = false;
     static std::atomic<bool> s_f6Pressed = false;
+    static std::atomic<bool> s_f9Pressed = false;
 
     if (GetAsyncKeyState(VK_F3) & 0x01)
     {
@@ -182,6 +183,29 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     }
     else
         s_f6Pressed = false;
+
+    // F9 - Toggle P2P hosting
+    if (GetAsyncKeyState(VK_F9))
+    {
+        if (!s_f9Pressed)
+        {
+            s_f9Pressed = true;
+
+            auto& hostService = m_world.GetHostService();
+            if (hostService.IsHosting())
+            {
+                spdlog::info("[Debug] F9 pressed - Stopping hosting");
+                hostService.StopHosting();
+            }
+            else
+            {
+                spdlog::info("[Debug] F9 pressed - Starting hosting");
+                hostService.StartHosting();
+            }
+        }
+    }
+    else
+        s_f9Pressed = false;
 
     if (GetAsyncKeyState(VK_F7))
     {

@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <console/ConsoleUtils.h>
 
-namespace Console
+namespace ServerConsole
 {
 namespace
 {
@@ -29,4 +29,4 @@ TEST(ConsoleUtils, TestNumeric)
     EXPECT_FALSE(IsNumber("ten 10.0 10"));
 }
 } // namespace
-} // namespace Console
+} // namespace ServerConsole

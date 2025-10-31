@@ -8,7 +8,7 @@
 #include <console/Setting.h>
 #include <console/ConsoleRegistry.h>
 
-namespace Console
+namespace ServerConsole
 {
 
 void LoadSettingsFromCommand(ConsoleRegistry& aReg, int argc, char** argv)
@@ -57,4 +57,4 @@ void LoadSettingsFromCommand(ConsoleRegistry& aReg, int argc, char** argv)
             }
         });
 }
-} // namespace Console
+} // namespace ServerConsole

@@ -4,7 +4,7 @@
 
 #include <TiltedCore/Stl.hpp>
 
-namespace Console
+namespace ServerConsole
 {
 // Adapted from https://www.oreilly.com/library/view/c-cookbook/0596007612/ch04s08.html
 class StringTokenizer
@@ -24,4 +24,4 @@ private:
     TiltedPhoques::String::size_type m_begin;
     TiltedPhoques::String::size_type m_end;
 };
-} // namespace Console
+} // namespace ServerConsole

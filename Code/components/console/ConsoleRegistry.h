@@ -6,7 +6,7 @@
 #include <console/CommandQueue.h>
 #include <console/Setting.h>
 
-namespace Console
+namespace ServerConsole
 {
 
 template <typename T> struct ErrorOr
@@ -100,4 +100,4 @@ private:
 
     std::shared_ptr<spdlog::logger> m_out;
 };
-} // namespace Console
+} // namespace ServerConsole

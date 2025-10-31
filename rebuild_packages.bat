@@ -1,0 +1,9 @@
+@echo off
+echo Cleaning package cache...
+rd /s /q "%USERPROFILE%\.xmake\packages" 2>nul
+echo.
+echo Rebuilding with MT runtime...
+xmake f -m releasedbg -c -y
+echo.
+echo Building project...
+xmake -ry

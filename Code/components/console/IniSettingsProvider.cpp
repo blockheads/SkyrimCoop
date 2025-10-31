@@ -14,7 +14,7 @@
 
 #include <TiltedCore/Filesystem.hpp>
 
-namespace Console
+namespace ServerConsole
 {
 namespace
 {
@@ -136,4 +136,4 @@ void LoadSettingsFromIni(ConsoleRegistry& aReg, const std::filesystem::path& aPa
             }
         });
 }
-} // namespace Console
+} // namespace ServerConsole

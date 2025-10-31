@@ -3,7 +3,7 @@ local function istable(t) return type(t) == 'table' end
 add_requires("sol2 v3.3.0", {configs = {lua = "lua"}})
 
 local function build_server()
-    set_kind("shared")
+    set_kind("static")  -- Changed to static for P2P embedded server
     set_group("Server")
     add_includedirs(
         ".",

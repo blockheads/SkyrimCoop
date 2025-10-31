@@ -7,7 +7,7 @@
 #include <string>
 #include <console/ArgStack.h>
 
-namespace Console
+namespace ServerConsole
 {
 // CommandNode
 // CommandData
@@ -119,4 +119,4 @@ private:
     // We also do this to avoid a potential array of size null
     Type m_indices[N + 1];
 };
-} // namespace Console
+} // namespace ServerConsole

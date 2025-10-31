@@ -22,7 +22,7 @@
 #include <Setting.h>
 namespace
 {
-Console::Setting bAutoPartyJoin{"Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
+ServerConsole::Setting bAutoPartyJoin{"Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
 }
 
 PartyService::PartyService(World& aWorld, entt::dispatcher& aDispatcher) noexcept

@@ -14,7 +14,7 @@
 #include <Setting.h>
 namespace
 {
-Console::Setting bEnableItemDrops{"Gameplay:bEnableItemDrops", "(Experimental) Syncs dropped items by players", false};
+ServerConsole::Setting bEnableItemDrops{"Gameplay:bEnableItemDrops", "(Experimental) Syncs dropped items by players", false};
 }
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher)

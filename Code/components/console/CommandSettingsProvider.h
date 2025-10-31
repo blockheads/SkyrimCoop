@@ -2,9 +2,9 @@
 // For licensing information see LICENSE at the root of this distribution.
 #pragma once
 
-namespace Console
+namespace ServerConsole
 {
 class ConsoleRegistry;
 
 void LoadSettingsFromCommand(ConsoleRegistry& aReg, int argc, char** argv);
-} // namespace Console
+} // namespace ServerConsole

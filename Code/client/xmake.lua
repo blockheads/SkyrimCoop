@@ -4,6 +4,8 @@ target(name)
     set_kind("static")
     set_group("Client")
     add_includedirs(".","../../Libraries/")
+    -- Add server include directory for embedded GameServer (P2P hosting)
+    add_includedirs("../server", {public = false})
     set_pcxxheader("TiltedOnlinePCH.h")
 
     -- exclude game specifc stuff
@@ -29,6 +31,8 @@ target(name)
     -- rather hacky:
     add_includedirs("Games/Skyrim")
     add_deps("SkyrimEncoding")
+    -- Add server dependency for embedded GameServer (P2P hosting)
+    add_deps("SkyrimTogetherServer")
     add_deps(
         "UiProcess",
         "CommonLib",

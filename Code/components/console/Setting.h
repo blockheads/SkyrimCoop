@@ -5,7 +5,7 @@
 #include <TiltedCore/Stl.hpp>
 #include <base/Check.h>
 
-namespace Console
+namespace ServerConsole
 {
 using namespace TiltedPhoques;
 
@@ -207,4 +207,4 @@ public:
 
 using StringSetting = Setting<const char*, detail::DynamicStringStorage<char>>;
 // NOTE: Wide strings are not supported, since our INI cant handle them.
-} // namespace Console
+} // namespace ServerConsole

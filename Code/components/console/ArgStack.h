@@ -5,7 +5,7 @@
 #include <any>
 #include <TiltedCore/Stl.hpp>
 
-namespace Console
+namespace ServerConsole
 {
 // Optimized for small size.
 class ArgStack
@@ -45,4 +45,4 @@ private:
     TiltedPhoques::UniquePtr<std::any[]> m_pArgs = nullptr;
     size_t m_Count = 0;
 };
-} // namespace Console
+} // namespace ServerConsole

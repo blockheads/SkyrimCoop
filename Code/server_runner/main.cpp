@@ -37,11 +37,11 @@ constexpr char kEULATextTrue[] = "bConfirmEULA=true";
 
 namespace fs = std::filesystem;
 
-Console::StringSetting sLogLevel{"sLogLevel", "Log level to print", "info"};
+ServerConsole::StringSetting sLogLevel{"sLogLevel", "Log level to print", "info"};
 using namespace std::chrono_literals;
 } // namespace
 
-extern Console::Setting<bool> bConsole;
+extern ServerConsole::Setting<bool> bConsole;
 
 GS_IMPORT void SetDefaultLogger(std::shared_ptr<spdlog::logger> aLogger);
 GS_IMPORT void RegisterLogger(std::shared_ptr<spdlog::logger> aLogger);
