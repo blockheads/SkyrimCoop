@@ -47,6 +47,10 @@ struct PlayerManager
     Player* GetByUsername(const String& acUsername) const noexcept;
     Player const* GetByUsername(const String& acUsername) noexcept;
 
+    // Get the host player (first player to connect, lowest ID)
+    Player* GetHostPlayer() noexcept;
+    Player const* GetHostPlayer() const noexcept;
+
     uint32_t Count() const noexcept;
 
     template <class T> void ForEach(const T& acFunctor) noexcept

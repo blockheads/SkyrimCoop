@@ -114,6 +114,34 @@ Player const* PlayerManager::GetByUsername(const String& acUsername) noexcept
     return nullptr;
 }
 
+Player* PlayerManager::GetHostPlayer() noexcept
+{
+    // Host is the player with the lowest ID (first to connect)
+    Player* pHost = nullptr;
+    uint32_t lowestId = UINT32_MAX;
+
+    auto itor = std::begin(m_players);
+    const auto end = std::end(m_players);
+
+    for (; itor != end; ++itor)
+    {
+        Player* pPlayer = itor.value().get();
+        if (pPlayer->GetId() < lowestId)
+        {
+            lowestId = pPlayer->GetId();
+            pHost = pPlayer;
+        }
+    }
+
+    return pHost;
+}
+
+Player const* PlayerManager::GetHostPlayer() const noexcept
+{
+    // Reuse non-const version to avoid code duplication
+    return const_cast<PlayerManager*>(this)->GetHostPlayer();
+}
+
 uint32_t PlayerManager::Count() const noexcept
 {
     return static_cast<uint32_t>(m_players.size());

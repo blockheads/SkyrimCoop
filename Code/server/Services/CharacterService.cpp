@@ -154,23 +154,9 @@ void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacte
             auto& cellIdComponent = view.get<CellIdComponent>(*itor);
             auto& ownerComponent = view.get<OwnerComponent>(*itor);
 
-            auto& partyService = m_world.GetPartyService();
-
-            bool isOwner = false;
-
-            if (partyService.IsPlayerInParty(acMessage.pPlayer) && partyService.IsPlayerLeader(acMessage.pPlayer) && !characterComponent.IsMount())
-            {
-                PartyService::Party* pParty = partyService.GetPlayerParty(acMessage.pPlayer);
-                Player* pOwningPlayer = view.get<OwnerComponent>(*itor).GetOwner();
-
-                // Transfer ownership if owning player is in the same party as the owner
-                if (std::find(pParty->Members.begin(), pParty->Members.end(), pOwningPlayer) != pParty->Members.end())
-                {
-                    // TODO: Implement host-only ownership model
-                    // TransferOwnership(acMessage.pPlayer, World::ToInteger(*itor), acMessage.Packet.CurrentActorData);
-                    // isOwner = true;
-                }
-            }
+            // Host-only ownership: Only the host player can own NPCs
+            Player* pHostPlayer = m_world.GetPlayerManager().GetHostPlayer();
+            bool isOwner = (acMessage.pPlayer == pHostPlayer && acMessage.pPlayer == ownerComponent.GetOwner());
 
             AssignCharacterResponse response{};
             response.Cookie = message.Cookie;
@@ -426,7 +412,10 @@ void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>
 
     auto* const pServer = GameServer::Get();
 
-    m_world.emplace<OwnerComponent>(cEntity, acMessage.pPlayer);
+    // Host-only ownership: Always assign NPCs to the host player
+    Player* pHostPlayer = m_world.GetPlayerManager().GetHostPlayer();
+    Player* pOwner = pHostPlayer ? pHostPlayer : acMessage.pPlayer; // Fallback to requester if no host
+    m_world.emplace<OwnerComponent>(cEntity, pOwner);
 
     auto& cellIdComponent = m_world.emplace<CellIdComponent>(cEntity, message.CellId);
     if (message.WorldSpaceId != GameId{})
@@ -482,7 +471,7 @@ void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>
     response.Cookie = message.Cookie;
     response.ServerId = World::ToInteger(cEntity);
     response.PlayerId = characterComponent.PlayerId;
-    response.Owner = true;
+    response.Owner = (acMessage.pPlayer == pOwner); // Only true if requester is the host
 
     pServer->Send(acMessage.pPlayer->GetConnectionId(), response);
 
