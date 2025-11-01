@@ -10,9 +10,12 @@ vsxmake2022
 vs2019
 
 build
+.build
 Build
 Build/*.log
 Build/*.torrent
+.claude
+nul
 
 Build/.deps
 Build/.objs
