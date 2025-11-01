@@ -12,6 +12,9 @@ if is_plat("windows") then
     add_cxflags("/bigobj")
     add_syslinks("kernel32")
     set_arch("x64")
+    set_runtimes("MT")  -- Use static runtime library (/MT for release, /MTd for debug)
+    -- Ensure full PDB path is embedded for debugger to find symbols
+    add_ldflags("/PDBALTPATH:%_PDB%", {force = true})
 end
 
 if is_plat("linux") then
