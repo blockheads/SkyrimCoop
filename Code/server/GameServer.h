@@ -58,10 +58,10 @@ struct GameServer final : Server
     void Send(ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const;
     void Send(ConnectionId_t aConnectionId, const ServerAdminMessage& acServerMessage) const;
     void SendToLoaded(const ServerMessage& acServerMessage) const;
-    void SendToPlayers(const ServerMessage& acServerMessage, const Player* apExcludeSender = nullptr) const;
-    bool SendToPlayersInRange(const ServerMessage& acServerMessage, const entt::entity acOrigin, const Player* apExcludeSender = nullptr) const;
+    void SendToPlayers(const ServerMessage& acServerMessage, const Player* apExcludeSender = nullptr) const; // Primary broadcast method for P2P co-op
+    bool SendToPlayersInRange(const ServerMessage& acServerMessage, const entt::entity acOrigin, const Player* apExcludeSender = nullptr) const; // DEPRECATED: Use SendToPlayers() for P2P
     void SendToParty(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent, const Player* apExcludeSender = nullptr) const;
-    void SendToPartyInRange(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent, const entt::entity acOrigin, const Player* apExcludeSender = nullptr) const;
+    void SendToPartyInRange(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent, const entt::entity acOrigin, const Player* apExcludeSender = nullptr) const; // DEPRECATED: Use SendToParty() for P2P
 
     const Info& GetInfo() const noexcept { return m_info; }
 

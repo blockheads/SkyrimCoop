@@ -50,7 +50,5 @@ void CombatService::OnProjectileLaunchRequest(const PacketEvent<ProjectileLaunch
     notify.UnkBool1 = packet.UnkBool1;
     notify.UnkBool2 = packet.UnkBool2;
 
-    const auto cShooterEntity = static_cast<entt::entity>(packet.ShooterID);
-    if (!GameServer::Get()->SendToPlayersInRange(notify, cShooterEntity, acMessage.GetSender()))
-        spdlog::error("{}: SendToPlayersInRange failed", __FUNCTION__);
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }

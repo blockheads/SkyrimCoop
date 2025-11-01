@@ -32,9 +32,7 @@ void MagicService::OnSpellCastRequest(const PacketEvent<SpellCastRequest>& acMes
     notify.IsDualCasting = message.IsDualCasting;
     notify.DesiredTarget = message.DesiredTarget;
 
-    const auto entity = static_cast<entt::entity>(message.CasterId);
-    if (!GameServer::Get()->SendToPlayersInRange(notify, entity, acMessage.GetSender()))
-        spdlog::error("{}: SendToPlayersInRange failed", __FUNCTION__);
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 void MagicService::OnInterruptCastRequest(const PacketEvent<InterruptCastRequest>& acMessage) const noexcept
@@ -45,9 +43,7 @@ void MagicService::OnInterruptCastRequest(const PacketEvent<InterruptCastRequest
     notify.CasterId = message.CasterId;
     notify.CastingSource = message.CastingSource;
 
-    const auto entity = static_cast<entt::entity>(message.CasterId);
-    if (!GameServer::Get()->SendToPlayersInRange(notify, entity, acMessage.GetSender()))
-        spdlog::error("{}: SendToPlayersInRange failed", __FUNCTION__);
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 void MagicService::OnAddTargetRequest(const PacketEvent<AddTargetRequest>& acMessage) const noexcept
@@ -64,9 +60,7 @@ void MagicService::OnAddTargetRequest(const PacketEvent<AddTargetRequest>& acMes
     notify.ApplyHealPerkBonus = message.ApplyHealPerkBonus;
     notify.ApplyStaminaPerkBonus = message.ApplyStaminaPerkBonus;
 
-    const auto entity = static_cast<entt::entity>(message.TargetId);
-    if (!GameServer::Get()->SendToPlayersInRange(notify, entity, acMessage.GetSender()))
-        spdlog::error("{}: SendToPlayersInRange failed", __FUNCTION__);
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 void MagicService::OnRemoveSpellRequest(const PacketEvent<RemoveSpellRequest>& acMessage) const noexcept
@@ -79,7 +73,5 @@ void MagicService::OnRemoveSpellRequest(const PacketEvent<RemoveSpellRequest>& a
 
     //spdlog::info(__FUNCTION__ ": TargetId: {}, Spell baseId: {}", notify.TargetId, notify.SpellId.BaseId);
 
-    const auto entity = static_cast<entt::entity>(message.TargetId);
-    if (!GameServer::Get()->SendToPlayersInRange(notify, entity, acMessage.GetSender()))
-        spdlog::error("{}: SendToPlayersInRange failed", __FUNCTION__);
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }

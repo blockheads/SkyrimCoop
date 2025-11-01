@@ -696,6 +696,8 @@ void GameServer::SendToPlayers(const ServerMessage& acServerMessage, const Playe
 }
 
 // NOTE: this doesn't check objects in range, only characters in range.
+// DEPRECATED for P2P co-op: All players must be in the same cell, so range checks are unnecessary.
+// Use SendToPlayers() instead for simplified broadcasting.
 bool GameServer::SendToPlayersInRange(const ServerMessage& acServerMessage, const entt::entity acOrigin, const Player* apExcludedPlayer) const
 {
     if (!m_pWorld->valid(acOrigin))

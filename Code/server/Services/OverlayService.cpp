@@ -51,8 +51,7 @@ void sendPlayerMessage(const ChatMessageType acType, const String acContent, Pla
     case kLocalChat:
         if (character)
         {
-            if (!GameServer::Get()->SendToPlayersInRange(notifyMessage, *character))
-                spdlog::error("{}: SendToPlayersInRange failed", __FUNCTION__);
+            GameServer::Get()->SendToPlayers(notifyMessage);
         }
         break;
     default: spdlog::error("{} is not a known MessageType", static_cast<uint64_t>(notifyMessage.MessageType)); break;
