@@ -7,7 +7,6 @@
 #include <Messages/AssignCharacterRequest.h>
 #include <Messages/CancelAssignmentRequest.h>
 #include <Messages/ClientReferencesMoveRequest.h>
-#include <Messages/EnterInteriorCellRequest.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestQuestUpdate.h>
@@ -25,10 +24,6 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/AssignObjectsRequest.h>
 #include <Messages/RequestDeathStateChange.h>
-#include <Messages/ShiftGridCellRequest.h>
-#include <Messages/RequestOwnershipTransfer.h>
-#include <Messages/EnterExteriorCellRequest.h>
-#include <Messages/RequestOwnershipClaim.h>
 #include <Messages/RequestObjectInventoryChanges.h>
 #include <Messages/SpellCastRequest.h>
 #include <Messages/InterruptCastRequest.h>
@@ -66,9 +61,9 @@ struct ClientMessageFactory
     template <class T> static auto Visit(T&& func)
     {
         auto s_visitor = CreateMessageVisitor<
-            AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, EnterInteriorCellRequest, RequestInventoryChanges, RequestFactionsChanges, RequestQuestUpdate, PartyInviteRequest, PartyAcceptInviteRequest, PartyLeaveRequest, PartyCreateRequest,
-            PartyChangeLeaderRequest, PartyKickRequest, RequestActorValueChanges, RequestActorMaxValueChanges, EnterExteriorCellRequest, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, ShiftGridCellRequest,
-            RequestOwnershipTransfer, RequestOwnershipClaim, RequestObjectInventoryChanges, SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, ScriptAnimationRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
+            AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges, RequestQuestUpdate, PartyInviteRequest, PartyAcceptInviteRequest, PartyLeaveRequest, PartyCreateRequest,
+            PartyChangeLeaderRequest, PartyKickRequest, RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, 
+            RequestObjectInventoryChanges, SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, ScriptAnimationRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
             RequestEquipmentChanges, SendChatMessageRequest, TeleportCommandRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerDialogueRequest, PlayerLevelRequest, TeleportRequest, RequestPlayerHealthUpdate, RequestWeatherChange, RequestCurrentWeather, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest>;
 

@@ -3,7 +3,6 @@
 #include <World.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
-#include <Events/CellChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Events/LockChangeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
@@ -29,7 +28,6 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     , m_transport(aTransport)
 {
     m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&ObjectService::OnDisconnected>(this);
-    m_cellChangeConnection = aDispatcher.sink<CellChangeEvent>().connect<&ObjectService::OnCellChange>(this);
     m_onActivateConnection = aDispatcher.sink<ActivateEvent>().connect<&ObjectService::OnActivate>(this);
     m_activateConnection = aDispatcher.sink<NotifyActivate>().connect<&ObjectService::OnActivateNotify>(this);
     m_lockChangeConnection = aDispatcher.sink<LockChangeEvent>().connect<&ObjectService::OnLockChange>(this);
@@ -81,75 +79,6 @@ void ObjectService::OnDisconnected(const DisconnectedEvent&) noexcept
     // TODO(cosideci): clear object components
 }
 
-void ObjectService::OnCellChange(const CellChangeEvent& acEvent) noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    TESObjectCELL* pCell = pPlayer->parentCell;
-
-    // Player homes should not be synced, so that chest contents,
-    // which are often used as storage, are never accidentally wiped.
-    if (!World::Get().GetServerSettings().SyncPlayerHomes && IsPlayerHome(pCell))
-        return;
-
-    GameId cellId{};
-    if (!m_world.GetModSystem().GetServerModId(pCell->formID, cellId))
-    {
-        spdlog::error("Server cell id not found for cell form id {:X}", pCell->formID);
-        return;
-    }
-
-    GameId worldSpaceId{};
-    if (TESWorldSpace* pWorldSpace = pPlayer->GetWorldSpace())
-    {
-        if (!m_world.GetModSystem().GetServerModId(pWorldSpace->formID, worldSpaceId))
-        {
-            spdlog::error("Server world space id not found for world space form id {:X}", pWorldSpace->formID);
-            return;
-        }
-    }
-
-    Vector<FormType> formTypes = {FormType::Container, FormType::Door};
-    // Door seemed to be at the wrong form id (29, now 32), verify this.
-    Vector<TESObjectREFR*> objects = pCell->GetRefsByFormTypes(formTypes);
-
-    AssignObjectsRequest request{};
-
-    for (TESObjectREFR* pObject : objects)
-    {
-        if (!ShouldSyncObject(pObject))
-        {
-            spdlog::warn("Excluding sync for {:X}", pObject->formID);
-            continue;
-        }
-
-        ObjectData objectData{};
-        objectData.CellId = cellId;
-        objectData.WorldSpaceId = worldSpaceId;
-        objectData.CurrentCoords = GridCellCoords::CalculateGridCellCoords(pObject->position.x, pObject->position.y);
-
-        if (!m_world.GetModSystem().GetServerModId(pObject->formID, objectData.Id))
-        {
-            spdlog::error("Server form id not found for object with form id {:X}", pObject->formID);
-            continue;
-        }
-
-        if (Lock* pLock = pObject->GetLock())
-        {
-            objectData.CurrentLockData.IsLocked = pLock->IsLocked();
-            objectData.CurrentLockData.LockLevel = pLock->lockLevel;
-        }
-
-        if (pObject->baseForm->formType == FormType::Container)
-            objectData.CurrentInventory = pObject->GetInventory();
-
-        request.Objects.push_back(objectData);
-    }
-
-    m_transport.Send(request);
-}
 
 void ObjectService::OnAssignObjectsResponse(const AssignObjectsResponse& acMessage) noexcept
 {

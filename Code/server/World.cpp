@@ -4,7 +4,6 @@
 #include <Services/CharacterService.h>
 #include <Services/ObjectService.h>
 #include <Services/QuestService.h>
-#include <Services/ServerListService.h>
 #include <Services/ActorValueService.h>
 #include <Services/AdminService.h>
 #include <Services/InventoryService.h>
@@ -15,7 +14,6 @@
 #include <Services/CombatService.h>
 #include <Services/WeatherService.h>
 #include <Services/ScriptService.h>
-#include <Services/MapService.h>
 
 #include <es_loader/ESLoader.h>
 
@@ -29,7 +27,6 @@ World::World()
     ctx().emplace<CalendarService>(*this, m_dispatcher);
     ctx().emplace<ObjectService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
-    ctx().emplace<ServerListService>(*this, m_dispatcher);
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<PartyService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher);
@@ -40,7 +37,6 @@ World::World()
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
     ctx().emplace<CombatService>(*this, m_dispatcher);
     ctx().emplace<WeatherService>(*this, m_dispatcher);
-    ctx().emplace<MapService>(*this, m_dispatcher);
 
     ESLoader::ESLoader loader;
     // emplace loaded mods into modscomponent.

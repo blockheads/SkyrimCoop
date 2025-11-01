@@ -3,7 +3,6 @@
 #include <Events/PacketEvent.h>
 
 struct World;
-struct PlayerLeaveCellEvent;
 struct ActivateRequest;
 struct LockChangeRequest;
 struct AssignObjectsRequest;
@@ -18,7 +17,6 @@ public:
     ObjectService(World& aWorld, entt::dispatcher& aDispatcher);
 
 private:
-    void OnPlayerLeaveCellEvent(const PlayerLeaveCellEvent& acEvent) noexcept;
     void OnAssignObjectsRequest(const PacketEvent<AssignObjectsRequest>&) noexcept;
     void OnActivate(const PacketEvent<ActivateRequest>&) const noexcept;
     void OnLockChange(const PacketEvent<LockChangeRequest>&) const noexcept;
@@ -26,7 +24,6 @@ private:
 
     World& m_world;
 
-    entt::scoped_connection m_leaveCellConnection;
     entt::scoped_connection m_assignObjectConnection;
     entt::scoped_connection m_activateConnection;
     entt::scoped_connection m_lockChangeConnection;

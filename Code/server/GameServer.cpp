@@ -4,10 +4,8 @@
 
 #include <Events/AdminPacketEvent.h>
 #include <Events/CharacterRemoveEvent.h>
-#include <Events/OwnershipTransferEvent.h>
 #include <Events/PacketEvent.h>
 #include <Events/PlayerJoinEvent.h>
-#include <Events/PlayerLeaveCellEvent.h>
 #include <Events/PlayerLeaveEvent.h>
 #include <Events/UpdateEvent.h>
 #include <steam/isteamnetworkingutils.h>
@@ -612,7 +610,6 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
         {
             const auto oldCell = cell.Cell;
             pPlayer->SetCellComponent(CellIdComponent{{}, {}, {}});
-            m_pWorld->GetDispatcher().trigger(PlayerLeaveCellEvent(oldCell));
         }
 
         m_pWorld->GetDispatcher().trigger(PlayerLeaveEvent(pPlayer));
@@ -637,7 +634,6 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
             const auto& [ownerComponent] = ownerView.get(entity);
             if (ownerComponent.GetOwner() == pPlayer)
             {
-                m_pWorld->GetDispatcher().enqueue(OwnershipTransferEvent(entity));
             }
         }
 

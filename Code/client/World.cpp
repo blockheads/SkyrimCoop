@@ -2,7 +2,6 @@
 
 #include "World.h"
 
-#include <Services/DiscoveryService.h>
 #include <Services/InputService.h>
 #include <Services/TransportService.h>
 #include <Services/RunnerService.h>
@@ -20,7 +19,6 @@
 #include <Services/PlayerService.h>
 #include <Services/CombatService.h>
 #include <Services/WeatherService.h>
-#include <Services/MapService.h>
 #include <Services/HostService.h>
 
 #include <Events/PreUpdateEvent.h>
@@ -35,7 +33,6 @@ World::World()
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
 {
     ctx().emplace<ImguiService>();
-    ctx().emplace<DiscoveryService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher);
     ctx().emplace<InputService>(ctx().at<OverlayService>());
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport);
@@ -54,7 +51,6 @@ World::World()
     ctx().emplace<StringCacheService>(m_dispatcher);
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher);
     ctx().emplace<WeatherService>(*this, m_transport, m_dispatcher);
-    ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
 
     BehaviorVar::Get()->Init();

@@ -5,8 +5,6 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
-#include <Events/GridCellChangeEvent.h>
-#include <Events/CellChangeEvent.h>
 #include <Events/PlayerDialogueEvent.h>
 #include <Events/PlayerLevelEvent.h>
 #include <Events/PartyJoinedEvent.h>
@@ -15,9 +13,6 @@
 
 #include <Messages/PlayerRespawnRequest.h>
 #include <Messages/NotifyPlayerRespawn.h>
-#include <Messages/ShiftGridCellRequest.h>
-#include <Messages/EnterExteriorCellRequest.h>
-#include <Messages/EnterInteriorCellRequest.h>
 #include <Messages/PlayerDialogueRequest.h>
 #include <Messages/PlayerLevelRequest.h>
 
@@ -42,8 +37,6 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&PlayerService::OnDisconnected>(this);
     m_settingsConnection = m_dispatcher.sink<ServerSettings>().connect<&PlayerService::OnServerSettingsReceived>(this);
     m_notifyRespawnConnection = m_dispatcher.sink<NotifyPlayerRespawn>().connect<&PlayerService::OnNotifyPlayerRespawn>(this);
-    m_gridCellChangeConnection = m_dispatcher.sink<GridCellChangeEvent>().connect<&PlayerService::OnGridCellChangeEvent>(this);
-    m_cellChangeConnection = m_dispatcher.sink<CellChangeEvent>().connect<&PlayerService::OnCellChangeEvent>(this);
     m_playerDialogueConnection = m_dispatcher.sink<PlayerDialogueEvent>().connect<&PlayerService::OnPlayerDialogueEvent>(this);
     m_playerLevelConnection = m_dispatcher.sink<PlayerLevelEvent>().connect<&PlayerService::OnPlayerLevelEvent>(this);
     m_partyJoinedConnection = aDispatcher.sink<PartyJoinedEvent>().connect<&PlayerService::OnPartyJoinedEvent>(this);
@@ -110,42 +103,6 @@ void PlayerService::OnNotifyPlayerRespawn(const NotifyPlayerRespawn& acMessage) 
     Utils::ShowHudMessage(String(message));
 }
 
-void PlayerService::OnGridCellChangeEvent(const GridCellChangeEvent& acEvent) const noexcept
-{
-    uint32_t baseId = 0;
-    uint32_t modId = 0;
-
-    if (m_world.GetModSystem().GetServerModId(acEvent.WorldSpaceId, modId, baseId))
-    {
-        ShiftGridCellRequest request;
-        request.WorldSpaceId = GameId(modId, baseId);
-        request.PlayerCell = acEvent.PlayerCell;
-        request.CenterCoords = acEvent.CenterCoords;
-        request.Cells = acEvent.Cells;
-
-        m_transport.Send(request);
-    }
-}
-
-void PlayerService::OnCellChangeEvent(const CellChangeEvent& acEvent) const noexcept
-{
-    if (acEvent.WorldSpaceId)
-    {
-        EnterExteriorCellRequest message;
-        message.CellId = acEvent.CellId;
-        message.WorldSpaceId = acEvent.WorldSpaceId;
-        message.CurrentCoords = acEvent.CurrentCoords;
-
-        m_transport.Send(message);
-    }
-    else
-    {
-        EnterInteriorCellRequest message;
-        message.CellId = acEvent.CellId;
-
-        m_transport.Send(message);
-    }
-}
 
 void PlayerService::OnPlayerDialogueEvent(const PlayerDialogueEvent& acEvent) const noexcept
 {

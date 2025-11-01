@@ -17,7 +17,6 @@ struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
 struct NotifyRemoveCharacter;
 struct NotifySpawnData;
-struct NotifyOwnershipTransfer;
 struct SpellCastEvent;
 struct NotifySpellCast;
 struct InterruptCastEvent;
@@ -70,7 +69,6 @@ struct CharacterService
     void OnReferencesMoveRequest(const ServerReferencesMoveRequest& acMessage) const noexcept;
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
-    void OnOwnershipTransfer(const NotifyOwnershipTransfer& acMessage) const noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept;
     void OnRemoteSpawnDataReceived(const NotifySpawnData& acEvent) noexcept;
     void OnMountEvent(const MountEvent& acEvent) const noexcept;
@@ -135,7 +133,6 @@ private:
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_actionConnection;
     entt::scoped_connection m_factionsConnection;
-    entt::scoped_connection m_ownershipTransferConnection;
     entt::scoped_connection m_removeCharacterConnection;
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;

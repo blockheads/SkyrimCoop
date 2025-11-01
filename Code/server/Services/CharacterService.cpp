@@ -4,12 +4,9 @@
 #include <World.h>
 
 #include <Events/CharacterSpawnedEvent.h>
-#include <Events/CharacterExteriorCellChangeEvent.h>
-#include <Events/CharacterInteriorCellChangeEvent.h>
 #include <Events/PlayerEnterWorldEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Events/CharacterRemoveEvent.h>
-#include <Events/OwnershipTransferEvent.h>
 
 #include <Game/OwnerView.h>
 
@@ -22,9 +19,6 @@
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifySpawnData.h>
-#include <Messages/RequestOwnershipTransfer.h>
-#include <Messages/NotifyOwnershipTransfer.h>
-#include <Messages/RequestOwnershipClaim.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NewPackageRequest.h>
@@ -49,12 +43,7 @@ ServerConsole::Setting bEnableXpSync{"Gameplay:bEnableXpSync", "Syncs combat XP 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
     , m_updateConnection(aDispatcher.sink<UpdateEvent>().connect<&CharacterService::OnUpdate>(this))
-    , m_interiorCellChangeEventConnection(aDispatcher.sink<CharacterInteriorCellChangeEvent>().connect<&CharacterService::OnCharacterInteriorCellChange>(this))
-    , m_exteriorCellChangeEventConnection(aDispatcher.sink<CharacterExteriorCellChangeEvent>().connect<&CharacterService::OnCharacterExteriorCellChange>(this))
     , m_characterAssignRequestConnection(aDispatcher.sink<PacketEvent<AssignCharacterRequest>>().connect<&CharacterService::OnAssignCharacterRequest>(this))
-    , m_transferOwnershipConnection(aDispatcher.sink<PacketEvent<RequestOwnershipTransfer>>().connect<&CharacterService::OnOwnershipTransferRequest>(this))
-    , m_ownershipTransferEventConnection(aDispatcher.sink<OwnershipTransferEvent>().connect<&CharacterService::OnOwnershipTransferEvent>(this))
-    , m_claimOwnershipConnection(aDispatcher.sink<PacketEvent<RequestOwnershipClaim>>().connect<&CharacterService::OnOwnershipClaimRequest>(this))
     , m_removeCharacterConnection(aDispatcher.sink<CharacterRemoveEvent>().connect<&CharacterService::OnCharacterRemoveEvent>(this))
     , m_characterSpawnedConnection(aDispatcher.sink<CharacterSpawnedEvent>().connect<&CharacterService::OnCharacterSpawned>(this))
     , m_referenceMovementSnapshotConnection(aDispatcher.sink<PacketEvent<ClientReferencesMoveRequest>>().connect<&CharacterService::OnReferencesMoveRequest>(this))
@@ -130,50 +119,6 @@ void CharacterService::OnUpdate(const UpdateEvent&) const noexcept
     ProcessMovementChanges();
 }
 
-void CharacterService::OnCharacterExteriorCellChange(const CharacterExteriorCellChangeEvent& acEvent) const noexcept
-{
-    CharacterSpawnRequest spawnMessage;
-    Serialize(m_world, acEvent.Entity, &spawnMessage);
-
-    NotifyRemoveCharacter removeMessage;
-    removeMessage.ServerId = World::ToInteger(acEvent.Entity);
-
-    for (auto pPlayer : m_world.GetPlayerManager())
-    {
-        if (acEvent.Owner == pPlayer)
-            continue;
-
-        if (pPlayer->GetCellComponent().WorldSpaceId != acEvent.WorldSpaceId || pPlayer->GetCellComponent().WorldSpaceId == acEvent.WorldSpaceId && !GridCellCoords::IsCellInGridCell(acEvent.CurrentCoords, pPlayer->GetCellComponent().CenterCoords, false))
-        {
-            pPlayer->Send(removeMessage);
-        }
-        else if (pPlayer->GetCellComponent().WorldSpaceId == acEvent.WorldSpaceId && GridCellCoords::IsCellInGridCell(acEvent.CurrentCoords, pPlayer->GetCellComponent().CenterCoords, false))
-        {
-            pPlayer->Send(spawnMessage);
-        }
-    }
-}
-
-void CharacterService::OnCharacterInteriorCellChange(const CharacterInteriorCellChangeEvent& acEvent) const noexcept
-{
-    CharacterSpawnRequest spawnMessage;
-    Serialize(m_world, acEvent.Entity, &spawnMessage);
-
-    NotifyRemoveCharacter removeMessage;
-    removeMessage.ServerId = World::ToInteger(acEvent.Entity);
-
-    for (auto pPlayer : m_world.GetPlayerManager())
-    {
-        if (acEvent.Owner == pPlayer)
-            continue;
-
-        if (acEvent.NewCell == pPlayer->GetCellComponent().Cell)
-            pPlayer->Send(spawnMessage);
-        else
-            pPlayer->Send(removeMessage);
-    }
-}
-
 void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept
 {
     auto& message = acMessage.Packet;
@@ -221,8 +166,9 @@ void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacte
                 // Transfer ownership if owning player is in the same party as the owner
                 if (std::find(pParty->Members.begin(), pParty->Members.end(), pOwningPlayer) != pParty->Members.end())
                 {
-                    TransferOwnership(acMessage.pPlayer, World::ToInteger(*itor), acMessage.Packet.CurrentActorData);
-                    isOwner = true;
+                    // TODO: Implement host-only ownership model
+                    // TransferOwnership(acMessage.pPlayer, World::ToInteger(*itor), acMessage.Packet.CurrentActorData);
+                    // isOwner = true;
                 }
             }
 
@@ -249,99 +195,6 @@ void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacte
     CreateCharacter(acMessage);
 }
 
-void CharacterService::OnOwnershipTransferRequest(const PacketEvent<RequestOwnershipTransfer>& acMessage) const noexcept
-{
-    auto& message = acMessage.Packet;
-
-    const entt::entity cEntity = static_cast<entt::entity>(message.ServerId);
-
-    if (!m_world.valid(cEntity))
-    {
-        spdlog::warn("Client {:X} requested ownership transfer of an entity that doesn't exist, server id: {:X}", acMessage.pPlayer->GetConnectionId(), message.ServerId);
-        return;
-    }
-
-    if (auto* pCharacterComponent = m_world.try_get<CharacterComponent>(cEntity))
-    {
-        if (pCharacterComponent->IsPlayerSummon())
-        {
-            spdlog::info("Client {:X} requested ownership transfer of an orphaned summon, serverid id: {:X}", acMessage.pPlayer->GetConnectionId(), message.ServerId);
-            m_world.GetDispatcher().trigger(CharacterRemoveEvent(message.ServerId));
-            return;
-        }
-    }
-
-    if (message.WorldSpaceId || message.CellId)
-    {
-        auto& formIdComponent = m_world.get<FormIdComponent>(cEntity);
-
-        NotifyActorTeleport notify{};
-        notify.FormId = formIdComponent.Id;
-        notify.WorldSpaceId = message.WorldSpaceId;
-        notify.CellId = message.CellId;
-        notify.Position = message.Position;
-
-        auto& cellIdComponent = m_world.get<CellIdComponent>(cEntity);
-        cellIdComponent.WorldSpaceId = message.WorldSpaceId;
-        cellIdComponent.Cell = message.CellId;
-        cellIdComponent.CenterCoords = GridCellCoords::CalculateGridCellCoords(message.Position);
-
-        auto& movementComponent = m_world.get<MovementComponent>(cEntity);
-        movementComponent.Position = message.Position;
-        movementComponent.Sent = true;
-
-        GameServer::Get()->SendToPlayers(notify, acMessage.pPlayer);
-    }
-
-    auto& characterOwnerComponent = m_world.get<OwnerComponent>(cEntity);
-    characterOwnerComponent.InvalidOwners.push_back(acMessage.pPlayer);
-
-    m_world.GetDispatcher().trigger(OwnershipTransferEvent(cEntity));
-}
-
-void CharacterService::OnOwnershipTransferEvent(const OwnershipTransferEvent& acEvent) const noexcept
-{
-    const auto view = m_world.view<OwnerComponent, CharacterComponent, CellIdComponent>();
-
-    auto& characterComponent = view.get<CharacterComponent>(acEvent.Entity);
-    auto& ownerComponent = view.get<OwnerComponent>(acEvent.Entity);
-    auto& cellIdComponent = view.get<CellIdComponent>(acEvent.Entity);
-
-    NotifyOwnershipTransfer response;
-    response.ServerId = World::ToInteger(acEvent.Entity);
-
-    bool foundOwner = false;
-    for (auto pPlayer : m_world.GetPlayerManager())
-    {
-        if (ownerComponent.GetOwner() == pPlayer)
-            continue;
-
-        bool isPlayerInvalid = false;
-        for (const auto invalidOwner : ownerComponent.InvalidOwners)
-        {
-            isPlayerInvalid = invalidOwner == pPlayer;
-            if (isPlayerInvalid)
-                break;
-        }
-
-        if (isPlayerInvalid)
-            continue;
-
-        if (!pPlayer->GetCellComponent().IsInRange(cellIdComponent, characterComponent.IsDragon()))
-            continue;
-
-        ownerComponent.SetOwner(pPlayer);
-
-        pPlayer->Send(response);
-
-        foundOwner = true;
-        break;
-    }
-
-    if (!foundOwner)
-        m_world.GetDispatcher().trigger(CharacterRemoveEvent(response.ServerId));
-}
-
 void CharacterService::OnCharacterRemoveEvent(const CharacterRemoveEvent& acEvent) const noexcept
 {
     const auto view = m_world.view<OwnerComponent>();
@@ -363,11 +216,6 @@ void CharacterService::OnCharacterRemoveEvent(const CharacterRemoveEvent& acEven
 
     m_world.destroy(*it);
     spdlog::debug("Character destroyed {:X}", acEvent.ServerId);
-}
-
-void CharacterService::OnOwnershipClaimRequest(const PacketEvent<RequestOwnershipClaim>& acMessage) const noexcept
-{
-    TransferOwnership(acMessage.pPlayer, acMessage.Packet.ServerId, acMessage.Packet.NewActorData);
 }
 
 void CharacterService::OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) const noexcept
@@ -640,35 +488,6 @@ void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>
 
     auto& dispatcher = m_world.GetDispatcher();
     dispatcher.trigger(CharacterSpawnedEvent(cEntity));
-}
-
-void CharacterService::TransferOwnership(Player* apPlayer, const uint32_t acServerId,
-                                         const ActorData& acActorData) const noexcept
-{
-    // const OwnerView<CharacterComponent, CellIdComponent> view(m_world, acMessage.GetSender());
-    auto view = m_world.view<OwnerComponent>();
-    const auto it = view.find(static_cast<entt::entity>(acServerId));
-    if (it == view.end())
-    {
-        spdlog::warn("Client {:X} requested ownership of an entity that doesn't exist ({:X})!", apPlayer->GetConnectionId(), acServerId);
-        return;
-    }
-
-    auto& characterOwnerComponent = view.get<OwnerComponent>(*it);
-
-    if (characterOwnerComponent.GetOwner() != apPlayer)
-    {
-        NotifyRelinquishControl notify;
-        notify.ServerId = acServerId;
-        characterOwnerComponent.pOwner->Send(notify);
-    }
-
-    characterOwnerComponent.SetOwner(apPlayer);
-    characterOwnerComponent.InvalidOwners.clear();
-
-    BroadcastActorData(apPlayer, *it, acActorData);
-
-    spdlog::debug("\tOwnership claimed {:X}", acServerId);
 }
 
 ActorData CharacterService::BuildActorData(const entt::entity acEntity) const noexcept

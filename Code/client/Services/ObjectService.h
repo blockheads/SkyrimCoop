@@ -11,7 +11,6 @@ struct TransportService;
 struct NotifyActivate;
 struct LockChangeEvent;
 struct NotifyLockChange;
-struct CellChangeEvent;
 struct ScriptAnimationEvent;
 struct AssignObjectsResponse;
 struct NotifyScriptAnimation;
@@ -26,7 +25,6 @@ public:
 
 private:
     void OnDisconnected(const DisconnectedEvent&) noexcept;
-    void OnCellChange(const CellChangeEvent&) noexcept;
     void OnAssignObjectsResponse(const AssignObjectsResponse&) noexcept;
     void OnActivate(const ActivateEvent&) noexcept;
     void OnActivateNotify(const NotifyActivate&) noexcept;
@@ -43,7 +41,6 @@ private:
     TransportService& m_transport;
 
     entt::scoped_connection m_disconnectedConnection;
-    entt::scoped_connection m_cellChangeConnection;
     entt::scoped_connection m_onActivateConnection;
     entt::scoped_connection m_activateConnection;
     entt::scoped_connection m_lockChangeConnection;

@@ -26,7 +26,6 @@
 #include <Messages/NotifyLockChange.h>
 #include <Messages/AssignObjectsResponse.h>
 #include <Messages/NotifyDeathStateChange.h>
-#include <Messages/NotifyOwnershipTransfer.h>
 #include <Messages/NotifyObjectInventoryChanges.h>
 #include <Messages/NotifySpellCast.h>
 #include <Messages/NotifyInterruptCast.h>
@@ -52,7 +51,6 @@
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLevel.h>
-#include <Messages/NotifyPlayerCellChanged.h>
 #include <Messages/NotifyTeleport.h>
 #include <Messages/NotifyPlayerHealthUpdate.h>
 #include <Messages/NotifySettingsChange.h>
@@ -71,9 +69,9 @@ struct ServerMessageFactory
     {
         auto s_visitor = CreateMessageVisitor<
             AuthenticationResponse, AssignCharacterResponse, ServerReferencesMoveRequest, ServerTimeSettings, CharacterSpawnRequest, NotifyInventoryChanges, StringCacheUpdate, NotifyFactionsChanges, NotifyRemoveCharacter, NotifyQuestUpdate, NotifyPlayerList, NotifyPartyInfo, NotifyPartyInvite,
-            NotifyActorValueChanges, NotifyPartyJoined, NotifyPartyLeft, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, NotifyLockChange, AssignObjectsResponse, NotifyDeathStateChange, NotifyOwnershipTransfer, NotifyObjectInventoryChanges, NotifySpellCast,
+            NotifyActorValueChanges, NotifyPartyJoined, NotifyPartyLeft, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, NotifyLockChange, AssignObjectsResponse, NotifyDeathStateChange, NotifyObjectInventoryChanges, NotifySpellCast,
             NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyScriptAnimation, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, TeleportCommandResponse, NotifyPlayerRespawn, NotifyDialogue,
-            NotifySubtitle, NotifyPlayerDialogue, NotifyActorTeleport, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerDialogue, NotifyPlayerLevel, NotifyPlayerCellChanged, NotifyTeleport, NotifyPlayerHealthUpdate, NotifySettingsChange,
+            NotifySubtitle, NotifyPlayerDialogue, NotifyActorTeleport, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerDialogue, NotifyPlayerLevel, NotifyTeleport, NotifyPlayerHealthUpdate, NotifySettingsChange,
             NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifySetTimeResult, NotifyRemoveSpell>;
 
         return s_visitor(std::forward<T>(func));

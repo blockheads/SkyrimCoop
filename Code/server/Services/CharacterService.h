@@ -38,12 +38,7 @@ struct CharacterService
 
 protected:
     void OnUpdate(const UpdateEvent& acEvent) const noexcept;
-    void OnCharacterExteriorCellChange(const CharacterExteriorCellChangeEvent& acEvent) const noexcept;
-    void OnCharacterInteriorCellChange(const CharacterInteriorCellChangeEvent& acEvent) const noexcept;
     void OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept;
-    void OnOwnershipTransferRequest(const PacketEvent<RequestOwnershipTransfer>& acMessage) const noexcept;
-    void OnOwnershipTransferEvent(const OwnershipTransferEvent& acEvent) const noexcept;
-    void OnOwnershipClaimRequest(const PacketEvent<RequestOwnershipClaim>& acMessage) const noexcept;
     void OnCharacterRemoveEvent(const CharacterRemoveEvent& acEvent) const noexcept;
     void OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) const noexcept;
     void OnReferencesMoveRequest(const PacketEvent<ClientReferencesMoveRequest>& acMessage) const noexcept;
@@ -56,7 +51,6 @@ protected:
     void OnSubtitleRequest(const PacketEvent<SubtitleRequest>& acMessage) const noexcept;
 
     void CreateCharacter(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept;
-    void TransferOwnership(Player* apPlayer, const uint32_t acServerId, const ActorData& acActorData) const noexcept;
     ActorData BuildActorData(const entt::entity acEntity) const noexcept;
     void ApplyActorData(const entt::entity acEntity, const ActorData& acActorData) const noexcept;
     void BroadcastActorData(Player* apPlayer, const entt::entity acEntity, const ActorData& acActorData) const noexcept;
@@ -68,12 +62,7 @@ private:
     World& m_world;
 
     entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_exteriorCellChangeEventConnection;
-    entt::scoped_connection m_interiorCellChangeEventConnection;
     entt::scoped_connection m_characterAssignRequestConnection;
-    entt::scoped_connection m_transferOwnershipConnection;
-    entt::scoped_connection m_ownershipTransferEventConnection;
-    entt::scoped_connection m_claimOwnershipConnection;
     entt::scoped_connection m_removeCharacterConnection;
     entt::scoped_connection m_characterSpawnedConnection;
     entt::scoped_connection m_referenceMovementSnapshotConnection;

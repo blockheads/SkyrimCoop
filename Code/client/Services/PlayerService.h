@@ -7,8 +7,6 @@ struct UpdateEvent;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct ServerSettings;
-struct GridCellChangeEvent;
-struct CellChangeEvent;
 struct PlayerDialogueEvent;
 struct PlayerLevelEvent;
 struct PartyJoinedEvent;
@@ -32,8 +30,6 @@ protected:
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
     void OnServerSettingsReceived(const ServerSettings& acSettings) noexcept;
     void OnNotifyPlayerRespawn(const NotifyPlayerRespawn& acMessage) const noexcept;
-    void OnGridCellChangeEvent(const GridCellChangeEvent& acEvent) const noexcept;
-    void OnCellChangeEvent(const CellChangeEvent& acEvent) const noexcept;
     void OnPlayerDialogueEvent(const PlayerDialogueEvent& acEvent) const noexcept;
     void OnPlayerLevelEvent(const PlayerLevelEvent& acEvent) const noexcept;
     void OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept;

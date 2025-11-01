@@ -20,7 +20,6 @@
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerDialogue.h>
 #include <Messages/NotifyPlayerLevel.h>
-#include <Messages/NotifyPlayerCellChanged.h>
 #include <Messages/NotifyTeleport.h>
 #include <Messages/RequestPlayerHealthUpdate.h>
 #include <Messages/NotifyPlayerHealthUpdate.h>
@@ -120,7 +119,6 @@ OverlayService::OverlayService(World& aWorld, TransportService& transport, entt:
     m_playerAddedConnection = m_world.on_destroy<WaitingFor3D>().connect<&OverlayService::OnWaitingFor3DRemoved>(this);
     m_playerRemovedConnection = m_world.on_destroy<PlayerComponent>().connect<&OverlayService::OnPlayerComponentRemoved>(this);
     m_playerLevelConnection = aDispatcher.sink<NotifyPlayerLevel>().connect<&OverlayService::OnPlayerLevel>(this);
-    m_cellChangedConnection = aDispatcher.sink<NotifyPlayerCellChanged>().connect<&OverlayService::OnPlayerCellChanged>(this);
     m_teleportConnection = aDispatcher.sink<NotifyTeleport>().connect<&OverlayService::OnNotifyTeleport>(this);
     m_playerHealthConnection = aDispatcher.sink<NotifyPlayerHealthUpdate>().connect<&OverlayService::OnNotifyPlayerHealthUpdate>(this);
     m_partyJoinedConnection = aDispatcher.sink<PartyJoinedEvent>().connect<&OverlayService::OnPartyJoinedEvent>(this);
@@ -390,15 +388,6 @@ void OverlayService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept
     pArguments->SetInt(0, acMessage.PlayerId);
     pArguments->SetInt(1, acMessage.NewLevel);
     m_pOverlay->ExecuteAsync("setLevel", pArguments);
-}
-
-void OverlayService::OnPlayerCellChanged(const NotifyPlayerCellChanged& acMessage) const noexcept
-{
-    auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, acMessage.PlayerId);
-    String cellName = GetCellName(acMessage.WorldSpaceId, acMessage.CellId);
-    pArguments->SetString(1, cellName.c_str());
-    m_pOverlay->ExecuteAsync("setCell", pArguments);
 }
 
 void OverlayService::OnNotifyTeleport(const NotifyTeleport& acMessage) noexcept

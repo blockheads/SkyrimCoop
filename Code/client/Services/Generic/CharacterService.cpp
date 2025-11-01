@@ -45,9 +45,6 @@
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifySpawnData.h>
-#include <Messages/RequestOwnershipTransfer.h>
-#include <Messages/NotifyOwnershipTransfer.h>
-#include <Messages/RequestOwnershipClaim.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NewPackageRequest.h>
@@ -84,7 +81,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_characterSpawnConnection = m_dispatcher.sink<CharacterSpawnRequest>().connect<&CharacterService::OnCharacterSpawn>(this);
     m_referenceMovementSnapshotConnection = m_dispatcher.sink<ServerReferencesMoveRequest>().connect<&CharacterService::OnReferencesMoveRequest>(this);
     m_factionsConnection = m_dispatcher.sink<NotifyFactionsChanges>().connect<&CharacterService::OnFactionsChanges>(this);
-    m_ownershipTransferConnection = m_dispatcher.sink<NotifyOwnershipTransfer>().connect<&CharacterService::OnOwnershipTransfer>(this);
     m_removeCharacterConnection = m_dispatcher.sink<NotifyRemoveCharacter>().connect<&CharacterService::OnRemoveCharacter>(this);
     m_remoteSpawnDataReceivedConnection = m_dispatcher.sink<NotifySpawnData>().connect<&CharacterService::OnRemoteSpawnDataReceived>(this);
 
@@ -149,11 +145,6 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
     m_world.emplace_or_replace<LocalAnimationComponent>(acEntity);
     DeleteRemoteEntityComponents(acEntity);
 
-    RequestOwnershipClaim request;
-    request.ServerId = acServerId;
-    request.NewActorData = BuildActorData(pActor);
-
-    m_transport.Send(request);
 
     return true;
 }
@@ -596,31 +587,6 @@ void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) c
     }
 }
 
-void CharacterService::OnOwnershipTransfer(const NotifyOwnershipTransfer& acMessage) const noexcept
-{
-    // TODO(cosideci): handle case if no one has it, therefore no RemoteComponent
-    auto view = m_world.view<RemoteComponent, FormIdComponent>();
-
-    const auto itor = std::find_if(std::begin(view), std::end(view), [&acMessage, &view](auto entity) { return view.get<RemoteComponent>(entity).Id == acMessage.ServerId; });
-
-    if (itor != std::end(view))
-    {
-        auto& formIdComponent = view.get<FormIdComponent>(*itor);
-
-        if (TakeOwnership(formIdComponent.Id, acMessage.ServerId, *itor))
-        {
-            spdlog::info("Ownership claimed {:X}", acMessage.ServerId);
-            return;
-        }
-    }
-
-    spdlog::warn("Actor for ownership transfer not found {:X}", acMessage.ServerId);
-
-    RequestOwnershipTransfer request{};
-    request.ServerId = acMessage.ServerId;
-
-    m_transport.Send(request);
-}
 
 void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept
 {
@@ -1304,46 +1270,8 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
 
         m_world.remove<WaitingForAssignmentComponent>(aEntity);
     }
-
-    if (m_world.all_of<LocalComponent>(aEntity))
-    {
-        auto& localComponent = m_world.get<LocalComponent>(aEntity);
-
-        RequestOwnershipTransfer request{};
-        request.ServerId = localComponent.Id;
-
-        if (Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId)))
-        {
-            if (!pActor->IsTemporary())
-            {
-                auto& modSystem = m_world.GetModSystem();
-
-                if (TESWorldSpace* pWorldSpace = pActor->GetWorldSpace())
-                {
-                    if (!modSystem.GetServerModId(pWorldSpace->formID, request.WorldSpaceId))
-                        spdlog::error("World space id not found, despite having a world space, {:X}", pWorldSpace->formID);
-                }
-
-                if (TESObjectCELL* pCell = pActor->GetParentCell())
-                {
-                    if (!modSystem.GetServerModId(pCell->formID, request.CellId))
-                        spdlog::error("Cell id not found, despite having a cell, {:X}", pCell->formID);
-                }
-
-                request.Position = pActor->position;
-            }
-        }
-
-        spdlog::info(
-            "Transferring ownership of local actor, server id: {:X}, worldspace: {:X}, cell: {:X}, position: "
-            "({}, {}, {})",
-            request.ServerId, request.WorldSpaceId.BaseId, request.CellId.BaseId, request.Position.x, request.Position.y, request.Position.z);
-
-        m_transport.Send(request);
-
-        m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
-    }
 }
+
 
 Actor* CharacterService::CreateCharacterForEntity(entt::entity aEntity) const noexcept
 {
