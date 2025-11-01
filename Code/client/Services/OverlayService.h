@@ -97,7 +97,6 @@ private:
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_connectionErrorConnection;
-    entt::scoped_connection m_cellChangeEventConnection;
     entt::scoped_connection m_chatMessageConnection;
     entt::scoped_connection m_playerDialogueConnection;
     entt::scoped_connection m_playerJoinedConnection;

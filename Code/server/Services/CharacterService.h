@@ -4,7 +4,6 @@
 #include <Structs/ActorData.h>
 
 struct UpdateEvent;
-struct CharacterInteriorCellChangeEvent;
 struct CharacterSpawnedEvent;
 struct World;
 struct AssignCharacterRequest;
@@ -12,11 +11,7 @@ struct CharacterSpawnRequest;
 struct ClientReferencesMoveRequest;
 struct RequestFactionsChanges;
 struct GridCellCoords;
-struct RequestOwnershipTransfer;
 struct CharacterRemoveEvent;
-struct CharacterExteriorCellChangeEvent;
-struct RequestOwnershipClaim;
-struct OwnershipTransferEvent;
 struct MountRequest;
 struct NewPackageRequest;
 struct RequestRespawn;

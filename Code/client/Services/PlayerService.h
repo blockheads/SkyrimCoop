@@ -75,8 +75,6 @@ private:
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_settingsConnection;
     entt::scoped_connection m_notifyRespawnConnection;
-    entt::scoped_connection m_gridCellChangeConnection;
-    entt::scoped_connection m_cellChangeConnection;
     entt::scoped_connection m_playerDialogueConnection;
     entt::scoped_connection m_playerLevelConnection;
     entt::scoped_connection m_partyJoinedConnection;
