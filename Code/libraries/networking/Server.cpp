@@ -16,7 +16,7 @@ using namespace std::chrono;
 
 namespace TiltedPhoques
 {
-    static thread_local Server* s_pServer = nullptr;
+    static Server* s_pServer = nullptr;
 
     Server::Server() noexcept
         : m_tickRate(10)
@@ -32,6 +32,11 @@ namespace TiltedPhoques
 
     Server::~Server()
     {
+        // Clear the static server pointer when destroying
+        if (s_pServer == this)
+        {
+            s_pServer = nullptr;
+        }
         SteamInterface::Release();
     }
 
@@ -113,9 +118,12 @@ namespace TiltedPhoques
 
         if (IsListening())
         {
-            s_pServer = this;
+            // Set the static server pointer for callbacks (thread-safe since only one server instance exists)
+            if (s_pServer == nullptr)
+            {
+                s_pServer = this;
+            }
             m_pInterface->RunCallbacks();
-            s_pServer = nullptr;
 
             while (true)
             {
