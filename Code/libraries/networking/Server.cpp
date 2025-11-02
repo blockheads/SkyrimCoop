@@ -10,6 +10,7 @@
 #include <bit>
 #include <google/protobuf/stubs/port.h>
 #include <snappy.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono;
 
@@ -315,15 +316,15 @@ namespace TiltedPhoques
             // This is a critical bug - connection callback fired but s_pServer is null!
             // This means RunCallbacks() was called outside of Update(), or the callback
             // is being delivered asynchronously on another thread.
-            fprintf(stderr, "[TiltedConnect] WARNING: Connection status callback fired but s_pServer is NULL! "
-                   "Connection %u, State: %d\n", apInfo->m_hConn, apInfo->m_info.m_eState);
+            spdlog::error("[TiltedConnect] WARNING: Connection status callback fired but s_pServer is NULL! "
+                         "Connection {:x}, State: {}", apInfo->m_hConn, apInfo->m_info.m_eState);
         }
     }
 
     void Server::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* apInfo)
     {
-        fprintf(stderr, "[TiltedConnect] Connection %u state changed: %d -> %d\n",
-               apInfo->m_hConn, apInfo->m_eOldState, apInfo->m_info.m_eState);
+        spdlog::debug("[TiltedConnect] Connection {:x} state changed: {} -> {}",
+                     apInfo->m_hConn, apInfo->m_eOldState, apInfo->m_info.m_eState);
 
         switch (apInfo->m_info.m_eState)
         {
@@ -332,9 +333,9 @@ namespace TiltedPhoques
         case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
         case k_ESteamNetworkingConnectionState_ClosedByPeer:
         {
-            fprintf(stderr, "[TiltedConnect] Connection %u closed (state: %d, old state: %d, reason: %s)\n",
-                   apInfo->m_hConn, apInfo->m_info.m_eState, apInfo->m_eOldState,
-                   apInfo->m_info.m_szEndDebug);
+            spdlog::info("[TiltedConnect] Connection {:x} closed (state: {}, old state: {}, reason: {})",
+                        apInfo->m_hConn, apInfo->m_info.m_eState, apInfo->m_eOldState,
+                        apInfo->m_info.m_szEndDebug);
 
             if (apInfo->m_eOldState == k_ESteamNetworkingConnectionState_Connected)
             {
@@ -352,13 +353,13 @@ namespace TiltedPhoques
         }
         case k_ESteamNetworkingConnectionState_Connecting:
         {
-            fprintf(stderr, "[TiltedConnect] Connection %u attempting to connect...\n", apInfo->m_hConn);
+            spdlog::debug("[TiltedConnect] Connection {:x} attempting to connect...", apInfo->m_hConn);
 
             EResult acceptResult = m_pInterface->AcceptConnection(apInfo->m_hConn);
             if (acceptResult != k_EResultOK)
             {
-                fprintf(stderr, "[TiltedConnect] Failed to accept connection %u, result: %d\n",
-                       apInfo->m_hConn, acceptResult);
+                spdlog::error("[TiltedConnect] Failed to accept connection {:x}, result: {}",
+                             apInfo->m_hConn, acceptResult);
                 m_pInterface->CloseConnection(apInfo->m_hConn, 0, nullptr, false);
                 break;
             }
@@ -366,8 +367,8 @@ namespace TiltedPhoques
             bool pollGroupResult = m_pInterface->SetConnectionPollGroup(apInfo->m_hConn, m_pollGroup);
             if(!pollGroupResult)
             {
-                fprintf(stderr, "[TiltedConnect] Failed to add connection %u to poll group\n",
-                       apInfo->m_hConn);
+                spdlog::error("[TiltedConnect] Failed to add connection {:x} to poll group",
+                             apInfo->m_hConn);
                 m_pInterface->CloseConnection(apInfo->m_hConn, 0, nullptr, false);
                 break;
             }
@@ -376,13 +377,13 @@ namespace TiltedPhoques
 
             SynchronizeClientClocks(apInfo->m_hConn);
 
-            fprintf(stderr, "[TiltedConnect] Connection %u accepted successfully\n", apInfo->m_hConn);
+            spdlog::info("[TiltedConnect] Connection {:x} accepted successfully", apInfo->m_hConn);
 
             OnConnection(apInfo->m_hConn);
             break;
         }
         case k_ESteamNetworkingConnectionState_Connected:
-            fprintf(stderr, "[TiltedConnect] Connection %u fully connected\n", apInfo->m_hConn);
+            spdlog::debug("[TiltedConnect] Connection {:x} fully connected", apInfo->m_hConn);
             break;
         default:
             break;

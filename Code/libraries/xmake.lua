@@ -12,7 +12,7 @@ target("SkyrimCoopNetworking")
     add_includedirs("networking/", {public = true})
     add_headerfiles("networking/*.hpp")
     add_deps("TiltedCore")
-    add_packages("hopscotch-map", "snappy", "gamenetworkingsockets", "libuv")
+    add_packages("hopscotch-map", "snappy", "gamenetworkingsockets", "libuv", "spdlog")
     if is_plat("linux") then
         add_cxflags("-fPIC")
     end

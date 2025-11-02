@@ -2,7 +2,7 @@
 #include "steam/steamnetworkingsockets.h"
 
 #include <atomic>
-#include <cstdio>
+#include <spdlog/spdlog.h>
 
 namespace TiltedPhoques
 {
@@ -17,12 +17,11 @@ namespace TiltedPhoques
             s_initSucceeded = GameNetworkingSockets_Init(nullptr, errorMessage);
             if (!s_initSucceeded)
             {
-                // Log error to stderr since we might not have spdlog available here
-                fprintf(stderr, "[TiltedConnect] FATAL: GameNetworkingSockets_Init failed: %s\n", errorMessage);
+                spdlog::critical("[TiltedConnect] FATAL: GameNetworkingSockets_Init failed: {}", errorMessage);
             }
             else
             {
-                fprintf(stderr, "[TiltedConnect] GameNetworkingSockets_Init succeeded\n");
+                spdlog::info("[TiltedConnect] GameNetworkingSockets_Init succeeded");
             }
         }
     }

@@ -9,6 +9,7 @@
 #include "Packet.hpp"
 #include <google/protobuf/stubs/port.h>
 #include <snappy.h>
+#include <spdlog/spdlog.h>
 
 namespace TiltedPhoques
 {
@@ -273,6 +274,11 @@ namespace TiltedPhoques
         case k_ESteamNetworkingConnectionState_ClosedByPeer:
         case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
         {
+            // Log the actual error reason from Steam
+            spdlog::error("[TiltedConnect] CLIENT: Connection {:x} closed (state: {}, old state: {}, reason: {})",
+                         apInfo->m_hConn, apInfo->m_info.m_eState, apInfo->m_eOldState,
+                         apInfo->m_info.m_szEndDebug);
+
             m_pInterface->CloseConnection(m_connection, 0, nullptr, false);
             m_connection = k_HSteamNetConnection_Invalid;
 
@@ -294,8 +300,10 @@ namespace TiltedPhoques
             break;
         }
         case k_ESteamNetworkingConnectionState_Connecting:
+            spdlog::debug("[TiltedConnect] CLIENT: Connection {:x} is connecting...", apInfo->m_hConn);
             break;
         case k_ESteamNetworkingConnectionState_Connected:
+            spdlog::info("[TiltedConnect] CLIENT: Connection {:x} established, waiting for clock sync", apInfo->m_hConn);
             // We don't notify here, wait for clock sync
             break;
         default:
