@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Server
+{
+
 /**
  * @brief Dispatched when an actor should be removed from the world.
  *
@@ -15,3 +18,5 @@ struct CharacterRemoveEvent
 
     uint32_t ServerId;
 };
+
+} // namespace Server

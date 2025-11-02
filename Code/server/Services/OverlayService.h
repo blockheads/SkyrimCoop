@@ -5,11 +5,14 @@
 #include <Events/PacketEvent.h>
 #include <Events/PlayerEnterWorldEvent.h>
 
-struct World;
-
 struct PlayerDialogueRequest;
 struct TeleportRequest;
 struct RequestPlayerHealthUpdate;
+
+namespace Server
+{
+
+struct World;
 
 /**
  * @brief Dispatches UI events that modify the UI view of other cients.
@@ -37,3 +40,5 @@ private:
     entt::scoped_connection m_teleportConnection;
     entt::scoped_connection m_playerHealthConnection;
 };
+
+} // namespace Server

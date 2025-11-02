@@ -3,9 +3,13 @@
 #include <Events/PacketEvent.h>
 #include <Structs/GameId.h>
 
+struct RequestQuestUpdate;
+
+namespace Server
+{
+
 struct World;
 struct UpdateEvent;
-struct RequestQuestUpdate;
 
 /**
  * @brief Dispatch quest sync messages.
@@ -26,3 +30,5 @@ private:
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_joinConnection;
 };
+
+} // namespace Server

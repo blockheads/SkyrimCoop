@@ -9,6 +9,9 @@ namespace ESLoader
 struct PluginData;
 }
 
+namespace Server
+{
+
 struct ModsComponent
 {
     struct Entry
@@ -39,3 +42,5 @@ private:
     // List of mods installed on the server.
     TModList m_serverMods;
 };
+
+} // namespace Server

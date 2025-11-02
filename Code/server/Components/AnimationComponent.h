@@ -6,9 +6,14 @@
 
 #include <Structs/ActionEvent.h>
 
+namespace Server
+{
+
 struct AnimationComponent
 {
     Vector<ActionEvent> Actions;
     ActionEvent CurrentAction;
     ActionEvent LastSerializedAction;
 };
+
+} // namespace Server

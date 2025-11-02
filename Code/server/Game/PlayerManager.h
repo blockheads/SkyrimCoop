@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Server
+{
+
 struct Player;
 
 struct PlayerManager
@@ -66,3 +69,5 @@ struct PlayerManager
 private:
     TMap m_players;
 };
+
+} // namespace Server

@@ -1,5 +1,8 @@
 #include <sol/sol.hpp>
 
+namespace Server
+{
+
 template <typename... Args>
 std::tuple<bool, String> ScriptService::CallCancelableEvent(const String& acName, Args&&... args) noexcept
 {
@@ -40,3 +43,5 @@ template <typename... Args> void ScriptService::CallEvent(const String& acName, 
         }
     }
 }
+
+} // namespace Server

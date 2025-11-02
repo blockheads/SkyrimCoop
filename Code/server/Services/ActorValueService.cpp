@@ -11,6 +11,9 @@
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyDeathStateChange.h>
 
+namespace Server
+{
+
 ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
 {
@@ -116,3 +119,5 @@ void ActorValueService::OnDeathStateChange(const PacketEvent<RequestDeathStateCh
     const entt::entity cEntity = static_cast<entt::entity>(message.Id);
     GameServer::Get()->SendToPlayers(notify, acMessage.pPlayer);
 }
+
+} // namespace Server

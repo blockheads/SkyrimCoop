@@ -6,6 +6,9 @@
 #include <AdminMessages/AdminShutdownRequest.h>
 #include <AdminMessages/ServerLogs.h>
 
+namespace Server
+{
+
 AdminService::AdminService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
 {
@@ -33,3 +36,5 @@ void AdminService::sink_it_(const spdlog::details::log_msg& msg)
 void AdminService::flush_()
 {
 }
+
+} // namespace Server

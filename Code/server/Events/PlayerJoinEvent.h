@@ -3,6 +3,9 @@
 #include <Structs/GameId.h>
 #include <DateTime.h>
 
+namespace Server
+{
+
 struct Player;
 
 /**
@@ -35,3 +38,5 @@ struct PlayerJoinEvent
     GameId CellId{};
     DateTime PlayerTime;
 };
+
+} // namespace Server

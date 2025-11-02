@@ -17,6 +17,9 @@
 
 #include <es_loader/ESLoader.h>
 
+namespace Server
+{
+
 World::World()
 {
     m_spAdminService = std::make_shared<AdminService>(*this, m_dispatcher);
@@ -54,3 +57,5 @@ World::~World()
 {
     m_pScriptService.reset();
 }
+
+} // namespace Server

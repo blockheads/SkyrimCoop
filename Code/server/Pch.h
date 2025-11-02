@@ -4,33 +4,33 @@
 #define NOMINMAX
 #endif
 
-#include <cstdint>
-#include <TiltedCore/Platform.hpp>
-#include <TiltedCore/StackAllocator.hpp>
-#include <TiltedCore/ScratchAllocator.hpp>
-#include <TiltedCore/Stl.hpp>
 #include <TiltedCore/Outcome.hpp>
-#include <TiltedCore/ViewBuffer.hpp>
+#include <TiltedCore/Platform.hpp>
+#include <TiltedCore/ScratchAllocator.hpp>
 #include <TiltedCore/Serialization.hpp>
+#include <TiltedCore/StackAllocator.hpp>
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/ViewBuffer.hpp>
+#include <cstdint>
 
 #include <any>
-#include <mutex>
 #include <chrono>
-#include <iostream>
-#include <filesystem>
 #include <codecvt>
+#include <filesystem>
+#include <iostream>
+#include <mutex>
 #include <optional>
 
 #include <Server.hpp>
 #include <cxxopts.hpp>
 
-#include <spdlog/spdlog.h>
+#include <BuildInfo.h>
 #include <entt/entt.hpp>
 #include <glm/glm.hpp>
-#include <BuildInfo.h>
+#include <spdlog/spdlog.h>
 
-#include <StringCache.h>
 #include <ConsoleRegistry.h>
+#include <StringCache.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
@@ -44,7 +44,6 @@ using TiltedPhoques::MakeShared;
 using TiltedPhoques::MakeUnique;
 using TiltedPhoques::Map;
 using TiltedPhoques::ScopedAllocator;
-using TiltedPhoques::Server;
 using TiltedPhoques::String;
 using TiltedPhoques::UniquePtr;
 using TiltedPhoques::Vector;

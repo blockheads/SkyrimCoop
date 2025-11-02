@@ -17,6 +17,8 @@
 
 #include <regex>
 
+namespace Server
+{
 
 OverlayService::OverlayService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
@@ -104,3 +106,5 @@ void OverlayService::OnPlayerHealthUpdate(const PacketEvent<RequestPlayerHealthU
 
     GameServer::Get()->SendToParty(notify, acMessage.pPlayer->GetParty(), acMessage.GetSender());
 }
+
+} // namespace Server

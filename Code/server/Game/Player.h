@@ -1,6 +1,10 @@
 #pragma once
 
 struct ServerMessage;
+
+namespace Server
+{
+
 struct Player
 {
     Player(ConnectionId_t aConnectionId);
@@ -56,3 +60,5 @@ private:
     uint32_t m_stringCacheId{0};
     uint16_t m_level{0};
 };
+
+} // namespace Server

@@ -2,8 +2,12 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
 struct ProjectileLaunchRequest;
+
+namespace Server
+{
+
+struct World;
 
 struct CombatService
 {
@@ -20,3 +24,5 @@ private:
 
     entt::scoped_connection m_projectileLaunchConnection;
 };
+
+} // namespace Server

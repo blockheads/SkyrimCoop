@@ -5,6 +5,9 @@
 #include <Events/UpdateEvent.h>
 #include <Game/Player.h>
 
+namespace Server
+{
+
 StringCacheService::StringCacheService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
     , m_updateConnection(aDispatcher.sink<UpdateEvent>().connect<&StringCacheService::HandleUpdate>(this))
@@ -36,3 +39,5 @@ void StringCacheService::HandleUpdate(const UpdateEvent&) const noexcept
         pPlayer->Send(update);
     }
 }
+
+} // namespace Server

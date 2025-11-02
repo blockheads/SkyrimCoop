@@ -3,9 +3,13 @@
 #include <Events/AdminPacketEvent.h>
 #include <spdlog/sinks/base_sink.h>
 
+struct AdminShutdownRequest;
+
+namespace Server
+{
+
 struct World;
 struct UpdateEvent;
-struct AdminShutdownRequest;
 
 /**
  * @brief Handles communication from an admin client.
@@ -27,3 +31,5 @@ private:
     entt::scoped_connection m_shutdownConnection;
     World& m_world;
 };
+
+} // namespace Server

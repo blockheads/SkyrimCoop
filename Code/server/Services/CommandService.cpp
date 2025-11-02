@@ -9,6 +9,9 @@
 #include <Messages/TeleportCommandRequest.h>
 #include <Messages/TeleportCommandResponse.h>
 
+namespace Server
+{
+
 CommandService::CommandService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
 {
@@ -71,3 +74,5 @@ void CommandService::OnTeleportCommandRequest(const PacketEvent<TeleportCommandR
 
     acMessage.pPlayer->Send(response);
 }
+
+} // namespace Server

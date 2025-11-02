@@ -6,7 +6,12 @@
 
 #include <Structs/Inventory.h>
 
+namespace Server
+{
+
 struct InventoryComponent
 {
     Inventory Content{};
 };
+
+} // namespace Server

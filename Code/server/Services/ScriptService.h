@@ -4,14 +4,18 @@
 #include <Events/UpdateEvent.h>
 #include <TiltedCore/Lockable.hpp>
 
-struct World;
 struct ClientRpcCalls;
-struct PlayerEnterWorldEvent;
 
 namespace Resources
 {
 struct ResourceCollection;
 }
+
+namespace Server
+{
+
+struct World;
+struct PlayerEnterWorldEvent;
 
 struct ScriptService
 {
@@ -31,7 +35,7 @@ struct ScriptService
 
     std::tuple<bool, String> HandleChatMessage(const entt::entity aSender, const String& aMessage) noexcept;
 
-    void HandlePlayerQuit(ConnectionId_t aConnectionId, Server::EDisconnectReason aReason) noexcept;
+    void HandlePlayerQuit(ConnectionId_t aConnectionId, TiltedPhoques::Server::EDisconnectReason aReason) noexcept;
 
     std::tuple<bool, String> HandleSetTime(int aHours, int aMinutes, float aTimeScale) noexcept;
 
@@ -72,5 +76,7 @@ struct ScriptService
     TiltedPhoques::Vector<sol::environment> m_sandboxes;
     sol::table m_globals{};
 };
+
+} // namespace Server
 
 #include "ScriptService.inl"

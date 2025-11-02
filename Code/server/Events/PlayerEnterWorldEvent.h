@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Server
+{
+
 struct Player;
 
 /**
@@ -14,3 +17,5 @@ struct PlayerEnterWorldEvent
 
     const Player* pPlayer;
 };
+
+} // namespace Server

@@ -2,10 +2,6 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
-struct UpdateEvent;
-struct PlayerJoinEvent;
-struct PlayerLeaveEvent;
 struct PartyInviteRequest;
 struct PartyAcceptInviteRequest;
 struct PartyLeaveRequest;
@@ -13,6 +9,14 @@ struct NotifyPartyInfo;
 struct PartyCreateRequest;
 struct PartyChangeLeaderRequest;
 struct PartyKickRequest;
+
+namespace Server
+{
+
+struct World;
+struct UpdateEvent;
+struct PlayerJoinEvent;
+struct PlayerLeaveEvent;
 
 /**
  * @brief Manages every party in the server.
@@ -70,3 +74,5 @@ private:
 
     void SendPartyJoinedEvent(Party& aParty, Player* aPlayer) noexcept;
 };
+
+} // namespace Server

@@ -2,6 +2,9 @@
 #include <Components.h>
 #include <es_loader/ESLoader.h>
 
+namespace Server
+{
+
 uint32_t ModsComponent::AddStandard(const String& acpFilename) noexcept
 {
     const auto itor = m_standardMods.find(acpFilename);
@@ -44,3 +47,5 @@ bool ModsComponent::IsInstalled(const String& acpFilename) const noexcept
 
     return it != m_serverMods.end();
 }
+
+} // namespace Server

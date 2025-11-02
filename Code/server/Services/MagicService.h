@@ -3,10 +3,14 @@
 #include <Events/PacketEvent.h>
 #include <Messages/RemoveSpellRequest.h>
 
-struct World;
 struct SpellCastRequest;
 struct InterruptCastRequest;
 struct AddTargetRequest;
+
+namespace Server
+{
+
+struct World;
 
 /**
  * @brief Relays spell casting and magic effects.
@@ -45,3 +49,5 @@ private:
     entt::scoped_connection m_addTargetConnection;
     entt::scoped_connection m_removeSpellConnection;
 };
+
+} // namespace Server

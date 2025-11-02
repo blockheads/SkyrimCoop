@@ -20,6 +20,10 @@
 #include <Messages/NotifyPlayerJoined.h>
 
 #include <Setting.h>
+
+namespace Server
+{
+
 namespace
 {
 ServerConsole::Setting bAutoPartyJoin{"Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
@@ -447,3 +451,5 @@ void PartyService::SendPartyJoinedEvent(Party& aParty, Player* aPlayer) noexcept
     spdlog::debug("[PartyService]: Sending party join event to player");
     aPlayer->Send(joinedMessage);
 }
+
+} // namespace Server

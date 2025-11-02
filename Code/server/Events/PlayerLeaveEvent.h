@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Server
+{
+
 struct Player;
 
 /**
@@ -14,3 +17,5 @@ struct PlayerLeaveEvent
 
     Player* pPlayer;
 };
+
+} // namespace Server

@@ -12,6 +12,10 @@
 #include <Messages/NotifyPlayerLevel.h>
 
 #include <Setting.h>
+
+namespace Server
+{
+
 namespace
 {
 ServerConsole::Setting fGoldLossFactor{"Gameplay:fGoldLossFactor", "Factor of the amount of gold lost on death", 0.0f};
@@ -86,3 +90,5 @@ void PlayerService::OnPlayerLevelRequest(const PacketEvent<PlayerLevelRequest>& 
 
     GameServer::Get()->SendToPlayers(notify, acMessage.pPlayer);
 }
+
+} // namespace Server

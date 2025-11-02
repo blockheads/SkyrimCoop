@@ -32,7 +32,7 @@ struct GameServerInstance final : IGameServerInstance
     void Update() override;
 
 private:
-    GameServer m_gameServer;
+    Server::GameServer m_gameServer;
 };
 
 bool GameServerInstance::Initialize()

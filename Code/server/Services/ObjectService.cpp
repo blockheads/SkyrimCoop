@@ -14,6 +14,9 @@
 #include <Messages/ScriptAnimationRequest.h>
 #include <Messages/NotifyScriptAnimation.h>
 
+namespace Server
+{
+
 ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
 {
@@ -150,3 +153,5 @@ void ObjectService::OnScriptAnimationRequest(const PacketEvent<ScriptAnimationRe
         pPlayer->Send(message);
     }
 }
+
+} // namespace Server

@@ -6,6 +6,9 @@
 
 #include <Structs/GridCellCoords.h>
 
+namespace Server
+{
+
 struct CellIdComponent
 {
     CellIdComponent() {}
@@ -30,18 +33,9 @@ struct CellIdComponent
 
     bool IsInInteriorCell() const noexcept { return !WorldSpaceId; }
 
-    bool IsInRange(const CellIdComponent& acRhs, bool aIsDragon) const noexcept
-    {
-        if (IsInInteriorCell())
-            return Cell == acRhs.Cell;
-
-        if (WorldSpaceId != acRhs.WorldSpaceId)
-            return false;
-
-        return GridCellCoords::IsCellInGridCell(acRhs.CenterCoords, CenterCoords, aIsDragon);
-    }
-
     GameId Cell{};
     GameId WorldSpaceId{};
     GridCellCoords CenterCoords{};
 };
+
+} // namespace Server

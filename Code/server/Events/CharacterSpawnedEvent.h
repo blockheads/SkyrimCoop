@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Server
+{
+
 /**
  * @brief Dispatched whenever a (player) character has been spawned.
  */
@@ -12,3 +15,5 @@ struct CharacterSpawnedEvent
 
     entt::entity Entity;
 };
+
+} // namespace Server

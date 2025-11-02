@@ -6,7 +6,12 @@
 
 #include <Structs/ActorValues.h>
 
+namespace Server
+{
+
 struct ActorValuesComponent
 {
     ActorValues CurrentActorValues{};
 };
+
+} // namespace Server

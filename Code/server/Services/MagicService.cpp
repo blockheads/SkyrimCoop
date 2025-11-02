@@ -12,6 +12,9 @@
 #include <Messages/NotifyAddTarget.h>
 #include <Messages/NotifyRemoveSpell.h>
 
+namespace Server
+{
+
 MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
 {
@@ -75,3 +78,5 @@ void MagicService::OnRemoveSpellRequest(const PacketEvent<RemoveSpellRequest>& a
 
     GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
+
+} // namespace Server

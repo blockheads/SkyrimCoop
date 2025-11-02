@@ -2,9 +2,13 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
 struct RequestWeatherChange;
 struct RequestCurrentWeather;
+
+namespace Server
+{
+
+struct World;
 
 struct WeatherService
 {
@@ -23,3 +27,5 @@ private:
     entt::scoped_connection m_weatherChangeConnection;
     entt::scoped_connection m_currentWeatherConnection;
 };
+
+} // namespace Server

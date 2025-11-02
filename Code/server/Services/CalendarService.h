@@ -4,6 +4,9 @@
 #include <DateTime.h>
 #include <Structs/GameId.h>
 
+namespace Server
+{
+
 struct World;
 struct UpdateEvent;
 struct PlayerJoinEvent;
@@ -49,3 +52,5 @@ private:
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_joinConnection;
 };
+
+} // namespace Server

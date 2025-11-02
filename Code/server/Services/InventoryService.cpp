@@ -12,6 +12,10 @@
 #include <Messages/DrawWeaponRequest.h>
 
 #include <Setting.h>
+
+namespace Server
+{
+
 namespace
 {
 ServerConsole::Setting bEnableItemDrops{"Gameplay:bEnableItemDrops", "(Experimental) Syncs dropped items by players", false};
@@ -91,3 +95,5 @@ void InventoryService::OnWeaponDrawnRequest(const PacketEvent<DrawWeaponRequest>
         spdlog::debug("Updating weapon drawn state {:x}:{}", message.Id, message.IsWeaponDrawn);
     }
 }
+
+} // namespace Server

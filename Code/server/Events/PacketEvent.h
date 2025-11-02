@@ -2,6 +2,9 @@
 
 using TiltedPhoques::ConnectionId_t;
 
+namespace Server
+{
+
 struct Player;
 
 /**
@@ -30,3 +33,5 @@ template <class T> struct PacketEvent
     T& Packet;
     Player* pPlayer;
 };
+
+} // namespace Server

@@ -7,6 +7,9 @@
 #include <Structs/LockData.h>
 #include <Game/Player.h>
 
+namespace Server
+{
+
 struct ObjectComponent
 {
     ObjectComponent(Player* apLastSender)
@@ -17,3 +20,5 @@ struct ObjectComponent
     Player* pLastSender;
     LockData CurrentLockData{};
 };
+
+} // namespace Server

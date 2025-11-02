@@ -6,6 +6,9 @@
 
 #include <Structs/AnimationVariables.h>
 
+namespace Server
+{
+
 struct MovementComponent
 {
     uint64_t Tick;
@@ -16,3 +19,5 @@ struct MovementComponent
 
     bool Sent;
 };
+
+} // namespace Server

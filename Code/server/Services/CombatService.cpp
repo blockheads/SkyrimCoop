@@ -6,6 +6,9 @@
 #include <Messages/ProjectileLaunchRequest.h>
 #include <Messages/NotifyProjectileLaunch.h>
 
+namespace Server
+{
+
 CombatService::CombatService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
 {
@@ -52,3 +55,5 @@ void CombatService::OnProjectileLaunchRequest(const PacketEvent<ProjectileLaunch
 
     GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
+
+} // namespace Server

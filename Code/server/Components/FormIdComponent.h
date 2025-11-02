@@ -6,6 +6,9 @@
 
 #include <Structs/GameId.h>
 
+namespace Server
+{
+
 struct FormIdComponent
 {
     FormIdComponent() noexcept
@@ -31,3 +34,5 @@ struct FormIdComponent
 
     GameId Id;
 };
+
+} // namespace Server

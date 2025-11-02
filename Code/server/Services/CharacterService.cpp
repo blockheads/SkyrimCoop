@@ -35,6 +35,10 @@
 #include <Messages/NotifyRelinquishControl.h>
 
 #include <Setting.h>
+
+namespace Server
+{
+
 namespace
 {
 ServerConsole::Setting bEnableXpSync{"Gameplay:bEnableXpSync", "Syncs combat XP within the party", true};
@@ -555,12 +559,10 @@ void CharacterService::ProcessFactionsChanges() const noexcept
         if (!characterComponent.IsDirtyFactions())
             continue;
 
+        // P2P co-op: Send to all players except owner (no range check needed)
         for (auto pPlayer : m_world.GetPlayerManager())
         {
             if (pPlayer == ownerComponent.GetOwner())
-                continue;
-
-            if (!cellIdComponent.IsInRange(pPlayer->GetCellComponent(), characterComponent.IsDragon()))
                 continue;
 
             auto& message = messages[pPlayer];
@@ -613,12 +615,10 @@ void CharacterService::ProcessMovementChanges() const noexcept
         if (movementComponent.Sent == true)
             continue;
 
+        // P2P co-op: Send to all players except owner (no range check needed)
         for (auto pPlayer : m_world.GetPlayerManager())
         {
             if (pPlayer == ownerComponent.GetOwner())
-                continue;
-
-            if (!cellIdComponent.IsInRange(pPlayer->GetCellComponent(), characterComponent.IsDragon()))
                 continue;
 
             auto& message = messages[pPlayer];
@@ -654,3 +654,5 @@ void CharacterService::ProcessMovementChanges() const noexcept
             pPlayer->Send(message);
     }
 }
+
+} // namespace Server

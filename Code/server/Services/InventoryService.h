@@ -2,12 +2,16 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
-struct UpdateEvent;
 struct RequestObjectInventoryChanges;
 struct RequestInventoryChanges;
 struct RequestEquipmentChanges;
 struct DrawWeaponRequest;
+
+namespace Server
+{
+
+struct World;
+struct UpdateEvent;
 struct PlayerLeaveCellEvent;
 
 /**
@@ -38,3 +42,5 @@ private:
     entt::scoped_connection m_equipmentChangeConnection;
     entt::scoped_connection m_drawWeaponConnection;
 };
+
+} // namespace Server

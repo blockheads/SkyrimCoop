@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Server
+{
+
 struct UpdateEvent;
 struct World;
 
@@ -18,3 +21,5 @@ private:
 
     entt::scoped_connection m_updateConnection;
 };
+
+} // namespace Server

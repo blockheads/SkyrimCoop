@@ -9,6 +9,9 @@ static uint32_t GenerateId()
     return s_counter.fetch_add(1);
 }
 
+namespace Server
+{
+
 Player::Player(ConnectionId_t aConnectionId)
     : m_id(GenerateId())
     , m_connectionId(aConnectionId)
@@ -99,3 +102,5 @@ void Player::Send(const ServerMessage& acServerMessage) const
 {
     GameServer::Get()->Send(GetConnectionId(), acServerMessage);
 }
+
+} // namespace Server

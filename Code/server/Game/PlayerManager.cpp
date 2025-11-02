@@ -1,6 +1,9 @@
 #include "PlayerManager.h"
 #include "Player.h"
 
+namespace Server
+{
+
 static PlayerManager* s_pInstance = nullptr;
 
 PlayerManager::PlayerManager()
@@ -146,3 +149,5 @@ uint32_t PlayerManager::Count() const noexcept
 {
     return static_cast<uint32_t>(m_players.size());
 }
+
+} // namespace Server

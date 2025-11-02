@@ -8,6 +8,10 @@
 #include <Messages/NotifyQuestUpdate.h>
 
 #include <Setting.h>
+
+namespace Server
+{
+
 namespace
 {
 ServerConsole::Setting bEnableMiscQuestSync{"Gameplay:bEnableMiscQuestSync", "(Experimental) Syncs miscellaneous quests when possible", false};
@@ -96,3 +100,5 @@ void QuestService::OnQuestChanges(const PacketEvent<RequestQuestUpdate>& acMessa
 
     GameServer::Get()->SendToParty(notify, partyComponent, acMessage.GetSender());
 }
+
+} // namespace Server

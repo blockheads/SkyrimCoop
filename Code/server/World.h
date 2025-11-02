@@ -16,6 +16,9 @@ namespace ESLoader
 struct RecordCollection;
 }
 
+namespace Server
+{
+
 struct World : entt::registry
 {
     World();
@@ -54,3 +57,5 @@ private:
     PlayerManager m_playerManager;
     UniquePtr<ESLoader::RecordCollection> m_recordCollection;
 };
+
+} // namespace Server

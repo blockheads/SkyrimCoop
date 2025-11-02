@@ -4,7 +4,11 @@
 #error Include Components.h instead
 #endif
 
+namespace Server
+{
+
 struct Player;
+
 struct OwnerComponent
 {
     OwnerComponent(Player* apPlayer)
@@ -19,3 +23,5 @@ struct OwnerComponent
     Player* pOwner;
     Vector<const Player*> InvalidOwners{};
 };
+
+} // namespace Server

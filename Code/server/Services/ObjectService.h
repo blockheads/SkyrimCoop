@@ -2,11 +2,15 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
 struct ActivateRequest;
 struct LockChangeRequest;
 struct AssignObjectsRequest;
 struct ScriptAnimationRequest;
+
+namespace Server
+{
+
+struct World;
 
 /**
  * @brief Manages (interactive) objects and relays interactions with said objects.
@@ -29,3 +33,5 @@ private:
     entt::scoped_connection m_lockChangeConnection;
     entt::scoped_connection m_scriptAnimationConnection;
 };
+
+} // namespace Server

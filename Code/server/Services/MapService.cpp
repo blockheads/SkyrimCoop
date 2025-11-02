@@ -6,6 +6,9 @@
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
 
+namespace Server
+{
+
 MapService::MapService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
 {
@@ -41,3 +44,4 @@ void MapService::OnRemoveWaypointRequest(const PacketEvent<RequestRemoveWaypoint
     GameServer::Get()->SendToParty(notify, partyComponent, acMessage.GetSender());
 }
 
+} // namespace Server

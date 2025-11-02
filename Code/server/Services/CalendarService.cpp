@@ -10,6 +10,9 @@
 
 #include "Game/Player.h"
 
+namespace Server
+{
+
 CalendarService::CalendarService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
 {
@@ -150,3 +153,5 @@ bool CalendarService::SetTimeScale(float aScale) noexcept
 
     return false;
 }
+
+} // namespace Server

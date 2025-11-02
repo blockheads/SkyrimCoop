@@ -7,7 +7,7 @@
 #include <World.h>
 
 using TiltedPhoques::ConnectionId_t;
-using TiltedPhoques::Server;
+// Removed: using TiltedPhoques::Server;  -- Conflicts with namespace Server
 using TiltedPhoques::String;
 
 struct AuthenticationRequest;
@@ -24,7 +24,10 @@ namespace ServerConsole
 class ConsoleRegistry;
 }
 
-struct GameServer final : Server
+namespace Server
+{
+
+struct GameServer final : TiltedPhoques::Server
 {
     // TODO: eventually refactor this.
     struct Info
@@ -60,9 +63,7 @@ struct GameServer final : Server
     void Send(ConnectionId_t aConnectionId, const ServerAdminMessage& acServerMessage) const;
     void SendToLoaded(const ServerMessage& acServerMessage) const;
     void SendToPlayers(const ServerMessage& acServerMessage, const Player* apExcludeSender = nullptr) const; // Primary broadcast method for P2P co-op
-    bool SendToPlayersInRange(const ServerMessage& acServerMessage, const entt::entity acOrigin, const Player* apExcludeSender = nullptr) const; // DEPRECATED: Use SendToPlayers() for P2P
     void SendToParty(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent, const Player* apExcludeSender = nullptr) const;
-    void SendToPartyInRange(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent, const entt::entity acOrigin, const Player* apExcludeSender = nullptr) const; // DEPRECATED: Use SendToParty() for P2P
 
     const Info& GetInfo() const noexcept { return m_info; }
 
@@ -130,3 +131,5 @@ private:
 
     static inline GameServer* s_pInstance = nullptr;
 };
+
+} // namespace Server

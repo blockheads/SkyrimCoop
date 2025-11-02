@@ -6,7 +6,12 @@
 
 #include <Structs/QuestLog.h>
 
+namespace Server
+{
+
 struct QuestLogComponent
 {
     QuestLog QuestContent;
 };
+
+} // namespace Server

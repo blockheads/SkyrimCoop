@@ -3,21 +3,25 @@
 #include <Events/PacketEvent.h>
 #include <Structs/ActorData.h>
 
-struct UpdateEvent;
-struct CharacterSpawnedEvent;
-struct World;
 struct AssignCharacterRequest;
 struct CharacterSpawnRequest;
 struct ClientReferencesMoveRequest;
 struct RequestFactionsChanges;
 struct GridCellCoords;
-struct CharacterRemoveEvent;
 struct MountRequest;
 struct NewPackageRequest;
 struct RequestRespawn;
 struct SyncExperienceRequest;
 struct DialogueRequest;
 struct SubtitleRequest;
+
+namespace Server
+{
+
+struct UpdateEvent;
+struct CharacterSpawnedEvent;
+struct World;
+struct CharacterRemoveEvent;
 
 /**
  * @brief Manages player and actor state.
@@ -69,3 +73,5 @@ private:
     entt::scoped_connection m_dialogueConnection;
     entt::scoped_connection m_subtitleConnection;
 };
+
+} // namespace Server

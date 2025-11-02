@@ -2,9 +2,13 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
 struct TeleportCommandRequest;
 struct SetTimeCommandRequest;
+
+namespace Server
+{
+
+struct World;
 
 /**
  * @brief Processes incoming commands.
@@ -29,3 +33,5 @@ private:
     entt::scoped_connection m_setTimeConnection;
     entt::scoped_connection m_teleportConnection;
 };
+
+} // namespace Server

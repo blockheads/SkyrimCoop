@@ -5,7 +5,11 @@
 
 struct World;
 struct UpdateEvent;
-struct GameServer;
+
+namespace Server
+{
+    struct GameServer;
+}
 
 namespace ServerConsole { class ConsoleRegistry; }
 
@@ -52,7 +56,7 @@ struct HostService
      * @brief Get the embedded GameServer instance
      * @return Pointer to GameServer, or nullptr if not hosting
      */
-    [[nodiscard]] GameServer* GetServer() const noexcept { return m_pGameServer.get(); }
+    [[nodiscard]] Server::GameServer* GetServer() const noexcept { return m_pGameServer.get(); }
 
 protected:
     /**
@@ -66,7 +70,7 @@ private:
     entt::dispatcher& m_dispatcher;
 
     bool m_isHosting{false};
-    std::unique_ptr<GameServer> m_pGameServer;
+    std::unique_ptr<Server::GameServer> m_pGameServer;
     std::unique_ptr<ServerConsole::ConsoleRegistry> m_pConsole;
 
     entt::scoped_connection m_updateConnection;

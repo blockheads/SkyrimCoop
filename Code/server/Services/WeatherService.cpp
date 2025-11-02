@@ -8,6 +8,9 @@
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/RequestCurrentWeather.h>
 
+namespace Server
+{
+
 WeatherService::WeatherService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
 {
@@ -26,12 +29,8 @@ void WeatherService::OnWeatherChange(const PacketEvent<RequestWeatherChange>& ac
 
     pParty->CachedWeather = notify.Id;
 
-    if (!acMessage.pPlayer->GetCharacter())
-        return;
-
-    const auto origin = *acMessage.pPlayer->GetCharacter();
-
-    GameServer::Get()->SendToPartyInRange(notify, acMessage.pPlayer->GetParty(), origin, acMessage.pPlayer);
+    // P2P co-op: Send to all party members (no range check needed)
+    GameServer::Get()->SendToParty(notify, acMessage.pPlayer->GetParty(), acMessage.pPlayer);
 }
 
 void WeatherService::OnRequestCurrentWeather(const PacketEvent<RequestCurrentWeather>& acMessage) const noexcept
@@ -45,3 +44,5 @@ void WeatherService::OnRequestCurrentWeather(const PacketEvent<RequestCurrentWea
 
     acMessage.pPlayer->Send(notify);
 }
+
+} // namespace Server

@@ -2,9 +2,13 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
 struct PlayerRespawnRequest;
 struct PlayerLevelRequest;
+
+namespace Server
+{
+
+struct World;
 
 /**
  * @brief Handles player specific actions that might change the information needed by other clients about that player.
@@ -26,3 +30,5 @@ private:
     entt::scoped_connection m_playerRespawnConnection;
     entt::scoped_connection m_playerLevelConnection;
 };
+
+} // namespace Server

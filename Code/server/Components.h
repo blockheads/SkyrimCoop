@@ -17,3 +17,8 @@
 #include <Components/ObjectComponent.h>
 
 #undef TP_INTERNAL_COMPONENTS_GUARD
+
+namespace Server
+{
+
+} // namespace Server

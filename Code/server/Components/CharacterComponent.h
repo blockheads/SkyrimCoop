@@ -7,6 +7,9 @@
 #include <Structs/Tints.h>
 #include <Structs/Factions.h>
 
+namespace Server
+{
+
 struct CharacterComponent
 {
     enum
@@ -86,3 +89,5 @@ struct CharacterComponent
     uint16_t Flags{};
     int32_t PlayerId{};
 };
+
+} // namespace Server

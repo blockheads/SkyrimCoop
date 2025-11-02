@@ -26,29 +26,10 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return true;
     }
 
-    // TODO: CRITICAL - Embedding GameServer in the client requires significant refactoring!
-    //
-    // Current blockers:
-    // 1. World class name collision (client::World vs server::World)
-    // 2. GameServer expects server-specific singletons and services
-    // 3. GameServer calls Host() in constructor, making it hard to control
-    //
-    // Solutions to explore:
-    // A. Namespace server components (Server::World, Server::GameServer, etc.)
-    // B. Create a lightweight P2PServer class that doesn't depend on full GameServer
-    // C. Run GameServer in a separate process and connect via IPC
-    // D. Use composition instead of inheritance for server logic
-    //
-    // For now, this is a placeholder implementation that will crash.
-    // The papyrus functions and hotkey are working, but the actual server embedding
-    // needs architectural changes to the codebase.
+    // NOTE: World class name collision has been RESOLVED!
+    // All server code is now wrapped in Server namespace (Server::World, Server::GameServer, etc.)
+    // This allows client and server to coexist in the same binary without conflicts.
 
-    spdlog::error("[HostService] Embedded server hosting not yet implemented - requires refactoring World class conflicts");
-    spdlog::error("[HostService] See HostService.cpp for TODO notes on implementation approach");
-
-    return false;
-
-    /*
     try
     {
         spdlog::info("[HostService] Starting P2P host session on port {} for up to {} players", aPort, aMaxPlayers);
@@ -56,9 +37,9 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         // Create console registry for embedded server
         m_pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("EmbeddedServer");
 
-        // Create embedded GameServer instance
+        // Create embedded GameServer instance (now properly namespaced!)
         // NOTE: GameServer constructor automatically calls Host() internally!
-        m_pGameServer = std::make_unique<GameServer>(*m_pConsole);
+        m_pGameServer = std::make_unique<Server::GameServer>(*m_pConsole);
 
         m_isHosting = true;
 
@@ -75,7 +56,6 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         m_pConsole.reset();
         return false;
     }
-    */
 }
 
 void HostService::StopHosting() noexcept

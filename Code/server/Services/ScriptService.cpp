@@ -18,6 +18,9 @@ namespace Script
 void CreateScriptBindings(sol::state& aState);
 }
 
+namespace Server
+{
+
 namespace
 {
 int ScriptExceptionHandler(lua_State* L, sol::optional<const std::exception&> maybe_exception,
@@ -166,28 +169,28 @@ std::tuple<bool, String> ScriptService::HandleChatMessage(const entt::entity aSe
     return CallCancelableEvent("onChatMessage", aSender, aMessage);
 }
 
-void ScriptService::HandlePlayerQuit(ConnectionId_t aConnectionId, Server::EDisconnectReason aReason) noexcept
+void ScriptService::HandlePlayerQuit(ConnectionId_t aConnectionId, TiltedPhoques::Server::EDisconnectReason aReason) noexcept
 {
     std::string reason;
 
     switch (aReason)
     {
-    case Server::EDisconnectReason::Quit:
+    case TiltedPhoques::Server::EDisconnectReason::Quit:
         reason = "Quit";
         break;
-    case Server::EDisconnectReason::Kicked:
+    case TiltedPhoques::Server::EDisconnectReason::Kicked:
         reason = "Kicked";
         break;
-    case Server::EDisconnectReason::Banned:
+    case TiltedPhoques::Server::EDisconnectReason::Banned:
         reason = "Banned";
         break;
-    case Server::EDisconnectReason::BadConnection:
+    case TiltedPhoques::Server::EDisconnectReason::BadConnection:
         reason = "Connection lost";
         break;
-    case Server::EDisconnectReason::TimedOut:
+    case TiltedPhoques::Server::EDisconnectReason::TimedOut:
         reason = "Timed out";
         break;
-    case Server::EDisconnectReason::Unknown:
+    case TiltedPhoques::Server::EDisconnectReason::Unknown:
     default:
         reason = "Unknown";
         break;
@@ -243,3 +246,5 @@ void ScriptService::CancelEvent(const std::string aReason) noexcept
     m_eventCanceled = true;
     m_cancelReason = aReason;
 }
+
+} // namespace Server

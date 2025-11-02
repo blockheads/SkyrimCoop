@@ -1,5 +1,4 @@
 
-#include "Game/Cell.h"
 #include "Game/Player.h"
 #include "Game/PlayerManager.h"
 
@@ -56,7 +55,7 @@ sol::table BindModsComponent(sol::state_view aState)
 {
     sol::table module = aState.create_table();
 
-    auto modsComponentType = aState.new_usertype<ModsComponent>("ModsComponent");
+    auto modsComponentType = aState.new_usertype<Server::ModsComponent>("ModsComponent");
 #if 0
     auto entryType = aState.new_usertype<ModsComponent::Entry>(
         "Entry", sol::constructors<ModsComponent::Entry(uint32_t, uint32_t)>());

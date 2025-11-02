@@ -2,13 +2,16 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
-struct UpdateEvent;
-struct TransportService;
 struct RequestActorValueChanges;
 struct RequestActorMaxValueChanges;
 struct RequestHealthChangeBroadcast;
 struct RequestDeathStateChange;
+
+namespace Server
+{
+
+struct World;
+struct UpdateEvent;
 
 /**
  * @brief Broadcasts changes in (max) actor values and updates them server side.
@@ -33,3 +36,5 @@ private:
     entt::scoped_connection m_updateDeltaHealthConnection;
     entt::scoped_connection m_deathStateConnection;
 };
+
+} // namespace Server

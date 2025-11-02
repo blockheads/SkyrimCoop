@@ -2,6 +2,9 @@
 
 using TiltedPhoques::ConnectionId_t;
 
+namespace Server
+{
+
 /**
  * @brief Wrapper for admin messages.
  */
@@ -26,3 +29,5 @@ template <class T> struct AdminPacketEvent
     T& Packet;
     ConnectionId_t ConnectionId;
 };
+
+} // namespace Server

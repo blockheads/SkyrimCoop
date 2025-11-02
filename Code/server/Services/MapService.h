@@ -2,9 +2,13 @@
 
 #include <Events/PacketEvent.h>
 
-struct World;
 struct RequestSetWaypoint;
 struct RequestRemoveWaypoint;
+
+namespace Server
+{
+
+struct World;
 
 /**
  * @brief Handles player specific actions that might change the information needed by other clients about that player.
@@ -27,3 +31,5 @@ struct MapService
     entt::scoped_connection m_playerRemoveWaypointConnection;
     entt::scoped_connection m_updateConnection;
 };
+
+} // namespace Server
