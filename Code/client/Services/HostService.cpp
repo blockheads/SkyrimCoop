@@ -1,16 +1,16 @@
 #include <Services/HostService.h>
 
+#include <Console/ConsoleRegistry.h>
+#include <Events/UpdateEvent.h>
 #include <GameServer.h>
 #include <World.h>
-#include <Events/UpdateEvent.h>
-#include <Console/ConsoleRegistry.h>
+
+#include <spdlog/sinks/stdout_color_sinks.h>
 
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-    : m_world(aWorld)
-    , m_dispatcher(aDispatcher)
+    : m_world(aWorld), m_dispatcher(aDispatcher)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>()
-        .connect<&HostService::OnUpdate>(this);
+    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&HostService::OnUpdate>(this);
 }
 
 HostService::~HostService() noexcept
@@ -33,6 +33,13 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     try
     {
         spdlog::info("[HostService] Starting P2P host session on port {} for up to {} players", aPort, aMaxPlayers);
+
+        // Create logger for embedded server if it doesn't exist
+        if (!spdlog::get("EmbeddedServer"))
+        {
+            auto embeddedLogger = spdlog::stdout_color_mt("EmbeddedServer");
+            embeddedLogger->set_pattern("[EmbeddedServer] [%l] %v");
+        }
 
         // Create console registry for embedded server
         m_pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("EmbeddedServer");
@@ -60,32 +67,48 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
 
 void HostService::StopHosting() noexcept
 {
-    if (!m_isHosting)
+    if (!m_isHosting || m_isShuttingDown)
         return;
 
-    spdlog::info("[HostService] Stopping host session");
+    spdlog::info("[HostService] Requesting server shutdown");
 
     if (m_pGameServer)
     {
-        m_pGameServer->Close();
-        m_pGameServer.reset();
+        // Tell the server to shut down on its next update cycle
+        // This sets m_requestStop, which causes OnUpdate() to call Close()
+        m_pGameServer->Kill();
+        m_isShuttingDown = true;
+
+        // The server will finish shutting down asynchronously in OnUpdate()
+        // Once IsRunning() returns false, we'll destroy it and create a fresh one next time
     }
-
-    m_pConsole.reset();
-    m_isHosting = false;
-
-    spdlog::info("[HostService] Host session stopped");
 }
 
 void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
-    if (m_isHosting && m_pGameServer)
+    if (m_pGameServer)
     {
-        // Update embedded server every frame
-        // The server's Update() method handles:
-        // - Processing incoming packets from clients
-        // - Running game logic
-        // - Broadcasting updates to all connected clients
-        m_pGameServer->Update();
+        // Check if server has finished shutting down BEFORE calling Update()
+        // IsListening() returns false after Close() has been called
+        if (m_isShuttingDown && !m_pGameServer->IsListening())
+        {
+            spdlog::info("[HostService] Server has shut down, destroying instance");
+
+            // Server has closed all connections and sockets
+            // Safe to destroy and clear singleton
+            m_pGameServer.reset();
+            m_pConsole.reset();
+
+            m_isHosting = false;
+            m_isShuttingDown = false;
+
+            spdlog::info("[HostService] Host session stopped");
+        }
+        else
+        {
+            // Only update the server if it's still running
+            // This allows Kill() -> OnUpdate() -> Close() to happen
+            m_pGameServer->Update();
+        }
     }
 }

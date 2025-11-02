@@ -70,6 +70,7 @@ private:
     entt::dispatcher& m_dispatcher;
 
     bool m_isHosting{false};
+    bool m_isShuttingDown{false};
     std::unique_ptr<Server::GameServer> m_pGameServer;
     std::unique_ptr<ServerConsole::ConsoleRegistry> m_pConsole;
 
