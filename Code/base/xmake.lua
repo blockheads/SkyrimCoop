@@ -6,9 +6,9 @@ target("BaseLib")
     add_includedirs(".", "../", "../../build", {public = true})
     add_headerfiles("**.h")
     add_files("**.cpp")
+    add_deps("TiltedCore")
     add_packages(
-        "tiltedcore",
-        "sentry-native", 
-        "hopscotch-map", 
+        "sentry-native",
+        "hopscotch-map",
         "gtest",
         "spdlog")

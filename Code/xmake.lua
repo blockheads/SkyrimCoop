@@ -1,3 +1,7 @@
+-- Merged libraries (formerly in Libraries/)
+includes("TiltedCore")
+includes("libraries")
+
 if is_plat("windows") then
     includes("client")
     includes("immersive_elf")

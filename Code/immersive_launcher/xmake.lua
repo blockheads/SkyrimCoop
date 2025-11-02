@@ -27,16 +27,16 @@ local function build_launcher()
     add_includedirs(
         ".",
         "../",
-        "../../Libraries/")
+        "../external/")
     add_headerfiles("**.h")
     add_files(
         "**.cpp",
         "launcher.rc")
     add_deps(
         "ImmersiveElf",
-        "TiltedReverse",
-        "TiltedHooks",
-        "TiltedUi",
+        "SkyrimCoopReverse",
+        "SkyrimCoopHooks",
+        "SkyrimCoopUI",
         "ImGuiImpl",
         "CommonLib",
         "CrashHandler")
@@ -58,7 +58,6 @@ local function build_launcher()
         "delayimp")
 
     add_packages(
-        "tiltedcore",
         "spdlog",
         "minhook",
         "hopscotch-map",

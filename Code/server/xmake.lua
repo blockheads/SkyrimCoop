@@ -7,7 +7,7 @@ local function build_server()
     set_group("Server")
     add_includedirs(
         ".",
-        "../../Libraries/")
+        "../external/")
     set_pcxxheader("Pch.h")
     add_headerfiles("**.h")
     add_files("**.cpp")
@@ -25,7 +25,7 @@ local function build_server()
         "CrashHandler",
         "BaseLib",
         "AdminProtocol",
-        "TiltedConnect"
+        "SkyrimCoopNetworking"
     )
     add_packages(
         "gamenetworkingsockets",
@@ -37,7 +37,6 @@ local function build_server()
         "glm",
         "entt",
         "cpp-httplib",
-        "tiltedcore",
         "sentry-native")
 end
 

@@ -3,7 +3,7 @@ local function build_client(name)
 target(name)
     set_kind("static")
     set_group("Client")
-    add_includedirs(".","../../Libraries/")
+    add_includedirs(".","../external/")
     -- Add server include directory for embedded GameServer (P2P hosting)
     add_includedirs("../server", {public = false})
     set_pcxxheader("TiltedOnlinePCH.h")
@@ -34,19 +34,19 @@ target(name)
     -- Add server dependency for embedded GameServer (P2P hosting)
     add_deps("SkyrimTogetherServer")
     add_deps(
-        "UiProcess",
+        "SkyrimCoopUIProcess",
         "CommonLib",
         "BaseLib",
         "ImGuiImpl",
-        "TiltedConnect",
-        "TiltedReverse",
-        "TiltedHooks",
-        "TiltedUi",
+        "SkyrimCoopNetworking",
+        "SkyrimCoopReverse",
+        "SkyrimCoopHooks",
+        "SkyrimCoopUI",
         {inherit = true}
     )
 
     add_packages(
-        "tiltedcore",
+        "mimalloc",  -- Needed for Memory.cpp direct include
         "spdlog",
         "hopscotch-map",
         "cryptopp",
@@ -76,6 +76,5 @@ target(name)
         "kernel32")
 end
 
-add_requires("tiltedcore v0.2.7", {debug = true})
 
 build_client("SkyrimTogetherClient")

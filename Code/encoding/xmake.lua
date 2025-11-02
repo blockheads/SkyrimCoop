@@ -15,7 +15,8 @@ target(name)
     add_headerfiles("Structs/Skyrim/**.h")
     add_includedirs("Structs/Skyrim")
 
-    add_packages("hopscotch-map", "glm", "tiltedcore")
+    add_deps("TiltedCore")
+    add_packages("hopscotch-map", "glm")
 end
 
 build_encoding("SkyrimEncoding")

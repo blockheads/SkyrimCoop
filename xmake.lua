@@ -33,24 +33,35 @@ if has_config("unitybuild") then
     add_rules("c++.unity_build", {batchsize = 12})
 end
 
--- direct dependencies version pinning 
+-- direct dependencies version pinning
 add_requires(
-    "entt v3.10.0", 
-    "recastnavigation v1.6.0", 
-    "tiltedcore v0.2.7", 
-    "cryptopp 8.9.0", 
-    "spdlog v1.13.0", 
+    "entt v3.10.0",
+    "recastnavigation v1.6.0",
+    -- tiltedcore is now built from Code/TiltedCore/ instead of external package
+    "cryptopp 8.9.0",
+    "spdlog v1.13.0",
     "cpp-httplib 0.14.0",
-    "gtest v1.14.0", 
-    "mem 1.0.0", 
-    "glm 0.9.9+8", 
-    "sentry-native 0.7.1", 
-    "zlib v1.3.1"
+    "gtest v1.14.0",
+    "mem 1.0.0",
+    "glm 0.9.9+8",
+    "sentry-native 0.7.1",
+    "zlib v1.3.1",
+    -- Merged library dependencies (formerly in submodules)
+    "mimalloc",
+    "hopscotch-map v2.3.1",
+    "snappy 1.1.10",
+    "gamenetworkingsockets v1.4.1",
+    "libuv v1.48.0",
+    "minhook v1.3.3",
+    "xbyak v7.06",
+    "catch2 2.13.9"
 )
 if is_plat("windows") then
     add_requires(
-        "discord 3.2.1", 
-        "imgui v1.89.7"
+        "discord 3.2.1",
+        "imgui v1.89.7",
+        "directxtk 21.11.0",
+        "cef 100.0.24"
     )
 end
 
@@ -59,6 +70,8 @@ add_requireconfs("*.mimalloc", { version = "2.2.4", override = true })
 add_requireconfs("*.cmake", { version = "3.30.2", override = true })
 add_requireconfs("*.openssl", { version = "1.1.1-w", override = true })
 add_requireconfs("*.zlib", { version = "v1.3.1", override = true })
+add_requireconfs("*.protobuf*", { version = "26.1", override = true })
+add_requireconfs("**.abseil*", { version = "20250127.1", override = true })
 if is_plat("linux") then
     add_requireconfs("*.libcurl", { version = "8.7.1", override = true })
 end
@@ -107,7 +120,7 @@ if is_plat("windows") then
 end
 
 -- add projects
-includes("Libraries")
+-- Libraries are now merged into Code/libraries/
 includes("Code")
 
 task("upload-symbols")

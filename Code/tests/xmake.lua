@@ -8,7 +8,7 @@ target("TPTests")
     add_files("*.cpp")
     add_deps("SkyrimEncoding")
     add_packages(
-        "tiltedcore",
+        "TiltedCore",
         "hopscotch-map",
         "catch2",
         "mimalloc",

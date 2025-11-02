@@ -23,8 +23,8 @@ target("TPProcess")
     add_files(
         "*.cpp",
         "process.rc")
-    add_deps("UiProcess")
-    add_packages("tiltedcore", "cef", "hopscotch-map")
+    add_deps("SkyrimCoopUIProcess", "TiltedCore")
+    add_packages("cef", "hopscotch-map")
 
     -- Override any inherited runtime settings from dependencies
     after_load(function (target)

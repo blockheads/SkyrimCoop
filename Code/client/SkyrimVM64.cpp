@@ -22,8 +22,11 @@ static TVMDestructor* VMDestructor = nullptr;
 
 int TP_MAKE_THISCALL(HookVMUpdate, VMContext, float a2)
 {
-    if (apThis->inactive == 0)
-        g_appInstance->Update();
+    // IMPORTANT: Always call Update() even when VM is inactive (in menus/paused)
+    // The embedded server needs to process connections even when the game is paused!
+    // Previously, this was only called when inactive == 0, which meant the server
+    // would never accept connections while in menus.
+    g_appInstance->Update();
 
     return TiltedPhoques::ThisCall(VMUpdate, apThis, a2);
 }

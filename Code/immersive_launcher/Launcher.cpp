@@ -1,5 +1,5 @@
 
-#include <TiltedReverse/Code/reverse/include/Debug.hpp>
+#include <Debug.hpp>
 #include "TargetConfig.h"
 #include "launcher.h"
 

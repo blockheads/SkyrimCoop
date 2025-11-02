@@ -7,14 +7,14 @@ function component(name)
     add_includedirs(
       ".",
       "../",
-      "../../", 
-      "../../../build", 
+      "../../",
+      "../../../build",
       {public = true})
     add_headerfiles("**.h")
     add_files("**.cpp")
+    add_deps("TiltedCore")
     add_packages(
-      "tiltedcore", 
-      "hopscotch-map", 
+      "hopscotch-map",
       "gtest",
       "spdlog")
 end
@@ -28,17 +28,17 @@ function unittest(name)
       add_includedirs(
         ".",
         "../",
-        "../../", 
-        "../../../build", 
+        "../../",
+        "../../../build",
         {public = true})
       add_headerfiles(
           "**.h")
       add_files(
           "**.cpp",
           "../../TestMain.cpp")
+      add_deps("TiltedCore")
       add_packages(
-        "tiltedcore", 
-        "hopscotch-map", 
+        "hopscotch-map",
         "gtest",
         "spdlog")
   end

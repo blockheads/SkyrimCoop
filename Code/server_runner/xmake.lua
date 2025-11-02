@@ -16,7 +16,7 @@ local function build_runner()
     add_includedirs(
         ".",
         "../",
-        "../../Libraries/")
+        "../external/")
     add_headerfiles("**.h")
     add_files(
         "**.cpp")
@@ -28,7 +28,7 @@ local function build_runner()
         "Console",
         "BaseLib")
     add_packages(
-        "tiltedcore",
+        "TiltedCore",
         "spdlog",
         "hopscotch-map",
         "sentry-native",

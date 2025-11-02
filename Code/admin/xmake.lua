@@ -8,12 +8,12 @@ target("Admin")
     add_includedirs(
         ".",
         "../",
-        "../../Libraries/")
+        "../external/")
     add_headerfiles("**.h")
     add_files(
         "**.cpp",
         "admin.rc")
-    add_deps("CommonLib", "AdminProtocol", "TiltedConnect")
+    add_deps("CommonLib", "AdminProtocol", "SkyrimCoopNetworking")
 
     add_deps("SkyrimEncoding")
 
@@ -22,7 +22,6 @@ target("Admin")
     end
 
     add_packages(
-        "tiltedcore",
         "spdlog",
         "hopscotch-map",
         "glm",

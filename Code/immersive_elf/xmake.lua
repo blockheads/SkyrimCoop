@@ -5,7 +5,7 @@ target("ImmersiveElf")
     set_group("Client")
     add_includedirs(
         ".",
-        "../../Libraries/")
+        "../external/")
     add_headerfiles("**.h")
     add_files(
         "**.cpp")

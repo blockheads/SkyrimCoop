@@ -48,6 +48,9 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         // NOTE: GameServer constructor automatically calls Host() internally!
         m_pGameServer = std::make_unique<Server::GameServer>(*m_pConsole);
 
+        // Initialize server systems (ModPolicy, console commands, Lua scripting)
+        m_pGameServer->Initialize();
+
         m_isHosting = true;
 
         spdlog::info("[HostService] Successfully started hosting session on port {}", m_pGameServer->GetPort());
@@ -108,6 +111,12 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         {
             // Only update the server if it's still running
             // This allows Kill() -> OnUpdate() -> Close() to happen
+            static uint32_t sUpdateCounter = 0;
+            if (++sUpdateCounter % 600 == 0)  // Log every ~10 seconds at 60fps
+            {
+                spdlog::debug("[HostService] Server update tick (count: {}), Client count: {}",
+                             sUpdateCounter, m_pGameServer->GetClientCount());
+            }
             m_pGameServer->Update();
         }
     }
