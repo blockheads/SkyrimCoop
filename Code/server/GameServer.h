@@ -53,6 +53,7 @@ struct GameServer final : Server
     void UpdateInfo();
     void UpdateTimeScale();
     void UpdateSettings();
+    void EnforceProximity(); // P2P co-op: Teleport players back if they wander too far from host
 
     // Packet dispatching
     void Send(ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const;

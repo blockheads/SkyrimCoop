@@ -17,6 +17,8 @@
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifySettingsChange.h>
+#include <Messages/NotifyTeleport.h>
+#include <Messages/NotifyChatMessageBroadcast.h>
 #include <console/ConsoleRegistry.h>
 #include <resources/ResourceCollection.h>
 
@@ -540,6 +542,94 @@ void GameServer::UpdateTimeScale()
     }
 }
 
+void GameServer::EnforceProximity()
+{
+    // P2P co-op proximity enforcement: Keep all players near the host
+    static constexpr float kMaxDistanceSquared = 5000.0f * 5000.0f; // 5000 units max distance
+    static uint32_t sCheckCounter = 0;
+
+    // Only check every 60 ticks (~1 second at 60 tick rate) to avoid overhead
+    if (++sCheckCounter < 60)
+        return;
+
+    sCheckCounter = 0;
+
+    Player* pHostPlayer = m_pWorld->GetPlayerManager().GetHostPlayer();
+    if (!pHostPlayer)
+        return; // No host yet
+
+    auto hostCharacter = pHostPlayer->GetCharacter();
+    if (!hostCharacter.has_value())
+        return; // Host doesn't have a character spawned yet
+
+    // Get host's position
+    const auto* pHostMovement = m_pWorld->try_get<MovementComponent>(*hostCharacter);
+    if (!pHostMovement)
+        return; // Host has no movement component
+
+    const auto& hostPos = pHostMovement->Position;
+    const auto& hostCell = pHostPlayer->GetCellComponent();
+
+    // Check each client's distance from host
+    for (Player* pPlayer : m_pWorld->GetPlayerManager())
+    {
+        if (pPlayer == pHostPlayer)
+            continue; // Skip the host
+
+        auto playerCharacter = pPlayer->GetCharacter();
+        if (!playerCharacter.has_value())
+            continue; // Player doesn't have a character yet
+
+        const auto* pPlayerMovement = m_pWorld->try_get<MovementComponent>(*playerCharacter);
+        if (!pPlayerMovement)
+            continue; // No movement component
+
+        const auto& playerPos = pPlayerMovement->Position;
+        const auto& playerCell = pPlayer->GetCellComponent();
+
+        // Check if player is in a different cell or too far away
+        bool needsTeleport = false;
+        String reason;
+
+        if (hostCell.Cell != playerCell.Cell)
+        {
+            needsTeleport = true;
+            reason = "You wandered into a different cell!";
+        }
+        else
+        {
+            // Calculate distance squared (avoid expensive sqrt)
+            const auto delta = playerPos - hostPos;
+            const float distSq = glm::dot(delta, delta);
+
+            if (distSq > kMaxDistanceSquared)
+            {
+                needsTeleport = true;
+                reason = "You wandered too far from the host!";
+            }
+        }
+
+        if (needsTeleport)
+        {
+            // Teleport player back to host's position
+            NotifyTeleport teleportMsg;
+            teleportMsg.CellId = hostCell.Cell;
+            teleportMsg.Position = hostPos;
+            teleportMsg.WorldSpaceId = hostCell.WorldSpaceId;
+            pPlayer->Send(teleportMsg);
+
+            // Send system notification
+            NotifyChatMessageBroadcast notifyMsg;
+            notifyMsg.MessageType = kSystemMessage;
+            notifyMsg.PlayerName = "Server";
+            notifyMsg.ChatMessage = reason + " Teleporting you back to the host.";
+            pPlayer->Send(notifyMsg);
+
+            spdlog::info("Teleported player '{}' back to host (reason: {})", pPlayer->GetUsername(), reason);
+        }
+    }
+}
+
 void GameServer::OnUpdate()
 {
     const auto cNow = std::chrono::high_resolution_clock::now();
@@ -551,6 +641,9 @@ void GameServer::OnUpdate()
     auto& dispatcher = m_pWorld->GetDispatcher();
 
     dispatcher.trigger(UpdateEvent{cDeltaSeconds});
+
+    // P2P co-op: Enforce proximity - teleport players who wander too far from host
+    EnforceProximity();
 
     if (m_requestStop)
         Close();
