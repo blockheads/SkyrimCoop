@@ -104,6 +104,9 @@ private:
 
     bool m_isListening{false};
 
+    // Message handlers: ClientOpcode -> handler function (same pattern as GameServer)
+    std::function<void(UniquePtr<ClientMessage>&, ConnectionId_t)> m_messageHandlers[256]; // TODO: Use proper kClientOpcodeMax
+
     // Peer tracking (simple for now, can expand later)
     TiltedPhoques::Map<ConnectionId_t, TiltedPhoques::String> m_peerUsernames;
 };

@@ -89,4 +89,7 @@ private:
     entt::dispatcher& m_dispatcher; // Event dispatcher (NOT owned!)
 
     bool m_isConnected{false};
+
+    // Message handlers: ServerOpcode -> handler function (same pattern as TransportService)
+    std::function<void(UniquePtr<ServerMessage>&)> m_messageHandlers[256]; // TODO: Use proper kServerOpcodeMax
 };
