@@ -147,15 +147,9 @@ uint64_t World::GetTick() const noexcept
     return m_transport.GetClock().GetCurrentTick();
 }
 
-void World::Create() noexcept
+World* World::Create() noexcept
 {
-    if (!entt::locator<World>::has_value())
-    {
-        entt::locator<World>::emplace();
-    }
-}
-
-World& World::Get() noexcept
-{
-    return entt::locator<World>::value();
+    auto* pWorld = new World();
+    WorldBase::Set(pWorld);
+    return pWorld;
 }

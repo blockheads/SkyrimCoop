@@ -36,6 +36,10 @@
 
 #include <Components.h>
 #include <World.h>
+#include <WorldBase.h>
+
+// P2P: Include Server::World for hosting
+namespace Server { struct World; }
 
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
@@ -184,23 +188,47 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     else
         s_f6Pressed = false;
 
-    // F9 - Toggle P2P hosting
+    // F9 - Toggle P2P hosting (swaps between client World and Server::World)
     if (GetAsyncKeyState(VK_F9))
     {
         if (!s_f9Pressed)
         {
             s_f9Pressed = true;
 
-            auto& hostService = m_world.GetHostService();
-            if (hostService.IsHosting())
+            auto& currentWorld = WorldBase::Get();
+            if (currentWorld.IsHost())
             {
-                spdlog::info("[Debug] F9 pressed - Stopping hosting");
-                hostService.StopHosting();
+                // Currently hosting - swap back to client World
+                spdlog::info("[Debug] F9 pressed - Stopping hosting, switching to client World");
+
+                // Stop hosting first
+                auto& serverWorld = Server::World::Get();
+                serverWorld.StopHosting();
+
+                // Destroy Server::World and create client World
+                WorldBase::Destroy();
+                World::Create();
+
+                spdlog::info("[Debug] Switched to client World");
             }
             else
             {
-                spdlog::info("[Debug] F9 pressed - Starting hosting");
-                hostService.StartHosting();
+                // Currently client - swap to Server::World and start hosting
+                spdlog::info("[Debug] F9 pressed - Switching to Server::World and starting hosting");
+
+                // Destroy client World and create Server::World
+                WorldBase::Destroy();
+                auto* pServerWorld = Server::World::Create();
+
+                // Start hosting
+                if (pServerWorld->StartHosting(10578, 8))
+                {
+                    spdlog::info("[Debug] Successfully hosting on port 10578");
+                }
+                else
+                {
+                    spdlog::error("[Debug] Failed to start hosting!");
+                }
             }
         }
     }

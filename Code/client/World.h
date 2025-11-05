@@ -1,5 +1,7 @@
 #pragma once
 
+#include <WorldBase.h>
+
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <Services/PartyService.h>
@@ -15,12 +17,17 @@
 
 class NetworkClient;
 
-struct World : entt::registry
+struct World : WorldBase
 {
     World();
-    ~World();
+    ~World() override;
 
-    void Update() noexcept;
+    // WorldBase interface implementation
+    void Update() noexcept override;
+    bool IsHost() const noexcept override { return false; } // Client is NEVER a host
+    entt::dispatcher& GetDispatcher() noexcept override { return m_dispatcher; }
+    RunnerService& GetRunner() noexcept override;
+    ModSystem& GetModSystem() noexcept override;
 
     // P2P: Connection methods
     bool ConnectToHost(const TiltedPhoques::String& aHostAddress, uint16_t aPort = 10578) noexcept;
@@ -53,12 +60,12 @@ struct World : entt::registry
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
-    // P2P: Is this the host's World or a client's World?
-    [[nodiscard]] bool IsHost() const noexcept { return m_isHost; }
-    void SetIsHost(bool isHost) noexcept { m_isHost = isHost; }
+    // Static factory (singleton managed by WorldBase)
+    static World* Create() noexcept;
 
-    static void Create() noexcept;
-    [[nodiscard]] static World& Get() noexcept;
+    // Helper to get client World (casts from WorldBase)
+    // WARNING: This will crash if current world is Server::World!
+    static World& Get() noexcept { return static_cast<World&>(WorldBase::Get()); }
 
 private:
     entt::dispatcher m_dispatcher;
@@ -68,9 +75,6 @@ private:
     ServerSettings m_serverSettings{};
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
-
-    // P2P: True if this is the host's World (authoritative), false if client's World (replica)
-    bool m_isHost{false};
 
     // P2P: Network client for connecting to host (replaces TransportService eventually)
     std::unique_ptr<NetworkClient> m_pNetworkClient;

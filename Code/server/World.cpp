@@ -150,4 +150,11 @@ bool World::IsHosting() const noexcept
     return m_pNetworkBridge && m_pNetworkBridge->IsListening();
 }
 
+World* World::Create() noexcept
+{
+    auto* pWorld = new World();
+    WorldBase::Set(pWorld);
+    return pWorld;
+}
+
 } // namespace Server
