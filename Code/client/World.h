@@ -8,11 +8,12 @@
 #include <Services/CharacterService.h>
 #include <Services/MagicService.h>
 #include <Services/DebugService.h>
-#include <Services/HostService.h>
 
 #include <Systems/ModSystem.h>
 
 #include <Structs/ServerSettings.h>
+
+class NetworkClient;
 
 struct World : entt::registry
 {
@@ -20,6 +21,15 @@ struct World : entt::registry
     ~World();
 
     void Update() noexcept;
+
+    // P2P: Connection methods
+    bool ConnectToHost(const TiltedPhoques::String& aHostAddress, uint16_t aPort = 10578) noexcept;
+    void Disconnect() noexcept;
+    [[nodiscard]] bool IsConnected() const noexcept;
+
+    // P2P: Network client access
+    NetworkClient* GetNetworkClient() noexcept { return m_pNetworkClient.get(); }
+    const NetworkClient* GetNetworkClient() const noexcept { return m_pNetworkClient.get(); }
 
     RunnerService& GetRunner() noexcept;
     TransportService& GetTransport() noexcept;
@@ -35,8 +45,6 @@ struct World : entt::registry
     const DebugService& GetDebugService() const noexcept { return ctx().at<const DebugService>(); }
     MagicService& GetMagicService() noexcept { return ctx().at<MagicService>(); }
     const MagicService& GetMagicService() const noexcept { return ctx().at<const MagicService>(); }
-    HostService& GetHostService() noexcept { return ctx().at<HostService>(); }
-    const HostService& GetHostService() const noexcept { return ctx().at<const HostService>(); }
 
     auto& GetDispatcher() noexcept { return m_dispatcher; }
 
@@ -44,6 +52,10 @@ struct World : entt::registry
     void SetServerSettings(ServerSettings aServerSettings) noexcept { m_serverSettings = aServerSettings; }
 
     [[nodiscard]] uint64_t GetTick() const noexcept;
+
+    // P2P: Is this the host's World or a client's World?
+    [[nodiscard]] bool IsHost() const noexcept { return m_isHost; }
+    void SetIsHost(bool isHost) noexcept { m_isHost = isHost; }
 
     static void Create() noexcept;
     [[nodiscard]] static World& Get() noexcept;
@@ -56,4 +68,10 @@ private:
     ServerSettings m_serverSettings{};
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
+
+    // P2P: True if this is the host's World (authoritative), false if client's World (replica)
+    bool m_isHost{false};
+
+    // P2P: Network client for connecting to host (replaces TransportService eventually)
+    std::unique_ptr<NetworkClient> m_pNetworkClient;
 };

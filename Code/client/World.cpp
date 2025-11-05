@@ -19,10 +19,11 @@
 #include <Services/PlayerService.h>
 #include <Services/CombatService.h>
 #include <Services/WeatherService.h>
-#include <Services/HostService.h>
 
 #include <Events/PreUpdateEvent.h>
 #include <Events/UpdateEvent.h>
+
+#include <NetworkClient.h>
 
 #include <ModCompat/BehaviorVar.h>  
 
@@ -51,7 +52,6 @@ World::World()
     ctx().emplace<StringCacheService>(m_dispatcher);
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher);
     ctx().emplace<WeatherService>(*this, m_transport, m_dispatcher);
-    ctx().emplace<HostService>(*this, m_dispatcher);
 
     BehaviorVar::Get()->Init();
 }
@@ -71,6 +71,60 @@ void World::Update() noexcept
     // Force run this before so we get the tasks scheduled to run
     m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
     m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));
+
+    // P2P: Update network client if connected
+    if (m_pNetworkClient)
+    {
+        m_pNetworkClient->Update();
+    }
+}
+
+bool World::ConnectToHost(const TiltedPhoques::String& aHostAddress, uint16_t aPort) noexcept
+{
+    if (m_pNetworkClient && m_pNetworkClient->IsConnected())
+    {
+        spdlog::warn("[World] Already connected to a host");
+        return true;
+    }
+
+    try
+    {
+        spdlog::info("[World] Connecting to host at {}:{}", aHostAddress, aPort);
+
+        // Create NetworkClient with dispatcher (pure networking!)
+        m_pNetworkClient = std::make_unique<NetworkClient>(m_dispatcher);
+        if (!m_pNetworkClient->ConnectToHost(aHostAddress, aPort))
+        {
+            spdlog::error("[World] Failed to connect to host at {}:{}", aHostAddress, aPort);
+            m_pNetworkClient.reset();
+            return false;
+        }
+
+        spdlog::info("[World] Successfully initiated connection to host");
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        spdlog::error("[World] Exception while connecting to host: {}", e.what());
+        m_pNetworkClient.reset();
+        return false;
+    }
+}
+
+void World::Disconnect() noexcept
+{
+    if (!m_pNetworkClient)
+        return;
+
+    spdlog::info("[World] Disconnecting from host");
+    m_pNetworkClient->Disconnect();
+    m_pNetworkClient.reset();
+    spdlog::info("[World] Disconnected from host");
+}
+
+bool World::IsConnected() const noexcept
+{
+    return m_pNetworkClient && m_pNetworkClient->IsConnected();
 }
 
 RunnerService& World::GetRunner() noexcept
