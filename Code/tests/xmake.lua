@@ -11,5 +11,5 @@ target("TPTests")
         "TiltedCore",
         "hopscotch-map",
         "catch2",
-        "mimalloc",
+        "rpmalloc",
         "glm")

@@ -46,18 +46,16 @@ target(name)
     )
 
     add_packages(
-        "mimalloc",  -- Needed for Memory.cpp direct include
+        "rpmalloc",  -- Needed for Memory.cpp direct include
         "spdlog",
         "hopscotch-map",
         "cryptopp",
-        "gamenetworkingsockets",
+        "enet6",
         "discord",
         "imgui",
         "cef",
-        "minhook",
         "entt",
         "glm",
-        "mem",
         "xbyak")
 
     if has_config("vivox") then

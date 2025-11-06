@@ -1,6 +1,6 @@
 #pragma once
 
-#include "steam/steamnetworkingsockets.h"
+#include <cstdint>
 
 namespace TiltedPhoques
 {
@@ -23,5 +23,6 @@ namespace TiltedPhoques
         static void Release();
     };
 
-    using ConnectionId_t = HSteamNetConnection;
+    // Stub type for compatibility - using enet6 for actual networking
+    using ConnectionId_t = uint32_t;
 }

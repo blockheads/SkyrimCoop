@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cctype>
+#include <cmath>
 #include <string>
 #include <cstring>
 #include <charconv>
@@ -23,6 +24,28 @@ template <typename T> T ConvertStringValue(const char* szValue, T acDefault)
     T nValue = acDefault;
     std::from_chars(szValue, szValue + std::strlen(szValue), nValue);
     return nValue;
+}
+
+// Specialization for float (std::from_chars not available for float in GCC 10 MinGW)
+template <> inline float ConvertStringValue<float>(const char* szValue, float acDefault)
+{
+    char* end = nullptr;
+    float result = std::strtof(szValue, &end);
+    // Check if conversion was successful (end pointer moved and no overflow)
+    if (end != szValue && result != HUGE_VALF && result != -HUGE_VALF)
+        return result;
+    return acDefault;
+}
+
+// Specialization for double (std::from_chars not available for double in GCC 10 MinGW)
+template <> inline double ConvertStringValue<double>(const char* szValue, double acDefault)
+{
+    char* end = nullptr;
+    double result = std::strtod(szValue, &end);
+    // Check if conversion was successful (end pointer moved and no overflow)
+    if (end != szValue && result != HUGE_VAL && result != -HUGE_VAL)
+        return result;
+    return acDefault;
 }
 
 bool CheckIsValidUTF8(const TiltedPhoques::String& string);

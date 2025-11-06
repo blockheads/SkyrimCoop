@@ -2,7 +2,7 @@
 
 #include <optional>
 #include <Memory.hpp>
-#include <Windows.h>
+#include <windows.h>
 
 inline TiltedPhoques::String QueryFileVersion(const wchar_t* acpPath)
 {

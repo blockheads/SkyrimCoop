@@ -13,6 +13,8 @@ local function build_server()
     add_files("**.cpp")
     if is_plat("windows") then
         add_files("server.rc")
+        -- MinGW cross-compile: enable big object files (equivalent to MSVC /bigobj)
+        add_cxflags("-Wa,-mbig-obj", {tools = {"gcc", "clang"}})
     end
     if is_plat("linux") then
         add_cxxflags("-fvisibility=hidden")
@@ -28,7 +30,7 @@ local function build_server()
         "SkyrimCoopNetworking"
     )
     add_packages(
-        "gamenetworkingsockets",
+        "enet6",
         "spdlog",
         "hopscotch-map",
         "sqlite3",
@@ -36,8 +38,7 @@ local function build_server()
         "sol2",
         "glm",
         "entt",
-        "cpp-httplib",
-        "sentry-native")
+        "cpp-httplib")
 end
 
 target("SkyrimTogetherServer")

@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <stdlib.h>
 
 #include <Entry.hpp>
 #include <App.hpp>
@@ -16,8 +17,8 @@ TiltedPhoques::App& TiltedPhoques::App::GetInstance() noexcept
     return *g_pApp;
 }
 
-using TWinMain = int(__stdcall)(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd);
-TWinMain* OriginalWinMain = nullptr;
+using TWinMain = int(__stdcall*)(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd);
+TWinMain OriginalWinMain = nullptr;
 
 static int __stdcall HookedWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
@@ -43,7 +44,7 @@ static int __stdcall HookedWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 static void SetupMainHook()
 {
-    OriginalWinMain = static_cast<TWinMain*>(TiltedPhoques::App::GetInstance().GetMainAddress());
+    OriginalWinMain = reinterpret_cast<TWinMain>(TiltedPhoques::App::GetInstance().GetMainAddress());
     if (OriginalWinMain == nullptr)
         return;
 
@@ -55,7 +56,8 @@ static std::once_flag s_mainHookCallFlag;
 #if TP_PLATFORM_64
 
 using TGetWinmain = char* (__stdcall*)();
-using T_initterm = decltype(&::_initterm);
+// MinGW/GCC: _initterm signature
+using T_initterm = void(__cdecl*)(_PVFV*, _PVFV*);
 
 static TGetWinmain OriginalGetWinmain = nullptr;
 static T_initterm Original_initterm = nullptr;

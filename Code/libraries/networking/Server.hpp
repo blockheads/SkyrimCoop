@@ -1,13 +1,21 @@
 #pragma once
 
-#include <steam/steamnetworkingsockets.h>
+#include <enet6/enet.h>
 #include <cstdint>
 #include <chrono>
-#include "SteamInterface.hpp"
 #include <Stl.hpp>
 
 namespace TiltedPhoques
 {
+    // ENet types
+    using ConnectionId_t = uint32_t;
+
+    enum EPacketFlags
+    {
+        kReliable = ENET_PACKET_FLAG_RELIABLE,
+        kUnreliable = 0
+    };
+
     struct Packet;
     struct Server
     {
@@ -46,8 +54,8 @@ namespace TiltedPhoques
         [[nodiscard]] uint32_t GetClientCount() const noexcept;
         [[nodiscard]] uint32_t GetTickRate() const noexcept;
         [[nodiscard]] uint64_t GetTick() const noexcept;
-        [[nodiscard]] SteamNetConnectionInfo_t GetConnectionInfo(ConnectionId_t aConnectionId) const noexcept;
         [[nodiscard]] bool IsAlive(ConnectionId_t aConnectionId) const noexcept;
+        [[nodiscard]] String GetConnectionAddress(ConnectionId_t aConnectionId) const noexcept;
 
     private:
 
@@ -56,16 +64,11 @@ namespace TiltedPhoques
         void HandleMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId) noexcept;
         void HandleCompressedPayload(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId) noexcept;
 
-        void SynchronizeClientClocks(ConnectionId_t aSpecificConnection = k_HSteamNetConnection_Invalid) noexcept;
+        void SynchronizeClientClocks(ConnectionId_t aSpecificConnection = ENET_PEER_PACKET_LOSS_SCALE) noexcept;
 
-        static void SteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCallback_t* apInfo);
-        void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* apInfo);
-
-        HSteamListenSocket m_listenSock;
-        HSteamNetPollGroup m_pollGroup;
-        ISteamNetworkingSockets* m_pInterface;
-
-        Vector<ConnectionId_t> m_connections;
+        ENetHost* m_pHost;
+        Map<ConnectionId_t, ENetPeer*> m_peers;
+        uint16_t m_port;
 
         uint32_t m_tickRate;
         std::chrono::time_point<std::chrono::high_resolution_clock> m_lastClockSyncTime;

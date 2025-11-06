@@ -8,7 +8,6 @@
 #include <Events/PlayerJoinEvent.h>
 #include <Events/PlayerLeaveEvent.h>
 #include <Events/UpdateEvent.h>
-#include <steam/isteamnetworkingutils.h>
 
 #include <AdminMessages/AdminSessionOpen.h>
 #include <AdminMessages/ClientAdminMessageFactory.h>
@@ -823,10 +822,7 @@ bool GameServer::ValidateAuthParams(ConnectionId_t aConnectionId, const UniquePt
 void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
                                              const UniquePtr<AuthenticationRequest>& acRequest)
 {
-    const auto info = GetConnectionInfo(aConnectionId);
-
-    char remoteAddress[48]{};
-    info.m_addrRemote.ToString(remoteAddress, 48, false);
+    const auto remoteAddress = GetConnectionAddress(aConnectionId);
 
     AuthenticationResponse serverResponse;
     serverResponse.Version = BUILD_COMMIT;

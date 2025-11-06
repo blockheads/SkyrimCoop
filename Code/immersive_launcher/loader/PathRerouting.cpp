@@ -3,7 +3,7 @@
 
 #include "PathRerouting.h"
 #include <TiltedCore/Filesystem.hpp>
-#include <Windows.h>
+#include <windows.h>
 
 namespace loader
 {

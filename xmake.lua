@@ -1,5 +1,9 @@
 set_xmakever("2.8.5")
 
+ if is_plat("mingw") then
+      add_cxxflags("-Wa,-mbig-obj")
+end
+
 -- If newer version of xmake, remove ccache until it actually works
 if set_policy ~= nil then
     set_policy("build.ccache", false)
@@ -42,15 +46,14 @@ add_requires(
     "spdlog v1.13.0",
     "cpp-httplib 0.14.0",
     "gtest v1.14.0",
-    "mem 1.0.0",
     "glm 0.9.9+8",
-    "sentry-native 0.7.1",
+    -- sentry-native 0.7.1,  -- Disabled: not compatible with MinGW cross-compilation
     "zlib v1.3.1",
+    -- gamenetworkingsockets v1.4.1,  -- Disabled: not compatible with MinGW, using enet6 instead
     -- Merged library dependencies (formerly in submodules)
-    "mimalloc",
+    "rpmalloc",
     "hopscotch-map v2.3.1",
-    "snappy 1.1.10",
-    "gamenetworkingsockets v1.4.1",
+    "enet6",
     "libuv v1.48.0",
     "minhook v1.3.3",
     "xbyak v7.06",
@@ -66,7 +69,6 @@ if is_plat("windows") then
 end
 
 -- dependencies' dependencies version pinning
-add_requireconfs("*.mimalloc", { version = "2.2.4", override = true })
 add_requireconfs("*.cmake", { version = "3.30.2", override = true })
 add_requireconfs("*.openssl", { version = "1.1.1-w", override = true })
 add_requireconfs("*.zlib", { version = "v1.3.1", override = true })
@@ -77,7 +79,7 @@ if is_plat("linux") then
 end
 
 add_requireconfs("cpp-httplib", {configs = {ssl = true}})
-add_requireconfs("sentry-native", { configs = { backend = "crashpad" } })
+-- add_requireconfs("sentry-native", { configs = { backend = "crashpad" } })  -- Disabled
 --[[
 add_requireconfs("magnum", { configs = { sdl2 = true }})
 add_requireconfs("magnum-integration",  { configs = { imgui = true }})

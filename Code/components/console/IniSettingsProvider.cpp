@@ -10,6 +10,7 @@
 #include <console/ConsoleRegistry.h>
 
 #include <charconv>
+#include <cstdio>
 #include <fstream>
 
 #include <TiltedCore/Filesystem.hpp>
@@ -22,6 +23,34 @@ template <typename T, typename TVal> static SI_Error SetIniValue(CSimpleIni& ini
 {
     char szValue[64]{};
     std::to_chars(szValue, szValue + sizeof(szValue), a_nValue);
+
+    // convert to output text
+    T szOutput[256];
+    CSimpleIni::Converter c(ini.IsUnicode());
+    c.ConvertFromStore(szValue, std::strlen(szValue) + 1, szOutput, sizeof(szOutput) / sizeof(T));
+
+    return ini.AddEntry(a_pSection, a_pKey, szOutput, a_pComment, false, true);
+}
+
+// Specialization for float (std::to_chars not available for float in GCC 10 MinGW)
+template <typename T> static SI_Error SetIniValue(CSimpleIni& ini, const T* a_pSection, const T* a_pKey, const float a_nValue, const T* a_pComment = nullptr)
+{
+    char szValue[64]{};
+    std::snprintf(szValue, sizeof(szValue), "%g", a_nValue);
+
+    // convert to output text
+    T szOutput[256];
+    CSimpleIni::Converter c(ini.IsUnicode());
+    c.ConvertFromStore(szValue, std::strlen(szValue) + 1, szOutput, sizeof(szOutput) / sizeof(T));
+
+    return ini.AddEntry(a_pSection, a_pKey, szOutput, a_pComment, false, true);
+}
+
+// Specialization for double (std::to_chars not available for double in GCC 10 MinGW)
+template <typename T> static SI_Error SetIniValue(CSimpleIni& ini, const T* a_pSection, const T* a_pKey, const double a_nValue, const T* a_pComment = nullptr)
+{
+    char szValue[64]{};
+    std::snprintf(szValue, sizeof(szValue), "%g", a_nValue);
 
     // convert to output text
     T szOutput[256];

@@ -16,7 +16,7 @@
 
 DECLARE_TLS_VARS(7096);
 
-#include <Windows.h>
+#include <windows.h>
 
 struct TlsToucher
 {

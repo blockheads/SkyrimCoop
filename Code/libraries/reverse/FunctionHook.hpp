@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 
 #include <Stl.hpp>
 #include <Memory.hpp>
@@ -104,7 +104,7 @@ namespace TiltedPhoques
 #define TP_HOOK_IMMEDIATE(systemFunction, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, false)
 
 #define TP_HOOK_SYSTEM(libraryName, functionName, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().AddSystem(libraryName, functionName, hookFunction)
-#define TP_HOOK_IAT(functionName, libraryName) Real ##functionName = (T ##functionName)TiltedPhoques::FunctionHookManager::GetInstance().Add(Hook ## functionName, libraryName, #functionName)
+#define TP_HOOK_IAT(functionName, libraryName) Real ##functionName = (T ##functionName)TiltedPhoques::FunctionHookManager::GetInstance().Add(reinterpret_cast<void*>(Hook ## functionName), libraryName, #functionName)
 #define TP_HOOK_IAT2(libraryName, functionName, hook) TiltedPhoques::FunctionHookManager::GetInstance().Add(reinterpret_cast<void*>(&hook), libraryName, functionName)
 
 #define TP_HOOK_COMMIT TiltedPhoques::FunctionHookManager::GetInstance().InstallDelayedHooks();

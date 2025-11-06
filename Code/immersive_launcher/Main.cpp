@@ -1,7 +1,7 @@
 
 #include "Utils/Error.h"
 #include "launcher.h"
-#include <Windows.h>
+#include <windows.h>
 #include <combaseapi.h>
 #include <base/threading/ThreadUtils.h>
 

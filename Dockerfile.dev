@@ -1,0 +1,44 @@
+# Development Dockerfile for cross-compiling SkyrimCoop from Linux to Windows
+# Uses clang-cl to target Windows while building on Linux
+
+FROM ubuntu:22.04 as base
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install base dependencies including MinGW-w64 with POSIX threading
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    unzip \
+    ca-certificates \
+    build-essential \
+    python3 \
+    python3-pip \
+    dos2unix \
+    g++-mingw-w64-x86-64-posix \
+    gcc-mingw-w64-x86-64-posix \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix \
+    && update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+
+# Install XMake
+RUN curl -fsSL https://xmake.io/shget.text | bash
+ENV PATH="/root/.local/bin:${PATH}"
+
+# XMake environment variables (must be set before running xmake)
+ENV XMAKE_ROOT=y
+
+# Pre-update XMake repositories to avoid slow first-run
+RUN xmake repo --update
+
+# Set up working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]
+
+# Usage instructions
+LABEL description="Development environment for cross-compiling SkyrimCoop from Linux to Windows using MinGW-w64"
+LABEL usage="docker build -f Dockerfile.dev -t skyrimcoop-dev . && docker run -it -v $(pwd):/workspace skyrimcoop-dev"

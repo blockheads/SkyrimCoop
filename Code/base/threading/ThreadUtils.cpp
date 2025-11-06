@@ -5,7 +5,7 @@ namespace
 {
 // as defined in sentry-native/src/sentry_sync.h
 #ifdef _WIN32
-#include <Windows.h>
+#include <windows.h>
 using sentry_threadid_t = HANDLE;
 
 sentry_threadid_t GetCurrentThreadHandle()

@@ -1,5 +1,5 @@
 
-#include <Windows.h>
+#include <windows.h>
 #include "usvfs/USVFS_Sentinel.h"
 
 namespace usvfs

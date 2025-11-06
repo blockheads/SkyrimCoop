@@ -1,0 +1,45 @@
+--- a/xmake.lua
++++ b/xmake.lua
+@@ -59,7 +59,6 @@ add_requires(
+ if is_plat("windows") then
+     add_requires(
+         "discord 3.2.1",
+-        "imgui v1.89.7",
+-        "directxtk 21.11.0",
+-        "cef 100.0.24"
++        "imgui v1.89.7"
+     )
+ end
+
+--- a/Code/client/xmake.lua
++++ b/Code/client/xmake.lua
+@@ -13,13 +13,6 @@ target(name)
+     add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**")
+
+     after_install(function(target)
+-        -- copy dlls
+-        for _, pkg_with_dlls in ipairs({"cef", "discord"}) do
+-            local linkdir = target:pkg(pkg_with_dlls):get("linkdirs")
+-            local bindir = path.join(linkdir, "..", "bin")
+-            os.cp(bindir, target:installdir())
+-        end
+-        -- copy ui
+         local uidir = path.join(target:scriptdir(), "..", "skyrim_ui", "src")
+         os.cp(path.join(uidir, "assets", "images", "cursor.dds"), path.join(target:installdir(), "bin", "assets", "images", "cursor.dds"))
+         os.cp(path.join(uidir, "assets", "images", "cursor.png"), path.join(target:installdir(), "bin", "assets", "images", "cursor.png"))
+@@ -33,7 +26,6 @@ target(name)
+     -- Add server dependency for embedded GameServer (P2P hosting)
+     add_deps("SkyrimTogetherServer")
+     add_deps(
+-        "SkyrimCoopUIProcess",
+         "CommonLib",
+         "BaseLib",
+         "ImGuiImpl",
+@@ -53,7 +45,6 @@ target(name)
+         "gamenetworkingsockets",
+         "discord",
+         "imgui",
+-        "cef",
+         "minhook",
+         "entt",
+         "glm",

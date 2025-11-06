@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  skyrimcoop-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: skyrimcoop-dev:latest
+    container_name: skyrimcoop-dev
+    volumes:
+      # Mount the entire project directory
+      - .:/workspace
+      # Cache XMake build artifacts
+      - xmake-cache:/root/.xmake
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    environment:
+      - XMAKE_GLOBALDIR=/workspace
+      - XMAKE_ROOT=y
+
+volumes:
+  xmake-cache:
+    name: skyrimcoop-xmake-cache

@@ -5,7 +5,7 @@
 #include <d3d11_1.h>
 #include <wrl.h>
 #include <VersionHelpers.h>
-#include <Windows.h>
+#include <windows.h>
 
 #include "SupportChecks.h"
 

@@ -10,7 +10,7 @@
 // - 2021/2/24: Increased game segment size for Fallout4.
 
 #include "TargetConfig.h"
-#include <Windows.h>
+#include <windows.h>
 
 #pragma comment(linker, "/merge:.data=.cld")
 #pragma comment(linker, "/merge:.rdata=.clr")

@@ -2,7 +2,7 @@
 // For licensing information see LICENSE at the root of this distribution.
 
 #include "SEMemoryBlock.h"
-#include <Windows.h>
+#include <windows.h>
 #include <cstdint>
 
 namespace script_extender

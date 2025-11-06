@@ -223,22 +223,21 @@ namespace TiltedPhoques
 		return std::chrono::duration_cast<std::chrono::milliseconds>(m_currentTick.time_since_epoch()).count();
 	}
 
-    SteamNetConnectionInfo_t Server::GetConnectionInfo(ConnectionId_t aConnectionId) const noexcept
+    String Server::GetConnectionAddress(ConnectionId_t aConnectionId) const noexcept
     {
-        SteamNetConnectionInfo_t info{};
+        auto it = m_peers.find(aConnectionId);
+        if (it == m_peers.end() || !it->second)
+            return "unknown";
 
-        if (aConnectionId != k_HSteamNetConnection_Invalid)
-        {
-            m_pInterface->GetConnectionInfo(aConnectionId, &info);
-        }
-
-        return info;
+        ENetPeer* peer = it->second;
+        char buffer[64];
+        enet_address_get_host_ip(&peer->address, buffer, sizeof(buffer));
+        return String(buffer);
     }
 
     bool Server::IsAlive(ConnectionId_t aConnectionId) const noexcept
     {
-		const auto it = std::find(std::begin(m_connections), std::end(m_connections), aConnectionId);
-        return it != std::end(m_connections);
+        return m_peers.find(aConnectionId) != m_peers.end();
     }
 
     void Server::Remove(const ConnectionId_t aId) noexcept

@@ -3,8 +3,8 @@
 #include <Games/Memory.h>
 #include <Games/References.h>
 
-#include <TiltedCore/MimallocAllocator.hpp>
-#include <mimalloc.h>
+#include <TiltedCore/RpmallocAllocator.hpp>
+#include <rpmalloc.h>
 
 #pragma optimize("", off)
 
@@ -24,7 +24,7 @@ TP_THIS_FUNCTION(TFormFree, void, GameHeap, void* apPtr, bool aAligned);
 TFormAllocate* RealFormAllocate = nullptr;
 TFormFree* RealFormFree = nullptr;
 
-static TiltedPhoques::MimallocAllocator s_allocator;
+static TiltedPhoques::RpmallocAllocator s_allocator;
 
 void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignment, bool aAligned)
 {
@@ -102,32 +102,32 @@ static void RehookFormAllocate(TFormAllocate* apEngineFixesAllocate) noexcept
 
 size_t Hook_msize(void* apData)
 {
-    return mi_malloc_size(apData);
+    return rpmalloc_usable_size(apData);
 }
 
 void Hookfree(void* apData)
 {
-    mi_free(apData);
+    rpfree(apData);
 }
 
 void* Hookcalloc(size_t aCount, size_t aSize)
 {
-    return mi_calloc(aCount, aSize);
+    return rpcalloc(aCount, aSize);
 }
 
 void* Hookmalloc(size_t aSize)
 {
-    return mi_malloc(aSize);
+    return rpmalloc(aSize);
 }
 
 void Hook_aligned_free(void* apData)
 {
-    mi_free(apData);
+    rpfree(apData);
 }
 
 void* Hook_aligned_malloc(size_t aSize, size_t aAlignment)
 {
-    return mi_malloc_aligned(aSize, aAlignment);
+    return rpaligned_alloc(aAlignment, aSize);
 }
 
 static TiltedPhoques::Initializer s_memoryHooks(

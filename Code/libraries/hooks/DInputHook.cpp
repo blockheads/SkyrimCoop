@@ -52,8 +52,8 @@ namespace TiltedPhoques
         IDirectInputDevice8A* m_pDevice;
     };
 
-    using TIDirectInputA_CreateDevice = HRESULT(_stdcall*)(IDirectInput8A * pDirectInput, REFGUID typeGuid, LPDIRECTINPUTDEVICE8A * apDevice, LPUNKNOWN unused);
-    using TDirectInput8Create = HRESULT(_stdcall*)(HINSTANCE, DWORD, REFIID, LPVOID*, LPUNKNOWN);
+    using TIDirectInputA_CreateDevice = HRESULT(__stdcall*)(IDirectInput8A * pDirectInput, REFGUID typeGuid, LPDIRECTINPUTDEVICE8A * apDevice, LPUNKNOWN unused);
+    using TDirectInput8Create = HRESULT(__stdcall*)(HINSTANCE, DWORD, REFIID, LPVOID*, LPUNKNOWN);
 
     static TIDirectInputA_CreateDevice RealIDirectInputA_CreateDevice = nullptr;
     static TDirectInput8Create RealDirectInput8Create = nullptr;
@@ -63,7 +63,7 @@ namespace TiltedPhoques
 
     static Set<StubIDirectInputDevice8A*> s_devices;
 
-    HRESULT _stdcall StubIDirectInputDevice8A::GetDeviceState(DWORD outDataLen, LPVOID outData)
+    HRESULT __stdcall StubIDirectInputDevice8A::GetDeviceState(DWORD outDataLen, LPVOID outData)
     {
         if (DInputHook::Get().IsEnabled())
         {
@@ -74,7 +74,7 @@ namespace TiltedPhoques
         return IDirectInputDevice8_GetDeviceState(m_pDevice, outDataLen, outData);
     }
 
-    HRESULT _stdcall StubIDirectInputDevice8A::GetDeviceData(DWORD dataSize, LPDIDEVICEOBJECTDATA outData, LPDWORD outDataLen, DWORD flags)
+    HRESULT __stdcall StubIDirectInputDevice8A::GetDeviceData(DWORD dataSize, LPDIDEVICEOBJECTDATA outData, LPDWORD outDataLen, DWORD flags)
     {
         auto& input = DInputHook::Get();
 
@@ -108,7 +108,7 @@ namespace TiltedPhoques
         return result;
     }
 
-    ULONG _stdcall StubIDirectInputDevice8A::Release()
+    ULONG __stdcall StubIDirectInputDevice8A::Release()
     {
         const auto result = IDirectInputDevice8_Release(m_pDevice);
         if (result == 0)
@@ -121,7 +121,7 @@ namespace TiltedPhoques
         return result;
     }
 
-    HRESULT _stdcall HookIDirectInputA_CreateDevice(IDirectInput8A* pDirectInput, REFGUID typeGuid, LPDIRECTINPUTDEVICE8A* apDevice, LPUNKNOWN unused)
+    HRESULT __stdcall HookIDirectInputA_CreateDevice(IDirectInput8A* pDirectInput, REFGUID typeGuid, LPDIRECTINPUTDEVICE8A* apDevice, LPUNKNOWN unused)
     {
         const auto result = RealIDirectInputA_CreateDevice(pDirectInput, typeGuid, apDevice, unused);
 
@@ -147,16 +147,16 @@ namespace TiltedPhoques
         if (std::all_of(s_realDirectInput8CreatePrologue.begin(), s_realDirectInput8CreatePrologue.end(), [](uint8_t i) { return i == 0; }))
             return;
 
-        const vp::ScopedContext prologueMemory(RealDirectInput8Create, kDirectInput8CreatePrologueSize);
+        const vp::ScopedContext prologueMemory(reinterpret_cast<const void*>(RealDirectInput8Create), kDirectInput8CreatePrologueSize);
 
-        bool hasOriginalPrologue = RtlEqualMemory(RealDirectInput8Create, s_realDirectInput8CreatePrologue.data(), kDirectInput8CreatePrologueSize);
+        bool hasOriginalPrologue = RtlEqualMemory(reinterpret_cast<const void*>(RealDirectInput8Create), s_realDirectInput8CreatePrologue.data(), kDirectInput8CreatePrologueSize);
         if (!hasOriginalPrologue)
         {
             TiltedPhoques::Put(RealDirectInput8Create, s_realDirectInput8CreatePrologue);
         }
     }
 
-    static HRESULT _stdcall HookDirectInput8Create(HINSTANCE instance, DWORD version, REFIID iid, LPVOID* out, LPUNKNOWN outer)
+    static HRESULT __stdcall HookDirectInput8Create(HINSTANCE instance, DWORD version, REFIID iid, LPVOID* out, LPUNKNOWN outer)
     {
         EnforceOriginalFunctionPrologue();
 

@@ -2,8 +2,8 @@
 #include <TiltedOnlineApp.h>
 #include <TiltedOnlinePCH.h>
 
-#include <Commctrl.h>
-#include <Windows.h>
+#include <commctrl.h>
+#include <windows.h>
 
 #include <base/dialogues/win/TaskDialog.h>
 

@@ -1,5 +1,4 @@
 #include "SteamInterface.hpp"
-#include "steam/steamnetworkingsockets.h"
 
 #include <atomic>
 #include <spdlog/spdlog.h>
@@ -13,16 +12,9 @@ namespace TiltedPhoques
     {
         if (s_initCounter.fetch_add(1, std::memory_order_relaxed) == 0)
         {
-            SteamDatagramErrMsg errorMessage;
-            s_initSucceeded = GameNetworkingSockets_Init(nullptr, errorMessage);
-            if (!s_initSucceeded)
-            {
-                spdlog::critical("[TiltedConnect] FATAL: GameNetworkingSockets_Init failed: {}", errorMessage);
-            }
-            else
-            {
-                spdlog::info("[TiltedConnect] GameNetworkingSockets_Init succeeded");
-            }
+            // Stub implementation - using enet6 for networking instead of GameNetworkingSockets
+            s_initSucceeded = true;
+            spdlog::info("[TiltedConnect] Using enet6 for networking (GameNetworkingSockets disabled for MinGW compatibility)");
         }
     }
 
@@ -30,7 +22,7 @@ namespace TiltedPhoques
     {
         if (s_initCounter.fetch_sub(1, std::memory_order_relaxed) == 1)
         {
-            GameNetworkingSockets_Kill();
+            // Stub implementation - nothing to clean up
         }
     }
 }

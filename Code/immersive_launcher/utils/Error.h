@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Windows.h>
-#include <Commctrl.h>
+#include <windows.h>
+#include <commctrl.h>
 
 #include <TiltedCore/Stl.hpp>
 

@@ -1,5 +1,5 @@
 
-#include <Windows.h>
+#include <windows.h>
 
 #define SPDLOG_WCHAR_FILENAMES
 #include <spdlog/formatter.h>

@@ -1,7 +1,7 @@
 #include <BranchInfo.h>
 #include "CrashHandler.h"
 #include <DbgHelp.h>
-#include <Windows.h>
+#include <windows.h>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>

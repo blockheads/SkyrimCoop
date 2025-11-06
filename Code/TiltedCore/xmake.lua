@@ -9,9 +9,9 @@ target("TiltedCore")
     add_includedirs(".", {public = true})
     add_headerfiles("*.hpp", "*.h")
 
-    -- TiltedCore depends on mimalloc and hopscotch-map
+    -- TiltedCore depends on rpmalloc and hopscotch-map
     -- Mark as public so dependent targets inherit them
-    add_packages("mimalloc", "hopscotch-map", {public = true})
+    add_packages("rpmalloc", "hopscotch-map", {public = true})
 
     -- Ensure debug symbols
     if is_plat("windows") then
