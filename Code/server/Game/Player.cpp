@@ -1,5 +1,6 @@
 #include "Player.h"
-#include <GameServer.h>
+#include <World.h>
+#include <NetworkBridge.h>
 
 static uint32_t GenerateId()
 {
@@ -100,7 +101,7 @@ void Player::SetCellComponent(const CellIdComponent& aCellComponent) noexcept
 
 void Player::Send(const ServerMessage& acServerMessage) const
 {
-    GameServer::Get()->Send(GetConnectionId(), acServerMessage);
+    SERVER_BRIDGE()->SendToPeer(GetConnectionId(), acServerMessage);
 }
 
 } // namespace Server

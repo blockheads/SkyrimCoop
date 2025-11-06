@@ -111,3 +111,6 @@ private:
 };
 
 } // namespace Server
+
+// Helper macro to access NetworkBridge from server code
+#define SERVER_BRIDGE() Server::World::Get().GetNetworkBridge()

@@ -1,6 +1,5 @@
 #include "StringCache.h"
 
-#include <GameServer.h>
 #include <Services/StringCacheService.h>
 #include <Events/UpdateEvent.h>
 #include <Game/Player.h>
