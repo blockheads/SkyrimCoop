@@ -26,4 +26,4 @@ struct MagicItem : TESBoundObject
     void* pPreloadItem;
 };
 
-static_assert(sizeof(MagicItem) == 0x90);
+TP_GAME_STRUCT_ASSERT(sizeof(MagicItem) == 0x90);

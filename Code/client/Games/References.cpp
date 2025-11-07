@@ -125,7 +125,9 @@ void TP_MAKE_THISCALL(HookSetCurrentPickREFR, Console, BSPointerHandle<TESObject
     if (pObject)
         formId = pObject->formID;
 
+#if TP_WITH_OVERLAY
     World::Get().GetDebugService().SetDebugId(formId);
+#endif
 
     return TiltedPhoques::ThisCall(RealSetCurrentPickREFR, apThis, apRefr);
 }

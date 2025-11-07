@@ -12,23 +12,34 @@ target("SkyrimCoopNetworking")
     add_includedirs("networking/", {public = true})
     add_headerfiles("networking/*.hpp")
     add_deps("TiltedCore")
-    add_packages("hopscotch-map", "enet6", "libuv", "spdlog")
+    add_packages("hopscotch-map", "enet6", "libuv", "spdlog", "snappy")
     if is_plat("linux") then
         add_cxflags("-fPIC")
     end
 
-    -- Ensure debug symbols in all modes
+    -- Debug symbols (reduced in debug mode for faster builds)
     if is_plat("windows") then
-        set_symbols("debug")
-        add_cxflags("/Zi")
-        add_ldflags("/DEBUG:FULL")
-    elseif is_plat("linux") then
-        set_symbols("debug")
-        add_cxflags("-g")
+        if is_mode("debug") then
+            set_symbols("debug")
+            add_cxflags("/Zi")
+            add_ldflags("/DEBUG:FASTLINK")  -- Much faster than /DEBUG:FULL
+        else
+            set_symbols("debug")
+            add_cxflags("/Zi")
+            add_ldflags("/DEBUG:FULL")
+        end
+    elseif is_plat("linux") or is_plat("mingw") then
+        if is_mode("debug") then
+            set_symbols("debug")
+            -- Already using -g1 from root xmake.lua for MinGW
+        else
+            set_symbols("debug")
+            add_cxflags("-g")
+        end
     end
 
--- Windows-only libraries (Client components)
-if is_plat("windows") then
+-- Windows-only libraries (Client components) - also built for MinGW cross-compile
+if is_plat("windows") or is_plat("mingw") then
     -- Reverse Engineering Library (formerly TiltedReverse)
     target("SkyrimCoopReverse")
         set_kind("static")
@@ -40,7 +51,9 @@ if is_plat("windows") then
         add_defines("NOMINMAX")
         add_deps("TiltedCore")
         add_packages("rpmalloc", "minhook", "hopscotch-map", "xbyak")
-        set_symbols("debug")
+        if not is_mode("debug") then
+            set_symbols("debug")
+        end
 
     -- Hooks Library (formerly TiltedHooks)
     target("SkyrimCoopHooks")
@@ -53,7 +66,9 @@ if is_plat("windows") then
         add_syslinks("dxguid", "dinput8", "d3d11")
         add_deps("TiltedCore", "SkyrimCoopReverse")
         add_packages("rpmalloc", "hopscotch-map")
-        set_symbols("debug")
+        if not is_mode("debug") then
+            set_symbols("debug")
+        end
 
     -- UI Library (formerly TiltedUI)
     target("SkyrimCoopUI")
@@ -73,7 +88,9 @@ if is_plat("windows") then
         add_deps("TiltedCore")
         add_packages("cef", "directxtk", "rpmalloc", "hopscotch-map")
         add_defines("NOMINMAX")
-        set_symbols("debug")
+        if not is_mode("debug") then
+            set_symbols("debug")
+        end
 
         -- Override any inherited runtime settings from dependencies
         after_load(function (target)
@@ -99,7 +116,9 @@ if is_plat("windows") then
         add_deps("TiltedCore")
         add_packages("cef", "rpmalloc", "hopscotch-map")
         add_defines("NOMINMAX")
-        set_symbols("debug")
+        if not is_mode("debug") then
+            set_symbols("debug")
+        end
 
         -- Override any inherited runtime settings from dependencies
         after_load(function (target)

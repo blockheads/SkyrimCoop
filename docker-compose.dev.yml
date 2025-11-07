@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   skyrimcoop-dev:
     build:
@@ -18,6 +16,15 @@ services:
     environment:
       - XMAKE_GLOBALDIR=/workspace
       - XMAKE_ROOT=y
+      - XMAKE_JOBS=8  # Use all 8 CPU cores
+    # Resource limits to prevent crashes during compilation
+    deploy:
+      resources:
+        limits:
+          cpus: '8'
+          memory: 32G
+        reservations:
+          memory: 16G
 
 volumes:
   xmake-cache:

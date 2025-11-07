@@ -8,35 +8,57 @@
 #include <cassert>
 #include <Packet.hpp>
 #include <bit>
-#include <google/protobuf/stubs/port.h>
 #include <snappy.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono;
 
+// Helper function for network byte order conversion (big endian)
+namespace
+{
+    inline uint64_t ToBigEndian64(uint64_t value)
+    {
+        if constexpr (std::endian::native == std::endian::little)
+        {
+            return ((value & 0x00000000000000FFULL) << 56) |
+                   ((value & 0x000000000000FF00ULL) << 40) |
+                   ((value & 0x0000000000FF0000ULL) << 24) |
+                   ((value & 0x00000000FF000000ULL) << 8)  |
+                   ((value & 0x000000FF00000000ULL) >> 8)  |
+                   ((value & 0x0000FF0000000000ULL) >> 24) |
+                   ((value & 0x00FF000000000000ULL) >> 40) |
+                   ((value & 0xFF00000000000000ULL) >> 56);
+        }
+        else
+        {
+            return value;
+        }
+    }
+}
+
 namespace TiltedPhoques
 {
-    static Server* s_pServer = nullptr;
-
     Server::Server() noexcept
-        : m_tickRate(10)
+        : m_pHost(nullptr)
+        , m_port(0)
+        , m_tickRate(10)
         , m_lastUpdateTime(0ns)
         , m_timeBetweenUpdates(100ms)
         , m_lastClockSyncTime(0ns)
     {
         SteamInterface::Acquire();
-        m_pInterface = SteamNetworkingSockets();
-        m_listenSock = k_HSteamListenSocket_Invalid;
-        m_pollGroup = k_HSteamNetPollGroup_Invalid;
+
+        // Initialize ENet
+        if (enet_initialize() != 0)
+        {
+            spdlog::error("[TiltedConnect] Failed to initialize ENet");
+        }
     }
 
     Server::~Server()
     {
-        // Clear the static server pointer when destroying
-        if (s_pServer == this)
-        {
-            s_pServer = nullptr;
-        }
+        Close();
+        enet_deinitialize();
         SteamInterface::Release();
     }
 
@@ -44,43 +66,37 @@ namespace TiltedPhoques
     {
         Close();
 
-        // Check if interface is valid
-        if (!m_pInterface)
-        {
-            // TODO: Log error - interface is null
-            return false;
-        }
-
-        SteamNetworkingIPAddr localAddress{};  // NOLINT(cppcoreguidelines-pro-type-member-init)
+        ENetAddress address;
         if (bEnableDualStackIP)
         {
-            localAddress.Clear();
-            localAddress.m_port = aPort;
+            // Dual-stack IPv4/IPv6
+            enet_address_build_any(&address, ENET_ADDRESS_TYPE_IPV6);
         }
         else
         {
-            localAddress.SetIPv4(0, aPort);
+            // IPv4 only
+            enet_address_build_any(&address, ENET_ADDRESS_TYPE_IPV4);
         }
+        address.port = aPort;
 
-        SteamNetworkingConfigValue_t opt = {};
-        opt.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, reinterpret_cast<void*>(&SteamNetConnectionStatusChangedCallback));
-        m_listenSock = m_pInterface->CreateListenSocketIP(localAddress, 1, &opt);
+        // Create host with dual-stack support
+        // Parameters: address type, bind address, max peers, channel count, incoming bandwidth, outgoing bandwidth
+        m_pHost = enet_host_create(
+            bEnableDualStackIP ? ENET_ADDRESS_TYPE_IPV6 : ENET_ADDRESS_TYPE_IPV4,
+            &address,
+            32,  // max peers
+            2,   // channel count (0 = reliable, 1 = unreliable)
+            0,   // incoming bandwidth (0 = unlimited)
+            0    // outgoing bandwidth (0 = unlimited)
+        );
 
-        if (m_listenSock == k_HSteamListenSocket_Invalid)
+        if (!m_pHost)
         {
-            // TODO: Log error - failed to create listen socket on port
+            spdlog::error("[TiltedConnect] Failed to create ENet server host on port {}", aPort);
             return false;
         }
 
-        m_pollGroup = m_pInterface->CreatePollGroup();
-
-        if (m_pollGroup == k_HSteamNetPollGroup_Invalid)
-        {
-            // TODO: Log error - failed to create poll group
-            m_pInterface->CloseListenSocket(m_listenSock);
-            m_listenSock = k_HSteamListenSocket_Invalid;
-            return false;
-        }
+        m_port = aPort;
 
         if (m_tickRate == 0 && aTickRate == 0)
         {
@@ -96,20 +112,32 @@ namespace TiltedPhoques
 
         // update time in MS
         m_timeBetweenUpdates = 1000ms / m_tickRate;
+
+        spdlog::info("[TiltedConnect] Server listening on port {} (tick rate: {})", aPort, m_tickRate);
+
         return IsListening();
     }
 
     void Server::Close() noexcept
     {
-        m_pInterface->DestroyPollGroup(m_pollGroup);
-        
-        if (IsListening())
+        if (m_pHost)
         {
-            m_pInterface->CloseListenSocket(m_listenSock);
+            // Disconnect all peers
+            for (auto& [connId, peer] : m_peers)
+            {
+                enet_peer_disconnect(peer, 0);
+            }
+
+            // Flush all packets
+            enet_host_flush(m_pHost);
+
+            // Destroy the host
+            enet_host_destroy(m_pHost);
+            m_pHost = nullptr;
         }
 
-        m_pollGroup = k_HSteamNetPollGroup_Invalid;
-        m_listenSock = k_HSteamListenSocket_Invalid;
+        m_peers.clear();
+        m_port = 0;
     }
 
     void Server::Update() noexcept
@@ -118,26 +146,67 @@ namespace TiltedPhoques
 
         if (IsListening())
         {
-            // Set the static server pointer for callbacks (thread-safe since only one server instance exists)
-            if (s_pServer == nullptr)
+            ENetEvent event;
+            // Service the host with 0 timeout for non-blocking
+            while (enet_host_service(m_pHost, &event, 0) > 0)
             {
-                s_pServer = this;
-            }
-            m_pInterface->RunCallbacks();
-
-            while (true)
-            {
-                ISteamNetworkingMessage* pIncomingMessage = nullptr;
-                const auto messageCount = m_pInterface->ReceiveMessagesOnPollGroup(m_pollGroup, &pIncomingMessage, 1);
-                if (messageCount <= 0 || pIncomingMessage == nullptr)
+                switch (event.type)
                 {
+                case ENET_EVENT_TYPE_CONNECT:
+                {
+                    const ConnectionId_t connId = static_cast<ConnectionId_t>(reinterpret_cast<uintptr_t>(event.peer));
+                    m_peers[connId] = event.peer;
+
+                    // Store connection ID in peer data
+                    event.peer->data = reinterpret_cast<void*>(static_cast<uintptr_t>(connId));
+
+                    char buffer[64];
+                    enet_address_get_host_ip(&event.peer->address, buffer, sizeof(buffer));
+                    spdlog::info("[TiltedConnect] Client connected from {}:{} (ID: {:x})",
+                                buffer, event.peer->address.port, connId);
+
+                    SynchronizeClientClocks(connId);
+                    OnConnection(connId);
                     break;
-                    // TODO: Handle when messageCount is a negative number, it's an error
                 }
 
-                HandleMessage(pIncomingMessage->GetData(), pIncomingMessage->GetSize(), pIncomingMessage->GetConnection());
+                case ENET_EVENT_TYPE_RECEIVE:
+                {
+                    const ConnectionId_t connId = static_cast<ConnectionId_t>(reinterpret_cast<uintptr_t>(event.peer));
+                    HandleMessage(event.packet->data, event.packet->dataLength, connId);
+                    enet_packet_destroy(event.packet);
+                    break;
+                }
 
-                pIncomingMessage->Release();
+                case ENET_EVENT_TYPE_DISCONNECT:
+                case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
+                {
+                    const ConnectionId_t connId = static_cast<ConnectionId_t>(reinterpret_cast<uintptr_t>(event.peer));
+
+                    char buffer[64];
+                    enet_address_get_host_ip(&event.peer->address, buffer, sizeof(buffer));
+                    spdlog::info("[TiltedConnect] Client disconnected: {} (ID: {:x}, reason: {})",
+                                buffer, connId,
+                                event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT ? "timeout" : "normal");
+
+                    auto it = m_peers.find(connId);
+                    if (it != m_peers.end())
+                    {
+                        m_peers.erase(it);
+                    }
+
+                    const auto reason = event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT
+                        ? EDisconnectReason::TimedOut
+                        : EDisconnectReason::Quit;
+
+                    OnDisconnection(connId, reason);
+                    event.peer->data = nullptr;
+                    break;
+                }
+
+                case ENET_EVENT_TYPE_NONE:
+                    break;
+                }
             }
         }
 
@@ -159,14 +228,22 @@ namespace TiltedPhoques
 
     void Server::SendToAll(Packet* apPacket, const EPacketFlags aPacketFlags) noexcept
     {
-        for (const auto conn : m_connections)
+        for (const auto& [connId, peer] : m_peers)
         {
-            Send(conn, apPacket, aPacketFlags);
+            Send(connId, apPacket, aPacketFlags);
         }
     }
 
     void Server::Send(const ConnectionId_t aConnectionId, Packet* apPacket, EPacketFlags aPacketFlags) const noexcept
     {
+        auto it = m_peers.find(aConnectionId);
+        if (it == m_peers.end())
+        {
+            return;
+        }
+
+        ENetPeer* peer = it->second;
+
         if (apPacket->m_pData[0] == kPayload)
         {
             std::string data;
@@ -180,37 +257,41 @@ namespace TiltedPhoques
             }
         }
 
-        m_pInterface->SendMessageToConnection(aConnectionId, apPacket->m_pData, apPacket->m_size,
-            aPacketFlags == kReliable ? k_nSteamNetworkingSend_Reliable : k_nSteamNetworkingSend_Unreliable, nullptr);
+        // Create ENet packet
+        const enet_uint32 flags = (aPacketFlags == kReliable) ? ENET_PACKET_FLAG_RELIABLE : 0;
+        ENetPacket* packet = enet_packet_create(apPacket->m_pData, apPacket->m_size, flags);
+
+        if (packet)
+        {
+            // Send on channel 0
+            enet_peer_send(peer, 0, packet);
+        }
     }
 
     void Server::Kick(const ConnectionId_t aConnectionId) noexcept
     {
-        m_pInterface->CloseConnection(aConnectionId, 0, "Kick", true);
-        Remove(aConnectionId);
-
-        OnDisconnection(aConnectionId, EDisconnectReason::Kicked);
+        auto it = m_peers.find(aConnectionId);
+        if (it != m_peers.end())
+        {
+            enet_peer_disconnect(it->second, 0);
+            m_peers.erase(it);
+            OnDisconnection(aConnectionId, EDisconnectReason::Kicked);
+        }
     }
 
     uint16_t Server::GetPort() const noexcept
     {
-        SteamNetworkingIPAddr address{};
-        if (m_pInterface->GetListenSocketAddress(m_listenSock, &address))
-        {
-            return address.m_port;
-        }
-
-        return 0;
+        return m_port;
     }
 
     bool Server::IsListening() const noexcept
     {
-        return m_listenSock != k_HSteamListenSocket_Invalid;
+        return m_pHost != nullptr;
     }
 
     uint32_t Server::GetClientCount() const noexcept
     {
-        return m_connections.size() & 0xFFFFFFFF;
+        return m_peers.size() & 0xFFFFFFFF;
     }
 
     uint32_t Server::GetTickRate() const noexcept
@@ -238,16 +319,6 @@ namespace TiltedPhoques
     bool Server::IsAlive(ConnectionId_t aConnectionId) const noexcept
     {
         return m_peers.find(aConnectionId) != m_peers.end();
-    }
-
-    void Server::Remove(const ConnectionId_t aId) noexcept
-    {
-        const auto it = std::find(std::begin(m_connections), std::end(m_connections), aId);
-        if (it != std::end(m_connections) && !m_connections.empty())
-        {
-            std::iter_swap(it, std::end(m_connections) - 1);
-            m_connections.pop_back();
-        }
     }
 
     void Server::HandleMessage(const void* apData, const uint32_t aSize, const ConnectionId_t aConnectionId) noexcept
@@ -293,108 +364,41 @@ namespace TiltedPhoques
 
         Buffer::Writer writer(pBuffer);
         writer.WriteBits(kServerTime, 8);
-        writer.WriteBits(google::protobuf::BigEndian::FromHost64(time), 64);
+        writer.WriteBits(ToBigEndian64(time), 64);
 
-        if(aSpecificConnection != k_HSteamNetConnection_Invalid)
-        {
-            // In this case we probably want it to arrive so send it reliably
-            m_pInterface->SendMessageToConnection(aSpecificConnection, pBuffer->GetData(), writer.Size() & 0xFFFFFFFF, k_nSteamNetworkingSend_ReliableNoNagle, nullptr);
-        }
-        else
-        {
-            for (const auto cConnection : m_connections)
-            {
-                m_pInterface->SendMessageToConnection(cConnection, pBuffer->GetData(), writer.Size() & 0xFFFFFFFF, k_nSteamNetworkingSend_UnreliableNoDelay, nullptr);
-            }
-        }
-    }
+        // Create ENet packet
+        ENetPacket* packet = enet_packet_create(pBuffer->GetData(), writer.Size() & 0xFFFFFFFF,
+            aSpecificConnection != ENET_PEER_PACKET_LOSS_SCALE ? ENET_PACKET_FLAG_RELIABLE : 0);
 
-    void Server::SteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCallback_t* apInfo)
-    {
-        if (!apInfo || apInfo->m_hConn == k_HSteamNetConnection_Invalid) [[unlikely]]
+        if (!packet)
             return;
 
-        if (s_pServer)
+        if (aSpecificConnection != ENET_PEER_PACKET_LOSS_SCALE)
         {
-            s_pServer->OnSteamNetConnectionStatusChanged(apInfo);
+            // Send to specific connection
+            auto it = m_peers.find(aSpecificConnection);
+            if (it != m_peers.end())
+            {
+                enet_peer_send(it->second, 0, packet);
+            }
+            else
+            {
+                enet_packet_destroy(packet);
+            }
         }
         else
         {
-            // This is a critical bug - connection callback fired but s_pServer is null!
-            // This means RunCallbacks() was called outside of Update(), or the callback
-            // is being delivered asynchronously on another thread.
-            spdlog::error("[TiltedConnect] WARNING: Connection status callback fired but s_pServer is NULL! "
-                         "Connection {:x}, State: {}", apInfo->m_hConn, apInfo->m_info.m_eState);
-        }
-    }
-
-    void Server::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t* apInfo)
-    {
-        spdlog::debug("[TiltedConnect] Connection {:x} state changed: {} -> {}",
-                     apInfo->m_hConn, apInfo->m_eOldState, apInfo->m_info.m_eState);
-
-        switch (apInfo->m_info.m_eState)
-        {
-        case k_ESteamNetworkingConnectionState_None:
-            break;
-        case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-        case k_ESteamNetworkingConnectionState_ClosedByPeer:
-        {
-            spdlog::info("[TiltedConnect] Connection {:x} closed (state: {}, old state: {}, reason: {})",
-                        apInfo->m_hConn, apInfo->m_info.m_eState, apInfo->m_eOldState,
-                        apInfo->m_info.m_szEndDebug);
-
-            if (apInfo->m_eOldState == k_ESteamNetworkingConnectionState_Connected)
+            // Broadcast to all connections
+            for (const auto& [connId, peer] : m_peers)
             {
-                Remove(apInfo->m_hConn);
-
-                const auto reason = apInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer
-                        ? EDisconnectReason::Quit
-                        : EDisconnectReason::BadConnection;
-
-                OnDisconnection(apInfo->m_hConn, reason);
+                // Need to clone packet for each peer except the last
+                ENetPacket* clonedPacket = enet_packet_create(packet->data, packet->dataLength, 0);
+                if (clonedPacket)
+                {
+                    enet_peer_send(peer, 0, clonedPacket);
+                }
             }
-
-            m_pInterface->CloseConnection(apInfo->m_hConn, 0, nullptr, false);
-            break;
-        }
-        case k_ESteamNetworkingConnectionState_Connecting:
-        {
-            spdlog::debug("[TiltedConnect] Connection {:x} attempting to connect...", apInfo->m_hConn);
-
-            EResult acceptResult = m_pInterface->AcceptConnection(apInfo->m_hConn);
-            if (acceptResult != k_EResultOK)
-            {
-                spdlog::error("[TiltedConnect] Failed to accept connection {:x}, result: {}",
-                             apInfo->m_hConn, acceptResult);
-                m_pInterface->CloseConnection(apInfo->m_hConn, 0, nullptr, false);
-                break;
-            }
-
-            bool pollGroupResult = m_pInterface->SetConnectionPollGroup(apInfo->m_hConn, m_pollGroup);
-            if(!pollGroupResult)
-            {
-                spdlog::error("[TiltedConnect] Failed to add connection {:x} to poll group",
-                             apInfo->m_hConn);
-                m_pInterface->CloseConnection(apInfo->m_hConn, 0, nullptr, false);
-                break;
-            }
-
-            m_connections.push_back(apInfo->m_hConn);
-
-            SynchronizeClientClocks(apInfo->m_hConn);
-
-            spdlog::info("[TiltedConnect] Connection {:x} accepted successfully", apInfo->m_hConn);
-
-            OnConnection(apInfo->m_hConn);
-            break;
-        }
-        case k_ESteamNetworkingConnectionState_Connected:
-            spdlog::debug("[TiltedConnect] Connection {:x} fully connected", apInfo->m_hConn);
-            break;
-        default:
-            break;
-
+            enet_packet_destroy(packet);
         }
     }
 }

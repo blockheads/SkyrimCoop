@@ -2,10 +2,14 @@
 
 #include "World.h"
 
+#if TP_WITH_OVERLAY
 #include <Services/InputService.h>
+#endif
 #include <Services/TransportService.h>
 #include <Services/RunnerService.h>
+#if TP_WITH_OVERLAY
 #include <Services/ImguiService.h>
+#endif
 #include <Services/PapyrusService.h>
 #include <Services/DiscordService.h>
 #include <Services/ObjectService.h>
@@ -32,11 +36,15 @@ World::World()
     , m_modSystem(m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
 {
+#if TP_WITH_OVERLAY
     ctx().emplace<ImguiService>();
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher);
     ctx().emplace<InputService>(ctx().at<OverlayService>());
+#endif
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport);
+#if TP_WITH_OVERLAY
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
+#endif
     ctx().emplace<PapyrusService>(m_dispatcher);
     ctx().emplace<DiscordService>(m_dispatcher);
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport);

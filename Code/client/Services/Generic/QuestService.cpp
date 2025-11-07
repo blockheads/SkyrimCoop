@@ -3,7 +3,9 @@
 #include <Events/ConnectedEvent.h>
 
 #include <Services/QuestService.h>
+#if TP_WITH_OVERLAY
 #include <Services/ImguiService.h>
+#endif
 
 #include <PlayerCharacter.h>
 #include <Forms/TESQuest.h>

@@ -6,9 +6,8 @@ target("TPTests")
         ".", "../encoding")
     add_headerfiles("**.h")
     add_files("*.cpp")
-    add_deps("SkyrimEncoding")
+    add_deps("SkyrimEncoding", "TiltedCore")
     add_packages(
-        "TiltedCore",
         "hopscotch-map",
         "catch2",
         "rpmalloc",

@@ -1,16 +1,69 @@
 set_xmakever("2.8.5")
 
- if is_plat("mingw") then
-      add_cxxflags("-Wa,-mbig-obj")
+-- Force parallel compilation across all targets
+if set_policy then
+    set_policy("build.across_targets_in_parallel", true)
 end
 
--- If newer version of xmake, remove ccache until it actually works
-if set_policy ~= nil then
-    set_policy("build.ccache", false)
+if is_plat("mingw") then
+    add_cxxflags("-Wa,-mbig-obj")
+
+    -- Force MSVC-compatible struct packing and alignment for game structures
+    -- WARNING: MinGW binaries may still not work with Skyrim due to ABI differences
+    add_cxxflags("-mms-bitfields")  -- Use MSVC bitfield layout
+    add_cxxflags("-fms-extensions")  -- Enable MSVC extensions
+
+    -- Reduce debug info verbosity in debug mode for faster builds
+    if is_mode("debug") then
+        -- Use -g1 instead of -g (line numbers only, no local variables)
+        add_cxflags("-g1")
+
+        -- Additional compilation speed optimizations for debug builds
+        add_cxxflags("-fno-var-tracking")  -- Disable variable tracking
+        add_cxxflags("-fno-var-tracking-assignments")  -- Disable assignment tracking
+        add_cxxflags("-fno-diagnostics-show-option")  -- Less verbose diagnostics
+
+        -- Disable expensive optimizations in debug mode for faster compile
+        add_cxxflags("-O0")  -- No optimization, fastest compile
+        add_cxxflags("-fno-inline")  -- Don't inline functions
+        add_cxxflags("-fno-defer-pop")  -- Simplify stack operations
+
+        -- AGGRESSIVE LINKER OPTIMIZATIONS for debug mode (MUCH faster linking)
+        add_ldflags("-Wl,--no-keep-memory", {force = true})
+        add_ldflags("-Wl,--reduce-memory-overheads", {force = true})
+        add_ldflags("-Wl,--no-undefined", {force = true})  -- Fail fast on undefined symbols
+        add_ldflags("-Wl,--as-needed", {force = true})  -- Only link needed libraries
+        add_ldflags("-Wl,--gc-sections", {force = true})  -- Remove unused sections
+        add_cxxflags("-fdata-sections", {force = true})  -- Needed for --gc-sections
+        add_cxxflags("-ffunction-sections", {force = true})  -- Needed for --gc-sections
+
+        -- Disable expensive linker features in debug
+        add_ldflags("-Wl,--no-relax", {force = true})  -- Skip relaxation optimization
+        add_ldflags("-Wl,--hash-style=sysv", {force = true})  -- Faster hash style
+    else
+        -- For release builds, use optimization
+        add_cxxflags("-O2")
+    end
+
+    -- Try to use LLD linker for faster linking (fallback to default ld if not available)
+    -- Note: MinGW's ld doesn't support many linker optimization flags
+    add_ldflags("-fuse-ld=lld", {try = true})
 end
+
+-- -- If newer version of xmake, remove ccache until it actually works
+-- if set_policy ~= nil then
+--     set_policy("build.ccache", false)
+-- end
 
 -- c code will use c99,
 set_languages("c99", "cxx20")
+
+-- Speed up template-heavy C++20 compilation (GCC/Clang only)
+if is_mode("debug") and (is_plat("mingw") or is_plat("linux")) then
+    add_cxxflags("-ftemplate-depth=256")  -- Reduce from default 900
+    add_cxxflags("-fno-math-errno")  -- Don't set errno for math functions
+    add_cxxflags("-fno-semantic-interposition")  -- Allow more aggressive optimizations
+end
 
 if is_plat("windows") then
     add_cxflags("/bigobj")
@@ -25,7 +78,9 @@ if is_plat("linux") then
     add_cxflags("-fPIC")
 end
 
-set_warnings("all")
+-- Disable warnings in debug mode for faster compilation (enable if you want warnings lol)
+set_warnings("none")
+
 add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
 
@@ -51,6 +106,7 @@ add_requires(
     "zlib v1.3.1",
     -- gamenetworkingsockets v1.4.1,  -- Disabled: not compatible with MinGW, using enet6 instead
     -- Merged library dependencies (formerly in submodules)
+    "snappy 1.1.10",
     "rpmalloc",
     "hopscotch-map v2.3.1",
     "enet6",

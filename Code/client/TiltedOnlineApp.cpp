@@ -11,10 +11,11 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#if TP_WITH_OVERLAY
 #include <Systems/RenderSystemD3D11.h>
-
 #include <Services/OverlayService.h>
 #include <Services/ImguiService.h>
+#endif
 #include <Services/DiscordService.h>
 
 #include <ScriptExtender.h>
@@ -54,7 +55,9 @@ bool TiltedOnlineApp::BeginMain()
 {
     World::Create();
     World::Get().ctx().at<DiscordService>().Init();
+#if TP_WITH_OVERLAY
     World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<OverlayService>(), World::Get().ctx().at<ImguiService>());
+#endif
 
     LoadScriptExender();
 

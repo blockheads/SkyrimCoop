@@ -9,8 +9,14 @@ target(name)
     set_pcxxheader("TiltedOnlinePCH.h")
 
     -- exclude game specifc stuff
-    add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
-    add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**")
+    if is_plat("mingw") then
+        -- For MinGW, also exclude overlay/UI files (CEF not available)
+        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|Services/Generic/Overlay*|Systems/RenderSystemD3D11.h")
+        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|Services/Generic/Overlay*|Systems/RenderSystemD3D11.cpp")
+    else
+        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
+        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**")
+    end
 
     after_install(function(target)
         -- copy dlls
@@ -33,17 +39,21 @@ target(name)
     add_deps("SkyrimEncoding")
     -- Add server dependency for embedded GameServer (P2P hosting)
     add_deps("SkyrimTogetherServer")
+
+    -- Core dependencies (always needed)
     add_deps(
-        "SkyrimCoopUIProcess",
         "CommonLib",
         "BaseLib",
-        "ImGuiImpl",
         "SkyrimCoopNetworking",
         "SkyrimCoopReverse",
         "SkyrimCoopHooks",
-        "SkyrimCoopUI",
         {inherit = true}
     )
+
+    -- UI dependencies (Windows only, not for MinGW cross-compile)
+    if is_plat("windows") and not is_plat("mingw") then
+        add_deps("SkyrimCoopUIProcess", "SkyrimCoopUI", "ImGuiImpl")
+    end
 
     add_packages(
         "rpmalloc",  -- Needed for Memory.cpp direct include
@@ -51,12 +61,17 @@ target(name)
         "hopscotch-map",
         "cryptopp",
         "enet6",
-        "discord",
-        "imgui",
-        "cef",
         "entt",
         "glm",
         "xbyak")
+
+    -- UI packages (Windows only, not for MinGW cross-compile)
+    if is_plat("windows") and not is_plat("mingw") then
+        add_packages("discord", "imgui", "cef")
+        add_defines("TP_WITH_OVERLAY=1")
+    else
+        add_defines("TP_WITH_OVERLAY=0")
+    end
 
     if has_config("vivox") then
         add_files("Services/Vivox/**.cpp")
