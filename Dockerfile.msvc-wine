@@ -24,13 +24,20 @@ RUN dpkg --add-architecture i386 && \
     winbind \
     && rm -rf /var/lib/apt/lists/*
 
-# Install XMake
+# Install git and other build tools
+RUN apt-get update && apt-get install -y git cmake ninja-build && rm -rf /var/lib/apt/lists/*
+
+# Install Linux XMake for package management (separate from Wine version)
 RUN curl -fsSL https://xmake.io/shget.text | bash
 ENV PATH="/root/.local/bin:${PATH}"
 ENV XMAKE_ROOT=y
 
 # Clone msvc-wine for MSVC setup scripts
 RUN git clone https://github.com/mstorsjo/msvc-wine.git /opt/msvc-wine
+
+# Initialize Wine first (creates ~/.wine directory)
+RUN wineboot --init && \
+    while pgrep wineserver > /dev/null; do sleep 1; done
 
 # Download and install MSVC + Windows SDK using msvc-wine
 # This downloads official Microsoft components
@@ -42,8 +49,8 @@ RUN cd /opt/msvc-wine && \
 ENV MSVC_ROOT=/opt/msvc
 ENV PATH="/opt/msvc-wine:${PATH}"
 
-# Pre-update XMake repositories
-RUN xmake repo --update
+# Note: We don't pre-update XMake repos here because XMake running in Wine
+# requires a project directory with xmake.lua. Repos will auto-update on first use.
 
 WORKDIR /workspace
 
