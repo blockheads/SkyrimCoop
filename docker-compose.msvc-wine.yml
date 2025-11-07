@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  msvc-wine:
+    build:
+      context: .
+      dockerfile: Dockerfile.msvc-wine
+    image: skyrimcoop-msvc-wine:latest
+    volumes:
+      - .:/workspace
+      - xmake-cache:/root/.xmake
+    working_dir: /workspace
+    environment:
+      - XMAKE_ROOT=y
+      - XMAKE_GLOBALDIR=/workspace
+      - WINEDEBUG=-all
+
+volumes:
+  xmake-cache:
