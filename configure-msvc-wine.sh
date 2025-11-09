@@ -16,15 +16,19 @@ echo "  PATH updated to include MSVC tools"
 
 echo ""
 echo "Step 2: Configuring XMake for Windows with MSVC..."
-# Use cross compilation mode with explicit toolchain
-# This bypasses XMake's Visual Studio detection
-xmake f -p cross --sdk=/opt/msvc -a x64 -m releasedbg -y \
+# Use windows platform so xmake.lua conditionals work correctly
+# This ensures Windows-specific packages (CEF, Discord SDK, etc.) are included
+# Pass Windows 10 defines via cxflags to fix cpp-httplib "Windows 8 or lower" error
+xmake f -p windows --sdk=/opt/msvc -a x64 -m releasedbg -y \
   --toolchain=msvc \
   --cc=/opt/msvc/bin/x64/cl \
   --cxx=/opt/msvc/bin/x64/cl \
   --ld=/opt/msvc/bin/x64/link \
   --sh=/opt/msvc/bin/x64/link \
-  --ar=/opt/msvc/bin/x64/lib
+  --ar=/opt/msvc/bin/x64/lib \
+  --mrc=/opt/msvc/bin/x64/rc \
+  --cxflags='/D_WIN32_WINNT=0x0A00' \
+  --cxflags='/DWINVER=0x0A00'
 
 echo ""
 echo "✓ Configuration complete!"

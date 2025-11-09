@@ -11,8 +11,34 @@ target("SkyrimCoopNetworking")
     add_files("networking/*.cpp")
     add_includedirs("networking/", {public = true})
     add_headerfiles("networking/*.hpp")
-    add_deps("TiltedCore")
-    add_packages("hopscotch-map", "snappy", "gamenetworkingsockets", "libuv", "spdlog")
+    add_deps("TiltedCore", "gamenetworkingsockets")
+    add_packages("hopscotch-map", "snappy", "libuv", "spdlog")
+
+    -- Wine MSVC fix: Manually configure protobuf to avoid /external:I
+    on_load(function (target)
+        import("core.project.project")
+        local protobuf = project.required_package("protobuf-cpp")
+        if protobuf then
+            local includedirs = protobuf:get("sysincludedirs") or protobuf:get("includedirs")
+            if includedirs then
+                for _, includedir in ipairs(includedirs) do
+                    target:add("includedirs", includedir, {force = true})
+                end
+            end
+            local links = protobuf:get("links")
+            if links then
+                for _, link in ipairs(links) do
+                    target:add("links", link)
+                end
+            end
+            local linkdirs = protobuf:get("linkdirs")
+            if linkdirs then
+                for _, linkdir in ipairs(linkdirs) do
+                    target:add("linkdirs", linkdir)
+                end
+            end
+        end
+    end)
     if is_plat("linux") then
         add_cxflags("-fPIC")
     end
@@ -61,10 +87,15 @@ target("SkyrimCoopHooks")
         set_symbols("debug")
     end
 
--- UI Library (formerly TiltedUI)
+-- UI Library (formerly TiltedUI) - Client-only, requires CEF
 target("SkyrimCoopUI")
     set_kind("static")
     set_group("Libraries")
+
+    -- Disable on Wine MSVC (client-only library)
+    if get_config("sdk") == "/opt/msvc" then
+        set_enabled(false)
+    end
 
     -- Force MT runtime to match CEF
     if is_mode("releasedbg") or is_mode("release") then
@@ -76,8 +107,8 @@ target("SkyrimCoopUI")
     add_includedirs("ui/", {public = true})
     add_headerfiles("ui/*.hpp")
     add_syslinks("dxguid", "d3d11")
-    add_deps("TiltedCore")
-    add_packages("cef", "directxtk", "mimalloc", "hopscotch-map")
+    add_deps("TiltedCore", "DirectXTK")
+    add_packages("cef", "mimalloc", "hopscotch-map")
     add_defines("NOMINMAX")
 
     -- Ensure debug symbols
@@ -92,10 +123,15 @@ target("SkyrimCoopUI")
         end
     end)
 
--- UI Process Library (CEF render process)
+-- UI Process Library (CEF render process) - Client-only, requires CEF
 target("SkyrimCoopUIProcess")
     set_kind("static")
     set_group("Libraries")
+
+    -- Disable on Wine MSVC (client-only library)
+    if get_config("sdk") == "/opt/msvc" then
+        set_enabled(false)
+    end
 
     -- CEF is built with static runtime (/MT), so UiProcess must match
     if is_mode("releasedbg") or is_mode("release") then

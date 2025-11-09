@@ -7,7 +7,8 @@ local function build_server()
     set_group("Server")
     add_includedirs(
         ".",
-        "../external/")
+        "../external/",
+        "../external/cpp-httplib/include")
     set_pcxxheader("Pch.h")
     add_headerfiles("**.h")
     add_files("**.cpp")
@@ -36,7 +37,7 @@ local function build_server()
         "sol2",
         "glm",
         "entt",
-        "cpp-httplib",
+        -- cpp-httplib is manually included via includedirs
         "sentry-native")
 end
 

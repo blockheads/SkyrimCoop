@@ -1,10 +1,15 @@
 
-
+-- Admin GUI tool - Client-only
 target("Admin")
     set_kind("binary")
     set_group("Client")
     set_basename("TiltedAdmin")
     set_symbols("debug", "hidden")
+
+    -- Disable on Wine MSVC (client-only GUI tool)
+    if get_config("sdk") == "/opt/msvc" then
+        set_enabled(false)
+    end
     add_includedirs(
         ".",
         "../",

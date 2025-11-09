@@ -25,7 +25,16 @@ RUN dpkg --add-architecture i386 && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install git and other build tools
-RUN apt-get update && apt-get install -y git cmake ninja-build && rm -rf /var/lib/apt/lists/*
+# NASM is required for OpenSSL assembly optimizations
+RUN apt-get update && apt-get install -y git cmake ninja-build nasm unzip && rm -rf /var/lib/apt/lists/*
+
+# Install protoc 26.1 to match XMake's protobuf-cpp package version
+# This allows the protobuf.cpp rule to find protoc without complex workarounds
+RUN cd /tmp && \
+    wget https://github.com/protocolbuffers/protobuf/releases/download/v26.1/protoc-26.1-linux-x86_64.zip && \
+    unzip protoc-26.1-linux-x86_64.zip -d /usr/local && \
+    rm protoc-26.1-linux-x86_64.zip && \
+    chmod +x /usr/local/bin/protoc
 
 # Install Linux XMake for package management (separate from Wine version)
 RUN curl -fsSL https://xmake.io/shget.text | bash
@@ -48,6 +57,10 @@ RUN cd /opt/msvc-wine && \
 # Set up environment for MSVC
 ENV MSVC_ROOT=/opt/msvc
 ENV PATH="/opt/msvc-wine:${PATH}"
+
+# Make NASM available to Wine build processes
+# Wine needs to find nasm.exe, but we have Linux nasm, so symlink it
+RUN ln -sf /usr/bin/nasm /opt/msvc/bin/x64/nasm.exe || true
 
 # Note: We don't pre-update XMake repos here because XMake running in Wine
 # requires a project directory with xmake.lua. Repos will auto-update on first use.

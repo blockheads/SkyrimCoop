@@ -24,6 +24,11 @@ function unittest(name)
     target(name .. "_Tests")
       set_kind("binary")
       set_group("Tests")
+
+      -- Disable on Wine MSVC (missing core.tools.lib for linking)
+      if get_config("sdk") == "/opt/msvc" then
+        set_enabled(false)
+      end
       add_configfiles("BuildInfo.h.in")
       add_includedirs(
         ".",

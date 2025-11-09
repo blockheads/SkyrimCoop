@@ -1,5 +1,8 @@
 set_xmakever("2.8.5")
 
+-- Add local package repository for patched cpp-httplib
+add_repositories("local-repo packages")
+
 -- If newer version of xmake, remove ccache until it actually works
 if set_policy ~= nil then
     set_policy("build.ccache", false)
@@ -13,6 +16,9 @@ if is_plat("windows") then
     add_syslinks("kernel32")
     set_arch("x64")
     set_runtimes("MT")  -- Use static runtime library (/MT for release, /MTd for debug)
+    -- Target Windows 10 (0x0A00 = Windows 10)
+    -- This is required for cpp-httplib and other modern libraries
+    add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00")
     -- Ensure full PDB path is embedded for debugger to find symbols
     add_ldflags("/PDBALTPATH:%_PDB%", {force = true})
 end
@@ -40,7 +46,7 @@ add_requires(
     -- tiltedcore is now built from Code/TiltedCore/ instead of external package
     "cryptopp 8.9.0",
     "spdlog v1.13.0",
-    "cpp-httplib 0.14.0",
+    -- cpp-httplib is manually included from Code/external/cpp-httplib (bypasses xmake package check)
     "gtest v1.14.0",
     "mem 1.0.0",
     "glm 0.9.9+8",
@@ -50,7 +56,9 @@ add_requires(
     "mimalloc",
     "hopscotch-map v2.3.1",
     "snappy 1.1.10",
-    "gamenetworkingsockets v1.4.1",
+    -- gamenetworkingsockets is manually included from Code/external/gamenetworkingsockets (bypasses Wine MSVC build issues)
+    -- protobuf: needed for gamenetworkingsockets message generation (headers + runtime)
+    "protobuf-cpp 26.1",
     "libuv v1.48.0",
     "minhook v1.3.3",
     "xbyak v7.06",
@@ -59,8 +67,8 @@ add_requires(
 if is_plat("windows") then
     add_requires(
         "discord 3.2.1",
-        "imgui v1.89.7",
-        "directxtk 21.11.0",
+        -- imgui is manually included from Code/external/imgui (bypasses Wine MSVC build issues)
+        -- directxtk is manually included from Code/external/DirectXTK (bypasses xmake package issues)
         "cef 100.0.24"
     )
 end
@@ -76,7 +84,7 @@ if is_plat("linux") then
     add_requireconfs("*.libcurl", { version = "8.7.1", override = true })
 end
 
-add_requireconfs("cpp-httplib", {configs = {ssl = true}})
+-- cpp-httplib is manually vendored in Code/external/cpp-httplib to bypass xmake package issues
 add_requireconfs("sentry-native", { configs = { backend = "crashpad" } })
 --[[
 add_requireconfs("magnum", { configs = { sdl2 = true }})
