@@ -4,9 +4,10 @@ includes("external/DirectXTK")
 includes("external/imgui")
 includes("libraries")
 
--- Skip client targets on Wine MSVC builds (core.tools.lib missing for linking)
+-- Client targets now work on Wine MSVC with object library workaround
+-- Note: UI libraries (CEF-based) are still disabled in libraries/xmake.lua for Wine MSVC
 -- Client targets: SkyrimTogetherClient, ImmersiveElf, SkyrimImmersiveLauncher, TPProcess
-if is_plat("windows") and get_config("sdk") ~= "/opt/msvc" then
+if is_plat("windows") then
     includes("client")
     includes("immersive_elf")
     includes("immersive_launcher")

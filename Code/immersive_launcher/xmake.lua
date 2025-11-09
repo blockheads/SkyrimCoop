@@ -32,14 +32,16 @@ local function build_launcher()
     add_files(
         "**.cpp",
         "launcher.rc")
+    -- Core dependencies
     add_deps(
         "ImmersiveElf",
         "SkyrimCoopReverse",
         "SkyrimCoopHooks",
-        "SkyrimCoopUI",
         "ImGuiImpl",
         "CommonLib",
-        "CrashHandler")
+        "CrashHandler",
+        "SkyrimCoopUI")
+
     add_links("ntdll_x64")
     add_linkdirs(".")
     add_syslinks(
@@ -57,20 +59,24 @@ local function build_launcher()
         "Propsys",
         "delayimp")
 
+    -- Core packages
     add_packages(
         "spdlog",
         "minhook",
         "hopscotch-map",
         "cryptopp",
         "glm",
-        "cef",
         "mem",
-        "sentry-native")
+        "sentry-native",
+        "cef")
 end
 
 target("SkyrimImmersiveLauncher")
     set_basename("SkyrimTogether")
     add_defines("TARGET_PREFIX=\"st\"")
     add_deps("SkyrimTogetherClient")
-    add_ldflags("/WHOLEARCHIVE:SkyrimTogetherClient", { force = true })
+    -- Only use /WHOLEARCHIVE for static libraries, not object libraries
+    if not (is_plat("windows") and get_config("sdk") == "/opt/msvc") then
+        add_ldflags("/WHOLEARCHIVE:SkyrimTogetherClient", { force = true })
+    end
     build_launcher()

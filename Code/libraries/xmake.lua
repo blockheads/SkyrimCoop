@@ -78,13 +78,13 @@ target("SkyrimCoopHooks")
 
 -- UI Library (formerly TiltedUI) - Client-only, requires CEF
 target("SkyrimCoopUI")
-    set_kind("static")
-    set_group("Libraries")
-
-    -- Disable on Wine MSVC (client-only library)
-    if get_config("sdk") == "/opt/msvc" then
-        set_enabled(false)
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
     end
+    set_group("Libraries")
 
     -- Force MT runtime to match CEF
     if is_mode("releasedbg") or is_mode("release") then
@@ -114,13 +114,13 @@ target("SkyrimCoopUI")
 
 -- UI Process Library (CEF render process) - Client-only, requires CEF
 target("SkyrimCoopUIProcess")
-    set_kind("static")
-    set_group("Libraries")
-
-    -- Disable on Wine MSVC (client-only library)
-    if get_config("sdk") == "/opt/msvc" then
-        set_enabled(false)
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
     end
+    set_group("Libraries")
 
     -- CEF is built with static runtime (/MT), so UiProcess must match
     if is_mode("releasedbg") or is_mode("release") then

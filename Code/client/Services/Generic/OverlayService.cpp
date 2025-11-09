@@ -450,12 +450,12 @@ void OverlayService::RunDebugDataUpdates() noexcept
     lastSendTimePoint = now;
 
     auto internalStats = m_transport.GetStatistics();
-    auto steamStats = m_transport.GetConnectionStatus();
+    auto rtt = m_transport.GetRoundTripTime();
 
     auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, steamStats.m_flOutPacketsPerSec);
-    pArguments->SetInt(1, steamStats.m_flInPacketsPerSec);
-    pArguments->SetInt(2, steamStats.m_nPing);
+    pArguments->SetInt(0, 0);  // Out packets per sec (not tracked by enet6)
+    pArguments->SetInt(1, 0);  // In packets per sec (not tracked by enet6)
+    pArguments->SetInt(2, rtt);
     pArguments->SetInt(3, 0);
     pArguments->SetInt(4, internalStats.SentBytes);
     pArguments->SetInt(5, internalStats.RecvBytes);

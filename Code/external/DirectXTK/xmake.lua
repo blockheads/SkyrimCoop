@@ -11,15 +11,9 @@ target("DirectXTK")
 
     -- Only compile what's actually needed for SpriteBatch + texture loading
     -- Used by Code/libraries/ui/OverlayRenderHandlerD3D11.cpp
-    -- Note: SpriteBatch requires compiled shaders which need fxc.exe (not available in Wine MSVC)
-    if get_config("sdk") ~= "/opt/msvc" then
-        add_files(
-            "Src/SpriteBatch.cpp",
-            "Src/CommonStates.cpp"
-        )
-    end
-
     add_files(
+        "Src/SpriteBatch.cpp",
+        "Src/CommonStates.cpp",
         "Src/SimpleMath.cpp",
         "Src/DDSTextureLoader.cpp",
         "Src/WICTextureLoader.cpp",

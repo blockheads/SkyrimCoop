@@ -4,6 +4,7 @@
 
 #include <Commctrl.h>
 #include <Windows.h>
+#include <shellapi.h>
 
 #include <base/dialogues/win/TaskDialog.h>
 
