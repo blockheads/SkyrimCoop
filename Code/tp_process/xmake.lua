@@ -1,13 +1,7 @@
 
--- Skip client-only targets on Wine MSVC builds (core.tools.lib missing)
 target("TPProcess")
     set_kind("binary")
     set_group("Client")
-
-    -- Disable on Wine MSVC (when using /opt/msvc SDK)
-    if get_config("sdk") == "/opt/msvc" then
-        set_enabled(false)
-    end
 
     -- CEF is built with static runtime (/MT), so TPProcess must match
     -- Force MT runtime at both compile and link stages

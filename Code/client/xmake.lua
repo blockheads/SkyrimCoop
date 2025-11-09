@@ -23,19 +23,16 @@ target(name)
     add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**")
 
     after_install(function(target)
-        -- Skip UI installation on Wine MSVC (no CEF/Discord)
-        if not (is_plat("windows") and get_config("sdk") == "/opt/msvc") then
-            -- copy dlls
-            for _, pkg_with_dlls in ipairs({"cef", "discord"}) do
-                local linkdir = target:pkg(pkg_with_dlls):get("linkdirs")
-                local bindir = path.join(linkdir, "..", "bin")
-                os.cp(bindir, target:installdir())
-            end
-            -- copy ui
-            local uidir = path.join(target:scriptdir(), "..", "skyrim_ui", "src")
-            os.cp(path.join(uidir, "assets", "images", "cursor.dds"), path.join(target:installdir(), "bin", "assets", "images", "cursor.dds"))
-            os.cp(path.join(uidir, "assets", "images", "cursor.png"), path.join(target:installdir(), "bin", "assets", "images", "cursor.png"))
+        -- copy dlls (works on both native Windows and Wine MSVC)
+        for _, pkg_with_dlls in ipairs({"cef", "discord"}) do
+            local linkdir = target:pkg(pkg_with_dlls):get("linkdirs")
+            local bindir = path.join(linkdir, "..", "bin")
+            os.cp(bindir, target:installdir())
         end
+        -- copy ui
+        local uidir = path.join(target:scriptdir(), "..", "skyrim_ui", "src")
+        os.cp(path.join(uidir, "assets", "images", "cursor.dds"), path.join(target:installdir(), "bin", "assets", "images", "cursor.dds"))
+        os.cp(path.join(uidir, "assets", "images", "cursor.png"), path.join(target:installdir(), "bin", "assets", "images", "cursor.png"))
         os.rm(path.join(target:installdir(), "bin", "**Tests.exe"))
     end)
 
