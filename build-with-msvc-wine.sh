@@ -16,8 +16,15 @@ export TEMP=/tmp/wine-temp
 export TMP=/tmp/wine-temp
 mkdir -p /tmp/wine-temp
 
+# Create Wine C: drive structure to match expected paths
+# The build expects c:/projects/SkyrimCoop to exist
+# Wine maps C: to ~/.wine/drive_c by default
+mkdir -p "$HOME/.wine/drive_c/projects"
+ln -sf /workspace "$HOME/.wine/drive_c/projects/SkyrimCoop" 2>/dev/null || true
+
 echo "✓ MSVC environment loaded (BINDIR=$BINDIR)"
 echo "✓ Temp directories set"
+echo "✓ Wine C: drive: c:/projects/SkyrimCoop -> /workspace"
 echo ""
 
 # Step 2: Configure XMake with MSVC toolchain
