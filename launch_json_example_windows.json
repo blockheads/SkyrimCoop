@@ -1,0 +1,73 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "XMake: Debug Server",
+            "type": "xmake",
+            "request": "launch",
+            "target": "SkyrimServerRunner",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "env": {}
+        },
+        {
+            "name": "XMake: Debug Tests",
+            "type": "xmake",
+            "request": "launch",
+            "target": "TPTests",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "args": []
+        },
+        {
+            "name": "Attach to SkyrimTogether",
+            "type": "cppvsdbg",
+            "request": "attach",
+            "processId": "${command:pickProcess}",
+            "symbolSearchPath": "C:\\projects\\SkyrimCoop\\build\\windows\\x64\\debug",
+            "symbolOptions": {
+                "searchPaths": [
+                    "C:\\projects\\SkyrimCoop\\build\\windows\\x64\\debug"
+                ],
+            },
+            "sourceFileMap": {
+                "/": "${workspaceFolder}"
+            },
+            "logging": {
+                "trace": true
+            }
+        },
+        {
+            "name": "XMake: Debug Client Launcher",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/windows/x64/debug/SkyrimTogether.exe",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build/windows/x64/debug",
+            "environment": [],
+            "console": "integratedTerminal",
+            "symbolSearchPath": "${workspaceFolder}/build/windows/x64/debug",
+            "sourceFileMap": {
+                "Z:\\workspace": "${workspaceFolder}",
+                "/workspace": "${workspaceFolder}"
+            },
+            "logging": {
+                "moduleLoad": false,
+                "trace": false
+            }
+        },
+        {
+            "name": "XMake: Debug Client Launcher (Select Path)",
+            "type": "xmake",
+            "request": "launch",
+            "target": "SkyrimImmersiveLauncher",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "-r"
+            ],
+            "console": "integratedTerminal"
+        },
+    ]
+}

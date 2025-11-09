@@ -34,7 +34,7 @@ echo "(This may take a while - installing Windows packages with MSVC...)"
 xmake f -y -v \
   -p windows \
   -a x64 \
-  -m releasedbg \
+  -m debug \
   --sdk=/opt/msvc \
   --toolchain=msvc \
   --cc=/opt/msvc/bin/x64/cl \
@@ -42,6 +42,7 @@ xmake f -y -v \
   --ld=/opt/msvc/bin/x64/link \
   --sh=/opt/msvc/bin/x64/link \
   --ar=/opt/msvc/bin/x64/lib \
+  --mrc=/opt/msvc/bin/x64/rc \
   --cxflags='/D_WIN32_WINNT=0x0A00' \
   --cxflags='/DWINVER=0x0A00'
 
