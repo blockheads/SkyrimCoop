@@ -1,7 +1,12 @@
 -- This function defines the core component idoms
 function component(name)
   target(name)
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("Components")
     add_configfiles("BuildInfo.h.in")
     add_includedirs(

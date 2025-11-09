@@ -1,8 +1,6 @@
 -- Merged libraries (formerly in Libraries/)
 includes("TiltedCore")
 includes("external/DirectXTK")
--- protobuf handled via XMake package system (protoc used for .proto generation in gamenetworkingsockets)
-includes("external/gamenetworkingsockets")
 includes("external/imgui")
 includes("libraries")
 

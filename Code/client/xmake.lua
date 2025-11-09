@@ -1,7 +1,12 @@
 
 local function build_client(name)
 target(name)
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("Client")
     add_includedirs(".","../external/")
     -- Add server include directory for embedded GameServer (P2P hosting)
@@ -50,7 +55,7 @@ target(name)
         "spdlog",
         "hopscotch-map",
         "cryptopp",
-        "gamenetworkingsockets",
+        "enet6",
         "discord",
         "imgui",
         "cef",

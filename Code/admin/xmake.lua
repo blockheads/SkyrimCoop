@@ -32,4 +32,4 @@ target("Admin")
         "glm",
         "magnum",
         "magnum-integration",
-        "gamenetworkingsockets")
+        "enet6")

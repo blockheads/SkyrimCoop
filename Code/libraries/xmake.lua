@@ -6,57 +6,41 @@ set_languages("cxx20")
 
 -- Networking Library (formerly TiltedConnect)
 target("SkyrimCoopNetworking")
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("Libraries")
     add_files("networking/*.cpp")
     add_includedirs("networking/", {public = true})
     add_headerfiles("networking/*.hpp")
-    add_deps("TiltedCore", "gamenetworkingsockets")
-    add_packages("hopscotch-map", "snappy", "libuv", "spdlog")
+    add_deps("TiltedCore")
+    add_packages("enet6", "hopscotch-map", "snappy", "libuv", "spdlog")
 
-    -- Wine MSVC fix: Manually configure protobuf to avoid /external:I
-    on_load(function (target)
-        import("core.project.project")
-        local protobuf = project.required_package("protobuf-cpp")
-        if protobuf then
-            local includedirs = protobuf:get("sysincludedirs") or protobuf:get("includedirs")
-            if includedirs then
-                for _, includedir in ipairs(includedirs) do
-                    target:add("includedirs", includedir, {force = true})
-                end
-            end
-            local links = protobuf:get("links")
-            if links then
-                for _, link in ipairs(links) do
-                    target:add("links", link)
-                end
-            end
-            local linkdirs = protobuf:get("linkdirs")
-            if linkdirs then
-                for _, linkdir in ipairs(linkdirs) do
-                    target:add("linkdirs", linkdir)
-                end
-            end
-        end
-    end)
     if is_plat("linux") then
         add_cxflags("-fPIC")
-    end
-    add_defines("STEAMNETWORKINGSOCKETS_STATIC_LINK")
-
-    -- Ensure debug symbols in all modes
-    if is_plat("windows") then
-        set_symbols("debug")
-        add_cxflags("/Zi")
-        add_ldflags("/DEBUG:FULL")
-    elseif is_plat("linux") then
         set_symbols("debug")
         add_cxflags("-g")
     end
 
+    -- For Windows, only add debug symbols if NOT using Wine MSVC
+    -- Wine MSVC has issues with /DEBUG:FULL linker flags
+    if is_plat("windows") and get_config("sdk") ~= "/opt/msvc" then
+        set_symbols("debug")
+        add_cxflags("/Zi")
+        add_ldflags("/DEBUG:FULL")
+    end
+
 -- Reverse Engineering Library (formerly TiltedReverse)
 target("SkyrimCoopReverse")
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("Libraries")
     add_files("reverse/*.cpp")
     add_includedirs("reverse/", {public = true})
@@ -72,7 +56,12 @@ target("SkyrimCoopReverse")
 
 -- Hooks Library (formerly TiltedHooks)
 target("SkyrimCoopHooks")
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("Libraries")
     add_files("hooks/*.cpp")
     add_files("hooks/DInputHook.cpp", {unity_ignored = true})

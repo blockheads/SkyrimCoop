@@ -1,7 +1,12 @@
 -- DirectXTK static library build (manually vendored to avoid Wine MSVC package issues)
 -- Only includes the minimal set of files needed for UI overlay rendering
 target("DirectXTK")
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("External")
 
     -- Only compile what's actually needed for SpriteBatch + texture loading

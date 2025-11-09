@@ -8,6 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV WINEDEBUG=-all
 
 # Install Wine and dependencies
+# Note: Ubuntu 22.04 has msitools 0.101 and libgcab 1.4, which meet
+# msvc-wine requirements (needs msitools 0.98+ and libgcab 1.2+)
 RUN dpkg --add-architecture i386 && \
     apt-get update && apt-get install -y \
     wget \
@@ -24,6 +26,9 @@ RUN dpkg --add-architecture i386 && \
     winbind \
     && rm -rf /var/lib/apt/lists/*
 
+# Verify msitools and libgcab versions meet msvc-wine requirements
+RUN dpkg -l | grep -E 'msitools|libgcab' || echo "Warning: Check msitools/libgcab versions"
+
 # Install git and other build tools
 # NASM is required for OpenSSL assembly optimizations
 RUN apt-get update && apt-get install -y git cmake ninja-build nasm unzip && rm -rf /var/lib/apt/lists/*
@@ -37,7 +42,8 @@ RUN cd /tmp && \
     chmod +x /usr/local/bin/protoc
 
 # Install Linux XMake for package management (separate from Wine version)
-RUN curl -fsSL https://xmake.io/shget.text | bash
+# Use dev branch which has better msvc-wine support
+RUN curl -fsSL https://xmake.io/shget.text | bash -s dev
 ENV PATH="/root/.local/bin:${PATH}"
 ENV XMAKE_ROOT=y
 

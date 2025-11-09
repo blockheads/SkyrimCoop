@@ -1,13 +1,16 @@
 #pragma once
 
-#include "steam/steamnetworkingsockets.h"
+#include <enet6/enet.h>
+#include <cstdint>
 
 namespace TiltedPhoques
 {
     enum EPacketFlags
     {
         kReliable,
-        kUnreliable
+        kUnreliable,
+        kReliableNoNagle,
+        kUnreliableNoDelay
     };
 
     enum EConnectOpcode : uint8_t
@@ -17,11 +20,12 @@ namespace TiltedPhoques
         kCompressedPayload = 2
     };
 
-    struct SteamInterface
+    struct ENetInterface
     {
         static void Acquire();
         static void Release();
     };
 
-    using ConnectionId_t = HSteamNetConnection;
+    // Use pointer-based connection ID for enet6
+    using ConnectionId_t = uintptr_t;
 }

@@ -3,7 +3,12 @@ local function istable(t) return type(t) == 'table' end
 add_requires("sol2 v3.3.0", {configs = {lua = "lua"}})
 
 local function build_server()
-    set_kind("static")  -- Changed to static for P2P embedded server
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")  -- Changed to static for P2P embedded server
+    end
     set_group("Server")
     add_includedirs(
         ".",
@@ -12,9 +17,9 @@ local function build_server()
     set_pcxxheader("Pch.h")
     add_headerfiles("**.h")
     add_files("**.cpp")
-    if is_plat("windows") then
-        add_files("server.rc")
-    end
+    -- Don't add server.rc here - it causes duplicate VERSION resource errors
+    -- when SkyrimServerRunner executable links against this library.
+    -- The runner has its own server_runner.rc
     if is_plat("linux") then
         add_cxxflags("-fvisibility=hidden")
     end
@@ -29,7 +34,7 @@ local function build_server()
         "SkyrimCoopNetworking"
     )
     add_packages(
-        "gamenetworkingsockets",
+        "enet6",
         "spdlog",
         "hopscotch-map",
         "sqlite3",

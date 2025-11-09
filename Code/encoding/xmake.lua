@@ -1,6 +1,11 @@
 local function build_encoding(name)
 target(name)
-    set_kind("static")
+    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
+    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("common")
     add_includedirs(".", "../", {public = true})
     add_headerfiles("**.h|Structs/Skyrim/**", {prefixdir = "Encoding"})
