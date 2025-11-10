@@ -46,6 +46,17 @@ int main(int argc, char** argv)
 {
     Base::SetCurrentThreadName("MainLauncherThread");
 
+#ifdef WAIT_FOR_DEBUGGER_ATTACH
+    // Pause at startup in debug/releasedbg builds to allow debugger attachment
+    char debugMsg[256];
+    snprintf(debugMsg, sizeof(debugMsg),
+             "Attach your debugger now and press OK to continue.\n\n"
+             "Process ID: %d",
+             GetCurrentProcessId());
+    MessageBoxA(nullptr, debugMsg, "Debug Pause - Waiting for Debugger",
+                MB_OK | MB_ICONINFORMATION);
+#endif
+
     // memory block for Script Extender reserved as early as we can
     script_extender::SEMemoryBlock b;
     if (!b.Good())

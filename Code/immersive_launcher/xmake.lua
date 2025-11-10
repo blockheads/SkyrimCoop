@@ -74,6 +74,12 @@ end
 target("SkyrimImmersiveLauncher")
     set_basename("SkyrimTogether")
     add_defines("TARGET_PREFIX=\"st\"")
+
+    -- Enable debugger attachment pause in debug/releasedbg builds
+    if is_mode("debug") or is_mode("releasedbg") then
+        add_defines("WAIT_FOR_DEBUGGER_ATTACH")
+    end
+
     add_deps("SkyrimTogetherClient")
     -- Only use /WHOLEARCHIVE for static libraries, not object libraries
     if not (is_plat("windows") and get_config("sdk") == "/opt/msvc") then
