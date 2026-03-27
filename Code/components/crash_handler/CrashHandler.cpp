@@ -1,10 +1,14 @@
 #include "CrashHandler.h"
 
+#ifdef HAS_SENTRY
 #include <sentry.h>
+#endif
+
 #include <spdlog/spdlog.h>
 
 #include <BuildInfo.h>
 
+#ifdef HAS_SENTRY
 namespace
 {
 constexpr char kSkyrimServerDSN[] = R"(https://6aff0a6955754bdebfffb064813b9042@o228105.ingest.sentry.io/6303666)";
@@ -70,9 +74,11 @@ bool IsDebugging()
     return false;
 }
 } // namespace
+#endif // HAS_SENTRY
 
 void InstallCrashHandler(bool aServer, bool aSkyrim)
 {
+#ifdef HAS_SENTRY
     if (IsDebugging())
         return;
 
@@ -95,11 +101,16 @@ void InstallCrashHandler(bool aServer, bool aSkyrim)
 
     if (sentry_init(options) != 0)
         spdlog::error("Sentry init failed");
+#else
+    spdlog::info("Crash reporting disabled (Sentry not available)");
+#endif
 }
 
 void UninstallCrashHandler()
 {
+#ifdef HAS_SENTRY
     if (IsDebugging())
         return;
     sentry_shutdown();
+#endif
 }
