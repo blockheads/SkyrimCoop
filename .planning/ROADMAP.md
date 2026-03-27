@@ -45,8 +45,8 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 02-01-PLAN.md -- Root xmake.lua cleanup and TiltedCore mimalloc-to-rpmalloc migration
-- [ ] 02-02-PLAN.md -- Remove Wine MSVC workarounds from all Tier 1-2 libs, fix sentry deps, fix ThreadUtils
-- [ ] 02-03-PLAN.md -- Fix TPTests config and validate full MinGW build of Tier 1-2 chain
+- [x] 02-02-PLAN.md -- Remove Wine MSVC workarounds from all Tier 1-2 libs, fix sentry deps, fix ThreadUtils
+- [x] 02-03-PLAN.md -- Fix TPTests config and validate full MinGW build of Tier 1-2 chain
 
 ### Phase 3: Client DLL Cross-Compilation
 **Goal**: MinGW produces a SkyrimTogetherClient.dll that loads into Skyrim SE under Proton and connects to a server
