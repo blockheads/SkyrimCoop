@@ -3,10 +3,14 @@
 #include <Games/Memory.h>
 #include <Games/References.h>
 
-#include <TiltedCore/MimallocAllocator.hpp>
-#include <mimalloc.h>
+#include <TiltedCore/RpmallocAllocator.hpp>
+#include <rpmalloc.h>
 
+#ifdef _MSC_VER
 #pragma optimize("", off)
+#else
+#pragma GCC optimize("O0")
+#endif
 
 struct GameHeap
 {
@@ -24,7 +28,7 @@ TP_THIS_FUNCTION(TFormFree, void, GameHeap, void* apPtr, bool aAligned);
 TFormAllocate* RealFormAllocate = nullptr;
 TFormFree* RealFormFree = nullptr;
 
-static TiltedPhoques::MimallocAllocator s_allocator;
+static TiltedPhoques::RpmallocAllocator s_allocator;
 
 void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignment, bool aAligned)
 {
@@ -102,32 +106,32 @@ static void RehookFormAllocate(TFormAllocate* apEngineFixesAllocate) noexcept
 
 size_t Hook_msize(void* apData)
 {
-    return mi_malloc_size(apData);
+    return rpmalloc_usable_size(apData);
 }
 
 void Hookfree(void* apData)
 {
-    mi_free(apData);
+    rpfree(apData);
 }
 
 void* Hookcalloc(size_t aCount, size_t aSize)
 {
-    return mi_calloc(aCount, aSize);
+    return rpcalloc(aCount, aSize);
 }
 
 void* Hookmalloc(size_t aSize)
 {
-    return mi_malloc(aSize);
+    return rpmalloc(aSize);
 }
 
 void Hook_aligned_free(void* apData)
 {
-    mi_free(apData);
+    rpfree(apData);
 }
 
 void* Hook_aligned_malloc(size_t aSize, size_t aAlignment)
 {
-    return mi_malloc_aligned(aSize, aAlignment);
+    return rpmemalign(aAlignment, aSize);
 }
 
 static TiltedPhoques::Initializer s_memoryHooks(
@@ -165,16 +169,17 @@ static TiltedPhoques::Initializer s_memoryHooks(
         TP_HOOK(&RealFormAllocate, HookFormAllocate);
     });
 
+#ifdef _MSC_VER
 using T_initterm_e = decltype(&_initterm_e);
 T_initterm_e Real_initterm_e = nullptr;
 
-// If EngineFixes loaded, and it changed our FormAllocate hook, 
+// If EngineFixes loaded, and it changed our FormAllocate hook,
 // reset it. Our hook works just fine chaining to theirs.
 int __cdecl Hook_initterm_e(_PIFV* apFirst, _PIFV* apLast)
 {
     // We want to run last, so pre-chain.
-    auto retval = Real_initterm_e(apFirst, apLast); 
-    
+    auto retval = Real_initterm_e(apFirst, apLast);
+
     // Check if EngineFixes messed with STR's modified alloc hook; if it did, treat EF as truth and rehook
     TFormAllocate* pEngineFixesAllocate = nullptr;
     if (GetModuleHandleW(L"EngineFixes.dll") && IsFormAllocateReplacedByEF(&pEngineFixesAllocate))
@@ -187,4 +192,13 @@ void HookFormAllocateSentinelInit()
 {
     TP_HOOK_IAT(_initterm_e, "api-ms-win-crt-runtime-l1-1-0.dll");
 }
+#else
+void HookFormAllocateSentinelInit()
+{
+    // EngineFixes compatibility not needed on MinGW builds
+}
+#endif
+
+#ifdef _MSC_VER
 #pragma optimize("", on)
+#endif
