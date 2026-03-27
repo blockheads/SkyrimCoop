@@ -4,12 +4,12 @@
 
 namespace TiltedPhoques
 {
-    struct MimallocAllocator : Allocator
+    struct RpmallocAllocator : Allocator
     {
-        MimallocAllocator() noexcept = default;
-        virtual ~MimallocAllocator() = default;
+        RpmallocAllocator() noexcept = default;
+        virtual ~RpmallocAllocator() = default;
 
-        TP_NOCOPYMOVE(MimallocAllocator);
+        TP_NOCOPYMOVE(RpmallocAllocator);
 
         [[nodiscard]] void* Allocate(size_t aSize) noexcept override;
         void Free(void* apData) noexcept override;
