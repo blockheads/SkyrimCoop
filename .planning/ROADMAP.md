@@ -58,7 +58,7 @@ Plans:
   3. A client using the MinGW-built DLL can connect to a locally running server and see basic character sync
 **Plans**: 3 plans
 Plans:
-- [ ] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
+- [x] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
 - [ ] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
 - [ ] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
 
