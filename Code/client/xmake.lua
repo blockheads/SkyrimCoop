@@ -1,40 +1,40 @@
 
 local function build_client(name)
 target(name)
-    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
-    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
-        set_kind("object")
-    else
-        set_kind("static")
-    end
+    set_kind("static")
     set_group("Client")
     add_includedirs(".","../external/")
     -- Add server include directory for embedded GameServer (P2P hosting)
     add_includedirs("../server", {public = false})
     set_pcxxheader("TiltedOnlinePCH.h")
 
-    -- Define WINE_MSVC_BUILD for Wine MSVC builds to disable UI features
-    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
-        add_defines("WINE_MSVC_BUILD")
-    end
-
     -- exclude game specific stuff and Vivox
     add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
     add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**")
 
-    after_install(function(target)
-        -- copy dlls (works on both native Windows and Wine MSVC)
-        for _, pkg_with_dlls in ipairs({"cef", "discord"}) do
-            local linkdir = target:pkg(pkg_with_dlls):get("linkdirs")
-            local bindir = path.join(linkdir, "..", "bin")
-            os.cp(bindir, target:installdir())
-        end
-        -- copy ui
-        local uidir = path.join(target:scriptdir(), "..", "skyrim_ui", "src")
-        os.cp(path.join(uidir, "assets", "images", "cursor.dds"), path.join(target:installdir(), "bin", "assets", "images", "cursor.dds"))
-        os.cp(path.join(uidir, "assets", "images", "cursor.png"), path.join(target:installdir(), "bin", "assets", "images", "cursor.png"))
-        os.rm(path.join(target:installdir(), "bin", "**Tests.exe"))
-    end)
+    -- Feature-gated packages and targets (per D-01: per-feature guards)
+    if not is_plat("mingw") then
+        add_defines("HAS_CEF=1", "HAS_DISCORD=1", "HAS_DIRECTXTK=1")
+        add_packages("discord", "cef")
+        add_deps("SkyrimCoopUIProcess", "SkyrimCoopUI")
+
+        after_install(function(target)
+            -- copy dlls
+            for _, pkg_with_dlls in ipairs({"cef", "discord"}) do
+                local linkdir = target:pkg(pkg_with_dlls):get("linkdirs")
+                local bindir = path.join(linkdir, "..", "bin")
+                os.cp(bindir, target:installdir())
+            end
+            -- copy ui
+            local uidir = path.join(target:scriptdir(), "..", "skyrim_ui", "src")
+            os.cp(path.join(uidir, "assets", "images", "cursor.dds"), path.join(target:installdir(), "bin", "assets", "images", "cursor.dds"))
+            os.cp(path.join(uidir, "assets", "images", "cursor.png"), path.join(target:installdir(), "bin", "assets", "images", "cursor.png"))
+            os.rm(path.join(target:installdir(), "bin", "**Tests.exe"))
+        end)
+    else
+        -- MinGW: no CEF, no Discord, no DirectXTK
+        -- ImGui stays for Phase 6 readiness (D-04)
+    end
 
     add_files("Games/Skyrim/**.cpp")
     add_headerfiles("Games/Skyrim/**.h")
@@ -55,12 +55,9 @@ target(name)
         {inherit = true}
     )
 
-    -- UI dependencies
-    add_deps("SkyrimCoopUIProcess", "SkyrimCoopUI")
-
     -- Core packages
     add_packages(
-        "mimalloc",  -- Needed for Memory.cpp direct include
+        "rpmalloc",
         "spdlog",
         "hopscotch-map",
         "cryptopp",
@@ -71,8 +68,8 @@ target(name)
         "mem",
         "xbyak")
 
-    -- UI packages (Discord, ImGui, CEF all work on Wine MSVC)
-    add_packages("discord", "imgui", "cef")
+    -- ImGui unconditional for Phase 6 readiness (D-04)
+    add_packages("imgui")
 
     if has_config("vivox") then
         add_files("Services/Vivox/**.cpp")
