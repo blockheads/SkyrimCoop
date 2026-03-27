@@ -117,32 +117,36 @@ Each task was committed atomically:
 | gate01_test.dll is PE32+ DLL x86-64 | PASS |
 | gate02_test.dll is PE32+ DLL x86-64 | PASS |
 | No libgcc/libstdc++/libwinpthread deps | PASS |
-| SKSEPlugin_Query exported | PASS |
-| SKSEPlugin_Load exported | PASS |
-| Wine loads gate01_test.dll (no err:module) | PASS |
-| Wine loads gate02_test.dll (no err:module) | PASS |
-| Proton Wine: gate01_test.log PASS (SKSE=33619968 Runtime=17174896) | PASS |
-| Proton Wine: gate02_minhook.log PASS (Hook called 1 times, Tick=399049915) | PASS |
-| gate01 QueryInterface + RegisterListener ABI round-trip | PASS |
+| SKSEPlugin_Version exported (both DLLs) | PASS |
+| SKSEPlugin_Load exported (both DLLs) | PASS |
+| Wine loads both DLLs (no err:module) | PASS |
+| SKSE 2.2.6 loads gate01 "loaded correctly" (handle 1) | PASS |
+| SKSE 2.2.6 loads gate02 "loaded correctly" (handle 2) | PASS |
+| Proton+SKSE+MO2: gate01_test.log PASS (SKSE=33685600 Runtime=17189152) | PASS |
+| Proton+SKSE+MO2: gate02_minhook.log PASS (Hook called 1 times, Tick=401195084) | PASS |
+| Skyrim stable with both plugins loaded | PASS |
 
 ## Proton Validation Details
 
-**Method:** Automated testing using Proton Experimental Wine (Skyrim SE compatdata prefix)
-- gate01: Custom test harness compiled with MinGW that simulates SKSE calling `SKSEPlugin_Query` and `SKSEPlugin_Load` with fake interface structs
-- gate02: Loaded via `wine64 rundll32` — MinHook hooks fire during DLL_PROCESS_ATTACH
+**Method:** Full Skyrim SE runtime via MO2 + Proton Experimental + SKSE 2.2.6
 
-**GATE-01 Results:**
-- DLL loaded at 0x00006ffffe3e0000
-- SKSEPlugin_Query: read SKSE version (0x02010000) and runtime version (0x01061170) correctly
-- SKSEPlugin_Load: called QueryInterface(1) → got messaging interface → RegisterListener called with "SKSE" sender
-- Log: "GATE-01 PASS: SKSEPlugin_Query called. SKSE=33619968 Runtime=17174896"
+**Key discoveries during validation:**
+1. SKSE 2.2+ requires `SKSEPlugin_Version` export (not just legacy `SKSEPlugin_Query`)
+2. MinHook setup must happen in `SKSEPlugin_Load`, not `DllMain` (hooking kernel32 during DLL load crashes Skyrim)
+3. Hook must be disabled immediately after test to avoid game timing instability
+4. MO2's USVFS redirects file writes to its overwrite directory (log path must account for this)
 
-**GATE-02 Results:**
-- MinHook initialized, hooked GetTickCount from kernel32.dll
-- Hook fired 1 time when GetTickCount was called
-- Log: "GATE-02 PASS: MinHook working. Hook called 1 times. Tick=399049915"
+**GATE-01 Results (Skyrim runtime):**
+- SKSE scanned gate01_test.dll, read SKSEPluginVersionData successfully
+- SKSEPlugin_Load called with real SKSE interface (version 2.2.6, runtime 1.6.1170)
+- Log: "GATE-01 PASS: SKSEPlugin_Load called. SKSE=33685600 Runtime=17189152"
+- Game stable, reached main menu
 
-**Note:** Full Skyrim runtime test (launching through Steam with SKSE) not performed — no SKSE launch options configured in Steam. The Wine-level validation confirms ABI compatibility, DLL loading, function pointer calling convention, and hooking all work correctly under Proton's Wine runtime. Full Skyrim integration will be validated in Phase 3 with the actual client DLL.
+**GATE-02 Results (Skyrim runtime):**
+- SKSE loaded gate02_test.dll successfully
+- MinHook initialized, hooked GetTickCount, hook fired, then disabled
+- Log: "GATE-02 PASS: MinHook working. Hook called 1 times. Tick=401195084"
+- Game stable, reached main menu
 
 ---
 *Phase: 01-feasibility-validation*
