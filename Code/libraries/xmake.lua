@@ -60,6 +60,9 @@ target("SkyrimCoopHooks")
         set_symbols("debug")
     end
 
+-- CEF-dependent UI targets: Windows MSVC only, not MinGW (per D-03)
+if not is_plat("mingw") then
+
 -- UI Library (formerly TiltedUI) - Client-only, requires CEF
 target("SkyrimCoopUI")
     set_kind("static")
@@ -120,5 +123,7 @@ target("SkyrimCoopUIProcess")
             target:set("runtimes", "MT")
         end
     end)
+
+end -- not is_plat("mingw")
 
 end -- is_plat("windows") or is_plat("mingw")
