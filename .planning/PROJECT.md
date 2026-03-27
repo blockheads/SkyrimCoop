@@ -26,7 +26,7 @@ Two friends can drop into Skyrim together on Linux with zero server setup — ho
 
 ### Active
 
-- [ ] Full Linux build toolchain (MinGW cross-compile for client DLL, native server)
+- [~] Full Linux build toolchain (MinGW cross-compile for client DLL, native server) — Tier 1-2 libraries compile under MinGW and natively on Linux (Phase 2); client DLL pending (Phase 3)
 - [ ] Linux-native debug workflow (attach to Wine/Proton process, inspect DLL state)
 - [ ] MMO-to-co-op architecture conversion (embedded server in host, simplified ownership)
 - [ ] Drop-in 2-4 player sessions via Steam/EOS friend invite
@@ -108,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after initialization*
+*Last updated: 2026-03-27 after Phase 2 completion — Tier 1-2 libraries compile under MinGW and native Linux, all Catch2 tests passing*
