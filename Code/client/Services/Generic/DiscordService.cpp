@@ -1,3 +1,5 @@
+#ifdef HAS_DISCORD
+
 #include <TiltedOnlinePCH.h>
 
 #include "Services/DiscordService.h"
@@ -223,3 +225,5 @@ bool DiscordService::Init()
 void DiscordService::Update()
 {
 }
+
+#endif

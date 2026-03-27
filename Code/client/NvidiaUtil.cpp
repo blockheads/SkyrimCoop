@@ -1,3 +1,5 @@
+#ifdef HAS_DIRECTXTK
+
 #include "NvidiaUtil.h"
 #include <d3d11.h>
 
@@ -23,3 +25,5 @@ HRESULT CreateEarlyDxDevice(ID3D11Device** appOutDevice, D3D_FEATURE_LEVEL* apOu
     return pD3D11CreateDeviceFn(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION,
                                 appOutDevice, apOutFeatureLevel, nullptr);
 }
+
+#endif

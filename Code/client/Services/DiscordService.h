@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef HAS_DISCORD
+
 #include <discord.h>
 
 class DiscordService final : public entt::registry
@@ -48,3 +50,15 @@ private:
 
     static IDiscordUserEvents s_mUserEvents;
 };
+
+#else
+// No-op stub (per D-02)
+struct DiscordService
+{
+    DiscordService(entt::dispatcher&) {}
+    ~DiscordService() = default;
+    bool Init() { return false; }
+    void Update() {}
+    void WndProcHandler(HWND, UINT, WPARAM, LPARAM) {}
+};
+#endif

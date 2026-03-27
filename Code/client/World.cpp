@@ -2,7 +2,9 @@
 
 #include "World.h"
 
+#ifdef HAS_CEF
 #include <Services/InputService.h>
+#endif
 #include <Services/TransportService.h>
 #include <Services/RunnerService.h>
 #include <Services/ImguiService.h>
@@ -34,7 +36,9 @@ World::World()
 {
     ctx().emplace<ImguiService>();
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher);
+#ifdef HAS_CEF
     ctx().emplace<InputService>(ctx().at<OverlayService>());
+#endif
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport);
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
     ctx().emplace<PapyrusService>(m_dispatcher);

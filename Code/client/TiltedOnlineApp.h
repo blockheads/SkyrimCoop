@@ -1,7 +1,8 @@
 #pragma once
 
-
+#ifdef HAS_DIRECTXTK
 #include <d3d11.h>
+#endif
 
 #include "CrashHandler.h"
 
@@ -32,7 +33,11 @@ protected:
     void UninstallHooks();
 
 private:
+#ifdef HAS_DIRECTXTK
     void ApplyNvidiaFix() noexcept;
+#endif
     CrashHandler m_crashHandler;
+#ifdef HAS_DIRECTXTK
     ID3D11Device* m_pDevice = nullptr;
+#endif
 };
