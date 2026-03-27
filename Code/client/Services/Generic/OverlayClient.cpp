@@ -1,3 +1,5 @@
+#ifdef HAS_CEF
+
 #include <TiltedOnlinePCH.h>
 
 #include <OverlayRenderHandler.hpp>
@@ -160,3 +162,5 @@ void OverlayClient::SetUIVisible(bool aVisible) noexcept
     World::Get().GetOverlayService().SetActive(aVisible);
     pRenderer->SetCursorVisible(aVisible);
 }
+
+#endif

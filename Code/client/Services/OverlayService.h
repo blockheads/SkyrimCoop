@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef HAS_CEF
+
 #include <include/internal/cef_ptr.h>
 
 namespace TiltedPhoques
@@ -109,3 +111,41 @@ private:
     entt::scoped_connection m_partyJoinedConnection;
     entt::scoped_connection m_partyLeftConnection;
 };
+
+#else
+// No-op stub -- DLL loads without UI overlay (per D-02)
+
+struct RenderSystemD3D11;
+struct World;
+struct TransportService;
+
+struct OverlayService
+{
+    OverlayService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher)
+        : m_world(aWorld)
+        , m_transport(aTransport)
+    {
+    }
+    ~OverlayService() noexcept = default;
+
+    TP_NOCOPYMOVE(OverlayService);
+
+    void Create(RenderSystemD3D11*) noexcept {}
+    void Render() noexcept {}
+    void Reset() const noexcept {}
+    void Reload() noexcept {}
+    void Initialize() noexcept {}
+    void SetActive(bool) noexcept {}
+    [[nodiscard]] bool GetActive() const noexcept { return false; }
+    void SetInGame(bool) noexcept {}
+    [[nodiscard]] bool GetInGame() const noexcept { return false; }
+    void SetVersion(const std::string&) {}
+    void* GetOverlayApp() const noexcept { return nullptr; }
+    void SendSystemMessage(const std::string&) {}
+    void SetPlayerHealthPercentage(uint32_t) const noexcept {}
+
+private:
+    World& m_world;
+    TransportService& m_transport;
+};
+#endif

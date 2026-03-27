@@ -19,7 +19,9 @@
 #include <Messages/PartyChangeLeaderRequest.h>
 #include <Messages/PartyKickRequest.h>
 
+#ifdef HAS_CEF
 #include <OverlayApp.hpp>
+#endif
 
 #include <Forms/TESGlobal.h>
 
@@ -125,6 +127,7 @@ void PartyService::OnPartyInfo(const NotifyPartyInfo& acPartyInfo) noexcept
             pWorldEncountersEnabled->f = 1.f;
         }
 
+#ifdef HAS_CEF
         auto pArguments = CefListValue::Create();
 
         auto pPlayerIds = CefListValue::Create();
@@ -135,6 +138,7 @@ void PartyService::OnPartyInfo(const NotifyPartyInfo& acPartyInfo) noexcept
         pArguments->SetInt(1, acPartyInfo.LeaderPlayerId);
 
         m_world.GetOverlayService().GetOverlayApp()->ExecuteAsync("partyInfo", pArguments);
+#endif
     }
 }
 
@@ -144,9 +148,11 @@ void PartyService::OnPartyInvite(const NotifyPartyInvite& acPartyInvite) noexcep
 
     m_invitations[acPartyInvite.InviterId] = acPartyInvite.ExpiryTick;
 
+#ifdef HAS_CEF
     auto pArguments = CefListValue::Create();
     pArguments->SetInt(0, acPartyInvite.InviterId);
     m_world.GetOverlayService().GetOverlayApp()->ExecuteAsync("partyInviteReceived", pArguments);
+#endif
 }
 
 void PartyService::OnPartyJoined(const NotifyPartyJoined& acPartyJoined) noexcept

@@ -1,6 +1,8 @@
 #include <TiltedOnlinePCH.h>
 
 #include <Services/ImguiService.h>
+
+#ifdef HAS_DIRECTXTK
 #include <Systems/RenderSystemD3D11.h>
 #include <d3d11.h>
 #include <imgui/imgui_impl_dx11.h>
@@ -9,6 +11,7 @@
 
 // According to imgui documentation we have to do it this way in order to avoid link conflicts with windows.h
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 
 ImguiService::ImguiService()
     : OnDraw(m_drawSignal)
@@ -18,6 +21,8 @@ ImguiService::ImguiService()
 ImguiService::~ImguiService() noexcept
 {
 }
+
+#ifdef HAS_DIRECTXTK
 
 void ImguiService::Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd)
 {
@@ -100,3 +105,5 @@ void ImguiService::RawInputHandler(RAWINPUT& aRawinput)
         }
     }
 }
+
+#endif

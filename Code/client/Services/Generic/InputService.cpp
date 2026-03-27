@@ -1,3 +1,5 @@
+#ifdef HAS_CEF
+
 #include <TiltedOnlinePCH.h>
 
 #include <Services/InputService.h>
@@ -427,3 +429,5 @@ InputService::~InputService() noexcept
 {
     s_pOverlay = nullptr;
 }
+
+#endif

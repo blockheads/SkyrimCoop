@@ -17,6 +17,7 @@ struct ImguiService
 
     TP_NOCOPYMOVE(ImguiService);
 
+#ifdef HAS_DIRECTXTK
     void Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd);
 
     void Render() const;
@@ -24,6 +25,11 @@ struct ImguiService
 
     LRESULT WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void RawInputHandler(RAWINPUT& aRawinput);
+#else
+    void Create(RenderSystemD3D11*, HWND) {}
+    void Render() const {}
+    void Reset() const {}
+#endif
 
     entt::sink<entt::sigh<TCallback>> OnDraw;
 

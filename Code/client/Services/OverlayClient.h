@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef HAS_CEF
+
 #include "OverlayClient.hpp"
 
 struct TransportService;
@@ -33,3 +35,5 @@ private:
 
     TransportService& m_transport;
 };
+
+#endif

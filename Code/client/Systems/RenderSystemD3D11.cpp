@@ -1,3 +1,5 @@
+#ifdef HAS_DIRECTXTK
+
 #include <TiltedOnlinePCH.h>
 
 #include <Systems/RenderSystemD3D11.h>
@@ -69,3 +71,5 @@ void RenderSystemD3D11::OnReset(IDXGISwapChain* apSwapChain)
     m_overlay.Reset();
     m_imguiService.Reset();
 }
+
+#endif

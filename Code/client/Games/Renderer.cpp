@@ -2,11 +2,15 @@
 
 #include <Renderer.h>
 
+#ifdef HAS_DIRECTXTK
 #include <Systems/RenderSystemD3D11.h>
+#endif
 #include <Services/DiscordService.h>
 
 #include <World.h>
+#ifdef HAS_DIRECTXTK
 #include <D3D11Hook.hpp>
+#endif
 
 using TCreateViewport = bool(void*, ViewportConfig*, WindowConfig*, void*);
 
@@ -30,6 +34,7 @@ ID3D11Device* BGSRenderer::GetDevice()
     return *(s_device.Get());
 }
 
+#ifdef HAS_DIRECTXTK
 static void HookPresent()
 {
     // TODO (Force): refactor this ..
@@ -56,6 +61,7 @@ static bool HookCreateViewport(void* viewport, ViewportConfig* pConfig, WindowCo
 
     return result;
 }
+#endif
 
 static TiltedPhoques::Initializer s_viewportHooks(
     []()

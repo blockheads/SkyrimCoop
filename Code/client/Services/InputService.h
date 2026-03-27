@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef HAS_CEF
+
 struct OverlayService;
 
 /**
@@ -14,3 +16,5 @@ struct InputService
 
     TP_NOCOPYMOVE(InputService);
 };
+
+#endif

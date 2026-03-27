@@ -11,14 +11,18 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#ifdef HAS_DIRECTXTK
 #include <Systems/RenderSystemD3D11.h>
+#endif
 
 #include <Services/OverlayService.h>
 #include <Services/ImguiService.h>
 #include <Services/DiscordService.h>
 
 #include <ScriptExtender.h>
+#ifdef HAS_DIRECTXTK
 #include <NvidiaUtil.h>
+#endif
 
 using TiltedPhoques::Debug;
 
@@ -53,14 +57,20 @@ void* TiltedOnlineApp::GetMainAddress() const
 bool TiltedOnlineApp::BeginMain()
 {
     World::Create();
+#ifdef HAS_DISCORD
     World::Get().ctx().at<DiscordService>().Init();
+#endif
+#ifdef HAS_DIRECTXTK
     World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<OverlayService>(), World::Get().ctx().at<ImguiService>());
+#endif
 
     LoadScriptExender();
 
+#ifdef HAS_DIRECTXTK
     // TODO: Figure out a way to un-blacklist NvCamera64.dll (see DllBlocklist.cpp). Then this hack can be removed
     if (IsNvidiaOverlayLoaded())
         ApplyNvidiaFix();
+#endif
 
     return true;
 }
@@ -68,25 +78,27 @@ bool TiltedOnlineApp::BeginMain()
 bool TiltedOnlineApp::EndMain()
 {
     UninstallHooks();
+#ifdef HAS_DIRECTXTK
     if (m_pDevice)
         m_pDevice->Release();
+#endif
 
     return true;
 }
 
 void TiltedOnlineApp::Update()
 {
-    // Reverting a change that used to be here to disable bUseFaceGenPreprocessedHeads==true (which is 
-    // the default) handling. Extensive testing over months by multiple parties showed that enabling 
-    // the flag introduces no issues WITH PROPERLY GENERATED CHARACTERS (in-game character generation 
+    // Reverting a change that used to be here to disable bUseFaceGenPreprocessedHeads==true (which is
+    // the default) handling. Extensive testing over months by multiple parties showed that enabling
+    // the flag introduces no issues WITH PROPERLY GENERATED CHARACTERS (in-game character generation
     // or showracemenu). The shortcut of  "coc riverwood" from the main menu skips proper character generation.
-    // 
+    //
     // Plus, having it on  has some benefits like helping with neck seams. Comment to avoid revisiting.
-    // 
+    //
     // There are still some issues to track down, like hair color and maybe face tint not syncing correctly,
     // but they are unrelated and unchanged by this flag.
-    // 
- 
+    //
+
     // Make sure the window stays active
     POINTER_SKYRIMSE(uint32_t, bAlwaysActive, 380768);
 
@@ -120,6 +132,7 @@ void TiltedOnlineApp::UninstallHooks()
 {
 }
 
+#ifdef HAS_DIRECTXTK
 void TiltedOnlineApp::ApplyNvidiaFix() noexcept
 {
     auto d3dFeatureLevelOut = D3D_FEATURE_LEVEL_11_0;
@@ -130,3 +143,4 @@ void TiltedOnlineApp::ApplyNvidiaFix() noexcept
     if (d3dFeatureLevelOut < D3D_FEATURE_LEVEL_11_0)
         spdlog::warn("Unexpected D3D11 feature level detected (< 11.0), may cause issues");
 }
+#endif

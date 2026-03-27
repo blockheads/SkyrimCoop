@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef HAS_DIRECTXTK
+
 struct ImguiService;
 struct IDXGISwapChain;
 struct OverlayService;
@@ -30,3 +32,5 @@ private:
     size_t m_renderConnection;
     size_t m_resetConnection;
 };
+
+#endif

@@ -1,6 +1,10 @@
 
+#ifdef HAS_CEF
 #include "Services/InputService.h"
+#endif
+#ifdef HAS_DIRECTXTK
 #include "Systems/RenderSystemD3D11.h"
+#endif
 
 #include "World.h"
 
@@ -15,7 +19,9 @@ namespace BSGraphics
 namespace
 {
 
+#ifdef HAS_DIRECTXTK
 static RenderSystemD3D11* g_sRs = nullptr;
+#endif
 static WNDPROC RealWndProc = nullptr;
 static RendererWindow* g_RenderWindow = nullptr;
 
@@ -37,8 +43,10 @@ void (*Renderer_Init)(Renderer*, BSGraphics::RendererInitOSData*, const BSGraphi
 // WNDPROC seems to be part of the renderer
 LRESULT CALLBACK Hook_WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+#ifdef HAS_CEF
     if (InputService::WndProc(hwnd, uMsg, wParam, lParam) != 0)
         return 0;
+#endif
 
     return RealWndProc(hwnd, uMsg, wParam, lParam);
 }
@@ -56,11 +64,15 @@ void Hook_Renderer_Init(Renderer* self, BSGraphics::RendererInitOSData* aOSData,
 
     Renderer_Init(self, aOSData, aFBData, aOut);
 
+#ifdef HAS_DIRECTXTK
     g_sRs = &World::Get().ctx().at<RenderSystemD3D11>();
+#endif
     // This how the game does it too
     g_RenderWindow = &self->Data.RenderWindowA[0];
 
+#ifdef HAS_DIRECTXTK
     g_sRs->OnDeviceCreation(self->Data.RenderWindowA[0].pSwapChain);
+#endif
 }
 
 void (*StopTimer)(int) = nullptr;
@@ -68,8 +80,10 @@ void (*StopTimer)(int) = nullptr;
 // Insert us at the End
 void Hook_StopTimer(int type)
 {
+#ifdef HAS_DIRECTXTK
     if (g_sRs)
         g_sRs->OnRender();
+#endif
 
     StopTimer(type);
 }
