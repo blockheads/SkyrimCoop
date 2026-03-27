@@ -2,6 +2,12 @@
 includes("TiltedCore")
 includes("libraries")
 
+-- External vendored libraries (Tier 3 client deps, require Windows/MinGW)
+if is_plat("windows") or is_plat("mingw") then
+    includes("external/DirectXTK")
+    includes("external/imgui")
+end
+
 -- Client targets: SkyrimTogetherClient, ImmersiveElf, SkyrimImmersiveLauncher, TPProcess
 if is_plat("windows") or is_plat("mingw") then
     includes("client")

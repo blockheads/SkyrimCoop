@@ -6,8 +6,8 @@
 #include <iterator>
 #include <string>
 
-#include <Commctrl.h>
-#include <Windows.h>
+#include <commctrl.h>
+#include <windows.h>
 
 namespace Base
 {
