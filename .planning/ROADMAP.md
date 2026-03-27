@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `xmake f -p mingw --mingw=/path` configures the SkyrimCoop project without errors
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md -- Install XMake, add MinGW platform config, scaffold feasibility test plugins
-- [ ] 01-02-PLAN.md -- Cross-compile gate DLLs, Wine smoke test, Proton runtime validation
+- [x] 01-01-PLAN.md -- Install XMake, add MinGW platform config, scaffold feasibility test plugins
+- [x] 01-02-PLAN.md -- Cross-compile gate DLLs, Wine smoke test, Proton runtime validation
 
 ### Phase 2: MSVC Compatibility & Core Libraries
 **Goal**: All platform-independent code (encoding, networking, common, server) compiles under MinGW and produces working libraries
