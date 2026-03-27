@@ -38,14 +38,14 @@ created: 2026-03-27
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | BUILD-02 | build | `xmake build TiltedCore` (native Linux) | N/A (build) | ⬜ pending |
-| 02-01-02 | 01 | 1 | BUILD-02 | build | `xmake build SkyrimEncoding` (native Linux) | N/A (build) | ⬜ pending |
-| 02-02-01 | 02 | 2 | BUILD-03 | build | `xmake build CommonLib BaseLib` (native Linux) | N/A (build) | ⬜ pending |
-| 02-02-02 | 02 | 2 | BUILD-03 | build | `xmake build SkyrimCoopNetworking` (native Linux) | N/A (build) | ⬜ pending |
-| 02-03-01 | 03 | 3 | BUILD-03 | build | `xmake build SkyrimTogetherServer` (native Linux) | N/A (build) | ⬜ pending |
-| 02-04-01 | 04 | 4 | BUILD-03 | unit | `xmake run TPTests` (native Linux) | ✅ Code/tests/encoding.cpp | ⬜ pending |
+| 02-01-01 | 01 | 1 | BUILD-02 | build | `xmake build TiltedCore` (native Linux) | N/A (build) | pending |
+| 02-01-02 | 01 | 1 | BUILD-02 | build | `xmake build SkyrimEncoding` (native Linux) | N/A (build) | pending |
+| 02-02-01 | 02 | 2 | BUILD-03 | build | `xmake build CommonLib BaseLib` (native Linux) | N/A (build) | pending |
+| 02-02-02 | 02 | 2 | BUILD-03 | build | `xmake build SkyrimCoopNetworking` (native Linux) | N/A (build) | pending |
+| 02-03-01 | 03 | 3 | BUILD-03 | build | `xmake build SkyrimTogetherServer` (MinGW + native Linux) | N/A (build) | pending |
+| 02-03-02 | 03 | 3 | BUILD-03 | unit | `xmake run TPTests` (native Linux) | Code/tests/encoding.cpp | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
