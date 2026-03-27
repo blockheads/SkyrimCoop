@@ -27,6 +27,17 @@ if is_plat("linux") then
     add_cxflags("-fPIC")
 end
 
+if is_plat("mingw") then
+    -- MinGW uses GCC-style flags, not MSVC
+    -- Static linking prevents missing libgcc/libstdc++ DLLs at runtime (see PITFALLS.md)
+    add_cxflags("-static", "-static-libgcc", "-static-libstdc++")
+    add_ldflags("-static", "-static-libgcc", "-static-libstdc++", {force = true})
+    set_arch("x86_64")
+    add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00")
+    add_defines("NOMINMAX")
+    add_syslinks("kernel32")
+end
+
 set_warnings("all")
 add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
