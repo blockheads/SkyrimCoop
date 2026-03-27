@@ -55,10 +55,13 @@ add_requires(
     -- enet6: Replaced GameNetworkingSockets with enet6 for simpler networking
     "enet6",
     "libuv v1.48.0",
-    "minhook v1.3.3",
-    "xbyak v7.06",
     "catch2 2.13.9"
 )
+
+-- Windows/MinGW-only packages (Tier 3 client dependencies)
+if is_plat("windows") or is_plat("mingw") then
+    add_requires("minhook v1.3.3", "xbyak v7.06")
+end
 
 -- dependencies' dependencies version pinning
 add_requireconfs("*.rpmalloc", { override = true })
