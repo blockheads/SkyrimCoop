@@ -1,15 +1,6 @@
 local function istable(t) return type(t) == 'table' end
 
 local function build_runner()
-    after_install(function(target)
-        local linkdir = target:pkg("sentry-native"):get("linkdirs")
-        if istable(linkdir) then
-            linkdir = linkdir[1] -- Yes lua index starts at 1
-        end
-        local bindir = path.join(linkdir, "..", "bin")
-        os.cp(bindir, target:installdir())
-    end)
-
     set_kind("binary")
     set_group("Server")
     set_symbols("debug", "hidden")
@@ -28,10 +19,8 @@ local function build_runner()
         "Console",
         "BaseLib")
     add_packages(
-        "TiltedCore",
         "spdlog",
         "hopscotch-map",
-        "sentry-native",
         "libuv")
     add_defines("SPDLOG_HEADER_ONLY")
 end

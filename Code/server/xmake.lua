@@ -3,12 +3,7 @@ local function istable(t) return type(t) == 'table' end
 add_requires("sol2 v3.3.0", {configs = {lua = "lua"}})
 
 local function build_server()
-    -- Use object library for Wine MSVC to bypass broken lib.exe archiver
-    if is_plat("windows") and get_config("sdk") == "/opt/msvc" then
-        set_kind("object")
-    else
-        set_kind("static")  -- Changed to static for P2P embedded server
-    end
+    set_kind("static")
     set_group("Server")
     add_includedirs(
         ".",
@@ -41,9 +36,8 @@ local function build_server()
         "lua",
         "sol2",
         "glm",
-        "entt",
+        "entt")
         -- cpp-httplib is manually included via includedirs
-        "sentry-native")
 end
 
 target("SkyrimTogetherServer")
