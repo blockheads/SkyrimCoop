@@ -1,3 +1,5 @@
+#ifdef HAS_CEF
+
 #include <TiltedOnlinePCH.h>
 
 #include <Services/OverlayService.h>
@@ -492,3 +494,5 @@ void OverlayService::RunPlayerHealthUpdates() noexcept
 
     m_transport.Send(request);
 }
+
+#endif
