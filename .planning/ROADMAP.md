@@ -56,7 +56,11 @@ Plans:
   1. The client DLL compiles under MinGW with CEF and DirectXTK excluded (stubbed or replaced)
   2. The MinGW-compiled DLL loads into Skyrim SE via SKSE under Proton without crashing
   3. A client using the MinGW-built DLL can connect to a locally running server and see basic character sync
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
+- [ ] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
+- [ ] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
 
 ### Phase 4: Linux Debug Workflow
 **Goal**: Developer can attach GDB to a running Skyrim/Proton process and debug SkyrimCoop DLL code with full source-level inspection
@@ -67,7 +71,11 @@ Plans:
   2. DWARF debug symbols produced by the MinGW build resolve correctly in GDB (variables, stack traces, type info)
   3. A single `./debug_attach.sh` script finds the Skyrim process, attaches GDB, loads symbols, and drops into a debug session
   4. Wine 9.0+ is installed and Skyrim runs under it with NTSYNC performance improvements
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
+- [ ] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
+- [ ] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
 
 ### Phase 5: Testing & CI Pipeline
 **Goal**: Automated test suite runs natively on Linux covering serialization, networking, and server logic, with CI enforcing green builds on every push
@@ -79,7 +87,11 @@ Plans:
   3. Message round-trip tests verify that every message type serializes on one side and deserializes correctly on the other
   4. GitHub Actions CI builds the MinGW DLL and runs the native Linux test suite on every push to dev
   5. Fuzz testing sends 1000+ malformed messages to the server without crashes or hangs
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
+- [ ] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
+- [ ] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
 
 ### Phase 6: ImGui UI Port
 **Goal**: All user-facing UI functionality works through ImGui instead of CEF, fully compilable with MinGW and debuggable from Linux
@@ -91,7 +103,11 @@ Plans:
   3. Connected players appear in a party panel with the host clearly indicated
   4. Players can send and receive text chat messages through the ImGui overlay
   5. Settings (network config, keybinds) are accessible and modifiable through an ImGui settings panel
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
+- [ ] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
+- [ ] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
 **UI hint**: yes
 
 ## Progress
@@ -103,7 +119,7 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 |-------|----------------|--------|-----------|
 | 1. Feasibility Validation | 0/2 | Planning complete | - |
 | 2. MSVC Compatibility & Core Libraries | 0/3 | Planning complete | - |
-| 3. Client DLL Cross-Compilation | 0/0 | Not started | - |
+| 3. Client DLL Cross-Compilation | 0/3 | Planning complete | - |
 | 4. Linux Debug Workflow | 0/0 | Not started | - |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
