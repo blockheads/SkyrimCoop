@@ -9,7 +9,7 @@ Requirements for Milestone 1: Linux Build, Debug & UI Port. Each maps to roadmap
 
 ### Build System
 
-- [ ] **BUILD-01**: XMake configures for MinGW cross-compilation (`xmake f -p mingw --mingw=/path`)
+- [x] **BUILD-01**: XMake configures for MinGW cross-compilation (`xmake f -p mingw --mingw=/path`)
 - [ ] **BUILD-02**: MSVC compatibility header resolves all `__declspec`, `#pragma comment(lib)`, struct alignment, and MSVC-specific extensions for GCC
 - [ ] **BUILD-03**: Tier 1-2 libraries (encoding, networking, common, server) compile under MinGW and produce working static libraries
 - [ ] **BUILD-04**: Tier 3 client DLL compiles under MinGW (CEF and DirectXTK excluded, replaced by ImGui)
@@ -100,7 +100,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | GATE-01 | Phase 1 | Pending |
 | GATE-02 | Phase 1 | Pending |
-| BUILD-01 | Phase 1 | Pending |
+| BUILD-01 | Phase 1 | Complete |
 | BUILD-02 | Phase 2 | Pending |
 | BUILD-03 | Phase 2 | Pending |
 | BUILD-04 | Phase 3 | Pending |
