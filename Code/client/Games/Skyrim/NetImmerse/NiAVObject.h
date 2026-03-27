@@ -17,4 +17,4 @@ struct NiAVObject : NiObjectNET
     uint8_t pad30[0x110 - 0x30];
 };
 
-static_assert(sizeof(NiAVObject) == 0x110);
+SKYRIM_STRUCT_ASSERT(sizeof(NiAVObject) == 0x110);

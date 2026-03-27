@@ -1,7 +1,7 @@
 
 #include <imgui.h>
 #include <EquipManager.h>
-#include <services/DebugService.h>
+#include <Services/DebugService.h>
 
 #include <Games/Skyrim/Forms/TESForm.h>
 #include <Games/Skyrim/BSGraphics/BSGraphicsRenderer.h>
@@ -20,7 +20,7 @@
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/hkbBehaviorGraph.h>
 
-#include <structs/AnimationGraphDescriptorManager.h>
+#include <Structs/AnimationGraphDescriptorManager.h>
 #include <inttypes.h>
 
 #include <ModCompat/BehaviorVar.h>

@@ -1,6 +1,6 @@
 
 // Immersive Early Loader, idea inspired by chromium https://github.com/chromium/chromium/tree/main/chrome/chrome_elf
-#include <Windows.h>
+#include <windows.h>
 
 namespace
 {

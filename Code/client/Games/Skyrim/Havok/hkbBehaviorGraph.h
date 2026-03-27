@@ -19,9 +19,9 @@ struct SomeData
     uint8_t pad86[0x90 - 0x86];
 };
 
-static_assert(offsetof(SomeData, generator) == 0x58);
-static_assert(offsetof(SomeData, behaviorGraph) == 0x60);
-static_assert(offsetof(SomeData, byte84) == 0x84);
+SKYRIM_STRUCT_ASSERT(offsetof(SomeData, generator) == 0x58);
+SKYRIM_STRUCT_ASSERT(offsetof(SomeData, behaviorGraph) == 0x60);
+SKYRIM_STRUCT_ASSERT(offsetof(SomeData, byte84) == 0x84);
 
 struct hkbBehaviorGraph
 {
@@ -58,7 +58,7 @@ struct hkbBehaviorGraph
     uint8_t byte12E;
 };
 
-static_assert(offsetof(hkbBehaviorGraph, struct98) == 0x98);
-static_assert(offsetof(hkbBehaviorGraph, symbolIdMap) == 0xB8);
-static_assert(offsetof(hkbBehaviorGraph, animationVariables) == 0xD8);
-static_assert(offsetof(hkbBehaviorGraph, byte12C) == 0x12C);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraph, struct98) == 0x98);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraph, symbolIdMap) == 0xB8);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraph, animationVariables) == 0xD8);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraph, byte12C) == 0x12C);

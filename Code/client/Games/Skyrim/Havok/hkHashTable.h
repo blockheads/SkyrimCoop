@@ -21,7 +21,7 @@ struct hkHashTable
     Entry* buckets; // 1C
 };
 
-static_assert(offsetof(hkHashTable, end) == 0xC);
-static_assert(offsetof(hkHashTable, buckets) == 0x1C);
+SKYRIM_STRUCT_ASSERT(offsetof(hkHashTable, end) == 0xC);
+SKYRIM_STRUCT_ASSERT(offsetof(hkHashTable, buckets) == 0x1C);
 
 #pragma pack(pop)

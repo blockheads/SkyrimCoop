@@ -2,10 +2,10 @@
 
 #include <FunctionHook.hpp>
 
-using TRegisterClassA = ATOM(__stdcall*)(const WNDCLASSA*);
-using TRegisterClassW = ATOM(__stdcall*)(const WNDCLASSW*);
-using TRegisterClassExA = ATOM(__stdcall*)(const WNDCLASSEXA*);
-using TRegisterClassExW = ATOM(__stdcall*)(const WNDCLASSEXW*);
+using TRegisterClassA = ATOM(*)(const WNDCLASSA*);
+using TRegisterClassW = ATOM(*)(const WNDCLASSW*);
+using TRegisterClassExA = ATOM(*)(const WNDCLASSEXA*);
+using TRegisterClassExW = ATOM(*)(const WNDCLASSEXW*);
 
 TRegisterClassA RealRegisterClassA = nullptr;
 TRegisterClassW RealRegisterClassW = nullptr;

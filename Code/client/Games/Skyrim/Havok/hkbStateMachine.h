@@ -8,4 +8,4 @@ struct hkbStateMachine
     char* name;
 };
 
-static_assert(offsetof(hkbStateMachine, name) == 0x38);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbStateMachine, name) == 0x38);

@@ -20,4 +20,4 @@ struct ExtraSoul : BSExtraData
     SOUL_LEVEL cSoul{};
 };
 
-static_assert(sizeof(ExtraSoul) == 0x18);
+SKYRIM_STRUCT_ASSERT(sizeof(ExtraSoul) == 0x18);

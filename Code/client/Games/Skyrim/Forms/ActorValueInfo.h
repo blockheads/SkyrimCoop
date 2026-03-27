@@ -183,5 +183,5 @@ struct ActorValueInfo : TESForm
     BSFixedString key;
 };
 
-static_assert(offsetof(ActorValueInfo, name) == 0x20);
-static_assert(offsetof(ActorValueInfo, key) == 0x50);
+SKYRIM_STRUCT_ASSERT(offsetof(ActorValueInfo, name) == 0x20);
+SKYRIM_STRUCT_ASSERT(offsetof(ActorValueInfo, key) == 0x50);

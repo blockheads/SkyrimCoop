@@ -29,7 +29,7 @@ struct ScaleFormContext
     ScaleFormReturn* scaleformReturn; // 18 - 10
 };
 
-using TRequestLoadingText = void(__cdecl)(ScaleFormContext* apContext);
+using TRequestLoadingText = void(ScaleFormContext* apContext);
 TRequestLoadingText* RealRequestLoadingText;
 
 void RequestLoadingText(ScaleFormContext* apContext)

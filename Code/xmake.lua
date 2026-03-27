@@ -8,12 +8,15 @@ if is_plat("windows") or is_plat("mingw") then
     includes("external/imgui")
 end
 
--- Client targets: SkyrimTogetherClient, ImmersiveElf, SkyrimImmersiveLauncher, TPProcess
+-- Client targets: SkyrimTogetherClient, ImmersiveElf
 if is_plat("windows") or is_plat("mingw") then
     includes("client")
     includes("immersive_elf")
-    includes("immersive_launcher")
-    includes("tp_process")
+    -- CEF-dependent targets: Windows MSVC only, not MinGW
+    if not is_plat("mingw") then
+        includes("immersive_launcher")
+        includes("tp_process")
+    end
 end
 
 includes("common")

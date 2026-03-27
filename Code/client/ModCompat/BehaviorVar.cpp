@@ -27,7 +27,9 @@
 //        a limit of 64 boolean vars that can be synced. Remove the limit.
 //
 
+#ifdef HAS_IMMERSIVE_LAUNCHER
 #include <immersive_launcher/launcher.h>
+#endif
 #include <BSAnimationGraphManager.h>
 #include <Games/ActorExtension.h>
 #include "BehaviorVar.h"
@@ -117,12 +119,12 @@ void ProcessVariableSet(
         }
 
         if (found == acReverseMap.end())
-            spdlog::warn(__FUNCTION__ ": unable to find variable {} in any of the common misspellings", item);
+            spdlog::warn("{}: : unable to find variable {} in any of the common misspellings", __FUNCTION__, item);
         else
         {
             aVariableSet.insert(found->second);
             if (item != found->first)
-                spdlog::warn(__FUNCTION__ ": misspelled variable {} corrected to {}", item, found->first);
+                spdlog::warn("{}: : misspelled variable {} corrected to {}", __FUNCTION__, item, found->first);
         }
     }
 }
@@ -159,19 +161,19 @@ void BehaviorVar::SeedAnimationVariables(
     TiltedPhoques::String strValue;
     for (auto& item : acpDescriptor->BooleanLookUpTable)
         if ((strValue = origVars.find(acHash, item)).empty())
-            spdlog::error(__FUNCTION__ ": unable to find string for original BooleanVar {}", item);
+            spdlog::error("{}: : unable to find string for original BooleanVar {}", __FUNCTION__, item);
         else
             boolVarNames.push_back(strValue);
 
     for (auto& item : acpDescriptor->FloatLookupTable)
         if ((strValue = origVars.find(acHash, item)).empty())
-            spdlog::error(__FUNCTION__ ": unable to find string for original FloatVar {}", item);
+            spdlog::error("{}: : unable to find string for original FloatVar {}", __FUNCTION__, item);
         else
             floatVarNames.push_back(strValue);
 
     for (auto& item : acpDescriptor->IntegerLookupTable)
         if ((strValue = origVars.find(acHash, item)).empty())
-            spdlog::error(__FUNCTION__ ": unable to find string for original IntVar {}", item);
+            spdlog::error("{}: : unable to find string for original IntVar {}", __FUNCTION__, item);
         else
             intVarNames.push_back(strValue);
 
@@ -228,7 +230,7 @@ const AnimationGraphDescriptor* BehaviorVar::ConstructModdedDescriptor(
     {
         SeedAnimationVariables(acReplacer.origHash, pTmpGraph, acReverseMap, boolVar, floatVar, intVar);
         spdlog::info(
-            __FUNCTION__ ": Original game descriptor with hash {} has {} boolean, {} float, {} integer behavior vars",
+            "{}: : Original game descriptor with hash {} has {} boolean, {} float, {} integer behavior vars", __FUNCTION__,
             acReplacer.origHash,
             boolVar.size(),
             floatVar.size(),
@@ -280,7 +282,7 @@ const AnimationGraphDescriptor* BehaviorVar::ConstructModdedDescriptor(
         }
     }
     if (foundCount)
-        spdlog::info(__FUNCTION__ ": now have {} intVar descriptors after searching {} BehavivorVar strings", intVar.size(), acReplacer.syncIntegerVar.size());
+        spdlog::info("{}: : now have {} intVar descriptors after searching {} BehavivorVar strings", __FUNCTION__, intVar.size(), acReplacer.syncIntegerVar.size());
 
     // We need the sets sorted, and TiltedPhoques::Set is not. Copying to an std::set
     // isn't the most efficient approach, but it is simple and doesn't happen often enough
@@ -357,9 +359,9 @@ const AnimationGraphDescriptor* BehaviorVar::Patch(BSAnimationGraphManager* apMa
     // With that case filtered out, keep a counter to see if we need to defend against other
     // cases (like a modded behavior where we CAN't find the signature var).
     if (invocations++ == 1000)
-        spdlog::warn(__FUNCTION__ ": warning, more than 1000 invocations, investigate why");
+        spdlog::warn("{}: : warning, more than 1000 invocations, investigate why", __FUNCTION__);
 
-    spdlog::info(__FUNCTION__ ": actor with formID {:x} with hash of {} has modded (or not synced) behavior", hexFormID, hash);
+    spdlog::info("{}: : actor with formID {:x} with hash of {} has modded (or not synced) behavior", __FUNCTION__, hexFormID, hash);
 
     // Get all animation variables for this actor, then create a acReverseMap to go from strings to animation enum.
     auto pDumpVar = apManager->DumpAnimationVariables(false);
@@ -405,7 +407,7 @@ const AnimationGraphDescriptor* BehaviorVar::Patch(BSAnimationGraphManager* apMa
     {
     case 0:
         spdlog::warn(
-            __FUNCTION__ ": no original behavior found for behavior hash {:x} (found on formID {:x}), adding to fail list",
+            "{}: : no original behavior found for behavior hash {:x} (found on formID {:x}), adding to fail list", __FUNCTION__,
             hash,
             hexFormID);
         FailList(hash);
@@ -414,7 +416,7 @@ const AnimationGraphDescriptor* BehaviorVar::Patch(BSAnimationGraphManager* apMa
     case 1: break;
 
     default:
-        spdlog::critical(__FUNCTION__ ": multiple behavior replacers have the same signature, this must be corrected:");
+        spdlog::critical("{}: : multiple behavior replacers have the same signature, this must be corrected:", __FUNCTION__);
         for (auto& item : matchedReplacers)
             spdlog::critical("   {}", behaviorPool[item].creatureName);
         spdlog::warn("Multiple behavior replacers have the same signature, choosing the first one.");
@@ -423,7 +425,7 @@ const AnimationGraphDescriptor* BehaviorVar::Patch(BSAnimationGraphManager* apMa
 
     auto& foundRep = behaviorPool[matchedReplacers[0]];
     spdlog::info(
-        __FUNCTION__ ": found match, behavior hash {:x} (found on formID {:x}) has original behavior {} signature {}",
+        "{}: : found match, behavior hash {:x} (found on formID {:x}) has original behavior {} signature {}", __FUNCTION__,
         hash,
         hexFormID,
         foundRep.creatureName,
@@ -437,12 +439,12 @@ const AnimationGraphDescriptor* BehaviorVar::Patch(BSAnimationGraphManager* apMa
     {
     case AnimationGraphDescriptor_Master_Behavior::m_key:
         m_humanoidGraphDescriptorHash = hash;
-        spdlog::info(__FUNCTION__ ": captured modified Master_Behavior hash {:X}", hash);
+        spdlog::info("{}: : captured modified Master_Behavior hash {:X}", __FUNCTION__, hash);
         break;
 
     case AnimationGraphDescriptor_BHR_Master::m_key:
         m_dragonGraphDescriptorHash = hash;
-        spdlog::info(__FUNCTION__ ": captured modified BHR_Master (dragon) hash {:X}", hash);
+        spdlog::info("{}: : captured modified BHR_Master (dragon) hash {:X}", __FUNCTION__, hash);
         break;
     }
 
@@ -557,7 +559,7 @@ BehaviorVar::Replacer* BehaviorVar::LoadReplacerFromDir(const std::filesystem::p
     erase_if(sigVar, isspace); // removes any inadvertent whitespace
     if (sigVar.size() == 0)
         return nullptr;
-    spdlog::info(__FUNCTION__ ": found {} with signature variable {}", creatureName, sigVar);
+    spdlog::info("{}: : found {} with signature variable {}", __FUNCTION__, creatureName, sigVar);
 
     // Check to see if there is a hash file.
     // This is recommended, and shouild contain the ORIGINAL hash,
@@ -687,7 +689,12 @@ void BehaviorVar::Init()
 
     // Check if the behaviors folder exists
     std::filesystem::path pBehaviorsPath;
+#ifdef HAS_IMMERSIVE_LAUNCHER
     pBehaviorsPath = launcher::GetLaunchContext()->gamePath / L"Data" / L"SkyrimTogetherRebornBehaviors";
+#else
+    // Without launcher context, use a relative path from the current directory
+    pBehaviorsPath = std::filesystem::current_path() / L"Data" / L"SkyrimTogetherRebornBehaviors";
+#endif
 
     if (!std::filesystem::is_directory(pBehaviorsPath))
         return;
@@ -711,15 +718,15 @@ void BehaviorVar::Init()
         auto matches = SignatureMatches(signature.origHash, signature.signatureVar);
         switch (matches.size())
         {
-        case 0: spdlog::critical(__FUNCTION__ ": failure to find self in behaviorPool, {}", signature.creatureName);
+        case 0: spdlog::critical("{}: : failure to find self in behaviorPool, {}", __FUNCTION__, signature.creatureName);
         case 1: break;
 
         default:
             if (firsttime++ == 0)
-                spdlog::warn(__FUNCTION__ ": some creatures have ambiguous signatures. This is expected for now,\n"
-                                          "    but a modder must create a unique signature in their mod.");
+                spdlog::warn("{}: some creatures have ambiguous signatures. This is expected for now,\n"
+                                          "    but a modder must create a unique signature in their mod.", __FUNCTION__);
 
-            spdlog::warn(__FUNCTION__ ": {} signature {} matches:", signature.creatureName, signature.signatureVar);
+            spdlog::warn("{}: : {} signature {} matches:", __FUNCTION__, signature.creatureName, signature.signatureVar);
             for (auto hash : matches)
             {
                 auto iter = std::find(behaviorPool.begin(), behaviorPool.end(), hash);

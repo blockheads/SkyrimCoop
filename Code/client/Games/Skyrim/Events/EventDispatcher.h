@@ -329,16 +329,16 @@ struct EventDispatcherManager
 
 // constexpr auto x = offsetof(EventDispatcherManager, unkx);
 
-static_assert(sizeof(EventDispatcherManager) == 4752);
-static_assert(offsetof(EventDispatcherManager, activateEvent) == 88);
-static_assert(offsetof(EventDispatcherManager, deathEvent) == 880);
-static_assert(offsetof(EventDispatcherManager, lockChangedEvent) == 1760);
-static_assert(offsetof(EventDispatcherManager, furnitureEvent) == 1320);
-static_assert(offsetof(EventDispatcherManager, resetEvent) == 2904);
-static_assert(offsetof(EventDispatcherManager, trackedStatsEvent) == 3872);
-static_assert(offsetof(EventDispatcherManager, triggerEvent) == 4048);
-static_assert(offsetof(EventDispatcherManager, switchRaceCompleteEvent) == 4576);
-static_assert(offsetof(EventDispatcherManager, fastTravelEndEvent) == 4664);
-static_assert(offsetof(EventDispatcherManager, questInitEvent) == 0x9F8);
-static_assert(offsetof(EventDispatcherManager, questStageEvent) == 0xA50);
-static_assert(offsetof(EventDispatcherManager, questStartStopEvent) == 0xB00);
+SKYRIM_STRUCT_ASSERT(sizeof(EventDispatcherManager) == 4752);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, activateEvent) == 88);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, deathEvent) == 880);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, lockChangedEvent) == 1760);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, furnitureEvent) == 1320);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, resetEvent) == 2904);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, trackedStatsEvent) == 3872);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, triggerEvent) == 4048);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, switchRaceCompleteEvent) == 4576);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, fastTravelEndEvent) == 4664);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, questInitEvent) == 0x9F8);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, questStageEvent) == 0xA50);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, questStartStopEvent) == 0xB00);

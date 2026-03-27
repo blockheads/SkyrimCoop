@@ -76,8 +76,8 @@ public:
     std::uint32_t unk1DC;                    // 1DC
 };
 
-static_assert(offsetof(PlayerControls, PlayerControls::bBlockPlayerInput) == 0x1D9);
-static_assert(offsetof(PlayerControls, PlayerControls::Data) == 0x20);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerControls, PlayerControls::bBlockPlayerInput) == 0x1D9);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerControls, PlayerControls::Data) == 0x20);
 
 struct BSInputEnableManager
 {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 
 #include <Stl.hpp>
 #include <Memory.hpp>
@@ -49,6 +49,13 @@ namespace TiltedPhoques
 
         void Add(FunctionHook aFunctionHook, bool aDelayed = false) noexcept;
         void* Add(void* apFunctionDetour, const char* acpLibraryName, const char* acpMethod) noexcept;
+
+        // Template overload for function references (GCC does not implicitly convert to void*)
+        template<class T>
+        void* Add(T& aFunctionDetour, const char* acpLibraryName, const char* acpMethod) noexcept
+        {
+            return Add(reinterpret_cast<void*>(&aFunctionDetour), acpLibraryName, acpMethod);
+        }
 
         template<class T, class U>
         void Add(T** aSystemFunction, U* aHookFunction, bool aDelayed = false) noexcept
@@ -110,6 +117,7 @@ namespace TiltedPhoques
 #define TP_HOOK_COMMIT TiltedPhoques::FunctionHookManager::GetInstance().InstallDelayedHooks();
 
 
+#ifdef _MSC_VER
 #define TP_EMPTY_HOOK_PLACEHOLDER \
 __nop(); \
 __nop(); \
@@ -127,3 +135,22 @@ __nop(); \
 __nop(); \
 __nop(); \
 __nop();
+#else
+#define TP_EMPTY_HOOK_PLACEHOLDER \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop"); \
+__asm__ volatile("nop");
+#endif

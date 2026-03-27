@@ -6,6 +6,8 @@
 #include <string>
 #include <cstring>
 #include <charconv>
+#include <cstdlib>
+#include <type_traits>
 #include <TiltedCore/Stl.hpp>
 
 namespace ServerConsole
@@ -21,7 +23,22 @@ template <typename T> T ConvertStringValue(const char* szValue, T acDefault)
 {
     // on error, you get the default
     T nValue = acDefault;
+#if defined(__GNUC__) && __GNUC__ < 11
+    // GCC < 11 lacks std::from_chars for floating-point types
+    if constexpr (std::is_floating_point_v<T>)
+    {
+        char* pEnd = nullptr;
+        double result = std::strtod(szValue, &pEnd);
+        if (pEnd != szValue)
+            nValue = static_cast<T>(result);
+    }
+    else
+    {
+        std::from_chars(szValue, szValue + std::strlen(szValue), nValue);
+    }
+#else
     std::from_chars(szValue, szValue + std::strlen(szValue), nValue);
+#endif
     return nValue;
 }
 

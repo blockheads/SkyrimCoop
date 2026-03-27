@@ -8,7 +8,7 @@ static TForceWeather* RealForceWeather = nullptr;
 
 Sky* Sky::Get() noexcept
 {
-    using SkyGet = Sky*(__fastcall)();
+    using SkyGet = Sky*();
 
     POINTER_SKYRIMSE(SkyGet, skyGet, 13878);
 

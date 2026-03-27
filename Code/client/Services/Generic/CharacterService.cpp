@@ -292,14 +292,14 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
     const auto formIdComponent = m_world.try_get<FormIdComponent>(cEntity);
     if (!formIdComponent)
     {
-        spdlog::error(__FUNCTION__ ": form id component doesn't exist, cookie: {:X}", acMessage.Cookie);
+        spdlog::error("{}: : form id component doesn't exist, cookie: {:X}", __FUNCTION__, acMessage.Cookie);
         return;
     }
 
     Actor* pActor = Cast<Actor>(TESForm::GetById(formIdComponent->Id));
     if (!pActor)
     {
-        spdlog::error(__FUNCTION__ ": actor not found, form id: {:X}", formIdComponent->Id);
+        spdlog::error("{}: : actor not found, form id: {:X}", __FUNCTION__, formIdComponent->Id);
         m_world.destroy(cEntity);
         return;
     }
@@ -652,14 +652,14 @@ void CharacterService::OnBeastFormChange(const BeastFormChangeEvent& acEvent) co
     Actor* pActor = Utils::GetByServerId<Actor>(serverId);
     if (!pActor)
     {
-        spdlog::warn(__FUNCTION__ ": could not find actor for server id {:X}", serverId);
+        spdlog::warn("{}: : could not find actor for server id {:X}", __FUNCTION__, serverId);
         return;
     }
 
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
     if (!pNpc)
     {
-        spdlog::warn(__FUNCTION__ ": could not find actor baseform for server id {:X}", serverId);
+        spdlog::warn("{}: : could not find actor baseform for server id {:X}", __FUNCTION__, serverId);
         return;
     }
 
@@ -956,7 +956,7 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
         std::optional<uint32_t> serverIdRes = Utils::GetServerId(entity);
         if (!serverIdRes.has_value())
         {
-            spdlog::error(__FUNCTION__ ": failed to find server id for entity");
+            spdlog::error("{}: : failed to find server id for entity", __FUNCTION__);
             continue;
         }
 
@@ -976,7 +976,7 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
             if (!pActor)
             {
                 // Probably left the room and/or temporary.
-                spdlog::info(__FUNCTION__ ": no local Actor for serverId {:X} to relinquish", serverId);
+                spdlog::info("{}: : no local Actor for serverId {:X} to relinquish", __FUNCTION__, serverId);
                 continue;
             }
 
@@ -985,7 +985,7 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
             InterpolationSystem::Setup(m_world, entity);
             AnimationSystem::Setup(m_world, entity);
 
-            spdlog::info(__FUNCTION__ ": relinquished control of actor {:X} with server id {:X}", pActor->formID, acMessage.ServerId);
+            spdlog::info("{}: : relinquished control of actor {:X} with server id {:X}", __FUNCTION__, pActor->formID, acMessage.ServerId);
 
             return;
         }
@@ -1002,7 +1002,7 @@ void CharacterService::OnNotifyActorTeleport(const NotifyActorTeleport& acMessag
     Actor* pActor = Cast<Actor>(TESForm::GetById(cActorId));
     if (!pActor)
     {
-        spdlog::error(__FUNCTION__ ": failed to retrieve actor to teleport.");
+        spdlog::error("{}: : failed to retrieve actor to teleport.", __FUNCTION__);
         return;
     }
 
@@ -1046,7 +1046,7 @@ void CharacterService::MoveActor(const Actor* apActor, const GameId& acWorldSpac
 
     if (!pCell)
     {
-        spdlog::error(__FUNCTION__ ": failed to fetch cell to teleport, actor: {:X}, worldspace: {:X}, cell: {:X}, position: {}, {}, {}", apActor->formID, acWorldSpaceId.BaseId, acCellId.BaseId, acPosition.x, acPosition.y, acPosition.z);
+        spdlog::error("{}: : failed to fetch cell to teleport, actor: {:X}, worldspace: {:X}, cell: {:X}, position: {}, {}, {}", __FUNCTION__, apActor->formID, acWorldSpaceId.BaseId, acCellId.BaseId, acPosition.x, acPosition.y, acPosition.z);
         return;
     }
 
@@ -1063,7 +1063,7 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
     Actor* const pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
     if (!pActor)
     {
-        spdlog::warn(__FUNCTION__ ": actor for new entity not found, form id: {:X}", formIdComponent.Id);
+        spdlog::warn("{}: : actor for new entity not found, form id: {:X}", __FUNCTION__, formIdComponent.Id);
         return;
     }
 
@@ -1280,7 +1280,7 @@ Actor* CharacterService::CreateCharacterForEntity(entt::entity aEntity) const no
 
     if (!pWaitingFor3D || !pInterpolationComponent)
     {
-        spdlog::error(__FUNCTION__ ": could not find WaitingFor3D or InterpolationComponent");
+        spdlog::error("{}: : could not find WaitingFor3D or InterpolationComponent", __FUNCTION__);
         return nullptr;
     }
 
@@ -1318,7 +1318,7 @@ Actor* CharacterService::CreateCharacterForEntity(entt::entity aEntity) const no
 
     if (!pActor)
     {
-        spdlog::error(__FUNCTION__ ": could not spawn actor for remote server id {:X}.", remoteComponent.Id);
+        spdlog::error("{}: : could not spawn actor for remote server id {:X}.", __FUNCTION__, remoteComponent.Id);
         return nullptr;
     }
 

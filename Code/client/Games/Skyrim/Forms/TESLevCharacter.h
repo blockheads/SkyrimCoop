@@ -11,6 +11,6 @@ struct TESLevCharacter : TESBoundAnimObject
     TESModelTextureSwap modelTextureSwap;
 };
 
-static_assert(offsetof(TESLevCharacter, leveledList) == 0x30);
-static_assert(offsetof(TESLevCharacter, modelTextureSwap) == 0x58);
-static_assert(sizeof(TESLevCharacter) == 0x90);
+SKYRIM_STRUCT_ASSERT(offsetof(TESLevCharacter, leveledList) == 0x30);
+SKYRIM_STRUCT_ASSERT(offsetof(TESLevCharacter, modelTextureSwap) == 0x58);
+SKYRIM_STRUCT_ASSERT(sizeof(TESLevCharacter) == 0x90);

@@ -55,10 +55,16 @@ private:
 // No-op stub (per D-02)
 struct DiscordService
 {
+    struct StubUser { int64_t id = 0; };
+
     DiscordService(entt::dispatcher&) {}
     ~DiscordService() = default;
     bool Init() { return false; }
     void Update() {}
+    const StubUser& GetUser() const noexcept { return m_stubUser; }
     void WndProcHandler(HWND, UINT, WPARAM, LPARAM) {}
+
+private:
+    StubUser m_stubUser{};
 };
 #endif

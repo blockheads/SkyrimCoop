@@ -14,5 +14,5 @@ struct ExtraLeveledCreature : BSExtraData
     TESNPC* npc2;
 };
 
-static_assert(sizeof(ExtraLeveledCreature) == 0x20);
-static_assert(offsetof(ExtraLeveledCreature, npc1) == 0x10);
+SKYRIM_STRUCT_ASSERT(sizeof(ExtraLeveledCreature) == 0x20);
+SKYRIM_STRUCT_ASSERT(offsetof(ExtraLeveledCreature, npc1) == 0x10);

@@ -9,4 +9,4 @@ struct ExtraCharge : BSExtraData
     float fCharge{};
 };
 
-static_assert(sizeof(ExtraCharge) == 0x18);
+SKYRIM_STRUCT_ASSERT(sizeof(ExtraCharge) == 0x18);

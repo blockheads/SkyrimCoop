@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Games/Memory.h>
+#include <iterator>
+#include <cstddef>
 
 template <class T> struct GameArray
 {
@@ -24,6 +26,12 @@ template <class T> struct GameArray
     // Range for loop compatibility
     struct Iterator
     {
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using pointer = T*;
+        using reference = const T&;
+
         Iterator(T* apEntry)
             : m_pEntry(apEntry)
         {
@@ -33,6 +41,7 @@ template <class T> struct GameArray
             ++m_pEntry;
             return *this;
         }
+        bool operator==(const Iterator& acRhs) const { return m_pEntry == acRhs.m_pEntry; }
         bool operator!=(const Iterator& acRhs) const { return m_pEntry != acRhs.m_pEntry; }
         const T& operator*() const { return *m_pEntry; }
 

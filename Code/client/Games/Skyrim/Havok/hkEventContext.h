@@ -20,8 +20,8 @@ struct hkEventContext
     void* unk48;
 };
 
-static_assert(offsetof(hkEventContext, character) == 0);
-static_assert(offsetof(hkEventContext, hkpWorld) == 0x38);
-static_assert(offsetof(hkEventContext, byte30) == 0x30);
-static_assert(offsetof(hkEventContext, unk48) == 0x48);
-static_assert(sizeof(hkEventContext) == 0x50);
+SKYRIM_STRUCT_ASSERT(offsetof(hkEventContext, character) == 0);
+SKYRIM_STRUCT_ASSERT(offsetof(hkEventContext, hkpWorld) == 0x38);
+SKYRIM_STRUCT_ASSERT(offsetof(hkEventContext, byte30) == 0x30);
+SKYRIM_STRUCT_ASSERT(offsetof(hkEventContext, unk48) == 0x48);
+SKYRIM_STRUCT_ASSERT(sizeof(hkEventContext) == 0x50);

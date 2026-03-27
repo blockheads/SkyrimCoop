@@ -72,7 +72,7 @@ BSTEventResult QuestService::OnEvent(const TESQuestStartStopEvent* apEvent, cons
             auto& modSys = m_world.GetModSystem();
             if (modSys.GetServerModId(pQuest->formID, Id))
             {
-                spdlog::info(__FUNCTION__ ": queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}",
+                spdlog::info("{}: : queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
                              Id.LogFormat(),  pQuest->currentStage, pQuest->IsStopped() ? RequestQuestUpdate::Stopped : RequestQuestUpdate::Started,
                              static_cast<std::underlying_type_t<TESQuest::Type>>(pQuest->type), 
                              pQuest->formID, pQuest->fullName.value.AsAscii());
@@ -121,7 +121,7 @@ BSTEventResult QuestService::OnEvent(const TESQuestStageEvent* apEvent, const Ev
             auto& modSys = m_world.GetModSystem();
             if (modSys.GetServerModId(pQuest->formID, Id))
             {
-                spdlog::info(__FUNCTION__ ": queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}",
+                spdlog::info("{}: : queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
                              Id.LogFormat(), pQuest->currentStage,
                              RequestQuestUpdate::StageUpdate,
                              static_cast<std::underlying_type_t<TESQuest::Type>>(pQuest->type),
@@ -163,7 +163,7 @@ void QuestService::OnQuestUpdate(const NotifyQuestUpdate& aUpdate) noexcept
 
     if (pQuest->type == TESQuest::Type::None || pQuest->type == TESQuest::Type::Miscellaneous)
     {
-        spdlog::info(__FUNCTION__ ": receiving type none/misc quest update gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}",
+        spdlog::info("{}: : receiving type none/misc quest update gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
                      aUpdate.Id.LogFormat(), aUpdate.Stage, aUpdate.Status,
                      aUpdate.ClientQuestType, formId, pQuest->fullName.value.AsAscii());
     }

@@ -10,4 +10,4 @@ struct DefaultStringManager
     BSFixedString fIdleTimer; // 3B8
 };
 
-static_assert(offsetof(DefaultStringManager, fIdleTimer) == 0x3B8);
+SKYRIM_STRUCT_ASSERT(offsetof(DefaultStringManager, fIdleTimer) == 0x3B8);

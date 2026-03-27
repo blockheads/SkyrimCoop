@@ -19,6 +19,12 @@ if is_plat("mingw") then
     -- Static linking prevents missing libgcc/libstdc++ DLLs at runtime (see PITFALLS.md)
     add_cxflags("-static", "-static-libgcc", "-static-libstdc++")
     add_ldflags("-static", "-static-libgcc", "-static-libstdc++", {force = true})
+    -- MSVC-compatible struct layout (required for Skyrim game struct ABI compatibility)
+    add_cxflags("-mms-bitfields")
+    -- Allow implicit function-pointer-to-void* conversions (MSVC allows this, GCC strict)
+    add_cxflags("-fpermissive")
+    -- On x64, all calling conventions are the same (MS x64 ABI). See
+    -- Code/client/TiltedOnlinePCH.h for __fastcall/__stdcall/__cdecl undefs.
     set_arch("x86_64")
     add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00")
     add_defines("NOMINMAX")
@@ -61,6 +67,10 @@ add_requires(
 -- Windows/MinGW-only packages (Tier 3 client dependencies)
 if is_plat("windows") or is_plat("mingw") then
     add_requires("minhook v1.3.3", "xbyak v7.06")
+    -- mem is header-only; unsupported on mingw in xmake-repo, so only require for MSVC
+    if not is_plat("mingw") then
+        add_requires("mem 1.0.0")
+    end
 end
 
 -- dependencies' dependencies version pinning

@@ -79,7 +79,7 @@ void WeatherService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcep
         auto& modSystem = m_world.GetModSystem();
         if (!modSystem.GetServerModId(pWeather->formID, request.Id))
         {
-            spdlog::error(__FUNCTION__ ": weather server ID not found, form id: {:X}", pWeather->formID);
+            spdlog::error("{}: : weather server ID not found, form id: {:X}", __FUNCTION__, pWeather->formID);
             return;
         }
 
@@ -127,7 +127,7 @@ void WeatherService::OnWeatherChange(const NotifyWeatherChange& acMessage) noexc
 
     if (!pWeather)
     {
-        spdlog::error(__FUNCTION__ ": weather not found, form id: {:X}", acMessage.Id.ModId + acMessage.Id.BaseId);
+        spdlog::error("{}: : weather not found, form id: {:X}", __FUNCTION__, acMessage.Id.ModId + acMessage.Id.BaseId);
         return;
     }
 
@@ -170,7 +170,7 @@ void WeatherService::RunWeatherUpdates(const double acDelta) noexcept
         auto& modSystem = m_world.GetModSystem();
         if (!modSystem.GetServerModId(pWeather->formID, request.Id))
         {
-            spdlog::error(__FUNCTION__ ": weather server ID not found, form id: {:X}", pWeather->formID);
+            spdlog::error("{}: : weather server ID not found, form id: {:X}", __FUNCTION__, pWeather->formID);
             return;
         }
 
@@ -201,7 +201,7 @@ void WeatherService::SetCachedWeather() noexcept
 
     if (!pWeather)
     {
-        spdlog::error(__FUNCTION__ ": weather not found, form id: {:X}", m_cachedWeatherId);
+        spdlog::error("{}: : weather not found, form id: {:X}", __FUNCTION__, m_cachedWeatherId);
         return;
     }
 

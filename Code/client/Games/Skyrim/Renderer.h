@@ -27,7 +27,7 @@ struct WindowConfig
     bool bForce;
 };
 
-static_assert(offsetof(ViewportConfig, name) == 32);
+SKYRIM_STRUCT_ASSERT(offsetof(ViewportConfig, name) == 32);
 
 struct BGSRenderer
 {
@@ -51,8 +51,8 @@ struct BGSRenderer
     IDXGISwapChain* pSwapChain;
 };
 
-static_assert(sizeof(ViewportConfig) == 40);
-static_assert(offsetof(BGSRenderer, pD3dDevice) == 56);
-static_assert(offsetof(BGSRenderer, pSwapChain) == 96);
+SKYRIM_STRUCT_ASSERT(sizeof(ViewportConfig) == 40);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSRenderer, pD3dDevice) == 56);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSRenderer, pSwapChain) == 96);
 
 #pragma pack(pop)

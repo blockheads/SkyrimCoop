@@ -21,7 +21,7 @@
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/RequestDeathStateChange.h>
 
-#include <misc/ActorValueOwner.h>
+#include <Misc/ActorValueOwner.h>
 
 ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)

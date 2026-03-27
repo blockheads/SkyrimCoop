@@ -13,6 +13,6 @@ struct NativeFunction
     void* functionAddress;
 };
 
-static_assert(offsetof(NativeFunction, functionName) == 0x10);
-static_assert(offsetof(NativeFunction, typeName) == 0x18);
-static_assert(offsetof(NativeFunction, functionAddress) == 0x50);
+SKYRIM_STRUCT_ASSERT(offsetof(NativeFunction, functionName) == 0x10);
+SKYRIM_STRUCT_ASSERT(offsetof(NativeFunction, typeName) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(NativeFunction, functionAddress) == 0x50);

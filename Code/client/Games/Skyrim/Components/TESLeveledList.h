@@ -27,8 +27,8 @@ struct TESLeveledList : BaseFormComponent
     uint8_t pad14[0x28 - 0x14];
 };
 
-static_assert(sizeof(TESLeveledList::Entry) == 0x18);
-static_assert(offsetof(TESLeveledList, content) == 0x8);
-static_assert(offsetof(TESLeveledList, count) == 0x12);
-static_assert(offsetof(TESLeveledList, hasData) == 0x13);
-static_assert(sizeof(TESLeveledList) == 0x28);
+SKYRIM_STRUCT_ASSERT(sizeof(TESLeveledList::Entry) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(TESLeveledList, content) == 0x8);
+SKYRIM_STRUCT_ASSERT(offsetof(TESLeveledList, count) == 0x12);
+SKYRIM_STRUCT_ASSERT(offsetof(TESLeveledList, hasData) == 0x13);
+SKYRIM_STRUCT_ASSERT(sizeof(TESLeveledList) == 0x28);

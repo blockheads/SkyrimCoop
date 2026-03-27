@@ -16,10 +16,10 @@ TiltedPhoques::App& TiltedPhoques::App::GetInstance() noexcept
     return *g_pApp;
 }
 
-using TWinMain = int(__stdcall)(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd);
-TWinMain* OriginalWinMain = nullptr;
+using TWinMain = int(WINAPI*)(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd);
+TWinMain OriginalWinMain = nullptr;
 
-static int __stdcall HookedWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+static int WINAPI HookedWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
     // Ensure exceptions won't cause our calls to be skipped
     struct ScopedCaller
@@ -43,7 +43,7 @@ static int __stdcall HookedWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 static void SetupMainHook()
 {
-    OriginalWinMain = static_cast<TWinMain*>(TiltedPhoques::App::GetInstance().GetMainAddress());
+    OriginalWinMain = reinterpret_cast<TWinMain>(TiltedPhoques::App::GetInstance().GetMainAddress());
     if (OriginalWinMain == nullptr)
         return;
 
@@ -52,9 +52,10 @@ static void SetupMainHook()
 
 static std::once_flag s_mainHookCallFlag;
 
+#ifdef _MSC_VER
 #if TP_PLATFORM_64
 
-using TGetWinmain = char* (__stdcall*)();
+using TGetWinmain = char* (*)();
 using T_initterm = decltype(&::_initterm);
 
 static TGetWinmain OriginalGetWinmain = nullptr;
@@ -76,7 +77,7 @@ void Hookinitterm(_PVFV* apStart, _PVFV* apEnd) noexcept
 
 #else
 
-using TGetStartupInfoA = void(__stdcall*)(LPSTARTUPINFO lpStartupInfo);
+using TGetStartupInfoA = void(*)(LPSTARTUPINFO lpStartupInfo);
 TGetStartupInfoA OriginalGetStartupInfoA = nullptr;
 
 void __stdcall HookedGetStartupInfoA(LPSTARTUPINFO lpStartupInfo)
@@ -87,6 +88,7 @@ void __stdcall HookedGetStartupInfoA(LPSTARTUPINFO lpStartupInfo)
 }
 
 #endif
+#endif // _MSC_VER
 
 namespace TiltedPhoques
 {
@@ -100,11 +102,16 @@ namespace TiltedPhoques
         case DLL_PROCESS_ATTACH:
         {
             g_pApp = aAppFactory();
+#ifdef _MSC_VER
 #if TP_PLATFORM_64
             OriginalGetWinmain = reinterpret_cast<TGetWinmain>(TP_HOOK_SYSTEM("api-ms-win-crt-runtime-l1-1-0.dll", "_get_narrow_winmain_command_line", HookGetWinmain));
             Original_initterm = reinterpret_cast<T_initterm>(TP_HOOK_SYSTEM("msvcr110.dll", "_initterm", Hookinitterm));
 #else
             OriginalGetStartupInfoA = reinterpret_cast<TGetStartupInfoA>(TP_HOOK_SYSTEM("kernel32.dll", "GetStartupInfoA", HookedGetStartupInfoA));
+#endif
+#else
+            // MinGW: CRT hook approach not available, use direct main hook setup
+            SetupMainHook();
 #endif
 
             App::GetInstance().Attach();

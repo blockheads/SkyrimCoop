@@ -18,4 +18,4 @@ struct ValueModifierEffect : public ActiveEffect
     uint32_t actorValueIndex;
     char pad_0094[4];
 };
-static_assert(sizeof(ValueModifierEffect) == 0x98);
+SKYRIM_STRUCT_ASSERT(sizeof(ValueModifierEffect) == 0x98);

@@ -33,7 +33,7 @@ struct BGSSaveLoadManager
     Struct330* struct330; // 330
 };
 
-static_assert(offsetof(BGSSaveLoadManager::SaveData, someFunction) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSSaveLoadManager::SaveData, someFunction) == 0x18);
 
 struct BGSSaveFormBuffer
 {
@@ -51,15 +51,15 @@ struct BGSSaveFormBuffer
     uint8_t pad[0x100]; // Ensure we have enough space as we don't know the exact size
 };
 
-static_assert(offsetof(BGSSaveFormBuffer, formId) == 0x18);
-static_assert(offsetof(BGSSaveFormBuffer, changeFlags) == 0x1B);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSSaveFormBuffer, formId) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSSaveFormBuffer, changeFlags) == 0x1B);
 
 struct BGSSaveLoadBuffer
 {
     char* pBuffer;
 };
 
-static_assert(sizeof(BGSSaveLoadBuffer) == 0x8);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSSaveLoadBuffer) == 0x8);
 
 struct BGSSaveGameBuffer
 {
@@ -70,21 +70,21 @@ struct BGSSaveGameBuffer
     uint32_t iBufferPosition;
 };
 
-static_assert(sizeof(BGSSaveGameBuffer) == 0x18);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSSaveGameBuffer) == 0x18);
 
 struct BGSChangeFlags
 {
     int32_t iFlags;
 };
 
-static_assert(sizeof(BGSChangeFlags) == 0x4);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSChangeFlags) == 0x4);
 
 struct BGSSaveLoadFormInfo
 {
     uint8_t cData;
 };
 
-static_assert(sizeof(BGSSaveLoadFormInfo) == 0x1);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSSaveLoadFormInfo) == 0x1);
 
 struct BGSNumericIDIndex
 {
@@ -101,7 +101,7 @@ struct BGSSaveLoadFormHeader
     uint8_t cVersion;
 };
 
-static_assert(sizeof(BGSSaveLoadFormHeader) == 0x9);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSSaveLoadFormHeader) == 0x9);
 
 struct BGSSaveFormBufferReal : BGSSaveGameBuffer
 {
@@ -110,7 +110,7 @@ struct BGSSaveFormBufferReal : BGSSaveGameBuffer
     struct TESForm* pForm;
 };
 
-static_assert(sizeof(BGSSaveFormBufferReal) == 0x30);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSSaveFormBufferReal) == 0x30);
 
 struct BGSLoadFormBuffer
 {
@@ -138,8 +138,8 @@ struct BGSLoadFormBuffer
     uint8_t loadFlag;
 };
 
-static_assert(offsetof(BGSLoadFormBuffer, changeFlags) == 0x40);
-static_assert(offsetof(BGSLoadFormBuffer, loadFlag) == 0x4B);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSLoadFormBuffer, changeFlags) == 0x40);
+SKYRIM_STRUCT_ASSERT(offsetof(BGSLoadFormBuffer, loadFlag) == 0x4B);
 
 // TODO: mostly copied from fallout 4, needs to be validated
 struct __declspec(align(8)) BGSSaveLoadScrapBuffer
@@ -149,7 +149,7 @@ struct __declspec(align(8)) BGSSaveLoadScrapBuffer
     uint32_t uiSize;
 };
 
-static_assert(sizeof(BGSSaveLoadScrapBuffer) == 0x18);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSSaveLoadScrapBuffer) == 0x18);
 
 struct BGSLoadGameBuffer
 {
@@ -160,7 +160,7 @@ struct BGSLoadGameBuffer
     uint32_t iBufferPosition;
 };
 
-static_assert(sizeof(BGSLoadGameBuffer) == 0x28);
+SKYRIM_STRUCT_ASSERT(sizeof(BGSLoadGameBuffer) == 0x28);
 
 struct __declspec(align(8)) BGSLoadFormData
 {
@@ -175,12 +175,12 @@ struct __declspec(align(8)) BGSLoadFormData
     uint8_t cVersion;
 };
 
-// static_assert(sizeof(BGSLoadFormData) == 0x28);
+// SKYRIM_STRUCT_ASSERT(sizeof(BGSLoadFormData) == 0x28);
 
 struct BGSLoadFormBufferReal : BGSLoadGameBuffer, BGSLoadFormData
 {
 };
 
-// static_assert(sizeof(BGSLoadFormBufferReal) == 0x50);
+// SKYRIM_STRUCT_ASSERT(sizeof(BGSLoadFormBufferReal) == 0x50);
 
 #pragma pack(pop)

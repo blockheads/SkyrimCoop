@@ -50,4 +50,4 @@ template <typename T> struct NiTObjectArray
     inline bool Empty() const noexcept { return length == 0; }
 };
 
-static_assert(sizeof(NiTObjectArray<uintptr_t>) == 24);
+SKYRIM_STRUCT_ASSERT(sizeof(NiTObjectArray<uintptr_t>) == 24);

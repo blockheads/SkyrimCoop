@@ -11,7 +11,7 @@
 #define TP_ASSERT(Expr, Msg, ...)                                    \
     if (!(Expr))                                                     \
     {                                                                \
-        Utils::Assert(#Expr, fmt::format(Msg, __VA_ARGS__).c_str()); \
+        Utils::Assert(#Expr, fmt::format(Msg, ##__VA_ARGS__).c_str()); \
     }
 
 struct TESForm;

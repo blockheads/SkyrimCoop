@@ -53,8 +53,8 @@ __declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom(Actor* apActor, uint32_
 struct TextureHolder;
 TP_THIS_FUNCTION(TCreateResourceView, Ni2DBuffer*, TextureHolder, uint32_t, uint32_t);
 
-using TCreateTexture = NiRenderedTexture*(__fastcall)(BSFixedString& aName);
-using TCreateTints = void(__fastcall)(const GameArray<TintMask*>& acTints, NiRenderedTexture* apTexture);
+using TCreateTexture = NiRenderedTexture*(BSFixedString& aName);
+using TCreateTints = void(const GameArray<TintMask*>& acTints, NiRenderedTexture* apTexture);
 
 void FaceGenSystem::Update(World& aWorld, Actor* apActor, FaceGenComponent& aFaceGenComponent) noexcept
 {

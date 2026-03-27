@@ -107,7 +107,7 @@ static TiltedPhoques::Initializer s_viewportHooks(
 
         TiltedPhoques::SwapCall(mem::pointer(timerLoc.GetPtr()) + 9, StopTimer, &Hook_StopTimer);
 
-        Renderer_Init = static_cast<decltype(Renderer_Init)>(renderInit.GetPtr());
+        Renderer_Init = reinterpret_cast<decltype(Renderer_Init)>(renderInit.GetPtr());
 
         // Once we find a proper way to locate it for different versions, go back to swapcall
         // TiltedPhoques::SwapCall(mem::pointer(initLoc.GetPtr()) + 0xD1A, Renderer_Init, &Hook_Renderer_Init);

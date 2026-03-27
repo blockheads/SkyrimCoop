@@ -13,7 +13,7 @@ struct IMapCameraCallbacks
 
     virtual ~IMapCameraCallbacks(); // 02
 };
-static_assert(sizeof(IMapCameraCallbacks) == 0x8);
+SKYRIM_STRUCT_ASSERT(sizeof(IMapCameraCallbacks) == 0x8);
 
 struct MapMenu final : public IMenu, public BSTEventSink<MenuOpenCloseEvent>, public IMapCameraCallbacks
 {

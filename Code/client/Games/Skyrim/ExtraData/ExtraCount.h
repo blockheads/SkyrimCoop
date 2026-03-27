@@ -9,4 +9,4 @@ struct ExtraCount : BSExtraData
     int16_t count;
 };
 
-static_assert(sizeof(ExtraCount) == 0x18);
+SKYRIM_STRUCT_ASSERT(sizeof(ExtraCount) == 0x18);

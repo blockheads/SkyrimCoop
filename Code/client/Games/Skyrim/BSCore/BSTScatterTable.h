@@ -915,5 +915,5 @@ template <class Key, class Value> struct BSTDefaultScatterTable : public BSTScat
 
 using Test = BSTDefaultScatterTable<uint32_t, uint32_t>;
 
-// static_assert(sizeof(Test) == 0x28);
+// SKYRIM_STRUCT_ASSERT(sizeof(Test) == 0x28);
 } // namespace creation

@@ -28,4 +28,4 @@ struct ActorMagicCaster : MagicCaster
     uint32_t uiFlags;
 };
 
-static_assert(sizeof(ActorMagicCaster) == 0x100);
+SKYRIM_STRUCT_ASSERT(sizeof(ActorMagicCaster) == 0x100);

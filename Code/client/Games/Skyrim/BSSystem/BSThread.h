@@ -17,4 +17,4 @@ public:
     uint32_t m_ParentID;
     bool bThreadIsActive;
 };
-static_assert(sizeof(BSThread) == 0x50, "BSThread size mismatch");
+SKYRIM_STRUCT_ASSERT(sizeof(BSThread) == 0x50, "BSThread size mismatch");

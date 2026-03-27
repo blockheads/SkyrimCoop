@@ -31,7 +31,7 @@ struct CombatTarget
     uint16_t attackerCount;
     FLAGS flags;
 };
-static_assert(sizeof(CombatTarget) == 0xA8);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatTarget) == 0xA8);
 
 struct CombatMember
 {
@@ -39,7 +39,7 @@ struct CombatMember
     float groupStrengthUpdateTimer;
     float threatValue;
 };
-static_assert(sizeof(CombatMember) == 0x0C);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatMember) == 0x0C);
 
 struct CombatSearchLocation
 {
@@ -47,7 +47,7 @@ struct CombatSearchLocation
     float timestamp;
     float unk20;
 };
-static_assert(sizeof(CombatSearchLocation) == 0x20);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatSearchLocation) == 0x20);
 
 struct CombatSearchDoor
 {
@@ -57,7 +57,7 @@ struct CombatSearchDoor
     uint8_t unk09;
     uint8_t unk0A;
 };
-static_assert(sizeof(CombatSearchDoor) == 0xC);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatSearchDoor) == 0xC);
 
 struct CombatGroup
 {
@@ -98,4 +98,4 @@ struct CombatGroup
     uint8_t unk15F;
     BSReadWriteLock lock;
 };
-static_assert(sizeof(CombatGroup) == 0x168);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatGroup) == 0x168);

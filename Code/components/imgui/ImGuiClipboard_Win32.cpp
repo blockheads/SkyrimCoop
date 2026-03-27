@@ -4,7 +4,7 @@
 // https://github.com/xposure/ImGuiSharp/blob/58860d38a9ec066f492c983c9c63393d6e00a442/ImGuiSharp.Shared/ImGui.h/Helpers.cpp
 
 #include "imgui.h"
-#include <Windows.h>
+#include <windows.h>
 #include <imgui/ImGuiClipboard_Win32.h>
 
 namespace ImGuiImpl

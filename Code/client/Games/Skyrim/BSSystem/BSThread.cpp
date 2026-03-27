@@ -76,7 +76,7 @@ static TiltedPhoques::Initializer s_BSThreadInit(
     []()
     {
         const VersionDbPtr<uint8_t> threadInit(68261);
-        BSThread_Initialize = static_cast<decltype(BSThread_Initialize)>(threadInit.GetPtr());
+        BSThread_Initialize = reinterpret_cast<decltype(BSThread_Initialize)>(threadInit.GetPtr());
         // need to detour this for now :/
         TP_HOOK_IMMEDIATE(&BSThread_Initialize, &Hook_BSThread_Initialize);
 

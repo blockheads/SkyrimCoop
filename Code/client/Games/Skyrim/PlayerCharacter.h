@@ -87,7 +87,7 @@ struct Skills
         float xp;
         float levelThreshold;
     };
-    static_assert(sizeof(SkillData) == 0xC);
+    SKYRIM_STRUCT_ASSERT(sizeof(SkillData) == 0xC);
 
     float xp;
     float levelThreshold;
@@ -148,9 +148,9 @@ struct PlayerCharacter : Actor
     uint8_t padPlayerEnd[0xBE0 - 0xB30];
 };
 
-static_assert(offsetof(PlayerCharacter, objectives) == 0x588);
-static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8);
-static_assert(offsetof(PlayerCharacter, locationForm) == 0xAD0);
-static_assert(offsetof(PlayerCharacter, baseTints) == 0xB18);
-static_assert(offsetof(PlayerCharacter, overlayTints) == 0xB30);
-static_assert(sizeof(PlayerCharacter) == 0xBE8);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, objectives) == 0x588);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, pSkills) == 0x9B8);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, locationForm) == 0xAD0);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, baseTints) == 0xB18);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, overlayTints) == 0xB30);
+SKYRIM_STRUCT_ASSERT(sizeof(PlayerCharacter) == 0xBE8);

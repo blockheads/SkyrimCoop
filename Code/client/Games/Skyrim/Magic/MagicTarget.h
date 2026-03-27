@@ -19,7 +19,7 @@ struct MagicTarget
 
         virtual bool Visit(ActiveEffect* apEffect) = 0;
     };
-    static_assert(sizeof(ForEachActiveEffectVisitor) == 0x8);
+    SKYRIM_STRUCT_ASSERT(sizeof(ForEachActiveEffectVisitor) == 0x8);
 
     // this struct is a lot simpler in Fallout 4, it just passes a ref to AddTargetData
     struct ResetElapsedTimeMatchingEffects : ForEachActiveEffectVisitor
@@ -31,14 +31,14 @@ struct MagicTarget
         MagicSystem::CastingSource eCastingSource;
         bool bResetOne;
     };
-    static_assert(sizeof(ResetElapsedTimeMatchingEffects) == 0x30);
+    SKYRIM_STRUCT_ASSERT(sizeof(ResetElapsedTimeMatchingEffects) == 0x30);
 
     struct HasSameUsageEffect : ForEachActiveEffectVisitor
     {
         EffectItem* pUsage;
         ActiveEffect* spFoundEffect;
     };
-    static_assert(sizeof(HasSameUsageEffect) == 0x18);
+    SKYRIM_STRUCT_ASSERT(sizeof(HasSameUsageEffect) == 0x18);
 
     struct AddTargetData
     {

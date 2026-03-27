@@ -15,10 +15,10 @@ static TiltedPhoques::Initializer s_randomInit(
     []()
     {
         const VersionDbPtr<void> unsignedInt(68276);
-        Real_UnsignedInt = static_cast<decltype(Real_UnsignedInt)>(unsignedInt.GetPtr());
+        Real_UnsignedInt = reinterpret_cast<decltype(Real_UnsignedInt)>(unsignedInt.GetPtr());
 
         const VersionDbPtr<void> getGenerator(14774);
-        GetGenerator = static_cast<decltype(GetGenerator)>(getGenerator.GetPtr());
+        GetGenerator = reinterpret_cast<decltype(GetGenerator)>(getGenerator.GetPtr());
     });
 
 } // namespace BSRandom

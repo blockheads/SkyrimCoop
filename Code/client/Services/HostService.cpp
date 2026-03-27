@@ -1,6 +1,6 @@
 #include <Services/HostService.h>
 
-#include <Console/ConsoleRegistry.h>
+#include <console/ConsoleRegistry.h>
 #include <Events/UpdateEvent.h>
 #include <GameServer.h>
 #include <World.h>

@@ -10,7 +10,9 @@
 #include <console/ConsoleRegistry.h>
 
 #include <charconv>
+#include <cstdio>
 #include <fstream>
+#include <type_traits>
 
 #include <TiltedCore/Filesystem.hpp>
 
@@ -21,7 +23,14 @@ namespace
 template <typename T, typename TVal> static SI_Error SetIniValue(CSimpleIni& ini, const T* a_pSection, const T* a_pKey, const TVal a_nValue, const T* a_pComment = nullptr)
 {
     char szValue[64]{};
+#if defined(__GNUC__) && __GNUC__ < 11
+    if constexpr (std::is_floating_point_v<TVal>)
+        std::snprintf(szValue, sizeof(szValue), "%g", static_cast<double>(a_nValue));
+    else
+        std::to_chars(szValue, szValue + sizeof(szValue), a_nValue);
+#else
     std::to_chars(szValue, szValue + sizeof(szValue), a_nValue);
+#endif
 
     // convert to output text
     T szOutput[256];

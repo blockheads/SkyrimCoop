@@ -10,7 +10,7 @@ void ArrayQuickSortRecursiveCombatTargets(GameArray<CombatTargetSelector*>* apAr
     using TSortTargetSelectors = int64_t(int64_t, int64_t);
     POINTER_SKYRIMSE(TSortTargetSelectors, sortTargetSelectors, 33282);
 
-    arrayQuickSort(apArray, sortTargetSelectors, aiLowIndex, aiHighIndex);
+    arrayQuickSort(apArray, reinterpret_cast<void*>(sortTargetSelectors.Get()), aiLowIndex, aiHighIndex);
 }
 
 void CombatController::UpdateTarget()

@@ -1,7 +1,7 @@
 #include <BranchInfo.h>
 #include "CrashHandler.h"
-#include <DbgHelp.h>
-#include <Windows.h>
+#include <dbghelp.h>
+#include <windows.h>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
@@ -34,9 +34,9 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
     if (pExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
         alreadyCrashed++ == 0)
     {
-        spdlog::critical (__FUNCTION__ ": crash occurred!"); 
+        spdlog::critical ("{}: : crash occurred!", __FUNCTION__); 
         
-        spdlog::error(__FUNCTION__ ": exception code is {:x}, at address {}, flags {:x} ",
+        spdlog::error("{}: : exception code is {:x}, at address {}, flags {:x} ", __FUNCTION__,
                       pExceptionInfo->ExceptionRecord->ExceptionCode,
                       pExceptionInfo->ExceptionRecord->ExceptionAddress,
                       pExceptionInfo->ExceptionRecord->ExceptionFlags);
@@ -93,11 +93,11 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
             }
 
             if (!hDumpFile)
-                spdlog::critical(__FUNCTION__ ": coredump may have failed.");
+                spdlog::critical("{}: : coredump may have failed.", __FUNCTION__);
             else
             {
                 CloseHandle(hDumpFile);
-                spdlog::critical(__FUNCTION__ ": coredump created -> flush logs.");
+                spdlog::critical("{}: : coredump created -> flush logs.", __FUNCTION__);
             }
         }
 
@@ -115,7 +115,7 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
         SetUnhandledExceptionFilter(pCurrentUnhandledExceptionFilter);
         if (pCurrentUnhandledExceptionFilter != CrashHandler::GetOriginalUnhandledExceptionFilter())
         {
-            spdlog::critical(__FUNCTION__ ": UnhandledExceptionFilter() workaround triggered.");
+            spdlog::critical("{}: : UnhandledExceptionFilter() workaround triggered.", __FUNCTION__);
 
             singleThreaded.unlock();        // Might reenter, but is safe at this point.
             if ((*pCurrentUnhandledExceptionFilter)(pExceptionInfo) == EXCEPTION_CONTINUE_EXECUTION)

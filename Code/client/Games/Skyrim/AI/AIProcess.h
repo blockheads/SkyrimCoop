@@ -33,4 +33,4 @@ struct HighProcessData
     GameArray<std::tuple<uint32_t, void*>> KnowledgeArray; // BSTuple, std::tuple is prolly wrong
 };
 
-static_assert(offsetof(AIProcess, movementType) == 0x137);
+SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, movementType) == 0x137);

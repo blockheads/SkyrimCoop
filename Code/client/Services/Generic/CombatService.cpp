@@ -186,7 +186,7 @@ void CombatService::OnHitEvent(const HitEvent& acEvent) const noexcept
 
     if (hitteeIt == std::end(view))
     {
-        spdlog::warn(__FUNCTION__ ": hittee form id component not found, form id: {:X}", acEvent.HitterId);
+        spdlog::warn("{}: : hittee form id component not found, form id: {:X}", __FUNCTION__, acEvent.HitterId);
         return;
     }
 
@@ -229,7 +229,7 @@ void CombatService::RunTargetUpdates(const float acDelta) const noexcept
         auto* pTarget = Cast<Actor>(TESForm::GetById(combatComponent.TargetFormId));
         if (!pTarget)
         {
-            spdlog::warn(__FUNCTION__ ": combat target not found, form id {:X}", combatComponent.TargetFormId);
+            spdlog::warn("{}: : combat target not found, form id {:X}", __FUNCTION__, combatComponent.TargetFormId);
             toRemove.push_back(entity);
             continue;
         }
@@ -238,7 +238,7 @@ void CombatService::RunTargetUpdates(const float acDelta) const noexcept
         auto* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
         if (!pActor)
         {
-            spdlog::error(__FUNCTION__ ": actor not found, form id {:X}", formIdComponent.Id);
+            spdlog::error("{}: : actor not found, form id {:X}", __FUNCTION__, formIdComponent.Id);
             toRemove.push_back(entity);
             continue;
         }

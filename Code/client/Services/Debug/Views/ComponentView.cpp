@@ -3,7 +3,7 @@
 #include <World.h>
 #include <imgui.h>
 #include <inttypes.h>
-#include <services/DebugService.h>
+#include <Services/DebugService.h>
 
 #include <BSGraphics/BSGraphicsRenderer.h>
 #include <Camera/PlayerCamera.h>

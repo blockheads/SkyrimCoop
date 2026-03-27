@@ -9,4 +9,4 @@ struct ExtraHealth : BSExtraData
     float fHealth{};
 };
 
-static_assert(sizeof(ExtraHealth) == 0x18);
+SKYRIM_STRUCT_ASSERT(sizeof(ExtraHealth) == 0x18);

@@ -62,5 +62,5 @@ struct Projectile : TESObjectREFR
     static BSPointerHandle<Projectile>* Launch(BSPointerHandle<Projectile>* apResult, LaunchData& arData) noexcept;
 };
 
-static_assert(sizeof(Projectile::LaunchData) == 0xA8);
-static_assert(offsetof(Projectile, fPower) == 0x190);
+SKYRIM_STRUCT_ASSERT(sizeof(Projectile::LaunchData) == 0xA8);
+SKYRIM_STRUCT_ASSERT(offsetof(Projectile, fPower) == 0x190);

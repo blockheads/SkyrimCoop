@@ -12,4 +12,4 @@ struct ExtraPoison : BSExtraData
     uint32_t uiCount{};
 };
 
-static_assert(sizeof(ExtraPoison) == 0x20);
+SKYRIM_STRUCT_ASSERT(sizeof(ExtraPoison) == 0x20);

@@ -38,6 +38,13 @@ target("SkyrimCoopReverse")
     add_deps("TiltedCore")
     add_packages("rpmalloc", "hopscotch-map", "minhook", "xbyak")
 
+    -- mem is header-only; use package on MSVC, local vendored copy on MinGW
+    if not is_plat("mingw") then
+        add_packages("mem")
+    else
+        add_includedirs("../external/mem", {public = true})
+    end
+
     -- Ensure debug symbols
     if is_plat("windows") or is_plat("mingw") then
         set_symbols("debug")

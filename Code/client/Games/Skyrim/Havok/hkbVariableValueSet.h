@@ -9,5 +9,5 @@ template <class T> struct hkbVariableValueSet
     uint32_t size;     // 18
 };
 
-static_assert(offsetof(hkbVariableValueSet<int>, data) == 0x10);
-static_assert(offsetof(hkbVariableValueSet<int>, size) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbVariableValueSet<int>, data) == 0x10);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbVariableValueSet<int>, size) == 0x18);

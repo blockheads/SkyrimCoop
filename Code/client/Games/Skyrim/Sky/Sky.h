@@ -24,4 +24,4 @@ struct Sky
 
 bool Sky::s_shouldUpdateWeather = true;
 
-static_assert(sizeof(Sky) == 0x2C8);
+SKYRIM_STRUCT_ASSERT(sizeof(Sky) == 0x2C8);

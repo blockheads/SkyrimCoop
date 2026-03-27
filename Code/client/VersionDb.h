@@ -1,11 +1,10 @@
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 #include <fstream>
 #include <map>
 #include <stdio.h>
 
-#pragma comment(lib, "version.lib")
 
 class VersionDb
 {
@@ -344,7 +343,7 @@ template <class T> struct VersionDbPtr
 
     T* operator->() const noexcept { return Get(); }
 
-    T* Get() const noexcept { return static_cast<T*>(GetPtr()); }
+    T* Get() const noexcept { return reinterpret_cast<T*>(GetPtr()); }
 
     void* GetPtr() const noexcept
     {

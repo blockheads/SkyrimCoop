@@ -21,11 +21,11 @@ struct CombatTargetSelector
     uint32_t flags;
     uint8_t pad24[4];
 };
-static_assert(offsetof(CombatTargetSelector, ePriority) == 0x1C);
-static_assert(sizeof(CombatTargetSelector) == 0x28);
+SKYRIM_STRUCT_ASSERT(offsetof(CombatTargetSelector, ePriority) == 0x1C);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatTargetSelector) == 0x28);
 
 struct CombatTargetSelectorStandard : public CombatTargetSelector
 {
     AITimer updateTimer;
 };
-static_assert(sizeof(CombatTargetSelectorStandard) == 0x30);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatTargetSelectorStandard) == 0x30);

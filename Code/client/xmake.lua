@@ -6,7 +6,13 @@ target(name)
     add_includedirs(".","../external/")
     -- Add server include directory for embedded GameServer (P2P hosting)
     add_includedirs("../server", {public = false})
-    set_pcxxheader("TiltedOnlinePCH.h")
+    if is_plat("mingw") then
+        -- On MinGW, GCC precompiled headers don't preserve #undef state for calling
+        -- convention macros. Use textual force-include instead of .gch precompilation.
+        add_cxflags("-include TiltedOnlinePCH.h", {force = true})
+    else
+        set_pcxxheader("TiltedOnlinePCH.h")
+    end
 
     -- exclude game specific stuff and Vivox
     add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
@@ -34,6 +40,8 @@ target(name)
     else
         -- MinGW: no CEF, no Discord, no DirectXTK
         -- ImGui stays for Phase 6 readiness (D-04)
+        -- Force-include MinGW compatibility header after PCH to fix calling convention macros
+        add_cxflags("-include MinGWCompat.h", {force = true})
     end
 
     add_files("Games/Skyrim/**.cpp")
@@ -65,8 +73,14 @@ target(name)
         "minhook",
         "entt",
         "glm",
-        "mem",
         "xbyak")
+
+    -- mem is header-only; use package on MSVC, local vendored copy on MinGW
+    if not is_plat("mingw") then
+        add_packages("mem")
+    else
+        add_includedirs("../external/mem", {public = false})
+    end
 
     -- ImGui unconditional for Phase 6 readiness (D-04)
     add_packages("imgui")

@@ -28,7 +28,7 @@ private:
 
 template <class Return, class Type, class... Args> struct PapyrusFunction
 {
-    using TFunction = Return(__fastcall*)(BSScript::IVirtualMachine*, uint32_t, const Type*, Args...);
+    using TFunction = Return(*)(BSScript::IVirtualMachine*, uint32_t, const Type*, Args...);
 
     PapyrusFunction(const void* apAddress)
         : m_pFunction(reinterpret_cast<TFunction>(apAddress))
@@ -43,7 +43,7 @@ private:
 
 template <class Return, class... Args> struct GlobalPapyrusFunction
 {
-    using TFunction = Return(__fastcall*)(BSScript::IVirtualMachine*, Args...);
+    using TFunction = Return(*)(BSScript::IVirtualMachine*, Args...);
 
     GlobalPapyrusFunction(const void* apAddress)
         : m_pFunction(reinterpret_cast<TFunction>(apAddress))
@@ -65,7 +65,7 @@ struct RefrOrInventoryObj
 
 template <class Return, class Type, class... Args> struct LatentPapyrusFunction
 {
-    using TFunction = Return(__fastcall*)(BSScript::IVirtualMachine*, uint32_t, const RefrOrInventoryObj&, Args...);
+    using TFunction = Return(*)(BSScript::IVirtualMachine*, uint32_t, const RefrOrInventoryObj&, Args...);
 
     LatentPapyrusFunction(const void* apAddress)
         : m_pFunction(reinterpret_cast<TFunction>(apAddress))
@@ -83,6 +83,6 @@ private:
     TFunction m_pFunction;
 };
 
-#define PAPYRUS_FUNCTION(returnType, scope, name, ...) static PapyrusFunction<returnType, scope, __VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
-#define GLOBAL_PAPYRUS_FUNCTION(returnType, scope, name, ...) static GlobalPapyrusFunction<returnType, __VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
-#define LATENT_PAPYRUS_FUNCTION(returnType, scope, name, ...) static LatentPapyrusFunction<returnType, scope, __VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
+#define PAPYRUS_FUNCTION(returnType, scope, name, ...) static PapyrusFunction<returnType, scope, ##__VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
+#define GLOBAL_PAPYRUS_FUNCTION(returnType, scope, name, ...) static GlobalPapyrusFunction<returnType, ##__VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));
+#define LATENT_PAPYRUS_FUNCTION(returnType, scope, name, ...) static LatentPapyrusFunction<returnType, scope, ##__VA_ARGS__> s_p##name(World::Get().ctx().at<PapyrusService>().Get(#scope, #name));

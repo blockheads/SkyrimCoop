@@ -18,7 +18,7 @@ static TiltedPhoques::Initializer s_initInputDeviceManager(
     {
         const VersionDbPtr<void> pollInputDevices(68617);
 
-        BSInputDeviceManager_PollInputDevices = static_cast<decltype(BSInputDeviceManager_PollInputDevices)>(pollInputDevices.GetPtr());
+        BSInputDeviceManager_PollInputDevices = reinterpret_cast<decltype(BSInputDeviceManager_PollInputDevices)>(pollInputDevices.GetPtr());
 
         TP_HOOK_IMMEDIATE(&BSInputDeviceManager_PollInputDevices, &Hook_BSInputDeviceManager_PollInputDevices);
     });

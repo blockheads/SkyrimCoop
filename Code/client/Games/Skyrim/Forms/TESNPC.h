@@ -95,6 +95,6 @@ struct TESNPC : TESActorBase
     void Initialize() noexcept;
 };
 
-static_assert(offsetof(TESNPC, npcClass) == 0x1C0);
-static_assert(offsetof(TESNPC, color) == 0x246);
-static_assert(offsetof(TESNPC, relationships) == 0x250);
+SKYRIM_STRUCT_ASSERT(offsetof(TESNPC, npcClass) == 0x1C0);
+SKYRIM_STRUCT_ASSERT(offsetof(TESNPC, color) == 0x246);
+SKYRIM_STRUCT_ASSERT(offsetof(TESNPC, relationships) == 0x250);

@@ -263,7 +263,7 @@ struct BSScript
         uint32_t flags;
         BSFixedString documentation;
     };
-    static_assert(sizeof(NativeFunctionBase) == 0x50);
+    SKYRIM_STRUCT_ASSERT(sizeof(NativeFunctionBase) == 0x50);
 
     struct NativeFunction : NativeFunctionBase
     {

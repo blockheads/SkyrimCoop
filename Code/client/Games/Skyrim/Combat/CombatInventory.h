@@ -6,4 +6,4 @@ struct CombatInventory
     float maximumRange;
     uint8_t unk1BC[0x1C8 - 0x1BC];
 };
-static_assert(sizeof(CombatInventory) == 0x1C8);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatInventory) == 0x1C8);

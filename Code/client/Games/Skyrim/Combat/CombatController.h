@@ -46,8 +46,8 @@ struct CombatController
     NiPointer<Actor> pCachedTarget;
 };
 
-static_assert(offsetof(CombatController, targetHandle) == 0x2C);
-static_assert(offsetof(CombatController, startedCombat) == 0x35);
-static_assert(offsetof(CombatController, targetSelectors) == 0xA0);
-static_assert(offsetof(CombatController, pActiveTargetSelector) == 0xB8);
-static_assert(sizeof(CombatController) == 0xE0);
+SKYRIM_STRUCT_ASSERT(offsetof(CombatController, targetHandle) == 0x2C);
+SKYRIM_STRUCT_ASSERT(offsetof(CombatController, startedCombat) == 0x35);
+SKYRIM_STRUCT_ASSERT(offsetof(CombatController, targetSelectors) == 0xA0);
+SKYRIM_STRUCT_ASSERT(offsetof(CombatController, pActiveTargetSelector) == 0xB8);
+SKYRIM_STRUCT_ASSERT(sizeof(CombatController) == 0xE0);

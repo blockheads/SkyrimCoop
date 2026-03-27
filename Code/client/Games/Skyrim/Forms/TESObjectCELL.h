@@ -35,14 +35,14 @@ struct TESObjectCELL : TESForm
 
         uint32_t Count() { return capacity - available; }
     };
-    static_assert(sizeof(ReferenceData) == 0x30);
+    SKYRIM_STRUCT_ASSERT(sizeof(ReferenceData) == 0x30);
 
     struct LoadedCellData
     {
         uint8_t pad0[0x160];
         BGSEncounterZone* encounterZone;
     };
-    static_assert(offsetof(LoadedCellData, encounterZone) == 0x160);
+    SKYRIM_STRUCT_ASSERT(offsetof(LoadedCellData, encounterZone) == 0x160);
 
     uint8_t pad20[0x40 - 0x20];
     uint8_t cellFlags[5];
@@ -67,8 +67,8 @@ struct TESObjectCELL : TESForm
     uint64_t unk140;
 };
 
-static_assert(offsetof(TESObjectCELL, cellFlags) == 0x40);
-static_assert(offsetof(TESObjectCELL, refData) == 0x88);
-static_assert(offsetof(TESObjectCELL, worldspace) == 0x128);
-static_assert(offsetof(TESObjectCELL, loadedCellData) == 0x130);
-static_assert(sizeof(TESObjectCELL) == 0x148);
+SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, cellFlags) == 0x40);
+SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, refData) == 0x88);
+SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, worldspace) == 0x128);
+SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, loadedCellData) == 0x130);
+SKYRIM_STRUCT_ASSERT(sizeof(TESObjectCELL) == 0x148);

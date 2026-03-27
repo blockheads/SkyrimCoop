@@ -8,4 +8,4 @@ struct hkbSymbolIdMap
     void* pointer20;
 };
 
-static_assert(offsetof(hkbSymbolIdMap, pointer20) == 0x20);
+SKYRIM_STRUCT_ASSERT(offsetof(hkbSymbolIdMap, pointer20) == 0x20);

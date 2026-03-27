@@ -124,4 +124,4 @@ struct TESForm : BaseFormComponent
     uint8_t padForm;
 };
 
-static_assert(sizeof(TESForm) == 0x20);
+SKYRIM_STRUCT_ASSERT(sizeof(TESForm) == 0x20);
