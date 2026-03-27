@@ -29,7 +29,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   1. A minimal SKSE plugin compiled with MinGW loads in Skyrim under Proton and writes to the SKSE log
   2. MinHook produces working x64 function hooks when cross-compiled with MinGW GCC
   3. `xmake f -p mingw --mingw=/path` configures the SkyrimCoop project without errors
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md -- Install XMake, add MinGW platform config, scaffold feasibility test plugins
+- [ ] 01-02-PLAN.md -- Cross-compile gate DLLs, Wine smoke test, Proton runtime validation
 
 ### Phase 2: MSVC Compatibility & Core Libraries
 **Goal**: All platform-independent code (encoding, networking, common, server) compiles under MinGW and produces working libraries
@@ -94,7 +97,7 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Feasibility Validation | 0/0 | Not started | - |
+| 1. Feasibility Validation | 0/2 | Planning complete | - |
 | 2. MSVC Compatibility & Core Libraries | 0/0 | Not started | - |
 | 3. Client DLL Cross-Compilation | 0/0 | Not started | - |
 | 4. Linux Debug Workflow | 0/0 | Not started | - |
