@@ -42,7 +42,11 @@ Plans:
   1. An MSVC compatibility header resolves all `__declspec`, `#pragma comment(lib)`, and struct alignment differences so source files compile unchanged under GCC
   2. Tier 1-2 static libraries (encoding, common, server, networking) build successfully with MinGW and link without unresolved symbols
   3. Existing Catch2 unit tests for encoding/serialization pass when compiled natively on Linux against the MinGW-built libraries
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 02-01-PLAN.md -- Root xmake.lua cleanup and TiltedCore mimalloc-to-rpmalloc migration
+- [ ] 02-02-PLAN.md -- Remove Wine MSVC workarounds from all Tier 1-2 libs, fix sentry deps, fix ThreadUtils
+- [ ] 02-03-PLAN.md -- Fix TPTests config and validate full MinGW build of Tier 1-2 chain
 
 ### Phase 3: Client DLL Cross-Compilation
 **Goal**: MinGW produces a SkyrimTogetherClient.dll that loads into Skyrim SE under Proton and connects to a server
@@ -98,7 +102,7 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Feasibility Validation | 0/2 | Planning complete | - |
-| 2. MSVC Compatibility & Core Libraries | 0/0 | Not started | - |
+| 2. MSVC Compatibility & Core Libraries | 0/3 | Planning complete | - |
 | 3. Client DLL Cross-Compilation | 0/0 | Not started | - |
 | 4. Linux Debug Workflow | 0/0 | Not started | - |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
