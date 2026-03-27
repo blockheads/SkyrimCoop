@@ -1,7 +1,5 @@
 set_xmakever("2.8.5")
 
--- Add local package repository for patched cpp-httplib
-add_repositories("local-repo packages")
 
 -- If newer version of xmake, remove ccache until it actually works
 if set_policy ~= nil then
@@ -11,17 +9,6 @@ end
 -- c code will use c99,
 set_languages("c99", "cxx20")
 
-if is_plat("windows") then
-    add_cxflags("/bigobj")
-    add_syslinks("kernel32")
-    set_arch("x64")
-    set_runtimes("MT")  -- Use static runtime library (/MT for release, /MTd for debug)
-    -- Target Windows 10 (0x0A00 = Windows 10)
-    -- This is required for cpp-httplib and other modern libraries
-    add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00")
-    -- Ensure full PDB path is embedded for debugger to find symbols
-    add_ldflags("/PDBALTPATH:%_PDB%", {force = true})
-end
 
 if is_plat("linux") then
     add_cxflags("-fPIC")
@@ -48,12 +35,10 @@ add_requires(
     "spdlog v1.13.0",
     -- cpp-httplib is manually included from Code/external/cpp-httplib (bypasses xmake package check)
     "gtest v1.14.0",
-    "mem 1.0.0",
     "glm 0.9.9+8",
-    "sentry-native 0.7.1",
     "zlib v1.3.1",
     -- Merged library dependencies (formerly in submodules)
-    "mimalloc",
+    "rpmalloc",
     "hopscotch-map v2.3.1",
     "snappy 1.1.10",
     -- enet6: Replaced GameNetworkingSockets with enet6 for simpler networking
@@ -63,17 +48,9 @@ add_requires(
     "xbyak v7.06",
     "catch2 2.13.9"
 )
-if is_plat("windows") then
-    add_requires(
-        "discord 3.2.1",
-        -- imgui is manually included from Code/external/imgui (bypasses Wine MSVC build issues)
-        -- directxtk is manually included from Code/external/DirectXTK (bypasses xmake package issues)
-        "cef 100.0.24"
-    )
-end
 
 -- dependencies' dependencies version pinning
-add_requireconfs("*.mimalloc", { version = "2.2.4", override = true })
+add_requireconfs("*.rpmalloc", { override = true })
 add_requireconfs("*.cmake", { version = "3.30.2", override = true })
 add_requireconfs("*.openssl", { version = "1.1.1-w", override = true })
 add_requireconfs("*.zlib", { version = "v1.3.1", override = true })
@@ -82,7 +59,6 @@ if is_plat("linux") then
 end
 
 -- cpp-httplib is manually vendored in Code/external/cpp-httplib to bypass xmake package issues
-add_requireconfs("sentry-native", { configs = { backend = "crashpad" } })
 --[[
 add_requireconfs("magnum", { configs = { sdl2 = true }})
 add_requireconfs("magnum-integration",  { configs = { imgui = true }})
@@ -120,9 +96,6 @@ if is_mode("debug") then
     add_defines("DEBUG")
 end
 
-if is_plat("windows") then
-    add_defines("NOMINMAX")
-end
 
 -- add projects
 -- Libraries are now merged into Code/libraries/
