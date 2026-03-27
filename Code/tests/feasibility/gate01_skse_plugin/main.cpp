@@ -1,20 +1,61 @@
-// GATE-01: Minimal SKSE plugin compiled with MinGW
-// Proves MinGW can produce a DLL with correct SKSE entry points and C ABI.
-// Exercises SKSEPlugin_Query (version read) and SKSEPlugin_Load (messaging interface).
-//
-// Compiled with: xmake f -p mingw --mingw=<xpack-path> && xmake build gate01_skse_plugin
-// Output: gate01_test.dll
-// Log: Data\SKSE\Plugins\gate01_test.log
-
+// GATE-01: MinGW SKSE plugin — incremental test: logging only
 #include <windows.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 
-// ---------------------------------------------------------------------------
-// SKSE interface structures (C-compatible POD -- no vtables, no C++ ABI)
-// These match the SKSE plugin API at the DLL boundary.
-// ---------------------------------------------------------------------------
+#define MAKE_EXE_VERSION_EX(major, minor, build, sub) \
+    ((((major) & 0xFF) << 24) | (((minor) & 0xFF) << 16) | (((build) & 0xFFF) << 4) | ((sub) & 0xF))
+#define MAKE_EXE_VERSION(major, minor, build) MAKE_EXE_VERSION_EX(major, minor, build, 0)
+
+struct SKSEPluginVersionData
+{
+    enum { kVersion = 1 };
+    enum
+    {
+        kVersionIndependent_AddressLibraryPostAE = 1 << 0,
+        kVersionIndependent_StructsPost629 = 1 << 2,
+    };
+    enum { kVersionIndependentEx_NoStructUse = 1 << 0 };
+
+    uint32_t dataVersion;
+    uint32_t pluginVersion;
+    char     name[256];
+    char     author[256];
+    char     supportEmail[252];
+    uint32_t versionIndependenceEx;
+    uint32_t versionIndependence;
+    uint32_t compatibleVersions[16];
+    uint32_t seVersionRequired;
+};
+
+extern "C" __attribute__((dllexport))
+const SKSEPluginVersionData SKSEPlugin_Version = {
+    SKSEPluginVersionData::kVersion,
+    1,
+    "GATE-01 Feasibility Test",
+    "SkyrimCoop",
+    "",
+    SKSEPluginVersionData::kVersionIndependentEx_NoStructUse,
+    SKSEPluginVersionData::kVersionIndependent_AddressLibraryPostAE
+        | SKSEPluginVersionData::kVersionIndependent_StructsPost629,
+    { MAKE_EXE_VERSION(1, 6, 1170), 0 },
+    0,
+};
+
+// Use absolute path for logging — avoids CWD ambiguity under MO2
+static void LogResult(const char* aMessage)
+{
+    HANDLE hFile = CreateFileA(
+        "Z:\\media\\bighass\\1f640250-798d-4f2f-87f2-c442109fc5d0\\SteamLibrary\\steamapps\\common\\Skyrim Special Edition\\Data\\SKSE\\Plugins\\gate01_test.log",
+        GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        DWORD bytesWritten = 0;
+        WriteFile(hFile, aMessage, (DWORD)strlen(aMessage), &bytesWritten, NULL);
+        CloseHandle(hFile);
+    }
+}
 
 struct SKSEInterface
 {
@@ -25,115 +66,28 @@ struct SKSEInterface
     void* (*QueryInterface)(uint32_t aId);
 };
 
-// Interface IDs used by SKSE
-static constexpr uint32_t cInterfaceMessaging = 1;
-
-// Messaging callback signature
-typedef void (*EventCallback)(void* apMessage);
-
-struct SKSEMessagingInterface
-{
-    uint32_t interfaceVersion;
-    bool (*RegisterListener)(void* apPlugin, const char* apSender, EventCallback aCallback);
-};
-
-// SKSE message types
-static constexpr uint32_t cMessagePostLoad = 0;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-static void LogResult(const char* aMessage)
-{
-    HANDLE hFile = CreateFileA(
-        "Data\\SKSE\\Plugins\\gate01_test.log",
-        GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile != INVALID_HANDLE_VALUE)
-    {
-        DWORD bytesWritten = 0;
-        WriteFile(hFile, aMessage, (DWORD)strlen(aMessage), &bytesWritten, NULL);
-        CloseHandle(hFile);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Messaging listener (exercises SKSE event registration per D-01)
-// ---------------------------------------------------------------------------
-
-static void MessageListener(void* apMessage)
-{
-    // If this fires, SKSE messaging ABI is fully compatible with MinGW.
-    // The message structure is opaque for this test -- we only care that
-    // the callback was registered and invoked.
-    (void)apMessage;
-}
-
-// ---------------------------------------------------------------------------
-// SKSE plugin exports -- C linkage, GCC dllexport attribute
-// ---------------------------------------------------------------------------
-
-extern "C" __attribute__((dllexport))
-bool SKSEPlugin_Query(const SKSEInterface* apSkse, void* apInfo)
-{
-    if (!apSkse)
-    {
-        LogResult("GATE-01 FAIL: SKSEPlugin_Query received null interface pointer\n");
-        return false;
-    }
-
-    char buf[512];
-    snprintf(buf, sizeof(buf),
-        "GATE-01 PASS: SKSEPlugin_Query called. SKSE=%u Runtime=%u\n",
-        apSkse->skseVersion, apSkse->runtimeVersion);
-    LogResult(buf);
-
-    // apInfo would normally be filled with plugin metadata.
-    // For the feasibility test we skip that -- SKSE tolerates it.
-    (void)apInfo;
-    return true;
-}
-
 extern "C" __attribute__((dllexport))
 bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 {
     if (!apSkse)
     {
-        LogResult("GATE-01 FAIL: SKSEPlugin_Load received null interface pointer\n");
+        LogResult("GATE-01 FAIL: null interface\n");
         return false;
     }
 
-    // Exercise SKSE messaging interface via QueryInterface (per D-01)
-    if (apSkse->QueryInterface)
-    {
-        void* pRawMessaging = apSkse->QueryInterface(cInterfaceMessaging);
-        if (pRawMessaging)
-        {
-            SKSEMessagingInterface* pMessaging =
-                reinterpret_cast<SKSEMessagingInterface*>(pRawMessaging);
-
-            if (pMessaging->RegisterListener)
-            {
-                // Register for kPostLoad -- proves full ABI round-trip
-                pMessaging->RegisterListener(NULL, "SKSE", MessageListener);
-            }
-        }
-    }
+    char buf[256];
+    snprintf(buf, sizeof(buf),
+        "GATE-01 PASS: SKSEPlugin_Load called. SKSE=%u Runtime=%u\n",
+        apSkse->skseVersion, apSkse->runtimeVersion);
+    LogResult(buf);
 
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// DLL entry point
-// ---------------------------------------------------------------------------
-
 BOOL WINAPI DllMain(HINSTANCE aInstance, DWORD aReason, LPVOID apReserved)
 {
+    (void)aInstance;
     (void)apReserved;
-
-    if (aReason == DLL_PROCESS_ATTACH)
-    {
-        DisableThreadLibraryCalls(aInstance);
-    }
+    (void)aReason;
     return TRUE;
 }
