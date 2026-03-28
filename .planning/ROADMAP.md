@@ -75,11 +75,11 @@ Plans:
   2. devbuild mode uses lld linker, split DWARF, shared internal libs, and ccache
   3. Incremental rebuild after touching one file is significantly faster than full releasedbg build
   4. releasedbg mode is completely unchanged (no regressions)
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
-- [ ] 03.1-01-PLAN.md -- devbuild mode rule, lld linker, split DWARF, ccache in root xmake.lua
-- [ ] 03.1-02-PLAN.md -- Convert internal libraries to shared DLLs in devbuild mode
+- [x] 03.1-01-PLAN.md -- devbuild mode rule, lld linker, split DWARF, ccache in root xmake.lua
+- [x] 03.1-02-PLAN.md -- Convert internal libraries to shared DLLs in devbuild mode
 - [ ] 03.1-03-PLAN.md -- Build validation, error fixing, regression check, human verification
 
 ### Phase 4: Linux Debug Workflow
