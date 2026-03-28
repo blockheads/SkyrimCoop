@@ -15,6 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Feasibility Validation** - Prove MinGW cross-compilation is viable before investing in full migration
 - [ ] **Phase 2: MSVC Compatibility & Core Libraries** - Platform-independent libraries compile under MinGW
 - [ ] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
+- [ ] **Phase 3.1: Build Performance & Resource Optimization** - Fast devbuild mode with lld, split DWARF, shared libs, ccache
 - [ ] **Phase 4: Linux Debug Workflow** - One-command GDB attach with full symbol resolution for the cross-compiled DLL
 - [ ] **Phase 5: Testing & CI Pipeline** - Native Linux tests, mock client harness, and automated CI on every push
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
@@ -64,6 +65,23 @@ Plans:
 - [x] 03-04-PLAN.md -- Gap closure: DLL wrapper target with SKSE entry points and smoke test fix
 - [x] 03-05-PLAN.md -- Gap closure: remove --noinhibit-exec, comprehensive linker stubs for all unresolved symbols
 
+### Phase 03.1: Build Performance & Resource Optimization (INSERTED)
+
+**Goal:** Reduce MinGW cross-compilation build times from 6+ minutes to seconds for incremental changes through lld linker, split DWARF, shared internal libs, ccache, and a new devbuild XMake mode
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07
+**Depends on:** Phase 03
+**Success Criteria** (what must be TRUE):
+  1. `xmake f -p mingw -m devbuild` configures and builds the full client DLL without errors
+  2. devbuild mode uses lld linker, split DWARF, shared internal libs, and ccache
+  3. Incremental rebuild after touching one file is significantly faster than full releasedbg build
+  4. releasedbg mode is completely unchanged (no regressions)
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03.1-01-PLAN.md -- devbuild mode rule, lld linker, split DWARF, ccache in root xmake.lua
+- [ ] 03.1-02-PLAN.md -- Convert internal libraries to shared DLLs in devbuild mode
+- [ ] 03.1-03-PLAN.md -- Build validation, error fixing, regression check, human verification
+
 ### Phase 4: Linux Debug Workflow
 **Goal**: Developer can attach GDB to a running Skyrim/Proton process and debug SkyrimCoop DLL code with full source-level inspection
 **Depends on**: Phase 2 (needs compilable libraries; can run in parallel with Phase 3)
@@ -110,6 +128,7 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 1. Feasibility Validation | 0/2 | Planning complete | - |
 | 2. MSVC Compatibility & Core Libraries | 0/3 | Planning complete | - |
 | 3. Client DLL Cross-Compilation | 0/4 | Planning complete | - |
+| 3.1. Build Performance & Resource Optimization | 0/3 | Planning complete | - |
 | 4. Linux Debug Workflow | 0/0 | Not started | - |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
