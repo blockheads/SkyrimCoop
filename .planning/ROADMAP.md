@@ -135,7 +135,7 @@ Plans:
 Plans:
 - [x] 07-01-PLAN.md -- Shared TCP binary protocol (protocol.h) and SPSC command queue with unit tests
 - [x] 07-02-PLAN.md -- XMake build targets for relay DLL (MinGW) and native client (Linux ELF)
-- [ ] 07-03-PLAN.md -- Relay DLL: TCP server, SKSE entry point, process launcher with auto-restart
+- [x] 07-03-PLAN.md -- Relay DLL: TCP server, SKSE entry point, process launcher with auto-restart
 - [ ] 07-04-PLAN.md -- Native core: /proc/pid/mem reader, pointer table, GameBridge API, TCP client
 - [ ] 07-05-PLAN.md -- Hook trampolines + service rewrites batch 1 (Weather, Calendar, Quest, Combat)
 - [ ] 07-06-PLAN.md -- Service rewrites batch 2 (Inventory, ActorValue, Magic)

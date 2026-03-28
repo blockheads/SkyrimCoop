@@ -48,9 +48,9 @@ Requirements for Milestone 1: Linux Build, Debug & UI Port. Each maps to roadmap
 ### Native Client Architecture (SKSE TCP Relay)
 
 - [x] **RELAY-01**: Flat binary TCP protocol (opcode + length + payload) for DLL-to-native IPC with zero external dependencies
-- [ ] **RELAY-02**: Minimal MinGW relay DLL (~500 LOC) with ~30 hook trampolines forwarding raw uint64 arguments over TCP
+- [x] **RELAY-02**: Minimal MinGW relay DLL (~500 LOC) with ~30 hook trampolines forwarding raw uint64 arguments over TCP
 - [x] **RELAY-03**: Lock-free SPSC command queue enabling native process to execute game functions on the game thread
-- [ ] **RELAY-04**: DLL spawns native ELF process via CreateProcess/Wine, auto-restarts on crash
+- [x] **RELAY-04**: DLL spawns native ELF process via CreateProcess/Wine, auto-restarts on crash
 - [ ] **RELAY-05**: Native process reads game memory via /proc/pid/mem with ptrace SEIZE + pread
 - [ ] **RELAY-06**: Hook-driven pointer table maps formId to game pointers from ActorAdded/Removed events
 - [ ] **RELAY-07**: GameReader API provides typed memory reads using game struct offsets for native services
@@ -135,9 +135,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-06 | Phase 6 | Pending |
 | UI-07 | Phase 6 | Pending |
 | RELAY-01 | Phase 7 | Complete |
-| RELAY-02 | Phase 7 | Pending |
+| RELAY-02 | Phase 7 | Complete |
 | RELAY-03 | Phase 7 | Complete |
-| RELAY-04 | Phase 7 | Pending |
+| RELAY-04 | Phase 7 | Complete |
 | RELAY-05 | Phase 7 | Pending |
 | RELAY-06 | Phase 7 | Pending |
 | RELAY-07 | Phase 7 | Pending |
