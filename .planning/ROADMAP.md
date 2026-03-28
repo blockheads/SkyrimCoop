@@ -61,7 +61,7 @@ Plans:
 - [x] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
 - [x] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
 - [x] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
-- [ ] 03-04-PLAN.md -- Gap closure: DLL wrapper target with SKSE entry points and smoke test fix
+- [x] 03-04-PLAN.md -- Gap closure: DLL wrapper target with SKSE entry points and smoke test fix
 
 ### Phase 4: Linux Debug Workflow
 **Goal**: Developer can attach GDB to a running Skyrim/Proton process and debug SkyrimCoop DLL code with full source-level inspection
