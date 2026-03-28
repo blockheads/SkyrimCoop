@@ -140,7 +140,7 @@ Phases 1-5, 7-8 complete. Phase 9 (integration test) executes next -- validates 
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
 | 8. P2P Embedded GameServer | 2/3 | Executing | - |
-| 9. In-Game P2P Integration Test | 0/3 | Planning complete | - |
+| 9. In-Game P2P Integration Test | 0/5 | Planning complete | - |
 
 ### Phase 8: P2P Embedded GameServer
 
@@ -161,17 +161,20 @@ Plans:
 
 ### Phase 9: In-Game P2P Integration Test
 
-**Goal:** Full end-to-end validation of the P2P co-op architecture: relay DLL loads in Skyrim, native process with embedded GameServer starts, fake_player connects and verifies sync via /proc/pid/mem, and two real Skyrim instances test the actual co-op flow
-**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, RELAY-10, P2P-01, P2P-02, P2P-03, P2P-04
+**Goal:** Comprehensive E2E testing pyramid for the P2P co-op architecture: headless multi-bot CI tests, mock relay pipeline, single-Skyrim golden test, and two-instance developer tool for manual co-op iteration
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, RELAY-10, P2P-01, P2P-02, P2P-03, P2P-04
 **Depends on:** Phase 8
 **Success Criteria** (what must be TRUE):
-  1. test_ingame_sync.sh passes all 5 stages with fake_player as default test path
-  2. fake_player verifies host game memory via /proc/pid/mem (PE header validation)
-  3. Native process join mode connects to remote GameServer via enet6
-  4. Two real Skyrim instances (host + join) connect via separate Proton prefixes
-**Plans:** 3 plans
+  1. Headless CI passes: build, unit tests, multi-bot stress test (8 bots), mock relay pipeline
+  2. test_ingame_sync.sh passes all 5 stages with fake_player as default test path
+  3. fake_player verifies host game memory via /proc/pid/mem (PE header validation)
+  4. Two real Skyrim instances (host + join) launch side-by-side via developer tool
+  5. Hook event recording (--record) captures events for future CI replay
+**Plans:** 5 plans
 
 Plans:
-- [ ] 09-01-PLAN.md -- Fix test script (default fake_player, port readiness, log collection) + fake_player /proc/pid/mem verification
-- [ ] 09-02-PLAN.md -- Implement join mode enet6 client in native process
-- [ ] 09-03-PLAN.md -- Two-instance test script + human verification checkpoint
+- [ ] 09-01-PLAN.md -- Extend fake_player with --bots N, --verify-broadcast, --metrics for headless multi-bot stress test
+- [ ] 09-02-PLAN.md -- Build mock_skyrim_loader.exe (MinGW) + add --record flag to native process
+- [ ] 09-03-PLAN.md -- Fix test_ingame_sync.sh (default fake_player, port readiness, logs) + /proc/pid/mem verification
+- [ ] 09-04-PLAN.md -- Two-instance developer tool (tests/launch_two_skyrim.sh) + human verification
+- [ ] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
