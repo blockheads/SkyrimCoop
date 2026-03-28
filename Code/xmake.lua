@@ -31,6 +31,12 @@ includes("server_runner")
 includes("server")
 includes("encoding")
 
+-- New architecture targets (Phase 07)
+-- Relay DLL: minimal MinGW hook-and-forward relay (has internal mingw guard)
+includes("relay_dll")
+-- Native client: Linux ELF binary with full ECS/services (has internal linux guard)
+includes("native_client")
+
 -- Tests need native build, not MinGW cross-compile
 if not is_plat("mingw") then
     includes("tests")
