@@ -19,6 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 4: Linux Debug Workflow** - One-command GDB attach with full symbol resolution for the cross-compiled DLL
 - [ ] **Phase 5: Testing & CI Pipeline** - Native Linux tests, mock client harness, and automated CI on every push
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
+- [ ] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
 
 ## Phase Details
 
@@ -118,6 +119,29 @@ Plans:
 **Plans**: TBD
 **UI hint**: yes
 
+### Phase 7: Native Linux Build with SKSE TCP Relay
+
+**Goal:** Split the SkyrimCoop client into two processes: a minimal MinGW SKSE relay DLL (~500 LOC) that hooks and forwards raw events over TCP, and a native Linux ELF binary running the full ECS, all services, networking, and embedded server with game state read via /proc/pid/mem
+**Requirements**: RELAY-01, RELAY-02, RELAY-03, RELAY-04, RELAY-05, RELAY-06, RELAY-07, RELAY-08, RELAY-09, RELAY-10
+**Depends on:** Phase 3 (needs MinGW DLL compilation, MinHook validation)
+**Success Criteria** (what must be TRUE):
+  1. A minimal SKSE relay DLL compiled with MinGW loads in Skyrim, installs ~30 hook trampolines, and forwards raw arguments over TCP localhost
+  2. A native Linux ELF binary reads game memory via /proc/pid/mem (ptrace SEIZE + pread), receives hook events, and runs all 8 rewritten services
+  3. The DLL spawns the native process automatically and restarts it on crash
+  4. All services (Weather, Calendar, Quest, Combat, Inventory, ActorValue, Magic, Character) use GameReader API instead of direct pointer dereference
+  5. Unit tests for protocol, command queue, proc memory reader, and pointer table all pass natively on Linux
+**Plans:** 8 plans
+
+Plans:
+- [ ] 07-01-PLAN.md -- Shared TCP binary protocol (protocol.h) and SPSC command queue with unit tests
+- [ ] 07-02-PLAN.md -- XMake build targets for relay DLL (MinGW) and native client (Linux ELF)
+- [ ] 07-03-PLAN.md -- Relay DLL: TCP server, SKSE entry point, process launcher with auto-restart
+- [ ] 07-04-PLAN.md -- Native core: /proc/pid/mem reader, pointer table, GameBridge API, TCP client
+- [ ] 07-05-PLAN.md -- Hook trampolines + service rewrites batch 1 (Weather, Calendar, Quest, Combat)
+- [ ] 07-06-PLAN.md -- Service rewrites batch 2 (Inventory, ActorValue, Magic)
+- [ ] 07-07-PLAN.md -- CharacterService rewrite + InterpolationSystem + AnimationSystem + full main loop
+- [ ] 07-08-PLAN.md -- Smoke tests and human verification of relay architecture in Skyrim
+
 ## Progress
 
 **Execution Order:**
@@ -132,3 +156,4 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 4. Linux Debug Workflow | 0/0 | Not started | - |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
+| 7. Native Linux Build with SKSE TCP Relay | 0/8 | Planning complete | - |
