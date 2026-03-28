@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-28T21:20:19Z"
-last_activity: 2026-03-28 -- Phase 08 plan 01 complete
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-28T21:33:11.432Z"
+last_activity: 2026-03-28
 progress:
   total_phases: 9
   completed_phases: 5
   total_plans: 27
-  completed_plans: 24
+  completed_plans: 25
   percent: 89
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 08 (p2p-embedded-gameserver) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 08 — Plan 01 complete
-Last activity: 2026-03-28 -- Phase 08 plan 01 complete
+Plan: 3 of 3
+Status: Ready to execute
+Last activity: 2026-03-28
 
 Progress: [=========-] 89%
 
@@ -73,6 +73,7 @@ Progress: [=========-] 89%
 | Phase 05 P02 | 22min | 3 tasks | 8 files |
 | Phase 05 P03 | 6min | 3 tasks | 4 files |
 | Phase 08 P01 | 14min | 1 tasks | 9 files |
+| Phase 08 P02 | 7min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,9 @@ Recent decisions affecting current work:
 - [Phase 08]: kHostConnectionId = 0xFFFF'FFFF'0000'0001 to avoid enet6 peer pointer collision
 - [Phase 08]: ServerMessageRouter skips packet-type byte 0 matching Server::HandleMessage strip behavior
 - [Phase 08]: Added sol2/lua/sqlite3 to native_client for GameServer.h transitive header chain
+- [Phase 08]: Server PCH preamble pattern established for native_client sources including GameServer.h or encoding headers
+- [Phase 08]: Host mode default: empty --connect = host, non-empty = join (per D-01/D-02)
+- [Phase 08]: Movement tick=0 for Phase 8 MVP; tick ordering deferred to interpolation work
 
 ### Pending Todos
 
@@ -147,6 +151,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T21:20:19Z
-Stopped at: Completed 08-01-PLAN.md
-Resume file: .planning/phases/08-p2p-embedded-gameserver/08-02-PLAN.md
+Last session: 2026-03-28T21:33:11.430Z
+Stopped at: Completed 08-02-PLAN.md
+Resume file: None

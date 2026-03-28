@@ -155,5 +155,5 @@ Phases 1-5, 7 complete. Phase 8 (P2P server) executes next -- required before Ph
 
 Plans:
 - [x] 08-01-PLAN.md -- LoopbackTransport + GameServer modifications + unit tests
-- [ ] 08-02-PLAN.md -- Main loop integration, CLI args, host auth, CharacterService wiring
+- [x] 08-02-PLAN.md -- Main loop integration, CLI args, host auth, CharacterService wiring
 - [ ] 08-03-PLAN.md -- Integration verification with fake_player + human checkpoint
