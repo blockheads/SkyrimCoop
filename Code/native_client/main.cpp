@@ -3,6 +3,7 @@
 #include <cstring>
 #include <csignal>
 #include <atomic>
+#include <chrono>
 
 #include <spdlog/spdlog.h>
 #include <rpmalloc.h>
@@ -12,6 +13,11 @@
 #include "game_bridge/tcp_client.h"
 #include "game_bridge/game_reader.h"
 #include "protocol.h"
+
+#include "Services/WeatherService.h"
+#include "Services/CalendarService.h"
+#include "Services/QuestService.h"
+#include "Services/CombatService.h"
 
 static std::atomic<bool> s_running{true};
 
@@ -162,10 +168,21 @@ int main(int argc, char* argv[]) {
     PointerTable pointerTable;
     GameReader gameReader(memReader, pointerTable);
 
+    // Initialize services (all take GameReader& for memory reads)
+    WeatherService weatherService(gameReader, tcpClient);
+    CalendarService calendarService(gameReader, tcpClient);
+    QuestService questService(gameReader, tcpClient);
+    CombatService combatService(gameReader, tcpClient);
+
+    spdlog::info("All services initialized");
+
     // Main event loop
     spdlog::info("Entering main event loop");
     PacketHeader header{};
     uint8_t payload[sizeof(HookEventPacket)]; // max payload size
+
+    // Simple delta time tracking for service Update() calls
+    auto lastTime = std::chrono::steady_clock::now();
 
     while (s_running.load(std::memory_order_relaxed)) {
         if (!tcpClient.Receive(&header, payload, sizeof(payload))) {
@@ -173,16 +190,42 @@ int main(int argc, char* argv[]) {
             break;
         }
 
+        // Calculate delta time for service updates
+        auto now = std::chrono::steady_clock::now();
+        float deltaTime = std::chrono::duration<float>(now - lastTime).count();
+        lastTime = now;
+
         if (header.opcode >= 0xF000) {
             // Control packet
             HandleControlPacket(header, tcpClient);
         } else if (header.opcode < 0x8000) {
-            // Hook event from DLL
+            // Hook event from DLL -- dispatch to core handler and services
             HandleHookEvent(header, payload, gameReader, pointerTable);
+
+            // Reconstruct HookEventPacket for service dispatch
+            HookEventPacket hookPkt{};
+            hookPkt.header = header;
+            if (header.length >= 1) {
+                hookPkt.argCount = payload[0];
+                if (hookPkt.argCount > 8) hookPkt.argCount = 8;
+                memcpy(hookPkt.args, payload + 8, hookPkt.argCount * sizeof(uint64_t));
+            }
+
+            // Dispatch to services
+            weatherService.OnHookEvent(hookPkt);
+            calendarService.OnHookEvent(hookPkt);
+            questService.OnHookEvent(hookPkt);
+            combatService.OnHookEvent(hookPkt);
         } else {
             // Command acknowledgments (0x8000-0xEFFF) -- not expected from DLL
             spdlog::warn("Unexpected command-range opcode from DLL: {:#x}", header.opcode);
         }
+
+        // Periodic service updates
+        weatherService.Update(deltaTime);
+        calendarService.Update(deltaTime);
+        questService.Update(deltaTime);
+        combatService.Update(deltaTime);
     }
 
     // Cleanup
