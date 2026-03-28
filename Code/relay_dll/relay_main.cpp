@@ -65,8 +65,33 @@ static volatile bool g_shuttingDown = false;
 static char g_nativeBinaryPath[MAX_PATH]{};
 
 // ---------------------------------------------------------------------------
-// Logging helpers (OutputDebugString -- no spdlog per D-13)
+// Logging helpers (file + OutputDebugString -- no spdlog per D-13)
 // ---------------------------------------------------------------------------
+
+static FILE* s_logFile = nullptr;
+
+static void OpenLogFile()
+{
+    if (s_logFile)
+        return;
+
+    // Log next to the DLL: Data/SKSE/Plugins/skyrim_coop_hooks.log
+    char dllPath[MAX_PATH]{};
+    if (GetModuleFileNameA(s_dllInstance, dllPath, MAX_PATH) == 0)
+        return;
+
+    // Find last separator, replace filename
+    char* pLastSlash = nullptr;
+    for (char* p = dllPath; *p; p++)
+        if (*p == '\\' || *p == '/') pLastSlash = p;
+    if (pLastSlash)
+    {
+        *(pLastSlash + 1) = '\0';
+        char logPath[MAX_PATH]{};
+        snprintf(logPath, sizeof(logPath), "%sskyrim_coop_hooks.log", dllPath);
+        s_logFile = fopen(logPath, "w");
+    }
+}
 
 void RelayLog(const char* fmt, ...)  // non-static: accessed by hook_trampolines.cpp
 {
@@ -76,6 +101,11 @@ void RelayLog(const char* fmt, ...)  // non-static: accessed by hook_trampolines
     vsnprintf(buf, sizeof(buf), fmt, args);
     va_end(args);
     OutputDebugStringA(buf);
+    if (s_logFile)
+    {
+        fputs(buf, s_logFile);
+        fflush(s_logFile);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +284,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 {
     (void)apSkse; // Per D-11: we do NOT use SKSE interfaces
 
+    OpenLogFile();
     RelayLog("[SkyrimCoopHooks] SKSEPlugin_Load starting...\n");
 
     // 1. Derive native binary path from DLL location
@@ -279,16 +310,43 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
         // Non-fatal: the DLL can still relay commands even without hook events
     }
 
-    // 4. Launch native process
-    if (!g_launcher.Launch(g_nativeBinaryPath, g_tcpServer.GetPort()))
+    // 4. Write relay info file for external launcher to pick up.
+    //    Wine's CreateProcess can't launch native ELF binaries, so the native
+    //    process is launched by deploy_and_test.sh watching for this file.
     {
-        RelayLog("[SkyrimCoopHooks] Failed to launch native process\n");
-        g_tcpServer.Stop();
-        return false;
-    }
-    RelayLog("[SkyrimCoopHooks] Native process launched\n");
+        // Get the real Linux PID (resolves to actual PID under Wine)
+        int linuxPid = static_cast<int>(GetCurrentProcessId());
 
-    // 4. Start background monitor thread for command receive + auto-restart
+        char relayInfoPath[MAX_PATH]{};
+        // Derive from g_nativeBinaryPath directory
+        // g_nativeBinaryPath is a Linux path like /path/to/plugins/skyrim-coop
+        const char* lastSlash = nullptr;
+        for (const char* p = g_nativeBinaryPath; *p; p++)
+            if (*p == '/') lastSlash = p;
+        if (lastSlash)
+        {
+            size_t dirLen = static_cast<size_t>(lastSlash - g_nativeBinaryPath + 1);
+            memcpy(relayInfoPath, g_nativeBinaryPath, dirLen);
+            relayInfoPath[dirLen] = '\0';
+            strncat(relayInfoPath, "skyrim_coop_relay.json", sizeof(relayInfoPath) - dirLen - 1);
+        }
+
+        FILE* f = fopen(relayInfoPath, "w");
+        if (f)
+        {
+            fprintf(f, "{\"port\":%u,\"pid\":%d,\"binary\":\"%s\"}\n",
+                    static_cast<unsigned>(g_tcpServer.GetPort()), linuxPid, g_nativeBinaryPath);
+            fclose(f);
+            RelayLog("[SkyrimCoopHooks] Relay info written to %s (port=%u, pid=%d)\n",
+                     relayInfoPath, static_cast<unsigned>(g_tcpServer.GetPort()), linuxPid);
+        }
+        else
+        {
+            RelayLog("[SkyrimCoopHooks] WARNING: Could not write relay info file: %s\n", relayInfoPath);
+        }
+    }
+
+    // 6. Start background monitor thread for command receive + auto-restart
     HANDLE hThread = CreateThread(nullptr, 0, MonitorThread, nullptr, 0, nullptr);
     if (hThread)
         CloseHandle(hThread); // Thread runs independently
@@ -315,6 +373,7 @@ BOOL WINAPI DllMain(HINSTANCE aInstance, DWORD aReason, LPVOID apReserved)
         RemoveAllHooks();
         g_tcpServer.Stop();
         g_launcher.Kill();
+        if (s_logFile) { fclose(s_logFile); s_logFile = nullptr; }
     }
     return TRUE;
 }

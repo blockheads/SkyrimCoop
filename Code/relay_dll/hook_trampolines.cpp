@@ -115,8 +115,6 @@ static AddrEntry* s_addrEntries = nullptr;
 static uint32_t s_addrCount = 0;
 static uintptr_t s_moduleBase = 0;
 
-// Simple v1 format reader: header(8 bytes) + entries(id:uint64, offset:uint64)
-// Also handles v2 (SSE 1.6+) format with format field and pointer size fields
 static bool LoadAddressLibrary()
 {
     // Get Skyrim SE module base address
@@ -188,112 +186,108 @@ static bool LoadAddressLibrary()
     }
     CloseHandle(hFile);
 
-    // Parse header
-    // Format v2 (AE/1.6+): int32 format(2), int32 SkyrimVersion[4], int32 pointerSize(8),
-    //                       int32 addressCount, then delta-encoded entries
-    const int32_t format = *reinterpret_cast<int32_t*>(pBuf);
+    // Parse header — matches VersionDb.h Load() exactly
+    uint32_t pos = 0;
+    auto RdI32 = [&]() -> int32_t { int32_t v; memcpy(&v, pBuf+pos, 4); pos += 4; return v; };
+    auto RdU8  = [&]() -> uint8_t  { return pBuf[pos++]; };
+    auto RdU16 = [&]() -> uint16_t { uint16_t v; memcpy(&v, pBuf+pos, 2); pos += 2; return v; };
+    auto RdU32 = [&]() -> uint32_t { uint32_t v; memcpy(&v, pBuf+pos, 4); pos += 4; return v; };
+    auto RdU64 = [&]() -> uint64_t { uint64_t v; memcpy(&v, pBuf+pos, 8); pos += 8; return v; };
 
-    if (format == 2)
+    int32_t format = RdI32();
+    if (format != 2)
     {
-        // v2 format: header is 24 bytes (format + ver[4] + ptrSize + count)
-        // After that: entries are pairs of (uint64_t id, uint64_t offset) stored with varint
-        // delta encoding. For simplicity we use a simpler approach: the standard
-        // Address Library v2 stores entries as sequential delta-encoded pairs.
-
-        uint32_t offset = 0;
-        // Skip format(4) + version(4*4=16) + pointerSize(4)
-        offset = 4 + 16 + 4;
-
-        s_addrCount = *reinterpret_cast<uint32_t*>(pBuf + offset);
-        offset += 4;
-
-        s_addrEntries = static_cast<AddrEntry*>(
-            HeapAlloc(GetProcessHeap(), 0, s_addrCount * sizeof(AddrEntry)));
-        if (!s_addrEntries)
-        {
-            HeapFree(GetProcessHeap(), 0, pBuf);
-            return false;
-        }
-
-        // v2 uses delta encoding: each entry stores (id_delta, offset_delta)
-        // Both are read as variable-length encoded uint64_t values
-        // Simplified: read as raw pairs since the actual format stores
-        // type byte + packed data. We use the reference implementation approach.
-        uint64_t prevId = 0;
-        uint64_t prevOffset = 0;
-
-        for (uint32_t i = 0; i < s_addrCount && offset < fileSize; i++)
-        {
-            // Each entry: 1-byte type, then data based on type
-            uint8_t type = pBuf[offset++];
-            uint64_t idDelta = 0;
-            uint64_t offsetDelta = 0;
-
-            // Type encodes how id and offset deltas are stored
-            // Low nibble: id encoding, high nibble: offset encoding
-            uint8_t idType = type & 0xF;
-            uint8_t offType = type >> 4;
-
-            auto ReadValue = [&](uint8_t aEnc) -> uint64_t {
-                switch (aEnc) {
-                    case 0: return *reinterpret_cast<uint64_t*>(pBuf + offset); // 8 bytes (but unused in practice)
-                    case 1: { uint64_t v = *reinterpret_cast<uint16_t*>(pBuf + offset); offset += 2; return v; }
-                    case 2: { uint64_t v = *reinterpret_cast<uint32_t*>(pBuf + offset); offset += 4; return v; }
-                    case 3: { uint64_t v = *reinterpret_cast<uint64_t*>(pBuf + offset); offset += 8; return v; }
-                    case 4: return 1; // delta of 1 (no bytes consumed)
-                    case 5: { uint64_t v = *reinterpret_cast<uint8_t*>(pBuf + offset); offset += 1; return v; }
-                    case 6: { uint16_t lo = *reinterpret_cast<uint16_t*>(pBuf + offset); offset += 2; return lo; }
-                    case 7: { uint16_t lo = *reinterpret_cast<uint16_t*>(pBuf + offset); offset += 2;
-                              uint8_t hi = pBuf[offset++]; return static_cast<uint64_t>(hi) << 16 | lo; }
-                    default: return 0;
-                }
-            };
-
-            idDelta = ReadValue(idType);
-            offsetDelta = ReadValue(offType);
-
-            prevId += idDelta;
-            prevOffset += offsetDelta;
-
-            s_addrEntries[i].id = prevId;
-            s_addrEntries[i].offset = prevOffset;
-        }
-
-        RelayLog("[SkyrimCoopHooks] Loaded Address Library v2: %u entries\n", s_addrCount);
-    }
-    else if (format == 1)
-    {
-        // v1 format: simpler, fixed-size entries
-        uint32_t headerOffset = 4;
-        // Skip version fields
-        headerOffset += 16; // 4 version ints
-        s_addrCount = *reinterpret_cast<uint32_t*>(pBuf + headerOffset);
-        headerOffset += 4;
-
-        s_addrEntries = static_cast<AddrEntry*>(
-            HeapAlloc(GetProcessHeap(), 0, s_addrCount * sizeof(AddrEntry)));
-        if (!s_addrEntries)
-        {
-            HeapFree(GetProcessHeap(), 0, pBuf);
-            return false;
-        }
-
-        for (uint32_t i = 0; i < s_addrCount; i++)
-        {
-            s_addrEntries[i].id = *reinterpret_cast<uint64_t*>(pBuf + headerOffset);
-            headerOffset += 8;
-            s_addrEntries[i].offset = *reinterpret_cast<uint64_t*>(pBuf + headerOffset);
-            headerOffset += 8;
-        }
-
-        RelayLog("[SkyrimCoopHooks] Loaded Address Library v1: %u entries\n", s_addrCount);
-    }
-    else
-    {
-        RelayLog("[SkyrimCoopHooks] Unknown Address Library format: %d\n", format);
+        RelayLog("[SkyrimCoopHooks] Address Library format %d not supported\n", format);
         HeapFree(GetProcessHeap(), 0, pBuf);
         return false;
     }
+
+    // version[4]
+    int32_t ver[4];
+    for (int i = 0; i < 4; i++) ver[i] = RdI32();
+
+    // Variable-length module name (e.g. "SkyrimSE.exe")
+    int32_t nameLen = RdI32();
+    if (nameLen < 0 || nameLen >= 0x10000) { HeapFree(GetProcessHeap(), 0, pBuf); return false; }
+    pos += static_cast<uint32_t>(nameLen);
+
+    int32_t ptrSize = RdI32();
+    int32_t addrCount = RdI32();
+
+    RelayLog("[SkyrimCoopHooks] Address Library v%d.%d.%d.%d: %d entries (ptrSize=%d)\n",
+             ver[0], ver[1], ver[2], ver[3], addrCount, ptrSize);
+
+    if (addrCount <= 0 || addrCount > 1000000)
+    {
+        RelayLog("[SkyrimCoopHooks] Suspicious entry count %d, aborting\n", addrCount);
+        HeapFree(GetProcessHeap(), 0, pBuf);
+        return false;
+    }
+
+    s_addrCount = static_cast<uint32_t>(addrCount);
+
+        s_addrEntries = static_cast<AddrEntry*>(
+            HeapAlloc(GetProcessHeap(), 0, s_addrCount * sizeof(AddrEntry)));
+        if (!s_addrEntries)
+        {
+            HeapFree(GetProcessHeap(), 0, pBuf);
+            return false;
+        }
+
+        // Delta-decode entries — matches VersionDb.h switch/case exactly
+        uint64_t pvid = 0;
+        uint64_t poffset = 0;
+
+        for (uint32_t i = 0; i < s_addrCount && pos < fileSize; i++)
+        {
+            uint8_t type = RdU8();
+            uint8_t low = type & 0xF;
+            uint8_t high = type >> 4;
+
+            // Decode ID (low nibble)
+            uint64_t id = 0;
+            switch (low)
+            {
+            case 0: id = RdU64(); break;
+            case 1: id = pvid + 1; break;
+            case 2: id = pvid + RdU8(); break;
+            case 3: id = pvid - RdU8(); break;
+            case 4: id = pvid + RdU16(); break;
+            case 5: id = pvid - RdU16(); break;
+            case 6: id = RdU16(); break;
+            case 7: id = RdU32(); break;
+            default:
+                RelayLog("[SkyrimCoopHooks] Bad id encoding %u at entry %u\n", low, i);
+                HeapFree(GetProcessHeap(), 0, s_addrEntries);
+                s_addrEntries = nullptr; s_addrCount = 0;
+                HeapFree(GetProcessHeap(), 0, pBuf);
+                return false;
+            }
+
+            // Decode offset (high nibble, bit 3 = pointer-size division flag)
+            uint64_t tpoffset = (high & 8) ? (poffset / static_cast<uint64_t>(ptrSize)) : poffset;
+            uint64_t off = 0;
+            switch (high & 7)
+            {
+            case 0: off = RdU64(); break;
+            case 1: off = tpoffset + 1; break;
+            case 2: off = tpoffset + RdU8(); break;
+            case 3: off = tpoffset - RdU8(); break;
+            case 4: off = tpoffset + RdU16(); break;
+            case 5: off = tpoffset - RdU16(); break;
+            case 6: off = RdU16(); break;
+            case 7: off = RdU32(); break;
+            }
+
+            if (high & 8)
+                off *= static_cast<uint64_t>(ptrSize);
+
+            s_addrEntries[i].id = id;
+            s_addrEntries[i].offset = off;
+
+            pvid = id;
+            poffset = off;
+        }
 
     HeapFree(GetProcessHeap(), 0, pBuf);
     return true;
