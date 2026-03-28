@@ -14,6 +14,7 @@ using TiltedPhoques::UniquePtr;
 
 #include <Messages/ServerMessageFactory.h>
 #include <Messages/AuthenticationResponse.h>
+#include <Messages/ServerReferencesMoveRequest.h>
 
 using TiltedPhoques::Buffer;
 
@@ -59,6 +60,20 @@ void ServerMessageRouter::OnServerMessage(const void* apData, uint32_t aSize)
 
         spdlog::info("ServerMessageRouter: auth response, type={}, accepted={}",
                      static_cast<int>(pAuthResponse->Type), m_authenticated);
+    }
+    // Handle ServerReferencesMoveRequest — route remote actor positions to CharacterService
+    else if (pMessage->GetOpcode() == kServerReferencesMoveRequest)
+    {
+        auto* pMoveReq = static_cast<ServerReferencesMoveRequest*>(pMessage.get());
+        if (m_onMove)
+        {
+            for (auto& [serverId, update] : pMoveReq->Updates)
+            {
+                auto& pos = update.UpdatedMovement.Position;
+                auto& rot = update.UpdatedMovement.Rotation;
+                m_onMove(serverId, pos.x, pos.y, pos.z, rot.x, rot.y);
+            }
+        }
     }
 }
 
