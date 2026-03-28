@@ -157,3 +157,13 @@ Plans:
 - [x] 08-01-PLAN.md -- LoopbackTransport + GameServer modifications + unit tests
 - [x] 08-02-PLAN.md -- Main loop integration, CLI args, host auth, CharacterService wiring
 - [ ] 08-03-PLAN.md -- Integration verification with fake_player + human checkpoint
+
+### Phase 9: In-Game P2P Integration Test
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 8
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 9 to break down)
