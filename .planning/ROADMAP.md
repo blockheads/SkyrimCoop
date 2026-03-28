@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
 - [x] **Phase 3.1: Build Performance & Resource Optimization** - ~~devbuild mode~~ Resolved: relay DLL builds in <1s, native binary in <1s incremental
 - [x] **Phase 4: Linux Debug Workflow** - ~~One-command GDB attach~~ Resolved by Phase 7: native binary debuggable with standard GDB/LLDB, DLL has file logging
-- [ ] **Phase 5: Testing & CI Pipeline** - Native Linux tests, mock client harness, and automated CI on every push
+- [ ] **Phase 5: Networking Verification & Server Cleanup** - Remove standalone server, automated fake-player integration test with memory verification
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
 - [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
 
@@ -74,16 +74,14 @@ Plans:
 **Status**: Resolved by Phase 7's relay architecture. The native `skyrim-coop` binary is a standard Linux process — attach GDB/LLDB directly with full symbols. The DLL has file-based logging (`skyrim_coop_hooks.log`). No Wine debugging complexity needed.
 **Plans**: None required
 
-### Phase 5: Testing & CI Pipeline
-**Goal**: Automated test suite runs natively on Linux covering serialization, networking, and server logic, with CI enforcing green builds on every push
-**Depends on**: Phase 2 (needs compilable libraries; CI benefits from Phase 3 for DLL build verification)
-**Requirements**: TEST-01, TEST-02, TEST-03, TEST-04, TEST-05
+### Phase 5: Networking Verification & Server Cleanup
+**Goal**: Remove standalone server code (P2P host-only), then build automated networking tests culminating in a fake-player integration test that launches real Skyrim, connects a robot second player, and verifies sync via /proc/pid/mem
+**Depends on**: Phase 7 (relay architecture)
+**Requirements**: TEST-01, TEST-02, TEST-03
 **Success Criteria** (what must be TRUE):
-  1. All existing Catch2 unit tests compile and pass natively on Linux without Wine
-  2. A headless mock client connects to a real GameServer instance on Linux and completes a handshake
-  3. Message round-trip tests verify that every message type serializes on one side and deserializes correctly on the other
-  4. GitHub Actions CI builds the MinGW DLL and runs the native Linux test suite on every push to dev
-  5. Fuzz testing sends 1000+ malformed messages to the server without crashes or hangs
+  1. All standalone/dedicated server code removed — only embedded server (host mode) remains
+  2. Message round-trip tests verify serialization across mock client and embedded server
+  3. A headless test harness connects to the embedded GameServer as a fake second player, sends scripted movements, and automated memory reads verify the remote actor position in the real Skyrim process
 **Plans**: TBD
 
 ### Phase 6: ImGui UI Port
