@@ -82,7 +82,10 @@ Plans:
   1. All standalone/dedicated server code removed — only embedded server (host mode) remains
   2. Message round-trip tests verify serialization across mock client and embedded server
   3. A headless test harness connects to the embedded GameServer as a fake second player, sends scripted movements, and automated memory reads verify the remote actor position in the real Skyrim process
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 05-01-PLAN.md -- Remove standalone server code and clean GameServer for P2P embedded-only mode
+- [ ] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake
 
 ### Phase 6: ImGui UI Port
 **Goal**: All user-facing UI functionality works through ImGui instead of CEF, fully compilable with MinGW and debuggable from Linux
@@ -132,6 +135,6 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
 | 3.1. Build Performance & Resource Optimization | 2/3 | Resolved by Phase 7 | 2026-03-28 |
 | 4. Linux Debug Workflow | 0/0 | Resolved by Phase 7 | 2026-03-28 |
-| 5. Testing & CI Pipeline | 0/0 | Not started | - |
+| 5. Testing & CI Pipeline | 0/2 | Planning complete | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
