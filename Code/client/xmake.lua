@@ -145,12 +145,9 @@ if is_plat("mingw") then
 
         -- Devbuild: internal deps are shared DLLs, so linking is fast
         -- No need for full static archive chain -- just link against import libs
-        if is_mode("devbuild") then
-            -- lld for fast PE/COFF linking
-            add_shflags("-fuse-ld=lld", {force = true})
-            -- Export all symbols from the wrapper too
-            add_shflags("-Wl,--export-all-symbols", {force = true})
-        end
+        -- NOTE: Do NOT use --export-all-symbols here -- the final DLL has >65535 symbols
+        -- which exceeds PE/COFF ordinal limits. Only SKSE entry points need exporting
+        -- (handled by the existing .def file / __declspec(dllexport) attributes).
 
         -- Extra system libraries needed at final link (beyond what deps inherit)
         add_syslinks(

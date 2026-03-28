@@ -41,13 +41,19 @@ if is_plat("mingw") then
         -- Keep static GCC runtime to avoid libgcc/libstdc++ DLL deps
         add_cxflags("-static-libgcc", "-static-libstdc++")
         add_ldflags("-static-libgcc", "-static-libstdc++", {force = true})
-        -- lld: 2-5x faster than GNU ld for PE/COFF (D-01, using lld per research -- mold cannot produce PE/COFF)
-        add_ldflags("-fuse-ld=lld", {force = true})
-        add_shflags("-fuse-ld=lld", {force = true})
+        -- lld: 2-5x faster than GNU ld for PE/COFF (D-01, mold cannot produce PE/COFF)
+        -- -B adds .toolchain/bin/ to GCC's search path (for ld.lld symlink)
+        -- -fuse-ld=lld tells GCC to look for "ld.lld" explicitly (collect2 ignores -B for linker resolution)
+        local toolbin = "-B" .. path.join(os.projectdir(), ".toolchain", "bin") .. "/"
+        add_ldflags(toolbin, "-fuse-ld=lld", {force = true})
+        add_shflags(toolbin, "-fuse-ld=lld", {force = true})
         -- Split DWARF: debug info in separate .dwo files, reduces archive sizes by ~96% (D-02)
         add_cxflags("-gsplit-dwarf", {force = true})
-        -- GDB index for faster debugger startup
-        add_ldflags("-Wl,--gdb-index", {force = true})
+        -- Big object files: -O0 with debug info creates PE/COFF objects >65535 sections
+        add_cxflags("-Wa,-mbig-obj", {force = true})
+        -- Allow duplicate GCC runtime symbols when linking against devbuild shared DLLs
+        add_ldflags("-Wl,--allow-multiple-definition", {force = true})
+        -- Note: --gdb-index is ELF-only, not supported for PE/COFF targets
     else
         -- Non-devbuild: full static linking (no runtime DLL deps)
         add_cxflags("-static", "-static-libgcc", "-static-libstdc++")
@@ -61,9 +67,11 @@ function devbuild_shared()
     if is_mode("devbuild") and is_plat("mingw") then
         set_kind("shared")
         set_prefixname("")  -- Windows DLL naming (no "lib" prefix)
-        add_shflags("-Wl,--export-all-symbols", {force = true})
-        add_shflags("-fuse-ld=lld", {force = true})
         add_shflags("-static-libgcc", "-static-libstdc++", {force = true})
+        add_shflags("-Wl,--export-all-symbols", {force = true})
+        -- Allow duplicate GCC runtime symbols across shared DLLs
+        add_shflags("-Wl,--allow-multiple-definition", {force = true})
+        -- lld is picked up globally via -B.toolchain/bin/ (ld symlink -> lld-18)
     else
         set_kind("static")
     end
@@ -85,8 +93,8 @@ rule("mode.devbuild")
             target:set("optimize", "none")
             -- Full debug symbols (will be split via -gsplit-dwarf)
             target:set("symbols", "debug")
-            -- Ensure assertions are active
-            target:remove("defines", "NDEBUG")
+            -- Assertions stay active: we simply don't add NDEBUG
+            -- (other modes like releasedbg add it via their own rules)
         end
     end)
 rule_end()

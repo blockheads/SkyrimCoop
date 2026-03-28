@@ -2,9 +2,13 @@
 includes("TiltedCore")
 includes("libraries")
 
--- External vendored libraries (Tier 3 client deps, require Windows/MinGW)
+-- External vendored libraries (Tier 3 client deps)
 if is_plat("windows") or is_plat("mingw") then
-    includes("external/DirectXTK")
+    -- DirectXTK requires Windows SDK headers (case-sensitive #include <Windows.h>)
+    -- which are unavailable in MinGW cross-compilation on Linux
+    if not is_plat("mingw") then
+        includes("external/DirectXTK")
+    end
     includes("external/imgui")
 end
 
