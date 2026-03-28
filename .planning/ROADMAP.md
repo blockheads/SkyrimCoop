@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: MSVC Compatibility & Core Libraries** - Platform-independent libraries compile under MinGW
 - [x] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
 - [ ] **Phase 3.1: Build Performance & Resource Optimization** - Fast devbuild mode with lld, split DWARF, shared libs, ccache
-- [ ] **Phase 4: Linux Debug Workflow** - One-command GDB attach with full symbol resolution for the cross-compiled DLL
+- [x] **Phase 4: Linux Debug Workflow** - ~~One-command GDB attach~~ Resolved by Phase 7: native binary debuggable with standard GDB/LLDB, DLL has file logging
 - [ ] **Phase 5: Testing & CI Pipeline** - Native Linux tests, mock client harness, and automated CI on every push
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
 - [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
@@ -83,16 +83,9 @@ Plans:
 - [x] 03.1-02-PLAN.md -- Convert internal libraries to shared DLLs in devbuild mode
 - [ ] 03.1-03-PLAN.md -- Build validation, error fixing, regression check, human verification
 
-### Phase 4: Linux Debug Workflow
-**Goal**: Developer can attach GDB to a running Skyrim/Proton process and debug SkyrimCoop DLL code with full source-level inspection
-**Depends on**: Phase 2 (needs compilable libraries; can run in parallel with Phase 3)
-**Requirements**: DEBUG-01, DEBUG-02, DEBUG-03, DEBUG-04
-**Success Criteria** (what must be TRUE):
-  1. GDB attaches to the Wine/Proton Skyrim process and hits breakpoints set in SkyrimCoop DLL source files
-  2. DWARF debug symbols produced by the MinGW build resolve correctly in GDB (variables, stack traces, type info)
-  3. A single `./debug_attach.sh` script finds the Skyrim process, attaches GDB, loads symbols, and drops into a debug session
-  4. Wine 9.0+ is installed and Skyrim runs under it with NTSYNC performance improvements
-**Plans**: TBD
+### Phase 4: Linux Debug Workflow (Resolved)
+**Status**: Resolved by Phase 7's relay architecture. The native `skyrim-coop` binary is a standard Linux process — attach GDB/LLDB directly with full symbols. The DLL has file-based logging (`skyrim_coop_hooks.log`). No Wine debugging complexity needed.
+**Plans**: None required
 
 ### Phase 5: Testing & CI Pipeline
 **Goal**: Automated test suite runs natively on Linux covering serialization, networking, and server logic, with CI enforcing green builds on every push
@@ -153,7 +146,7 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 2. MSVC Compatibility & Core Libraries | 3/3 | Complete | 2026-02 |
 | 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
 | 3.1. Build Performance & Resource Optimization | 2/3 | In progress | - |
-| 4. Linux Debug Workflow | 0/0 | Not started | - |
+| 4. Linux Debug Workflow | 0/0 | Resolved by Phase 7 | 2026-03-28 |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
