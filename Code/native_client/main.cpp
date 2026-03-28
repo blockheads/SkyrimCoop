@@ -68,6 +68,15 @@ using TiltedPhoques::Vector;
 #include "Systems/InterpolationSystem.h"
 #include "Systems/AnimationSystem.h"
 
+// rpmalloc must be initialized before static constructors that allocate
+// (e.g., cxxopts regex in GameServer.cpp). Constructor priority 101 runs
+// before default static init, matching the pattern in fake_player.cpp.
+__attribute__((constructor(101)))
+static void InitRpMallocEarly()
+{
+    rpmalloc_initialize();
+}
+
 static std::atomic<bool> s_running{true};
 
 static void SignalHandler(int /*sig*/) {
@@ -76,10 +85,12 @@ static void SignalHandler(int /*sig*/) {
 
 static void PrintUsage(const char* apProgram) {
     fprintf(stderr, "Usage: %s --pid <pid> --port <port> [--connect <ip:port>] [--server-port <port>]\n", apProgram);
-    fprintf(stderr, "  --pid          Target Skyrim process ID (required)\n");
-    fprintf(stderr, "  --port         DLL TCP server port (required)\n");
+    fprintf(stderr, "       %s --host-only [--server-port <port>]\n", apProgram);
+    fprintf(stderr, "  --pid          Target Skyrim process ID (required unless --host-only)\n");
+    fprintf(stderr, "  --port         DLL TCP server port (required unless --host-only)\n");
     fprintf(stderr, "  --connect      Join mode: connect to remote host at ip:port (default: host mode)\n");
     fprintf(stderr, "  --server-port  GameServer listen port in host mode (default: 10578)\n");
+    fprintf(stderr, "  --host-only    Run embedded GameServer without Skyrim process (standalone testing)\n");
     fprintf(stderr, "  --help         Show this help\n");
 }
 
@@ -178,28 +189,113 @@ static void HandleControlPacket(const PacketHeader& aHeader, TcpClient& aClient)
 // the raw socket fd. For now, blocking receive with frame pacing is used.
 
 int main(int argc, char* argv[]) {
-    // Initialize rpmalloc
-    rpmalloc_initialize();
+    // rpmalloc already initialized via constructor(101) above
 
     // Initialize spdlog
     spdlog::set_level(spdlog::level::info);
+
+    // Check for --host-only before full arg parsing
+    bool hostOnly = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--host-only") == 0) hostOnly = true;
+    }
 
     // Parse command line
     pid_t targetPid = 0;
     uint16_t port = 0;
     std::string connectAddr;
     uint16_t serverPort = 10578;
-    if (!ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort)) {
+    if (!hostOnly && !ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort)) {
         PrintUsage(argv[0]);
         rpmalloc_finalize();
         return 1;
     }
-
-    spdlog::info("skyrim-coop native client starting (pid={}, port={})", targetPid, port);
+    if (hostOnly) {
+        // Still parse --server-port if provided
+        for (int i = 1; i < argc; i++) {
+            if (strcmp(argv[i], "--server-port") == 0 && i + 1 < argc) {
+                serverPort = static_cast<uint16_t>(atoi(argv[++i]));
+            }
+        }
+        spdlog::info("Starting in HOST-ONLY mode (port {})", serverPort);
+    } else {
+        spdlog::info("skyrim-coop native client starting (pid={}, port={})", targetPid, port);
+    }
 
     // Install signal handlers for clean shutdown
     signal(SIGINT, SignalHandler);
     signal(SIGTERM, SignalHandler);
+
+    // --- Host-only mode: run GameServer without Skyrim process ---
+    if (hostOnly) {
+        // Create ConOut logger (required by ConsoleRegistry)
+        if (!spdlog::get("ConOut"))
+            spdlog::stdout_color_mt("ConOut");
+
+        auto pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("ConOut");
+        auto pGameServer = std::make_unique<Server::GameServer>(*pConsole);
+        pGameServer->Initialize();
+
+        spdlog::info("GameServer listening on port {}", pGameServer->GetPort());
+
+        // Create loopback transport for host self-authentication
+        auto pLoopback = std::make_unique<LoopbackTransport>(*pGameServer);
+        auto pRouter = std::make_unique<ServerMessageRouter>();
+
+        // Wire loopback: GameServer sends to router
+        pGameServer->SetLoopbackRoute(
+            LoopbackTransport::kHostConnectionId,
+            [&pRouter](const void* apData, uint32_t aSize) { pRouter->OnServerMessage(apData, aSize); });
+        pLoopback->SetServerMessageCallback(
+            [&pRouter](const void* apData, uint32_t aSize) { pRouter->OnServerMessage(apData, aSize); });
+
+        // Host self-authentication
+        AuthenticationRequest authReq;
+        authReq.Version = BUILD_COMMIT;
+        authReq.Token = "";
+        authReq.Username = "Host";
+        authReq.SKSEActive = true;
+        authReq.MO2Active = false;
+        authReq.DiscordId = 0;
+        authReq.Level = 1;
+        pLoopback->SendToServer(authReq);
+
+        pGameServer->Update();
+
+        if (pRouter->IsAuthenticated()) {
+            spdlog::info("Host player authenticated with embedded GameServer");
+        } else {
+            spdlog::error("Host player authentication FAILED -- this should not happen");
+        }
+
+        // Simplified main loop: only GameServer ticks
+        spdlog::info("Entering host-only main loop (Ctrl+C to stop)");
+        static constexpr auto kTargetFrameTime = std::chrono::milliseconds(16);
+
+        while (s_running.load(std::memory_order_relaxed)) {
+            auto frameStart = std::chrono::steady_clock::now();
+
+            pGameServer->Update();
+
+            auto frameEnd = std::chrono::steady_clock::now();
+            auto frameElapsed = frameEnd - frameStart;
+            if (frameElapsed < kTargetFrameTime) {
+                std::this_thread::sleep_for(kTargetFrameTime - frameElapsed);
+            }
+        }
+
+        // Shutdown
+        pGameServer->Kill();
+        pGameServer->Close();
+        pGameServer.reset();
+        pConsole.reset();
+        spdlog::info("GameServer shut down");
+
+        rpmalloc_finalize();
+        return 0;
+    }
+
+    // --- Normal mode: connect to Skyrim process via relay DLL ---
 
     // Open /proc/pid/mem reader
     ProcMemReader memReader;
@@ -328,10 +424,6 @@ int main(int argc, char* argv[]) {
     // Target frame time (~60 FPS = 16ms per iteration)
     static constexpr auto kTargetFrameTime = std::chrono::milliseconds(16);
 
-    // Get socket fd for poll() -- TcpClient exposes this indirectly via IsConnected
-    // We need the raw fd. Since TcpClient doesn't expose it, we'll use a different approach:
-    // Process all available packets in a batch, then sleep for remainder of frame.
-
     while (s_running.load(std::memory_order_relaxed)) {
         auto frameStart = std::chrono::steady_clock::now();
 
@@ -344,7 +436,6 @@ int main(int argc, char* argv[]) {
             deltaTime = 0.25f;
 
         // --- Phase 1: Receive and dispatch all pending TCP packets ---
-        // Process up to 64 packets per frame to prevent starvation
         int packetsProcessed = 0;
         static constexpr int kMaxPacketsPerFrame = 64;
 
@@ -355,11 +446,6 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            // Try non-blocking receive using the client's Receive with a poll check
-            // Since TcpClient::Receive is blocking, we use it only when we know data is ready
-            // For now: use blocking receive with a packet batch approach
-            // The first receive call will block briefly (TCP socket), subsequent ones
-            // return quickly if no data.
             if (!tcpClient.Receive(&header, payload, sizeof(payload))) {
                 spdlog::warn("TCP receive failed or connection closed");
                 s_running.store(false, std::memory_order_relaxed);
@@ -369,10 +455,8 @@ int main(int argc, char* argv[]) {
             packetsProcessed++;
 
             if (header.opcode >= 0xF000) {
-                // Control packet
                 HandleControlPacket(header, tcpClient);
             } else if (header.opcode < 0x8000) {
-                // Hook event from DLL -- reconstruct HookEventPacket
                 HookEventPacket hookPkt{};
                 hookPkt.header = header;
                 if (header.length >= 1) {
@@ -381,12 +465,10 @@ int main(int argc, char* argv[]) {
                     memcpy(hookPkt.args, payload + 8, hookPkt.argCount * sizeof(uint64_t));
                 }
 
-                // Dispatch to pointer table and all services
                 DispatchHookEvent(hookPkt, gameReader, pointerTable,
                                   weatherService, calendarService, questService, combatService,
                                   inventoryService, actorValueService, magicService, characterService);
             } else {
-                // Command acknowledgments (0x8000-0xEFFF) -- not expected from DLL
                 spdlog::warn("Unexpected command-range opcode from DLL: {:#x}", header.opcode);
             }
 

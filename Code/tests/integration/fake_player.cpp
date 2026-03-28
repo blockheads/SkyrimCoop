@@ -268,7 +268,8 @@ static int RunExternal(const Config& aCfg)
     spdlog::info("fake_player: connecting to external server on port {}", aCfg.port);
 
     MockClient client;
-    if (!client.ConnectByIp("127.0.0.1:" + std::to_string(aCfg.port)))
+    // Use IPv6 loopback (::1) for enet6 dual-stack server binding (per D-05-01)
+    if (!client.ConnectByIp("::1:" + std::to_string(aCfg.port)))
     {
         spdlog::error("fake_player: ConnectByIp failed");
         return 1;
