@@ -35,11 +35,14 @@ export STEAM_COMPAT_DATA_PATH="$COMPAT_DATA"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_DIR"
 export WINEPREFIX="$COMPAT_DATA/pfx"
 
+# Skyrim INI (for sStartingCell injection)
+SKYRIM_INI="$COMPAT_DATA/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/Skyrim.ini"
+
 # Test parameters
 DURATION=15
 SERVER_PORT=10578
-TIMEOUT_SKYRIM=60
-TIMEOUT_SERVER=30
+TIMEOUT_SKYRIM=120
+TIMEOUT_SERVER=90
 
 # ── Helpers ──
 info()  { echo "[INFO]  $*"; }
@@ -47,8 +50,43 @@ pass()  { echo "[PASS]  $*"; }
 fail()  { echo "[FAIL]  $*"; }
 warn()  { echo "[WARN]  $*"; }
 
+# ── INI Injection ──
+inject_starting_cell() {
+    if [ ! -f "$SKYRIM_INI" ]; then
+        fail "Skyrim.ini not found at: $SKYRIM_INI"
+        exit 2
+    fi
+
+    # Back up Skyrim.ini
+    cp "$SKYRIM_INI" "${SKYRIM_INI}.test_backup"
+    info "Backed up Skyrim.ini to Skyrim.ini.test_backup"
+
+    # Remove any existing sStartingCell line to avoid duplicates
+    sed -i '/^sStartingCell=/d' "$SKYRIM_INI"
+
+    # Insert sStartingCell=Riverwood after [General]
+    sed -i '/^\[General\]/a sStartingCell=Riverwood' "$SKYRIM_INI"
+    info "Injected sStartingCell=Riverwood into Skyrim.ini [General] section"
+}
+
+restore_skyrim_ini() {
+    if [ -f "${SKYRIM_INI}.test_backup" ]; then
+        cp "${SKYRIM_INI}.test_backup" "$SKYRIM_INI"
+        rm -f "${SKYRIM_INI}.test_backup"
+        info "Restored Skyrim.ini from backup"
+    else
+        # Fallback: just remove the injected line
+        if [ -f "$SKYRIM_INI" ]; then
+            sed -i '/^sStartingCell=Riverwood$/d' "$SKYRIM_INI"
+            info "Removed sStartingCell=Riverwood from Skyrim.ini (no backup found)"
+        fi
+    fi
+}
+
 cleanup() {
     info "Cleaning up..."
+    # Restore Skyrim.ini before killing processes
+    restore_skyrim_ini
     # Kill fake_player if running
     if [ -n "${FAKE_PLAYER_PID:-}" ] && kill -0 "$FAKE_PLAYER_PID" 2>/dev/null; then
         kill "$FAKE_PLAYER_PID" 2>/dev/null || true
@@ -143,6 +181,14 @@ check_prerequisites() {
         pass "Native client deployed: skyrim-coop"
     else
         fail "Native client not found (run deploy_and_test.sh first)"
+        all_ok=false
+    fi
+
+    # 1h. Check Skyrim.ini exists (needed for sStartingCell injection)
+    if [ -f "$SKYRIM_INI" ]; then
+        pass "Skyrim.ini found for INI injection"
+    else
+        fail "Skyrim.ini not found at: $SKYRIM_INI (run Skyrim once to generate it)"
         all_ok=false
     fi
 
@@ -280,6 +326,9 @@ main() {
 
     # Set up cleanup trap
     trap cleanup EXIT
+
+    # Inject sStartingCell so Skyrim boots directly into Riverwood
+    inject_starting_cell
 
     # Launch and test
     if ! launch_skyrim; then
