@@ -9,6 +9,7 @@
 struct HookEventPacket;
 class GameReader;
 class TcpClient;
+class LoopbackTransport;
 
 // ECS components for actor tracking in the native client.
 // These are self-contained -- no game API calls, just pure data.
@@ -54,6 +55,9 @@ public:
     // Periodic update: movement sync, interpolation feed
     void Update(float aDeltaTime);
 
+    // Set loopback transport for sending ClientMessages to embedded GameServer
+    void SetLoopback(LoopbackTransport* apLoopback) noexcept { m_pLoopback = apLoopback; }
+
     // Network message handlers (called when messages arrive from server)
     void OnAssignCharacter(uint32_t aServerId, uint32_t aFormId, const glm::vec3& aPosition, const glm::vec2& aRotation);
     void OnRemoveCharacter(uint32_t aServerId);
@@ -84,6 +88,7 @@ private:
     GameReader& m_reader;
     TcpClient& m_client;
     entt::registry& m_registry;
+    LoopbackTransport* m_pLoopback{nullptr};
 
     // Movement sync timer
     float m_moveSyncTimer = 0.0f;

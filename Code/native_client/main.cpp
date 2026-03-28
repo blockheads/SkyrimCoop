@@ -1,3 +1,31 @@
+// -- Server PCH includes (must come first for GameServer.h transitive headers) --
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/Serialization.hpp>
+#include <TiltedCore/Buffer.hpp>
+#include <TiltedCore/Platform.hpp>
+
+#include <any>
+#include <filesystem>
+#include <mutex>
+#include <optional>
+
+#include <glm/glm.hpp>
+#include <sol/sol.hpp>
+
+#include <Server.hpp>
+
+using TiltedPhoques::ConnectionId_t;
+using TiltedPhoques::MakeShared;
+using TiltedPhoques::MakeUnique;
+using TiltedPhoques::Map;
+using TiltedPhoques::ScopedAllocator;
+using TiltedPhoques::String;
+using TiltedPhoques::UniquePtr;
+using TiltedPhoques::Vector;
+
+#include <StringCache.h>
+
+// -- Standard includes --
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -5,10 +33,20 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <string>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <rpmalloc.h>
 #include <entt/entt.hpp>
+
+// -- GameServer and loopback transport --
+#include <ConsoleRegistry.h>
+#include <GameServer.h>
+#include <BuildInfo.h>
+#include <Messages/AuthenticationRequest.h>
+#include "transport/LoopbackTransport.h"
+#include "transport/ServerMessageRouter.h"
 
 #include "game_bridge/proc_memory.h"
 #include "game_bridge/pointer_table.h"
@@ -37,21 +75,30 @@ static void SignalHandler(int /*sig*/) {
 }
 
 static void PrintUsage(const char* apProgram) {
-    fprintf(stderr, "Usage: %s --pid <pid> --port <port>\n", apProgram);
-    fprintf(stderr, "  --pid   Target Skyrim process ID\n");
-    fprintf(stderr, "  --port  DLL TCP server port\n");
-    fprintf(stderr, "  --help  Show this help\n");
+    fprintf(stderr, "Usage: %s --pid <pid> --port <port> [--connect <ip:port>] [--server-port <port>]\n", apProgram);
+    fprintf(stderr, "  --pid          Target Skyrim process ID (required)\n");
+    fprintf(stderr, "  --port         DLL TCP server port (required)\n");
+    fprintf(stderr, "  --connect      Join mode: connect to remote host at ip:port (default: host mode)\n");
+    fprintf(stderr, "  --server-port  GameServer listen port in host mode (default: 10578)\n");
+    fprintf(stderr, "  --help         Show this help\n");
 }
 
-static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort) {
+static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort,
+                      std::string& aOutConnect, uint16_t& aOutServerPort) {
     aOutPid = 0;
     aOutPort = 0;
+    aOutConnect.clear();
+    aOutServerPort = 10578;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--pid") == 0 && i + 1 < argc) {
             aOutPid = static_cast<pid_t>(atoi(argv[++i]));
         } else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
             aOutPort = static_cast<uint16_t>(atoi(argv[++i]));
+        } else if (strcmp(argv[i], "--connect") == 0 && i + 1 < argc) {
+            aOutConnect = argv[++i];
+        } else if (strcmp(argv[i], "--server-port") == 0 && i + 1 < argc) {
+            aOutServerPort = static_cast<uint16_t>(atoi(argv[++i]));
         } else if (strcmp(argv[i], "--help") == 0) {
             PrintUsage(argv[0]);
             exit(0);
@@ -140,7 +187,9 @@ int main(int argc, char* argv[]) {
     // Parse command line
     pid_t targetPid = 0;
     uint16_t port = 0;
-    if (!ParseArgs(argc, argv, targetPid, port)) {
+    std::string connectAddr;
+    uint16_t serverPort = 10578;
+    if (!ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort)) {
         PrintUsage(argv[0]);
         rpmalloc_finalize();
         return 1;
@@ -197,6 +246,72 @@ int main(int argc, char* argv[]) {
     CharacterService characterService(gameReader, tcpClient, registry);
 
     spdlog::info("All 8 services initialized (Weather, Calendar, Quest, Combat, Inventory, ActorValue, Magic, Character)");
+
+    // --- GameServer setup (host mode by default, per D-01) ---
+    std::unique_ptr<ServerConsole::ConsoleRegistry> pConsole;
+    std::unique_ptr<Server::GameServer> pGameServer;
+    std::unique_ptr<LoopbackTransport> pLoopback;
+    std::unique_ptr<ServerMessageRouter> pRouter;
+    bool isHostMode = connectAddr.empty();  // per D-02
+
+    if (isHostMode) {
+        spdlog::info("Starting in HOST mode (port {})", serverPort);
+
+        // Create ConOut logger (required by ConsoleRegistry)
+        if (!spdlog::get("ConOut"))
+            spdlog::stdout_color_mt("ConOut");
+
+        pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("ConOut");
+        pGameServer = std::make_unique<Server::GameServer>(*pConsole);
+        pGameServer->Initialize();
+
+        spdlog::info("GameServer listening on port {}", pGameServer->GetPort());
+
+        // Create loopback transport
+        pLoopback = std::make_unique<LoopbackTransport>(*pGameServer);
+        pRouter = std::make_unique<ServerMessageRouter>();
+
+        // Wire loopback: GameServer sends to router
+        pGameServer->SetLoopbackRoute(
+            LoopbackTransport::kHostConnectionId,
+            [&pRouter](const void* apData, uint32_t aSize) { pRouter->OnServerMessage(apData, aSize); });
+        pLoopback->SetServerMessageCallback(
+            [&pRouter](const void* apData, uint32_t aSize) { pRouter->OnServerMessage(apData, aSize); });
+
+        // Wire router callbacks to CharacterService
+        pRouter->SetMoveCallback(
+            [&characterService](uint32_t aServerId, float aX, float aY, float aZ, float aRx, float aRy) {
+                characterService.OnReferencesMoveRequest(aServerId, {aX, aY, aZ}, {aRx, aRy});
+            });
+
+        // Set loopback pointer on CharacterService for outbound messages
+        characterService.SetLoopback(pLoopback.get());
+
+        // Host self-authentication (per D-04: host is a local player)
+        AuthenticationRequest authReq;
+        authReq.Version = BUILD_COMMIT;
+        authReq.Token = "";
+        authReq.Username = "Host";
+        authReq.SKSEActive = true;
+        authReq.MO2Active = false;
+        authReq.DiscordId = 0;
+        authReq.Level = 1;
+        pLoopback->SendToServer(authReq);
+
+        // Process the auth message
+        pGameServer->Update();
+
+        if (pRouter->IsAuthenticated()) {
+            spdlog::info("Host player authenticated with embedded GameServer");
+        } else {
+            spdlog::error("Host player authentication FAILED -- this should not happen");
+        }
+    } else {
+        spdlog::info("Starting in JOIN mode (connecting to {})", connectAddr);
+        // Join mode: no GameServer, connect as enet6 client to remote host
+        // TODO(Phase 8+): Implement enet6 client connection to remote host
+        // For now, just log. The native process still operates as relay bridge.
+    }
 
     // Main event loop
     spdlog::info("Entering main event loop");
@@ -292,6 +407,11 @@ int main(int argc, char* argv[]) {
         InterpolationSystem::Update(registry, deltaTime);
         AnimationSystem::Update(registry, tcpClient, deltaTime);
 
+        // --- Phase 3.5: GameServer tick (host mode only) ---
+        if (pGameServer) {
+            pGameServer->Update();
+        }
+
         // --- Phase 4: Heartbeat ---
         heartbeatTimer += deltaTime;
         if (heartbeatTimer >= kHeartbeatInterval) {
@@ -307,6 +427,15 @@ int main(int argc, char* argv[]) {
         if (frameElapsed < kTargetFrameTime) {
             std::this_thread::sleep_for(kTargetFrameTime - frameElapsed);
         }
+    }
+
+    // Shutdown GameServer
+    if (pGameServer) {
+        pGameServer->Kill();
+        pGameServer->Close();
+        pGameServer.reset();
+        pConsole.reset();
+        spdlog::info("GameServer shut down");
     }
 
     // Cleanup
