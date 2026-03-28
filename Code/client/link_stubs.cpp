@@ -11,6 +11,8 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cwchar>
+#include <cstring>
+#include <windows.h>
 
 // --- Skyrim engine virtual function stubs ---
 // Include the actual headers to get correct class definitions and mangling.
@@ -19,9 +21,9 @@
 
 #include "Games/Skyrim/Misc/ActorValueOwner.h"
 #include "Games/Animation/IAnimationGraphManagerHolder.h"
+#include "Games/Skyrim/Components/BGSKeywordForm.h"
 
-// Provide the actual member function implementations that the linker needs.
-// At runtime, calls go through the vtable which points at Skyrim's code.
+// ---- ActorValueOwner vtable stubs ----
 
 ActorValueOwner::~ActorValueOwner() {}
 
@@ -72,6 +74,8 @@ bool ActorValueOwner::IsPlayerOwner()
     return false;
 }
 
+// ---- IAnimationGraphManagerHolder vtable stubs ----
+
 IAnimationGraphManagerHolder::~IAnimationGraphManagerHolder() {}
 
 bool IAnimationGraphManagerHolder::SendAnimationEvent(BSFixedString* apAnimEvent)
@@ -84,6 +88,92 @@ bool IAnimationGraphManagerHolder::GetBSAnimationGraph(BSAnimationGraphManager**
 {
     (void)aPtr;
     return false;
+}
+
+uint32_t IAnimationGraphManagerHolder::sub_3() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_4() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_5() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_6() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_7() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_8() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_9() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_A() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_B() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_C() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_D() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_E() { return 0; }
+uint32_t IAnimationGraphManagerHolder::sub_F() { return 0; }
+
+bool IAnimationGraphManagerHolder::GetVariableFloat(BSFixedString* apVariable, float* apReturn)
+{
+    (void)apVariable;
+    (void)apReturn;
+    return false;
+}
+
+bool IAnimationGraphManagerHolder::GetVariableInt(BSFixedString* apVariable, uint32_t* apReturn)
+{
+    (void)apVariable;
+    (void)apReturn;
+    return false;
+}
+
+bool IAnimationGraphManagerHolder::GetVariableBool(BSFixedString* apVariable, bool* apReturn)
+{
+    (void)apVariable;
+    (void)apReturn;
+    return false;
+}
+
+// ---- BGSKeywordForm vtable stubs ----
+
+bool BGSKeywordForm::Contains(BGSKeyword* apKeyword) const
+{
+    (void)apKeyword;
+    return false;
+}
+
+void BGSKeywordForm::sub_5()
+{
+}
+
+// --- Global variable stubs ---
+// These globals are defined in immersive_launcher or SkyrimSE.exe.
+// The DLL references them but at runtime they live in the host process.
+
+HICON g_SharedWindowIcon = nullptr;
+
+// --- RipAllocateN stub ---
+// Defined in immersive_launcher/memory/RipAllocator.cpp. The DLL uses this
+// for JIT assembly allocation. Provide a simple heap-based fallback that
+// satisfies the linker; the real allocator is in the launcher process.
+
+static uint8_t s_ripHeap[1024 * 1024]; // 1MB fallback pool
+static uint8_t* s_pRipCursor = s_ripHeap;
+
+void* RipAllocateN(size_t aBlockLength)
+{
+    const size_t cAlignment = 16;
+    uintptr_t current = reinterpret_cast<uintptr_t>(s_pRipCursor);
+    uintptr_t aligned = (current + (cAlignment - 1)) & ~(cAlignment - 1);
+    size_t alignedLen = (aBlockLength + (cAlignment - 1)) & ~(cAlignment - 1);
+
+    // Bounds check against pool
+    if (aligned + alignedLen > reinterpret_cast<uintptr_t>(s_ripHeap + sizeof(s_ripHeap)))
+        return nullptr;
+
+    s_pRipCursor = reinterpret_cast<uint8_t*>(aligned + alignedLen);
+    return reinterpret_cast<void*>(aligned);
+}
+
+// --- MSVC intrinsic stubs ---
+// _ReturnAddress is an MSVC intrinsic. GCC provides __builtin_return_address.
+// We cannot replace the call site from here, so provide a C-linkage stub.
+// The caller in UI.cpp uses it for debug logging only — returning nullptr is safe.
+
+extern "C" void* _ReturnAddress(void)
+{
+    return __builtin_return_address(0);
 }
 
 // --- MSVC UCRT intrinsic stubs ---

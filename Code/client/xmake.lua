@@ -140,7 +140,6 @@ if is_plat("mingw") then
             "-Wl,-Bstatic", "-lstdc++", "-lpthread",
             "-Wl,-Bdynamic",
             "-Wl,--allow-multiple-definition",
-            "-Wl,--noinhibit-exec",
             {force = true})
 
         -- Extra system libraries needed at final link (beyond what deps inherit)
