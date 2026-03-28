@@ -268,7 +268,7 @@ static int RunExternal(const Config& aCfg)
     spdlog::info("fake_player: connecting to external server on port {}", aCfg.port);
 
     MockClient client;
-    // Use IPv6 loopback (::1) for enet6 dual-stack server binding (per D-05-01)
+    // GameServer binds dual-stack IPv6 by default, use ::1 for loopback
     if (!client.ConnectByIp("::1:" + std::to_string(aCfg.port)))
     {
         spdlog::error("fake_player: ConnectByIp failed");

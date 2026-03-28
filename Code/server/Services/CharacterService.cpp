@@ -232,7 +232,7 @@ void CharacterService::OnReferencesMoveRequest(const PacketEvent<ClientReference
         auto itor = view.find(entity);
         if (itor == std::end(view))
         {
-            spdlog::debug("{:x} requested move of {:x} but does not exist", acMessage.pPlayer->GetConnectionId(), World::ToInteger(*itor));
+            spdlog::debug("{:x} requested move of {:x} but does not exist", acMessage.pPlayer->GetConnectionId(), static_cast<uint32_t>(entity));
             continue;
         }
 
