@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Feasibility Validation** - Prove MinGW cross-compilation is viable before investing in full migration
 - [x] **Phase 2: MSVC Compatibility & Core Libraries** - Platform-independent libraries compile under MinGW
 - [x] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
-- [ ] **Phase 3.1: Build Performance & Resource Optimization** - Fast devbuild mode with lld, split DWARF, shared libs, ccache
+- [x] **Phase 3.1: Build Performance & Resource Optimization** - ~~devbuild mode~~ Resolved: relay DLL builds in <1s, native binary in <1s incremental
 - [x] **Phase 4: Linux Debug Workflow** - ~~One-command GDB attach~~ Resolved by Phase 7: native binary debuggable with standard GDB/LLDB, DLL has file logging
 - [ ] **Phase 5: Testing & CI Pipeline** - Native Linux tests, mock client harness, and automated CI on every push
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
@@ -66,22 +66,9 @@ Plans:
 - [x] 03-04-PLAN.md -- Gap closure: DLL wrapper target with SKSE entry points and smoke test fix
 - [x] 03-05-PLAN.md -- Gap closure: remove --noinhibit-exec, comprehensive linker stubs for all unresolved symbols
 
-### Phase 03.1: Build Performance & Resource Optimization (INSERTED)
-
-**Goal:** Reduce MinGW cross-compilation build times from 6+ minutes to seconds for incremental changes through lld linker, split DWARF, shared internal libs, ccache, and a new devbuild XMake mode
-**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07
-**Depends on:** Phase 03
-**Success Criteria** (what must be TRUE):
-  1. `xmake f -p mingw -m devbuild` configures and builds the full client DLL without errors
-  2. devbuild mode uses lld linker, split DWARF, shared internal libs, and ccache
-  3. Incremental rebuild after touching one file is significantly faster than full releasedbg build
-  4. releasedbg mode is completely unchanged (no regressions)
-**Plans:** 2/3 plans executed
-
-Plans:
-- [x] 03.1-01-PLAN.md -- devbuild mode rule, lld linker, split DWARF, ccache in root xmake.lua
-- [x] 03.1-02-PLAN.md -- Convert internal libraries to shared DLLs in devbuild mode
-- [ ] 03.1-03-PLAN.md -- Build validation, error fixing, regression check, human verification
+### Phase 03.1: Build Performance & Resource Optimization (Resolved)
+**Status**: Resolved by Phase 7's relay architecture. The DLL is ~800 LOC (builds in <1s), the native binary builds natively with system GCC (sub-second incremental). The original 6+ minute MinGW full-client build is no longer on the critical path.
+**Plans**: 2/3 executed, remaining plan no longer needed
 
 ### Phase 4: Linux Debug Workflow (Resolved)
 **Status**: Resolved by Phase 7's relay architecture. The native `skyrim-coop` binary is a standard Linux process — attach GDB/LLDB directly with full symbols. The DLL has file-based logging (`skyrim_coop_hooks.log`). No Wine debugging complexity needed.
@@ -145,7 +132,7 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 1. Feasibility Validation | 2/2 | Complete | 2026-02 |
 | 2. MSVC Compatibility & Core Libraries | 3/3 | Complete | 2026-02 |
 | 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
-| 3.1. Build Performance & Resource Optimization | 2/3 | In progress | - |
+| 3.1. Build Performance & Resource Optimization | 2/3 | Resolved by Phase 7 | 2026-03-28 |
 | 4. Linux Debug Workflow | 0/0 | Resolved by Phase 7 | 2026-03-28 |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
