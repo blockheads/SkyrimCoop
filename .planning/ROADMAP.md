@@ -127,7 +127,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases 1-5, 7 complete. Phase 8 (P2P server) executes next — required before Phase 6 (UI needs a working multiplayer connection to display).
+Phases 1-5, 7 complete. Phase 8 (P2P server) executes next -- required before Phase 6 (UI needs a working multiplayer connection to display).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -139,19 +139,21 @@ Phases 1-5, 7 complete. Phase 8 (P2P server) executes next — required before P
 | 5. Networking Verification & Server Cleanup | 3/3 | Complete | 2026-03-28 |
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
-| 8. P2P Embedded GameServer | 0/0 | Not started | - |
+| 8. P2P Embedded GameServer | 0/3 | Planning complete | - |
 
 ### Phase 8: P2P Embedded GameServer
 
-**Goal:** Native process hosts an enet6 GameServer so other players can connect. When Skyrim boots with the relay DLL, the native process starts an embedded GameServer on localhost, accepts client connections via enet6, and bridges hook events into the server's ECS. fake_player and real remote clients can connect, authenticate, and sync.
-**Requirements**: TBD
+**Goal:** Native process hosts an enet6 GameServer so other players can connect. When Skyrim boots with the relay DLL, the native process starts an embedded GameServer on localhost, accepts client connections via enet6, and bridges hook events into the server's ECS via in-process loopback. fake_player and real remote clients can connect, authenticate, and sync.
+**Requirements**: P2P-01, P2P-02, P2P-03, P2P-04
 **Depends on:** Phase 5 (server cleanup), Phase 7 (relay architecture)
 **Success Criteria** (what must be TRUE):
   1. The native `skyrim-coop` process instantiates and hosts a GameServer on localhost alongside the relay connection
-  2. fake_player connects to the embedded GameServer, authenticates, and sends scripted movements — verified by `test_ingame_sync.sh --with-fake-player`
+  2. fake_player connects to the embedded GameServer, authenticates, and sends scripted movements
   3. The embedded GameServer receives hook events from the relay and updates its World registry
   4. Remote clients see the host player's state (position, cell) through the standard server broadcast path
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 8 to break down)
+- [ ] 08-01-PLAN.md -- LoopbackTransport + GameServer modifications + unit tests
+- [ ] 08-02-PLAN.md -- Main loop integration, CLI args, host auth, CharacterService wiring
+- [ ] 08-03-PLAN.md -- Integration verification with fake_player + human checkpoint
