@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-28T18:27:30.177Z"
-last_activity: 2026-03-28 -- Completed 05-01 (server cleanup)
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-28T19:14:36.593Z"
+last_activity: 2026-03-28
 progress:
   total_phases: 8
-  completed_phases: 3
-  total_plans: 21
-  completed_plans: 20
+  completed_phases: 4
+  total_plans: 24
+  completed_plans: 22
   percent: 0
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 05 (testing-ci-pipeline) — EXECUTING
-Plan: 2 of 3
-Status: Executing Phase 05
-Last activity: 2026-03-28 -- Completed 05-01 (server cleanup)
+Plan: 3 of 3
+Status: Ready to execute
+Last activity: 2026-03-28
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -70,6 +70,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
 | Phase 05 P01 | 8min | 2 tasks | 18 files |
+| Phase 05 P02 | 22min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,9 @@ Recent decisions affecting current work:
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
 - [Phase 05]: Keep admin session infrastructure in GameServer (used by AdminService, CommandService)
 - [Phase 05]: Keep gameplay settings for embedded host configuration (difficulty, PvP, death system)
+- [Phase 05]: IPv6 loopback (::1) for enet6 test connections due to dual-stack server binding
+- [Phase 05]: Shared static GameServer per test process: ConsoleRegistry static items consumed once
+- [Phase 05]: rpmalloc constructor(101) priority to init before Catch2 static registration
 
 ### Pending Todos
 
@@ -129,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T18:27:30.174Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-28T19:14:36.591Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

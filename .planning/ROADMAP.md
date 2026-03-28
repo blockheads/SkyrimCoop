@@ -84,8 +84,8 @@ Plans:
   3. A headless test harness connects to the embedded GameServer as a fake second player, sends scripted movements, and automated memory reads verify the remote actor position in the real Skyrim process
 **Plans**: 3 plans
 Plans:
-- [ ] 05-01-PLAN.md -- Remove standalone server code and clean GameServer for P2P embedded-only mode
-- [ ] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake, relay integration
+- [x] 05-01-PLAN.md -- Remove standalone server code and clean GameServer for P2P embedded-only mode
+- [x] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake, relay integration
 - [ ] 05-03-PLAN.md -- Fake player binary and in-game sync verification (D-03 stretch goal)
 
 ### Phase 6: ImGui UI Port
