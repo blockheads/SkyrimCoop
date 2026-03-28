@@ -127,7 +127,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases 1-5, 7 complete. Phase 8 (P2P server) executes next -- required before Phase 6 (UI needs a working multiplayer connection to display).
+Phases 1-5, 7-8 complete. Phase 9 (integration test) executes next -- validates the full P2P pipeline end-to-end before Phase 6 (UI).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -139,7 +139,8 @@ Phases 1-5, 7 complete. Phase 8 (P2P server) executes next -- required before Ph
 | 5. Networking Verification & Server Cleanup | 3/3 | Complete | 2026-03-28 |
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
-| 8. P2P Embedded GameServer | 0/3 | Planning complete | - |
+| 8. P2P Embedded GameServer | 2/3 | Executing | - |
+| 9. In-Game P2P Integration Test | 0/3 | Planning complete | - |
 
 ### Phase 8: P2P Embedded GameServer
 
@@ -160,10 +161,17 @@ Plans:
 
 ### Phase 9: In-Game P2P Integration Test
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Full end-to-end validation of the P2P co-op architecture: relay DLL loads in Skyrim, native process with embedded GameServer starts, fake_player connects and verifies sync via /proc/pid/mem, and two real Skyrim instances test the actual co-op flow
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, RELAY-10, P2P-01, P2P-02, P2P-03, P2P-04
 **Depends on:** Phase 8
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. test_ingame_sync.sh passes all 5 stages with fake_player as default test path
+  2. fake_player verifies host game memory via /proc/pid/mem (PE header validation)
+  3. Native process join mode connects to remote GameServer via enet6
+  4. Two real Skyrim instances (host + join) connect via separate Proton prefixes
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 9 to break down)
+- [ ] 09-01-PLAN.md -- Fix test script (default fake_player, port readiness, log collection) + fake_player /proc/pid/mem verification
+- [ ] 09-02-PLAN.md -- Implement join mode enet6 client in native process
+- [ ] 09-03-PLAN.md -- Two-instance test script + human verification checkpoint
