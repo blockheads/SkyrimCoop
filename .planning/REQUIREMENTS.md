@@ -47,15 +47,15 @@ Requirements for Milestone 1: Linux Build, Debug & UI Port. Each maps to roadmap
 
 ### Native Client Architecture (SKSE TCP Relay)
 
-- [ ] **RELAY-01**: Flat binary TCP protocol (opcode + length + payload) for DLL-to-native IPC with zero external dependencies
+- [x] **RELAY-01**: Flat binary TCP protocol (opcode + length + payload) for DLL-to-native IPC with zero external dependencies
 - [ ] **RELAY-02**: Minimal MinGW relay DLL (~500 LOC) with ~30 hook trampolines forwarding raw uint64 arguments over TCP
-- [ ] **RELAY-03**: Lock-free SPSC command queue enabling native process to execute game functions on the game thread
+- [x] **RELAY-03**: Lock-free SPSC command queue enabling native process to execute game functions on the game thread
 - [ ] **RELAY-04**: DLL spawns native ELF process via CreateProcess/Wine, auto-restarts on crash
 - [ ] **RELAY-05**: Native process reads game memory via /proc/pid/mem with ptrace SEIZE + pread
 - [ ] **RELAY-06**: Hook-driven pointer table maps formId to game pointers from ActorAdded/Removed events
 - [ ] **RELAY-07**: GameReader API provides typed memory reads using game struct offsets for native services
 - [ ] **RELAY-08**: All 8 client services (Weather, Calendar, Quest, Combat, Inventory, ActorValue, Magic, Character) rewritten against GameReader API
-- [ ] **RELAY-09**: XMake build system has separate targets for relay DLL (MinGW, minimal deps) and native client (Linux ELF, full deps)
+- [x] **RELAY-09**: XMake build system has separate targets for relay DLL (MinGW, minimal deps) and native client (Linux ELF, full deps)
 - [ ] **RELAY-10**: End-to-end integration validated: DLL loads in Skyrim, native process connects, hook events flow
 
 ## v2 Requirements
@@ -134,15 +134,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-05 | Phase 6 | Pending |
 | UI-06 | Phase 6 | Pending |
 | UI-07 | Phase 6 | Pending |
-| RELAY-01 | Phase 7 | Pending |
+| RELAY-01 | Phase 7 | Complete |
 | RELAY-02 | Phase 7 | Pending |
-| RELAY-03 | Phase 7 | Pending |
+| RELAY-03 | Phase 7 | Complete |
 | RELAY-04 | Phase 7 | Pending |
 | RELAY-05 | Phase 7 | Pending |
 | RELAY-06 | Phase 7 | Pending |
 | RELAY-07 | Phase 7 | Pending |
 | RELAY-08 | Phase 7 | Pending |
-| RELAY-09 | Phase 7 | Pending |
+| RELAY-09 | Phase 7 | Complete |
 | RELAY-10 | Phase 7 | Pending |
 
 **Coverage:**
