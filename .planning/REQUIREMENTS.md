@@ -24,7 +24,7 @@ Requirements for Milestone 1: Linux Build, Debug & UI Port. Each maps to roadmap
 
 ### Testing Infrastructure
 
-- [ ] **TEST-01**: Existing Catch2 unit tests compile and pass natively on Linux (no Wine required)
+- [x] **TEST-01**: Existing Catch2 unit tests compile and pass natively on Linux (no Wine required)
 - [ ] **TEST-02**: Headless mock client connects to GameServer on Linux without Skyrim or Wine
 - [ ] **TEST-03**: Message round-trip tests verify serialization/deserialization across mock client and server
 - [ ] **TEST-04**: CI pipeline (GitHub Actions) builds MinGW DLL and runs native Linux tests on every push
@@ -122,7 +122,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEBUG-02 | Phase 4 | Pending |
 | DEBUG-03 | Phase 4 | Pending |
 | DEBUG-04 | Phase 4 | Pending |
-| TEST-01 | Phase 5 | Pending |
+| TEST-01 | Phase 5 | Complete |
 | TEST-02 | Phase 5 | Pending |
 | TEST-03 | Phase 5 | Pending |
 | TEST-04 | Phase 5 | Pending |
