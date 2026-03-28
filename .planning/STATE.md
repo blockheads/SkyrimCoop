@@ -133,6 +133,12 @@ None yet.
 - Phase 3 is HIGH risk per research: MinHook/Xbyak cross-compilation, SKSE ABI compatibility, CEF exclusion strategy.
 - Phase 4 MEDIUM risk: Wine upgrade may break existing Proton setup.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260328-ki2 | Update test_ingame_sync.sh to use sStartingCell INI injection | 2026-03-28 | 9c837fae | [260328-ki2-update-test-ingame-sync-sh-to-use-sstart](./quick/260328-ki2-update-test-ingame-sync-sh-to-use-sstart/) |
+
 ## Session Continuity
 
 Last session: 2026-03-28T19:26:23.982Z
