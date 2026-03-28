@@ -19,3 +19,5 @@ target("TPTests")
     add_deps("SkyrimEncoding", "SkyrimTogetherServer")
     add_packages("catch2", "glm", "spdlog", "hopscotch-map", "enet6", "entt",
                  "sqlite3", "lua", "sol2")
+
+includes("integration")
