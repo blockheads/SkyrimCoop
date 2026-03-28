@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-28T20:14:30.413Z"
-last_activity: 2026-03-28
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-28T21:20:19Z"
+last_activity: 2026-03-28 -- Phase 08 plan 01 complete
 progress:
   total_phases: 9
   completed_phases: 5
-  total_plans: 24
-  completed_plans: 23
-  percent: 0
+  total_plans: 27
+  completed_plans: 24
+  percent: 89
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 07 — native-linux-build-with-skse-tcp-relay
+**Current focus:** Phase 08 — p2p-embedded-gameserver
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-28
+Phase: 08 (p2p-embedded-gameserver) — EXECUTING
+Plan: 2 of 3
+Status: Executing Phase 08 — Plan 01 complete
+Last activity: 2026-03-28 -- Phase 08 plan 01 complete
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [=========-] 89%
 
 ## Performance Metrics
 
@@ -72,6 +72,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 05 P01 | 8min | 2 tasks | 18 files |
 | Phase 05 P02 | 22min | 3 tasks | 8 files |
 | Phase 05 P03 | 6min | 3 tasks | 4 files |
+| Phase 08 P01 | 14min | 1 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,10 @@ Recent decisions affecting current work:
 - [Phase 05]: Shared static GameServer per test process: ConsoleRegistry static items consumed once
 - [Phase 05]: rpmalloc constructor(101) priority to init before Catch2 static registration
 - [Phase 05]: fake_player reuses MockClient from 05-02; self-test mode enables CI without Skyrim
+- [Phase 08]: std::function callback for loopback routing avoids cross-target include dependencies
+- [Phase 08]: kHostConnectionId = 0xFFFF'FFFF'0000'0001 to avoid enet6 peer pointer collision
+- [Phase 08]: ServerMessageRouter skips packet-type byte 0 matching Server::HandleMessage strip behavior
+- [Phase 08]: Added sol2/lua/sqlite3 to native_client for GameServer.h transitive header chain
 
 ### Pending Todos
 
@@ -142,6 +147,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T20:14:30.320Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-p2p-embedded-gameserver/08-CONTEXT.md
+Last session: 2026-03-28T21:20:19Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: .planning/phases/08-p2p-embedded-gameserver/08-02-PLAN.md
