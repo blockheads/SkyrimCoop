@@ -38,7 +38,14 @@ using TiltedPhoques::Vector;
 #include <GameServer.h>
 
 MockClient::MockClient() noexcept = default;
-MockClient::~MockClient() = default;
+
+MockClient::~MockClient()
+{
+    // Close() must be called while MockClient's vtable is still intact,
+    // otherwise Client::~Client() calls Close() which triggers OnDisconnected()
+    // through the base class vtable (pure virtual in Client).
+    Close();
+}
 
 void MockClient::SendGameMessage(const ClientMessage& acMessage)
 {
