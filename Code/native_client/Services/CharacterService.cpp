@@ -1,3 +1,12 @@
+// Server PCH prerequisites for encoding headers (must come first)
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/Serialization.hpp>
+#include <TiltedCore/Buffer.hpp>
+
+#include <glm/glm.hpp>
+
+using TiltedPhoques::Map;
+
 #include "CharacterService.h"
 
 #include <spdlog/spdlog.h>
@@ -6,7 +15,11 @@
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
+#include "../transport/LoopbackTransport.h"
 #include "protocol.h"
+
+#include <Messages/ClientReferencesMoveRequest.h>
+#include <Structs/ReferenceUpdate.h>
 
 // Helper: compute squared distance for change detection
 static float DistanceSquared(const glm::vec3& a, const glm::vec3& b) {
@@ -302,13 +315,22 @@ void CharacterService::SyncMovement()
             }
         }
 
-        if (changed) {
-            // TODO(Plan 08+): Build ClientReferencesMoveRequest and send via network transport
-            // For now, log the movement. The network transport layer is wired in the
-            // transport integration plan.
-            spdlog::debug("CharacterService: Movement sync formId={:#x} pos=({:.1f},{:.1f},{:.1f}) rot=({:.2f},{:.2f})",
-                          comp.formId, currentPos.x, currentPos.y, currentPos.z,
-                          currentRot.x, currentRot.y);
+        if (changed && m_pLoopback) {
+            ClientReferencesMoveRequest moveReq;
+            moveReq.Tick = 0; // Phase 8 MVP: tick ordering deferred
+
+            ReferenceUpdate update;
+            update.UpdatedMovement.Position.x = currentPos.x;
+            update.UpdatedMovement.Position.y = currentPos.y;
+            update.UpdatedMovement.Position.z = currentPos.z;
+            update.UpdatedMovement.Rotation.x = currentRot.x;
+            update.UpdatedMovement.Rotation.y = currentRot.y;
+            moveReq.Updates[comp.formId] = update;
+
+            m_pLoopback->SendToServer(moveReq);
+            spdlog::debug("CharacterService: Sent movement via loopback formId={:#x}", comp.formId);
+        } else if (changed) {
+            spdlog::debug("CharacterService: Movement change detected but no loopback (join mode)");
         }
     }
 
@@ -321,9 +343,13 @@ void CharacterService::SyncMovement()
         auto& localComp = animView.get<LocalComponent>(entity);
         animComp.dirty = false;
 
-        // TODO(Plan 08+): Send animation variable sync via network transport
-        spdlog::debug("CharacterService: AnimVar sync formId={:#x} action={} target={:#x}",
-                      localComp.formId, animComp.lastActionId, animComp.lastTargetFormId);
+        if (m_pLoopback) {
+            // TODO(Phase 8+): Build ClientAnimationRequest and send via loopback
+            // Animation message construction is more complex (needs animation variable encoding).
+            // Position sync is the Phase 8 MVP requirement.
+            spdlog::debug("CharacterService: AnimVar sync formId={:#x} (loopback send deferred)",
+                          localComp.formId);
+        }
     }
 }
 
