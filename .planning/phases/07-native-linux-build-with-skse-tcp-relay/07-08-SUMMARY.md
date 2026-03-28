@@ -36,7 +36,7 @@ requirements-completed: []
 # Metrics
 duration: 5min
 completed: 2026-03-28
-status: checkpoint-pending
+status: complete
 ---
 
 # Phase 07 Plan 08: Integration Smoke Tests and Human Verification Summary
@@ -63,7 +63,7 @@ Each task was committed atomically:
 
 1. **Task 1: Create smoke tests for TCP relay and ptrace access** - `2aa25c15` (test)
 
-Task 2 is a checkpoint:human-verify -- awaiting human verification of DLL loading in Skyrim under Proton.
+2. **Task 2: Human verification of relay architecture** - `8fc970a9` (fix) — DLL loads in Skyrim under Proton, 31/31 hooks installed, native process connects via TCP, all 8 services run. Required fixing: file-based logging, relay info file handoff (Wine can't CreateProcess ELF), and Address Library v2 parser (missing variable-length name field + wrong delta encoding).
 
 ## Files Created/Modified
 - `tests/smoke_ptrace.sh` - Validates ptrace environment (scope, /proc/pid/mem access, ProcMem unit tests)
@@ -112,4 +112,4 @@ None - no external service configuration required.
 
 ---
 *Phase: 07-native-linux-build-with-skse-tcp-relay*
-*Status: Checkpoint pending (Task 2 human-verify)*
+*Status: Complete — human verified, all fixes committed*
