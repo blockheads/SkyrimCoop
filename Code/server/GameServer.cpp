@@ -21,8 +21,6 @@
 #include <console/ConsoleRegistry.h>
 #include <resources/ResourceCollection.h>
 
-constexpr size_t kMaxServerNameLength = 128u;
-
 // -- Cvars --
 ServerConsole::Setting uServerPort{"GameServer:uPort", "Which port to host the server on", 10578u};
 ServerConsole::Setting uMaxPlayerCount{
@@ -30,10 +28,7 @@ ServerConsole::Setting uMaxPlayerCount{
     "Maximum number of players allowed on the server (going over the default of 8 is not recommended)", 8u};
 ServerConsole::Setting bPremiumTickrate{"GameServer:bPremiumMode", "Use premium tick rate", true};
 
-ServerConsole::StringSetting sServerName{"GameServer:sServerName", "Name that shows up in the server list",
-                                         "Dedicated Together Server"};
-ServerConsole::StringSetting sAdminPassword{"GameServer:sAdminPassword", "Admin authentication password", ""};
-ServerConsole::StringSetting sPassword{"GameServer:sPassword", "Server password", ""};
+// Dedicated server settings removed (P2P host-only, per Phase 5 D-01)
 
 // Gameplay
 // TODO: to make this easier for users, use game names for difficulty instead of int
@@ -185,9 +180,13 @@ GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept
             " absolutely know what you are doing!");
     }
 
-    m_isPasswordProtected = strcmp(sPassword.value(), "") != 0;
+    // P2P host-only: no password, simplified info
+    m_info.name = "SkyrimCoop Host";
+    m_info.desc = "";
+    m_info.icon_url = "";
+    m_info.tagList = "";
+    m_info.tick_rate = GetUserTickRate();
 
-    UpdateInfo();
     spdlog::info("Server {} started on port {}", BUILD_COMMIT, GetPort());
     UpdateTitle();
 
@@ -490,28 +489,6 @@ void GameServer::BindServerCommands()
 
         out->info("{}", output.c_str());
     });
-}
-
-/* Update Info fields from user facing CVARS.*/
-void GameServer::UpdateInfo()
-{
-    const String cServerName = sServerName.c_str();
-
-    if (cServerName.length() > kMaxServerNameLength)
-    {
-        spdlog::error("sServerName is longer than the limit of {} characters/bytes, and has been cut short",
-                      kMaxServerNameLength);
-        m_info.name = cServerName.substr(0U, kMaxServerNameLength);
-    }
-    else
-    {
-        m_info.name = cServerName;
-    }
-
-    m_info.desc = "";
-    m_info.icon_url = "";
-    m_info.tagList = "";
-    m_info.tick_rate = GetUserTickRate();
 }
 
 void GameServer::UpdateTimeScale()
@@ -881,17 +858,8 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
         return;
     }
 
-    bool adminPasswordUsed = acRequest->Token == sAdminPassword.value() && !sAdminPassword.empty();
-
-    // check if the proper server password was supplied.
-    if (acRequest->Token == sPassword.value() || adminPasswordUsed)
+    // P2P host-only: no password auth -- accept connections after version/count/mod checks
     {
-        if (adminPasswordUsed)
-        {
-            m_adminSessions.insert(aConnectionId);
-            spdlog::warn("New admin session for {:x} '{}'", aConnectionId, remoteAddress);
-        }
-
         Mods& responseList = serverResponse.UserMods;
         auto& modsComponent = m_pWorld->ctx().at<ModsComponent>();
 
@@ -1026,19 +994,6 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
         m_pWorld->GetDispatcher().trigger(
             PlayerJoinEvent(pPlayer, acRequest->WorldSpaceId, acRequest->CellId, acRequest->PlayerTime));
     }
-    /*else if (acRequest->Token == sAdminPassword.value() && !sAdminPassword.empty())
-    {
-        AdminSessionOpen response;
-        Send(aConnectionId, response);
-
-        m_adminSessions.insert(aConnectionId);
-        spdlog::warn("New admin session for {:x} '{}'", aConnectionId, remoteAddress);
-    } */
-    else
-    {
-        spdlog::info("New player {:x} '{}' has a bad password, kicking.", aConnectionId, remoteAddress);
-        sendKick(RT::kWrongPassword);
-    }
 }
 
 void GameServer::UpdateSettings()
@@ -1064,7 +1019,7 @@ GameServer::Uptime GameServer::GetUptime() const noexcept
 
 void GameServer::UpdateTitle() const
 {
-    const auto name = m_info.name.empty() ? "Private server" : m_info.name;
+    const auto& name = m_info.name;
     const char* playerText = GetClientCount() <= 1 ? " player" : " players";
 
     const auto title = fmt::format("{} - {} {} - {} Ticks - " BUILD_BRANCH "@" BUILD_COMMIT, name.c_str(),
