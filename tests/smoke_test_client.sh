@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configurable paths
-DLL_PATH="${DLL_PATH:-$(find "$PROJECT_ROOT/build" -name 'SkyrimTogetherClient.dll' -o -name 'libSkyrimTogetherClient.dll' 2>/dev/null | head -1)}"
+DLL_PATH="${DLL_PATH:-$(find "$PROJECT_ROOT/build" -name 'SkyrimTogetherClient.dll' -not -path '*/cache/*' 2>/dev/null | head -1)}"
 SERVER_BIN="${SERVER_BIN:-$(find "$PROJECT_ROOT/build" -name 'SkyrimTogetherServer' -type f 2>/dev/null | head -1)}"
 SKYRIM_DIR="${SKYRIM_DIR:-$HOME/.steam/steam/steamapps/common/Skyrim Special Edition}"
 SKSE_PLUGINS_DIR="$SKYRIM_DIR/Data/SKSE/Plugins"
