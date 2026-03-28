@@ -1,30 +1,35 @@
 # Phase 9: In-Game P2P Integration Test - Research
 
 **Researched:** 2026-03-28
-**Domain:** Integration testing, bash scripting, Proton/Wine process orchestration, enet6 networking
+**Domain:** Integration testing, Proton/Wine process orchestration, enet6 networking verification, /proc/pid/mem game state validation
 **Confidence:** HIGH
 
 ## Summary
 
-Phase 9 is an **integration debugging** phase, not a greenfield build. All components exist: the test script (`test_ingame_sync.sh`), the fake_player binary, the relay DLL, the native client with embedded GameServer, and the deploy script. The work is making them work together end-to-end and extending coverage to include fake_player (now that Phase 8 provides the embedded GameServer) and two-Skyrim instance testing.
+Phase 9 is an integration debugging phase -- all components exist from Phases 5, 7, and 8. The test script (`test_ingame_sync.sh`), fake_player binary, relay DLL, native client with embedded GameServer, and deploy script are all built and deployed. The work is making them work together end-to-end and extending coverage to include: (1) fake_player as the default test path per D-02, (2) /proc/pid/mem verification per D-05, and (3) two real Skyrim instances testing per D-06.
 
-The existing test_ingame_sync.sh has a sound 5-stage structure but currently treats fake_player as opt-in (`--with-fake-player`). Per D-02, fake_player becomes the default test path. The script also needs a two-instance mode (D-06/D-07/D-08) where a second Skyrim joins the first as a client. The `/proc/pid/mem` verification in fake_player (D-05) needs implementation since fake_player currently only sends movements but does not read back from Skyrim's memory.
+Three critical issues need resolution: First, the test script manually launches the native process (line 265), but the DLL also auto-spawns it via ProcessLauncher -- this will cause two competing native processes. **However, re-reading the DLL code more carefully, the DLL's MonitorThread waits for an AcceptClient() connection, and auto-restart only triggers after a disconnect.** The DLL does NOT do initial launch via ProcessLauncher::Launch() in SKSEPlugin_Load(). The initial launch IS external (by the script or deploy_and_test.sh). So the manual launch is correct. Second, two Skyrim instances require separate Proton prefixes to avoid file-lock conflicts. Third, fake_player's `--verify-pid` flag is parsed but the actual /proc/pid/mem verification logic in RunExternal() is not implemented.
 
-**Primary recommendation:** Fix the test script iteratively -- run each stage, fix what breaks, extend to include fake_player as default and two-instance mode. Do not rewrite the script from scratch.
+**Primary recommendation:** Fix and extend the existing test_ingame_sync.sh iteratively -- make fake_player default, add GameServer port readiness wait, add log collection, then create a separate two-instance test script.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
 
 ### Locked Decisions
-- **D-01:** Fix-and-validate approach. Run the existing `test_ingame_sync.sh` script, identify what breaks at each stage (DLL load, relay handshake, native spawn, GameServer start, fake_player connect), fix issues iteratively. The script structure is sound -- the bugs are in the components it orchestrates.
+- **D-01:** Fix-and-validate approach. Run the existing test_ingame_sync.sh script, identify what breaks at each stage, fix issues iteratively. The script structure is sound -- the bugs are in the components it orchestrates.
 - **D-02:** The existing `--with-fake-player` flag becomes the default test path (not opt-in). The Phase 8 embedded GameServer makes this possible now.
-- **D-03:** Script launches Skyrim directly via `proton run skse64_loader.exe` (bypassing MO2). This is correct for testing -- no mods needed.
-- **D-04:** All 5 stages must pass for Phase 9 PASS: (1) Relay DLL loads, (2) TCP relay established, (3) GameServer listening, (4) fake_player auth + character assignment, (5) Movement broadcast verification.
+- **D-03:** Script launches Skyrim directly via `proton run skse64_loader.exe` (bypassing MO2). Correct for testing -- no mods needed.
+- **D-04:** All 5 stages must pass for Phase 9 PASS:
+  1. Relay DLL loads into Skyrim via SKSE
+  2. Relay TCP connection established (DLL writes relay_info.json)
+  3. Native process starts and GameServer begins listening on port 10578
+  4. fake_player authenticates and receives character assignment
+  5. Movement broadcast: fake_player sends positions, receives host position updates
 - **D-05:** fake_player verifies host player position via `/proc/pid/mem` -- the ultimate proof the full loop works.
 - **D-06:** Scope includes two real Skyrim instances: one as host, one as join client.
 - **D-07:** Both instances use the same DLL and native binary. Instance role configured per-instance. Claude has discretion on mechanism.
 - **D-08:** The test script should automate launching both instances for quick iteration.
-- **D-09:** Log collection to temp directory with cleanup on pass.
+- **D-09:** Log collection to temp directory with cleanup on pass, keep with `--keep-logs`.
 - **D-10:** Each stage timeout prints which log file to check.
 
 ### Claude's Discretion
@@ -36,7 +41,7 @@ The existing test_ingame_sync.sh has a sound 5-stage structure but currently tre
 - Whether two-Skyrim test is a separate script or a mode flag
 
 ### Deferred Ideas (OUT OF SCOPE)
-None
+None -- discussion stayed within phase scope
 </user_constraints>
 
 <phase_requirements>
@@ -44,353 +49,402 @@ None
 
 | ID | Description | Research Support |
 |----|-------------|------------------|
-| RELAY-10 | End-to-end integration validated: DLL loads in Skyrim, native process connects, hook events flow | Directly addressed by test_ingame_sync.sh stages 1-5 |
-| P2P-01 | Server embedded in host player's client process | Verified via fake_player connecting to embedded GameServer |
+| RELAY-10 | End-to-end integration validated: DLL loads in Skyrim, native process connects, hook events flow | Directly addressed by test_ingame_sync.sh stages 1-4 |
+| P2P-01 | Server embedded in host player's client process | Verified via fake_player connecting to embedded GameServer (stage 5) |
 | P2P-02 | Host-authoritative world state | Verified via movement broadcast from host to fake_player |
 | P2P-03 | Simplified actor ownership | Host owns all actors, verified via server-side CharacterService |
 | P2P-04 | Cell management uses host's loaded cells | Validated by sStartingCell=Riverwood injection forcing known cell |
+| D-05 | /proc/pid/mem verification | Requires implementation in fake_player RunExternal() |
+| D-06 | Two real Skyrim instances | Requires new test script with separate Proton prefixes |
 </phase_requirements>
 
 ## Architecture Patterns
 
-### Test Pipeline Structure (Existing)
-
-The test follows a 5-stage pipeline with per-stage timeouts. Phase 9 extends this to include fake_player as default and adds two-instance support.
+### Current Test Pipeline (test_ingame_sync.sh as-is)
 
 ```
-Stage 1: Prerequisites check (DLL deployed, SKSE installed, Skyrim exists)
-Stage 2: Launch Skyrim via Proton + SKSE (120s timeout)
-Stage 3: Wait for relay info + native process (90s timeout)
-Stage 4: Verify relay hooks flowing (10s observation)
-Stage 5: fake_player connects to GameServer (30s + duration)
-Stage 6: [NEW] Two-instance test (second Skyrim joins)
+Stage 1: Prerequisites (binaries, Skyrim, SKSE, DLL deployed, INI exists)
+Stage 2: Launch Skyrim via `proton run skse64_loader.exe` (120s timeout)
+         pgrep -f SkyrimSE.exe to detect process
+Stage 3: Wait for relay_info.json (90s timeout)
+         Read TCP port + Wine PID from JSON
+         MANUALLY launch skyrim-coop --pid $PID --port $PORT
+Stage 4: Verify relay stable (10s, check native process alive)
+Stage 5: [OPT-IN] Run fake_player --port 10578 --duration 15 --verify-pid $PID
 ```
 
-### Recommended Script Structure
+### Corrected Understanding: DLL Does NOT Auto-Launch Native Process
+
+Re-reading relay_main.cpp carefully:
+- `SKSEPlugin_Load()` starts TCP server, installs hooks, writes relay_info.json, starts MonitorThread
+- `MonitorThread()` calls `g_tcpServer.AcceptClient()` (blocking) -- waits for native process to connect
+- `ProcessLauncher::Launch()` is only called on **auto-restart after disconnect** (relay_main.cpp line 254)
+- There is NO initial `g_launcher.Launch()` call in `SKSEPlugin_Load()`
+
+Therefore: **the script's manual launch of `skyrim-coop` is correct and required.** The DLL writes relay_info.json for the script to read, then waits for the native process to connect on its own.
+
+### Required Script Changes
+
+1. **Make fake_player default (D-02):** Invert the flag -- `--no-fake-player` to skip instead of `--with-fake-player` to enable.
+
+2. **Add GameServer port readiness check:** Between native process launch and fake_player launch, wait for UDP port 10578 to be listening. Use `ss -ulnp | grep :10578` polling loop.
+
+3. **Add log collection (D-09):** Create `/tmp/skyrimcoop-test-YYYYMMDD-HHMMSS/` directory. Redirect all process stdout/stderr to log files. On failure, print relevant log path per D-10.
+
+4. **Wait for GameServer before fake_player:** The native process takes 1-2s to initialize GameServer after startup. Without waiting, fake_player may connect before the server is ready.
+
+### Recommended Project Structure for Two-Instance Test
 
 ```
 tests/
-  test_ingame_sync.sh          # Main integration test (fixed + extended)
-  test_two_player.sh           # Separate script for two-Skyrim test (D-06)
+  test_ingame_sync.sh          # Primary: single-instance (host + fake_player)
+  test_two_player.sh           # Extension: two real Skyrim instances
 ```
 
-**Recommendation:** Two-Skyrim test should be a **separate script** because:
-1. It requires two Proton prefixes (or env var differentiation)
-2. Failure modes are different (single-instance failure vs inter-instance failure)
-3. Single-instance test is the prerequisite for two-instance test
-4. Keeps test_ingame_sync.sh focused and debuggable
+**Separate script recommended** because:
+1. Two-instance test requires two Proton prefixes (additional setup)
+2. Different failure modes (inter-instance vs single-instance)
+3. Single-instance test is the prerequisite
+4. Keeps scripts focused and debuggable
 
-### Process Tree
-
-```
-test_ingame_sync.sh
-  |-- proton run skse64_loader.exe (Host)
-  |     |-- SkyrimSE.exe (Wine)
-  |     |-- skyrim_coop_hooks.dll (loaded by SKSE)
-  |     |     |-- TCP server on dynamic port
-  |     |     |-- writes skyrim_coop_relay.json
-  |     |-- skyrim-coop --pid <PID> --port <PORT> (spawned by DLL)
-  |           |-- GameReader (reads /proc/PID/mem)
-  |           |-- TcpClient (connects to DLL TCP server)
-  |           |-- GameServer (enet6, UDP 10578)
-  |           |-- LoopbackTransport (host self-auth)
-  |-- fake_player --port 10578 --verify-pid <PID> --duration 15
-```
-
-### Two-Instance Process Tree
+### Two-Instance Architecture (D-06, D-07)
 
 ```
-test_two_player.sh
-  |-- proton run skse64_loader.exe (Host - prefix A)
-  |     |-- SkyrimSE.exe (Wine)
-  |     |-- skyrim-coop [host mode, GameServer on 10578]
-  |-- proton run skse64_loader.exe (Client - prefix B or env var)
-  |     |-- SkyrimSE.exe (Wine)
-  |     |-- skyrim-coop --connect 127.0.0.1:10578 [join mode]
+Instance 1 (HOST):
+  WINEPREFIX = /compatdata/489830/pfx (default Skyrim prefix)
+  Skyrim.ini -> sStartingCell=Riverwood
+  proton run skse64_loader.exe
+  -> DLL loads, writes relay_info.json, MonitorThread waits
+  -> Script reads relay_info.json, launches: skyrim-coop --pid $PID1 --port $RELAY_PORT1
+  -> GameServer starts on UDP 10578
+
+Instance 2 (JOIN):
+  WINEPREFIX = /tmp/skyrimcoop_test_join_PREFIX/pfx (cloned from 489830)
+  Skyrim.ini -> sStartingCell=Riverwood
+  proton run skse64_loader.exe
+  -> DLL loads, OVERWRITES relay_info.json (same path), MonitorThread waits
+  -> Script reads new relay_info.json, launches: skyrim-coop --pid $PID2 --port $RELAY_PORT2 --connect 127.0.0.1:10578
 ```
 
-### Two-Instance Differentiation (Recommendation)
+**Separate Proton prefixes are REQUIRED:**
+- Skyrim.ini and save files are in `$WINEPREFIX/pfx/drive_c/users/steamuser/Documents/`
+- Two Skyrim processes writing to the same INI/saves causes corruption
+- Wine uses per-prefix wineserver; two prefixes = two independent Wine servers
+- The DLL and game binary are from the same Skyrim install dir (read-only, OK to share)
 
-**Use separate Proton prefixes.** This is the cleanest approach because:
-1. Each Skyrim instance gets its own Skyrim.ini (sStartingCell can differ)
-2. Each instance gets its own registry, documents folder, save files
-3. No conflicts between DLL log files or relay_info.json paths
-4. Each instance's skyrim-coop process is independently identifiable
+**Prefix cloning approach:**
+```bash
+COMPAT_DATA_JOIN="/tmp/skyrimcoop_test_join_$$"
+cp -a "$COMPAT_DATA" "$COMPAT_DATA_JOIN"  # ~200MB, one-time per test run
+```
 
-The second prefix needs to be created by copying the existing compatdata/489830 to a new location (e.g., compatdata/489830_client). Both point to the same Skyrim install but have separate Wine prefixes.
+### relay_info.json Collision Resolution
 
-**Alternative (simpler but fragile):** Use `SKYRIM_COOP_ROLE=join` environment variable passed through Proton. The DLL reads it and passes `--connect` to the native process. This avoids prefix duplication but requires DLL modification.
+Both DLL instances write to `$SKYRIM_DIR/Data/SKSE/Plugins/skyrim_coop_relay.json` since the path is derived from the DLL location (same install dir).
 
-**Recommendation for Phase 9:** Start with the separate Proton prefix approach. It is purely script-level (no code changes to DLL).
+**Solution: Sequential launch with capture.**
+1. Launch host Skyrim
+2. Wait for relay_info.json, read host's TCP port and PID
+3. Launch host's skyrim-coop (host's native process connects, DLL MonitorThread accepts)
+4. Wait for GameServer ready on 10578
+5. THEN launch join Skyrim (DLL overwrites relay_info.json -- we already captured host's info)
+6. Wait for new relay_info.json (different port/PID), read join's TCP port and PID
+7. Launch join's skyrim-coop with `--connect 127.0.0.1:10578`
+
+This is clean, requires no DLL code changes, and works because:
+- The host's native process is already connected to the host's DLL before step 5
+- The join's relay_info.json will have a different TCP port (the DLL uses ephemeral ports)
+
+### Join Mode Native Client: Current State
+
+main.cpp line 406-411:
+```cpp
+} else {
+    spdlog::info("Starting in JOIN mode (connecting to {})", connectAddr);
+    // TODO(Phase 8+): Implement enet6 client connection to remote host
+    // For now, just log. The native process still operates as relay bridge.
+}
+```
+
+**Join mode is NOT implemented.** The native process enters join mode but does not connect to the remote GameServer. Phase 9 must implement this for D-06 to pass. The implementation needs:
+1. Instantiate a TiltedPhoques::Client (or MockClient-like class)
+2. Connect to the remote host address (connectAddr)
+3. Authenticate with the remote GameServer
+4. Wire incoming ServerMessages to services (similar to ServerMessageRouter)
+
+This is new code, not a script fix. It uses the same patterns as fake_player's RunExternal().
 
 ### Anti-Patterns to Avoid
-- **Rewriting test_ingame_sync.sh from scratch:** The existing structure is sound. Fix what breaks, extend incrementally.
-- **Running two Skyrim instances from the same Proton prefix:** They share Skyrim.ini, save files, DLL logs, and relay_info.json -- race conditions guaranteed.
-- **Polling with aggressive sleep loops:** The existing `seq 1 $TIMEOUT` pattern with 1s sleeps is reasonable for process startup. Do not use tighter loops.
+
+- **Rewriting test_ingame_sync.sh from scratch:** The existing structure is sound. Fix incrementally.
+- **Running two Skyrim instances from the same Proton prefix:** File lock conflicts and wineserver confusion.
+- **Launching fake_player before GameServer is ready:** Race condition causes connection timeout.
+- **Using Wine PID from relay_info.json for /proc/pid/mem:** Use pgrep's Linux PID instead.
 
 ## Don't Hand-Roll
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| JSON parsing in bash | Custom awk/sed JSON parser | grep -o pattern matching (existing) | relay_info.json is simple key:value, no nested objects |
-| Process monitoring | Custom PID file watchers | pgrep -f with timeout loops (existing) | Standard Linux pattern, already implemented |
-| Log aggregation | Custom log collector | Redirect stdout/stderr to files in temp dir | Shell native, D-09 requires this |
-| enet6 client for testing | New test client binary | fake_player (existing) | Already does auth + movement + /proc/pid/mem verification stub |
+| JSON parsing in bash | Custom awk/sed parser | `grep -o '"key":[0-9]*' \| grep -o '[0-9]*'` | Already used in existing scripts, no deps needed |
+| Process monitoring | Custom PID file watcher | `pgrep -f` + `kill -0` + timeout loops | Standard Linux, already in script |
+| Port readiness | Custom socket probe | `ss -ulnp \| grep :$PORT` | Standard iproute2 tool |
+| enet6 client for testing | New binary | fake_player (existing) | Already does auth + movement |
+| Proton prefix clone | Custom Wine setup | `cp -a $SRC $DST` | Preserves all permissions and symlinks |
 
 ## Common Pitfalls
 
 ### Pitfall 1: Wine PID vs Linux PID
-**What goes wrong:** The relay DLL reports its PID via GetCurrentProcessId() which returns a Wine-internal PID. The native process needs the real Linux PID for /proc/pid/mem access.
-**Why it happens:** Wine translates Windows API calls but the PID numbering is internal.
-**How to avoid:** The existing deploy_and_test.sh already handles this: use `pgrep -f "SkyrimSE.exe"` to get the real Linux PID, ignore the PID from relay_info.json for /proc/pid/mem purposes. The DLL already uses `getpid()` (resolves to real Linux PID under Wine) when spawning the native process. test_ingame_sync.sh must also use the pgrep-discovered PID, not the relay_info.json PID.
-**Warning signs:** fake_player --verify-pid fails with "permission denied" or "no such process"
+**What goes wrong:** Native process gets wrong PID, /proc/pid/mem fails to open.
+**Why it happens:** relay_info.json contains Wine's GetCurrentProcessId() value. The real Linux PID comes from pgrep.
+**How to avoid:** Use `pgrep -f SkyrimSE.exe` for the real PID. The current script already does this correctly at line 222-225. The native process receives the correct PID via `--pid` from the script.
+**Warning signs:** "Failed to open /proc/{}/mem" in native process logs.
 
-### Pitfall 2: DLL Auto-Spawns Native Process
-**What goes wrong:** The script tries to launch `skyrim-coop` manually, but the relay DLL already spawns it via ProcessLauncher::Launch(). Two native processes compete for the same TCP port and enet6 port.
-**Why it happens:** The test script (written before the DLL auto-spawn was implemented) has a manual `"$PLUGINS/skyrim-coop" --pid ... --port ...` launch step.
-**How to avoid:** **Remove the manual native process launch from test_ingame_sync.sh.** The DLL spawns it automatically. Wait for the native process to appear (look for GameServer port 10578 becoming active via `ss -ln | grep 10578`).
-**Warning signs:** "Address already in use" errors on port 10578, two skyrim-coop processes visible in ps output.
+### Pitfall 2: GameServer Port Not Ready When fake_player Connects
+**What goes wrong:** fake_player tries to connect before GameServer has initialized.
+**Why it happens:** Native process takes 1-2s to create ConsoleRegistry, GameServer, LoopbackTransport, and call Initialize(). Script currently doesn't wait for port readiness.
+**How to avoid:** After confirming native process alive, poll `ss -ulnp | grep :10578` before launching fake_player.
+**Warning signs:** fake_player logs "connection timed out" despite native process running.
 
-### Pitfall 3: Proton Environment Variables
-**What goes wrong:** Launching Skyrim via `proton run` without proper Steam environment variables causes Proton to fail to find the runtime or prefix.
-**Why it happens:** Proton expects SteamAppId, STEAM_COMPAT_DATA_PATH, STEAM_COMPAT_CLIENT_INSTALL_PATH, WINEPREFIX.
-**How to avoid:** The existing script sets all required variables. Keep them.
-**Warning signs:** Proton exits immediately, Wine prefix not found errors.
+### Pitfall 3: Two-Instance Proton Prefix Conflicts
+**What goes wrong:** Second Skyrim instance crashes or corrupts saves/INI.
+**Why it happens:** Both use same WINEPREFIX, same Documents dir, same wineserver.
+**How to avoid:** Clone compatdata directory for join instance, set STEAM_COMPAT_DATA_PATH and WINEPREFIX to clone.
+**Warning signs:** Skyrim hangs on loading screen, "wine: could not lock" errors.
 
-### Pitfall 4: Skyrim INI Backup Left Behind
-**What goes wrong:** Script crashes before cleanup trap runs, leaving sStartingCell=Riverwood permanently in Skyrim.ini.
-**Why it happens:** `set -e` causes exit before trap if certain commands fail in unexpected ways.
-**How to avoid:** The existing cleanup trap is good. Ensure it runs on all exit paths (SIGINT, SIGTERM, ERR). Add `trap cleanup EXIT INT TERM` (existing uses just EXIT, which should cover most cases).
-**Warning signs:** Skyrim always boots to Riverwood even outside testing.
+### Pitfall 4: relay_info.json Overwritten by Second Instance
+**What goes wrong:** Script reads wrong port/PID, native process connects to wrong DLL instance.
+**Why it happens:** Both DLLs write to same file (same SKSE/Plugins dir).
+**How to avoid:** Sequential launch: capture host's relay info BEFORE launching join instance. See architecture section for full flow.
+**Warning signs:** Native process fails TCP connect ("Connection refused").
 
-### Pitfall 5: GameServer Port Not Ready When fake_player Connects
-**What goes wrong:** fake_player tries to connect before the embedded GameServer has finished initializing.
-**Why it happens:** The native process starts, initializes services, then starts GameServer. There is a startup delay.
-**How to avoid:** Wait for port 10578 to be listening before launching fake_player: `ss -ln | grep :10578`. The script currently waits for the native process to exist, not for the port to be ready.
-**Warning signs:** fake_player exits with "connection timed out" despite native process running.
+### Pitfall 5: fake_player --verify-pid Not Implemented
+**What goes wrong:** fake_player accepts the flag but doesn't actually verify anything via /proc/pid/mem.
+**Why it happens:** RunExternal() (line 266-358) never references cfg.verifyPid. Only ParseArgs handles the flag.
+**How to avoid:** Phase 9 must implement the verification logic. At minimum: open /proc/pid/mem, read a known address, verify non-zero.
+**Warning signs:** fake_player reports PASS without any "verification" log lines.
 
-### Pitfall 6: Two-Instance Relay Info Collision
-**What goes wrong:** Both Skyrim instances write to the same `skyrim_coop_relay.json` path, second instance overwrites first.
-**Why it happens:** Both instances use the same SKSE/Plugins directory since they share the Skyrim installation.
-**How to avoid:** For two-instance testing, the second instance needs a different relay_info.json path. Options: (a) use a per-instance env var the DLL checks, (b) use a different SKSE plugins path via symlink, or (c) accept that the DLL will need a small code change to support this. The DLL currently hardcodes the path relative to its own location.
-**Warning signs:** Native process connects to wrong DLL instance.
+### Pitfall 6: TCP Receive Blocking in Native Process
+**What goes wrong:** GameServer::Update() called infrequently because main loop blocks on TCP receive.
+**Why it happens:** TcpClient::Receive is blocking. The DLL sends heartbeats every 5s, so worst-case 5s delay.
+**How to avoid:** Known Phase 7 limitation. For testing, increase fake_player connection wait timeout beyond 5s. DLL heartbeats ensure the loop unblocks periodically.
+**Warning signs:** fake_player auth response takes 5+ seconds.
 
-### Pitfall 7: TCP Receive Blocking in Native Process
-**What goes wrong:** The native process main loop uses blocking TCP receive. If the DLL stops sending events (e.g., no game activity), the native process blocks and GameServer::Update() stops being called.
-**Why it happens:** TcpClient::Receive is blocking (noted in main.cpp comments: "non-blocking via poll() deferred").
-**How to avoid:** This is a known limitation from Phase 7. The DLL sends heartbeats every 5s, so the native process unblocks at worst every 5s. For testing purposes this is acceptable -- fake_player will see delayed but functional responses. If this causes test timeouts, increase fake_player's connection wait time.
-**Warning signs:** fake_player connects but receives no auth response for 5+ seconds.
+### Pitfall 7: Join Mode Not Implemented in Native Client
+**What goes wrong:** Join instance's skyrim-coop starts but never connects to host's GameServer.
+**Why it happens:** main.cpp join branch is a TODO stub (line 409).
+**How to avoid:** Phase 9 must implement basic enet6 client connect in the join branch.
+**Warning signs:** Join instance logs "Starting in JOIN mode" but nothing else network-related.
 
 ## Code Examples
 
-### Current Script Issues to Fix
+### GameServer Port Readiness Check (new, for test script)
 
-**Issue 1: Manual native process launch (line 265)**
 ```bash
-# CURRENT (WRONG) -- DLL auto-spawns this
-"$PLUGINS/skyrim-coop" --pid "$SKYRIM_PID" --port "$RELAY_PORT" &
-NATIVE_PID=$!
-
-# FIX: Wait for DLL to spawn native process automatically
-info "Waiting for native skyrim-coop process (DLL auto-spawn)..."
-NATIVE_PID=""
-for i in $(seq 1 30); do
-    NATIVE_PID=$(pgrep -f "skyrim-coop.*--pid" 2>/dev/null | head -1 || true)
-    if [ -n "$NATIVE_PID" ]; then
-        pass "skyrim-coop running (PID: $NATIVE_PID, auto-spawned by DLL)"
-        break
-    fi
-    sleep 1
-done
-```
-
-**Issue 2: fake_player is opt-in (line 339)**
-```bash
-# CURRENT -- opt-in
-local with_fake_player=false
-# ...
---with-fake-player) with_fake_player=true ;;
-
-# FIX (per D-02): fake_player is default, add --no-fake-player to skip
-local skip_fake_player=false
-# ...
---no-fake-player) skip_fake_player=true ;;
-```
-
-**Issue 3: No GameServer port readiness check**
-```bash
-# ADD: Wait for GameServer port before fake_player
+# Source: standard ss-based port polling
 wait_for_gameserver_port() {
-    info "Waiting for GameServer on port ${GAME_SERVER_PORT} (timeout: 30s)..."
-    for i in $(seq 1 30); do
-        if ss -ln 2>/dev/null | grep -q ":${GAME_SERVER_PORT} "; then
-            pass "GameServer listening on port $GAME_SERVER_PORT"
+    local port="${1:-10578}"
+    local timeout="${2:-30}"
+    info "Waiting for GameServer on UDP port $port (timeout: ${timeout}s)..."
+    for i in $(seq 1 "$timeout"); do
+        if ss -ulnp 2>/dev/null | grep -q ":${port} "; then
+            pass "GameServer listening on port $port"
             return 0
         fi
         sleep 1
     done
-    fail "GameServer not listening on port $GAME_SERVER_PORT after 30s"
+    fail "GameServer not listening on port $port after ${timeout}s"
     return 1
 }
 ```
 
-### fake_player /proc/pid/mem Verification Pattern (D-05)
+### Log Collection Setup (D-09)
 
-The existing fake_player has a `--verify-pid` flag and includes `proc_memory.h`. The verification code needs to be added to `RunExternal()`:
+```bash
+# Source: derived from existing script patterns
+setup_test_logs() {
+    TEST_RUN_DIR=$(mktemp -d "/tmp/skyrimcoop-test-XXXXXX")
+    info "Test run logs: $TEST_RUN_DIR"
+}
 
-```cpp
-// After movement loop completes, if --verify-pid was given:
-if (aCfg.verifyPid > 0) {
-    ProcMemReader reader;
-    if (!reader.Open(aCfg.verifyPid)) {
-        spdlog::error("Failed to open /proc/{}/mem for verification", aCfg.verifyPid);
-        return 1;
-    }
+# Redirect process outputs
+# proton run ... >"$TEST_RUN_DIR/skyrim_stdout.log" 2>"$TEST_RUN_DIR/skyrim_stderr.log" &
+# skyrim-coop ... >"$TEST_RUN_DIR/native_stdout.log" 2>"$TEST_RUN_DIR/native_stderr.log" &
 
-    // Read the player's TESObjectREFR from known pointer chain
-    // The exact offsets depend on Skyrim SE version and Address Library
-    // Minimum viable: verify we can read the process memory at all
-    // Advanced: verify the host player's position is non-zero
-    uint64_t testAddr = 0x0;  // placeholder -- needs real base address
-    auto val = reader.ReadValue<uint32_t>(testAddr);
-    spdlog::info("Verification read: addr={:#x} value={:#x}", testAddr, val);
-    reader.Close();
+fail_with_logs() {
+    local stage="$1"
+    fail "$stage -- check logs in $TEST_RUN_DIR/"
+    [ -f "$DLL_LOG" ] && info "DLL log (last 20 lines):" && tail -20 "$DLL_LOG"
+    [ -f "$TEST_RUN_DIR/native_stderr.log" ] && info "Native stderr (last 20 lines):" && tail -20 "$TEST_RUN_DIR/native_stderr.log"
 }
 ```
 
-### Log Collection Pattern (D-09)
+### fake_player /proc/pid/mem Verification (D-05)
 
-```bash
-# Create test run directory
-TEST_RUN_DIR=$(mktemp -d "/tmp/skyrimcoop-test-XXXXXX")
-info "Test run logs: $TEST_RUN_DIR"
+```cpp
+// Source: ProcMemReader API from Code/native_client/game_bridge/proc_memory.h
+// Add to RunExternal() after movement loop
+#ifdef __linux__
+static bool VerifyHostMemory(pid_t aPid)
+{
+    ProcMemReader reader;
+    if (!reader.Open(aPid)) {
+        spdlog::error("verify: failed to open /proc/{}/mem", aPid);
+        return false;
+    }
+    spdlog::info("verify: /proc/{}/mem opened successfully", aPid);
 
-# Redirect process outputs
-"$PROTON_DIR/proton" run "$SKYRIM_DIR/skse64_loader.exe" \
-    >"$TEST_RUN_DIR/proton.stdout" 2>"$TEST_RUN_DIR/proton.stderr" &
+    // MVP verification: read from a known valid address range
+    // The Skyrim executable's PE header starts at the base address.
+    // Reading the first 4 bytes should give us 'MZ' (0x5A4D) --
+    // the DOS header signature, proving memory access works.
+    //
+    // Getting the base address: read /proc/pid/maps and find SkyrimSE.exe
+    // This is more robust than hardcoding an address.
 
-# On failure, print relevant log
-fail_with_logs() {
-    local stage="$1"
-    fail "$stage"
-    info "=== Logs for stage: $stage ==="
-    info "Check: $TEST_RUN_DIR/"
-    ls -la "$TEST_RUN_DIR/"
-    [ -f "$DLL_LOG" ] && info "DLL log:" && tail -20 "$DLL_LOG"
-    [ -f "$TEST_RUN_DIR/proton.stderr" ] && info "Proton stderr:" && tail -20 "$TEST_RUN_DIR/proton.stderr"
+    reader.Close();
+    return true;
 }
+#endif
+```
 
-# On success, cleanup (unless --keep-logs)
-cleanup_logs() {
-    if [ "${KEEP_LOGS:-false}" = "false" ]; then
-        rm -rf "$TEST_RUN_DIR"
-        info "Cleaned up test logs"
-    else
-        info "Logs kept at: $TEST_RUN_DIR"
-    fi
-}
+### Join Mode enet6 Client (required new code for D-06)
+
+```cpp
+// Conceptual pattern for native_client/main.cpp join branch
+// Uses TiltedPhoques::Client (same base as MockClient)
+// This is the minimum viable join implementation
+
+class JoinClient : public TiltedPhoques::Client {
+public:
+    void OnConsume(const void* apData, uint32_t aSize) override {
+        // Deserialize ServerMessages, dispatch to services via ServerMessageRouter
+    }
+    void OnConnected() override { m_connected = true; }
+    void OnDisconnected(EDisconnectReason) override { m_connected = false; }
+    void OnUpdate() override {}
+    bool m_connected = false;
+};
+
+// In main.cpp join branch:
+// JoinClient client;
+// client.Connect(connectAddr);
+// In main loop: client.Update(); + GameServer::Update() NOT called
 ```
 
 ## State of the Art
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| Manual native process launch in script | DLL auto-spawns native process | Phase 7 (relay DLL) | test_ingame_sync.sh must remove manual launch |
-| fake_player opt-in | fake_player default (Phase 8 GameServer) | Phase 8 complete | Script flag inversion |
-| No embedded GameServer | GameServer embedded in native process | Phase 8 | fake_player can now connect to real server |
-| Dedicated server mode | P2P host-only mode | Phase 5 cleanup | Only embedded server remains |
+| fake_player opt-in (--with-fake-player) | fake_player always runs (D-02) | Phase 9 | Default test path includes GameServer verification |
+| No GameServer port check | ss-based port readiness | Phase 9 | Eliminates race condition |
+| Single Skyrim instance | Two-instance test (D-06) | Phase 9 | Proves real co-op flow |
+| ServerMessageRouter missing move dispatch | Fixed: commit d9b039cb | Phase 8 fix | Remote player movement flows through loopback |
+| Join mode TODO stub | enet6 client connect | Phase 9 | Real two-player testing possible |
 
 ## Open Questions
 
-1. **DLL auto-spawn vs manual launch in test script**
-   - What we know: The DLL's ProcessLauncher::Launch() spawns the native binary automatically with `--pid` and `--port` args. The test script currently launches it manually too.
-   - What's unclear: Does the DLL reliably auto-spawn in every case, or are there timing issues where the DLL hasn't finished initializing before the script checks for the native process?
-   - Recommendation: Remove manual launch, wait for DLL-spawned process. If DLL auto-spawn is unreliable, the script should detect "no native process after 30s" and fall back to manual launch.
+1. **fake_player /proc/pid/mem verification depth**
+   - What we know: ProcMemReader works (tested in Phase 7). fake_player parses --verify-pid. RunExternal() ignores it.
+   - What's unclear: Which specific memory addresses prove "host player actor exists and moved." The Address Library resolves addresses at DLL load time within the Skyrim process; fake_player runs as a separate process and cannot use those resolved addresses directly.
+   - Recommendation: MVP approach: parse /proc/pid/maps to find SkyrimSE.exe base address, read PE header signature to prove memory access works. Stretch: read the PlayerCharacter singleton pointer chain to verify position. Flag as manual verification if deep memory validation proves too complex for Phase 9.
 
-2. **Two-Instance relay_info.json Collision**
-   - What we know: Both instances write to the same `$PLUGINS/skyrim_coop_relay.json` path.
-   - What's unclear: Whether the DLL can be configured to use a different path without code changes.
-   - Recommendation: For the two-instance test, either modify the DLL to respect an env var for the JSON path, or accept a small relay_dll code change. Alternatively, use a symlink or bind mount to redirect the path per-instance.
+2. **Join mode implementation scope**
+   - What we know: main.cpp join branch is a TODO. TiltedPhoques::Client exists. MockClient demonstrates the connect pattern.
+   - What's unclear: Whether Phase 9 needs full bidirectional sync or just connection + auth verification.
+   - Recommendation: Minimum for D-06: connect to host, authenticate, log "join player connected." Bidirectional movement sync is stretch but validates the full co-op flow.
 
-3. **/proc/pid/mem Verification Depth**
-   - What we know: ProcMemReader works (tested in Phase 7). fake_player has the --verify-pid stub.
-   - What's unclear: Which specific memory addresses to read to verify "host player actor exists and moved." This requires knowledge of Skyrim's in-memory TESObjectREFR layout and the Address Library's resolved offsets.
-   - Recommendation: Minimum viable verification is: (1) open /proc/pid/mem successfully, (2) read the player's base address from a known pointer chain, (3) verify it is non-zero. Advanced verification (reading position floats and comparing to sent values) is a stretch goal.
+3. **Two-instance Proton prefix disk cost**
+   - What we know: Cloning compatdata/489830 creates a ~200MB copy.
+   - What's unclear: Whether the clone can be made smaller (sparse copy, shared files).
+   - Recommendation: Use full `cp -a` clone for simplicity. Clean up in test script cleanup() function. 200MB on /tmp is acceptable for testing.
 
 ## Environment Availability
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| Skyrim SE | Test target | Yes | SkyrimSE.exe present | -- |
-| Proton Experimental | Wine runtime | Yes | Experimental (2026-03-25) | -- |
-| SKSE | Plugin loading | Yes | skse64_loader.exe present | -- |
-| xmake | Build system | Yes | v3.0.8 | -- |
-| skyrim_coop_hooks.dll | Relay DLL | Yes (deployed) | 71KB, 2026-03-28 | Rebuild + deploy |
-| skyrim-coop | Native client | Yes (deployed) | 703KB, 2026-03-28 | Rebuild + deploy |
-| fake_player | Test binary | Yes (built) | In build/linux/x86_64 | Rebuild |
-| ptrace_scope | /proc/pid/mem | ptrace_scope=1 | OK with ptrace SEIZE | -- |
-| ss (iproute2) | Port checking | Yes (standard) | -- | netstat fallback |
-| Skyrim.ini | INI injection | Yes | Proton prefix exists | -- |
+| Skyrim SE | Test target | Yes | SkyrimSE.exe (1.6.1170) | -- |
+| Proton Experimental | Wine runtime | Yes | 2026-03-25 | -- |
+| SKSE | Plugin loading | Yes | 2.2.6 | -- |
+| XMake | Build system | Yes | v3.0.8 | -- |
+| skyrim_coop_hooks.dll | Relay DLL (deployed) | Yes | 71KB, built 2026-03-28 | Rebuild via deploy_and_test.sh |
+| skyrim-coop | Native client (deployed) | Yes | 703KB, built 2026-03-28 | Rebuild via deploy_and_test.sh |
+| fake_player | Test binary (built) | Yes | 5MB, built 2026-03-28 | `xmake build fake_player` |
+| ptrace_scope | /proc/pid/mem access | Yes | scope=1 (OK with SEIZE) | -- |
+| ss (iproute2) | Port readiness check | Yes | Standard Linux | netstat fallback |
+| MinGW GCC | DLL rebuild | Yes | GCC 10 | -- |
+| Skyrim.ini | INI injection | Yes | In Proton prefix | -- |
 
-**Missing dependencies with no fallback:** None -- all prerequisites are met.
+**Missing dependencies with no fallback:** None
+
+**Missing dependencies with fallback:** None
 
 ## Validation Architecture
 
 ### Test Framework
 | Property | Value |
 |----------|-------|
-| Framework | Bash scripts + fake_player C++ binary + Catch2 (unit tests) |
-| Config file | None (script-driven) |
+| Framework | Bash scripts + fake_player C++ binary + Catch2 unit tests |
+| Config file | tests/test_ingame_sync.sh (primary), Code/tests/integration/xmake.lua (fake_player) |
 | Quick run command | `./tests/test_ingame_sync.sh --check-only` |
-| Full suite command | `./tests/test_ingame_sync.sh` |
+| Full suite command | `./tests/test_ingame_sync.sh` (requires Skyrim launch, ~3-5min) |
 
 ### Phase Requirements to Test Map
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| RELAY-10 | DLL loads, native connects, hooks flow | integration | `./tests/test_ingame_sync.sh` | Yes (needs fixes) |
-| P2P-01 | Embedded server in host process | integration | `xmake run fake_player --self-test` | Yes |
-| P2P-02 | Host-authoritative world state | integration | fake_player movement verification | Partial (needs /proc verify) |
-| P2P-03 | Simplified actor ownership | integration | Verified by server-side CharacterService | Unit tests exist |
-| P2P-04 | Cell management | integration | sStartingCell injection + relay hooks | Yes (script handles) |
+| RELAY-10 | DLL loads, native connects, hooks flow | integration | `./tests/test_ingame_sync.sh` (stages 1-4) | Yes (needs fixes) |
+| D-04-1 | Relay DLL loads into Skyrim via SKSE | integration | Stage 2 in test script | Yes |
+| D-04-2 | Relay TCP established (relay_info.json) | integration | Stage 3 in test script | Yes |
+| D-04-3 | GameServer listening on 10578 | integration | Stage 3 + new port check | Partial (needs port check) |
+| D-04-4 | fake_player auth + assignment | integration | Stage 5 (default) | Yes (needs flag inversion) |
+| D-04-5 | Movement broadcast verified | integration | Stage 5 + fake_player output | Yes (basic) |
+| D-05 | /proc/pid/mem host verification | integration | fake_player --verify-pid | No (stub in RunExternal) |
+| D-06 | Two real Skyrim instances | integration | test_two_player.sh | No (new script) |
 
 ### Sampling Rate
 - **Per task commit:** `xmake run fake_player --self-test && xmake run TPTests`
 - **Per wave merge:** `./tests/test_ingame_sync.sh` (requires Skyrim)
-- **Phase gate:** All 5 stages pass + two-instance test completes
+- **Phase gate:** All 5 stages PASS + two-instance human verification
 
 ### Wave 0 Gaps
-- [ ] test_ingame_sync.sh needs fixes (manual launch removal, fake_player default, port readiness check)
-- [ ] fake_player needs /proc/pid/mem verification implementation
-- [ ] Two-instance test script does not exist yet
-- [ ] Log collection infrastructure (D-09) not yet in script
+- [ ] test_ingame_sync.sh: Make fake_player default path (D-02)
+- [ ] test_ingame_sync.sh: Add GameServer port readiness check before fake_player
+- [ ] test_ingame_sync.sh: Add log collection to temp directory (D-09, D-10)
+- [ ] fake_player: Implement /proc/pid/mem verification in RunExternal() (D-05)
+- [ ] native_client/main.cpp: Implement join mode enet6 client connect (D-06 dependency)
+- [ ] tests/test_two_player.sh: New script for two-instance testing (D-06, D-07, D-08)
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `tests/test_ingame_sync.sh` -- read in full, analyzed all 5 stages
-- `Code/tests/integration/fake_player.cpp` -- read in full, analyzed self-test and external modes
-- `Code/native_client/main.cpp` -- read in full, analyzed host/join mode and GameServer lifecycle
-- `Code/relay_dll/process_launcher.cpp` -- read in full, confirmed DLL auto-spawns native process
-- `Code/relay_dll/protocol.h` -- read in full, confirmed TCP protocol structure
-- `Code/native_client/game_bridge/proc_memory.h` -- read in full, confirmed ProcMemReader API
-- `deploy_and_test.sh` -- read in full, analyzed deploy pipeline
-- `.planning/phases/08-p2p-embedded-gameserver/08-03-SUMMARY.md` -- confirmed Phase 8 complete
+- `tests/test_ingame_sync.sh` -- read in full, all 404 lines analyzed
+- `Code/tests/integration/fake_player.cpp` -- read in full, 375 lines
+- `Code/native_client/main.cpp` -- read in full, 531 lines, host/join/host-only modes analyzed
+- `Code/relay_dll/relay_main.cpp` -- read in full, 380 lines, confirmed DLL does NOT auto-launch
+- `Code/relay_dll/process_launcher.cpp` -- read in full, 95 lines, auto-restart only
+- `Code/native_client/transport/ServerMessageRouter.cpp` -- read in full, Phase 8 gap fix confirmed present
+- `Code/native_client/game_bridge/proc_memory.h` -- read in full, ProcMemReader API verified
+- `Code/tests/mock_client.h` -- read in full, MockClient API for enet6 client pattern
+- `deploy_and_test.sh` -- read in full, 241 lines, deploy pipeline analyzed
+- `.planning/phases/08-p2p-embedded-gameserver/08-VERIFICATION.md` -- Phase 8 verification results
+- `.planning/phases/08-p2p-embedded-gameserver/08-03-SUMMARY.md` -- Phase 8 completion confirmed
+- `.planning/phases/09-in-game-p2p-integration-test/09-CONTEXT.md` -- all decisions
 
 ### Secondary (MEDIUM confidence)
-- Environment probes: verified Skyrim, Proton, SKSE, DLL, native binary, fake_player all present on this machine
+- Environment probes: verified all dependencies present on this machine via command-line checks
 - ptrace_scope=1 confirmed compatible with ProcMemReader's SEIZE approach
+- Proton separate-prefix pattern: standard practice for multi-instance Wine/Proton
 
 ### Tertiary (LOW confidence)
-- /proc/pid/mem verification depth: exact Skyrim memory offsets for TESObjectREFR position fields not verified. The offsets are defined in the Address Library but the exact values depend on Skyrim SE version installed.
-- Two-instance Proton prefix approach: not tested yet, based on general Proton knowledge that each prefix is an independent Wine environment.
+- /proc/pid/mem verification depth: exact Skyrim memory addresses for TESObjectREFR position fields not determined. Address Library IDs are known (in hook_trampolines.cpp) but resolved at DLL load time within the Skyrim process -- fake_player cannot reuse them directly.
+- Two-instance Proton prefix cloning: not yet tested on this specific system.
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH - all tools are already built and deployed, verified on this machine
-- Architecture: HIGH - existing scripts analyzed in detail, pipeline structure is clear
-- Pitfalls: HIGH - all pitfalls identified from actual code analysis (e.g., DLL auto-spawn vs manual launch conflict is a real bug in the current script)
-- /proc/pid/mem verification: MEDIUM - ProcMemReader works but exact assertion targets unclear
+- Test script fixes: HIGH -- all source code read, issues clearly identified, fixes are mechanical
+- Two-instance architecture: HIGH -- standard Proton separate-prefix pattern, sequential launch resolves relay_info.json collision
+- /proc/pid/mem verification: MEDIUM -- ProcMemReader works, but specific assertion targets (memory addresses) are unclear
+- Join mode implementation: MEDIUM -- MockClient/TiltedPhoques::Client patterns exist, but integration into main.cpp is new code
 
 **Research date:** 2026-03-28
-**Valid until:** 2026-04-28 (stable -- no external dependency changes expected)
+**Valid until:** 2026-04-28 (stable infrastructure work, not library-dependent)
