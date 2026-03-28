@@ -12,9 +12,7 @@ local function build_server()
     set_pcxxheader("Pch.h")
     add_headerfiles("**.h")
     add_files("**.cpp")
-    -- Don't add server.rc here - it causes duplicate VERSION resource errors
-    -- when SkyrimServerRunner executable links against this library.
-    -- The runner has its own server_runner.rc
+    -- server_runner removed (P2P host-only); server builds as embedded library only
     if is_plat("linux") then
         add_cxxflags("-fvisibility=hidden")
     end

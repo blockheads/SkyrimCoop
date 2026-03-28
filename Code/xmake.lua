@@ -27,7 +27,7 @@ includes("common")
 includes("components")
 includes("base")
 includes("admin_protocol")
-includes("server_runner")
+-- server_runner removed (P2P host-only, per Phase 5 D-01)
 includes("server")
 includes("encoding")
 
