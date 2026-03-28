@@ -12,14 +12,14 @@ Milestone 1 takes SkyrimCoop from a Windows-only MSVC build to a fully Linux-nat
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Feasibility Validation** - Prove MinGW cross-compilation is viable before investing in full migration
-- [ ] **Phase 2: MSVC Compatibility & Core Libraries** - Platform-independent libraries compile under MinGW
-- [ ] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
+- [x] **Phase 1: Feasibility Validation** - Prove MinGW cross-compilation is viable before investing in full migration
+- [x] **Phase 2: MSVC Compatibility & Core Libraries** - Platform-independent libraries compile under MinGW
+- [x] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
 - [ ] **Phase 3.1: Build Performance & Resource Optimization** - Fast devbuild mode with lld, split DWARF, shared libs, ccache
 - [ ] **Phase 4: Linux Debug Workflow** - One-command GDB attach with full symbol resolution for the cross-compiled DLL
 - [ ] **Phase 5: Testing & CI Pipeline** - Native Linux tests, mock client harness, and automated CI on every push
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
-- [ ] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
+- [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
 
 ## Phase Details
 
@@ -140,7 +140,7 @@ Plans:
 - [x] 07-05-PLAN.md -- Hook trampolines + service rewrites batch 1 (Weather, Calendar, Quest, Combat)
 - [x] 07-06-PLAN.md -- Service rewrites batch 2 (Inventory, ActorValue, Magic)
 - [x] 07-07-PLAN.md -- CharacterService rewrite + InterpolationSystem + AnimationSystem + full main loop
-- [ ] 07-08-PLAN.md -- Smoke tests and human verification of relay architecture in Skyrim
+- [x] 07-08-PLAN.md -- Smoke tests and human verification of relay architecture in Skyrim
 
 ## Progress
 
@@ -149,11 +149,11 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Feasibility Validation | 0/2 | Planning complete | - |
-| 2. MSVC Compatibility & Core Libraries | 0/3 | Planning complete | - |
-| 3. Client DLL Cross-Compilation | 0/4 | Planning complete | - |
-| 3.1. Build Performance & Resource Optimization | 0/3 | Planning complete | - |
+| 1. Feasibility Validation | 2/2 | Complete | 2026-02 |
+| 2. MSVC Compatibility & Core Libraries | 3/3 | Complete | 2026-02 |
+| 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
+| 3.1. Build Performance & Resource Optimization | 2/3 | In progress | - |
 | 4. Linux Debug Workflow | 0/0 | Not started | - |
 | 5. Testing & CI Pipeline | 0/0 | Not started | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
-| 7. Native Linux Build with SKSE TCP Relay | 0/8 | Planning complete | - |
+| 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
