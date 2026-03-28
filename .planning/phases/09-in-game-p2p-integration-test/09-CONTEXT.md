@@ -1,48 +1,59 @@
 # Phase 9: In-Game P2P Integration Test - Context
 
 **Gathered:** 2026-03-28
-**Status:** Ready for planning
+**Status:** Ready for planning (revised)
 
 <domain>
 ## Phase Boundary
 
-Full end-to-end validation of the P2P co-op architecture: a real Skyrim SE instance running under Proton loads the relay DLL, which spawns the native process with embedded GameServer. fake_player connects via enet6 and verifies auth + movement sync. Additionally, a second real Skyrim instance connects in join mode (relay DLL + native process with --connect) to prove the real two-player co-op flow. The existing test_ingame_sync.sh script is the foundation — Phase 9 fixes whatever breaks and extends it to cover the full P2P pipeline including two-instance testing.
+Build a comprehensive automated E2E testing framework and developer tooling for the SkyrimCoop P2P pipeline. The testing pyramid has four tiers:
+
+1. **Headless multi-bot testing** (CI): Extend fake_player with `--bots N` and `--verify-broadcast` against `skyrim-coop --host-only`. No Skyrim needed.
+2. **Mock relay pipeline** (CI): A lightweight MinGW binary (mock_skyrim_loader.exe) that loads the relay DLL under Wine without Skyrim, sends scripted HookEventPackets, proving the full DLL→TCP→native→GameServer→clients pipeline headlessly.
+3. **Single Skyrim golden test** (pre-release): Fix test_ingame_sync.sh — one real Skyrim + N fake_players as the definitive integration test.
+4. **Two-instance developer tool** (manual): A convenience script that spawns two Skyrim instances in 1280x720 windowed mode side-by-side for quick manual co-op iteration.
+
+Additionally: hook event recording (`--record`) in the native process for future CI replay capability.
 
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### Test Orchestration
-- **D-01:** Fix-and-validate approach. Run the existing `test_ingame_sync.sh` script, identify what breaks at each stage (DLL load, relay handshake, native spawn, GameServer start, fake_player connect), fix issues iteratively. The script structure is sound — the bugs are in the components it orchestrates.
-- **D-02:** The existing `--with-fake-player` flag becomes the default test path (not opt-in). The Phase 8 embedded GameServer makes this possible now.
-- **D-03:** Script launches Skyrim directly via `proton run skse64_loader.exe` (bypassing MO2). This is correct for testing — no mods needed.
+### Testing Strategy (revised from original plan)
+- **D-01:** Testing pyramid approach. Automated headless tests are the primary CI gate. Real Skyrim is for manual verification only.
+- **D-02:** fake_player becomes the multi-bot stress test tool. `--bots N` spawns N concurrent MockClient threads. `--verify-broadcast` confirms each bot receives movement updates from others. `--metrics` outputs latency/throughput CSV.
+- **D-03:** mock_skyrim_loader.exe is a ~100-line MinGW binary. Loads relay DLL via LoadLibrary under Wine, calls SKSEPlugin_Load(nullptr), sends scripted HookEventPackets over TCP. DLL already handles hook failure gracefully (relay_main.cpp line 308).
+- **D-04:** test_ingame_sync.sh fixes: make fake_player default path (invert --with-fake-player to --no-fake-player), add GameServer port readiness check (ss -ulnp polling), add log collection to /tmp with --keep-logs.
 
 ### Success Criteria
-- **D-04:** All 5 stages must pass for Phase 9 PASS:
-  1. Relay DLL loads into Skyrim via SKSE
-  2. Relay TCP connection established (DLL writes relay_info.json)
-  3. Native process starts and GameServer begins listening on port 10578
-  4. fake_player authenticates and receives character assignment
-  5. Movement broadcast: fake_player sends positions, receives host position updates
-- **D-05:** fake_player verifies host player position via `/proc/pid/mem` (reads Skyrim's game memory to confirm the actor actually exists/moved in-game). This is the ultimate proof that the full loop works: game state → DLL hooks → native process → GameServer → fake_player.
+- **D-05:** Headless CI pipeline passes: build → unit tests → `skyrim-coop --host-only` + `fake_player --bots 8 --verify-broadcast --duration 15`
+- **D-06:** mock_skyrim_loader.exe loads DLL under Wine, relay_info.json appears, native process connects, fake_player authenticates through the full pipeline
+- **D-07:** test_ingame_sync.sh works with single Skyrim + fake_player (5-stage pass)
+- **D-08:** Developer two-instance tool spawns two 1280x720 windowed Skyrim instances side-by-side with separate Proton prefixes
 
-### Two-Player Testing
-- **D-06:** Scope includes two real Skyrim instances: one as host (relay DLL + native process with GameServer), one as join client (relay DLL + native process with `--connect host_ip:10578`). This proves the real co-op experience.
-- **D-07:** Both instances use the same DLL and native binary. Instance role (host vs join) is configured per-instance. Claude has discretion on the mechanism (environment variable, separate Proton prefixes, or config file) — whatever works cleanly with Wine/Proton.
-- **D-08:** The test script should automate launching both instances for quick iteration during development.
+### Two-Instance Developer Tool
+- **D-09:** Separate script (tests/launch_two_skyrim.sh) — NOT an automated test, a developer convenience tool for quick manual co-op iteration.
+- **D-10:** Both instances run windowed at 1280x720 via Skyrim.ini injection (bFull Screen=0, iSize H=720, iSize W=1280). Script positions them side-by-side via xdotool/wmctrl.
+- **D-11:** Separate Proton prefixes (clone compatdata for join instance). Sequential launch with relay_info.json capture.
+- **D-12:** Mouse unlock — inject bAlwaysActive=1 and set mouse cursor visible via INI tweaks so both windows are usable without fighting for mouse capture. Claude has discretion on the exact INI settings and whether an SSE Engine Fixes style borderless approach works better.
+- **D-13:** Script handles launching both native processes (host with GameServer, join with --connect). On exit, cleans up both instances and cloned prefix.
+
+### Hook Event Recording
+- **D-14:** Add `--record <file>` flag to native process. Writes all received HookEventPackets to a binary log with timestamps. Future phases can build a replay tool for CI.
 
 ### Failure Diagnostics
-- **D-09:** Log collection to temp directory. Script creates a test run directory, redirects all process stderr/stdout to log files, prints relevant stage logs on failure. On PASS, logs are cleaned up (or kept with `--keep-logs`).
-- **D-10:** Each stage timeout prints which log file to check for diagnosis.
+- **D-15:** Log collection to temp directory for test_ingame_sync.sh. Script creates test run dir, redirects all process stderr/stdout. On failure, prints which log to check. --keep-logs preserves on pass.
 
 ### Claude's Discretion
-- Total test timeout (existing per-stage timeouts: 120s Skyrim boot, 90s server ready, 30s fake_player — likely ~5min total with buffer)
-- How to differentiate host vs join instance configuration (env var, config file, or separate Proton prefixes)
-- Exact /proc/pid/mem verification assertions in fake_player (which actor fields to check)
-- Whether to add a deploy step to the script (copy DLL + native binary to SKSE plugins dir) or assume pre-deployed
-- Log format and directory naming convention for test runs
-- Whether the two-Skyrim test is a separate script or a mode flag on test_ingame_sync.sh
+- Exact mock_skyrim_loader.exe implementation (how it sends HookEventPackets, which events to script)
+- fake_player --bots threading model (std::thread per bot vs async)
+- Stress test default parameters (bot count, tick rate, duration)
+- --record binary format (timestamp + raw packet bytes is fine)
+- INI settings for mouse unlock and windowed mode
+- Whether to use xdotool, wmctrl, or another tool for window positioning
+- Whether mock_skyrim_loader needs a timeout or runs indefinitely until signaled
+- Latency measurement approach in fake_player (embed sequence numbers in movement, measure round-trip)
 
 </decisions>
 
@@ -51,31 +62,30 @@ Full end-to-end validation of the P2P co-op architecture: a real Skyrim SE insta
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### Test Infrastructure (primary — this is what we're fixing)
-- `tests/test_ingame_sync.sh` — Existing integration test script with 5-stage pipeline, INI injection, Proton launch, relay wait, fake_player stub
+### Test Infrastructure (primary)
+- `tests/test_ingame_sync.sh` — Existing integration test script with 5-stage pipeline
 - `Code/tests/integration/fake_player.cpp` — fake_player binary with --self-test, --port, --verify-pid, --duration modes
 - `Code/tests/integration/xmake.lua` — Build config for fake_player
 - `Code/tests/mock_client.h` / `Code/tests/mock_client.cpp` — MockClient used by fake_player for enet6 connection
 
 ### Relay DLL (component under test)
-- `Code/relay_dll/relay_main.cpp` — DLL entry point, TCP server, process launcher
+- `Code/relay_dll/relay_main.cpp` — DLL entry point, TCP server, hook failure is non-fatal (line 308-310)
 - `Code/relay_dll/hook_trampolines.cpp` — Hook installation and event forwarding
 - `Code/relay_dll/tcp_server.cpp` — TCP server for DLL-to-native IPC
-- `Code/relay_dll/process_launcher.cpp` — Native process spawning
-- `Code/relay_dll/protocol.h` — IPC protocol definition (shared with native client)
+- `Code/relay_dll/protocol.h` — IPC protocol definition (HookEventPacket types, CommandPacket types)
 
 ### Native Client (component under test)
-- `Code/native_client/main.cpp` — Native process entry point with --pid, --port, --connect, --server-port, --host-only args
+- `Code/native_client/main.cpp` �� Native process with --pid, --port, --connect, --server-port, --host-only args
 - `Code/native_client/transport/LoopbackTransport.h` — In-process loopback for host player
 - `Code/native_client/transport/ServerMessageRouter.h` — Routes server messages to host
 - `Code/native_client/game_bridge/` — ProcMemReader, PointerTable, TcpClient, GameReader
 
-### Embedded GameServer (component under test)
+### Embedded GameServer
 - `Code/server/GameServer.h` / `Code/server/GameServer.cpp` — Server class with enet6
 - `Code/server/Services/CharacterService.cpp` — Character sync and movement broadcast
 
 ### Deploy Script
-- `deploy_and_test.sh` — Existing deploy script (copies DLL + native binary to SKSE plugins dir)
+- `deploy_and_test.sh` — Copies DLL + native binary to SKSE plugins dir
 
 ### Prior Phase Context
 - `.planning/phases/07-native-linux-build-with-skse-tcp-relay/07-CONTEXT.md` — Relay architecture decisions
@@ -87,21 +97,19 @@ Full end-to-end validation of the P2P co-op architecture: a real Skyrim SE insta
 ## Existing Code Insights
 
 ### Reusable Assets
-- **test_ingame_sync.sh**: Full 5-stage pipeline with Proton launch, INI injection (sStartingCell=Riverwood), relay wait, cleanup traps, per-stage timeouts. Needs fixing, not rewriting.
-- **fake_player**: Connects to GameServer, sends scripted movements, has --verify-pid for /proc/pid/mem verification. Reuses MockClient from Phase 5.
-- **deploy_and_test.sh**: Copies built DLL + native binary to SKSE plugins directory. May be useful as a pre-step.
+- **test_ingame_sync.sh**: Full 5-stage pipeline with Proton launch, INI injection. Needs fixing, not rewriting.
+- **fake_player**: Connects to GameServer, sends scripted movements. MockClient has OnConsume() that parses server messages — extend for broadcast verification.
+- **skyrim-coop --host-only**: Already creates a fully functional embedded GameServer without Skyrim. Perfect for headless testing.
+- **MockClient**: Thread-safe enet6 client wrapper. Can be instantiated multiple times for multi-bot.
+- **relay_main.cpp hook failure**: Lines 308-310 show hooks fail gracefully — DLL continues without them. This is what makes mock_skyrim_loader possible.
 
-### Established Patterns
-- Script uses `pgrep -f "SkyrimSE.exe"` to detect Skyrim process
-- DLL writes `skyrim_coop_relay.json` with port and PID for native process discovery
-- Per-stage timeouts with `seq 1 $TIMEOUT` polling loops
-- Cleanup trap restores Skyrim.ini and kills child processes on exit
+### Key Insight: DLL Doesn't Need SKSE
+relay_main.cpp D-11: SKSEPlugin_Load ignores the SKSEInterface pointer. The DLL only needs LoadLibrary + SKSEPlugin_Load(nullptr) to start its TCP server and write relay_info.json. Hook installation fails but that's non-fatal.
 
 ### Integration Points
-- DLL must be in `$SKYRIM_DIR/Data/SKSE/Plugins/skyrim_coop_hooks.dll`
-- Native binary must be in `$SKYRIM_DIR/Data/SKSE/Plugins/skyrim-coop`
+- DLL TCP server port is dynamic (read from relay_info.json)
 - GameServer listens on UDP port 10578 (enet6)
-- Relay DLL TCP server port is dynamic (read from relay_info.json)
+- protocol.h defines HookEventPacket and CommandPacket types for TCP IPC
 - fake_player connects to GameServer on localhost:10578
 
 </code_context>
@@ -109,21 +117,25 @@ Full end-to-end validation of the P2P co-op architecture: a real Skyrim SE insta
 <specifics>
 ## Specific Ideas
 
-- The character of this phase is **integration debugging** — the script and components exist, the job is making them work together end-to-end.
-- Two-Skyrim automated testing is a major productivity win for ongoing development — quick iteration on co-op behavior.
-- /proc/pid/mem verification is the ultimate proof: game state → DLL hooks → native → GameServer → fake_player reads Skyrim memory and confirms the actor exists.
-- The script currently bypasses MO2 and launches Skyrim directly via Proton — this is correct for testing since no mods are needed.
+- The mock_skyrim_loader is the most creative piece — it proves the relay pipeline without Skyrim by exploiting the DLL's graceful hook failure.
+- Multi-bot fake_player is highest leverage — `--host-only` + `--bots 20 --verify-broadcast` gives you a full headless integration test in CI.
+- The two-instance developer tool is about ergonomics, not automation — 1280x720 windowed, side-by-side, mouse unlocked, one script to launch/teardown.
+- Hook event recording is a low-effort investment that pays off later when you build the replay tool.
+- Stress testing becomes trivial: `--bots 50 --tick-rate 60` = 3000 msgs/sec. Find your ceiling.
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-None — discussion stayed within phase scope
+- Hook event replay tool (build the replayer in a future phase, Phase 9 just adds --record)
+- Console command injection via relay protocol (useful for game state automation)
+- Visual regression via screenshot comparison (for mod compatibility)
+- Papyrus script automation for in-game test scenarios
 
 </deferred>
 
 ---
 
 *Phase: 09-in-game-p2p-integration-test*
-*Context gathered: 2026-03-28*
+*Context gathered: 2026-03-28 (revised with E2E testing strategy)*
