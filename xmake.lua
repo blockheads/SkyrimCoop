@@ -1,9 +1,19 @@
 set_xmakever("2.8.5")
 
+-- Build requirements:
+-- Minimum: 4GB RAM, 2 CPU cores
+-- Recommended: 16GB RAM, 8+ CPU cores
+-- XMake auto-detects cores for parallel jobs (-j)
+-- For constrained machines: xmake -j4 (or lower)
 
--- If newer version of xmake, remove ccache until it actually works
+-- Enable ccache in devbuild mode for fast rebuilds (D-04)
+-- Other modes keep ccache disabled (historical XMake compatibility)
 if set_policy ~= nil then
-    set_policy("build.ccache", false)
+    if is_mode("devbuild") then
+        set_policy("build.ccache", true)
+    else
+        set_policy("build.ccache", false)
+    end
 end
 
 -- c code will use c99,
@@ -15,10 +25,6 @@ if is_plat("linux") then
 end
 
 if is_plat("mingw") then
-    -- MinGW uses GCC-style flags, not MSVC
-    -- Static linking prevents missing libgcc/libstdc++ DLLs at runtime (see PITFALLS.md)
-    add_cxflags("-static", "-static-libgcc", "-static-libstdc++")
-    add_ldflags("-static", "-static-libgcc", "-static-libstdc++", {force = true})
     -- MSVC-compatible struct layout (required for Skyrim game struct ABI compatibility)
     add_cxflags("-mms-bitfields")
     -- Allow implicit function-pointer-to-void* conversions (MSVC allows this, GCC strict)
@@ -29,6 +35,24 @@ if is_plat("mingw") then
     add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00")
     add_defines("NOMINMAX")
     add_syslinks("kernel32")
+
+    if is_mode("devbuild") then
+        -- Devbuild: no blanket -static (shared internal libs need dynamic linking)
+        -- Keep static GCC runtime to avoid libgcc/libstdc++ DLL deps
+        add_cxflags("-static-libgcc", "-static-libstdc++")
+        add_ldflags("-static-libgcc", "-static-libstdc++", {force = true})
+        -- lld: 2-5x faster than GNU ld for PE/COFF (D-01, using lld per research -- mold cannot produce PE/COFF)
+        add_ldflags("-fuse-ld=lld", {force = true})
+        add_shflags("-fuse-ld=lld", {force = true})
+        -- Split DWARF: debug info in separate .dwo files, reduces archive sizes by ~96% (D-02)
+        add_cxflags("-gsplit-dwarf", {force = true})
+        -- GDB index for faster debugger startup
+        add_ldflags("-Wl,--gdb-index", {force = true})
+    else
+        -- Non-devbuild: full static linking (no runtime DLL deps)
+        add_cxflags("-static", "-static-libgcc", "-static-libstdc++")
+        add_ldflags("-static", "-static-libgcc", "-static-libstdc++", {force = true})
+    end
 end
 
 set_warnings("all")
@@ -36,11 +60,32 @@ add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
 
 -- build configurations
-add_rules("mode.debug", "mode.releasedbg", "mode.release")
+add_rules("mode.debug", "mode.releasedbg", "mode.release", "mode.devbuild")
+
+-- Custom devbuild mode: fastest iteration speed (per D-06)
+-- Usage: xmake f -p mingw -m devbuild
+rule("mode.devbuild")
+    on_config(function (target)
+        if is_mode("devbuild") then
+            -- No optimization for fastest compile (D-06)
+            target:set("optimize", "none")
+            -- Full debug symbols (will be split via -gsplit-dwarf)
+            target:set("symbols", "debug")
+            -- Ensure assertions are active
+            target:remove("defines", "NDEBUG")
+        end
+    end)
+rule_end()
 
 if has_config("unitybuild") then
     add_rules("c.unity_build")
-    add_rules("c++.unity_build", {batchsize = 12})
+    if is_mode("devbuild") then
+        -- Smaller batches in devbuild: one file change recompiles fewer files (D-05)
+        add_rules("c++.unity_build", {batchsize = 4})
+    else
+        -- Large batches for CI/release: faster clean builds
+        add_rules("c++.unity_build", {batchsize = 12})
+    end
 end
 
 -- direct dependencies version pinning
