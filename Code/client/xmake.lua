@@ -16,7 +16,7 @@ target(name)
 
     -- exclude game specific stuff and Vivox
     add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
-    add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**")
+    add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|link_stubs.cpp|skse_entry.cpp")
 
     -- Feature-gated packages and targets (per D-01: per-feature guards)
     if not is_plat("mingw") then
@@ -103,3 +103,51 @@ end
 
 
 build_client("SkyrimTogetherClient")
+
+-- MinGW-only: Thin DLL wrapper that links the static client lib
+-- and exports SKSE plugin entry points (SKSEPlugin_Version, SKSEPlugin_Load, DllMain)
+-- Equivalent of immersive_launcher's /WHOLEARCHIVE but producing a DLL instead of EXE
+if is_plat("mingw") then
+    target("SkyrimTogetherClientDLL")
+        set_kind("shared")
+        set_group("Client")
+        set_basename("SkyrimTogetherClient")  -- output: SkyrimTogetherClient.dll
+        set_prefixname("")                    -- no "lib" prefix on MinGW
+
+        add_files("skse_entry.cpp", "link_stubs.cpp")
+        add_deps("SkyrimTogetherClient")
+
+        -- Remove stale import libraries before linking. Without this, the linker
+        -- picks up a tiny .dll.a import lib instead of the 1.5GB static archive.
+        before_link(function (target)
+            local builddir = target:targetdir()
+            for _, f in ipairs({
+                "libSkyrimTogetherClient.dll.a",
+                "SkyrimTogetherClient.dll.a"
+            }) do
+                local p = path.join(builddir, f)
+                if os.isfile(p) then
+                    os.rm(p)
+                end
+            end
+        end)
+
+        -- Allow multiple definitions and unresolved symbols (equiv of MSVC /FORCE)
+        -- Skyrim engine symbols are resolved at runtime when loaded into the game process
+        add_shflags(
+            "-Wl,--allow-multiple-definition",
+            "-Wl,--noinhibit-exec",
+            {force = true})
+
+        -- Extra system libraries needed at final link (beyond what deps inherit)
+        add_syslinks(
+            "comctl32",
+            "gdi32",
+            "dwmapi",
+            "stdc++fs")
+
+        -- Include paths needed for skse_entry.cpp, link_stubs.cpp, and TiltedCore headers
+        add_includedirs(".", "../external/", "..", "Games/Skyrim")
+        add_includedirs("../external/mem", {public = false})
+    target_end()
+end
