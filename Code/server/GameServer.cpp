@@ -704,8 +704,30 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
     UpdateTitle();
 }
 
+void GameServer::InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId)
+{
+    OnConsume(apData, aSize, aConnectionId);
+}
+
+void GameServer::SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback)
+{
+    m_loopbackConnectionId = aConnectionId;
+    m_loopbackCallback = std::move(aCallback);
+}
+
 void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const
 {
+    // Loopback intercept: route host messages in-process instead of through enet6
+    if (m_loopbackConnectionId != 0 && aConnectionId == m_loopbackConnectionId && m_loopbackCallback)
+    {
+        Buffer buffer(1 << 20);
+        Buffer::Writer writer(&buffer);
+        writer.WriteBits(0, 8); // Packet type byte (matches enet6 format)
+        acServerMessage.Serialize(writer);
+        m_loopbackCallback(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()));
+        return;
+    }
+
     static thread_local TiltedPhoques::ScratchAllocator s_allocator{1 << 18};
 
     Buffer buffer(1 << 20);

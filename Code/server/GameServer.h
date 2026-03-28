@@ -57,6 +57,10 @@ struct GameServer final : TiltedPhoques::Server
     void UpdateSettings();
     void EnforceProximity(); // P2P co-op: Teleport players back if they wander too far from host
 
+    // Loopback support for P2P host mode (in-process message delivery without enet6)
+    void InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId);
+    void SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
+
     // Packet dispatching
     void Send(ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const;
     void Send(ConnectionId_t aConnectionId, const ServerAdminMessage& acServerMessage) const;
@@ -143,6 +147,10 @@ struct GameServer final : TiltedPhoques::Server
     UniquePtr<World> m_pWorld;
 
     bool m_requestStop;
+
+    // Loopback routing for P2P host mode
+    ConnectionId_t m_loopbackConnectionId{0};
+    std::function<void(const void*, uint32_t)> m_loopbackCallback;
 
     static inline GameServer* s_pInstance = nullptr;
 };

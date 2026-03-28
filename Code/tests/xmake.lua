@@ -7,12 +7,13 @@ target("TPTests")
     add_includedirs(".", "../encoding", "../relay_dll", "../native_client",
                     "../server", "../common", "../components", "../base",
                     "../admin_protocol", "../libraries/networking", "../external",
-                    "../native_client/game_bridge")
+                    "../native_client/game_bridge", "../native_client/transport")
     add_headerfiles("**.h")
     add_files("*.cpp")
     add_files("../relay_dll/command_queue.cpp")
     add_files("../native_client/game_bridge/pointer_table.cpp")
     add_files("../native_client/game_bridge/tcp_client.cpp")
+    add_files("../native_client/transport/*.cpp")
     if is_plat("linux") then
         add_files("../native_client/game_bridge/proc_memory.cpp")
     end

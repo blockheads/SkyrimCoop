@@ -20,7 +20,16 @@ if is_plat("linux") then
         add_deps("SkyrimEncoding")
         add_deps("SkyrimTogetherServer")
 
-        -- Packages: full native stack
+        -- Include dirs for server headers (GameServer.h -> World.h chain)
+        add_includedirs("../server")
+        add_includedirs("../common")
+        add_includedirs("../components")
+        add_includedirs("../base")
+        add_includedirs("../admin_protocol")
+        add_includedirs("../libraries/networking")
+        add_includedirs("../external")
+
+        -- Packages: full native stack + server transitive deps (sol2 via ScriptService.inl)
         add_packages(
             "entt",
             "spdlog",
@@ -28,7 +37,10 @@ if is_plat("linux") then
             "rpmalloc",
             "hopscotch-map",
             "cryptopp",
-            "enet6")
+            "enet6",
+            "lua",
+            "sol2",
+            "sqlite3")
 
         -- System libraries
         add_syslinks("pthread")
