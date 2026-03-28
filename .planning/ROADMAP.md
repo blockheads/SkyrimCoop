@@ -127,7 +127,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3 (they depend on Phase 2, not Phase 3).
+Phases 1-5, 7 complete. Phase 8 (P2P server) executes next — required before Phase 6 (UI needs a working multiplayer connection to display).
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -136,6 +136,22 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
 | 3.1. Build Performance & Resource Optimization | 2/3 | Resolved by Phase 7 | 2026-03-28 |
 | 4. Linux Debug Workflow | 0/0 | Resolved by Phase 7 | 2026-03-28 |
-| 5. Testing & CI Pipeline | 0/3 | Planning complete | - |
+| 5. Networking Verification & Server Cleanup | 3/3 | Complete | 2026-03-28 |
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
+| 8. P2P Embedded GameServer | 0/0 | Not started | - |
+
+### Phase 8: P2P Embedded GameServer
+
+**Goal:** Native process hosts an enet6 GameServer so other players can connect. When Skyrim boots with the relay DLL, the native process starts an embedded GameServer on localhost, accepts client connections via enet6, and bridges hook events into the server's ECS. fake_player and real remote clients can connect, authenticate, and sync.
+**Requirements**: TBD
+**Depends on:** Phase 5 (server cleanup), Phase 7 (relay architecture)
+**Success Criteria** (what must be TRUE):
+  1. The native `skyrim-coop` process instantiates and hosts a GameServer on localhost alongside the relay connection
+  2. fake_player connects to the embedded GameServer, authenticates, and sends scripted movements — verified by `test_ingame_sync.sh --with-fake-player`
+  3. The embedded GameServer receives hook events from the relay and updates its World registry
+  4. Remote clients see the host player's state (position, cell) through the standard server broadcast path
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 8 to break down)
