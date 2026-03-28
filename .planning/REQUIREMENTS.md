@@ -54,7 +54,7 @@ Requirements for Milestone 1: Linux Build, Debug & UI Port. Each maps to roadmap
 - [x] **RELAY-05**: Native process reads game memory via /proc/pid/mem with ptrace SEIZE + pread
 - [x] **RELAY-06**: Hook-driven pointer table maps formId to game pointers from ActorAdded/Removed events
 - [x] **RELAY-07**: GameReader API provides typed memory reads using game struct offsets for native services
-- [ ] **RELAY-08**: All 8 client services (Weather, Calendar, Quest, Combat, Inventory, ActorValue, Magic, Character) rewritten against GameReader API
+- [x] **RELAY-08**: All 8 client services (Weather, Calendar, Quest, Combat, Inventory, ActorValue, Magic, Character) rewritten against GameReader API
 - [x] **RELAY-09**: XMake build system has separate targets for relay DLL (MinGW, minimal deps) and native client (Linux ELF, full deps)
 - [ ] **RELAY-10**: End-to-end integration validated: DLL loads in Skyrim, native process connects, hook events flow
 
@@ -141,7 +141,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RELAY-05 | Phase 7 | Complete |
 | RELAY-06 | Phase 7 | Complete |
 | RELAY-07 | Phase 7 | Complete |
-| RELAY-08 | Phase 7 | Pending |
+| RELAY-08 | Phase 7 | Complete |
 | RELAY-09 | Phase 7 | Complete |
 | RELAY-10 | Phase 7 | Pending |
 
