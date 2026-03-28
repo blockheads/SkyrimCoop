@@ -13,6 +13,7 @@
 #include "tcp_server.h"
 #include "process_launcher.h"
 #include "command_queue.h"
+#include "hook_trampolines.h"
 
 // ---------------------------------------------------------------------------
 // SKSE structures (inline, no SKSE SDK dependency)
@@ -57,7 +58,7 @@ struct SKSEInterface
 // ---------------------------------------------------------------------------
 
 static HINSTANCE s_dllInstance = nullptr;
-static TcpServer g_tcpServer;
+TcpServer g_tcpServer;                     // non-static: accessed by hook_trampolines.cpp
 static ProcessLauncher g_launcher;
 static CommandQueue g_commandQueue;
 static volatile bool g_shuttingDown = false;
@@ -67,7 +68,7 @@ static char g_nativeBinaryPath[MAX_PATH]{};
 // Logging helpers (OutputDebugString -- no spdlog per D-13)
 // ---------------------------------------------------------------------------
 
-static void RelayLog(const char* fmt, ...)
+void RelayLog(const char* fmt, ...)  // non-static: accessed by hook_trampolines.cpp
 {
     char buf[512];
     va_list args;
@@ -271,7 +272,14 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     }
     RelayLog("[SkyrimCoopHooks] TCP server listening on port %u\n", g_tcpServer.GetPort());
 
-    // 3. Launch native process
+    // 3. Install hook trampolines (after TCP server so hooks can send events)
+    if (!InstallAllHooks())
+    {
+        RelayLog("[SkyrimCoopHooks] WARNING: Hook installation failed -- continuing without hooks\n");
+        // Non-fatal: the DLL can still relay commands even without hook events
+    }
+
+    // 4. Launch native process
     if (!g_launcher.Launch(g_nativeBinaryPath, g_tcpServer.GetPort()))
     {
         RelayLog("[SkyrimCoopHooks] Failed to launch native process\n");
@@ -304,6 +312,7 @@ BOOL WINAPI DllMain(HINSTANCE aInstance, DWORD aReason, LPVOID apReserved)
     else if (aReason == DLL_PROCESS_DETACH)
     {
         g_shuttingDown = true;
+        RemoveAllHooks();
         g_tcpServer.Stop();
         g_launcher.Kill();
     }
