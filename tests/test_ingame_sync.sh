@@ -40,7 +40,8 @@ SKYRIM_INI="$COMPAT_DATA/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim S
 
 # Test parameters
 DURATION=15
-SERVER_PORT=10578
+GAME_SERVER_PORT=10578   # enet6 UDP port for GameServer (fake_player connects here)
+RELAY_PORT=""            # TCP port for DLL<->native relay (discovered from relay_info.json)
 TIMEOUT_SKYRIM=120
 TIMEOUT_SERVER=90
 
@@ -245,23 +246,23 @@ wait_for_server() {
             relay_port=$(grep -o '"port":[0-9]*' "$RELAY_INFO" | grep -o '[0-9]*' || true)
             relay_pid=$(grep -o '"pid":[0-9]*' "$RELAY_INFO" | grep -o '[0-9]*' || true)
             if [ -n "$relay_port" ] && [ -n "$relay_pid" ]; then
-                pass "Relay info: port=$relay_port pid=$relay_pid"
-                SERVER_PORT="$relay_port"
+                pass "Relay info: relay_tcp_port=$relay_port pid=$relay_pid"
+                RELAY_PORT="$relay_port"
                 break
             fi
         fi
         sleep 1
     done
 
-    if [ -z "$relay_port" ]; then
+    if [ -z "$RELAY_PORT" ]; then
         fail "DLL did not write relay info within ${TIMEOUT_SERVER}s"
         [ -f "$DLL_LOG" ] && info "DLL log:" && cat "$DLL_LOG"
         return 1
     fi
 
-    # Launch native skyrim-coop process
+    # Launch native skyrim-coop process (connects to DLL via relay TCP port)
     info "Launching native skyrim-coop process..."
-    "$PLUGINS/skyrim-coop" --pid "$SKYRIM_PID" --port "$SERVER_PORT" &
+    "$PLUGINS/skyrim-coop" --pid "$SKYRIM_PID" --port "$RELAY_PORT" &
     NATIVE_PID=$!
     sleep 2
 
@@ -275,14 +276,15 @@ wait_for_server() {
 
 # ── Step 4: Run fake_player ──
 run_fake_player() {
-    info "Running fake_player (duration: ${DURATION}s, port: ${SERVER_PORT})..."
+    info "Running fake_player (duration: ${DURATION}s, game_server_port: ${GAME_SERVER_PORT})..."
 
     local verify_args=""
     if [ -n "${SKYRIM_PID:-}" ]; then
         verify_args="--verify-pid $SKYRIM_PID"
     fi
 
-    "$FAKE_PLAYER" --port "$SERVER_PORT" --duration "$DURATION" $verify_args &
+    # fake_player connects to the GameServer's enet6 UDP port (not the relay TCP port)
+    "$FAKE_PLAYER" --port "$GAME_SERVER_PORT" --duration "$DURATION" $verify_args &
     FAKE_PLAYER_PID=$!
 
     # Wait for fake_player to complete

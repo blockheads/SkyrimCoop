@@ -267,15 +267,94 @@ static int RunExternal(const Config& aCfg)
 {
     spdlog::info("fake_player: connecting to external server on port {}", aCfg.port);
 
-    // We still need ConsoleRegistry for MockClient's server PCH dependencies,
-    // but we don't create a GameServer -- we connect to an external one.
-    // For now, this mode is a stub since we need a GameServer ref for Pump().
-    // The full in-game test is orchestrated by test_ingame_sync.sh which
-    // handles server lifetime externally.
+    MockClient client;
+    if (!client.ConnectByIp("127.0.0.1:" + std::to_string(aCfg.port)))
+    {
+        spdlog::error("fake_player: ConnectByIp failed");
+        return 1;
+    }
 
-    spdlog::error("fake_player: external server mode not yet implemented");
-    spdlog::error("fake_player: use --self-test for headless testing");
-    return 1;
+    // Wait for connection (no local server to pump — just call client.Update())
+    for (int i = 0; i < 300; ++i)
+    {
+        client.Update();
+        if (client.IsConnected())
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!client.IsConnected())
+    {
+        spdlog::error("fake_player: connection timed out");
+        return 1;
+    }
+    spdlog::info("fake_player: connected to server on port {}", aCfg.port);
+
+    // Authenticate
+    AuthenticationRequest authReq;
+    authReq.Version = BUILD_COMMIT;
+    authReq.Token = "";
+    authReq.Username = "FakePlayer";
+    authReq.SKSEActive = true;
+    authReq.MO2Active = false;
+    authReq.DiscordId = 99999;
+    authReq.Level = 1;
+
+    client.SendGameMessage(authReq);
+
+    // Wait for auth response
+    for (int i = 0; i < 300; ++i)
+    {
+        client.Update();
+        if (client.m_gotAuthResponse)
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    if (!client.m_authAccepted)
+    {
+        spdlog::error("fake_player: authentication rejected (type={})",
+                      static_cast<int>(client.m_authResponseType));
+        return 1;
+    }
+    spdlog::info("fake_player: authentication accepted");
+
+    // Send scripted movement for the configured duration
+    auto start = std::chrono::steady_clock::now();
+    uint64_t tick = 1;
+    while (true)
+    {
+        auto elapsed = std::chrono::duration<float>(
+            std::chrono::steady_clock::now() - start).count();
+        if (elapsed >= static_cast<float>(aCfg.duration))
+            break;
+
+        glm::vec3 pos = WalkPattern::GetPosition(elapsed);
+
+        // Build and send movement message
+        ClientReferencesMoveRequest moveReq;
+        moveReq.Tick = tick++;
+
+        ReferenceUpdate update;
+        update.UpdatedMovement.Position.x = pos.x;
+        update.UpdatedMovement.Position.y = pos.y;
+        update.UpdatedMovement.Position.z = pos.z;
+        moveReq.Updates[1] = update;
+
+        client.SendGameMessage(moveReq);
+        client.Update();
+
+        spdlog::info("fake_player: sent position ({:.1f}, {:.1f}, {:.1f}) tick={}",
+                     pos.x, pos.y, pos.z, tick - 1);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+
+    spdlog::info("fake_player: movement loop complete ({} seconds, {} ticks)",
+                 aCfg.duration, tick - 1);
+
+    client.Close();
+    spdlog::info("fake_player: PASS");
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
