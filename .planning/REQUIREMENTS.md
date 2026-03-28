@@ -13,7 +13,7 @@ Requirements for Milestone 1: Linux Build, Debug & UI Port. Each maps to roadmap
 - [x] **BUILD-02**: MSVC compatibility header resolves all `__declspec`, `#pragma comment(lib)`, struct alignment, and MSVC-specific extensions for GCC
 - [x] **BUILD-03**: Tier 1-2 libraries (encoding, networking, common, server) compile under MinGW and produce working static libraries
 - [x] **BUILD-04**: Tier 3 client DLL compiles under MinGW (CEF and DirectXTK excluded, replaced by ImGui)
-- [ ] **BUILD-05**: MinGW-compiled DLL loads into Skyrim SE under Proton without crash
+- [x] **BUILD-05**: MinGW-compiled DLL loads into Skyrim SE under Proton without crash
 
 ### Debug Tooling
 
@@ -104,7 +104,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BUILD-02 | Phase 2 | Complete |
 | BUILD-03 | Phase 2 | Complete |
 | BUILD-04 | Phase 3 | Complete |
-| BUILD-05 | Phase 3 | Pending |
+| BUILD-05 | Phase 3 | Complete |
 | DEBUG-01 | Phase 4 | Pending |
 | DEBUG-02 | Phase 4 | Pending |
 | DEBUG-03 | Phase 4 | Pending |

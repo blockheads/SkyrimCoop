@@ -62,7 +62,7 @@ Plans:
 - [x] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
 - [x] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
 - [x] 03-04-PLAN.md -- Gap closure: DLL wrapper target with SKSE entry points and smoke test fix
-- [ ] 03-05-PLAN.md -- Gap closure: remove --noinhibit-exec, comprehensive linker stubs for all unresolved symbols
+- [x] 03-05-PLAN.md -- Gap closure: remove --noinhibit-exec, comprehensive linker stubs for all unresolved symbols
 
 ### Phase 4: Linux Debug Workflow
 **Goal**: Developer can attach GDB to a running Skyrim/Proton process and debug SkyrimCoop DLL code with full source-level inspection
