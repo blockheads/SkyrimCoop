@@ -3,7 +3,7 @@ local function istable(t) return type(t) == 'table' end
 add_requires("sol2 v3.3.0", {configs = {lua = "lua"}})
 
 local function build_server()
-    set_kind("static")
+    devbuild_shared()
     set_group("Server")
     add_includedirs(
         ".",

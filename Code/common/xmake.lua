@@ -1,7 +1,7 @@
 
 target("CommonLib")
     add_configfiles("BuildInfo.h.in")
-    set_kind("static")
+    devbuild_shared()
     set_group("common")
     add_includedirs(".", "../", "../../build", {public = true})
     add_headerfiles("**.h")

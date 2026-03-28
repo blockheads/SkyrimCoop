@@ -6,7 +6,7 @@ set_languages("cxx20")
 
 -- Networking Library (formerly TiltedConnect) - Tier 2, needed by server
 target("SkyrimCoopNetworking")
-    set_kind("static")
+    devbuild_shared()
     set_group("Libraries")
     add_files("networking/*.cpp")
     add_includedirs("networking/", {public = true})
@@ -29,7 +29,7 @@ if is_plat("windows") or is_plat("mingw") then
 
 -- Reverse Engineering Library (formerly TiltedReverse)
 target("SkyrimCoopReverse")
-    set_kind("static")
+    devbuild_shared()
     set_group("Libraries")
     add_files("reverse/*.cpp")
     add_includedirs("reverse/", {public = true})
@@ -52,7 +52,7 @@ target("SkyrimCoopReverse")
 
 -- Hooks Library (formerly TiltedHooks)
 target("SkyrimCoopHooks")
-    set_kind("static")
+    devbuild_shared()
     set_group("Libraries")
     add_files("hooks/*.cpp")
     add_files("hooks/DInputHook.cpp", {unity_ignored = true})

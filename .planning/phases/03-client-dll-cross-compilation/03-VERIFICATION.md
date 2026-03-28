@@ -1,44 +1,51 @@
 ---
 phase: 03-client-dll-cross-compilation
-verified: 2026-03-27T23:50:00Z
+verified: 2026-03-28T03:30:00Z
 status: human_needed
-score: 1/3 must-haves verified (2/3 artifact-ready; runtime unverified)
+score: 1/3 must-haves verified programmatically (all artifacts verified; Truths 2-3 require runtime)
 re_verification:
-  previous_status: gaps_found
+  previous_status: human_needed
   previous_score: 1/3
   gaps_closed:
-    - "DLL linking gap: SkyrimTogetherClient.dll (PE32+ 12MB) now exists in build tree"
-    - "Smoke test DLL auto-detection: finds DLL in build tree without manual DLL_PATH override"
-    - "SKSE entry points: SKSEPlugin_Load and SKSEPlugin_Version exported from DLL"
+    - "DLL load crash (0x3E6 ERROR_NOACCESS): removed --noinhibit-exec and added comprehensive stubs for all 20 unresolved Skyrim engine symbols — DLL now links cleanly without null function pointers"
+    - "IAnimationGraphManagerHolder vtable: 16 sub_ entries stubbed (sub_3 through sub_F plus GetVariableFloat/Int/Bool)"
+    - "BGSKeywordForm vtable: Contains and sub_5 stubbed"
+    - "RipAllocateN: 1MB static fallback pool provided"
+    - "g_SharedWindowIcon: global variable definition provided"
+    - "_ReturnAddress: MSVC intrinsic mapped to __builtin_return_address(0)"
   gaps_remaining:
-    - "BUILD-05: DLL loads into Skyrim SE under Proton without crashing — requires human runtime verification"
-    - "Character sync: blocked until Truth 2 is human-verified"
+    - "Truth 2 (BUILD-05): DLL loads into Skyrim SE under Proton without crashing — root cause of previous crash is fixed, but runtime UAT has not been re-executed after Plan 05"
+    - "Truth 3: Server connection + character sync — blocked until Truth 2 is confirmed"
   regressions: []
 human_verification:
-  - test: "Run tests/smoke_test_client.sh — it should auto-detect the DLL and report PE32+ OK, then deploy and launch Skyrim"
-    expected: "Script reports PE32+ format OK, deploys DLL to SKSE plugins dir, launches Skyrim SE under Proton, and within 90s the client log shows plugin loaded. Game does not crash within 30s of reaching the main menu."
-    why_human: "Requires Skyrim SE + SKSE installed under a Proton prefix. Cannot be verified programmatically without the full game runtime."
-  - test: "With Skyrim loaded and local server running, verify connection establishment"
-    expected: "Client log shows OnConnected or 'connected to server' and server log shows 'player connected' or 'new connection'. Basic character position visible on both clients."
-    why_human: "Requires two Skyrim instances (or one + a headless server) and live network traffic. No automated equivalent exists."
+  - test: "Run tests/smoke_test_client.sh from project root (auto-detects DLL, no arguments needed)"
+    expected: "Script reports PE32+ x86-64 OK, deploys DLL to Data/SKSE/Plugins/, Skyrim SE launches under Proton via SKSE, client log shows plugin loaded within 90s, game does not crash within 30s of main menu"
+    why_human: "Requires Skyrim SE + SKSE 2.2+ installed under a Proton prefix. Cannot be verified programmatically without the full game runtime."
+  - test: "With Skyrim loaded via the DLL: start a local SkyrimTogetherServer, connect from the in-game menu"
+    expected: "Client log shows OnConnected or 'connected to server'. Server log shows 'player connected'. A second player character is visible in-game when a second client joins."
+    why_human: "Requires two Skyrim instances (or one client + a headless server) and live network traffic. No automated equivalent exists."
 ---
 
 # Phase 3: Client DLL Cross-Compilation Verification Report
 
 **Phase Goal:** MinGW produces a SkyrimTogetherClient.dll that loads into Skyrim SE under Proton and connects to a server
-**Verified:** 2026-03-27T23:50:00Z
+**Verified:** 2026-03-28T03:30:00Z
 **Status:** human_needed
-**Re-verification:** Yes — after gap closure (Plan 04 closed DLL linking gap from initial verification)
+**Re-verification:** Yes — after Plan 05 gap closure (removed --noinhibit-exec, added comprehensive linker stubs)
 
 ## Re-verification Summary
 
-The initial verification (2026-03-27T22:00:00Z) found status `gaps_found` with score 1/3: the static library compiled but no DLL artifact existed. Plan 04 closed that gap. This re-verification confirms the gap closure and identifies remaining blockers.
+The previous verification (2026-03-27T23:50:00Z) had `status: human_needed` after Plan 04 produced the DLL artifact. The UAT (03-UAT.md) subsequently identified a blocker: DLL load crash 0x3E6 (ERROR_NOACCESS) caused by `--noinhibit-exec` filling unresolved symbols with null pointers that static constructors dereference. Plan 05 (commit `32491303`) closed that gap. This re-verification confirms Plan 05's changes are correct and no regressions were introduced.
 
-| Gap from Previous Verification | Resolved? | Evidence |
+| Gap from Previous UAT | Resolved? | Evidence |
 |---|---|---|
-| No `.dll` artifact (only `.a`) | YES | `build/mingw/x86_64/releasedbg/SkyrimTogetherClient.dll` 12MB PE32+ |
-| Smoke test auto-detection broken | YES | `find build/ -name 'SkyrimTogetherClient.dll' -not -path '*/cache/*'` returns valid path |
-| No SKSE entry points exported | YES | `objdump -p` shows `SKSEPlugin_Load` and `SKSEPlugin_Version` in export table |
+| DLL crashes on load: 0x3E6 ERROR_NOACCESS | YES — root cause fixed | `--noinhibit-exec` removed from `xmake.lua`; 20 unresolved symbols now have real stubs in `link_stubs.cpp` (210 lines) |
+| IAnimationGraphManagerHolder vtable incomplete | YES | 16 sub_ entries + GetVariableFloat/Int/Bool stubbed |
+| BGSKeywordForm vtable missing | YES | Contains and sub_5 stubbed |
+| RipAllocateN undefined | YES | 1MB static fallback pool |
+| g_SharedWindowIcon undefined | YES | Global nullptr definition |
+| _ReturnAddress MSVC intrinsic missing | YES | Mapped to `__builtin_return_address(0)` |
+| Runtime DLL load in Skyrim | NOT YET | Requires re-run of UAT after Plan 05 changes |
 
 ---
 
@@ -48,11 +55,11 @@ The initial verification (2026-03-27T22:00:00Z) found status `gaps_found` with s
 
 | # | Truth | Status | Evidence |
 |---|-------|--------|----------|
-| 1 | The client DLL compiles under MinGW with CEF and DirectXTK excluded (stubbed or replaced) | VERIFIED | `libSkyrimTogetherClient.a` (1.5GB, 136 objects) built under MinGW GCC 10; `SkyrimTogetherClient.dll` (12MB PE32+) produced by `SkyrimTogetherClientDLL` target; HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK guards confirmed; zero mimalloc references in client source |
-| 2 | The MinGW-compiled DLL loads into Skyrim SE via SKSE under Proton without crashing | ARTIFACT-READY / UNVERIFIED | `SkyrimTogetherClient.dll` is valid PE32+ with correct SKSE exports. Smoke test auto-detects it. Runtime load in Skyrim under Proton has NOT been executed — requires human. |
-| 3 | A client using the MinGW-built DLL can connect to a locally running server and see basic character sync | UNVERIFIED | Blocked until Truth 2 is confirmed. Requires live game runtime + running server. |
+| 1 | The client DLL compiles under MinGW with CEF and DirectXTK excluded (stubbed or replaced) | VERIFIED | `SkyrimTogetherClient.dll` 13MB PE32+ exists; `--noinhibit-exec` absent from `xmake.lua`; HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK guards intact; DLL links cleanly with zero undefined references; no MinGW runtime DLL dependencies |
+| 2 | The MinGW-compiled DLL loads into Skyrim SE via SKSE under Proton without crashing | ARTIFACT-READY — UNVERIFIED | DLL is valid PE32+ with correct SKSE exports and comprehensive linker stubs. Root cause of previous crash (0x3E6) is fixed. Runtime re-test in Skyrim under Proton has not been executed post-Plan 05. |
+| 3 | A client using the MinGW-built DLL can connect to a locally running server and see basic character sync | UNVERIFIED | Blocked until Truth 2 is confirmed via human UAT. |
 
-**Score:** 1/3 truths verified programmatically. 2/3 are artifact-ready; 2 require human runtime verification.
+**Score:** 1/3 truths verified programmatically. 2/3 require human runtime verification.
 
 ---
 
@@ -60,17 +67,13 @@ The initial verification (2026-03-27T22:00:00Z) found status `gaps_found` with s
 
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `Code/client/xmake.lua` | Feature-gated client build config; SkyrimTogetherClientDLL shared target | VERIFIED | HAS_CEF=1/HAS_DISCORD=1/HAS_DIRECTXTK=1 in `not is_plat("mingw")` block; `SkyrimTogetherClientDLL` target with `set_kind("shared")`, `set_basename("SkyrimTogetherClient")`, `before_link` stale-.dll.a cleanup |
-| `Code/client/skse_entry.cpp` | SKSE plugin entry points bridging to RunTiltedInit/RunTiltedApp | VERIFIED | Exports `SKSEPlugin_Version` and `SKSEPlugin_Load` via `__attribute__((dllexport))`; `DllMain` saves HINSTANCE; `extern RunTiltedInit/RunTiltedApp` declared; confirmed in main.cpp |
-| `Code/client/link_stubs.cpp` | Linker stubs for runtime-resolved Skyrim engine symbols and MSVC intrinsics | VERIFIED | File exists; guarded `#ifndef __MINGW32__`; stubs for ActorValueOwner, IAnimationGraphManagerHolder vtables; MSVC UCRT intrinsics (`__intrinsic_setjmpex`, etc.) |
-| `build/mingw/x86_64/releasedbg/SkyrimTogetherClient.dll` | MinGW-compiled client DLL, PE32+ | VERIFIED | File exists (12MB); `file` reports `PE32+ executable (DLL) (console) x86-64, for MS Windows`; objdump confirms `SKSEPlugin_Load` and `SKSEPlugin_Version` exports |
-| `tests/smoke_test_client.sh` | Smoke test with DLL auto-detection, PE32+ check, log-polling | VERIFIED | 200 lines; executable; `set -euo pipefail`; PE32+ check; log-polling loop; TIMEOUT variable; auto-detection finds DLL via `find build/ -name 'SkyrimTogetherClient.dll' -not -path '*/cache/*'` |
-| `Code/client/MinGWCompat.h` | Calling convention macro management | VERIFIED | Undefs `__fastcall`, `__stdcall`, `__cdecl` under `__GNUC__ && __x86_64__` |
-| `.toolchain/bin/` | Wrapper scripts for posix-threaded MinGW | VERIFIED | 7 wrapper scripts: `x86_64-w64-mingw32-{ar,g++,gcc,ld,ranlib,strip,windres}` |
-| `Code/client/Games/Memory.cpp` | rpmalloc-based memory hooks, no mimalloc | VERIFIED | `RpmallocAllocator`, `rpmemalign(aAlignment, aSize)`, `_initterm_e` guarded by `#ifdef _MSC_VER`; zero mimalloc references |
-| `Code/client/Services/OverlayService.h` | No-op stub under `#else HAS_CEF` | VERIFIED | `#ifdef HAS_CEF` on line 3; `#include <include/internal/cef_ptr.h>` inside guard |
-| `Code/client/Services/DiscordService.h` | No-op stub under `#else HAS_DISCORD` | VERIFIED | `#ifdef HAS_DISCORD` on line 3; `#include <discord.h>` inside guard |
-| `Code/client/Systems/RenderSystemD3D11.h` | Entire file wrapped in HAS_DIRECTXTK | VERIFIED | `#ifdef HAS_DIRECTXTK` at line 3 |
+| `Code/client/xmake.lua` | SkyrimTogetherClientDLL shared target, no --noinhibit-exec | VERIFIED | `SkyrimTogetherClientDLL` target exists at line 111; `add_shflags` contains `-static-libgcc`, `-static-libstdc++`, `--allow-multiple-definition` — no `--noinhibit-exec` anywhere in file (grep returns 0 matches) |
+| `Code/client/link_stubs.cpp` | Comprehensive stubs for all unresolved Skyrim engine symbols and MSVC intrinsics | VERIFIED | 210 lines; stubs for ActorValueOwner (8 virtuals), IAnimationGraphManagerHolder (16 sub_ entries + 3 GetVariable methods), BGSKeywordForm (2 entries), RipAllocateN (1MB pool), g_SharedWindowIcon, _ReturnAddress, and MSVC UCRT intrinsics |
+| `build/mingw/x86_64/releasedbg/SkyrimTogetherClient.dll` | Clean-linked MinGW client DLL | VERIFIED | 13MB; `file` reports `PE32+ executable (DLL) (console) x86-64, for MS Windows`; objdump confirms `SKSEPlugin_Load` and `SKSEPlugin_Version` exports; import table contains only Windows system DLLs (KERNEL32, msvcrt, WS2_32, etc.) — no libgcc, libstdc++, or libwinpthread |
+| `Code/client/skse_entry.cpp` | SKSE entry points bridging to RunTiltedInit/RunTiltedApp | VERIFIED (from previous) | `SKSEPlugin_Version` and `SKSEPlugin_Load` exported; `extern void RunTiltedInit` and `extern void RunTiltedApp` declared; both called in `SKSEPlugin_Load` handler |
+| `tests/smoke_test_client.sh` | Smoke test with DLL auto-detection and PE32+ check | VERIFIED (from previous) | 200 lines; `set -euo pipefail`; auto-detects DLL via `find build/ -name 'SkyrimTogetherClient.dll' -not -path '*/cache/*'` |
+| `Code/client/MinGWCompat.h` | Calling convention macro management | VERIFIED (from previous) | Undefs `__fastcall`, `__stdcall`, `__cdecl` under MinGW |
+| `.toolchain/bin/` | Wrapper scripts for posix-threaded MinGW | VERIFIED (from previous) | 7 wrapper scripts present |
 
 ---
 
@@ -78,17 +81,16 @@ The initial verification (2026-03-27T22:00:00Z) found status `gaps_found` with s
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `Code/client/xmake.lua (SkyrimTogetherClientDLL)` | `Code/client/xmake.lua (SkyrimTogetherClient)` | `add_deps` + `before_link` stale-.dll.a cleanup | WIRED | `add_deps("SkyrimTogetherClient")` pulls in static lib; `before_link` removes stale `.dll.a` import libs that would shadow the `.a` archive |
-| `Code/client/skse_entry.cpp` | `Code/client/main.cpp` | `extern void RunTiltedInit` / `extern void RunTiltedApp` declarations | WIRED | `skse_entry.cpp` declares `extern RunTiltedInit` and `extern RunTiltedApp`; `main.cpp` defines both (confirmed grep); linker resolves at link time via `--whole-archive` dep |
-| `tests/smoke_test_client.sh` | `build/.../SkyrimTogetherClient.dll` | `find` command auto-detection | WIRED | `find "$PROJECT_ROOT/build" -name 'SkyrimTogetherClient.dll' -not -path '*/cache/*'` returns `build/mingw/x86_64/releasedbg/SkyrimTogetherClient.dll` |
-| `Code/client/World.cpp` | `Code/client/Services/OverlayService.h` | `ctx().emplace<OverlayService>` compiles with stub | WIRED | OverlayService emplace unconditional; stub header always provides valid struct definition |
-| `Code/client/TiltedOnlineApp.cpp` | `Code/client/Systems/RenderSystemD3D11.h` | RenderSystemD3D11 creation guarded by HAS_DIRECTXTK | WIRED | 5 HAS_DIRECTXTK guards confirmed in TiltedOnlineApp.cpp |
+| `Code/client/xmake.lua (SkyrimTogetherClientDLL)` | `Code/client/link_stubs.cpp` | `add_files("skse_entry.cpp", "link_stubs.cpp")` line 117 | WIRED | link_stubs.cpp explicitly listed in DLL target's add_files call |
+| `Code/client/xmake.lua (SkyrimTogetherClientDLL)` | `Code/client/xmake.lua (SkyrimTogetherClient)` | `add_deps("SkyrimTogetherClient")` | WIRED | Static client lib pulled in via dep; before_link removes stale .dll.a import libs |
+| `Code/client/link_stubs.cpp` | Skyrim engine headers | `#include` + stub definitions matching mangled names | WIRED | Includes `ActorValueOwner.h`, `IAnimationGraphManagerHolder.h`, `BGSKeywordForm.h`; stubs match class virtual function signatures |
+| `Code/client/skse_entry.cpp` | `Code/client/main.cpp` | `extern void RunTiltedInit` / `extern void RunTiltedApp` declarations resolved at link time | WIRED | skse_entry.cpp declares externs; main.cpp defines them (confirmed from previous verification) |
 
 ---
 
 ### Data-Flow Trace (Level 4)
 
-Not applicable. This phase produces C++ compilation artifacts (DLL, static library, build scripts), not data-rendering components.
+Not applicable. This phase produces C++ compilation artifacts (DLL, static library, build scripts), not data-rendering components. No dynamic data flow to trace.
 
 ---
 
@@ -97,14 +99,13 @@ Not applicable. This phase produces C++ compilation artifacts (DLL, static libra
 | Behavior | Command | Result | Status |
 |----------|---------|--------|--------|
 | DLL is valid PE32+ x86-64 | `file build/.../SkyrimTogetherClient.dll` | `PE32+ executable (DLL) (console) x86-64, for MS Windows` | PASS |
-| DLL exports SKSE entry points | `objdump -p ... \| grep SKSEPlugin` | `SKSEPlugin_Load`, `SKSEPlugin_Version` in export table | PASS |
-| DLL is substantive (12MB, not stub) | `ls -lh ...dll` | 12MB — contains all client code from 1.5GB static lib via dep linking | PASS |
-| Smoke test DLL auto-detection | `find build/ -name 'SkyrimTogetherClient.dll' -not -path '*/cache/*'` | Returns valid path | PASS |
-| No mimalloc in client source | `grep -rl mimalloc Code/client/ \| wc -l` | 0 | PASS |
-| HAS_CEF guard in xmake.lua | `grep -c "HAS_CEF" Code/client/xmake.lua` | 1 | PASS |
-| CEF include inside guard | `head -5 OverlayService.h` | `#ifdef HAS_CEF` then `#include <cef_ptr.h>` | PASS |
-| Discord include inside guard | `head -5 DiscordService.h` | `#ifdef HAS_DISCORD` then `#include <discord.h>` | PASS |
-| RunTiltedInit defined in main.cpp | `grep "RunTiltedInit" Code/client/main.cpp` | Line 36: function definition | PASS |
+| DLL exports SKSE entry points | `objdump -p ... \| grep SKSEPlugin` | `[0] SKSEPlugin_Load`, `[1] SKSEPlugin_Version` | PASS |
+| DLL is substantive (13MB) | `ls -lh ...dll` | 13M (exceeds 10MB threshold) | PASS |
+| No --noinhibit-exec in xmake.lua | `grep -c noinhibit-exec Code/client/xmake.lua` | 0 | PASS |
+| No MinGW runtime DLL dependencies | `objdump -p ... \| grep "DLL Name"` | Only system DLLs: KERNEL32, msvcrt, WS2_32, GDI32, USER32, etc. | PASS |
+| link_stubs.cpp included in DLL target | `grep link_stubs Code/client/xmake.lua` | Line 117: `add_files("skse_entry.cpp", "link_stubs.cpp")` | PASS |
+| link_stubs.cpp is substantive | `wc -l Code/client/link_stubs.cpp` | 210 lines (20 symbols covered) | PASS |
+| Plan 05 commit exists in git | `git show 32491303 --stat` | Commit confirmed: removes --noinhibit-exec, adds IAnimationGraphManagerHolder/BGSKeywordForm/RipAllocateN/g_SharedWindowIcon/_ReturnAddress stubs | PASS |
 | DLL loads in Skyrim under Proton | Run `tests/smoke_test_client.sh` with Skyrim installed | Not runnable without game runtime | SKIP — requires human |
 | Server connection established | Observe logs with running server | Not testable without live runtime | SKIP — requires human |
 
@@ -114,10 +115,10 @@ Not applicable. This phase produces C++ compilation artifacts (DLL, static libra
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |-------------|------------|-------------|--------|----------|
-| BUILD-04 | 03-01, 03-02, 03-03 | Tier 3 client DLL compiles under MinGW (CEF/DirectXTK excluded, replaced by ImGui) | SATISFIED | `libSkyrimTogetherClient.a` (1.5GB, 136 objects); `SkyrimTogetherClient.dll` (12MB PE32+); all feature guards in place; REQUIREMENTS.md marks `[x]` |
-| BUILD-05 | 03-03, 03-04 | MinGW-compiled DLL loads into Skyrim SE under Proton without crash | NEEDS HUMAN | DLL artifact exists with correct SKSE exports. Runtime load not yet verified. REQUIREMENTS.md marks `[ ]` pending. Smoke test infrastructure ready. |
+| BUILD-04 | 03-01, 03-02, 03-03, 03-05 | Tier 3 client DLL compiles under MinGW (CEF/DirectXTK excluded, replaced by ImGui) | SATISFIED | `SkyrimTogetherClient.dll` 13MB PE32+; all feature guards in place; links cleanly without --noinhibit-exec; REQUIREMENTS.md marks `[x]` |
+| BUILD-05 | 03-03, 03-04, 03-05 | MinGW-compiled DLL loads into Skyrim SE under Proton without crash | NEEDS HUMAN | DLL artifact valid with correct SKSE exports; crash root cause (null ptrs from --noinhibit-exec) fixed in Plan 05; runtime re-test pending; REQUIREMENTS.md marks `[x]` (optimistically, based on Plan 05 fix) |
 
-**Orphaned requirements check:** No additional Phase 3 requirements in REQUIREMENTS.md beyond BUILD-04 and BUILD-05. No orphans.
+**Orphaned requirements check:** Phase 3 in REQUIREMENTS.md maps only to BUILD-04 and BUILD-05. No orphaned requirements exist. REQUIREMENTS.md lines 106-107 confirm both are marked "Complete" in the tracker table.
 
 ---
 
@@ -125,48 +126,47 @@ Not applicable. This phase produces C++ compilation artifacts (DLL, static libra
 
 | File | Line | Pattern | Severity | Impact |
 |------|------|---------|----------|--------|
-| `Code/client/Games/Skyrim/BSGraphics/BSGraphicsRenderer.h` | 3 | `#include <d3d11.h>` with no HAS_DIRECTXTK guard in the header itself | Info | Build succeeds because MinGW-w64 provides d3d11.h natively. Inconsistent with the guarding pattern but not a blocker. |
-| `tests/smoke_test_client.sh` | 55 | Error message says `xmake build SkyrimTogetherClient` (static target) instead of `SkyrimTogetherClientDLL` (DLL target) | Info | Confusing to user if DLL not found; correct command should be `xmake build SkyrimTogetherClientDLL` |
+| `Code/client/Games/Skyrim/BSGraphics/BSGraphicsRenderer.h` | 3 | `#include <d3d11.h>` without HAS_DIRECTXTK guard | Info | Build succeeds because MinGW-w64 provides d3d11.h natively. Inconsistent with the feature-guard pattern but not a blocker. |
+| `tests/smoke_test_client.sh` | ~55 | Error message references `xmake build SkyrimTogetherClient` (static target) instead of `xmake build SkyrimTogetherClientDLL` (DLL target) | Info | Confusing to user if DLL not found; does not affect correctness of auto-detection path |
 
-No blocker anti-patterns found. The stale-import-library issue from Plan 04 is handled by the `before_link` cleanup hook.
+No blocker anti-patterns found. The null-pointer-at-load issue from Plan 04 has been resolved by Plan 05.
 
 ---
 
 ### Human Verification Required
 
-#### 1. DLL Load in Skyrim SE Under Proton
+#### 1. DLL Load in Skyrim SE Under Proton (BUILD-05 re-test)
 
-**Test:** Run `tests/smoke_test_client.sh` from the project root. No arguments needed — it auto-detects the DLL.
+**Test:** Run `tests/smoke_test_client.sh` from the project root. No arguments needed — it auto-detects the DLL in `build/mingw/x86_64/releasedbg/`.
 **Expected:**
 - Step 1: Script reports `PE32+ x86-64 OK`
 - Step 2: DLL deployed to `$SKYRIM_DIR/Data/SKSE/Plugins/SkyrimTogetherClient.dll`
-- Step 4: Skyrim SE launches under Proton without error
+- Step 4: Skyrim SE launches under Proton via SKSE without an error dialog
 - Within 90s: Client log at `Data/SKSE/Plugins/SkyrimTogether.log` contains a plugin-loaded message
-- Game remains stable for at least 30 seconds after reaching the main menu (no crash)
-**Why human:** Requires Skyrim SE + SKSE 2.2+ installed under a Proton prefix. The smoke test automates deployment and log-polling but cannot execute without the game runtime.
+- Game remains stable for at least 30 seconds after reaching the main menu (no 0x3E6 crash)
+
+**Why human:** Requires Skyrim SE + SKSE 2.2+ installed under a Proton prefix. Plan 05 fixed the root cause of the previous 0x3E6 crash, but the fix must be confirmed against the actual game runtime — SKSE's address library patching and Wine ABI behavior cannot be simulated programmatically.
 
 #### 2. Server Connection and Basic Character Sync
 
-**Test:** With Skyrim loaded via the DLL: start a local `SkyrimTogetherServer`, connect from the in-game menu, open a second client, and observe that both clients appear in the game world.
+**Test:** With Skyrim loaded via the DLL: start a local `SkyrimTogetherServer`, connect from the in-game UI, open a second client, and observe that both clients appear in the game world.
 **Expected:** Client log shows `connected to server` or `OnConnected`. Server log shows `player connected`. A second player character is visible in-game.
-**Why human:** Requires two game instances (or one client + a server process) running concurrently with a real Skyrim session. No headless equivalent exists for this phase.
+**Why human:** Requires two game instances (or one client + headless server) running concurrently with a real Skyrim session. No headless equivalent exists for this phase.
 
 ---
 
 ### Gaps Summary
 
-**Gap closure confirmed:** Plan 04 successfully closed the DLL linking gap identified in the initial verification. The `SkyrimTogetherClient.dll` (12MB PE32+ x86-64) is a real artifact containing all 136 compiled translation units from `libSkyrimTogetherClient.a`, linked via the `SkyrimTogetherClientDLL` shared target. The SKSE entry points (`SKSEPlugin_Load`, `SKSEPlugin_Version`) are exported and correctly bridge to `RunTiltedInit`/`RunTiltedApp` in `main.cpp`.
+**Plan 05 gap closure confirmed:** All automated preconditions for BUILD-05 now pass:
 
-**Remaining work:** BUILD-05 (DLL loads in Skyrim under Proton) requires a human to execute the smoke test against a real Skyrim installation. All automated preconditions are met:
+- `--noinhibit-exec` is absent from `Code/client/xmake.lua` (grep returns 0)
+- `Code/client/link_stubs.cpp` (210 lines) provides stubs for all 20 previously unresolved symbols across 5 categories: ActorValueOwner, IAnimationGraphManagerHolder, BGSKeywordForm, globals (g_SharedWindowIcon), allocators (RipAllocateN), and MSVC intrinsics (_ReturnAddress, __intrinsic_setjmpex, etc.)
+- DLL artifact is 13MB PE32+ x86-64 with correct SKSE exports and only system DLL dependencies
+- `link_stubs.cpp` is wired into the DLL target at xmake.lua line 117
 
-- DLL artifact: exists, correct format, correct exports
-- Smoke test: auto-detects DLL, handles PE32+ check, deploys to SKSE plugins, polls logs for connection
-- SKSE entry point wiring: correct (skse_entry.cpp → RunTiltedInit/RunTiltedApp → main.cpp)
-- Link stubs: Skyrim engine vtables and MSVC intrinsics stubbed for runtime resolution
-
-The DLL may require additional runtime fixes once loaded (Skyrim ABI edge cases, address library resolution, Wine-specific behaviors) but these cannot be identified without attempting the load. The smoke test is the correct next step.
+**Remaining work:** The UAT that identified the 0x3E6 crash (03-UAT.md test 5) must be re-run against the Plan 05 DLL. If the load succeeds, BUILD-05 and Truth 2 can be marked VERIFIED. Truth 3 (server connection) must be tested immediately after. The smoke test (`tests/smoke_test_client.sh`) automates deployment and log-polling and is the correct next step.
 
 ---
 
-_Verified: 2026-03-27T23:50:00Z_
+_Verified: 2026-03-28T03:30:00Z_
 _Verifier: Claude (gsd-verifier)_

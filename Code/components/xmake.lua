@@ -1,7 +1,7 @@
 -- This function defines the core component idoms
 function component(name)
   target(name)
-    set_kind("static")
+    devbuild_shared()
     set_group("Components")
     add_configfiles("BuildInfo.h.in")
     add_includedirs(

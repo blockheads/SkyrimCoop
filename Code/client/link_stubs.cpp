@@ -177,34 +177,6 @@ extern "C" void* _ReturnAddress(void)
 }
 
 // --- MSVC UCRT intrinsic stubs ---
-// These are used by lua and libuv packages that were compiled with MSVC.
-
-extern "C" {
-
-int __intrinsic_setjmpex(void* apBuf)
-{
-    return _setjmp(static_cast<jmp_buf*>(apBuf)[0], nullptr);
-}
-
-unsigned long long __local_stdio_printf_options(void)
-{
-    return 0;
-}
-
-int __stdio_common_vsnwprintf_s(
-    unsigned long long aOptions,
-    wchar_t* apBuffer,
-    size_t aBufferCount,
-    size_t aMaxCount,
-    const wchar_t* apFormat,
-    void* apLocale,
-    va_list aArgList)
-{
-    (void)aOptions;
-    (void)apLocale;
-    if (!apBuffer || aBufferCount == 0)
-        return -1;
-    return vsnwprintf(apBuffer, aBufferCount < aMaxCount ? aBufferCount : aMaxCount, apFormat, aArgList);
-}
-
-} // extern "C"
+// Note: __intrinsic_setjmpex, __local_stdio_printf_options, and
+// __stdio_common_vsnwprintf_s are provided natively by MinGW 14.3+ headers.
+// No stubs needed — removed to avoid conflicting declarations.

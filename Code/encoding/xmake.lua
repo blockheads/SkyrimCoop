@@ -1,6 +1,6 @@
 local function build_encoding(name)
 target(name)
-    set_kind("static")
+    devbuild_shared()
     set_group("common")
     add_includedirs(".", "../", {public = true})
     add_headerfiles("**.h|Structs/Skyrim/**", {prefixdir = "Encoding"})

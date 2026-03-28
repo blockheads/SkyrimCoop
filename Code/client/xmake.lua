@@ -140,6 +140,7 @@ if is_plat("mingw") then
             "-Wl,-Bstatic", "-lstdc++", "-lpthread",
             "-Wl,-Bdynamic",
             "-Wl,--allow-multiple-definition",
+            "-Wl,-Map,SkyrimTogetherClient.map",
             {force = true})
 
         -- Extra system libraries needed at final link (beyond what deps inherit)

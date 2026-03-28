@@ -1,6 +1,6 @@
 
 target("AdminProtocol")
-    set_kind("static")
+    devbuild_shared()
     set_group("common")
     if is_plat("linux") then
         add_cxflags("-fPIC")

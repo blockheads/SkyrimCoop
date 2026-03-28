@@ -55,6 +55,20 @@ if is_plat("mingw") then
     end
 end
 
+-- Helper: conditionally build as shared DLL in devbuild mode (D-03)
+-- Uses --export-all-symbols to avoid invasive dllexport annotations
+function devbuild_shared()
+    if is_mode("devbuild") and is_plat("mingw") then
+        set_kind("shared")
+        set_prefixname("")  -- Windows DLL naming (no "lib" prefix)
+        add_shflags("-Wl,--export-all-symbols", {force = true})
+        add_shflags("-fuse-ld=lld", {force = true})
+        add_shflags("-static-libgcc", "-static-libstdc++", {force = true})
+    else
+        set_kind("static")
+    end
+end
+
 set_warnings("all")
 add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
