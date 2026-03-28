@@ -86,7 +86,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md -- Remove standalone server code and clean GameServer for P2P embedded-only mode
 - [x] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake, relay integration
-- [ ] 05-03-PLAN.md -- Fake player binary and in-game sync verification (D-03 stretch goal)
+- [x] 05-03-PLAN.md -- Fake player binary and in-game sync verification (D-03 stretch goal)
 
 ### Phase 6: ImGui UI Port
 **Goal**: All user-facing UI functionality works through ImGui instead of CEF, fully compilable with MinGW and debuggable from Linux
