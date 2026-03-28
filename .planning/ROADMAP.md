@@ -137,7 +137,7 @@ Plans:
 - [x] 07-02-PLAN.md -- XMake build targets for relay DLL (MinGW) and native client (Linux ELF)
 - [x] 07-03-PLAN.md -- Relay DLL: TCP server, SKSE entry point, process launcher with auto-restart
 - [x] 07-04-PLAN.md -- Native core: /proc/pid/mem reader, pointer table, GameBridge API, TCP client
-- [ ] 07-05-PLAN.md -- Hook trampolines + service rewrites batch 1 (Weather, Calendar, Quest, Combat)
+- [x] 07-05-PLAN.md -- Hook trampolines + service rewrites batch 1 (Weather, Calendar, Quest, Combat)
 - [ ] 07-06-PLAN.md -- Service rewrites batch 2 (Inventory, ActorValue, Magic)
 - [ ] 07-07-PLAN.md -- CharacterService rewrite + InterpolationSystem + AnimationSystem + full main loop
 - [ ] 07-08-PLAN.md -- Smoke tests and human verification of relay architecture in Skyrim
