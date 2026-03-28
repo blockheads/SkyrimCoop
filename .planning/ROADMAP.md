@@ -71,7 +71,7 @@ Plans:
 **Plans**: 2/3 executed, remaining plan no longer needed
 
 ### Phase 4: Linux Debug Workflow (Resolved)
-**Status**: Resolved by Phase 7's relay architecture. The native `skyrim-coop` binary is a standard Linux process — attach GDB/LLDB directly with full symbols. The DLL has file-based logging (`skyrim_coop_hooks.log`). No Wine debugging complexity needed.
+**Status**: Resolved by Phase 7's relay architecture. The native `skyrim-coop` binary is a standard Linux process -- attach GDB/LLDB directly with full symbols. The DLL has file-based logging (`skyrim_coop_hooks.log`). No Wine debugging complexity needed.
 **Plans**: None required
 
 ### Phase 5: Networking Verification & Server Cleanup
@@ -79,13 +79,14 @@ Plans:
 **Depends on**: Phase 7 (relay architecture)
 **Requirements**: TEST-01, TEST-02, TEST-03
 **Success Criteria** (what must be TRUE):
-  1. All standalone/dedicated server code removed — only embedded server (host mode) remains
-  2. Message round-trip tests verify serialization across mock client and embedded server
+  1. All standalone/dedicated server code removed -- only embedded server (host mode) remains
+  2. Message round-trip tests verify serialization across mock client and embedded server, and relay integration tests verify TCP protocol between TcpClient and mock server
   3. A headless test harness connects to the embedded GameServer as a fake second player, sends scripted movements, and automated memory reads verify the remote actor position in the real Skyrim process
-**Plans**: 2 plans
+**Plans**: 3 plans
 Plans:
 - [ ] 05-01-PLAN.md -- Remove standalone server code and clean GameServer for P2P embedded-only mode
-- [ ] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake
+- [ ] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake, relay integration
+- [ ] 05-03-PLAN.md -- Fake player binary and in-game sync verification (D-03 stretch goal)
 
 ### Phase 6: ImGui UI Port
 **Goal**: All user-facing UI functionality works through ImGui instead of CEF, fully compilable with MinGW and debuggable from Linux
@@ -135,6 +136,6 @@ Phases execute in numeric order. Phases 4 and 5 can run in parallel with Phase 3
 | 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
 | 3.1. Build Performance & Resource Optimization | 2/3 | Resolved by Phase 7 | 2026-03-28 |
 | 4. Linux Debug Workflow | 0/0 | Resolved by Phase 7 | 2026-03-28 |
-| 5. Testing & CI Pipeline | 0/2 | Planning complete | - |
+| 5. Testing & CI Pipeline | 0/3 | Planning complete | - |
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
