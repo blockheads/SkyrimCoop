@@ -132,9 +132,13 @@ if is_plat("mingw") then
             end
         end)
 
-        -- Allow multiple definitions and unresolved symbols (equiv of MSVC /FORCE)
-        -- Skyrim engine symbols are resolved at runtime when loaded into the game process
+        -- Statically link MinGW runtime (no libgcc/libstdc++/libwinpthread DLL deps)
+        -- xmake strips add_ldflags for shared targets, so use add_shflags
         add_shflags(
+            "-static-libgcc",
+            "-static-libstdc++",
+            "-Wl,-Bstatic", "-lstdc++", "-lpthread",
+            "-Wl,-Bdynamic",
             "-Wl,--allow-multiple-definition",
             "-Wl,--noinhibit-exec",
             {force = true})
