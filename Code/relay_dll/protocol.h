@@ -42,10 +42,10 @@ enum HookOpcode : uint16_t {
 };
 
 struct HookEventPacket {
-    PacketHeader header;
-    uint8_t argCount;
-    uint8_t _pad[7];     // align args to 8-byte boundary
-    uint64_t args[8];
+    PacketHeader header;     // 4 bytes (offset 0)
+    uint8_t argCount;        // 1 byte  (offset 4)
+    uint8_t _pad[3];         // 3 bytes (offset 5-7) — aligns args to offset 8
+    uint64_t args[8];        // 64 bytes (offset 8)
 };
 
 // -------------------------------------------------------------------------
