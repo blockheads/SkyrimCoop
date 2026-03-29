@@ -407,10 +407,11 @@ using TCharacterCtor = void* (__fastcall*)(void*);
 static TCharacterCtor RealCharacterCtor = nullptr;
 static void* __fastcall HookCharacterCtor(void* apThis)
 {
+    void* result = RealCharacterCtor(apThis);
     uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
                           static_cast<uint64_t>(ReadFormId(apThis)) };
     SendHookEvent(HOOK_CHARACTER_CTOR, 2, args);
-    return RealCharacterCtor(apThis);
+    return result;
 }
 
 // CharacterConstructor2 (40246) - Character* __fastcall CharacterCtor2(Character* apThis, uint8_t aFormType)
@@ -418,10 +419,11 @@ using TCharacterCtor2 = void* (__fastcall*)(void*, uint8_t);
 static TCharacterCtor2 RealCharacterCtor2 = nullptr;
 static void* __fastcall HookCharacterCtor2(void* apThis, uint8_t aFormType)
 {
+    void* result = RealCharacterCtor2(apThis, aFormType);
     uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
                           static_cast<uint64_t>(ReadFormId(apThis)) };
     SendHookEvent(HOOK_CHARACTER_CTOR, 2, args);
-    return RealCharacterCtor2(apThis, aFormType);
+    return result;
 }
 
 // SpawnActorInWorld (19742) - void __fastcall SpawnActorInWorld(void* apThis)
@@ -429,13 +431,13 @@ using TSpawnActor = void (__fastcall*)(void*);
 static TSpawnActor RealSpawnActor = nullptr;
 static void __fastcall HookSpawnActor(void* apThis)
 {
+    RealSpawnActor(apThis);
     float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
     ReadPosition(apThis, &posX, &posY, &posZ);
     uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
                           static_cast<uint64_t>(ReadFormId(apThis)),
                           FloatToU64(posX), FloatToU64(posY), FloatToU64(posZ) };
     SendHookEvent(HOOK_SPAWN_ACTOR, 5, args);
-    RealSpawnActor(apThis);
 }
 
 // AddDeathItems (37198) - void __fastcall AddDeathItems(Actor* apThis)
