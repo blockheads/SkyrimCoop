@@ -16,7 +16,6 @@ using TiltedPhoques::Map;
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
 #include "../transport/LoopbackTransport.h"
-#include "protocol.h"
 #include <nlohmann/json.hpp>
 #include "json_protocol.h"
 
@@ -24,14 +23,6 @@ using TiltedPhoques::Map;
 #include <Packet.hpp>
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Structs/ReferenceUpdate.h>
-
-// Helper: decode float from uint64_t bit pattern (reverse of FloatToU64 in DLL)
-static float U64ToFloat(uint64_t aVal)
-{
-    float f = 0.0f;
-    memcpy(&f, &aVal, sizeof(float));
-    return f;
-}
 
 // Helper: compute squared distance for change detection
 static float DistanceSquared(const glm::vec3& a, const glm::vec3& b) {
@@ -54,13 +45,52 @@ CharacterService::CharacterService(GameReader& aReader, TcpClient& aClient, entt
     spdlog::info("CharacterService initialized");
 }
 
-// --- Hook event dispatch ---
+// --- Hook event dispatch (JSON wire protocol) ---
 
 void CharacterService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    // TODO(Plan-04): Implement full JSON dispatch for CharacterService
-    const auto& op = aMsg.value(JsonField::kOp, std::string{});
-    spdlog::debug("[CharacterService] stub OnHookEvent: op={}", op);
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
+    if (op == JsonOp::kActorAdded) {
+        HandleActorAdded(aMsg.value(JsonField::kPtr, 0ull),
+                         aMsg.value(JsonField::kFormId, 0u));
+    } else if (op == JsonOp::kActorRemoved) {
+        HandleActorRemoved(aMsg.value(JsonField::kPtr, 0ull),
+                           aMsg.value(JsonField::kFormId, 0u));
+    } else if (op == JsonOp::kSetPosition) {
+        uint32_t formId = aMsg.value(JsonField::kFormId, 0u);
+        if (formId != 0) {
+            float px = aMsg.value(JsonField::kX, 0.0f);
+            float py = aMsg.value(JsonField::kY, 0.0f);
+            float pz = aMsg.value(JsonField::kZ, 0.0f);
+            float rx = aMsg.value(JsonField::kRx, 0.0f);
+            float rz = aMsg.value(JsonField::kRz, 0.0f);
+            m_positionCache[formId] = {glm::vec3(px, py, pz), glm::vec2(rx, rz)};
+        }
+    } else if (op == JsonOp::kCharacterCtor) {
+        HandleCharacterCtor(aMsg.value(JsonField::kPtr, 0ull),
+                            aMsg.value(JsonField::kFormId, 0u));
+    } else if (op == JsonOp::kSpawnActor) {
+        HandleSpawnActor(aMsg.value(JsonField::kPtr, 0ull),
+                         aMsg.value(JsonField::kFormId, 0u));
+    } else if (op == JsonOp::kDeathItems) {
+        HandleDeathItems(aMsg.value(JsonField::kPtr, 0ull),
+                         aMsg.value(JsonField::kFormId, 0u));
+    } else if (op == JsonOp::kPerformAction) {
+        HandlePerformAction(aMsg.value(JsonField::kActorFormId, 0u),
+                            aMsg.value(JsonField::kActionFormId, 0u));
+    } else if (op == JsonOp::kActorProcess) {
+        // Pointer table tracking handled in main.cpp DispatchHookEvent
+    } else if (op == JsonOp::kPlayAnimation) {
+        // Animation event -- logged for diagnostics, no action needed here
+        spdlog::debug("CharacterService: play_animation formId={:#x}",
+                      aMsg.value(JsonField::kThisFormId, 0u));
+    } else if (op == JsonOp::kMountPackage) {
+        // Mount package event -- logged for diagnostics
+        spdlog::debug("CharacterService: mount_package actorFormId={:#x} mountFormId={:#x}",
+                      aMsg.value(JsonField::kActorFormId, 0u),
+                      aMsg.value(JsonField::kMountFormId, 0u));
+    }
 }
 
 // --- Actor lifecycle ---
@@ -261,12 +291,12 @@ void CharacterService::SyncMovement()
         auto& comp = view.get<LocalComponent>(entity);
         if (comp.gamePtr == 0) continue;
 
-        // Read current position and rotation from cache (populated by HOOK_SET_POSITION events)
+        // Read current position and rotation from cache (populated by set_position events)
         // No /proc/mem fallback -- under Wine/Proton, pread on game memory does not work.
-        // If no HOOK_SET_POSITION has fired for this actor yet, skip until one arrives.
+        // If no set_position has fired for this actor yet, skip until one arrives.
         auto cacheIt = m_positionCache.find(comp.formId);
         if (cacheIt == m_positionCache.end()) {
-            continue; // No cached data yet -- wait for DLL to send a SET_POSITION event
+            continue; // No cached data yet -- wait for DLL to send a set_position event
         }
 
         glm::vec3 currentPos = cacheIt->second.position;
@@ -327,7 +357,7 @@ void CharacterService::SyncMovement()
 
             TiltedPhoques::Buffer buffer(1 << 16);
             TiltedPhoques::Buffer::Writer writer(&buffer);
-            writer.WriteBits(0, 8); // packet type prefix
+            writer.WriteBits(0, 8); // packet type prefix byte
             moveReq.Serialize(writer);
             TiltedPhoques::PacketView packet(
                 reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
@@ -358,7 +388,7 @@ void CharacterService::SyncMovement()
 void CharacterService::ApplyRemotePositions()
 {
     // For each remote actor with an interpolation component,
-    // send CMD_SET_POSITION to the DLL with the current interpolated position
+    // send cmd_set_position to the DLL with the current interpolated position
     auto view = m_registry.view<RemoteComponent, InterpolationComponent>();
 
     for (auto entity : view) {
@@ -493,46 +523,29 @@ void CharacterService::OnRemoteAnimationUpdate(uint32_t aServerId, uint32_t aAct
     }
 }
 
-// --- DLL command senders ---
+// --- DLL command senders (JSON wire protocol) ---
 
 void CharacterService::SendSetPosition(uint64_t aActorPtr, const glm::vec3& aPos, const glm::vec2& aRot)
 {
-    CommandPacket cmd{};
-    cmd.header.opcode = CMD_SET_POSITION;
-    cmd.header.length = sizeof(CommandPacket) - sizeof(PacketHeader);
-    cmd.argCount = 3;
-
-    // Pack position: args[0] = actorPtr, args[1] = position as 3 packed floats, args[2] = rotation as 2 packed floats
-    cmd.args[0] = aActorPtr;
-
-    // Pack 3 floats into 2 uint64_t values (position)
-    // Two floats per uint64: [x|y] in args[1], [z|rotX] in args[2]
-    uint32_t posXBits, posYBits, posZBits;
-    uint32_t rotXBits, rotZBits;
-    memcpy(&posXBits, &aPos.x, sizeof(float));
-    memcpy(&posYBits, &aPos.y, sizeof(float));
-    memcpy(&posZBits, &aPos.z, sizeof(float));
-    memcpy(&rotXBits, &aRot.x, sizeof(float));
-    memcpy(&rotZBits, &aRot.y, sizeof(float));
-
-    cmd.args[1] = (static_cast<uint64_t>(posYBits) << 32) | posXBits;
-    cmd.args[2] = (static_cast<uint64_t>(rotXBits) << 32) | posZBits;
-    cmd.argCount = 4;
-    cmd.args[3] = rotZBits;  // rotation Z in lower 32 bits
-
-    m_client.Send(&cmd, sizeof(cmd));
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdSetPosition},
+        {JsonField::kActorPtr, aActorPtr},
+        {JsonField::kX, aPos.x},
+        {JsonField::kY, aPos.y},
+        {JsonField::kZ, aPos.z},
+        {JsonField::kRx, aRot.x},
+        {JsonField::kRz, aRot.y}
+    };
+    m_client.SendJsonLine(cmd);
 }
 
 void CharacterService::SendPlayAnimation(uint64_t aActorPtr, uint32_t aActionId, uint32_t aTargetFormId)
 {
-    CommandPacket cmd{};
-    cmd.header.opcode = CMD_PLAY_ANIMATION;
-    cmd.header.length = sizeof(CommandPacket) - sizeof(PacketHeader);
-    cmd.argCount = 3;
-
-    cmd.args[0] = aActorPtr;
-    cmd.args[1] = aActionId;
-    cmd.args[2] = aTargetFormId;
-
-    m_client.Send(&cmd, sizeof(cmd));
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdPlayAnimation},
+        {JsonField::kActorPtr, aActorPtr},
+        {JsonField::kActionId, aActionId},
+        {JsonField::kTargetFormId, aTargetFormId}
+    };
+    m_client.SendJsonLine(cmd);
 }

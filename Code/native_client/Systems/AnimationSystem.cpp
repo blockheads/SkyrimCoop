@@ -1,11 +1,11 @@
 #include "AnimationSystem.h"
 
 #include <spdlog/spdlog.h>
-#include <cstring>
+#include <nlohmann/json.hpp>
 
 #include "../Services/CharacterService.h" // for RemoteComponent, AnimationComponent
 #include "../game_bridge/tcp_client.h"
-#include "protocol.h"
+#include "json_protocol.h"
 
 void AnimationSystem::Update(entt::registry& aRegistry, TcpClient& aTcp, float /*aDeltaTime*/)
 {
@@ -23,18 +23,16 @@ void AnimationSystem::Update(entt::registry& aRegistry, TcpClient& aTcp, float /
         if (remote.gamePtr == 0)
             continue;
 
-        // Build CMD_PLAY_ANIMATION packet for the DLL
-        CommandPacket cmd{};
-        cmd.header.opcode = CMD_PLAY_ANIMATION;
-        cmd.header.length = sizeof(CommandPacket) - sizeof(PacketHeader);
-        cmd.argCount = 3;
-        cmd.args[0] = remote.gamePtr;
-        cmd.args[1] = anim.lastActionId;
-        cmd.args[2] = anim.lastTargetFormId;
+        // Build cmd_play_animation JSON for the DLL
+        nlohmann::json cmd = {
+            {JsonField::kOp, JsonOp::kCmdPlayAnimation},
+            {JsonField::kActorPtr, remote.gamePtr},
+            {JsonField::kActionId, anim.lastActionId},
+            {JsonField::kTargetFormId, anim.lastTargetFormId}
+        };
+        aTcp.SendJsonLine(cmd);
 
-        aTcp.Send(&cmd, sizeof(cmd));
-
-        spdlog::debug("AnimationSystem: CMD_PLAY_ANIMATION actor={:#x} action={} target={:#x}",
+        spdlog::debug("AnimationSystem: cmd_play_animation actor={:#x} action={} target={:#x}",
                        remote.gamePtr, anim.lastActionId, anim.lastTargetFormId);
     }
 }
