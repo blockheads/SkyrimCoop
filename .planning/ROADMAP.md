@@ -265,8 +265,8 @@ Plans:
   3. Per-service replay tests verify structural correctness + key values for each service
   4. Full-session integration test replays live_session.ndjson (45k lines) without crashes
   5. ReplayTests binary gates CI (all tests must pass)
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 13-01-PLAN.md -- ReplayHarness getters, service state accessors, 7 synthetic NDJSON fixtures
+- [x] 13-01-PLAN.md -- ReplayHarness getters, service state accessors, 7 synthetic NDJSON fixtures
 - [ ] 13-02-PLAN.md -- 7 per-service replay test files + full-session integration test
