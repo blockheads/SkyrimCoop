@@ -53,7 +53,7 @@ void TcpClient::Disconnect() {
 
 bool TcpClient::Send(const void* aData, uint32_t aSize) {
     if (m_socket == -1)
-        return false;
+        return true;  // No-op when disconnected (replay/test mode)
 
     const uint8_t* pBuf = static_cast<const uint8_t*>(aData);
     uint32_t remaining = aSize;

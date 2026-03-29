@@ -8,8 +8,9 @@ if is_plat("linux") then
         set_group("NativeClient")
         set_basename("skyrim-coop")
 
-        -- Source files
+        -- Source files (exclude replay/ -- test-only harness with extra deps)
         add_files("**.cpp")
+        remove_files("replay/**.cpp")
 
         -- Include dirs
         add_includedirs(".")

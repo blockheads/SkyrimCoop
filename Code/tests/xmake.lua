@@ -23,3 +23,4 @@ target("TPTests")
                  "sqlite3", "lua", "sol2")
 
 includes("integration")
+includes("replay")

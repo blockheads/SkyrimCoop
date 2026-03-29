@@ -128,7 +128,8 @@ add_requires(
     -- enet6: Replaced GameNetworkingSockets with enet6 for simpler networking
     "enet6",
     "libuv v1.48.0",
-    "catch2 2.13.9"
+    "catch2 2.13.9",
+    "nlohmann_json v3.11.3"
 )
 
 -- Windows/MinGW-only packages (Tier 3 client dependencies)
