@@ -47,7 +47,10 @@ using TiltedPhoques::Vector;
 #include <Client.hpp>
 #include <Packet.hpp>
 #include <Messages/AuthenticationRequest.h>
+#include <Messages/AssignCharacterRequest.h>
 #include <Messages/ServerMessageFactory.h>
+#include <Structs/GameId.h>
+#include <Structs/ActorData.h>
 #include "transport/LoopbackTransport.h"
 #include "transport/ServerMessageRouter.h"
 
@@ -213,23 +216,18 @@ public:
     JoinClient() noexcept = default;
     ~JoinClient() override { Close(); }
 
+    void SetRouter(ServerMessageRouter* apRouter) { m_pRouter = apRouter; }
+
     void OnConsume(const void* apData, uint32_t aSize) override {
-        // Parse incoming ServerMessages from remote host
-        TiltedPhoques::Buffer buffer(aSize);
-        TiltedPhoques::Buffer::Writer writer(&buffer);
-        writer.WriteBytes(reinterpret_cast<const uint8_t*>(apData), aSize);
-
-        TiltedPhoques::Buffer::Reader reader(&buffer);
-
-        ServerMessageFactory factory;
-        auto pMessage = factory.Extract(reader);
-        if (pMessage) {
-            spdlog::debug("JoinClient: received server opcode {}", pMessage->GetOpcode());
-            // For now, log received messages. Full routing to services
-            // will be added when bidirectional sync is implemented.
-            m_messagesReceived++;
-        } else {
-            spdlog::warn("JoinClient: failed to parse server message");
+        m_messagesReceived++;
+        if (m_pRouter) {
+            // enet6 Client::OnConsume receives raw payload without the prefix byte
+            // that Server::Send prepends. ServerMessageRouter::OnServerMessage expects
+            // the prefix byte, so prepend a dummy zero byte.
+            std::vector<uint8_t> padded(aSize + 1);
+            padded[0] = 0;
+            std::memcpy(padded.data() + 1, apData, aSize);
+            m_pRouter->OnServerMessage(padded.data(), static_cast<uint32_t>(padded.size()));
         }
     }
 
@@ -251,7 +249,6 @@ public:
     [[nodiscard]] uint64_t GetMessagesReceived() const { return m_messagesReceived; }
 
     void SendAuthRequest(const std::string& aUsername = "JoinPlayer") {
-        // Send authentication request to remote GameServer
         AuthenticationRequest authReq;
         authReq.Version = BUILD_COMMIT;
         authReq.Token = "";
@@ -270,7 +267,25 @@ public:
         Send(&packet);
     }
 
+    void SendAssignCharacterRequest() {
+        AssignCharacterRequest req;
+        req.Cookie = 1;
+        req.ReferenceId = GameId{0, 0x14}; // player character
+        req.FormId = GameId{0, 0x14};
+        req.CurrentActorData.IsDead = false;
+
+        TiltedPhoques::Buffer buffer(1 << 16);
+        TiltedPhoques::Buffer::Writer writer(&buffer);
+        writer.WriteBits(0, 8); // packet type prefix byte
+        req.Serialize(writer);
+        TiltedPhoques::PacketView packet(
+            reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+        Send(&packet);
+        spdlog::info("JoinClient: sent AssignCharacterRequest (cookie=1, formId=0x14)");
+    }
+
 private:
+    ServerMessageRouter* m_pRouter{nullptr};
     bool m_connected{false};
     uint64_t m_messagesReceived{0};
 };
@@ -524,7 +539,23 @@ int main(int argc, char* argv[]) {
     } else {
         spdlog::info("Starting in JOIN mode (connecting to {})", connectAddr);
 
+        // Create router for join mode (reuse same pointer declared above for host mode)
+        pRouter = std::make_unique<ServerMessageRouter>();
+
         pJoinClient = std::make_unique<JoinClient>();
+        pJoinClient->SetRouter(pRouter.get());
+
+        // Wire auth callback: trigger AssignCharacterRequest after auth acceptance
+        pRouter->SetAuthCallback(
+            [&pJoinClient](bool aAccepted, uint32_t aPlayerId) {
+                if (aAccepted) {
+                    spdlog::info("JoinClient: authenticated (playerId={}), sending AssignCharacterRequest", aPlayerId);
+                    pJoinClient->SendAssignCharacterRequest();
+                } else {
+                    spdlog::error("JoinClient: authentication rejected");
+                }
+            });
+
         pJoinClient->ConnectByIp(connectAddr);
 
         // Wait for connection (up to 10 seconds)
