@@ -18,19 +18,19 @@ created: 2026-03-28
 | Property | Value |
 |----------|-------|
 | **Framework** | Bash scripts + fake_player C++ binary + Catch2 unit tests |
-| **Config file** | tests/test_ingame_sync.sh (primary), Code/tests/integration/xmake.lua (fake_player) |
+| **Config file** | tests/ci_test.sh (CI), tests/test_ingame_sync.sh (golden), Code/tests/integration/xmake.lua |
 | **Quick run command** | `xmake run fake_player --self-test && xmake run TPTests` |
-| **Full suite command** | `./tests/test_ingame_sync.sh` |
-| **Estimated runtime** | ~180-300 seconds (requires Skyrim launch) |
+| **Full suite command** | `tests/ci_test.sh` (headless) or `tests/test_ingame_sync.sh` (requires Skyrim) |
+| **Estimated runtime** | ~30s (CI headless), ~300s (golden with Skyrim) |
 
 ---
 
 ## Sampling Rate
 
 - **After every task commit:** Run `xmake run fake_player --self-test && xmake run TPTests`
-- **After every plan wave:** Run `./tests/test_ingame_sync.sh`
+- **After every plan wave:** Run `tests/ci_test.sh` (headless multi-bot + mock relay)
 - **Before `/gsd:verify-work`:** Full suite must be green
-- **Max feedback latency:** 15 seconds (quick), 300 seconds (full)
+- **Max feedback latency:** 30 seconds (CI), 300 seconds (golden)
 
 ---
 
@@ -38,12 +38,15 @@ created: 2026-03-28
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 09-01-01 | 01 | 1 | D-02 | integration | `grep -q 'FAKE_PLAYER_DEFAULT=true' tests/test_ingame_sync.sh` | ✅ | ⬜ pending |
-| 09-01-02 | 01 | 1 | D-04-3 | integration | `grep -q 'wait_for_gameserver_port' tests/test_ingame_sync.sh` | ❌ W0 | ⬜ pending |
-| 09-01-03 | 01 | 1 | D-09/D-10 | integration | `grep -q 'TEST_RUN_DIR' tests/test_ingame_sync.sh` | ❌ W0 | ⬜ pending |
-| 09-02-01 | 02 | 1 | D-05 | integration | `xmake run fake_player --self-test` | ❌ W0 | ⬜ pending |
-| 09-03-01 | 03 | 2 | D-06 | integration | `test -f tests/test_two_player.sh` | ❌ W0 | ⬜ pending |
-| 09-03-02 | 03 | 2 | D-06 | code | `grep -q 'JoinClient\|join_client' Code/native_client/main.cpp` | ❌ W0 | ⬜ pending |
+| 09-01-01 | 01 | 1 | D-02 | unit | `grep -q 'BotContext' Code/tests/integration/fake_player.cpp` | ❌ W0 | ⬜ pending |
+| 09-01-02 | 01 | 1 | D-02 | integration | `xmake build fake_player && xmake run fake_player --self-test` | ✅ | ⬜ pending |
+| 09-02-01 | 02 | 1 | D-03 | integration | `grep -q 'mock_skyrim_loader' Code/tests/integration/xmake.lua` | ❌ W0 | ⬜ pending |
+| 09-03-01 | 03 | 2 | D-04 | integration | `grep -q 'wait_for_gameserver_port' tests/test_ingame_sync.sh` | ❌ W0 | ⬜ pending |
+| 09-03-02 | 03 | 2 | D-15 | integration | `grep -q 'setup_test_logs' tests/test_ingame_sync.sh` | ❌ W0 | ⬜ pending |
+| 09-03-03 | 03 | 2 | D-06 | code | `grep -q 'class JoinClient' Code/native_client/main.cpp` | ❌ W0 | ⬜ pending |
+| 09-04-01 | 04 | 3 | D-08 | script | `test -x tests/launch_two_skyrim.sh` | ❌ W0 | ⬜ pending |
+| 09-05-01 | 05 | 3 | D-05 | integration | `test -x tests/ci_test.sh` | ❌ W0 | ⬜ pending |
+| 09-05-02 | 05 | 3 | D-07 | manual | `echo "requires Skyrim"` | N/A | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,11 +54,12 @@ created: 2026-03-28
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_ingame_sync.sh` — GameServer port readiness check function
-- [ ] `tests/test_ingame_sync.sh` — Log collection to temp directory
-- [ ] `Code/tests/integration/fake_player.cpp` — /proc/pid/mem verification in RunExternal()
-- [ ] `tests/test_two_player.sh` — New script for two-instance testing
-- [ ] `Code/native_client/main.cpp` — Join mode enet6 client implementation
+- [ ] `Code/tests/integration/fake_player.cpp` — BotContext struct and RunMultiBot() for --bots mode
+- [ ] `Code/tests/integration/mock_skyrim_loader.cpp` — New file: MinGW binary loading relay DLL
+- [ ] `tests/test_ingame_sync.sh` — GameServer port readiness, log collection, default fake_player
+- [ ] `Code/native_client/main.cpp` — JoinClient class for join mode
+- [ ] `tests/launch_two_skyrim.sh` — New file: two-instance developer tool
+- [ ] `tests/ci_test.sh` — New file: CI test runner
 
 *Existing infrastructure covers unit test and self-test paths.*
 
@@ -65,8 +69,9 @@ created: 2026-03-28
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Two Skyrim instances render remote player | D-06 | Requires visual inspection of game window | Launch two instances, verify both show remote player character in Riverwood |
-| Host player movement visible to join client | D-06 | Game state observation | Move host character, observe join client's screen for corresponding movement |
+| Full 5-stage pipeline with real Skyrim | D-07 | Requires game launch under Proton | Run test_ingame_sync.sh, all 5 stages PASS |
+| Two Skyrim instances see each other | D-08 | Visual verification of remote player | Run launch_two_skyrim.sh, move host character, observe join window |
+| Remote player animations sync | P2P-02 | Requires human perception | Walk, attack, crouch in both windows |
 
 ---
 
@@ -76,7 +81,7 @@ created: 2026-03-28
 - [ ] Sampling continuity: no 3 consecutive tasks without automated verify
 - [ ] Wave 0 covers all MISSING references
 - [ ] No watch-mode flags
-- [ ] Feedback latency < 300s
+- [ ] Feedback latency < 30s (CI) / 300s (golden)
 - [ ] `nyquist_compliant: true` set in frontmatter
 
 **Approval:** pending
