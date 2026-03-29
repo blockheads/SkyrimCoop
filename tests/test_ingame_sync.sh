@@ -91,6 +91,15 @@ inject_starting_cell() {
     # Insert sStartingCell=Riverwood after [General]
     sed -i '/^\[General\]/a sStartingCell=Riverwood' "$SKYRIM_INI"
     info "Injected sStartingCell=Riverwood into Skyrim.ini [General] section"
+
+    # Mute all sounds for automated testing
+    sed -i '/^fAudioMasterVolume=/d' "$SKYRIM_INI"
+    if grep -q '^\[AudioMenu\]' "$SKYRIM_INI"; then
+        sed -i '/^\[AudioMenu\]/a fAudioMasterVolume=0.0000' "$SKYRIM_INI"
+    else
+        printf '\n[AudioMenu]\nfAudioMasterVolume=0.0000\n' >> "$SKYRIM_INI"
+    fi
+    info "Muted audio (fAudioMasterVolume=0)"
 }
 
 restore_skyrim_ini() {
