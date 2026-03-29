@@ -179,5 +179,5 @@ Plans:
 - [x] 09-04-PLAN.md -- Two-instance developer tool (tests/launch_two_skyrim.sh) + human verification
 - [x] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
 - [x] 09-06-PLAN.md -- Gap closure: Wine address validation + /proc/pid/maps diagnostic logging
-- [ ] 09-07-PLAN.md -- Gap closure: Essential-only hook mode for Skyrim stability
+- [x] 09-07-PLAN.md -- Gap closure: Essential-only hook mode for Skyrim stability
 - [ ] 09-08-PLAN.md -- Gap closure: Deploy fixes + human verification of two-instance networked sync
