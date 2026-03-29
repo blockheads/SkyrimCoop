@@ -80,7 +80,9 @@ void CharacterService::OnHookEvent(const nlohmann::json& aMsg)
         HandlePerformAction(aMsg.value(JsonField::kActorFormId, 0u),
                             aMsg.value(JsonField::kActionFormId, 0u));
     } else if (op == JsonOp::kActorProcess) {
-        // Pointer table tracking handled in main.cpp DispatchHookEvent
+        // Resolve any deferred actors — actor_process fires every tick with valid formId+ptr
+        TryResolvePending(aMsg.value(JsonField::kPtr, 0ull),
+                          aMsg.value(JsonField::kFormId, 0u));
     } else if (op == JsonOp::kPlayAnimation) {
         // Animation event -- logged for diagnostics, no action needed here
         spdlog::debug("CharacterService: play_animation formId={:#x}",
@@ -101,9 +103,15 @@ void CharacterService::HandleActorAdded(uint64_t aActorPtr, uint32_t aFormId)
 
     uint32_t formId = aFormId;
     if (formId == 0) {
-        spdlog::warn("CharacterService: ActorAdded but formId is 0 at ptr={:#x}", aActorPtr);
+        // Defer registration: stash pointer, resolve when a later event provides formId
+        m_pendingPtrs.insert(aActorPtr);
+        spdlog::debug("CharacterService: Deferred actor at ptr={:#x} (formId=0, pending={})",
+                       aActorPtr, m_pendingPtrs.size());
         return;
     }
+
+    // If this pointer was pending, it's now resolved
+    m_pendingPtrs.erase(aActorPtr);
 
     // Register in pointer table
     m_reader.GetPointers().Insert(formId, aActorPtr);
@@ -150,6 +158,19 @@ void CharacterService::HandleActorAdded(uint64_t aActorPtr, uint32_t aFormId)
 void CharacterService::HandleCharacterCtor(uint64_t aActorPtr, uint32_t aFormId)
 {
     // Character constructor hook -- treat same as ActorAdded for tracking
+    HandleActorAdded(aActorPtr, aFormId);
+}
+
+void CharacterService::TryResolvePending(uint64_t aActorPtr, uint32_t aFormId)
+{
+    if (aFormId == 0 || aActorPtr == 0) return;
+    if (m_pendingPtrs.empty()) return;
+
+    auto it = m_pendingPtrs.find(aActorPtr);
+    if (it == m_pendingPtrs.end()) return;
+
+    spdlog::info("CharacterService: Resolved deferred actor ptr={:#x} -> formId={:#x}", aActorPtr, aFormId);
+    m_pendingPtrs.erase(it);
     HandleActorAdded(aActorPtr, aFormId);
 }
 

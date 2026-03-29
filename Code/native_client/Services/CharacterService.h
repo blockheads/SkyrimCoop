@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -119,6 +120,12 @@ private:
         glm::vec2 rotation{0.0f};  // x = pitch, y = yaw (rotZ)
     };
     std::unordered_map<uint32_t, CachedPosRot> m_positionCache;
+
+    // Deferred actor registration: pointers seen with formId=0 (e.g. character_ctor
+    // fires before Skyrim writes formId). Resolved when a later event provides a valid
+    // formId for the same pointer.
+    std::unordered_set<uint64_t> m_pendingPtrs;
+    void TryResolvePending(uint64_t aActorPtr, uint32_t aFormId);
 
     // Game memory offsets (Skyrim SE)
     static constexpr uint64_t kFormIdOffset = 0x14;

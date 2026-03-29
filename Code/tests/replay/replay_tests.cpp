@@ -112,3 +112,39 @@ TEST_CASE("Multiple actors tracked simultaneously", "[Replay][CharacterService]"
     CHECK(harness.GetPointerTable().Lookup(0x100) == 140737488360000ull);
     CHECK(harness.GetPointerTable().Lookup(0x200) == 140737488365000ull);
 }
+
+TEST_CASE("Game startup: deferred actor registration via actor_process", "[Replay][GameStartup]")
+{
+    // Simulates real game startup: character_ctor fires with formId=0 (ctor hasn't
+    // written formId yet), then actor_process fires later with the real formId.
+    // The deferred registration in CharacterService should resolve these.
+    ReplayHarness harness;
+    size_t events = harness.ReplayFile(FixturePath("game_startup.ndjson"));
+
+    // 13 character_ctors (12 with formId=0, 1 with formId=0x800) +
+    // 12 actor_process events + 1 set_position = 26 events (ctrl_ready skipped)
+    REQUIRE(events == 26);
+
+    auto& ptrs = harness.GetPointerTable();
+    size_t trackedActors = ptrs.Size();
+    INFO("Tracked actors in PointerTable: " << trackedActors);
+
+    // 12 deferred actors resolved via actor_process + 1 immediate (0x800) = 13
+    REQUIRE(trackedActors >= 13);
+
+    // Player (formId=0x14=20) should be among them — resolved from actor_process
+    REQUIRE(ptrs.Contains(0x14));
+
+    // The immediate registration (formId=0x800) should also be present
+    REQUIRE(ptrs.Contains(0x800));
+
+    // Registry should have LocalComponent entries
+    auto& reg = harness.GetRegistry();
+    auto view = reg.view<LocalComponent>();
+    size_t entityCount = 0;
+    for ([[maybe_unused]] auto entity : view) {
+        entityCount++;
+    }
+    INFO("Entities with LocalComponent: " << entityCount);
+    REQUIRE(entityCount >= 13);
+}
