@@ -13,7 +13,8 @@ if is_plat("linux") then
 
         -- Include dirs
         add_includedirs(".")
-        add_includedirs("../relay_dll")         -- shared protocol.h
+        add_includedirs("../relay_dll")         -- shared protocol.h + json_protocol.h
+        add_includedirs("third_party")          -- nlohmann/json.hpp + json_fwd.hpp
         add_includedirs("../client/Games/Skyrim")  -- game struct headers (per D-14)
 
         -- Dependencies: encoding + embedded server for host mode
