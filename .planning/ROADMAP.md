@@ -282,9 +282,9 @@ Plans:
   3. ServerReplayHarness creates a test-mode server World (no ESLoader, no enet6 port) and injects recorded ClientMessages
   4. Catch2 replay tests with hardcoded assertions verify auth flow, character assignment, and movement sync
   5. DualReplayHarness coordinates independent client-side and server-side replay from separate NDJSON files
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 14-01-PLAN.md -- MessageSerializer with Visit()-based type name maps, Base64 utility, unit tests
+- [x] 14-01-PLAN.md -- MessageSerializer with Visit()-based type name maps, Base64 utility, unit tests
 - [ ] 14-02-PLAN.md -- EnetRecorder taps in GameServer + ServerReplayHarness with test-mode server World
 - [ ] 14-03-PLAN.md -- Synthetic NDJSON fixtures, enet6 replay tests, DualReplayHarness coordinator
