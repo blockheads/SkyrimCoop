@@ -6,17 +6,19 @@
 #include <spdlog/spdlog.h>
 #include <cstring>
 #include <cmath>
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 ActorValueService::ActorValueService(GameReader& aReader, TcpClient& aTcp)
     : m_reader(aReader), m_tcp(aTcp)
 {
 }
 
-void ActorValueService::OnHookEvent(const HookEventPacket& aPkt)
+void ActorValueService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    if (static_cast<HookOpcode>(aPkt.header.opcode) == HOOK_REGEN_ATTR) {
-        HandleRegenAttr(aPkt.args, aPkt.argCount);
-    }
+    // TODO(Plan-04): Implement JSON dispatch for ActorValueService
+    const auto& op = aMsg.value(JsonField::kOp, std::string{});
+    spdlog::debug("[ActorValueService] stub OnHookEvent: op={}", op);
 }
 
 void ActorValueService::Update(float aDeltaTime)

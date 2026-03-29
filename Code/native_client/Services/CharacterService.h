@@ -7,7 +7,8 @@
 #include <glm/vec3.hpp>
 #include <entt/entt.hpp>
 
-struct HookEventPacket;
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
 class TcpClient;
 class LoopbackTransport;
@@ -52,8 +53,8 @@ class CharacterService {
 public:
     CharacterService(GameReader& aReader, TcpClient& aClient, entt::registry& aRegistry);
 
-    // Dispatch hook events from DLL
-    void OnHookEvent(const HookEventPacket& aPkt);
+    // Dispatch hook events from DLL (JSON wire protocol)
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update: movement sync, interpolation feed
     void Update(float aDeltaTime);
@@ -112,8 +113,12 @@ private:
     };
     std::vector<std::pair<uint32_t, CachedPosition>> m_cachedLocalPositions;
 
-    // Position cache: populated by HOOK_SET_POSITION events, consumed by SyncMovement
-    std::unordered_map<uint32_t, glm::vec3> m_positionCache;
+    // Position+rotation cache: populated by HOOK_SET_POSITION events, consumed by SyncMovement
+    struct CachedPosRot {
+        glm::vec3 position{0.0f};
+        glm::vec2 rotation{0.0f};  // x = pitch, y = yaw (rotZ)
+    };
+    std::unordered_map<uint32_t, CachedPosRot> m_positionCache;
 
     // Game memory offsets (Skyrim SE)
     static constexpr uint64_t kFormIdOffset = 0x14;

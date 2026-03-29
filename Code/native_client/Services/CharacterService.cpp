@@ -17,6 +17,8 @@ using TiltedPhoques::Map;
 #include "../game_bridge/tcp_client.h"
 #include "../transport/LoopbackTransport.h"
 #include "protocol.h"
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 #include <Client.hpp>
 #include <Packet.hpp>
@@ -54,68 +56,11 @@ CharacterService::CharacterService(GameReader& aReader, TcpClient& aClient, entt
 
 // --- Hook event dispatch ---
 
-void CharacterService::OnHookEvent(const HookEventPacket& aPkt)
+void CharacterService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    const uint8_t argCount = aPkt.argCount;
-    const uint64_t* pArgs = aPkt.args;
-
-    switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
-    case HOOK_ACTOR_ADDED:
-        // DLL arg layout: [actorPtr, formId]
-        if (argCount >= 2) HandleActorAdded(pArgs[0], static_cast<uint32_t>(pArgs[1]));
-        break;
-    case HOOK_CHARACTER_CTOR:
-        // DLL arg layout: [thisPtr, formId]
-        if (argCount >= 2) HandleCharacterCtor(pArgs[0], static_cast<uint32_t>(pArgs[1]));
-        break;
-    case HOOK_SPAWN_ACTOR: {
-        // DLL arg layout: [thisPtr, formId, posX_u64, posY_u64, posZ_u64]
-        if (argCount >= 2) {
-            uint32_t formId = static_cast<uint32_t>(pArgs[1]);
-            // Cache position if available
-            if (formId != 0 && argCount >= 5) {
-                float px = U64ToFloat(pArgs[2]);
-                float py = U64ToFloat(pArgs[3]);
-                float pz = U64ToFloat(pArgs[4]);
-                m_positionCache[formId] = glm::vec3(px, py, pz);
-            }
-            HandleSpawnActor(pArgs[0], formId);
-        }
-        break;
-    }
-    case HOOK_ACTOR_REMOVED:
-        // DLL arg layout: [actorPtr, formId]
-        if (argCount >= 2) HandleActorRemoved(pArgs[0], static_cast<uint32_t>(pArgs[1]));
-        break;
-    case HOOK_DEATH_ITEMS:
-        // DLL arg layout: [actorPtr, formId]
-        if (argCount >= 2) HandleDeathItems(pArgs[0], static_cast<uint32_t>(pArgs[1]));
-        break;
-    case HOOK_PERFORM_ACTION: {
-        // DLL arg layout: [processPtr, actorPtr, actorFormId, actionPtr, actionFormId]
-        if (argCount >= 5) {
-            uint32_t actorFormId = static_cast<uint32_t>(pArgs[2]);
-            uint32_t actionFormId = static_cast<uint32_t>(pArgs[4]);
-            HandlePerformAction(actorFormId, actionFormId);
-        }
-        break;
-    }
-    case HOOK_SET_POSITION: {
-        // DLL arg layout: [refPtr, formId, posX_u64, posY_u64, posZ_u64]
-        if (argCount >= 5) {
-            uint32_t formId = static_cast<uint32_t>(pArgs[1]);
-            if (formId != 0) {
-                float px = U64ToFloat(pArgs[2]);
-                float py = U64ToFloat(pArgs[3]);
-                float pz = U64ToFloat(pArgs[4]);
-                m_positionCache[formId] = glm::vec3(px, py, pz);
-            }
-        }
-        break;
-    }
-    default:
-        break;
-    }
+    // TODO(Plan-04): Implement full JSON dispatch for CharacterService
+    const auto& op = aMsg.value(JsonField::kOp, std::string{});
+    spdlog::debug("[CharacterService] stub OnHookEvent: op={}", op);
 }
 
 // --- Actor lifecycle ---
@@ -316,21 +261,16 @@ void CharacterService::SyncMovement()
         auto& comp = view.get<LocalComponent>(entity);
         if (comp.gamePtr == 0) continue;
 
-        // Read current position from cache (populated by HOOK_SET_POSITION events)
-        // Falls back to pread if no cached position yet
-        glm::vec3 currentPos;
+        // Read current position and rotation from cache (populated by HOOK_SET_POSITION events)
+        // No /proc/mem fallback -- under Wine/Proton, pread on game memory does not work.
+        // If no HOOK_SET_POSITION has fired for this actor yet, skip until one arrives.
         auto cacheIt = m_positionCache.find(comp.formId);
-        if (cacheIt != m_positionCache.end()) {
-            currentPos = cacheIt->second;
-        } else {
-            // Fallback to pread (may fail under Wine, but provides a fallback path)
-            currentPos = m_reader.ReadActorPosition(comp.gamePtr);
+        if (cacheIt == m_positionCache.end()) {
+            continue; // No cached data yet -- wait for DLL to send a SET_POSITION event
         }
 
-        // TODO(09.1): add rotation to HOOK_SET_POSITION or cache from HOOK_ACTOR_PROCESS
-        glm::vec2 currentRot;
-        currentRot.x = m_reader.Read<float>(comp.gamePtr, kRotationXOffset);
-        currentRot.y = m_reader.Read<float>(comp.gamePtr, kRotationZOffset);
+        glm::vec3 currentPos = cacheIt->second.position;
+        glm::vec2 currentRot = cacheIt->second.rotation;
 
         // Check if position changed since last sync
         bool changed = false;

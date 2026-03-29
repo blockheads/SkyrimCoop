@@ -1,8 +1,9 @@
 #pragma once
 #include <cstdint>
 
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
-struct HookEventPacket;
 class TcpClient;
 
 // WeatherService: Reads weather state via GameReader (/proc/pid/mem)
@@ -14,7 +15,7 @@ public:
     WeatherService(GameReader& aReader, TcpClient& aClient);
 
     // Dispatch hook events from DLL
-    void OnHookEvent(const HookEventPacket& aPkt);
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update: poll weather state from game memory
     void Update(float aDeltaTime);

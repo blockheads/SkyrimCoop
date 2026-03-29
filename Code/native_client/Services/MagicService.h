@@ -2,7 +2,8 @@
 #include <cstdint>
 #include <vector>
 
-struct HookEventPacket;
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
 class TcpClient;
 
@@ -14,7 +15,7 @@ public:
     MagicService(GameReader& aReader, TcpClient& aTcp);
 
     // Process a hook event from the DLL relay
-    void OnHookEvent(const HookEventPacket& aPkt);
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update (process queued effects, timeout active casts)
     void Update(float aDeltaTime);

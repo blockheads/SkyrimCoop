@@ -8,6 +8,8 @@
 #include <unistd.h>
 
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 TcpClient::~TcpClient() {
     Disconnect();
@@ -35,6 +37,7 @@ bool TcpClient::Connect(uint16_t aPort) {
         return false;
     }
 
+    m_lineBuffer.Clear();
     spdlog::info("Connected to DLL TCP server at 127.0.0.1:{}", aPort);
     return true;
 }
@@ -43,6 +46,7 @@ void TcpClient::Disconnect() {
     if (m_socket != -1) {
         ::close(m_socket);
         m_socket = -1;
+        m_lineBuffer.Clear();
         spdlog::info("Disconnected from DLL TCP server");
     }
 }
@@ -66,29 +70,31 @@ bool TcpClient::Send(const void* aData, uint32_t aSize) {
     return true;
 }
 
-bool TcpClient::Receive(PacketHeader* apOutHeader, void* apOutPayload, uint32_t aMaxPayload) {
-    // Read header first
-    if (!ReadExact(apOutHeader, sizeof(PacketHeader)))
-        return false;
+bool TcpClient::SendJsonLine(const nlohmann::json& aMsg) {
+    std::string line = aMsg.dump() + "\n";
+    return Send(line.c_str(), static_cast<uint32_t>(line.size()));
+}
 
-    // Read payload if any
-    if (apOutHeader->length > 0) {
-        if (apOutHeader->length > aMaxPayload) {
-            spdlog::error("Packet payload {} exceeds max {}", apOutHeader->length, aMaxPayload);
-            return false;
-        }
-        if (!ReadExact(apOutPayload, apOutHeader->length))
-            return false;
+bool TcpClient::ReceiveJsonLine(nlohmann::json& aOut) {
+    while (!m_lineBuffer.HasCompleteLine()) {
+        char buf[4096];
+        ssize_t n = ::recv(m_socket, buf, sizeof(buf), 0);
+        if (n <= 0) return false;
+        m_lineBuffer.Append(buf, static_cast<size_t>(n));
     }
-
+    std::string line;
+    if (!m_lineBuffer.PopLine(line)) return false;
+    aOut = nlohmann::json::parse(line, nullptr, false);
+    if (aOut.is_discarded()) {
+        spdlog::warn("Malformed JSON from DLL: {}", line.substr(0, 80));
+        return true; // not a disconnect, just bad data
+    }
     return true;
 }
 
-bool TcpClient::SendControl(uint16_t aOpcode) {
-    ControlPacket pkt{};
-    pkt.header.opcode = aOpcode;
-    pkt.header.length = 0;
-    return Send(&pkt, sizeof(pkt));
+bool TcpClient::SendControlJson(const char* aOp) {
+    nlohmann::json msg = {{JsonField::kOp, aOp}};
+    return SendJsonLine(msg);
 }
 
 bool TcpClient::ReadExact(void* aBuf, size_t aLen) {

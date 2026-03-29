@@ -2,7 +2,8 @@
 #include <cstdint>
 #include <vector>
 
-struct HookEventPacket;
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
 class TcpClient;
 
@@ -14,7 +15,7 @@ public:
     InventoryService(GameReader& aReader, TcpClient& aTcp);
 
     // Process a hook event from the DLL relay
-    void OnHookEvent(const HookEventPacket& aPkt);
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update (weapon draw state, etc.)
     void Update(float aDeltaTime);

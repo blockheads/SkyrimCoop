@@ -1,8 +1,9 @@
 #pragma once
 #include <cstdint>
 
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
-struct HookEventPacket;
 class TcpClient;
 
 // QuestService: Receives quest-related hook events and logs them.
@@ -14,7 +15,7 @@ public:
     QuestService(GameReader& aReader, TcpClient& aClient);
 
     // Dispatch hook events from DLL
-    void OnHookEvent(const HookEventPacket& aPkt);
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update (minimal -- quest state is event-driven)
     void Update(float aDeltaTime);

@@ -2,6 +2,8 @@
 
 #include <spdlog/spdlog.h>
 #include <cstring>
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
@@ -25,40 +27,11 @@ CombatService::CombatService(GameReader& aReader, TcpClient& aClient)
     spdlog::info("CombatService initialized");
 }
 
-void CombatService::OnHookEvent(const HookEventPacket& aPkt)
+void CombatService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
-    case HOOK_DAMAGE_ACTOR: {
-        // DLL arg layout: [actorPtr, formId, damageU64]
-        if (aPkt.argCount < 3) break;
-
-        uint32_t targetFormId = static_cast<uint32_t>(aPkt.args[1]);
-        float damage = U64ToFloat(aPkt.args[2]);
-
-        if (targetFormId != 0) {
-            // TODO(Plan 07+): Send damage sync via network transport
-            spdlog::info("CombatService: DamageActor target={:#x} damage={:.2f}",
-                         targetFormId, damage);
-            m_damageEventCount++;
-        }
-        break;
-    }
-    case HOOK_PROJECTILE: {
-        // args[0] = LaunchData* (pointer to projectile launch data)
-        if (aPkt.argCount < 1) break;
-
-        uint64_t launchDataPtr = aPkt.args[0];
-
-        // The LaunchData struct contains shooter, projectile base, weapon, ammo, origin, angles
-        // For now: log the raw pointer. Full field extraction requires known offsets
-        // which will be added when ProjectileLaunchRequest is wired.
-        spdlog::info("CombatService: Projectile launched, launchData={:#x}", launchDataPtr);
-        m_projectileEventCount++;
-        break;
-    }
-    default:
-        break;
-    }
+    // TODO(Plan-04): Implement JSON dispatch for CombatService
+    const auto& op = aMsg.value(JsonField::kOp, std::string{});
+    spdlog::debug("[CombatService] stub OnHookEvent: op={}", op);
 }
 
 void CombatService::Update(float /*aDeltaTime*/)

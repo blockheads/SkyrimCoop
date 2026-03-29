@@ -1,8 +1,9 @@
 #pragma once
 #include <cstdint>
 
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
-struct HookEventPacket;
 class TcpClient;
 
 // CombatService: Handles combat-related hook events (damage, projectiles)
@@ -13,7 +14,7 @@ public:
     CombatService(GameReader& aReader, TcpClient& aClient);
 
     // Dispatch hook events from DLL
-    void OnHookEvent(const HookEventPacket& aPkt);
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update
     void Update(float aDeltaTime);

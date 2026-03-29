@@ -1,6 +1,8 @@
 #include "WeatherService.h"
 
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
@@ -20,39 +22,11 @@ WeatherService::WeatherService(GameReader& aReader, TcpClient& aClient)
     spdlog::info("WeatherService initialized");
 }
 
-void WeatherService::OnHookEvent(const HookEventPacket& aPkt)
+void WeatherService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
-    case HOOK_SET_WEATHER: {
-        // DLL arg layout: [skyPtr, weatherPtr, weatherFormId, overrideU64, accelU64]
-        if (aPkt.argCount < 3) break;
-
-        uint32_t formId = static_cast<uint32_t>(aPkt.args[2]);
-        if (formId != 0 && formId != cMapWeatherId) {
-            spdlog::info("WeatherService: SetWeather hook, formId={:#x}", formId);
-            m_cachedWeatherId = formId;
-        }
-        break;
-    }
-    case HOOK_FORCE_WEATHER: {
-        // DLL arg layout: [skyPtr, weatherPtr, weatherFormId, overrideU64]
-        if (aPkt.argCount < 3) break;
-
-        uint32_t formId = static_cast<uint32_t>(aPkt.args[2]);
-        if (formId != 0 && formId != cMapWeatherId) {
-            spdlog::info("WeatherService: ForceWeather hook, formId={:#x}", formId);
-            m_cachedWeatherId = formId;
-        }
-        break;
-    }
-    case HOOK_WEATHER_CHANGE: {
-        // UpdateWeather hook -- just note it, poll will handle state
-        spdlog::debug("WeatherService: weather update tick");
-        break;
-    }
-    default:
-        break;
-    }
+    // TODO(Plan-04): Implement JSON dispatch for WeatherService
+    const auto& op = aMsg.value(JsonField::kOp, std::string{});
+    spdlog::debug("[WeatherService] stub OnHookEvent: op={}", op);
 }
 
 void WeatherService::Update(float aDeltaTime)

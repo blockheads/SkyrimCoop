@@ -1,8 +1,9 @@
 #pragma once
 #include <cstdint>
 
+#include <nlohmann/json_fwd.hpp>
+
 class GameReader;
-struct HookEventPacket;
 class TcpClient;
 
 // CalendarService: Reads game time via GameReader (/proc/pid/mem)
@@ -13,7 +14,7 @@ public:
     CalendarService(GameReader& aReader, TcpClient& aClient);
 
     // Dispatch hook events from DLL
-    void OnHookEvent(const HookEventPacket& aPkt);
+    void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update: read game time from memory
     void Update(float aDeltaTime);

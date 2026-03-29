@@ -60,7 +60,10 @@ using TiltedPhoques::Vector;
 #include "game_bridge/pointer_table.h"
 #include "game_bridge/tcp_client.h"
 #include "game_bridge/game_reader.h"
-#include "protocol.h"
+
+// JSON wire protocol
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 // Services (all 8)
 #include "Services/WeatherService.h"
@@ -100,7 +103,7 @@ static void PrintUsage(const char* apProgram) {
     fprintf(stderr, "  --connect      Join mode: connect to remote host at ip:port (default: host mode)\n");
     fprintf(stderr, "  --server-port  GameServer listen port in host mode (default: 10578)\n");
     fprintf(stderr, "  --host-only    Run embedded GameServer without Skyrim process (standalone testing)\n");
-    fprintf(stderr, "  --record <file>  Record all hook events to binary file\n");
+    fprintf(stderr, "  --record <file>  Record all hook events to NDJSON file\n");
     fprintf(stderr, "  --help         Show this help\n");
 }
 
@@ -133,75 +136,74 @@ static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort
     return aOutPid > 0 && aOutPort > 0;
 }
 
-// Dispatch a hook event to the pointer table and all services
-static void DispatchHookEvent(const HookEventPacket& aHookPkt,
+// Dispatch a JSON hook event to the pointer table and all services
+static void DispatchHookEvent(const nlohmann::json& aMsg,
                                GameReader& aReader, PointerTable& aPtrs,
                                WeatherService& aWeather, CalendarService& aCalendar,
                                QuestService& aQuest, CombatService& aCombat,
                                InventoryService& aInventory, ActorValueService& aActorValue,
                                MagicService& aMagic, CharacterService& aCharacter)
 {
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
     // Core pointer table tracking for actor add/remove
-    // FormIds are now resolved DLL-side and packed in args[1] (Phase 9.1)
-    switch (static_cast<HookOpcode>(aHookPkt.header.opcode)) {
-    case HOOK_ACTOR_ADDED:
-    case HOOK_SPAWN_ACTOR:
-    case HOOK_CHARACTER_CTOR:
-    case HOOK_ACTOR_PROCESS: {
-        // HOOK_ACTOR_PROCESS fires every frame for loaded actors — formID is
-        // guaranteed populated by then (unlike ctor hooks where it's still 0).
-        // Insert is idempotent so repeated calls for the same actor are safe.
-        if (aHookPkt.argCount >= 2) {
-            uint64_t rawPtr = aHookPkt.args[0];
-            uint32_t formId = static_cast<uint32_t>(aHookPkt.args[1]);
-            if (formId != 0 && rawPtr != 0) {
-                aPtrs.Insert(formId, rawPtr);
-            }
-        }
-        break;
-    }
-    case HOOK_ACTOR_REMOVED: {
-        if (aHookPkt.argCount >= 2) {
-            uint32_t formId = static_cast<uint32_t>(aHookPkt.args[1]);
-            if (formId != 0) {
-                aPtrs.Remove(formId);
-            } else {
-                aPtrs.RemoveByPointer(aHookPkt.args[0]);
-            }
-        }
-        break;
-    }
-    default:
-        break;
+    if (op == JsonOp::kActorAdded || op == JsonOp::kSpawnActor ||
+        op == JsonOp::kCharacterCtor || op == JsonOp::kActorProcess) {
+        uint32_t formId = aMsg.value(JsonField::kFormId, 0u);
+        uint64_t rawPtr = aMsg.value(JsonField::kPtr, 0ull);
+        if (formId != 0 && rawPtr != 0)
+            aPtrs.Insert(formId, rawPtr);
+    } else if (op == JsonOp::kActorRemoved) {
+        uint32_t formId = aMsg.value(JsonField::kFormId, 0u);
+        if (formId != 0)
+            aPtrs.Remove(formId);
+        else
+            aPtrs.RemoveByPointer(aMsg.value(JsonField::kPtr, 0ull));
     }
 
-    // Dispatch to all services
-    aWeather.OnHookEvent(aHookPkt);
-    aCalendar.OnHookEvent(aHookPkt);
-    aQuest.OnHookEvent(aHookPkt);
-    aCombat.OnHookEvent(aHookPkt);
-    aInventory.OnHookEvent(aHookPkt);
-    aActorValue.OnHookEvent(aHookPkt);
-    aMagic.OnHookEvent(aHookPkt);
-    aCharacter.OnHookEvent(aHookPkt);
+    // Route to appropriate service based on op string
+    if (op == JsonOp::kActorAdded || op == JsonOp::kActorRemoved ||
+        op == JsonOp::kSetPosition || op == JsonOp::kSpawnActor ||
+        op == JsonOp::kCharacterCtor || op == JsonOp::kDeathItems ||
+        op == JsonOp::kPerformAction || op == JsonOp::kActorProcess ||
+        op == JsonOp::kPlayAnimation || op == JsonOp::kMountPackage)
+        aCharacter.OnHookEvent(aMsg);
+
+    if (op == JsonOp::kWeatherChange || op == JsonOp::kSetWeather || op == JsonOp::kForceWeather)
+        aWeather.OnHookEvent(aMsg);
+
+    if (op == JsonOp::kSimulateTime)
+        aCalendar.OnHookEvent(aMsg);
+
+    if (op == JsonOp::kDamageActor || op == JsonOp::kProjectile || op == JsonOp::kAddTarget)
+        aCombat.OnHookEvent(aMsg);
+
+    if (op == JsonOp::kAddInventory || op == JsonOp::kPickUp || op == JsonOp::kDropObject ||
+        op == JsonOp::kEquip || op == JsonOp::kUnequip || op == JsonOp::kRemoveInvItem ||
+        op == JsonOp::kActivate || op == JsonOp::kLockChange)
+        aInventory.OnHookEvent(aMsg);
+
+    if (op == JsonOp::kRegenAttr)
+        aActorValue.OnHookEvent(aMsg);
+
+    if (op == JsonOp::kSpellCast || op == JsonOp::kInterruptCast ||
+        op == JsonOp::kRemoveSpell || op == JsonOp::kApplyEffect)
+        aMagic.OnHookEvent(aMsg);
 }
 
-static void HandleControlPacket(const PacketHeader& aHeader, TcpClient& aClient) {
-    switch (static_cast<ControlOpcode>(aHeader.opcode)) {
-    case CTRL_HEARTBEAT:
+static void HandleControlMessage(const nlohmann::json& aMsg, TcpClient& aClient) {
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
+    if (op == JsonOp::kCtrlHeartbeat) {
         // Respond with heartbeat
-        aClient.SendControl(CTRL_HEARTBEAT);
-        break;
-    case CTRL_SHUTDOWN:
-        spdlog::info("Received CTRL_SHUTDOWN from DLL");
+        aClient.SendControlJson(JsonOp::kCtrlHeartbeat);
+    } else if (op == JsonOp::kCtrlShutdown) {
+        spdlog::info("Received ctrl_shutdown from DLL");
         s_running.store(false, std::memory_order_relaxed);
-        break;
-    case CTRL_READY:
-        spdlog::info("DLL confirmed CTRL_READY");
-        break;
-    default:
-        spdlog::warn("Unknown control opcode: {:#x}", aHeader.opcode);
-        break;
+    } else if (op == JsonOp::kCtrlReady) {
+        spdlog::info("DLL confirmed ctrl_ready");
+    } else {
+        spdlog::warn("Unknown control op: {}", op);
     }
 }
 
@@ -334,9 +336,9 @@ int main(int argc, char* argv[]) {
     // Open record file if --record was specified
     FILE* recordFile = nullptr;
     if (!recordPath.empty()) {
-        recordFile = fopen(recordPath.c_str(), "wb");
+        recordFile = fopen(recordPath.c_str(), "w");
         if (recordFile)
-            spdlog::info("Recording hook events to {}", recordPath);
+            spdlog::info("Recording hook events (NDJSON) to {}", recordPath);
         else
             spdlog::warn("Failed to open record file: {}", recordPath);
     }
@@ -423,19 +425,21 @@ int main(int argc, char* argv[]) {
     // Load memory maps for address validation and module lookup
     memReader.LoadMemoryMaps();
 
-    // Smoke test: prove pread() works by reading SkyrimSE.exe PE header
+    // Smoke test: check if pread() works by reading SkyrimSE.exe PE header.
+    // Under Wine/Proton this is expected to fail -- game memory reads come from
+    // the relay DLL over TCP, not from /proc/pid/mem.
     uint64_t skyrimBase = memReader.FindModuleBase("SkyrimSE.exe");
     if (skyrimBase != 0) {
         uint16_t mzSig = memReader.ReadValue<uint16_t>(skyrimBase);
         if (mzSig == 0x5A4D) {
             spdlog::info("SMOKE TEST PASS: Read MZ signature at SkyrimSE.exe base {:#x}", skyrimBase);
         } else {
-            spdlog::error("SMOKE TEST FAIL: Expected MZ (0x5A4D) at {:#x}, got {:#04x}", skyrimBase, mzSig);
+            spdlog::warn("SMOKE TEST: Expected MZ (0x5A4D) at {:#x}, got {:#04x} -- "
+                         "pread may not work under Wine (non-fatal)", skyrimBase, mzSig);
         }
-        // Also hex dump the first 32 bytes of the PE header
-        memReader.HexDump(skyrimBase, 32, "SkyrimSE.exe PE header");
     } else {
-        spdlog::error("SMOKE TEST FAIL: Could not find SkyrimSE.exe in /proc/{}/maps", targetPid);
+        spdlog::warn("SMOKE TEST: Could not find SkyrimSE.exe in /proc/{}/maps -- "
+                     "expected under Wine/Proton (non-fatal, DLL provides data via TCP)", targetPid);
     }
 
     // Connect TCP client to DLL server
@@ -447,15 +451,15 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Send CTRL_READY to signal native process is initialized
-    if (!tcpClient.SendControl(CTRL_READY)) {
-        spdlog::error("Failed to send CTRL_READY");
+    // Send ctrl_ready to signal native process is initialized
+    if (!tcpClient.SendControlJson(JsonOp::kCtrlReady)) {
+        spdlog::error("Failed to send ctrl_ready");
         tcpClient.Disconnect();
         memReader.Close();
         rpmalloc_finalize();
         return 1;
     }
-    spdlog::info("Sent CTRL_READY to DLL");
+    spdlog::info("Sent ctrl_ready to DLL");
 
     // Initialize game bridge
     PointerTable pointerTable;
@@ -615,8 +619,6 @@ int main(int argc, char* argv[]) {
 
     // Main event loop
     spdlog::info("Entering main event loop");
-    PacketHeader header{};
-    uint8_t payload[sizeof(HookEventPacket)]; // max payload size
 
     // Delta time tracking
     auto lastTime = std::chrono::steady_clock::now();
@@ -639,7 +641,7 @@ int main(int argc, char* argv[]) {
         if (deltaTime > 0.25f)
             deltaTime = 0.25f;
 
-        // --- Phase 1: Receive and dispatch all pending TCP packets ---
+        // --- Phase 1: Receive and dispatch all pending TCP packets (NDJSON) ---
         int packetsProcessed = 0;
         static constexpr int kMaxPacketsPerFrame = 64;
 
@@ -650,42 +652,32 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            if (!tcpClient.Receive(&header, payload, sizeof(payload))) {
+            nlohmann::json msg;
+            if (!tcpClient.ReceiveJsonLine(msg)) {
                 spdlog::warn("TCP receive failed or connection closed");
                 s_running.store(false, std::memory_order_relaxed);
                 break;
             }
 
+            if (msg.is_discarded()) continue;
             packetsProcessed++;
 
-            if (header.opcode >= 0xF000) {
-                HandleControlPacket(header, tcpClient);
-            } else if (header.opcode < 0x8000) {
-                HookEventPacket hookPkt{};
-                hookPkt.header = header;
-                if (header.length >= 1) {
-                    hookPkt.argCount = payload[0];
-                    if (hookPkt.argCount > 8) hookPkt.argCount = 8;
-                    // args start at payload offset 4: argCount(1) + _pad[3](3) = 4
-                    memcpy(hookPkt.args, payload + 4, hookPkt.argCount * sizeof(uint64_t));
-                }
-
-                DispatchHookEvent(hookPkt, gameReader, pointerTable,
+            const auto& op = msg[JsonField::kOp].get_ref<const std::string&>();
+            if (op.starts_with("ctrl_")) {
+                HandleControlMessage(msg, tcpClient);
+            } else {
+                DispatchHookEvent(msg, gameReader, pointerTable,
                                   weatherService, calendarService, questService, combatService,
                                   inventoryService, actorValueService, magicService, characterService);
-
-                // Record hook event to binary file if --record is active
-                if (recordFile) {
-                    auto now = std::chrono::steady_clock::now().time_since_epoch();
-                    uint64_t timestampUs = std::chrono::duration_cast<std::chrono::microseconds>(now).count();
-                    fwrite(&timestampUs, sizeof(timestampUs), 1, recordFile);
-                    fwrite(&hookPkt, sizeof(hookPkt), 1, recordFile);
-                }
-            } else {
-                spdlog::warn("Unexpected command-range opcode from DLL: {:#x}", header.opcode);
             }
 
-            break; // One packet per blocking call, then update
+            // NDJSON recording
+            if (recordFile) {
+                std::string line = msg.dump() + "\n";
+                fwrite(line.c_str(), 1, line.size(), recordFile);
+            }
+
+            break; // One message per iteration, then update
         }
 
         // --- Phase 2: Service updates ---
@@ -714,7 +706,7 @@ int main(int argc, char* argv[]) {
         heartbeatTimer += deltaTime;
         if (heartbeatTimer >= kHeartbeatInterval) {
             heartbeatTimer = 0.0f;
-            if (!tcpClient.SendControl(CTRL_HEARTBEAT)) {
+            if (!tcpClient.SendControlJson(JsonOp::kCtrlHeartbeat)) {
                 spdlog::warn("Failed to send heartbeat");
             }
         }

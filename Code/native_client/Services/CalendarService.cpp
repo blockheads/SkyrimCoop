@@ -1,6 +1,8 @@
 #include "CalendarService.h"
 
 #include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
@@ -32,18 +34,11 @@ CalendarService::CalendarService(GameReader& aReader, TcpClient& aClient)
     spdlog::info("CalendarService initialized");
 }
 
-void CalendarService::OnHookEvent(const HookEventPacket& aPkt)
+void CalendarService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
-    case HOOK_SIMULATE_TIME: {
-        // CalendarService: periodic pread polling unchanged -- DLL-side calendar reads deferred
-        // Time simulation hook -- note event, poll handles actual reads
-        spdlog::debug("CalendarService: simulate time hook received");
-        break;
-    }
-    default:
-        break;
-    }
+    // TODO(Plan-04): Implement JSON dispatch for CalendarService
+    const auto& op = aMsg.value(JsonField::kOp, std::string{});
+    spdlog::debug("[CalendarService] stub OnHookEvent: op={}", op);
 }
 
 void CalendarService::Update(float aDeltaTime)

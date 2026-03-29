@@ -6,36 +6,19 @@
 #include <spdlog/spdlog.h>
 #include <cstring>
 #include <algorithm>
+#include <nlohmann/json.hpp>
+#include "json_protocol.h"
 
 MagicService::MagicService(GameReader& aReader, TcpClient& aTcp)
     : m_reader(aReader), m_tcp(aTcp)
 {
 }
 
-void MagicService::OnHookEvent(const HookEventPacket& aPkt)
+void MagicService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    const uint8_t argCount = aPkt.argCount;
-    const uint64_t* pArgs = aPkt.args;
-
-    switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
-    case HOOK_SPELL_CAST:
-        HandleSpellCast(pArgs, argCount);
-        break;
-    case HOOK_INTERRUPT_CAST:
-        HandleInterruptCast(pArgs, argCount);
-        break;
-    case HOOK_ADD_TARGET:
-        HandleAddTarget(pArgs, argCount);
-        break;
-    case HOOK_APPLY_EFFECT:
-        HandleApplyEffect(pArgs, argCount);
-        break;
-    case HOOK_REMOVE_SPELL:
-        HandleRemoveSpell(pArgs, argCount);
-        break;
-    default:
-        break;
-    }
+    // TODO(Plan-04): Implement JSON dispatch for MagicService
+    const auto& op = aMsg.value(JsonField::kOp, std::string{});
+    spdlog::debug("[MagicService] stub OnHookEvent: op={}", op);
 }
 
 void MagicService::Update(float aDeltaTime)
