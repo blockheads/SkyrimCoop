@@ -39,8 +39,15 @@ step "Step 2: Unit Tests"
 BUILD_DIR=$(xmake show 2>/dev/null | grep -o 'projectdir:.*' | cut -d: -f2 | tr -d ' ' || echo "$PROJECT_DIR")
 TPTESTS=$(find "$BUILD_DIR/build" -name "TPTests" -type f -executable 2>/dev/null | head -1 || true)
 if [ -n "$TPTESTS" ]; then
-    "$TPTESTS" 2>&1 | tail -20
-    pass "Unit tests passed"
+    # TPTests may segfault during cleanup after all tests pass; capture output
+    # and check for the Catch2 success marker rather than relying on exit code.
+    TEST_OUTPUT=$("$TPTESTS" 2>&1 || true)
+    echo "$TEST_OUTPUT" | tail -20
+    if echo "$TEST_OUTPUT" | grep -q "All tests passed"; then
+        pass "Unit tests passed"
+    else
+        fail "Unit tests failed"
+    fi
 else
     fail "TPTests binary not found"
 fi
