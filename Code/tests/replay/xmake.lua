@@ -42,8 +42,8 @@ target("ReplayTests")
     add_includedirs("../../encoding")
     add_includedirs("../../client/Games/Skyrim")
 
-    -- FIXTURE_PATH macro: absolute path to test fixtures
-    add_defines("FIXTURE_PATH=\"" .. path.absolute("tests/fixtures/replay") .. "\"")
+    -- FIXTURE_PATH macro: absolute path to test fixtures (relative to project root)
+    add_defines("FIXTURE_PATH=\"" .. path.absolute(path.join(os.projectdir(), "tests/fixtures/replay")) .. "\"")
 
     -- Dependencies
     add_deps("SkyrimEncoding", "SkyrimTogetherServer")

@@ -1,0 +1,6 @@
+{"op":"actor_added","form_id":20,"ptr":140737488355328}
+{"op":"actor_added","form_id":256,"ptr":140737488360000}
+{"op":"actor_added","form_id":512,"ptr":140737488365000}
+{"op":"set_position","form_id":20,"x":100.0,"y":100.0,"z":100.0,"rx":0.0,"rz":0.0}
+{"op":"set_position","form_id":256,"x":200.0,"y":200.0,"z":200.0,"rx":0.0,"rz":0.0}
+{"op":"set_position","form_id":512,"x":300.0,"y":300.0,"z":300.0,"rx":0.0,"rz":0.0}
