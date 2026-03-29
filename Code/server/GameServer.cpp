@@ -999,13 +999,16 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
         pPlayer->SetLevel(acRequest->Level);
 
         // this event is shit, needs to be fixed, i know
-        auto [canceled, reason] = m_pWorld->GetScriptService().HandlePlayerJoin(aConnectionId);
-        if (canceled)
+        if (m_pWorld->HasScriptService())
         {
-            spdlog::info("New player {:x} has a been rejected because \"{}\".", aConnectionId, reason.c_str());
-            Kick(aConnectionId);
-            m_pWorld->GetPlayerManager().Remove(pPlayer);
-            return;
+            auto [canceled, reason] = m_pWorld->GetScriptService().HandlePlayerJoin(aConnectionId);
+            if (canceled)
+            {
+                spdlog::info("New player {:x} has a been rejected because \"{}\".", aConnectionId, reason.c_str());
+                Kick(aConnectionId);
+                m_pWorld->GetPlayerManager().Remove(pPlayer);
+                return;
+            }
         }
 
         serverResponse.PlayerId = pPlayer->GetId();

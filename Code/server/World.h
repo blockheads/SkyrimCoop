@@ -45,6 +45,7 @@ struct World : entt::registry
     PlayerManager& GetPlayerManager() noexcept { return m_playerManager; }
     const PlayerManager& GetPlayerManager() const noexcept { return m_playerManager; }
     ScriptService& GetScriptService() const noexcept { return *m_pScriptService; }
+    bool HasScriptService() const noexcept { return m_pScriptService != nullptr; }
 
     // Null checked at start when MoPo is on!
     ESLoader::RecordCollection* GetRecordCollection() noexcept { return m_recordCollection.get(); }

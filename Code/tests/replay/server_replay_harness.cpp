@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 
 ServerReplayHarness::ServerReplayHarness()
+    : m_console("ReplayTest")
 {
     // Create server in test mode: no enet6 port binding, no ESLoader, no ScriptService
     m_pServer = std::make_unique<Server::GameServer>(m_console, GameServerTestMode{});

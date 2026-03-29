@@ -1,3 +1,10 @@
+// Include TiltedPhoques base before Message.h (needed when PCH is not active, e.g. ReplayTests target)
+#include <glm/glm.hpp>
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/Serialization.hpp>
+#include <TiltedCore/Buffer.hpp>
+#include <TiltedCore/ViewBuffer.hpp>
+
 #include <Recording/EnetRecorder.h>
 #include <Recording/MessageSerializer.h>
 #include <filesystem>

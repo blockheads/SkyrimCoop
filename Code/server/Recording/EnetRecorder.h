@@ -1,5 +1,8 @@
 #pragma once
 
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/Serialization.hpp>
+#include <ENetInterface.hpp>
 #include <Messages/Message.h>
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -7,7 +10,6 @@
 #include <unordered_map>
 #include <chrono>
 #include <mutex>
-#include <TiltedCore/Stl.hpp>
 
 using TiltedPhoques::ConnectionId_t;
 

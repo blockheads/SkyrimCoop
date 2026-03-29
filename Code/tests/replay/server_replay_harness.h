@@ -1,9 +1,35 @@
 #pragma once
 
+// Server PCH-equivalent includes (needed when this header is used outside the server target)
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/Serialization.hpp>
+#include <TiltedCore/ScratchAllocator.hpp>
+#include <TiltedCore/ViewBuffer.hpp>
+#include <glm/glm.hpp>
+#include <entt/entt.hpp>
+#include <spdlog/spdlog.h>
+#include <Server.hpp>
+#include <BuildInfo.h>
+#include <optional>
+#include <StringCache.h>
+#include <sol/sol.hpp>
+
+using TiltedPhoques::ConnectionId_t;
+using TiltedPhoques::MakeShared;
+using TiltedPhoques::MakeUnique;
+using TiltedPhoques::Map;
+using TiltedPhoques::ScopedAllocator;
+using TiltedPhoques::String;
+using TiltedPhoques::UniquePtr;
+using TiltedPhoques::Vector;
+using TiltedPhoques::ViewBuffer;
+
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
+#include <Components.h>
 #include <GameServer.h>
+#include <Game/Player.h>
 #include <console/ConsoleRegistry.h>
 
 // ServerReplayHarness: replays NDJSON-recorded enet6 traffic through the server

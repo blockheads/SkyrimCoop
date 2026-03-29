@@ -9,7 +9,7 @@ target("ReplayTests")
     -- ReplayHarness
     add_files("../../native_client/replay/*.cpp")
 
-    -- MessageSerializer (Recording)
+    -- MessageSerializer and EnetRecorder (Recording)
     add_files("../../server/Recording/*.cpp")
 
     -- Shared dispatch function
