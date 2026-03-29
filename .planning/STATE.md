@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-29T04:27:47.626Z"
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-03-29T05:14:30.018Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 12
   completed_phases: 8
-  total_plans: 40
-  completed_plans: 39
+  total_plans: 44
+  completed_plans: 40
   percent: 89
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 09.1 — dll-side-formid-resolution
+**Current focus:** Phase 10 — two-player-co-op-session
 
 ## Current Position
 
-Phase: 09.1
-Plan: Not started
+Phase: 10 (two-player-co-op-session) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -70,6 +70,7 @@ Progress: [=========-] 89%
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
 | Phase 09.1 P02 | 8min | 2 tasks | 10 files |
+| Phase 10 P02 | 3min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,8 @@ Recent decisions affecting current work:
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
 - [Phase 09.1]: Position cache uses unordered_map for O(1) lookup; SyncMovement falls back to pread on cache miss
 - [Phase 09.1]: HandleActorAdded/Removed receive formId as parameter from DLL packet args (no pread)
+- [Phase 10]: GetRealSetPosition() callback pattern to bridge file-static RealSetPosition across TUs
+- [Phase 10]: DrainCommandQueue called only for player formId 0x14 to avoid per-NPC overhead
 
 ### Pending Todos
 
@@ -129,6 +132,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T04:27:47.624Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-two-player-co-op-session/10-CONTEXT.md
+Last session: 2026-03-29T05:14:30.016Z
+Stopped at: Completed 10-02-PLAN.md
+Resume file: None
