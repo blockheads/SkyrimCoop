@@ -62,23 +62,24 @@ void MagicService::Update(float aDeltaTime)
 
 void MagicService::HandleSpellCast(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] caster ptr, [1] spell ptr
-    if (aArgCount < 2) {
+    // DLL arg layout: [casterPtr, casterFormId, spellPtr, spellFormId]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_SPELL_CAST: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t casterFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t spellFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t casterFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t spellFormId = static_cast<uint32_t>(apArgs[3]);
 
     if (casterFormId == 0 || spellFormId == 0) {
-        spdlog::warn("HOOK_SPELL_CAST: failed to read formIds (caster={:#x}, spell={:#x})",
+        spdlog::warn("HOOK_SPELL_CAST: formIds are zero (caster={:#x}, spell={:#x})",
                       casterFormId, spellFormId);
         return;
     }
 
+    // TODO(09.1): move spell casting type read to DLL
     // Read spell casting type to determine if this is a concentration spell
-    uint32_t castingType = m_reader.Read<uint32_t>(apArgs[1], kSpellCastingTypeOffset);
+    uint32_t castingType = m_reader.Read<uint32_t>(apArgs[2], kSpellCastingTypeOffset);
 
     // Track as active cast
     ActiveCast cast{};
@@ -93,15 +94,15 @@ void MagicService::HandleSpellCast(const uint64_t* apArgs, uint8_t aArgCount)
 
 void MagicService::HandleInterruptCast(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] caster ptr
-    if (aArgCount < 1) {
+    // DLL arg layout: [casterPtr, casterFormId, refundU64]
+    if (aArgCount < 2) {
         spdlog::warn("HOOK_INTERRUPT_CAST: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t casterFormId = m_reader.ReadFormId(apArgs[0]);
+    uint32_t casterFormId = static_cast<uint32_t>(apArgs[1]);
     if (casterFormId == 0) {
-        spdlog::warn("HOOK_INTERRUPT_CAST: failed to read caster formId at ptr={:#x}", apArgs[0]);
+        spdlog::warn("HOOK_INTERRUPT_CAST: caster formId is 0");
         return;
     }
 
@@ -114,30 +115,31 @@ void MagicService::HandleInterruptCast(const uint64_t* apArgs, uint8_t aArgCount
 
 void MagicService::HandleAddTarget(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] target ptr, [1] target data ptr (MagicTarget::AddTargetData)
-    if (aArgCount < 2) {
+    // DLL arg layout: [targetPtr, targetFormId, hitDataPtr]
+    if (aArgCount < 3) {
         spdlog::warn("HOOK_ADD_TARGET: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t targetFormId = m_reader.ReadFormId(apArgs[0]);
+    uint32_t targetFormId = static_cast<uint32_t>(apArgs[1]);
     if (targetFormId == 0) {
-        spdlog::warn("HOOK_ADD_TARGET: failed to read target formId at ptr={:#x}", apArgs[0]);
+        spdlog::warn("HOOK_ADD_TARGET: target formId is 0");
         return;
     }
 
+    // TODO(09.1): move spell effect reads to DLL
     // Read magic effect data from the target data struct via memory
     // AddTargetData layout includes spell ptr, effect item ptr, magnitude, etc.
-    // Read spell formId from the spell pointer within the target data
-    uint64_t spellPtr = m_reader.Read<uint64_t>(apArgs[1], 0x08); // pSpell offset in AddTargetData
+    uint64_t hitDataPtr = apArgs[2];
+    uint64_t spellPtr = m_reader.Read<uint64_t>(hitDataPtr, 0x08); // pSpell offset in AddTargetData
     uint32_t spellFormId = 0;
     if (spellPtr != 0) {
         spellFormId = m_reader.ReadFormId(spellPtr);
     }
 
     // Read effect item pointer and magnitude
-    uint64_t effectPtr = m_reader.Read<uint64_t>(apArgs[1], 0x10); // pEffectItem offset
-    float magnitude = m_reader.Read<float>(apArgs[1], 0x18); // fMagnitude offset
+    uint64_t effectPtr = m_reader.Read<uint64_t>(hitDataPtr, 0x10); // pEffectItem offset
+    float magnitude = m_reader.Read<float>(hitDataPtr, 0x18); // fMagnitude offset
 
     spdlog::debug("Add target: target={:#x} spell={:#x} effect={:#x} magnitude={:.2f}",
                   targetFormId, spellFormId, effectPtr, magnitude);
@@ -146,43 +148,44 @@ void MagicService::HandleAddTarget(const uint64_t* apArgs, uint8_t aArgCount)
 
 void MagicService::HandleApplyEffect(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] magic item ptr, [2] effect ptr
-    if (aArgCount < 3) {
+    // DLL arg layout: [actorPtr, actorFormId, casterPtr, casterFormId, effectPtr]
+    if (aArgCount < 5) {
         spdlog::warn("HOOK_APPLY_EFFECT: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t magicItemFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t casterFormId = static_cast<uint32_t>(apArgs[3]);
 
-    if (actorFormId == 0 || magicItemFormId == 0) {
-        spdlog::warn("HOOK_APPLY_EFFECT: failed to read formIds (actor={:#x}, magicItem={:#x})",
-                      actorFormId, magicItemFormId);
+    if (actorFormId == 0 || casterFormId == 0) {
+        spdlog::warn("HOOK_APPLY_EFFECT: formIds are zero (actor={:#x}, caster={:#x})",
+                      actorFormId, casterFormId);
         return;
     }
 
+    // TODO(09.1): move effect magnitude/duration reads to DLL
     // Read effect magnitude and duration from the MagicEffect struct
-    float magnitude = m_reader.Read<float>(apArgs[2], kEffectMagnitudeOffset);
-    float duration = m_reader.Read<float>(apArgs[2], kEffectDurationOffset);
+    float magnitude = m_reader.Read<float>(apArgs[4], kEffectMagnitudeOffset);
+    float duration = m_reader.Read<float>(apArgs[4], kEffectDurationOffset);
 
-    spdlog::debug("Apply effect: actor={:#x} magicItem={:#x} mag={:.2f} dur={:.2f}",
-                  actorFormId, magicItemFormId, magnitude, duration);
+    spdlog::debug("Apply effect: actor={:#x} caster={:#x} mag={:.2f} dur={:.2f}",
+                  actorFormId, casterFormId, magnitude, duration);
     // TODO: Send effect application message to embedded server / network layer
 }
 
 void MagicService::HandleRemoveSpell(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] spell ptr
-    if (aArgCount < 2) {
+    // DLL arg layout: [actorPtr, actorFormId, spellPtr, spellFormId]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_REMOVE_SPELL: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t spellFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t spellFormId = static_cast<uint32_t>(apArgs[3]);
 
     if (actorFormId == 0 || spellFormId == 0) {
-        spdlog::warn("HOOK_REMOVE_SPELL: failed to read formIds (actor={:#x}, spell={:#x})",
+        spdlog::warn("HOOK_REMOVE_SPELL: formIds are zero (actor={:#x}, spell={:#x})",
                       actorFormId, spellFormId);
         return;
     }

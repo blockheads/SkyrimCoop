@@ -21,31 +21,24 @@ void QuestService::OnHookEvent(const HookEventPacket& aPkt)
 {
     switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
     case HOOK_PERFORM_ACTION: {
-        // PerformAction may include quest-related actions
-        // args[0] = process, args[1] = actor, args[2] = action
-        if (aPkt.argCount < 3) break;
+        // DLL arg layout: [processPtr, actorPtr, actorFormId, actionPtr, actionFormId]
+        if (aPkt.argCount < 5) break;
 
-        uint64_t actorPtr = aPkt.args[1];
-        uint64_t actionPtr = aPkt.args[2];
-
-        // Read actor formId for logging
-        uint32_t actorFormId = m_reader.ReadFormId(actorPtr);
+        uint32_t actorFormId = static_cast<uint32_t>(aPkt.args[2]);
+        uint32_t actionFormId = static_cast<uint32_t>(aPkt.args[4]);
 
         // Log the quest-related action event
         spdlog::info("QuestService: PerformAction actor={:#x} action={:#x}",
-                     actorFormId, actionPtr);
+                     actorFormId, actionFormId);
         m_lastQuestEventCount++;
         break;
     }
     case HOOK_ACTIVATE: {
-        // Activation events can trigger quest stages
-        if (aPkt.argCount < 2) break;
+        // DLL arg layout: [thisPtr, thisFormId, activatorPtr, activatorFormId, objPtr, countU64]
+        if (aPkt.argCount < 4) break;
 
-        uint64_t targetPtr = aPkt.args[0];
-        uint64_t activatorPtr = aPkt.args[1];
-
-        uint32_t targetFormId = m_reader.ReadFormId(targetPtr);
-        uint32_t activatorFormId = m_reader.ReadFormId(activatorPtr);
+        uint32_t targetFormId = static_cast<uint32_t>(aPkt.args[1]);
+        uint32_t activatorFormId = static_cast<uint32_t>(aPkt.args[3]);
 
         spdlog::debug("QuestService: Activate target={:#x} activator={:#x}",
                       targetFormId, activatorFormId);

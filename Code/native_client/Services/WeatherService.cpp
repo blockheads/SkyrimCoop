@@ -24,12 +24,10 @@ void WeatherService::OnHookEvent(const HookEventPacket& aPkt)
 {
     switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
     case HOOK_SET_WEATHER: {
-        // args[0] = Sky*, args[1] = TESWeather*, args[2] = override flag
-        if (aPkt.argCount < 2) break;
-        uint64_t weatherPtr = aPkt.args[1];
-        if (weatherPtr == 0) break;
+        // DLL arg layout: [skyPtr, weatherPtr, weatherFormId, overrideU64, accelU64]
+        if (aPkt.argCount < 3) break;
 
-        uint32_t formId = m_reader.ReadFormId(weatherPtr);
+        uint32_t formId = static_cast<uint32_t>(aPkt.args[2]);
         if (formId != 0 && formId != cMapWeatherId) {
             spdlog::info("WeatherService: SetWeather hook, formId={:#x}", formId);
             m_cachedWeatherId = formId;
@@ -37,12 +35,10 @@ void WeatherService::OnHookEvent(const HookEventPacket& aPkt)
         break;
     }
     case HOOK_FORCE_WEATHER: {
-        // args[0] = Sky*, args[1] = TESWeather*, args[2] = override flag
-        if (aPkt.argCount < 2) break;
-        uint64_t weatherPtr = aPkt.args[1];
-        if (weatherPtr == 0) break;
+        // DLL arg layout: [skyPtr, weatherPtr, weatherFormId, overrideU64]
+        if (aPkt.argCount < 3) break;
 
-        uint32_t formId = m_reader.ReadFormId(weatherPtr);
+        uint32_t formId = static_cast<uint32_t>(aPkt.args[2]);
         if (formId != 0 && formId != cMapWeatherId) {
             spdlog::info("WeatherService: ForceWeather hook, formId={:#x}", formId);
             m_cachedWeatherId = formId;

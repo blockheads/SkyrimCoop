@@ -29,14 +29,11 @@ void CombatService::OnHookEvent(const HookEventPacket& aPkt)
 {
     switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
     case HOOK_DAMAGE_ACTOR: {
-        // args[0] = Actor* (target), args[1] = float (damage amount, bit-cast)
-        if (aPkt.argCount < 2) break;
+        // DLL arg layout: [actorPtr, formId, damageU64]
+        if (aPkt.argCount < 3) break;
 
-        uint64_t actorPtr = aPkt.args[0];
-        float damage = U64ToFloat(aPkt.args[1]);
-
-        // Read target formId via memory
-        uint32_t targetFormId = m_reader.ReadFormId(actorPtr);
+        uint32_t targetFormId = static_cast<uint32_t>(aPkt.args[1]);
+        float damage = U64ToFloat(aPkt.args[2]);
 
         if (targetFormId != 0) {
             // TODO(Plan 07+): Send damage sync via network transport

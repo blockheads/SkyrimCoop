@@ -139,25 +139,27 @@ static void DispatchHookEvent(const HookEventPacket& aHookPkt,
                                MagicService& aMagic, CharacterService& aCharacter)
 {
     // Core pointer table tracking for actor add/remove
+    // FormIds are now resolved DLL-side and packed in args[1] (Phase 9.1)
     switch (static_cast<HookOpcode>(aHookPkt.header.opcode)) {
-    case HOOK_ACTOR_ADDED: {
-        if (aHookPkt.argCount >= 1 && aHookPkt.args[0] != 0) {
-            uint64_t actorPtr = aHookPkt.args[0];
-            uint32_t formId = aReader.ReadFormIdDeferred(actorPtr);
-            if (formId != 0) {
-                aPtrs.Insert(formId, actorPtr);
+    case HOOK_ACTOR_ADDED:
+    case HOOK_SPAWN_ACTOR:
+    case HOOK_CHARACTER_CTOR: {
+        if (aHookPkt.argCount >= 2) {
+            uint64_t rawPtr = aHookPkt.args[0];
+            uint32_t formId = static_cast<uint32_t>(aHookPkt.args[1]);
+            if (formId != 0 && rawPtr != 0) {
+                aPtrs.Insert(formId, rawPtr);
             }
         }
         break;
     }
     case HOOK_ACTOR_REMOVED: {
-        if (aHookPkt.argCount >= 1 && aHookPkt.args[0] != 0) {
-            uint64_t actorPtr = aHookPkt.args[0];
-            uint32_t formId = aReader.ReadFormIdDeferred(actorPtr);
+        if (aHookPkt.argCount >= 2) {
+            uint32_t formId = static_cast<uint32_t>(aHookPkt.args[1]);
             if (formId != 0) {
                 aPtrs.Remove(formId);
             } else {
-                aPtrs.RemoveByPointer(actorPtr);
+                aPtrs.RemoveByPointer(aHookPkt.args[0]);
             }
         }
         break;

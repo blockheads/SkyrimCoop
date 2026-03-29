@@ -51,18 +51,18 @@ void InventoryService::Update(float /*aDeltaTime*/)
 
 void InventoryService::HandleAddInventory(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] item ptr, [2] count
-    if (aArgCount < 3) {
+    // DLL arg layout: [actorPtr, actorFormId, itemPtr, itemFormId, countU64, refPtr]
+    if (aArgCount < 5) {
         spdlog::warn("HOOK_ADD_INVENTORY: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t itemFormId = m_reader.ReadFormId(apArgs[1]);
-    int32_t count = static_cast<int32_t>(apArgs[2]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
+    int32_t count = static_cast<int32_t>(apArgs[4]);
 
     if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_ADD_INVENTORY: failed to read formIds (actor={:#x}, item={:#x})",
+        spdlog::warn("HOOK_ADD_INVENTORY: formIds are zero (actor={:#x}, item={:#x})",
                       actorFormId, itemFormId);
         return;
     }
@@ -73,17 +73,17 @@ void InventoryService::HandleAddInventory(const uint64_t* apArgs, uint8_t aArgCo
 
 void InventoryService::HandleEquip(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] item form ptr
-    if (aArgCount < 2) {
+    // DLL arg layout: [actorPtr, actorFormId, objPtr, objFormId]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_EQUIP: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t itemFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
 
     if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_EQUIP: failed to read formIds (actor={:#x}, item={:#x})",
+        spdlog::warn("HOOK_EQUIP: formIds are zero (actor={:#x}, item={:#x})",
                       actorFormId, itemFormId);
         return;
     }
@@ -94,17 +94,17 @@ void InventoryService::HandleEquip(const uint64_t* apArgs, uint8_t aArgCount)
 
 void InventoryService::HandleUnequip(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] item form ptr
-    if (aArgCount < 2) {
+    // DLL arg layout: [actorPtr, actorFormId, objPtr, objFormId]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_UNEQUIP: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t itemFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
 
     if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_UNEQUIP: failed to read formIds (actor={:#x}, item={:#x})",
+        spdlog::warn("HOOK_UNEQUIP: formIds are zero (actor={:#x}, item={:#x})",
                       actorFormId, itemFormId);
         return;
     }
@@ -115,65 +115,65 @@ void InventoryService::HandleUnequip(const uint64_t* apArgs, uint8_t aArgCount)
 
 void InventoryService::HandlePickUp(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] ref ptr
-    if (aArgCount < 2) {
+    // DLL arg layout: [actorPtr, actorFormId, objPtr, objFormId, countU64]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_PICK_UP: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t refFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t objFormId = static_cast<uint32_t>(apArgs[3]);
 
-    if (actorFormId == 0 || refFormId == 0) {
-        spdlog::warn("HOOK_PICK_UP: failed to read formIds (actor={:#x}, ref={:#x})",
-                      actorFormId, refFormId);
+    if (actorFormId == 0 || objFormId == 0) {
+        spdlog::warn("HOOK_PICK_UP: formIds are zero (actor={:#x}, obj={:#x})",
+                      actorFormId, objFormId);
         return;
     }
 
-    spdlog::debug("Pick up: actor={:#x} ref={:#x}", actorFormId, refFormId);
+    spdlog::debug("Pick up: actor={:#x} obj={:#x}", actorFormId, objFormId);
     // TODO: Send pickup message to embedded server / network layer
 }
 
 void InventoryService::HandleDropObject(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] ref ptr
-    if (aArgCount < 2) {
+    // DLL arg layout: [actorPtr, actorFormId, itemPtr, itemFormId, countU64]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_DROP_OBJECT: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t actorFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t refFormId = m_reader.ReadFormId(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
 
-    if (actorFormId == 0 || refFormId == 0) {
-        spdlog::warn("HOOK_DROP_OBJECT: failed to read formIds (actor={:#x}, ref={:#x})",
-                      actorFormId, refFormId);
+    if (actorFormId == 0 || itemFormId == 0) {
+        spdlog::warn("HOOK_DROP_OBJECT: formIds are zero (actor={:#x}, item={:#x})",
+                      actorFormId, itemFormId);
         return;
     }
 
-    spdlog::debug("Drop object: actor={:#x} ref={:#x}", actorFormId, refFormId);
+    spdlog::debug("Drop object: actor={:#x} item={:#x}", actorFormId, itemFormId);
     // TODO: Send drop message to embedded server / network layer
 }
 
 void InventoryService::HandleRemoveInvItem(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] ref ptr, [1] item ptr, [2] count
-    if (aArgCount < 3) {
+    // DLL arg layout: [actorPtr, actorFormId, itemPtr, itemFormId, countU64]
+    if (aArgCount < 5) {
         spdlog::warn("HOOK_REMOVE_INV_ITEM: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint32_t refFormId = m_reader.ReadFormId(apArgs[0]);
-    uint32_t itemFormId = m_reader.ReadFormId(apArgs[1]);
-    int32_t count = static_cast<int32_t>(apArgs[2]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
+    int32_t count = static_cast<int32_t>(apArgs[4]);
 
-    if (refFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_REMOVE_INV_ITEM: failed to read formIds (ref={:#x}, item={:#x})",
-                      refFormId, itemFormId);
+    if (actorFormId == 0 || itemFormId == 0) {
+        spdlog::warn("HOOK_REMOVE_INV_ITEM: formIds are zero (actor={:#x}, item={:#x})",
+                      actorFormId, itemFormId);
         return;
     }
 
-    spdlog::debug("Remove inv item: ref={:#x} item={:#x} count={}", refFormId, itemFormId, count);
+    spdlog::debug("Remove inv item: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
     // TODO: Send remove message to embedded server / network layer
 }
 

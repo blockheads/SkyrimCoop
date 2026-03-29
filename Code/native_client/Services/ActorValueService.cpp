@@ -31,23 +31,22 @@ void ActorValueService::Update(float aDeltaTime)
 
 void ActorValueService::HandleRegenAttr(const uint64_t* apArgs, uint8_t aArgCount)
 {
-    // args: [0] actor ptr, [1] attr index, [2] regen amount (as uint64_t-encoded float)
-    if (aArgCount < 3) {
+    // DLL arg layout: [actorPtr, formId, typeU64, valueU64]
+    if (aArgCount < 4) {
         spdlog::warn("HOOK_REGEN_ATTR: insufficient args ({})", aArgCount);
         return;
     }
 
-    uint64_t actorPtr = apArgs[0];
-    uint32_t attrIndex = static_cast<uint32_t>(apArgs[1]);
+    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
+    uint32_t attrIndex = static_cast<uint32_t>(apArgs[2]);
 
     // Decode regen amount from uint64_t bit pattern
     float regenAmount = 0.0f;
-    uint32_t regenBits = static_cast<uint32_t>(apArgs[2]);
+    uint32_t regenBits = static_cast<uint32_t>(apArgs[3]);
     std::memcpy(&regenAmount, &regenBits, sizeof(float));
 
-    uint32_t actorFormId = m_reader.ReadFormId(actorPtr);
     if (actorFormId == 0) {
-        spdlog::warn("HOOK_REGEN_ATTR: failed to read actor formId at ptr={:#x}", actorPtr);
+        spdlog::warn("HOOK_REGEN_ATTR: formId is 0");
         return;
     }
 

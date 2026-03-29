@@ -36,6 +36,7 @@ void CalendarService::OnHookEvent(const HookEventPacket& aPkt)
 {
     switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
     case HOOK_SIMULATE_TIME: {
+        // CalendarService: periodic pread polling unchanged -- DLL-side calendar reads deferred
         // Time simulation hook -- note event, poll handles actual reads
         spdlog::debug("CalendarService: simulate time hook received");
         break;
