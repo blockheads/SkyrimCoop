@@ -1,7 +1,16 @@
 #pragma once
 #include <cstdint>
 #include <cstddef>
+#include <string>
+#include <vector>
 #include <sys/types.h>
+
+struct MemoryRegion {
+    uint64_t start;
+    uint64_t end;
+    bool readable;
+    std::string name;  // e.g., "SkyrimSE.exe", "[heap]", etc.
+};
 
 class ProcMemReader {
 public:
@@ -26,8 +35,18 @@ public:
     bool IsOpen() const { return m_fd != -1; }
     pid_t GetPid() const { return m_pid; }
 
+    // Parse /proc/pid/maps and cache readable regions
+    bool LoadMemoryMaps();
+    // Check if addr falls within a readable region; returns region name or empty
+    std::string ValidateAddress(uint64_t addr) const;
+    // Log summary of mapped regions (call once after Open)
+    void DumpMemoryMapSummary() const;
+    // Get count of loaded regions
+    size_t GetRegionCount() const { return m_regions.size(); }
+
 private:
     int m_fd = -1;
     pid_t m_pid = 0;
     bool m_isTracer = false;
+    std::vector<MemoryRegion> m_regions;
 };
