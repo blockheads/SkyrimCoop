@@ -41,3 +41,8 @@ includes("native_client")
 if not is_plat("mingw") then
     includes("tests")
 end
+
+-- mock_skyrim_loader: MinGW-only headless DLL test binary
+if is_plat("mingw") then
+    includes("tests/integration")
+end

@@ -92,15 +92,18 @@ static void PrintUsage(const char* apProgram) {
     fprintf(stderr, "  --connect      Join mode: connect to remote host at ip:port (default: host mode)\n");
     fprintf(stderr, "  --server-port  GameServer listen port in host mode (default: 10578)\n");
     fprintf(stderr, "  --host-only    Run embedded GameServer without Skyrim process (standalone testing)\n");
+    fprintf(stderr, "  --record <file>  Record all hook events to binary file\n");
     fprintf(stderr, "  --help         Show this help\n");
 }
 
 static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort,
-                      std::string& aOutConnect, uint16_t& aOutServerPort) {
+                      std::string& aOutConnect, uint16_t& aOutServerPort,
+                      std::string& aOutRecordPath) {
     aOutPid = 0;
     aOutPort = 0;
     aOutConnect.clear();
     aOutServerPort = 10578;
+    aOutRecordPath.clear();
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--pid") == 0 && i + 1 < argc) {
@@ -111,6 +114,8 @@ static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort
             aOutConnect = argv[++i];
         } else if (strcmp(argv[i], "--server-port") == 0 && i + 1 < argc) {
             aOutServerPort = static_cast<uint16_t>(atoi(argv[++i]));
+        } else if (strcmp(argv[i], "--record") == 0 && i + 1 < argc) {
+            aOutRecordPath = argv[++i];
         } else if (strcmp(argv[i], "--help") == 0) {
             PrintUsage(argv[0]);
             exit(0);
@@ -206,16 +211,19 @@ int main(int argc, char* argv[]) {
     uint16_t port = 0;
     std::string connectAddr;
     uint16_t serverPort = 10578;
-    if (!hostOnly && !ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort)) {
+    std::string recordPath;
+    if (!hostOnly && !ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort, recordPath)) {
         PrintUsage(argv[0]);
         rpmalloc_finalize();
         return 1;
     }
     if (hostOnly) {
-        // Still parse --server-port if provided
+        // Still parse --server-port and --record if provided
         for (int i = 1; i < argc; i++) {
             if (strcmp(argv[i], "--server-port") == 0 && i + 1 < argc) {
                 serverPort = static_cast<uint16_t>(atoi(argv[++i]));
+            } else if (strcmp(argv[i], "--record") == 0 && i + 1 < argc) {
+                recordPath = argv[++i];
             }
         }
         spdlog::info("Starting in HOST-ONLY mode (port {})", serverPort);
@@ -226,6 +234,16 @@ int main(int argc, char* argv[]) {
     // Install signal handlers for clean shutdown
     signal(SIGINT, SignalHandler);
     signal(SIGTERM, SignalHandler);
+
+    // Open record file if --record was specified
+    FILE* recordFile = nullptr;
+    if (!recordPath.empty()) {
+        recordFile = fopen(recordPath.c_str(), "wb");
+        if (recordFile)
+            spdlog::info("Recording hook events to {}", recordPath);
+        else
+            spdlog::warn("Failed to open record file: {}", recordPath);
+    }
 
     // --- Host-only mode: run GameServer without Skyrim process ---
     if (hostOnly) {
@@ -469,6 +487,14 @@ int main(int argc, char* argv[]) {
                 DispatchHookEvent(hookPkt, gameReader, pointerTable,
                                   weatherService, calendarService, questService, combatService,
                                   inventoryService, actorValueService, magicService, characterService);
+
+                // Record hook event to binary file if --record is active
+                if (recordFile) {
+                    auto now = std::chrono::steady_clock::now().time_since_epoch();
+                    uint64_t timestampUs = std::chrono::duration_cast<std::chrono::microseconds>(now).count();
+                    fwrite(&timestampUs, sizeof(timestampUs), 1, recordFile);
+                    fwrite(&hookPkt, sizeof(hookPkt), 1, recordFile);
+                }
             } else {
                 spdlog::warn("Unexpected command-range opcode from DLL: {:#x}", header.opcode);
             }
@@ -519,6 +545,12 @@ int main(int argc, char* argv[]) {
         pGameServer.reset();
         pConsole.reset();
         spdlog::info("GameServer shut down");
+    }
+
+    // Close record file
+    if (recordFile) {
+        fclose(recordFile);
+        spdlog::info("Closed record file: {}", recordPath);
     }
 
     // Cleanup
