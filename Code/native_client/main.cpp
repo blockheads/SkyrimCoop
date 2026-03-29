@@ -513,6 +513,21 @@ int main(int argc, char* argv[]) {
             [&characterService](uint32_t aServerId, float aX, float aY, float aZ, float aRx, float aRy) {
                 characterService.OnReferencesMoveRequest(aServerId, {aX, aY, aZ}, {aRx, aRy});
             });
+        pRouter->SetAssignCallback(
+            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy, bool aOwner) {
+                if (!aOwner) {
+                    characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
+                }
+            });
+        pRouter->SetSpawnCallback(
+            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy) {
+                spdlog::info("Host: remote character spawned serverId={} formId={:#x}", aServerId, aFormId);
+                characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
+            });
+        pRouter->SetRemoveCallback(
+            [&characterService](uint32_t aServerId) {
+                characterService.OnRemoveCharacter(aServerId);
+            });
 
         // Set loopback pointer on CharacterService for outbound messages
         characterService.SetLoopback(pLoopback.get());
@@ -555,6 +570,32 @@ int main(int argc, char* argv[]) {
                     spdlog::error("JoinClient: authentication rejected");
                 }
             });
+
+        // Wire move, assign, spawn, remove callbacks to CharacterService
+        pRouter->SetMoveCallback(
+            [&characterService](uint32_t aServerId, float aX, float aY, float aZ, float aRx, float aRy) {
+                characterService.OnReferencesMoveRequest(aServerId, {aX, aY, aZ}, {aRx, aRy});
+            });
+        pRouter->SetAssignCallback(
+            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy, bool aOwner) {
+                if (aOwner) {
+                    spdlog::info("JoinClient: own character assigned serverId={}", aServerId);
+                } else {
+                    characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
+                }
+            });
+        pRouter->SetSpawnCallback(
+            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy) {
+                spdlog::info("JoinClient: remote character spawned serverId={} formId={:#x}", aServerId, aFormId);
+                characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
+            });
+        pRouter->SetRemoveCallback(
+            [&characterService](uint32_t aServerId) {
+                characterService.OnRemoveCharacter(aServerId);
+            });
+
+        // Set JoinClient pointer on CharacterService for movement sends
+        characterService.SetJoinClient(pJoinClient.get());
 
         pJoinClient->ConnectByIp(connectAddr);
 

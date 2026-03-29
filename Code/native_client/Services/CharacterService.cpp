@@ -18,6 +18,8 @@ using TiltedPhoques::Map;
 #include "../transport/LoopbackTransport.h"
 #include "protocol.h"
 
+#include <Client.hpp>
+#include <Packet.hpp>
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Structs/ReferenceUpdate.h>
 
@@ -371,8 +373,26 @@ void CharacterService::SyncMovement()
 
             m_pLoopback->SendToServer(moveReq);
             spdlog::debug("CharacterService: Sent movement via loopback formId={:#x}", comp.formId);
-        } else if (changed) {
-            spdlog::debug("CharacterService: Movement change detected but no loopback (join mode)");
+        } else if (changed && m_pJoinClient) {
+            ClientReferencesMoveRequest moveReq;
+            moveReq.Tick = 0;
+
+            ReferenceUpdate update;
+            update.UpdatedMovement.Position.x = currentPos.x;
+            update.UpdatedMovement.Position.y = currentPos.y;
+            update.UpdatedMovement.Position.z = currentPos.z;
+            update.UpdatedMovement.Rotation.x = currentRot.x;
+            update.UpdatedMovement.Rotation.y = currentRot.y;
+            moveReq.Updates[comp.formId] = update;
+
+            TiltedPhoques::Buffer buffer(1 << 16);
+            TiltedPhoques::Buffer::Writer writer(&buffer);
+            writer.WriteBits(0, 8); // packet type prefix
+            moveReq.Serialize(writer);
+            TiltedPhoques::PacketView packet(
+                reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+            m_pJoinClient->Send(&packet);
+            spdlog::debug("CharacterService: Sent movement via JoinClient formId={:#x}", comp.formId);
         }
     }
 

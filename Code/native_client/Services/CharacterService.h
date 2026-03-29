@@ -12,6 +12,8 @@ class GameReader;
 class TcpClient;
 class LoopbackTransport;
 
+namespace TiltedPhoques { struct Client; }
+
 // ECS components for actor tracking in the native client.
 // These are self-contained -- no game API calls, just pure data.
 
@@ -56,8 +58,11 @@ public:
     // Periodic update: movement sync, interpolation feed
     void Update(float aDeltaTime);
 
-    // Set loopback transport for sending ClientMessages to embedded GameServer
+    // Set loopback transport for sending ClientMessages to embedded GameServer (host mode)
     void SetLoopback(LoopbackTransport* apLoopback) noexcept { m_pLoopback = apLoopback; }
+
+    // Set enet6 client for sending ClientMessages to remote host (join mode)
+    void SetJoinClient(TiltedPhoques::Client* apClient) noexcept { m_pJoinClient = apClient; }
 
     // Network message handlers (called when messages arrive from server)
     void OnAssignCharacter(uint32_t aServerId, uint32_t aFormId, const glm::vec3& aPosition, const glm::vec2& aRotation);
@@ -90,6 +95,7 @@ private:
     TcpClient& m_client;
     entt::registry& m_registry;
     LoopbackTransport* m_pLoopback{nullptr};
+    TiltedPhoques::Client* m_pJoinClient{nullptr};
 
     // Movement sync timer
     float m_moveSyncTimer = 0.0f;
