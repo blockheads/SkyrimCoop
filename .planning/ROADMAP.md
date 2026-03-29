@@ -251,5 +251,5 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 12-01-PLAN.md -- Extract DispatchHookEvent, TcpClient no-op mode, ReplayHarness class, ReplayTests xmake target
+- [x] 12-01-PLAN.md -- Extract DispatchHookEvent, TcpClient no-op mode, ReplayHarness class, ReplayTests xmake target
 - [ ] 12-02-PLAN.md -- Golden NDJSON fixtures, Catch2 integration tests, --replay CLI flag

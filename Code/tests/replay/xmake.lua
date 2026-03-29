@@ -24,6 +24,10 @@ target("ReplayTests")
         add_files("../../native_client/game_bridge/proc_memory.cpp")
     end
 
+    -- Transport (LoopbackTransport, ServerMessageRouter)
+    add_files("../../native_client/transport/*.cpp")
+    add_includedirs("../../native_client/transport")
+
     -- Include paths (mirror SkyrimCoopNative + TPTests)
     add_includedirs("../../native_client")
     add_includedirs("../../relay_dll")
@@ -42,9 +46,9 @@ target("ReplayTests")
     add_defines("FIXTURE_PATH=\"" .. path.absolute("tests/fixtures/replay") .. "\"")
 
     -- Dependencies
-    add_deps("SkyrimEncoding")
+    add_deps("SkyrimEncoding", "SkyrimTogetherServer")
     add_packages("catch2", "glm", "spdlog", "hopscotch-map", "rpmalloc",
-                 "enet6", "entt", "nlohmann_json")
+                 "enet6", "entt", "nlohmann_json", "sqlite3", "lua", "sol2")
 
     -- Match MSVC struct layout for game struct headers
     add_cxflags("-mms-bitfields", {force = true})

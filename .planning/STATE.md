@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-28T17:46:35.807Z"
-last_activity: 2026-03-28
+stopped_at: Phase 12 context gathered
+last_updated: "2026-03-29T16:16:56.162Z"
+last_activity: 2026-03-29 -- Phase 12 execution started
 progress:
-  total_phases: 8
-  completed_phases: 4
-  total_plans: 21
-  completed_plans: 20
-  percent: 0
+  total_phases: 14
+  completed_phases: 9
+  total_plans: 51
+  completed_plans: 48
+  percent: 90
 ---
 
 # Project State
@@ -21,7 +21,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 07 — native-linux-build-with-skse-tcp-relay
+**Current focus:** Phase 12 — ndjson-replay-capture-and-integration-tests
 
 ## Current Position
 
@@ -69,6 +69,9 @@ Progress: [=========] 90%
 | Phase 07 P05 | 9min | 2 tasks | 12 files |
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
+| Phase 11 P02 | 6min | 2 tasks | 4 files |
+| Phase 11 P04 | 8min | 2 tasks | 17 files |
+| Phase 11 P05 | 15min | 2 tasks | 8 files |
 | Phase 12 P01 | 8min | 2 tasks | 11 files |
 
 ## Accumulated Context
@@ -109,6 +112,11 @@ Recent decisions affecting current work:
 - [Phase 07]: Frame pacing via sleep_for; poll()-based receive deferred until TcpClient exposes socket fd
 - [Phase 07]: Catch2 comma-separated tag syntax for OR-matching multiple test groups in smoke tests
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
+- [Phase 11]: g_dirtyCache non-static for cross-TU access between hook_trampolines.cpp and relay_main.cpp
+- [Phase 11]: JSON command parsing on receive thread, packed into CommandSlot binary for game-thread SPSC queue safety
+- [Phase 11]: ReadFormId/ReadPosition/ReadRotation helpers for typed field extraction in JSON trampolines
+- [Phase 11]: AnimationSystem converted from binary CommandPacket to JSON SendJsonLine (Rule 3: blocking reference)
+- [Phase 11]: Legacy binary tests preserved with [Legacy] tag; post-build auto-deploy added to xmake.lua
 - [Phase 12]: ReplayHarness uses binary HookEventPacket dispatch (not JSON), with NDJSON-to-binary conversion layer
 - [Phase 12]: nlohmann_json v3.11.3 added for NDJSON parsing in replay harness only (excluded from production binary)
 - [Phase 12]: SkyrimTogetherServer not needed as ReplayTests dependency (native_client services are self-contained)
@@ -121,6 +129,7 @@ None yet.
 
 - Phase 03.1 inserted after Phase 03: Build Performance & Resource Optimization (URGENT) — full rebuild takes 6+ minutes linking 1.5GB static archive, excessive memory/CPU usage makes iterative debugging unmanageable
 - Phase 07 added: Native Linux Build with SKSE TCP Relay — split codebase so 90% builds natively on Linux, thin MinGW DLL acts as TCP relay into SKSE
+- Phase 12 added: NDJSON Replay Capture and Integration Tests — record live sessions, replay without Skyrim, regression tests against real game data
 
 ### Blockers/Concerns
 
