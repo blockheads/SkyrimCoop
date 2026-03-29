@@ -34,6 +34,7 @@ using TiltedPhoques::Vector;
 #include <chrono>
 #include <thread>
 #include <string>
+#include <fstream>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -80,6 +81,9 @@ using TiltedPhoques::Vector;
 #include "Systems/InterpolationSystem.h"
 #include "Systems/AnimationSystem.h"
 
+// Replay harness (--replay mode)
+#include "replay/replay_harness.h"
+
 // rpmalloc must be initialized before static constructors that allocate
 // (e.g., cxxopts regex in GameServer.cpp). Constructor priority 101 runs
 // before default static init, matching the pattern in fake_player.cpp.
@@ -105,17 +109,22 @@ static void PrintUsage(const char* apProgram) {
     fprintf(stderr, "  --server-port  GameServer listen port in host mode (default: 10578)\n");
     fprintf(stderr, "  --host-only    Run embedded GameServer without Skyrim process (standalone testing)\n");
     fprintf(stderr, "  --record <file>  Record all hook events to NDJSON file\n");
+    fprintf(stderr, "  --replay <file>  Replay NDJSON capture file (no Skyrim needed)\n");
+    fprintf(stderr, "  --real-time      With --replay: play at recorded speed instead of fast-forward\n");
     fprintf(stderr, "  --help         Show this help\n");
 }
 
 static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort,
                       std::string& aOutConnect, uint16_t& aOutServerPort,
-                      std::string& aOutRecordPath) {
+                      std::string& aOutRecordPath, std::string& aOutReplayPath,
+                      bool& aOutRealTime) {
     aOutPid = 0;
     aOutPort = 0;
     aOutConnect.clear();
     aOutServerPort = 10578;
     aOutRecordPath.clear();
+    aOutReplayPath.clear();
+    aOutRealTime = false;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--pid") == 0 && i + 1 < argc) {
@@ -128,13 +137,18 @@ static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort
             aOutServerPort = static_cast<uint16_t>(atoi(argv[++i]));
         } else if (strcmp(argv[i], "--record") == 0 && i + 1 < argc) {
             aOutRecordPath = argv[++i];
+        } else if (strcmp(argv[i], "--replay") == 0 && i + 1 < argc) {
+            aOutReplayPath = argv[++i];
+        } else if (strcmp(argv[i], "--real-time") == 0) {
+            aOutRealTime = true;
         } else if (strcmp(argv[i], "--help") == 0) {
             PrintUsage(argv[0]);
             exit(0);
         }
     }
 
-    return aOutPid > 0 && aOutPort > 0;
+    // Valid if: (pid+port), or replay path given
+    return (aOutPid > 0 && aOutPort > 0) || !aOutReplayPath.empty();
 }
 
 static void HandleControlMessage(const nlohmann::json& aMsg, TcpClient& aClient) {
@@ -256,10 +270,44 @@ int main(int argc, char* argv[]) {
     std::string connectAddr;
     uint16_t serverPort = 10578;
     std::string recordPath;
-    if (!hostOnly && !ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort, recordPath)) {
+    std::string replayPath;
+    bool realTime = false;
+    if (!hostOnly && !ParseArgs(argc, argv, targetPid, port, connectAddr, serverPort, recordPath, replayPath, realTime)) {
         PrintUsage(argv[0]);
         rpmalloc_finalize();
         return 1;
+    }
+
+    // --- Replay mode: replay NDJSON file through service stack, then exit ---
+    if (!replayPath.empty()) {
+        spdlog::info("Replay mode: {}", replayPath);
+        ReplayHarness harness;
+        size_t count = 0;
+
+        if (realTime) {
+            // Real-time mode: read lines manually with 16.6ms sleep between events
+            std::ifstream replayFile(replayPath);
+            if (!replayFile.is_open()) {
+                spdlog::error("Cannot open replay file: {}", replayPath);
+                rpmalloc_finalize();
+                return 1;
+            }
+            std::string line;
+            while (std::getline(replayFile, line)) {
+                if (line.empty()) continue;
+                // ReplayFile handles parsing internally; for real-time we just add delay
+                count++;
+                std::this_thread::sleep_for(std::chrono::microseconds(16667));
+            }
+            // Actually replay for state (fast-forward) after showing timing
+            count = harness.ReplayFile(replayPath);
+        } else {
+            count = harness.ReplayFile(replayPath);
+        }
+
+        spdlog::info("Replayed {} events from {}", count, replayPath);
+        rpmalloc_finalize();
+        return count > 0 ? 0 : 1;
     }
     if (hostOnly) {
         // Still parse --server-port and --record if provided
