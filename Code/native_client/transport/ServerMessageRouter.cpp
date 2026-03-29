@@ -15,6 +15,9 @@ using TiltedPhoques::UniquePtr;
 #include <Messages/ServerMessageFactory.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/ServerReferencesMoveRequest.h>
+#include <Messages/AssignCharacterResponse.h>
+#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyRemoveCharacter.h>
 
 using TiltedPhoques::Buffer;
 
@@ -75,6 +78,42 @@ void ServerMessageRouter::OnServerMessage(const void* apData, uint32_t aSize)
             }
         }
     }
+    // Handle AssignCharacterResponse — server assigns a character to this player
+    else if (pMessage->GetOpcode() == kAssignCharacterResponse)
+    {
+        auto* pAssign = static_cast<AssignCharacterResponse*>(pMessage.get());
+        spdlog::info("ServerMessageRouter: AssignCharacterResponse serverId={}, owner={}",
+                     pAssign->ServerId, pAssign->Owner);
+        if (m_onAssign)
+        {
+            m_onAssign(pAssign->ServerId, 0 /* formId not in response */,
+                       pAssign->Position.x, pAssign->Position.y, pAssign->Position.z,
+                       0.0f, 0.0f, pAssign->Owner);
+        }
+    }
+    // Handle CharacterSpawnRequest — server spawns a remote character
+    else if (pMessage->GetOpcode() == kCharacterSpawnRequest)
+    {
+        auto* pSpawn = static_cast<CharacterSpawnRequest*>(pMessage.get());
+        spdlog::info("ServerMessageRouter: CharacterSpawnRequest serverId={}, formId={:#x}",
+                     pSpawn->ServerId, pSpawn->FormId.BaseId);
+        if (m_onSpawn)
+        {
+            m_onSpawn(pSpawn->ServerId, pSpawn->FormId.BaseId,
+                      pSpawn->Position.x, pSpawn->Position.y, pSpawn->Position.z,
+                      pSpawn->Rotation.x, pSpawn->Rotation.y);
+        }
+    }
+    // Handle NotifyRemoveCharacter — server removes a remote character
+    else if (pMessage->GetOpcode() == kNotifyRemoveCharacter)
+    {
+        auto* pRemove = static_cast<NotifyRemoveCharacter*>(pMessage.get());
+        spdlog::info("ServerMessageRouter: NotifyRemoveCharacter serverId={}", pRemove->ServerId);
+        if (m_onRemove)
+        {
+            m_onRemove(pRemove->ServerId);
+        }
+    }
 }
 
 void ServerMessageRouter::SetAuthCallback(AuthCallback aCb)
@@ -85,4 +124,19 @@ void ServerMessageRouter::SetAuthCallback(AuthCallback aCb)
 void ServerMessageRouter::SetMoveCallback(MoveCallback aCb)
 {
     m_onMove = std::move(aCb);
+}
+
+void ServerMessageRouter::SetAssignCallback(AssignCallback aCb)
+{
+    m_onAssign = std::move(aCb);
+}
+
+void ServerMessageRouter::SetSpawnCallback(SpawnCallback aCb)
+{
+    m_onSpawn = std::move(aCb);
+}
+
+void ServerMessageRouter::SetRemoveCallback(RemoveCallback aCb)
+{
+    m_onRemove = std::move(aCb);
 }
