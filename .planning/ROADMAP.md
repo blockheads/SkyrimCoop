@@ -253,3 +253,20 @@ Plans:
 Plans:
 - [x] 12-01-PLAN.md -- Extract DispatchHookEvent, TcpClient no-op mode, ReplayHarness class, ReplayTests xmake target
 - [x] 12-02-PLAN.md -- Golden NDJSON fixtures, Catch2 integration tests, --replay CLI flag
+
+### Phase 13: Network Replay Recording and Regression Testing
+
+**Goal:** Expand Phase 12 replay infrastructure to cover all 8 native client services with per-service regression tests, a full-session integration test, and CI gate on ReplayTests results
+**Requirements**: REG-01, REG-02, REG-03, REG-04, REG-05
+**Depends on:** Phase 12
+**Success Criteria** (what must be TRUE):
+  1. ReplayHarness exposes getters for all 8 services, each service has public state accessors for assertions
+  2. 7 synthetic NDJSON fixtures exercise Weather, Calendar, Quest, Combat, Inventory, ActorValue, and Magic services
+  3. Per-service replay tests verify structural correctness + key values for each service
+  4. Full-session integration test replays live_session.ndjson (45k lines) without crashes
+  5. ReplayTests binary gates CI (all tests must pass)
+**Plans:** 2 plans
+
+Plans:
+- [ ] 13-01-PLAN.md -- ReplayHarness getters, service state accessors, 7 synthetic NDJSON fixtures
+- [ ] 13-02-PLAN.md -- 7 per-service replay test files + full-session integration test
