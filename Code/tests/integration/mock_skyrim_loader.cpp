@@ -15,10 +15,10 @@ typedef bool (*SKSEPlugin_Load_t)(void*);
 // Helpers
 // ---------------------------------------------------------------------------
 
-static uint64_t FloatBits(float aVal) {
-    uint64_t bits = 0;
-    memcpy(&bits, &aVal, sizeof(float));
-    return bits;
+static uint64_t FloatToU64(float aVal) {
+    uint64_t v = 0;
+    memcpy(&v, &aVal, sizeof(float));
+    return v;
 }
 
 static bool SendPacket(SOCKET aSock, const void* apData, int aSize) {
@@ -160,31 +160,77 @@ int main(int argc, char* argv[]) {
     }
     printf("Sent CTRL_READY\n");
 
-    // Send scripted HookEventPackets
+    // Send scripted HookEventPackets using new arg layout (Phase 9.1)
+    // Convention: args[0] = pointer, args[1] = resolved formId, then payload
+    constexpr uint64_t cPlayerFormId = 0x14;         // well-known Skyrim player formId
+    constexpr uint64_t cIronSwordFormId = 0x00013B90; // well-known Iron Sword formId
+
     for (int i = 0; i < eventCount; i++) {
-        // HOOK_ACTOR_ADDED with fake actor pointer
-        uint64_t actorArgs[1] = {0xDEAD0001u + static_cast<uint64_t>(i)};
-        if (!SendHookEvent(sock, HOOK_ACTOR_ADDED, 1, actorArgs)) {
-            fprintf(stderr, "Failed to send HOOK_ACTOR_ADDED (event %d)\n", i);
-            break;
+        uint64_t fakePtr = 0xDEAD0001u + static_cast<uint64_t>(i);
+
+        // HOOK_ACTOR_ADDED: [actorPtr, formId]
+        {
+            uint64_t args[2] = {fakePtr, cPlayerFormId};
+            if (!SendHookEvent(sock, HOOK_ACTOR_ADDED, 2, args)) {
+                fprintf(stderr, "Failed to send HOOK_ACTOR_ADDED (event %d)\n", i);
+                break;
+            }
         }
 
-        // HOOK_SET_POSITION with incrementing positions
-        uint64_t posArgs[4] = {
-            0xDEAD0001u + static_cast<uint64_t>(i),
-            FloatBits(100.0f + static_cast<float>(i) * 10.0f),
-            FloatBits(200.0f + static_cast<float>(i) * 5.0f),
-            FloatBits(300.0f + static_cast<float>(i) * 2.5f),
-        };
-        if (!SendHookEvent(sock, HOOK_SET_POSITION, 4, posArgs)) {
-            fprintf(stderr, "Failed to send HOOK_SET_POSITION (event %d)\n", i);
-            break;
+        // HOOK_SET_POSITION: [refPtr, formId, posX_u64, posY_u64, posZ_u64]
+        {
+            uint64_t args[5] = {
+                fakePtr,
+                cPlayerFormId,
+                FloatToU64(100.0f + static_cast<float>(i) * 10.0f),
+                FloatToU64(200.0f + static_cast<float>(i) * 5.0f),
+                FloatToU64(300.0f + static_cast<float>(i) * 2.5f),
+            };
+            if (!SendHookEvent(sock, HOOK_SET_POSITION, 5, args)) {
+                fprintf(stderr, "Failed to send HOOK_SET_POSITION (event %d)\n", i);
+                break;
+            }
+        }
+
+        // HOOK_DAMAGE_ACTOR: [actorPtr, formId, damageU64]
+        if (i == 0) {
+            uint64_t args[3] = {fakePtr, cPlayerFormId, FloatToU64(25.0f)};
+            if (!SendHookEvent(sock, HOOK_DAMAGE_ACTOR, 3, args)) {
+                fprintf(stderr, "Failed to send HOOK_DAMAGE_ACTOR\n");
+            }
+        }
+
+        // HOOK_ADD_INVENTORY: [actorPtr, actorFormId, itemPtr, itemFormId, countU64, refPtr]
+        if (i == 0) {
+            uint64_t args[6] = {fakePtr, cPlayerFormId, 0xBEEF0001u, cIronSwordFormId, 1, 0};
+            if (!SendHookEvent(sock, HOOK_ADD_INVENTORY, 6, args)) {
+                fprintf(stderr, "Failed to send HOOK_ADD_INVENTORY\n");
+            }
+        }
+
+        // HOOK_CHARACTER_CTOR: [thisPtr, formId]
+        if (i == 0) {
+            uint64_t args[2] = {fakePtr, cPlayerFormId};
+            if (!SendHookEvent(sock, HOOK_CHARACTER_CTOR, 2, args)) {
+                fprintf(stderr, "Failed to send HOOK_CHARACTER_CTOR\n");
+            }
+        }
+
+        // HOOK_SPAWN_ACTOR: [thisPtr, formId, posX_u64, posY_u64, posZ_u64]
+        if (i == 0) {
+            uint64_t args[5] = {
+                fakePtr, cPlayerFormId,
+                FloatToU64(100.0f), FloatToU64(200.0f), FloatToU64(300.0f),
+            };
+            if (!SendHookEvent(sock, HOOK_SPAWN_ACTOR, 5, args)) {
+                fprintf(stderr, "Failed to send HOOK_SPAWN_ACTOR\n");
+            }
         }
 
         if (delayMs > 0) Sleep(static_cast<DWORD>(delayMs));
     }
 
-    printf("Sent %d event pairs (ACTOR_ADDED + SET_POSITION)\n", eventCount);
+    printf("Sent %d event sets (ACTOR_ADDED + SET_POSITION + extras on first)\n", eventCount);
 
     // Send CTRL_SHUTDOWN
     SendControl(sock, CTRL_SHUTDOWN);
