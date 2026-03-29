@@ -177,4 +177,4 @@ Plans:
 - [x] 09-02-PLAN.md -- Build mock_skyrim_loader.exe (MinGW) + add --record flag to native process
 - [x] 09-03-PLAN.md -- Fix test_ingame_sync.sh (default fake_player, port readiness, logs) + /proc/pid/mem verification
 - [ ] 09-04-PLAN.md -- Two-instance developer tool (tests/launch_two_skyrim.sh) + human verification
-- [ ] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
+- [x] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
