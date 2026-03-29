@@ -21,6 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
 - [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
 - [ ] **Phase 10: Two-Player Co-op Session** - Host + client on one machine, see each other, sync movement via P2P GameServer
+- [ ] **Phase 11: JSON Wire Protocol** - Replace binary struct TCP protocol with newline-delimited JSON between relay DLL and native client
 
 ## Phase Details
 
@@ -220,3 +221,13 @@ Plans:
 - [x] 10-02-PLAN.md -- Implement CMD_SET_POSITION execution in relay DLL DrainCommandQueue
 - [ ] 10-03-PLAN.md -- Dual-instance launch script with separate Proton prefixes
 - [ ] 10-04-PLAN.md -- Human verification of two-player movement sync in Riverwood
+
+### Phase 11: JSON Wire Protocol
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 10
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 11 to break down)

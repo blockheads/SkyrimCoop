@@ -129,6 +129,7 @@ None yet.
 
 - Phase 03.1 inserted after Phase 03: Build Performance & Resource Optimization (URGENT) — full rebuild takes 6+ minutes linking 1.5GB static archive, excessive memory/CPU usage makes iterative debugging unmanageable
 - Phase 07 added: Native Linux Build with SKSE TCP Relay — split codebase so 90% builds natively on Linux, thin MinGW DLL acts as TCP relay into SKSE
+- Phase 11 added: JSON Wire Protocol — replace binary struct TCP protocol with newline-delimited JSON (phase 10 testing revealed struct alignment issues between MinGW DLL and Linux native client)
 
 ### Blockers/Concerns
 
