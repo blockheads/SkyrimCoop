@@ -15,6 +15,7 @@
 #include "game_bridge/tcp_client.h"
 #include "game_bridge/game_reader.h"
 #include "protocol.h"
+#include "dispatch_hook_event.h"
 
 // Services (all 8)
 #include "Services/WeatherService.h"
@@ -59,53 +60,6 @@ static bool ParseArgs(int argc, char* argv[], pid_t& aOutPid, uint16_t& aOutPort
     }
 
     return aOutPid > 0 && aOutPort > 0;
-}
-
-// Dispatch a hook event to the pointer table and all services
-static void DispatchHookEvent(const HookEventPacket& aHookPkt,
-                               GameReader& aReader, PointerTable& aPtrs,
-                               WeatherService& aWeather, CalendarService& aCalendar,
-                               QuestService& aQuest, CombatService& aCombat,
-                               InventoryService& aInventory, ActorValueService& aActorValue,
-                               MagicService& aMagic, CharacterService& aCharacter)
-{
-    // Core pointer table tracking for actor add/remove
-    switch (static_cast<HookOpcode>(aHookPkt.header.opcode)) {
-    case HOOK_ACTOR_ADDED: {
-        if (aHookPkt.argCount >= 1 && aHookPkt.args[0] != 0) {
-            uint64_t actorPtr = aHookPkt.args[0];
-            uint32_t formId = aReader.ReadFormId(actorPtr);
-            if (formId != 0) {
-                aPtrs.Insert(formId, actorPtr);
-            }
-        }
-        break;
-    }
-    case HOOK_ACTOR_REMOVED: {
-        if (aHookPkt.argCount >= 1 && aHookPkt.args[0] != 0) {
-            uint64_t actorPtr = aHookPkt.args[0];
-            uint32_t formId = aReader.ReadFormId(actorPtr);
-            if (formId != 0) {
-                aPtrs.Remove(formId);
-            } else {
-                aPtrs.RemoveByPointer(actorPtr);
-            }
-        }
-        break;
-    }
-    default:
-        break;
-    }
-
-    // Dispatch to all services
-    aWeather.OnHookEvent(aHookPkt);
-    aCalendar.OnHookEvent(aHookPkt);
-    aQuest.OnHookEvent(aHookPkt);
-    aCombat.OnHookEvent(aHookPkt);
-    aInventory.OnHookEvent(aHookPkt);
-    aActorValue.OnHookEvent(aHookPkt);
-    aMagic.OnHookEvent(aHookPkt);
-    aCharacter.OnHookEvent(aHookPkt);
 }
 
 static void HandleControlPacket(const PacketHeader& aHeader, TcpClient& aClient) {
