@@ -28,13 +28,16 @@ done
 # Step 1: Build all targets
 step "Step 1: Build"
 info "Building native targets..."
-xmake build -y skyrim-coop fake_player TPTests 2>&1 | tail -10
+xmake build -y skyrim-coop 2>&1 | tail -10
+xmake build -y fake_player 2>&1 | tail -10
+xmake build -y TPTests 2>&1 | tail -10
 pass "Native targets built"
 
 # Build MinGW targets if mingw toolchain available
 if xmake config -p mingw --mingw="$PROJECT_DIR/.toolchain" 2>/dev/null; then
     info "Building MinGW targets..."
-    xmake build -y SkyrimCoopHooksDLL mock_skyrim_loader 2>&1 | tail -10
+    xmake build -y SkyrimCoopHooksDLL 2>&1 | tail -10
+    xmake build -y mock_skyrim_loader 2>&1 | tail -10
     pass "MinGW targets built"
     HAS_MINGW=true
     # Switch back to linux platform
