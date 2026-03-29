@@ -186,10 +186,18 @@ Plans:
 
 ### Phase 09.1: DLL-Side FormId Resolution (INSERTED)
 
-**Goal:** [Urgent work - to be planned]
-**Requirements**: TBD
+**Goal:** Move formId and position reading from the native Linux process (broken: pread on Wine guest addresses fails 100%) into the relay DLL (correct: reads inside Wine where pointers are valid), then update all native services to consume resolved values from packets instead of pread
+**Requirements**: FORMID-01, FORMID-02, FORMID-03, FORMID-04, FORMID-05
 **Depends on:** Phase 9
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. DLL trampolines read formId at +0x14 and position at +0x54 inside Wine and pack resolved values into HookEventPacket args
+  2. Native DispatchHookEvent and all 8 services extract formIds from packet args, not via pread
+  3. CharacterService caches positions from HOOK_SET_POSITION events; SyncMovement uses cache instead of pread
+  4. mock_skyrim_loader sends new-format packets and CI pipeline passes
+  5. Human-verified: native logs show resolved non-zero formIds from Skyrim hook events
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 09.1 to break down)
+- [ ] 09.1-01-PLAN.md -- DLL-side ReadFormId/ReadPosition helpers + all hook trampoline arg layout updates
+- [ ] 09.1-02-PLAN.md -- Native DispatchHookEvent + 8 service updates + CharacterService position cache
+- [ ] 09.1-03-PLAN.md -- mock_skyrim_loader update + CI validation + human Skyrim verification
