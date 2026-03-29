@@ -3,8 +3,10 @@
 # inside a real Skyrim instance and verifies remote actor position via /proc/pid/mem.
 #
 # Usage:
-#   ./tests/test_ingame_sync.sh              # Full in-game test
-#   ./tests/test_ingame_sync.sh --check-only # Just verify prerequisites
+#   ./tests/test_ingame_sync.sh                   # Full in-game test (fake_player runs by default)
+#   ./tests/test_ingame_sync.sh --check-only      # Just verify prerequisites
+#   ./tests/test_ingame_sync.sh --no-fake-player   # Skip fake_player stage (stages 1-4 only)
+#   ./tests/test_ingame_sync.sh --keep-logs        # Keep log directory even on PASS
 #
 # Exit codes:
 #   0 = PASS (full test or prerequisites check)
@@ -45,11 +47,32 @@ RELAY_PORT=""            # TCP port for DLL<->native relay (discovered from rela
 TIMEOUT_SKYRIM=120
 TIMEOUT_SERVER=90
 
+# Log collection
+TEST_RUN_DIR=""
+KEEP_LOGS=false
+TEST_FAILED=false
+
 # ── Helpers ──
 info()  { echo "[INFO]  $*"; }
 pass()  { echo "[PASS]  $*"; }
 fail()  { echo "[FAIL]  $*"; }
 warn()  { echo "[WARN]  $*"; }
+
+setup_test_logs() {
+    TEST_RUN_DIR=$(mktemp -d "/tmp/skyrimcoop-test-XXXXXX")
+    info "Test run logs: $TEST_RUN_DIR"
+}
+
+fail_with_logs() {
+    local msg="$1"
+    fail "$msg"
+    if [ -n "$TEST_RUN_DIR" ]; then
+        info "Check logs in: $TEST_RUN_DIR/"
+        [ -f "$DLL_LOG" ] && info "DLL log (last 20 lines):" && tail -20 "$DLL_LOG"
+        [ -f "$TEST_RUN_DIR/native_stderr.log" ] && info "Native stderr (last 20):" && tail -20 "$TEST_RUN_DIR/native_stderr.log"
+        [ -f "$TEST_RUN_DIR/skyrim_stderr.log" ] && info "Skyrim stderr (last 20):" && tail -20 "$TEST_RUN_DIR/skyrim_stderr.log"
+    fi
+}
 
 # ── INI Injection ──
 inject_starting_cell() {
@@ -100,6 +123,19 @@ cleanup() {
         pkill -f "skyrim-coop" 2>/dev/null || true
         rm -f "$RELAY_INFO"
     fi
+
+    # Copy DLL log to test run dir if it exists
+    if [ -n "$TEST_RUN_DIR" ] && [ -f "$DLL_LOG" ]; then
+        cp "$DLL_LOG" "$TEST_RUN_DIR/dll.log" 2>/dev/null || true
+    fi
+
+    # Clean up logs unless --keep-logs or test failed
+    if [ -n "$TEST_RUN_DIR" ] && [ "$KEEP_LOGS" != "true" ] && [ "$TEST_FAILED" != "true" ]; then
+        rm -rf "$TEST_RUN_DIR"
+    elif [ -n "$TEST_RUN_DIR" ]; then
+        info "Logs preserved in: $TEST_RUN_DIR/"
+    fi
+
     info "Cleanup done"
 }
 
@@ -213,7 +249,8 @@ launch_skyrim() {
     info "Launching Skyrim via Proton + SKSE..."
     LAUNCHED_SKYRIM=true
     cd "$SKYRIM_DIR"
-    "$PROTON_DIR/proton" run "$SKYRIM_DIR/skse64_loader.exe" >/dev/null 2>&1 &
+    "$PROTON_DIR/proton" run "$SKYRIM_DIR/skse64_loader.exe" \
+        >"$TEST_RUN_DIR/skyrim_stdout.log" 2>"$TEST_RUN_DIR/skyrim_stderr.log" &
 
     # Wait for SkyrimSE.exe process
     info "Waiting for SkyrimSE.exe (timeout: ${TIMEOUT_SKYRIM}s)..."
@@ -229,8 +266,7 @@ launch_skyrim() {
     done
 
     if [ -z "${SKYRIM_PID:-}" ]; then
-        fail "SkyrimSE.exe did not start within ${TIMEOUT_SKYRIM}s"
-        [ -f "$DLL_LOG" ] && info "DLL log:" && cat "$DLL_LOG"
+        fail_with_logs "SkyrimSE.exe did not start within ${TIMEOUT_SKYRIM}s"
         return 1
     fi
 }
@@ -255,14 +291,14 @@ wait_for_server() {
     done
 
     if [ -z "$RELAY_PORT" ]; then
-        fail "DLL did not write relay info within ${TIMEOUT_SERVER}s"
-        [ -f "$DLL_LOG" ] && info "DLL log:" && cat "$DLL_LOG"
+        fail_with_logs "DLL did not write relay info within ${TIMEOUT_SERVER}s"
         return 1
     fi
 
     # Launch native skyrim-coop process (connects to DLL via relay TCP port)
     info "Launching native skyrim-coop process..."
-    "$PLUGINS/skyrim-coop" --pid "$SKYRIM_PID" --port "$RELAY_PORT" &
+    "$PLUGINS/skyrim-coop" --pid "$SKYRIM_PID" --port "$RELAY_PORT" \
+        >"$TEST_RUN_DIR/native_stdout.log" 2>"$TEST_RUN_DIR/native_stderr.log" &
     NATIVE_PID=$!
     sleep 2
 
@@ -306,7 +342,23 @@ verify_relay_hooks() {
     return 0
 }
 
-# ── Step 5: Run fake_player (optional — requires embedded GameServer) ──
+# ── Step 5: Wait for GameServer UDP port readiness ──
+wait_for_gameserver_port() {
+    local port="${1:-10578}"
+    local timeout="${2:-30}"
+    info "Waiting for GameServer on UDP port $port (timeout: ${timeout}s)..."
+    for i in $(seq 1 "$timeout"); do
+        if ss -ulnp 2>/dev/null | grep -q ":${port} "; then
+            pass "GameServer listening on port $port"
+            return 0
+        fi
+        sleep 1
+    done
+    fail_with_logs "GameServer not listening on port $port after ${timeout}s"
+    return 1
+}
+
+# ── Step 6: Run fake_player (default — requires embedded GameServer) ──
 run_fake_player() {
     info "Running fake_player (duration: ${DURATION}s, game_server_port: ${GAME_SERVER_PORT})..."
 
@@ -316,15 +368,25 @@ run_fake_player() {
     fi
 
     # fake_player connects to the GameServer's enet6 UDP port (not the relay TCP port)
-    "$FAKE_PLAYER" --port "$GAME_SERVER_PORT" --duration "$DURATION" $verify_args &
+    "$FAKE_PLAYER" --port "$GAME_SERVER_PORT" --duration "$DURATION" $verify_args \
+        >"$TEST_RUN_DIR/fake_player_stdout.log" 2>"$TEST_RUN_DIR/fake_player_stderr.log" &
     FAKE_PLAYER_PID=$!
 
     # Wait for fake_player to complete
     if wait "$FAKE_PLAYER_PID"; then
+        # Show fake_player output
+        if [ -f "$TEST_RUN_DIR/fake_player_stderr.log" ]; then
+            info "fake_player output (last 20 lines):"
+            tail -20 "$TEST_RUN_DIR/fake_player_stderr.log"
+        fi
         pass "fake_player exited successfully"
         return 0
     else
         local exit_code=$?
+        if [ -f "$TEST_RUN_DIR/fake_player_stderr.log" ]; then
+            info "fake_player stderr (last 20 lines):"
+            tail -20 "$TEST_RUN_DIR/fake_player_stderr.log"
+        fi
         fail "fake_player exited with code $exit_code"
         return 1
     fi
@@ -336,15 +398,17 @@ main() {
     echo ""
 
     local check_only=false
-    local with_fake_player=false
+    local no_fake_player=false
     for arg in "$@"; do
         case "$arg" in
             --check-only) check_only=true ;;
-            --with-fake-player) with_fake_player=true ;;
+            --no-fake-player) no_fake_player=true ;;
+            --keep-logs) KEEP_LOGS=true ;;
             --help|-h)
-                echo "Usage: $0 [--check-only] [--with-fake-player] [--help]"
+                echo "Usage: $0 [--check-only] [--no-fake-player] [--keep-logs] [--help]"
                 echo "  --check-only       Only verify prerequisites, don't launch"
-                echo "  --with-fake-player Also run fake_player (requires embedded GameServer)"
+                echo "  --no-fake-player   Skip fake_player stage (stages 1-4 only)"
+                echo "  --keep-logs        Keep log directory even on PASS"
                 exit 0
                 ;;
         esac
@@ -364,40 +428,54 @@ main() {
     # Set up cleanup trap
     trap cleanup EXIT
 
+    # Set up test log directory
+    setup_test_logs
+
     # Inject sStartingCell so Skyrim boots directly into Riverwood
     inject_starting_cell
 
     # Launch and test
     if ! launch_skyrim; then
+        TEST_FAILED=true
         fail "Failed to launch Skyrim"
         exit 1
     fi
     echo ""
 
     if ! wait_for_server; then
+        TEST_FAILED=true
         fail "Failed to start relay connection"
         exit 1
     fi
     echo ""
 
     if ! verify_relay_hooks; then
+        TEST_FAILED=true
         fail "Relay hook verification FAILED"
         exit 1
     fi
     echo ""
 
-    # fake_player requires an embedded GameServer (P2P hosting) — not yet implemented
-    if [ "$with_fake_player" = "true" ]; then
+    # fake_player runs by default (use --no-fake-player to skip)
+    if [ "$no_fake_player" != "true" ]; then
+        if ! wait_for_gameserver_port "$GAME_SERVER_PORT" 30; then
+            TEST_FAILED=true
+            fail "GameServer port not ready"
+            exit 1
+        fi
+        echo ""
+
         if ! run_fake_player; then
+            TEST_FAILED=true
             fail "fake_player test FAILED"
             exit 1
         fi
         echo ""
     else
-        info "Skipping fake_player (no embedded GameServer yet — use --with-fake-player when P2P hosting is ready)"
+        info "Skipping fake_player (--no-fake-player specified)"
     fi
 
-    echo "=== In-Game Relay Integration Test PASSED ==="
+    echo "=== In-Game Sync Integration Test PASSED ==="
     exit 0
 }
 
