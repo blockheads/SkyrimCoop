@@ -153,6 +153,7 @@ None yet.
 - Phase 07 added: Native Linux Build with SKSE TCP Relay — split codebase so 90% builds natively on Linux, thin MinGW DLL acts as TCP relay into SKSE
 - Phase 08 added: P2P Embedded GameServer — native process hosts enet6 GameServer for multiplayer; executes before Phase 6 (UI needs working connection first)
 - Phase 09 added: In-Game P2P Integration Test — full end-to-end test with real Skyrim instance, relay DLL, embedded GameServer, and fake_player joining via enet6
+- Phase 09.1 inserted after Phase 09: DLL-Side FormId Resolution (URGENT) — Wine heap addresses not accessible via /proc/pid/mem; DLL must read formIds inside Wine and send values over TCP
 
 ### Blockers/Concerns
 

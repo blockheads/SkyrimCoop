@@ -183,3 +183,13 @@ Plans:
 - [ ] 09-08-PLAN.md -- Gap closure: Deploy fixes + human verification of two-instance networked sync
 - [ ] 09-09-PLAN.md -- Gap closure: pread smoke test, deferred formId reads, hex dump diagnostics
 - [ ] 09-10-PLAN.md -- Gap closure: Deploy + human verification of diagnostic output and formId reads
+
+### Phase 09.1: DLL-Side FormId Resolution (INSERTED)
+
+**Goal:** [Urgent work - to be planned]
+**Requirements**: TBD
+**Depends on:** Phase 9
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 09.1 to break down)
