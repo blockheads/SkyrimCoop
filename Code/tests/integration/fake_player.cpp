@@ -32,6 +32,8 @@
 #include <vector>
 #include <memory>
 #include <numeric>
+#include <fstream>
+#include <sstream>
 
 #include <glm/glm.hpp>
 #include <entt/entt.hpp>
@@ -233,6 +235,104 @@ static void SendMovement(MockClient& aClient, Server::GameServer& aServer,
 }
 
 // ---------------------------------------------------------------------------
+// /proc/pid/mem PE header verification (Linux only)
+// ---------------------------------------------------------------------------
+#ifdef __linux__
+// Find the base address of SkyrimSE.exe in /proc/pid/maps
+static uint64_t FindSkyrimBaseAddress(pid_t aPid)
+{
+    std::string mapsPath = "/proc/" + std::to_string(aPid) + "/maps";
+    std::ifstream maps(mapsPath);
+    if (!maps.is_open())
+    {
+        spdlog::error("verify: cannot open {}", mapsPath);
+        return 0;
+    }
+
+    std::string line;
+    while (std::getline(maps, line))
+    {
+        // Look for SkyrimSE.exe mapping with r-xp (executable segment)
+        if (line.find("SkyrimSE.exe") != std::string::npos && line.find("r-xp") != std::string::npos)
+        {
+            // Parse base address from "7f1234000-7f1235000 r-xp ..."
+            uint64_t base = 0;
+            std::istringstream iss(line);
+            std::string range;
+            iss >> range;
+            base = std::stoull(range.substr(0, range.find('-')), nullptr, 16);
+            spdlog::info("verify: SkyrimSE.exe base address = {:#x}", base);
+            return base;
+        }
+    }
+    spdlog::error("verify: SkyrimSE.exe not found in /proc/{}/maps", aPid);
+    return 0;
+}
+
+static bool VerifyHostMemory(pid_t aPid)
+{
+    spdlog::info("verify: opening /proc/{}/mem for PE header check", aPid);
+
+    ProcMemReader reader;
+    if (!reader.Open(aPid))
+    {
+        spdlog::error("verify: failed to open /proc/{}/mem", aPid);
+        return false;
+    }
+    spdlog::info("verify: /proc/{}/mem opened successfully", aPid);
+
+    // Find SkyrimSE.exe base address from /proc/pid/maps
+    uint64_t base = FindSkyrimBaseAddress(aPid);
+    if (base == 0)
+    {
+        reader.Close();
+        return false;
+    }
+
+    // Read first 2 bytes: should be 'MZ' (0x5A4D) -- DOS header signature
+    uint16_t dosSignature = 0;
+    ssize_t bytesRead = reader.Read(&dosSignature, sizeof(dosSignature), base);
+    if (bytesRead != sizeof(dosSignature))
+    {
+        spdlog::error("verify: failed to read PE header at {:#x} (read {} bytes)", base, bytesRead);
+        reader.Close();
+        return false;
+    }
+
+    if (dosSignature == 0x5A4D)
+    {
+        spdlog::info("verify: PE header confirmed (MZ signature at {:#x})", base);
+    }
+    else
+    {
+        spdlog::error("verify: unexpected signature {:#06x} at {:#x} (expected 0x5A4D)", dosSignature, base);
+        reader.Close();
+        return false;
+    }
+
+    // Read e_lfanew (offset to PE header) at base+0x3C
+    uint32_t eLfanew = reader.ReadValue<uint32_t>(base + 0x3C);
+    if (eLfanew > 0 && eLfanew < 0x1000)
+    {
+        // Read PE signature at base+e_lfanew: should be 'PE\0\0' (0x00004550)
+        uint32_t peSignature = reader.ReadValue<uint32_t>(base + eLfanew);
+        if (peSignature == 0x00004550)
+        {
+            spdlog::info("verify: PE\\0\\0 signature confirmed at {:#x}", base + eLfanew);
+        }
+        else
+        {
+            spdlog::warn("verify: unexpected PE signature {:#010x}", peSignature);
+        }
+    }
+
+    reader.Close();
+    spdlog::info("verify: /proc/pid/mem verification PASSED");
+    return true;
+}
+#endif
+
+// ---------------------------------------------------------------------------
 // Self-test mode: create embedded server, connect, authenticate, send moves
 // ---------------------------------------------------------------------------
 static int RunSelfTest(const Config& aCfg)
@@ -423,6 +523,20 @@ static int RunExternal(const Config& aCfg)
 
     spdlog::info("fake_player: movement loop complete ({} seconds, {} ticks)",
                  aCfg.duration, tick - 1);
+
+#ifdef __linux__
+    if (aCfg.verifyPid > 0)
+    {
+        spdlog::info("fake_player: verifying host memory via /proc/{}/mem", aCfg.verifyPid);
+        if (!VerifyHostMemory(aCfg.verifyPid))
+        {
+            spdlog::error("fake_player: /proc/pid/mem verification FAILED");
+            client.Close();
+            return 1;
+        }
+        spdlog::info("fake_player: /proc/pid/mem verification PASSED");
+    }
+#endif
 
     client.Close();
     spdlog::info("fake_player: PASS");
