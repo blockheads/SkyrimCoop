@@ -1,7 +1,13 @@
 #include "pointer_table.h"
+#include <spdlog/spdlog.h>
 
 void PointerTable::Insert(uint32_t aFormId, uint64_t aPtr) {
+    bool isNew = m_map.find(aFormId) == m_map.end();
     m_map[aFormId] = aPtr;
+    if (isNew) {
+        spdlog::info("PointerTable: registered formId=0x{:X} ptr=0x{:X} (total={})",
+                     aFormId, aPtr, m_map.size());
+    }
 }
 
 void PointerTable::Remove(uint32_t aFormId) {
