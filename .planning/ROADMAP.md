@@ -140,7 +140,7 @@ Phases 1-5, 7-8 complete. Phase 9 (integration test) executes next -- validates 
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
 | 8. P2P Embedded GameServer | 2/3 | Executing | - |
-| 9. In-Game P2P Integration Test | 0/5 | Planning complete | - |
+| 9. In-Game P2P Integration Test | 2/5 | In Progress|  |
 
 ### Phase 8: P2P Embedded GameServer
 
@@ -170,11 +170,11 @@ Plans:
   3. fake_player verifies host game memory via /proc/pid/mem (PE header validation)
   4. Two real Skyrim instances (host + join) launch side-by-side via developer tool
   5. Hook event recording (--record) captures events for future CI replay
-**Plans:** 5 plans
+**Plans:** 2/5 plans executed
 
 Plans:
-- [ ] 09-01-PLAN.md -- Extend fake_player with --bots N, --verify-broadcast, --metrics for headless multi-bot stress test
-- [ ] 09-02-PLAN.md -- Build mock_skyrim_loader.exe (MinGW) + add --record flag to native process
+- [x] 09-01-PLAN.md -- Extend fake_player with --bots N, --verify-broadcast, --metrics for headless multi-bot stress test
+- [x] 09-02-PLAN.md -- Build mock_skyrim_loader.exe (MinGW) + add --record flag to native process
 - [ ] 09-03-PLAN.md -- Fix test_ingame_sync.sh (default fake_player, port readiness, logs) + /proc/pid/mem verification
 - [ ] 09-04-PLAN.md -- Two-instance developer tool (tests/launch_two_skyrim.sh) + human verification
 - [ ] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
