@@ -32,5 +32,14 @@ if is_plat("mingw") then
             "-Wl,-Bdynamic",
             {force = true})
 
+        -- Auto-deploy to Skyrim SKSE plugins dir after build
+        after_build(function (target)
+            local skse_dir = "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition/Data/SKSE/Plugins"
+            if os.isdir(skse_dir) then
+                os.cp(target:targetfile(), path.join(skse_dir, "skyrim_coop_hooks.dll"))
+                print("Deployed skyrim_coop_hooks.dll -> " .. skse_dir)
+            end
+        end)
+
     target_end()
 end
