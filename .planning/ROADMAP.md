@@ -140,7 +140,7 @@ Phases 1-5, 7-8 complete. Phase 9 (integration test) executes next -- validates 
 | 6. ImGui UI Port | 0/0 | Not started | - |
 | 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
 | 8. P2P Embedded GameServer | 2/3 | Executing | - |
-| 9. In-Game P2P Integration Test | 2/5 | In Progress|  |
+| 9. In-Game P2P Integration Test | 5/8 | Gap closure | - |
 
 ### Phase 8: P2P Embedded GameServer
 
@@ -170,7 +170,7 @@ Plans:
   3. fake_player verifies host game memory via /proc/pid/mem (PE header validation)
   4. Two real Skyrim instances (host + join) launch side-by-side via developer tool
   5. Hook event recording (--record) captures events for future CI replay
-**Plans:** 2/5 plans executed
+**Plans:** 8 plans
 
 Plans:
 - [x] 09-01-PLAN.md -- Extend fake_player with --bots N, --verify-broadcast, --metrics for headless multi-bot stress test
@@ -178,3 +178,6 @@ Plans:
 - [x] 09-03-PLAN.md -- Fix test_ingame_sync.sh (default fake_player, port readiness, logs) + /proc/pid/mem verification
 - [x] 09-04-PLAN.md -- Two-instance developer tool (tests/launch_two_skyrim.sh) + human verification
 - [x] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
+- [ ] 09-06-PLAN.md -- Gap closure: Wine address validation + /proc/pid/maps diagnostic logging
+- [ ] 09-07-PLAN.md -- Gap closure: Essential-only hook mode for Skyrim stability
+- [ ] 09-08-PLAN.md -- Gap closure: Deploy fixes + human verification of two-instance networked sync
