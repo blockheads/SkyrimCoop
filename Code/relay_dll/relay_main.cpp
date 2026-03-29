@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "protocol.h"
@@ -304,7 +305,22 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     RelayLog("[SkyrimCoopHooks] TCP server listening on port %u\n", g_tcpServer.GetPort());
 
     // 3. Install hook trampolines (after TCP server so hooks can send events)
-    if (!InstallAllHooks())
+    // Default is essential-only (6 hooks) for stability during cell loading.
+    // Set SKYRIM_COOP_ALL_HOOKS=1 to install all 31 hooks.
+    bool essentialOnly = true;
+    {
+        const char* pEnv = getenv("SKYRIM_COOP_ALL_HOOKS");
+        if (pEnv && pEnv[0] == '1')
+        {
+            essentialOnly = false;
+            RelayLog("[SkyrimCoopHooks] SKYRIM_COOP_ALL_HOOKS=1: installing full hook set\n");
+        }
+        else
+        {
+            RelayLog("[SkyrimCoopHooks] Essential-only hooks (set SKYRIM_COOP_ALL_HOOKS=1 for full set)\n");
+        }
+    }
+    if (!InstallAllHooks(essentialOnly))
     {
         RelayLog("[SkyrimCoopHooks] WARNING: Hook installation failed -- continuing without hooks\n");
         // Non-fatal: the DLL can still relay commands even without hook events
