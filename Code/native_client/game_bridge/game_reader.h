@@ -34,6 +34,11 @@ public:
     // Convenience: read form ID (TESForm::formID at offset 0x14)
     uint32_t ReadFormId(uint64_t aFormPtr);
 
+    // Read formId with retry for partially constructed objects.
+    // Tries up to `aMaxRetries` times with `aDelayUs` microsecond delays.
+    // Returns 0 if all retries fail.
+    uint32_t ReadFormIdDeferred(uint64_t aFormPtr, int aMaxRetries = 3, int aDelayUs = 1000);
+
     // Convenience: read actor health (via ActorValueOwner)
     // Stubbed for now -- requires vtable traversal, filled in during service rewrite
     float ReadActorHealth(uint64_t aActorPtr);

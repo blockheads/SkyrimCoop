@@ -74,7 +74,7 @@ static void DispatchHookEvent(const HookEventPacket& aHookPkt,
     case HOOK_ACTOR_ADDED: {
         if (aHookPkt.argCount >= 1 && aHookPkt.args[0] != 0) {
             uint64_t actorPtr = aHookPkt.args[0];
-            uint32_t formId = aReader.ReadFormId(actorPtr);
+            uint32_t formId = aReader.ReadFormIdDeferred(actorPtr);
             if (formId != 0) {
                 aPtrs.Insert(formId, actorPtr);
             }
@@ -84,7 +84,7 @@ static void DispatchHookEvent(const HookEventPacket& aHookPkt,
     case HOOK_ACTOR_REMOVED: {
         if (aHookPkt.argCount >= 1 && aHookPkt.args[0] != 0) {
             uint64_t actorPtr = aHookPkt.args[0];
-            uint32_t formId = aReader.ReadFormId(actorPtr);
+            uint32_t formId = aReader.ReadFormIdDeferred(actorPtr);
             if (formId != 0) {
                 aPtrs.Remove(formId);
             } else {
