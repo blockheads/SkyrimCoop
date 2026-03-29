@@ -20,6 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 5: Networking Verification & Server Cleanup** - Remove standalone server, automated fake-player integration test with memory verification
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
 - [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
+- [ ] **Phase 10: Two-Player Co-op Session** - Host + client on one machine, see each other, sync movement via P2P GameServer
 
 ## Phase Details
 
@@ -201,3 +202,13 @@ Plans:
 - [x] 09.1-01-PLAN.md -- DLL-side ReadFormId/ReadPosition helpers + all hook trampoline arg layout updates
 - [x] 09.1-02-PLAN.md -- Native DispatchHookEvent + 8 service updates + CharacterService position cache
 - [ ] 09.1-03-PLAN.md -- mock_skyrim_loader update + CI validation + human Skyrim verification
+
+### Phase 10: Two-Player Co-op Session
+
+**Goal:** Two Skyrim instances on one Linux machine, both connected via localhost. Host and client see each other's characters and sync movement in real-time through the P2P GameServer. No Steam invites — direct IP connection only.
+**Requirements**: TBD
+**Depends on:** Phase 09.1
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 10 to break down)
