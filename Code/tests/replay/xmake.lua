@@ -9,6 +9,9 @@ target("ReplayTests")
     -- ReplayHarness
     add_files("../../native_client/replay/*.cpp")
 
+    -- MessageSerializer (Recording)
+    add_files("../../server/Recording/*.cpp")
+
     -- Shared dispatch function
     add_files("../../native_client/dispatch_hook_event.cpp")
 

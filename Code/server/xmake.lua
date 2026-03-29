@@ -34,7 +34,8 @@ local function build_server()
         "lua",
         "sol2",
         "glm",
-        "entt")
+        "entt",
+        "nlohmann_json")
         -- cpp-httplib is manually included via includedirs
 end
 
