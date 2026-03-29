@@ -5,11 +5,13 @@
 #include <Messages/Message.h>
 #include <Server.hpp>
 #include <World.h>
+#include <memory>
 
 using TiltedPhoques::ConnectionId_t;
 // Removed: using TiltedPhoques::Server;  -- Conflicts with namespace Server
 using TiltedPhoques::String;
 
+class EnetRecorder;
 struct AuthenticationRequest;
 struct Player;
 struct PartyComponent;
@@ -60,6 +62,10 @@ struct GameServer final : TiltedPhoques::Server
     // Loopback support for P2P host mode (in-process message delivery without enet6)
     void InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId);
     void SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
+
+    // Recording taps for enet6 traffic replay
+    void StartRecording(const std::string& aOutputDir);
+    void StopRecording();
 
     // Packet dispatching
     void Send(ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const;
@@ -145,6 +151,7 @@ struct GameServer final : TiltedPhoques::Server
     TiltedPhoques::Map<ConnectionId_t, entt::entity> m_connectionToEntity;
 
     UniquePtr<World> m_pWorld;
+    std::unique_ptr<EnetRecorder> m_pRecorder;
 
     bool m_requestStop;
 

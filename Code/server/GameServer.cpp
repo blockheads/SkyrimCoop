@@ -1,6 +1,7 @@
 ﻿#include <Components.h>
 #include <GameServer.h>
 #include <Packet.hpp>
+#include <Recording/EnetRecorder.h>
 
 #include <Events/AdminPacketEvent.h>
 #include <Events/CharacterRemoveEvent.h>
@@ -206,6 +207,16 @@ GameServer::~GameServer()
 GameServer* GameServer::Get() noexcept
 {
     return s_pInstance;
+}
+
+void GameServer::StartRecording(const std::string& aOutputDir)
+{
+    m_pRecorder = std::make_unique<EnetRecorder>(aOutputDir);
+}
+
+void GameServer::StopRecording()
+{
+    m_pRecorder.reset();
 }
 
 void GameServer::Initialize()
@@ -642,6 +653,10 @@ void GameServer::OnConsume(const void* apData, const uint32_t aSize, const Conne
         return;
     }
 
+    // Recording tap: capture incoming ClientMessage as NDJSON
+    if (m_pRecorder)
+        m_pRecorder->RecordClientMessage(aConnectionId, *pMessage);
+
     spdlog::info("GameServer::OnConsume opcode={} from {:x} (size={})", pMessage->GetOpcode(), aConnectionId, aSize);
     m_messageHandlers[pMessage->GetOpcode()](pMessage, aConnectionId);
     //}
@@ -718,6 +733,10 @@ void GameServer::SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<vo
 
 void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const
 {
+    // Recording tap: capture outgoing ServerMessage as NDJSON
+    if (m_pRecorder)
+        m_pRecorder->RecordServerMessage(aConnectionId, acServerMessage);
+
     // Loopback intercept: route host messages in-process instead of through enet6
     if (m_loopbackConnectionId != 0 && aConnectionId == m_loopbackConnectionId && m_loopbackCallback)
     {
