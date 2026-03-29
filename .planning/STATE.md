@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09.1-01-PLAN.md
-last_updated: "2026-03-29T02:52:00Z"
-last_activity: 2026-03-29 -- Phase 09.1 Plan 01 complete (DLL-side formId resolution)
+stopped_at: Completed 09.1-02-PLAN.md
+last_updated: "2026-03-29T03:03:37.156Z"
+last_activity: 2026-03-29
 progress:
-  total_phases: 8
-  completed_phases: 4
-  total_plans: 21
-  completed_plans: 20
-  percent: 0
+  total_phases: 11
+  completed_phases: 6
+  total_plans: 40
+  completed_plans: 37
+  percent: 89
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 09.1 (dll-side-formid-resolution) — EXECUTING
-Plan: 1 of 3 complete
-Status: Executing Phase 09.1
-Last activity: 2026-03-29 -- Phase 09.1 Plan 01 complete
+Plan: 2 of 3 complete
+Status: Ready to execute
+Last activity: 2026-03-29
 
 Progress: [=========-] 89%
 
@@ -69,6 +69,7 @@ Progress: [=========-] 89%
 | Phase 07 P05 | 9min | 2 tasks | 12 files |
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
+| Phase 09.1 P02 | 8min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,8 @@ Recent decisions affecting current work:
 - [Phase 07]: Frame pacing via sleep_for; poll()-based receive deferred until TcpClient exposes socket fd
 - [Phase 07]: Catch2 comma-separated tag syntax for OR-matching multiple test groups in smoke tests
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
+- [Phase 09.1]: Position cache uses unordered_map for O(1) lookup; SyncMovement falls back to pread on cache miss
+- [Phase 09.1]: HandleActorAdded/Removed receive formId as parameter from DLL packet args (no pread)
 
 ### Pending Todos
 
@@ -126,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T02:52:00Z
-Stopped at: Completed 09.1-01-PLAN.md
+Last session: 2026-03-29T03:03:37.154Z
+Stopped at: Completed 09.1-02-PLAN.md
 Resume file: None

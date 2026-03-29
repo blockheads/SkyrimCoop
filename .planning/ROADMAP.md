@@ -195,9 +195,9 @@ Plans:
   3. CharacterService caches positions from HOOK_SET_POSITION events; SyncMovement uses cache instead of pread
   4. mock_skyrim_loader sends new-format packets and CI pipeline passes
   5. Human-verified: native logs show resolved non-zero formIds from Skyrim hook events
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
-- [ ] 09.1-01-PLAN.md -- DLL-side ReadFormId/ReadPosition helpers + all hook trampoline arg layout updates
-- [ ] 09.1-02-PLAN.md -- Native DispatchHookEvent + 8 service updates + CharacterService position cache
+- [x] 09.1-01-PLAN.md -- DLL-side ReadFormId/ReadPosition helpers + all hook trampoline arg layout updates
+- [x] 09.1-02-PLAN.md -- Native DispatchHookEvent + 8 service updates + CharacterService position cache
 - [ ] 09.1-03-PLAN.md -- mock_skyrim_loader update + CI validation + human Skyrim verification
