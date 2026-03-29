@@ -27,15 +27,13 @@ void ActorValueService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
-        // Update cached value if we have one
-        auto it = m_cachedValues.find(formId);
-        if (it != m_cachedValues.end()) {
-            switch (static_cast<uint32_t>(attrIndex)) {
-            case kHealth:  it->second.health += regenAmount; break;
-            case kMagicka: it->second.magicka += regenAmount; break;
-            case kStamina: it->second.stamina += regenAmount; break;
-            default: break;
-            }
+        // Update cached value (create entry if first regen event for this actor)
+        auto& cached = m_cachedValues[formId];
+        switch (static_cast<uint32_t>(attrIndex)) {
+        case kHealth:  cached.health += regenAmount; break;
+        case kMagicka: cached.magicka += regenAmount; break;
+        case kStamina: cached.stamina += regenAmount; break;
+        default: break;
         }
 
         spdlog::debug("Regen attr: actor={:#x} attr={} amount={:.2f}", formId, attrIndex, regenAmount);
