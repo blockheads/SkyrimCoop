@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 13-01-PLAN.md
-last_updated: "2026-03-29T19:46:47.366Z"
-last_activity: 2026-03-29 -- Plan 13-01 complete (harness getters + NDJSON fixtures)
+status: executing
+stopped_at: Phase 13 context gathered
+last_updated: "2026-03-29T19:39:20.560Z"
+last_activity: 2026-03-29 -- Phase 13 execution started
 progress:
   total_phases: 15
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 53
   completed_plans: 49
   percent: 90
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 12 — ndjson-replay-capture-and-integration-tests
+**Current focus:** Phase 13 — network-replay-recording-and-regression-testing
 
 ## Current Position
 
 Phase: 13 (network-replay-recording-and-regression-testing) — EXECUTING
-Plan: 2 of 2
-Status: Plan 01 complete, Plan 02 pending
-Last activity: 2026-03-29 -- Plan 13-01 complete (harness getters + NDJSON fixtures)
+Plan: 1 of 2
+Status: Executing Phase 13
+Last activity: 2026-03-29 -- Phase 13 execution started
 
 Progress: [=========] 90%
 
@@ -74,7 +74,6 @@ Progress: [=========] 90%
 | Phase 11 P05 | 15min | 2 tasks | 8 files |
 | Phase 12 P01 | 8min | 2 tasks | 11 files |
 | Phase 12 P02 | 4min | 2 tasks | 8 files |
-| Phase 13 P01 | 5min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -124,7 +123,6 @@ Recent decisions affecting current work:
 - [Phase 12]: SkyrimTogetherServer not needed as ReplayTests dependency (native_client services are self-contained)
 - [Phase 12]: FIXTURE_PATH macro resolves from os.projectdir() for worktree-safe absolute paths
 - [Phase 12]: Replay sources included in production binary since nlohmann_json already available via third_party
-- [Phase 13]: CachedActorValues struct moved to public in ActorValueService for test accessor pattern
 
 ### Pending Todos
 
@@ -145,6 +143,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T19:46:47.364Z
-Stopped at: Completed 13-01-PLAN.md
-Resume file: None
+Last session: 2026-03-29T19:11:44.525Z
+Stopped at: Phase 13 context gathered
+Resume file: .planning/phases/13-network-replay-recording-and-regression-testing/13-CONTEXT.md

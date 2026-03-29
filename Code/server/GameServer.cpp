@@ -642,6 +642,7 @@ void GameServer::OnConsume(const void* apData, const uint32_t aSize, const Conne
         return;
     }
 
+    spdlog::info("GameServer::OnConsume opcode={} from {:x} (size={})", pMessage->GetOpcode(), aConnectionId, aSize);
     m_messageHandlers[pMessage->GetOpcode()](pMessage, aConnectionId);
     //}
 }

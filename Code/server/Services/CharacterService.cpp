@@ -128,6 +128,9 @@ void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacte
     auto& message = acMessage.Packet;
     const auto& refId = message.ReferenceId;
 
+    spdlog::info("OnAssignCharacterRequest: refId={:x}:{:x}, cookie={}, player={:x}",
+                 refId.ModId, refId.BaseId, message.Cookie, acMessage.pPlayer->GetConnectionId());
+
     const auto isPlayer = (refId.ModId == 0 && refId.BaseId == 0x14);
     const auto isCustom = isPlayer || refId.ModId == std::numeric_limits<uint32_t>::max();
 
@@ -214,6 +217,9 @@ void CharacterService::OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) 
     Serialize(m_world, acEvent.Entity, &message);
 
     const auto& ownerComp = m_world.get<OwnerComponent>(acEvent.Entity);
+    spdlog::info("OnCharacterSpawned: broadcasting CharacterSpawnRequest serverId={}, formId={:x}:{:x} to all except owner {:x}",
+                 message.ServerId, message.FormId.ModId, message.FormId.BaseId,
+                 ownerComp.GetOwner()->GetConnectionId());
     GameServer::Get()->SendToPlayers(message, ownerComp.GetOwner());
 
     GameServer::Get()->GetWorld().GetScriptService().HandleCharacterSpawn(acEvent.Entity);
@@ -437,7 +443,9 @@ void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>
     auto& actorValuesComponent = m_world.emplace<ActorValuesComponent>(cEntity);
     actorValuesComponent.CurrentActorValues = message.CurrentActorData.InitialActorValues;
 
-    spdlog::debug("FormId: {:x}:{:x} - NpcId: {:x}:{:x} assigned to {:x}", gameId.ModId, gameId.BaseId, baseId.ModId, baseId.BaseId, acMessage.pPlayer->GetConnectionId());
+    spdlog::info("CreateCharacter: FormId {:x}:{:x} - NpcId {:x}:{:x} assigned to {:x}, serverId={}",
+                 gameId.ModId, gameId.BaseId, baseId.ModId, baseId.BaseId,
+                 acMessage.pPlayer->GetConnectionId(), World::ToInteger(cEntity));
 
     auto& movementComponent = m_world.emplace<MovementComponent>(cEntity);
     movementComponent.Tick = pServer->GetTick();
@@ -467,6 +475,9 @@ void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>
     response.PlayerId = characterComponent.PlayerId;
     response.Owner = (acMessage.pPlayer == pOwner); // Only true if requester is the host
 
+    spdlog::info("CreateCharacter: sending AssignCharacterResponse cookie={}, serverId={}, owner={}, playerId={} to {:x}",
+                 response.Cookie, response.ServerId, response.Owner, response.PlayerId,
+                 acMessage.pPlayer->GetConnectionId());
     pServer->Send(acMessage.pPlayer->GetConnectionId(), response);
 
     auto& dispatcher = m_world.GetDispatcher();

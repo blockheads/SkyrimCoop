@@ -129,6 +129,21 @@ namespace TiltedPhoques
                 return;
             }
 
+            // enet6: Server typically binds IPv6 (dual-stack). Map IPv4 to IPv4-mapped IPv6.
+            if (address.type == ENET_ADDRESS_TYPE_IPV4)
+            {
+                uint8_t v4[4];
+                std::memcpy(v4, address.host.v4, 4);
+
+                address.type = ENET_ADDRESS_TYPE_IPV6;
+                std::memset(address.host.v6, 0, sizeof(address.host.v6));
+                address.host.v6[5] = 0xFFFF;
+                address.host.v6[6] = static_cast<uint16_t>((v4[0] << 8) | v4[1]);
+                address.host.v6[7] = static_cast<uint16_t>((v4[2] << 8) | v4[3]);
+
+                spdlog::debug("[SkyrimCoopNetworking] CLIENT: Mapped IPv4 to IPv4-mapped IPv6 for server connection");
+            }
+
             // Connect to server
             pClient->m_pPeer = enet_host_connect(pClient->m_pHost, &address, 2, 0);
             if (pClient->m_pPeer == nullptr)
@@ -182,6 +197,26 @@ namespace TiltedPhoques
                 spdlog::error("[SkyrimCoopNetworking] CLIENT: Failed to parse/resolve address: {}", ip);
                 return false;
             }
+        }
+
+        // enet6: Server typically binds IPv6 (dual-stack). If the parsed address is IPv4,
+        // convert it to an IPv4-mapped IPv6 address (::ffff:a.b.c.d) so the client's
+        // socket can reach the IPv6 server.
+        if (address.type == ENET_ADDRESS_TYPE_IPV4)
+        {
+            uint8_t v4[4];
+            std::memcpy(v4, address.host.v4, 4);
+
+            address.type = ENET_ADDRESS_TYPE_IPV6;
+            std::memset(address.host.v6, 0, sizeof(address.host.v6));
+            // IPv4-mapped IPv6: ::ffff:a.b.c.d
+            // v6[5] = 0xFFFF (network byte order)
+            address.host.v6[5] = 0xFFFF;
+            // Pack IPv4 bytes into v6[6] and v6[7]
+            address.host.v6[6] = static_cast<uint16_t>((v4[0] << 8) | v4[1]);
+            address.host.v6[7] = static_cast<uint16_t>((v4[2] << 8) | v4[3]);
+
+            spdlog::info("[SkyrimCoopNetworking] CLIENT: Mapped IPv4 {} to IPv4-mapped IPv6", ip);
         }
 
         address.port = port;

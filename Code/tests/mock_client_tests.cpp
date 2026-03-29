@@ -137,3 +137,16 @@ TEST_CASE("MockClient_ServerPlayerCount", "[NetworkIntegration]")
     REQUIRE(client.m_authAccepted);
     REQUIRE(server.GetWorld().GetPlayerManager().Count() > countBefore);
 }
+
+TEST_CASE("MockClient_IPv4MappedToIPv6_Connects", "[NetworkIntegration]")
+{
+    auto& server = TestFixture::GetSharedServer();
+
+    // Server binds IPv6 (dual-stack). ConnectByIp should auto-map 127.0.0.1
+    // to the IPv4-mapped IPv6 address ::ffff:127.0.0.1 so the connection succeeds.
+    MockClient client;
+    auto port = server.GetPort();
+    REQUIRE(client.ConnectByIp("127.0.0.1:" + std::to_string(port)));
+    REQUIRE(client.WaitForConnection(server));
+    REQUIRE(client.IsConnected());
+}
