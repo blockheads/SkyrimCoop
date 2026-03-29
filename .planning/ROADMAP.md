@@ -270,3 +270,13 @@ Plans:
 Plans:
 - [x] 13-01-PLAN.md -- ReplayHarness getters, service state accessors, 7 synthetic NDJSON fixtures
 - [x] 13-02-PLAN.md -- 7 per-service replay test files + full-session integration test
+
+### Phase 14: enet6 Network Traffic Replay
+
+**Goal:** Extend replay infrastructure to capture and replay full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement packets) alongside DLL hook events. Dual host+client recording enables offline regression testing with real multiplayer game data without launching Skyrim.
+**Requirements**: TBD
+**Depends on:** Phase 13
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 14 to break down)
