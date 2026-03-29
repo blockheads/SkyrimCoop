@@ -205,10 +205,18 @@ Plans:
 
 ### Phase 10: Two-Player Co-op Session
 
-**Goal:** Two Skyrim instances on one Linux machine, both connected via localhost. Host and client see each other's characters and sync movement in real-time through the P2P GameServer. No Steam invites — direct IP connection only.
-**Requirements**: TBD
+**Goal:** Two Skyrim instances on one Linux machine, both connected via localhost. Host and client see each other's characters and sync movement in real-time through the P2P GameServer. No Steam invites -- direct IP connection only.
+**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18, D-19, D-20, D-21
 **Depends on:** Phase 09.1
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. JoinClient routes all server messages through ServerMessageRouter (not just logging)
+  2. ServerMessageRouter handles AssignCharacterResponse, CharacterSpawnRequest, NotifyRemoveCharacter
+  3. DrainCommandQueue executes CMD_SET_POSITION on the game thread via HookActorProcess
+  4. Both players see each other's character model and sync movement in real-time in Riverwood
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 10 to break down)
+- [ ] 10-01-PLAN.md -- Wire JoinClient message routing + extend ServerMessageRouter for character assignment
+- [ ] 10-02-PLAN.md -- Implement CMD_SET_POSITION execution in relay DLL DrainCommandQueue
+- [ ] 10-03-PLAN.md -- Dual-instance launch script with separate Proton prefixes
+- [ ] 10-04-PLAN.md -- Human verification of two-player movement sync in Riverwood
