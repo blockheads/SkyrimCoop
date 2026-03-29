@@ -213,10 +213,10 @@ Plans:
   2. ServerMessageRouter handles AssignCharacterResponse, CharacterSpawnRequest, NotifyRemoveCharacter
   3. DrainCommandQueue executes CMD_SET_POSITION on the game thread via HookActorProcess
   4. Both players see each other's character model and sync movement in real-time in Riverwood
-**Plans:** 1/4 plans executed
+**Plans:** 2/4 plans executed
 
 Plans:
-- [ ] 10-01-PLAN.md -- Wire JoinClient message routing + extend ServerMessageRouter for character assignment
+- [x] 10-01-PLAN.md -- Wire JoinClient message routing + extend ServerMessageRouter for character assignment
 - [x] 10-02-PLAN.md -- Implement CMD_SET_POSITION execution in relay DLL DrainCommandQueue
 - [ ] 10-03-PLAN.md -- Dual-instance launch script with separate Proton prefixes
 - [ ] 10-04-PLAN.md -- Human verification of two-player movement sync in Riverwood
