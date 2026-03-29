@@ -2,6 +2,9 @@
 #include <ws2tcpip.h>
 #include <cstring>
 
+// Logging helper (defined in relay_main.cpp)
+extern void RelayLog(const char* fmt, ...);
+
 bool TcpServer::Start()
 {
     // Initialize Winsock (reference-counted, safe to call multiple times)
@@ -93,6 +96,9 @@ bool TcpServer::AcceptClient()
     setsockopt(m_clientSocket, IPPROTO_TCP, TCP_NODELAY,
                reinterpret_cast<const char*>(&flag), sizeof(flag));
 
+    // Clear line buffer for new connection
+    m_lineBuffer.Clear();
+
     return true;
 }
 
@@ -103,14 +109,13 @@ void TcpServer::DisconnectClient()
         closesocket(m_clientSocket);
         m_clientSocket = INVALID_SOCKET;
     }
+    m_lineBuffer.Clear();
 }
 
 bool TcpServer::Send(const void* data, uint32_t size)
 {
     if (m_clientSocket == INVALID_SOCKET)
         return false;
-
-    EnterCriticalSection(&m_sendLock);
 
     const char* ptr = static_cast<const char*>(data);
     uint32_t remaining = size;
@@ -119,35 +124,57 @@ bool TcpServer::Send(const void* data, uint32_t size)
     {
         int sent = send(m_clientSocket, ptr, remaining, 0);
         if (sent == SOCKET_ERROR)
-        {
-            LeaveCriticalSection(&m_sendLock);
             return false;
-        }
         ptr += sent;
         remaining -= static_cast<uint32_t>(sent);
     }
 
-    LeaveCriticalSection(&m_sendLock);
     return true;
 }
 
-bool TcpServer::Receive(PacketHeader* outHeader, void* outPayload, uint32_t maxPayload)
+bool TcpServer::SendJson(const nlohmann::json& aMsg)
 {
-    // Read header first
-    if (!RecvExact(outHeader, sizeof(PacketHeader)))
+    if (m_clientSocket == INVALID_SOCKET)
         return false;
 
-    // Read payload if any
-    if (outHeader->length > 0)
+    // Per Pitfall 5: serialize inside CRITICAL_SECTION
+    EnterCriticalSection(&m_sendLock);
+    std::string line = aMsg.dump() + "\n";
+    bool ok = Send(line.c_str(), static_cast<uint32_t>(line.size()));
+    LeaveCriticalSection(&m_sendLock);
+    return ok;
+}
+
+bool TcpServer::ReceiveJsonLine(nlohmann::json& aOut)
+{
+    // First check if we already have a complete line buffered
+    std::string lineStr;
+    while (true)
     {
-        if (outHeader->length > maxPayload)
-            return false;  // payload too large for buffer
+        if (m_lineBuffer.PopLine(lineStr))
+        {
+            if (lineStr.empty())
+                continue;  // skip empty lines
 
-        if (!RecvExact(outPayload, outHeader->length))
-            return false;
+            // Per Pitfall 2: nothrow json::parse
+            auto parsed = nlohmann::json::parse(lineStr, nullptr, false);
+            if (parsed.is_discarded())
+            {
+                RelayLog("[SkyrimCoopHooks] WARNING: Discarding malformed JSON line\n");
+                continue;  // try next line
+            }
+            aOut = std::move(parsed);
+            return true;
+        }
+
+        // Need more data from the socket
+        char buf[4096];
+        int received = recv(m_clientSocket, buf, sizeof(buf), 0);
+        if (received <= 0)
+            return false;  // disconnect or error
+
+        m_lineBuffer.Append(buf, static_cast<size_t>(received));
     }
-
-    return true;
 }
 
 bool TcpServer::RecvExact(void* buf, uint32_t size)
