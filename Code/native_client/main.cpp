@@ -44,9 +44,14 @@ using TiltedPhoques::Vector;
 #include <ConsoleRegistry.h>
 #include <GameServer.h>
 #include <BuildInfo.h>
+#include <Client.hpp>
+#include <Packet.hpp>
 #include <Messages/AuthenticationRequest.h>
+#include <Messages/ServerMessageFactory.h>
 #include "transport/LoopbackTransport.h"
 #include "transport/ServerMessageRouter.h"
+
+#include <memory>
 
 #include "game_bridge/proc_memory.h"
 #include "game_bridge/pointer_table.h"
@@ -193,6 +198,76 @@ static void HandleControlPacket(const PacketHeader& aHeader, TcpClient& aClient)
 
 // Note: non-blocking receive via poll() can be added when TcpClient exposes
 // the raw socket fd. For now, blocking receive with frame pacing is used.
+
+// ---------------------------------------------------------------------------
+// JoinClient: enet6 client for join mode (connects to remote host's GameServer)
+// ---------------------------------------------------------------------------
+class JoinClient : public TiltedPhoques::Client {
+public:
+    JoinClient() noexcept = default;
+    ~JoinClient() override { Close(); }
+
+    void OnConsume(const void* apData, uint32_t aSize) override {
+        // Parse incoming ServerMessages from remote host
+        TiltedPhoques::Buffer buffer(aSize);
+        TiltedPhoques::Buffer::Writer writer(&buffer);
+        writer.WriteBytes(reinterpret_cast<const uint8_t*>(apData), aSize);
+
+        TiltedPhoques::Buffer::Reader reader(&buffer);
+
+        ServerMessageFactory factory;
+        auto pMessage = factory.Extract(reader);
+        if (pMessage) {
+            spdlog::debug("JoinClient: received server opcode {}", pMessage->GetOpcode());
+            // For now, log received messages. Full routing to services
+            // will be added when bidirectional sync is implemented.
+            m_messagesReceived++;
+        } else {
+            spdlog::warn("JoinClient: failed to parse server message");
+        }
+    }
+
+    void OnConnected() override {
+        spdlog::info("JoinClient: connected to remote host");
+        m_connected = true;
+    }
+
+    void OnDisconnected(EDisconnectReason aReason) override {
+        spdlog::info("JoinClient: disconnected from remote host (reason: {})", (int)aReason);
+        m_connected = false;
+    }
+
+    void OnUpdate() override {
+        // Called each tick -- nothing needed for basic connect
+    }
+
+    [[nodiscard]] bool IsJoinConnected() const { return m_connected; }
+    [[nodiscard]] uint64_t GetMessagesReceived() const { return m_messagesReceived; }
+
+    void SendAuthRequest(const std::string& aUsername = "JoinPlayer") {
+        // Send authentication request to remote GameServer
+        AuthenticationRequest authReq;
+        authReq.Version = BUILD_COMMIT;
+        authReq.Token = "";
+        authReq.Username = aUsername;
+        authReq.SKSEActive = true;
+        authReq.MO2Active = false;
+        authReq.DiscordId = 0;
+        authReq.Level = 1;
+
+        TiltedPhoques::Buffer buffer(1 << 16);
+        TiltedPhoques::Buffer::Writer writer(&buffer);
+        writer.WriteBits(0, 8); // First byte reserved for packet type
+        authReq.Serialize(writer);
+        TiltedPhoques::PacketView packet(
+            reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+        Send(&packet);
+    }
+
+private:
+    bool m_connected{false};
+    uint64_t m_messagesReceived{0};
+};
 
 int main(int argc, char* argv[]) {
     // rpmalloc already initialized via constructor(101) above
@@ -367,6 +442,7 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<Server::GameServer> pGameServer;
     std::unique_ptr<LoopbackTransport> pLoopback;
     std::unique_ptr<ServerMessageRouter> pRouter;
+    std::unique_ptr<JoinClient> pJoinClient;
     bool isHostMode = connectAddr.empty();  // per D-02
 
     if (isHostMode) {
@@ -423,9 +499,22 @@ int main(int argc, char* argv[]) {
         }
     } else {
         spdlog::info("Starting in JOIN mode (connecting to {})", connectAddr);
-        // Join mode: no GameServer, connect as enet6 client to remote host
-        // TODO(Phase 8+): Implement enet6 client connection to remote host
-        // For now, just log. The native process still operates as relay bridge.
+
+        pJoinClient = std::make_unique<JoinClient>();
+        pJoinClient->ConnectByIp(connectAddr);
+
+        // Wait for connection (up to 10 seconds)
+        for (int i = 0; i < 200 && !pJoinClient->IsJoinConnected(); i++) {
+            pJoinClient->Update();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+
+        if (!pJoinClient->IsJoinConnected()) {
+            spdlog::error("JoinClient: failed to connect to {} after 10s", connectAddr);
+        } else {
+            spdlog::info("JoinClient: connected, sending auth request");
+            pJoinClient->SendAuthRequest();
+        }
     }
 
     // Main event loop
@@ -516,9 +605,12 @@ int main(int argc, char* argv[]) {
         InterpolationSystem::Update(registry, deltaTime);
         AnimationSystem::Update(registry, tcpClient, deltaTime);
 
-        // --- Phase 3.5: GameServer tick (host mode only) ---
+        // --- Phase 3.5: GameServer tick (host mode) / JoinClient tick (join mode) ---
         if (pGameServer) {
             pGameServer->Update();
+        }
+        if (pJoinClient) {
+            pJoinClient->Update();
         }
 
         // --- Phase 4: Heartbeat ---
@@ -545,6 +637,14 @@ int main(int argc, char* argv[]) {
         pGameServer.reset();
         pConsole.reset();
         spdlog::info("GameServer shut down");
+    }
+
+    // Shutdown JoinClient
+    if (pJoinClient) {
+        pJoinClient->Close();
+        spdlog::info("JoinClient: received {} messages total", pJoinClient->GetMessagesReceived());
+        pJoinClient.reset();
+        spdlog::info("JoinClient shut down");
     }
 
     // Close record file
