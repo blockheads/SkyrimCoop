@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-29T16:16:56.162Z"
-last_activity: 2026-03-29 -- Phase 12 execution started
+status: verifying
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-03-29T16:43:58.271Z"
+last_activity: 2026-03-29
 progress:
   total_phases: 14
   completed_phases: 9
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 Phase: 12 (ndjson-replay-capture-and-integration-tests) — EXECUTING
 Plan: 2 of 2
-Status: Executing Phase 12
-Last activity: 2026-03-29 -- Plan 12-01 complete (replay harness foundation)
+Status: Phase complete — ready for verification
+Last activity: 2026-03-29
 
 Progress: [=========] 90%
 
@@ -73,6 +73,7 @@ Progress: [=========] 90%
 | Phase 11 P04 | 8min | 2 tasks | 17 files |
 | Phase 11 P05 | 15min | 2 tasks | 8 files |
 | Phase 12 P01 | 8min | 2 tasks | 11 files |
+| Phase 12 P02 | 4min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,8 @@ Recent decisions affecting current work:
 - [Phase 12]: ReplayHarness uses binary HookEventPacket dispatch (not JSON), with NDJSON-to-binary conversion layer
 - [Phase 12]: nlohmann_json v3.11.3 added for NDJSON parsing in replay harness only (excluded from production binary)
 - [Phase 12]: SkyrimTogetherServer not needed as ReplayTests dependency (native_client services are self-contained)
+- [Phase 12]: FIXTURE_PATH macro resolves from os.projectdir() for worktree-safe absolute paths
+- [Phase 12]: Replay sources included in production binary since nlohmann_json already available via third_party
 
 ### Pending Todos
 
@@ -139,6 +142,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T16:26:29Z
-Stopped at: Completed 12-01-PLAN.md
-Resume file: .planning/phases/12-ndjson-replay-capture-and-integration-tests/12-01-SUMMARY.md
+Last session: 2026-03-29T16:43:58.267Z
+Stopped at: Completed 12-02-PLAN.md
+Resume file: None
