@@ -33,7 +33,7 @@ Two friends can drop into Skyrim together on Linux with zero server setup — ho
 - [ ] Host-authoritative world state (NPCs, quests, time, weather)
 - [ ] Mod-list synchronization (host's mod list enforced, clients must match)
 - [~] Automated E2E testing framework (headless or simulated host+client sessions) — fake_player binary + test_ingame_sync.sh verified (Phase 5)
-- [~] Comprehensive unit and integration test suite for all sync services — 38 test cases (network integration, relay TCP, encoding) verified (Phase 5)
+- [~] Comprehensive unit and integration test suite for all sync services — 52 assertions across 13 replay test cases covering all 7 sync services + integration; 38 prior test cases (network, relay, encoding) verified (Phase 5, expanded Phase 13)
 - [ ] CI pipeline running all tests on Linux
 
 ### Out of Scope
@@ -108,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-28 after Phase 5 completion — standalone server removed, 38 test cases (network integration, relay TCP, encoding), fake_player binary verified*
+*Last updated: 2026-03-29 after Phase 13 completion — replay regression test framework with 8 Catch2 test files (7 per-service + 1 integration), 7 NDJSON fixtures, service state accessors on ReplayHarness*
