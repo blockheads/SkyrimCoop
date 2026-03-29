@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-03-28
+Phase: 12 (ndjson-replay-capture-and-integration-tests) — EXECUTING
+Plan: 2 of 2
+Status: Executing Phase 12
+Last activity: 2026-03-29 -- Plan 12-01 complete (replay harness foundation)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [=========] 90%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P05 | 9min | 2 tasks | 12 files |
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
+| Phase 12 P01 | 8min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Frame pacing via sleep_for; poll()-based receive deferred until TcpClient exposes socket fd
 - [Phase 07]: Catch2 comma-separated tag syntax for OR-matching multiple test groups in smoke tests
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
+- [Phase 12]: ReplayHarness uses binary HookEventPacket dispatch (not JSON), with NDJSON-to-binary conversion layer
+- [Phase 12]: nlohmann_json v3.11.3 added for NDJSON parsing in replay harness only (excluded from production binary)
+- [Phase 12]: SkyrimTogetherServer not needed as ReplayTests dependency (native_client services are self-contained)
 
 ### Pending Todos
 
@@ -126,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T17:46:35.805Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-testing-ci-pipeline/05-CONTEXT.md
+Last session: 2026-03-29T16:26:29Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: .planning/phases/12-ndjson-replay-capture-and-integration-tests/12-01-SUMMARY.md
