@@ -8,7 +8,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
+#include "nlohmann/json.hpp"
+#include "json_protocol.h"
+#include "dirty_cache.h"
 #include "protocol.h"
 #include "tcp_server.h"
 #include "process_launcher.h"
@@ -59,6 +63,7 @@ struct SKSEInterface
 
 static HINSTANCE s_dllInstance = nullptr;
 TcpServer g_tcpServer;                     // non-static: accessed by hook_trampolines.cpp
+extern DirtyCache g_dirtyCache;            // defined in hook_trampolines.cpp
 static ProcessLauncher g_launcher;
 static CommandQueue g_commandQueue;
 static volatile bool g_shuttingDown = false;
@@ -174,7 +179,177 @@ static bool DeriveNativeBinaryPath()
 }
 
 // ---------------------------------------------------------------------------
-// Monitor thread: accepts client, receives commands, auto-restarts on disconnect
+// JSON command parsing: translate JSON commands to CommandSlot for SPSC queue
+// ---------------------------------------------------------------------------
+
+static void ParseJsonCommand(const nlohmann::json& aMsg)
+{
+    auto opIt = aMsg.find(JsonField::kOp);
+    if (opIt == aMsg.end() || !opIt->is_string())
+        return;
+
+    const auto& op = opIt->get_ref<const std::string&>();
+
+    if (op == JsonOp::kCmdSetPosition)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_SET_POSITION;
+        slot.argCount = 3;
+        slot.args[0] = aMsg.value("actor_ptr", uint64_t(0));
+
+        float x = aMsg.value(JsonField::kX, 0.0f);
+        float y = aMsg.value(JsonField::kY, 0.0f);
+        float z = aMsg.value(JsonField::kZ, 0.0f);
+        uint32_t xBits, yBits, zBits;
+        memcpy(&xBits, &x, sizeof(float));
+        memcpy(&yBits, &y, sizeof(float));
+        memcpy(&zBits, &z, sizeof(float));
+        slot.args[1] = (static_cast<uint64_t>(yBits) << 32) | xBits;
+        slot.args[2] = zBits;
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdForceWeather)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_FORCE_WEATHER;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kSkyPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kWeatherPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdCastSpell)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_CAST_SPELL;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kCasterPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kSpellPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdEquipItem)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_EQUIP_ITEM;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kItemPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdUnequipItem)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_UNEQUIP_ITEM;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kItemPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdPlayAnimation)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_PLAY_ANIMATION;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kThisPtr, uint64_t(0));
+        slot.args[1] = aMsg.value("anim_ptr", uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdSetActorValue)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_SET_ACTOR_VALUE;
+        slot.argCount = 3;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = static_cast<uint64_t>(aMsg.value(JsonField::kType, 0));
+        float val = aMsg.value(JsonField::kValue, 0.0f);
+        uint32_t valBits;
+        memcpy(&valBits, &val, sizeof(float));
+        slot.args[2] = valBits;
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdDamageActor)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_DAMAGE_ACTOR;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        float dmg = aMsg.value(JsonField::kDamage, 0.0f);
+        uint32_t dmgBits;
+        memcpy(&dmgBits, &dmg, sizeof(float));
+        slot.args[1] = dmgBits;
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdAddSpell)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_ADD_SPELL;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kSpellPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdRemoveSpell)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_REMOVE_SPELL;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kSpellPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdAddItem)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_ADD_ITEM;
+        slot.argCount = 3;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kItemPtr, uint64_t(0));
+        slot.args[2] = static_cast<uint64_t>(aMsg.value(JsonField::kCount, 0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdRemoveItem)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_REMOVE_ITEM;
+        slot.argCount = 3;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kItemPtr, uint64_t(0));
+        slot.args[2] = static_cast<uint64_t>(aMsg.value(JsonField::kCount, 0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdActivate)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_ACTIVATE;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kThisPtr, uint64_t(0));
+        slot.args[1] = aMsg.value(JsonField::kActivatorPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdLockChange)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_LOCK_CHANGE;
+        slot.argCount = 2;
+        slot.args[0] = aMsg.value(JsonField::kThisPtr, uint64_t(0));
+        slot.args[1] = static_cast<uint64_t>(aMsg.value(JsonField::kLocked, false));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdLaunchProjectile)
+    {
+        CommandSlot slot{};
+        slot.opcode = CMD_LAUNCH_PROJECTILE;
+        slot.argCount = 1;
+        slot.args[0] = aMsg.value(JsonField::kDataPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else
+    {
+        RelayLog("[SkyrimCoopHooks] Unknown command op: %s\n", op.c_str());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Monitor thread: accepts client, receives JSON commands, auto-restarts on disconnect
 // ---------------------------------------------------------------------------
 
 static DWORD WINAPI MonitorThread(LPVOID)
@@ -194,53 +369,55 @@ static DWORD WINAPI MonitorThread(LPVOID)
 
         RelayLog("[SkyrimCoopHooks] Native process connected\n");
 
-        // Receive loop: read command packets from native process
-        PacketHeader header;
-        uint8_t payload[512];
+        // Send ready signal as JSON
+        nlohmann::json readyMsg = {{JsonField::kOp, JsonOp::kCtrlReady}};
+        g_tcpServer.SendJson(readyMsg);
 
-        while (g_tcpServer.Receive(&header, payload, sizeof(payload)))
+        // Receive loop: read JSON lines from native process
+        nlohmann::json msg;
+        while (g_tcpServer.ReceiveJsonLine(msg))
         {
             if (g_shuttingDown)
                 break;
 
-            if (header.opcode >= 0x8000 && header.opcode < 0xF000)
+            auto opIt = msg.find(JsonField::kOp);
+            if (opIt == msg.end() || !opIt->is_string())
             {
-                // Command from native process -- enqueue for game thread execution
-                // Reconstruct CommandPacket from header + payload
-                CommandSlot slot{};
-                slot.opcode = header.opcode;
-
-                if (header.length >= sizeof(uint8_t) + 7 + sizeof(uint64_t) * 1)
-                {
-                    // Payload layout: argCount(1) + pad(7) + args(8*8)
-                    slot.argCount = payload[0];
-                    if (slot.argCount > 8)
-                        slot.argCount = 8;
-                    memcpy(slot.args, payload + 8, slot.argCount * sizeof(uint64_t));
-                }
-
-                g_commandQueue.Enqueue(slot);
+                RelayLog("[SkyrimCoopHooks] WARNING: Received JSON without 'op' field\n");
+                continue;
             }
-            else if (header.opcode == CTRL_HEARTBEAT)
+
+            const auto& op = opIt->get_ref<const std::string&>();
+
+            // Control messages
+            if (op == JsonOp::kCtrlHeartbeat)
             {
-                // Heartbeat -- respond with heartbeat
-                PacketHeader heartbeat;
-                heartbeat.opcode = CTRL_HEARTBEAT;
-                heartbeat.length = 0;
-                g_tcpServer.Send(&heartbeat, sizeof(heartbeat));
+                // Respond with heartbeat
+                nlohmann::json heartbeat = {{JsonField::kOp, JsonOp::kCtrlHeartbeat}};
+                g_tcpServer.SendJson(heartbeat);
             }
-            else if (header.opcode == CTRL_SHUTDOWN)
+            else if (op == JsonOp::kCtrlShutdown)
             {
                 RelayLog("[SkyrimCoopHooks] Native process requested shutdown\n");
                 break;
             }
-            else if (header.opcode == CTRL_READY)
+            else if (op == JsonOp::kCtrlReady)
             {
                 RelayLog("[SkyrimCoopHooks] Native process signaled ready\n");
             }
+            // Command messages: parse JSON into CommandSlot, enqueue for game thread
+            else if (op.size() > 4 && op.compare(0, 4, "cmd_") == 0)
+            {
+                ParseJsonCommand(msg);
+            }
+            else
+            {
+                RelayLog("[SkyrimCoopHooks] Unknown op from native: %s\n", op.c_str());
+            }
         }
 
-        // Client disconnected
+        // Client disconnected -- clear dirty cache
+        g_dirtyCache.Clear();
         g_tcpServer.DisconnectClient();
         RelayLog("[SkyrimCoopHooks] Native process disconnected\n");
 
