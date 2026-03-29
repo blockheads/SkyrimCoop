@@ -4,9 +4,10 @@
 // Per D-14: No game struct headers -- uses hardcoded Address Library IDs
 //
 // Each trampoline:
-// 1. Packs raw arguments (as uint64_t) into a HookEventPacket
-// 2. Sends the packet over TCP via g_tcpServer.Send()
-// 3. Calls the original function via the saved pointer
+// 1. Reads game values (formId, position, etc.) from raw arguments
+// 2. Builds an nlohmann::json object with named fields per json_protocol.h
+// 3. Sends the JSON as an NDJSON line via g_tcpServer.SendJson()
+// 4. Calls the original function via the saved pointer
 //
 // Address Library IDs extracted from Code/client/Games/Skyrim/*.cpp POINTER_SKYRIMSE calls.
 
@@ -17,9 +18,10 @@
 #include <cstdio>
 #include <cstring>
 
-#include "protocol.h"
+#include "nlohmann/json.hpp"
+#include "json_protocol.h"
+#include "dirty_cache.h"
 #include "tcp_server.h"
-#include "hook_trampolines.h"
 
 // External TCP server instance (defined in relay_main.cpp)
 extern TcpServer g_tcpServer;
@@ -27,35 +29,8 @@ extern TcpServer g_tcpServer;
 // Logging helper (defined in relay_main.cpp)
 extern void RelayLog(const char* fmt, ...);
 
-// ---------------------------------------------------------------------------
-// Utility: bit-cast float to uint64_t for packing into HookEventPacket args
-// ---------------------------------------------------------------------------
-
-static uint64_t FloatToU64(float aVal)
-{
-    uint64_t v = 0;
-    memcpy(&v, &aVal, sizeof(float));
-    return v;
-}
-
-// Safe formId read: TESForm::formID at offset +0x14
-// Returns 0 if pointer is null (no crash)
-static uint32_t ReadFormId(void* apForm)
-{
-    if (!apForm) return 0;
-    return *reinterpret_cast<uint32_t*>(
-        reinterpret_cast<uintptr_t>(apForm) + 0x14);
-}
-
-// Safe position read: TESObjectREFR::position (NiPoint3) at offset +0x54
-static void ReadPosition(void* apRef, float* aOutX, float* aOutY, float* aOutZ)
-{
-    if (!apRef) { *aOutX = *aOutY = *aOutZ = 0.0f; return; }
-    uintptr_t base = reinterpret_cast<uintptr_t>(apRef);
-    *aOutX = *reinterpret_cast<float*>(base + 0x54);
-    *aOutY = *reinterpret_cast<float*>(base + 0x58);
-    *aOutZ = *reinterpret_cast<float*>(base + 0x5C);
-}
+// Dirty cache for suppressing redundant high-frequency events
+DirtyCache g_dirtyCache;
 
 // ---------------------------------------------------------------------------
 // Hardcoded Address Library IDs
@@ -206,7 +181,7 @@ static bool LoadAddressLibrary()
     }
     CloseHandle(hFile);
 
-    // Parse header — matches VersionDb.h Load() exactly
+    // Parse header -- matches VersionDb.h Load() exactly
     uint32_t pos = 0;
     auto RdI32 = [&]() -> int32_t { int32_t v; memcpy(&v, pBuf+pos, 4); pos += 4; return v; };
     auto RdU8  = [&]() -> uint8_t  { return pBuf[pos++]; };
@@ -254,7 +229,7 @@ static bool LoadAddressLibrary()
             return false;
         }
 
-        // Delta-decode entries — matches VersionDb.h switch/case exactly
+        // Delta-decode entries -- matches VersionDb.h switch/case exactly
         uint64_t pvid = 0;
         uint64_t poffset = 0;
 
@@ -336,22 +311,6 @@ static void* ResolveAddress(uint64_t aId)
 }
 
 // ---------------------------------------------------------------------------
-// Helper: send a HookEventPacket over TCP
-// ---------------------------------------------------------------------------
-
-static void SendHookEvent(HookOpcode aOpcode, uint8_t aArgCount, const uint64_t* apArgs)
-{
-    HookEventPacket pkt{};
-    pkt.header.opcode = aOpcode;
-    pkt.header.length = sizeof(HookEventPacket) - sizeof(PacketHeader);
-    pkt.argCount = aArgCount;
-    for (uint8_t i = 0; i < aArgCount && i < 8; i++)
-        pkt.args[i] = apArgs[i];
-
-    g_tcpServer.Send(&pkt, sizeof(pkt));
-}
-
-// ---------------------------------------------------------------------------
 // Trampoline declarations -- generic function pointer types
 // All trampolines use raw void* for "this" and integer/pointer args.
 // Per D-14: no game struct field access, only raw pointer forwarding.
@@ -369,43 +328,95 @@ using TFunc_RetVoid = void (__fastcall*)(void*);
 using TFunc_Float3 = void (__fastcall*)(void*, float, float, float);
 
 // ---------------------------------------------------------------------------
+// Helper: read formId from actor pointer (offset 0x14 in TESForm)
+// ---------------------------------------------------------------------------
+
+static uint32_t ReadFormId(void* apActor)
+{
+    if (!apActor) return 0;
+    uint32_t formId = 0;
+    memcpy(&formId, reinterpret_cast<uint8_t*>(apActor) + 0x14, sizeof(uint32_t));
+    return formId;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: read position (NiPoint3 at offset 0x54 in TESObjectREFR)
+// ---------------------------------------------------------------------------
+
+static void ReadPosition(void* apRefr, float& aX, float& aY, float& aZ)
+{
+    if (!apRefr) { aX = aY = aZ = 0.0f; return; }
+    auto* pBase = reinterpret_cast<uint8_t*>(apRefr);
+    memcpy(&aX, pBase + 0x54, sizeof(float));
+    memcpy(&aY, pBase + 0x58, sizeof(float));
+    memcpy(&aZ, pBase + 0x5C, sizeof(float));
+}
+
+// ---------------------------------------------------------------------------
+// Helper: read rotation (NiPoint3 at offset 0x40 in TESObjectREFR)
+// ---------------------------------------------------------------------------
+
+static void ReadRotation(void* apRefr, float& aRx, float& aRy, float& aRz)
+{
+    if (!apRefr) { aRx = aRy = aRz = 0.0f; return; }
+    auto* pBase = reinterpret_cast<uint8_t*>(apRefr);
+    memcpy(&aRx, pBase + 0x40, sizeof(float));
+    memcpy(&aRy, pBase + 0x44, sizeof(float));
+    memcpy(&aRz, pBase + 0x48, sizeof(float));
+}
+
+// ---------------------------------------------------------------------------
 // Actor Lifecycle hooks (6)
 // ---------------------------------------------------------------------------
 
 // ActorProcess (37356) - void __fastcall ActorProcess(Actor* apThis, float aDelta)
+// DIRTY-CACHED: only send if delta changed
 using TActorProcess = void (__fastcall*)(void*, float);
 static TActorProcess RealActorProcess = nullptr;
 static void __fastcall HookActorProcess(void* apThis, float aDelta)
 {
-    // Per D-08: Drain command queue on game thread when the player actor processes
-    if (ReadFormId(apThis) == 0x14)
+    uint32_t formId = ReadFormId(apThis);
+    if (g_dirtyCache.CheckActorProcess(formId, aDelta))
     {
-        DrainCommandQueue();
+        nlohmann::json msg = {
+            {JsonField::kOp, JsonOp::kActorProcess},
+            {JsonField::kFormId, formId},
+            {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)},
+            {JsonField::kDelta, aDelta}
+        };
+        g_tcpServer.SendJson(msg);
     }
-
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          FloatToU64(aDelta) };
-    SendHookEvent(HOOK_ACTOR_PROCESS, 3, args);
     RealActorProcess(apThis, aDelta);
 }
 
 // SetPosition (19790) - void __fastcall SetPosition(REFR* apThis, NiPoint3* apPos)
+// DIRTY-CACHED: only send if position/rotation changed beyond epsilon
 using TSetPosition = void (__fastcall*)(void*, void*);
 static TSetPosition RealSetPosition = nullptr;
 static void __fastcall HookSetPosition(void* apThis, void* apPos)
 {
-    float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
+    uint32_t formId = ReadFormId(apThis);
+    float x = 0.0f, y = 0.0f, z = 0.0f;
     if (apPos)
     {
-        posX = *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(apPos) + 0);
-        posY = *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(apPos) + 4);
-        posZ = *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(apPos) + 8);
+        memcpy(&x, reinterpret_cast<uint8_t*>(apPos), sizeof(float));
+        memcpy(&y, reinterpret_cast<uint8_t*>(apPos) + 4, sizeof(float));
+        memcpy(&z, reinterpret_cast<uint8_t*>(apPos) + 8, sizeof(float));
     }
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          FloatToU64(posX), FloatToU64(posY), FloatToU64(posZ) };
-    SendHookEvent(HOOK_SET_POSITION, 5, args);
+    float rx = 0.0f, ry = 0.0f, rz = 0.0f;
+    ReadRotation(apThis, rx, ry, rz);
+
+    if (g_dirtyCache.CheckPosition(formId, x, y, z, rx, ry, rz))
+    {
+        nlohmann::json msg = {
+            {JsonField::kOp, JsonOp::kSetPosition},
+            {JsonField::kFormId, formId},
+            {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)},
+            {JsonField::kX, x}, {JsonField::kY, y}, {JsonField::kZ, z},
+            {JsonField::kRx, rx}, {JsonField::kRy, ry}, {JsonField::kRz, rz}
+        };
+        g_tcpServer.SendJson(msg);
+    }
     RealSetPosition(apThis, apPos);
 }
 
@@ -414,11 +425,14 @@ using TCharacterCtor = void* (__fastcall*)(void*);
 static TCharacterCtor RealCharacterCtor = nullptr;
 static void* __fastcall HookCharacterCtor(void* apThis)
 {
-    void* result = RealCharacterCtor(apThis);
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)) };
-    SendHookEvent(HOOK_CHARACTER_CTOR, 2, args);
-    return result;
+    uint32_t formId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kCharacterCtor},
+        {JsonField::kFormId, formId},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)}
+    };
+    g_tcpServer.SendJson(msg);
+    return RealCharacterCtor(apThis);
 }
 
 // CharacterConstructor2 (40246) - Character* __fastcall CharacterCtor2(Character* apThis, uint8_t aFormType)
@@ -426,11 +440,14 @@ using TCharacterCtor2 = void* (__fastcall*)(void*, uint8_t);
 static TCharacterCtor2 RealCharacterCtor2 = nullptr;
 static void* __fastcall HookCharacterCtor2(void* apThis, uint8_t aFormType)
 {
-    void* result = RealCharacterCtor2(apThis, aFormType);
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)) };
-    SendHookEvent(HOOK_CHARACTER_CTOR, 2, args);
-    return result;
+    uint32_t formId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kCharacterCtor},
+        {JsonField::kFormId, formId},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)}
+    };
+    g_tcpServer.SendJson(msg);
+    return RealCharacterCtor2(apThis, aFormType);
 }
 
 // SpawnActorInWorld (19742) - void __fastcall SpawnActorInWorld(void* apThis)
@@ -438,13 +455,19 @@ using TSpawnActor = void (__fastcall*)(void*);
 static TSpawnActor RealSpawnActor = nullptr;
 static void __fastcall HookSpawnActor(void* apThis)
 {
+    uint32_t formId = ReadFormId(apThis);
+    float x, y, z, rx, ry, rz;
+    ReadPosition(apThis, x, y, z);
+    ReadRotation(apThis, rx, ry, rz);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kSpawnActor},
+        {JsonField::kFormId, formId},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kX, x}, {JsonField::kY, y}, {JsonField::kZ, z},
+        {JsonField::kRx, rx}, {JsonField::kRy, ry}, {JsonField::kRz, rz}
+    };
+    g_tcpServer.SendJson(msg);
     RealSpawnActor(apThis);
-    float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
-    ReadPosition(apThis, &posX, &posY, &posZ);
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          FloatToU64(posX), FloatToU64(posY), FloatToU64(posZ) };
-    SendHookEvent(HOOK_SPAWN_ACTOR, 5, args);
 }
 
 // AddDeathItems (37198) - void __fastcall AddDeathItems(Actor* apThis)
@@ -452,9 +475,13 @@ using TAddDeathItems = void (__fastcall*)(void*);
 static TAddDeathItems RealAddDeathItems = nullptr;
 static void __fastcall HookAddDeathItems(void* apThis)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)) };
-    SendHookEvent(HOOK_DEATH_ITEMS, 2, args);
+    uint32_t formId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kDeathItems},
+        {JsonField::kFormId, formId},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)}
+    };
+    g_tcpServer.SendJson(msg);
     RealAddDeathItems(apThis);
 }
 
@@ -467,10 +494,14 @@ using TDamageActor = float (__fastcall*)(void*, float);
 static TDamageActor RealDamageActor = nullptr;
 static float __fastcall HookDamageActor(void* apThis, float aDamage)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          FloatToU64(aDamage) };
-    SendHookEvent(HOOK_DAMAGE_ACTOR, 3, args);
+    uint32_t formId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kDamageActor},
+        {JsonField::kFormId, formId},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kDamage, aDamage}
+    };
+    g_tcpServer.SendJson(msg);
     return RealDamageActor(apThis, aDamage);
 }
 
@@ -479,12 +510,17 @@ using TApplyActorEffect = void (__fastcall*)(void*, void*, void*);
 static TApplyActorEffect RealApplyActorEffect = nullptr;
 static void __fastcall HookApplyActorEffect(void* apThis, void* apCaster, void* apEffect)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apCaster),
-                          static_cast<uint64_t>(ReadFormId(apCaster)),
-                          reinterpret_cast<uint64_t>(apEffect) };
-    SendHookEvent(HOOK_APPLY_EFFECT, 5, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t casterFormId = ReadFormId(apCaster);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kApplyEffect},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kCasterFormId, casterFormId},
+        {JsonField::kCasterPtr, reinterpret_cast<uint64_t>(apCaster)},
+        {JsonField::kEffectPtr, reinterpret_cast<uint64_t>(apEffect)}
+    };
+    g_tcpServer.SendJson(msg);
     RealApplyActorEffect(apThis, apCaster, apEffect);
 }
 
@@ -493,11 +529,15 @@ using TRegenAttributes = void (__fastcall*)(void*, int, float);
 static TRegenAttributes RealRegenAttributes = nullptr;
 static void __fastcall HookRegenAttributes(void* apThis, int aType, float aValue)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          static_cast<uint64_t>(aType),
-                          FloatToU64(aValue) };
-    SendHookEvent(HOOK_REGEN_ATTR, 4, args);
+    uint32_t formId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kRegenAttr},
+        {JsonField::kFormId, formId},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kType, aType},
+        {JsonField::kValue, aValue}
+    };
+    g_tcpServer.SendJson(msg);
     RealRegenAttributes(apThis, aType, aValue);
 }
 
@@ -506,11 +546,18 @@ using TUpdateDetectionState = void (__fastcall*)(void*, void*);
 static TUpdateDetectionState RealUpdateDetectionState = nullptr;
 static void __fastcall HookUpdateDetectionState(void* apThis, void* apTarget)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apTarget),
-                          static_cast<uint64_t>(ReadFormId(apTarget)) };
-    SendHookEvent(HOOK_APPLY_EFFECT, 4, args);  // Re-use opcode for detection; native side filters
+    // High-frequency hook -- reuses apply_effect op with actor/target pointers
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t targetFormId = ReadFormId(apTarget);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kApplyEffect},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kCasterFormId, targetFormId},
+        {JsonField::kCasterPtr, reinterpret_cast<uint64_t>(apTarget)},
+        {JsonField::kEffectPtr, 0}
+    };
+    g_tcpServer.SendJson(msg);
     RealUpdateDetectionState(apThis, apTarget);
 }
 
@@ -519,9 +566,14 @@ using TUpdateTarget = void (__fastcall*)(void*);
 static TUpdateTarget RealUpdateTarget = nullptr;
 static void __fastcall HookUpdateTarget(void* apThis)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)) };
-    SendHookEvent(HOOK_DAMAGE_ACTOR, 2, args);  // CombatController update
+    // CombatController update -- reuses damage_actor op
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kDamageActor},
+        {JsonField::kFormId, 0},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kDamage, 0.0f}
+    };
+    g_tcpServer.SendJson(msg);
     RealUpdateTarget(apThis);
 }
 
@@ -534,13 +586,18 @@ using TAddInventoryItemActor = void (__fastcall*)(void*, void*, void*, int, void
 static TAddInventoryItemActor RealAddInventoryItemActor = nullptr;
 static void __fastcall HookAddInventoryItemActor(void* apThis, void* apItem, void* apExtraData, int aCount, void* apRef)
 {
-    uint64_t args[6] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apItem),
-                          static_cast<uint64_t>(ReadFormId(apItem)),
-                          static_cast<uint64_t>(aCount),
-                          reinterpret_cast<uint64_t>(apRef) };
-    SendHookEvent(HOOK_ADD_INVENTORY, 6, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t itemFormId = ReadFormId(apItem);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kAddInventory},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kItemFormId, itemFormId},
+        {JsonField::kItemPtr, reinterpret_cast<uint64_t>(apItem)},
+        {JsonField::kCount, aCount},
+        {JsonField::kRefPtr, reinterpret_cast<uint64_t>(apRef)}
+    };
+    g_tcpServer.SendJson(msg);
     RealAddInventoryItemActor(apThis, apItem, apExtraData, aCount, apRef);
 }
 
@@ -549,12 +606,17 @@ using TPickUpObject = void (__fastcall*)(void*, void*, int, bool, bool);
 static TPickUpObject RealPickUpObject = nullptr;
 static void __fastcall HookPickUpObject(void* apThis, void* apObj, int aCount, bool a3, bool a4)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apObj),
-                          static_cast<uint64_t>(ReadFormId(apObj)),
-                          static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_PICK_UP, 5, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t objFormId = ReadFormId(apObj);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kPickUp},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kObjFormId, objFormId},
+        {JsonField::kObjPtr, reinterpret_cast<uint64_t>(apObj)},
+        {JsonField::kCount, aCount}
+    };
+    g_tcpServer.SendJson(msg);
     RealPickUpObject(apThis, apObj, aCount, a3, a4);
 }
 
@@ -563,12 +625,17 @@ using TDropObject = void (__fastcall*)(void*, void*, void*, int, void*);
 static TDropObject RealDropObject = nullptr;
 static void __fastcall HookDropObject(void* apThis, void* apItem, void* apExtra, int aCount, void* apPos)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apItem),
-                          static_cast<uint64_t>(ReadFormId(apItem)),
-                          static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_DROP_OBJECT, 5, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t itemFormId = ReadFormId(apItem);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kDropObject},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kItemFormId, itemFormId},
+        {JsonField::kItemPtr, reinterpret_cast<uint64_t>(apItem)},
+        {JsonField::kCount, aCount}
+    };
+    g_tcpServer.SendJson(msg);
     RealDropObject(apThis, apItem, apExtra, aCount, apPos);
 }
 
@@ -577,11 +644,16 @@ using TUnequipObject = void (__fastcall*)(void*, void*, bool, void*);
 static TUnequipObject RealUnequipObject = nullptr;
 static void __fastcall HookUnequipObject(void* apThis, void* apObj, bool aPreventEquip, void* apSlot)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apObj),
-                          static_cast<uint64_t>(ReadFormId(apObj)) };
-    SendHookEvent(HOOK_UNEQUIP, 4, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t itemFormId = ReadFormId(apObj);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kUnequip},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kItemFormId, itemFormId},
+        {JsonField::kItemPtr, reinterpret_cast<uint64_t>(apObj)}
+    };
+    g_tcpServer.SendJson(msg);
     RealUnequipObject(apThis, apObj, aPreventEquip, apSlot);
 }
 
@@ -590,12 +662,18 @@ using TAddInventoryItemREFR = void (__fastcall*)(void*, void*, void*, int);
 static TAddInventoryItemREFR RealAddInventoryItemREFR = nullptr;
 static void __fastcall HookAddInventoryItemREFR(void* apThis, void* apItem, void* apExtra, int aCount)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apItem),
-                          static_cast<uint64_t>(ReadFormId(apItem)),
-                          static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_ADD_INVENTORY, 5, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t itemFormId = ReadFormId(apItem);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kAddInventory},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kItemFormId, itemFormId},
+        {JsonField::kItemPtr, reinterpret_cast<uint64_t>(apItem)},
+        {JsonField::kCount, aCount},
+        {JsonField::kRefPtr, 0}
+    };
+    g_tcpServer.SendJson(msg);
     RealAddInventoryItemREFR(apThis, apItem, apExtra, aCount);
 }
 
@@ -604,12 +682,17 @@ using TRemoveInventoryItem = void* (__fastcall*)(void*, void*, int, void*, void*
 static TRemoveInventoryItem RealRemoveInventoryItem = nullptr;
 static void* __fastcall HookRemoveInventoryItem(void* apThis, void* apItem, int aCount, void* apExtra, void* apMoveTo)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apItem),
-                          static_cast<uint64_t>(ReadFormId(apItem)),
-                          static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_REMOVE_INV_ITEM, 5, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t itemFormId = ReadFormId(apItem);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kRemoveInvItem},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kItemFormId, itemFormId},
+        {JsonField::kItemPtr, reinterpret_cast<uint64_t>(apItem)},
+        {JsonField::kCount, aCount}
+    };
+    g_tcpServer.SendJson(msg);
     return RealRemoveInventoryItem(apThis, apItem, aCount, apExtra, apMoveTo);
 }
 
@@ -622,11 +705,16 @@ using TSpellCast = void (__fastcall*)(void*, void*);
 static TSpellCast RealSpellCast = nullptr;
 static void __fastcall HookSpellCast(void* apThis, void* apSpell)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apSpell),
-                          static_cast<uint64_t>(ReadFormId(apSpell)) };
-    SendHookEvent(HOOK_SPELL_CAST, 4, args);
+    uint32_t casterFormId = ReadFormId(apThis);
+    uint32_t spellFormId = ReadFormId(apSpell);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kSpellCast},
+        {JsonField::kCasterFormId, casterFormId},
+        {JsonField::kCasterPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kSpellFormId, spellFormId},
+        {JsonField::kSpellPtr, reinterpret_cast<uint64_t>(apSpell)}
+    };
+    g_tcpServer.SendJson(msg);
     RealSpellCast(apThis, apSpell);
 }
 
@@ -635,10 +723,14 @@ using TInterruptCast = void (__fastcall*)(void*, bool);
 static TInterruptCast RealInterruptCast = nullptr;
 static void __fastcall HookInterruptCast(void* apThis, bool aRefund)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          static_cast<uint64_t>(aRefund) };
-    SendHookEvent(HOOK_INTERRUPT_CAST, 3, args);
+    uint32_t casterFormId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kInterruptCast},
+        {JsonField::kCasterFormId, casterFormId},
+        {JsonField::kCasterPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kRefund, aRefund}
+    };
+    g_tcpServer.SendJson(msg);
     RealInterruptCast(apThis, aRefund);
 }
 
@@ -647,10 +739,14 @@ using TAddTarget = bool (__fastcall*)(void*, void*, void*);
 static TAddTarget RealAddTarget = nullptr;
 static bool __fastcall HookAddTarget(void* apThis, void* apTarget, void* apHitData)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apHitData) };
-    SendHookEvent(HOOK_ADD_TARGET, 3, args);
+    uint32_t targetFormId = ReadFormId(apTarget);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kAddTarget},
+        {JsonField::kTargetFormId, targetFormId},
+        {JsonField::kTargetPtr, reinterpret_cast<uint64_t>(apTarget)},
+        {JsonField::kHitDataPtr, reinterpret_cast<uint64_t>(apHitData)}
+    };
+    g_tcpServer.SendJson(msg);
     return RealAddTarget(apThis, apTarget, apHitData);
 }
 
@@ -659,10 +755,16 @@ using TFindTargets = void (__fastcall*)(void*, void*);
 static TFindTargets RealFindTargets = nullptr;
 static void __fastcall HookFindTargets(void* apThis, void* apCaster)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          reinterpret_cast<uint64_t>(apCaster),
-                          static_cast<uint64_t>(ReadFormId(apCaster)) };
-    SendHookEvent(HOOK_SPELL_CAST, 3, args);  // Reuse spell opcode for target finding
+    // Reuse spell_cast op for target finding
+    uint32_t casterFormId = ReadFormId(apCaster);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kSpellCast},
+        {JsonField::kCasterFormId, casterFormId},
+        {JsonField::kCasterPtr, reinterpret_cast<uint64_t>(apCaster)},
+        {JsonField::kSpellFormId, 0},
+        {JsonField::kSpellPtr, reinterpret_cast<uint64_t>(apThis)}
+    };
+    g_tcpServer.SendJson(msg);
     RealFindTargets(apThis, apCaster);
 }
 
@@ -671,11 +773,16 @@ using TRemoveSpell = void (__fastcall*)(void*, void*);
 static TRemoveSpell RealRemoveSpell = nullptr;
 static void __fastcall HookRemoveSpell(void* apThis, void* apSpell)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apSpell),
-                          static_cast<uint64_t>(ReadFormId(apSpell)) };
-    SendHookEvent(HOOK_REMOVE_SPELL, 4, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t spellFormId = ReadFormId(apSpell);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kRemoveSpell},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kSpellFormId, spellFormId},
+        {JsonField::kSpellPtr, reinterpret_cast<uint64_t>(apSpell)}
+    };
+    g_tcpServer.SendJson(msg);
     RealRemoveSpell(apThis, apSpell);
 }
 
@@ -688,13 +795,18 @@ using TActivate = bool (__fastcall*)(void*, void*, void*, void*, int, bool);
 static TActivate RealActivate = nullptr;
 static bool __fastcall HookActivate(void* apThis, void* apActivator, void* apObj, void* apUndefined, int aCount, bool aDefaultProcessing)
 {
-    uint64_t args[6] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apActivator),
-                          static_cast<uint64_t>(ReadFormId(apActivator)),
-                          reinterpret_cast<uint64_t>(apObj),
-                          static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_ACTIVATE, 6, args);
+    uint32_t thisFormId = ReadFormId(apThis);
+    uint32_t activatorFormId = ReadFormId(apActivator);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kActivate},
+        {JsonField::kThisFormId, thisFormId},
+        {JsonField::kThisPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kActivatorFormId, activatorFormId},
+        {JsonField::kActivatorPtr, reinterpret_cast<uint64_t>(apActivator)},
+        {JsonField::kObjPtr, reinterpret_cast<uint64_t>(apObj)},
+        {JsonField::kCount, aCount}
+    };
+    g_tcpServer.SendJson(msg);
     return RealActivate(apThis, apActivator, apObj, apUndefined, aCount, aDefaultProcessing);
 }
 
@@ -703,10 +815,14 @@ using TLockChange = void (__fastcall*)(void*, bool);
 static TLockChange RealLockChange = nullptr;
 static void __fastcall HookLockChange(void* apThis, bool aLocked)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          static_cast<uint64_t>(aLocked) };
-    SendHookEvent(HOOK_LOCK_CHANGE, 3, args);
+    uint32_t thisFormId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kLockChange},
+        {JsonField::kThisFormId, thisFormId},
+        {JsonField::kThisPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kLocked, aLocked}
+    };
+    g_tcpServer.SendJson(msg);
     RealLockChange(apThis, aLocked);
 }
 
@@ -715,10 +831,14 @@ using TPlayAnimation = void (__fastcall*)(void*, void*);
 static TPlayAnimation RealPlayAnimation = nullptr;
 static void __fastcall HookPlayAnimation(void* apThis, void* apAnim)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apAnim) };
-    SendHookEvent(HOOK_PLAY_ANIMATION, 3, args);
+    uint32_t thisFormId = ReadFormId(apThis);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kPlayAnimation},
+        {JsonField::kThisFormId, thisFormId},
+        {JsonField::kThisPtr, reinterpret_cast<uint64_t>(apThis)},
+        {"anim_ptr", reinterpret_cast<uint64_t>(apAnim)}
+    };
+    g_tcpServer.SendJson(msg);
     RealPlayAnimation(apThis, apAnim);
 }
 
@@ -727,8 +847,11 @@ using TProjectileLaunch = void (__fastcall*)(void*);
 static TProjectileLaunch RealProjectileLaunch = nullptr;
 static void __fastcall HookProjectileLaunch(void* apData)
 {
-    uint64_t args[1] = { reinterpret_cast<uint64_t>(apData) };
-    SendHookEvent(HOOK_PROJECTILE, 1, args);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kProjectile},
+        {JsonField::kDataPtr, reinterpret_cast<uint64_t>(apData)}
+    };
+    g_tcpServer.SendJson(msg);
     RealProjectileLaunch(apData);
 }
 
@@ -741,12 +864,16 @@ using TSetWeather = void (__fastcall*)(void*, void*, bool, bool);
 static TSetWeather RealSetWeather = nullptr;
 static void __fastcall HookSetWeather(void* apThis, void* apWeather, bool aOverride, bool aAccelerate)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
-                          reinterpret_cast<uint64_t>(apWeather),
-                          static_cast<uint64_t>(ReadFormId(apWeather)),
-                          static_cast<uint64_t>(aOverride),
-                          static_cast<uint64_t>(aAccelerate) };
-    SendHookEvent(HOOK_SET_WEATHER, 5, args);
+    uint32_t weatherFormId = ReadFormId(apWeather);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kSetWeather},
+        {JsonField::kSkyPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kWeatherFormId, weatherFormId},
+        {JsonField::kWeatherPtr, reinterpret_cast<uint64_t>(apWeather)},
+        {JsonField::kOverride, aOverride},
+        {JsonField::kAccel, aAccelerate}
+    };
+    g_tcpServer.SendJson(msg);
     RealSetWeather(apThis, apWeather, aOverride, aAccelerate);
 }
 
@@ -755,11 +882,15 @@ using TForceWeather = void (__fastcall*)(void*, void*, bool);
 static TForceWeather RealForceWeather = nullptr;
 static void __fastcall HookForceWeather(void* apThis, void* apWeather, bool aOverride)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          reinterpret_cast<uint64_t>(apWeather),
-                          static_cast<uint64_t>(ReadFormId(apWeather)),
-                          static_cast<uint64_t>(aOverride) };
-    SendHookEvent(HOOK_FORCE_WEATHER, 4, args);
+    uint32_t weatherFormId = ReadFormId(apWeather);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kForceWeather},
+        {JsonField::kSkyPtr, reinterpret_cast<uint64_t>(apThis)},
+        {JsonField::kWeatherFormId, weatherFormId},
+        {JsonField::kWeatherPtr, reinterpret_cast<uint64_t>(apWeather)},
+        {JsonField::kOverride, aOverride}
+    };
+    g_tcpServer.SendJson(msg);
     RealForceWeather(apThis, apWeather, aOverride);
 }
 
@@ -768,8 +899,11 @@ using TUpdateWeather = void (__fastcall*)(void*);
 static TUpdateWeather RealUpdateWeather = nullptr;
 static void __fastcall HookUpdateWeather(void* apThis)
 {
-    uint64_t args[1] = { reinterpret_cast<uint64_t>(apThis) };
-    SendHookEvent(HOOK_WEATHER_CHANGE, 1, args);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kWeatherChange},
+        {JsonField::kSkyPtr, reinterpret_cast<uint64_t>(apThis)}
+    };
+    g_tcpServer.SendJson(msg);
     RealUpdateWeather(apThis);
 }
 
@@ -782,30 +916,38 @@ using TPerformAction = void (__fastcall*)(void*, void*, void*);
 static TPerformAction RealPerformAction = nullptr;
 static void __fastcall HookPerformAction(void* apProcess, void* apActor, void* apAction)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apProcess),
-                          reinterpret_cast<uint64_t>(apActor),
-                          static_cast<uint64_t>(ReadFormId(apActor)),
-                          reinterpret_cast<uint64_t>(apAction),
-                          static_cast<uint64_t>(ReadFormId(apAction)) };
-    SendHookEvent(HOOK_PERFORM_ACTION, 5, args);
+    uint32_t actorFormId = ReadFormId(apActor);
+    uint32_t actionFormId = ReadFormId(apAction);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kPerformAction},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apActor)},
+        {JsonField::kActionFormId, actionFormId},
+        {JsonField::kActionPtr, reinterpret_cast<uint64_t>(apAction)},
+        {JsonField::kProcessPtr, reinterpret_cast<uint64_t>(apProcess)}
+    };
+    g_tcpServer.SendJson(msg);
     RealPerformAction(apProcess, apActor, apAction);
 }
 
-// SimulateTime (26231) - reuses UpdateWeather ID; separated logically for CalendarService
-// We hook a separate function for time simulation if available
-// For now, calendar sync is handled via memory reads (not hooks)
-// Placeholder: InitiateMountPackage (37905)
+// SimulateTime -- calendar sync handled via memory reads; mapped to weather update
+// Placeholder hook; UpdateWeather already covers the address 26231
 
 // InitiateMountPackage (37905) - void __fastcall InitiateMountPackage(Actor* apThis, Actor* apMount)
 using TInitiateMountPackage = void (__fastcall*)(void*, void*);
 static TInitiateMountPackage RealInitiateMountPackage = nullptr;
 static void __fastcall HookInitiateMountPackage(void* apThis, void* apMount)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
-                          static_cast<uint64_t>(ReadFormId(apThis)),
-                          reinterpret_cast<uint64_t>(apMount),
-                          static_cast<uint64_t>(ReadFormId(apMount)) };
-    SendHookEvent(HOOK_MOUNT_PACKAGE, 4, args);
+    uint32_t actorFormId = ReadFormId(apThis);
+    uint32_t mountFormId = ReadFormId(apMount);
+    nlohmann::json msg = {
+        {JsonField::kOp, JsonOp::kMountPackage},
+        {JsonField::kActorFormId, actorFormId},
+        {JsonField::kActorPtr, reinterpret_cast<uint64_t>(apThis)},
+        {"mount_form_id", mountFormId},
+        {"mount_ptr", reinterpret_cast<uint64_t>(apMount)}
+    };
+    g_tcpServer.SendJson(msg);
     RealInitiateMountPackage(apThis, apMount);
 }
 
@@ -818,58 +960,57 @@ struct HookEntry {
     void* pDetour;
     void** ppOriginal;
     const char* pName;
-    bool essential;  // true = needed for basic actor sync (lifecycle + position)
 };
 
 // Helper macro to suppress function-to-void* warnings in the hook table
-#define HOOK_ENTRY(id, hook, orig, name, ess) \
-    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name, ess }
+#define HOOK_ENTRY(id, hook, orig, name) \
+    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name }
 
 static const HookEntry s_hookTable[] = {
-    // Actor Lifecycle (6) -- ALL essential for basic actor sync
-    HOOK_ENTRY(AddressIds::kActorProcess,         HookActorProcess,          RealActorProcess,          "ActorProcess",           true),
-    HOOK_ENTRY(AddressIds::kSetPosition,          HookSetPosition,           RealSetPosition,           "SetPosition",            true),
-    HOOK_ENTRY(AddressIds::kCharacterCtor,        HookCharacterCtor,         RealCharacterCtor,         "CharacterCtor",          true),
-    HOOK_ENTRY(AddressIds::kCharacterCtor2,       HookCharacterCtor2,        RealCharacterCtor2,        "CharacterCtor2",         true),
-    HOOK_ENTRY(AddressIds::kSpawnActorInWorld,    HookSpawnActor,            RealSpawnActor,            "SpawnActorInWorld",      true),
-    HOOK_ENTRY(AddressIds::kAddDeathItems,        HookAddDeathItems,         RealAddDeathItems,         "AddDeathItems",          true),
+    // Actor Lifecycle (6)
+    HOOK_ENTRY(AddressIds::kActorProcess,         HookActorProcess,          RealActorProcess,          "ActorProcess"),
+    HOOK_ENTRY(AddressIds::kSetPosition,          HookSetPosition,           RealSetPosition,           "SetPosition"),
+    HOOK_ENTRY(AddressIds::kCharacterCtor,        HookCharacterCtor,         RealCharacterCtor,         "CharacterCtor"),
+    HOOK_ENTRY(AddressIds::kCharacterCtor2,       HookCharacterCtor2,        RealCharacterCtor2,        "CharacterCtor2"),
+    HOOK_ENTRY(AddressIds::kSpawnActorInWorld,    HookSpawnActor,            RealSpawnActor,            "SpawnActorInWorld"),
+    HOOK_ENTRY(AddressIds::kAddDeathItems,        HookAddDeathItems,         RealAddDeathItems,         "AddDeathItems"),
 
-    // Combat (5) -- non-essential
-    HOOK_ENTRY(AddressIds::kDamageActor,          HookDamageActor,           RealDamageActor,           "DamageActor",            false),
-    HOOK_ENTRY(AddressIds::kApplyActorEffect,     HookApplyActorEffect,      RealApplyActorEffect,      "ApplyActorEffect",       false),
-    HOOK_ENTRY(AddressIds::kRegenAttributes,      HookRegenAttributes,       RealRegenAttributes,       "RegenAttributes",        false),
-    HOOK_ENTRY(AddressIds::kUpdateDetectionState, HookUpdateDetectionState,  RealUpdateDetectionState,  "UpdateDetectionState",   false),
-    HOOK_ENTRY(AddressIds::kUpdateTarget,         HookUpdateTarget,          RealUpdateTarget,          "UpdateTarget",           false),
+    // Combat (5)
+    HOOK_ENTRY(AddressIds::kDamageActor,          HookDamageActor,           RealDamageActor,           "DamageActor"),
+    HOOK_ENTRY(AddressIds::kApplyActorEffect,     HookApplyActorEffect,      RealApplyActorEffect,      "ApplyActorEffect"),
+    HOOK_ENTRY(AddressIds::kRegenAttributes,      HookRegenAttributes,       RealRegenAttributes,       "RegenAttributes"),
+    HOOK_ENTRY(AddressIds::kUpdateDetectionState, HookUpdateDetectionState,  RealUpdateDetectionState,  "UpdateDetectionState"),
+    HOOK_ENTRY(AddressIds::kUpdateTarget,         HookUpdateTarget,          RealUpdateTarget,          "UpdateTarget"),
 
-    // Inventory (6) -- non-essential
-    HOOK_ENTRY(AddressIds::kAddInventoryItemActor, HookAddInventoryItemActor, RealAddInventoryItemActor, "AddInventoryItem(Actor)", false),
-    HOOK_ENTRY(AddressIds::kPickUpObject,         HookPickUpObject,          RealPickUpObject,          "PickUpObject",           false),
-    HOOK_ENTRY(AddressIds::kDropObject,           HookDropObject,            RealDropObject,            "DropObject",             false),
-    HOOK_ENTRY(AddressIds::kUnequipObject,        HookUnequipObject,         RealUnequipObject,         "UnequipObject",          false),
-    HOOK_ENTRY(AddressIds::kAddInventoryItemREFR, HookAddInventoryItemREFR,  RealAddInventoryItemREFR,  "AddInventoryItem(REFR)", false),
-    HOOK_ENTRY(AddressIds::kRemoveInventoryItem,  HookRemoveInventoryItem,   RealRemoveInventoryItem,   "RemoveInventoryItem",    false),
+    // Inventory (6)
+    HOOK_ENTRY(AddressIds::kAddInventoryItemActor, HookAddInventoryItemActor, RealAddInventoryItemActor, "AddInventoryItem(Actor)"),
+    HOOK_ENTRY(AddressIds::kPickUpObject,         HookPickUpObject,          RealPickUpObject,          "PickUpObject"),
+    HOOK_ENTRY(AddressIds::kDropObject,           HookDropObject,            RealDropObject,            "DropObject"),
+    HOOK_ENTRY(AddressIds::kUnequipObject,        HookUnequipObject,         RealUnequipObject,         "UnequipObject"),
+    HOOK_ENTRY(AddressIds::kAddInventoryItemREFR, HookAddInventoryItemREFR,  RealAddInventoryItemREFR,  "AddInventoryItem(REFR)"),
+    HOOK_ENTRY(AddressIds::kRemoveInventoryItem,  HookRemoveInventoryItem,   RealRemoveInventoryItem,   "RemoveInventoryItem"),
 
-    // Magic (5) -- non-essential
-    HOOK_ENTRY(AddressIds::kSpellCast,            HookSpellCast,             RealSpellCast,             "SpellCast",              false),
-    HOOK_ENTRY(AddressIds::kInterruptCast,        HookInterruptCast,         RealInterruptCast,         "InterruptCast",          false),
-    HOOK_ENTRY(AddressIds::kAddTarget,            HookAddTarget,             RealAddTarget,             "AddTarget",              false),
-    HOOK_ENTRY(AddressIds::kFindTargets,          HookFindTargets,           RealFindTargets,           "FindTargets",            false),
-    HOOK_ENTRY(AddressIds::kRemoveSpell,          HookRemoveSpell,           RealRemoveSpell,           "RemoveSpell",            false),
+    // Magic (5)
+    HOOK_ENTRY(AddressIds::kSpellCast,            HookSpellCast,             RealSpellCast,             "SpellCast"),
+    HOOK_ENTRY(AddressIds::kInterruptCast,        HookInterruptCast,         RealInterruptCast,         "InterruptCast"),
+    HOOK_ENTRY(AddressIds::kAddTarget,            HookAddTarget,             RealAddTarget,             "AddTarget"),
+    HOOK_ENTRY(AddressIds::kFindTargets,          HookFindTargets,           RealFindTargets,           "FindTargets"),
+    HOOK_ENTRY(AddressIds::kRemoveSpell,          HookRemoveSpell,           RealRemoveSpell,           "RemoveSpell"),
 
-    // Object/World (4) -- non-essential
-    HOOK_ENTRY(AddressIds::kActivate,             HookActivate,              RealActivate,              "Activate",               false),
-    HOOK_ENTRY(AddressIds::kLockChange,           HookLockChange,            RealLockChange,            "LockChange",             false),
-    HOOK_ENTRY(AddressIds::kPlayAnimation,        HookPlayAnimation,         RealPlayAnimation,         "PlayAnimation",          false),
-    HOOK_ENTRY(AddressIds::kProjectileLaunch,     HookProjectileLaunch,      RealProjectileLaunch,      "ProjectileLaunch",       false),
+    // Object/World (4)
+    HOOK_ENTRY(AddressIds::kActivate,             HookActivate,              RealActivate,              "Activate"),
+    HOOK_ENTRY(AddressIds::kLockChange,           HookLockChange,            RealLockChange,            "LockChange"),
+    HOOK_ENTRY(AddressIds::kPlayAnimation,        HookPlayAnimation,         RealPlayAnimation,         "PlayAnimation"),
+    HOOK_ENTRY(AddressIds::kProjectileLaunch,     HookProjectileLaunch,      RealProjectileLaunch,      "ProjectileLaunch"),
 
-    // Weather (3) -- non-essential
-    HOOK_ENTRY(AddressIds::kSetWeather,           HookSetWeather,            RealSetWeather,            "SetWeather",             false),
-    HOOK_ENTRY(AddressIds::kForceWeather,         HookForceWeather,          RealForceWeather,          "ForceWeather",           false),
-    HOOK_ENTRY(AddressIds::kUpdateWeather,        HookUpdateWeather,         RealUpdateWeather,         "UpdateWeather",          false),
+    // Weather (3)
+    HOOK_ENTRY(AddressIds::kSetWeather,           HookSetWeather,            RealSetWeather,            "SetWeather"),
+    HOOK_ENTRY(AddressIds::kForceWeather,         HookForceWeather,          RealForceWeather,          "ForceWeather"),
+    HOOK_ENTRY(AddressIds::kUpdateWeather,        HookUpdateWeather,         RealUpdateWeather,         "UpdateWeather"),
 
-    // Other (2) -- non-essential
-    HOOK_ENTRY(AddressIds::kPerformAction,        HookPerformAction,         RealPerformAction,         "PerformAction",          false),
-    HOOK_ENTRY(AddressIds::kInitiateMountPackage, HookInitiateMountPackage,  RealInitiateMountPackage,  "InitiateMountPackage",   false),
+    // Other (2)
+    HOOK_ENTRY(AddressIds::kPerformAction,        HookPerformAction,         RealPerformAction,         "PerformAction"),
+    HOOK_ENTRY(AddressIds::kInitiateMountPackage, HookInitiateMountPackage,  RealInitiateMountPackage,  "InitiateMountPackage"),
 };
 
 static constexpr uint32_t kHookCount = sizeof(s_hookTable) / sizeof(s_hookTable[0]);
@@ -878,10 +1019,9 @@ static constexpr uint32_t kHookCount = sizeof(s_hookTable) / sizeof(s_hookTable[
 // Public API
 // ---------------------------------------------------------------------------
 
-bool InstallAllHooks(bool aEssentialOnly)
+bool InstallAllHooks()
 {
-    RelayLog("[SkyrimCoopHooks] Installing hooks (mode: %s, total entries: %u)...\n",
-             aEssentialOnly ? "essential-only" : "full", kHookCount);
+    RelayLog("[SkyrimCoopHooks] Installing %u hook trampolines...\n", kHookCount);
 
     // Step 1: Load Address Library
     if (!LoadAddressLibrary())
@@ -904,13 +1044,6 @@ bool InstallAllHooks(bool aEssentialOnly)
     for (uint32_t i = 0; i < kHookCount; i++)
     {
         const auto& entry = s_hookTable[i];
-
-        // Skip non-essential hooks if in essential-only mode
-        if (aEssentialOnly && !entry.essential)
-        {
-            continue;
-        }
-
         void* pTarget = ResolveAddress(entry.addressId);
 
         if (!pTarget)
@@ -931,8 +1064,7 @@ bool InstallAllHooks(bool aEssentialOnly)
         installedCount++;
     }
 
-    RelayLog("[SkyrimCoopHooks] Created %u hooks (%s mode)\n",
-             installedCount, aEssentialOnly ? "essential-only" : "full");
+    RelayLog("[SkyrimCoopHooks] Created %u/%u hooks\n", installedCount, kHookCount);
 
     // Step 4: Enable all hooks at once
     status = MH_EnableHook(MH_ALL_HOOKS);
@@ -954,11 +1086,5 @@ void RemoveAllHooks()
     MH_DisableHook(MH_ALL_HOOKS);
     MH_Uninitialize();
     FreeAddressLibrary();
-    RealSetPosition = nullptr;
     RelayLog("[SkyrimCoopHooks] All hooks removed\n");
-}
-
-void* GetRealSetPosition()
-{
-    return reinterpret_cast<void*>(RealSetPosition);
 }

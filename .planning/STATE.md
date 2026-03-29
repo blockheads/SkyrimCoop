@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 11-03-PLAN.md
-last_updated: "2026-03-29T15:07:29.123Z"
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-03-29T15:06:00.000Z"
 last_activity: 2026-03-29
 progress:
-  total_phases: 13
-  completed_phases: 8
-  total_plans: 49
-  completed_plans: 44
-  percent: 89
+  total_phases: 8
+  completed_phases: 4
+  total_plans: 21
+  completed_plans: 20
+  percent: 0
 ---
 
 # Project State
@@ -69,12 +69,7 @@ Progress: [=========-] 89%
 | Phase 07 P05 | 9min | 2 tasks | 12 files |
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
-| Phase 09.1 P02 | 8min | 2 tasks | 10 files |
-| Phase 10 P01 | 17min | 4 tasks | 5 files |
-| Phase 10 P02 | 3min | 2 tasks | 5 files |
-| Phase 10 P03 | 2min | 1 tasks | 1 files |
-| Phase 11 P01 | 3min | 2 tasks | 8 files |
-| Phase 11 P03 | 8min | 2 tasks | 20 files |
+| Phase 11 P02 | 6min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -114,17 +109,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Frame pacing via sleep_for; poll()-based receive deferred until TcpClient exposes socket fd
 - [Phase 07]: Catch2 comma-separated tag syntax for OR-matching multiple test groups in smoke tests
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
-- [Phase 09.1]: Position cache uses unordered_map for O(1) lookup; SyncMovement falls back to pread on cache miss
-- [Phase 09.1]: HandleActorAdded/Removed receive formId as parameter from DLL packet args (no pread)
-- [Phase 10]: GetRealSetPosition() callback pattern to bridge file-static RealSetPosition across TUs
-- [Phase 10]: DrainCommandQueue called only for player formId 0x14 to avoid per-NPC overhead
-- [Phase 10]: JoinClient OnConsume prepends zero prefix byte for enet6-to-router compatibility
-- [Phase 10]: Router callback wiring: both host and join modes wire the same set of callbacks to CharacterService
-- [Phase 10]: SKYRIM_COOP_PORT env var for deterministic relay port binding (host=9667, client=9668)
-- [Phase 10]: wait_for_port via ss -tln replaces relay_info.json polling for DLL readiness detection
-- [Phase 11]: json_protocol.h is pure constants (no nlohmann dependency) so both DLL and native can include without pulling in JSON parser
-- [Phase 11]: DirtyCache uses 1.0f position epsilon (Skyrim units) and 0.01f rotation epsilon (radians)
-- [Phase 11]: Send() kept public on TcpClient for AnimationSystem/CharacterService binary command compatibility until Plan 04
+- [Phase 11]: g_dirtyCache non-static for cross-TU access between hook_trampolines.cpp and relay_main.cpp
+- [Phase 11]: JSON command parsing on receive thread, packed into CommandSlot binary for game-thread SPSC queue safety
+- [Phase 11]: ReadFormId/ReadPosition/ReadRotation helpers for typed field extraction in JSON trampolines
 
 ### Pending Todos
 
@@ -134,7 +121,6 @@ None yet.
 
 - Phase 03.1 inserted after Phase 03: Build Performance & Resource Optimization (URGENT) — full rebuild takes 6+ minutes linking 1.5GB static archive, excessive memory/CPU usage makes iterative debugging unmanageable
 - Phase 07 added: Native Linux Build with SKSE TCP Relay — split codebase so 90% builds natively on Linux, thin MinGW DLL acts as TCP relay into SKSE
-- Phase 11 added: JSON Wire Protocol — replace binary struct TCP protocol with newline-delimited JSON (phase 10 testing revealed struct alignment issues between MinGW DLL and Linux native client)
 
 ### Blockers/Concerns
 
@@ -144,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T15:07:29.120Z
-Stopped at: Completed 11-03-PLAN.md
+Last session: 2026-03-29T15:06:00.000Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
