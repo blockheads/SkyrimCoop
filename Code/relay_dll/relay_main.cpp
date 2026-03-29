@@ -110,18 +110,37 @@ void RelayLog(const char* fmt, ...)  // non-static: accessed by hook_trampolines
 }
 
 // ---------------------------------------------------------------------------
-// Stub: Execute a game command (placeholder for Plan 05+)
+// DrainCommandQueue: Execute queued commands on the game thread
+// Called from HookActorProcess when the player character (formId 0x14) fires
 // ---------------------------------------------------------------------------
 
-// Called from game thread update hook to drain and execute queued commands.
-// Placeholder until Plan 05+ installs the actual game update hook.
-[[maybe_unused]]
-static void DrainCommandQueue()
+void DrainCommandQueue()
 {
-    g_commandQueue.Drain([](const CommandSlot& cmd) {
-        // TODO(Plan 05+): Execute actual game functions via hook trampolines
-        RelayLog("[SkyrimCoopHooks] Executing command opcode=0x%04X argCount=%u\n",
-                 cmd.opcode, cmd.argCount);
+    using TSetPosition = void (__fastcall*)(void*, void*);
+    auto pRealSetPosition = reinterpret_cast<TSetPosition>(GetRealSetPosition());
+
+    g_commandQueue.Drain([pRealSetPosition](const CommandSlot& cmd) {
+        switch (cmd.opcode) {
+        case CMD_SET_POSITION: {
+            void* pActor = reinterpret_cast<void*>(cmd.args[0]);
+            if (!pActor || !pRealSetPosition) break;
+
+            uint32_t posXBits = static_cast<uint32_t>(cmd.args[1]);
+            uint32_t posYBits = static_cast<uint32_t>(cmd.args[1] >> 32);
+            uint32_t posZBits = static_cast<uint32_t>(cmd.args[2]);
+
+            float pos[3];
+            memcpy(&pos[0], &posXBits, sizeof(float));
+            memcpy(&pos[1], &posYBits, sizeof(float));
+            memcpy(&pos[2], &posZBits, sizeof(float));
+
+            pRealSetPosition(pActor, pos);
+            break;
+        }
+        default:
+            RelayLog("[SkyrimCoopHooks] Unknown command opcode=0x%04X\n", cmd.opcode);
+            break;
+        }
     });
 }
 

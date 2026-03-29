@@ -19,6 +19,7 @@
 
 #include "protocol.h"
 #include "tcp_server.h"
+#include "hook_trampolines.h"
 
 // External TCP server instance (defined in relay_main.cpp)
 extern TcpServer g_tcpServer;
@@ -376,6 +377,12 @@ using TActorProcess = void (__fastcall*)(void*, float);
 static TActorProcess RealActorProcess = nullptr;
 static void __fastcall HookActorProcess(void* apThis, float aDelta)
 {
+    // Per D-08: Drain command queue on game thread when the player actor processes
+    if (ReadFormId(apThis) == 0x14)
+    {
+        DrainCommandQueue();
+    }
+
     uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
                           static_cast<uint64_t>(ReadFormId(apThis)),
                           FloatToU64(aDelta) };
@@ -947,5 +954,11 @@ void RemoveAllHooks()
     MH_DisableHook(MH_ALL_HOOKS);
     MH_Uninitialize();
     FreeAddressLibrary();
+    RealSetPosition = nullptr;
     RelayLog("[SkyrimCoopHooks] All hooks removed\n");
+}
+
+void* GetRealSetPosition()
+{
+    return reinterpret_cast<void*>(RealSetPosition);
 }

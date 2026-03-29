@@ -12,3 +12,11 @@ bool InstallAllHooks(bool aEssentialOnly = true);
 
 /// Remove all hooks and uninitialize MinHook.
 void RemoveAllHooks();
+
+/// Returns the original (pre-hook) SetPosition function pointer.
+/// Used by DrainCommandQueue to call the real game function.
+void* GetRealSetPosition();
+
+/// Drain and execute queued commands on the game thread.
+/// Called from HookActorProcess when the player character (formId 0x14) processes.
+void DrainCommandQueue();
