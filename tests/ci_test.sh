@@ -34,20 +34,6 @@ xmake build -y fake_player 2>&1 | tail -10
 xmake build -y TPTests 2>&1 | tail -10
 pass "Native targets built"
 
-# Build MinGW targets if mingw toolchain available
-if xmake config -p mingw --mingw="$PROJECT_DIR/.toolchain" 2>/dev/null; then
-    info "Building MinGW targets..."
-    xmake build -y SkyrimCoopHooksDLL 2>&1 | tail -10
-    xmake build -y mock_skyrim_loader 2>&1 | tail -10
-    pass "MinGW targets built"
-    HAS_MINGW=true
-    # Switch back to linux platform
-    xmake config -p linux -y 2>/dev/null
-else
-    info "MinGW toolchain not available, skipping DLL builds"
-    HAS_MINGW=false
-fi
-
 # Step 2: Unit Tests
 step "Step 2: Unit Tests"
 BUILD_DIR=$(xmake show 2>/dev/null | grep -o 'projectdir:.*' | cut -d: -f2 | tr -d ' ' || echo "$PROJECT_DIR")
@@ -63,6 +49,20 @@ if [ "$QUICK" = "true" ]; then
     echo ""
     pass "Quick CI: build + unit tests PASSED"
     exit 0
+fi
+
+# Build MinGW targets if mingw toolchain available (needed for Steps 3-4)
+if xmake config -p mingw --mingw="$PROJECT_DIR/.toolchain" 2>/dev/null; then
+    info "Building MinGW targets..."
+    xmake build -y SkyrimCoopHooksDLL 2>&1 | tail -10
+    xmake build -y mock_skyrim_loader 2>&1 | tail -10
+    pass "MinGW targets built"
+    HAS_MINGW=true
+    # Switch back to linux platform
+    xmake config -p linux -y 2>/dev/null
+else
+    info "MinGW toolchain not available, skipping DLL builds"
+    HAS_MINGW=false
 fi
 
 # Step 3: Headless Multi-Bot Test
