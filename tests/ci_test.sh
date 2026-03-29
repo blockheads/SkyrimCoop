@@ -28,7 +28,7 @@ done
 # Step 1: Build all targets
 step "Step 1: Build"
 info "Building native targets..."
-xmake build -y skyrim-coop 2>&1 | tail -10
+xmake build -y SkyrimCoopNative 2>&1 | tail -10
 xmake build -y fake_player 2>&1 | tail -10
 xmake build -y TPTests 2>&1 | tail -10
 pass "Native targets built"
