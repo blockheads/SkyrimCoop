@@ -1,0 +1,5 @@
+{"op":"character_ctor","form_id":20,"ptr":140737488355328}
+{"op":"add_inventory","actor_form_id":20,"item_form_id":77495,"count":1}
+{"op":"equip","actor_form_id":20,"item_form_id":77495}
+{"op":"unequip","actor_form_id":20,"item_form_id":77495}
+{"op":"remove_inv_item","actor_form_id":20,"item_form_id":77495,"count":1}
