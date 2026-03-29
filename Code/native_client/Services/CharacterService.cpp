@@ -21,6 +21,14 @@ using TiltedPhoques::Map;
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Structs/ReferenceUpdate.h>
 
+// Helper: decode float from uint64_t bit pattern (reverse of FloatToU64 in DLL)
+static float U64ToFloat(uint64_t aVal)
+{
+    float f = 0.0f;
+    memcpy(&f, &aVal, sizeof(float));
+    return f;
+}
+
 // Helper: compute squared distance for change detection
 static float DistanceSquared(const glm::vec3& a, const glm::vec3& b) {
     float dx = a.x - b.x;
@@ -51,27 +59,58 @@ void CharacterService::OnHookEvent(const HookEventPacket& aPkt)
 
     switch (static_cast<HookOpcode>(aPkt.header.opcode)) {
     case HOOK_ACTOR_ADDED:
-        if (argCount >= 1) HandleActorAdded(pArgs[0]);
+        // DLL arg layout: [actorPtr, formId]
+        if (argCount >= 2) HandleActorAdded(pArgs[0], static_cast<uint32_t>(pArgs[1]));
         break;
     case HOOK_CHARACTER_CTOR:
-        if (argCount >= 1) HandleCharacterCtor(pArgs[0]);
+        // DLL arg layout: [thisPtr, formId]
+        if (argCount >= 2) HandleCharacterCtor(pArgs[0], static_cast<uint32_t>(pArgs[1]));
         break;
-    case HOOK_SPAWN_ACTOR:
-        if (argCount >= 1) HandleSpawnActor(pArgs[0]);
+    case HOOK_SPAWN_ACTOR: {
+        // DLL arg layout: [thisPtr, formId, posX_u64, posY_u64, posZ_u64]
+        if (argCount >= 2) {
+            uint32_t formId = static_cast<uint32_t>(pArgs[1]);
+            // Cache position if available
+            if (formId != 0 && argCount >= 5) {
+                float px = U64ToFloat(pArgs[2]);
+                float py = U64ToFloat(pArgs[3]);
+                float pz = U64ToFloat(pArgs[4]);
+                m_positionCache[formId] = glm::vec3(px, py, pz);
+            }
+            HandleSpawnActor(pArgs[0], formId);
+        }
         break;
+    }
     case HOOK_ACTOR_REMOVED:
-        if (argCount >= 1) HandleActorRemoved(pArgs[0]);
+        // DLL arg layout: [actorPtr, formId]
+        if (argCount >= 2) HandleActorRemoved(pArgs[0], static_cast<uint32_t>(pArgs[1]));
         break;
     case HOOK_DEATH_ITEMS:
-        if (argCount >= 1) HandleDeathItems(pArgs[0]);
+        // DLL arg layout: [actorPtr, formId]
+        if (argCount >= 2) HandleDeathItems(pArgs[0], static_cast<uint32_t>(pArgs[1]));
         break;
-    case HOOK_PERFORM_ACTION:
-        if (argCount >= 2) HandlePerformAction(pArgs[0], pArgs[1]);
+    case HOOK_PERFORM_ACTION: {
+        // DLL arg layout: [processPtr, actorPtr, actorFormId, actionPtr, actionFormId]
+        if (argCount >= 5) {
+            uint32_t actorFormId = static_cast<uint32_t>(pArgs[2]);
+            uint32_t actionFormId = static_cast<uint32_t>(pArgs[4]);
+            HandlePerformAction(actorFormId, actionFormId);
+        }
         break;
-    case HOOK_SET_POSITION:
-        // Position set by game engine -- we track this via polling instead
-        // to batch movement updates at 100ms intervals
+    }
+    case HOOK_SET_POSITION: {
+        // DLL arg layout: [refPtr, formId, posX_u64, posY_u64, posZ_u64]
+        if (argCount >= 5) {
+            uint32_t formId = static_cast<uint32_t>(pArgs[1]);
+            if (formId != 0) {
+                float px = U64ToFloat(pArgs[2]);
+                float py = U64ToFloat(pArgs[3]);
+                float pz = U64ToFloat(pArgs[4]);
+                m_positionCache[formId] = glm::vec3(px, py, pz);
+            }
+        }
         break;
+    }
     default:
         break;
     }
@@ -79,13 +118,13 @@ void CharacterService::OnHookEvent(const HookEventPacket& aPkt)
 
 // --- Actor lifecycle ---
 
-void CharacterService::HandleActorAdded(uint64_t aActorPtr)
+void CharacterService::HandleActorAdded(uint64_t aActorPtr, uint32_t aFormId)
 {
     if (aActorPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
+    uint32_t formId = aFormId;
     if (formId == 0) {
-        spdlog::warn("CharacterService: ActorAdded but could not read formId at ptr={:#x}", aActorPtr);
+        spdlog::warn("CharacterService: ActorAdded but formId is 0 at ptr={:#x}", aActorPtr);
         return;
     }
 
@@ -131,23 +170,23 @@ void CharacterService::HandleActorAdded(uint64_t aActorPtr)
     }
 }
 
-void CharacterService::HandleCharacterCtor(uint64_t aActorPtr)
+void CharacterService::HandleCharacterCtor(uint64_t aActorPtr, uint32_t aFormId)
 {
     // Character constructor hook -- treat same as ActorAdded for tracking
-    HandleActorAdded(aActorPtr);
+    HandleActorAdded(aActorPtr, aFormId);
 }
 
-void CharacterService::HandleSpawnActor(uint64_t aActorPtr)
+void CharacterService::HandleSpawnActor(uint64_t aActorPtr, uint32_t aFormId)
 {
     // Spawn actor hook -- treat same as ActorAdded for tracking
-    HandleActorAdded(aActorPtr);
+    HandleActorAdded(aActorPtr, aFormId);
 }
 
-void CharacterService::HandleActorRemoved(uint64_t aActorPtr)
+void CharacterService::HandleActorRemoved(uint64_t aActorPtr, uint32_t aFormId)
 {
     if (aActorPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
+    uint32_t formId = aFormId;
     if (formId == 0) {
         // Fallback: try to find entity by pointer
         auto localView = m_registry.view<LocalComponent>();
@@ -172,8 +211,9 @@ void CharacterService::HandleActorRemoved(uint64_t aActorPtr)
         return;
     }
 
-    // Remove from pointer table
+    // Remove from pointer table and position cache
     m_reader.GetPointers().Remove(formId);
+    m_positionCache.erase(formId);
 
     // Clear local player tracking if this was the player
     if (formId == m_localPlayerFormId) {
@@ -204,12 +244,12 @@ void CharacterService::HandleActorRemoved(uint64_t aActorPtr)
     }
 }
 
-void CharacterService::HandleDeathItems(uint64_t aActorPtr)
+void CharacterService::HandleDeathItems(uint64_t aActorPtr, uint32_t aFormId)
 {
     // Death items hook indicates actor is dying -- mark as dead in ECS
     if (aActorPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
+    uint32_t formId = aFormId;
     if (formId == 0) return;
 
     auto view = m_registry.view<LocalComponent>();
@@ -225,23 +265,15 @@ void CharacterService::HandleDeathItems(uint64_t aActorPtr)
 
 // --- Action / animation handling ---
 
-void CharacterService::HandlePerformAction(uint64_t aActorPtr, uint64_t aActionEventPtr)
+void CharacterService::HandlePerformAction(uint32_t aActorFormId, uint32_t aActionFormId)
 {
-    if (aActorPtr == 0 || aActionEventPtr == 0) return;
-
-    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
-    if (formId == 0) return;
-
-    // Read action event data from memory
-    // ActionEvent struct: type (uint32_t at offset 0), target formId (uint32_t at offset 4)
-    uint32_t actionId = m_reader.Read<uint32_t>(aActionEventPtr, 0);
-    uint32_t targetFormId = m_reader.Read<uint32_t>(aActionEventPtr, 4);
+    if (aActorFormId == 0) return;
 
     // Find the entity and update animation component
     auto view = m_registry.view<LocalComponent>();
     for (auto entity : view) {
         auto& comp = view.get<LocalComponent>(entity);
-        if (comp.formId != formId) continue;
+        if (comp.formId != aActorFormId) continue;
 
         // Ensure entity has an AnimationComponent
         if (!m_registry.all_of<AnimationComponent>(entity)) {
@@ -249,12 +281,12 @@ void CharacterService::HandlePerformAction(uint64_t aActorPtr, uint64_t aActionE
         }
 
         auto& animComp = m_registry.get<AnimationComponent>(entity);
-        animComp.lastActionId = actionId;
-        animComp.lastTargetFormId = targetFormId;
+        animComp.lastActionId = aActionFormId;
+        animComp.lastTargetFormId = 0; // TODO(09.1): move action type read to DLL
         animComp.dirty = true;
 
-        spdlog::debug("CharacterService: PerformAction formId={:#x} action={} target={:#x}",
-                       formId, actionId, targetFormId);
+        spdlog::debug("CharacterService: PerformAction formId={:#x} actionFormId={:#x}",
+                       aActorFormId, aActionFormId);
         return;
     }
 }
@@ -282,8 +314,18 @@ void CharacterService::SyncMovement()
         auto& comp = view.get<LocalComponent>(entity);
         if (comp.gamePtr == 0) continue;
 
-        // Read current position and rotation via /proc/pid/mem
-        glm::vec3 currentPos = m_reader.ReadActorPosition(comp.gamePtr);
+        // Read current position from cache (populated by HOOK_SET_POSITION events)
+        // Falls back to pread if no cached position yet
+        glm::vec3 currentPos;
+        auto cacheIt = m_positionCache.find(comp.formId);
+        if (cacheIt != m_positionCache.end()) {
+            currentPos = cacheIt->second;
+        } else {
+            // Fallback to pread (may fail under Wine, but provides a fallback path)
+            currentPos = m_reader.ReadActorPosition(comp.gamePtr);
+        }
+
+        // TODO(09.1): add rotation to HOOK_SET_POSITION or cache from HOOK_ACTOR_PROCESS
         glm::vec2 currentRot;
         currentRot.x = m_reader.Read<float>(comp.gamePtr, kRotationXOffset);
         currentRot.y = m_reader.Read<float>(comp.gamePtr, kRotationZOffset);

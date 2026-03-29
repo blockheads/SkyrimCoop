@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <vector>
+#include <unordered_map>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -65,15 +66,15 @@ public:
     void OnRemoteAnimationUpdate(uint32_t aServerId, uint32_t aActionId, uint32_t aTargetFormId);
 
 private:
-    // Actor lifecycle handlers
-    void HandleActorAdded(uint64_t aActorPtr);
-    void HandleCharacterCtor(uint64_t aActorPtr);
-    void HandleSpawnActor(uint64_t aActorPtr);
-    void HandleActorRemoved(uint64_t aActorPtr);
-    void HandleDeathItems(uint64_t aActorPtr);
+    // Actor lifecycle handlers (formId resolved DLL-side, passed in from packet args)
+    void HandleActorAdded(uint64_t aActorPtr, uint32_t aFormId);
+    void HandleCharacterCtor(uint64_t aActorPtr, uint32_t aFormId);
+    void HandleSpawnActor(uint64_t aActorPtr, uint32_t aFormId);
+    void HandleActorRemoved(uint64_t aActorPtr, uint32_t aFormId);
+    void HandleDeathItems(uint64_t aActorPtr, uint32_t aFormId);
 
     // Action/animation handler
-    void HandlePerformAction(uint64_t aActorPtr, uint64_t aActionEventPtr);
+    void HandlePerformAction(uint32_t aActorFormId, uint32_t aActionFormId);
 
     // Periodic sync routines
     void SyncMovement();
@@ -104,6 +105,9 @@ private:
         glm::vec2 rotation{0.0f};
     };
     std::vector<std::pair<uint32_t, CachedPosition>> m_cachedLocalPositions;
+
+    // Position cache: populated by HOOK_SET_POSITION events, consumed by SyncMovement
+    std::unordered_map<uint32_t, glm::vec3> m_positionCache;
 
     // Game memory offsets (Skyrim SE)
     static constexpr uint64_t kFormIdOffset = 0x14;
