@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-03-29T00:15:55.880Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-03-29T00:24:36.703Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 10
-  completed_phases: 6
+  completed_phases: 5
   total_plans: 32
   completed_plans: 28
   percent: 89
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 09 (in-game-p2p-integration-test) — EXECUTING
-Plan: 3 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -76,6 +76,7 @@ Progress: [=========-] 89%
 | Phase 08 P02 | 7min | 2 tasks | 3 files |
 | Phase 09 P01 | 3min | 2 tasks | 1 files |
 | Phase 09 P02 | 3min | 1 tasks | 4 files |
+| Phase 09 P03 | 5min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,8 @@ Recent decisions affecting current work:
 - [Phase 08]: Movement tick=0 for Phase 8 MVP; tick ordering deferred to interpolation work
 - [Phase 09]: BroadcastTrackingClient inherits MockClient for opcode counting; broadcast verification headless-aware (auth required, broadcasts optional)
 - [Phase 09]: mock_skyrim_loader derives relay_info.json from DLL path; binary record format: uint64 timestamp + HookEventPacket
+- [Phase 09]: Inverted --with-fake-player to --no-fake-player; fake_player runs by default now that embedded GameServer exists
+- [Phase 09]: JoinClient follows MockClient PacketView/Send pattern for enet6 remote host connection
 
 ### Pending Todos
 
@@ -156,6 +159,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T00:15:55.878Z
-Stopped at: Completed 09-02-PLAN.md
+Last session: 2026-03-29T00:24:36.701Z
+Stopped at: Completed 09-03-PLAN.md
 Resume file: None
