@@ -48,6 +48,46 @@ struct HookEventPacket {
     uint64_t args[8];
 };
 
+// -------------------------------------------------------------------------
+// ARG LAYOUT CONVENTIONS (Phase 9.1: DLL-side formId resolution)
+//
+// Convention: pointer args are KEPT for CMD targeting. The resolved formId
+// is placed in the NEXT arg slot. Float position values use FloatToU64().
+// formId=0 means null pointer or unresolvable (constructor timing).
+//
+// HOOK_ACTOR_PROCESS (0x000D):   [actorPtr, formId, deltaU64]
+// HOOK_SET_POSITION (0x0004):    [refPtr, formId, posX_u64, posY_u64, posZ_u64]
+// HOOK_CHARACTER_CTOR (0x000E):  [thisPtr, formId]  (formId may be 0 during construction)
+// HOOK_SPAWN_ACTOR (0x000F):     [thisPtr, formId, posX_u64, posY_u64, posZ_u64]
+// HOOK_DEATH_ITEMS (0x0010):     [actorPtr, formId]
+// HOOK_ACTOR_ADDED (0x0001):     [actorPtr, formId]
+// HOOK_ACTOR_REMOVED (0x0002):   [actorPtr, formId]
+// HOOK_DAMAGE_ACTOR (0x0003):    [actorPtr, formId, damageU64]
+// HOOK_APPLY_EFFECT (0x0012):    [actorPtr, actorFormId, casterPtr, casterFormId, effectPtr]
+// HOOK_REGEN_ATTR (0x0011):      [actorPtr, formId, typeU64, valueU64]
+// HOOK_ADD_INVENTORY (0x0006):   [actorPtr, actorFormId, itemPtr, itemFormId, countU64, refPtr]
+// HOOK_PICK_UP (0x0015):         [actorPtr, actorFormId, objPtr, objFormId, countU64]
+// HOOK_DROP_OBJECT (0x0016):     [actorPtr, actorFormId, itemPtr, itemFormId, countU64]
+// HOOK_UNEQUIP (0x0009):         [actorPtr, actorFormId, objPtr, objFormId]
+// HOOK_EQUIP (0x0007):           same as HOOK_UNEQUIP
+// HOOK_REMOVE_INV_ITEM (0x001C): [actorPtr, actorFormId, itemPtr, itemFormId, countU64]
+// HOOK_SPELL_CAST (0x0005):      [casterPtr, casterFormId, spellPtr, spellFormId]
+// HOOK_INTERRUPT_CAST (0x0018):  [casterPtr, casterFormId, refundU64]
+// HOOK_ADD_TARGET (0x0017):      [targetPtr, targetFormId, hitDataPtr]
+// HOOK_FIND_TARGETS (unused):    [thisPtr, casterPtr, casterFormId]
+// HOOK_REMOVE_SPELL (0x0014):    [actorPtr, actorFormId, spellPtr, spellFormId]
+// HOOK_ACTIVATE (0x000A):        [thisPtr, thisFormId, activatorPtr, activatorFormId, objPtr, countU64]
+// HOOK_LOCK_CHANGE (0x000B):     [thisPtr, thisFormId, lockedU64]
+// HOOK_PLAY_ANIMATION (0x001D):  [thisPtr, thisFormId, animPtr]
+// HOOK_PROJECTILE (0x000C):      [dataPtr]  (no formId -- projectile launch data struct)
+// HOOK_SET_WEATHER (0x001A):     [skyPtr, weatherPtr, weatherFormId, overrideU64, accelU64]
+// HOOK_FORCE_WEATHER (0x001B):   [skyPtr, weatherPtr, weatherFormId, overrideU64]
+// HOOK_WEATHER_CHANGE (0x0008):  [skyPtr]  (UpdateWeather, periodic -- no formId needed)
+// HOOK_PERFORM_ACTION (0x0013):  [processPtr, actorPtr, actorFormId, actionPtr, actionFormId]
+// HOOK_MOUNT_PACKAGE (0x001E):   [actorPtr, actorFormId, mountPtr, mountFormId]
+// HOOK_SIMULATE_TIME (0x0019):   [thisPtr]  (CalendarService -- scalar, no formId)
+// -------------------------------------------------------------------------
+
 // Commands (Native -> DLL): request to execute game function on game thread
 enum CommandOpcode : uint16_t {
     CMD_SET_POSITION      = 0x8001,

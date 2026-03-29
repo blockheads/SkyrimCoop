@@ -37,6 +37,25 @@ static uint64_t FloatToU64(float aVal)
     return v;
 }
 
+// Safe formId read: TESForm::formID at offset +0x14
+// Returns 0 if pointer is null (no crash)
+static uint32_t ReadFormId(void* apForm)
+{
+    if (!apForm) return 0;
+    return *reinterpret_cast<uint32_t*>(
+        reinterpret_cast<uintptr_t>(apForm) + 0x14);
+}
+
+// Safe position read: TESObjectREFR::position (NiPoint3) at offset +0x54
+static void ReadPosition(void* apRef, float* aOutX, float* aOutY, float* aOutZ)
+{
+    if (!apRef) { *aOutX = *aOutY = *aOutZ = 0.0f; return; }
+    uintptr_t base = reinterpret_cast<uintptr_t>(apRef);
+    *aOutX = *reinterpret_cast<float*>(base + 0x54);
+    *aOutY = *reinterpret_cast<float*>(base + 0x58);
+    *aOutZ = *reinterpret_cast<float*>(base + 0x5C);
+}
+
 // ---------------------------------------------------------------------------
 // Hardcoded Address Library IDs
 // Extracted from existing Code/client/Games/Skyrim/*.cpp POINTER_SKYRIMSE calls
@@ -357,8 +376,10 @@ using TActorProcess = void (__fastcall*)(void*, float);
 static TActorProcess RealActorProcess = nullptr;
 static void __fastcall HookActorProcess(void* apThis, float aDelta)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), FloatToU64(aDelta) };
-    SendHookEvent(HOOK_ACTOR_PROCESS, 2, args);
+    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          FloatToU64(aDelta) };
+    SendHookEvent(HOOK_ACTOR_PROCESS, 3, args);
     RealActorProcess(apThis, aDelta);
 }
 
@@ -367,8 +388,17 @@ using TSetPosition = void (__fastcall*)(void*, void*);
 static TSetPosition RealSetPosition = nullptr;
 static void __fastcall HookSetPosition(void* apThis, void* apPos)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apPos) };
-    SendHookEvent(HOOK_SET_POSITION, 2, args);
+    float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
+    if (apPos)
+    {
+        posX = *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(apPos) + 0);
+        posY = *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(apPos) + 4);
+        posZ = *reinterpret_cast<float*>(reinterpret_cast<uintptr_t>(apPos) + 8);
+    }
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          FloatToU64(posX), FloatToU64(posY), FloatToU64(posZ) };
+    SendHookEvent(HOOK_SET_POSITION, 5, args);
     RealSetPosition(apThis, apPos);
 }
 
@@ -377,8 +407,9 @@ using TCharacterCtor = void* (__fastcall*)(void*);
 static TCharacterCtor RealCharacterCtor = nullptr;
 static void* __fastcall HookCharacterCtor(void* apThis)
 {
-    uint64_t args[1] = { reinterpret_cast<uint64_t>(apThis) };
-    SendHookEvent(HOOK_CHARACTER_CTOR, 1, args);
+    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)) };
+    SendHookEvent(HOOK_CHARACTER_CTOR, 2, args);
     return RealCharacterCtor(apThis);
 }
 
@@ -387,7 +418,8 @@ using TCharacterCtor2 = void* (__fastcall*)(void*, uint8_t);
 static TCharacterCtor2 RealCharacterCtor2 = nullptr;
 static void* __fastcall HookCharacterCtor2(void* apThis, uint8_t aFormType)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), static_cast<uint64_t>(aFormType) };
+    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)) };
     SendHookEvent(HOOK_CHARACTER_CTOR, 2, args);
     return RealCharacterCtor2(apThis, aFormType);
 }
@@ -397,8 +429,12 @@ using TSpawnActor = void (__fastcall*)(void*);
 static TSpawnActor RealSpawnActor = nullptr;
 static void __fastcall HookSpawnActor(void* apThis)
 {
-    uint64_t args[1] = { reinterpret_cast<uint64_t>(apThis) };
-    SendHookEvent(HOOK_SPAWN_ACTOR, 1, args);
+    float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
+    ReadPosition(apThis, &posX, &posY, &posZ);
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          FloatToU64(posX), FloatToU64(posY), FloatToU64(posZ) };
+    SendHookEvent(HOOK_SPAWN_ACTOR, 5, args);
     RealSpawnActor(apThis);
 }
 
@@ -407,8 +443,9 @@ using TAddDeathItems = void (__fastcall*)(void*);
 static TAddDeathItems RealAddDeathItems = nullptr;
 static void __fastcall HookAddDeathItems(void* apThis)
 {
-    uint64_t args[1] = { reinterpret_cast<uint64_t>(apThis) };
-    SendHookEvent(HOOK_DEATH_ITEMS, 1, args);
+    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)) };
+    SendHookEvent(HOOK_DEATH_ITEMS, 2, args);
     RealAddDeathItems(apThis);
 }
 
@@ -421,8 +458,10 @@ using TDamageActor = float (__fastcall*)(void*, float);
 static TDamageActor RealDamageActor = nullptr;
 static float __fastcall HookDamageActor(void* apThis, float aDamage)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), FloatToU64(aDamage) };
-    SendHookEvent(HOOK_DAMAGE_ACTOR, 2, args);
+    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          FloatToU64(aDamage) };
+    SendHookEvent(HOOK_DAMAGE_ACTOR, 3, args);
     return RealDamageActor(apThis, aDamage);
 }
 
@@ -431,10 +470,12 @@ using TApplyActorEffect = void (__fastcall*)(void*, void*, void*);
 static TApplyActorEffect RealApplyActorEffect = nullptr;
 static void __fastcall HookApplyActorEffect(void* apThis, void* apCaster, void* apEffect)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apCaster),
+                          static_cast<uint64_t>(ReadFormId(apCaster)),
                           reinterpret_cast<uint64_t>(apEffect) };
-    SendHookEvent(HOOK_APPLY_EFFECT, 3, args);
+    SendHookEvent(HOOK_APPLY_EFFECT, 5, args);
     RealApplyActorEffect(apThis, apCaster, apEffect);
 }
 
@@ -443,10 +484,11 @@ using TRegenAttributes = void (__fastcall*)(void*, int, float);
 static TRegenAttributes RealRegenAttributes = nullptr;
 static void __fastcall HookRegenAttributes(void* apThis, int aType, float aValue)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           static_cast<uint64_t>(aType),
                           FloatToU64(aValue) };
-    SendHookEvent(HOOK_REGEN_ATTR, 3, args);
+    SendHookEvent(HOOK_REGEN_ATTR, 4, args);
     RealRegenAttributes(apThis, aType, aValue);
 }
 
@@ -455,9 +497,11 @@ using TUpdateDetectionState = void (__fastcall*)(void*, void*);
 static TUpdateDetectionState RealUpdateDetectionState = nullptr;
 static void __fastcall HookUpdateDetectionState(void* apThis, void* apTarget)
 {
-    // High-frequency hook -- only forward pointer, no deep read
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apTarget) };
-    SendHookEvent(HOOK_APPLY_EFFECT, 2, args);  // Re-use opcode for detection; native side filters
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          reinterpret_cast<uint64_t>(apTarget),
+                          static_cast<uint64_t>(ReadFormId(apTarget)) };
+    SendHookEvent(HOOK_APPLY_EFFECT, 4, args);  // Re-use opcode for detection; native side filters
     RealUpdateDetectionState(apThis, apTarget);
 }
 
@@ -466,8 +510,9 @@ using TUpdateTarget = void (__fastcall*)(void*);
 static TUpdateTarget RealUpdateTarget = nullptr;
 static void __fastcall HookUpdateTarget(void* apThis)
 {
-    uint64_t args[1] = { reinterpret_cast<uint64_t>(apThis) };
-    SendHookEvent(HOOK_DAMAGE_ACTOR, 1, args);  // CombatController update
+    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)) };
+    SendHookEvent(HOOK_DAMAGE_ACTOR, 2, args);  // CombatController update
     RealUpdateTarget(apThis);
 }
 
@@ -480,12 +525,13 @@ using TAddInventoryItemActor = void (__fastcall*)(void*, void*, void*, int, void
 static TAddInventoryItemActor RealAddInventoryItemActor = nullptr;
 static void __fastcall HookAddInventoryItemActor(void* apThis, void* apItem, void* apExtraData, int aCount, void* apRef)
 {
-    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[6] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apItem),
-                          reinterpret_cast<uint64_t>(apExtraData),
+                          static_cast<uint64_t>(ReadFormId(apItem)),
                           static_cast<uint64_t>(aCount),
                           reinterpret_cast<uint64_t>(apRef) };
-    SendHookEvent(HOOK_ADD_INVENTORY, 5, args);
+    SendHookEvent(HOOK_ADD_INVENTORY, 6, args);
     RealAddInventoryItemActor(apThis, apItem, apExtraData, aCount, apRef);
 }
 
@@ -494,11 +540,12 @@ using TPickUpObject = void (__fastcall*)(void*, void*, int, bool, bool);
 static TPickUpObject RealPickUpObject = nullptr;
 static void __fastcall HookPickUpObject(void* apThis, void* apObj, int aCount, bool a3, bool a4)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apObj),
-                          static_cast<uint64_t>(aCount),
-                          static_cast<uint64_t>(a3) };
-    SendHookEvent(HOOK_PICK_UP, 4, args);
+                          static_cast<uint64_t>(ReadFormId(apObj)),
+                          static_cast<uint64_t>(aCount) };
+    SendHookEvent(HOOK_PICK_UP, 5, args);
     RealPickUpObject(apThis, apObj, aCount, a3, a4);
 }
 
@@ -507,11 +554,12 @@ using TDropObject = void (__fastcall*)(void*, void*, void*, int, void*);
 static TDropObject RealDropObject = nullptr;
 static void __fastcall HookDropObject(void* apThis, void* apItem, void* apExtra, int aCount, void* apPos)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apItem),
-                          reinterpret_cast<uint64_t>(apExtra),
+                          static_cast<uint64_t>(ReadFormId(apItem)),
                           static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_DROP_OBJECT, 4, args);
+    SendHookEvent(HOOK_DROP_OBJECT, 5, args);
     RealDropObject(apThis, apItem, apExtra, aCount, apPos);
 }
 
@@ -520,10 +568,11 @@ using TUnequipObject = void (__fastcall*)(void*, void*, bool, void*);
 static TUnequipObject RealUnequipObject = nullptr;
 static void __fastcall HookUnequipObject(void* apThis, void* apObj, bool aPreventEquip, void* apSlot)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apObj),
-                          static_cast<uint64_t>(aPreventEquip) };
-    SendHookEvent(HOOK_UNEQUIP, 3, args);
+                          static_cast<uint64_t>(ReadFormId(apObj)) };
+    SendHookEvent(HOOK_UNEQUIP, 4, args);
     RealUnequipObject(apThis, apObj, aPreventEquip, apSlot);
 }
 
@@ -532,11 +581,12 @@ using TAddInventoryItemREFR = void (__fastcall*)(void*, void*, void*, int);
 static TAddInventoryItemREFR RealAddInventoryItemREFR = nullptr;
 static void __fastcall HookAddInventoryItemREFR(void* apThis, void* apItem, void* apExtra, int aCount)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apItem),
-                          reinterpret_cast<uint64_t>(apExtra),
+                          static_cast<uint64_t>(ReadFormId(apItem)),
                           static_cast<uint64_t>(aCount) };
-    SendHookEvent(HOOK_ADD_INVENTORY, 4, args);
+    SendHookEvent(HOOK_ADD_INVENTORY, 5, args);
     RealAddInventoryItemREFR(apThis, apItem, apExtra, aCount);
 }
 
@@ -545,11 +595,12 @@ using TRemoveInventoryItem = void* (__fastcall*)(void*, void*, int, void*, void*
 static TRemoveInventoryItem RealRemoveInventoryItem = nullptr;
 static void* __fastcall HookRemoveInventoryItem(void* apThis, void* apItem, int aCount, void* apExtra, void* apMoveTo)
 {
-    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apItem),
-                          static_cast<uint64_t>(aCount),
-                          reinterpret_cast<uint64_t>(apMoveTo) };
-    SendHookEvent(HOOK_REMOVE_INV_ITEM, 4, args);
+                          static_cast<uint64_t>(ReadFormId(apItem)),
+                          static_cast<uint64_t>(aCount) };
+    SendHookEvent(HOOK_REMOVE_INV_ITEM, 5, args);
     return RealRemoveInventoryItem(apThis, apItem, aCount, apExtra, apMoveTo);
 }
 
@@ -562,8 +613,11 @@ using TSpellCast = void (__fastcall*)(void*, void*);
 static TSpellCast RealSpellCast = nullptr;
 static void __fastcall HookSpellCast(void* apThis, void* apSpell)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apSpell) };
-    SendHookEvent(HOOK_SPELL_CAST, 2, args);
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          reinterpret_cast<uint64_t>(apSpell),
+                          static_cast<uint64_t>(ReadFormId(apSpell)) };
+    SendHookEvent(HOOK_SPELL_CAST, 4, args);
     RealSpellCast(apThis, apSpell);
 }
 
@@ -572,8 +626,10 @@ using TInterruptCast = void (__fastcall*)(void*, bool);
 static TInterruptCast RealInterruptCast = nullptr;
 static void __fastcall HookInterruptCast(void* apThis, bool aRefund)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), static_cast<uint64_t>(aRefund) };
-    SendHookEvent(HOOK_INTERRUPT_CAST, 2, args);
+    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          static_cast<uint64_t>(aRefund) };
+    SendHookEvent(HOOK_INTERRUPT_CAST, 3, args);
     RealInterruptCast(apThis, aRefund);
 }
 
@@ -583,7 +639,7 @@ static TAddTarget RealAddTarget = nullptr;
 static bool __fastcall HookAddTarget(void* apThis, void* apTarget, void* apHitData)
 {
     uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
-                          reinterpret_cast<uint64_t>(apTarget),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apHitData) };
     SendHookEvent(HOOK_ADD_TARGET, 3, args);
     return RealAddTarget(apThis, apTarget, apHitData);
@@ -594,8 +650,10 @@ using TFindTargets = void (__fastcall*)(void*, void*);
 static TFindTargets RealFindTargets = nullptr;
 static void __fastcall HookFindTargets(void* apThis, void* apCaster)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apCaster) };
-    SendHookEvent(HOOK_SPELL_CAST, 2, args);  // Reuse spell opcode for target finding
+    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+                          reinterpret_cast<uint64_t>(apCaster),
+                          static_cast<uint64_t>(ReadFormId(apCaster)) };
+    SendHookEvent(HOOK_SPELL_CAST, 3, args);  // Reuse spell opcode for target finding
     RealFindTargets(apThis, apCaster);
 }
 
@@ -604,8 +662,11 @@ using TRemoveSpell = void (__fastcall*)(void*, void*);
 static TRemoveSpell RealRemoveSpell = nullptr;
 static void __fastcall HookRemoveSpell(void* apThis, void* apSpell)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apSpell) };
-    SendHookEvent(HOOK_REMOVE_SPELL, 2, args);
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          reinterpret_cast<uint64_t>(apSpell),
+                          static_cast<uint64_t>(ReadFormId(apSpell)) };
+    SendHookEvent(HOOK_REMOVE_SPELL, 4, args);
     RealRemoveSpell(apThis, apSpell);
 }
 
@@ -618,10 +679,13 @@ using TActivate = bool (__fastcall*)(void*, void*, void*, void*, int, bool);
 static TActivate RealActivate = nullptr;
 static bool __fastcall HookActivate(void* apThis, void* apActivator, void* apObj, void* apUndefined, int aCount, bool aDefaultProcessing)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[6] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
                           reinterpret_cast<uint64_t>(apActivator),
-                          reinterpret_cast<uint64_t>(apObj) };
-    SendHookEvent(HOOK_ACTIVATE, 3, args);
+                          static_cast<uint64_t>(ReadFormId(apActivator)),
+                          reinterpret_cast<uint64_t>(apObj),
+                          static_cast<uint64_t>(aCount) };
+    SendHookEvent(HOOK_ACTIVATE, 6, args);
     return RealActivate(apThis, apActivator, apObj, apUndefined, aCount, aDefaultProcessing);
 }
 
@@ -630,8 +694,10 @@ using TLockChange = void (__fastcall*)(void*, bool);
 static TLockChange RealLockChange = nullptr;
 static void __fastcall HookLockChange(void* apThis, bool aLocked)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), static_cast<uint64_t>(aLocked) };
-    SendHookEvent(HOOK_LOCK_CHANGE, 2, args);
+    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          static_cast<uint64_t>(aLocked) };
+    SendHookEvent(HOOK_LOCK_CHANGE, 3, args);
     RealLockChange(apThis, aLocked);
 }
 
@@ -640,8 +706,10 @@ using TPlayAnimation = void (__fastcall*)(void*, void*);
 static TPlayAnimation RealPlayAnimation = nullptr;
 static void __fastcall HookPlayAnimation(void* apThis, void* apAnim)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apAnim) };
-    SendHookEvent(HOOK_PLAY_ANIMATION, 2, args);
+    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          reinterpret_cast<uint64_t>(apAnim) };
+    SendHookEvent(HOOK_PLAY_ANIMATION, 3, args);
     RealPlayAnimation(apThis, apAnim);
 }
 
@@ -664,10 +732,12 @@ using TSetWeather = void (__fastcall*)(void*, void*, bool, bool);
 static TSetWeather RealSetWeather = nullptr;
 static void __fastcall HookSetWeather(void* apThis, void* apWeather, bool aOverride, bool aAccelerate)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apThis),
                           reinterpret_cast<uint64_t>(apWeather),
-                          static_cast<uint64_t>(aOverride) };
-    SendHookEvent(HOOK_SET_WEATHER, 3, args);
+                          static_cast<uint64_t>(ReadFormId(apWeather)),
+                          static_cast<uint64_t>(aOverride),
+                          static_cast<uint64_t>(aAccelerate) };
+    SendHookEvent(HOOK_SET_WEATHER, 5, args);
     RealSetWeather(apThis, apWeather, aOverride, aAccelerate);
 }
 
@@ -676,10 +746,11 @@ using TForceWeather = void (__fastcall*)(void*, void*, bool);
 static TForceWeather RealForceWeather = nullptr;
 static void __fastcall HookForceWeather(void* apThis, void* apWeather, bool aOverride)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apThis),
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
                           reinterpret_cast<uint64_t>(apWeather),
+                          static_cast<uint64_t>(ReadFormId(apWeather)),
                           static_cast<uint64_t>(aOverride) };
-    SendHookEvent(HOOK_FORCE_WEATHER, 3, args);
+    SendHookEvent(HOOK_FORCE_WEATHER, 4, args);
     RealForceWeather(apThis, apWeather, aOverride);
 }
 
@@ -702,10 +773,12 @@ using TPerformAction = void (__fastcall*)(void*, void*, void*);
 static TPerformAction RealPerformAction = nullptr;
 static void __fastcall HookPerformAction(void* apProcess, void* apActor, void* apAction)
 {
-    uint64_t args[3] = { reinterpret_cast<uint64_t>(apProcess),
+    uint64_t args[5] = { reinterpret_cast<uint64_t>(apProcess),
                           reinterpret_cast<uint64_t>(apActor),
-                          reinterpret_cast<uint64_t>(apAction) };
-    SendHookEvent(HOOK_PERFORM_ACTION, 3, args);
+                          static_cast<uint64_t>(ReadFormId(apActor)),
+                          reinterpret_cast<uint64_t>(apAction),
+                          static_cast<uint64_t>(ReadFormId(apAction)) };
+    SendHookEvent(HOOK_PERFORM_ACTION, 5, args);
     RealPerformAction(apProcess, apActor, apAction);
 }
 
@@ -719,8 +792,11 @@ using TInitiateMountPackage = void (__fastcall*)(void*, void*);
 static TInitiateMountPackage RealInitiateMountPackage = nullptr;
 static void __fastcall HookInitiateMountPackage(void* apThis, void* apMount)
 {
-    uint64_t args[2] = { reinterpret_cast<uint64_t>(apThis), reinterpret_cast<uint64_t>(apMount) };
-    SendHookEvent(HOOK_MOUNT_PACKAGE, 2, args);
+    uint64_t args[4] = { reinterpret_cast<uint64_t>(apThis),
+                          static_cast<uint64_t>(ReadFormId(apThis)),
+                          reinterpret_cast<uint64_t>(apMount),
+                          static_cast<uint64_t>(ReadFormId(apMount)) };
+    SendHookEvent(HOOK_MOUNT_PACKAGE, 4, args);
     RealInitiateMountPackage(apThis, apMount);
 }
 
