@@ -160,6 +160,24 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // Load memory maps for address validation and module lookup
+    memReader.LoadMemoryMaps();
+
+    // Smoke test: prove pread() works by reading SkyrimSE.exe PE header
+    uint64_t skyrimBase = memReader.FindModuleBase("SkyrimSE.exe");
+    if (skyrimBase != 0) {
+        uint16_t mzSig = memReader.ReadValue<uint16_t>(skyrimBase);
+        if (mzSig == 0x5A4D) {
+            spdlog::info("SMOKE TEST PASS: Read MZ signature at SkyrimSE.exe base {:#x}", skyrimBase);
+        } else {
+            spdlog::error("SMOKE TEST FAIL: Expected MZ (0x5A4D) at {:#x}, got {:#04x}", skyrimBase, mzSig);
+        }
+        // Also hex dump the first 32 bytes of the PE header
+        memReader.HexDump(skyrimBase, 32, "SkyrimSE.exe PE header");
+    } else {
+        spdlog::error("SMOKE TEST FAIL: Could not find SkyrimSE.exe in /proc/{}/maps", targetPid);
+    }
+
     // Connect TCP client to DLL server
     TcpClient tcpClient;
     if (!tcpClient.Connect(port)) {

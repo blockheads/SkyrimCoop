@@ -1,9 +1,12 @@
 #include "proc_memory.h"
 
+#include <algorithm>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
@@ -87,5 +90,102 @@ void ProcMemReader::Close() {
         m_isTracer = false;
         spdlog::debug("ptrace detached from pid {}", m_pid);
     }
+    m_regions.clear();
     m_pid = 0;
+}
+
+bool ProcMemReader::LoadMemoryMaps() {
+    m_regions.clear();
+    std::string path = "/proc/" + std::to_string(m_pid) + "/maps";
+    std::ifstream f(path);
+    if (!f.is_open()) {
+        spdlog::error("Failed to open {}", path);
+        return false;
+    }
+
+    std::string line;
+    while (std::getline(f, line)) {
+        MemoryRegion region{};
+        // Format: start-end perms offset dev inode pathname
+        uint64_t start = 0, end = 0;
+        char perms[5] = {};
+        int parsed = sscanf(line.c_str(), "%lx-%lx %4s", &start, &end, perms);
+        if (parsed < 3) continue;
+
+        region.start = start;
+        region.end = end;
+        region.readable = (perms[0] == 'r');
+
+        // Extract pathname (last field after inode)
+        // Find the 6th field (pathname) by skipping 5 fields
+        std::istringstream iss(line);
+        std::string token;
+        for (int i = 0; i < 5 && iss >> token; i++) {}
+        if (iss >> token) {
+            region.name = token;
+        }
+
+        m_regions.push_back(std::move(region));
+    }
+
+    spdlog::info("Loaded {} memory regions from {}", m_regions.size(), path);
+    return true;
+}
+
+std::string ProcMemReader::ValidateAddress(uint64_t addr) const {
+    for (const auto& r : m_regions) {
+        if (addr >= r.start && addr < r.end && r.readable) {
+            return r.name;
+        }
+    }
+    return "";
+}
+
+uint64_t ProcMemReader::FindModuleBase(const char* aNameSuffix) const {
+    std::string suffix(aNameSuffix);
+    std::transform(suffix.begin(), suffix.end(), suffix.begin(), ::tolower);
+    for (const auto& r : m_regions) {
+        if (!r.readable) continue;
+        std::string nameLower = r.name;
+        std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+        if (nameLower.size() >= suffix.size() &&
+            nameLower.compare(nameLower.size() - suffix.size(), suffix.size(), suffix) == 0) {
+            return r.start;
+        }
+    }
+    return 0;
+}
+
+ssize_t ProcMemReader::HexDump(uint64_t addr, size_t len, const char* aLabel) {
+    if (len > 64) len = 64;
+    uint8_t buf[64]{};
+    ssize_t bytesRead = ::pread(m_fd, buf, len, static_cast<off_t>(addr));
+    if (bytesRead <= 0) {
+        spdlog::error("HexDump '{}' at {:#x}: pread failed: {} ({})",
+            aLabel, addr, strerror(errno), errno);
+        return bytesRead;
+    }
+    std::string hex;
+    for (ssize_t i = 0; i < bytesRead; i++) {
+        char tmp[4];
+        snprintf(tmp, sizeof(tmp), "%02x ", buf[i]);
+        hex += tmp;
+    }
+    spdlog::info("HexDump '{}' at {:#x} ({} bytes): {}", aLabel, addr, bytesRead, hex);
+    return bytesRead;
+}
+
+void ProcMemReader::DumpMemoryMapSummary() const {
+    spdlog::info("Memory map summary ({} regions):", m_regions.size());
+    int count = 0;
+    for (const auto& r : m_regions) {
+        if (!r.name.empty() && r.readable) {
+            spdlog::info("  {:#x}-{:#x} {} {}", r.start, r.end,
+                r.readable ? "r" : "-", r.name);
+            if (++count >= 50) {
+                spdlog::info("  ... ({} more regions)", m_regions.size() - count);
+                break;
+            }
+        }
+    }
 }
