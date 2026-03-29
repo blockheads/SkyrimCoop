@@ -234,11 +234,11 @@ Plans:
   4. All 8 native services dispatch on JSON "op" strings with named field access
   5. Unit tests pass for JSON protocol schema, LineBuffer, and DirtyCache
   6. Human-verified: DLL and native client communicate via NDJSON in Skyrim without crashes
-**Plans:** 2/5 plans executed
+**Plans:** 4/5 plans executed
 
 Plans:
 - [x] 11-01-PLAN.md -- Vendor nlohmann/json, define json_protocol.h schema, dirty_cache.h, line_buffer.h, unit tests
-- [ ] 11-02-PLAN.md -- DLL-side conversion: hook trampolines to JSON, TcpServer NDJSON, DrainCommandQueue JSON parsing
+- [x] 11-02-PLAN.md -- DLL-side conversion: hook trampolines to JSON, TcpServer NDJSON, DrainCommandQueue JSON parsing
 - [x] 11-03-PLAN.md -- Native-side conversion: TcpClient NDJSON, main.cpp dispatch, build system updates
-- [ ] 11-04-PLAN.md -- Native-side conversion: all 8 service OnHookEvent + command senders to JSON
+- [x] 11-04-PLAN.md -- Native-side conversion: all 8 service OnHookEvent + command senders to JSON
 - [ ] 11-05-PLAN.md -- Legacy test updates, protocol.h deprecation, human verification in Skyrim
