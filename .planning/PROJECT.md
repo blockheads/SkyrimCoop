@@ -108,4 +108,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 13 completion — replay regression test framework with 8 Catch2 test files (7 per-service + 1 integration), 7 NDJSON fixtures, service state accessors on ReplayHarness*
+*Last updated: 2026-03-29 after Phase 14 completion — enet6 network traffic replay with MessageSerializer (100 opcodes), EnetRecorder taps in GameServer, ServerReplayHarness, DualReplayHarness, and 6 Catch2 replay test cases (208 assertions total)*
