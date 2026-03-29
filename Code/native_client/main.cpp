@@ -140,16 +140,6 @@ static void DispatchHookEvent(const HookEventPacket& aHookPkt,
 {
     // Core pointer table tracking for actor add/remove
     // FormIds are now resolved DLL-side and packed in args[1] (Phase 9.1)
-    // Diagnostic: log first 20 dispatches to verify opcode/arg parsing
-    static int s_dispDiag = 0;
-    if (s_dispDiag < 20) {
-        s_dispDiag++;
-        spdlog::info("DispatchHookEvent: opcode=0x{:X} argCount={} args[0]=0x{:X} args[1]=0x{:X}",
-                     aHookPkt.header.opcode, aHookPkt.argCount,
-                     aHookPkt.argCount >= 1 ? aHookPkt.args[0] : 0,
-                     aHookPkt.argCount >= 2 ? aHookPkt.args[1] : 0);
-    }
-
     switch (static_cast<HookOpcode>(aHookPkt.header.opcode)) {
     case HOOK_ACTOR_ADDED:
     case HOOK_SPAWN_ACTOR:
