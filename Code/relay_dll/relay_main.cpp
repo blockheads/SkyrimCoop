@@ -296,8 +296,26 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     }
     RelayLog("[SkyrimCoopHooks] Native binary path: %s\n", g_nativeBinaryPath);
 
-    // 2. Start TCP server on localhost (ephemeral port)
-    if (!g_tcpServer.Start())
+    // 2. Start TCP server on localhost
+    //    Per D-11: SKYRIM_COOP_PORT env var for explicit port (host=9667, client=9668)
+    uint16_t relayPort = 0; // default: ephemeral
+    {
+        const char* pPortEnv = getenv("SKYRIM_COOP_PORT");
+        if (pPortEnv)
+        {
+            int parsed = atoi(pPortEnv);
+            if (parsed > 0 && parsed < 65536)
+            {
+                relayPort = static_cast<uint16_t>(parsed);
+                RelayLog("[SkyrimCoopHooks] SKYRIM_COOP_PORT=%u: binding to explicit port\n", relayPort);
+            }
+            else
+            {
+                RelayLog("[SkyrimCoopHooks] SKYRIM_COOP_PORT=%s: invalid, using ephemeral\n", pPortEnv);
+            }
+        }
+    }
+    if (!g_tcpServer.Start(relayPort))
     {
         RelayLog("[SkyrimCoopHooks] Failed to start TCP server\n");
         return false;

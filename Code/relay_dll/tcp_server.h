@@ -5,8 +5,9 @@
 
 class TcpServer {
 public:
-    // Bind to localhost:0, listen, store assigned port. Returns true on success.
-    bool Start();
+    // Bind to localhost on the given port, listen, store assigned port.
+    // aPort == 0 means ephemeral (OS-assigned), >0 means explicit (SKYRIM_COOP_PORT).
+    bool Start(uint16_t aPort = 0);
     void Stop();
 
     // Accept a single client (blocking). Returns true when client connects.

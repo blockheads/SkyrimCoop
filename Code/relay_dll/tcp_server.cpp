@@ -2,7 +2,7 @@
 #include <ws2tcpip.h>
 #include <cstring>
 
-bool TcpServer::Start()
+bool TcpServer::Start(uint16_t aPort)
 {
     // Initialize Winsock (reference-counted, safe to call multiple times)
     WSADATA wsa;
@@ -20,11 +20,18 @@ bool TcpServer::Start()
         return false;
     }
 
-    // Bind to localhost:0 (ephemeral port per Pitfall 4)
+    // Bind to localhost: 0 = ephemeral (OS-assigned), >0 = explicit (SKYRIM_COOP_PORT)
+    if (aPort > 0)
+    {
+        int reuse = 1;
+        setsockopt(m_listenSocket, SOL_SOCKET, SO_REUSEADDR,
+                   reinterpret_cast<const char*>(&reuse), sizeof(reuse));
+    }
+
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // 127.0.0.1
-    addr.sin_port = htons(0);                        // OS assigns port
+    addr.sin_port = htons(aPort);
 
     if (bind(m_listenSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR)
     {
