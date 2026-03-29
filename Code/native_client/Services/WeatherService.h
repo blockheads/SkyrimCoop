@@ -23,6 +23,9 @@ public:
     // Send a cmd_force_weather command to the DLL
     void SendForceWeather(uint32_t aWeatherFormId);
 
+    // Test accessor
+    uint32_t GetCachedWeatherId() const { return m_cachedWeatherId; }
+
 private:
     // Read current weather formId from Sky singleton via memory
     uint32_t ReadCurrentWeatherId();

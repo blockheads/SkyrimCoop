@@ -36,6 +36,13 @@ public:
     entt::registry& GetRegistry() { return m_registry; }
     CharacterService& GetCharacterService() { return m_character; }
     PointerTable& GetPointerTable() { return m_pointerTable; }
+    WeatherService& GetWeatherService() { return m_weather; }
+    CalendarService& GetCalendarService() { return m_calendar; }
+    QuestService& GetQuestService() { return m_quest; }
+    CombatService& GetCombatService() { return m_combat; }
+    InventoryService& GetInventoryService() { return m_inventory; }
+    ActorValueService& GetActorValueService() { return m_actorValue; }
+    MagicService& GetMagicService() { return m_magic; }
 
 private:
     // Member order matters: stubs before services that depend on them

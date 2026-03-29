@@ -23,6 +23,16 @@ public:
     // Apply remote actor value change (from another player via network)
     void ApplyRemoteSetActorValue(uint32_t aActorFormId, uint32_t aAvIndex, float aValue);
 
+    // Public struct for test assertions
+    struct CachedActorValues {
+        float health = 0.0f;
+        float magicka = 0.0f;
+        float stamina = 0.0f;
+    };
+
+    // Test accessor
+    const std::unordered_map<uint32_t, CachedActorValues>& GetCachedValues() const { return m_cachedValues; }
+
 private:
     // Skyrim actor value indices for the three primary attributes
     static constexpr uint32_t kHealth = 24;
@@ -38,12 +48,6 @@ private:
 
     // Sync interval for periodic polling
     static constexpr float kSyncInterval = 0.25f; // 250ms
-
-    struct CachedActorValues {
-        float health = 0.0f;
-        float magicka = 0.0f;
-        float stamina = 0.0f;
-    };
 
     void PollActorValues();
     float ReadActorValue(uint64_t aActorPtr, uint32_t aValueIndex);

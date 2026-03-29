@@ -25,6 +25,9 @@ public:
     void ApplyRemoteAddSpell(uint32_t aActorFormId, uint32_t aSpellFormId);
     void ApplyRemoteRemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId);
 
+    // Test accessor
+    size_t GetActiveCastCount() const { return m_activeCasts.size(); }
+
 private:
     // Track active spell casts for each caster
     struct ActiveCast {

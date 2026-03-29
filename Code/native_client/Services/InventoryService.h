@@ -26,7 +26,11 @@ public:
     void ApplyRemoteEquip(uint32_t aActorFormId, uint32_t aItemFormId);
     void ApplyRemoteUnequip(uint32_t aActorFormId, uint32_t aItemFormId);
 
+    // Test accessor
+    uint32_t GetEventCount() const { return m_eventCount; }
+
 private:
     GameReader& m_reader;
     TcpClient& m_tcp;
+    uint32_t m_eventCount = 0;
 };

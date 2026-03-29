@@ -20,6 +20,9 @@ public:
     // Periodic update (minimal -- quest state is event-driven)
     void Update(float aDeltaTime);
 
+    // Test accessor
+    uint32_t GetLastQuestEventCount() const { return m_lastQuestEventCount; }
+
 private:
     GameReader& m_reader;
     TcpClient& m_client;

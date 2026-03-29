@@ -23,6 +23,10 @@ public:
     void SendDamageActor(uint64_t aActorPtr, float aDamage);
     void SendLaunchProjectile(uint64_t aDataPtr);
 
+    // Test accessors
+    uint32_t GetDamageEventCount() const { return m_damageEventCount; }
+    uint32_t GetProjectileEventCount() const { return m_projectileEventCount; }
+
 private:
     GameReader& m_reader;
     TcpClient& m_client;

@@ -27,6 +27,7 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
+        m_eventCount++;
         spdlog::debug("Inventory add: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
         // TODO: Send inventory add message to embedded server / network layer
 
@@ -41,6 +42,7 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
+        m_eventCount++;
         spdlog::debug("Pick up: actor={:#x} obj={:#x} count={}", actorFormId, objFormId, count);
         // TODO: Send pickup message to embedded server / network layer
 
@@ -55,6 +57,7 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
+        m_eventCount++;
         spdlog::debug("Drop object: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
         // TODO: Send drop message to embedded server / network layer
 
@@ -68,6 +71,7 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
+        m_eventCount++;
         spdlog::debug("Equip: actor={:#x} item={:#x}", actorFormId, itemFormId);
         // TODO: Send equip message to embedded server / network layer
 
@@ -81,6 +85,7 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
+        m_eventCount++;
         spdlog::debug("Unequip: actor={:#x} item={:#x}", actorFormId, itemFormId);
         // TODO: Send unequip message to embedded server / network layer
 
@@ -95,10 +100,12 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
             return;
         }
 
+        m_eventCount++;
         spdlog::debug("Remove inv item: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
         // TODO: Send remove message to embedded server / network layer
 
     } else if (op == JsonOp::kActivate) {
+        m_eventCount++;
         uint32_t thisFormId = aMsg.value(JsonField::kThisFormId, 0u);
         uint32_t activatorFormId = aMsg.value(JsonField::kActivatorFormId, 0u);
         int32_t count = aMsg.value(JsonField::kCount, 0);
@@ -107,6 +114,7 @@ void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
         // TODO: Send activate message to embedded server / network layer
 
     } else if (op == JsonOp::kLockChange) {
+        m_eventCount++;
         uint32_t thisFormId = aMsg.value(JsonField::kThisFormId, 0u);
         bool locked = aMsg.value(JsonField::kLocked, false);
 
