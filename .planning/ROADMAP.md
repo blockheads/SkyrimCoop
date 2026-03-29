@@ -246,9 +246,10 @@ Plans:
 ### Phase 12: NDJSON Replay Capture and Integration Tests
 
 **Goal:** Record live Skyrim NDJSON sessions to capture files, build a replay harness that feeds recorded data into the native client dispatch loop without Skyrim running, and create integration tests that validate service behavior against real game data. Enables fast iteration and regression detection without launching the game.
-**Requirements**: TBD
+**Requirements**: REPLAY-01, REPLAY-02, REPLAY-03, REPLAY-04, REPLAY-05, REPLAY-06, REPLAY-07, REPLAY-08
 **Depends on:** Phase 11
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 12 to break down)
+- [ ] 12-01-PLAN.md -- Extract DispatchHookEvent, TcpClient no-op mode, ReplayHarness class, ReplayTests xmake target
+- [ ] 12-02-PLAN.md -- Golden NDJSON fixtures, Catch2 integration tests, --replay CLI flag
