@@ -19,9 +19,13 @@ struct RecordCollection;
 namespace Server
 {
 
+// Tag struct for constructing World without ESLoader or ScriptService (test/replay mode)
+struct WorldTestMode {};
+
 struct World : entt::registry
 {
     World();
+    explicit World(WorldTestMode);
     ~World() noexcept;
 
     TP_NOCOPYMOVE(World);

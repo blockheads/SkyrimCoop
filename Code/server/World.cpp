@@ -53,6 +53,33 @@ World::World()
     m_pScriptService = TiltedPhoques::MakeUnique<ScriptService>(*this, m_dispatcher);
 }
 
+World::World(WorldTestMode)
+{
+    // Test/replay mode: emplace all services but skip ESLoader and ScriptService.
+    // This allows ServerReplayHarness to construct a headless server World.
+    m_spAdminService = std::make_shared<AdminService>(*this, m_dispatcher);
+    spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
+
+    ctx().emplace<CharacterService>(*this, m_dispatcher);
+    ctx().emplace<PlayerService>(*this, m_dispatcher);
+    ctx().emplace<CalendarService>(*this, m_dispatcher);
+    ctx().emplace<ObjectService>(*this, m_dispatcher);
+    ctx().emplace<ModsComponent>();
+    ctx().emplace<QuestService>(*this, m_dispatcher);
+    ctx().emplace<PartyService>(*this, m_dispatcher);
+    ctx().emplace<ActorValueService>(*this, m_dispatcher);
+    ctx().emplace<InventoryService>(*this, m_dispatcher);
+    ctx().emplace<MagicService>(*this, m_dispatcher);
+    ctx().emplace<OverlayService>(*this, m_dispatcher);
+    ctx().emplace<CommandService>(*this, m_dispatcher);
+    ctx().emplace<StringCacheService>(*this, m_dispatcher);
+    ctx().emplace<CombatService>(*this, m_dispatcher);
+    ctx().emplace<WeatherService>(*this, m_dispatcher);
+
+    // Skip ESLoader::BuildRecordCollection() -- no mod data in test mode
+    // Skip ScriptService creation -- m_pScriptService remains null (destructor handles nullptr)
+}
+
 World::~World()
 {
     m_pScriptService.reset();

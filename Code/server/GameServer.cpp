@@ -199,6 +199,19 @@ GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept
     m_pResources = MakeUnique<Resources::ResourceCollection>();
 }
 
+GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole, GameServerTestMode) noexcept
+    : m_lastFrameTime(std::chrono::high_resolution_clock::now()),
+      m_startTime(std::chrono::high_resolution_clock::now()), m_commands(aConsole), m_requestStop(false)
+{
+    // Test mode: no port binding, no ESLoader, no ScriptService, no resources
+    s_pInstance = this;
+
+    m_pWorld = MakeUnique<World>(WorldTestMode{});
+    BindMessageHandlers();
+
+    spdlog::info("GameServer: test mode initialized (no enet6 port, no ESLoader)");
+}
+
 GameServer::~GameServer()
 {
     s_pInstance = nullptr;

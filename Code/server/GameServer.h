@@ -26,6 +26,9 @@ namespace ServerConsole
 class ConsoleRegistry;
 }
 
+// Tag struct for constructing GameServer without port binding (test/replay mode)
+struct GameServerTestMode {};
+
 namespace Server
 {
 
@@ -42,6 +45,7 @@ struct GameServer final : TiltedPhoques::Server
     };
 
     GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept;
+    GameServer(ServerConsole::ConsoleRegistry& aConsole, GameServerTestMode) noexcept;
     virtual ~GameServer();
 
     TP_NOCOPYMOVE(GameServer);
