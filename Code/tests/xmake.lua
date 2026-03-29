@@ -14,3 +14,6 @@ target("TPTests")
     end
     add_deps("SkyrimEncoding")
     add_packages("catch2", "glm", "spdlog", "hopscotch-map")
+target_end()
+
+includes("replay")
