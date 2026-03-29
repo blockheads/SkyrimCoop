@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-28T17:46:35.807Z"
-last_activity: 2026-03-28
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-03-29T15:06:00.000Z"
+last_activity: 2026-03-29
 progress:
   total_phases: 8
   completed_phases: 4
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 07 — native-linux-build-with-skse-tcp-relay
+**Current focus:** Phase 11 — json-wire-protocol
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
+Phase: 11 (json-wire-protocol) — EXECUTING
+Plan: 3 of 5
 Status: Ready to execute
-Last activity: 2026-03-28
+Last activity: 2026-03-29
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [=========-] 89%
 
 ## Performance Metrics
 
@@ -69,6 +69,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P05 | 9min | 2 tasks | 12 files |
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
+| Phase 11 P02 | 6min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Recent decisions affecting current work:
 - [Phase 07]: Frame pacing via sleep_for; poll()-based receive deferred until TcpClient exposes socket fd
 - [Phase 07]: Catch2 comma-separated tag syntax for OR-matching multiple test groups in smoke tests
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
+- [Phase 11]: g_dirtyCache non-static for cross-TU access between hook_trampolines.cpp and relay_main.cpp
+- [Phase 11]: JSON command parsing on receive thread, packed into CommandSlot binary for game-thread SPSC queue safety
+- [Phase 11]: ReadFormId/ReadPosition/ReadRotation helpers for typed field extraction in JSON trampolines
 
 ### Pending Todos
 
@@ -126,6 +130,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T17:46:35.805Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-testing-ci-pipeline/05-CONTEXT.md
+Last session: 2026-03-29T15:06:00.000Z
+Stopped at: Completed 11-02-PLAN.md
+Resume file: None
