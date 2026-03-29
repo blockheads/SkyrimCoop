@@ -733,57 +733,58 @@ struct HookEntry {
     void* pDetour;
     void** ppOriginal;
     const char* pName;
+    bool essential;  // true = needed for basic actor sync (lifecycle + position)
 };
 
 // Helper macro to suppress function-to-void* warnings in the hook table
-#define HOOK_ENTRY(id, hook, orig, name) \
-    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name }
+#define HOOK_ENTRY(id, hook, orig, name, ess) \
+    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name, ess }
 
 static const HookEntry s_hookTable[] = {
-    // Actor Lifecycle (6)
-    HOOK_ENTRY(AddressIds::kActorProcess,         HookActorProcess,          RealActorProcess,          "ActorProcess"),
-    HOOK_ENTRY(AddressIds::kSetPosition,          HookSetPosition,           RealSetPosition,           "SetPosition"),
-    HOOK_ENTRY(AddressIds::kCharacterCtor,        HookCharacterCtor,         RealCharacterCtor,         "CharacterCtor"),
-    HOOK_ENTRY(AddressIds::kCharacterCtor2,       HookCharacterCtor2,        RealCharacterCtor2,        "CharacterCtor2"),
-    HOOK_ENTRY(AddressIds::kSpawnActorInWorld,    HookSpawnActor,            RealSpawnActor,            "SpawnActorInWorld"),
-    HOOK_ENTRY(AddressIds::kAddDeathItems,        HookAddDeathItems,         RealAddDeathItems,         "AddDeathItems"),
+    // Actor Lifecycle (6) -- ALL essential for basic actor sync
+    HOOK_ENTRY(AddressIds::kActorProcess,         HookActorProcess,          RealActorProcess,          "ActorProcess",           true),
+    HOOK_ENTRY(AddressIds::kSetPosition,          HookSetPosition,           RealSetPosition,           "SetPosition",            true),
+    HOOK_ENTRY(AddressIds::kCharacterCtor,        HookCharacterCtor,         RealCharacterCtor,         "CharacterCtor",          true),
+    HOOK_ENTRY(AddressIds::kCharacterCtor2,       HookCharacterCtor2,        RealCharacterCtor2,        "CharacterCtor2",         true),
+    HOOK_ENTRY(AddressIds::kSpawnActorInWorld,    HookSpawnActor,            RealSpawnActor,            "SpawnActorInWorld",      true),
+    HOOK_ENTRY(AddressIds::kAddDeathItems,        HookAddDeathItems,         RealAddDeathItems,         "AddDeathItems",          true),
 
-    // Combat (5)
-    HOOK_ENTRY(AddressIds::kDamageActor,          HookDamageActor,           RealDamageActor,           "DamageActor"),
-    HOOK_ENTRY(AddressIds::kApplyActorEffect,     HookApplyActorEffect,      RealApplyActorEffect,      "ApplyActorEffect"),
-    HOOK_ENTRY(AddressIds::kRegenAttributes,      HookRegenAttributes,       RealRegenAttributes,       "RegenAttributes"),
-    HOOK_ENTRY(AddressIds::kUpdateDetectionState, HookUpdateDetectionState,  RealUpdateDetectionState,  "UpdateDetectionState"),
-    HOOK_ENTRY(AddressIds::kUpdateTarget,         HookUpdateTarget,          RealUpdateTarget,          "UpdateTarget"),
+    // Combat (5) -- non-essential
+    HOOK_ENTRY(AddressIds::kDamageActor,          HookDamageActor,           RealDamageActor,           "DamageActor",            false),
+    HOOK_ENTRY(AddressIds::kApplyActorEffect,     HookApplyActorEffect,      RealApplyActorEffect,      "ApplyActorEffect",       false),
+    HOOK_ENTRY(AddressIds::kRegenAttributes,      HookRegenAttributes,       RealRegenAttributes,       "RegenAttributes",        false),
+    HOOK_ENTRY(AddressIds::kUpdateDetectionState, HookUpdateDetectionState,  RealUpdateDetectionState,  "UpdateDetectionState",   false),
+    HOOK_ENTRY(AddressIds::kUpdateTarget,         HookUpdateTarget,          RealUpdateTarget,          "UpdateTarget",           false),
 
-    // Inventory (6)
-    HOOK_ENTRY(AddressIds::kAddInventoryItemActor, HookAddInventoryItemActor, RealAddInventoryItemActor, "AddInventoryItem(Actor)"),
-    HOOK_ENTRY(AddressIds::kPickUpObject,         HookPickUpObject,          RealPickUpObject,          "PickUpObject"),
-    HOOK_ENTRY(AddressIds::kDropObject,           HookDropObject,            RealDropObject,            "DropObject"),
-    HOOK_ENTRY(AddressIds::kUnequipObject,        HookUnequipObject,         RealUnequipObject,         "UnequipObject"),
-    HOOK_ENTRY(AddressIds::kAddInventoryItemREFR, HookAddInventoryItemREFR,  RealAddInventoryItemREFR,  "AddInventoryItem(REFR)"),
-    HOOK_ENTRY(AddressIds::kRemoveInventoryItem,  HookRemoveInventoryItem,   RealRemoveInventoryItem,   "RemoveInventoryItem"),
+    // Inventory (6) -- non-essential
+    HOOK_ENTRY(AddressIds::kAddInventoryItemActor, HookAddInventoryItemActor, RealAddInventoryItemActor, "AddInventoryItem(Actor)", false),
+    HOOK_ENTRY(AddressIds::kPickUpObject,         HookPickUpObject,          RealPickUpObject,          "PickUpObject",           false),
+    HOOK_ENTRY(AddressIds::kDropObject,           HookDropObject,            RealDropObject,            "DropObject",             false),
+    HOOK_ENTRY(AddressIds::kUnequipObject,        HookUnequipObject,         RealUnequipObject,         "UnequipObject",          false),
+    HOOK_ENTRY(AddressIds::kAddInventoryItemREFR, HookAddInventoryItemREFR,  RealAddInventoryItemREFR,  "AddInventoryItem(REFR)", false),
+    HOOK_ENTRY(AddressIds::kRemoveInventoryItem,  HookRemoveInventoryItem,   RealRemoveInventoryItem,   "RemoveInventoryItem",    false),
 
-    // Magic (5)
-    HOOK_ENTRY(AddressIds::kSpellCast,            HookSpellCast,             RealSpellCast,             "SpellCast"),
-    HOOK_ENTRY(AddressIds::kInterruptCast,        HookInterruptCast,         RealInterruptCast,         "InterruptCast"),
-    HOOK_ENTRY(AddressIds::kAddTarget,            HookAddTarget,             RealAddTarget,             "AddTarget"),
-    HOOK_ENTRY(AddressIds::kFindTargets,          HookFindTargets,           RealFindTargets,           "FindTargets"),
-    HOOK_ENTRY(AddressIds::kRemoveSpell,          HookRemoveSpell,           RealRemoveSpell,           "RemoveSpell"),
+    // Magic (5) -- non-essential
+    HOOK_ENTRY(AddressIds::kSpellCast,            HookSpellCast,             RealSpellCast,             "SpellCast",              false),
+    HOOK_ENTRY(AddressIds::kInterruptCast,        HookInterruptCast,         RealInterruptCast,         "InterruptCast",          false),
+    HOOK_ENTRY(AddressIds::kAddTarget,            HookAddTarget,             RealAddTarget,             "AddTarget",              false),
+    HOOK_ENTRY(AddressIds::kFindTargets,          HookFindTargets,           RealFindTargets,           "FindTargets",            false),
+    HOOK_ENTRY(AddressIds::kRemoveSpell,          HookRemoveSpell,           RealRemoveSpell,           "RemoveSpell",            false),
 
-    // Object/World (4)
-    HOOK_ENTRY(AddressIds::kActivate,             HookActivate,              RealActivate,              "Activate"),
-    HOOK_ENTRY(AddressIds::kLockChange,           HookLockChange,            RealLockChange,            "LockChange"),
-    HOOK_ENTRY(AddressIds::kPlayAnimation,        HookPlayAnimation,         RealPlayAnimation,         "PlayAnimation"),
-    HOOK_ENTRY(AddressIds::kProjectileLaunch,     HookProjectileLaunch,      RealProjectileLaunch,      "ProjectileLaunch"),
+    // Object/World (4) -- non-essential
+    HOOK_ENTRY(AddressIds::kActivate,             HookActivate,              RealActivate,              "Activate",               false),
+    HOOK_ENTRY(AddressIds::kLockChange,           HookLockChange,            RealLockChange,            "LockChange",             false),
+    HOOK_ENTRY(AddressIds::kPlayAnimation,        HookPlayAnimation,         RealPlayAnimation,         "PlayAnimation",          false),
+    HOOK_ENTRY(AddressIds::kProjectileLaunch,     HookProjectileLaunch,      RealProjectileLaunch,      "ProjectileLaunch",       false),
 
-    // Weather (3)
-    HOOK_ENTRY(AddressIds::kSetWeather,           HookSetWeather,            RealSetWeather,            "SetWeather"),
-    HOOK_ENTRY(AddressIds::kForceWeather,         HookForceWeather,          RealForceWeather,          "ForceWeather"),
-    HOOK_ENTRY(AddressIds::kUpdateWeather,        HookUpdateWeather,         RealUpdateWeather,         "UpdateWeather"),
+    // Weather (3) -- non-essential
+    HOOK_ENTRY(AddressIds::kSetWeather,           HookSetWeather,            RealSetWeather,            "SetWeather",             false),
+    HOOK_ENTRY(AddressIds::kForceWeather,         HookForceWeather,          RealForceWeather,          "ForceWeather",           false),
+    HOOK_ENTRY(AddressIds::kUpdateWeather,        HookUpdateWeather,         RealUpdateWeather,         "UpdateWeather",          false),
 
-    // Other (2)
-    HOOK_ENTRY(AddressIds::kPerformAction,        HookPerformAction,         RealPerformAction,         "PerformAction"),
-    HOOK_ENTRY(AddressIds::kInitiateMountPackage, HookInitiateMountPackage,  RealInitiateMountPackage,  "InitiateMountPackage"),
+    // Other (2) -- non-essential
+    HOOK_ENTRY(AddressIds::kPerformAction,        HookPerformAction,         RealPerformAction,         "PerformAction",          false),
+    HOOK_ENTRY(AddressIds::kInitiateMountPackage, HookInitiateMountPackage,  RealInitiateMountPackage,  "InitiateMountPackage",   false),
 };
 
 static constexpr uint32_t kHookCount = sizeof(s_hookTable) / sizeof(s_hookTable[0]);
@@ -792,9 +793,10 @@ static constexpr uint32_t kHookCount = sizeof(s_hookTable) / sizeof(s_hookTable[
 // Public API
 // ---------------------------------------------------------------------------
 
-bool InstallAllHooks()
+bool InstallAllHooks(bool aEssentialOnly)
 {
-    RelayLog("[SkyrimCoopHooks] Installing %u hook trampolines...\n", kHookCount);
+    RelayLog("[SkyrimCoopHooks] Installing hooks (mode: %s, total entries: %u)...\n",
+             aEssentialOnly ? "essential-only" : "full", kHookCount);
 
     // Step 1: Load Address Library
     if (!LoadAddressLibrary())
@@ -817,6 +819,13 @@ bool InstallAllHooks()
     for (uint32_t i = 0; i < kHookCount; i++)
     {
         const auto& entry = s_hookTable[i];
+
+        // Skip non-essential hooks if in essential-only mode
+        if (aEssentialOnly && !entry.essential)
+        {
+            continue;
+        }
+
         void* pTarget = ResolveAddress(entry.addressId);
 
         if (!pTarget)
@@ -837,7 +846,8 @@ bool InstallAllHooks()
         installedCount++;
     }
 
-    RelayLog("[SkyrimCoopHooks] Created %u/%u hooks\n", installedCount, kHookCount);
+    RelayLog("[SkyrimCoopHooks] Created %u hooks (%s mode)\n",
+             installedCount, aEssentialOnly ? "essential-only" : "full");
 
     // Step 4: Enable all hooks at once
     status = MH_EnableHook(MH_ALL_HOOKS);
