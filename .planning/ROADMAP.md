@@ -224,10 +224,20 @@ Plans:
 
 ### Phase 11: JSON Wire Protocol
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Replace the binary struct TCP protocol (opcode + length + fixed-size uint64 args[8]) between the relay DLL and native client with newline-delimited JSON. Each hook event and command gets typed, named fields instead of positional uint64 arrays. Add dirty-check cache to eliminate redundant high-frequency messages.
+**Requirements**: JSON-01, JSON-02, JSON-03, JSON-04, JSON-05, JSON-06, JSON-07, JSON-08
 **Depends on:** Phase 10
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. All 30 hook trampolines send NDJSON with named fields instead of binary HookEventPacket
+  2. All 15 command senders build JSON objects instead of binary CommandPacket
+  3. DirtyCache suppresses redundant HOOK_SET_POSITION and HOOK_ACTOR_PROCESS events (~90% traffic reduction for idle scenes)
+  4. All 8 native services dispatch on JSON "op" strings with named field access
+  5. Unit tests pass for JSON protocol schema, LineBuffer, and DirtyCache
+  6. Human-verified: DLL and native client communicate via NDJSON in Skyrim without crashes
+**Plans:** 4 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 11 to break down)
+- [ ] 11-01-PLAN.md -- Vendor nlohmann/json, define json_protocol.h schema, dirty_cache.h, line_buffer.h, unit tests
+- [ ] 11-02-PLAN.md -- DLL-side conversion: hook trampolines to JSON, TcpServer NDJSON, DrainCommandQueue JSON parsing
+- [ ] 11-03-PLAN.md -- Native-side conversion: TcpClient NDJSON, main.cpp dispatch, all 8 service JSON migration
+- [ ] 11-04-PLAN.md -- Legacy test updates, protocol.h deprecation, human verification in Skyrim
