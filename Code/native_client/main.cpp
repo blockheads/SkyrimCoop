@@ -143,7 +143,11 @@ static void DispatchHookEvent(const HookEventPacket& aHookPkt,
     switch (static_cast<HookOpcode>(aHookPkt.header.opcode)) {
     case HOOK_ACTOR_ADDED:
     case HOOK_SPAWN_ACTOR:
-    case HOOK_CHARACTER_CTOR: {
+    case HOOK_CHARACTER_CTOR:
+    case HOOK_ACTOR_PROCESS: {
+        // HOOK_ACTOR_PROCESS fires every frame for loaded actors — formID is
+        // guaranteed populated by then (unlike ctor hooks where it's still 0).
+        // Insert is idempotent so repeated calls for the same actor are safe.
         if (aHookPkt.argCount >= 2) {
             uint64_t rawPtr = aHookPkt.args[0];
             uint32_t formId = static_cast<uint32_t>(aHookPkt.args[1]);
