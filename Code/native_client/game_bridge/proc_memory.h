@@ -9,7 +9,7 @@ struct MemoryRegion {
     uint64_t start;
     uint64_t end;
     bool readable;
-    std::string name;  // e.g., "SkyrimSE.exe", "[heap]", etc.
+    std::string name;
 };
 
 class ProcMemReader {
@@ -32,17 +32,26 @@ public:
         return val;
     }
 
+    // Load /proc/pid/maps into m_regions for address validation
+    bool LoadMemoryMaps();
+
+    // Check if addr falls in a mapped region, return region name or ""
+    std::string ValidateAddress(uint64_t addr) const;
+
+    // Find the base address of a named module in /proc/pid/maps
+    // Returns 0 if not found. Searches m_regions for the first readable region
+    // whose name ends with the given suffix (case-insensitive).
+    uint64_t FindModuleBase(const char* aNameSuffix) const;
+
+    // Read and log a hex dump of `len` bytes at `addr` for diagnostics.
+    // Logs one line of up to 64 bytes. Returns bytes successfully read.
+    ssize_t HexDump(uint64_t addr, size_t len, const char* aLabel);
+
+    // Log a summary of all mapped regions
+    void DumpMemoryMapSummary() const;
+
     bool IsOpen() const { return m_fd != -1; }
     pid_t GetPid() const { return m_pid; }
-
-    // Parse /proc/pid/maps and cache readable regions
-    bool LoadMemoryMaps();
-    // Check if addr falls within a readable region; returns region name or empty
-    std::string ValidateAddress(uint64_t addr) const;
-    // Log summary of mapped regions (call once after Open)
-    void DumpMemoryMapSummary() const;
-    // Get count of loaded regions
-    size_t GetRegionCount() const { return m_regions.size(); }
 
 private:
     int m_fd = -1;

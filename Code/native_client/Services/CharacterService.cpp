@@ -83,7 +83,7 @@ void CharacterService::HandleActorAdded(uint64_t aActorPtr)
 {
     if (aActorPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormId(aActorPtr);
+    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
     if (formId == 0) {
         spdlog::warn("CharacterService: ActorAdded but could not read formId at ptr={:#x}", aActorPtr);
         return;
@@ -147,7 +147,7 @@ void CharacterService::HandleActorRemoved(uint64_t aActorPtr)
 {
     if (aActorPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormId(aActorPtr);
+    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
     if (formId == 0) {
         // Fallback: try to find entity by pointer
         auto localView = m_registry.view<LocalComponent>();
@@ -209,7 +209,7 @@ void CharacterService::HandleDeathItems(uint64_t aActorPtr)
     // Death items hook indicates actor is dying -- mark as dead in ECS
     if (aActorPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormId(aActorPtr);
+    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
     if (formId == 0) return;
 
     auto view = m_registry.view<LocalComponent>();
@@ -229,7 +229,7 @@ void CharacterService::HandlePerformAction(uint64_t aActorPtr, uint64_t aActionE
 {
     if (aActorPtr == 0 || aActionEventPtr == 0) return;
 
-    uint32_t formId = m_reader.ReadFormId(aActorPtr);
+    uint32_t formId = m_reader.ReadFormIdDeferred(aActorPtr);
     if (formId == 0) return;
 
     // Read action event data from memory
