@@ -1,4 +1,5 @@
 #include <catch2/catch.hpp>
+#include "dual_replay_harness.h"
 #include "server_replay_harness.h"
 #include <Recording/MessageSerializer.h>
 #include <Messages/AuthenticationRequest.h>
@@ -19,6 +20,11 @@
 static std::string IntegFixturePath(const char* aName)
 {
     return std::string(FIXTURE_PATH) + "/enet/" + aName;
+}
+
+static std::string ClientFixturePath(const char* aName)
+{
+    return std::string(FIXTURE_PATH) + "/" + aName;
 }
 
 static void GenerateIntegrationFixture()
@@ -104,6 +110,44 @@ TEST_CASE("Full integration: auth + assign + movement in single replay", "[Enet6
     CHECK(pPlayer->GetUsername() == "IntegPlayer");
 }
 
-// Note: Multi-harness determinism test removed due to enet6 static state
-// corruption after many GameServer instantiations in a single process.
-// Determinism is verified by the replay_tests.cpp suite instead.
+static void GenerateAuthFixtureForDual()
+{
+    std::filesystem::create_directories(std::string(FIXTURE_PATH) + "/enet");
+
+    AuthenticationRequest req;
+    req.Token = "dual_token";
+    req.Version = BUILD_COMMIT;
+    req.Username = "DualPlayer";
+    req.SKSEActive = true;
+
+    auto j = MessageSerializer::ClientToJson(req);
+    j["dir"] = "c2s";
+    j["peer"] = 1;
+    j["ts"] = 0.0;
+
+    std::ofstream out(IntegFixturePath("dual_auth.ndjson"));
+    out << j.dump() << "\n";
+}
+
+TEST_CASE("Dual harness replays both sides independently", "[DualReplay]")
+{
+    GenerateAuthFixtureForDual();
+
+    DualReplayHarness harness;
+
+    // Replay client-side hook events (existing fixture from Phase 12-13)
+    size_t clientEvents = harness.ReplayClientFile(ClientFixturePath("actor_spawn.ndjson"));
+    REQUIRE(clientEvents == 2);
+
+    // Replay server-side enet6 messages (generated fixture)
+    size_t serverMessages = harness.ReplayServerFile(IntegFixturePath("dual_auth.ndjson"), 1);
+    REQUIRE(serverMessages == 1);
+
+    // Client side assertions: actor_spawn.ndjson spawns formId 0x14
+    REQUIRE(harness.Client().GetPointerTable().Contains(0x14));
+
+    // Server side assertions: auth should produce AuthenticationResponse
+    auto& captured = harness.Server().GetCapturedServerMessages();
+    REQUIRE(captured.size() >= 1);
+    CHECK(captured[0]["type"] == "AuthenticationResponse");
+}
