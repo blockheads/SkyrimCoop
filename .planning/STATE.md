@@ -77,11 +77,8 @@ Progress: [=========-] 89%
 | Phase 09 P01 | 3min | 2 tasks | 1 files |
 | Phase 09 P02 | 3min | 1 tasks | 4 files |
 | Phase 09 P03 | 5min | 3 tasks | 3 files |
-<<<<<<< HEAD
-| Phase 09 P05 | 1min | 1 tasks | 1 files |
-=======
 | Phase 09 P04 | 2min | 1 tasks | 1 files |
->>>>>>> worktree-agent-a9fab3cd
+| Phase 09 P05 | 1min | 1 tasks | 1 files |
 | Phase 09 P06 | 3min | 2 tasks | 3 files |
 | Phase 09 P07 | 3min | 2 tasks | 3 files |
 
@@ -141,16 +138,8 @@ Recent decisions affecting current work:
 - [Phase 09]: Inverted --with-fake-player to --no-fake-player; fake_player runs by default now that embedded GameServer exists
 - [Phase 09]: JoinClient follows MockClient PacketView/Send pattern for enet6 remote host connection
 
-<<<<<<< HEAD
-
 - [Phase 09]: Step 4 mock relay pipeline is best-effort; CI runner works without Skyrim/Wine/MinGW
-
-=======
-
 - [Phase 09]: Sequential relay_info.json capture: host relay info consumed then deleted before join launch to prevent port collision
-
->>>>>>> worktree-agent-a9fab3cd
-
 - [Phase 09]: Linear scan for ValidateAddress acceptable for diagnostic use; pread still attempted for unmapped addresses
 - [Phase 09]: 6 essential hooks (ActorProcess, SetPosition, CharacterCtor/2, SpawnActorInWorld, AddDeathItems) defaulted on for stability; full 31-hook set via SKYRIM_COOP_ALL_HOOKS=1
 
@@ -179,11 +168,6 @@ None yet.
 
 ## Session Continuity
 
-<<<<<<< HEAD
 Last session: 2026-03-29T01:23:41.600Z
 Stopped at: Completed 09-07-PLAN.md
-=======
-Last session: 2026-03-29T00:29:18.996Z
-Stopped at: Completed 09-04-PLAN.md
->>>>>>> worktree-agent-a9fab3cd
 Resume file: None

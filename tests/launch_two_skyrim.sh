@@ -161,7 +161,7 @@ position_windows() {
 wait_for_relay_info() {
     local timeout="${1:-90}"
     local expect_port="${2:-}"   # If set, wait for a DIFFERENT port than this
-    info "Waiting for relay_info.json (timeout: ${timeout}s)..."
+    echo "[INFO]  Waiting for relay_info.json (timeout: ${timeout}s)..." >&2
 
     for i in $(seq 1 "$timeout"); do
         if [ -f "$RELAY_INFO" ]; then
@@ -182,7 +182,7 @@ wait_for_relay_info() {
         sleep 1
     done
 
-    fail "relay_info.json not ready within ${timeout}s"
+    echo "[FAIL]  relay_info.json not ready within ${timeout}s" >&2
     return 1
 }
 
@@ -322,8 +322,10 @@ main() {
     echo ""
 
     # ── Step 5: Launch host native process (embedded GameServer) ──
-    info "Launching host skyrim-coop (embedded GameServer)..."
-    "$PLUGINS/skyrim-coop" --pid "$host_relay_pid" --port "$host_relay_port" &
+    # Use the Linux PID (from pgrep) not the Wine PID (from relay_info.json)
+    # because skyrim-coop needs to ptrace and read /proc/pid/mem
+    info "Launching host skyrim-coop (embedded GameServer, Linux PID: $host_game_pid)..."
+    "$PLUGINS/skyrim-coop" --pid "$host_game_pid" --port "$host_relay_port" &
     HOST_NATIVE_PID=$!
     sleep 2
     if kill -0 "$HOST_NATIVE_PID" 2>/dev/null; then
@@ -403,8 +405,9 @@ main() {
     echo ""
 
     # ── Step 11: Launch join native process (connects to host GameServer) ──
-    info "Launching join skyrim-coop (connecting to host at 127.0.0.1:$GAME_SERVER_PORT)..."
-    "$PLUGINS/skyrim-coop" --pid "$join_relay_pid" --port "$join_relay_port" \
+    # Use the Linux PID (from pgrep) not the Wine PID (from relay_info.json)
+    info "Launching join skyrim-coop (connecting to host, Linux PID: $join_game_pid)..."
+    "$PLUGINS/skyrim-coop" --pid "$join_game_pid" --port "$join_relay_port" \
         --connect "127.0.0.1:$GAME_SERVER_PORT" &
     JOIN_NATIVE_PID=$!
     sleep 2
