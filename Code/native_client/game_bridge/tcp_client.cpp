@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <poll.h>
 
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
@@ -76,10 +77,40 @@ bool TcpClient::SendJsonLine(const nlohmann::json& aMsg) {
 }
 
 bool TcpClient::ReceiveJsonLine(nlohmann::json& aOut) {
+    // Non-blocking: drain available data from socket, then check buffer for line.
+    // Returns true with valid JSON if a line was available.
+    // Returns true with discarded JSON if no data pending (caller should break).
+    // Returns false on disconnect/error.
     while (!m_lineBuffer.HasCompleteLine()) {
+        // Poll socket for readable data with zero timeout (non-blocking check)
+        struct pollfd pfd{};
+        pfd.fd = m_socket;
+        pfd.events = POLLIN;
+        int pollResult = ::poll(&pfd, 1, 0);
+
+        if (pollResult < 0) {
+            spdlog::error("poll() failed: {} ({})", strerror(errno), errno);
+            return false;
+        }
+        if (pollResult == 0) {
+            // No data available right now -- return discarded JSON to signal "no message"
+            aOut = nlohmann::json::value_t::discarded;
+            return true;
+        }
+        if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
+            return false; // Socket error or hangup
+        }
+
         char buf[4096];
-        ssize_t n = ::recv(m_socket, buf, sizeof(buf), 0);
-        if (n <= 0) return false;
+        ssize_t n = ::recv(m_socket, buf, sizeof(buf), MSG_DONTWAIT);
+        if (n <= 0) {
+            if (n == 0) return false; // peer closed
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                aOut = nlohmann::json::value_t::discarded;
+                return true; // no data yet
+            }
+            return false; // real error
+        }
         m_lineBuffer.Append(buf, static_cast<size_t>(n));
     }
     std::string line;

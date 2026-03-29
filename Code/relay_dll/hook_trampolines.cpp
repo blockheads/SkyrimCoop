@@ -960,22 +960,25 @@ struct HookEntry {
     void* pDetour;
     void** ppOriginal;
     const char* pName;
+    bool essential;  // true = installed in essential-only mode (safe during cell load)
 };
 
-// Helper macro to suppress function-to-void* warnings in the hook table
+// Helper macros to suppress function-to-void* warnings in the hook table
 #define HOOK_ENTRY(id, hook, orig, name) \
-    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name }
+    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name, false }
+#define HOOK_ENTRY_ESSENTIAL(id, hook, orig, name) \
+    { id, reinterpret_cast<void*>(hook), reinterpret_cast<void**>(&orig), name, true }
 
 static const HookEntry s_hookTable[] = {
-    // Actor Lifecycle (6)
-    HOOK_ENTRY(AddressIds::kActorProcess,         HookActorProcess,          RealActorProcess,          "ActorProcess"),
-    HOOK_ENTRY(AddressIds::kSetPosition,          HookSetPosition,           RealSetPosition,           "SetPosition"),
-    HOOK_ENTRY(AddressIds::kCharacterCtor,        HookCharacterCtor,         RealCharacterCtor,         "CharacterCtor"),
-    HOOK_ENTRY(AddressIds::kCharacterCtor2,       HookCharacterCtor2,        RealCharacterCtor2,        "CharacterCtor2"),
-    HOOK_ENTRY(AddressIds::kSpawnActorInWorld,    HookSpawnActor,            RealSpawnActor,            "SpawnActorInWorld"),
-    HOOK_ENTRY(AddressIds::kAddDeathItems,        HookAddDeathItems,         RealAddDeathItems,         "AddDeathItems"),
+    // Actor Lifecycle -- essential hooks for core multiplayer functionality
+    HOOK_ENTRY_ESSENTIAL(AddressIds::kActorProcess,         HookActorProcess,          RealActorProcess,          "ActorProcess"),
+    HOOK_ENTRY_ESSENTIAL(AddressIds::kSetPosition,          HookSetPosition,           RealSetPosition,           "SetPosition"),
+    HOOK_ENTRY_ESSENTIAL(AddressIds::kCharacterCtor,        HookCharacterCtor,         RealCharacterCtor,         "CharacterCtor"),
+    HOOK_ENTRY_ESSENTIAL(AddressIds::kCharacterCtor2,       HookCharacterCtor2,        RealCharacterCtor2,        "CharacterCtor2"),
+    HOOK_ENTRY_ESSENTIAL(AddressIds::kSpawnActorInWorld,    HookSpawnActor,            RealSpawnActor,            "SpawnActorInWorld"),
+    HOOK_ENTRY_ESSENTIAL(AddressIds::kAddDeathItems,        HookAddDeathItems,         RealAddDeathItems,         "AddDeathItems"),
 
-    // Combat (5)
+    // Combat (5) -- non-essential, high frequency during gameplay
     HOOK_ENTRY(AddressIds::kDamageActor,          HookDamageActor,           RealDamageActor,           "DamageActor"),
     HOOK_ENTRY(AddressIds::kApplyActorEffect,     HookApplyActorEffect,      RealApplyActorEffect,      "ApplyActorEffect"),
     HOOK_ENTRY(AddressIds::kRegenAttributes,      HookRegenAttributes,       RealRegenAttributes,       "RegenAttributes"),
@@ -1024,9 +1027,10 @@ void* GetRealSetPosition()
     return reinterpret_cast<void*>(RealSetPosition);
 }
 
-bool InstallAllHooks(bool /*aEssentialOnly*/)
+bool InstallAllHooks(bool aEssentialOnly)
 {
-    RelayLog("[SkyrimCoopHooks] Installing %u hook trampolines...\n", kHookCount);
+    RelayLog("[SkyrimCoopHooks] Installing hooks (essentialOnly=%s)...\n",
+             aEssentialOnly ? "true" : "false");
 
     // Step 1: Load Address Library
     if (!LoadAddressLibrary())
@@ -1044,11 +1048,19 @@ bool InstallAllHooks(bool /*aEssentialOnly*/)
         return false;
     }
 
-    // Step 3: Create hooks for each entry
+    // Step 3: Create hooks for each entry (skip non-essential when essentialOnly)
     uint32_t installedCount = 0;
+    uint32_t skippedCount = 0;
     for (uint32_t i = 0; i < kHookCount; i++)
     {
         const auto& entry = s_hookTable[i];
+
+        if (aEssentialOnly && !entry.essential)
+        {
+            skippedCount++;
+            continue;
+        }
+
         void* pTarget = ResolveAddress(entry.addressId);
 
         if (!pTarget)
@@ -1069,7 +1081,11 @@ bool InstallAllHooks(bool /*aEssentialOnly*/)
         installedCount++;
     }
 
-    RelayLog("[SkyrimCoopHooks] Created %u/%u hooks\n", installedCount, kHookCount);
+    if (aEssentialOnly)
+        RelayLog("[SkyrimCoopHooks] Created %u hooks (%u non-essential skipped)\n",
+                 installedCount, skippedCount);
+    else
+        RelayLog("[SkyrimCoopHooks] Created %u/%u hooks\n", installedCount, kHookCount);
 
     // Step 4: Enable all hooks at once
     status = MH_EnableHook(MH_ALL_HOOKS);

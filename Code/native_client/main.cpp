@@ -653,7 +653,7 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            if (msg.is_discarded()) continue;
+            if (msg.is_discarded()) break; // No more data available right now
             packetsProcessed++;
 
             const auto& op = msg[JsonField::kOp].get_ref<const std::string&>();
@@ -670,8 +670,6 @@ int main(int argc, char* argv[]) {
                 std::string line = msg.dump() + "\n";
                 fwrite(line.c_str(), 1, line.size(), recordFile);
             }
-
-            break; // One message per iteration, then update
         }
 
         // --- Phase 2: Service updates ---
