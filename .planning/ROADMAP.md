@@ -242,3 +242,13 @@ Plans:
 - [x] 11-03-PLAN.md -- Native-side conversion: TcpClient NDJSON, main.cpp dispatch, build system updates
 - [x] 11-04-PLAN.md -- Native-side conversion: all 8 service OnHookEvent + command senders to JSON
 - [x] 11-05-PLAN.md -- Legacy test updates, protocol.h deprecation, human verification in Skyrim
+
+### Phase 12: NDJSON Replay Capture and Integration Tests
+
+**Goal:** Record live Skyrim NDJSON sessions to capture files, build a replay harness that feeds recorded data into the native client dispatch loop without Skyrim running, and create integration tests that validate service behavior against real game data. Enables fast iteration and regression detection without launching the game.
+**Requirements**: TBD
+**Depends on:** Phase 11
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 12 to break down)
