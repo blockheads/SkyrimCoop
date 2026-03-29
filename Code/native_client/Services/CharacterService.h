@@ -86,10 +86,10 @@ private:
     void SyncMovement();
     void ApplyRemotePositions();
 
-    // Send a CMD_SET_POSITION to the DLL for a remote actor
+    // Send a cmd_set_position JSON command to the DLL for a remote actor
     void SendSetPosition(uint64_t aActorPtr, const glm::vec3& aPos, const glm::vec2& aRot);
 
-    // Send a CMD_PLAY_ANIMATION to the DLL for a remote actor
+    // Send a cmd_play_animation JSON command to the DLL for a remote actor
     void SendPlayAnimation(uint64_t aActorPtr, uint32_t aActionId, uint32_t aTargetFormId);
 
     GameReader& m_reader;

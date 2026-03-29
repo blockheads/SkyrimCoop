@@ -19,6 +19,10 @@ public:
     // Periodic update
     void Update(float aDeltaTime);
 
+    // Send commands to DLL relay (for remote combat application)
+    void SendDamageActor(uint64_t aActorPtr, float aDamage);
+    void SendLaunchProjectile(uint64_t aDataPtr);
+
 private:
     GameReader& m_reader;
     TcpClient& m_client;

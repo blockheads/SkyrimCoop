@@ -14,7 +14,7 @@ class MagicService {
 public:
     MagicService(GameReader& aReader, TcpClient& aTcp);
 
-    // Process a hook event from the DLL relay
+    // Process a hook event from the DLL relay (JSON wire protocol)
     void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update (process queued effects, timeout active casts)
@@ -43,15 +43,6 @@ private:
 
     // Active cast timeout (concentration spells that never get an interrupt)
     static constexpr float kActiveCastTimeout = 30.0f;
-
-    void HandleSpellCast(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleInterruptCast(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleAddTarget(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleApplyEffect(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleRemoveSpell(const uint64_t* apArgs, uint8_t aArgCount);
-
-    // Send a command packet to the DLL relay
-    void SendCommand(uint16_t aOpcode, const uint64_t* apArgs, uint8_t aArgCount);
 
     // Remove an active cast by caster formId
     void RemoveActiveCast(uint32_t aCasterFormId);

@@ -9,7 +9,7 @@ class TcpClient;
 // WeatherService: Reads weather state via GameReader (/proc/pid/mem)
 // and syncs weather changes over the network.
 // Receives hook events: HOOK_SET_WEATHER, HOOK_FORCE_WEATHER, HOOK_WEATHER_CHANGE
-// Sends commands: CMD_FORCE_WEATHER
+// Sends commands: cmd_force_weather (JSON)
 class WeatherService {
 public:
     WeatherService(GameReader& aReader, TcpClient& aClient);
@@ -19,6 +19,9 @@ public:
 
     // Periodic update: poll weather state from game memory
     void Update(float aDeltaTime);
+
+    // Send a cmd_force_weather command to the DLL
+    void SendForceWeather(uint32_t aWeatherFormId);
 
 private:
     // Read current weather formId from Sky singleton via memory

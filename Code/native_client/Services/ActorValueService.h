@@ -45,7 +45,6 @@ private:
         float stamina = 0.0f;
     };
 
-    void HandleRegenAttr(const uint64_t* apArgs, uint8_t aArgCount);
     void PollActorValues();
     float ReadActorValue(uint64_t aActorPtr, uint32_t aValueIndex);
 

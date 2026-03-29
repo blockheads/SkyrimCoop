@@ -3,7 +3,7 @@
 
 // InterpolationSystem: Pure math system that smooths remote actor positions.
 // No game API calls -- operates entirely on InterpolationComponent data.
-// The interpolated positions are then sent to the DLL via CMD_SET_POSITION by CharacterService.
+// The interpolated positions are then sent to the DLL via cmd_set_position JSON by CharacterService.
 class InterpolationSystem {
 public:
     // Update all entities with InterpolationComponent: lerp toward target

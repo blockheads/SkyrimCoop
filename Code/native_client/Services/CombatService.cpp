@@ -1,24 +1,11 @@
 #include "CombatService.h"
 
 #include <spdlog/spdlog.h>
-#include <cstring>
 #include <nlohmann/json.hpp>
 #include "json_protocol.h"
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
-#include "protocol.h"
-
-// Game struct offsets
-static constexpr uint64_t cFormIdOffset = 0x14;
-
-// Utility: extract float from uint64_t (reverse of FloatToU64 in DLL)
-static float U64ToFloat(uint64_t aVal)
-{
-    float f = 0.0f;
-    memcpy(&f, &aVal, sizeof(float));
-    return f;
-}
 
 CombatService::CombatService(GameReader& aReader, TcpClient& aClient)
     : m_reader(aReader)
@@ -29,9 +16,52 @@ CombatService::CombatService(GameReader& aReader, TcpClient& aClient)
 
 void CombatService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    // TODO(Plan-04): Implement JSON dispatch for CombatService
-    const auto& op = aMsg.value(JsonField::kOp, std::string{});
-    spdlog::debug("[CombatService] stub OnHookEvent: op={}", op);
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
+    if (op == JsonOp::kDamageActor) {
+        uint32_t formId = aMsg.value(JsonField::kFormId, 0u);
+        float damage = aMsg.value(JsonField::kDamage, 0.0f);
+
+        if (formId == 0) {
+            spdlog::debug("CombatService: damage_actor with formId=0 (combat controller update)");
+        } else {
+            spdlog::debug("CombatService: damage_actor formId={:#x} damage={:.2f}", formId, damage);
+            // TODO: Send damage sync message to embedded server / network layer
+        }
+        m_damageEventCount++;
+    } else if (op == JsonOp::kProjectile) {
+        uint64_t dataPtr = aMsg.value(JsonField::kDataPtr, 0ull);
+        spdlog::debug("CombatService: projectile launch dataPtr={:#x}", dataPtr);
+        m_projectileEventCount++;
+        // TODO: Send projectile sync message to embedded server / network layer
+    } else if (op == JsonOp::kAddTarget) {
+        uint32_t targetFormId = aMsg.value(JsonField::kTargetFormId, 0u);
+        uint64_t hitDataPtr = aMsg.value(JsonField::kHitDataPtr, 0ull);
+        spdlog::debug("CombatService: add_target targetFormId={:#x} hitDataPtr={:#x}",
+                      targetFormId, hitDataPtr);
+        // TODO: Send add target message to embedded server / network layer
+    }
+}
+
+void CombatService::SendDamageActor(uint64_t aActorPtr, float aDamage)
+{
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdDamageActor},
+        {JsonField::kActorPtr, aActorPtr},
+        {JsonField::kDamage, aDamage}
+    };
+    m_client.SendJsonLine(cmd);
+    spdlog::debug("CombatService: sent cmd_damage_actor ptr={:#x} damage={:.2f}", aActorPtr, aDamage);
+}
+
+void CombatService::SendLaunchProjectile(uint64_t aDataPtr)
+{
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdLaunchProjectile},
+        {JsonField::kDataPtr, aDataPtr}
+    };
+    m_client.SendJsonLine(cmd);
+    spdlog::debug("CombatService: sent cmd_launch_projectile dataPtr={:#x}", aDataPtr);
 }
 
 void CombatService::Update(float /*aDeltaTime*/)

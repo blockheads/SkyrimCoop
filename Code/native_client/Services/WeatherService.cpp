@@ -6,7 +6,6 @@
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
-#include "protocol.h"
 
 // Game struct offsets (extracted from existing game headers, no direct includes)
 // Sky singleton: accessed via Address Library ID 13878, stored as global pointer
@@ -24,9 +23,33 @@ WeatherService::WeatherService(GameReader& aReader, TcpClient& aClient)
 
 void WeatherService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    // TODO(Plan-04): Implement JSON dispatch for WeatherService
-    const auto& op = aMsg.value(JsonField::kOp, std::string{});
-    spdlog::debug("[WeatherService] stub OnHookEvent: op={}", op);
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
+    if (op == JsonOp::kWeatherChange) {
+        // Periodic weather update -- sky_ptr only, read current weather via memory
+        uint64_t skyPtr = aMsg.value(JsonField::kSkyPtr, 0ull);
+        if (skyPtr != 0) {
+            // Store sky pointer in pointer table for future lookups
+            m_reader.GetPointers().Insert(0xFFFF0001, skyPtr);
+        }
+    } else if (op == JsonOp::kSetWeather) {
+        uint32_t weatherFormId = aMsg.value(JsonField::kWeatherFormId, 0u);
+        bool override_ = aMsg.value(JsonField::kOverride, false);
+        bool accel = aMsg.value(JsonField::kAccel, false);
+        spdlog::info("WeatherService: set_weather formId={:#x} override={} accel={}",
+                     weatherFormId, override_, accel);
+        if (weatherFormId != 0 && weatherFormId != cMapWeatherId) {
+            m_cachedWeatherId = weatherFormId;
+        }
+    } else if (op == JsonOp::kForceWeather) {
+        uint32_t weatherFormId = aMsg.value(JsonField::kWeatherFormId, 0u);
+        bool override_ = aMsg.value(JsonField::kOverride, false);
+        spdlog::info("WeatherService: force_weather formId={:#x} override={}",
+                     weatherFormId, override_);
+        if (weatherFormId != 0 && weatherFormId != cMapWeatherId) {
+            m_cachedWeatherId = weatherFormId;
+        }
+    }
 }
 
 void WeatherService::Update(float aDeltaTime)
@@ -46,6 +69,16 @@ void WeatherService::Update(float aDeltaTime)
         // For now, log the weather change event
         spdlog::info("WeatherService: weather changed to formId={:#x}", currentId);
     }
+}
+
+void WeatherService::SendForceWeather(uint32_t aWeatherFormId)
+{
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdForceWeather},
+        {JsonField::kWeatherFormId, aWeatherFormId}
+    };
+    m_client.SendJsonLine(cmd);
+    spdlog::debug("WeatherService: sent cmd_force_weather formId={:#x}", aWeatherFormId);
 }
 
 uint32_t WeatherService::ReadCurrentWeatherId()

@@ -6,7 +6,6 @@
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
-#include "protocol.h"
 
 // Quest-related offsets (from TESQuest game struct)
 // TESForm::formID at offset 0x14
@@ -21,9 +20,12 @@ QuestService::QuestService(GameReader& aReader, TcpClient& aClient)
 
 void QuestService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    // TODO(Plan-04): Implement JSON dispatch for QuestService
-    const auto& op = aMsg.value(JsonField::kOp, std::string{});
-    spdlog::debug("[QuestService] stub OnHookEvent: op={}", op);
+    // QuestService currently has no dedicated hook ops routed to it from main.cpp.
+    // This handler is a placeholder for future quest-related ops (e.g., quest stage
+    // change, objective completion). When quest hooks are added to the relay DLL,
+    // they will be dispatched here using the same JSON pattern as other services.
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+    spdlog::debug("QuestService: OnHookEvent op={}", op);
 }
 
 void QuestService::Update(float /*aDeltaTime*/)

@@ -6,7 +6,6 @@
 
 #include "../game_bridge/game_reader.h"
 #include "../game_bridge/tcp_client.h"
-#include "protocol.h"
 
 // TimeData global offsets (extracted from existing game headers)
 // These are Skyrim global variables accessed via Address Library IDs.
@@ -36,9 +35,17 @@ CalendarService::CalendarService(GameReader& aReader, TcpClient& aClient)
 
 void CalendarService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    // TODO(Plan-04): Implement JSON dispatch for CalendarService
-    const auto& op = aMsg.value(JsonField::kOp, std::string{});
-    spdlog::debug("[CalendarService] stub OnHookEvent: op={}", op);
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
+    if (op == JsonOp::kSimulateTime) {
+        // SimulateTime hook fired -- the DLL provides the this_ptr (Calendar singleton)
+        uint64_t calendarPtr = aMsg.value(JsonField::kThisPtr, 0ull);
+        if (calendarPtr != 0) {
+            // Store Calendar singleton pointer for future reads
+            m_reader.GetPointers().Insert(0xFFFF0002, calendarPtr);
+        }
+        spdlog::debug("CalendarService: simulate_time calendarPtr={:#x}", calendarPtr);
+    }
 }
 
 void CalendarService::Update(float aDeltaTime)

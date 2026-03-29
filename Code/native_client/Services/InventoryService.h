@@ -14,7 +14,7 @@ class InventoryService {
 public:
     InventoryService(GameReader& aReader, TcpClient& aTcp);
 
-    // Process a hook event from the DLL relay
+    // Process a hook event from the DLL relay (JSON wire protocol)
     void OnHookEvent(const nlohmann::json& aMsg);
 
     // Periodic update (weapon draw state, etc.)
@@ -27,16 +27,6 @@ public:
     void ApplyRemoteUnequip(uint32_t aActorFormId, uint32_t aItemFormId);
 
 private:
-    void HandleAddInventory(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleEquip(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleUnequip(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandlePickUp(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleDropObject(const uint64_t* apArgs, uint8_t aArgCount);
-    void HandleRemoveInvItem(const uint64_t* apArgs, uint8_t aArgCount);
-
-    // Send a command packet to the DLL relay
-    void SendCommand(uint16_t aOpcode, const uint64_t* apArgs, uint8_t aArgCount);
-
     GameReader& m_reader;
     TcpClient& m_tcp;
 };

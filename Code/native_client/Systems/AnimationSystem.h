@@ -4,7 +4,7 @@
 class TcpClient;
 
 // AnimationSystem: Applies animation variable updates for remote actors.
-// When a remote actor has a dirty AnimationComponent, sends CMD_PLAY_ANIMATION
+// When a remote actor has a dirty AnimationComponent, sends cmd_play_animation JSON
 // to the DLL relay for game-thread application.
 class AnimationSystem {
 public:

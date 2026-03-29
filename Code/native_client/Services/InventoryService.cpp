@@ -1,12 +1,11 @@
 #include "InventoryService.h"
-#include "game_bridge/game_reader.h"
-#include "game_bridge/tcp_client.h"
-#include "protocol.h"
 
 #include <spdlog/spdlog.h>
-#include <cstring>
 #include <nlohmann/json.hpp>
 #include "json_protocol.h"
+
+#include "../game_bridge/game_reader.h"
+#include "../game_bridge/tcp_client.h"
 
 InventoryService::InventoryService(GameReader& aReader, TcpClient& aTcp)
     : m_reader(aReader), m_tcp(aTcp)
@@ -15,9 +14,105 @@ InventoryService::InventoryService(GameReader& aReader, TcpClient& aTcp)
 
 void InventoryService::OnHookEvent(const nlohmann::json& aMsg)
 {
-    // TODO(Plan-04): Implement JSON dispatch for InventoryService
-    const auto& op = aMsg.value(JsonField::kOp, std::string{});
-    spdlog::debug("[InventoryService] stub OnHookEvent: op={}", op);
+    const auto& op = aMsg[JsonField::kOp].get_ref<const std::string&>();
+
+    if (op == JsonOp::kAddInventory) {
+        uint32_t actorFormId = aMsg.value(JsonField::kActorFormId, 0u);
+        uint32_t itemFormId = aMsg.value(JsonField::kItemFormId, 0u);
+        int32_t count = aMsg.value(JsonField::kCount, 0);
+
+        if (actorFormId == 0 || itemFormId == 0) {
+            spdlog::warn("add_inventory: formIds are zero (actor={:#x}, item={:#x})",
+                          actorFormId, itemFormId);
+            return;
+        }
+
+        spdlog::debug("Inventory add: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
+        // TODO: Send inventory add message to embedded server / network layer
+
+    } else if (op == JsonOp::kPickUp) {
+        uint32_t actorFormId = aMsg.value(JsonField::kActorFormId, 0u);
+        uint32_t objFormId = aMsg.value(JsonField::kObjFormId, 0u);
+        int32_t count = aMsg.value(JsonField::kCount, 0);
+
+        if (actorFormId == 0 || objFormId == 0) {
+            spdlog::warn("pick_up: formIds are zero (actor={:#x}, obj={:#x})",
+                          actorFormId, objFormId);
+            return;
+        }
+
+        spdlog::debug("Pick up: actor={:#x} obj={:#x} count={}", actorFormId, objFormId, count);
+        // TODO: Send pickup message to embedded server / network layer
+
+    } else if (op == JsonOp::kDropObject) {
+        uint32_t actorFormId = aMsg.value(JsonField::kActorFormId, 0u);
+        uint32_t itemFormId = aMsg.value(JsonField::kItemFormId, 0u);
+        int32_t count = aMsg.value(JsonField::kCount, 0);
+
+        if (actorFormId == 0 || itemFormId == 0) {
+            spdlog::warn("drop_object: formIds are zero (actor={:#x}, item={:#x})",
+                          actorFormId, itemFormId);
+            return;
+        }
+
+        spdlog::debug("Drop object: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
+        // TODO: Send drop message to embedded server / network layer
+
+    } else if (op == JsonOp::kEquip) {
+        uint32_t actorFormId = aMsg.value(JsonField::kActorFormId, 0u);
+        uint32_t itemFormId = aMsg.value(JsonField::kItemFormId, 0u);
+
+        if (actorFormId == 0 || itemFormId == 0) {
+            spdlog::warn("equip: formIds are zero (actor={:#x}, item={:#x})",
+                          actorFormId, itemFormId);
+            return;
+        }
+
+        spdlog::debug("Equip: actor={:#x} item={:#x}", actorFormId, itemFormId);
+        // TODO: Send equip message to embedded server / network layer
+
+    } else if (op == JsonOp::kUnequip) {
+        uint32_t actorFormId = aMsg.value(JsonField::kActorFormId, 0u);
+        uint32_t itemFormId = aMsg.value(JsonField::kItemFormId, 0u);
+
+        if (actorFormId == 0 || itemFormId == 0) {
+            spdlog::warn("unequip: formIds are zero (actor={:#x}, item={:#x})",
+                          actorFormId, itemFormId);
+            return;
+        }
+
+        spdlog::debug("Unequip: actor={:#x} item={:#x}", actorFormId, itemFormId);
+        // TODO: Send unequip message to embedded server / network layer
+
+    } else if (op == JsonOp::kRemoveInvItem) {
+        uint32_t actorFormId = aMsg.value(JsonField::kActorFormId, 0u);
+        uint32_t itemFormId = aMsg.value(JsonField::kItemFormId, 0u);
+        int32_t count = aMsg.value(JsonField::kCount, 0);
+
+        if (actorFormId == 0 || itemFormId == 0) {
+            spdlog::warn("remove_inv_item: formIds are zero (actor={:#x}, item={:#x})",
+                          actorFormId, itemFormId);
+            return;
+        }
+
+        spdlog::debug("Remove inv item: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
+        // TODO: Send remove message to embedded server / network layer
+
+    } else if (op == JsonOp::kActivate) {
+        uint32_t thisFormId = aMsg.value(JsonField::kThisFormId, 0u);
+        uint32_t activatorFormId = aMsg.value(JsonField::kActivatorFormId, 0u);
+        int32_t count = aMsg.value(JsonField::kCount, 0);
+
+        spdlog::debug("Activate: this={:#x} activator={:#x} count={}", thisFormId, activatorFormId, count);
+        // TODO: Send activate message to embedded server / network layer
+
+    } else if (op == JsonOp::kLockChange) {
+        uint32_t thisFormId = aMsg.value(JsonField::kThisFormId, 0u);
+        bool locked = aMsg.value(JsonField::kLocked, false);
+
+        spdlog::debug("Lock change: this={:#x} locked={}", thisFormId, locked);
+        // TODO: Send lock change message to embedded server / network layer
+    }
 }
 
 void InventoryService::Update(float /*aDeltaTime*/)
@@ -27,149 +122,7 @@ void InventoryService::Update(float /*aDeltaTime*/)
     // In the native architecture, weapon draw state hooks arrive via DLL relay.
 }
 
-// --- Hook handlers ---
-
-void InventoryService::HandleAddInventory(const uint64_t* apArgs, uint8_t aArgCount)
-{
-    // DLL arg layout: [actorPtr, actorFormId, itemPtr, itemFormId, countU64, refPtr]
-    if (aArgCount < 5) {
-        spdlog::warn("HOOK_ADD_INVENTORY: insufficient args ({})", aArgCount);
-        return;
-    }
-
-    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
-    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
-    int32_t count = static_cast<int32_t>(apArgs[4]);
-
-    if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_ADD_INVENTORY: formIds are zero (actor={:#x}, item={:#x})",
-                      actorFormId, itemFormId);
-        return;
-    }
-
-    spdlog::debug("Inventory add: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
-    // TODO: Send inventory add message to embedded server / network layer
-}
-
-void InventoryService::HandleEquip(const uint64_t* apArgs, uint8_t aArgCount)
-{
-    // DLL arg layout: [actorPtr, actorFormId, objPtr, objFormId]
-    if (aArgCount < 4) {
-        spdlog::warn("HOOK_EQUIP: insufficient args ({})", aArgCount);
-        return;
-    }
-
-    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
-    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
-
-    if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_EQUIP: formIds are zero (actor={:#x}, item={:#x})",
-                      actorFormId, itemFormId);
-        return;
-    }
-
-    spdlog::debug("Equip: actor={:#x} item={:#x}", actorFormId, itemFormId);
-    // TODO: Send equip message to embedded server / network layer
-}
-
-void InventoryService::HandleUnequip(const uint64_t* apArgs, uint8_t aArgCount)
-{
-    // DLL arg layout: [actorPtr, actorFormId, objPtr, objFormId]
-    if (aArgCount < 4) {
-        spdlog::warn("HOOK_UNEQUIP: insufficient args ({})", aArgCount);
-        return;
-    }
-
-    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
-    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
-
-    if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_UNEQUIP: formIds are zero (actor={:#x}, item={:#x})",
-                      actorFormId, itemFormId);
-        return;
-    }
-
-    spdlog::debug("Unequip: actor={:#x} item={:#x}", actorFormId, itemFormId);
-    // TODO: Send unequip message to embedded server / network layer
-}
-
-void InventoryService::HandlePickUp(const uint64_t* apArgs, uint8_t aArgCount)
-{
-    // DLL arg layout: [actorPtr, actorFormId, objPtr, objFormId, countU64]
-    if (aArgCount < 4) {
-        spdlog::warn("HOOK_PICK_UP: insufficient args ({})", aArgCount);
-        return;
-    }
-
-    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
-    uint32_t objFormId = static_cast<uint32_t>(apArgs[3]);
-
-    if (actorFormId == 0 || objFormId == 0) {
-        spdlog::warn("HOOK_PICK_UP: formIds are zero (actor={:#x}, obj={:#x})",
-                      actorFormId, objFormId);
-        return;
-    }
-
-    spdlog::debug("Pick up: actor={:#x} obj={:#x}", actorFormId, objFormId);
-    // TODO: Send pickup message to embedded server / network layer
-}
-
-void InventoryService::HandleDropObject(const uint64_t* apArgs, uint8_t aArgCount)
-{
-    // DLL arg layout: [actorPtr, actorFormId, itemPtr, itemFormId, countU64]
-    if (aArgCount < 4) {
-        spdlog::warn("HOOK_DROP_OBJECT: insufficient args ({})", aArgCount);
-        return;
-    }
-
-    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
-    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
-
-    if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_DROP_OBJECT: formIds are zero (actor={:#x}, item={:#x})",
-                      actorFormId, itemFormId);
-        return;
-    }
-
-    spdlog::debug("Drop object: actor={:#x} item={:#x}", actorFormId, itemFormId);
-    // TODO: Send drop message to embedded server / network layer
-}
-
-void InventoryService::HandleRemoveInvItem(const uint64_t* apArgs, uint8_t aArgCount)
-{
-    // DLL arg layout: [actorPtr, actorFormId, itemPtr, itemFormId, countU64]
-    if (aArgCount < 5) {
-        spdlog::warn("HOOK_REMOVE_INV_ITEM: insufficient args ({})", aArgCount);
-        return;
-    }
-
-    uint32_t actorFormId = static_cast<uint32_t>(apArgs[1]);
-    uint32_t itemFormId = static_cast<uint32_t>(apArgs[3]);
-    int32_t count = static_cast<int32_t>(apArgs[4]);
-
-    if (actorFormId == 0 || itemFormId == 0) {
-        spdlog::warn("HOOK_REMOVE_INV_ITEM: formIds are zero (actor={:#x}, item={:#x})",
-                      actorFormId, itemFormId);
-        return;
-    }
-
-    spdlog::debug("Remove inv item: actor={:#x} item={:#x} count={}", actorFormId, itemFormId, count);
-    // TODO: Send remove message to embedded server / network layer
-}
-
-// --- Remote inventory application (sending commands to DLL) ---
-
-void InventoryService::SendCommand(uint16_t aOpcode, const uint64_t* apArgs, uint8_t aArgCount)
-{
-    CommandPacket cmd{};
-    cmd.header.opcode = aOpcode;
-    cmd.header.length = sizeof(CommandPacket) - sizeof(PacketHeader);
-    cmd.argCount = aArgCount;
-    for (uint8_t i = 0; i < aArgCount && i < 8; ++i)
-        cmd.args[i] = apArgs[i];
-
-    m_tcp.Send(&cmd, sizeof(cmd));
-}
+// --- Remote inventory application (sending JSON commands to DLL) ---
 
 void InventoryService::ApplyRemoteInventoryAdd(uint32_t aActorFormId, uint32_t aItemFormId, int32_t aCount)
 {
@@ -181,9 +134,14 @@ void InventoryService::ApplyRemoteInventoryAdd(uint32_t aActorFormId, uint32_t a
         return;
     }
 
-    uint64_t args[3] = {actorPtr, itemPtr, static_cast<uint64_t>(aCount)};
-    SendCommand(CMD_ADD_ITEM, args, 3);
-    spdlog::debug("Sent CMD_ADD_ITEM: actor={:#x} item={:#x} count={}", aActorFormId, aItemFormId, aCount);
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdAddItem},
+        {JsonField::kActorPtr, actorPtr},
+        {JsonField::kItemPtr, itemPtr},
+        {JsonField::kCount, aCount}
+    };
+    m_tcp.SendJsonLine(cmd);
+    spdlog::debug("Sent cmd_add_item: actor={:#x} item={:#x} count={}", aActorFormId, aItemFormId, aCount);
 }
 
 void InventoryService::ApplyRemoteInventoryRemove(uint32_t aActorFormId, uint32_t aItemFormId, int32_t aCount)
@@ -196,9 +154,14 @@ void InventoryService::ApplyRemoteInventoryRemove(uint32_t aActorFormId, uint32_
         return;
     }
 
-    uint64_t args[3] = {actorPtr, itemPtr, static_cast<uint64_t>(aCount)};
-    SendCommand(CMD_REMOVE_ITEM, args, 3);
-    spdlog::debug("Sent CMD_REMOVE_ITEM: actor={:#x} item={:#x} count={}", aActorFormId, aItemFormId, aCount);
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdRemoveItem},
+        {JsonField::kActorPtr, actorPtr},
+        {JsonField::kItemPtr, itemPtr},
+        {JsonField::kCount, aCount}
+    };
+    m_tcp.SendJsonLine(cmd);
+    spdlog::debug("Sent cmd_remove_item: actor={:#x} item={:#x} count={}", aActorFormId, aItemFormId, aCount);
 }
 
 void InventoryService::ApplyRemoteEquip(uint32_t aActorFormId, uint32_t aItemFormId)
@@ -211,9 +174,13 @@ void InventoryService::ApplyRemoteEquip(uint32_t aActorFormId, uint32_t aItemFor
         return;
     }
 
-    uint64_t args[2] = {actorPtr, itemPtr};
-    SendCommand(CMD_EQUIP_ITEM, args, 2);
-    spdlog::debug("Sent CMD_EQUIP_ITEM: actor={:#x} item={:#x}", aActorFormId, aItemFormId);
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdEquipItem},
+        {JsonField::kActorPtr, actorPtr},
+        {JsonField::kItemPtr, itemPtr}
+    };
+    m_tcp.SendJsonLine(cmd);
+    spdlog::debug("Sent cmd_equip_item: actor={:#x} item={:#x}", aActorFormId, aItemFormId);
 }
 
 void InventoryService::ApplyRemoteUnequip(uint32_t aActorFormId, uint32_t aItemFormId)
@@ -226,7 +193,11 @@ void InventoryService::ApplyRemoteUnequip(uint32_t aActorFormId, uint32_t aItemF
         return;
     }
 
-    uint64_t args[2] = {actorPtr, itemPtr};
-    SendCommand(CMD_UNEQUIP_ITEM, args, 2);
-    spdlog::debug("Sent CMD_UNEQUIP_ITEM: actor={:#x} item={:#x}", aActorFormId, aItemFormId);
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdUnequipItem},
+        {JsonField::kActorPtr, actorPtr},
+        {JsonField::kItemPtr, itemPtr}
+    };
+    m_tcp.SendJsonLine(cmd);
+    spdlog::debug("Sent cmd_unequip_item: actor={:#x} item={:#x}", aActorFormId, aItemFormId);
 }
