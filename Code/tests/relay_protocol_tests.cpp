@@ -4,7 +4,13 @@
 
 #include "protocol.h"
 
-TEST_CASE("RelayProtocol_HookEventPacket_RoundTrip", "[RelayProtocol]")
+// ======================================================================
+// Legacy binary protocol tests — kept for regression coverage of the
+// internal SPSC CommandSlot struct layout. The over-the-wire format is
+// now NDJSON; see json_protocol_tests.cpp for active wire tests.
+// ======================================================================
+
+TEST_CASE("RelayProtocol_HookEventPacket_RoundTrip", "[RelayProtocol][Legacy]")
 {
     HookEventPacket original{};
     original.header.opcode = HOOK_DAMAGE_ACTOR;
@@ -29,7 +35,7 @@ TEST_CASE("RelayProtocol_HookEventPacket_RoundTrip", "[RelayProtocol]")
     REQUIRE(restored.args[2] == 0xFFFFFFFFFFFFFFFFULL);
 }
 
-TEST_CASE("RelayProtocol_HookEventPacket_All8Args", "[RelayProtocol]")
+TEST_CASE("RelayProtocol_HookEventPacket_All8Args", "[RelayProtocol][Legacy]")
 {
     HookEventPacket pkt{};
     pkt.header.opcode = HOOK_SET_POSITION;
@@ -48,7 +54,7 @@ TEST_CASE("RelayProtocol_HookEventPacket_All8Args", "[RelayProtocol]")
         REQUIRE(restored.args[i] == static_cast<uint64_t>(i) * 0x1111111111111111ULL);
 }
 
-TEST_CASE("RelayProtocol_CommandPacket_RoundTrip", "[RelayProtocol]")
+TEST_CASE("RelayProtocol_CommandPacket_RoundTrip", "[RelayProtocol][Legacy]")
 {
     CommandPacket original{};
     original.header.opcode = CMD_SET_POSITION;
@@ -73,7 +79,7 @@ TEST_CASE("RelayProtocol_CommandPacket_RoundTrip", "[RelayProtocol]")
     REQUIRE(restored.args[3] == 0x40690000ULL);
 }
 
-TEST_CASE("RelayProtocol_PacketTotalSize", "[RelayProtocol]")
+TEST_CASE("RelayProtocol_PacketTotalSize", "[RelayProtocol][Legacy]")
 {
     PacketHeader h{};
     h.opcode = HOOK_ACTOR_ADDED;
@@ -83,7 +89,7 @@ TEST_CASE("RelayProtocol_PacketTotalSize", "[RelayProtocol]")
     REQUIRE(PacketTotalSize(h) == 52);  // sizeof(PacketHeader) == 4
 }
 
-TEST_CASE("RelayProtocol_AllHookOpcodes_Distinct", "[RelayProtocol]")
+TEST_CASE("RelayProtocol_AllHookOpcodes_Distinct", "[RelayProtocol][Legacy]")
 {
     std::set<uint16_t> opcodes;
     uint16_t hookValues[] = {
@@ -107,7 +113,7 @@ TEST_CASE("RelayProtocol_AllHookOpcodes_Distinct", "[RelayProtocol]")
     REQUIRE(count >= 20);  // at least 20 hook opcodes
 }
 
-TEST_CASE("RelayProtocol_AllCommandOpcodes_Distinct", "[RelayProtocol]")
+TEST_CASE("RelayProtocol_AllCommandOpcodes_Distinct", "[RelayProtocol][Legacy]")
 {
     std::set<uint16_t> opcodes;
     uint16_t cmdValues[] = {

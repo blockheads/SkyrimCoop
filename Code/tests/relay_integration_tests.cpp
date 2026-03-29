@@ -1,11 +1,11 @@
 // Relay protocol integration tests (D-02, D-04 step 3)
 // Tests TcpClient against a mock TCP server over real TCP sockets.
-// Unlike relay_protocol_tests.cpp (which tests structs via memcpy),
-// these tests exercise the actual TCP send/receive path.
+// Updated for Phase 11 JSON wire protocol: tests NDJSON send/receive.
 
 #include <catch2/catch.hpp>
 #include "tcp_client.h"
-#include "protocol.h"
+#include "json_protocol.h"
+#include <nlohmann/json.hpp>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,6 +13,8 @@
 #include <thread>
 #include <chrono>
 #include <cstring>
+
+using json = nlohmann::json;
 
 // MockTcpServer: simple POSIX TCP listener for testing TcpClient
 struct MockTcpServer
@@ -65,11 +67,12 @@ struct MockTcpServer
         return m_clientFd >= 0;
     }
 
-    // Send raw bytes on the accepted connection
-    bool SendRaw(const void* aData, size_t aSize)
+    // Send an NDJSON line (JSON string + '\n')
+    bool SendNdjsonLine(const json& aMsg)
     {
-        const uint8_t* pBuf = static_cast<const uint8_t*>(aData);
-        size_t remaining = aSize;
+        std::string line = aMsg.dump() + "\n";
+        const char* pBuf = line.c_str();
+        size_t remaining = line.size();
         while (remaining > 0)
         {
             ssize_t sent = ::send(m_clientFd, pBuf, remaining, MSG_NOSIGNAL);
@@ -81,19 +84,23 @@ struct MockTcpServer
         return true;
     }
 
-    // Receive raw bytes from the accepted connection
-    bool RecvRaw(void* aData, size_t aSize)
+    // Receive an NDJSON line from the client (reads until '\n')
+    bool RecvNdjsonLine(json& aOut)
     {
-        uint8_t* pBuf = static_cast<uint8_t*>(aData);
-        size_t remaining = aSize;
-        while (remaining > 0)
+        std::string line;
+        char ch;
+        while (true)
         {
-            ssize_t received = ::recv(m_clientFd, pBuf, remaining, 0);
-            if (received <= 0)
+            ssize_t n = ::recv(m_clientFd, &ch, 1, 0);
+            if (n <= 0)
                 return false;
-            pBuf += received;
-            remaining -= static_cast<size_t>(received);
+            if (ch == '\n')
+                break;
+            line += ch;
         }
+        if (line.empty())
+            return false;
+        aOut = json::parse(line);
         return true;
     }
 };
@@ -115,7 +122,7 @@ TEST_CASE("Relay_TcpClient_ConnectsToMockDll", "[RelayIntegration]")
     REQUIRE(server.m_clientFd >= 0);
 }
 
-TEST_CASE("Relay_HookEvent_RoundTrip", "[RelayIntegration]")
+TEST_CASE("Relay_JsonHookEvent_RoundTrip", "[RelayIntegration][JsonProtocol]")
 {
     MockTcpServer server;
 
@@ -127,39 +134,24 @@ TEST_CASE("Relay_HookEvent_RoundTrip", "[RelayIntegration]")
     REQUIRE(client.Connect(server.GetPort()));
     acceptThread.join();
 
-    // Mock DLL side: send a HookEventPacket
-    HookEventPacket hookPkt{};
-    hookPkt.header.opcode = HOOK_ACTOR_ADDED;
-    hookPkt.header.length = sizeof(HookEventPacket) - sizeof(PacketHeader);
-    hookPkt.argCount = 2;
-    hookPkt.args[0] = 0xDEADBEEF12345678ULL;
-    hookPkt.args[1] = 0x00000014ULL; // formID
+    // Mock DLL side: send an actor_added NDJSON event
+    json hookMsg;
+    hookMsg[JsonField::kOp] = JsonOp::kActorAdded;
+    hookMsg[JsonField::kPtr] = 0xDEADBEEF12345678ULL;
+    hookMsg[JsonField::kFormId] = 0x14u;
 
-    REQUIRE(server.SendRaw(&hookPkt, sizeof(hookPkt)));
+    REQUIRE(server.SendNdjsonLine(hookMsg));
 
-    // TcpClient side: receive the packet
-    // Receive() reads header separately, then payload = everything after header
-    PacketHeader recvHeader{};
-    uint8_t payloadBuf[256]{};
-    uint16_t expectedPayloadLen = sizeof(HookEventPacket) - sizeof(PacketHeader);
+    // TcpClient side: receive the JSON line
+    json received;
+    REQUIRE(client.ReceiveJsonLine(received));
 
-    REQUIRE(client.Receive(&recvHeader, payloadBuf, sizeof(payloadBuf)));
-
-    REQUIRE(recvHeader.opcode == HOOK_ACTOR_ADDED);
-    REQUIRE(recvHeader.length == expectedPayloadLen);
-
-    // Reconstruct full HookEventPacket by combining header + payload
-    HookEventPacket recvPkt{};
-    recvPkt.header = recvHeader;
-    std::memcpy(reinterpret_cast<uint8_t*>(&recvPkt) + sizeof(PacketHeader),
-                payloadBuf, expectedPayloadLen);
-
-    REQUIRE(recvPkt.argCount == 2);
-    REQUIRE(recvPkt.args[0] == 0xDEADBEEF12345678ULL);
-    REQUIRE(recvPkt.args[1] == 0x00000014ULL);
+    REQUIRE(received[JsonField::kOp] == JsonOp::kActorAdded);
+    REQUIRE(received[JsonField::kFormId] == 0x14u);
+    REQUIRE(received[JsonField::kPtr] == 0xDEADBEEF12345678ULL);
 }
 
-TEST_CASE("Relay_Command_RoundTrip", "[RelayIntegration]")
+TEST_CASE("Relay_JsonCommand_RoundTrip", "[RelayIntegration][JsonProtocol]")
 {
     MockTcpServer server;
 
@@ -171,30 +163,28 @@ TEST_CASE("Relay_Command_RoundTrip", "[RelayIntegration]")
     REQUIRE(client.Connect(server.GetPort()));
     acceptThread.join();
 
-    // TcpClient sends a CommandPacket
-    CommandPacket cmdPkt{};
-    cmdPkt.header.opcode = CMD_SET_POSITION;
-    cmdPkt.header.length = sizeof(CommandPacket) - sizeof(PacketHeader);
-    cmdPkt.argCount = 3;
-    cmdPkt.args[0] = 0x00000001ULL;    // actorFormID
-    cmdPkt.args[1] = 0x4048F5C3ULL;    // x as bits
-    cmdPkt.args[2] = 0x40590000ULL;    // y as bits
+    // TcpClient sends a cmd_set_position JSON command
+    json cmdMsg;
+    cmdMsg[JsonField::kOp] = JsonOp::kCmdSetPosition;
+    cmdMsg[JsonField::kActorPtr] = 0xCAFEBABEull;
+    cmdMsg[JsonField::kX] = 100.5f;
+    cmdMsg[JsonField::kY] = 200.25f;
+    cmdMsg[JsonField::kZ] = 300.75f;
 
-    REQUIRE(client.Send(&cmdPkt, sizeof(cmdPkt)));
+    REQUIRE(client.SendJsonLine(cmdMsg));
 
-    // Mock DLL side: receive and verify
-    CommandPacket recvPkt{};
-    REQUIRE(server.RecvRaw(&recvPkt, sizeof(recvPkt)));
+    // Mock DLL side: receive and verify JSON
+    json recvMsg;
+    REQUIRE(server.RecvNdjsonLine(recvMsg));
 
-    REQUIRE(recvPkt.header.opcode == CMD_SET_POSITION);
-    REQUIRE(recvPkt.header.length == sizeof(CommandPacket) - sizeof(PacketHeader));
-    REQUIRE(recvPkt.argCount == 3);
-    REQUIRE(recvPkt.args[0] == 0x00000001ULL);
-    REQUIRE(recvPkt.args[1] == 0x4048F5C3ULL);
-    REQUIRE(recvPkt.args[2] == 0x40590000ULL);
+    REQUIRE(recvMsg[JsonField::kOp] == JsonOp::kCmdSetPosition);
+    REQUIRE(recvMsg[JsonField::kActorPtr] == 0xCAFEBABEull);
+    REQUIRE(recvMsg[JsonField::kX].get<float>() == Approx(100.5f));
+    REQUIRE(recvMsg[JsonField::kY].get<float>() == Approx(200.25f));
+    REQUIRE(recvMsg[JsonField::kZ].get<float>() == Approx(300.75f));
 }
 
-TEST_CASE("Relay_ControlPacket_Ready", "[RelayIntegration]")
+TEST_CASE("Relay_JsonControlPacket_Ready", "[RelayIntegration][JsonProtocol]")
 {
     MockTcpServer server;
 
@@ -206,13 +196,13 @@ TEST_CASE("Relay_ControlPacket_Ready", "[RelayIntegration]")
     REQUIRE(client.Connect(server.GetPort()));
     acceptThread.join();
 
-    // TcpClient sends CTRL_READY
-    REQUIRE(client.SendControl(CTRL_READY));
+    // TcpClient sends ctrl_ready
+    REQUIRE(client.SendControlJson(JsonOp::kCtrlReady));
 
     // Mock DLL side: receive and verify
-    PacketHeader recvHeader{};
-    REQUIRE(server.RecvRaw(&recvHeader, sizeof(recvHeader)));
+    json recvMsg;
+    REQUIRE(server.RecvNdjsonLine(recvMsg));
 
-    REQUIRE(recvHeader.opcode == CTRL_READY);
-    REQUIRE(recvHeader.length == 0);
+    REQUIRE(recvMsg[JsonField::kOp] == JsonOp::kCtrlReady);
+    REQUIRE(recvMsg.size() == 1); // only "op" field
 }

@@ -1,4 +1,10 @@
 #pragma once
+// ======================================================================
+// DEPRECATED: Binary wire format replaced by NDJSON (Phase 11).
+// See json_protocol.h for the active wire protocol schema.
+// This file is kept as reference for opcode documentation and for the
+// internal SPSC CommandSlot struct used by DrainCommandQueue.
+// ======================================================================
 #include <cstdint>
 
 // All packets: opcode(u16) + length(u16) + payload(variable)
@@ -56,9 +62,9 @@ struct HookEventPacket {
 // formId=0 means null pointer or unresolvable (constructor timing).
 //
 // HOOK_ACTOR_PROCESS (0x000D):   [actorPtr, formId, deltaU64]
-// HOOK_SET_POSITION (0x0004):    [refPtr, formId, posX_u64, posY_u64, posZ_u64]
+// HOOK_SET_POSITION (0x0004):    [refPtr, formId, posX_u64, posY_u64, posZ_u64, rotX_u64, rotY_u64, rotZ_u64]
 // HOOK_CHARACTER_CTOR (0x000E):  [thisPtr, formId]  (formId may be 0 during construction)
-// HOOK_SPAWN_ACTOR (0x000F):     [thisPtr, formId, posX_u64, posY_u64, posZ_u64]
+// HOOK_SPAWN_ACTOR (0x000F):     [thisPtr, formId, posX_u64, posY_u64, posZ_u64, rotX_u64, rotY_u64, rotZ_u64]
 // HOOK_DEATH_ITEMS (0x0010):     [actorPtr, formId]
 // HOOK_ACTOR_ADDED (0x0001):     [actorPtr, formId]
 // HOOK_ACTOR_REMOVED (0x0002):   [actorPtr, formId]

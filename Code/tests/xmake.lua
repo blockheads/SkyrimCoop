@@ -5,6 +5,7 @@ target("TPTests")
     set_group("Tests")
 
     add_includedirs(".", "../encoding", "../relay_dll", "../native_client",
+                    "../native_client/third_party",
                     "../server", "../common", "../components", "../base",
                     "../admin_protocol", "../libraries/networking", "../external",
                     "../native_client/game_bridge", "../native_client/transport")

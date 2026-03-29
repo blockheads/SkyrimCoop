@@ -1019,7 +1019,12 @@ static constexpr uint32_t kHookCount = sizeof(s_hookTable) / sizeof(s_hookTable[
 // Public API
 // ---------------------------------------------------------------------------
 
-bool InstallAllHooks()
+void* GetRealSetPosition()
+{
+    return reinterpret_cast<void*>(RealSetPosition);
+}
+
+bool InstallAllHooks(bool /*aEssentialOnly*/)
 {
     RelayLog("[SkyrimCoopHooks] Installing %u hook trampolines...\n", kHookCount);
 
