@@ -21,7 +21,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
 - [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
 - [ ] **Phase 10: Two-Player Co-op Session** - Host + client on one machine, see each other, sync movement via P2P GameServer
-- [ ] **Phase 11: JSON Wire Protocol** - Replace binary struct TCP protocol with newline-delimited JSON between relay DLL and native client
+- [x] **Phase 11: JSON Wire Protocol** - Replace binary struct TCP protocol with newline-delimited JSON between relay DLL and native client (completed 2026-03-29)
 
 ## Phase Details
 
@@ -234,11 +234,11 @@ Plans:
   4. All 8 native services dispatch on JSON "op" strings with named field access
   5. Unit tests pass for JSON protocol schema, LineBuffer, and DirtyCache
   6. Human-verified: DLL and native client communicate via NDJSON in Skyrim without crashes
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 11-01-PLAN.md -- Vendor nlohmann/json, define json_protocol.h schema, dirty_cache.h, line_buffer.h, unit tests
 - [x] 11-02-PLAN.md -- DLL-side conversion: hook trampolines to JSON, TcpServer NDJSON, DrainCommandQueue JSON parsing
 - [x] 11-03-PLAN.md -- Native-side conversion: TcpClient NDJSON, main.cpp dispatch, build system updates
 - [x] 11-04-PLAN.md -- Native-side conversion: all 8 service OnHookEvent + command senders to JSON
-- [ ] 11-05-PLAN.md -- Legacy test updates, protocol.h deprecation, human verification in Skyrim
+- [x] 11-05-PLAN.md -- Legacy test updates, protocol.h deprecation, human verification in Skyrim

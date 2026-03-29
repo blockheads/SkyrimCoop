@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-03-29T15:20:45.024Z"
+stopped_at: Completed 11-05-PLAN.md
+last_updated: "2026-03-29T15:44:21.681Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 13
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 49
-  completed_plans: 46
+  completed_plans: 47
   percent: 89
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 ## Current Position
 
 Phase: 11 (json-wire-protocol) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -71,6 +71,7 @@ Progress: [=========-] 89%
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
 | Phase 11 P02 | 6min | 2 tasks | 4 files |
 | Phase 11 P04 | 8min | 2 tasks | 17 files |
+| Phase 11 P05 | 15min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,7 @@ Recent decisions affecting current work:
 - [Phase 11]: JSON command parsing on receive thread, packed into CommandSlot binary for game-thread SPSC queue safety
 - [Phase 11]: ReadFormId/ReadPosition/ReadRotation helpers for typed field extraction in JSON trampolines
 - [Phase 11]: AnimationSystem converted from binary CommandPacket to JSON SendJsonLine (Rule 3: blocking reference)
+- [Phase 11]: Legacy binary tests preserved with [Legacy] tag; post-build auto-deploy added to xmake.lua
 
 ### Pending Todos
 
@@ -132,6 +134,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T15:20:45.022Z
-Stopped at: Completed 11-04-PLAN.md
+Last session: 2026-03-29T15:44:21.679Z
+Stopped at: Completed 11-05-PLAN.md
 Resume file: None
