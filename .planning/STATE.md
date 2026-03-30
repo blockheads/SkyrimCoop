@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-30T02:09:43.210Z"
+stopped_at: Phase 16 context gathered
+last_updated: "2026-03-30T03:10:41.974Z"
 last_activity: 2026-03-30 -- Phase 15 execution started
 progress:
-  total_phases: 17
+  total_phases: 20
   completed_phases: 12
   total_plans: 59
-  completed_plans: 54
+  completed_plans: 56
   percent: 90
 ---
 
@@ -159,6 +159,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T01:45:32.645Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-remote-actor-spawning-game-integration/15-CONTEXT.md
+Last session: 2026-03-30T03:10:41.971Z
+Stopped at: Phase 16 context gathered
+Resume file: .planning/phases/16-fix-server-formid-and-basic-actor-spawning/16-CONTEXT.md
