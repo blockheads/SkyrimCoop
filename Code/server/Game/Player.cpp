@@ -103,4 +103,9 @@ void Player::Send(const ServerMessage& acServerMessage) const
     GameServer::Get()->Send(GetConnectionId(), acServerMessage);
 }
 
+void Player::Send(const ServerMessage& acServerMessage, TiltedPhoques::EPacketFlags aFlags) const
+{
+    GameServer::Get()->Send(GetConnectionId(), acServerMessage, aFlags);
+}
+
 } // namespace Server

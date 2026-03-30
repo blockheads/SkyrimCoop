@@ -2,6 +2,7 @@
 
 #include <Events/PacketEvent.h>
 #include <Structs/ActorData.h>
+#include <chrono>
 
 struct AssignCharacterRequest;
 struct CharacterSpawnRequest;
@@ -56,9 +57,11 @@ protected:
 
     void ProcessFactionsChanges() const noexcept;
     void ProcessMovementChanges() const noexcept;
+    void BroadcastWorldStateSync() const noexcept;
 
 private:
     World& m_world;
+    mutable std::chrono::steady_clock::time_point m_lastWorldStateSyncTime;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_characterAssignRequestConnection;
