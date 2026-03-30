@@ -317,11 +317,11 @@ Plans:
   2. Unit tests verify spawn routing, reconciliation, and disconnect cleanup
   3. Replay tests verify spawn pipeline with NDJSON fixtures
   4. Human-verified: two-player session shows a remote actor spawned at correct position with AI suppressed
-**Plans:** 2/5 plans executed
+**Plans:** 1/5 plans executed
 
 Plans:
 - [x] 16-01-PLAN.md -- WorldStateSync message definition + server 1-second broadcast
-- [x] 16-02-PLAN.md -- Native client dual-path spawn routing + reconciliation + disconnect cleanup
+- [ ] 16-02-PLAN.md -- Native client dual-path spawn routing + reconciliation + disconnect cleanup
 - [ ] 16-03-PLAN.md -- DLL TESNPC::Create pipeline + AI suppression
 - [ ] 16-04-PLAN.md -- Spawn pipeline unit tests + NDJSON replay fixtures
 - [ ] 16-05-PLAN.md -- Build verification + human E2E testing
