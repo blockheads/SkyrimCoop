@@ -31,7 +31,7 @@ void BindPlayer(sol::state_view aState)
     playerType["SetStringCacheId"] = &Server::Player::SetStringCacheId;
     playerType["SetLevel"] = &Server::Player::SetLevel;
     playerType["SetCellComponent"] = &Server::Player::SetCellComponent;
-    playerType["Send"] = &Server::Player::Send;
+    playerType["Send"] = static_cast<void (Server::Player::*)(const ServerMessage&) const>(&Server::Player::Send);
     playerType["IsPartyLeader"] = [](Server::Player& aSelf) {
         return Server::GameServer::Get()->GetWorld().GetPartyService().IsPlayerLeader(
             Server::PlayerManager::Get()->GetByConnectionId(aSelf.GetConnectionId()));

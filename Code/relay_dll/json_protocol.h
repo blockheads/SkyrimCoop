@@ -167,4 +167,11 @@ constexpr const char* kAvIndex = "av_index";
 // Spawn result fields (Phase 15)
 constexpr const char* kSuccess = "success";
 
+// Appearance fields (Phase 16 - TESNPC::Create pipeline)
+constexpr const char* kAppearance = "appearance";       // base64-encoded AppearanceBuffer
+constexpr const char* kChangeFlags = "change_flags";    // uint32_t ChangeFlags for TESNPC::Deserialize
+constexpr const char* kFaceTints = "face_tints";        // base64-encoded FaceTints
+constexpr const char* kIsPlayer = "is_player";          // bool - player character vs world NPC
+constexpr const char* kServerId = "server_id";          // uint32_t server entity id
+
 } // namespace JsonField

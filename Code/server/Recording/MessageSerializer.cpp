@@ -9,6 +9,7 @@
 
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
+#include <Messages/WorldStateSync.h>
 #include <Opcodes.h>
 
 #include <array>
@@ -126,6 +127,7 @@ DEF_MSG_NAME(NotifyWeatherChange)
 DEF_MSG_NAME(NotifySetWaypoint)
 DEF_MSG_NAME(NotifyRemoveWaypoint)
 DEF_MSG_NAME(NotifySetTimeResult)
+DEF_MSG_NAME(WorldStateSync)
 
 #undef DEF_MSG_NAME
 

@@ -18,6 +18,8 @@ using TiltedPhoques::UniquePtr;
 #include <Messages/AssignCharacterResponse.h>
 #include <Messages/CharacterSpawnRequest.h>
 #include <Messages/NotifyRemoveCharacter.h>
+#include <Messages/WorldStateSync.h>
+#include <Structs/Tints.h>
 
 using TiltedPhoques::Buffer;
 
@@ -91,17 +93,37 @@ void ServerMessageRouter::OnServerMessage(const void* apData, uint32_t aSize)
                        0.0f, 0.0f, pAssign->Owner);
         }
     }
-    // Handle CharacterSpawnRequest — server spawns a remote character
+    // Handle CharacterSpawnRequest — server spawns a remote character (Phase 16: appearance data forwarded)
     else if (pMessage->GetOpcode() == kCharacterSpawnRequest)
     {
         auto* pSpawn = static_cast<CharacterSpawnRequest*>(pMessage.get());
-        spdlog::info("ServerMessageRouter: CharacterSpawnRequest serverId={}, formId={:#x}",
-                     pSpawn->ServerId, pSpawn->FormId.BaseId);
+        spdlog::info("ServerMessageRouter: CharacterSpawnRequest serverId={}, formId={:#x}, isPlayer={}, appearanceLen={}",
+                     pSpawn->ServerId, pSpawn->FormId.BaseId, pSpawn->IsPlayer,
+                     pSpawn->AppearanceBuffer.size());
         if (m_onSpawn)
         {
+            // Convert TiltedPhoques::String to std::string for appearance data
+            std::string appearanceBuf(pSpawn->AppearanceBuffer.data(), pSpawn->AppearanceBuffer.size());
+
+            // Serialize FaceTints to buffer then convert to std::string
+            std::string faceTintsBuf;
+            if (!pSpawn->FaceTints.Entries.empty())
+            {
+                TiltedPhoques::Buffer tintBuffer(4096);
+                TiltedPhoques::Buffer::Writer tintWriter(&tintBuffer);
+                pSpawn->FaceTints.Serialize(tintWriter);
+                faceTintsBuf.assign(
+                    reinterpret_cast<const char*>(tintBuffer.GetData()),
+                    tintWriter.GetBytePosition());
+            }
+
             m_onSpawn(pSpawn->ServerId, pSpawn->FormId.BaseId,
                       pSpawn->Position.x, pSpawn->Position.y, pSpawn->Position.z,
-                      pSpawn->Rotation.x, pSpawn->Rotation.y);
+                      pSpawn->Rotation.x, pSpawn->Rotation.y,
+                      pSpawn->IsPlayer,
+                      appearanceBuf,
+                      pSpawn->ChangeFlags,
+                      faceTintsBuf);
         }
     }
     // Handle NotifyRemoveCharacter — server removes a remote character
@@ -112,6 +134,28 @@ void ServerMessageRouter::OnServerMessage(const void* apData, uint32_t aSize)
         if (m_onRemove)
         {
             m_onRemove(pRemove->ServerId);
+        }
+    }
+    // Phase 16: Handle WorldStateSync — periodic reconciliation (D-08/D-09)
+    else if (pMessage->GetOpcode() == kWorldStateSync)
+    {
+        auto* pSync = static_cast<WorldStateSync*>(pMessage.get());
+        if (m_onWorldStateSync)
+        {
+            std::vector<WorldStateSyncEntry> entries;
+            entries.reserve(pSync->Entities.size());
+            for (auto& e : pSync->Entities)
+            {
+                WorldStateSyncEntry entry;
+                entry.serverId = e.ServerId;
+                entry.x = e.Position.x;
+                entry.y = e.Position.y;
+                entry.z = e.Position.z;
+                entry.rx = e.Rotation.x;
+                entry.ry = e.Rotation.y;
+                entries.push_back(entry);
+            }
+            m_onWorldStateSync(entries);
         }
     }
 }
@@ -139,4 +183,9 @@ void ServerMessageRouter::SetSpawnCallback(SpawnCallback aCb)
 void ServerMessageRouter::SetRemoveCallback(RemoveCallback aCb)
 {
     m_onRemove = std::move(aCb);
+}
+
+void ServerMessageRouter::SetWorldStateSyncCallback(WorldStateSyncCallback aCb)
+{
+    m_onWorldStateSync = std::move(aCb);
 }
