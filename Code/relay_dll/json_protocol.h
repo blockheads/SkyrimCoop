@@ -55,6 +55,13 @@ constexpr const char* kCmdActivate         = "cmd_activate";
 constexpr const char* kCmdLockChange       = "cmd_lock_change";
 constexpr const char* kCmdLaunchProjectile = "cmd_launch_projectile";
 
+// Actor spawning/removal ops (Native -> DLL): 2 ops (Phase 15)
+constexpr const char* kCmdSpawnActor  = "cmd_spawn_actor";
+constexpr const char* kCmdRemoveActor = "cmd_remove_actor";
+
+// Spawn result event (DLL -> Native): 1 op (Phase 15)
+constexpr const char* kSpawnResult = "spawn_result";
+
 // Control ops (bidirectional): 3 ops
 constexpr const char* kCtrlHeartbeat = "ctrl_heartbeat";
 constexpr const char* kCtrlShutdown  = "ctrl_shutdown";
@@ -156,5 +163,8 @@ constexpr const char* kMountPtr    = "mount_ptr";
 
 // Actor value index
 constexpr const char* kAvIndex = "av_index";
+
+// Spawn result fields (Phase 15)
+constexpr const char* kSuccess = "success";
 
 } // namespace JsonField

@@ -111,6 +111,8 @@ enum CommandOpcode : uint16_t {
     CMD_ACTIVATE          = 0x800D,
     CMD_LOCK_CHANGE       = 0x800E,
     CMD_LAUNCH_PROJECTILE = 0x800F,
+    CMD_SPAWN_ACTOR       = 0x8010,
+    CMD_REMOVE_ACTOR      = 0x8011,
 };
 
 // Control messages (bidirectional)
