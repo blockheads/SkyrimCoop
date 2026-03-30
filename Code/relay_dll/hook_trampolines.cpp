@@ -84,6 +84,15 @@ namespace AddressIds {
     constexpr uint64_t kPerformAction       = 38952;  // AnimationExperiments.cpp PerformIdleAction
     constexpr uint64_t kSimulateTime        = 26231;  // Re-used; CalendarService hooks TimeManager
     constexpr uint64_t kInitiateMountPackage = 37905;
+
+    // Actor Spawning (Phase 15, from Actor.cpp/Forms.cpp/Memory.cpp/ModManager.cpp)
+    constexpr uint64_t kGetFormById        = 14617;  // TESForm::GetById
+    constexpr uint64_t kGameHeapAllocate   = 68115;  // GameHeap::Allocate (FormAllocate)
+    constexpr uint64_t kGameHeapSingleton  = 400188; // GameHeap singleton pointer-to-pointer
+    constexpr uint64_t kModManagerSingleton = 400269; // ModManager singleton pointer-to-pointer
+    constexpr uint64_t kSpawnNewREFR       = 13723;  // ModManager::SpawnNewREFR
+    constexpr uint64_t kSetLevelMod        = 11806;  // ExtraDataList::SetLevelMod
+    // kCharacterCtor (40245) already exists above
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +318,20 @@ static void* ResolveAddress(uint64_t aId)
     }
     return nullptr;
 }
+
+// ---------------------------------------------------------------------------
+// Actor Spawning: resolved function pointers (Phase 15)
+// These are resolved via Address Library but NOT hooked -- they are called
+// directly from DrainCommandQueue's CMD_SPAWN_ACTOR handler.
+// ---------------------------------------------------------------------------
+
+static void* s_pGetFormById = nullptr;
+static void* s_pGameHeapAllocate = nullptr;
+static void* s_pGameHeapInstance = nullptr;  // pointer-to-pointer: dereference to get GameHeap*
+static void* s_pCharacterCtorDirect = nullptr; // direct call (not the hooked version)
+static void* s_pSpawnNewREFR = nullptr;
+static void* s_pModManagerInstance = nullptr; // pointer-to-pointer: dereference to get ModManager*
+static void* s_pSetLevelMod = nullptr;
 
 // ---------------------------------------------------------------------------
 // Trampoline declarations -- generic function pointer types
@@ -1027,6 +1050,15 @@ void* GetRealSetPosition()
     return reinterpret_cast<void*>(RealSetPosition);
 }
 
+// Phase 15: Actor spawning function pointer getters
+void* GetFormById()           { return s_pGetFormById; }
+void* GetGameHeapAllocate()   { return s_pGameHeapAllocate; }
+void* GetGameHeapInstance()   { return s_pGameHeapInstance; }
+void* GetCharacterCtor()      { return s_pCharacterCtorDirect; }
+void* GetSpawnNewREFR()       { return s_pSpawnNewREFR; }
+void* GetModManagerInstance()  { return s_pModManagerInstance; }
+void* GetSetLevelMod()        { return s_pSetLevelMod; }
+
 bool InstallAllHooks(bool aEssentialOnly)
 {
     RelayLog("[SkyrimCoopHooks] Installing hooks (essentialOnly=%s)...\n",
@@ -1038,6 +1070,21 @@ bool InstallAllHooks(bool aEssentialOnly)
         RelayLog("[SkyrimCoopHooks] Failed to load Address Library -- hooks disabled\n");
         return false;
     }
+
+    // Step 1b: Resolve spawn function pointers (Phase 15)
+    // These are not hooked -- just resolved for direct calls from DrainCommandQueue.
+    s_pGetFormById = ResolveAddress(AddressIds::kGetFormById);
+    s_pGameHeapAllocate = ResolveAddress(AddressIds::kGameHeapAllocate);
+    s_pGameHeapInstance = ResolveAddress(AddressIds::kGameHeapSingleton);
+    s_pCharacterCtorDirect = ResolveAddress(AddressIds::kCharacterCtor);
+    s_pSpawnNewREFR = ResolveAddress(AddressIds::kSpawnNewREFR);
+    s_pModManagerInstance = ResolveAddress(AddressIds::kModManagerSingleton);
+    s_pSetLevelMod = ResolveAddress(AddressIds::kSetLevelMod);
+
+    RelayLog("[SkyrimCoopHooks] Spawn pointers: GetFormById=%p HeapAlloc=%p HeapInst=%p "
+             "CharCtor=%p SpawnREFR=%p ModMgr=%p SetLvlMod=%p\n",
+             s_pGetFormById, s_pGameHeapAllocate, s_pGameHeapInstance,
+             s_pCharacterCtorDirect, s_pSpawnNewREFR, s_pModManagerInstance, s_pSetLevelMod);
 
     // Step 2: Initialize MinHook
     MH_STATUS status = MH_Initialize();

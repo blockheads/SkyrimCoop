@@ -142,6 +142,183 @@ void DrainCommandQueue()
             pRealSetPosition(pActor, pos);
             break;
         }
+
+        case CMD_SPAWN_ACTOR: {
+            // Phase 15: Spawn an actor in Skyrim following STR's Actor::Create sequence.
+            // Per D-01: DLL is stateless -- spawn, report pointer, forget.
+            uint32_t formId = static_cast<uint32_t>(cmd.args[0]);
+
+            // Unpack position from args[1..2]
+            uint32_t xBits = static_cast<uint32_t>(cmd.args[1]);
+            uint32_t yBits = static_cast<uint32_t>(cmd.args[1] >> 32);
+            uint32_t zBits = static_cast<uint32_t>(cmd.args[2]);
+            float pos[3];
+            memcpy(&pos[0], &xBits, sizeof(float));
+            memcpy(&pos[1], &yBits, sizeof(float));
+            memcpy(&pos[2], &zBits, sizeof(float));
+
+            // Unpack rotation from args[3]
+            uint32_t rxBits = static_cast<uint32_t>(cmd.args[3]);
+            uint32_t ryBits = static_cast<uint32_t>(cmd.args[3] >> 32);
+            float rot[3] = {0};
+            memcpy(&rot[0], &rxBits, sizeof(float));
+            memcpy(&rot[1], &ryBits, sizeof(float));
+
+            // Type aliases for game function signatures (from STR source analysis)
+            using TGetFormById   = void*(__cdecl*)(uint32_t);
+            using THeapAllocate  = void*(__fastcall*)(void*, size_t, size_t, bool);
+            using TCharCtor      = void*(__fastcall*)(void*);
+            using TSetLevelMod   = void(__fastcall*)(void*, uint32_t);
+            // SpawnNewREFR: __fastcall thiscall with 12 params (per ModManager.cpp)
+            using TSpawnNewREFR  = uint32_t&(__fastcall*)(void*, uint32_t&, void*, float*, float*,
+                                                           void*, void*, void*, uintptr_t, uintptr_t, char, char);
+
+            auto pGetById    = reinterpret_cast<TGetFormById>(GetFormById());
+            auto pHeapAlloc  = reinterpret_cast<THeapAllocate>(GetGameHeapAllocate());
+            auto pCharCtor   = reinterpret_cast<TCharCtor>(GetCharacterCtor());
+            auto pSpawnREFR  = reinterpret_cast<TSpawnNewREFR>(GetSpawnNewREFR());
+            auto pSetLvlMod  = reinterpret_cast<TSetLevelMod>(GetSetLevelMod());
+            void* pHeapInst  = GetGameHeapInstance() ? *reinterpret_cast<void**>(GetGameHeapInstance()) : nullptr;
+            void* pModMgr    = GetModManagerInstance() ? *reinterpret_cast<void**>(GetModManagerInstance()) : nullptr;
+
+            // Validate all required function pointers
+            if (!pGetById || !pHeapAlloc || !pCharCtor || !pSpawnREFR || !pHeapInst || !pModMgr)
+            {
+                RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR: missing game function pointers\n");
+                nlohmann::json result = {
+                    {JsonField::kOp, JsonOp::kSpawnResult},
+                    {JsonField::kFormId, formId},
+                    {JsonField::kPtr, uint64_t(0)},
+                    {JsonField::kSuccess, false}
+                };
+                g_tcpServer.SendJson(result);
+                break;
+            }
+
+            // 1. Look up base NPC form
+            void* pNpc = pGetById(formId);
+            if (!pNpc)
+            {
+                RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR: GetById(%u) returned null\n", formId);
+                nlohmann::json result = {
+                    {JsonField::kOp, JsonOp::kSpawnResult},
+                    {JsonField::kFormId, formId},
+                    {JsonField::kPtr, uint64_t(0)},
+                    {JsonField::kSuccess, false}
+                };
+                g_tcpServer.SendJson(result);
+                break;
+            }
+
+            // 2. Get player for cell/worldspace context
+            void* pPlayer = pGetById(0x14);
+            if (!pPlayer)
+            {
+                RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR: player (0x14) not found\n");
+                nlohmann::json result = {
+                    {JsonField::kOp, JsonOp::kSpawnResult},
+                    {JsonField::kFormId, formId},
+                    {JsonField::kPtr, uint64_t(0)},
+                    {JsonField::kSuccess, false}
+                };
+                g_tcpServer.SendJson(result);
+                break;
+            }
+
+            // Read parentCell from player at offset 0x60 (TESObjectREFR::parentCell)
+            void* pCell = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayer) + 0x60);
+            // Read worldspace from cell at offset 0x128 (TESObjectCELL::worldspace)
+            void* pWorldSpace = nullptr;
+            if (pCell)
+                pWorldSpace = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pCell) + 0x128);
+
+            // 3. Allocate Actor via game heap + character constructor
+            // Character size is approximately 0x2B0 in SE 1.6.x
+            void* pActor = pHeapAlloc(pHeapInst, 0x2B0, 0, false);
+            if (!pActor)
+            {
+                RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR: heap alloc failed\n");
+                nlohmann::json result = {
+                    {JsonField::kOp, JsonOp::kSpawnResult},
+                    {JsonField::kFormId, formId},
+                    {JsonField::kPtr, uint64_t(0)},
+                    {JsonField::kSuccess, false}
+                };
+                g_tcpServer.SendJson(result);
+                break;
+            }
+            memset(pActor, 0, 0x2B0);
+            pCharCtor(pActor);
+
+            // 4. SetSkipSaveFlag: unk10 = 0xFFFF (offset 0x18 in TESForm)
+            *reinterpret_cast<uint16_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x18) = 0xFFFF;
+
+            // 5. SetLevelMod(pActor->extraData, 4)
+            // TESObjectREFR::extraData is at offset 0x70.
+            // ExtraDataList is the struct, SetLevelMod takes &extraData as "this"
+            if (pSetLvlMod)
+            {
+                void* pExtraData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(pActor) + 0x70);
+                pSetLvlMod(pExtraData, 4);
+            }
+
+            // 6. SetBaseForm: baseForm pointer at offset 0x40 (TESObjectREFR::baseForm)
+            *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pActor) + 0x40) = pNpc;
+
+            // 7. Determine cell for SpawnNewREFR: interior cells pass through, exterior pass nullptr
+            void* pCellForSpawn = pCell;
+            if (pCell)
+            {
+                // cellFlags at offset 0x40 in TESObjectCELL (bit 0 = interior)
+                uint8_t cellFlags = *reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(pCell) + 0x40);
+                if (!(cellFlags & 1))
+                    pCellForSpawn = nullptr; // exterior cell -- pass nullptr per STR pattern
+            }
+
+            // 8. SpawnNewREFR(modManager, refrHandle, baseForm, &pos, &rot, cell, worldspace, actor, 0, 0, 0, 1)
+            uint32_t refrHandle = 0;
+            pSpawnREFR(pModMgr, refrHandle, pNpc, pos, rot, pCellForSpawn, pWorldSpace, pActor, 0, 0, 0, 1);
+
+            // 9. ForcePosition using existing SetPosition
+            if (pRealSetPosition && pActor)
+                pRealSetPosition(pActor, pos);
+
+            // 10. Clear save flag on formFlags (bit 21 = 0x200000)
+            uint32_t& actorFlags = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x10);
+            actorFlags &= 0xFFDFFFFF;
+
+            RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR: spawned formId=%u ptr=%p\n", formId, pActor);
+
+            nlohmann::json result = {
+                {JsonField::kOp, JsonOp::kSpawnResult},
+                {JsonField::kFormId, formId},
+                {JsonField::kPtr, reinterpret_cast<uint64_t>(pActor)},
+                {JsonField::kSuccess, true}
+            };
+            g_tcpServer.SendJson(result);
+            break;
+        }
+
+        case CMD_REMOVE_ACTOR: {
+            // Phase 15: Remove a spawned actor from Skyrim.
+            // Per D-06: Immediate deletion via disable + mark-for-deletion flags.
+            void* pActor = reinterpret_cast<void*>(cmd.args[0]);
+            if (!pActor)
+            {
+                RelayLog("[SkyrimCoopHooks] CMD_REMOVE_ACTOR: null actor pointer\n");
+                break;
+            }
+
+            // Set DISABLED flag (bit 11 = 0x800) and DELETED flag (bit 5 = 0x20) on
+            // TESForm::flags at offset 0x10
+            uint32_t& flags = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x10);
+            flags |= (1 << 11); // kDisabled
+            flags |= (1 << 5);  // kMarkedForDeletion
+
+            RelayLog("[SkyrimCoopHooks] CMD_REMOVE_ACTOR: marked for deletion ptr=%p\n", pActor);
+            break;
+        }
+
         default:
             RelayLog("[SkyrimCoopHooks] Unknown command opcode=0x%04X\n", cmd.opcode);
             break;
@@ -360,6 +537,41 @@ static void ParseJsonCommand(const nlohmann::json& aMsg)
         slot.opcode = CMD_LAUNCH_PROJECTILE;
         slot.argCount = 1;
         slot.args[0] = aMsg.value(JsonField::kDataPtr, uint64_t(0));
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdSpawnActor)
+    {
+        // Per D-04: cmd_spawn_actor carries form_id, x, y, z, rx, ry
+        CommandSlot slot{};
+        slot.opcode = CMD_SPAWN_ACTOR;
+        slot.argCount = 4;
+        slot.args[0] = static_cast<uint64_t>(aMsg.value(JsonField::kFormId, uint32_t(0)));
+
+        float x = aMsg.value(JsonField::kX, 0.0f);
+        float y = aMsg.value(JsonField::kY, 0.0f);
+        float z = aMsg.value(JsonField::kZ, 0.0f);
+        float rx = aMsg.value(JsonField::kRx, 0.0f);
+        float ry = aMsg.value(JsonField::kRy, 0.0f);
+
+        uint32_t xBits, yBits, zBits, rxBits, ryBits;
+        memcpy(&xBits, &x, sizeof(float));
+        memcpy(&yBits, &y, sizeof(float));
+        memcpy(&zBits, &z, sizeof(float));
+        memcpy(&rxBits, &rx, sizeof(float));
+        memcpy(&ryBits, &ry, sizeof(float));
+
+        slot.args[1] = (static_cast<uint64_t>(yBits) << 32) | xBits;
+        slot.args[2] = zBits;
+        slot.args[3] = (static_cast<uint64_t>(ryBits) << 32) | rxBits;
+        g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdRemoveActor)
+    {
+        // Per D-06: cmd_remove_actor carries actor_ptr (raw pointer from spawn_result)
+        CommandSlot slot{};
+        slot.opcode = CMD_REMOVE_ACTOR;
+        slot.argCount = 1;
+        slot.args[0] = aMsg.value(JsonField::kActorPtr, uint64_t(0));
         g_commandQueue.Enqueue(slot);
     }
     else
