@@ -92,6 +92,7 @@ namespace AddressIds {
     constexpr uint64_t kModManagerSingleton = 400269; // ModManager singleton pointer-to-pointer
     constexpr uint64_t kSpawnNewREFR       = 13723;  // ModManager::SpawnNewREFR
     constexpr uint64_t kSetLevelMod        = 11806;  // ExtraDataList::SetLevelMod
+    constexpr uint64_t kIFormFactoryTable  = 400508; // IFormFactory* array (index 43 = TESNPC)
     // kCharacterCtor (40245) already exists above
 }
 
@@ -332,6 +333,7 @@ static void* s_pCharacterCtorDirect = nullptr; // direct call (not the hooked ve
 static void* s_pSpawnNewREFR = nullptr;
 static void* s_pModManagerInstance = nullptr; // pointer-to-pointer: dereference to get ModManager*
 static void* s_pSetLevelMod = nullptr;
+static void* s_pIFormFactoryTable = nullptr;
 
 // ---------------------------------------------------------------------------
 // Trampoline declarations -- generic function pointer types
@@ -1058,6 +1060,7 @@ void* GetCharacterCtor()      { return s_pCharacterCtorDirect; }
 void* GetSpawnNewREFR()       { return s_pSpawnNewREFR; }
 void* GetModManagerInstance()  { return s_pModManagerInstance; }
 void* GetSetLevelMod()        { return s_pSetLevelMod; }
+void* GetIFormFactoryTable()  { return s_pIFormFactoryTable; }
 
 bool InstallAllHooks(bool aEssentialOnly)
 {
@@ -1080,11 +1083,13 @@ bool InstallAllHooks(bool aEssentialOnly)
     s_pSpawnNewREFR = ResolveAddress(AddressIds::kSpawnNewREFR);
     s_pModManagerInstance = ResolveAddress(AddressIds::kModManagerSingleton);
     s_pSetLevelMod = ResolveAddress(AddressIds::kSetLevelMod);
+    s_pIFormFactoryTable = ResolveAddress(AddressIds::kIFormFactoryTable);
 
     RelayLog("[SkyrimCoopHooks] Spawn pointers: GetFormById=%p HeapAlloc=%p HeapInst=%p "
-             "CharCtor=%p SpawnREFR=%p ModMgr=%p SetLvlMod=%p\n",
+             "CharCtor=%p SpawnREFR=%p ModMgr=%p SetLvlMod=%p FactoryTable=%p\n",
              s_pGetFormById, s_pGameHeapAllocate, s_pGameHeapInstance,
-             s_pCharacterCtorDirect, s_pSpawnNewREFR, s_pModManagerInstance, s_pSetLevelMod);
+             s_pCharacterCtorDirect, s_pSpawnNewREFR, s_pModManagerInstance, s_pSetLevelMod,
+             s_pIFormFactoryTable);
 
     // Step 2: Initialize MinHook
     MH_STATUS status = MH_Initialize();

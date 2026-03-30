@@ -26,6 +26,7 @@ void* GetCharacterCtor();     ///< Character constructor (addr 40245) -- signatu
 void* GetSpawnNewREFR();      ///< SpawnNewREFR (addr 13723) -- 12-param ModManager thiscall
 void* GetModManagerInstance(); ///< ModManager singleton (addr 400269) -- returns void** (dereference to get instance)
 void* GetSetLevelMod();       ///< ExtraDataList::SetLevelMod (addr 11806) -- signature: void(void*, uint32_t)
+void* GetIFormFactoryTable(); ///< IFormFactory table (addr 400508) -- index 43 = TESNPC factory
 
 /// Drain and execute queued commands on the game thread.
 /// Called from HookActorProcess when the player character (formId 0x14) processes.

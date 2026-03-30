@@ -45,6 +45,7 @@ enum HookOpcode : uint16_t {
     HOOK_REMOVE_INV_ITEM  = 0x001C,
     HOOK_PLAY_ANIMATION   = 0x001D,
     HOOK_MOUNT_PACKAGE    = 0x001E,
+    HOOK_SPAWN_RESULT     = 0x001F,  // Spawn result (args: formId, actorPtr, success)
 };
 
 struct HookEventPacket {
@@ -112,7 +113,8 @@ enum CommandOpcode : uint16_t {
     CMD_LOCK_CHANGE       = 0x800E,
     CMD_LAUNCH_PROJECTILE = 0x800F,
     CMD_SPAWN_ACTOR       = 0x8010,
-    CMD_REMOVE_ACTOR      = 0x8011,
+    CMD_SPAWN_ACTOR_APPEARANCE = 0x8011, // Spawn actor from AppearanceBuffer (variable-length)
+    CMD_REMOVE_ACTOR      = 0x8012,
 };
 
 // Control messages (bidirectional)

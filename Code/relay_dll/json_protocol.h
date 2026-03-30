@@ -55,9 +55,10 @@ constexpr const char* kCmdActivate         = "cmd_activate";
 constexpr const char* kCmdLockChange       = "cmd_lock_change";
 constexpr const char* kCmdLaunchProjectile = "cmd_launch_projectile";
 
-// Actor spawning/removal ops (Native -> DLL): 2 ops (Phase 15)
-constexpr const char* kCmdSpawnActor  = "cmd_spawn_actor";
-constexpr const char* kCmdRemoveActor = "cmd_remove_actor";
+// Actor spawning/removal ops (Native -> DLL): 3 ops (Phase 15+16)
+constexpr const char* kCmdSpawnActor           = "cmd_spawn_actor";
+constexpr const char* kCmdSpawnActorAppearance = "cmd_spawn_actor_appearance";
+constexpr const char* kCmdRemoveActor          = "cmd_remove_actor";
 
 // Spawn result event (DLL -> Native): 1 op (Phase 15)
 constexpr const char* kSpawnResult = "spawn_result";

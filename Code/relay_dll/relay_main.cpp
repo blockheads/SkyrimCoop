@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
+#include <mutex>
 
 #include "nlohmann/json.hpp"
 #include "json_protocol.h"
@@ -115,12 +117,260 @@ void RelayLog(const char* fmt, ...)  // non-static: accessed by hook_trampolines
 }
 
 // ---------------------------------------------------------------------------
+// Base64 decoder (for appearance buffers from JSON protocol)
+// ---------------------------------------------------------------------------
+
+static std::vector<uint8_t> Base64Decode(const std::string& aInput)
+{
+    static const uint8_t s_lut[256] = {
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,62,64,64,64,63,
+        52,53,54,55,56,57,58,59,60,61,64,64,64,64,64,64,64, 0, 1, 2, 3, 4, 5, 6,
+         7, 8, 9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,64,64,64,64,64,
+        64,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,
+        49,50,51,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,
+        64,64,64,64,64,64,64,64,64,64,64,64,64,64,64,64
+    };
+    std::vector<uint8_t> out;
+    out.reserve(aInput.size() * 3 / 4);
+    uint32_t accum = 0;
+    int bits = 0;
+    for (char c : aInput)
+    {
+        if (c == '=' || c == '\n' || c == '\r') continue;
+        uint8_t v = s_lut[static_cast<uint8_t>(c)];
+        if (v == 64) continue;
+        accum = (accum << 6) | v;
+        bits += 6;
+        if (bits >= 8)
+        {
+            bits -= 8;
+            out.push_back(static_cast<uint8_t>((accum >> bits) & 0xFF));
+        }
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// Appearance spawn queue (thread-safe: TCP thread enqueues, game thread drains)
+// ---------------------------------------------------------------------------
+
+struct AppearanceSpawnRequest {
+    uint32_t changeFlags;
+    float x, y, z, rx, ry;
+    std::vector<uint8_t> appearanceData;
+    std::vector<uint8_t> faceTintData;
+};
+
+static std::mutex g_appearanceSpawnMutex;
+static std::vector<AppearanceSpawnRequest> g_appearanceSpawnQueue;
+
+// ---------------------------------------------------------------------------
+// SpawnActorFromAppearance: TESNPC::Create pipeline (port of STR Forms.cpp + Actor.cpp)
+// ---------------------------------------------------------------------------
+
+static void SpawnActorFromAppearance(const AppearanceSpawnRequest& aReq)
+{
+    RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: %zu bytes, changeFlags=%u, pos=(%.1f, %.1f, %.1f)\n",
+             aReq.appearanceData.size(), aReq.changeFlags, aReq.x, aReq.y, aReq.z);
+
+    using TGetFormById   = void*(__cdecl*)(uint32_t);
+    using THeapAllocate  = void*(__fastcall*)(void*, size_t, size_t, bool);
+    using TCharCtor      = void*(__fastcall*)(void*);
+    using TSetLevelMod   = void(__fastcall*)(void*, uint32_t);
+
+    auto pGetById    = reinterpret_cast<TGetFormById>(GetFormById());
+    auto pHeapAlloc  = reinterpret_cast<THeapAllocate>(GetGameHeapAllocate());
+    auto pCharCtor   = reinterpret_cast<TCharCtor>(GetCharacterCtor());
+    auto pSetLvlMod  = reinterpret_cast<TSetLevelMod>(GetSetLevelMod());
+    void* pHeapInst  = GetGameHeapInstance() ? *reinterpret_cast<void**>(GetGameHeapInstance()) : nullptr;
+    void* pModMgr    = GetModManagerInstance() ? *reinterpret_cast<void**>(GetModManagerInstance()) : nullptr;
+    void* pFactoryTable = GetIFormFactoryTable();
+
+    if (!pGetById || !pHeapAlloc || !pCharCtor || !pHeapInst || !pModMgr || !pFactoryTable)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: missing game function pointers\n");
+        nlohmann::json result = {
+            {JsonField::kOp, JsonOp::kSpawnResult},
+            {JsonField::kFormId, uint32_t(0)},
+            {JsonField::kPtr, uint64_t(0)},
+            {JsonField::kSuccess, false}
+        };
+        g_tcpServer.SendJson(result);
+        return;
+    }
+
+    // 1. IFormFactory::Create<TESNPC>() - type 43 (FormType::NPC)
+    void** pFactories = *reinterpret_cast<void***>(pFactoryTable);
+    if (!pFactories)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: factory table dereference is null\n");
+        nlohmann::json result = {
+            {JsonField::kOp, JsonOp::kSpawnResult},
+            {JsonField::kFormId, uint32_t(0)},
+            {JsonField::kPtr, uint64_t(0)},
+            {JsonField::kSuccess, false}
+        };
+        g_tcpServer.SendJson(result);
+        return;
+    }
+
+    void* pNpcFactory = pFactories[43]; // FormType::NPC = 43
+    if (!pNpcFactory)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: NPC factory (index 43) is null\n");
+        nlohmann::json result = {
+            {JsonField::kOp, JsonOp::kSpawnResult},
+            {JsonField::kFormId, uint32_t(0)},
+            {JsonField::kPtr, uint64_t(0)},
+            {JsonField::kSuccess, false}
+        };
+        g_tcpServer.SendJson(result);
+        return;
+    }
+
+    // IFormFactory::Create() at vtable index 1
+    auto pFactoryVtable = *reinterpret_cast<uintptr_t*>(pNpcFactory);
+    auto pCreateFunc = reinterpret_cast<void*(__fastcall*)(void*)>(
+        *reinterpret_cast<uintptr_t*>(pFactoryVtable + 1 * 8));
+    void* pNpc = pCreateFunc(pNpcFactory);
+    if (!pNpc)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: IFormFactory::Create returned null\n");
+        nlohmann::json result = {
+            {JsonField::kOp, JsonOp::kSpawnResult},
+            {JsonField::kFormId, uint32_t(0)},
+            {JsonField::kPtr, uint64_t(0)},
+            {JsonField::kSuccess, false}
+        };
+        g_tcpServer.SendJson(result);
+        return;
+    }
+
+    // 2. Copy npcClass from player base form as safe default
+    void* pPlayer = pGetById(0x14);
+    if (pPlayer)
+    {
+        void* pPlayerBase = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayer) + 0x40);
+        if (pPlayerBase)
+        {
+            *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pNpc) + 0x1C0) =
+                *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayerBase) + 0x1C0);
+        }
+    }
+
+    // 3. Deserialize appearance buffer (deferred to future iteration)
+    if (!aReq.appearanceData.empty())
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: appearance data available (%zu bytes), "
+                 "Deserialize deferred to future iteration\n", aReq.appearanceData.size());
+    }
+
+    // 4. Clear overlayRace to force facegen
+    *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pNpc) + 0x1E8) = nullptr;
+
+    // 5. Heap alloc + Character constructor
+    void* pActor = pHeapAlloc(pHeapInst, 0x2B0, 0, false);
+    if (!pActor)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: heap alloc failed\n");
+        nlohmann::json result = {
+            {JsonField::kOp, JsonOp::kSpawnResult},
+            {JsonField::kFormId, uint32_t(0)},
+            {JsonField::kPtr, uint64_t(0)},
+            {JsonField::kSuccess, false}
+        };
+        g_tcpServer.SendJson(result);
+        return;
+    }
+    memset(pActor, 0, 0x2B0);
+    pCharCtor(pActor);
+
+    // 6. SetSkipSaveFlag
+    *reinterpret_cast<uint16_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x18) = 0xFFFF;
+
+    // 7. AI suppression (per D-06/D-21)
+    {
+        uint32_t& flags1 = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x0C);
+        flags1 |= 0x02000000;
+    }
+
+    // 8. SetLevelMod(4)
+    if (pSetLvlMod)
+    {
+        void* pExtraData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(pActor) + 0x70);
+        pSetLvlMod(pExtraData, 4);
+    }
+
+    // 9. Set baseForm to created TESNPC
+    *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pActor) + 0x40) = pNpc;
+
+    // 10. Get cell/worldspace from player
+    void* pCell = nullptr;
+    void* pWorldSpace = nullptr;
+    if (pPlayer)
+    {
+        pCell = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayer) + 0x60);
+        if (pCell)
+            pWorldSpace = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pCell) + 0x128);
+    }
+
+    void* pCellForSpawn = pCell;
+    if (pCell)
+    {
+        uint8_t cellFlags = *reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(pCell) + 0x40);
+        if (!(cellFlags & 1))
+            pCellForSpawn = nullptr;
+    }
+
+    // 11. SpawnNewREFR
+    using TSpawnNewREFR = uint32_t&(__fastcall*)(void*, uint32_t&, void*, float*, float*,
+                                                   void*, void*, void*, uintptr_t, uintptr_t, char, char);
+    auto pSpawnREFR = reinterpret_cast<TSpawnNewREFR>(GetSpawnNewREFR());
+    if (pSpawnREFR)
+    {
+        float pos[3] = {aReq.x, aReq.y, aReq.z};
+        float rot[3] = {aReq.rx, aReq.ry, 0.0f};
+        uint32_t refrHandle = 0;
+        pSpawnREFR(pModMgr, refrHandle, pNpc, pos, rot, pCellForSpawn, pWorldSpace, pActor, 0, 0, 0, 1);
+    }
+
+    // 12. Clear save flag
+    uint32_t& actorFlags = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x10);
+    actorFlags &= ~(1u << 21);
+
+    RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: spawned custom NPC ptr=%p\n", pActor);
+    nlohmann::json result = {
+        {JsonField::kOp, JsonOp::kSpawnResult},
+        {JsonField::kFormId, uint32_t(0)},
+        {JsonField::kPtr, reinterpret_cast<uint64_t>(pActor)},
+        {JsonField::kSuccess, true}
+    };
+    g_tcpServer.SendJson(result);
+}
+
+// ---------------------------------------------------------------------------
 // DrainCommandQueue: Execute queued commands on the game thread
 // Called from HookActorProcess when the player character (formId 0x14) fires
 // ---------------------------------------------------------------------------
 
 void DrainCommandQueue()
 {
+    // Process appearance spawns first (variable-length, game thread only)
+    {
+        std::vector<AppearanceSpawnRequest> pending;
+        {
+            std::lock_guard<std::mutex> lock(g_appearanceSpawnMutex);
+            pending.swap(g_appearanceSpawnQueue);
+        }
+        for (const auto& req : pending)
+            SpawnActorFromAppearance(req);
+    }
+
     using TSetPosition = void (__fastcall*)(void*, void*);
     auto pRealSetPosition = reinterpret_cast<TSetPosition>(GetRealSetPosition());
 
@@ -252,6 +502,12 @@ void DrainCommandQueue()
 
             // 4. SetSkipSaveFlag: unk10 = 0xFFFF (offset 0x18 in TESForm)
             *reinterpret_cast<uint16_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x18) = 0xFFFF;
+
+            // 4b. AI suppression: set flag that prevents AI evaluation (per D-06/D-21)
+            {
+                uint32_t& flags1 = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x0C);
+                flags1 |= 0x02000000;
+            }
 
             // 5. SetLevelMod(pActor->extraData, 4)
             // TESObjectREFR::extraData is at offset 0x70.
@@ -564,6 +820,34 @@ static void ParseJsonCommand(const nlohmann::json& aMsg)
         slot.args[2] = zBits;
         slot.args[3] = (static_cast<uint64_t>(ryBits) << 32) | rxBits;
         g_commandQueue.Enqueue(slot);
+    }
+    else if (op == JsonOp::kCmdSpawnActorAppearance)
+    {
+        // Phase 16: Appearance-based spawn via TESNPC::Create pipeline
+        // JSON carries: change_flags, x, y, z, rx, ry, appearance (base64), face_tints (base64)
+        AppearanceSpawnRequest req;
+        req.changeFlags = aMsg.value(JsonField::kChangeFlags, uint32_t(0));
+        req.x  = aMsg.value(JsonField::kX, 0.0f);
+        req.y  = aMsg.value(JsonField::kY, 0.0f);
+        req.z  = aMsg.value(JsonField::kZ, 0.0f);
+        req.rx = aMsg.value(JsonField::kRx, 0.0f);
+        req.ry = aMsg.value(JsonField::kRy, 0.0f);
+
+        auto appIt = aMsg.find(JsonField::kAppearance);
+        if (appIt != aMsg.end() && appIt->is_string())
+            req.appearanceData = Base64Decode(appIt->get<std::string>());
+
+        auto ftIt = aMsg.find(JsonField::kFaceTints);
+        if (ftIt != aMsg.end() && ftIt->is_string())
+            req.faceTintData = Base64Decode(ftIt->get<std::string>());
+
+        {
+            std::lock_guard<std::mutex> lock(g_appearanceSpawnMutex);
+            g_appearanceSpawnQueue.push_back(std::move(req));
+        }
+
+        RelayLog("[SkyrimCoopHooks] Queued appearance spawn (appearance=%zu, faceTint=%zu)\n",
+                 req.appearanceData.size(), req.faceTintData.size());
     }
     else if (op == JsonOp::kCmdRemoveActor)
     {
