@@ -300,9 +300,9 @@ Plans:
   3. Native CharacterService sends cmd_remove_actor with tracked pointer on character removal
   4. All launch scripts auto-configure Skyrim.ini (bAlwaysActive, windowed mode) with backup/restore
   5. Human-verified: two-player session shows remote actors spawned and moving in Skyrim
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 15-01-PLAN.md -- DLL-side CMD_SPAWN_ACTOR/CMD_REMOVE_ACTOR game function execution
+- [x] 15-01-PLAN.md -- DLL-side CMD_SPAWN_ACTOR/CMD_REMOVE_ACTOR game function execution
 - [ ] 15-02-PLAN.md -- Native-side CharacterService spawn command senders + serverId-to-ptr tracking
 - [ ] 15-03-PLAN.md -- INI auto-configuration in launch scripts + human verification
