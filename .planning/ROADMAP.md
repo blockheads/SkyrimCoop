@@ -36,7 +36,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The `try/catch` block in `HostService::StartHosting()` is replaced with explicit error-code returns (`if (!pServer->IsListening()) return false;`)
   4. Code/relay_dll/ and Code/native_client/ directories are deleted and removed from the XMake build system
   5. `xmake f -p mingw` completes without errors after the deletions
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — ABI safety fixes: alignas replacement, try/catch removal, -flayout-compat=ms documentation
+- [ ] 01-02-PLAN.md — Relay code deletion and build system cleanup
 
 ### Phase 2: Full Client Compilation
 **Goal**: The complete Code/client/ codebase compiles under MinGW as a single SKSE DLL with CEF, DirectXTK, and Discord excluded
@@ -102,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. ABI Safety and Source Cleanup | 0/TBD | Not started | - |
+| 1. ABI Safety and Source Cleanup | 0/2 | Planning complete | - |
 | 2. Full Client Compilation | 0/TBD | Not started | - |
 | 2.5. SKSE Abstraction Layer | 0/TBD | Not started | - |
 | 3. Loopback Transport and Host Mode | 0/TBD | Not started | - |
