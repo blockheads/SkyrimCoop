@@ -17,7 +17,7 @@ Milestone v2.0 takes the existing STR codebase from the abandoned relay architec
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: ABI Safety and Source Cleanup** - Fix silent ABI hazards and delete v1.0 relay code before any compilation begins
+- [x] **Phase 1: ABI Safety and Source Cleanup** - Fix silent ABI hazards and delete v1.0 relay code before any compilation begins (completed 2026-03-30)
 - [ ] **Phase 2: Full Client Compilation** - Compile all ~6200 LOC of Code/client/ under MinGW as a single SKSE DLL
 - [ ] **Phase 2.5: SKSE Abstraction Layer** (INSERTED) - Abstract SKSE interaction behind testable ISkyrimBridge interface for headless replay
 - [ ] **Phase 3: Loopback Transport and Host Mode** - Port LoopbackTransport, wire dual-mode TransportService, implement HostService::StartHosting()
@@ -38,8 +38,8 @@ Decimal phases appear between their surrounding integers in numeric order.
   5. `xmake f -p mingw` completes without errors after the deletions
 **Plans**: 2 plans
 Plans:
-- [ ] 01-01-PLAN.md — ABI safety fixes: alignas replacement, try/catch removal, -flayout-compat=ms documentation
-- [ ] 01-02-PLAN.md — Relay code deletion and build system cleanup
+- [x] 01-01-PLAN.md — ABI safety fixes: alignas replacement, try/catch removal, -flayout-compat=ms documentation
+- [x] 01-02-PLAN.md — Relay code deletion and build system cleanup
 
 ### Phase 2: Full Client Compilation
 **Goal**: The complete Code/client/ codebase compiles under MinGW as a single SKSE DLL with CEF, DirectXTK, and Discord excluded
@@ -105,7 +105,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. ABI Safety and Source Cleanup | 0/2 | Planning complete | - |
+| 1. ABI Safety and Source Cleanup | 2/2 | Complete   | 2026-03-30 |
 | 2. Full Client Compilation | 0/TBD | Not started | - |
 | 2.5. SKSE Abstraction Layer | 0/TBD | Not started | - |
 | 3. Loopback Transport and Host Mode | 0/TBD | Not started | - |
