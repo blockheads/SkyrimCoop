@@ -309,18 +309,22 @@ Plans:
 
 ### Phase 16: Fix Server FormId & Basic Actor Spawning
 
-**Goal:** Fix the server's CreateCharacter to populate FormIdComponent for player characters (currently sends formId=0:0 in CharacterSpawnRequest), verify the Phase 15 DLL CMD_SPAWN_ACTOR works with a real formId, and get a basic remote actor visible in-game. Includes unit tests for formId resolution, replay tests for the spawn pipeline, and human E2E verification.
+**Goal:** Implement dual-path actor spawning (TESNPC::Create from AppearanceBuffer for players, TESForm::GetById for world NPCs), WorldStateSync 1-second reconciliation, AI suppression on remote actors, and disconnect cleanup. Absorbs Phase 17 scope per CONTEXT.md decisions. Server FormId=0:0 for player characters is by design (D-01) -- the real work is porting STR's spawn pipeline to the relay DLL.
 **Requirements**: SPAWN-08, SPAWN-09, SPAWN-10
 **Depends on:** Phase 15
 **Success Criteria** (what must be TRUE):
-  1. Server CreateCharacter populates FormIdComponent for player characters (non-zero formId in CharacterSpawnRequest)
-  2. Unit tests verify formId resolution for player characters, temporary forms, and world-persistent NPCs
-  3. Replay tests verify spawn pipeline: CharacterSpawnRequest -> cmd_spawn_actor with correct formId -> spawn_result handling
-  4. Human-verified: two-player session shows a remote actor (generic NPC) spawned in Skyrim at the correct position
-**Plans:** 0 plans
+  1. DLL handles dual-path spawning: TESNPC::Create from AppearanceBuffer (FormId=0:0) and TESForm::GetById (non-zero FormId)
+  2. Unit tests verify spawn routing, reconciliation, and disconnect cleanup
+  3. Replay tests verify spawn pipeline with NDJSON fixtures
+  4. Human-verified: two-player session shows a remote actor spawned at correct position with AI suppressed
+**Plans:** 5 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 16 to break down)
+- [ ] 16-01-PLAN.md -- WorldStateSync message definition + server 1-second broadcast
+- [ ] 16-02-PLAN.md -- Native client dual-path spawn routing + reconciliation + disconnect cleanup
+- [ ] 16-03-PLAN.md -- DLL TESNPC::Create pipeline + AI suppression
+- [ ] 16-04-PLAN.md -- Spawn pipeline unit tests + NDJSON replay fixtures
+- [ ] 16-05-PLAN.md -- Build verification + human E2E testing
 
 ### Phase 17: Port STR Actor::Create Pipeline & Appearance Reconstruction
 
