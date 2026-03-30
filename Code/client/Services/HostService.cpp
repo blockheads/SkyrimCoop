@@ -30,42 +30,40 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     // All server code is now wrapped in Server namespace (Server::World, Server::GameServer, etc.)
     // This allows client and server to coexist in the same binary without conflicts.
 
-    try
+    spdlog::info("[HostService] Starting P2P host session on port {} for up to {} players", aPort, aMaxPlayers);
+
+    // Create logger for embedded server if it doesn't exist
+    if (!spdlog::get("EmbeddedServer"))
     {
-        spdlog::info("[HostService] Starting P2P host session on port {} for up to {} players", aPort, aMaxPlayers);
-
-        // Create logger for embedded server if it doesn't exist
-        if (!spdlog::get("EmbeddedServer"))
-        {
-            auto embeddedLogger = spdlog::stdout_color_mt("EmbeddedServer");
-            embeddedLogger->set_pattern("[EmbeddedServer] [%l] %v");
-        }
-
-        // Create console registry for embedded server
-        m_pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("EmbeddedServer");
-
-        // Create embedded GameServer instance (now properly namespaced!)
-        // NOTE: GameServer constructor automatically calls Host() internally!
-        m_pGameServer = std::make_unique<Server::GameServer>(*m_pConsole);
-
-        // Initialize server systems (ModPolicy, console commands, Lua scripting)
-        m_pGameServer->Initialize();
-
-        m_isHosting = true;
-
-        spdlog::info("[HostService] Successfully started hosting session on port {}", m_pGameServer->GetPort());
-        spdlog::info("[HostService] Host player can connect to localhost (127.0.0.1:{})", m_pGameServer->GetPort());
-        spdlog::info("[HostService] Remote players can connect to this machine's IP:{})", m_pGameServer->GetPort());
-
-        return true;
+        auto embeddedLogger = spdlog::stdout_color_mt("EmbeddedServer");
+        embeddedLogger->set_pattern("[EmbeddedServer] [%l] %v");
     }
-    catch (const std::exception& e)
+
+    // Create console registry for embedded server
+    m_pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("EmbeddedServer");
+
+    // Create embedded GameServer instance (now properly namespaced!)
+    // NOTE: GameServer constructor automatically calls Host() internally!
+    m_pGameServer = std::make_unique<Server::GameServer>(*m_pConsole);
+
+    // Initialize server systems (ModPolicy, console commands, Lua scripting)
+    m_pGameServer->Initialize();
+
+    if (!m_pGameServer->IsListening())
     {
-        spdlog::error("[HostService] Exception while starting hosting: {}", e.what());
+        spdlog::error("[HostService] Server failed to start listening on requested port");
         m_pGameServer.reset();
         m_pConsole.reset();
         return false;
     }
+
+    m_isHosting = true;
+
+    spdlog::info("[HostService] Successfully started hosting session on port {}", m_pGameServer->GetPort());
+    spdlog::info("[HostService] Host player can connect to localhost (127.0.0.1:{})", m_pGameServer->GetPort());
+    spdlog::info("[HostService] Remote players can connect to this machine's IP:{})", m_pGameServer->GetPort());
+
+    return true;
 }
 
 void HostService::StopHosting() noexcept

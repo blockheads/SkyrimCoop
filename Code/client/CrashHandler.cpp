@@ -49,48 +49,42 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
         if (bMiniDump)
         {
             HANDLE hDumpFile = NULL;
-            try
-            {
-                MINIDUMP_EXCEPTION_INFORMATION M;
-                char dumpPath[MAX_PATH];
+            MINIDUMP_EXCEPTION_INFORMATION M;
+            char dumpPath[MAX_PATH];
 
-                M.ThreadId = GetCurrentThreadId();
-                M.ExceptionPointers = pExceptionInfo;
-                M.ClientPointers = 0;
+            M.ThreadId = GetCurrentThreadId();
+            M.ExceptionPointers = pExceptionInfo;
+            M.ClientPointers = 0;
 
-                std::ostringstream oss;
-                oss << "crash_" << SerializeTimePoint(std::chrono::system_clock::now(), "UTC_%Y-%m-%d_%H-%M-%S")
-                    << ".dmp";
+            std::ostringstream oss;
+            oss << "crash_" << SerializeTimePoint(std::chrono::system_clock::now(), "UTC_%Y-%m-%d_%H-%M-%S")
+                << ".dmp";
 
-                GetModuleFileNameA(NULL, dumpPath, sizeof(dumpPath));
-                std::filesystem::path modulePath(dumpPath);
-                auto subPath = modulePath.parent_path();
+            GetModuleFileNameA(NULL, dumpPath, sizeof(dumpPath));
+            std::filesystem::path modulePath(dumpPath);
+            auto subPath = modulePath.parent_path();
 
-                CrashHandler::RemovePreviousDump(subPath);
+            CrashHandler::RemovePreviousDump(subPath);
 
-                subPath /= oss.str();
+            subPath /= oss.str();
 
-                hDumpFile = CreateFileA(subPath.string().c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
-                                        FILE_ATTRIBUTE_NORMAL, NULL);
+            hDumpFile = CreateFileA(subPath.string().c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                                    FILE_ATTRIBUTE_NORMAL, NULL);
 
-                // baseline settings from https://stackoverflow.com/a/63123214/5273909
-                auto dumpSettings = MiniDumpWithDataSegs | MiniDumpWithProcessThreadData | MiniDumpWithHandleData |
-                                    MiniDumpWithThreadInfo |
-                                    /*
-                                    //MiniDumpWithPrivateReadWriteMemory | // this one gens bad dump
-                                    MiniDumpWithUnloadedModules |
-                                    MiniDumpWithFullMemoryInfo |
-                                    MiniDumpWithTokenInformation |
-                                    MiniDumpWithPrivateWriteCopyMemory |
-                                    */
-                                    0;
+            // baseline settings from https://stackoverflow.com/a/63123214/5273909
+            auto dumpSettings = MiniDumpWithDataSegs | MiniDumpWithProcessThreadData | MiniDumpWithHandleData |
+                                MiniDumpWithThreadInfo |
+                                /*
+                                //MiniDumpWithPrivateReadWriteMemory | // this one gens bad dump
+                                MiniDumpWithUnloadedModules |
+                                MiniDumpWithFullMemoryInfo |
+                                MiniDumpWithTokenInformation |
+                                MiniDumpWithPrivateWriteCopyMemory |
+                                */
+                                0;
 
-                MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hDumpFile, (MINIDUMP_TYPE)dumpSettings,
-                                  (pExceptionInfo) ? &M : NULL, NULL, NULL);
-            }
-            catch (...) // Mini-dump is best effort only.
-            {
-            }
+            MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hDumpFile, (MINIDUMP_TYPE)dumpSettings,
+                              (pExceptionInfo) ? &M : NULL, NULL, NULL);
 
             if (!hDumpFile)
                 spdlog::critical("{}: : coredump may have failed.", __FUNCTION__);
