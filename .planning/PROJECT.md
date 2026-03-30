@@ -8,20 +8,29 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 Two friends can drop into Skyrim together on Linux with zero server setup — host clicks "host," friend joins via direct connect, and it just works.
 
-## Current Milestone: v2.0 MinGW Full Client with Host-Authoritative P2P
+## Current Milestone: v2.0 MinGW Full Client with Loopback Server
 
-**Goal:** Build SkyrimTogether Reborn as a single MinGW-compiled SKSE plugin DLL with host-authoritative P2P architecture — the existing Code/client/ and Code/server/ compile under MinGW, embed the server in-process, and two players can co-op.
+**Goal:** Get the existing STR client and server compiling under MinGW as a single SKSE DLL, embed the server via loopback bridge, and verify existing sync features work between two players.
 
 **Target features:**
 - Full STR client (Code/client/) compiles under MinGW as a single SKSE DLL
-- Host-authoritative embedded server runs in-process (single simulation, multiple renderers)
-- Character sync: spawn, movement, animation, appearance
-- Actor value sync: health, magicka, stamina
-- Inventory/equipment sync on spawn and during gameplay
-- Combat sync with host adjudication
-- Quest sync (host-authoritative)
+- Embedded GameServer via LoopbackTransport (host mode) / enet6 (client mode)
+- Existing STR sync verified through loopback (character, inventory, disconnect/reconnect)
 - Two-player co-op session via direct IP connect
-- Linux cross-compile toolchain (build + debug from Linux via Wine/gdb)
+- Linux cross-compile + debug workflow (MinGW build, gdb with DWARF symbols)
+
+**NOT in this milestone (future):**
+- Direct authority refactor (v3.0+) — host reads engine directly, bypasses loopback
+- Full game state sync (v4.0+) — physics, AI, scripting, weather made host-authoritative
+
+## Long-Term Vision
+
+The ultimate goal is to make Skyrim fully host-authoritative for co-op: the host's Skyrim engine IS the single simulation, clients are pure renderers receiving state. This requires rewriting every game system (physics, AI, scripts, weather, etc.) to be multiplayer-aware. The pattern is always: host simulates → state captured → sent to clients → clients interpolate/apply.
+
+**Milestone roadmap:**
+- **v2.0 (current):** MinGW build + loopback bridge + verify existing STR features
+- **v3.0:** Direct authority rewrite — host services read engine directly (see NETWORK-ARCHITECTURE.md, WHY_DIRECT_AUTHORITY_IS_REQUIRED.md)
+- **v4.0+:** Full game state sync — physics/Havok, AI, Papyrus scripts, weather/lighting, cell transitions (likely multiple milestones)
 
 ## Requirements
 
@@ -40,15 +49,14 @@ Two friends can drop into Skyrim together on Linux with zero server setup — ho
 ### Active
 
 - [ ] Full Code/client/ compiles under MinGW as SKSE DLL (CEF/DirectXTK/Discord excluded)
-- [ ] Host-authoritative embedded server runs in DLL process
-- [ ] Character sync (position, movement, animation) works between host and client
-- [ ] Actor spawning with appearance reconstruction (TESNPC::Create from AppearanceBuffer)
-- [ ] Inventory/equipment synchronization
-- [ ] Combat synchronization with host adjudication
-- [ ] Quest sync (host-authoritative)
-- [ ] Actor value sync (health, magicka, stamina)
-- [ ] Two-player co-op session via direct IP connect on localhost
-- [ ] Linux cross-compile + debug workflow (MinGW build, Wine/gdb attach with DWARF symbols)
+- [ ] ABI safety fixes (alignas, try/catch UB, struct layout verification)
+- [ ] Code/relay_dll/ and Code/native_client/ removed from source tree
+- [ ] LoopbackTransport for host-mode message delivery (in-process, no network)
+- [ ] Dual-mode TransportService (loopback for host, enet6 for clients)
+- [ ] HostService::StartHosting() with GameServer lifecycle management
+- [ ] Two-player co-op via direct IP — both players visible with existing STR sync
+- [ ] Existing STR character, inventory, disconnect/reconnect sync verified through loopback
+- [ ] Linux cross-compile + debug workflow (MinGW build, gdb with DWARF symbols)
 
 ### Out of Scope
 
@@ -120,9 +128,11 @@ Two friends can drop into Skyrim together on Linux with zero server setup — ho
 | MinGW single DLL (not relay+native split) | Relay added complexity (TCP/JSON/proc_memory) for marginal debug benefit; MinGW DLLs debuggable via gdb+DWARF | — Pending |
 | Host-authoritative (single simulation) | Skyrim is closed-source, can't recreate engine in separate server; host's engine IS the simulation | — Pending |
 | Embedded server in DLL process | No separate server binary; host's DLL runs GameServer in-process, clients connect via enet6 | — Pending |
+| Loopback bridge first, direct authority later | Loopback preserves all existing STR service code unchanged; direct authority is a rewrite for v3.0+ | — Pending |
 | CEF/UI deferred | Core multiplayer works without overlay; add UI after sync is solid | — Pending |
 | Direct IP connect first (not Steam) | Simpler to implement; Steam invites are polish, not core | — Pending |
 | Delete relay_dll/ and native_client/ | Clean break from v1.0 architecture; code preserved in git history | — Pending |
+| v2.0 = build+verify, not rewrite | Get existing STR features working under MinGW first; rewrite for host authority is v3.0+ | — Pending |
 
 ## Evolution
 
@@ -142,4 +152,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 — Milestone v2.0 started (abandoned v1.0 relay architecture, pivoting to MinGW full client)*
+*Last updated: 2026-03-30 — Milestone v2.0 started (abandoned v1.0 relay architecture, pivoting to MinGW full client with loopback server)*
