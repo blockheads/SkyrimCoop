@@ -142,7 +142,7 @@ SKYRIM_STRUCT_ASSERT(offsetof(BGSLoadFormBuffer, changeFlags) == 0x40);
 SKYRIM_STRUCT_ASSERT(offsetof(BGSLoadFormBuffer, loadFlag) == 0x4B);
 
 // TODO: mostly copied from fallout 4, needs to be validated
-struct __declspec(align(8)) BGSSaveLoadScrapBuffer
+struct alignas(8) BGSSaveLoadScrapBuffer
 {
     char* pBuffer;
     struct ScrapHeap* pScrapHeap;
@@ -162,7 +162,7 @@ struct BGSLoadGameBuffer
 
 SKYRIM_STRUCT_ASSERT(sizeof(BGSLoadGameBuffer) == 0x28);
 
-struct __declspec(align(8)) BGSLoadFormData
+struct alignas(8) BGSLoadFormData
 {
     uint32_t iFormID;
     uint32_t uiDataSize;

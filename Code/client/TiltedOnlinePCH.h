@@ -22,7 +22,9 @@
 // does not. Skyrim game struct static_asserts verify MSVC layout. We guard these
 // checks on MinGW and rely on runtime validation instead, since adding explicit
 // padding to every struct in the hierarchy would be too invasive.
-// TODO: Upgrade to GCC 12+ and use -flayout-compat=ms for proper MSVC ABI compat.
+// NOTE: -flayout-compat=ms (GCC 12+) is not available on the installed toolchain
+// (GCC 10). SKYRIM_STRUCT_ASSERT is suppressed on non-MSVC builds. The -mms-bitfields
+// flag handles bitfield layout. Tail-padding reuse differences are accepted for now.
 #ifndef _MSC_VER
 #define SKYRIM_STRUCT_ASSERT(...) /* GCC Itanium ABI layout differs, skip */
 #else

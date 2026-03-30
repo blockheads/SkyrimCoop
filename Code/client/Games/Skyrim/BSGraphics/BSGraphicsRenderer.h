@@ -4,7 +4,7 @@
 
 namespace BSGraphics
 {
-struct __declspec(align(8)) BSCriticalSection
+struct alignas(8) BSCriticalSection
 {
     _RTL_CRITICAL_SECTION CriticalSection;
     unsigned int ulThreadOwner;
