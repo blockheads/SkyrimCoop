@@ -89,6 +89,15 @@ namespace AddressIds {
     constexpr uint64_t kPerformAction       = 38952;  // AnimationExperiments.cpp PerformIdleAction
     constexpr uint64_t kSimulateTime        = 26231;  // Re-used; CalendarService hooks TimeManager
     constexpr uint64_t kInitiateMountPackage = 37905;
+
+    // TESNPC::Create and Actor::Create pipeline (from Forms.cpp, Memory.cpp, ModManager.cpp, Actor.cpp)
+    constexpr uint64_t kFormById            = 14617;  // TESForm::GetById
+    constexpr uint64_t kGameHeapAllocate    = 68115;  // GameHeap::Allocate (form allocation)
+    constexpr uint64_t kGameHeapInstance    = 400188; // GameHeap singleton pointer
+    constexpr uint64_t kSpawnNewREFR        = 13723;  // ModManager::SpawnNewREFR
+    constexpr uint64_t kModManagerInstance  = 400269; // ModManager singleton pointer
+    constexpr uint64_t kSetLevelMod         = 11806;  // Actor::SetLevelMod via ExtraDataList
+    constexpr uint64_t kIFormFactoryTable   = 400508; // IFormFactory* array (index 43 = TESNPC)
 }
 
 // ---------------------------------------------------------------------------
@@ -789,6 +798,29 @@ static const HookEntry s_hookTable[] = {
 static constexpr uint32_t kHookCount = sizeof(s_hookTable) / sizeof(s_hookTable[0]);
 
 // ---------------------------------------------------------------------------
+// Game function pointers for TESNPC::Create and Actor::Create pipelines
+// Resolved during InstallAllHooks() via Address Library lookup
+// ---------------------------------------------------------------------------
+
+static void* s_pFormById          = nullptr;
+static void* s_pGameHeapAllocate  = nullptr;
+static void* s_pGameHeapInstance  = nullptr;
+static void* s_pSpawnNewREFR      = nullptr;
+static void* s_pModManagerInstance = nullptr;
+static void* s_pSetLevelMod       = nullptr;
+static void* s_pIFormFactoryTable = nullptr;
+// CharacterCtor is already available as RealCharacterCtor (from hook trampoline)
+
+void* GetFormById()          { return s_pFormById; }
+void* GetGameHeapAllocate()  { return s_pGameHeapAllocate; }
+void* GetGameHeapInstance()  { return s_pGameHeapInstance; }
+void* GetCharacterCtor()     { return reinterpret_cast<void*>(RealCharacterCtor); }
+void* GetSpawnNewREFR()      { return s_pSpawnNewREFR; }
+void* GetModManagerInstance() { return s_pModManagerInstance; }
+void* GetSetLevelMod()       { return s_pSetLevelMod; }
+void* GetIFormFactoryTable() { return s_pIFormFactoryTable; }
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -802,6 +834,20 @@ bool InstallAllHooks()
         RelayLog("[SkyrimCoopHooks] Failed to load Address Library -- hooks disabled\n");
         return false;
     }
+
+    // Step 1b: Resolve game function pointers for TESNPC::Create pipeline
+    s_pFormById          = ResolveAddress(AddressIds::kFormById);
+    s_pGameHeapAllocate  = ResolveAddress(AddressIds::kGameHeapAllocate);
+    s_pGameHeapInstance  = ResolveAddress(AddressIds::kGameHeapInstance);
+    s_pSpawnNewREFR      = ResolveAddress(AddressIds::kSpawnNewREFR);
+    s_pModManagerInstance = ResolveAddress(AddressIds::kModManagerInstance);
+    s_pSetLevelMod       = ResolveAddress(AddressIds::kSetLevelMod);
+    s_pIFormFactoryTable = ResolveAddress(AddressIds::kIFormFactoryTable);
+
+    RelayLog("[SkyrimCoopHooks] Spawn pipeline addresses: FormById=%p HeapAlloc=%p HeapInst=%p "
+             "SpawnREFR=%p ModMgr=%p SetLvlMod=%p FactoryTable=%p\n",
+             s_pFormById, s_pGameHeapAllocate, s_pGameHeapInstance,
+             s_pSpawnNewREFR, s_pModManagerInstance, s_pSetLevelMod, s_pIFormFactoryTable);
 
     // Step 2: Initialize MinHook
     MH_STATUS status = MH_Initialize();
