@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 16 context gathered
-last_updated: "2026-03-30T03:10:41.974Z"
-last_activity: 2026-03-30 -- Phase 15 execution started
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-03-30T04:42:30.628Z"
+last_activity: 2026-03-28
 progress:
-  total_phases: 20
-  completed_phases: 12
-  total_plans: 59
-  completed_plans: 56
-  percent: 90
+  total_phases: 8
+  completed_phases: 3
+  total_plans: 21
+  completed_plans: 19
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 15 — remote-actor-spawning-game-integration
+**Current focus:** Phase 07 — native-linux-build-with-skse-tcp-relay
 
 ## Current Position
 
-Phase: 15 (remote-actor-spawning-game-integration) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 15
-Last activity: 2026-03-30 -- Phase 15 execution started
+Phase: 07
+Plan: Not started
+Status: Ready to execute
+Last activity: 2026-03-28
 
-Progress: [=========] 90%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -69,15 +69,7 @@ Progress: [=========] 90%
 | Phase 07 P05 | 9min | 2 tasks | 12 files |
 | Phase 07 P07 | 4min | 2 tasks | 7 files |
 | Phase 07 P08 | 5min | 1 tasks | 2 files |
-| Phase 11 P02 | 6min | 2 tasks | 4 files |
-| Phase 11 P04 | 8min | 2 tasks | 17 files |
-| Phase 11 P05 | 15min | 2 tasks | 8 files |
-| Phase 12 P01 | 8min | 2 tasks | 11 files |
-| Phase 12 P02 | 4min | 2 tasks | 8 files |
-| Phase 13 P02 | 10min | 2 tasks | 9 files |
-| Phase 14 P01 | 8min | 2 tasks | 6 files |
-| Phase 14 P02 | 3min | 2 tasks | 8 files |
-| Phase 14 P03 | 34min | 2 tasks | 10 files |
+| Phase 16 P01 | 3min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -117,22 +109,7 @@ Recent decisions affecting current work:
 - [Phase 07]: Frame pacing via sleep_for; poll()-based receive deferred until TcpClient exposes socket fd
 - [Phase 07]: Catch2 comma-separated tag syntax for OR-matching multiple test groups in smoke tests
 - [Phase 07]: xmake show projectdir parsing for worktree-safe build artifact location in smoke tests
-- [Phase 11]: g_dirtyCache non-static for cross-TU access between hook_trampolines.cpp and relay_main.cpp
-- [Phase 11]: JSON command parsing on receive thread, packed into CommandSlot binary for game-thread SPSC queue safety
-- [Phase 11]: ReadFormId/ReadPosition/ReadRotation helpers for typed field extraction in JSON trampolines
-- [Phase 11]: AnimationSystem converted from binary CommandPacket to JSON SendJsonLine (Rule 3: blocking reference)
-- [Phase 11]: Legacy binary tests preserved with [Legacy] tag; post-build auto-deploy added to xmake.lua
-- [Phase 12]: ReplayHarness uses binary HookEventPacket dispatch (not JSON), with NDJSON-to-binary conversion layer
-- [Phase 12]: nlohmann_json v3.11.3 added for NDJSON parsing in replay harness only (excluded from production binary)
-- [Phase 12]: SkyrimTogetherServer not needed as ReplayTests dependency (native_client services are self-contained)
-- [Phase 12]: FIXTURE_PATH macro resolves from os.projectdir() for worktree-safe absolute paths
-- [Phase 12]: Replay sources included in production binary since nlohmann_json already available via third_party
-- [Phase 13]: ActorValueService regen_attr creates cache entry on first event (not just update existing)
-- [Phase 14]: nlohmann_json added to server packages for Recording/ module; DEF_MSG_NAME macro for Visit()-based type name registry
-- [Phase 14]: Tag-struct constructors (WorldTestMode, GameServerTestMode) for test mode instead of bool flags or subclasses
-- [Phase 14]: EnetRecorder taps at application layer (Send/OnConsume) per D-03, per-peer NDJSON files with dir field per D-04
-- [Phase 14]: Programmatic fixture generation via MessageSerializer for enet6 replay tests
-- [Phase 14]: DualReplayHarness wraps both ReplayHarness and ServerReplayHarness for combined client+server replay
+- [Phase 16]: WorldStateSync broadcasts every 1s as reconciliation safety net (D-08/D-10); movement updates via kUnreliable channel (D-14b)
 
 ### Pending Todos
 
@@ -142,14 +119,6 @@ None yet.
 
 - Phase 03.1 inserted after Phase 03: Build Performance & Resource Optimization (URGENT) — full rebuild takes 6+ minutes linking 1.5GB static archive, excessive memory/CPU usage makes iterative debugging unmanageable
 - Phase 07 added: Native Linux Build with SKSE TCP Relay — split codebase so 90% builds natively on Linux, thin MinGW DLL acts as TCP relay into SKSE
-- Phase 12 added: NDJSON Replay Capture and Integration Tests — record live sessions, replay without Skyrim, regression tests against real game data
-- Phase 13 added: Network Replay Recording and Regression Testing — extend replay system to capture full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement) alongside DLL hook events; dual host+client recording for offline regression tests with real game data
-- Phase 15 added: Remote Actor Spawning & Game Integration — bridge server CharacterSpawnRequest to in-game actor creation via relay DLL commands, position sync for remote actors, INI auto-configuration in launch scripts
-- Phase 14 added: enet6 Network Traffic Replay — deferred from Phase 13 scope; capture and replay full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement) alongside DLL hook events with dual host+client recording for offline regression testing
-- Phase 15 marked with gaps: DLL infrastructure works but formId=0 bug (server doesn't populate FormIdComponent for player characters) prevents spawning. Raw game function pointer approach replaced by proper STR character logic port.
-- Phase 16 added: Fix Server FormId & Basic Actor Spawning — fix formId=0 bug, get basic actor visible in-game with unit + replay tests
-- Phase 17 added: Port STR Actor::Create Pipeline & Appearance Reconstruction — full STR spawn sequence, TESNPC::Create from AppearanceBuffer, AI suppression, WaitingFor3D, with unit + replay tests
-- Phase 18 added: Remote Actor State Sync — equipment, actor values, death/respawn, weapon drawn sync with unit + replay tests
 
 ### Blockers/Concerns
 
@@ -159,6 +128,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T03:10:41.971Z
-Stopped at: Phase 16 context gathered
-Resume file: .planning/phases/16-fix-server-formid-and-basic-actor-spawning/16-CONTEXT.md
+Last session: 2026-03-30T04:42:30.626Z
+Stopped at: Completed 16-01-PLAN.md
+Resume file: None

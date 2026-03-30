@@ -33,6 +33,7 @@
 #include <Messages/NotifySubtitle.h>
 #include <Messages/NotifyActorTeleport.h>
 #include <Messages/NotifyRelinquishControl.h>
+#include <Messages/WorldStateSync.h>
 
 #include <Setting.h>
 
@@ -121,6 +122,7 @@ void CharacterService::OnUpdate(const UpdateEvent&) const noexcept
 {
     ProcessFactionsChanges();
     ProcessMovementChanges();
+    BroadcastWorldStateSync();
 }
 
 void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept
@@ -662,7 +664,37 @@ void CharacterService::ProcessMovementChanges() const noexcept
     for (auto& [pPlayer, message] : messages)
     {
         if (!message.Updates.empty())
-            pPlayer->Send(message);
+            pPlayer->Send(message, TiltedPhoques::kUnreliable);
+    }
+}
+
+void CharacterService::BroadcastWorldStateSync() const noexcept
+{
+    using namespace std::chrono;
+    constexpr auto cSyncInterval = 1000ms;
+
+    auto now = steady_clock::now();
+    if (now - m_lastWorldStateSyncTime < cSyncInterval)
+        return;
+    m_lastWorldStateSyncTime = now;
+
+    WorldStateSync sync;
+
+    auto view = m_world.view<MovementComponent, CharacterComponent>();
+    for (auto entity : view)
+    {
+        auto& movement = view.get<MovementComponent>(entity);
+        WorldStateSync::EntityEntry entry;
+        entry.ServerId = World::ToInteger(entity);
+        entry.Position = movement.Position;
+        entry.Rotation.x = movement.Rotation.x;
+        entry.Rotation.y = movement.Rotation.z;
+        sync.Entities.push_back(entry);
+    }
+
+    if (!sync.Entities.empty())
+    {
+        GameServer::Get()->SendToPlayers(sync);
     }
 }
 
