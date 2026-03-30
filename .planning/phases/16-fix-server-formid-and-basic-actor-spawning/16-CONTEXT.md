@@ -43,6 +43,7 @@ This phase absorbs Phase 17's scope (TESNPC::Create + appearance reconstruction 
 - **D-12:** **Reconnect = fresh connect.** No special reconnect logic. Server sends full baseline (same as WorldStateSync, plus full appearance data for each entity). Client rebuilds everything from scratch. This is what every successful co-op game does.
 - **D-13:** **No host migration.** If host disconnects, session ends. No co-op game in production implements host migration for this pattern (DRG devs explicitly called it "too technically complex"). Accepted industry standard.
 - **D-14:** **This pattern is reusable.** Every future sync system (inventory, combat, quests, actor values) should follow the same model: event-driven fast path + periodic reconciliation safety net. Getting it right for actor spawning establishes the template.
+- **D-14b:** **Unreliable sequenced channel for position updates.** Position updates (ServerReferencesMoveRequest) go over enet6 unreliable sequenced — stale positions are worthless, so retransmission wastes bandwidth and adds latency. Spawn/remove/reconciliation messages stay on reliable ordered. enet6 already supports multiple channels with different reliability modes. This is how every co-op game does it.
 
 ### Actor Lifecycle
 - **D-15:** (Carried from Phase 15 D-06) Immediate deletion on disconnect. cmd_remove_actor deletes the actor from Skyrim immediately. No fade-out.
@@ -150,6 +151,7 @@ This phase absorbs Phase 17's scope (TESNPC::Create + appearance reconstruction 
 - Actor value sync (health, magicka, stamina) — Phase 18
 - Death/respawn sync — Phase 18
 - Weapon drawn state sync — Phase 18
+- **Cell tethering** — host drives cell transitions, all clients follow. When host enters a new cell, server broadcasts "go to this cell" and clients get teleported. Client cannot independently enter a different cell. Future: Borderlands-style "traveling to host..." loading screen. Separate phase.
 - SKSE task interface port (replace HookActorProcess piggyback with clean game-thread callback) — future optimization
 - Fade-out animation on actor removal — polish for later
 
