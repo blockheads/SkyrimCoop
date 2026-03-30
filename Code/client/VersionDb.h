@@ -291,7 +291,11 @@ public:
                 d2 = read<unsigned int>(file);
                 q2 = d2;
                 break;
-            default: throw std::exception();
+            default:
+            {
+                Clear();
+                return false;
+            }
             }
 
             if ((high & 8) != 0)

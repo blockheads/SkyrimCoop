@@ -73,7 +73,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     GetModuleFileNameW(s_dllInstance, dllPath, MAX_PATH);
     std::filesystem::path gamePath = std::filesystem::path(dllPath).parent_path().parent_path().parent_path().parent_path();
 
-    TiltedPhoques::String exeVersion("1.6.1170");
+    TiltedPhoques::String exeVersion("1.6.1170.0");
 
     RunTiltedInit(gamePath, exeVersion);
     RunTiltedApp();
