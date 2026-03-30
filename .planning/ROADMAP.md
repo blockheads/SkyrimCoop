@@ -1,8 +1,13 @@
 # Roadmap: SkyrimCoop
 
+## Milestones
+
+- Abandoned **v1.0 Linux Toolchain & Relay Architecture** - Phases 1-18 (abandoned 2026-03-30; proved MinGW feasibility, relay arch abandoned)
+- Working **v2.0 MinGW Full Client with Loopback Server** - Phases 1-5 + 2.5 (in progress)
+
 ## Overview
 
-Milestone 1 takes SkyrimCoop from a Windows-only MSVC build to a fully Linux-native development toolchain. The critical path runs through MinGW cross-compilation feasibility validation, progressive library compilation (Tier 1-2 then Tier 3 client DLL), and ultimately loading a MinGW-built DLL into Skyrim under Proton. Debug tooling, testing infrastructure, and the CEF-to-ImGui UI port build on that foundation. By the end, the entire develop-build-debug-test cycle runs on Linux without touching Windows.
+Milestone v2.0 takes the existing STR codebase from the abandoned relay architecture to a single MinGW-compiled SKSE DLL with an embedded GameServer in-process. The critical path runs from ABI safety fixes and source cleanup, through full client compilation under MinGW, to loopback transport integration and finally a verified two-player co-op session via direct IP. All v1.0 learnings (MinHook, Address Library, enet6, replay infrastructure) carry forward — the work is connecting proven pieces into a working session.
 
 ## Phases
 
@@ -12,348 +17,94 @@ Milestone 1 takes SkyrimCoop from a Windows-only MSVC build to a fully Linux-nat
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Feasibility Validation** - Prove MinGW cross-compilation is viable before investing in full migration
-- [x] **Phase 2: MSVC Compatibility & Core Libraries** - Platform-independent libraries compile under MinGW
-- [x] **Phase 3: Client DLL Cross-Compilation** - MinGW produces a client DLL that loads in Skyrim under Proton
-- [x] **Phase 3.1: Build Performance & Resource Optimization** - ~~devbuild mode~~ Resolved: relay DLL builds in <1s, native binary in <1s incremental
-- [x] **Phase 4: Linux Debug Workflow** - ~~One-command GDB attach~~ Resolved by Phase 7: native binary debuggable with standard GDB/LLDB, DLL has file logging
-- [ ] **Phase 5: Networking Verification & Server Cleanup** - Remove standalone server, automated fake-player integration test with memory verification
-- [ ] **Phase 6: ImGui UI Port** - Replace CEF overlay with MinGW-compilable ImGui UI
-- [x] **Phase 7: Native Linux Build with SKSE TCP Relay** - Split client so 95% builds natively, thin DLL acts as TCP relay into SKSE
-- [ ] **Phase 10: Two-Player Co-op Session** - Host + client on one machine, see each other, sync movement via P2P GameServer
-- [x] **Phase 11: JSON Wire Protocol** - Replace binary struct TCP protocol with newline-delimited JSON between relay DLL and native client (completed 2026-03-29)
+- [ ] **Phase 1: ABI Safety and Source Cleanup** - Fix silent ABI hazards and delete v1.0 relay code before any compilation begins
+- [ ] **Phase 2: Full Client Compilation** - Compile all ~6200 LOC of Code/client/ under MinGW as a single SKSE DLL
+- [ ] **Phase 2.5: SKSE Abstraction Layer** (INSERTED) - Abstract SKSE interaction behind testable ISkyrimBridge interface for headless replay
+- [ ] **Phase 3: Loopback Transport and Host Mode** - Port LoopbackTransport, wire dual-mode TransportService, implement HostService::StartHosting()
+- [ ] **Phase 4: Sync Verification via Loopback** - Validate character, inventory, and disconnect/reconnect sync through the loopback bridge
+- [ ] **Phase 5: Two-Player Session and Workflow** - Two live Skyrim instances see each other via direct IP; full Linux build-deploy-debug workflow confirmed
 
 ## Phase Details
 
-### Phase 1: Feasibility Validation
-**Goal**: Confirm that MinGW cross-compilation can produce working SKSE plugins and function hooks before investing in full codebase migration
+### Phase 1: ABI Safety and Source Cleanup
+**Goal**: All known ABI hazards are resolved and v1.0 relay code is gone before any compilation attempt
 **Depends on**: Nothing (first phase)
-**Requirements**: GATE-01, GATE-02, BUILD-01
-**Success Criteria** (what must be TRUE):
-  1. A minimal SKSE plugin compiled with MinGW loads in Skyrim under Proton and writes to the SKSE log
-  2. MinHook produces working x64 function hooks when cross-compiled with MinGW GCC
-  3. `xmake f -p mingw --mingw=/path` configures the SkyrimCoop project without errors
-**Plans**: 2 plans
-Plans:
-- [x] 01-01-PLAN.md -- Install XMake, add MinGW platform config, scaffold feasibility test plugins
-- [x] 01-02-PLAN.md -- Cross-compile gate DLLs, Wine smoke test, Proton runtime validation
-
-### Phase 2: MSVC Compatibility & Core Libraries
-**Goal**: All platform-independent code (encoding, networking, common, server) compiles under MinGW and produces working libraries
-**Depends on**: Phase 1
 **Requirements**: BUILD-02, BUILD-03
 **Success Criteria** (what must be TRUE):
-  1. An MSVC compatibility header resolves all `__declspec`, `#pragma comment(lib)`, and struct alignment differences so source files compile unchanged under GCC
-  2. Tier 1-2 static libraries (encoding, common, server, networking) build successfully with MinGW and link without unresolved symbols
-  3. Existing Catch2 unit tests for encoding/serialization pass when compiled natively on Linux against the MinGW-built libraries
-**Plans**: 3 plans
-Plans:
-- [x] 02-01-PLAN.md -- Root xmake.lua cleanup and TiltedCore mimalloc-to-rpmalloc migration
-- [x] 02-02-PLAN.md -- Remove Wine MSVC workarounds from all Tier 1-2 libs, fix sentry deps, fix ThreadUtils
-- [x] 02-03-PLAN.md -- Fix TPTests config and validate full MinGW build of Tier 1-2 chain
-
-### Phase 3: Client DLL Cross-Compilation
-**Goal**: MinGW produces a SkyrimTogetherClient.dll that loads into Skyrim SE under Proton and connects to a server
-**Depends on**: Phase 2
-**Requirements**: BUILD-04, BUILD-05
-**Success Criteria** (what must be TRUE):
-  1. The client DLL compiles under MinGW with CEF and DirectXTK excluded (stubbed or replaced)
-  2. The MinGW-compiled DLL loads into Skyrim SE via SKSE under Proton without crashing
-  3. A client using the MinGW-built DLL can connect to a locally running server and see basic character sync
-**Plans**: 5 plans
-Plans:
-- [x] 03-01-PLAN.md -- XMake build system guards and Memory.cpp rpmalloc migration
-- [x] 03-02-PLAN.md -- Source code HAS_CEF/HAS_DISCORD/HAS_DIRECTXTK preprocessor guards
-- [x] 03-03-PLAN.md -- Compile, fix remaining MSVC-isms, smoke test, and human verification
-- [x] 03-04-PLAN.md -- Gap closure: DLL wrapper target with SKSE entry points and smoke test fix
-- [x] 03-05-PLAN.md -- Gap closure: remove --noinhibit-exec, comprehensive linker stubs for all unresolved symbols
-
-### Phase 03.1: Build Performance & Resource Optimization (Resolved)
-**Status**: Resolved by Phase 7's relay architecture. The DLL is ~800 LOC (builds in <1s), the native binary builds natively with system GCC (sub-second incremental). The original 6+ minute MinGW full-client build is no longer on the critical path.
-**Plans**: 2/3 executed, remaining plan no longer needed
-
-### Phase 4: Linux Debug Workflow (Resolved)
-**Status**: Resolved by Phase 7's relay architecture. The native `skyrim-coop` binary is a standard Linux process -- attach GDB/LLDB directly with full symbols. The DLL has file-based logging (`skyrim_coop_hooks.log`). No Wine debugging complexity needed.
-**Plans**: None required
-
-### Phase 5: Networking Verification & Server Cleanup
-**Goal**: Remove standalone server code (P2P host-only), then build automated networking tests culminating in a fake-player integration test that launches real Skyrim, connects a robot second player, and verifies sync via /proc/pid/mem
-**Depends on**: Phase 7 (relay architecture)
-**Requirements**: TEST-01, TEST-02, TEST-03
-**Success Criteria** (what must be TRUE):
-  1. All standalone/dedicated server code removed -- only embedded server (host mode) remains
-  2. Message round-trip tests verify serialization across mock client and embedded server, and relay integration tests verify TCP protocol between TcpClient and mock server
-  3. A headless test harness connects to the embedded GameServer as a fake second player, sends scripted movements, and automated memory reads verify the remote actor position in the real Skyrim process
-**Plans**: 3 plans
-Plans:
-- [x] 05-01-PLAN.md -- Remove standalone server code and clean GameServer for P2P embedded-only mode
-- [x] 05-02-PLAN.md -- Network integration tests: MockClient, message round-trips, headless handshake, relay integration
-- [x] 05-03-PLAN.md -- Fake player binary and in-game sync verification (D-03 stretch goal)
-
-### Phase 6: ImGui UI Port
-**Goal**: All user-facing UI functionality works through ImGui instead of CEF, fully compilable with MinGW and debuggable from Linux
-**Depends on**: Phase 3 (needs client DLL structure for DirectX hook integration)
-**Requirements**: UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07
-**Success Criteria** (what must be TRUE):
-  1. ImGui renders an overlay inside Skyrim via the existing DirectX hooks, replacing the CEF rendering path
-  2. Player can enter a server address, connect, and see connection status through the ImGui connect dialog
-  3. Connected players appear in a party panel with the host clearly indicated
-  4. Players can send and receive text chat messages through the ImGui overlay
-  5. Settings (network config, keybinds) are accessible and modifiable through an ImGui settings panel
+  1. `x86_64-w64-mingw32-g++ -flayout-compat=ms -x c++ /dev/null -fsyntax-only` result is recorded — flag either added to xmake.lua (and SKYRIM_STRUCT_ASSERT re-enabled) or the stale TODO in TiltedOnlinePCH.h is deleted and the finding documented
+  2. All `__declspec(align(N))` uses in game headers are replaced with `alignas(N)`
+  3. The `try/catch` block in `HostService::StartHosting()` is replaced with explicit error-code returns (`if (!pServer->IsListening()) return false;`)
+  4. Code/relay_dll/ and Code/native_client/ directories are deleted and removed from the XMake build system
+  5. `xmake f -p mingw` completes without errors after the deletions
 **Plans**: TBD
-**UI hint**: yes
 
-### Phase 7: Native Linux Build with SKSE TCP Relay
-
-**Goal:** Split the SkyrimCoop client into two processes: a minimal MinGW SKSE relay DLL (~500 LOC) that hooks and forwards raw events over TCP, and a native Linux ELF binary running the full ECS, all services, networking, and embedded server with game state read via /proc/pid/mem
-**Requirements**: RELAY-01, RELAY-02, RELAY-03, RELAY-04, RELAY-05, RELAY-06, RELAY-07, RELAY-08, RELAY-09, RELAY-10
-**Depends on:** Phase 3 (needs MinGW DLL compilation, MinHook validation)
+### Phase 2: Full Client Compilation
+**Goal**: The complete Code/client/ codebase compiles under MinGW as a single SKSE DLL with CEF, DirectXTK, and Discord excluded
+**Depends on**: Phase 1
+**Requirements**: BUILD-01
 **Success Criteria** (what must be TRUE):
-  1. A minimal SKSE relay DLL compiled with MinGW loads in Skyrim, installs ~30 hook trampolines, and forwards raw arguments over TCP localhost
-  2. A native Linux ELF binary reads game memory via /proc/pid/mem (ptrace SEIZE + pread), receives hook events, and runs all 8 rewritten services
-  3. The DLL spawns the native process automatically and restarts it on crash
-  4. All services (Weather, Calendar, Quest, Combat, Inventory, ActorValue, Magic, Character) use GameReader API instead of direct pointer dereference
-  5. Unit tests for protocol, command queue, proc memory reader, and pointer table all pass natively on Linux
-**Plans:** 8 plans
+  1. `xmake -y` produces SkyrimTogetherClient.dll from Code/client/ with zero errors (warnings acceptable)
+  2. The DLL loads into Skyrim SE under Proton without crashing at startup (SKSE log confirms plugin loaded)
+  3. No MSVC-isms remain in Code/client/ that prevent compilation — all `__declspec` non-align uses, MSVC-specific pragmas, and Windows-only headers are either guarded or replaced
+**Plans**: TBD
 
-Plans:
-- [x] 07-01-PLAN.md -- Shared TCP binary protocol (protocol.h) and SPSC command queue with unit tests
-- [x] 07-02-PLAN.md -- XMake build targets for relay DLL (MinGW) and native client (Linux ELF)
-- [x] 07-03-PLAN.md -- Relay DLL: TCP server, SKSE entry point, process launcher with auto-restart
-- [x] 07-04-PLAN.md -- Native core: /proc/pid/mem reader, pointer table, GameBridge API, TCP client
-- [x] 07-05-PLAN.md -- Hook trampolines + service rewrites batch 1 (Weather, Calendar, Quest, Combat)
-- [x] 07-06-PLAN.md -- Service rewrites batch 2 (Inventory, ActorValue, Magic)
-- [x] 07-07-PLAN.md -- CharacterService rewrite + InterpolationSystem + AnimationSystem + full main loop
-- [x] 07-08-PLAN.md -- Smoke tests and human verification of relay architecture in Skyrim
+### Phase 2.5: SKSE Abstraction Layer (INSERTED)
+**Goal**: All client services interact with Skyrim through an ISkyrimBridge interface that can be swapped between real SKSE (in-game) and a ReplayBridge (headless testing)
+**Depends on**: Phase 2
+**Requirements**: BUILD-04
+**Success Criteria** (what must be TRUE):
+  1. ISkyrimBridge interface defined with methods covering all SKSE interactions used by client services (actor access, form lookups, event hooks, game state queries)
+  2. SkyrimBridge implementation calls real SKSE APIs and game memory — existing service behavior unchanged
+  3. ReplayBridge implementation replays recorded NDJSON events and returns canned data for headless execution
+  4. Services reference ISkyrimBridge (not SKSE directly) — dependency injection via World context or constructor
+  5. A headless test binary can instantiate ReplayBridge, feed recorded data, and exercise all services without Skyrim running
+**Plans**: TBD
+
+### Phase 3: Loopback Transport and Host Mode
+**Goal**: Host player can start an embedded GameServer in-process, authenticate through loopback, and remote peers connect via enet6
+**Depends on**: Phase 2
+**Requirements**: HOST-01, HOST-02, HOST-03
+**Success Criteria** (what must be TRUE):
+  1. `Code/client/transport/LoopbackTransport.h/.cpp` and `ServerMessageRouter.h/.cpp` exist, ported from Code/native_client/transport/ with TcpClient dependency removed
+  2. `TransportService::Send()` routes through LoopbackTransport when in host mode and through enet6 when in client mode — callers require no changes
+  3. `HostService::StartHosting()` constructs a GameServer, binds LoopbackTransport, and receives an AuthenticationResponse from the embedded server
+  4. Thread-ID logging in `OnConsume()` and `OnUpdate()` confirms enet6 callbacks fire on the expected thread (game thread or background thread documented)
+  5. `auth_flow.ndjson` replay test passes against the loopback path
+**Plans**: TBD
+
+### Phase 4: Sync Verification via Loopback
+**Goal**: Existing STR character sync, inventory sync, and disconnect/reconnect behavior all work correctly through the loopback bridge
+**Depends on**: Phase 3
+**Requirements**: VERIFY-02, VERIFY-03, VERIFY-04
+**Success Criteria** (what must be TRUE):
+  1. A remote actor spawns at the correct world position with AI suppressed (no wandering) when a fake second player connects through loopback
+  2. Equipment and inventory visible on the remote actor match what the player character has equipped
+  3. Movement updates from the connected player propagate through loopback to the host's CharacterService and update the remote actor's position in real time
+  4. When the fake second player disconnects, the remote actor is removed from the host's world with no dangling entities in the registry
+  5. Reconnect after disconnect produces a fresh state — no stale RemoteComponent data carried over from the previous session
+**Plans**: TBD
+
+### Phase 5: Two-Player Session and Workflow
+**Goal**: Two real Skyrim instances on Linux connect via direct IP and both players are visible with working sync; the full Linux build-deploy-debug workflow is confirmed
+**Depends on**: Phase 4
+**Requirements**: VERIFY-01, VERIFY-05
+**Success Criteria** (what must be TRUE):
+  1. Host starts Skyrim, activates host mode — embedded GameServer begins accepting connections on a configurable port
+  2. Second player starts Skyrim, enters host's IP:port — both players see each other's character in-game using existing STR sync (character, movement, animation)
+  3. Full build-deploy cycle works from Linux: `xmake -y` produces the DLL, deploy to Proton prefix, launch Skyrim, mod loads — no Windows machine required
+  4. `gdb` attaches to the Skyrim Wine process with DWARF symbols from the MinGW-built DLL — breakpoints and stack traces resolve to source lines
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases 1-5, 7-8 complete. Phase 9 (integration test) executes next -- validates the full P2P pipeline end-to-end before Phase 6 (UI).
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Feasibility Validation | 2/2 | Complete | 2026-02 |
-| 2. MSVC Compatibility & Core Libraries | 3/3 | Complete | 2026-02 |
-| 3. Client DLL Cross-Compilation | 5/5 | Complete | 2026-03 |
-| 3.1. Build Performance & Resource Optimization | 2/3 | Resolved by Phase 7 | 2026-03-28 |
-| 4. Linux Debug Workflow | 0/0 | Resolved by Phase 7 | 2026-03-28 |
-| 5. Networking Verification & Server Cleanup | 3/3 | Complete | 2026-03-28 |
-| 6. ImGui UI Port | 0/0 | Not started | - |
-| 7. Native Linux Build with SKSE TCP Relay | 8/8 | Complete | 2026-03-28 |
-| 8. P2P Embedded GameServer | 2/3 | Executing | - |
-| 9. In-Game P2P Integration Test | 7/10 | Gap closure (round 2) | - |
-
-### Phase 8: P2P Embedded GameServer
-
-**Goal:** Native process hosts an enet6 GameServer so other players can connect. When Skyrim boots with the relay DLL, the native process starts an embedded GameServer on localhost, accepts client connections via enet6, and bridges hook events into the server's ECS via in-process loopback. fake_player and real remote clients can connect, authenticate, and sync.
-**Requirements**: P2P-01, P2P-02, P2P-03, P2P-04
-**Depends on:** Phase 5 (server cleanup), Phase 7 (relay architecture)
-**Success Criteria** (what must be TRUE):
-  1. The native `skyrim-coop` process instantiates and hosts a GameServer on localhost alongside the relay connection
-  2. fake_player connects to the embedded GameServer, authenticates, and sends scripted movements
-  3. The embedded GameServer receives hook events from the relay and updates its World registry
-  4. Remote clients see the host player's state (position, cell) through the standard server broadcast path
-**Plans:** 3 plans
-
-Plans:
-- [x] 08-01-PLAN.md -- LoopbackTransport + GameServer modifications + unit tests
-- [x] 08-02-PLAN.md -- Main loop integration, CLI args, host auth, CharacterService wiring
-- [ ] 08-03-PLAN.md -- Integration verification with fake_player + human checkpoint
-
-### Phase 9: In-Game P2P Integration Test
-
-**Goal:** Comprehensive E2E testing pyramid for the P2P co-op architecture: headless multi-bot CI tests, mock relay pipeline, single-Skyrim golden test, and two-instance developer tool for manual co-op iteration
-**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, RELAY-10, P2P-01, P2P-02, P2P-03, P2P-04
-**Depends on:** Phase 8
-**Success Criteria** (what must be TRUE):
-  1. Headless CI passes: build, unit tests, multi-bot stress test (8 bots), mock relay pipeline
-  2. test_ingame_sync.sh passes all 5 stages with fake_player as default test path
-  3. fake_player verifies host game memory via /proc/pid/mem (PE header validation)
-  4. Two real Skyrim instances (host + join) launch side-by-side via developer tool
-  5. Hook event recording (--record) captures events for future CI replay
-**Plans:** 10 plans
-
-Plans:
-- [x] 09-01-PLAN.md -- Extend fake_player with --bots N, --verify-broadcast, --metrics for headless multi-bot stress test
-- [x] 09-02-PLAN.md -- Build mock_skyrim_loader.exe (MinGW) + add --record flag to native process
-- [x] 09-03-PLAN.md -- Fix test_ingame_sync.sh (default fake_player, port readiness, logs) + /proc/pid/mem verification
-- [x] 09-04-PLAN.md -- Two-instance developer tool (tests/launch_two_skyrim.sh) + human verification
-- [x] 09-05-PLAN.md -- CI test runner (tests/ci_test.sh) + golden test human verification
-- [x] 09-06-PLAN.md -- Gap closure: Wine address validation + /proc/pid/maps diagnostic logging
-- [x] 09-07-PLAN.md -- Gap closure: Essential-only hook mode for Skyrim stability
-- [ ] 09-08-PLAN.md -- Gap closure: Deploy fixes + human verification of two-instance networked sync
-- [ ] 09-09-PLAN.md -- Gap closure: pread smoke test, deferred formId reads, hex dump diagnostics
-- [ ] 09-10-PLAN.md -- Gap closure: Deploy + human verification of diagnostic output and formId reads
-
-### Phase 09.1: DLL-Side FormId Resolution (INSERTED)
-
-**Goal:** Move formId and position reading from the native Linux process (broken: pread on Wine guest addresses fails 100%) into the relay DLL (correct: reads inside Wine where pointers are valid), then update all native services to consume resolved values from packets instead of pread
-**Requirements**: FORMID-01, FORMID-02, FORMID-03, FORMID-04, FORMID-05
-**Depends on:** Phase 9
-**Success Criteria** (what must be TRUE):
-  1. DLL trampolines read formId at +0x14 and position at +0x54 inside Wine and pack resolved values into HookEventPacket args
-  2. Native DispatchHookEvent and all 8 services extract formIds from packet args, not via pread
-  3. CharacterService caches positions from HOOK_SET_POSITION events; SyncMovement uses cache instead of pread
-  4. mock_skyrim_loader sends new-format packets and CI pipeline passes
-  5. Human-verified: native logs show resolved non-zero formIds from Skyrim hook events
-**Plans:** 3/3 plans complete
-
-Plans:
-- [x] 09.1-01-PLAN.md -- DLL-side ReadFormId/ReadPosition helpers + all hook trampoline arg layout updates
-- [x] 09.1-02-PLAN.md -- Native DispatchHookEvent + 8 service updates + CharacterService position cache
-- [ ] 09.1-03-PLAN.md -- mock_skyrim_loader update + CI validation + human Skyrim verification
-
-### Phase 10: Two-Player Co-op Session
-
-**Goal:** Two Skyrim instances on one Linux machine, both connected via localhost. Host and client see each other's characters and sync movement in real-time through the P2P GameServer. No Steam invites -- direct IP connection only.
-**Requirements**: D-01, D-02, D-03, D-04, D-05, D-06, D-07, D-08, D-09, D-10, D-11, D-12, D-13, D-14, D-15, D-16, D-17, D-18, D-19, D-20, D-21
-**Depends on:** Phase 09.1
-**Success Criteria** (what must be TRUE):
-  1. JoinClient routes all server messages through ServerMessageRouter (not just logging)
-  2. ServerMessageRouter handles AssignCharacterResponse, CharacterSpawnRequest, NotifyRemoveCharacter
-  3. DrainCommandQueue executes CMD_SET_POSITION on the game thread via HookActorProcess
-  4. Both players see each other's character model and sync movement in real-time in Riverwood
-**Plans:** 2/4 plans executed
-
-Plans:
-- [x] 10-01-PLAN.md -- Wire JoinClient message routing + extend ServerMessageRouter for character assignment
-- [x] 10-02-PLAN.md -- Implement CMD_SET_POSITION execution in relay DLL DrainCommandQueue
-- [ ] 10-03-PLAN.md -- Dual-instance launch script with separate Proton prefixes
-- [ ] 10-04-PLAN.md -- Human verification of two-player movement sync in Riverwood
-
-### Phase 11: JSON Wire Protocol
-
-**Goal:** Replace the binary struct TCP protocol (opcode + length + fixed-size uint64 args[8]) between the relay DLL and native client with newline-delimited JSON. Each hook event and command gets typed, named fields instead of positional uint64 arrays. Add dirty-check cache to eliminate redundant high-frequency messages.
-**Requirements**: JSON-01, JSON-02, JSON-03, JSON-04, JSON-05, JSON-06, JSON-07, JSON-08
-**Depends on:** Phase 10
-**Success Criteria** (what must be TRUE):
-  1. All 30 hook trampolines send NDJSON with named fields instead of binary HookEventPacket
-  2. All 15 command senders build JSON objects instead of binary CommandPacket
-  3. DirtyCache suppresses redundant HOOK_SET_POSITION and HOOK_ACTOR_PROCESS events (~90% traffic reduction for idle scenes)
-  4. All 8 native services dispatch on JSON "op" strings with named field access
-  5. Unit tests pass for JSON protocol schema, LineBuffer, and DirtyCache
-  6. Human-verified: DLL and native client communicate via NDJSON in Skyrim without crashes
-**Plans:** 5/5 plans complete
-
-Plans:
-- [x] 11-01-PLAN.md -- Vendor nlohmann/json, define json_protocol.h schema, dirty_cache.h, line_buffer.h, unit tests
-- [x] 11-02-PLAN.md -- DLL-side conversion: hook trampolines to JSON, TcpServer NDJSON, DrainCommandQueue JSON parsing
-- [x] 11-03-PLAN.md -- Native-side conversion: TcpClient NDJSON, main.cpp dispatch, build system updates
-- [x] 11-04-PLAN.md -- Native-side conversion: all 8 service OnHookEvent + command senders to JSON
-- [x] 11-05-PLAN.md -- Legacy test updates, protocol.h deprecation, human verification in Skyrim
-
-### Phase 12: NDJSON Replay Capture and Integration Tests
-
-**Goal:** Record live Skyrim NDJSON sessions to capture files, build a replay harness that feeds recorded data into the native client dispatch loop without Skyrim running, and create integration tests that validate service behavior against real game data. Enables fast iteration and regression detection without launching the game.
-**Requirements**: REPLAY-01, REPLAY-02, REPLAY-03, REPLAY-04, REPLAY-05, REPLAY-06, REPLAY-07, REPLAY-08
-**Depends on:** Phase 11
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 12-01-PLAN.md -- Extract DispatchHookEvent, TcpClient no-op mode, ReplayHarness class, ReplayTests xmake target
-- [x] 12-02-PLAN.md -- Golden NDJSON fixtures, Catch2 integration tests, --replay CLI flag
-
-### Phase 13: Network Replay Recording and Regression Testing
-
-**Goal:** Expand Phase 12 replay infrastructure to cover all 8 native client services with per-service regression tests, a full-session integration test, and CI gate on ReplayTests results
-**Requirements**: REG-01, REG-02, REG-03, REG-04, REG-05
-**Depends on:** Phase 12
-**Success Criteria** (what must be TRUE):
-  1. ReplayHarness exposes getters for all 8 services, each service has public state accessors for assertions
-  2. 7 synthetic NDJSON fixtures exercise Weather, Calendar, Quest, Combat, Inventory, ActorValue, and Magic services
-  3. Per-service replay tests verify structural correctness + key values for each service
-  4. Full-session integration test replays live_session.ndjson (45k lines) without crashes
-  5. ReplayTests binary gates CI (all tests must pass)
-**Plans:** 2/2 plans complete
-
-Plans:
-- [x] 13-01-PLAN.md -- ReplayHarness getters, service state accessors, 7 synthetic NDJSON fixtures
-- [x] 13-02-PLAN.md -- 7 per-service replay test files + full-session integration test
-
-### Phase 14: enet6 Network Traffic Replay
-
-**Goal:** Extend replay infrastructure to capture and replay full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement packets) alongside DLL hook events. Dual host+client recording enables offline regression testing with real multiplayer game data without launching Skyrim.
-**Requirements**: NET-REC-01, NET-REC-02, NET-REC-03, NET-REC-04, NET-REC-05
-**Depends on:** Phase 13
-**Success Criteria** (what must be TRUE):
-  1. MessageSerializer converts any ClientMessage/ServerMessage to NDJSON with type name, opcode, and base64 payload via Visit() compile-time dispatch
-  2. EnetRecorder taps in GameServer::Send() and OnConsume() produce per-peer NDJSON files with both directions
-  3. ServerReplayHarness creates a test-mode server World (no ESLoader, no enet6 port) and injects recorded ClientMessages
-  4. Catch2 replay tests with hardcoded assertions verify auth flow, character assignment, and movement sync
-  5. DualReplayHarness coordinates independent client-side and server-side replay from separate NDJSON files
-**Plans:** 3/3 plans complete
-
-Plans:
-- [x] 14-01-PLAN.md -- MessageSerializer with Visit()-based type name maps, Base64 utility, unit tests
-- [x] 14-02-PLAN.md -- EnetRecorder taps in GameServer + ServerReplayHarness with test-mode server World
-- [x] 14-03-PLAN.md -- Synthetic NDJSON fixtures, enet6 replay tests, DualReplayHarness coordinator
-
-### Phase 15: Remote Actor Spawning & Game Integration
-
-**Goal:** Build DLL command infrastructure for actor spawning (CMD_SPAWN_ACTOR, CMD_REMOVE_ACTOR) and native CharacterService wiring. INI auto-configuration for launch scripts.
-**Requirements**: SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-04, SPAWN-05, SPAWN-06, SPAWN-07
-**Depends on:** Phase 14
-**Status:** Infrastructure complete, formId=0 bug discovered — actor spawning deferred to Phase 16+
-**Success Criteria** (what must be TRUE):
-  1. DLL resolves 6 new game function pointers via Address Library and executes actor spawn sequence on game thread
-  2. Native CharacterService sends cmd_spawn_actor on remote character assignment and tracks pointer from spawn_result
-  3. Native CharacterService sends cmd_remove_actor with tracked pointer on character removal
-  4. All launch scripts auto-configure Skyrim.ini (bAlwaysActive, windowed mode) with backup/restore
-**Plans:** 2/3 plans complete (15-03 absorbed into Phase 16)
-
-Plans:
-- [x] 15-01-PLAN.md -- DLL-side CMD_SPAWN_ACTOR/CMD_REMOVE_ACTOR game function execution
-- [x] 15-02-PLAN.md -- Native-side CharacterService spawn command senders + serverId-to-ptr tracking
-- [ ] 15-03-PLAN.md -- INI auto-configuration in launch scripts + human verification (absorbed into Phase 16)
-
-### Phase 16: Fix Server FormId & Basic Actor Spawning
-
-**Goal:** Implement dual-path actor spawning (TESNPC::Create from AppearanceBuffer for players, TESForm::GetById for world NPCs), WorldStateSync 1-second reconciliation, AI suppression on remote actors, and disconnect cleanup. Absorbs Phase 17 scope per CONTEXT.md decisions. Server FormId=0:0 for player characters is by design (D-01) -- the real work is porting STR's spawn pipeline to the relay DLL.
-**Requirements**: SPAWN-08, SPAWN-09, SPAWN-10
-**Depends on:** Phase 15
-**Success Criteria** (what must be TRUE):
-  1. DLL handles dual-path spawning: TESNPC::Create from AppearanceBuffer (FormId=0:0) and TESForm::GetById (non-zero FormId)
-  2. Unit tests verify spawn routing, reconciliation, and disconnect cleanup
-  3. Replay tests verify spawn pipeline with NDJSON fixtures
-  4. Human-verified: two-player session shows a remote actor spawned at correct position with AI suppressed
-**Plans:** 1/5 plans executed
-
-Plans:
-- [x] 16-01-PLAN.md -- WorldStateSync message definition + server 1-second broadcast
-- [ ] 16-02-PLAN.md -- Native client dual-path spawn routing + reconciliation + disconnect cleanup
-- [ ] 16-03-PLAN.md -- DLL TESNPC::Create pipeline + AI suppression
-- [ ] 16-04-PLAN.md -- Spawn pipeline unit tests + NDJSON replay fixtures
-- [ ] 16-05-PLAN.md -- Build verification + human E2E testing
-
-### Phase 17: Port STR Actor::Create Pipeline & Appearance Reconstruction
-
-**Goal:** Replace raw game function pointer calls with STR's proven Actor::Create pipeline. Port Actor::Create(TESNPC*), Actor::New(), ModManager::Spawn(), TESNPC::Create (from AppearanceBuffer), TESNPC::Deserialize, FaceGenSystem::Setup, ActorExtension::SetRemote(true) for AI suppression, and WaitingFor3D deferred spawn logic. Remote players spawn with correct appearance. Includes unit tests for each ported function, replay tests for full spawn sequence, and human verification.
-**Requirements**: STR-PORT-01, STR-PORT-02, STR-PORT-03, STR-PORT-04, STR-PORT-05
-**Depends on:** Phase 16
-**Success Criteria** (what must be TRUE):
-  1. DLL executes STR's full Actor::Create sequence (14 game function calls) via cmd_spawn_actor
-  2. TESNPC::Create reconstructs player appearance from AppearanceBuffer (race, face morphs, hair, skin)
-  3. ActorExtension::SetRemote(true) or equivalent suppresses AI on remote actors (no wandering)
-  4. WaitingFor3D pattern defers final state application until 3D mesh loads
-  5. Unit tests verify appearance buffer serialization/deserialization round-trip
-  6. Replay tests verify full spawn pipeline with appearance data
-  7. Human-verified: remote player appears with correct race/appearance, does not wander
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run /gsd:plan-phase 17 to break down)
-
-### Phase 18: Remote Actor State Sync
-
-**Goal:** Sync remote actor state beyond position: equipment/inventory on spawn, actor values (health/magicka/stamina), death/respawn state, weapon drawn state, and PlayerComponent for player-controlled actors. Includes unit tests for state serialization, replay tests for state sync sequences, and human verification.
-**Requirements**: STATE-SYNC-01, STATE-SYNC-02, STATE-SYNC-03, STATE-SYNC-04, STATE-SYNC-05
-**Depends on:** Phase 17
-**Success Criteria** (what must be TRUE):
-  1. Remote actors spawn with correct equipped weapons/armor visible
-  2. Health/magicka/stamina values sync on spawn and update during gameplay
-  3. Death and respawn states sync between players
-  4. Weapon drawn/sheathed state syncs in real-time
-  5. Unit tests verify actor value and inventory serialization round-trip
-  6. Replay tests verify state sync sequences (equip, death, respawn, weapon draw)
-  7. Human-verified: remote player equipment visible, health bars accurate, death/respawn works
+| 1. ABI Safety and Source Cleanup | 0/TBD | Not started | - |
+| 2. Full Client Compilation | 0/TBD | Not started | - |
+| 2.5. SKSE Abstraction Layer | 0/TBD | Not started | - |
+| 3. Loopback Transport and Host Mode | 0/TBD | Not started | - |
+| 4. Sync Verification via Loopback | 0/TBD | Not started | - |
+| 5. Two-Player Session and Workflow | 0/TBD | Not started | - |

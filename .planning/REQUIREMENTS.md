@@ -12,6 +12,7 @@ Requirements for MinGW full client build with loopback-based embedded server. Ea
 - [ ] **BUILD-01**: Full Code/client/ compiles under MinGW as a single SKSE DLL (CEF/DirectXTK/Discord excluded via preprocessor guards)
 - [ ] **BUILD-02**: ABI safety fixes applied — `__declspec(align)` replaced with `alignas()`, try/catch UB removed from HostService, struct layout correctness verified with MinGW
 - [ ] **BUILD-03**: Code/relay_dll/ and Code/native_client/ deleted from source tree and build system
+- [ ] **BUILD-04**: SKSE interaction abstracted behind ISkyrimBridge interface — real implementation calls SKSE APIs, test implementation replays recorded events for headless execution without Skyrim
 
 ### Embedded Server (Loopback)
 
@@ -50,7 +51,7 @@ Rewrite existing STR client-server code to use proper host-authoritative logic i
 
 Extend sync to cover ALL game systems — physics, AI, scripting, weather, lighting, etc. Currently STR skips many systems (physics engine, Havok state, Papyrus scripts, etc.). The ultimate goal: every game system is host-authoritative, with state sent to clients and interpolated. This is essentially rewriting Skyrim's single-player systems to be multiplayer-aware.
 
-**Pattern:** Host simulates → state captured → sent to clients → clients interpolate/apply. This is the pattern for EVERYTHING.
+**Pattern:** Host simulates -> state captured -> sent to clients -> clients interpolate/apply. This is the pattern for EVERYTHING.
 
 - **GSYNC-01**: Physics/Havok state sync (host-authoritative ragdolls, object physics)
 - **GSYNC-02**: AI state sync (NPC behavior, combat AI, pathfinding decisions)
@@ -80,23 +81,24 @@ Extend sync to cover ALL game systems — physics, AI, scripting, weather, light
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BUILD-01 | TBD | Pending |
-| BUILD-02 | TBD | Pending |
-| BUILD-03 | TBD | Pending |
-| HOST-01 | TBD | Pending |
-| HOST-02 | TBD | Pending |
-| HOST-03 | TBD | Pending |
-| VERIFY-01 | TBD | Pending |
-| VERIFY-02 | TBD | Pending |
-| VERIFY-03 | TBD | Pending |
-| VERIFY-04 | TBD | Pending |
-| VERIFY-05 | TBD | Pending |
+| BUILD-01 | Phase 2 | Pending |
+| BUILD-02 | Phase 1 | Pending |
+| BUILD-03 | Phase 1 | Pending |
+| BUILD-04 | Phase 2.5 | Pending |
+| HOST-01 | Phase 3 | Pending |
+| HOST-02 | Phase 3 | Pending |
+| HOST-03 | Phase 3 | Pending |
+| VERIFY-01 | Phase 5 | Pending |
+| VERIFY-02 | Phase 4 | Pending |
+| VERIFY-03 | Phase 4 | Pending |
+| VERIFY-04 | Phase 4 | Pending |
+| VERIFY-05 | Phase 5 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 11 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 11
+- v2.0 requirements: 12 total
+- Mapped to phases: 12
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-30*
-*Last updated: 2026-03-30 after milestone v2.0 definition*
+*Last updated: 2026-03-30 — traceability filled after v2.0 roadmap created*

@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: mingw-full-client-host-p2p
-status: defining_requirements
-stopped_at: Milestone v2.0 started
+status: ready_to_plan
+stopped_at: Roadmap created for v2.0 — ready for /gsd:plan-phase 1
 last_updated: "2026-03-30T12:00:00.000Z"
-last_activity: 2026-03-30 -- Milestone v2.0 started, abandoned v1.0 relay architecture
+last_activity: 2026-03-30 -- Roadmap written, v2.0 phases 1-5 defined
 progress:
-  total_phases: 0
+  total_phases: 6
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,41 +21,58 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-30)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Defining requirements for v2.0
+**Current focus:** Phase 1 — ABI Safety and Source Cleanup
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-30 — Milestone v2.0 started
+Phase: 1 of 6 (ABI Safety and Source Cleanup)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-03-30 — Roadmap created for v2.0 milestone (MinGW Full Client with Loopback Server)
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0
+- Average duration: -
+- Total execution time: 0 hours
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
+
+**Recent Trend:**
+- Last 5 plans: none yet
+- Trend: -
+
+*Updated after each plan completion*
 
 ## Accumulated Context
 
 ### Decisions
 
-- v1.0 relay/native client architecture abandoned — proved MinGW feasibility but added unnecessary complexity
-- v2.0 pivots to single MinGW DLL with embedded server (no relay, no native ELF process)
-- Host-authoritative "Single Simulation, Multiple Renderers" design is canonical
-- CEF/DirectXTK/Discord deferred — not needed for core multiplayer
-- Direct IP connect first, Steam invites later
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- Milestone v2.0 start: Abandoned relay architecture (v1.0), pivoting to MinGW full client with loopback server
+- v2.0 scope: Loopback bridge first (validate sync), direct authority rewrite deferred to v3.0+
+- v2.0 scope: Delete relay_dll/ and native_client/ — clean break, code preserved in git history
 
 ### Pending Todos
 
 None yet.
 
-### Roadmap Evolution
-
-- v1.0 abandoned at 90% (12/20 phases complete) — relay architecture proved concept but added unnecessary complexity
-- v2.0 started with clean break — phase numbering resets
-
 ### Blockers/Concerns
 
-- Struct layout differences between Itanium ABI (GCC) and MSVC ABI — mitigated by -mms-bitfields and Address Library
-- CEF exclusion requires UI deferral — acceptable for core multiplayer milestone
+- Phase 1: `-flayout-compat=ms` flag status is disputed between research sources — empirical test required before Phase 1 complete
+- Phase 3: enet6 threading model (OnConsume fires on game thread vs background thread) — must be confirmed with thread-ID logging before concurrent testing
 
 ## Session Continuity
 
 Last session: 2026-03-30
-Stopped at: Milestone v2.0 defining requirements
-Resume file: .planning/PROJECT.md
+Stopped at: Roadmap written — v2.0 phases 1-5 defined, ready for /gsd:plan-phase 1
+Resume file: None
