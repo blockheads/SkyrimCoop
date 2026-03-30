@@ -292,9 +292,17 @@ Plans:
 ### Phase 15: Remote Actor Spawning & Game Integration
 
 **Goal:** Bridge server CharacterSpawnRequest/CharacterRemove/ReferencesMoveRequest messages to in-game actor creation and position sync via relay DLL commands. When a remote player connects, the native client sends spawn commands to the relay DLL, which creates and updates NPCs in Skyrim. Also includes INI auto-configuration (bAlwaysActive, windowed mode) in all launch scripts.
-**Requirements**: TBD
+**Requirements**: SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-04, SPAWN-05, SPAWN-06, SPAWN-07
 **Depends on:** Phase 14
-**Plans:** 0 plans
+**Success Criteria** (what must be TRUE):
+  1. DLL resolves 6 new game function pointers via Address Library and executes actor spawn sequence on game thread
+  2. Native CharacterService sends cmd_spawn_actor on remote character assignment and tracks pointer from spawn_result
+  3. Native CharacterService sends cmd_remove_actor with tracked pointer on character removal
+  4. All launch scripts auto-configure Skyrim.ini (bAlwaysActive, windowed mode) with backup/restore
+  5. Human-verified: two-player session shows remote actors spawned and moving in Skyrim
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 15 to break down)
+- [ ] 15-01-PLAN.md -- DLL-side CMD_SPAWN_ACTOR/CMD_REMOVE_ACTOR game function execution
+- [ ] 15-02-PLAN.md -- Native-side CharacterService spawn command senders + serverId-to-ptr tracking
+- [ ] 15-03-PLAN.md -- INI auto-configuration in launch scripts + human verification
