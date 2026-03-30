@@ -2,8 +2,8 @@
 phase: 15
 slug: remote-actor-spawning-game-integration
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: waived
+wave_0_complete: waived
 created: 2026-03-29
 ---
 
