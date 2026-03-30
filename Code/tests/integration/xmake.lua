@@ -20,7 +20,6 @@ target("fake_player")
         "../../libraries/networking",            -- for Client.hpp, Server.hpp
         "../../native_client/game_bridge",       -- for proc_memory.h, game_reader.h
         "../../native_client",                   -- for native_client headers
-        "../../relay_dll",                       -- for protocol.h
         "../../external"                         -- for vendored headers
     )
 
@@ -33,15 +32,3 @@ target("fake_player")
         add_files("../../native_client/game_bridge/proc_memory.cpp")
     end
 
--- mock_skyrim_loader: headless relay DLL test binary (MinGW/Wine only)
-if is_plat("mingw") then
-    target("mock_skyrim_loader")
-        set_kind("binary")
-        set_group("Tests")
-        set_languages("c++20")
-        add_files("mock_skyrim_loader.cpp")
-        add_includedirs("../../relay_dll")  -- for protocol.h
-        add_syslinks("ws2_32", "kernel32")
-        -- Static link MinGW runtime for self-contained binary
-        add_ldflags("-static-libgcc", "-static-libstdc++", "-static", "-lpthread", {force = true})
-end

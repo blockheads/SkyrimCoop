@@ -33,7 +33,6 @@ target("ReplayTests")
 
     -- Include paths (mirror SkyrimCoopNative + TPTests)
     add_includedirs("../../native_client")
-    add_includedirs("../../relay_dll")
     add_includedirs("../../native_client/game_bridge")
     add_includedirs("../../server")
     add_includedirs("../../common")
