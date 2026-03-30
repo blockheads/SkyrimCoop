@@ -291,18 +291,65 @@ Plans:
 
 ### Phase 15: Remote Actor Spawning & Game Integration
 
-**Goal:** Bridge server CharacterSpawnRequest/CharacterRemove/ReferencesMoveRequest messages to in-game actor creation and position sync via relay DLL commands. When a remote player connects, the native client sends spawn commands to the relay DLL, which creates and updates NPCs in Skyrim. Also includes INI auto-configuration (bAlwaysActive, windowed mode) in all launch scripts.
+**Goal:** Build DLL command infrastructure for actor spawning (CMD_SPAWN_ACTOR, CMD_REMOVE_ACTOR) and native CharacterService wiring. INI auto-configuration for launch scripts.
 **Requirements**: SPAWN-01, SPAWN-02, SPAWN-03, SPAWN-04, SPAWN-05, SPAWN-06, SPAWN-07
 **Depends on:** Phase 14
+**Status:** Infrastructure complete, formId=0 bug discovered — actor spawning deferred to Phase 16+
 **Success Criteria** (what must be TRUE):
   1. DLL resolves 6 new game function pointers via Address Library and executes actor spawn sequence on game thread
   2. Native CharacterService sends cmd_spawn_actor on remote character assignment and tracks pointer from spawn_result
   3. Native CharacterService sends cmd_remove_actor with tracked pointer on character removal
   4. All launch scripts auto-configure Skyrim.ini (bAlwaysActive, windowed mode) with backup/restore
-  5. Human-verified: two-player session shows remote actors spawned and moving in Skyrim
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans complete (15-03 absorbed into Phase 16)
 
 Plans:
 - [x] 15-01-PLAN.md -- DLL-side CMD_SPAWN_ACTOR/CMD_REMOVE_ACTOR game function execution
-- [ ] 15-02-PLAN.md -- Native-side CharacterService spawn command senders + serverId-to-ptr tracking
-- [ ] 15-03-PLAN.md -- INI auto-configuration in launch scripts + human verification
+- [x] 15-02-PLAN.md -- Native-side CharacterService spawn command senders + serverId-to-ptr tracking
+- [ ] 15-03-PLAN.md -- INI auto-configuration in launch scripts + human verification (absorbed into Phase 16)
+
+### Phase 16: Fix Server FormId & Basic Actor Spawning
+
+**Goal:** Fix the server's CreateCharacter to populate FormIdComponent for player characters (currently sends formId=0:0 in CharacterSpawnRequest), verify the Phase 15 DLL CMD_SPAWN_ACTOR works with a real formId, and get a basic remote actor visible in-game. Includes unit tests for formId resolution, replay tests for the spawn pipeline, and human E2E verification.
+**Requirements**: SPAWN-08, SPAWN-09, SPAWN-10
+**Depends on:** Phase 15
+**Success Criteria** (what must be TRUE):
+  1. Server CreateCharacter populates FormIdComponent for player characters (non-zero formId in CharacterSpawnRequest)
+  2. Unit tests verify formId resolution for player characters, temporary forms, and world-persistent NPCs
+  3. Replay tests verify spawn pipeline: CharacterSpawnRequest -> cmd_spawn_actor with correct formId -> spawn_result handling
+  4. Human-verified: two-player session shows a remote actor (generic NPC) spawned in Skyrim at the correct position
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 16 to break down)
+
+### Phase 17: Port STR Actor::Create Pipeline & Appearance Reconstruction
+
+**Goal:** Replace raw game function pointer calls with STR's proven Actor::Create pipeline. Port Actor::Create(TESNPC*), Actor::New(), ModManager::Spawn(), TESNPC::Create (from AppearanceBuffer), TESNPC::Deserialize, FaceGenSystem::Setup, ActorExtension::SetRemote(true) for AI suppression, and WaitingFor3D deferred spawn logic. Remote players spawn with correct appearance. Includes unit tests for each ported function, replay tests for full spawn sequence, and human verification.
+**Requirements**: STR-PORT-01, STR-PORT-02, STR-PORT-03, STR-PORT-04, STR-PORT-05
+**Depends on:** Phase 16
+**Success Criteria** (what must be TRUE):
+  1. DLL executes STR's full Actor::Create sequence (14 game function calls) via cmd_spawn_actor
+  2. TESNPC::Create reconstructs player appearance from AppearanceBuffer (race, face morphs, hair, skin)
+  3. ActorExtension::SetRemote(true) or equivalent suppresses AI on remote actors (no wandering)
+  4. WaitingFor3D pattern defers final state application until 3D mesh loads
+  5. Unit tests verify appearance buffer serialization/deserialization round-trip
+  6. Replay tests verify full spawn pipeline with appearance data
+  7. Human-verified: remote player appears with correct race/appearance, does not wander
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 17 to break down)
+
+### Phase 18: Remote Actor State Sync
+
+**Goal:** Sync remote actor state beyond position: equipment/inventory on spawn, actor values (health/magicka/stamina), death/respawn state, weapon drawn state, and PlayerComponent for player-controlled actors. Includes unit tests for state serialization, replay tests for state sync sequences, and human verification.
+**Requirements**: STATE-SYNC-01, STATE-SYNC-02, STATE-SYNC-03, STATE-SYNC-04, STATE-SYNC-05
+**Depends on:** Phase 17
+**Success Criteria** (what must be TRUE):
+  1. Remote actors spawn with correct equipped weapons/armor visible
+  2. Health/magicka/stamina values sync on spawn and update during gameplay
+  3. Death and respawn states sync between players
+  4. Weapon drawn/sheathed state syncs in real-time
+  5. Unit tests verify actor value and inventory serialization round-trip
+  6. Replay tests verify state sync sequences (equip, death, respawn, weapon draw)
+  7. Human-verified: remote player equipment visible, health bars accurate, death/respawn works

@@ -146,6 +146,10 @@ None yet.
 - Phase 13 added: Network Replay Recording and Regression Testing — extend replay system to capture full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement) alongside DLL hook events; dual host+client recording for offline regression tests with real game data
 - Phase 15 added: Remote Actor Spawning & Game Integration — bridge server CharacterSpawnRequest to in-game actor creation via relay DLL commands, position sync for remote actors, INI auto-configuration in launch scripts
 - Phase 14 added: enet6 Network Traffic Replay — deferred from Phase 13 scope; capture and replay full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement) alongside DLL hook events with dual host+client recording for offline regression testing
+- Phase 15 marked with gaps: DLL infrastructure works but formId=0 bug (server doesn't populate FormIdComponent for player characters) prevents spawning. Raw game function pointer approach replaced by proper STR character logic port.
+- Phase 16 added: Fix Server FormId & Basic Actor Spawning — fix formId=0 bug, get basic actor visible in-game with unit + replay tests
+- Phase 17 added: Port STR Actor::Create Pipeline & Appearance Reconstruction — full STR spawn sequence, TESNPC::Create from AppearanceBuffer, AI suppression, WaitingFor3D, with unit + replay tests
+- Phase 18 added: Remote Actor State Sync — equipment, actor values, death/respawn, weapon drawn sync with unit + replay tests
 
 ### Blockers/Concerns
 
