@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-03-30T02:23:59.777Z"
-last_activity: 2026-03-29
+status: executing
+stopped_at: Phase 15 context gathered
+last_updated: "2026-03-30T02:09:43.210Z"
+last_activity: 2026-03-30 -- Phase 15 execution started
 progress:
   total_phases: 17
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 59
   completed_plans: 54
   percent: 90
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Two friends can drop into Skyrim together on Linux with zero server setup
-**Current focus:** Phase 14 — enet6-network-traffic-replay
+**Current focus:** Phase 15 — remote-actor-spawning-game-integration
 
 ## Current Position
 
-Phase: 14
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-29
+Phase: 15 (remote-actor-spawning-game-integration) — EXECUTING
+Plan: 1 of 3
+Status: Executing Phase 15
+Last activity: 2026-03-30 -- Phase 15 execution started
 
 Progress: [=========] 90%
 
@@ -78,7 +78,6 @@ Progress: [=========] 90%
 | Phase 14 P01 | 8min | 2 tasks | 6 files |
 | Phase 14 P02 | 3min | 2 tasks | 8 files |
 | Phase 14 P03 | 34min | 2 tasks | 10 files |
-| Phase 15 P01 | 8min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -134,8 +133,6 @@ Recent decisions affecting current work:
 - [Phase 14]: EnetRecorder taps at application layer (Send/OnConsume) per D-03, per-peer NDJSON files with dir field per D-04
 - [Phase 14]: Programmatic fixture generation via MessageSerializer for enet6 replay tests
 - [Phase 14]: DualReplayHarness wraps both ReplayHarness and ServerReplayHarness for combined client+server replay
-- [Phase 15]: Offset 0x60 for parentCell, 0x128 for worldspace, 0x40 for baseForm (from STR struct asserts)
-- [Phase 15]: Actor removal via flag manipulation (Disabled bit 11 + Delete bit 5) instead of function calls
 
 ### Pending Todos
 
@@ -158,6 +155,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-30T02:23:59.775Z
-Stopped at: Completed 15-01-PLAN.md
-Resume file: None
+Last session: 2026-03-30T01:45:32.645Z
+Stopped at: Phase 15 context gathered
+Resume file: .planning/phases/15-remote-actor-spawning-game-integration/15-CONTEXT.md

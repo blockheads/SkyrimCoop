@@ -744,6 +744,11 @@ void GameServer::SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<vo
     m_loopbackCallback = std::move(aCallback);
 }
 
+void GameServer::SetTestSendCallback(std::function<void(ConnectionId_t, const void*, uint32_t)> aCallback)
+{
+    m_testSendCallback = std::move(aCallback);
+}
+
 void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const
 {
     // Recording tap: capture outgoing ServerMessage as NDJSON
@@ -758,6 +763,17 @@ void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& a
         writer.WriteBits(0, 8); // Packet type byte (matches enet6 format)
         acServerMessage.Serialize(writer);
         m_loopbackCallback(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()));
+        return;
+    }
+
+    // Test mode intercept: capture all outgoing messages without enet6
+    if (m_testSendCallback)
+    {
+        Buffer buffer(1 << 20);
+        Buffer::Writer writer(&buffer);
+        writer.WriteBits(0, 8);
+        acServerMessage.Serialize(writer);
+        m_testSendCallback(aConnectionId, buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()));
         return;
     }
 

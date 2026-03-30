@@ -3,7 +3,8 @@
 #
 # Usage:
 #   ./launch_host.sh                     # Normal host mode (launches Skyrim)
-#   ./launch_host.sh --record out.ndjson # Host mode + record hook events to file
+#   ./launch_host.sh --record out.ndjson # Host mode + record hook events + enet6 traffic
+#                                        #   Creates: out.ndjson (hooks) + out_enet/ (per-peer network)
 #   ./launch_host.sh --replay  in.ndjson # Replay mode (no Skyrim needed)
 #   ./launch_host.sh --replay  in.ndjson --real-time  # Replay at recorded speed
 set -euo pipefail
@@ -38,6 +39,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Resolve to absolute paths before cd changes the working directory
+[[ -n "$RECORD_FILE" && "$RECORD_FILE" != /* ]] && RECORD_FILE="$(pwd)/$RECORD_FILE"
+[[ -n "$REPLAY_FILE" && "$REPLAY_FILE" != /* ]] && REPLAY_FILE="$(pwd)/$REPLAY_FILE"
+
 if [[ -n "$REPLAY_FILE" ]]; then
     if [[ ! -f "$REPLAY_FILE" ]]; then
         echo "[FAIL] Replay file not found: $REPLAY_FILE"
@@ -46,6 +51,27 @@ if [[ -n "$REPLAY_FILE" ]]; then
     echo "=== REPLAY MODE: $REPLAY_FILE ==="
     exec "$NATIVE_BIN" --replay "$REPLAY_FILE" $REAL_TIME
 fi
+
+SKYRIM_INI="$COMPAT_HOST/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/Skyrim.ini"
+
+# --- INI auto-configuration (bAlwaysActive + windowed mode) ---
+if [[ -f "$SKYRIM_INI" ]]; then
+    cp "$SKYRIM_INI" "${SKYRIM_INI}.host_backup"
+    echo "[INFO] Backed up Skyrim.ini"
+
+    sed -i '/^bFull Screen=/d; /^iSize H=/d; /^iSize W=/d; /^bAlwaysActive=/d; /^bBorderless=/d' "$SKYRIM_INI"
+    sed -i '/^\[Display\]/a bFull Screen=0\niSize H=720\niSize W=1280\nbBorderless=0' "$SKYRIM_INI"
+
+    if grep -q '^\[Interface\]' "$SKYRIM_INI"; then
+        sed -i '/^\[Interface\]/a bAlwaysActive=1' "$SKYRIM_INI"
+    else
+        echo -e "\n[Interface]\nbAlwaysActive=1" >> "$SKYRIM_INI"
+    fi
+
+    echo "[INFO] Injected windowed 1280x720 + bAlwaysActive=1 into Skyrim.ini"
+fi
+
+trap 'if [[ -f "${SKYRIM_INI}.host_backup" ]]; then cp "${SKYRIM_INI}.host_backup" "$SKYRIM_INI"; rm -f "${SKYRIM_INI}.host_backup"; echo "[INFO] Restored Skyrim.ini"; fi' EXIT
 
 export SteamAppId=489830
 export SteamGameId=489830
@@ -87,7 +113,9 @@ echo "[INFO] Skyrim PID: $SKYRIM_PID"
 RECORD_ARG=""
 if [[ -n "$RECORD_FILE" ]]; then
     RECORD_ARG="--record $RECORD_FILE"
+    ENET_DIR="${RECORD_FILE%.*}_enet"
     echo "[INFO] Recording hook events to: $RECORD_FILE"
+    echo "[INFO] Recording enet6 traffic to: $ENET_DIR/"
 fi
 
 echo "[INFO] Launching skyrim-coop in HOST mode..."

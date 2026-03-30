@@ -19,8 +19,11 @@
 #   Client connects via --connect 127.0.0.1:10578.
 #
 # Usage:
-#   ./tests/launch_two_player.sh              # Launch host + client
-#   ./tests/launch_two_player.sh --host-only  # Launch only host instance
+#   ./tests/launch_two_player.sh                       # Launch host + client
+#   ./tests/launch_two_player.sh --host-only           # Launch only host instance
+#   ./tests/launch_two_player.sh --record session      # Record hook events + enet6 traffic
+#                                                      #   Creates: session_host.ndjson, session_client.ndjson,
+#                                                      #            session_host_enet/ (per-peer network msgs)
 #
 # Requirements: Skyrim SE, SKSE, Proton Experimental, built relay DLL + native binary
 set -euo pipefail
@@ -300,16 +303,25 @@ main() {
     echo ""
 
     local host_only=false
-    for arg in "$@"; do
-        case "$arg" in
-            --host-only) host_only=true ;;
+    local record_prefix=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --host-only) host_only=true; shift ;;
+            --record) record_prefix="$2"; shift 2 ;;
             --help|-h)
-                echo "Usage: $0 [--host-only] [--help]"
-                echo "  --host-only   Launch only the host instance"
+                echo "Usage: $0 [--host-only] [--record <prefix>] [--help]"
+                echo "  --host-only        Launch only the host instance"
+                echo "  --record <prefix>  Record hook events + enet6 traffic"
+                echo "                     Creates: <prefix>_host.ndjson, <prefix>_client.ndjson,"
+                echo "                              <prefix>_host_enet/ (per-peer network messages)"
                 exit 0
                 ;;
+            *) shift ;;
         esac
     done
+
+    # Resolve to absolute path before cd changes working directory
+    [[ -n "$record_prefix" && "$record_prefix" != /* ]] && record_prefix="$(pwd)/$record_prefix"
 
     # Check prerequisites
     if ! check_prerequisites; then
@@ -363,8 +375,14 @@ main() {
     echo ""
 
     # ── Step 5: Launch host native_client (embedded GameServer) ──
+    local host_record_arg=""
+    if [[ -n "$record_prefix" ]]; then
+        host_record_arg="--record ${record_prefix}_host.ndjson"
+        info "Recording host hooks to: ${record_prefix}_host.ndjson"
+        info "Recording host enet6 to: ${record_prefix}_host_enet/"
+    fi
     info "Launching host skyrim-coop (embedded GameServer)..."
-    "$NATIVE_BIN" --pid "$HOST_PID" --port "$HOST_RELAY_PORT" --server-port "$GAMESERVER_PORT" &
+    "$NATIVE_BIN" --pid "$HOST_PID" --port "$HOST_RELAY_PORT" --server-port "$GAMESERVER_PORT" $host_record_arg &
     HOST_NATIVE_PID=$!
     sleep 2
     if kill -0 "$HOST_NATIVE_PID" 2>/dev/null; then
@@ -411,8 +429,13 @@ main() {
     echo ""
 
     # ── Step 8: Launch client native_client in join mode ──
+    local client_record_arg=""
+    if [[ -n "$record_prefix" ]]; then
+        client_record_arg="--record ${record_prefix}_client.ndjson"
+        info "Recording client hooks to: ${record_prefix}_client.ndjson"
+    fi
     info "Launching client skyrim-coop (connecting to host at 127.0.0.1:$GAMESERVER_PORT)..."
-    "$NATIVE_BIN" --pid "$CLIENT_PID" --port "$CLIENT_RELAY_PORT" --connect "127.0.0.1:$GAMESERVER_PORT" &
+    "$NATIVE_BIN" --pid "$CLIENT_PID" --port "$CLIENT_RELAY_PORT" --connect "127.0.0.1:$GAMESERVER_PORT" $client_record_arg &
     CLIENT_NATIVE_PID=$!
     sleep 2
     if kill -0 "$CLIENT_NATIVE_PID" 2>/dev/null; then
@@ -441,6 +464,14 @@ main() {
     echo "          Connected to 127.0.0.1:$GAMESERVER_PORT"
     echo "          Native PID $CLIENT_NATIVE_PID"
     echo "=========================================="
+    echo ""
+    if [[ -n "$record_prefix" ]]; then
+        echo ""
+        echo "  RECORDING: --record $record_prefix"
+        echo "    Host hooks:  ${record_prefix}_host.ndjson"
+        echo "    Host enet6:  ${record_prefix}_host_enet/"
+        echo "    Client hooks: ${record_prefix}_client.ndjson"
+    fi
     echo ""
     info "Press Enter to shut down both instances."
     read -r

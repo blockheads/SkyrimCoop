@@ -76,6 +76,9 @@ World::World(WorldTestMode)
     ctx().emplace<CombatService>(*this, m_dispatcher);
     ctx().emplace<WeatherService>(*this, m_dispatcher);
 
+    // ScriptService is safe to create -- it just won't have any loaded scripts
+    m_pScriptService = TiltedPhoques::MakeUnique<ScriptService>(*this, m_dispatcher);
+
     // Skip ESLoader::BuildRecordCollection() -- no mod data in test mode
     // Skip ScriptService creation -- m_pScriptService remains null (destructor handles nullptr)
 }

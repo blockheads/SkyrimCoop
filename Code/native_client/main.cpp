@@ -108,7 +108,7 @@ static void PrintUsage(const char* apProgram) {
     fprintf(stderr, "  --connect      Join mode: connect to remote host at ip:port (default: host mode)\n");
     fprintf(stderr, "  --server-port  GameServer listen port in host mode (default: 10578)\n");
     fprintf(stderr, "  --host-only    Run embedded GameServer without Skyrim process (standalone testing)\n");
-    fprintf(stderr, "  --record <file>  Record all hook events to NDJSON file\n");
+    fprintf(stderr, "  --record <file>  Record hook events to NDJSON file + enet6 traffic to <file>_enet/\n");
     fprintf(stderr, "  --replay <file>  Replay NDJSON capture file (no Skyrim needed)\n");
     fprintf(stderr, "  --real-time      With --replay: play at recorded speed instead of fast-forward\n");
     fprintf(stderr, "  --help         Show this help\n");
@@ -233,7 +233,9 @@ public:
         AssignCharacterRequest req;
         req.Cookie = 1;
         req.ReferenceId = GameId{0, 0x14}; // player character
-        req.FormId = GameId{0, 0x14};
+        // FormId must be empty (default GameId{}) for player characters.
+        // Setting it to non-empty causes server to reject with "Unexpected NpcId"
+        // because CreateCharacter treats non-empty FormId on a player as invalid.
         req.CurrentActorData.IsDead = false;
 
         TiltedPhoques::Buffer buffer(1 << 16);
@@ -347,6 +349,19 @@ int main(int argc, char* argv[]) {
         auto pGameServer = std::make_unique<Server::GameServer>(*pConsole);
         pGameServer->Initialize();
 
+        // Start enet6 network recording alongside hook event recording
+        std::string enetRecordDir;
+        if (!recordPath.empty()) {
+            enetRecordDir = recordPath;
+            auto dot = enetRecordDir.rfind('.');
+            if (dot != std::string::npos)
+                enetRecordDir = enetRecordDir.substr(0, dot);
+            enetRecordDir += "_enet";
+            std::filesystem::create_directories(enetRecordDir);
+            pGameServer->StartRecording(enetRecordDir);
+            spdlog::info("Recording enet6 traffic (NDJSON) to {}/", enetRecordDir);
+        }
+
         spdlog::info("GameServer listening on port {}", pGameServer->GetPort());
 
         // Create loopback transport for host self-authentication
@@ -375,6 +390,15 @@ int main(int argc, char* argv[]) {
 
         if (pRouter->IsAuthenticated()) {
             spdlog::info("Host player authenticated with embedded GameServer");
+
+            // Register host player character with server (same as main host path)
+            AssignCharacterRequest assignReq;
+            assignReq.Cookie = 1;
+            assignReq.ReferenceId = GameId{0, 0x14};
+            assignReq.CurrentActorData.IsDead = false;
+            pLoopback->SendToServer(assignReq);
+            pGameServer->Update();
+            spdlog::info("Host player character registered with GameServer");
         } else {
             spdlog::error("Host player authentication FAILED -- this should not happen");
         }
@@ -396,8 +420,11 @@ int main(int argc, char* argv[]) {
         }
 
         // Shutdown
+        pGameServer->StopRecording();
         pGameServer->Kill();
         pGameServer->Close();
+        if (!enetRecordDir.empty())
+            spdlog::info("Enet6 recording saved to {}/", enetRecordDir);
         pGameServer.reset();
         pConsole.reset();
         spdlog::info("GameServer shut down");
@@ -480,6 +507,7 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<LoopbackTransport> pLoopback;
     std::unique_ptr<ServerMessageRouter> pRouter;
     std::unique_ptr<JoinClient> pJoinClient;
+    std::string enetRecordDir;
     bool isHostMode = connectAddr.empty();  // per D-02
 
     if (isHostMode) {
@@ -492,6 +520,18 @@ int main(int argc, char* argv[]) {
         pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("ConOut");
         pGameServer = std::make_unique<Server::GameServer>(*pConsole);
         pGameServer->Initialize();
+
+        // Start enet6 network recording if --record was specified
+        if (!recordPath.empty()) {
+            enetRecordDir = recordPath;
+            auto dot = enetRecordDir.rfind('.');
+            if (dot != std::string::npos)
+                enetRecordDir = enetRecordDir.substr(0, dot);
+            enetRecordDir += "_enet";
+            std::filesystem::create_directories(enetRecordDir);
+            pGameServer->StartRecording(enetRecordDir);
+            spdlog::info("Recording enet6 traffic (NDJSON) to {}/", enetRecordDir);
+        }
 
         spdlog::info("GameServer listening on port {}", pGameServer->GetPort());
 
@@ -546,6 +586,17 @@ int main(int argc, char* argv[]) {
 
         if (pRouter->IsAuthenticated()) {
             spdlog::info("Host player authenticated with embedded GameServer");
+
+            // Host must also register its player character with the server,
+            // just like a joining client does after auth acceptance.
+            AssignCharacterRequest assignReq;
+            assignReq.Cookie = 1;
+            assignReq.ReferenceId = GameId{0, 0x14}; // player character
+            // FormId left as default GameId{} -- required for player characters
+            assignReq.CurrentActorData.IsDead = false;
+            pLoopback->SendToServer(assignReq);
+            pGameServer->Update(); // Process the assign message
+            spdlog::info("Host player character registered with GameServer");
         } else {
             spdlog::error("Host player authentication FAILED -- this should not happen");
         }
@@ -713,8 +764,11 @@ int main(int argc, char* argv[]) {
 
     // Shutdown GameServer
     if (pGameServer) {
+        pGameServer->StopRecording();
         pGameServer->Kill();
         pGameServer->Close();
+        if (!enetRecordDir.empty())
+            spdlog::info("Enet6 recording saved to {}/", enetRecordDir);
         pGameServer.reset();
         pConsole.reset();
         spdlog::info("GameServer shut down");

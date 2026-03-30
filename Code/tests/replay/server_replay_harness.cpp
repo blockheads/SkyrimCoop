@@ -10,15 +10,14 @@ ServerReplayHarness::ServerReplayHarness()
     // Create server in test mode: no enet6 port binding, no ESLoader, no ScriptService
     m_pServer = std::make_unique<Server::GameServer>(m_console, GameServerTestMode{});
 
-    // Set up loopback route to capture outgoing ServerMessages as JSON.
+    // Capture ALL outgoing ServerMessages (any peer) via test callback.
     // Send() writes: [packet_type_byte=0][opcode][payload...]
     // ServerMessageFactory::Extract expects: [opcode][payload...]
     // So we skip the first byte before calling Extract().
-    m_pServer->SetLoopbackRoute(1, [this](const void* apData, uint32_t aSize) {
+    m_pServer->SetTestSendCallback([this](ConnectionId_t aPeer, const void* apData, uint32_t aSize) {
         if (aSize < 2)
             return;
 
-        // Skip the packet type byte (byte 0)
         const auto* pPayload = static_cast<const uint8_t*>(apData) + 1;
         const uint32_t cPayloadSize = aSize - 1;
 
@@ -27,7 +26,11 @@ ServerReplayHarness::ServerReplayHarness()
         ServerMessageFactory factory;
         auto pMessage = factory.Extract(reader);
         if (pMessage)
-            m_captured.push_back(MessageSerializer::ServerToJson(*pMessage));
+        {
+            auto j = MessageSerializer::ServerToJson(*pMessage);
+            j["_peer"] = aPeer;  // Tag with destination peer for test assertions
+            m_captured.push_back(std::move(j));
+        }
         else
             spdlog::warn("ServerReplayHarness: failed to parse captured ServerMessage");
     });
