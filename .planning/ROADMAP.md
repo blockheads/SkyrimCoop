@@ -61,7 +61,12 @@ Plans:
   3. ReplayBridge implementation replays recorded NDJSON events and returns canned data for headless execution
   4. Services reference ISkyrimBridge (not SKSE directly) — dependency injection via World context or constructor
   5. A headless test binary can instantiate ReplayBridge, feed recorded data, and exercise all services without Skyrim running
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 02.5-01-PLAN.md — Define bridge interfaces (IActorBridge, IFormBridge, IPlayerBridge, IEventBridge, IWorldBridge) + SkyrimBridge/ReplayBridge skeletons + xmake build targets
+- [ ] 02.5-02-PLAN.md — Migrate 8 simple services (PartyService through ActorValueService) to bridge interfaces
+- [ ] 02.5-03-PLAN.md — Migrate 8 complex services (CombatService through CharacterService + Debug) to bridge interfaces
+- [ ] 02.5-04-PLAN.md — Implement ReplayBridge NDJSON replay logic + ClientReplayHarness + headless test cases
 
 ### Phase 3: Loopback Transport and Host Mode
 **Goal**: Host player can start an embedded GameServer in-process, authenticate through loopback, and remote peers connect via enet6
@@ -107,7 +112,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. ABI Safety and Source Cleanup | 2/2 | Complete   | 2026-03-30 |
 | 2. Full Client Compilation | 0/TBD | Not started | - |
-| 2.5. SKSE Abstraction Layer | 0/TBD | Not started | - |
+| 2.5. SKSE Abstraction Layer | 0/4 | Not started | - |
 | 3. Loopback Transport and Host Mode | 0/TBD | Not started | - |
 | 4. Sync Verification via Loopback | 0/TBD | Not started | - |
 | 5. Two-Player Session and Workflow | 0/TBD | Not started | - |
