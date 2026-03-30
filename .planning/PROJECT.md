@@ -49,8 +49,8 @@ The ultimate goal is to make Skyrim fully host-authoritative for co-op: the host
 ### Active
 
 - [ ] Full Code/client/ compiles under MinGW as SKSE DLL (CEF/DirectXTK/Discord excluded)
-- [ ] ABI safety fixes (alignas, try/catch UB, struct layout verification)
-- [ ] Code/relay_dll/ and Code/native_client/ removed from source tree
+- [x] ABI safety fixes (alignas, try/catch UB, struct layout verification) — Validated in Phase 1: ABI Safety and Source Cleanup
+- [x] Code/relay_dll/ removed from source tree, native_client removed from build system — Validated in Phase 1: ABI Safety and Source Cleanup
 - [ ] LoopbackTransport for host-mode message delivery (in-process, no network)
 - [ ] Dual-mode TransportService (loopback for host, enet6 for clients)
 - [ ] HostService::StartHosting() with GameServer lifecycle management
