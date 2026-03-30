@@ -1,205 +1,180 @@
-# Technology Stack: Linux Cross-Compilation & Debug Toolchain
+# Technology Stack: MinGW Full Client + Embedded Host-Authoritative Server
 
-**Project:** SkyrimCoop
-**Researched:** 2026-03-27
-**Focus:** Cross-compiling Windows SKSE plugin DLL from Linux, debugging under Wine/Proton, CI/CD, automated testing
-
-## Recommended Stack
-
-### Cross-Compilation Toolchain
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| xPack MinGW-w64 GCC | 14.3.0-1.1 | C++20 cross-compiler producing Windows x64 PE/DLLs | Already installed at `~/.local/xPacks/`, proven in LethalInjection project, full C++20 support, reproducible binary distribution. Upstream distro MinGW (GCC 10) is too old for C++20. | HIGH |
-| XMake | 2.9.8+ | Build orchestration with `-p mingw` platform | Already used by project, has first-class MinGW cross-compilation support (`xmake f -p mingw --mingw=/path`), auto-detects toolchain prefix, handles package cross-compilation. Avoids CMake migration. | HIGH |
-| ccache | 4.x (system) | Compilation cache for incremental rebuilds | 5-10x speedup on incremental builds, works with MinGW cross-compilers via `CMAKE_C_COMPILER_LAUNCHER` or XMake equivalent. LethalInjection already uses it. | HIGH |
-| DWARF debug symbols | (via `-g -gdwarf-4`) | Debug info in cross-compiled DLLs | MinGW produces DWARF (not PDB). GDB reads DWARF natively. This is the critical difference from MSVC builds -- no PDB conversion needed when using GDB. | HIGH |
-
-### Build Configuration
-
-| Setting | Value | Why |
-|---------|-------|-----|
-| C++ Standard | C++20 (`-std=gnu++20`) | Match existing codebase. Use `gnu++20` (not `c++20`) for MinGW SEH extensions, same as LethalInjection uses for C++23. |
-| Static linking | `-static -static-libgcc -static-libstdc++` | Zero runtime dependencies on target machine. LethalInjection pattern. Eliminates need to ship MinGW runtime DLLs. |
-| Architecture | x86_64 only | Skyrim SE is x64 only. No 32-bit target needed. |
-| Optimization | `-O2 -g` for releasedbg, `-O0 -g` for debug | Need debug symbols in all dev builds for Wine debugging. `-O2` over `-O3` to reduce code size and improve debuggability. |
-| Windows target | `-D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00` | Match existing MSVC config (Windows 10+). |
-| SSE/SSE2/SSE3 | `-msse -msse2 -msse3 -mssse3` | Match existing SIMD config. MinGW GCC supports these natively. |
-
-### Debugging
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| GDB | 15.x+ (build from source or PPA) | Primary debugger for Wine process attachment | GDB understands DWARF in MinGW-compiled DLLs natively. `gdb -p <linux_pid>` attaches to Wine process, `info proc mappings` finds DLL load address, `add-symbol-file` loads DWARF symbols. System GDB 12.1 works but 15+ has better MinGW type support. | HIGH |
-| winedbg (GDB proxy mode) | Ships with Wine | Alternative: winedbg as GDB server | `winedbg --gdb --attach <windows_pid>` exposes a GDB-compatible remote protocol. Understands Wine's PE loader, sees Windows modules. Connect with `gdb -ex "target remote :port"`. | MEDIUM |
-| LLDB (Wine-patched) | 21.1.5 (custom build exists) | Secondary debugger, VSCode integration | Already built at `/Projects/llvm-project-21.1.5-build/bin/lldb`. Needs werat/llvm-project-wine DYLD plugin patches to see PE modules. Without patches, only sees `wine64-preloader`. Patches are based on LLVM 14.x and need rebasing for 21.x -- this is non-trivial work. | LOW |
-| Wine | 9.0+ (upgrade from 6.0.3) | Windows compatibility layer | Current system Wine 6.0.3 is very old (2021). Wine 9.0+ has significantly better debugging support, improved PE module loading, and NTSYNC (kernel 6.14+) for performance. Wine 9/10/11 dramatically improves DLL loading and debug symbol resolution. | HIGH |
-
-**Debugger recommendation:** Use GDB as primary. The existing debug scripts (`attach_gdb.sh`) already work. GDB with MinGW DWARF symbols is the path of least resistance -- no PDB conversion, no custom LLDB patches, no winedbg quirks. Upgrade Wine to 9.0+ for better process debugging support.
-
-**Do NOT invest in LLDB Wine patches** until GDB-based workflow is proven insufficient. The werat patches target LLVM 14.x and rebasing to 21.x is significant effort for uncertain benefit.
-
-### CI/CD
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| GitHub Actions | (existing) | CI runner platform | Already configured with linux.yml and windows.yml workflows. Extend, don't replace. | HIGH |
-| `ubuntu-24.04` runner | Latest LTS | CI build environment | 22.04 is current but 24.04 has newer system packages. MinGW will be installed via xPack regardless. | MEDIUM |
-| xPack MinGW (CI-installed) | 14.3.0 | Cross-compiler on CI | Download xPack tarball in CI step (no apt). Reproducible across dev machine and CI. Cache in `actions/cache`. | HIGH |
-| XMake | 2.9.8 | Build system on CI | Already using `xmake-io/github-action-setup-xmake@v1`. Add MinGW platform config step. | HIGH |
-| Docker | (for server) | Server build container | Existing Dockerfile already works. No changes needed for server-only builds. | HIGH |
-
-**CI workflow strategy:** Add a new `linux-cross.yml` workflow that:
-1. Downloads and caches xPack MinGW 14.3.0
-2. Runs `xmake f -p mingw --mingw=$XPACK_ROOT -m releasedbg`
-3. Builds client DLL with `xmake -y`
-4. Runs native (Linux) unit tests separately
-5. Uploads `.dll` artifact
-
-### Testing
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Catch2 | 3.x (upgrade from 2.13.9) | Unit tests for encoding, serialization, math | Already in use (2.13.9). Catch2 3.x is current, has better CMake integration and partitioned headers. Upgrade is low-risk. | HIGH |
-| Catch2 + Trompeloeil | 47+ | Mocking for service-level integration tests | Catch2 has no built-in mocking. Trompeloeil is the standard C++ mocking framework, integrates cleanly with Catch2. Use for mocking TransportService, network layer in CharacterService tests. | MEDIUM |
-| Native Linux test binary | (via XMake) | Run unit tests without Wine | Build encoding, common, and server code natively on Linux for testing. These modules have no Windows dependencies. Only the SKSE client integration code requires Windows. | HIGH |
-| Wine headless | 9.0+ | E2E: run cross-compiled test binary under Wine | For integration tests that exercise Windows-specific codepaths (message serialization with Windows types), run the MinGW-compiled test binary under `wine64`. Works in CI with `xvfb-run` for display. | MEDIUM |
-| Custom test harness | (build ourselves) | E2E host+client sync testing | No off-the-shelf framework for game mod sync testing. Build a lightweight harness: spawn embedded server + 2 mock clients (using the real networking code), verify state convergence. Run natively on Linux (server code is Linux-native). | LOW |
-
-**Testing strategy layers:**
-1. **Unit tests (native Linux):** All encoding, math, serialization, ECS component logic. These compile natively, no Wine needed. Run on every commit.
-2. **Unit tests (MinGW via Wine):** Windows-specific code paths. Run MinGW-compiled test binary under `wine64` in CI. Catches ABI/linkage issues.
-3. **Integration tests (native Linux):** Server + mock client using real networking stack. Spawn `GameServer` + connect `TransportService` client in same process or two processes. Verify message round-trips.
-4. **Sync validation tests:** Deterministic test scenarios (spawn actor, move, verify position converges on both sides). Hardest to build, highest value.
-
-### Supporting Infrastructure
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| spdlog | 1.13.0 (existing) | Logging | Already used. No change needed. | HIGH |
-| Sentry | 0.7.1 (existing) | Crash reporting | Already used. MinGW builds need DWARF upload instead of PDB. Use `sentry-cli upload-dif` with DWARF files. | MEDIUM |
-| compile_commands.json | (via XMake) | IDE/clangd integration | `xmake project -k compile_commands` generates for clangd. Works with MinGW cross-compile (clangd understands cross-compile flags). | HIGH |
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Cross-compiler | xPack MinGW GCC 14.3 | System MinGW (apt) | System MinGW is GCC 10 (2020), no C++20 support. xPack is self-contained, version-pinned, proven in LethalInjection. |
-| Cross-compiler | xPack MinGW GCC 14.3 | llvm-mingw (Clang) | Clang cross-compilation works but XMake's MinGW support assumes GCC. LethalInjection uses GCC. Switching compilers introduces ABI risk with existing MSVC-compiled SKSE headers. |
-| Cross-compiler | xPack MinGW GCC 14.3 | Zig cc | Zig's C/C++ compiler can cross-compile to Windows, but C++20 template-heavy code with SKSE headers is untested with Zig's Clang frontend. Too experimental for this codebase. |
-| Build system | XMake (extend) | CMake (migrate) | LethalInjection uses CMake but SkyrimCoop already uses XMake with 60+ configured deps. Migration cost is enormous. XMake has native MinGW platform support. |
-| Build system | XMake (extend) | Dual: CMake for MinGW, XMake for MSVC | Maintaining two build systems is a maintenance nightmare. XMake can do both. |
-| Debugger | GDB | LLDB (Wine-patched) | Custom LLDB build already exists but Wine DYLD patches are for LLVM 14.x, not 21.x. Rebasing is significant work. GDB works today with MinGW DWARF. |
-| Debugger | GDB | winedbg standalone | winedbg's CLI is non-standard, poor C++ support, no scripting. Use winedbg only as GDB server backend. |
-| Debugger | GDB | Visual Studio remote debugging | Requires Windows. Defeats the Linux-first goal. |
-| Wine version | 9.0+ (upgrade) | Keep Wine 6.0.3 | Wine 6 is 5 years old. Missing critical debugging improvements, PE module handling, and NTSYNC performance. |
-| Test mock | Trompeloeil | FakeIt | Trompeloeil is more actively maintained, better C++17/20 support, more expressive expectation syntax. |
-| Test mock | Trompeloeil | GoogleMock | Already have GTest v1.14.0 which includes GMock. Could use GMock instead, but Catch2 + Trompeloeil is a cleaner pairing since tests already use Catch2. |
-| E2E testing | Custom harness | Selenium/Playwright for UI | UI testing is secondary. Core sync correctness matters more. Build game-logic E2E first. |
-
-## Installation
-
-### Development Machine Setup
-
-```bash
-# 1. xPack MinGW (already installed)
-# Verify: ~/.local/xPacks/@xpack-dev-tools/mingw-w64-gcc/14.3.0-1.1/
-$HOME/.local/xPacks/@xpack-dev-tools/mingw-w64-gcc/14.3.0-1.1/.content/bin/x86_64-w64-mingw32-g++ --version
-
-# 2. XMake (install if missing)
-curl -fsSL https://xmake.io/shget.text | bash
-
-# 3. Wine 9.0+ (upgrade from 6.0.3)
-# Option A: WineHQ repository
-sudo dpkg --add-architecture i386
-sudo mkdir -pm755 /etc/apt/keyrings
-sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -cs)/winehq-$(lsb_release -cs).sources
-sudo apt update && sudo apt install --install-recommends winehq-stable
-
-# 4. GDB (system or build from source for 15.x)
-sudo apt install gdb
-# Or build GDB 15+ from source for better MinGW type support
-
-# 5. ccache
-sudo apt install ccache
-
-# 6. Trompeloeil (for test mocking)
-# Add to xmake.lua: add_requires("trompeloeil")
-```
-
-### XMake MinGW Configuration
-
-```bash
-# Set global MinGW path (one-time)
-xmake g --mingw=$HOME/.local/xPacks/@xpack-dev-tools/mingw-w64-gcc/14.3.0-1.1/.content
-
-# Configure for MinGW cross-compilation
-xmake f -p mingw -a x86_64 -m releasedbg
-
-# Build
-xmake -y
-
-# Or explicitly specify SDK
-xmake f -p mingw --mingw=$HOME/.local/xPacks/@xpack-dev-tools/mingw-w64-gcc/14.3.0-1.1/.content --sdk=$HOME/.local/xPacks/@xpack-dev-tools/mingw-w64-gcc/14.3.0-1.1/.content -a x86_64 -m releasedbg
-```
-
-### CI Installation (GitHub Actions)
-
-```yaml
-# In linux-cross.yml workflow
-- name: Install xPack MinGW
-  run: |
-    mkdir -p $HOME/.local/xPacks
-    curl -L https://github.com/xpack-dev-tools/mingw-w64-gcc-xpack/releases/download/v14.3.0-1/xpack-mingw-w64-gcc-14.3.0-1-linux-x64.tar.gz \
-      | tar xz -C $HOME/.local/xPacks/
-
-- name: Cache xPack MinGW
-  uses: actions/cache@v4
-  with:
-    path: ~/.local/xPacks
-    key: xpack-mingw-14.3.0-1
-```
-
-## Key Compatibility Risks
-
-### MSVC-to-MinGW ABI Concerns
-
-The existing codebase compiles with MSVC. Switching to MinGW GCC introduces ABI differences:
-
-1. **SKSE headers:** SKSE is built with MSVC. The SKSE plugin DLL interface is C-style (`extern "C"` exports), so ABI is compatible. Internal C++ objects from SKSE headers may have different layouts -- test thoroughly.
-
-2. **Exception handling:** MSVC uses SEH, MinGW uses DWARF or SJLJ. Use `-fexceptions -municode` and SEH-capable MinGW (xPack uses SEH by default for x64).
-
-3. **Name mangling:** Different between MSVC and GCC. Only matters for C++ exports. SKSE plugin entry point is `extern "C"` so this is fine for the plugin interface.
-
-4. **Static runtime:** `-static -static-libgcc -static-libstdc++` eliminates MinGW runtime DLL dependencies, matching MSVC's `/MT` static runtime behavior.
-
-5. **Third-party deps:** All XMake-managed deps will rebuild with MinGW. Vendored deps (imgui, DirectXTK, cpp-httplib) need manual verification. DirectXTK will NOT compile with MinGW -- it requires MSVC. This is a client-only dep used for D3D11 overlay rendering.
-
-### DirectXTK / D3D11 Overlay
-
-DirectXTK is MSVC-only. Two options:
-- **Option A:** Strip DirectXTK dependency, use imgui with MinGW-compatible D3D11 headers (MinGW has d3d11.h).
-- **Option B:** Keep MSVC build path for UI overlay components only, cross-compile everything else.
-
-This is the single biggest technical risk in the MinGW migration.
-
-### CEF (Chromium Embedded Framework)
-
-CEF binary distribution is built with MSVC. Linking MinGW-compiled code against MSVC-built CEF may require import library generation (`gendef` + `dlltool`). This is a known MinGW pattern but adds complexity.
-
-## Sources
-
-- [xPack MinGW-w64 GCC releases](https://github.com/xpack-dev-tools/mingw-w64-gcc-xpack) - Toolchain distribution
-- [XMake Cross Compilation docs](https://xmake.io/guide/basic-commands/cross-compilation.html) - MinGW platform configuration
-- [XMake Toolchain Configuration](https://xmake.io/guide/project-configuration/toolchain-configuration.html) - Advanced toolchain setup
-- [werat/llvm-project-wine](https://github.com/werat/llvm-project-wine) - LLDB Wine debugging patches
-- [Debugging Wine with LLDB and VSCode](https://werat.dev/blog/debugging-wine-with-lldb-and-vscode/) - LLDB Wine DYLD plugin details
-- [drmingw](https://github.com/jrfonseca/drmingw) - MinGW postmortem debugging tools
-- LethalInjection reference project - Proven MinGW cross-compile pattern (local: `/Projects/LethalInjection/`)
-- Existing SkyrimCoop debug scripts - `attach_gdb.sh`, `debug_wine.sh`, `WINE_DEBUGGING_GUIDE.md` (local)
+**Project:** SkyrimCoop v2.0
+**Researched:** 2026-03-30
+**Focus:** Stack additions and changes needed to build Code/client/ under MinGW as a single SKSE DLL with embedded GameServer
+**Confidence:** HIGH for proven items, HIGH for new additions, MEDIUM for ABI compat gaps
 
 ---
 
-*Stack research: 2026-03-27*
+## Already Proven — No Changes Needed
+
+Do not re-research or revisit these. They are validated by prior phases.
+
+| Technology | Version | Status |
+|------------|---------|--------|
+| xPack MinGW-w64 GCC | 14.3.0-1.1 | Proven: GATE-01, GATE-02. Installed at `~/.local/xPacks/`. |
+| XMake + `-p mingw` | 2.8.5+ | Proven: all Tier 1-3 libs build. MinGW platform support confirmed. |
+| SKSE plugin ABI | 2.2+ | Proven: DLL loads in Skyrim. `extern "C"` entry points via GATE-01. |
+| Address Library v2 | — | Proven: runtime address resolution works. Phase 7. |
+| MinHook | v1.3.3 | Proven: x64 function hooking under MinGW. Phase 1 GATE-02. |
+| enet6 UDP networking | — | Proven: GameServer communicates with enet6. Phase 5/9. |
+| EnTT ECS | v3.10.0 | In use. Builds under MinGW via xmake package. |
+| spdlog | v1.13.0 | In use. Builds under MinGW. |
+| MinGWCompat.h | — | Proven: calling convention `#undef`s work. Force-include pattern established. |
+| `-mms-bitfields` | — | Proven: MSVC-compatible bitfield layout. In root xmake.lua. |
+| Split DWARF + lld | GCC 14.3 / lld-18 | Proven: `devbuild` mode, `SkyrimTogetherClient.map` produced. |
+| Message encoding | 58+61 opcodes | Existing STR codebase. Builds under MinGW via SkyrimEncoding target. |
+| Server builds on Linux | — | Existing STR codebase. Linux CI works. |
+
+---
+
+## New Dependencies for v2.0
+
+### Server Packages Required Under MinGW
+
+When the server is included in the MinGW build (`Code/server/` is unconditionally included in `Code/xmake.lua`), xmake must resolve these packages for the `mingw` platform. They are not currently guarded with `is_plat` checks.
+
+| Package | Version | Risk | Notes |
+|---------|---------|------|-------|
+| sol2 | v3.3.0 | LOW | Header-only C++ library. Declared in `Code/server/xmake.lua` unconditionally. Explicit GCC/Clang support in sol2 docs. Server already builds this on Linux. No MinGW-specific risk. |
+| lua | (via sol2 config) | LOW | Pure C99. `add_requires("sol2 v3.3.0", {configs = {lua = "lua"}})` pulls Lua as a dep. C builds trivially on MinGW. |
+| sqlite3 | (xmake package) | LOW | Pure C. Used by server. Cross-compiles trivially via MinGW xmake package. |
+| nlohmann_json | v3.11.3 | LOW | Header-only C++. Already in root `add_requires`. No platform-specific code. |
+
+**Integration point:** These are declared in `Code/server/xmake.lua` which is always included. If xmake cannot resolve `sol2` or `lua` for the `mingw` platform at configure time, you will see package resolution errors, not compile errors. Run `xmake f -p mingw` first and watch for package fetch failures before starting compilation work.
+
+### No New Libraries Required
+
+The embedded server architecture does not require new dependencies. The client already declares `add_deps("SkyrimTogetherServer")` in `Code/client/xmake.lua`. `HostService` already exists and is wired to instantiate `Server::GameServer`. The dependency chain is already expressed in the build system — the issue is making it compile cleanly, not adding new packages.
+
+---
+
+## ABI Compatibility Gaps to Close
+
+These are concrete issues discovered during research that require changes to `MinGWCompat.h` or source files. None are blockers at configure time — they generate silent warnings today and will need fixing when specific compilation units fail or produce wrong behavior.
+
+### Gap 1: `__declspec(align(N))` Silently Dropped
+
+**Confirmed experimentally:** MinGW GCC 14.3 emits `-Wattributes` warning and ignores `__declspec(align(N))`. The alignment is not applied.
+
+**Affected files in Code/client/:**
+- `Games/Skyrim/SaveLoad.h:145` — `__declspec(align(8)) BGSSaveLoadScrapBuffer`
+- `Games/Skyrim/SaveLoad.h:165` — `__declspec(align(8)) BGSLoadFormData`
+- `Games/Skyrim/BSGraphics/BSGraphicsRenderer.h:7` — `__declspec(align(8)) BSCriticalSection`
+
+**Risk assessment:** These three structs use `align(8)`, which matches the natural alignment of their pointer/integer members on x64. The structs will have correct size/layout without the explicit annotation (confirmed: `BGSSaveLoadScrapBuffer` = 0x18 either way). `SKYRIM_STRUCT_ASSERT` is already a no-op on MinGW, so no build failures. The risk is future game struct additions where alignment diverges from natural alignment — and those won't be caught.
+
+**Fix:** Add to `MinGWCompat.h` after the calling convention undefs:
+```cpp
+// Map __declspec(align(N)) to alignas(N) for MinGW.
+// MinGW GCC ignores __declspec(align) silently; use GCC's __attribute__((aligned)) instead.
+// The compiler's __declspec macro only handles dllexport/dllimport on GCC.
+// Note: This only works because NOMINMAX and other __declspec uses are safe to alias.
+// Do NOT add a catch-all __declspec redef — it would break dllexport/dllimport.
+```
+Then replace the three `__declspec(align(N))` uses with `alignas(N)` directly in the headers (preferred over macro magic for clarity). The headers are already in the SkyrimCoop repo, not SKSE proper — edits are permitted.
+
+### Gap 2: `__declspec(noinline)` Silently Dropped
+
+**Status:** Same issue as align. MinGW GCC only recognizes `__declspec(dllexport)` and `__declspec(dllimport)`. All other `__declspec` annotations emit `-Wattributes` and are silently ignored.
+
+**Affected files in Code/client/:**
+- `Systems/FaceGenSystem.cpp:22` — `__declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom`
+- `Services/Debug/Views/ComponentView.cpp:36` — `static __declspec(noinline) bool DrawInWorldSpace`
+- `Services/Debug/DebugService.cpp:80` — `void __declspec(noinline) DebugService::PlaceActorInWorld`
+
+**Risk assessment:** `noinline` is a performance annotation — its absence causes the functions to be inlined when the compiler decides. This cannot cause incorrect behavior. However, FaceGenSystem's noinline use may be intentional to prevent register clobbering bugs with specific game API calls. Low severity, but document for FaceGenSystem work.
+
+**Fix:** Replace with `__attribute__((noinline))` guarded by `#ifndef _MSC_VER`, or add a compat macro in `MinGWCompat.h`:
+```cpp
+#if defined(__GNUC__) && !defined(_MSC_VER)
+#define __declspec_noinline __attribute__((noinline))
+#else
+#define __declspec_noinline __declspec(noinline)
+#endif
+```
+Then update the three call sites. Low priority — will produce warnings, not failures.
+
+### Gap 3: `-flayout-compat=ms` TODO is a Non-Existent Flag
+
+**Status:** `TiltedOnlinePCH.h` line 26 contains:
+```
+// TODO: Upgrade to GCC 12+ and use -flayout-compat=ms for proper MSVC ABI compat.
+```
+
+**Finding:** This flag does not exist in GCC. Confirmed by checking GCC 14.3 target options — there is no `-flayout-compat` or equivalent. The real mitigations are already in place:
+- `-mms-bitfields` handles bitfield layout (in root `xmake.lua`)
+- `SKYRIM_STRUCT_ASSERT(...)` is `/* no-op */` on MinGW (in `TiltedOnlinePCH.h`)
+- Game struct layout is validated at runtime via Address Library offsets, not compile-time asserts
+
+**Action:** Remove the TODO comment from `TiltedOnlinePCH.h`. It misleads future developers into searching for a non-existent compiler option. The existing mitigations are the correct approach.
+
+---
+
+## Build System Integration Points
+
+### Server PCH Under MinGW
+
+The client's PCH needed force-include (not `.gch`) on MinGW because the `#undef __fastcall` state at the end of the PCH must survive to compilation units. `Code/server/xmake.lua` uses `set_pcxxheader("Pch.h")` unconditionally.
+
+**Assessment:** Server `Pch.h` has no calling convention `#undef`s at the end. The `.gch` approach works for server. No change needed.
+
+### PE/COFF Symbol Budget: Embedded Server Impact
+
+`Code/client/xmake.lua` already notes the `>65535 symbols` PE/COFF ordinal limit and addresses it by *not* using `--export-all-symbols` on the final `SkyrimTogetherClientDLL` target. The DLL exports only the two SKSE entry points (`SKSEPlugin_Version`, `SKSEPlugin_Load`).
+
+The embedded server adds `~5,310 LOC` of C++ class templates and services to the static archive, adding template instantiations but not exported symbols. Since ordinal limits apply only to DLL exports (not total symbols in the PE's symbol table), and the final DLL only exports two symbols, the embedded server does not create a new PE/COFF risk.
+
+**In devbuild mode:** Internal components (server, networking, encoding) are separate `.dll` files via `devbuild_shared()`. Only the final `SkyrimTogetherClientDLL` is the one-DLL target with limited exports. This architecture already handles the symbol budget correctly.
+
+### sol2 PCH Interaction
+
+`sol/sol.hpp` is a 30,000+ line header included via the server PCH. In the client's static archive chain, the server's PCH precompilation will be used only for server `.cpp` files. Client `.cpp` files use the client PCH (which does not include sol2). No interaction issue.
+
+However, unity builds (`--unitybuild`) can cause sol2 to be re-included multiple times if batch grouping mixes server and client source files. **Recommendation:** Keep server and client in separate unity build groups (they are in separate xmake targets, so this is automatic) and verify that `xmake config --unitybuild=y` does not create cross-target batches.
+
+---
+
+## What NOT to Add
+
+| Technology | Why Not |
+|------------|---------|
+| CEF | MSVC binary distribution only. Already excluded by `if not is_plat("mingw")` guard. Do not attempt MinGW linkage. |
+| DirectXTK | MSVC-only (D3D/Windows SDK headers use MSVC extensions). Already excluded. UI is deferred to a later milestone. |
+| Discord SDK | Windows MSVC binary. Already excluded. Steam invites are out of scope for v2.0. |
+| sentry-native | Not compatible with MinGW cross-compilation. Already disabled in `CrashHandler` xmake (`-- sentry-native disabled`). The CrashHandler component builds fine without it (no `HAS_SENTRY` define). |
+| Steam SDK | Out of scope. Direct IP connect is the v2.0 mechanism. |
+| Vivox | Excluded via `has_config("vivox")` guard. Not needed for co-op. |
+| Native Linux SKSE client | Out of scope per PROJECT.md. SKSE stays Windows, runs under Proton. |
+| LLDB Wine patches | Deferred per v1.0 research. werat patches target LLVM 14.x, rebase to 21.x is uncharted work. GDB + DWARF is sufficient. |
+
+---
+
+## Version Compatibility Matrix
+
+| Package | Version Pinned | Compatible With | Notes |
+|---------|----------------|-----------------|-------|
+| sol2 | v3.3.0 | Lua 5.1-5.4, LuaJIT | Server specifies `{configs = {lua = "lua"}}` which pins to standard Lua. |
+| EnTT | v3.10.0 | C++17/20 | No breaking API changes in this version for the patterns used. |
+| enet6 | (unpinned) | MinGW x64 | UDP/UTP transport. Already proven on both Linux and MinGW platforms. |
+| ImGui | v1.89.7 | D3D11, Win32 backend | Windows-only backends (D3D11, Win32) compile on MinGW via d3d11.h/windows.h from mingw-w64 headers. |
+
+---
+
+## Sources
+
+- Experimental: `x86_64-w64-mingw32-g++ --help=target` — confirmed `-flayout-compat=ms` does not exist in GCC 14.3
+- Experimental: MinGW `__declspec(align(8))` compile test — confirmed silently ignored with `-Wattributes`
+- `Code/client/xmake.lua` — devbuild shared strategy, PE/COFF ordinal limit note, sol2 PCH architecture
+- `Code/server/xmake.lua` — sol2/lua/sqlite3/nlohmann_json package declarations
+- `Code/client/MinGWCompat.h` — current scope (calling conventions only)
+- `Code/client/TiltedOnlinePCH.h` — `-flayout-compat=ms` TODO, `SKYRIM_STRUCT_ASSERT` no-op on MinGW
+- `Code/client/link_stubs.cpp` — existing MinGW stub pattern for unresolved symbols
+- `Code/components/crash_handler/xmake.lua` — sentry-native disabled for MinGW, confirmed
+- sol2 documentation: https://sol2.readthedocs.io/en/latest/ — header-only, GCC/Clang support confirmed
+
+---
+
+*Stack research for: SkyrimCoop v2.0 — MinGW full client + embedded host-authoritative server*
+*Researched: 2026-03-30*

@@ -1,456 +1,403 @@
-# Architecture Patterns
-
-**Domain:** Linux-first cross-compiled Skyrim co-op mod
-**Researched:** 2026-03-27
-**Confidence:** HIGH (based on existing codebase analysis + LethalInjection reference implementation)
-
-## Recommended Architecture
-
-### Overview: Adapted LethalInjection Pattern
-
-LethalInjection uses a three-layer architecture: **Frontend (Linux GUI)** <-> **Middleware (Linux native daemon)** <-> **Backend (MinGW cross-compiled DLL injected into Wine process)**. SkyrimCoop adapts this but with crucial differences:
-
-1. **SkyrimCoop's DLL is an SKSE plugin**, not a generic injectable -- it loads via SKSE's plugin mechanism, not DLL injection
-2. **SkyrimCoop already has an embedded server** -- `HostService` already instantiates `Server::GameServer` inside the client process
-3. **SkyrimCoop's middleware equivalent is the embedded server itself** -- there is no separate Linux daemon needed for game logic
-
-The mapping is:
-
-| LethalInjection Layer | SkyrimCoop Equivalent | Build Target |
-|-|-|-|
-| Frontend (Linux GUI) | Not needed (CEF overlay runs inside Skyrim/Wine) | N/A |
-| Middleware (Linux native) | **Test harness + server standalone** (native Linux) | `SkyrimServerRunner`, `TPTests` |
-| Backend (MinGW DLL) | **SkyrimTogetherClient.dll** (SKSE plugin via MinGW) | `SkyrimTogetherClient` |
-
-### Component Diagram
-
-```
-Linux Host Machine
-+------------------------------------------------------------------+
-|                                                                  |
-|  [Native Linux Builds]              [Wine/Proton Process]        |
-|  +------------------------+         +------------------------+   |
-|  | SkyrimServerRunner     |         | SkyrimSE.exe           |   |
-|  | (standalone server     |         |   +------------------+ |   |
-|  |  for testing only)     |         |   | SKSE             | |   |
-|  +------------------------+         |   |   +-----------+  | |   |
-|  | SkyrimTogetherServer   |         |   |   | Client DLL|  | |   |
-|  | (static lib, native)   |         |   |   | (MinGW)   |  | |   |
-|  +------------------------+         |   |   +-----------+  | |   |
-|                                     |   |   | HostService| | |   |
-|  [Test Harness]                     |   |   | (embedded  | | |   |
-|  +------------------------+         |   |   |  server)   | | |   |
-|  | TPTests                |         |   |   +-----------+  | |   |
-|  | HeadlessTestRunner     |         |   +------------------+ |   |
-|  | (native Linux,         |         |                        |   |
-|  |  no Skyrim needed)     |         |   [Network: localhost]  |  |
-|  +------------------------+         |   Host connects to self |  |
-|  | SkyrimEncoding         |         |   Clients connect to    |  |
-|  | CommonLib              |         |   host's IP             |  |
-|  | (shared, native)       |         +------------------------+   |
-|  +------------------------+                                      |
-+------------------------------------------------------------------+
-```
-
-## Component Boundaries
-
-### Tier 1: Platform-Independent Core (builds everywhere)
-
-| Component | Responsibility | Dependencies | Build Output |
-|-|-|-|-|
-| `SkyrimEncoding` | Message serialization, opcodes, shared structs | GLM, TiltedCore | Static library |
-| `CommonLib` | GameId, Cell, DateTime, Map utilities | None significant | Static library |
-| `BaseLib` | Allocators, containers, threading primitives | mimalloc | Static library |
-| `SkyrimCoopNetworking` | ENet6 UDP transport, Client/Server base classes | enet6, TiltedCore, snappy, libuv | Static library |
-| `TiltedCore` | Buffer, String, Map, Set, UniquePtr wrappers | hopscotch-map | Static library |
-
-These components have **zero Windows API dependencies**. They compile natively on Linux with GCC/Clang and cross-compile to Windows with MinGW. This is the foundation layer.
-
-### Tier 2: Server Logic (builds native Linux + MinGW)
-
-| Component | Responsibility | Dependencies | Build Output |
-|-|-|-|-|
-| `SkyrimTogetherServer` | GameServer, World, all server Services | Tier 1 + Sol2, Lua, sqlite3, sentry, spdlog | Static library |
-| `Console` | ConsoleRegistry, command parsing | spdlog | Static library |
-| `Resources` | Resource/asset collection | Tier 1 | Static library |
-| `ESLoader` | Elder Scrolls plugin file parsing | Tier 1 | Static library |
-| `CrashHandler` | Sentry + Crashpad integration | sentry-native | Static library |
-| `AdminProtocol` | Admin RPC message definitions | Tier 1 | Static library |
-| `SkyrimServerRunner` | Standalone server binary | Tier 2 libs | Binary executable |
-
-The server already builds on Linux. The static library form of `SkyrimTogetherServer` is what gets linked into the client DLL for embedded hosting via `HostService`.
-
-### Tier 3: Client DLL (MinGW cross-compile only)
-
-| Component | Responsibility | Dependencies | Build Output |
-|-|-|-|-|
-| `SkyrimCoopReverse` | Function hooking, signature scanning, memory patching | minhook, mem, xbyak | Static library |
-| `SkyrimCoopHooks` | D3D11, DInput, Windows API hooks | Tier 1 + Reverse, d3d11, dinput8 | Static library |
-| `SkyrimCoopUI` | CEF browser integration, overlay rendering | cef, DirectXTK, d3d11 | Static library |
-| `SkyrimCoopUIProcess` | CEF render subprocess, V8 bridge | cef | Static library |
-| `SkyrimTogetherClient` | SKSE plugin: Services, Components, Systems, Game hooks | All tiers + SKSE | Shared library (.dll) |
-| `TPProcess` | CEF worker process executable | UIProcess lib | Binary executable |
-
-These components use Windows APIs (Win32, D3D11, DInput) and **must be cross-compiled via MinGW**.
-
-### Tier 4: Test Infrastructure (native Linux only)
-
-| Component | Responsibility | Dependencies | Build Output |
-|-|-|-|-|
-| `TPTests` | Unit tests for encoding, quantization, serialization | Catch2, Tier 1 | Binary executable |
-| `HeadlessTestRunner` (new) | Integration tests: simulated host+client sessions | Tier 1 + Tier 2, Catch2 | Binary executable |
-
-## Data Flow
-
-### Host Player Session Flow
-
-```
-1. Player launches Skyrim via Proton
-2. SKSE loads SkyrimTogetherClient.dll
-3. Client World initializes all services
-4. Player clicks "Host" in CEF overlay
-5. HostService::StartHosting() creates Server::GameServer
-6. GameServer::Host() binds UDP port via enet6
-7. TransportService::Connect("127.0.0.1:port") -- host connects to self
-8. Host authenticates as first player
-9. Remote players connect to host's IP
-
-Each frame:
-  World::Update()
-    -> RunnerService tick
-    -> TransportService::OnUpdate() -- process incoming network packets
-    -> CharacterService -- detect local actor changes, send to server
-    -> HostService::OnUpdate() -- tick embedded GameServer
-       -> Server::GameServer::OnUpdate()
-          -> Process all client messages
-          -> Broadcast state to connected clients
-    -> InterpolationSystem -- smooth remote player positions
-    -> AnimationSystem -- sync remote animations
-```
-
-### Host's Embedded Server Data Path (In-Process)
-
-```
-Host Client -> TransportService::Send()
-            -> enet6 serializes to localhost UDP
-            -> GameServer::OnConsume() receives packet
-            -> Server CharacterService processes
-            -> GameServer::SendToPlayers() broadcasts
-            -> enet6 sends to all peers (including localhost)
-            -> Host's TransportService::OnConsume() receives broadcast
-            -> Client CharacterService applies remote state
-```
-
-The localhost round-trip through enet6 is intentional -- it keeps the code paths identical between host and client, avoiding special-case bugs. The UDP loopback overhead is negligible (sub-microsecond on Linux).
-
-### MinGW Cross-Compile Data Flow (Build Time)
-
-```
-Developer's Linux Machine:
-  xmake f -p mingw --mingw=$HOME/.local/xPacks/@xpack-dev-tools/mingw-w64-gcc/14.3.0-1.1/.content
-  xmake -y
-
-  Build order:
-    1. Tier 1 (platform-independent) -- cross-compiled with x86_64-w64-mingw32-g++
-    2. Tier 2 (server logic) -- cross-compiled, produces .a static libs
-    3. Tier 3 (client) -- cross-compiled, links all into SkyrimTogetherClient.dll
-    4. xmake install -o distrib -> produces DLL + assets
-
-  Native builds (parallel):
-    1. Tier 1 -- compiled with native gcc/clang
-    2. Tier 2 -- compiled natively
-    3. Tier 4 (tests) -- compiled natively, linked against native Tier 1+2
-    4. Run tests natively
-```
-
-## Patterns to Follow
-
-### Pattern 1: Dual-Build Static Libraries
-
-**What:** Every component in Tier 1 and Tier 2 compiles as a static library under both native Linux (for testing) and MinGW (for the DLL). The XMake build system builds both toolchains from the same source.
-
-**When:** Always. This is the core enabler for Linux-first development.
-
-**Implementation:**
-```lua
--- xmake.lua for a tier-1 library
-target("SkyrimEncoding")
-    set_kind("static")
-    set_group("Encoding")
-    add_files("**.cpp")
-    add_includedirs(".", {public = true})
-    add_deps("TiltedCore", "CommonLib")
-    add_packages("glm", "entt")
-    -- No platform-specific code. Compiles identically on both toolchains.
-```
-
-The existing XMake project already does this for the server and encoding targets. The key insight is that XMake's `mingw` platform uses `is_plat("mingw")` not `is_plat("windows")`, so platform gates need updating.
-
-### Pattern 2: HostService as Server Lifecycle Manager
-
-**What:** The `HostService` (already implemented) owns the `Server::GameServer` instance, ticking it on the client's update loop. The host client connects to itself via localhost.
-
-**When:** Always for co-op mode. The standalone `SkyrimServerRunner` exists only for testing and debugging.
-
-**Why this works:** The existing implementation in `HostService.cpp` already does the right thing -- it creates the server, the host player connects to `127.0.0.1`, and both code paths (host and guest) use identical network stacks. No special-casing needed.
-
-### Pattern 3: XMake Multi-Toolchain with Platform Detection
-
-**What:** A single `xmake.lua` tree supports three build modes:
-1. `xmake f -p windows` -- MSVC on Windows (original)
-2. `xmake f -p mingw --mingw=/path/to/xpack` -- MinGW cross-compile from Linux
-3. `xmake f -p linux` -- Native Linux (server + tests only)
-
-**Implementation approach:**
-```lua
--- Root xmake.lua platform gating
--- Tier 1: Always build
-includes("encoding")
-includes("common")
-includes("base")
-includes("TiltedCore")
-includes("libraries/networking")  -- networking is platform-independent (enet6)
-
--- Tier 2: Server logic -- builds on all platforms
-includes("server")
-includes("components")
-includes("admin_protocol")
-
--- Tier 3: Client DLL -- only on Windows or MinGW
-if is_plat("windows") or is_plat("mingw") then
-    includes("client")
-    includes("libraries/hooks")     -- Win32 hooks
-    includes("libraries/reverse")   -- Win32 memory manipulation
-    includes("libraries/ui")        -- CEF integration
-    includes("libraries/ui_process")
-    includes("tp_process")
-    includes("immersive_launcher")
-end
-
--- Tier 4: Tests -- native Linux only (or native Windows)
-if not is_plat("mingw") then
-    includes("tests")
-end
-
--- Standalone server runner -- native Linux or Windows
-if is_plat("linux") or (is_plat("windows") and not is_plat("mingw")) then
-    includes("server_runner")
-end
-```
-
-### Pattern 4: Headless Test Harness via Server-Only Simulation
-
-**What:** Integration tests instantiate a `Server::GameServer` and multiple simulated `TiltedPhoques::Client` instances natively on Linux. No Skyrim, no Wine, no DLL injection. Tests verify that messages serialize correctly, server state updates as expected, and multi-client scenarios (join, move, disconnect) work.
-
-**When:** CI pipeline, pre-commit testing, development iteration.
-
-**Implementation:**
-```cpp
-// tests/integration/host_client_test.cpp
-#include <catch2/catch.hpp>
-#include <GameServer.h>
-#include <Client.hpp>
-#include <Messages/AuthenticationRequest.h>
-
-struct MockClient : TiltedPhoques::Client {
-    std::vector<std::vector<uint8_t>> received;
-    bool connected = false;
-
-    void OnConsume(const void* apData, uint32_t aSize) override {
-        received.emplace_back(
-            static_cast<const uint8_t*>(apData),
-            static_cast<const uint8_t*>(apData) + aSize
-        );
-    }
-    void OnConnected() override { connected = true; }
-    void OnDisconnected(EDisconnectReason) override { connected = false; }
-    void OnUpdate() override {}
-};
-
-TEST_CASE("Two clients connect and see each other") {
-    ServerConsole::ConsoleRegistry console("test");
-    Server::GameServer server(console);
-    server.Initialize();
-
-    MockClient host, guest;
-    host.Connect("127.0.0.1:" + std::to_string(server.GetPort()));
-    guest.Connect("127.0.0.1:" + std::to_string(server.GetPort()));
-
-    // Pump network for a few ticks
-    for (int i = 0; i < 10; i++) {
-        server.Update();
-        host.Update();
-        guest.Update();
-    }
-
-    REQUIRE(host.connected);
-    REQUIRE(guest.connected);
-    REQUIRE(server.GetClientCount() == 2);
-}
-```
-
-This works because `TiltedPhoques::Server` and `TiltedPhoques::Client` are thin wrappers around enet6, which is a pure C library with no Windows dependencies. The entire server + networking stack runs natively on Linux.
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Bypassing Network for Host
-
-**What:** Making the host client call server methods directly (skipping serialization/deserialization) to "optimize" the host path.
-
-**Why bad:** Creates divergent code paths between host and guest. Bugs will appear only for guests or only for hosts. Eliminates the ability to test the full pipeline without running Skyrim.
-
-**Instead:** Always go through the network stack, even on localhost. The enet6 loopback is effectively zero-cost.
-
-### Anti-Pattern 2: Wine MSVC as Long-Term Strategy
-
-**What:** The current codebase has extensive `get_config("sdk") == "/opt/msvc"` checks for a Wine-hosted MSVC toolchain. This was a stepping stone.
-
-**Why bad:** Wine MSVC is fragile (broken `lib.exe`, object library workarounds, missing UI features). MinGW is the proven path -- LethalInjection validates that MinGW cross-compilation works for production Windows DLLs running under Wine/Proton.
-
-**Instead:** Transition to MinGW cross-compilation. Remove Wine MSVC workarounds once MinGW is stable. Keep native MSVC as a secondary CI target for Windows users.
-
-### Anti-Pattern 3: Monolithic Test Binary
-
-**What:** Putting all tests in one `TPTests` executable with a single `encoding.cpp`.
-
-**Why bad:** Slow iteration, no parallelism, discourages writing tests for new features.
-
-**Instead:** Split into test targets by layer:
-- `TPTests_Encoding` -- message serialization
-- `TPTests_Server` -- server logic integration
-- `TPTests_Integration` -- multi-client simulation
-
-### Anti-Pattern 4: Conditional Compilation for Host vs Guest
-
-**What:** Using `#ifdef HOST_MODE` throughout client code to change behavior based on whether the player is hosting.
-
-**Why bad:** Combinatorial explosion of code paths, untestable without running both modes.
-
-**Instead:** The existing `HostService` pattern is correct -- the client always behaves as a client. The only difference is whether `HostService` has a running `GameServer`. All gameplay code is identical.
-
-## Build Order (Dependency Graph)
-
-Build dependencies flow strictly downward. No circular dependencies.
-
-```
-Layer 0: External packages (enet6, entt, glm, spdlog, Sol2, Lua, CEF, etc.)
-    |
-Layer 1: TiltedCore (Buffer, String, Map, Set, Stl wrappers)
-    |
-Layer 2: BaseLib, CommonLib, SkyrimEncoding, SkyrimCoopNetworking
-    |         \___________________________
-    |                                     |
-Layer 3: SkyrimTogetherServer (static)    |
-    |    Console, Resources, ESLoader     |
-    |    CrashHandler, AdminProtocol      |
-    |                                     |
-    +--[mingw only]-----------------------+
-    |                                     |
-Layer 4: SkyrimCoopReverse, SkyrimCoopHooks (Win32 APIs)
-    |    SkyrimCoopUI, SkyrimCoopUIProcess (CEF + D3D11)
-    |
-Layer 5: SkyrimTogetherClient.dll (links everything)
-         SkyrimServerRunner (links Layer 0-3, native only)
-         TPTests (links Layer 0-3, native only)
-```
-
-**Critical path for MinGW migration:**
-1. Layer 0: Get all packages building under MinGW (enet6, entt, spdlog are portable; CEF, minhook, DirectXTK need MinGW validation)
-2. Layer 1-2: Should compile without changes (already platform-independent)
-3. Layer 3: Already compiles on Linux natively; MinGW should be trivial
-4. Layer 4: Hooks/Reverse use Win32 APIs that exist in MinGW headers. CEF is pre-built -- need MinGW-compatible CEF binaries or build from source
-5. Layer 5: Final linking with MinGW producing .dll instead of MSVC .dll
-
-**Build order implications for phases:**
-- Phase 1: Get Layers 0-3 compiling under `xmake f -p mingw` and tests passing natively
-- Phase 2: Get Layer 4 compiling (Win32 hooks via MinGW, CEF integration)
-- Phase 3: Full Layer 5 producing a loadable SKSE DLL
-- Phase 4: Integration testing with Wine/Proton
-
-## How LethalInjection Pattern Maps to This Project
-
-### What Transfers Directly
-
-| LethalInjection | SkyrimCoop | Notes |
-|-|-|-|
-| xPack MinGW-w64 GCC 14.3.0 toolchain | Same toolchain, same `$HOME/.local/xPacks/` path | Proven working |
-| `-static -static-libgcc -static-libstdc++` link flags | Same flags for client DLL | Eliminates MinGW runtime dependency |
-| `CMAKE_SYSTEM_NAME Windows` + cross-prefix detection | XMake `--mingw=` does this automatically | XMake is easier than CMake here |
-| Separate build dirs per target (native vs cross) | XMake handles this natively with `-p mingw` vs `-p linux` | No manual separation needed |
-| Wine detection via `ntdll.dll` export check | Already relevant for client DLL running under Proton | Copy approach |
-| `BOOL APIENTRY DllMain()` entry point | SkyrimCoop uses `SKSEPluginLoad()` via SKSE | Different entry mechanism but same DLL structure |
-| Static lib core + thin DLL wrapper | Already the pattern: `SkyrimTogetherServer` (static) linked into client DLL | Validated approach |
-
-### What Does NOT Transfer
-
-| LethalInjection | Why Not for SkyrimCoop |
-|-|-|
-| Three-layer architecture (frontend/middleware/backend) | SkyrimCoop has no separate frontend or middleware -- everything runs inside Skyrim or as a standalone server |
-| MCP protocol between layers | No IPC needed -- server is embedded in client process |
-| `/proc/pid/mem` reading for debugging | Not relevant -- use standard GDB/Wine debugging |
-| LuaJIT cross-compilation for DLL | SkyrimCoop uses plain Lua 5.1 via Sol2, not LuaJIT |
-| MinHook initialization in DllMain | SKSE handles hooking setup differently |
-
-### What Adapts With Modification
-
-| LethalInjection Pattern | SkyrimCoop Adaptation |
-|-|-|
-| CMake presets for toolchain selection | XMake `xmake f -p mingw --mingw=/path` (simpler, no preset files needed) |
-| `--allow-multiple-definition` linker flag | May be needed if MinGW and MSVC link behavior differs for TiltedCore symbols |
-| `GoogleTest` in native builds only | `Catch2` in native builds only (already using Catch2) |
-| Sanitizer preset (ASan/UBSan) | Add `xmake f --policies=build.sanitizer.address` for native test builds |
-| `cmake-format` / `clang-tidy` static analysis | Keep existing `clang-format`, add `clang-tidy` for native builds |
-
-## MinGW-Specific Concerns for SkyrimCoop
-
-### Package Compatibility Matrix
-
-| Package | MinGW Compatible | Notes |
-|-|-|-|
-| enet6 | YES | Pure C, no platform issues |
-| entt | YES | Header-only C++20 |
-| spdlog | YES | Header-only with fmt |
-| glm | YES | Header-only math |
-| Sol2 | YES | Header-only Lua bindings |
-| Lua 5.1 | YES | Pure C |
-| mimalloc | YES | Has MinGW support |
-| hopscotch-map | YES | Header-only |
-| snappy | YES | Pure C++ |
-| cryptopp | LIKELY | Has MinGW makefiles, verify |
-| minhook | YES | LethalInjection uses it with MinGW |
-| mem | VERIFY | Signature scanning lib, likely fine |
-| xbyak | VERIFY | JIT assembler, should work |
-| CEF | UNCERTAIN | Pre-built binaries are MSVC; may need to link against import libs or find MinGW-compatible build |
-| DirectXTK | UNCERTAIN | Microsoft library, typically MSVC; may need MinGW port or replacement |
-| discord SDK | LOW RISK | Pre-built, but has C API that should work |
-| sentry-native | VERIFY | Has CMake build, should support MinGW |
-| sqlite3 | YES | Pure C |
-| catch2 | YES | Header-only |
-| libuv | YES | Has MinGW support |
-| zlib | YES | Pure C |
-
-**Highest risk:** CEF and DirectXTK. CEF provides MSVC-compiled `.lib` files; linking these from MinGW requires import library conversion or building CEF from source with MinGW. DirectXTK similarly assumes MSVC. These are both Tier 3 (client-only) concerns and should be the last items addressed.
-
-## Scalability Considerations
-
-| Concern | 2 Players (Target) | 4 Players (Max) | Notes |
-|-|-|-|-|
-| Server tick rate | 60Hz embedded in client frame loop | 60Hz, fine | enet6 handles this easily |
-| Network bandwidth | ~5KB/s per player | ~15KB/s total | Differential serialization keeps this low |
-| Entity count | Host's loaded NPCs (~50-100) | Same | Host authoritative, no distributed ownership |
-| Memory overhead | ~20MB for server World | ~25MB | Negligible vs Skyrim's 4-8GB |
-| Build time | 2-3 min full rebuild | N/A | Unity build option exists for faster compilation |
-| Test execution | < 10s for unit tests | N/A | Integration tests may take 30-60s with network simulation |
-
-## Sources
-
-- LethalInjection reference implementation: `/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d5/Projects/LethalInjection/` (HIGH confidence -- same developer, proven pattern)
-- XMake cross-compilation docs: [xmake.io/guide/basic-commands/cross-compilation.html](https://xmake.io/guide/basic-commands/cross-compilation.html) (HIGH confidence)
-- XMake MinGW platform: [xmake.io/guide/basic-commands/build-configuration.html](https://xmake.io/guide/basic-commands/build-configuration.html) (HIGH confidence)
-- Existing SkyrimCoop codebase analysis: `Code/client/Services/HostService.cpp`, `Code/server/GameServer.h`, `Code/libraries/networking/` (HIGH confidence)
-- EnTT ECS: [github.com/skypjack/entt](https://github.com/skypjack/entt) (HIGH confidence)
-- enet6 networking: Pure C UDP library, platform-independent (HIGH confidence)
+# Architecture Research
+
+**Domain:** Embedded host-authoritative server in a single MinGW SKSE DLL
+**Researched:** 2026-03-30
+**Confidence:** HIGH — based on direct code inspection of all integration points
 
 ---
 
-*Architecture research: 2026-03-27*
+## Standard Architecture
+
+### System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                SkyrimTogetherClient.dll (host process)              │
+│                                                                     │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │  Client World (entt::registry)                                 │ │
+│  │  ├─ TransportService  <── dual-mode: loopback or enet6         │ │
+│  │  ├─ CharacterService, InventoryService, MagicService, etc.     │ │
+│  │  └─ HostService  ──────────────────────────────┐               │ │
+│  └────────────────────────────────────────────────│───────────────┘ │
+│                           ┌────────────────────────┘               │
+│                           │ owns + ticks each frame                 │
+│                           ▼                                         │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │  GameServer (Server::GameServer)                               │ │
+│  │  ├─ Server World (entt::registry — separate instance)          │ │
+│  │  │   ├─ PlayerService, CharacterService, InventoryService      │ │
+│  │  │   ├─ CalendarService, MapService, QuestService, MagicService│ │
+│  │  │   └─ ScriptService (Lua/Sol2)                               │ │
+│  │  ├─ enet6 listener port (remote clients connect here)          │ │
+│  │  ├─ InjectMessage(bytes, size, connectionId)                   │ │
+│  │  └─ SetLoopbackRoute(connectionId, sendCallback)               │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                    ^                   |                             │
+│                    |                   v                             │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │  LoopbackTransport (in-process, no socket)                     │ │
+│  │  ├─ ClientMessage → serialize → GameServer::InjectMessage()    │ │
+│  │  └─ GameServer send callback → deserialize → client handlers   │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│   SkyrimTogetherClient.dll (peer process) │
+│   ├─ TransportService (enet6 only)        │
+│   └─ CharacterService, etc.              │
+│   connects to host IP:10578 via enet6     │
+└──────────────────────────────────────────┘
+```
+
+### Component Responsibilities
+
+| Component | Responsibility | Location |
+|-----------|---------------|----------|
+| `HostService` | Owns `GameServer` unique_ptr; calls `GameServer::Update()` from client UpdateEvent each frame; manages host lifecycle (StartHosting / StopHosting) | `Code/client/Services/HostService.h` — EXISTS |
+| `LoopbackTransport` | In-process message bridge: serialize `ClientMessage` into `GameServer::InjectMessage()`; register server send callback via `SetLoopbackRoute()` | `Code/native_client/transport/LoopbackTransport.h` — PORT to `Code/client/transport/` |
+| `ServerMessageRouter` | Deserialize raw server message bytes into typed `ServerMessage` objects; dispatch to per-opcode handlers | `Code/native_client/transport/ServerMessageRouter.h` — PORT to `Code/client/transport/` |
+| `TransportService` | Dual-mode: in host mode delegates `Send()` to `LoopbackTransport`; in client mode serializes + sends via enet6. `OnConsume()` handles inbound bytes in both modes. | `Code/client/Services/TransportService.h` — MODIFY |
+| Client `World` | `entt::registry` for all client-side ECS; holds all client services in context; already includes `HostService` in `World.h` | `Code/client/World.h` — EXISTS |
+| `GameServer` | `TiltedPhoques::Server` subclass; enet6 port listener for remote clients; `InjectMessage()` injects client bytes directly; `SetLoopbackRoute()` registers callback for server->host delivery | `Code/server/GameServer.h` — EXISTS with loopback API |
+| Server `World` | Separate `entt::registry` for authoritative server state; owned by `GameServer`; has all server services in context | `Code/server/World.h` — EXISTS |
+
+---
+
+## Recommended Project Structure
+
+The build system already has the dependency graph wired. No new directories are mandatory, but porting the transport layer into the client is the clearest path.
+
+```
+Code/
+├── client/
+│   ├── Services/
+│   │   ├── HostService.h/.cpp        # EXISTS -- manages GameServer embed + lifecycle
+│   │   ├── TransportService.h/.cpp   # MODIFY -- add m_pLoopback, dual-mode Send()
+│   │   └── ... (all other services unchanged)
+│   ├── transport/                    # CREATE -- port from Code/native_client/transport/
+│   │   ├── LoopbackTransport.h/.cpp  # PORT -- remove TcpClient dependency
+│   │   └── ServerMessageRouter.h/.cpp # PORT -- pure deserialization, no changes
+│   └── World.h/.cpp                  # EXISTS -- HostService already in ctx()
+├── server/
+│   └── GameServer.h/.cpp             # EXISTS -- InjectMessage + SetLoopbackRoute in place
+└── encoding/                         # UNCHANGED -- shared message definitions
+```
+
+### Structure Rationale
+
+- **`Code/client/transport/` subfolder:** Mirrors the pattern already established in `Code/native_client/transport/`. Keeps loopback and message routing isolated from game service logic. Avoids polluting `Services/` with networking plumbing.
+- **No server directory changes:** The server is linked as a static library. `Code/client/xmake.lua` already has `add_deps("SkyrimTogetherServer")` and `add_includedirs("../server")`. No new build configuration required.
+- **No World merge:** Two separate `entt::registry` instances coexist. Server World owns authoritative actor state under `ConnectionId_t` keys; client World owns local/remote actor views under form IDs and server IDs. Merging requires rewriting every server service handler — the loopback delivers a working system first.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: In-Process Loopback Bridge
+
+**What:** `LoopbackTransport` serializes a `ClientMessage` into a raw byte buffer (same format as enet6 would send), then calls `GameServer::InjectMessage(buffer, size, kHostConnectionId)` directly. For the return direction, `GameServer::SetLoopbackRoute(kHostConnectionId, callback)` stores a lambda; `GameServer::Send()` checks if the target `ConnectionId_t == m_loopbackConnectionId` and calls the lambda instead of enet6.
+
+**When to use:** Every message the host's client sends. The loopback replaces the enet6 socket path entirely for the host player.
+
+**Trade-offs:** One serialization+deserialization round-trip per message in host mode. This is microseconds (in-process memcpy) vs milliseconds (enet6 UDP). The round-trip is the correct trade-off because it preserves all server-side validation logic unchanged.
+
+**Key constant:** `LoopbackTransport::kHostConnectionId = 0xFFFF'FFFF'0000'0001ULL` — large enough that it cannot collide with real enet6 peer IDs (assigned from peer pointer addresses, which are small integers on 64-bit Windows under typical heap layout).
+
+```cpp
+// From Code/native_client/transport/LoopbackTransport.h (to be ported)
+void LoopbackTransport::SendToServer(const ClientMessage& acMessage)
+{
+    TiltedPhoques::Buffer buffer(1 << 16);
+    TiltedPhoques::Buffer::Writer writer(&buffer);
+    writer.WriteBits(0, 8); // packet type prefix byte (same as enet6 path)
+    acMessage.Serialize(writer);
+    m_server.InjectMessage(buffer.GetWriteData(), writer.Size(), kHostConnectionId);
+}
+```
+
+### Pattern 2: Dual-Mode TransportService
+
+**What:** `TransportService` gains a `std::unique_ptr<LoopbackTransport> m_pLoopback` member and a `SetHostMode(GameServer&)` method. In `Send()`, if `m_pLoopback` is non-null, route through it; otherwise use the existing enet6 path. All message handler registration and `m_messageHandlers[]` array remain identical in both modes.
+
+**When to use:** Callers (CharacterService, InventoryService, MagicService, etc.) call `m_transport.Send(msg)` as today. No changes needed in any caller.
+
+**Trade-offs:** A single null pointer check per send. Alternatives (compile-time specialization, separate class per mode) add complexity for no practical gain at 2-4 player scale.
+
+```cpp
+// Proposed addition to TransportService.cpp
+bool TransportService::Send(const ClientMessage& acMessage) const noexcept
+{
+    if (m_pLoopback)  // host mode: in-process delivery
+    {
+        m_pLoopback->SendToServer(acMessage);
+        return true;
+    }
+    // client mode: existing enet6 path unchanged
+    TiltedPhoques::Buffer buffer(1 << 16);
+    TiltedPhoques::Buffer::Writer writer(&buffer);
+    writer.WriteBits(0, 8);
+    acMessage.Serialize(writer);
+    TiltedPhoques::PacketView packet(
+        reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+    return Client::Send(&packet);
+}
+```
+
+### Pattern 3: "Host Doesn't Send to Itself" via Broadcast Exclusion
+
+**What:** `GameServer::SendToPlayers(const ServerMessage&, const Player* apExcludeSender)` already takes an exclusion parameter. When the server processes a message from `kHostConnectionId`, it calls `SendToPlayers(msg, pHostPlayer)`, skipping the loopback entirely for that broadcast. The host's client state is updated directly by the originating client service — not by receiving a server echo.
+
+**When to use:** Every server broadcast that originates from host-side game state changes (position updates, NPC spawns, AI state, etc.).
+
+**Trade-offs:** The host's client `CharacterService::OnReferencesMoveRequest` only processes entities with `RemoteComponent` — it already ignores local player. No additional guard needed. The exclusion in `SendToPlayers` prevents the echo. This keeps client services unaware of host mode.
+
+### Pattern 4: HostService Ticking GameServer on Client Frame
+
+**What:** `HostService::OnUpdate()` is connected to the client's `UpdateEvent` dispatcher. It calls `m_pGameServer->Update()` (which calls `TiltedPhoques::Server::Update()`, processing enet6 events, then `OnUpdate()` which fires the server's own `UpdateEvent` for server services).
+
+**When to use:** Always. The host's Skyrim game loop drives both client and server ticks. `HostService` already implements this.
+
+**Trade-offs:** Single-threaded execution — a slow server tick stalls the client frame. Acceptable at 2-4 player scale. A background thread would need mutex protection on the server World (not thread-safe), so defer until profiling shows a problem.
+
+---
+
+## Data Flow
+
+### Host: Local Player Movement (complete pipeline)
+
+```
+Skyrim's game thread (via SKSE hook)
+    -> CharacterService::OnUpdate() detects LocalComponent position dirty
+    -> Creates ClientReferencesMoveRequest
+    -> TransportService::Send(msg)
+        [host mode: m_pLoopback != nullptr]
+        -> LoopbackTransport::SendToServer(msg)
+            -> serializes to buffer (same format as enet6)
+            -> GameServer::InjectMessage(buffer, kHostConnectionId)
+                -> GameServer::OnConsume()
+                -> ClientMessageFactory::Extract() parses opcode
+                -> m_messageHandlers[kReferencesMoveRequest](msg, kHostConnectionId)
+                -> Server::CharacterService::OnReferencesMoveRequest()
+                    -> updates authoritative MovementComponent in server World
+                -> GameServer::SendToPlayers(ServerReferencesMoveRequest, excludeHostPlayer)
+                    -> for each remote peer: enet6 Send()
+                    -> loopback callback NOT called (host excluded)
+```
+
+### Remote Peer: Position Update Received
+
+```
+Remote peer receives ServerReferencesMoveRequest via enet6
+    -> TiltedPhoques::Client::OnConsume() fires
+    -> TransportService::OnConsume() (client mode)
+    -> ServerMessageRouter::OnServerMessage()
+    -> ServerMessageFactory::Extract() -> ServerReferencesMoveRequest
+    -> m_messageHandlers[kServerReferencesMoveRequest](msg)
+    -> CharacterService::OnReferencesMoveRequest()
+    -> Updates InterpolationComponent.targetPos for RemoteComponent entity
+    -> InterpolationSystem::Update() runs each frame
+        -> glm::mix(currentPos, targetPos, alpha)  (kLerpSpeed=8.0)
+    -> ApplyRemotePositions() writes smoothed position to Skyrim actor via hooks
+```
+
+### Remote Peer: Input Sent to Host
+
+```
+Remote peer's CharacterService detects local player movement
+    -> Creates ClientReferencesMoveRequest
+    -> TransportService::Send(msg)
+        [client mode: m_pLoopback == nullptr]
+        -> serializes + sends via enet6 to host IP:10578
+            -> Host's GameServer::OnConsume() receives
+            -> Processes, updates server World authoritative position
+            -> GameServer::SendToPlayers(ServerReferencesMoveRequest, excludeRemotePeer)
+                -> loopback callback fires for host player
+                    -> Host's TransportService::OnConsume() receives bytes
+                    -> ServerMessageRouter::OnServerMessage()
+                    -> CharacterService::OnReferencesMoveRequest()
+                    -> updates RemoteComponent entity for the remote peer's actor
+                -> enet6 sends to all OTHER remote peers
+```
+
+### Host Startup Sequence
+
+```
+1. World::ctor() registers HostService in ctx()
+2. User triggers "Host" (UI or auto-launch)
+3. HostService::StartHosting(port=10578)
+    a. Creates ConsoleRegistry
+    b. Creates GameServer(console)
+       -> GameServer::ctor() calls TiltedPhoques::Server::Host(port, tickRate)
+       -> Binds enet6 UDP port
+    c. Creates LoopbackTransport(gameServer)
+    d. Registers loopback route:
+       gameServer.SetLoopbackRoute(kHostConnectionId, [transport](data, size) {
+           transport.OnConsume(data, size);  // inbound server->host path
+       });
+    e. Sets host mode on transport:
+       world.GetTransport().SetHostMode(gameServer)  // stores m_pLoopback
+    f. Sends AuthenticationRequest via loopback
+       -> Host "authenticates" with its own embedded server
+       -> PlayerService creates Player entity with IsHost=true flag
+    g. HostService connects OnUpdate() to client UpdateEvent dispatcher
+4. Each frame: HostService::OnUpdate() calls GameServer::Update()
+5. Remote peers connect to host IP:10578 normally
+```
+
+### Client Fresh Join Sequence
+
+```
+1. Client TransportService::Connect("hostIP:10578")
+2. TiltedPhoques::Client::OnConnected() fires
+3. Client sends AuthenticationRequest (version, mod list)
+4. GameServer::HandleAuthenticationRequest() validates, creates Player entity
+5. GameServer sends AuthenticationResponse (accepted, localPlayerId)
+6. GameServer sends full baseline:
+   -> CharacterSpawnRequest for every currently-synced actor
+7. Client CharacterService::OnCharacterSpawn() creates RemoteComponent entities
+8. Client sends AssignCharacterRequest for local player
+9. Normal sync: fast-path events + 1-second WorldStateSync reconciliation
+```
+
+---
+
+## Scaling Considerations
+
+| Players | Architecture | Notes |
+|---------|-------------|-------|
+| 1 (solo host, no peers) | Single-threaded, loopback only | Loopback fires but enet6 peer list is empty, zero network traffic |
+| 2 (host + 1 peer) | Target case — single-threaded fine | All testing targets this configuration |
+| 4 (host + 3 peers) | Single-threaded fine | 3 enet6 peers + 1 loopback |
+| 8 (host + 7 peers) | Single-threaded starts to show latency | Server thread separation needed if server tick > 5ms |
+
+### Scaling Priorities
+
+1. **First bottleneck:** Server World iteration over all `OwnerComponent` entities per tick. At 4 players with 50 synced NPCs each = 200 entities. Well within single-thread budget at 60 tick.
+2. **Second bottleneck:** `SendToPlayers` serializes the same message N times (once per peer). At 4 peers this is 4x serialization of the same bytes. Optimization: serialize once and memcpy to all peers. Irrelevant until profiling shows it.
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: True P2P World Merge (no loopback, no separate server World)
+
+**What people do:** Eliminate `GameServer` entirely; make the host's client World directly authoritative; replace `GameServer` with a thin `NetworkBridge` that only broadcasts. This is what `P2P_ARCHITECTURE.md` describes as the end goal.
+
+**Why it's wrong as a first step:** Every server service (`CharacterService`, `PlayerService`, `InventoryService`, etc.) is written against `ConnectionId_t`-keyed `PlayerManager`. All message handlers dispatch via `PacketEvent<T>(msg, pPlayer)`. Merging requires rewriting every handler and removing the `PlayerManager`. The loopback approach preserves all existing server validation logic and delivers two players in-game faster.
+
+**Do this instead:** Implement loopback first. After the two-player session is stable, the World merge can be done incrementally one service at a time. The loopback is not a permanent architecture; it's the correct first step.
+
+### Anti-Pattern 2: Running GameServer on a Background Thread
+
+**What people do:** Start a `std::thread` for the server loop to avoid potential frame stalls.
+
+**Why it's wrong:** The server `World` (entt::registry) is not thread-safe. `InjectMessage()` and the loopback send callback are both called from the client thread. Without mutexes around every registry access, concurrent access from client and server threads is a data race. The current design explicitly avoids this by calling server ticks from `HostService::OnUpdate()` on the same thread as the client.
+
+**Do this instead:** Keep `HostService::OnUpdate()` ticking the server from the client thread. If profiling later shows the server tick is expensive, add a mutex-guarded SPSC command queue — but only when the problem is measured.
+
+### Anti-Pattern 3: Per-Service Host-Mode Guards
+
+**What people do:** Add `if (World::Get().GetHostService().IsHosting()) { /* skip send or take shortcut */ }` checks inside `CharacterService`, `InventoryService`, etc.
+
+**Why it's wrong:** Scatters host-mode logic across every service. Creates divergent code paths that are difficult to test and audit. The host/client distinction belongs only in the transport layer.
+
+**Do this instead:** All mode routing lives in `TransportService::Send()`. Services call `m_transport.Send(msg)` as today. The transport decides loopback vs enet6. Services are unaware of mode.
+
+### Anti-Pattern 4: Localhost enet6 Connection for Host
+
+**What people do:** Have the host's `TransportService` connect to `127.0.0.1:10578` via enet6 (the original STR architecture).
+
+**Why it's wrong:** This is explicitly what `P2P_ARCHITECTURE.md` documents as the "current problem" — double serialization, double bandwidth, loopback enet6 latency, duplicate echo messages. The abandoned v1.0 relay DLL architecture similarly used TCP IPC and demonstrated the fragility cost. The in-process `LoopbackTransport` eliminates all of this at negligible cost.
+
+**Do this instead:** `LoopbackTransport::SendToServer()` calls `GameServer::InjectMessage()` directly. No socket, no connection state, no latency.
+
+### Anti-Pattern 5: Symmetric Message Echo for Host
+
+**What people do:** Let `GameServer::SendToPlayers()` include the host's loopback in every broadcast, mirroring the dedicated-server behavior where the "server always echoes to all clients."
+
+**Why it's wrong:** Host's client services originate changes; they already have the local state. Echoing the change back causes double-application in `CharacterService` and corrupts InterpolationComponent targets.
+
+**Do this instead:** Pass `pHostPlayer` as `apExcludeSender` in `GameServer::SendToPlayers()` when the originator is the host. The exclusion parameter already exists — see `GameServer::SendToPlayers(const ServerMessage&, const Player* apExcludeSender)`.
+
+---
+
+## Integration Points
+
+### Files That Require Changes
+
+| File | Change | Phase |
+|------|--------|-------|
+| `Code/client/Services/TransportService.h` | Add `std::unique_ptr<LoopbackTransport> m_pLoopback`; add `void SetHostMode(Server::GameServer&) noexcept` | Phase 1 |
+| `Code/client/Services/TransportService.cpp` | Add host-mode branch in `Send()`; wire loopback `DeliverToHost()` callback to `OnConsume()` | Phase 1 |
+| `Code/client/Services/HostService.cpp` | Implement `StartHosting()`: create ConsoleRegistry + GameServer, create LoopbackTransport, register loopback route, call `TransportService::SetHostMode()`, send AuthenticationRequest | Phase 1 |
+| `Code/client/World.cpp` | Verify `HostService` is in ctx() and `OnUpdate()` is connected to dispatcher | Phase 1 |
+
+### Files to Port (native_client to client)
+
+| Source | Destination | Notes |
+|--------|-------------|-------|
+| `Code/native_client/transport/LoopbackTransport.h/.cpp` | `Code/client/transport/LoopbackTransport.h/.cpp` | Remove `TcpClient` dependency; keep `InjectMessage` and loopback callback pattern unchanged |
+| `Code/native_client/transport/ServerMessageRouter.h/.cpp` | `Code/client/transport/ServerMessageRouter.h/.cpp` | Pure deserialization + dispatch logic; no changes needed |
+
+### Build System (already complete)
+
+| What | Where | Status |
+|------|-------|--------|
+| `add_deps("SkyrimTogetherServer")` | `Code/client/xmake.lua` | Already present |
+| `add_includedirs("../server", {public = false})` | `Code/client/xmake.lua` | Already present |
+| Server static lib links server World + all services | `Code/server/xmake.lua` | Already present |
+
+No XMake changes needed. The dependency graph is complete.
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `TransportService` (client) ↔ `GameServer` | `LoopbackTransport::SendToServer()` and loopback send callback | In-process, no socket, no thread boundary |
+| `HostService` ↔ `GameServer` | Direct method calls (`Update()`, `Initialize()`, `Kill()`) | HostService owns GameServer via `unique_ptr` |
+| Client `World` ↔ Server `World` | Zero shared entt entities; message protocol only | Two completely separate `entt::registry` instances |
+| `GameServer` ↔ remote enet6 peers | `TiltedPhoques::Server` enet6 socket | Unchanged from current standalone server architecture |
+| Server `CharacterService` ↔ Client `CharacterService` | Typed message protocol (`ServerReferencesMoveRequest`, `CharacterSpawnRequest`, etc.) | Opcode-based dispatch; unchanged |
+
+---
+
+## Phase Build Order
+
+Based on integration dependencies:
+
+1. **Port LoopbackTransport and ServerMessageRouter** into `Code/client/transport/` — no external dependencies, unit-testable standalone via replay harness.
+2. **Add `SetHostMode()` to TransportService** — dual-mode `Send()` branch; depends on (1).
+3. **Implement `HostService::StartHosting()`** — construct GameServer + ConsoleRegistry, create LoopbackTransport, register callback, call `SetHostMode`, send AuthenticationRequest; depends on (1) + (2).
+4. **Wire HostService into World** — verify ctx() registration and `OnUpdate()` connection to dispatcher; depends on (3).
+5. **Test loopback auth flow** (replay or integration test) — host authenticates with its own server, receives AuthenticationResponse + AssignCharacterResponse; depends on (4).
+6. **Character sync and spawn pipeline** — CharacterService, InventoryService, etc. are unchanged; they work once the loopback transport delivers messages correctly.
+
+---
+
+## Stale References to Update
+
+The following references in project docs use v1.0 terminology that no longer matches the current architecture:
+
+- `NETWORK-ARCHITECTURE.md` interpolation pipeline section still mentions "relay DLL" and "native process" as component names. The principles (two-layer sync, interpolation, authority model) are correct; replace component names with `CharacterService` / `TransportService` / `LoopbackTransport`.
+- `NETWORK-ARCHITECTURE.md` "Relay DLL Architecture" section describes the abandoned TCP IPC design. It should be replaced with the LoopbackTransport description.
+- `P2P_ARCHITECTURE.md` describes the long-term merged-World goal correctly but should note that the loopback bridge is the v2.0 first step, not a final architecture.
+
+---
+
+## Sources
+
+- `Code/client/Services/HostService.h` — embed lifecycle interface (HIGH confidence)
+- `Code/client/Services/TransportService.h` — current network interface (HIGH confidence)
+- `Code/client/World.h` — client context services, HostService already registered (HIGH confidence)
+- `Code/server/GameServer.h` — `InjectMessage()`, `SetLoopbackRoute()`, `SendToPlayers()` APIs (HIGH confidence)
+- `Code/server/GameServer.cpp` — constructor, `OnConsume()`, `OnDisconnection()`, `SendToPlayers()` implementations (HIGH confidence)
+- `Code/native_client/transport/LoopbackTransport.h` — proven loopback pattern (HIGH confidence)
+- `Code/native_client/transport/ServerMessageRouter.h/.cpp` — proven message routing pattern (HIGH confidence)
+- `Code/client/xmake.lua` — build dependency graph, `add_deps("SkyrimTogetherServer")` confirmed (HIGH confidence)
+- `.planning/NETWORK-ARCHITECTURE.md` — authority model, two-layer sync, interpolation pipeline (HIGH confidence)
+- `P2P_ARCHITECTURE.md` — loopback vs merged-World trade-off rationale (HIGH confidence)
+
+---
+*Architecture research for: SkyrimCoop MinGW full client with embedded host-authoritative server*
+*Researched: 2026-03-30*

@@ -1,347 +1,388 @@
 # Domain Pitfalls
 
-**Domain:** MSVC-to-MinGW cross-compilation, Wine/Proton DLL debugging, MMO-to-co-op conversion, game sync testing
-**Researched:** 2026-03-27
+**Domain:** MinGW full client build with embedded host-authoritative server (v2.0 milestone)
+**Researched:** 2026-03-30
+**Confidence:** HIGH for ABI and threading issues (confirmed from codebase), MEDIUM for enet6 update semantics
+
+> **Note:** v1.0 pitfalls (basic MSVC extension compatibility, MinHook feasibility smoke test,
+> CEF/DirectXTK exclusion, XMake MinGW platform config) are resolved. See
+> `.planning/archive/v1.0-phases/` for that history. This document covers v2.0-specific
+> risks: full client compilation, embedded server in DLL, Skyrim struct layout at scale,
+> threading, and host self-routing.
+
+---
 
 ## Critical Pitfalls
 
-Mistakes that cause rewrites, weeks of debugging, or fundamental architecture failures.
+### Pitfall 1: Itanium Tail-Padding Reuse Silently Corrupts Skyrim Struct Overlays
 
-### Pitfall 1: MSVC Extensions Scattered Through Codebase Will Silently Miscompile Under MinGW
+**What goes wrong:**
 
-**What goes wrong:** The codebase uses MSVC-specific constructs that MinGW either ignores, miscompiles, or rejects outright. Confirmed in codebase: `__declspec(dllexport/dllimport)` (28+ uses), `__declspec(align(8))` (struct alignment in SaveLoad.h, BSGraphicsRenderer.h), `__declspec(noinline)` (DebugService, FaceGenSystem), `__forceinline` (likely in TiltedCore), `#pragma comment(lib, ...)` (6+ uses for auto-linking gdi32, dwmapi, d3dcompiler, version.lib), `__cdecl`/`__stdcall` calling conventions (LoadingScreen.cpp, D3D11Hook.cpp), `/SAFESEH:NO` linker flag (immersive_launcher), and `/bigobj` MSVC-only flag.
+GCC (MinGW) uses the Itanium C++ ABI, which allows derived classes to reuse unused "tail padding" of base classes. MSVC never does this. Every Skyrim struct in `Games/Skyrim/` that has a base class with trailing unused bytes is laid out differently under MinGW than under MSVC. The code already disables `static_assert` layout checks on MinGW via `SKYRIM_STRUCT_ASSERT` in `TiltedOnlinePCH.h` line 27, with a TODO comment: "Upgrade to GCC 12+ and use `-flayout-compat=ms`." The toolchain is GCC 14.3 — the upgrade has happened. The TODO is stale. The flag must be added now.
 
-**Why it happens:** MinGW supports *some* `__declspec` variants but not all. `#pragma comment(lib)` is completely ignored by MinGW -- it is an MSVC auto-link directive. The `/bigobj` flag has no MinGW equivalent (MinGW always supports large object files). Struct alignment via `__declspec(align(N))` should use `__attribute__((aligned(N)))` or C++11 `alignas(N)` instead. The `/MT` static runtime linkage (used in 5+ xmake.lua files) has no MinGW equivalent since MinGW links against its own runtime.
+Without `-flayout-compat=ms`, reading `Actor::flags`, `TESObjectREFR::loadedData`, `TESNPC::baseData`, or any struct field in the `Games/Skyrim/` hierarchy may access wrong memory offsets. This produces data corruption that looks like "Skyrim state weirdness" during testing, not a crash or assertion, making it extremely difficult to diagnose.
 
-**Consequences:**
-- `#pragma comment(lib)` silently ignored: DLL fails to load at runtime with missing symbol errors, no compile-time warning
-- `__declspec(align(8))` may produce wrong struct layout: memory corruption when reading Skyrim game structures
-- Calling convention mismatches between MinGW-compiled DLL and MSVC-compiled Skyrim: stack corruption, crashes on function return
-- Missing library links cause LoadLibrary failures with no useful error message
+**Why it happens:**
 
-**Prevention:**
-1. Create a compatibility header (`compat/msvc_compat.h`) that maps MSVC extensions to GCC equivalents:
-   ```cpp
-   #ifdef __GNUC__
-   #define DECLSPEC_ALIGN(x) __attribute__((aligned(x)))
-   #define FORCE_INLINE __attribute__((always_inline)) inline
-   #define FORCE_NOINLINE __attribute__((noinline))
-   #else
-   #define DECLSPEC_ALIGN(x) __declspec(align(x))
-   #define FORCE_INLINE __forceinline
-   #define FORCE_NOINLINE __declspec(noinline)
-   #endif
+The compat layer was added defensively in v1.0 to unblock compilation. The `-flayout-compat=ms` flag requires GCC 12+, which wasn't confirmed at the time. Now that GCC 14.3 is the toolchain, the flag is available but the TODO was never converted to a task.
+
+**How to avoid:**
+
+1. Add `-flayout-compat=ms` to `xmake.lua` for all MinGW targets:
+   ```lua
+   if is_plat("mingw") then
+       add_cxflags("-flayout-compat=ms", {force = true})
+   end
    ```
-2. Replace all `#pragma comment(lib, ...)` with explicit linker flags in xmake.lua/CMakeLists.txt
-3. Add `-Wall -Wextra -Wpedantic` to catch remaining MSVC-isms
-4. Use `static_assert(sizeof(StructName) == EXPECTED)` for every struct that maps to Skyrim memory layout
+2. Change `SKYRIM_STRUCT_ASSERT` in `TiltedOnlinePCH.h` to:
+   ```cpp
+   #define SKYRIM_STRUCT_ASSERT(...) static_assert(__VA_ARGS__)
+   ```
+   (Remove the `#ifndef _MSC_VER` guard entirely — with `-flayout-compat=ms`, GCC lays out structs identically to MSVC, so the assertions are valid on both.)
+3. Add the flag first, then re-enable assertions one header file at a time, fixing any that fail.
 
-**Detection:** Compile with MinGW using `-Wpedantic`. Any `#pragma comment` will produce warnings. Struct size mismatches will hit static_asserts. Missing symbols will fail at link time if libraries are properly required.
+**Warning signs:**
 
-**Phase:** Milestone 1 (Linux toolchain) -- this is the first wall you will hit.
+- Actor health shows wrong value even though server sent the correct value.
+- Position offsets are off by 4-8 bytes, causing actors to appear shifted in space.
+- `static_assert(sizeof(Actor) == EXPECTED_SIZE)` passes in MSVC build but you don't know if MinGW agrees because the assert is suppressed.
+- Any "Skyrim struct weirdness" where the game does something unexpected but no crash occurs.
 
-**Confidence:** HIGH -- confirmed by direct codebase grep showing 28+ `__declspec` uses, 6+ `#pragma comment(lib)` uses.
-
----
-
-### Pitfall 2: MinHook and Xbyak JIT Are x86 Windows-Only -- They Cannot Cross-Compile from MinGW Trivially
-
-**What goes wrong:** The codebase depends on MinHook (v1.3.3) for API hooking and Xbyak (v7.06) for JIT code generation. Both are Windows-native libraries that use Windows APIs (`VirtualProtect`, `FlushInstructionCache`, `VirtualAlloc`) and x86 assembly. MinHook specifically uses MSVC inline assembly or intrinsics that MinGW may not support identically. Xbyak generates x86/x64 machine code at runtime, which requires Windows memory management APIs.
-
-**Why it happens:** These libraries are designed for in-process hooking on Windows. They compile on MSVC and assume MSVC calling conventions. Cross-compiling them with MinGW is theoretically possible (both libraries have some MinGW support) but the integration with TiltedPhoques' `FunctionHookManager` adds complexity -- it wraps MinHook with commit/rollback semantics that may use MSVC-specific thread-local storage or exception handling patterns.
-
-**Consequences:**
-- MinHook may compile but produce hooks with wrong calling conventions, causing stack corruption when hooks fire inside Skyrim
-- Xbyak JIT-generated trampolines may use wrong register-saving conventions (MSVC x64 ABI vs SysV ABI confusion)
-- FunctionHookManager's `TP_HOOK_COMMIT` macro may expand differently under GCC
-
-**Prevention:**
-1. Build MinHook and Xbyak separately first as a smoke test -- compile and run their own test suites under MinGW cross-compilation
-2. Verify MinHook's `MH_CreateHookApi` works correctly by hooking a trivial Windows API (e.g., `GetTickCount`) in a test DLL loaded into Wine
-3. Check Xbyak's `CodeGenerator` produces correct x64 Windows ABI trampolines (RCX/RDX/R8/R9 argument passing, shadow space allocation)
-4. The LethalInjection project does NOT use MinHook or Xbyak -- it has its own hooking solution. Consider whether TiltedPhoques' hooking layer needs replacement or if MinHook/Xbyak genuinely cross-compile
-
-**Detection:** Write a minimal test DLL that hooks `MessageBoxA` via MinHook, cross-compile with MinGW, inject into a Wine process, and call `MessageBoxA`. If the hook fires and returns correctly, MinHook works. If the process crashes, the calling convention is wrong.
-
-**Phase:** Milestone 1 (Linux toolchain) -- must validate before any hooking code can be ported.
-
-**Confidence:** MEDIUM -- MinHook's GitHub claims MinGW support, but the TiltedPhoques wrapper layer adds unknowns. Xbyak explicitly supports GCC but the Windows ABI code generation path needs verification.
+**Phase to address:** Phase immediately before the first full client DLL integration test. Must be added before any `Games/Skyrim/` code runs inside Skyrim's process.
 
 ---
 
-### Pitfall 3: Static Runtime (/MT) Mismatch Between MinGW DLL and SKSE/Skyrim MSVC Runtime
+### Pitfall 2: Embedded Server `Update()` Blocks the Skyrim Game Thread
 
-**What goes wrong:** The codebase is built with `/MT` (static MSVC runtime) to avoid CRT DLL dependency conflicts with Skyrim. MinGW uses its own C runtime (mingw-w64-crt, linking to UCRT or MSVCRT). When a MinGW-compiled DLL is loaded into an MSVC-compiled process (Skyrim), each has its own heap, its own `malloc`/`free`, and its own static data for the C runtime. Passing objects that cross the DLL boundary (strings, containers, FILE handles, memory allocated in one and freed in the other) causes heap corruption.
+**What goes wrong:**
 
-**Why it happens:** C++ ABI incompatibility between MSVC and GCC/MinGW is fundamental. They use different name mangling, different exception handling (MSVC SEH vs GCC SJLJ/SEH), different vtable layouts, and different memory allocators. The codebase uses `mimalloc` for its own allocations (confirmed: `mi_malloc`, `mi_malloc_aligned`, `mi_malloc_size` in Memory.cpp), which helps isolate internal memory but does NOT protect against ABI mismatches at the Skyrim/SKSE interface boundary.
+`HostService::OnUpdate()` calls `m_pGameServer->Update()` synchronously on the Skyrim game thread. `Update()` in `TiltedPhoques::Server` calls `OnUpdate()`, which: (1) computes delta time, (2) triggers `UpdateEvent` to all service handlers (CharacterService, PlayerService, etc.), and (3) calls `EnforceProximity()`. Each service handler iterates `entt::view`s and may do significant work (movement broadcasting, world state sync at 1-second intervals, faction updates). If any of this takes more than ~3ms, Skyrim's frame pacing hitches.
 
-**Consequences:**
-- Heap corruption when Skyrim allocates memory and the DLL frees it (or vice versa)
-- Exception handling across DLL boundaries crashes (Skyrim throws SEH exception, MinGW DLL can't catch it)
-- vtable layout differences mean virtual function calls through Skyrim object pointers dispatch to wrong methods
-- RTTI type comparison fails (5,629 lines of RTTI.cpp with hardcoded Skyrim type layouts)
+The deeper risk is enet6 polling. `TiltedPhoques::Server`'s `Update()` path calls enet6's `enet_host_service()` to process incoming packets. If a client sends a large burst (full state baseline on connect), `enet_host_service()` may process many packets synchronously and invoke message handlers, all on the game thread. This scales with player count and state size.
 
-**Prevention:**
-1. The DLL-to-game interface MUST be C-only or use raw pointers with explicit ownership. Never pass `std::string`, `std::vector`, or any standard library container across the boundary
-2. Verify that the existing codebase already follows this pattern at SKSE entry points -- it likely does since SKSE uses C-style function pointers, but audit every `reinterpret_cast` that touches Skyrim memory
-3. Use mimalloc exclusively for DLL-internal allocations, Skyrim's own allocator for Skyrim objects (the codebase already hooks Skyrim's memory allocator in Memory.cpp)
-4. Never catch C++ exceptions from Skyrim code -- the conventions code already disables exceptions ("No exceptions allowed")
-5. Add `static_assert` checks for struct sizes that MUST match Skyrim's layout (BSCriticalSection, BGSSaveLoadScrapBuffer, etc.)
-6. Test with a minimal MinGW DLL that calls `SKSEPluginLoad` and accesses basic game state
+**Why it happens:**
 
-**Detection:** Crashes during DLL load (immediate) or heap corruption during gameplay (delayed, hard to trace). Use Wine's `WINEDEBUG=+heap` to detect heap corruption. Use `WINEDEBUG=+seh` to detect unhandled structured exceptions.
+The single-threaded listen server model (Borderlands/UE3 style) is the simplest correct approach. The danger is that Skyrim's game thread budget is ~16ms total and the embedded server's work is now part of that budget.
 
-**Phase:** Milestone 1 -- this is the fundamental feasibility question. If the SKSE interface cannot work with MinGW ABI, the entire approach needs rethinking (possibly Clang/MSVC-compatible mode instead of GCC).
+**How to avoid:**
 
-**Confidence:** HIGH -- this is a well-documented incompatibility. The LethalInjection project validates that MinGW DLLs CAN be injected into Windows processes under Wine, but LethalInjection's game interface is much simpler than SKSE's.
+1. Profile `m_pGameServer->Update()` call time in the first integration test. Instrument with `std::chrono`:
+   ```cpp
+   const auto t0 = std::chrono::high_resolution_clock::now();
+   m_pGameServer->Update();
+   const auto elapsed = std::chrono::high_resolution_clock::now() - t0;
+   if (elapsed > std::chrono::milliseconds(3))
+       spdlog::warn("[HostService] Server update took {}ms", elapsed.count() / 1'000'000);
+   ```
+2. Move heavy non-frame-critical work (world state sync broadcast) to a time-sliced budget. CharacterService's `BroadcastWorldStateSync()` sends a 1KB snapshot every second — it can be scheduled off-frame if it needs >1ms.
+3. Do NOT offload `Update()` to a background thread without careful registry locking (see Pitfall 4). Start single-threaded, measure, then optimize.
 
----
+**Warning signs:**
 
-### Pitfall 4: Premature P2P Refactoring Before Build System Works
+- Frame rate drops to 55-60fps from 120fps when a second player connects.
+- Skyrim's in-game "show fps" counter shows periodic dips exactly 1 second apart (world state sync timing).
+- `spdlog` output showing server update times >5ms.
 
-**What goes wrong:** The temptation is to start the exciting architecture work (merging Server::World into client World, creating NetworkBridge, refactoring services) before the Linux build toolchain is solid. This creates a situation where you are debugging both MinGW compilation issues AND architectural regressions simultaneously, with no working baseline to compare against.
-
-**Why it happens:** Architecture refactoring feels productive. Build system debugging feels tedious. The CONCERNS.md already documents extensive P2P refactoring plans with 5 phases. Developers naturally want to start the "real work" before the boring toolchain work is done.
-
-**Consequences:**
-- No working build to test against -- cannot determine if a crash is from MinGW compilation or P2P logic error
-- Existing MSVC/Windows builds may break during refactoring, leaving zero working builds
-- Test infrastructure not yet available when architectural changes happen
-- Debugging P2P logic through Wine adds a layer of complexity that multiplies every bug
-
-**Prevention:**
-1. Hard gate: Milestone 1 MUST produce a MinGW-compiled DLL that loads into Skyrim via SKSE under Proton and successfully connects to the existing server -- using the CURRENT architecture, zero refactoring
-2. Only after this baseline exists should P2P refactoring begin
-3. Keep the MSVC build working throughout -- CI should build both MSVC and MinGW
-4. P2P refactoring should be feature-flagged so either code path can run
-
-**Detection:** If you find yourself debugging "is this a MinGW issue or a logic issue?" more than once per day, you started refactoring too early.
-
-**Phase:** Milestone boundary between 1 (toolchain) and 2 (architecture). This is a sequencing discipline issue.
-
-**Confidence:** HIGH -- this is a general engineering principle applied to a specific risk in the PROJECT.md roadmap.
+**Phase to address:** Phase covering initial two-player integration test. Add timing instrumentation at the same time as the first full run.
 
 ---
 
-### Pitfall 5: Wine/Proton Debug Tooling Is Fragile and Poorly Documented
+### Pitfall 3: Exception Handling in `HostService::StartHosting` Is Undefined Behavior
 
-**What goes wrong:** Attaching a debugger (GDB or LLDB) to a Wine/Proton process to debug an injected MinGW-compiled DLL involves multiple layers of complexity that each independently fail. The project already has 6 debug scripts (`attach_gdb.sh`, `attach_lldb.sh`, `attach_winedbg.sh`, `debug_symbols_lldb.sh`, `debug_wine.sh`, `debug_wine_tui.sh`) and 3 debugging guides, suggesting this has already been a significant pain point.
+**What goes wrong:**
 
-**Why it happens:** Wine processes are Linux processes running Windows code. GDB sees ELF binaries (Wine) but the DLL is a PE binary with DWARF debug info (when compiled with MinGW `-g`). LLDB has experimental PE+DWARF support but lacks Wine dynamic loader integration, meaning it cannot automatically discover loaded DLLs. Proton adds another layer (Steam Runtime container). Source file paths in debug info contain cross-compilation paths that don't match the host filesystem.
+`HostService::StartHosting()` has a `try/catch(const std::exception&)` block (line 33-68 of HostService.cpp). This is present despite the project's explicit "no exceptions" code guideline. In a MinGW DLL loaded into an MSVC-compiled process (Skyrim), C++ exception unwinding crosses a compiler ABI boundary. MinGW uses SEH-based exception unwinding on Windows (since GCC 4.8 with `--enable-sjlj-exceptions` replaced by SEH), but the exception tables and personality functions differ from MSVC's. A `std::exception` thrown by MinGW-compiled code caught in a MinGW `catch` block may work in isolated tests but is undefined behavior when the stack includes MSVC-compiled frames (SKSE, Skyrim itself).
 
-**Consequences:**
-- Cannot set breakpoints in DLL code because debugger doesn't know the DLL is loaded
-- Stack traces show Wine internals but not your code
-- Single-stepping crosses Wine/Windows API boundaries and gets lost
-- Debug symbols load but source mapping fails (MinGW cross-compilation paths vs Linux paths)
-- Proton sandbox prevents debugger attachment without `PROTON_DUMP_DEBUG_COMMANDS`
+More practically: if `GameServer` constructor throws (e.g., enet6 fails to bind the port), the stack may already contain MSVC frames from Skyrim's DLL loading path. Unwinding through those frames with MinGW's SEH tables is UB and can corrupt Skyrim's stack or leave resources unreleased.
 
-**Prevention:**
-1. Use `PROTON_DUMP_DEBUG_COMMANDS=1` to generate GDB attach scripts (documented in Proton repository)
-2. Configure LLDB `target.source-map` to remap MinGW's sysroot paths to local source tree
-3. Add extensive spdlog trace logging as primary debugging method -- do not rely on interactive debugging for first 80% of issues
-4. Build a headless test harness (no Wine needed) for logic that doesn't touch Skyrim APIs -- test networking, serialization, state management natively on Linux
-5. When interactive debugging IS needed, use winedbg in GDB mode for basic debugging, fall back to `WINEDEBUG=+relay` for API tracing
-6. Consolidate the 6 existing debug scripts into one documented workflow
+**Why it happens:**
 
-**Detection:** If you spend more than 30 minutes trying to set a breakpoint and it doesn't hit, your debug tooling is broken. Fall back to printf/spdlog debugging.
+The `try/catch` was added as defensive coding during HostService development. It looks reasonable in isolation but violates both the project's "no exceptions" rule and the ABI constraint of MinGW-in-MSVC-process.
 
-**Phase:** Milestone 1 -- debug workflow must be established alongside build system. The existing debug scripts suggest previous attempt(s) at this.
+**How to avoid:**
 
-**Confidence:** MEDIUM -- the approaches are documented (Proton DEBUGGING-LINUX.md, werat.dev blog) but real-world reliability varies by Proton version and Wine version.
+Replace with explicit error-code returns:
+```cpp
+bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
+{
+    if (m_isHosting)
+    {
+        spdlog::warn("[HostService] Already hosting");
+        return true;
+    }
 
----
+    auto pConsole = std::make_unique<ServerConsole::ConsoleRegistry>("EmbeddedServer");
+    auto pServer = std::make_unique<Server::GameServer>(*pConsole);
 
-## Moderate Pitfalls
+    if (!pServer->IsListening())
+    {
+        spdlog::error("[HostService] GameServer failed to bind port {}", aPort);
+        return false;
+    }
 
-### Pitfall 6: XMake-to-CMake Build System Migration Complexity
+    pServer->Initialize();
+    m_pConsole = std::move(pConsole);
+    m_pGameServer = std::move(pServer);
+    m_isHosting = true;
+    return true;
+}
+```
 
-**What goes wrong:** The project uses XMake 2.8.5+ with platform-specific logic (`is_plat("windows")`, `set_runtimes("MT")`), custom package repositories, and pinned dependency versions. MinGW cross-compilation in XMake is less mature than in CMake. The LethalInjection reference uses CMake with explicit toolchain files (`toolchain-mingw64.cmake`). Attempting to make XMake cross-compile for MinGW may burn weeks on build system fighting.
+Mark all `HostService` methods `noexcept` — which they already are in the header declaration. The body must match.
 
-**Prevention:**
-1. Try XMake's MinGW cross-compilation first (`xmake config --toolchain=mingw`) -- it may just work for the server and simpler targets
-2. If XMake fights back for the client DLL target, create a parallel CMakeLists.txt for the client DLL only, using LethalInjection's toolchain pattern
-3. Do NOT attempt to migrate the entire build system at once -- keep XMake for MSVC/Windows builds, add CMake for MinGW cross-compilation
+**Warning signs:**
 
-**Detection:** If XMake cross-compilation requires patching XMake itself or forking package definitions, switch to CMake for that target.
+- Crash inside `HostService::StartHosting` that produces a non-standard exception backtrace in GDB.
+- Port binding failure (EADDRINUSE from a previous run) causes a hard crash instead of a clean error message.
+- Any `catch(...)` or `catch(std::exception&)` in a `noexcept` function.
 
-**Phase:** Milestone 1.
-
-**Confidence:** MEDIUM -- XMake has MinGW support but the project's heavy use of Windows-specific XMake features (`set_runtimes`, `/bigobj`, MSVC flags) suggests significant adaptation needed.
-
----
-
-### Pitfall 7: CEF (Chromium Embedded Framework) Cannot Cross-Compile from MinGW
-
-**What goes wrong:** CEF is pinned to version 100.0.24 and only builds with MSVC on Windows. It is a massive dependency (the `tp_process` subprocess, the UI rendering pipeline, D3D11 texture sharing). Attempting to cross-compile CEF with MinGW is not feasible -- Chromium's build system requires MSVC.
-
-**Prevention:**
-1. Exclude CEF, tp_process, and the entire UI layer from the MinGW build -- the xmake.lua already conditionally includes CEF only on Windows: `if is_plat("windows") then add_requires("cef 100.0.24")`
-2. For the MinGW-compiled client DLL, stub out OverlayService and related CEF calls behind a compile-time flag
-3. UI functionality under Wine/Proton will need to use the MSVC-compiled CEF process OR an alternative overlay approach
-4. This is a scoping decision, not a bug -- document that MinGW builds produce the game logic DLL only, not the full UI stack
-
-**Detection:** Any attempt to add CEF to a MinGW build target will fail immediately at configure time.
-
-**Phase:** Milestone 1 (scoping decision) and Milestone 3 (UI alternative if needed).
-
-**Confidence:** HIGH -- CEF/Chromium is known to require MSVC on Windows.
+**Phase to address:** Before the first integration test run. This is a correctness fix, not an optimization.
 
 ---
 
-### Pitfall 8: Ownership Simplification Creates New Edge Cases That Don't Exist in MMO Model
+### Pitfall 4: enet6 Message Handlers Touch `entt::registry` from the Wrong Thread
 
-**What goes wrong:** The P2P conversion assumes "host owns everything" simplifies the codebase. In practice, it creates new edge cases: What happens when the host enters a loading screen? What about host-only cells (host is in a dungeon, peer is in the overworld)? What if the host disconnects -- does everyone disconnect, or can host migration occur? What about actors near cell boundaries that the host hasn't loaded?
+**What goes wrong:**
 
-**Why it happens:** The MMO model's distributed ownership was complex but handled these cases (cell handoff, multiple authoritative zones). Removing that complexity also removes those solutions. The CONCERNS.md acknowledges "cell management: host's loaded cells are authoritative" but doesn't address cells the host has NOT loaded that peers need.
+`TiltedPhoques::Client` (base of `TransportService`) and `TiltedPhoques::Server` (base of `GameServer`) both have internal network threads that receive packets. The pattern is: network thread receives bytes, decodes packet, calls `OnConsume()`, which invokes the registered message handler. If the server's enet6 receive path calls handlers on a background network thread while `OnUpdate()` (game thread) is iterating the same `entt::registry` via `entt::view`, there is a data race.
 
-**Prevention:**
-1. Document every edge case where "host owns everything" breaks down BEFORE starting the P2P refactor
-2. Key edge cases to solve upfront:
-   - Host loading screen: freeze all peers or let them continue locally?
-   - Peer in unloaded cell: does the host load it on demand? Queue messages?
-   - Host disconnect: immediate session end (simplest) or host migration (complex)?
-   - Actor at cell boundary: which cell's authority applies?
-3. Decide on simplest-possible solutions (e.g., "host disconnect = session end, period") and document them as non-negotiable for MVP
+`entt::registry` is not thread-safe. Concurrent access — even read-only views — during structural modification (entity creation/deletion in a handler) causes undefined behavior: iterator invalidation, wrong component data, corrupted free lists.
 
-**Detection:** If P2P refactoring discussions keep circling back to "but what if the host is in a different cell," you haven't resolved the fundamental ownership model.
+The same risk applies symmetrically: the client's `TransportService::OnConsume()` runs on the TiltedPhoques network thread, but `CharacterService::OnUpdate()` iterates the client registry on the game thread.
 
-**Phase:** Milestone 2 (P2P architecture) -- must be resolved in design before coding begins.
+**Why it happens:**
 
-**Confidence:** HIGH -- these are well-known game networking edge cases. Unity's blog on small-scale co-op games explicitly calls out shared authority as a primary challenge.
+The original STR codebase was designed with TiltedPhoques' threading model in mind — but that model's documentation is sparse. Developers assume service handlers run on the same thread as `Update()`. This may or may not be true depending on whether TiltedPhoques serializes packet callbacks onto the update thread or fires them directly from the receive thread.
 
----
+**How to avoid:**
 
-### Pitfall 9: Testing Game State Synchronization Requires a Purpose-Built Harness, Not Standard Unit Testing
+1. Verify TiltedPhoques' threading model: does `OnConsume()` fire on the calling thread (inside `Update()` / `enet_host_service()`) or on a background thread?
+   - Check: add `spdlog::info("OnConsume thread: {}", std::this_thread::get_id())` in both client and server OnConsume. Compare with game thread ID logged at `OnUpdate()`.
+2. If callbacks fire inside `enet_host_service()` (most likely — this is standard enet behavior), they run on the game thread via the synchronous `Update()` call. No data race.
+3. If callbacks fire on a background thread: wrap all `entt::registry` access with a mutex, or use a thread-safe command queue (post lambdas to process on the game thread):
+   ```cpp
+   // In OnConsume (network thread):
+   m_gameThreadQueue.Push([this, msg = std::move(pMessage)]() {
+       OnCharacterSpawn(*static_cast<CharacterSpawnRequest*>(msg.get()));
+   });
 
-**What goes wrong:** Developers try to test multiplayer synchronization using standard unit test patterns (assert state A == state B after operation X). Game sync is inherently temporal, non-deterministic, and depends on timing. Tests that pass locally fail in CI due to timing differences. Tests that mock the network layer don't catch the real bugs (which are in the network layer).
+   // In OnUpdate (game thread):
+   m_gameThreadQueue.DrainAll();
+   ```
 
-**Why it happens:** The existing test suite (Catch2, encoding/serialization only) tests pure functions. Extending this pattern to synchronization testing doesn't work because sync bugs are emergent from timing, ordering, and partial failures.
+**Warning signs:**
 
-**Prevention:**
-1. Build a purpose-built test harness that runs a real host + N simulated peers in-process, sharing a single event loop with controllable time advancement
-2. The harness should:
-   - Instantiate a real `World` (host mode) and N `World` instances (peer mode)
-   - Connect them via in-memory transport (no real network)
-   - Allow deterministic time stepping (`world.Tick(16ms)`)
-   - Support injecting packet loss, reordering, and delay
-   - Assert on eventual consistency (state matches within N ticks), not immediate equality
-3. Test scenarios, not functions:
-   - "Peer moves, host sees movement within 3 ticks"
-   - "Host kills NPC, peer sees death within 5 ticks"
-   - "Peer disconnects mid-inventory-transfer, no items duplicated or lost"
-4. Run these as integration tests, separate from fast unit tests
+- Intermittent crashes inside `entt::view::begin()` or `entt::registry::emplace()` that only occur with two players connected.
+- Entity component data appears to change mid-iteration of a view.
+- `ASAN` reports "heap-use-after-free" in entt internals.
+- Thread sanitizer (TSAN) reports data races on registry internals.
 
-**Detection:** If your sync tests have `sleep(100ms)` or `std::this_thread::sleep_for` in them, you're doing it wrong -- use deterministic time stepping.
-
-**Phase:** Milestone 1 (test framework design), Milestone 2 (sync tests alongside P2P refactor).
-
-**Confidence:** MEDIUM -- the general pattern is well-established in game networking, but applying it to this specific EnTT-based architecture requires custom work. No off-the-shelf framework fits.
+**Phase to address:** Before the second-player connection test. Must be verified before any concurrent server-client interaction.
 
 ---
 
-### Pitfall 10: EnTT Registry State Divergence Between Host and Peers
+### Pitfall 5: Two `entt::registry` Instances — Accidental Cross-Registry Entity Access
 
-**What goes wrong:** The host's `entt::registry` and each peer's `entt::registry` drift apart over time. Components are added/removed in different orders, entity IDs don't correspond across registries, and there's no mechanism to detect or correct divergence. The existing codebase has dual World instances (client and server) that already exhibit this problem (documented in CONCERNS.md as "Redundant Client-Server" and "Game State Validation Absent").
+**What goes wrong:**
 
-**Why it happens:** EnTT assigns entity IDs locally -- entity 42 on the host is NOT the same actor as entity 42 on a peer. The existing codebase uses `GameId` (ModId + BaseId) for cross-registry identity, but the mapping between GameId and local entt::entity can desync if creation/destruction messages arrive out of order.
+The embedded server (`Server::World`) has its own `entt::registry`. The client (`World`) has a separate `entt::registry`. Both live in the same process. An `entt::entity` from one registry is just a 32-bit integer — if accidentally passed to the other registry, it either silently accesses the wrong entity's components or hits an assertion (if ENTT_ASSERT is enabled). In a single-DLL embedded server setup, this is easy to do accidentally through:
 
-**Prevention:**
-1. Maintain a bidirectional `GameId <-> entt::entity` map that is the ONLY way to look up entities across the network boundary
-2. Never send raw `entt::entity` values over the network
-3. Implement periodic state hash comparison: host computes hash of all synced component states, sends to peers, peers compare and request full resync on mismatch
-4. Add a "resync" command for manual recovery (already suggested in CONCERNS.md)
-5. Log all entity creation/destruction with timestamps for debugging divergence
+- A service callback that captures `World&` from the client context but runs in the server's `UpdateEvent` handler.
+- A message handler in the server that calls a utility function expecting `Server::World&` but receives `World&` via a reference capture.
+- `GameServer::Get()` static accessor returning the server's world when client code accidentally calls it.
 
-**Detection:** Peers seeing "ghost" actors (present on peer but deleted on host) or "invisible" actors (present on host but missing on peer). Health bars or names appearing on wrong actors.
+The server and client are both in scope in `HostService.cpp`. As more services are added around host mode, the chance of a cross-registry reference grows.
 
-**Phase:** Milestone 2 (P2P architecture refactor) and ongoing.
+**Why it happens:**
 
-**Confidence:** HIGH -- entity ID mapping is a classic game networking problem, and the CONCERNS.md already flags state validation as absent.
+Both `World` and `Server::World` extend `entt::registry` and have similar APIs. Without strong type differentiation, they look identical at the call site. The namespace `Server::` prefix is easy to drop accidentally in a translation unit that has `using namespace Server;`.
 
----
+**How to avoid:**
 
-## Minor Pitfalls
+1. Never use `using namespace Server;` in any file that also uses the client `World`. Always qualify: `Server::World`, `Server::GameServer`.
+2. Add a static compile-time tag to prevent implicit conversion:
+   ```cpp
+   // In server/World.h
+   namespace Server {
+   struct World : entt::registry {
+       struct ServerTag {}; // Marker type, never used at runtime
+   };
+   }
+   ```
+   Functions that take `Server::World&` cannot accept `World&` even if both extend `entt::registry`.
+3. Prohibit `GameServer::Get()` from being called in client code — assert in `Get()` if the call happens from a thread that isn't the server's context.
+4. Run with ENTT_ASSERT enabled in debug builds: `add_defines("ENTT_ASSERT=assert")`. entt's debug assertions will catch entity provenance violations in some cases.
 
-### Pitfall 11: MinGW C++20 Feature Support Gaps
+**Warning signs:**
 
-**What goes wrong:** The codebase targets C++20 (`set_languages("cxx20")`). MinGW GCC 14.x supports most C++20 features but has gaps in `std::format` (partial), C++20 modules (not supported), and some `<ranges>` edge cases. If the codebase uses MSVC-specific C++20 extensions (like `std::format` with MSVC's extended format specs), MinGW compilation fails.
+- NPC position updates applied to the wrong actor — host sees one actor move, client sees a different one move.
+- `entt::registry::get<ComponentType>(entity)` returning garbage data.
+- Entity IDs appear valid but component lookup always returns default-initialized data.
+- HostService code review finds `World&` and `Server::World&` in the same function.
 
-**Prevention:** Audit C++20 feature usage. The codebase uses `fmt::format` (via spdlog) rather than `std::format`, which is good -- fmt works on both compilers. Check for `std::source_location`, `std::span`, constexpr features that may differ.
-
-**Detection:** Compile errors during Milestone 1 MinGW build attempt.
-
-**Phase:** Milestone 1.
-
-**Confidence:** MEDIUM -- depends on which specific C++20 features are used.
-
----
-
-### Pitfall 12: DirectX Headers and COM Interfaces Under MinGW
-
-**What goes wrong:** The client uses D3D11 (D3D11Hook.cpp, RenderSystemD3D11, DirectXTK). MinGW has DirectX headers but they may be incomplete or have interface mismatches for newer D3D11 features. COM `IUnknown` interface pointers and `HRESULT` error handling work differently.
-
-**Prevention:** The D3D11 rendering and hooking code (CEF texture sharing, ImGui overlay) should be excluded from the MinGW build along with CEF. Only the game logic DLL needs MinGW compilation. D3D11 hooks will come from the MSVC-compiled layer if needed.
-
-**Detection:** Immediate compile errors when DirectX headers are included.
-
-**Phase:** Milestone 1 (scoping -- exclude D3D11 from MinGW target).
-
-**Confidence:** HIGH -- DirectX + MinGW is a known pain point.
+**Phase to address:** Phase covering embedded server integration. Before first host-mode service handler is written.
 
 ---
 
-### Pitfall 13: Wine UCRT vs MSVCRT Runtime Selection
+### Pitfall 6: `thread_local` Variables in MinGW DLL May Not Initialize in New Threads
 
-**What goes wrong:** MinGW can link against UCRT (Windows 10+) or MSVCRT (legacy). Skyrim and SKSE are MSVC-compiled and use the MSVC runtime. If the MinGW DLL links against a different CRT version than what Skyrim uses, stdio functions, locale handling, and thread-local storage may behave incorrectly when the DLL calls CRT functions that interact with Skyrim's CRT state.
+**What goes wrong:**
 
-**Prevention:** Configure MinGW to link against UCRT (`-D_UCRT` or use UCRT-targeting MinGW sysroot like xPack's). Minimize CRT interactions across the DLL boundary. The mimalloc usage already isolates heap allocations.
+The codebase has 14+ `thread_local` variables, including critical state guards:
+- `ScopedReferencesOverride::s_refCount` (Overrides.cpp/h) — guards re-entrant reference operations
+- `ScopedEquipOverride::s_refCount`, `ScopedUnequipOverride::s_refCount` — guards equipment operations
+- `s_autoSucceedEffectCheck`, `s_applyHealPerkBonus` in MagicTarget.cpp — magic system guards
+- `s_cancelAnimationWaitEvent`, `s_cancelAnimationEvent` in TESObjectREFR.cpp — animation guards
+- `ScratchAllocator s_allocator` in TransportService.cpp — per-thread scratch memory
 
-**Detection:** Subtle: `printf` output disappears, locale-dependent string formatting produces wrong results, thread-local storage corruption. Use `WINEDEBUG=+msvcrt` to trace CRT calls.
+When a MinGW-compiled DLL is loaded into an MSVC process, `DllMain` with `DLL_THREAD_ATTACH` is called for each new thread. MSVC's TLS implementation uses TLS callbacks registered in the PE header. MinGW's `thread_local` may use `__emutls` (emulated TLS) rather than native Windows TLS, depending on the MinGW runtime version. With `__emutls`, `thread_local` variables may not be initialized when first accessed from a thread created by Skyrim (not by the MinGW runtime).
 
-**Phase:** Milestone 1.
+An uninitialized `s_refCount` starting at garbage (not 0) means `ScopedReferencesOverride` never releases the guard, causing all reference operations to silently no-op. An uninitialized `ScratchAllocator` on a background thread causes a null-pointer dereference.
 
-**Confidence:** MEDIUM -- the LethalInjection toolchain uses xPack MinGW which defaults to UCRT, suggesting this is a known consideration.
+**Why it happens:**
+
+MinGW 14.3 with xPack toolchain uses native Windows TLS (not `__emutls`) for `thread_local`. This is correct behavior. However, the initialization order guarantee only applies to TLS slots initialized before the thread starts. For threads created by Skyrim before the DLL loads, TLS variables are initialized on first access via the TLS callback — but only if the PE's TLS directory is correctly populated by the MinGW linker.
+
+**How to avoid:**
+
+1. Verify the compiled DLL has a TLS directory: `x86_64-w64-mingw32-objdump -h SkyrimTogetherClient.dll | grep -i tls`
+2. For the most critical guards (`ScopedReferencesOverride`), add an explicit check:
+   ```cpp
+   // In Overrides.h:
+   static thread_local uint32_t s_refCount;
+   static thread_local bool s_initialized;
+
+   // In access code:
+   if (!s_initialized) { s_refCount = 0; s_initialized = true; }
+   ```
+   (This is a workaround for the edge case, not the normal path.)
+3. The `ScratchAllocator` in `TransportService` should be tested by triggering `OnConsume()` from multiple threads and verifying it doesn't crash.
+4. Use `x86_64-w64-mingw32-nm SkyrimTogetherClient.dll | grep __emutls` — if this symbol appears in the output, the toolchain is using emulated TLS. Switch to a toolchain that uses native TLS.
+
+**Warning signs:**
+
+- `ScopedReferencesOverride` operations silently no-op in all cases (refCount never reaches 0).
+- Crash in `ScratchAllocator` on a thread that Skyrim created (not the main thread).
+- Equipment changes on remote actors never apply even though the message is received.
+- TLS-related warnings from the linker: `warning: -enable-auto-import is not supported`.
+
+**Phase to address:** Full client DLL integration test phase — requires testing on a thread created by Skyrim (not just the main thread from DllMain).
 
 ---
 
-### Pitfall 14: Enet6 Networking Library Under Wine May Behave Differently
+## Technical Debt Patterns
 
-**What goes wrong:** The project switched from GameNetworkingSockets to enet6 (confirmed in xmake.lua comments). Enet uses raw UDP sockets which work under Wine, but Wine's Winsock implementation has known edge cases with `select()`, non-blocking socket behavior, and `WSAEventSelect`. If enet6 uses Windows-specific socket APIs that Wine implements imperfectly, networking may be unreliable under Proton.
+Shortcuts that seem reasonable but create long-term problems.
 
-**Prevention:** Test enet6 connectivity separately -- build a minimal enet6 client/server pair, run the server natively on Linux and the client under Wine, verify reliable packet delivery under load. Check if enet6 has a POSIX socket backend that could be used instead of Winsock when the server component runs natively.
-
-**Detection:** Intermittent connection drops, high packet loss that doesn't correlate with network conditions, `connect()` hangs under Wine.
-
-**Phase:** Milestone 1 (validation).
-
-**Confidence:** LOW -- enet's Winsock usage is straightforward and Wine's socket implementation is mature. This is a "verify, don't assume" item rather than a likely blocker.
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Keeping `SKYRIM_STRUCT_ASSERT` disabled on MinGW | Compilation unblocks fast | Silent wrong-offset Skyrim memory access; debugging takes days | Never — `-flayout-compat=ms` is available now |
+| `try/catch` in `noexcept` HostService methods | Easy error handling | UB when exceptions cross MSVC→MinGW stack frames; crash in Skyrim's exception filter | Never in DLL code |
+| Calling `m_pGameServer->Update()` without timing | Simple integration | Game thread budget unknown; hitches manifest as user-visible stutter | Acceptable for first smoke test only; add timing before any feature work |
+| Passing `entt::entity` values in log messages across registry contexts | Easy debugging | Encourages treating cross-registry entities as interchangeable | Acceptable only in `spdlog::debug()` lines that never execute in release builds |
+| Using `GameServer::Get()` static singleton from client code | Convenient access | Couples client services to server lifecycle; breaks when server is not running | Never — use `HostService::GetServer()` exclusively |
+| Host connecting to itself via localhost UDP | Simple architecture | Unnecessary serialization/deserialization + enet6 round-trip for host's own messages | Acceptable for v2.0 MVP; optimize in v2.1 via direct call path |
 
 ---
 
-## Phase-Specific Warnings
+## Integration Gotchas
 
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| MinGW cross-compilation setup | MSVC extensions (#1), runtime mismatch (#3) | Compatibility header, struct size assertions, smoke test DLL |
-| Hooking framework port | MinHook/Xbyak ABI issues (#2) | Isolated test before full port |
-| XMake adaptation | Build system fighting (#6) | Fall back to CMake for cross-compile target if needed |
-| CEF/UI layer | Cannot cross-compile (#7) | Exclude from MinGW build, stub interfaces |
-| Debug workflow | Fragile tooling (#5) | Prioritize spdlog tracing over interactive debugging |
-| P2P architecture | Premature start (#4), ownership edge cases (#8) | Working baseline first, document edge cases before coding |
-| State synchronization | Registry divergence (#10), testing approach (#9) | Purpose-built harness, GameId mapping, periodic hash checks |
-| C++ language features | C++20 gaps (#11), DirectX headers (#12) | Audit feature usage, exclude D3D11 from MinGW target |
+Common mistakes when connecting the embedded server to the client plugin.
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| HostService + GameServer init | Creating GameServer before spdlog logger "EmbeddedServer" exists | Create the logger first; HostService already does this but order must be preserved if other services create loggers in constructors |
+| Server::World vs client World | Passing `World&` to a function expecting `Server::World&` — compiles if both use same `entt::registry` base | Always qualify `Server::World`. No `using namespace Server` in mixed files. |
+| HostService shutdown | Calling `Reset()` on `m_pGameServer` immediately after `Kill()` | Wait for `IsListening()` to return false (HostService::OnUpdate already handles this correctly — don't shortcut it) |
+| enet6 host + client same port | Host binds port 10578 for server; client attempts to connect to 127.0.0.1:10578 using same enet6 host | They are separate enet6 hosts. Server enet_host binds port. Client enet_host connects to that port. No conflict if they are separate enet_host instances. |
+| Server message broadcasting on host | Server broadcasts `ServerReferencesMoveRequest` to all connections including localhost; host's client receives a move message for its own player and applies interpolation | Server must skip broadcast to the connection corresponding to the host player. Check `aPlayer->GetConnectionId() != m_hostConnectionId` before sending. |
+| Static singleton `GameServer::Get()` in server code | Server code calls `GameServer::Get()` which may be nullptr during initialization if client-side code triggers a server event before server is fully started | Guard all `GameServer::Get()` call sites with null check. The static `s_pInstance` is set in the constructor — verify timing. |
+
+---
+
+## Performance Traps
+
+Patterns that work in single-player testing but break under load.
+
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| World state sync serializing all entities every 1 second | CPU spike every 1 second, frame time spike visible in overlay | Differential sync: only serialize entities with dirty flags; or cap at 50 entities/second serialized | At ~100 synced entities (50 actors x 50-byte state = 5KB/sec still ok, but CPU cost of iteration is not) |
+| `entt::view` iteration inside game thread while enet6 processes packets | Depending on threading model, potential iterator invalidation | Verify threading model (see Pitfall 4); if safe, profile view iteration time | Always — verify before assuming safe |
+| Host-to-self loopback: serialize → UDP → deserialize for host's own messages | ~0.5ms per position update for the host player's own position going through full enet stack | In host mode, detect when the destination is the local connection and call the handler directly: `OnReferencesMoveRequest(msg)` instead of `Send(msg)` | At 20 position updates/sec with serialization overhead — measurable but not critical for v2.0 |
+| Both client and server spdlog loggers writing to stdout | spdlog contention on a single stdout sink when both EmbeddedServer and client loggers fire simultaneously | Give each logger its own sink, or use async spdlog with a single shared thread | At >100 log events/sec — logging should be async in production builds |
+| `RipAllocateN` 1MB static pool shared between client hooks and server JIT | Pool exhaustion: `RipAllocateN` returns nullptr, JIT assembly generation silently fails | Track pool usage. In production, replace with `VirtualAlloc`-backed implementation that grows. 1MB is per-DLL, not per-hook. | At ~500 hooks (MinHook trampolines are 14 bytes each). Not a concern at current hook count, but never grows. |
+
+---
+
+## "Looks Done But Isn't" Checklist
+
+Things that appear complete but are missing critical pieces.
+
+- [ ] **`-flayout-compat=ms` flag added**: Compilation succeeds without it, but struct layout is wrong. Verify: add `static_assert(offsetof(Actor, flags) == EXPECTED_OFFSET)` for 5 different Skyrim structs and confirm they match IDA/SKSE header annotations.
+- [ ] **Host's own position updates**: Host player moves, server receives the movement, broadcasts to all clients — including back to the host. Verify the host does NOT apply its own broadcast as a remote actor update (it would cause jitter as the host teleports to where it was 1 tick ago).
+- [ ] **Server shutdown on DLL unload**: `HostService::StopHosting()` must be called during `DllMain(DLL_PROCESS_DETACH)`. If the DLL unloads with the server still running, enet6 sockets are leaked and the next DLL load will fail to bind the port. Verify: forcibly unload the DLL via SKSE console, reload, attempt to host. Should work without `WSAEADDRINUSE`.
+- [ ] **Server constructor port binding failure**: If port 10578 is already in use (previous crash left socket open), `GameServer` constructor must fail gracefully. Verify: bind port 10578 with a test tool (`nc -lu 10578`), then try to start hosting. Should see an error log, not a crash.
+- [ ] **Client registry cleared on disconnect**: When a client disconnects, the server sends `NotifyRemoveCharacter` for all entities. Client `CharacterService::OnRemoveCharacter` must process these before the registry is torn down. Verify: connect client, host has 3 synced actors, client disconnects. After reconnect, confirm 0 ghost actors in the registry.
+- [ ] **Thread-local guards on non-main threads**: `ScopedReferencesOverride`, `ScopedEquipOverride` all rely on `thread_local` refcounts. Test by triggering equipment changes from a non-main thread (enet6 callback thread if threading model allows it) and confirm refcounts are 0 before and after.
+
+---
+
+## Recovery Strategies
+
+When pitfalls occur despite prevention, how to recover.
+
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Wrong struct layout (Pitfall 1 not addressed) | HIGH — days of debugging wrong offsets | Add `-flayout-compat=ms`, rebuild, rerun layout assertions, audit every struct field access that was passing wrong data |
+| Game thread hitching from server update (Pitfall 2) | MEDIUM — requires threading model change | Profile first; if single-threaded budget exceeded, extract periodic sync work to a command queue that processes 1ms worth per frame |
+| Exception UB crash (Pitfall 3) | LOW — fix is mechanical | Replace `try/catch` with error code returns throughout HostService; the fix is ~20 lines |
+| entt data race (Pitfall 4) | HIGH — race conditions are non-deterministic | Add `std::mutex` around registry access; or switch to TiltedPhoques command queue pattern; reproduce with TSAN first to confirm the race |
+| Cross-registry entity confusion (Pitfall 5) | MEDIUM — requires audit | grep for all `entt::entity` values passed between server and client code paths; add type wrappers if needed |
+| TLS initialization failure (Pitfall 6) | MEDIUM — platform-specific | Switch to non-TLS alternatives for the affected variables (atomic refcounts, or explicit initialization on DLL attach) |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+How roadmap phases should address these pitfalls.
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| Itanium tail-padding (Pitfall 1) | Full client compilation phase — add `-flayout-compat=ms` before any `Games/Skyrim/` code runs | Re-enable `SKYRIM_STRUCT_ASSERT` and confirm all layout assertions pass in MinGW build |
+| Game thread blocking (Pitfall 2) | Initial two-player integration test | Add timing instrumentation; confirm server `Update()` < 3ms under load |
+| Exception UB (Pitfall 3) | Before first in-Skyrim test | Static analysis: grep for `try/catch` in `noexcept` methods; fix before running |
+| Registry threading (Pitfall 4) | Before concurrent client+server test | Log thread IDs in `OnConsume` and `OnUpdate`; confirm they match |
+| Cross-registry entity confusion (Pitfall 5) | Embedded server integration phase | Code review: no bare `entt::entity` values crossing server/client boundary without `ServerId` translation |
+| TLS initialization (Pitfall 6) | Full client DLL integration test | Test on threads created by Skyrim (hook fire, SKSE event callbacks) not just DllMain thread |
+
+---
 
 ## Sources
 
-- Codebase analysis: direct grep of `__declspec`, `#pragma comment`, MinHook, Xbyak, mimalloc, CEF usage
-- LethalInjection reference: `/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d5/Projects/LethalInjection/cmake/toolchain-mingw64.cmake`
-- [Proton debugging documentation](https://github.com/ValveSoftware/Proton/blob/proton_10.0/docs/DEBUGGING-LINUX.md)
-- [Debugging Wine with LLDB and VSCode](https://werat.dev/blog/debugging-wine-with-lldb-and-vscode/)
-- [Debugging under Proton](https://apple1417.dev/posts/2023-05-18-debugging-proton)
-- [Building Windows DLLs with MinGW](https://www.transmissionzero.co.uk/computing/building-dlls-with-mingw/)
-- [MSVC dllexport/dllimport](https://learn.microsoft.com/en-us/cpp/cpp/dllexport-dllimport?view=msvc-170)
-- [Unity blog: 8 factors of multiplayer gamedev in small-scale co-op](https://blog.unity.com/games/the-8-factors-of-multiplayer-gamedev-in-small-scale-cooperative-games-ft-breakwaters)
-- [MinGW vs MSVC ABI compatibility](https://discourse.julialang.org/t/windows-c-binary-compatibility-mingw-vs-msvc/1250)
-- [Clang MSVC compatibility documentation](https://releases.llvm.org/20.1.0/tools/clang/docs/MSVCCompatibility.html)
-- CONCERNS.md, CONVENTIONS.md: existing technical debt documentation
+**Codebase direct analysis (HIGH confidence):**
+- `Code/client/TiltedOnlinePCH.h` line 24-29: `SKYRIM_STRUCT_ASSERT` disabled on MinGW, TODO for `-flayout-compat=ms`
+- `Code/client/Services/HostService.cpp` lines 33-68: `try/catch` in `noexcept` StartHosting
+- `Code/client/Services/HostService.cpp` lines 90-123: synchronous `m_pGameServer->Update()` on game thread
+- `Code/server/GameServer.cpp` lines 622-638: `OnUpdate()` implementation (DispatchEvent + EnforceProximity)
+- `Code/client/Games/Overrides.cpp`: `thread_local` ScopedOverride refcounts (14 total across the client)
+- `Code/client/Services/Generic/TransportService.cpp`: `static thread_local ScratchAllocator`
+
+**GCC documentation (HIGH confidence):**
+- [GCC `-flayout-compat` flag](https://gcc.gnu.org/onlinedocs/gcc/C_002b_002b-Dialect-Options.html) — available since GCC 12.1, controls Itanium ABI tail-padding behavior
+- [MinGW Thread-Local Storage on Windows](https://sourceware.org/bugzilla/show_bug.cgi?id=13767) — documents native TLS vs `__emutls` in MinGW
+
+**EnTT documentation (HIGH confidence):**
+- [EnTT thread safety](https://github.com/skypjack/entt/wiki/Crash-Course:-entity-component-system#multithreading) — "Registry is not thread-safe. Its operations are safe only if called from the same thread."
+
+**Practical experience (MEDIUM confidence):**
+- enet6 event model: callbacks fire inside `enet_host_service()` on the calling thread — this is standard enet behavior across all versions. The return value is the number of events processed synchronously.
+- MinGW DLL TLS in MSVC process: documented behavior divergence between `__emutls` (old MinGW) and native TLS (MinGW 14.x xPack). xPack toolchain defaults to native TLS.
+
+**v1.0 archived research (resolved pitfalls):**
+- `.planning/archive/v1.0-phases/02-msvc-compatibility-core-libraries/02-VERIFICATION.md` — MSVC extension compatibility confirmed working
+- `.planning/archive/v1.0-phases/03-client-dll-cross-compilation/03-VERIFICATION.md` — MinHook and SKSE DLL loading confirmed under Proton
+- `.planning/research/SUMMARY.md` (2026-03-27) — v1.0 research baseline
+
+---
+*Pitfalls research for: MinGW full client + embedded server (SkyrimCoop v2.0)*
+*Researched: 2026-03-30*
