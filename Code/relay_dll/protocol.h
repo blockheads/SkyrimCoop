@@ -39,6 +39,7 @@ enum HookOpcode : uint16_t {
     HOOK_REMOVE_INV_ITEM  = 0x001C,
     HOOK_PLAY_ANIMATION   = 0x001D,
     HOOK_MOUNT_PACKAGE    = 0x001E,
+    HOOK_SPAWN_RESULT     = 0x001F,  // Spawn result (args: formId, actorPtr, success)
 };
 
 struct HookEventPacket {
@@ -65,6 +66,9 @@ enum CommandOpcode : uint16_t {
     CMD_ACTIVATE          = 0x800D,
     CMD_LOCK_CHANGE       = 0x800E,
     CMD_LAUNCH_PROJECTILE = 0x800F,
+    CMD_SPAWN_ACTOR       = 0x8010,  // Spawn actor by formId (args: formId, x|y, z, rx|ry)
+    CMD_SPAWN_ACTOR_APPEARANCE = 0x8011, // Spawn actor from AppearanceBuffer (variable-length payload)
+    CMD_REMOVE_ACTOR      = 0x8012,  // Remove actor by pointer (args: actorPtr)
 };
 
 // Control messages (bidirectional)
@@ -83,6 +87,18 @@ struct CommandPacket {
 
 struct ControlPacket {
     PacketHeader header;
+};
+
+// Variable-length appearance spawn command (Native -> DLL)
+// Payload layout: SpawnAppearanceHeader + appearanceData[appearanceSize] + faceTintData[faceTintSize]
+struct SpawnAppearanceHeader {
+    uint32_t changeFlags;
+    float x, y, z;
+    float rx, ry;
+    uint32_t appearanceSize;  // size of appearance buffer in bytes
+    uint32_t faceTintSize;    // size of face tint buffer in bytes (0 if none)
+    // Followed by: uint8_t appearanceData[appearanceSize]
+    //              uint8_t faceTintData[faceTintSize]
 };
 
 // Helper: compute total packet size from header

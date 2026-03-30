@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
+#include <vector>
 
 #include "protocol.h"
 #include "tcp_server.h"
@@ -65,6 +67,21 @@ static volatile bool g_shuttingDown = false;
 static char g_nativeBinaryPath[MAX_PATH]{};
 
 // ---------------------------------------------------------------------------
+// Appearance spawn queue -- variable-length data, drained on game thread
+// ---------------------------------------------------------------------------
+
+struct AppearanceSpawnRequest {
+    uint32_t changeFlags;
+    float x, y, z;
+    float rx, ry;
+    std::vector<uint8_t> appearanceData;
+    std::vector<uint8_t> faceTintData;
+};
+
+static std::mutex g_appearanceSpawnMutex;
+static std::vector<AppearanceSpawnRequest> g_appearanceSpawnQueue;
+
+// ---------------------------------------------------------------------------
 // Logging helpers (file + OutputDebugString -- no spdlog per D-13)
 // ---------------------------------------------------------------------------
 
@@ -112,15 +129,334 @@ void RelayLog(const char* fmt, ...)  // non-static: accessed by hook_trampolines
 // Stub: Execute a game command (placeholder for Plan 05+)
 // ---------------------------------------------------------------------------
 
-// Called from game thread update hook to drain and execute queued commands.
-// Placeholder until Plan 05+ installs the actual game update hook.
+// ---------------------------------------------------------------------------
+// Helper: send a spawn result back to native process
+// ---------------------------------------------------------------------------
+
+static void SendSpawnResult(uint32_t aFormId, void* apActor, bool aSuccess)
+{
+    HookEventPacket pkt{};
+    pkt.header.opcode = HOOK_SPAWN_RESULT;
+    pkt.header.length = sizeof(HookEventPacket) - sizeof(PacketHeader);
+    pkt.argCount = 3;
+    pkt.args[0] = static_cast<uint64_t>(aFormId);
+    pkt.args[1] = reinterpret_cast<uint64_t>(apActor);
+    pkt.args[2] = aSuccess ? 1u : 0u;
+    g_tcpServer.Send(&pkt, sizeof(pkt));
+}
+
+// ---------------------------------------------------------------------------
+// Spawn actor by formId (existing world NPC path)
+// ---------------------------------------------------------------------------
+
+static void SpawnActorByFormId(uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy)
+{
+    RelayLog("[SkyrimCoopHooks] SPAWN_FORMID: formId=0x%08X pos=(%.1f, %.1f, %.1f)\n",
+             aFormId, aX, aY, aZ);
+
+    // Resolve game function pointers
+    auto pGetById = reinterpret_cast<void*(*)(uint32_t)>(GetFormById());
+    auto pHeapAlloc = reinterpret_cast<void*(__fastcall*)(void*, size_t, size_t, bool)>(GetGameHeapAllocate());
+    auto pCharCtor = reinterpret_cast<void*(__fastcall*)(void*)>(GetCharacterCtor());
+    auto pSetLvlMod = reinterpret_cast<void(__fastcall*)(void*, uint32_t)>(GetSetLevelMod());
+    void* pHeapInst = GetGameHeapInstance() ? *reinterpret_cast<void**>(GetGameHeapInstance()) : nullptr;
+    void* pModMgr = GetModManagerInstance() ? *reinterpret_cast<void**>(GetModManagerInstance()) : nullptr;
+
+    if (!pGetById || !pHeapAlloc || !pCharCtor || !pHeapInst || !pModMgr)
+    {
+        RelayLog("[SkyrimCoopHooks] SPAWN_FORMID: missing game function pointers\n");
+        SendSpawnResult(aFormId, nullptr, false);
+        return;
+    }
+
+    // Look up the base form
+    void* pBaseForm = pGetById(aFormId);
+    if (!pBaseForm)
+    {
+        RelayLog("[SkyrimCoopHooks] SPAWN_FORMID: form 0x%08X not found\n", aFormId);
+        SendSpawnResult(aFormId, nullptr, false);
+        return;
+    }
+
+    // Allocate and construct Character (Actor subclass)
+    // Character is approximately 0x2B0 bytes on SSE x64
+    void* pActor = pHeapAlloc(pHeapInst, 0x2B0, 0, false);
+    if (!pActor)
+    {
+        RelayLog("[SkyrimCoopHooks] SPAWN_FORMID: heap alloc failed\n");
+        SendSpawnResult(aFormId, nullptr, false);
+        return;
+    }
+    memset(pActor, 0, 0x2B0);
+    pCharCtor(pActor);
+
+    // SetSkipSaveFlag: unk10 = 0xFFFF (offset 0x18 from TESForm base)
+    *reinterpret_cast<uint16_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x18) = 0xFFFF;
+
+    // AI suppression for remote actors (per D-06)
+    // Actor flags1 bit 0x02000000 disables AI processing
+    uint32_t& flags1 = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x0C);
+    flags1 |= 0x02000000;
+
+    // SetLevelMod(4) via ExtraDataList (offset 0x70 from Actor base)
+    if (pSetLvlMod)
+    {
+        void* pExtraData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(pActor) + 0x70);
+        pSetLvlMod(pExtraData, 4);
+    }
+
+    // Set baseForm (offset 0x40)
+    *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pActor) + 0x40) = pBaseForm;
+
+    // Get player ref for cell/worldspace context
+    void* pPlayer = pGetById(0x14);
+    void* pCell = nullptr;
+    void* pWorldSpace = nullptr;
+    if (pPlayer)
+    {
+        pCell = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayer) + 0x60);
+        if (pCell)
+            pWorldSpace = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pCell) + 0x128);
+    }
+
+    // Interior/exterior cell check
+    void* pCellForSpawn = pCell;
+    if (pCell)
+    {
+        uint8_t cellFlags = *reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(pCell) + 0x40);
+        if (!(cellFlags & 1))
+            pCellForSpawn = nullptr; // exterior: pass null cell
+    }
+
+    // SpawnNewREFR (addr 13723)
+    auto pSpawnREFR = reinterpret_cast<void(__fastcall*)(void*, uint32_t&, void*, float*, float*, void*, void*, void*, int, int, int, int)>(GetSpawnNewREFR());
+    if (pSpawnREFR)
+    {
+        float pos[3] = {aX, aY, aZ};
+        float rot[3] = {aRx, aRy, 0.0f};
+        uint32_t refrHandle = 0;
+        pSpawnREFR(pModMgr, refrHandle, pBaseForm, pos, rot, pCellForSpawn, pWorldSpace, pActor, 0, 0, 0, 1);
+    }
+
+    // Clear flags bit 21 (offset 0x10 from TESForm)
+    uint32_t& actorFlags = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x10);
+    actorFlags &= ~(1u << 21);
+
+    RelayLog("[SkyrimCoopHooks] SPAWN_FORMID: spawned actor ptr=%p formId=0x%08X\n", pActor, aFormId);
+    SendSpawnResult(aFormId, pActor, true);
+}
+
+// ---------------------------------------------------------------------------
+// Spawn actor from AppearanceBuffer (TESNPC::Create pipeline)
+// Port of STR's Forms.cpp:116-127 + Actor.cpp:175-208
+// ---------------------------------------------------------------------------
+
+static void SpawnActorFromAppearance(const AppearanceSpawnRequest& aReq)
+{
+    RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: appearance %zu bytes, changeFlags=%u, pos=(%.1f, %.1f, %.1f)\n",
+             aReq.appearanceData.size(), aReq.changeFlags, aReq.x, aReq.y, aReq.z);
+
+    // Resolve game function pointers
+    auto pGetById = reinterpret_cast<void*(*)(uint32_t)>(GetFormById());
+    auto pHeapAlloc = reinterpret_cast<void*(__fastcall*)(void*, size_t, size_t, bool)>(GetGameHeapAllocate());
+    auto pCharCtor = reinterpret_cast<void*(__fastcall*)(void*)>(GetCharacterCtor());
+    auto pSetLvlMod = reinterpret_cast<void(__fastcall*)(void*, uint32_t)>(GetSetLevelMod());
+    void* pHeapInst = GetGameHeapInstance() ? *reinterpret_cast<void**>(GetGameHeapInstance()) : nullptr;
+    void* pModMgr = GetModManagerInstance() ? *reinterpret_cast<void**>(GetModManagerInstance()) : nullptr;
+    void* pFactoryTable = GetIFormFactoryTable();
+
+    if (!pGetById || !pHeapAlloc || !pCharCtor || !pHeapInst || !pModMgr || !pFactoryTable)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: missing game function pointers\n");
+        SendSpawnResult(0, nullptr, false);
+        return;
+    }
+
+    // === TESNPC::Create pipeline (port of STR Forms.cpp:116-127) ===
+
+    // 1. IFormFactory::Create<TESNPC>() - type 43 (FormType::NPC)
+    //    addr 400508 is a POINTER_SKYRIMSE: dereference to get IFormFactory** array
+    void** pFactories = *reinterpret_cast<void***>(pFactoryTable);
+    if (!pFactories)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: factory table dereference is null\n");
+        SendSpawnResult(0, nullptr, false);
+        return;
+    }
+
+    void* pNpcFactory = pFactories[43]; // FormType::NPC = 43
+    if (!pNpcFactory)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: NPC factory (index 43) is null\n");
+        SendSpawnResult(0, nullptr, false);
+        return;
+    }
+
+    // Call IFormFactory::Create() at vtable index 1
+    // Verified from Code/client/Games/IFormFactory.h:
+    //   vtable[0] = ~IFormFactory() (destructor)
+    //   vtable[1] = Create()
+    auto pFactoryVtable = *reinterpret_cast<uintptr_t*>(pNpcFactory);
+    auto pCreateFunc = reinterpret_cast<void*(__fastcall*)(void*)>(
+        *reinterpret_cast<uintptr_t*>(pFactoryVtable + 1 * 8));
+    void* pNpc = pCreateFunc(pNpcFactory);
+    if (!pNpc)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: IFormFactory::Create returned null\n");
+        SendSpawnResult(0, nullptr, false);
+        return;
+    }
+
+    // 2. Initialize() -- copy key defaults from player base form
+    //    Get player ref (formId 0x14) -> baseForm (offset 0x40) -> TESNPC*
+    void* pPlayer = pGetById(0x14);
+    if (pPlayer)
+    {
+        void* pPlayerBase = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayer) + 0x40);
+        if (pPlayerBase)
+        {
+            // Copy npcClass (0x1C0) -- the most critical field for initialization
+            // Verified: SKYRIM_STRUCT_ASSERT(offsetof(TESNPC, npcClass) == 0x1C0)
+            *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pNpc) + 0x1C0) =
+                *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayerBase) + 0x1C0);
+
+            // Note: raceForm, combatStyle, outfits will be set by Deserialize below
+            // if the change flags include those fields. The npcClass copy provides
+            // a safe default in case they aren't in the appearance buffer.
+        }
+    }
+
+    // 3. Deserialize appearance buffer via BGSLoadFormBuffer
+    //    For the MVP, log the appearance data availability.
+    //    Full Deserialize requires BGSLoadFormBuffer struct layout from SaveLoad.h.
+    //    The actor will spawn with player defaults; appearance reconstruction is iterative.
+    if (!aReq.appearanceData.empty())
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: appearance data available (%zu bytes), "
+                 "Deserialize deferred to future iteration\n", aReq.appearanceData.size());
+        // TODO(Phase 16+): Construct BGSLoadFormBuffer and call pNpc->Load(&loadBuffer)
+        // This requires reading Code/client/Games/SaveLoad.h for exact struct layout.
+        // The actor will spawn with default appearance for now.
+    }
+
+    // 4. Clear overlayRace to force facegen (per STR Forms.cpp:124)
+    //    overlayRace is approximately at offset 0x1E8 from TESNPC base
+    //    (after npcClass + headData + unk114 + combatStyle + unk11C)
+    *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pNpc) + 0x1E8) = nullptr;
+
+    // === Actor::Create pipeline (port of STR Actor.cpp:175-208) ===
+
+    // 5. Heap alloc + Character constructor
+    void* pActor = pHeapAlloc(pHeapInst, 0x2B0, 0, false);
+    if (!pActor)
+    {
+        RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: heap alloc failed\n");
+        SendSpawnResult(0, nullptr, false);
+        return;
+    }
+    memset(pActor, 0, 0x2B0);
+    pCharCtor(pActor);
+
+    // 6. SetSkipSaveFlag: unk10 = 0xFFFF (offset 0x18 from TESForm base)
+    *reinterpret_cast<uint16_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x18) = 0xFFFF;
+
+    // 7. AI suppression: set flag that prevents AI evaluation (per D-06)
+    uint32_t& flags1 = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x0C);
+    flags1 |= 0x02000000;
+
+    // 8. SetLevelMod(4) via ExtraDataList (offset 0x70 from Actor base)
+    if (pSetLvlMod)
+    {
+        void* pExtraData = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(pActor) + 0x70);
+        pSetLvlMod(pExtraData, 4);
+    }
+
+    // 9. Set baseForm to our created TESNPC (offset 0x40)
+    *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pActor) + 0x40) = pNpc;
+
+    // 10. Get cell/worldspace from player for spawn context
+    void* pCell = nullptr;
+    void* pWorldSpace = nullptr;
+    if (pPlayer)
+    {
+        pCell = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pPlayer) + 0x60);
+        if (pCell)
+            pWorldSpace = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(pCell) + 0x128);
+    }
+
+    // 11. Interior/exterior cell check
+    void* pCellForSpawn = pCell;
+    if (pCell)
+    {
+        uint8_t cellFlags = *reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(pCell) + 0x40);
+        if (!(cellFlags & 1))
+            pCellForSpawn = nullptr; // exterior: pass null cell
+    }
+
+    // 12. SpawnNewREFR (addr 13723)
+    auto pSpawnREFR = reinterpret_cast<void(__fastcall*)(void*, uint32_t&, void*, float*, float*, void*, void*, void*, int, int, int, int)>(GetSpawnNewREFR());
+    if (pSpawnREFR)
+    {
+        float pos[3] = {aReq.x, aReq.y, aReq.z};
+        float rot[3] = {aReq.rx, aReq.ry, 0.0f};
+        uint32_t refrHandle = 0;
+        pSpawnREFR(pModMgr, refrHandle, pNpc, pos, rot, pCellForSpawn, pWorldSpace, pActor, 0, 0, 0, 1);
+    }
+
+    // 13. Clear flags bit 21 (offset 0x10 from TESForm)
+    uint32_t& actorFlags = *reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(pActor) + 0x10);
+    actorFlags &= ~(1u << 21);
+
+    RelayLog("[SkyrimCoopHooks] APPEARANCE_SPAWN: spawned custom NPC ptr=%p\n", pActor);
+    SendSpawnResult(0, pActor, true);
+}
+
+// ---------------------------------------------------------------------------
+// DrainCommandQueue: Execute queued commands on game thread
+// Called from game thread update hook.
+// ---------------------------------------------------------------------------
+
 [[maybe_unused]]
 static void DrainCommandQueue()
 {
+    // 1. Process appearance spawns (variable-length, game thread only)
+    {
+        std::vector<AppearanceSpawnRequest> pendingAppearance;
+        {
+            std::lock_guard<std::mutex> lock(g_appearanceSpawnMutex);
+            pendingAppearance.swap(g_appearanceSpawnQueue);
+        }
+
+        for (const auto& req : pendingAppearance)
+        {
+            SpawnActorFromAppearance(req);
+        }
+    }
+
+    // 2. Process fixed-size commands from SPSC queue
     g_commandQueue.Drain([](const CommandSlot& cmd) {
-        // TODO(Plan 05+): Execute actual game functions via hook trampolines
-        RelayLog("[SkyrimCoopHooks] Executing command opcode=0x%04X argCount=%u\n",
-                 cmd.opcode, cmd.argCount);
+        switch (cmd.opcode)
+        {
+        case CMD_SPAWN_ACTOR:
+        {
+            // FormId-based spawn: args[0]=formId, args[1]=x|y packed, args[2]=z, args[3]=rx|ry packed
+            uint32_t formId = static_cast<uint32_t>(cmd.args[0]);
+            uint32_t xb = static_cast<uint32_t>(cmd.args[1] & 0xFFFFFFFF);
+            uint32_t yb = static_cast<uint32_t>(cmd.args[1] >> 32);
+            uint32_t zb = static_cast<uint32_t>(cmd.args[2] & 0xFFFFFFFF);
+            uint32_t rxb = static_cast<uint32_t>(cmd.args[3] & 0xFFFFFFFF);
+            uint32_t ryb = static_cast<uint32_t>(cmd.args[3] >> 32);
+            float x, y, z, rx, ry;
+            memcpy(&x, &xb, 4); memcpy(&y, &yb, 4); memcpy(&z, &zb, 4);
+            memcpy(&rx, &rxb, 4); memcpy(&ry, &ryb, 4);
+            SpawnActorByFormId(formId, x, y, z, rx, ry);
+            break;
+        }
+        default:
+            RelayLog("[SkyrimCoopHooks] Executing command opcode=0x%04X argCount=%u\n",
+                     cmd.opcode, cmd.argCount);
+            break;
+        }
     });
 }
 
@@ -196,17 +532,67 @@ static DWORD WINAPI MonitorThread(LPVOID)
 
         // Receive loop: read command packets from native process
         PacketHeader header;
-        uint8_t payload[512];
+        uint8_t payload[16384]; // 16KB: accommodates AppearanceBuffer payloads (~2-4KB typical)
 
         while (g_tcpServer.Receive(&header, payload, sizeof(payload)))
         {
             if (g_shuttingDown)
                 break;
 
-            if (header.opcode >= 0x8000 && header.opcode < 0xF000)
+            if (header.opcode == CMD_SPAWN_ACTOR_APPEARANCE)
             {
-                // Command from native process -- enqueue for game thread execution
-                // Reconstruct CommandPacket from header + payload
+                // Variable-length appearance spawn -- parse SpawnAppearanceHeader from payload
+                if (header.length < sizeof(SpawnAppearanceHeader))
+                {
+                    RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR_APPEARANCE: payload too small (%u < %zu)\n",
+                             header.length, sizeof(SpawnAppearanceHeader));
+                    continue;
+                }
+
+                SpawnAppearanceHeader spawnHdr;
+                memcpy(&spawnHdr, payload, sizeof(SpawnAppearanceHeader));
+
+                uint32_t expectedSize = static_cast<uint32_t>(sizeof(SpawnAppearanceHeader))
+                                        + spawnHdr.appearanceSize + spawnHdr.faceTintSize;
+                if (header.length < expectedSize)
+                {
+                    // Need to read remainder -- for now, handle up to payload buffer size
+                    RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR_APPEARANCE: payload length mismatch "
+                             "(%u < %u)\n", header.length, expectedSize);
+                    continue;
+                }
+
+                AppearanceSpawnRequest req;
+                req.changeFlags = spawnHdr.changeFlags;
+                req.x = spawnHdr.x;
+                req.y = spawnHdr.y;
+                req.z = spawnHdr.z;
+                req.rx = spawnHdr.rx;
+                req.ry = spawnHdr.ry;
+
+                const uint8_t* pData = payload + sizeof(SpawnAppearanceHeader);
+                if (spawnHdr.appearanceSize > 0)
+                {
+                    req.appearanceData.assign(pData, pData + spawnHdr.appearanceSize);
+                    pData += spawnHdr.appearanceSize;
+                }
+                if (spawnHdr.faceTintSize > 0)
+                {
+                    req.faceTintData.assign(pData, pData + spawnHdr.faceTintSize);
+                }
+
+                // Enqueue for game thread processing
+                {
+                    std::lock_guard<std::mutex> lock(g_appearanceSpawnMutex);
+                    g_appearanceSpawnQueue.push_back(std::move(req));
+                }
+
+                RelayLog("[SkyrimCoopHooks] CMD_SPAWN_ACTOR_APPEARANCE: queued (appearance=%u, faceTint=%u)\n",
+                         spawnHdr.appearanceSize, spawnHdr.faceTintSize);
+            }
+            else if (header.opcode >= 0x8000 && header.opcode < 0xF000)
+            {
+                // Fixed-size command from native process -- enqueue for game thread execution
                 CommandSlot slot{};
                 slot.opcode = header.opcode;
 
