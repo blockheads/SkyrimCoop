@@ -92,6 +92,10 @@ void CharacterService::OnHookEvent(const nlohmann::json& aMsg)
         spdlog::debug("CharacterService: mount_package actorFormId={:#x} mountFormId={:#x}",
                       aMsg.value(JsonField::kActorFormId, 0u),
                       aMsg.value(JsonField::kMountFormId, 0u));
+    } else if (op == JsonOp::kSpawnResult) {
+        OnSpawnResult(aMsg.value(JsonField::kFormId, 0u),
+                      aMsg.value(JsonField::kPtr, uint64_t(0)),
+                      aMsg.value(JsonField::kSuccess, false));
     }
 }
 
@@ -416,6 +420,14 @@ void CharacterService::ApplyRemotePositions()
         auto& remote = view.get<RemoteComponent>(entity);
         auto& interp = view.get<InterpolationComponent>(entity);
 
+        // Phase 15: Fallback to serverId map if gamePtr not yet populated
+        if (remote.gamePtr == 0) {
+            auto it = m_serverIdToPtr.find(remote.serverId);
+            if (it != m_serverIdToPtr.end()) {
+                remote.gamePtr = it->second;
+            }
+        }
+
         if (remote.gamePtr == 0 || !interp.initialized) continue;
 
         // Send the interpolated position to DLL for application
@@ -475,6 +487,9 @@ void CharacterService::OnAssignCharacter(uint32_t aServerId, uint32_t aFormId,
         SendSetPosition(gamePtr, aPosition, aRotation);
     }
 
+    // Phase 15: Send spawn command to DLL to create the actor in Skyrim
+    SendSpawnActor(aFormId, aPosition, aRotation);
+
     spdlog::info("CharacterService: Assigned remote character serverId={} formId={:#x} pos=({:.0f},{:.0f},{:.0f})",
                  aServerId, aFormId, aPosition.x, aPosition.y, aPosition.z);
 }
@@ -487,6 +502,18 @@ void CharacterService::OnRemoveCharacter(uint32_t aServerId)
         if (comp.serverId == aServerId) {
             spdlog::info("CharacterService: Removing remote character serverId={} formId={:#x}",
                          aServerId, comp.formId);
+
+            // Phase 15: Send remove command to DLL
+            uint64_t actorPtr = comp.gamePtr;
+            if (actorPtr == 0) {
+                auto it = m_serverIdToPtr.find(aServerId);
+                if (it != m_serverIdToPtr.end()) {
+                    actorPtr = it->second;
+                }
+            }
+            SendRemoveActor(actorPtr);
+            m_serverIdToPtr.erase(aServerId);
+
             m_registry.destroy(entity);
             return;
         }
@@ -569,4 +596,65 @@ void CharacterService::SendPlayAnimation(uint64_t aActorPtr, uint32_t aActionId,
         {JsonField::kTargetFormId, aTargetFormId}
     };
     m_client.SendJsonLine(cmd);
+}
+
+// --- Phase 15: Spawn/remove command senders ---
+
+void CharacterService::SendSpawnActor(uint32_t aFormId, const glm::vec3& aPosition, const glm::vec2& aRotation)
+{
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdSpawnActor},
+        {JsonField::kFormId, aFormId},
+        {JsonField::kX, aPosition.x},
+        {JsonField::kY, aPosition.y},
+        {JsonField::kZ, aPosition.z},
+        {JsonField::kRx, aRotation.x},
+        {JsonField::kRy, aRotation.y}
+    };
+    m_client.SendJsonLine(cmd);
+    spdlog::info("CharacterService: Sent cmd_spawn_actor formId={:#x} pos=({:.0f},{:.0f},{:.0f})",
+                 aFormId, aPosition.x, aPosition.y, aPosition.z);
+}
+
+void CharacterService::SendRemoveActor(uint64_t aActorPtr)
+{
+    if (aActorPtr == 0) return;
+
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdRemoveActor},
+        {JsonField::kActorPtr, aActorPtr}
+    };
+    m_client.SendJsonLine(cmd);
+    spdlog::info("CharacterService: Sent cmd_remove_actor ptr={:#x}", aActorPtr);
+}
+
+void CharacterService::OnSpawnResult(uint32_t aFormId, uint64_t aActorPtr, bool aSuccess)
+{
+    if (!aSuccess || aActorPtr == 0) {
+        spdlog::warn("CharacterService: Spawn failed for formId={:#x}", aFormId);
+        return;
+    }
+
+    // Find the RemoteComponent with matching formId and no gamePtr yet
+    auto view = m_registry.view<RemoteComponent>();
+    for (auto entity : view) {
+        auto& comp = view.get<RemoteComponent>(entity);
+        if (comp.formId == aFormId && comp.gamePtr == 0) {
+            comp.gamePtr = aActorPtr;
+            m_serverIdToPtr[comp.serverId] = aActorPtr;
+            spdlog::info("CharacterService: Spawn result received formId={:#x} ptr={:#x} serverId={}",
+                         aFormId, aActorPtr, comp.serverId);
+
+            // Send initial position if interpolation data is available
+            if (m_registry.all_of<InterpolationComponent>(entity)) {
+                auto& interp = m_registry.get<InterpolationComponent>(entity);
+                if (interp.initialized) {
+                    SendSetPosition(aActorPtr, interp.currentPos, interp.currentRot);
+                }
+            }
+            return;
+        }
+    }
+
+    spdlog::warn("CharacterService: Spawn result for formId={:#x} but no matching RemoteComponent", aFormId);
 }

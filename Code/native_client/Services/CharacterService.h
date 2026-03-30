@@ -72,6 +72,13 @@ public:
     void OnReferencesMoveRequest(uint32_t aServerId, const glm::vec3& aPosition, const glm::vec2& aRotation);
     void OnRemoteAnimationUpdate(uint32_t aServerId, uint32_t aActionId, uint32_t aTargetFormId);
 
+    // Phase 15: DLL spawn/remove command senders
+    void SendSpawnActor(uint32_t aFormId, const glm::vec3& aPosition, const glm::vec2& aRotation);
+    void SendRemoveActor(uint64_t aActorPtr);
+
+    // Phase 15: Handle spawn_result event from DLL (actor pointer feedback)
+    void OnSpawnResult(uint32_t aFormId, uint64_t aActorPtr, bool aSuccess);
+
 private:
     // Actor lifecycle handlers (formId resolved DLL-side, passed in from packet args)
     void HandleActorAdded(uint64_t aActorPtr, uint32_t aFormId);
@@ -126,6 +133,10 @@ private:
     // formId for the same pointer.
     std::unordered_set<uint64_t> m_pendingPtrs;
     void TryResolvePending(uint64_t aActorPtr, uint32_t aFormId);
+
+    // Phase 15: serverId -> game actor pointer mapping
+    // Populated by OnSpawnResult, consumed by ApplyRemotePositions and OnRemoveCharacter
+    std::unordered_map<uint32_t, uint64_t> m_serverIdToPtr;
 
     // Game memory offsets (Skyrim SE)
     static constexpr uint64_t kFormIdOffset = 0x14;
