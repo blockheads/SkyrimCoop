@@ -31,7 +31,14 @@ This phase absorbs Phase 17's scope (TESNPC::Create + appearance reconstruction 
 - **D-06:** Implement AI suppression on remote actors via ActorExtension::SetRemote(true) or equivalent flag-setting in the DLL spawn path. Without this, spawned actors immediately execute Skyrim's default AI (wandering, combat).
 
 ### Host-Authoritative State Reconciliation (Core Architecture)
-- **D-07:** **The host is always right.** The host's embedded GameServer holds the authoritative entity registry. Clients mirror it. Every layer (native process, relay DLL) is rebuildable from the layer above it. This is the same architecture used by Deep Rock Galactic, Borderlands, Left 4 Dead 2, Terraria, and Helldivers 2.
+- **D-07:** **The host is always right — single simulation, multiple renderers.** The host's Skyrim is the ONE simulation. Clients do not independently simulate synced state — they receive results from the host and render them. This is a fundamental departure from STR, which let each client simulate independently and tried to patch up differences. Our model: host hooks game events → sends state to clients → clients apply it. No client-side simulation for anything the host controls. This eliminates an entire class of desync (divergent simulation) by design. The relay DLL architecture is ideal for this — we can hook anything on the host and the client DLL just applies commands.
+  - **NPC AI/pathfinding:** Host simulates, sends positions. Clients suppress AI (SetRemote) and apply server positions.
+  - **Physics objects:** Host hooks physics changes, sends results. Clients apply positions (future phase).
+  - **Script-driven events:** Host runs Papyrus, sends effects (doors, traps, containers). Clients apply (future phase).
+  - **Weather/time:** Host sends weather ID + time. Clients force-set (STR already has WeatherService/CalendarService).
+  - **Random outcomes:** Host makes all decisions (loot, dialogue), sends results. Clients never roll independently (future phase).
+
+  Phase 16 establishes this pattern for actor spawning/positioning. Future phases extend it to each additional state category using the same hook → send → apply model.
 - **D-08:** **New server message: `WorldStateSync`** — sent every 1 second to each connected client. Contains the complete list of synced entity serverIds + their current positions/rotations. At 50 actors × ~20 bytes each = ~1KB/s per client. Trivial bandwidth cost.
 - **D-09:** **Client reconciliation on every WorldStateSync receipt:**
   - ServerId on server but not on client → spawn it (request full data if needed)
@@ -137,7 +144,7 @@ This phase absorbs Phase 17's scope (TESNPC::Create + appearance reconstruction 
 - The server code is correct (FormId=0:0 for players is by design) — all work is on the native client and relay DLL side
 - AppearanceBuffer goes over TCP as a single atomic payload in cmd_spawn_actor — no separate appearance command
 - STR source is the reference implementation to port from — read it first, then adapt for relay DLL architecture
-- **Key architectural advantage over STR:** STR's server was headless (no Skyrim, no hooks, no game state) — it could only relay what clients told it. Our host IS Skyrim. The host's game state is ground truth. This enables true server authority that STR could never achieve.
+- **Key architectural advantage over STR:** STR's server was headless (no Skyrim, no hooks, no game state) — it could only relay what clients told it, and each client simulated independently, leading to desync. Our host IS Skyrim. The host's game state is ground truth. Clients are renderers, not simulators. This enables true server authority that STR could never achieve and eliminates divergent-simulation desync by design.
 - **The reconciliation pattern (event-driven + 1s sync) is the foundation for ALL future sync systems.** Inventory, combat, quests, actor values — they all follow this same template. Getting the actor spawn reconciliation right means we have a proven, reusable pattern.
 - **Research basis:** This architecture matches what Deep Rock Galactic (UE4 listen server), Borderlands (UE3/4), Left 4 Dead 2 (Source Engine), Terraria (custom engine), and Helldivers 2 use. Every successful 2-4 player co-op game converges on host-authoritative with periodic reconciliation.
 
