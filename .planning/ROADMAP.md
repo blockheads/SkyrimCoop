@@ -288,3 +288,13 @@ Plans:
 - [x] 14-01-PLAN.md -- MessageSerializer with Visit()-based type name maps, Base64 utility, unit tests
 - [x] 14-02-PLAN.md -- EnetRecorder taps in GameServer + ServerReplayHarness with test-mode server World
 - [x] 14-03-PLAN.md -- Synthetic NDJSON fixtures, enet6 replay tests, DualReplayHarness coordinator
+
+### Phase 15: Remote Actor Spawning & Game Integration
+
+**Goal:** Bridge server CharacterSpawnRequest/CharacterRemove/ReferencesMoveRequest messages to in-game actor creation and position sync via relay DLL commands. When a remote player connects, the native client sends spawn commands to the relay DLL, which creates and updates NPCs in Skyrim. Also includes INI auto-configuration (bAlwaysActive, windowed mode) in all launch scripts.
+**Requirements**: TBD
+**Depends on:** Phase 14
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 15 to break down)

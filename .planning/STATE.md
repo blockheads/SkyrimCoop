@@ -144,6 +144,7 @@ None yet.
 - Phase 07 added: Native Linux Build with SKSE TCP Relay — split codebase so 90% builds natively on Linux, thin MinGW DLL acts as TCP relay into SKSE
 - Phase 12 added: NDJSON Replay Capture and Integration Tests — record live sessions, replay without Skyrim, regression tests against real game data
 - Phase 13 added: Network Replay Recording and Regression Testing — extend replay system to capture full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement) alongside DLL hook events; dual host+client recording for offline regression tests with real game data
+- Phase 15 added: Remote Actor Spawning & Game Integration — bridge server CharacterSpawnRequest to in-game actor creation via relay DLL commands, position sync for remote actors, INI auto-configuration in launch scripts
 - Phase 14 added: enet6 Network Traffic Replay — deferred from Phase 13 scope; capture and replay full enet6 network traffic (auth, AssignCharacter, CharacterSpawn, movement) alongside DLL hook events with dual host+client recording for offline regression testing
 
 ### Blockers/Concerns
