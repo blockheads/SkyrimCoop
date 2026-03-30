@@ -2,39 +2,53 @@
 
 ## What This Is
 
-A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked from Tilted Online (Skyrim Together Reborn). Converts the original MMO-style client-server architecture to a host-based co-op model (2-4 players, drop-in via Steam invite). The entire toolchain builds and debugs natively on Linux, cross-compiling the Windows client DLL via MinGW following the LethalInjection pattern.
+A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked from Tilted Online (Skyrim Together Reborn). Converts the original MMO-style client-server architecture to a host-based co-op model (2-4 players, drop-in via direct IP or Steam invite). The full STR client builds under MinGW from Linux, producing a single SKSE plugin DLL that loads into Skyrim under Proton.
 
 ## Core Value
 
-Two friends can drop into Skyrim together on Linux with zero server setup — host clicks "host," friend joins via Steam invite, and it just works.
+Two friends can drop into Skyrim together on Linux with zero server setup — host clicks "host," friend joins via direct connect, and it just works.
+
+## Current Milestone: v2.0 MinGW Full Client with Host-Authoritative P2P
+
+**Goal:** Build SkyrimTogether Reborn as a single MinGW-compiled SKSE plugin DLL with host-authoritative P2P architecture — the existing Code/client/ and Code/server/ compile under MinGW, embed the server in-process, and two players can co-op.
+
+**Target features:**
+- Full STR client (Code/client/) compiles under MinGW as a single SKSE DLL
+- Host-authoritative embedded server runs in-process (single simulation, multiple renderers)
+- Character sync: spawn, movement, animation, appearance
+- Actor value sync: health, magicka, stamina
+- Inventory/equipment sync on spawn and during gameplay
+- Combat sync with host adjudication
+- Quest sync (host-authoritative)
+- Two-player co-op session via direct IP connect
+- Linux cross-compile toolchain (build + debug from Linux via Wine/gdb)
 
 ## Requirements
 
 ### Validated
 
-- ✓ EnTT-based ECS entity management — existing
-- ✓ Message-based networking with differential serialization (58 client / 61 server opcodes) — existing
-- ✓ Character sync (position, movement, animation) — existing
-- ✓ Inventory and equipment synchronization — existing
-- ✓ Combat synchronization — existing
-- ✓ Quest sync (optional, host-authoritative) — existing
-- ✓ Angular/CEF overlay UI — existing
-- ✓ Lua server-side scripting via Sol2 — existing
-- ✓ SKSE plugin integration — existing
-- ✓ Server builds on Linux — existing
-- ✓ Unit tests for message encoding/serialization — existing
+- ✓ MinGW cross-compilation produces working SKSE plugins — Phase 1 GATE-01/GATE-02
+- ✓ MinHook produces working x64 function hooks under MinGW — Phase 1 GATE-02
+- ✓ Address Library v2 resolves game addresses at runtime — Phase 7
+- ✓ MSVC ABI compatibility layers work (MinGWCompat.h, link_stubs.cpp, -mms-bitfields) — Phase 2-3
+- ✓ enet6 UDP networking with GameServer — Phase 5
+- ✓ Message encoding/serialization (58 client / 61 server opcodes) — existing STR
+- ✓ EnTT-based ECS entity management — existing STR
+- ✓ Lua server-side scripting via Sol2 — existing STR
+- ✓ Server builds on Linux — existing STR
 
 ### Active
 
-- [~] Full Linux build toolchain (MinGW cross-compile for client DLL, native server) — Tier 1-2 libraries compile under MinGW and natively on Linux (Phase 2); client DLL pending (Phase 3)
-- [ ] Linux-native debug workflow (attach to Wine/Proton process, inspect DLL state)
-- [ ] MMO-to-co-op architecture conversion (embedded server in host, simplified ownership)
-- [ ] Drop-in 2-4 player sessions via Steam/EOS friend invite
-- [ ] Host-authoritative world state (NPCs, quests, time, weather)
-- [ ] Mod-list synchronization (host's mod list enforced, clients must match)
-- [~] Automated E2E testing framework (headless or simulated host+client sessions) — fake_player binary + test_ingame_sync.sh verified (Phase 5)
-- [~] Comprehensive unit and integration test suite for all sync services — 52 assertions across 13 replay test cases covering all 7 sync services + integration; 38 prior test cases (network, relay, encoding) verified (Phase 5, expanded Phase 13)
-- [ ] CI pipeline running all tests on Linux
+- [ ] Full Code/client/ compiles under MinGW as SKSE DLL (CEF/DirectXTK/Discord excluded)
+- [ ] Host-authoritative embedded server runs in DLL process
+- [ ] Character sync (position, movement, animation) works between host and client
+- [ ] Actor spawning with appearance reconstruction (TESNPC::Create from AppearanceBuffer)
+- [ ] Inventory/equipment synchronization
+- [ ] Combat synchronization with host adjudication
+- [ ] Quest sync (host-authoritative)
+- [ ] Actor value sync (health, magicka, stamina)
+- [ ] Two-player co-op session via direct IP connect on localhost
+- [ ] Linux cross-compile + debug workflow (MinGW build, Wine/gdb attach with DWARF symbols)
 
 ### Out of Scope
 
@@ -44,26 +58,44 @@ Two friends can drop into Skyrim together on Linux with zero server setup — ho
 - Mobile or console clients — PC only
 - Custom game engine modifications — mod only, don't touch Skyrim's engine
 - Real-time voice chat — use Discord/Steam voice
+- CEF overlay UI — deferred, not needed for core multiplayer
+- DirectXTK debug UI — deferred
+- Discord SDK integration — deferred
+- Steam invite system — direct IP connect first, Steam invites later
+- Relay DLL architecture — abandoned in v1.0, replaced by direct MinGW DLL
+- Native Linux client (ELF binary) — abandoned in v1.0, all logic in SKSE DLL
 
 ## Context
 
 **Forked from:** Tilted Online / Skyrim Together Reborn (GPLv3)
 - Original architecture: dedicated server + multiple clients (MMO-style)
-- Target architecture: host player runs embedded server + clients connect (co-op)
+- Target architecture: host player runs embedded server in-process + clients connect (co-op)
 
-**LethalInjection reference project** (`/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d5/Projects/LethalInjection`):
-- Proven pattern for Linux-native tooling + MinGW cross-compiled Windows DLL
-- Three-layer architecture: Linux frontend ↔ Linux middleware ↔ injected Windows DLL
-- CMake + MinGW toolchain, debug via Wine/Proton process attachment
-- This project should follow the same cross-compile and debug patterns
+**v1.0 learnings (abandoned relay architecture):**
+- Proved MinGW can produce valid SKSE plugins (GATE-01/GATE-02)
+- Proved MinHook, Address Library, and game hooking all work under MinGW
+- The relay DLL + native client split added unnecessary complexity (TCP/JSON IPC, /proc/pid/mem reads, command queue)
+- The full STR client CAN build under MinGW — the codebase already has extensive compat layers
+- Debugging MinGW DLLs under Wine works well (DWARF symbols + gdb attach)
+
+**Host-authoritative architecture (canonical docs):**
+- `.planning/NETWORK-ARCHITECTURE.md` — "Single Simulation, Multiple Renderers" design
+- `P2P_ARCHITECTURE.md` — direct authority model, no localhost loopback
+- `LISTEN_SERVER_ARCHITECTURE.md` — embedded server in Skyrim process
+- `WHY_DIRECT_AUTHORITY_IS_REQUIRED.md` — why direct authority is mandatory
+- `P2P_REFACTOR_PLAN.md` — conversion strategy
+
+**SKSE source reference:** `/home/bighass/Downloads/skse64_2_02_06/`
+- Plugin API is pure C-linkage (extern "C" exports via GetProcAddress)
+- All interfaces are function-pointer structs, not C++ vtables
+- x64 calling convention identical between MSVC and MinGW
 
 **Existing codebase state:**
 - ~12k LOC across client (6.2k) and server (5.3k) in C++20
-- XMake build system with some CMake legacy support
-- Windows client builds with MSVC, server builds on both platforms
-- Basic Catch2 test suite for encoding/serialization only
-- Angular 16 + CEF overlay UI with TypeScript
-- Significant technical debt from MMO assumptions throughout codebase
+- XMake build system with MinGW platform support
+- MinGW compat already in place: MinGWCompat.h, link_stubs.cpp, -mms-bitfields
+- Basic Catch2 test suite + 208 replay test assertions
+- Angular 16 + CEF overlay UI (deferred for this milestone)
 
 **Key architectural change for co-op:**
 - Actor ownership: host always owns NPCs/world state (simplifies from distributed ownership)
@@ -73,22 +105,24 @@ Two friends can drop into Skyrim together on Linux with zero server setup — ho
 
 ## Constraints
 
-- **Build system**: Must cross-compile Windows DLL from Linux via MinGW (LethalInjection pattern)
+- **Build system**: Must cross-compile Windows DLL from Linux via MinGW
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
-- **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
+- **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug via gdb with DWARF symbols
 - **License**: GPLv3 — all modifications must remain open source
 - **Mod compatibility**: Host's mod list is authoritative; clients must match to connect
 - **Platform**: Linux-first development, Windows compatibility maintained for end users
+- **No relay**: Single DLL architecture — no TCP IPC, no separate native process
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| LethalInjection-style cross-compile | Proven pattern for Linux dev + Windows DLL, same developer has reference impl | — Pending |
-| MinGW over MSVC for client DLL | Required for Linux cross-compilation, LethalInjection validates this works | — Pending |
-| Host-embedded server (not dedicated) | Simplifies ownership, removes infrastructure burden, fits co-op model | — Pending |
-| Milestone 1 = builds + debugs on Linux | Foundational — everything else depends on having a working Linux toolchain | — Pending |
-| Mod-list sync (not graceful mismatch) | Simpler to enforce matching than handle mismatches, prevents desync bugs | — Pending |
+| MinGW single DLL (not relay+native split) | Relay added complexity (TCP/JSON/proc_memory) for marginal debug benefit; MinGW DLLs debuggable via gdb+DWARF | — Pending |
+| Host-authoritative (single simulation) | Skyrim is closed-source, can't recreate engine in separate server; host's engine IS the simulation | — Pending |
+| Embedded server in DLL process | No separate server binary; host's DLL runs GameServer in-process, clients connect via enet6 | — Pending |
+| CEF/UI deferred | Core multiplayer works without overlay; add UI after sync is solid | — Pending |
+| Direct IP connect first (not Steam) | Simpler to implement; Steam invites are polish, not core | — Pending |
+| Delete relay_dll/ and native_client/ | Clean break from v1.0 architecture; code preserved in git history | — Pending |
 
 ## Evolution
 
@@ -108,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 14 completion — enet6 network traffic replay with MessageSerializer (100 opcodes), EnetRecorder taps in GameServer, ServerReplayHarness, DualReplayHarness, and 6 Catch2 replay test cases (208 assertions total)*
+*Last updated: 2026-03-30 — Milestone v2.0 started (abandoned v1.0 relay architecture, pivoting to MinGW full client)*
