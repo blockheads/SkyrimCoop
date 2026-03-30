@@ -108,5 +108,6 @@ enum ServerOpcode : unsigned char
     kNotifySetWaypoint,
     kNotifyRemoveWaypoint,
     kNotifySetTimeResult,
+    kWorldStateSync,
     kServerOpcodeMax
 };
