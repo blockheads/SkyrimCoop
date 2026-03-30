@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -79,6 +80,20 @@ public:
     // Phase 15: Handle spawn_result event from DLL (actor pointer feedback)
     void OnSpawnResult(uint32_t aFormId, uint64_t aActorPtr, bool aSuccess);
 
+    // Phase 16: Dual-path spawn routing (per D-02)
+    void OnSpawnCharacter(uint32_t aServerId, uint32_t aFormId,
+                          const glm::vec3& aPosition, const glm::vec2& aRotation,
+                          bool aIsPlayer,
+                          const std::string& aAppearanceBuffer,
+                          uint32_t aChangeFlags,
+                          const std::string& aFaceTintsBuffer);
+
+    // Phase 16: WorldStateSync reconciliation (per D-09)
+    void OnWorldStateSync(const std::vector<std::pair<uint32_t, glm::vec3>>& aEntries);
+
+    // Phase 16: Disconnect cleanup (per D-11)
+    void DisconnectCleanup();
+
 private:
     // Actor lifecycle handlers (formId resolved DLL-side, passed in from packet args)
     void HandleActorAdded(uint64_t aActorPtr, uint32_t aFormId);
@@ -93,6 +108,12 @@ private:
     // Periodic sync routines
     void SyncMovement();
     void ApplyRemotePositions();
+
+    // Phase 16: Appearance-path spawn command (per D-04)
+    void SendSpawnActorWithAppearance(const glm::vec3& aPosition, const glm::vec2& aRotation,
+                                      const std::string& aAppearanceBase64,
+                                      uint32_t aChangeFlags,
+                                      const std::string& aFaceTintsBase64);
 
     // Send a cmd_set_position JSON command to the DLL for a remote actor
     void SendSetPosition(uint64_t aActorPtr, const glm::vec3& aPos, const glm::vec2& aRot);

@@ -658,3 +658,205 @@ void CharacterService::OnSpawnResult(uint32_t aFormId, uint64_t aActorPtr, bool 
 
     spdlog::warn("CharacterService: Spawn result for formId={:#x} but no matching RemoteComponent", aFormId);
 }
+
+// --- Phase 16: Base64 encoding utility for appearance data ---
+
+static const char s_base64Table[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static std::string Base64Encode(const std::string& aInput)
+{
+    std::string result;
+    result.reserve(((aInput.size() + 2) / 3) * 4);
+
+    const auto* pData = reinterpret_cast<const uint8_t*>(aInput.data());
+    size_t len = aInput.size();
+
+    for (size_t i = 0; i < len; i += 3) {
+        uint32_t octet0 = pData[i];
+        uint32_t octet1 = (i + 1 < len) ? pData[i + 1] : 0;
+        uint32_t octet2 = (i + 2 < len) ? pData[i + 2] : 0;
+
+        uint32_t triple = (octet0 << 16) | (octet1 << 8) | octet2;
+
+        result.push_back(s_base64Table[(triple >> 18) & 0x3F]);
+        result.push_back(s_base64Table[(triple >> 12) & 0x3F]);
+        result.push_back((i + 1 < len) ? s_base64Table[(triple >> 6) & 0x3F] : '=');
+        result.push_back((i + 2 < len) ? s_base64Table[triple & 0x3F] : '=');
+    }
+
+    return result;
+}
+
+// --- Phase 16: Dual-path spawn routing (per D-02) ---
+
+void CharacterService::OnSpawnCharacter(uint32_t aServerId, uint32_t aFormId,
+                                         const glm::vec3& aPosition, const glm::vec2& aRotation,
+                                         bool aIsPlayer,
+                                         const std::string& aAppearanceBuffer,
+                                         uint32_t aChangeFlags,
+                                         const std::string& aFaceTintsBuffer)
+{
+    // Check if already tracking this serverId
+    auto view = m_registry.view<RemoteComponent>();
+    for (auto entity : view) {
+        auto& comp = view.get<RemoteComponent>(entity);
+        if (comp.serverId == aServerId) {
+            spdlog::info("CharacterService: OnSpawnCharacter serverId={} already exists, updating position", aServerId);
+            if (m_registry.all_of<InterpolationComponent>(entity)) {
+                auto& interp = m_registry.get<InterpolationComponent>(entity);
+                interp.targetPos = aPosition;
+                interp.targetRot = aRotation;
+            }
+            return;
+        }
+    }
+
+    // Create ECS entity
+    auto entity = m_registry.create();
+    m_registry.emplace<RemoteComponent>(entity, aFormId, uint64_t(0), aServerId);
+
+    InterpolationComponent interp{};
+    interp.targetPos = aPosition;
+    interp.currentPos = aPosition;
+    interp.targetRot = aRotation;
+    interp.currentRot = aRotation;
+    interp.initialized = true;
+    m_registry.emplace<InterpolationComponent>(entity, interp);
+    m_registry.emplace<AnimationComponent>(entity);
+
+    // Route spawn based on FormId (per D-02)
+    if (aFormId == 0 && !aAppearanceBuffer.empty()) {
+        // Custom form path: player character or temporary (per D-04)
+        SendSpawnActorWithAppearance(aPosition, aRotation, aAppearanceBuffer, aChangeFlags, aFaceTintsBuffer);
+        spdlog::info("CharacterService: Spawn appearance-path serverId={} isPlayer={} pos=({:.0f},{:.0f},{:.0f})",
+                     aServerId, aIsPlayer, aPosition.x, aPosition.y, aPosition.z);
+    } else if (aFormId != 0) {
+        // World NPC path: existing formId-based spawn
+        SendSpawnActor(aFormId, aPosition, aRotation);
+        spdlog::info("CharacterService: Spawn formId-path serverId={} formId={:#x}", aServerId, aFormId);
+    } else {
+        spdlog::warn("CharacterService: Spawn serverId={} has formId=0 but no appearance data", aServerId);
+    }
+}
+
+// --- Phase 16: Appearance-path spawn command (per D-04) ---
+
+void CharacterService::SendSpawnActorWithAppearance(const glm::vec3& aPosition, const glm::vec2& aRotation,
+                                                     const std::string& aAppearanceBase64,
+                                                     uint32_t aChangeFlags,
+                                                     const std::string& aFaceTintsBase64)
+{
+    // Base64-encode the binary appearance data for JSON transport
+    std::string appearanceB64 = Base64Encode(aAppearanceBase64);
+    std::string faceTintsB64 = aFaceTintsBase64.empty() ? "" : Base64Encode(aFaceTintsBase64);
+
+    nlohmann::json cmd = {
+        {JsonField::kOp, JsonOp::kCmdSpawnActor},
+        {JsonField::kFormId, uint32_t(0)},
+        {JsonField::kX, aPosition.x},
+        {JsonField::kY, aPosition.y},
+        {JsonField::kZ, aPosition.z},
+        {JsonField::kRx, aRotation.x},
+        {JsonField::kRy, aRotation.y},
+        {JsonField::kAppearance, appearanceB64},
+        {JsonField::kChangeFlags, aChangeFlags},
+        {JsonField::kFaceTints, faceTintsB64}
+    };
+    m_client.SendJsonLine(cmd);
+    spdlog::info("CharacterService: Sent cmd_spawn_actor with appearance data ({} bytes -> {} b64 chars)",
+                 aAppearanceBase64.size(), appearanceB64.size());
+}
+
+// --- Phase 16: WorldStateSync reconciliation (per D-09) ---
+
+void CharacterService::OnWorldStateSync(const std::vector<std::pair<uint32_t, glm::vec3>>& aEntries)
+{
+    // Build set of serverIds from sync message
+    std::unordered_set<uint32_t> syncedIds;
+    for (auto& [sid, pos] : aEntries) {
+        syncedIds.insert(sid);
+    }
+
+    // Check for orphans: entities on client but not in sync (per D-09)
+    std::vector<entt::entity> toRemove;
+    {
+        auto view = m_registry.view<RemoteComponent>();
+        for (auto entity : view) {
+            auto& comp = view.get<RemoteComponent>(entity);
+            if (syncedIds.find(comp.serverId) == syncedIds.end()) {
+                spdlog::info("CharacterService: Reconciliation removing orphan serverId={}", comp.serverId);
+                uint64_t ptr = comp.gamePtr;
+                if (ptr == 0) {
+                    auto it = m_serverIdToPtr.find(comp.serverId);
+                    if (it != m_serverIdToPtr.end()) ptr = it->second;
+                }
+                if (ptr != 0) {
+                    SendRemoveActor(ptr);
+                }
+                m_serverIdToPtr.erase(comp.serverId);
+                toRemove.push_back(entity);
+            }
+        }
+    }
+    for (auto e : toRemove) {
+        m_registry.destroy(e);
+    }
+
+    // Check for missing entities and correct positions
+    for (auto& [sid, pos] : aEntries) {
+        bool found = false;
+        auto view2 = m_registry.view<RemoteComponent, InterpolationComponent>();
+        for (auto entity : view2) {
+            auto& remote = view2.get<RemoteComponent>(entity);
+            if (remote.serverId != sid) continue;
+            found = true;
+
+            // Correct position if differs (reconciliation)
+            auto& interpComp = view2.get<InterpolationComponent>(entity);
+            interpComp.targetPos = pos;
+            break;
+        }
+
+        if (!found) {
+            spdlog::info("CharacterService: Reconciliation detected missing serverId={}, awaiting spawn event", sid);
+            // Missing entity -- WorldStateSync doesn't carry full spawn data,
+            // so we log it. The CharacterSpawnRequest event-driven path
+            // should handle this. If we keep seeing this entity in sync but
+            // never got a spawn, it means a spawn event was lost.
+        }
+    }
+}
+
+// --- Phase 16: Disconnect cleanup (per D-11) ---
+
+void CharacterService::DisconnectCleanup()
+{
+    spdlog::info("CharacterService: Disconnect cleanup starting");
+
+    // Send cmd_remove_actor for every tracked remote entity
+    auto view = m_registry.view<RemoteComponent>();
+    std::vector<entt::entity> remoteEntities;
+    for (auto entity : view) {
+        auto& comp = view.get<RemoteComponent>(entity);
+        uint64_t ptr = comp.gamePtr;
+        if (ptr == 0) {
+            auto it = m_serverIdToPtr.find(comp.serverId);
+            if (it != m_serverIdToPtr.end()) ptr = it->second;
+        }
+        if (ptr != 0) {
+            SendRemoveActor(ptr);
+        }
+        remoteEntities.push_back(entity);
+    }
+
+    // Destroy all RemoteComponent entities
+    for (auto e : remoteEntities) {
+        m_registry.destroy(e);
+    }
+
+    // Clear serverId -> pointer map
+    m_serverIdToPtr.clear();
+
+    spdlog::info("CharacterService: Disconnect cleanup complete, removed {} remote entities", remoteEntities.size());
+}

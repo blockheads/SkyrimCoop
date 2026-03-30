@@ -179,6 +179,7 @@ public:
     ~JoinClient() override { Close(); }
 
     void SetRouter(ServerMessageRouter* apRouter) { m_pRouter = apRouter; }
+    void SetCharacterService(CharacterService* apService) { m_pCharService = apService; }
 
     void OnConsume(const void* apData, uint32_t aSize) override {
         m_messagesReceived++;
@@ -201,6 +202,10 @@ public:
     void OnDisconnected(EDisconnectReason aReason) override {
         spdlog::info("JoinClient: disconnected from remote host (reason: {})", (int)aReason);
         m_connected = false;
+        // Phase 16: Disconnect cleanup (D-11)
+        if (m_pCharService) {
+            m_pCharService->DisconnectCleanup();
+        }
     }
 
     void OnUpdate() override {
@@ -250,6 +255,7 @@ public:
 
 private:
     ServerMessageRouter* m_pRouter{nullptr};
+    CharacterService* m_pCharService{nullptr};
     bool m_connected{false};
     uint64_t m_messagesReceived{0};
 };
@@ -557,14 +563,28 @@ int main(int argc, char* argv[]) {
                     characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
                 }
             });
+        // Phase 16: Extended SpawnCallback with dual-path routing (D-02)
         pRouter->SetSpawnCallback(
-            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy) {
-                spdlog::info("Host: remote character spawned serverId={} formId={:#x}", aServerId, aFormId);
-                characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
+            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy,
+                                bool aIsPlayer, const std::string& aAppearanceBuffer, uint32_t aChangeFlags,
+                                const std::string& aFaceTintsBuffer) {
+                spdlog::info("Host: remote character spawned serverId={} formId={:#x} isPlayer={}", aServerId, aFormId, aIsPlayer);
+                characterService.OnSpawnCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy},
+                                                  aIsPlayer, aAppearanceBuffer, aChangeFlags, aFaceTintsBuffer);
             });
         pRouter->SetRemoveCallback(
             [&characterService](uint32_t aServerId) {
                 characterService.OnRemoveCharacter(aServerId);
+            });
+        // Phase 16: WorldStateSync reconciliation (D-09)
+        pRouter->SetWorldStateSyncCallback(
+            [&characterService](const auto& aEntries) {
+                std::vector<std::pair<uint32_t, glm::vec3>> converted;
+                converted.reserve(aEntries.size());
+                for (auto& e : aEntries) {
+                    converted.emplace_back(e.serverId, glm::vec3(e.x, e.y, e.z));
+                }
+                characterService.OnWorldStateSync(converted);
             });
 
         // Set loopback pointer on CharacterService for outbound messages
@@ -608,6 +628,7 @@ int main(int argc, char* argv[]) {
 
         pJoinClient = std::make_unique<JoinClient>();
         pJoinClient->SetRouter(pRouter.get());
+        pJoinClient->SetCharacterService(&characterService);
 
         // Wire auth callback: trigger AssignCharacterRequest after auth acceptance
         pRouter->SetAuthCallback(
@@ -633,14 +654,28 @@ int main(int argc, char* argv[]) {
                     characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
                 }
             });
+        // Phase 16: Extended SpawnCallback with dual-path routing (D-02)
         pRouter->SetSpawnCallback(
-            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy) {
-                spdlog::info("JoinClient: remote character spawned serverId={} formId={:#x}", aServerId, aFormId);
-                characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
+            [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy,
+                                bool aIsPlayer, const std::string& aAppearanceBuffer, uint32_t aChangeFlags,
+                                const std::string& aFaceTintsBuffer) {
+                spdlog::info("JoinClient: remote character spawned serverId={} formId={:#x} isPlayer={}", aServerId, aFormId, aIsPlayer);
+                characterService.OnSpawnCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy},
+                                                  aIsPlayer, aAppearanceBuffer, aChangeFlags, aFaceTintsBuffer);
             });
         pRouter->SetRemoveCallback(
             [&characterService](uint32_t aServerId) {
                 characterService.OnRemoveCharacter(aServerId);
+            });
+        // Phase 16: WorldStateSync reconciliation (D-09)
+        pRouter->SetWorldStateSyncCallback(
+            [&characterService](const auto& aEntries) {
+                std::vector<std::pair<uint32_t, glm::vec3>> converted;
+                converted.reserve(aEntries.size());
+                for (auto& e : aEntries) {
+                    converted.emplace_back(e.serverId, glm::vec3(e.x, e.y, e.z));
+                }
+                characterService.OnWorldStateSync(converted);
             });
 
         // Set JoinClient pointer on CharacterService for movement sends
@@ -787,6 +822,9 @@ int main(int argc, char* argv[]) {
         fclose(recordFile);
         spdlog::info("Closed record file: {}", recordPath);
     }
+
+    // Phase 16: Disconnect cleanup for all remote entities (D-11)
+    characterService.DisconnectCleanup();
 
     // Cleanup
     spdlog::info("Shutting down native client");
