@@ -80,6 +80,9 @@ This phase absorbs Phase 17's scope (TESNPC::Create + appearance reconstruction 
 
 **Downstream agents MUST read these before planning or implementing.**
 
+### Network Architecture (design authority)
+- `.planning/NETWORK-ARCHITECTURE.md` — Single-simulation-multiple-renderers model, WorldStateSync reconciliation, authority table, interpolation pipeline, disconnect/reconnect handling. ALL implementation must conform to this document.
+
 ### STR Actor Spawning (reference implementation — PORT SOURCE)
 - `Code/client/Games/Skyrim/Actor.cpp` — Actor::Create(TESNPC*) and Actor::Spawn(uint32_t). Full actor creation pipeline including SetSkipSaveFlag, SetRemote, SetLevelMod, ForcePosition, magic caster init.
 - `Code/client/Games/Skyrim/TESNPC.cpp` — TESNPC::Create(AppearanceBuffer, ChangeFlags) and TESNPC::Deserialize. Appearance reconstruction from network data.
