@@ -995,6 +995,7 @@ bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, u
         evt.ActivatorFormId = pActivator->formID;
         TESObjectCELL* pCell = apThis->GetParentCellEx();
         evt.ObjectParentCellFormId = pCell ? pCell->formID : 0;
+        evt.PreActivationOpenStateValue = static_cast<uint8_t>(openState);
         World::Get().GetRunner().Trigger(evt);
     }
 

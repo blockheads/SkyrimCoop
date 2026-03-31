@@ -72,7 +72,21 @@ public:
     virtual bool IsHealingSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsWardSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsInvisibilitySpell(uint32_t aFormId) const noexcept = 0;
+    virtual bool IsBoundWeaponSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsMagicItem(uint32_t aFormId) const noexcept = 0;
+    /// Returns the casting type enum value for a spell (0=Fire, 1=Duration, 2=Concentration, 3=Constant).
+    virtual uint32_t GetSpellCastingType(uint32_t aFormId) const noexcept = 0;
+    /// Returns true if the given effect item (by effectFormId within spellFormId) is the werewolf effect.
+    virtual bool IsSpellEffectWerewolf(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
+    /// Returns true if the given effect item is the vampire lord effect.
+    virtual bool IsSpellEffectVampireLord(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
+    /// Returns true if the given effect item is a slow-time effect.
+    virtual bool IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept = 0;
+    /// Apply a magic target effect on an actor using a specific effect from a spell.
+    virtual void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
+                                       uint32_t aSpellFormId, uint32_t aEffectFormId,
+                                       float aMagnitude, bool aIsDualCasting,
+                                       bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept = 0;
 
     // --- Object (TESObjectREFR) operations ---
     /// Returns true if the object has a lock component.

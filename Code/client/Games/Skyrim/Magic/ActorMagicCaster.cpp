@@ -37,7 +37,14 @@ void TP_MAKE_THISCALL(HookSpellCast, ActorMagicCaster, bool abSuccess, int32_t a
     }
 
     if (apSpell)
-        World::Get().GetRunner().Trigger(SpellCastEvent(apThis, apSpell->formID, targetFormId));
+    {
+        const uint32_t cCasterFormId = apThis->pCasterActor ? apThis->pCasterActor->formID : 0;
+        const bool cHasNiNode = apThis->pCasterActor && apThis->pCasterActor->GetNiNode() != nullptr;
+        const uint32_t cCastingSource = static_cast<uint32_t>(apThis->GetCastingSource());
+        const bool cIsDualCasting = apThis->GetIsDualCasting();
+        World::Get().GetRunner().Trigger(SpellCastEvent(cCasterFormId, apSpell->formID, targetFormId,
+                                                       cCastingSource, cIsDualCasting, cHasNiNode));
+    }
 
     TiltedPhoques::ThisCall(RealSpellCast, apThis, abSuccess, auiTargetCount, apSpell);
 }

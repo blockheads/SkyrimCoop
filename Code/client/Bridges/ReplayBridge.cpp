@@ -6,7 +6,13 @@
 
 #include <Bridges/ReplayBridge.h>
 
+#include <Structs/ActorValues.h>
+#include <Structs/AnimationVariables.h>
+#include <Structs/Faction.h>
 #include <Structs/Inventory.h>
+#include <Structs/Tints.h>
+#include <Structs/ActionEvent.h>
+#include <Structs/QuestLog.h>
 
 #include <fstream>
 #include <sstream>
@@ -81,6 +87,51 @@ uint32_t ReplayBridge::GetActorBaseFormId(uint32_t) const noexcept { return 0; }
 std::string ReplayBridge::GetActorBaseName(uint32_t) const noexcept { return {}; }
 uint32_t ReplayBridge::GetActorRaceFormId(uint32_t) const noexcept { return 0; }
 bool ReplayBridge::ActorHas3D(uint32_t) const noexcept { return false; }
+// --- IActorBridge extended (Plan 03) ---
+ActorValues ReplayBridge::GetActorEssentialValues(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetActorValues(uint32_t, const ActorValues&) noexcept {}
+Inventory ReplayBridge::GetActorInventory(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetActorInventory(uint32_t, const Inventory&) noexcept {}
+Factions ReplayBridge::GetActorFactions(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetActorFactions(uint32_t, const Factions&) noexcept {}
+void ReplayBridge::SetActorWeaponDrawnEx(uint32_t, bool) noexcept {}
+bool ReplayBridge::IsWeaponFullyDrawn(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsActorTemporary(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsActorMount(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsActorDragon(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsActorVampireLord(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsActorDisabled(uint32_t) const noexcept { return false; }
+void ReplayBridge::EnableActor(uint32_t) noexcept {}
+void ReplayBridge::ActorSpeakSound(uint32_t, const std::string&) noexcept {}
+void ReplayBridge::ActorStopCurrentDialogue(uint32_t) noexcept {}
+void ReplayBridge::SetActorIgnoreFriendlyHit(uint32_t, bool) noexcept {}
+void ReplayBridge::SetActorPlayerRespawnMode(uint32_t) noexcept {}
+void ReplayBridge::SetActorCommandingActor(uint32_t, uint32_t) noexcept {}
+uint32_t ReplayBridge::GetActorCommandingActorFormId(uint32_t) const noexcept { return 0; }
+void ReplayBridge::SetActorPackage(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::ActorLoadAnimationVariables(uint32_t, const AnimationVariables&) noexcept {}
+void ReplayBridge::ActorSaveAnimationVariables(uint32_t, AnimationVariables&) const noexcept {}
+ActionEvent ReplayBridge::GetActorLatestAnimation(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetActorLatestAnimation(uint32_t, const ActionEvent&) noexcept {}
+void ReplayBridge::ActorFixVampireLordModel(uint32_t) noexcept {}
+void ReplayBridge::ActorInitiateMountPackage(uint32_t, uint32_t) noexcept {}
+uint32_t ReplayBridge::GetActorParentCellFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetActorWorldSpaceFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::SpawnActorFromNpc(uint32_t) noexcept { return 0; }
+uint32_t ReplayBridge::CreateCustomActor(const TiltedPhoques::String&, uint32_t) noexcept { return 0; }
+void ReplayBridge::DeserializeActorNpc(uint32_t, const TiltedPhoques::String&, uint32_t) noexcept {}
+uint32_t ReplayBridge::SerializeActorNpc(uint32_t, TiltedPhoques::String&) noexcept { return 0; }
+void ReplayBridge::MarkActorNpcChanged(uint32_t, uint32_t) noexcept {}
+uint32_t ReplayBridge::GetActorNpcTemplateBaseFormId(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::IsActorNpcTemporary(uint32_t) const noexcept { return false; }
+Tints ReplayBridge::GetActorFaceTints(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetupActorFaceGen(uint32_t) noexcept {}
+void ReplayBridge::SetupActorCache(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::ActorUpdateInterpolation(uint32_t, uint64_t) noexcept {}
+void ReplayBridge::ActorUpdateAnimation(uint32_t, uint64_t) noexcept {}
+void ReplayBridge::ActorUpdateFaceGen(uint32_t) noexcept {}
+void ReplayBridge::ApplyRevealEffect(uint32_t, float) noexcept {}
+void ReplayBridge::PlayerKnockExplosion(uint32_t, float, float, float, float) noexcept {}
 
 // ---------------------------------------------------------------------------
 // IFormBridge — stub returns
@@ -153,6 +204,13 @@ void ReplayBridge::ActorEquipShout(uint32_t, uint32_t) noexcept {}
 void ReplayBridge::ActorUnequipShout(uint32_t, uint32_t) noexcept {}
 void ReplayBridge::ActorEquipItem(uint32_t, uint32_t, uint32_t, int32_t) noexcept {}
 void ReplayBridge::ActorUnequipItem(uint32_t, uint32_t, uint32_t, int32_t) noexcept {}
+// --- IFormBridge extended (Plan 03) ---
+bool ReplayBridge::IsBoundWeaponSpell(uint32_t) const noexcept { return false; }
+uint32_t ReplayBridge::GetSpellCastingType(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::IsSpellEffectWerewolf(uint32_t, uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsSpellEffectVampireLord(uint32_t, uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsSpellEffectSlow(uint32_t, uint32_t) const noexcept { return false; }
+void ReplayBridge::AddMagicTargetEffect(uint32_t, uint32_t, uint32_t, uint32_t, float, bool, bool, bool) noexcept {}
 
 // ---------------------------------------------------------------------------
 // IPlayerBridge — stub returns
@@ -195,6 +253,13 @@ uint32_t ReplayBridge::GetPlayerRaceFormId() const noexcept { return 0; }
 std::vector<uint32_t> ReplayBridge::GetPlayerActiveQuestFormIds() const noexcept { return {}; }
 bool ReplayBridge::IsPlayerLoaded() const noexcept { return true; }
 void ReplayBridge::ShowHudMessage(const std::string&) noexcept {}
+// --- IPlayerBridge extended (Plan 03) ---
+QuestLog ReplayBridge::GetPlayerQuestLog() const noexcept { return {}; }
+Tints ReplayBridge::GetPlayerFaceTints() const noexcept { return {}; }
+void ReplayBridge::AddPlayerSkillExperience(int32_t, float) noexcept {}
+int32_t ReplayBridge::GetPlayerLastUsedCombatSkill() const noexcept { return 0; }
+uint32_t ReplayBridge::GetPlayerParentCellFormId() const noexcept { return 0; }
+bool ReplayBridge::IsActorBleedingOut(uint32_t) const noexcept { return false; }
 
 // ---------------------------------------------------------------------------
 // IEventBridge — callbacks stored locally, injected by test code

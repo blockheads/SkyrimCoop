@@ -31,7 +31,23 @@
 #include <Projectiles/Projectile.h>
 #include <Forms/TESObjectWEAP.h>
 #include <Forms/TESAmmo.h>
-#include <BSFixedString.h>
+#include <Misc/BSFixedString.h>
+#include <Forms/TESPackage.h>
+#include <Forms/TESTopicInfo.h>
+#include <Forms/TESRace.h>
+#include <Forms/BGSEncounterZone.h>
+#include <Forms/MagicItem.h>
+#include <Magic/MagicTarget.h>
+#include <Structs/Skyrim/AnimationGraphDescriptor_WerewolfBehavior.h>
+#include <Structs/Skyrim/AnimationGraphDescriptor_VampireLordBehavior.h>
+#include <Systems/FaceGenSystem.h>
+#include <Systems/CacheSystem.h>
+#include <Systems/InterpolationSystem.h>
+#include <Systems/AnimationSystem.h>
+#include <Games/Misc/SubtitleManager.h>
+#include <AI/AIProcess.h>
+#include <Misc/MiddleProcess.h>
+#include <Games/Animation/ActorMediator.h>
 
 #include <spdlog/spdlog.h>
 
@@ -1377,4 +1393,562 @@ float SkyrimBridge::GetGameDay() const noexcept
     if (TimeData* pTime = TimeData::Get())
         return pTime->GameDay ? pTime->GameDay->f : 0.f;
     return 0.f;
+}
+
+// ---------------------------------------------------------------------------
+// IActorBridge — extended (Plan 03)
+// ---------------------------------------------------------------------------
+
+ActorValues SkyrimBridge::GetActorEssentialValues(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    return pActor->GetEssentialActorValues();
+}
+
+void SkyrimBridge::SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SetActorValues(acValues);
+}
+
+Inventory SkyrimBridge::GetActorInventory(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    return pActor->GetActorInventory();
+}
+
+void SkyrimBridge::SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SetActorInventory(acInventory);
+}
+
+Factions SkyrimBridge::GetActorFactions(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    Factions result;
+    result.ExtraFactions = pActor->GetFactions();
+    // NpcFactions come from the base NPC form
+    TESNPC* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    if (pNpc)
+        result.NpcFactions = pNpc->GetFactions();
+    return result;
+}
+
+void SkyrimBridge::SetActorFactions(uint32_t aFormId, const Factions& acFactions) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SetFactions(acFactions.ExtraFactions);
+}
+
+void SkyrimBridge::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SetWeaponDrawnEx(aDraw);
+}
+
+bool SkyrimBridge::IsWeaponFullyDrawn(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->actorState.IsWeaponFullyDrawn();
+}
+
+bool SkyrimBridge::IsActorTemporary(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->IsTemporary();
+}
+
+bool SkyrimBridge::IsActorMount(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->IsMount();
+}
+
+bool SkyrimBridge::IsActorDragon(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->IsDragon();
+}
+
+bool SkyrimBridge::IsActorVampireLord(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->IsVampireLord();
+}
+
+bool SkyrimBridge::IsActorDisabled(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->IsDisabled();
+}
+
+void SkyrimBridge::EnableActor(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->EnableImpl();
+}
+
+void SkyrimBridge::ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SpeakSound(acFilename.c_str());
+}
+
+void SkyrimBridge::ActorStopCurrentDialogue(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->StopCurrentDialogue(true);
+}
+
+void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SetIgnoreFriendlyHit(aIgnore);
+}
+
+void SkyrimBridge::SetActorPlayerRespawnMode(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SetPlayerRespawnMode();
+}
+
+void SkyrimBridge::SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    Actor* pCommander = GetActor(aCommanderFormId);
+    if (pActor && pCommander)
+        pActor->SetCommandingActor(pCommander->GetHandle());
+}
+
+uint32_t SkyrimBridge::GetActorCommandingActorFormId(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return 0;
+    auto handle = pActor->GetCommandingActor();
+    if (!handle)
+        return 0;
+    return handle->formID;
+}
+
+void SkyrimBridge::SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    TESPackage* pPkg = Cast<TESPackage>(TESForm::GetById(aPackageFormId));
+    if (pPkg)
+        pActor->SetPackage(pPkg);
+}
+
+void SkyrimBridge::ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->LoadAnimationVariables(acVars);
+}
+
+void SkyrimBridge::ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->SaveAnimationVariables(aVars);
+}
+
+ActionEvent SkyrimBridge::GetActorLatestAnimation(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    return pActor->GetExtension()->LatestAnimation;
+}
+
+void SkyrimBridge::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->GetExtension()->LatestAnimation = acEvent;
+}
+
+void SkyrimBridge::ActorFixVampireLordModel(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (pActor)
+        pActor->FixVampireLordModel();
+}
+
+void SkyrimBridge::ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept
+{
+    Actor* pRider = GetActor(aRiderFormId);
+    Actor* pMount = GetActor(aMountFormId);
+    if (pRider && pMount)
+        pRider->InitiateMountPackage(pMount);
+}
+
+uint32_t SkyrimBridge::GetActorParentCellFormId(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->parentCell)
+        return 0;
+    return pActor->parentCell->formID;
+}
+
+uint32_t SkyrimBridge::GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return 0;
+    auto* pWS = pActor->GetWorldSpace();
+    return pWS ? pWS->formID : 0;
+}
+
+uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
+{
+    TESNPC* pNpc = Cast<TESNPC>(TESForm::GetById(aNpcFormId));
+    if (!pNpc)
+        return 0;
+    Actor* pActor = Actor::Create(pNpc);
+    return pActor ? pActor->formID : 0;
+}
+
+uint32_t SkyrimBridge::CreateCustomActor(const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
+{
+    // Wrap the string bytes in a Buffer::Reader for SKSE deserialization
+    TiltedPhoques::Buffer buf(acAppearance.size());
+    std::memcpy(buf.GetWriteData(), acAppearance.data(), acAppearance.size());
+    buf.SetUsed(acAppearance.size());
+    TiltedPhoques::Buffer::Reader reader(&buf);
+    TESNPC* pNpc = TESNPC::Create(reader, aChangeFlags);
+    if (!pNpc)
+        return 0;
+    Actor* pActor = Actor::Create(pNpc);
+    return pActor ? pActor->formID : 0;
+}
+
+void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
+    if (!pNpc)
+        return;
+    TiltedPhoques::Buffer buf(acAppearance.size());
+    std::memcpy(buf.GetWriteData(), acAppearance.data(), acAppearance.size());
+    buf.SetUsed(acAppearance.size());
+    TiltedPhoques::Buffer::Reader reader(&buf);
+    pNpc->Deserialize(reader, aChangeFlags);
+}
+
+uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return 0;
+    TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
+    if (!pNpc)
+        return 0;
+    TiltedPhoques::Buffer buf(1 << 16);  // 64KB initial size
+    TiltedPhoques::Buffer::Writer writer(&buf);
+    pNpc->Serialize(&writer);
+    aBuffer.assign(reinterpret_cast<const char*>(buf.GetData()), buf.GetUsed());
+    return pNpc->GetChangeFlags();
+}
+
+void SkyrimBridge::MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
+    if (pNpc)
+        pNpc->MarkChanged(aFlags);
+}
+
+uint32_t SkyrimBridge::GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return 0;
+    TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
+    if (!pNpc)
+        return 0;
+    if (!pNpc->IsTemporary())
+        return 0;
+    TESNPC* pTemplate = pNpc->GetTemplateBase();
+    return pTemplate ? pTemplate->formID : 0;
+}
+
+bool SkyrimBridge::IsActorNpcTemporary(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
+    return pNpc ? pNpc->IsTemporary() : false;
+}
+
+Tints SkyrimBridge::GetActorFaceTints(uint32_t aFormId) const noexcept
+{
+    // Player-specific: only player has face tints in Skyrim
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || pPlayer->formID != aFormId)
+        return {};
+
+    Tints result;
+    const auto& tints = pPlayer->GetTints();
+    result.Entries.resize(tints.length);
+    for (auto i = 0u; i < tints.length; ++i)
+    {
+        result.Entries[i].Alpha = tints[i]->alpha;
+        result.Entries[i].Color = tints[i]->color;
+        result.Entries[i].Type = tints[i]->type;
+        if (tints[i]->texture)
+            result.Entries[i].Name = tints[i]->texture->name.AsAscii();
+    }
+    return result;
+}
+
+void SkyrimBridge::SetupActorFaceGen(uint32_t aFormId) noexcept
+{
+    // FaceGen setup is entity-based; this is a no-op at bridge level
+    // Actual setup happens in CharacterService::OnCharacterSpawn via FaceGenSystem::Setup
+}
+
+void SkyrimBridge::SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept
+{
+    // Cache setup is done in CharacterService::ProcessNewEntity via CacheSystem::Setup
+    // Bridge no-op: requires World + entity context not available here
+}
+
+void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept
+{
+    // InterpolationSystem::Update requires InterpolationComponent; called directly in CharacterService
+}
+
+void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept
+{
+    // AnimationSystem::Update requires RemoteAnimationComponent; called directly in CharacterService
+}
+
+void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
+{
+    // FaceGenSystem::Update requires FaceGenComponent; called directly in CharacterService
+}
+
+void SkyrimBridge::ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept
+{
+    // Apply SkyrimTogether.esp detect effect to a remote player
+    Mod* pSkyrimTogether = ModManager::Get()->GetByName("SkyrimTogether.esp");
+    if (!pSkyrimTogether)
+        return;
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById((pSkyrimTogether->standardId << 24) | 0x1825));
+    if (!pSpell)
+        return;
+
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+
+    MagicTarget::AddTargetData data{};
+    data.pSpell = pSpell;
+    data.pEffectItem = pSpell->GetEffect((pSkyrimTogether->standardId << 24) | 0x1824);
+    data.fMagnitude = aMagnitude;
+    data.fUnkFloat1 = 1.f;
+    data.eCastingSource = MagicSystem::CastingSource::CASTING_SOURCE_COUNT;
+
+    pActor->magicTarget.AddTarget(data, false, false);
+}
+
+void SkyrimBridge::PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    NiPoint3 pos{aX, aY, aZ};
+    pActor->currentProcess->KnockExplosion(pActor, &pos, aForce);
+}
+
+// ---------------------------------------------------------------------------
+// IFormBridge — extended (Plan 03)
+// ---------------------------------------------------------------------------
+
+bool SkyrimBridge::IsBoundWeaponSpell(uint32_t aFormId) const noexcept
+{
+    SpellItem* pSpell = Cast<SpellItem>(TESForm::GetById(aFormId));
+    return pSpell ? pSpell->IsBoundWeaponSpell() : false;
+}
+
+uint32_t SkyrimBridge::GetSpellCastingType(uint32_t aFormId) const noexcept
+{
+    SpellItem* pSpell = Cast<SpellItem>(TESForm::GetById(aFormId));
+    if (!pSpell)
+        return 0;
+    return static_cast<uint32_t>(pSpell->eCastingType);
+}
+
+bool SkyrimBridge::IsSpellEffectWerewolf(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept
+{
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
+    if (!pSpell)
+        return false;
+    EffectItem* pEffect = pSpell->GetEffect(aEffectFormId);
+    return pEffect ? pEffect->IsWerewolfEffect() : false;
+}
+
+bool SkyrimBridge::IsSpellEffectVampireLord(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept
+{
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
+    if (!pSpell)
+        return false;
+    EffectItem* pEffect = pSpell->GetEffect(aEffectFormId);
+    return pEffect ? pEffect->IsVampireLordEffect() : false;
+}
+
+bool SkyrimBridge::IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept
+{
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
+    if (!pSpell)
+        return false;
+    EffectItem* pEffect = pSpell->GetEffect(aEffectFormId);
+    return pEffect ? pEffect->IsSlowEffect() : false;
+}
+
+void SkyrimBridge::AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
+                                         uint32_t aSpellFormId, uint32_t aEffectFormId,
+                                         float aMagnitude, bool aIsDualCasting,
+                                         bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
+{
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
+    if (!pSpell)
+        return;
+    EffectItem* pEffect = pSpell->GetEffect(aEffectFormId);
+    if (!pEffect)
+        return;
+
+    Actor* pTarget = GetActor(aTargetFormId);
+    if (!pTarget)
+        return;
+
+    Actor* pCaster = aCasterFormId ? GetActor(aCasterFormId) : nullptr;
+
+    // For slow effects, redirect to player
+    if (pEffect->IsSlowEffect())
+        pTarget = PlayerCharacter::Get();
+
+    // Set werewolf/vampire lord graph descriptor
+    if (pEffect->IsWerewolfEffect())
+        pTarget->GetExtension()->GraphDescriptorHash = AnimationGraphDescriptor_WerewolfBehavior::m_key;
+    if (pEffect->IsVampireLordEffect())
+        pTarget->GetExtension()->GraphDescriptorHash = AnimationGraphDescriptor_VampireLordBehavior::m_key;
+
+    MagicTarget::AddTargetData data{};
+    data.pCaster = pCaster;
+    data.pSpell = pSpell;
+    data.pEffectItem = pEffect;
+    data.fMagnitude = aMagnitude;
+    data.fUnkFloat1 = 1.0f;
+    data.eCastingSource = MagicSystem::CastingSource::CASTING_SOURCE_COUNT;
+    data.bDualCast = aIsDualCasting;
+
+    pTarget->magicTarget.AddTarget(data, aApplyHealPerkBonus, aApplyStaminaPerkBonus);
+}
+
+// ---------------------------------------------------------------------------
+// IPlayerBridge — extended (Plan 03)
+// ---------------------------------------------------------------------------
+
+QuestLog SkyrimBridge::GetPlayerQuestLog() const noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return {};
+
+    QuestLog result;
+    auto& modSystem = World::Get().GetModSystem();
+
+    for (const auto& objective : pPlayer->objectives)
+    {
+        auto* pQuest = objective.instance->quest;
+        if (!pQuest)
+            continue;
+        if (!QuestService::IsNonSyncableQuest(pQuest))
+        {
+            GameId id{};
+            if (modSystem.GetServerModId(pQuest->formID, id))
+            {
+                auto& entry = result.Entries.emplace_back();
+                entry.Stage = pQuest->currentStage;
+                entry.Id = id;
+            }
+        }
+    }
+    // remove duplicates
+    const auto ip = std::unique(result.Entries.begin(), result.Entries.end());
+    result.Entries.resize(std::distance(result.Entries.begin(), ip));
+    return result;
+}
+
+Tints SkyrimBridge::GetPlayerFaceTints() const noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return {};
+    return GetActorFaceTints(pPlayer->formID);
+}
+
+void SkyrimBridge::AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (pPlayer)
+        pPlayer->AddSkillExperience(aSkillId, aExperience);
+}
+
+int32_t SkyrimBridge::GetPlayerLastUsedCombatSkill() const noexcept
+{
+    return PlayerCharacter::LastUsedCombatSkill;
+}
+
+uint32_t SkyrimBridge::GetPlayerParentCellFormId() const noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !pPlayer->parentCell)
+        return 0;
+    return pPlayer->parentCell->formID;
+}
+
+bool SkyrimBridge::IsActorBleedingOut(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    return pActor->actorState.IsBleedingOut();
 }

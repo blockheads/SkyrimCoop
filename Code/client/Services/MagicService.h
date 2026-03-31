@@ -1,13 +1,14 @@
 #pragma once
 
-#include <Games/Events.h>
-#include <Events/EventDispatcher.h>
 #include <Events/AddTargetEvent.h>
 #include <Messages/AddTargetRequest.h>
 #include <Messages/NotifyAddTarget.h>
 #include <Messages/NotifyRemoveSpell.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
+
+class IActorBridge;
+class IFormBridge;
 
 struct World;
 struct TransportService;
@@ -33,7 +34,8 @@ struct NotifyInterruptCast;
  */
 struct MagicService
 {
-    MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
+    MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
+                 IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept;
     ~MagicService() noexcept = default;
 
     TP_NOCOPYMOVE(MagicService);
@@ -99,6 +101,8 @@ struct MagicService
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
+    IActorBridge& m_actorBridge;
+    IFormBridge& m_formBridge;
     bool m_revealingOtherPlayers = false;
 
     entt::scoped_connection m_updateConnection;

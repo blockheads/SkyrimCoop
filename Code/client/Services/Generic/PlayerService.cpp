@@ -18,19 +18,32 @@
 
 #include <Structs/ServerSettings.h>
 
-#include <PlayerCharacter.h>
-#include <Forms/TESObjectCELL.h>
-#include <Forms/TESGlobal.h>
-#include <Games/Overrides.h>
-#include <Games/References.h>
-#include <AI/AIProcess.h>
-#include <EquipManager.h>
-#include <Forms/TESRace.h>
+#include <Bridges/IPlayerBridge.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IActorBridge.h>
 
-PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
+#include <spdlog/spdlog.h>
+#include <spdlog/fmt/fmt.h>
+
+// ActorValueInfo::kHealth = 24 (Skyrim SE enum value)
+static constexpr int32_t kHealthActorValue = 24;
+// ActorValueOwner::ForceMode::DAMAGE = 2
+static constexpr int32_t kForceModeDamage = 2;
+// Skyrim race form IDs for beast form detection
+static constexpr uint32_t kWerewolfRaceFormId   = 0x200283A;
+static constexpr uint32_t kVampireLordRaceFormId = 0xCDD84;
+// Skyrim TESGlobal form IDs used to control game features
+static constexpr uint32_t kKillMoveGlobalFormId          = 0x100F19;
+static constexpr uint32_t kWorldEncountersGlobalFormId   = 0xB8EC1;
+
+PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
+                             IPlayerBridge& aPlayerBridge, IFormBridge& aFormBridge, IActorBridge& aActorBridge) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
     , m_transport(aTransport)
+    , m_playerBridge(aPlayerBridge)
+    , m_formBridge(aFormBridge)
+    , m_actorBridge(aActorBridge)
 {
     m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&PlayerService::OnUpdate>(this);
     m_connectedConnection = m_dispatcher.sink<ConnectedEvent>().connect<&PlayerService::OnConnected>(this);
@@ -55,41 +68,34 @@ void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
 void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
 {
     // TODO: SkyrimTogether.esm
-    TESGlobal* pKillMove = Cast<TESGlobal>(TESForm::GetById(0x100F19));
-    pKillMove->f = 0.f;
-
-    TESGlobal* pWorldEncountersEnabled = Cast<TESGlobal>(TESForm::GetById(0xB8EC1));
-    pWorldEncountersEnabled->f = 0.f;
+    m_formBridge.SetGlobalValue(kKillMoveGlobalFormId, 0.f);
+    m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 0.f);
 }
 
 void PlayerService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
-    PlayerCharacter::Get()->SetDifficulty(m_previousDifficulty);
+    m_playerBridge.SetDifficulty(static_cast<uint32_t>(m_previousDifficulty));
     m_serverDifficulty = m_previousDifficulty = 6;
 
     ToggleDeathSystem(false);
 
-    TESGlobal* pKillMove = Cast<TESGlobal>(TESForm::GetById(0x100F19));
-    pKillMove->f = 1.f;
+    m_formBridge.SetGlobalValue(kKillMoveGlobalFormId, 1.f);
 
     // Restore to the default value (150 in skyrim, 175 in fallout 4)
-    float* greetDistance = Settings::GetGreetDistance();
-    *greetDistance = 150.f;
+    m_playerBridge.SetGreetDistance(150.f);
 
-    TESGlobal* pWorldEncountersEnabled = Cast<TESGlobal>(TESForm::GetById(0xB8EC1));
-    pWorldEncountersEnabled->f = 1.f;
+    m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 1.f);
 }
 
 void PlayerService::OnServerSettingsReceived(const ServerSettings& acSettings) noexcept
 {
-    m_previousDifficulty = *Settings::GetDifficulty();
-    PlayerCharacter::Get()->SetDifficulty(acSettings.Difficulty);
+    m_previousDifficulty = static_cast<int32_t>(m_playerBridge.GetDifficulty());
+    m_playerBridge.SetDifficulty(static_cast<uint32_t>(acSettings.Difficulty));
     m_serverDifficulty = acSettings.Difficulty;
 
     if (!acSettings.GreetingsEnabled)
     {
-        float* greetDistance = Settings::GetGreetDistance();
-        *greetDistance = 0.f;
+        m_playerBridge.SetGreetDistance(0.f);
     }
 
     ToggleDeathSystem(acSettings.DeathSystemEnabled);
@@ -97,10 +103,10 @@ void PlayerService::OnServerSettingsReceived(const ServerSettings& acSettings) n
 
 void PlayerService::OnNotifyPlayerRespawn(const NotifyPlayerRespawn& acMessage) const noexcept
 {
-    PlayerCharacter::Get()->PayGold(acMessage.GoldLost);
+    m_playerBridge.PlayerPayGold(acMessage.GoldLost);
 
     std::string message = fmt::format("You died and lost {} gold.", acMessage.GoldLost);
-    Utils::ShowHudMessage(String(message));
+    m_playerBridge.ShowHudMessage(message);
 }
 
 
@@ -125,7 +131,7 @@ void PlayerService::OnPlayerLevelEvent(const PlayerLevelEvent& acEvent) const no
         return;
 
     PlayerLevelRequest request{};
-    request.NewLevel = PlayerCharacter::Get()->GetLevel();
+    request.NewLevel = m_playerBridge.GetPlayerLevel();
 
     m_transport.Send(request);
 }
@@ -135,8 +141,7 @@ void PlayerService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept
     // TODO: this can be done a bit prettier
     if (acEvent.IsLeader)
     {
-        TESGlobal* pWorldEncountersEnabled = Cast<TESGlobal>(TESForm::GetById(0xB8EC1));
-        pWorldEncountersEnabled->f = 1.f;
+        m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 1.f);
     }
 }
 
@@ -145,8 +150,7 @@ void PlayerService::OnPartyLeftEvent(const PartyLeftEvent& acEvent) noexcept
     // TODO: this can be done a bit prettier
     if (World::Get().GetTransport().IsConnected())
     {
-        TESGlobal* pWorldEncountersEnabled = Cast<TESGlobal>(TESForm::GetById(0xB8EC1));
-        pWorldEncountersEnabled->f = 0.f;
+        m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 0.f);
     }
 }
 
@@ -157,12 +161,13 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
 
     static bool s_startTimer = false;
 
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer->actorState.IsBleedingOut())
+    const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
+
+    if (!m_playerBridge.IsPlayerBleedingOut())
     {
-        m_cachedMainSpellId = pPlayer->magicItems[0] ? pPlayer->magicItems[0]->formID : 0;
-        m_cachedSecondarySpellId = pPlayer->magicItems[1] ? pPlayer->magicItems[1]->formID : 0;
-        m_cachedPowerId = pPlayer->equippedShout ? pPlayer->equippedShout->formID : 0;
+        m_cachedMainSpellId = m_playerBridge.GetPlayerActiveMagicItemFormId(0);
+        m_cachedSecondarySpellId = m_playerBridge.GetPlayerActiveMagicItemFormId(1);
+        m_cachedPowerId = m_playerBridge.GetPlayerEquippedShoutFormId();
 
         s_startTimer = false;
         return;
@@ -172,21 +177,21 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
     {
         s_startTimer = true;
         m_respawnTimer = 5.0;
-        FadeOutGame(true, true, 3.0f, true, 2.0f);
+        m_playerBridge.FadeScreen(true, true, 3.0f, true, 2.0f);
 
         // If a player dies not by its health reaching 0, getting it up from its bleedout state isn't possible
         // just by setting its health back to max. Therefore, put it to 0.
-        if (pPlayer->GetActorValue(ActorValueInfo::kHealth) > 0.f)
-            pPlayer->ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, ActorValueInfo::kHealth, 0);
+        if (m_playerBridge.GetPlayerActorValue(kHealthActorValue) > 0.f)
+            m_playerBridge.ForcePlayerActorValue(kForceModeDamage, kHealthActorValue, 0.f);
 
-        pPlayer->PayCrimeGoldToAllFactions();
+        m_playerBridge.PlayerPayCrimeGoldToAllFactions();
     }
 
     m_respawnTimer -= acDeltaTime;
 
     if (m_respawnTimer <= 0.0)
     {
-        pPlayer->RespawnPlayer();
+        m_playerBridge.RespawnPlayer();
 
         m_knockdownTimer = 1.5;
         m_knockdownStart = true;
@@ -195,16 +200,12 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
 
         s_startTimer = false;
 
-        auto* pEquipManager = EquipManager::Get();
-        TESForm* pSpell = TESForm::GetById(m_cachedMainSpellId);
-        if (pSpell)
-            pEquipManager->EquipSpell(pPlayer, pSpell, 0);
-        pSpell = TESForm::GetById(m_cachedSecondarySpellId);
-        if (pSpell)
-            pEquipManager->EquipSpell(pPlayer, pSpell, 1);
-        pSpell = TESForm::GetById(m_cachedPowerId);
-        if (pSpell)
-            pEquipManager->EquipShout(pPlayer, pSpell);
+        if (m_cachedMainSpellId)
+            m_actorBridge.ActorEquipSpell(cPlayerId, m_cachedMainSpellId, 0);
+        if (m_cachedSecondarySpellId)
+            m_actorBridge.ActorEquipSpell(cPlayerId, m_cachedSecondarySpellId, 1);
+        if (m_cachedPowerId)
+            m_actorBridge.ActorEquipShout(cPlayerId, m_cachedPowerId);
     }
 }
 
@@ -222,14 +223,15 @@ void PlayerService::RunPostDeathUpdates(const double acDeltaTime) noexcept
         m_knockdownTimer -= acDeltaTime;
         if (m_knockdownTimer <= 0.0)
         {
-            PlayerCharacter::SetGodMode(true);
+            m_playerBridge.SetPlayerGodMode(true);
             m_godmodeStart = true;
             m_godmodeTimer = 10.0;
 
-            PlayerCharacter* pPlayer = PlayerCharacter::Get();
-            pPlayer->currentProcess->KnockExplosion(pPlayer, &pPlayer->position, 0.f);
+            float x = 0.f, y = 0.f, z = 0.f;
+            m_playerBridge.GetPlayerPosition(x, y, z);
+            m_actorBridge.PlayerKnockExplosion(m_playerBridge.GetPlayerFormId(), x, y, z, 0.f);
 
-            FadeOutGame(false, true, 0.5f, true, 2.f);
+            m_playerBridge.FadeScreen(false, true, 0.5f, true, 2.f);
 
             m_knockdownStart = false;
         }
@@ -240,7 +242,7 @@ void PlayerService::RunPostDeathUpdates(const double acDeltaTime) noexcept
         m_godmodeTimer -= acDeltaTime;
         if (m_godmodeTimer <= 0.0)
         {
-            PlayerCharacter::SetGodMode(false);
+            m_playerBridge.SetPlayerGodMode(false);
 
             m_godmodeStart = false;
         }
@@ -252,7 +254,7 @@ void PlayerService::RunDifficultyUpdates() const noexcept
     if (!m_transport.IsConnected())
         return;
 
-    PlayerCharacter::Get()->SetDifficulty(m_serverDifficulty);
+    m_playerBridge.SetDifficulty(static_cast<uint32_t>(m_serverDifficulty));
 }
 
 void PlayerService::RunLevelUpdates() const noexcept
@@ -268,9 +270,9 @@ void PlayerService::RunLevelUpdates() const noexcept
 
     lastSendTimePoint = now;
 
-    static uint16_t oldLevel = PlayerCharacter::Get()->GetLevel();
+    static uint16_t oldLevel = m_playerBridge.GetPlayerLevel();
 
-    uint16_t newLevel = PlayerCharacter::Get()->GetLevel();
+    uint16_t newLevel = m_playerBridge.GetPlayerLevel();
     if (newLevel != oldLevel)
     {
         PlayerLevelRequest request{};
@@ -284,7 +286,7 @@ void PlayerService::RunLevelUpdates() const noexcept
 
 void PlayerService::RunBeastFormDetection() const noexcept
 {
-    static uint32_t lastRaceFormID = 0;
+    static uint32_t lastRaceFormId = 0;
     static std::chrono::steady_clock::time_point lastSendTimePoint;
     constexpr auto cDelayBetweenUpdates = 250ms;
 
@@ -294,22 +296,22 @@ void PlayerService::RunBeastFormDetection() const noexcept
 
     lastSendTimePoint = now;
 
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer->race)
-        return;
-    
-    if (pPlayer->race->formID == lastRaceFormID)
+    const uint32_t raceFormId = m_playerBridge.GetPlayerRaceFormId();
+    if (!raceFormId)
         return;
 
-    if (pPlayer->race->formID == 0x200283A || pPlayer->race->formID == 0xCDD84)
+    if (raceFormId == lastRaceFormId)
+        return;
+
+    if (raceFormId == kWerewolfRaceFormId || raceFormId == kVampireLordRaceFormId)
         m_world.GetDispatcher().trigger(BeastFormChangeEvent());
 
-    lastRaceFormID = pPlayer->race->formID;
+    lastRaceFormId = raceFormId;
 }
 
 void PlayerService::ToggleDeathSystem(bool aSet) noexcept
 {
     m_isDeathSystemEnabled = aSet;
 
-    PlayerCharacter::Get()->SetPlayerRespawnMode(aSet);
+    m_playerBridge.SetPlayerRespawnMode(aSet);
 }

@@ -73,6 +73,50 @@ public:
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
+    ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
+    void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
+    Inventory GetActorInventory(uint32_t aFormId) const noexcept override;
+    void SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept override;
+    Factions GetActorFactions(uint32_t aFormId) const noexcept override;
+    void SetActorFactions(uint32_t aFormId, const Factions& acFactions) noexcept override;
+    void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
+    bool IsWeaponFullyDrawn(uint32_t aFormId) const noexcept override;
+    bool IsActorTemporary(uint32_t aFormId) const noexcept override;
+    bool IsActorMount(uint32_t aFormId) const noexcept override;
+    bool IsActorDragon(uint32_t aFormId) const noexcept override;
+    bool IsActorVampireLord(uint32_t aFormId) const noexcept override;
+    bool IsActorDisabled(uint32_t aFormId) const noexcept override;
+    void EnableActor(uint32_t aFormId) noexcept override;
+    void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override;
+    void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;
+    void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override;
+    void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override;
+    void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
+    uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;
+    void SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept override;
+    void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override;
+    void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override;
+    ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
+    void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept override;
+    void ActorFixVampireLordModel(uint32_t aFormId) noexcept override;
+    void ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
+    uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
+    uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
+    uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
+    uint32_t CreateCustomActor(const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept override;
+    void DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept override;
+    uint32_t SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept override;
+    void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
+    uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
+    bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;
+    Tints GetActorFaceTints(uint32_t aFormId) const noexcept override;
+    void SetupActorFaceGen(uint32_t aFormId) noexcept override;
+    void SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept override;
+    void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
+    void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
+    void ActorUpdateFaceGen(uint32_t aFormId) noexcept override;
+    void ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept override;
+    void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept override;
 
     // -----------------------------------------------------------------
     // IFormBridge
@@ -110,6 +154,15 @@ public:
     bool IsWardSpell(uint32_t aFormId) const noexcept override;
     bool IsInvisibilitySpell(uint32_t aFormId) const noexcept override;
     bool IsMagicItem(uint32_t aFormId) const noexcept override;
+    bool IsBoundWeaponSpell(uint32_t aFormId) const noexcept override;
+    uint32_t GetSpellCastingType(uint32_t aFormId) const noexcept override;
+    bool IsSpellEffectWerewolf(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept override;
+    bool IsSpellEffectVampireLord(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept override;
+    bool IsSpellEffectSlow(uint32_t aSpellFormId, uint32_t aEffectFormId) const noexcept override;
+    void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId,
+                               uint32_t aSpellFormId, uint32_t aEffectFormId,
+                               float aMagnitude, bool aIsDualCasting,
+                               bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept override;
     // --- Object operations ---
     bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override;
     bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override;
@@ -190,6 +243,12 @@ public:
     std::vector<uint32_t> GetPlayerActiveQuestFormIds() const noexcept override;
     bool IsPlayerLoaded() const noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
+    QuestLog GetPlayerQuestLog() const noexcept override;
+    Tints GetPlayerFaceTints() const noexcept override;
+    void AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept override;
+    int32_t GetPlayerLastUsedCombatSkill() const noexcept override;
+    uint32_t GetPlayerParentCellFormId() const noexcept override;
+    bool IsActorBleedingOut(uint32_t aFormId) const noexcept override;
 
     // -----------------------------------------------------------------
     // IEventBridge

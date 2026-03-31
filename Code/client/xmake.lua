@@ -181,23 +181,75 @@ target("SkyrimTogetherClientServices")
     set_group("Client")
     set_languages("cxx20")
 
+    -- PCH setup: service files rely on TiltedOnlinePCH.h being pre-included.
+    -- On MinGW, use force-include (same as main client); on other platforms use standard PCH.
+    if is_plat("mingw") then
+        add_cxflags("-include TiltedOnlinePCH.h", {force = true})
+        add_cxflags("-include MinGWCompat.h", {force = true})
+    else
+        set_pcxxheader("TiltedOnlinePCH.h")
+    end
+
     -- Services and bridge (no Games/Skyrim here)
-    add_files("Services/**.cpp")
+    -- Excluded (still SKSE-dependent, not in plan 03 migration scope):
+    --   Debug/          - DebugService and views require Actor.h, ImGui, HWND
+    --   CalendarService - inherits BSTEventSink<TESActivateEvent>, uses TimeData::Get()
+    --   PapyrusService  - uses GameVM::Get()->virtualMachine
+    add_files("Services/Generic/ActorValueService.cpp",
+              "Services/Generic/CharacterService.cpp",
+              "Services/Generic/CombatService.cpp",
+              "Services/Generic/CommandService.cpp",
+              "Services/Generic/DiscordService.cpp",
+              "Services/Generic/ImguiService.cpp",
+              "Services/Generic/InputService.cpp",
+              "Services/Generic/InventoryService.cpp",
+              "Services/Generic/MagicService.cpp",
+              "Services/Generic/MapService.cpp",
+              "Services/Generic/ObjectService.cpp",
+              "Services/Generic/OverlayClient.cpp",
+              "Services/Generic/OverlayService.cpp",
+              "Services/Generic/PartyService.cpp",
+              "Services/Generic/PlayerService.cpp",
+              "Services/Generic/QuestService.cpp",
+              "Services/Generic/RunnerService.cpp",
+              "Services/Generic/StringCacheService.cpp",
+              "Services/Generic/TransportService.cpp",
+              "Services/Generic/WeatherService.cpp")
+    add_files("Services/HostService.cpp")
     add_files("Bridges/ReplayBridge.cpp")
     add_headerfiles("Bridges/*.h")
 
-    -- Include paths — deliberately excludes Games/Skyrim
-    add_includedirs(".", "../external/")
+    -- Include paths
+    -- NOTE: Games/Skyrim IS on the path (for RTTI.h, Utils.h which TiltedOnlinePCH.h needs),
+    -- but SKSE type headers (Actor.h, TESObjectCELL.h, etc.) must NOT appear in any
+    -- migrated service source file — that is enforced by CI grep, not by include path exclusion.
+    add_includedirs(".", "../external/", "Games/Skyrim")
     add_includedirs("Bridges")
+    -- Server include dir needed for HostService (embedded GameServer)
+    add_includedirs("../server", {public = false})
 
-    -- Core packages (same subset as main client, minus Windows-only)
+    -- Mirror the main client package set (TiltedOnlinePCH.h pulls in xbyak, imgui, etc.)
     add_packages(
+        "rpmalloc",
         "spdlog",
         "hopscotch-map",
+        "cryptopp",
+        "enet6",
+        "minhook",
         "entt",
         "glm",
-        "nlohmann_json")
+        "xbyak",
+        "imgui")
 
-    -- Encoding for message types used by services
-    add_deps("SkyrimEncoding")
+    -- mem is header-only; use package on MSVC, local vendored copy on MinGW
+    if not is_plat("mingw") then
+        add_packages("mem")
+    else
+        add_includedirs("../external/mem", {public = false})
+    end
+
+    -- Encoding + networking + core deps needed by TiltedOnlinePCH.h
+    -- SkyrimTogetherServer needed for HostService (embedded server)
+    add_deps("SkyrimEncoding", "SkyrimCoopNetworking", "SkyrimCoopReverse", "BaseLib", "CommonLib",
+             "SkyrimTogetherServer")
 target_end()

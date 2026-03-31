@@ -58,7 +58,8 @@ World::World()
 #ifdef HAS_CEF
     ctx().emplace<InputService>(ctx().at<OverlayService>());
 #endif
-    ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
+                                   ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
     ctx().emplace<PapyrusService>(m_dispatcher);
     ctx().emplace<DiscordService>(m_dispatcher, ctx().at<IPlayerBridge&>());
@@ -69,9 +70,11 @@ World::World()
     ctx().emplace<PartyService>(*this, m_dispatcher, m_transport);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
-    ctx().emplace<MagicService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<MagicService>(*this, m_dispatcher, m_transport,
+                               ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<CommandService>(*this, m_transport, m_dispatcher);
-    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
+                                  ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<StringCacheService>(m_dispatcher);
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>());
     ctx().emplace<WeatherService>(*this, m_transport, m_dispatcher);

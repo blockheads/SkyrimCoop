@@ -3,6 +3,10 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <Structs/Tints.h>
+#include <Structs/Inventory.h>
+#include <Structs/QuestLog.h>
+#include <Structs/ActionEvent.h>
 
 /// PlayerCharacter::Get() and all pPlayer->* operations.
 /// No SKSE types in any signature.
@@ -77,4 +81,18 @@ public:
 
     // --- Show HUD message ---
     virtual void ShowHudMessage(const std::string& aMessage) noexcept = 0;
+
+    // --- Quest / objectives ---
+    virtual QuestLog GetPlayerQuestLog() const noexcept = 0;
+    virtual Tints GetPlayerFaceTints() const noexcept = 0;
+
+    // --- Experience ---
+    virtual void AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept = 0;
+    virtual int32_t GetPlayerLastUsedCombatSkill() const noexcept = 0;
+
+    // --- Player parent cell for actor MoveTo ---
+    virtual uint32_t GetPlayerParentCellFormId() const noexcept = 0;
+
+    // --- BleedingOut ---
+    virtual bool IsActorBleedingOut(uint32_t aFormId) const noexcept = 0;
 };

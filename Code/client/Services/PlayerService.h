@@ -1,5 +1,9 @@
 #pragma once
 
+class IPlayerBridge;
+class IFormBridge;
+class IActorBridge;
+
 struct World;
 struct TransportService;
 
@@ -19,7 +23,8 @@ struct NotifyPlayerRespawn;
  */
 struct PlayerService
 {
-    PlayerService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
+    PlayerService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
+                  IPlayerBridge& aPlayerBridge, IFormBridge& aFormBridge, IActorBridge& aActorBridge) noexcept;
     ~PlayerService() noexcept = default;
 
     TP_NOCOPYMOVE(PlayerService);
@@ -53,6 +58,9 @@ private:
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
+    IPlayerBridge& m_playerBridge;
+    IFormBridge& m_formBridge;
+    IActorBridge& m_actorBridge;
 
     double m_respawnTimer = 0.0;
     int32_t m_serverDifficulty = 6;

@@ -151,7 +151,7 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     {
         // Re-activate: delegate to bridge using form IDs from the event struct.
         m_formBridge.ActivateObjectFromActor(acEvent.ObjectFormId, acEvent.ActivatorFormId,
-                                              static_cast<uint8_t>(acEvent.PreActivationOpenState));
+                                              acEvent.PreActivationOpenStateValue);
     }
 
     if (!m_transport.IsConnected())
@@ -194,7 +194,7 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
         return;
 
     request.ActivatorId = serverIdRes.value();
-    request.PreActivationOpenState = static_cast<uint8_t>(acEvent.PreActivationOpenState);
+    request.PreActivationOpenState = acEvent.PreActivationOpenStateValue;
 
     m_transport.Send(request);
 }
@@ -309,5 +309,7 @@ void ObjectService::OnNotifyScriptAnimation(const NotifyScriptAnimation& acMessa
         return;
     }
 
-    m_formBridge.PlayObjectAnimation(acMessage.FormID, acMessage.Animation, acMessage.EventName);
+    m_formBridge.PlayObjectAnimation(acMessage.FormID,
+                                      std::string(acMessage.Animation.c_str()),
+                                      std::string(acMessage.EventName.c_str()));
 }

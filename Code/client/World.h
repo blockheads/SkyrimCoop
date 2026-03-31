@@ -9,8 +9,14 @@
 #include <Services/OverlayService.h>
 #include <Services/CharacterService.h>
 #include <Services/MagicService.h>
-#include <Services/DebugService.h>
 #include <Services/HostService.h>
+
+// DebugService requires SKSE types (Actor.h, ImGui, HWND) — only include when they are available.
+#ifdef HAS_DIRECTXTK
+#include <Services/DebugService.h>
+#else
+struct DebugService;  // forward declaration only
+#endif
 
 #include <Systems/ModSystem.h>
 
@@ -42,8 +48,10 @@ struct World : entt::registry
     const CharacterService& GetCharacterService() const noexcept { return ctx().at<const CharacterService>(); }
     OverlayService& GetOverlayService() noexcept { return ctx().at<OverlayService>(); }
     const OverlayService& GetOverlayService() const noexcept { return ctx().at<const OverlayService>(); }
+#ifdef HAS_DIRECTXTK
     DebugService& GetDebugService() noexcept { return ctx().at<DebugService>(); }
     const DebugService& GetDebugService() const noexcept { return ctx().at<const DebugService>(); }
+#endif
     MagicService& GetMagicService() noexcept { return ctx().at<MagicService>(); }
     const MagicService& GetMagicService() const noexcept { return ctx().at<const MagicService>(); }
     HostService& GetHostService() noexcept { return ctx().at<HostService>(); }

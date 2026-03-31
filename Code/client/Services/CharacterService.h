@@ -41,7 +41,10 @@ struct NotifyActorTeleport;
 struct NotifyRelinquishControl;
 struct PartyJoinedEvent;
 
-struct Actor;
+class IActorBridge;
+class IFormBridge;
+class IPlayerBridge;
+
 struct World;
 struct TransportService;
 
@@ -50,7 +53,8 @@ struct TransportService;
  */
 struct CharacterService
 {
-    CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
+    CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
+                     IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept;
     ~CharacterService() noexcept = default;
 
     TP_NOCOPYMOVE(CharacterService);
@@ -90,14 +94,14 @@ struct CharacterService
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
 
 private:
-    void MoveActor(const Actor* apActor, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
+    void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
 
     void RequestServerAssignment(entt::entity aEntity) const noexcept;
     void CancelServerAssignment(entt::entity aEntity, uint32_t aFormId) const noexcept;
     void DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept;
 
-    Actor* CreateCharacterForEntity(entt::entity aEntity) const noexcept;
-    ActorData BuildActorData(Actor* apActor) const noexcept;
+    uint32_t CreateCharacterForEntity(entt::entity aEntity) const noexcept;
+    ActorData BuildActorData(uint32_t aFormId) const noexcept;
 
     void RunLocalUpdates() const noexcept;
     void RunRemoteUpdates() noexcept;
@@ -109,6 +113,9 @@ private:
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
+    IActorBridge& m_actorBridge;
+    IFormBridge& m_formBridge;
+    IPlayerBridge& m_playerBridge;
 
     float m_cachedExperience = 0.f;
 
