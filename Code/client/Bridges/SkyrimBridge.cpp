@@ -848,6 +848,31 @@ void SkyrimBridge::ShowHudMessage(const std::string& aMessage) noexcept
     Utils::ShowHudMessage(String(aMessage));
 }
 
+std::string SkyrimBridge::GetPlayerLocationName() const noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return {};
+    auto* pLocation = pPlayer->locationForm;
+    if (!pLocation)
+        return {};
+    const char* pName = pLocation->GetName();
+    return pName ? pName : std::string{};
+}
+
+std::string SkyrimBridge::GetPlayerWorldSpaceName() const noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return {};
+    TESWorldSpace* pWorldspace = pPlayer->GetWorldSpace();
+    if (!pWorldspace)
+        return {};
+    if (pWorldspace->fullName.value.data)
+        return pWorldspace->fullName.value.AsAscii();
+    return {};
+}
+
 // ---------------------------------------------------------------------------
 // IEventBridge
 // ---------------------------------------------------------------------------
@@ -914,14 +939,20 @@ uint32_t SkyrimBridge::GetLastWeatherId() const noexcept
 
 void SkyrimBridge::ForceWeather(uint32_t aWeatherFormId, bool aOverride) noexcept
 {
-    // TODO(02.5-02): implement via Sky::ForceWeather
-    spdlog::warn("SkyrimBridge::ForceWeather not yet implemented for {:X}", aWeatherFormId);
+    TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(aWeatherFormId));
+    if (!pWeather)
+    {
+        spdlog::warn("SkyrimBridge::ForceWeather — weather {:X} not found", aWeatherFormId);
+        return;
+    }
+    if (Sky* pSky = Sky::Get())
+        pSky->ForceWeather(pWeather);
 }
 
 void SkyrimBridge::ReleaseWeatherOverride() noexcept
 {
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::ReleaseWeatherOverride not yet implemented");
+    if (Sky* pSky = Sky::Get())
+        pSky->ReleaseWeatherOverride();
 }
 
 std::string SkyrimBridge::GetModName(uint32_t aIndex) const noexcept

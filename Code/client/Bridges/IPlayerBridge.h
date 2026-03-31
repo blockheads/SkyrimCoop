@@ -24,6 +24,14 @@ public:
     virtual void RemovePlayerWaypoint() noexcept = 0;
     virtual void MovePlayerTo(uint32_t aCellId, float aX, float aY, float aZ) noexcept = 0;
 
+    // --- Location / discord presence ---
+    /// Returns the display name of the player's current location form (e.g. "Riverwood").
+    /// Returns an empty string if no location is available.
+    virtual std::string GetPlayerLocationName() const noexcept = 0;
+    /// Returns the full name of the player's current worldspace (e.g. "Tamriel").
+    /// Returns an empty string if in an interior with no worldspace.
+    virtual std::string GetPlayerWorldSpaceName() const noexcept = 0;
+
     // --- State ---
     virtual bool IsPlayerAlive() const noexcept = 0;
     virtual bool IsPlayerBleedingOut() const noexcept = 0;

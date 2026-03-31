@@ -118,6 +118,8 @@ public:
     void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept override;
     void RemovePlayerWaypoint() noexcept override;
     void MovePlayerTo(uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
+    std::string GetPlayerLocationName() const noexcept override;
+    std::string GetPlayerWorldSpaceName() const noexcept override;
     bool IsPlayerAlive() const noexcept override;
     bool IsPlayerBleedingOut() const noexcept override;
     bool IsPlayerInGodMode() const noexcept override;

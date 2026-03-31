@@ -2,6 +2,15 @@
 
 #include "World.h"
 
+// SkyrimBridge is included here (not in World.h) to keep SKSE headers out of
+// every service that includes World.h.
+#include <Bridges/SkyrimBridge.h>
+#include <Bridges/IActorBridge.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
+#include <Bridges/IEventBridge.h>
+#include <Bridges/IWorldBridge.h>
+
 #ifdef HAS_CEF
 #include <Services/InputService.h>
 #endif
@@ -34,6 +43,15 @@ World::World()
     , m_modSystem(m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
 {
+    // Create the bridge and register all five interfaces into EnTT context so
+    // that services can look them up via ctx().at<IXxxBridge&>().
+    m_pSkyrimBridge = std::make_unique<SkyrimBridge>();
+    ctx().emplace<IActorBridge&>(*m_pSkyrimBridge);
+    ctx().emplace<IFormBridge&>(*m_pSkyrimBridge);
+    ctx().emplace<IPlayerBridge&>(*m_pSkyrimBridge);
+    ctx().emplace<IEventBridge&>(*m_pSkyrimBridge);
+    ctx().emplace<IWorldBridge&>(*m_pSkyrimBridge);
+
     ctx().emplace<ImguiService>();
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher);
 #ifdef HAS_CEF
@@ -42,7 +60,7 @@ World::World()
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport);
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
     ctx().emplace<PapyrusService>(m_dispatcher);
-    ctx().emplace<DiscordService>(m_dispatcher);
+    ctx().emplace<DiscordService>(m_dispatcher, ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport);
     ctx().emplace<CalendarService>(*this, m_dispatcher, m_transport);
     ctx().emplace<QuestService>(*this, m_dispatcher);
@@ -90,6 +108,31 @@ TransportService& World::GetTransport() noexcept
 ModSystem& World::GetModSystem() noexcept
 {
     return m_modSystem;
+}
+
+IActorBridge& World::GetActorBridge() noexcept
+{
+    return ctx().at<IActorBridge&>();
+}
+
+IFormBridge& World::GetFormBridge() noexcept
+{
+    return ctx().at<IFormBridge&>();
+}
+
+IPlayerBridge& World::GetPlayerBridge() noexcept
+{
+    return ctx().at<IPlayerBridge&>();
+}
+
+IEventBridge& World::GetEventBridge() noexcept
+{
+    return ctx().at<IEventBridge&>();
+}
+
+IWorldBridge& World::GetWorldBridge() noexcept
+{
+    return ctx().at<IWorldBridge&>();
 }
 
 uint64_t World::GetTick() const noexcept

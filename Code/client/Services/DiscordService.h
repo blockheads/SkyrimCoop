@@ -4,10 +4,12 @@
 
 #include <discord.h>
 
+class IPlayerBridge;
+
 class DiscordService final : public entt::registry
 {
 public:
-    DiscordService(entt::dispatcher&);
+    DiscordService(entt::dispatcher&, IPlayerBridge&);
     ~DiscordService();
 
     bool Init();
@@ -29,6 +31,8 @@ private:
     void OnLocationChangeEvent() noexcept;
 
     entt::scoped_connection m_cellChangeConnection;
+
+    IPlayerBridge& m_playerBridge;
 
     bool m_bCustomPresence = false;
     bool m_bOverlayEnabled = false;
@@ -57,7 +61,9 @@ struct DiscordService
 {
     struct StubUser { int64_t id = 0; };
 
-    DiscordService(entt::dispatcher&) {}
+    // Second argument is IPlayerBridge& — accepted but ignored in the stub.
+    template<typename... Args>
+    DiscordService(entt::dispatcher&, Args&&...) {}
     ~DiscordService() = default;
     bool Init() { return false; }
     void Update() {}

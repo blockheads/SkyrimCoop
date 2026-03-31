@@ -5,9 +5,8 @@
 #include <Systems/ModSystem.h>
 #include <World.h>
 
-#include <Forms/TESObjectCELL.h>
-#include <Forms/TESWorldSpace.h>
-#include <PlayerCharacter.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
 
 #include <Events/SetTimeCommandEvent.h>
 
@@ -20,6 +19,8 @@
 CommandService::CommandService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
     , m_transport(aTransport)
+    , m_formBridge(aWorld.ctx().at<IFormBridge&>())
+    , m_playerBridge(aWorld.ctx().at<IPlayerBridge&>())
 {
     m_setTimeConnection = aDispatcher.sink<SetTimeCommandEvent>().connect<&CommandService::OnSetTimeCommand>(this);
     m_teleportConnection = aDispatcher.sink<TeleportCommandResponse>().connect<&CommandService::OnTeleportCommandResponse>(this);
@@ -39,19 +40,19 @@ void CommandService::OnTeleportCommandResponse(const TeleportCommandResponse& ac
     spdlog::info("TeleportCommandResponse: {:X}:{:X} at position {}, {}, {}", acMessage.CellId.ModId, acMessage.CellId.BaseId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
     auto& modSystem = m_world.GetModSystem();
 
-    const uint32_t cellId = modSystem.GetGameId(acMessage.CellId);
-    TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(cellId));
-    if (!pCell)
+    uint32_t cellId = modSystem.GetGameId(acMessage.CellId);
+
+    if (!m_formBridge.FormExists(cellId))
     {
+        // Try to resolve by worldspace + grid coords
         const uint32_t worldSpaceId = modSystem.GetGameId(acMessage.WorldSpaceId);
-        TESWorldSpace* pWorldSpace = Cast<TESWorldSpace>(TESForm::GetById(worldSpaceId));
-        if (pWorldSpace)
+        if (worldSpaceId != 0)
         {
             GridCellCoords coordinates = GridCellCoords::CalculateGridCellCoords(acMessage.Position);
-            pCell = pWorldSpace->LoadCell(coordinates.X, coordinates.Y);
+            cellId = m_formBridge.LookupCellByCoords(worldSpaceId, coordinates.X, coordinates.Y);
         }
 
-        if (!pCell)
+        if (cellId == 0 || !m_formBridge.FormExists(cellId))
         {
             spdlog::error("Failed to fetch cell to teleport to.");
             m_world.GetOverlayService().SendSystemMessage("Teleporting to player failed.");
@@ -59,5 +60,5 @@ void CommandService::OnTeleportCommandResponse(const TeleportCommandResponse& ac
         }
     }
 
-    PlayerCharacter::Get()->MoveTo(pCell, acMessage.Position);
+    m_playerBridge.MovePlayerTo(cellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
 }

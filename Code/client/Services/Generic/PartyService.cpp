@@ -23,11 +23,12 @@
 #include <OverlayApp.hpp>
 #endif
 
-#include <Forms/TESGlobal.h>
+#include <Bridges/IFormBridge.h>
 
 PartyService::PartyService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransportService) noexcept
     : m_world(aWorld)
     , m_transport(aTransportService)
+    , m_formBridge(aWorld.ctx().at<IFormBridge&>())
 {
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&PartyService::OnUpdate>(this);
     m_disconnectConnection = aDispatcher.sink<DisconnectedEvent>().connect<&PartyService::OnDisconnected>(this);
@@ -123,8 +124,7 @@ void PartyService::OnPartyInfo(const NotifyPartyInfo& acPartyInfo) noexcept
         // TODO: this can be done a bit prettier
         if (m_isLeader)
         {
-            TESGlobal* pWorldEncountersEnabled = Cast<TESGlobal>(TESForm::GetById(0xB8EC1));
-            pWorldEncountersEnabled->f = 1.f;
+            m_formBridge.SetGlobalValue(0xB8EC1, 1.f);
         }
 
 #ifdef HAS_CEF

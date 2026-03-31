@@ -9,12 +9,14 @@
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/RequestCurrentWeather.h>
 
-#include <Sky/Sky.h>
-#include <Forms/TESWeather.h>
+#include <Bridges/IWorldBridge.h>
+#include <Bridges/IFormBridge.h>
 
 WeatherService::WeatherService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
     , m_transport(aTransport)
+    , m_worldBridge(aWorld.ctx().at<IWorldBridge&>())
+    , m_formBridge(aWorld.ctx().at<IFormBridge&>())
 {
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&WeatherService::OnUpdate>(this);
     m_disconnectConnection = aDispatcher.sink<DisconnectedEvent>().connect<&WeatherService::OnDisconnected>(this);
@@ -55,12 +57,8 @@ void WeatherService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcep
     }
     else
     {
-        Sky* pSky = Sky::Get();
-        if (!pSky)
-            return;
-
-        TESWeather* pWeather = pSky->GetWeather();
-        if (!pWeather)
+        const uint32_t currentWeatherId = m_worldBridge.GetCurrentWeatherId();
+        if (currentWeatherId == 0)
         {
             m_cachedWeatherId = 0;
             return;
@@ -68,18 +66,18 @@ void WeatherService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcep
 
         // Potentially sets cached weather to map weather.
         // When the player closes the map, it'll send out the proper weather on the next update.
-        m_cachedWeatherId = pWeather->formID;
+        m_cachedWeatherId = currentWeatherId;
 
         // This is the map weather, should not be synced.
-        if (pWeather->formID == 0xA6858)
+        if (currentWeatherId == 0xA6858)
             return;
 
         RequestWeatherChange request{};
 
         auto& modSystem = m_world.GetModSystem();
-        if (!modSystem.GetServerModId(pWeather->formID, request.Id))
+        if (!modSystem.GetServerModId(currentWeatherId, request.Id))
         {
-            spdlog::error("{}: : weather server ID not found, form id: {:X}", __FUNCTION__, pWeather->formID);
+            spdlog::error("{}: : weather server ID not found, form id: {:X}", __FUNCTION__, currentWeatherId);
             return;
         }
 
@@ -123,27 +121,22 @@ void WeatherService::OnWeatherChange(const NotifyWeatherChange& acMessage) noexc
 {
     auto& modSystem = m_world.GetModSystem();
     const uint32_t weatherId = modSystem.GetGameId(acMessage.Id);
-    TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(weatherId));
 
-    if (!pWeather)
+    if (!m_formBridge.FormExists(weatherId))
     {
         spdlog::error("{}: : weather not found, form id: {:X}", __FUNCTION__, acMessage.Id.ModId + acMessage.Id.BaseId);
         return;
     }
 
-    Sky::Get()->ForceWeather(pWeather);
+    m_worldBridge.ForceWeather(weatherId, false);
 
     m_cachedWeatherId = weatherId;
 }
 
 void WeatherService::RunWeatherUpdates(const double acDelta) noexcept
 {
-    Sky* pSky = Sky::Get();
-    if (!pSky)
-        return;
-
-    TESWeather* pWeather = pSky->GetWeather();
-    if (!pWeather)
+    const uint32_t currentWeatherId = m_worldBridge.GetCurrentWeatherId();
+    if (currentWeatherId == 0)
     {
         if (m_world.GetPartyService().IsLeader())
             m_cachedWeatherId = 0;
@@ -154,23 +147,23 @@ void WeatherService::RunWeatherUpdates(const double acDelta) noexcept
     }
 
     // This is the map weather, should not be synced.
-    if (pWeather->formID == 0xA6858)
+    if (currentWeatherId == 0xA6858)
         return;
 
     // Have to manually check each frame because there's no singular SetWeather being used in-game.
-    if (pWeather->formID == m_cachedWeatherId)
+    if (currentWeatherId == m_cachedWeatherId)
         return;
 
     if (m_world.GetPartyService().IsLeader())
     {
-        m_cachedWeatherId = pWeather->formID;
+        m_cachedWeatherId = currentWeatherId;
 
         RequestWeatherChange request{};
 
         auto& modSystem = m_world.GetModSystem();
-        if (!modSystem.GetServerModId(pWeather->formID, request.Id))
+        if (!modSystem.GetServerModId(currentWeatherId, request.Id))
         {
-            spdlog::error("{}: : weather server ID not found, form id: {:X}", __FUNCTION__, pWeather->formID);
+            spdlog::error("{}: : weather server ID not found, form id: {:X}", __FUNCTION__, currentWeatherId);
             return;
         }
 
@@ -185,7 +178,7 @@ void WeatherService::RunWeatherUpdates(const double acDelta) noexcept
 void WeatherService::ToggleGameWeatherSystem(bool aToggle) noexcept
 {
     if (aToggle)
-        Sky::Get()->ReleaseWeatherOverride();
+        m_worldBridge.ReleaseWeatherOverride();
     else
         m_transport.Send(RequestCurrentWeather());
 
@@ -197,13 +190,11 @@ void WeatherService::SetCachedWeather() noexcept
     if (m_cachedWeatherId == 0)
         return;
 
-    TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(m_cachedWeatherId));
-
-    if (!pWeather)
+    if (!m_formBridge.FormExists(m_cachedWeatherId))
     {
         spdlog::error("{}: : weather not found, form id: {:X}", __FUNCTION__, m_cachedWeatherId);
         return;
     }
 
-    Sky::Get()->ForceWeather(pWeather);
+    m_worldBridge.ForceWeather(m_cachedWeatherId, false);
 }

@@ -10,6 +10,7 @@ struct NotifyPartyInfo;
 struct NotifyPartyInvite;
 struct NotifyPartyJoined;
 struct NotifyPartyLeft;
+class IFormBridge;
 
 /**
  * @brief Manages the party of the local player.
@@ -59,6 +60,7 @@ private:
 
     World& m_world;
     TransportService& m_transport;
+    IFormBridge& m_formBridge;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_disconnectConnection;

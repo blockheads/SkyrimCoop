@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 #include <Services/PartyService.h>
@@ -13,6 +15,15 @@
 #include <Systems/ModSystem.h>
 
 #include <Structs/ServerSettings.h>
+
+// Bridge interface forward declarations — do NOT include the bridge headers here.
+// SkyrimBridge.h is included only in World.cpp, keeping SKSE headers out of this file.
+class IActorBridge;
+class IFormBridge;
+class IPlayerBridge;
+class IEventBridge;
+class IWorldBridge;
+class SkyrimBridge;
 
 struct World : entt::registry
 {
@@ -38,6 +49,13 @@ struct World : entt::registry
     HostService& GetHostService() noexcept { return ctx().at<HostService>(); }
     const HostService& GetHostService() const noexcept { return ctx().at<const HostService>(); }
 
+    // Bridge accessors — interfaces injected into EnTT context by World.cpp
+    IActorBridge& GetActorBridge() noexcept;
+    IFormBridge& GetFormBridge() noexcept;
+    IPlayerBridge& GetPlayerBridge() noexcept;
+    IEventBridge& GetEventBridge() noexcept;
+    IWorldBridge& GetWorldBridge() noexcept;
+
     auto& GetDispatcher() noexcept { return m_dispatcher; }
 
     const ServerSettings& GetServerSettings() const noexcept { return m_serverSettings; }
@@ -56,4 +74,7 @@ private:
     ServerSettings m_serverSettings{};
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
+
+    // Owns the single SkyrimBridge instance; interfaces registered into ctx() in ctor.
+    std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
 };

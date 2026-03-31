@@ -4,6 +4,8 @@ struct World;
 struct TransportService;
 struct SetTimeCommandEvent;
 struct TeleportCommandResponse;
+class IFormBridge;
+class IPlayerBridge;
 
 /**
  * @brief Responsible for processing, sending and receiving chat commands.
@@ -29,6 +31,8 @@ protected:
 private:
     World& m_world;
     TransportService& m_transport;
+    IFormBridge& m_formBridge;
+    IPlayerBridge& m_playerBridge;
 
     entt::scoped_connection m_setTimeConnection;
     entt::scoped_connection m_teleportConnection;

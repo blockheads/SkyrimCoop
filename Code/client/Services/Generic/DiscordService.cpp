@@ -6,8 +6,7 @@
 #include "Events/UpdateEvent.h"
 
 #include <TiltedCore/Filesystem.hpp>
-#include <PlayerCharacter.h>
-#include <Forms/TESWorldSpace.h>
+#include <Bridges/IPlayerBridge.h>
 
 #include <base/threading/ThreadUtils.h>
 #include <Events/LocationChangeEvent.h>
@@ -16,7 +15,8 @@
 
 IDiscordUserEvents DiscordService::s_mUserEvents = {DiscordService::OnUserUpdate};
 
-DiscordService::DiscordService(entt::dispatcher& aDispatcher)
+DiscordService::DiscordService(entt::dispatcher& aDispatcher, IPlayerBridge& aPlayerBridge)
+    : m_playerBridge(aPlayerBridge)
 {
     // initialize persistant rich presence data
     m_ActivityState.instance = false;
@@ -51,29 +51,27 @@ void DiscordService::OnUserUpdate(void* userp)
 
 void DiscordService::OnLocationChangeEvent() noexcept
 {
-    auto* pPlayer = PlayerCharacter::Get();
-
     // we'll disable this inbuilt location tracker
     // in case the user requests a custom discord presence
-    if (!m_bCustomPresence && pPlayer)
+    if (!m_bCustomPresence)
     {
-        // auto *pLocation = pPlayer->GetCurrentLocation();
-        auto* pLocation = pPlayer->locationForm;
-        auto* pWorldspace = pPlayer->GetWorldSpace();
         bool updateTimestamp = false;
 
-        if (pLocation)
-            strncpy_s(m_ActivityState.details, pLocation->GetName(), sizeof(DiscordActivity::details));
+        const std::string locationName = m_playerBridge.GetPlayerLocationName();
+        if (!locationName.empty())
+            strncpy_s(m_ActivityState.details, locationName.c_str(), sizeof(DiscordActivity::details));
 
-        if (pWorldspace)
+        const uint32_t worldspaceId = m_playerBridge.GetPlayerWorldSpaceId();
+        if (worldspaceId != 0)
         {
-            if (pWorldspace->fullName.value.data)
-                strncpy_s(m_ActivityState.state, pWorldspace->fullName.value.AsAscii(), sizeof(DiscordActivity::state));
+            const std::string worldspaceName = m_playerBridge.GetPlayerWorldSpaceName();
+            if (!worldspaceName.empty())
+                strncpy_s(m_ActivityState.state, worldspaceName.c_str(), sizeof(DiscordActivity::state));
 
-            if (m_lastWorldspaceId != pWorldspace->formID)
+            if (m_lastWorldspaceId != worldspaceId)
             {
                 updateTimestamp = true;
-                m_lastWorldspaceId = pWorldspace->formID;
+                m_lastWorldspaceId = worldspaceId;
             }
         }
 

@@ -7,6 +7,8 @@ struct DisconnectedEvent;
 struct PartyJoinedEvent;
 struct PartyLeftEvent;
 struct NotifyWeatherChange;
+class IWorldBridge;
+class IFormBridge;
 
 /**
  * @brief Responsible for weather changes, which is controlled on a party-per-party basis.
@@ -35,6 +37,8 @@ protected:
 private:
     World& m_world;
     TransportService& m_transport;
+    IWorldBridge& m_worldBridge;
+    IFormBridge& m_formBridge;
 
     /**
     * This variable has two uses:
