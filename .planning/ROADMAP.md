@@ -66,7 +66,7 @@ Plans:
 - [x] 02.5-01-PLAN.md — Define bridge interfaces (IActorBridge, IFormBridge, IPlayerBridge, IEventBridge, IWorldBridge) + SkyrimBridge/ReplayBridge skeletons + xmake build targets
 - [x] 02.5-02-PLAN.md — Migrate 8 simple services (PartyService through ActorValueService) to bridge interfaces
 - [x] 02.5-03-PLAN.md — Migrate 8 complex services (CombatService through CharacterService + Debug) to bridge interfaces
-- [ ] 02.5-04-PLAN.md — Implement ReplayBridge NDJSON replay logic + ClientReplayHarness + headless test cases
+- [x] 02.5-04-PLAN.md — Implement ReplayBridge NDJSON replay logic + ClientReplayHarness + headless test cases
 
 ### Phase 3: Loopback Transport and Host Mode
 **Goal**: Host player can start an embedded GameServer in-process, authenticate through loopback, and remote peers connect via enet6

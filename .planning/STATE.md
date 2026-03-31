@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 02.5-03-PLAN.md
-last_updated: "2026-03-31T04:52:12.892Z"
+status: verifying
+stopped_at: Completed 02.5-04-PLAN.md
+last_updated: "2026-03-31T05:07:20.511Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 
 Phase: 02.5 (skse-abstraction-layer-inserted) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-31
 
 Progress: [░░░░░░░░░░] 0%
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 02.5 P01 | 30 | 2 tasks | 11 files |
 | Phase 02.5 P02 | 46 | 2 tasks | 24 files |
 | Phase 02.5 P03 | 120 | 2 tasks | 23 files |
+| Phase 02.5 P04 | 65 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 02.5]: IFormBridge.ModEntry struct added for mod list transfer without SKSE Mod* types
 - [Phase 02.5]: PreActivationOpenStateValue (uint8_t) added to ActivateEvent as SKSE-free open-state proxy; TESObjectREFR.cpp populates it at dispatch
 - [Phase 02.5]: HAS_DIRECTXTK guards isolate Utils::GetByServerId and World::DebugService from services boundary — only active in full SKSE builds
+- [Phase 02.5]: ClientReplayHarness uses bare entt::registry (not World) — World.cpp cannot compile headlessly due to SKSE/PCH dependencies
+- [Phase 02.5]: entt v3.10.0 ctx() multiple inheritance fix: pre-cast each interface reference before ctx().emplace<> to get correct vtable offset
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T04:52:12.890Z
-Stopped at: Completed 02.5-03-PLAN.md
+Last session: 2026-03-31T05:07:20.509Z
+Stopped at: Completed 02.5-04-PLAN.md
 Resume file: None
