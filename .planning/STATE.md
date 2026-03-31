@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02.5-01-PLAN.md
-last_updated: "2026-03-31T00:20:00.978Z"
+stopped_at: Completed 02.5-02-PLAN.md
+last_updated: "2026-03-31T00:46:37.175Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 ## Current Position
 
 Phase: 02.5 (skse-abstraction-layer-inserted) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-03-31
 
@@ -55,6 +55,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P01 | 5 | 2 tasks | 5 files |
 | Phase 01-abi-safety-and-source-cleanup P02 | 5 | 2 tasks | 4 files |
 | Phase 02.5 P01 | 30 | 2 tasks | 11 files |
+| Phase 02.5 P02 | 46 | 2 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 01]: alignas(N) replaces __declspec(align(N)) in game headers for MinGW C++ standard compliance
 - [Phase 01]: No-exceptions policy enforced in Code/client/: HostService uses IsListening() check, CrashHandler runs Win32 APIs without try/catch
 - [Phase 02.5]: Fat bridge pattern: each method performs complete SKSE operation with primitives-only signatures
+- [Phase 02.5]: QuestService BSTEventSink inheritance removed; replaced with IEventBridge lambda callbacks
+- [Phase 02.5]: IFormBridge.ModEntry struct added for mod list transfer without SKSE Mod* types
 
 ### Pending Todos
 
@@ -83,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T00:20:00.976Z
-Stopped at: Completed 02.5-01-PLAN.md
+Last session: 2026-03-31T00:46:37.173Z
+Stopped at: Completed 02.5-02-PLAN.md
 Resume file: None
