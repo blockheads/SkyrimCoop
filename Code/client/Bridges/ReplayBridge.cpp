@@ -6,6 +6,8 @@
 
 #include <Bridges/ReplayBridge.h>
 
+#include <Structs/Inventory.h>
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -113,6 +115,44 @@ bool ReplayBridge::IsHealingSpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsWardSpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsInvisibilitySpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsMagicItem(uint32_t) const noexcept { return false; }
+// Quest methods added in Plan 02
+void ReplayBridge::ScriptSetQuestStage(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::SetQuestStopped(uint32_t) noexcept {}
+bool ReplayBridge::IsQuestStagesEmpty(uint32_t) const noexcept { return true; }
+bool ReplayBridge::IsQuestOverrideActive() const noexcept { return false; }
+std::vector<IFormBridge::ModEntry> ReplayBridge::GetLoadedMods() const noexcept { return {}; }
+// Object operations (Plan 02.5-03)
+bool ReplayBridge::ObjectHasLock(uint32_t) const noexcept { return false; }
+bool ReplayBridge::ObjectIsLocked(uint32_t) const noexcept { return false; }
+uint8_t ReplayBridge::GetObjectLockLevel(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::SetObjectLock(uint32_t, bool, uint8_t) noexcept { return false; }
+void ReplayBridge::NotifyObjectLockChange(uint32_t) noexcept {}
+uint32_t ReplayBridge::GetObjectParentCellId(uint32_t) const noexcept { return 0; }
+void ReplayBridge::ActivateObjectFromActor(uint32_t, uint32_t, uint8_t) noexcept {}
+void ReplayBridge::PlayObjectAnimation(uint32_t, const std::string&, const std::string&) noexcept {}
+uint8_t ReplayBridge::GetObjectOpenState(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::IsObjectBaseFormType(uint32_t, uint8_t) const noexcept { return false; }
+Inventory ReplayBridge::GetObjectInventory(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetObjectInventoryRetainingQuestItems(uint32_t, const Inventory&, const Inventory&) noexcept {}
+void ReplayBridge::SetObjectInventory(uint32_t, const Inventory&) noexcept {}
+bool ReplayBridge::IsRightHandEquipSlot(uint32_t) const noexcept { return false; }
+void ReplayBridge::LaunchProjectile(uint32_t, uint32_t, float, float, float, uint32_t, uint32_t, uint32_t,
+                                     uint32_t, uint32_t, float, float, float, int32_t, float, float,
+                                     bool, bool, bool, bool, bool, bool, bool) noexcept {}
+// Actor inventory/equipment helpers (Plan 02.5-03)
+Inventory ReplayBridge::GetActorEquipment(uint32_t) const noexcept { return {}; }
+void ReplayBridge::ActorDropOrPickUpObject(uint32_t, const Inventory::Entry&) noexcept {}
+void ReplayBridge::ObjectAddOrRemoveItem(uint32_t, const Inventory::Entry&) noexcept {}
+Inventory ReplayBridge::GetActorWornArmor(uint32_t) const noexcept { return {}; }
+bool ReplayBridge::ActorIsWearingBodyPiece(uint32_t) const noexcept { return true; }
+bool ReplayBridge::ActorShouldWearBodyPiece(uint32_t) const noexcept { return false; }
+void ReplayBridge::ActorResetInventory(uint32_t, bool) noexcept {}
+void ReplayBridge::ActorEquipSpell(uint32_t, uint32_t, uint32_t) noexcept {}
+void ReplayBridge::ActorUnequipSpell(uint32_t, uint32_t, uint32_t) noexcept {}
+void ReplayBridge::ActorEquipShout(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::ActorUnequipShout(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::ActorEquipItem(uint32_t, uint32_t, uint32_t, int32_t) noexcept {}
+void ReplayBridge::ActorUnequipItem(uint32_t, uint32_t, uint32_t, int32_t) noexcept {}
 
 // ---------------------------------------------------------------------------
 // IPlayerBridge — stub returns
@@ -128,6 +168,8 @@ uint32_t ReplayBridge::GetPlayerWorldSpaceId() const noexcept { return 0; }
 void ReplayBridge::SetPlayerWaypoint(float, float, float, uint32_t) noexcept {}
 void ReplayBridge::RemovePlayerWaypoint() noexcept {}
 void ReplayBridge::MovePlayerTo(uint32_t, float, float, float) noexcept {}
+std::string ReplayBridge::GetPlayerLocationName() const noexcept { return {}; }
+std::string ReplayBridge::GetPlayerWorldSpaceName() const noexcept { return {}; }
 bool ReplayBridge::IsPlayerAlive() const noexcept { return true; }
 bool ReplayBridge::IsPlayerBleedingOut() const noexcept { return false; }
 bool ReplayBridge::IsPlayerInGodMode() const noexcept { return false; }
@@ -216,3 +258,7 @@ std::string ReplayBridge::GetModName(uint32_t) const noexcept { return {}; }
 void ReplayBridge::SetGameWeatherSystemEnabled(bool) noexcept {}
 float ReplayBridge::GetGameTimeHours() const noexcept { return 12.f; }
 void ReplayBridge::SetGameTimeHours(float) noexcept {}
+float ReplayBridge::GetGameTimeScale() const noexcept { return 20.f; }
+float ReplayBridge::GetGameYear() const noexcept { return 201.f; }
+float ReplayBridge::GetGameMonth() const noexcept { return 1.f; }
+float ReplayBridge::GetGameDay() const noexcept { return 1.f; }

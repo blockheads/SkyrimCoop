@@ -11,14 +11,12 @@
 #include <Systems/ModSystem.h>
 #include <World.h>
 
-#include <Projectiles/Projectile.h>
-#include <Forms/TESObjectWEAP.h>
-#include <Forms/TESAmmo.h>
-#include <Games/ActorExtension.h>
+#include <Bridges/IFormBridge.h>
 
-CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher)
+CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge)
     : m_world(aWorld)
     , m_transport(aTransport)
+    , m_formBridge(aFormBridge)
 {
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&CombatService::OnUpdate>(this);
     m_hitConnection = aDispatcher.sink<HitEvent>().connect<&CombatService::OnHitEvent>(this);
@@ -102,62 +100,29 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
 
     FormIdComponent formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
 
-    Projectile::LaunchData launchData{};
-
-    // Projectile::Launch relies on pParentCell being valid.
-    // TODO: it's possible that more of these values must have a value, should probably check for that in the game code.
     const uint32_t cParentCellId = modSystem.GetGameId(acMessage.ParentCellID);
-    launchData.pParentCell = Cast<TESObjectCELL>(TESForm::GetById(cParentCellId));
-
-    if (!launchData.pParentCell)
+    if (!m_formBridge.FormExists(cParentCellId))
     {
         spdlog::warn("Cannot launch projectile, invalid parent cell: {:X}", cParentCellId);
         return;
     }
 
-    launchData.pShooter = Cast<TESObjectREFR>(TESForm::GetById(formIdComponent.Id));
-
-    launchData.Origin.x = acMessage.OriginX;
-    launchData.Origin.y = acMessage.OriginY;
-    launchData.Origin.z = acMessage.OriginZ;
-
     const uint32_t cProjectileBaseId = modSystem.GetGameId(acMessage.ProjectileBaseID);
-    launchData.pProjectileBase = TESForm::GetById(cProjectileBaseId);
+    const uint32_t cWeaponId        = modSystem.GetGameId(acMessage.WeaponID);
+    const uint32_t cAmmoId          = modSystem.GetGameId(acMessage.AmmoID);
+    const uint32_t cSpellId         = modSystem.GetGameId(acMessage.SpellID);
 
-    const uint32_t cFromWeaponId = modSystem.GetGameId(acMessage.WeaponID);
-    launchData.pFromWeapon = Cast<TESObjectWEAP>(TESForm::GetById(cFromWeaponId));
-
-    const uint32_t cFromAmmoId = modSystem.GetGameId(acMessage.AmmoID);
-    launchData.pFromAmmo = Cast<TESAmmo>(TESForm::GetById(cFromAmmoId));
-
-    launchData.fZAngle = acMessage.ZAngle;
-    launchData.fXAngle = acMessage.XAngle;
-    launchData.fYAngle = acMessage.YAngle;
-
-    const uint32_t cSpellId = modSystem.GetGameId(acMessage.SpellID);
-    launchData.pSpell = Cast<MagicItem>(TESForm::GetById(cSpellId));
-
-    launchData.eCastingSource = (MagicSystem::CastingSource)acMessage.CastingSource;
-
-    launchData.iArea = acMessage.Area;
-    launchData.fPower = acMessage.Power;
-    launchData.fScale = acMessage.Scale;
-
-    launchData.bAlwaysHit = acMessage.AlwaysHit;
-    launchData.bNoDamageOutsideCombat = acMessage.NoDamageOutsideCombat;
-    launchData.bAutoAim = acMessage.AutoAim;
-
-    launchData.bForceConeOfFire = acMessage.ForceConeOfFire;
-
-    // always use origin, or it'll recalculate it and it desyncs
-    launchData.bUseOrigin = true;
-
-    launchData.bUnkBool1 = acMessage.UnkBool1;
-    launchData.bUnkBool2 = acMessage.UnkBool2;
-
-    BSPointerHandle<Projectile> result;
-
-    Projectile::Launch(&result, launchData);
+    m_formBridge.LaunchProjectile(
+        formIdComponent.Id,
+        cParentCellId,
+        acMessage.OriginX, acMessage.OriginY, acMessage.OriginZ,
+        cProjectileBaseId, cWeaponId, cAmmoId,
+        cSpellId, acMessage.CastingSource,
+        acMessage.ZAngle, acMessage.XAngle, acMessage.YAngle,
+        acMessage.Area, acMessage.Power, acMessage.Scale,
+        acMessage.AlwaysHit, acMessage.NoDamageOutsideCombat, acMessage.AutoAim,
+        false /* DeferInitialization */, acMessage.ForceConeOfFire,
+        acMessage.UnkBool1, acMessage.UnkBool2);
 }
 
 void CombatService::OnHitEvent(const HitEvent& acEvent) const noexcept

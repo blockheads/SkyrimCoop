@@ -990,9 +990,12 @@ bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, u
         if (apThis->baseForm->formType == FormType::Door)
             openState = apThis->GetOpenState();
 
-        World::Get().GetRunner().Trigger(
-            ActivateEvent(apThis, pActivator, apObjectToGet, aCount, aDefaultProcessing, aUnk1, openState)
-        );
+        ActivateEvent evt(apThis, pActivator, apObjectToGet, aCount, aDefaultProcessing, aUnk1, openState);
+        evt.ObjectFormId   = apThis->formID;
+        evt.ActivatorFormId = pActivator->formID;
+        TESObjectCELL* pCell = apThis->GetParentCellEx();
+        evt.ObjectParentCellFormId = pCell ? pCell->formID : 0;
+        World::Get().GetRunner().Trigger(evt);
     }
 
     return TiltedPhoques::ThisCall(RealActivate, apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);

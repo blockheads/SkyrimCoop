@@ -53,7 +53,8 @@ World::World()
     ctx().emplace<IWorldBridge&>(*m_pSkyrimBridge);
 
     ctx().emplace<ImguiService>();
-    ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher);
+    ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher,
+                                  ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
 #ifdef HAS_CEF
     ctx().emplace<InputService>(ctx().at<OverlayService>());
 #endif
@@ -61,17 +62,18 @@ World::World()
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
     ctx().emplace<PapyrusService>(m_dispatcher);
     ctx().emplace<DiscordService>(m_dispatcher, ctx().at<IPlayerBridge&>());
-    ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport,
+                                  ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(), ctx().at<IEventBridge&>());
     ctx().emplace<CalendarService>(*this, m_dispatcher, m_transport);
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<PartyService>(*this, m_dispatcher, m_transport);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport);
     ctx().emplace<CommandService>(*this, m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport);
     ctx().emplace<StringCacheService>(m_dispatcher);
-    ctx().emplace<CombatService>(*this, m_transport, m_dispatcher);
+    ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>());
     ctx().emplace<WeatherService>(*this, m_transport, m_dispatcher);
     ctx().emplace<HostService>(*this, m_dispatcher);
 

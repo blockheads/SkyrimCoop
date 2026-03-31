@@ -1,5 +1,6 @@
 #pragma once
 
+class IFormBridge;
 struct World;
 struct TransportService;
 struct UpdateEvent;
@@ -12,7 +13,7 @@ struct HitEvent;
  */
 struct CombatService
 {
-    CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher);
+    CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge);
     ~CombatService() noexcept = default;
 
     TP_NOCOPYMOVE(CombatService);
@@ -29,6 +30,7 @@ protected:
 private:
     World& m_world;
     TransportService& m_transport;
+    IFormBridge& m_formBridge;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_localComponentRemoved;

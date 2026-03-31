@@ -9,6 +9,10 @@ namespace TiltedPhoques
 struct OverlayApp;
 }
 
+class IActorBridge;
+class IFormBridge;
+class IPlayerBridge;
+
 struct RenderSystemD3D11;
 struct D3D11RenderProvider;
 struct FormIdComponent;
@@ -38,7 +42,8 @@ using TiltedPhoques::OverlayApp;
  */
 struct OverlayService
 {
-    OverlayService(World& aWorld, TransportService& transport, entt::dispatcher& aDispatcher);
+    OverlayService(World& aWorld, TransportService& transport, entt::dispatcher& aDispatcher,
+                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge);
     ~OverlayService() noexcept;
 
     TP_NOCOPYMOVE(OverlayService);
@@ -91,6 +96,9 @@ private:
 
     World& m_world;
     TransportService& m_transport;
+    IActorBridge& m_actorBridge;
+    IFormBridge& m_formBridge;
+    IPlayerBridge& m_playerBridge;
 
     bool m_active = false;
     bool m_inGame = false;
@@ -118,10 +126,15 @@ private:
 struct RenderSystemD3D11;
 struct World;
 struct TransportService;
+class IActorBridge;
+class IFormBridge;
+class IPlayerBridge;
 
 struct OverlayService
 {
-    OverlayService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher)
+    template<typename... TBridges>
+    OverlayService(World& aWorld, TransportService& aTransport, entt::dispatcher& /*aDispatcher*/,
+                    TBridges&... /*aBridges*/)
         : m_world(aWorld)
         , m_transport(aTransport)
     {

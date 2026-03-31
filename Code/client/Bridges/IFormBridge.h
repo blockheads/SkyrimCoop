@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 
+#include <Structs/Inventory.h>
+#include <Structs/LockData.h>
+
 /// TESForm lookups and typed Cast<> operations.
 /// No SKSE types in any signature — all IDs use uint32_t.
 class IFormBridge
@@ -70,4 +73,79 @@ public:
     virtual bool IsWardSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsInvisibilitySpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsMagicItem(uint32_t aFormId) const noexcept = 0;
+
+    // --- Object (TESObjectREFR) operations ---
+    /// Returns true if the object has a lock component.
+    virtual bool ObjectHasLock(uint32_t aObjectFormId) const noexcept = 0;
+    /// Returns true if the object's lock is currently locked.
+    virtual bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept = 0;
+    /// Returns the lock level of the object (0 = no lock).
+    virtual uint8_t GetObjectLockLevel(uint32_t aObjectFormId) const noexcept = 0;
+    /// Set the lock state on an object (creates lock if needed).
+    virtual bool SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept = 0;
+    /// Notify the game engine that the object's lock state changed (plays sounds, updates 3D).
+    virtual void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept = 0;
+    /// Returns the form ID of the object's parent cell.
+    virtual uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept = 0;
+    /// Activate an object as if the given actor activated it.
+    virtual void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept = 0;
+    /// Play an animation on an object (for ScriptAnimationEvent).
+    virtual void PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation, const std::string& aEventName) noexcept = 0;
+    /// Returns the open state of an object (for door sync).
+    virtual uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept = 0;
+    /// Returns true if the object's base form is of the specified FormType enum value.
+    virtual bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept = 0;
+    /// Get the current inventory contents of an object (container).
+    virtual Inventory GetObjectInventory(uint32_t aObjectFormId) const noexcept = 0;
+    /// Overwrite the inventory of an object, retaining quest items from the current inventory.
+    virtual void SetObjectInventoryRetainingQuestItems(uint32_t aObjectFormId,
+                                                        const Inventory& aCurrentInventory,
+                                                        const Inventory& aNewInventory) noexcept = 0;
+    /// Overwrite the inventory of an object entirely.
+    virtual void SetObjectInventory(uint32_t aObjectFormId, const Inventory& aInventory) noexcept = 0;
+    /// Returns true if the given equip slot form ID is the right-hand equip slot
+    /// (DefaultObjectManager::Get().rightEquipSlot).
+    virtual bool IsRightHandEquipSlot(uint32_t aEquipSlotFormId) const noexcept = 0;
+
+    // --- Projectile launch (for CombatService) ---
+    /// Launch a projectile from a remote shooter.
+    virtual void LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormId,
+                                   float aOriginX, float aOriginY, float aOriginZ,
+                                   uint32_t aProjectileBaseId, uint32_t aWeaponId, uint32_t aAmmoId,
+                                   uint32_t aSpellId, uint32_t aCastingSource,
+                                   float aZAngle, float aXAngle, float aYAngle,
+                                   int32_t aArea, float aPower, float aScale,
+                                   bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
+                                   bool aDeferInit, bool aForceConeOfFire,
+                                   bool aUnkBool1, bool aUnkBool2) noexcept = 0;
+
+    // --- Actor inventory / equipment helpers (for InventoryService) ---
+    /// Get the full equipment (worn items) of an actor as an Inventory.
+    virtual Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept = 0;
+    /// Drop or pick up an item from an actor's inventory.
+    virtual void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept = 0;
+    /// Add or remove an item from an object/actor's inventory.
+    virtual void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept = 0;
+    /// Get worn armor inventory of an actor.
+    virtual Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept = 0;
+    /// Returns true if the actor is wearing a body piece.
+    virtual bool ActorIsWearingBodyPiece(uint32_t aActorFormId) const noexcept = 0;
+    /// Returns true if the actor should be wearing a body piece (NPC check).
+    virtual bool ActorShouldWearBodyPiece(uint32_t aActorFormId) const noexcept = 0;
+    /// Reset an actor's inventory to defaults.
+    virtual void ActorResetInventory(uint32_t aActorFormId, bool aBroadcast) noexcept = 0;
+    /// Equip a spell on an actor using EquipManager.
+    virtual void ActorEquipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept = 0;
+    /// Unequip a spell from an actor using EquipManager.
+    virtual void ActorUnequipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept = 0;
+    /// Equip a shout on an actor using EquipManager.
+    virtual void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept = 0;
+    /// Unequip a shout from an actor using EquipManager.
+    virtual void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept = 0;
+    /// Full equip via EquipManager (item, no extra data, count, equip slot).
+    virtual void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
+                                  int32_t aCount) noexcept = 0;
+    /// Full unequip via EquipManager (item, no extra data, count, equip slot).
+    virtual void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId,
+                                    int32_t aCount) noexcept = 0;
 };

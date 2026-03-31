@@ -26,6 +26,12 @@
 #include <EquipManager.h>
 #include <Magic/ActorMagicCaster.h>
 #include <TimeManager.h>
+#include <TESObjectREFR.h>
+#include <DefaultObjectManager.h>
+#include <Projectiles/Projectile.h>
+#include <Forms/TESObjectWEAP.h>
+#include <Forms/TESAmmo.h>
+#include <BSFixedString.h>
 
 #include <spdlog/spdlog.h>
 
@@ -643,6 +649,322 @@ bool SkyrimBridge::IsInvisibilitySpell(uint32_t aFormId) const noexcept
 bool SkyrimBridge::IsMagicItem(uint32_t aFormId) const noexcept
 {
     return Cast<MagicItem>(TESForm::GetById(aFormId)) != nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// IFormBridge — object operations (new in plan 02.5-03)
+// ---------------------------------------------------------------------------
+
+static TESObjectREFR* GetRefr(uint32_t aFormId) noexcept
+{
+    return Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+}
+
+bool SkyrimBridge::ObjectHasLock(uint32_t aObjectFormId) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        return pObj->GetLock() != nullptr;
+    return false;
+}
+
+bool SkyrimBridge::ObjectIsLocked(uint32_t aObjectFormId) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        if (Lock* pLock = pObj->GetLock())
+            return pLock->IsLocked();
+    return false;
+}
+
+uint8_t SkyrimBridge::GetObjectLockLevel(uint32_t aObjectFormId) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        if (Lock* pLock = pObj->GetLock())
+            return pLock->lockLevel;
+    return 0;
+}
+
+bool SkyrimBridge::SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
+{
+    TESObjectREFR* pObj = GetRefr(aObjectFormId);
+    if (!pObj)
+        return false;
+
+    Lock* pLock = pObj->GetLock();
+    if (!pLock && aLocked)
+    {
+        pLock = pObj->CreateLock();
+        if (!pLock)
+        {
+            spdlog::error("SkyrimBridge::SetObjectLock — failed to create lock for {:X}", aObjectFormId);
+            return false;
+        }
+    }
+
+    if (pLock)
+    {
+        pLock->lockLevel = aLockLevel;
+        pLock->SetLock(aLocked);
+    }
+
+    return true;
+}
+
+void SkyrimBridge::NotifyObjectLockChange(uint32_t aObjectFormId) noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        pObj->LockChange();
+}
+
+uint32_t SkyrimBridge::GetObjectParentCellId(uint32_t aObjectFormId) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        if (TESObjectCELL* pCell = pObj->GetParentCellEx())
+            return pCell->formID;
+    return 0;
+}
+
+void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId,
+                                             uint8_t aPreActivationState) noexcept
+{
+    TESObjectREFR* pObject = GetRefr(aObjectFormId);
+    Actor* pActor = GetActor(aActivatorFormId);
+    if (!pObject || !pActor)
+    {
+        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or actor {:X} not found",
+                      aObjectFormId, aActivatorFormId);
+        return;
+    }
+
+    if (pObject->baseForm && static_cast<uint8_t>(pObject->baseForm->formType) == static_cast<uint8_t>(FormType::Door))
+    {
+        auto remotePreActivationState = static_cast<TESObjectREFR::OpenState>(aPreActivationState);
+        TESObjectREFR::OpenState localState = pObject->GetOpenState();
+        if (remotePreActivationState != localState)
+            return;
+    }
+
+    pObject->Activate(pActor, 0, nullptr, 1, 0);
+}
+
+void SkyrimBridge::PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation,
+                                         const std::string& aEventName) noexcept
+{
+    TESObjectREFR* pObject = GetRefr(aObjectFormId);
+    if (!pObject)
+    {
+        spdlog::error("SkyrimBridge::PlayObjectAnimation — object {:X} not found", aObjectFormId);
+        return;
+    }
+
+    BSFixedString eventName(aEventName.c_str());
+    if (aAnimation.empty())
+    {
+        pObject->PlayAnimation(&eventName);
+    }
+    else
+    {
+        BSFixedString animation(aAnimation.c_str());
+        pObject->PlayAnimationAndWait(&animation, &eventName);
+    }
+}
+
+uint8_t SkyrimBridge::GetObjectOpenState(uint32_t aObjectFormId) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        return static_cast<uint8_t>(pObj->GetOpenState());
+    return 0;
+}
+
+bool SkyrimBridge::IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        if (pObj->baseForm)
+            return static_cast<uint8_t>(pObj->baseForm->formType) == aFormType;
+    return false;
+}
+
+Inventory SkyrimBridge::GetObjectInventory(uint32_t aObjectFormId) const noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        return pObj->GetInventory();
+    return {};
+}
+
+void SkyrimBridge::SetObjectInventoryRetainingQuestItems(uint32_t aObjectFormId,
+                                                           const Inventory& aCurrentInventory,
+                                                           const Inventory& aNewInventory) noexcept
+{
+    TESObjectREFR* pObj = GetRefr(aObjectFormId);
+    if (!pObj)
+        return;
+    Inventory current = aCurrentInventory; // SetInventoryRetainingQuestItems takes non-const ref
+    pObj->SetInventoryRetainingQuestItems(current, aNewInventory);
+}
+
+void SkyrimBridge::SetObjectInventory(uint32_t aObjectFormId, const Inventory& aInventory) noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        pObj->SetInventory(aInventory);
+}
+
+bool SkyrimBridge::IsRightHandEquipSlot(uint32_t aEquipSlotFormId) const noexcept
+{
+    TESForm* pSlot = TESForm::GetById(aEquipSlotFormId);
+    return pSlot && (pSlot == DefaultObjectManager::Get().rightEquipSlot);
+}
+
+// ---------------------------------------------------------------------------
+// IFormBridge — projectile launch (new in plan 02.5-03)
+// ---------------------------------------------------------------------------
+
+void SkyrimBridge::LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormId,
+                                     float aOriginX, float aOriginY, float aOriginZ,
+                                     uint32_t aProjectileBaseId, uint32_t aWeaponId, uint32_t aAmmoId,
+                                     uint32_t aSpellId, uint32_t aCastingSource,
+                                     float aZAngle, float aXAngle, float aYAngle,
+                                     int32_t aArea, float aPower, float aScale,
+                                     bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
+                                     bool aDeferInit, bool aForceConeOfFire,
+                                     bool aUnkBool1, bool aUnkBool2) noexcept
+{
+    TESObjectCELL* pParentCell = Cast<TESObjectCELL>(TESForm::GetById(aCellFormId));
+    if (!pParentCell)
+    {
+        spdlog::warn("SkyrimBridge::LaunchProjectile — invalid parent cell {:X}", aCellFormId);
+        return;
+    }
+
+    TESObjectREFR* pShooter = Cast<TESObjectREFR>(TESForm::GetById(aShooterFormId));
+
+    Projectile::LaunchData launchData{};
+    launchData.pParentCell = pParentCell;
+    launchData.pShooter = pShooter;
+    launchData.Origin.x = aOriginX;
+    launchData.Origin.y = aOriginY;
+    launchData.Origin.z = aOriginZ;
+    launchData.pProjectileBase = TESForm::GetById(aProjectileBaseId);
+    launchData.pFromWeapon = Cast<TESObjectWEAP>(TESForm::GetById(aWeaponId));
+    launchData.pFromAmmo = Cast<TESAmmo>(TESForm::GetById(aAmmoId));
+    launchData.fZAngle = aZAngle;
+    launchData.fXAngle = aXAngle;
+    launchData.fYAngle = aYAngle;
+    launchData.pSpell = Cast<MagicItem>(TESForm::GetById(aSpellId));
+    launchData.eCastingSource = static_cast<MagicSystem::CastingSource>(aCastingSource);
+    launchData.iArea = aArea;
+    launchData.fPower = aPower;
+    launchData.fScale = aScale;
+    launchData.bAlwaysHit = aAlwaysHit;
+    launchData.bNoDamageOutsideCombat = aNoDamageOutsideCombat;
+    launchData.bAutoAim = aAutoAim;
+    launchData.bForceConeOfFire = aForceConeOfFire;
+    launchData.bUseOrigin = true; // always use origin to avoid desync
+    launchData.bUnkBool1 = aUnkBool1;
+    launchData.bUnkBool2 = aUnkBool2;
+
+    BSPointerHandle<Projectile> result;
+    Projectile::Launch(&result, launchData);
+}
+
+// ---------------------------------------------------------------------------
+// IFormBridge — actor inventory/equipment helpers (new in plan 02.5-03)
+// ---------------------------------------------------------------------------
+
+Inventory SkyrimBridge::GetActorEquipment(uint32_t aActorFormId) const noexcept
+{
+    if (Actor* pActor = GetActor(aActorFormId))
+        return pActor->GetEquipment();
+    return {};
+}
+
+void SkyrimBridge::ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept
+{
+    if (Actor* pActor = GetActor(aActorFormId))
+        pActor->DropOrPickUpObject(aItem, nullptr, nullptr);
+}
+
+void SkyrimBridge::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
+        pObj->AddOrRemoveItem(aItem);
+}
+
+Inventory SkyrimBridge::GetActorWornArmor(uint32_t aActorFormId) const noexcept
+{
+    if (Actor* pActor = GetActor(aActorFormId))
+        return pActor->GetWornArmor();
+    return {};
+}
+
+bool SkyrimBridge::ActorIsWearingBodyPiece(uint32_t aActorFormId) const noexcept
+{
+    if (Actor* pActor = GetActor(aActorFormId))
+        return pActor->IsWearingBodyPiece();
+    return false;
+}
+
+bool SkyrimBridge::ActorShouldWearBodyPiece(uint32_t aActorFormId) const noexcept
+{
+    if (Actor* pActor = GetActor(aActorFormId))
+        return pActor->ShouldWearBodyPiece();
+    return false;
+}
+
+void SkyrimBridge::ActorResetInventory(uint32_t aActorFormId, bool aBroadcast) noexcept
+{
+    if (TESObjectREFR* pObj = GetRefr(aActorFormId))
+        pObj->ResetInventory(aBroadcast);
+}
+
+void SkyrimBridge::ActorEquipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pSpell = TESForm::GetById(aSpellFormId);
+    if (pActor && pSpell)
+        EquipManager::Get()->EquipSpell(pActor, pSpell, static_cast<int>(aSlotId));
+}
+
+void SkyrimBridge::ActorUnequipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pSpell = TESForm::GetById(aSpellFormId);
+    if (pActor && pSpell)
+        EquipManager::Get()->UnEquipSpell(pActor, pSpell, static_cast<int>(aSlotId));
+}
+
+void SkyrimBridge::ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pShout = TESForm::GetById(aShoutFormId);
+    if (pActor && pShout)
+        EquipManager::Get()->EquipShout(pActor, pShout);
+}
+
+void SkyrimBridge::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pShout = TESForm::GetById(aShoutFormId);
+    if (pActor && pShout)
+        EquipManager::Get()->UnEquipShout(pActor, pShout);
+}
+
+void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
+                                    uint32_t aEquipSlotFormId, int32_t aCount) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pItem = TESForm::GetById(aItemFormId);
+    TESForm* pSlot = aEquipSlotFormId ? TESForm::GetById(aEquipSlotFormId) : nullptr;
+    if (pActor && pItem)
+        EquipManager::Get()->Equip(pActor, pItem, nullptr, aCount, pSlot, false, true, false, false);
+}
+
+void SkyrimBridge::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId,
+                                      uint32_t aEquipSlotFormId, int32_t aCount) noexcept
+{
+    Actor* pActor = GetActor(aActorFormId);
+    TESForm* pItem = TESForm::GetById(aItemFormId);
+    TESForm* pSlot = aEquipSlotFormId ? TESForm::GetById(aEquipSlotFormId) : nullptr;
+    if (pActor && pItem)
+        EquipManager::Get()->UnEquip(pActor, pItem, nullptr, aCount, pSlot, false, true, false, false, nullptr);
 }
 
 // ---------------------------------------------------------------------------

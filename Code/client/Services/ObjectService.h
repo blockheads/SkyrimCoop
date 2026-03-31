@@ -1,7 +1,8 @@
 #pragma once
 
-#include <Events/EventDispatcher.h>
-#include <Games/Events.h>
+class IFormBridge;
+class IEventBridge;
+struct IActorBridge;
 
 struct ServerTimeSettings;
 struct DisconnectedEvent;
@@ -18,10 +19,9 @@ struct NotifyScriptAnimation;
 /**
  * @brief Handles objects in the environment.
  */
-class ObjectService final : public BSTEventSink<TESActivateEvent>
+struct ObjectService
 {
-public:
-    ObjectService(World&, entt::dispatcher&, TransportService&);
+    ObjectService(World&, entt::dispatcher&, TransportService&, IFormBridge&, IActorBridge&, IEventBridge&);
 
 private:
     void OnDisconnected(const DisconnectedEvent&) noexcept;
@@ -33,12 +33,13 @@ private:
     void OnScriptAnimationEvent(const ScriptAnimationEvent&) noexcept;
     void OnNotifyScriptAnimation(const NotifyScriptAnimation&) noexcept;
 
-    BSTEventResult OnEvent(const TESActivateEvent*, const EventDispatcher<TESActivateEvent>*) override;
-
     entt::entity CreateObjectEntity(const uint32_t acFormId, const uint32_t acServerId) noexcept;
 
     World& m_world;
     TransportService& m_transport;
+    IFormBridge& m_formBridge;
+    IActorBridge& m_actorBridge;
+    IEventBridge& m_eventBridge;
 
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_onActivateConnection;

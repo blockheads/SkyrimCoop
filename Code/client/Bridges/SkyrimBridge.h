@@ -110,6 +110,45 @@ public:
     bool IsWardSpell(uint32_t aFormId) const noexcept override;
     bool IsInvisibilitySpell(uint32_t aFormId) const noexcept override;
     bool IsMagicItem(uint32_t aFormId) const noexcept override;
+    // --- Object operations ---
+    bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override;
+    bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override;
+    uint8_t GetObjectLockLevel(uint32_t aObjectFormId) const noexcept override;
+    bool SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept override;
+    void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept override;
+    uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept override;
+    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept override;
+    void PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation, const std::string& aEventName) noexcept override;
+    uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override;
+    bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept override;
+    Inventory GetObjectInventory(uint32_t aObjectFormId) const noexcept override;
+    void SetObjectInventoryRetainingQuestItems(uint32_t aObjectFormId, const Inventory& aCurrentInventory, const Inventory& aNewInventory) noexcept override;
+    void SetObjectInventory(uint32_t aObjectFormId, const Inventory& aInventory) noexcept override;
+    bool IsRightHandEquipSlot(uint32_t aEquipSlotFormId) const noexcept override;
+    // --- Projectile launch ---
+    void LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormId,
+                           float aOriginX, float aOriginY, float aOriginZ,
+                           uint32_t aProjectileBaseId, uint32_t aWeaponId, uint32_t aAmmoId,
+                           uint32_t aSpellId, uint32_t aCastingSource,
+                           float aZAngle, float aXAngle, float aYAngle,
+                           int32_t aArea, float aPower, float aScale,
+                           bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
+                           bool aDeferInit, bool aForceConeOfFire,
+                           bool aUnkBool1, bool aUnkBool2) noexcept override;
+    // --- Actor inventory / equipment helpers ---
+    Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
+    void ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept override;
+    void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
+    bool ActorIsWearingBodyPiece(uint32_t aActorFormId) const noexcept override;
+    bool ActorShouldWearBodyPiece(uint32_t aActorFormId) const noexcept override;
+    void ActorResetInventory(uint32_t aActorFormId, bool aBroadcast) noexcept override;
+    void ActorEquipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept override;
+    void ActorUnequipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept override;
+    void ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
+    void ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept override;
+    void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
 
     // -----------------------------------------------------------------
     // IPlayerBridge

@@ -1,5 +1,8 @@
 #pragma once
 
+class IActorBridge;
+class IFormBridge;
+
 struct World;
 struct TransportService;
 
@@ -22,7 +25,8 @@ struct NotifyEquipmentChanges;
  */
 struct InventoryService
 {
-    InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
+    InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
+                     IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept;
     ~InventoryService() noexcept = default;
 
     TP_NOCOPYMOVE(InventoryService);
@@ -65,6 +69,8 @@ private:
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
+    IActorBridge& m_actorBridge;
+    IFormBridge& m_formBridge;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_inventoryConnection;

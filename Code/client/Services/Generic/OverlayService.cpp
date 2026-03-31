@@ -1,3 +1,4 @@
+// Note: OverlayService is compiled out on MinGW (#ifdef HAS_CEF). Bridge migration done for D-02 completeness.
 #ifdef HAS_CEF
 
 #include <TiltedOnlinePCH.h>
@@ -35,10 +36,16 @@
 #include <Events/PartyJoinedEvent.h>
 #include <Events/PartyLeftEvent.h>
 
-#include <PlayerCharacter.h>
-#include <Forms/TESWorldSpace.h>
-#include <Forms/TESObjectCELL.h>
-#include <Games/ActorExtension.h>
+#include <Bridges/IActorBridge.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
+
+// ActorValueInfo constants — no SKSE header needed, just the index values.
+namespace
+{
+    constexpr int32_t kHealth  = 24;
+    constexpr int32_t kMagicka = 25;
+}
 
 using TiltedPhoques::OverlayRenderHandler;
 using TiltedPhoques::OverlayRenderHandlerD3D11;
@@ -66,49 +73,48 @@ private:
     RenderSystemD3D11* m_pRenderSystem;
 };
 
-String GetCellName(const GameId& aWorldSpaceId, const GameId& aCellId) noexcept
+String GetCellName(const GameId& aWorldSpaceId, const GameId& aCellId, IFormBridge& aFormBridge) noexcept
 {
     auto& modSystem = World::Get().GetModSystem();
-
-    String cellName = "UNKNOWN";
 
     if (aWorldSpaceId)
     {
         const uint32_t worldSpaceId = modSystem.GetGameId(aWorldSpaceId);
-        TESWorldSpace* pWorldSpace = Cast<TESWorldSpace>(TESForm::GetById(worldSpaceId));
-        if (pWorldSpace)
-            cellName = pWorldSpace->GetName();
+        if (aFormBridge.FormExists(worldSpaceId))
+            return aFormBridge.GetFormName(worldSpaceId).c_str();
     }
     else
     {
         const uint32_t cellId = modSystem.GetGameId(aCellId);
-        TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(cellId));
-        if (pCell)
-            cellName = pCell->GetName();
+        if (aFormBridge.FormExists(cellId))
+            return aFormBridge.GetFormName(cellId).c_str();
     }
 
-    return cellName;
+    return "UNKNOWN";
 }
 
-float CalculateHealthPercentage(Actor* apActor) noexcept
+float CalculateHealthPercentage(uint32_t aActorFormId, IActorBridge& aActorBridge) noexcept
 {
-    const float maxHealth = apActor->GetActorPermanentValue(ActorValueInfo::kHealth);
-    const float tempModHealth = apActor->healthModifiers.temporaryModifier;
-
+    const float maxHealth = aActorBridge.GetActorPermanentValue(aActorFormId, kHealth);
+    // Note: temporaryModifier not exposed via bridge; use permanent value as divisor
     if (maxHealth == 0.f)
         return 0.f;
-    const float health = apActor->GetActorValue(ActorValueInfo::kHealth);
+    const float health = aActorBridge.GetActorValue(aActorFormId, kHealth);
 
-    float percentage = health / (maxHealth + tempModHealth) * 100.f;
+    float percentage = health / maxHealth * 100.f;
     if (percentage < 0.f)
         percentage = 0.f;
 
     return percentage;
 }
 
-OverlayService::OverlayService(World& aWorld, TransportService& transport, entt::dispatcher& aDispatcher)
+OverlayService::OverlayService(World& aWorld, TransportService& transport, entt::dispatcher& aDispatcher,
+                                 IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge)
     : m_world(aWorld)
     , m_transport(transport)
+    , m_actorBridge(aActorBridge)
+    , m_formBridge(aFormBridge)
+    , m_playerBridge(aPlayerBridge)
 {
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&OverlayService::OnUpdate>(this);
     m_connectedConnection = aDispatcher.sink<ConnectedEvent>().connect<&OverlayService::OnConnectedEvent>(this);
@@ -153,8 +159,8 @@ void OverlayService::Render() noexcept
         s_bi = true;
     }
 
-    auto pPlayer = PlayerCharacter::Get();
-    bool inGame = pPlayer && pPlayer->GetNiNode();
+    const uint32_t playerFormId = m_playerBridge.GetPlayerFormId();
+    bool inGame = (playerFormId != 0) && m_actorBridge.ActorHas3D(playerFormId);
     if (inGame && !m_inGame)
         SetInGame(true);
     else if (!inGame && m_inGame)
@@ -250,14 +256,13 @@ void OverlayService::SendSystemMessage(const std::string& acMessage)
 
 void OverlayService::SetPlayerHealthPercentage(uint32_t aFormId) const noexcept
 {
-    Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
-    if (!pActor)
+    if (!m_actorBridge.ActorExists(aFormId))
     {
         spdlog::error("{}: cannot find actor for form id {:X}", __FUNCTION__, aFormId);
         return;
     }
 
-    float percentage = CalculateHealthPercentage(pActor);
+    float percentage = CalculateHealthPercentage(aFormId, m_actorBridge);
 
     auto view = m_world.view<FormIdComponent, PlayerComponent>();
     auto entityIt = std::find_if(view.begin(), view.end(), [view, aFormId](auto aEntity) { return view.get<FormIdComponent>(aEntity).Id == aFormId; });
@@ -304,14 +309,13 @@ void OverlayService::OnWaitingFor3DRemoved(entt::registry& aRegistry, entt::enti
 
     const auto& formIdComponent = m_world.get<FormIdComponent>(aEntity);
 
-    Actor* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
-    if (!pActor)
+    if (!m_actorBridge.ActorExists(formIdComponent.Id))
     {
         spdlog::error("{}: cannot find actor for form id {:X}", __FUNCTION__, formIdComponent.Id);
         return;
     }
 
-    float percentage = CalculateHealthPercentage(pActor);
+    float percentage = CalculateHealthPercentage(formIdComponent.Id, m_actorBridge);
 
     auto pArguments = CefListValue::Create();
     pArguments->SetInt(0, pPlayerComponent->Id);
@@ -370,7 +374,7 @@ void OverlayService::OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcep
     pArguments->SetString(1, acMessage.Username.c_str());
     pArguments->SetInt(2, acMessage.Level);
 
-    String cellName = GetCellName(acMessage.WorldSpaceId, acMessage.CellId);
+    String cellName = GetCellName(acMessage.WorldSpaceId, acMessage.CellId, m_formBridge);
     pArguments->SetString(3, cellName.c_str());
 
     m_pOverlay->ExecuteAsync("playerConnected", pArguments);
@@ -397,18 +401,18 @@ void OverlayService::OnNotifyTeleport(const NotifyTeleport& acMessage) noexcept
     auto& modSystem = m_world.GetModSystem();
 
     const uint32_t cellId = modSystem.GetGameId(acMessage.CellId);
-    TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(cellId));
-    if (!pCell)
+    uint32_t targetCellId = cellId;
+
+    if (!m_formBridge.FormExists(cellId))
     {
         const uint32_t worldSpaceId = modSystem.GetGameId(acMessage.WorldSpaceId);
-        TESWorldSpace* pWorldSpace = Cast<TESWorldSpace>(TESForm::GetById(worldSpaceId));
-        if (pWorldSpace)
+        if (m_formBridge.FormExists(worldSpaceId))
         {
             GridCellCoords coordinates = GridCellCoords::CalculateGridCellCoords(acMessage.Position);
-            pCell = pWorldSpace->LoadCell(coordinates.X, coordinates.Y);
+            targetCellId = m_formBridge.LookupCellByCoords(worldSpaceId, coordinates.X, coordinates.Y);
         }
 
-        if (!pCell)
+        if (targetCellId == 0)
         {
             spdlog::error("Failed to fetch cell to teleport to.");
             m_world.GetOverlayService().SendSystemMessage("Teleporting to player failed.");
@@ -416,7 +420,7 @@ void OverlayService::OnNotifyTeleport(const NotifyTeleport& acMessage) noexcept
         }
     }
 
-    PlayerCharacter::Get()->MoveTo(pCell, acMessage.Position);
+    m_playerBridge.MovePlayerTo(targetCellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
 }
 
 void OverlayService::OnNotifyPlayerHealthUpdate(const NotifyPlayerHealthUpdate& acMessage) noexcept
@@ -483,7 +487,8 @@ void OverlayService::RunPlayerHealthUpdates() noexcept
 
     static float s_previousPercentage = -1.f;
 
-    const float newPercentage = CalculateHealthPercentage(PlayerCharacter::Get());
+    const uint32_t playerFormId = m_playerBridge.GetPlayerFormId();
+    const float newPercentage = playerFormId ? CalculateHealthPercentage(playerFormId, m_actorBridge) : 0.f;
     if (newPercentage == s_previousPercentage)
         return;
 

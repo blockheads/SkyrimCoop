@@ -14,23 +14,17 @@
 #include <Events/EquipmentChangeEvent.h>
 
 #include <World.h>
-#include <Games/Skyrim/Interface/UI.h>
-#include <PlayerCharacter.h>
-#include <Forms/TESObjectCELL.h>
-#include <Actor.h>
-#include <Structs/ObjectData.h>
-#include <Forms/TESWorldSpace.h>
-#include <Games/TES.h>
+#include <Bridges/IActorBridge.h>
+#include <Bridges/IFormBridge.h>
 #include <Games/Overrides.h>
-#include <EquipManager.h>
-#include <Games/ActorExtension.h>
-#include <Forms/TESNPC.h>
-#include <DefaultObjectManager.h>
 
-InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
+InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
+                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
     , m_transport(aTransport)
+    , m_actorBridge(aActorBridge)
+    , m_formBridge(aFormBridge)
 {
     m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&InventoryService::OnUpdate>(this);
     m_inventoryConnection = m_dispatcher.sink<InventoryChangeEvent>().connect<&InventoryService::OnInventoryChangeEvent>(this);
@@ -94,8 +88,7 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
         return;
     }
 
-    Actor* pActor = Cast<Actor>(TESForm::GetById(acEvent.ActorId));
-    if (!pActor)
+    if (!m_actorBridge.ActorExists(acEvent.ActorId))
         return;
 
     auto& modSystem = World::Get().GetModSystem();
@@ -113,7 +106,7 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
     request.IsSpell = acEvent.IsSpell;
     request.IsShout = acEvent.IsShout;
     request.IsAmmo = acEvent.IsAmmo;
-    request.CurrentInventory = pActor->GetEquipment();
+    request.CurrentInventory = m_formBridge.GetActorEquipment(acEvent.ActorId);
 
     m_transport.Send(request);
 
@@ -124,8 +117,8 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
 {
     if (acMessage.Drop)
     {
-        Actor* pActor = Utils::GetByServerId<Actor>(acMessage.ServerId);
-        if (!pActor)
+        const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+        if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
         {
             spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.ServerId);
             return;
@@ -133,24 +126,24 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
 
         ScopedInventoryOverride _;
 
-        pActor->DropOrPickUpObject(acMessage.Item, nullptr, nullptr);
+        m_formBridge.ActorDropOrPickUpObject(cActorFormId, acMessage.Item);
     }
     else
     {
-        TESObjectREFR* pObject = Utils::GetByServerId<TESObjectREFR>(acMessage.ServerId);
-        if (!pObject)
+        const uint32_t cObjectFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+        if (cObjectFormId == 0 || !m_formBridge.FormExists(cObjectFormId))
             return;
 
         ScopedInventoryOverride _;
 
-        pObject->AddOrRemoveItem(acMessage.Item);
+        m_formBridge.ObjectAddOrRemoveItem(cObjectFormId, acMessage.Item);
     }
 }
 
 void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& acMessage) noexcept
 {
-    Actor* pActor = Utils::GetByServerId<Actor>(acMessage.ServerId);
-    if (!pActor)
+    const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
     {
         spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.ServerId);
         return;
@@ -159,73 +152,63 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
     auto& modSystem = World::Get().GetModSystem();
 
     uint32_t itemId = modSystem.GetGameId(acMessage.ItemId);
-    TESForm* pItem = TESForm::GetById(itemId);
-
-    if (!pItem)
+    if (!m_formBridge.FormExists(itemId))
     {
         spdlog::error("Could not find inventory item {:X}:{:X}", acMessage.ItemId.ModId, acMessage.ItemId.BaseId);
         return;
     }
 
     uint32_t equipSlotId = modSystem.GetGameId(acMessage.EquipSlotId);
-    TESForm* pEquipSlot = TESForm::GetById(equipSlotId);
 
-    uint32_t slotId = 0;
-    if (pEquipSlot == DefaultObjectManager::Get().rightEquipSlot)
-        slotId = 1;
-
-    auto* pEquipManager = EquipManager::Get();
+    // Determine slot index: 1 = right hand, 0 = left hand
+    uint32_t slotId = m_formBridge.IsRightHandEquipSlot(equipSlotId) ? 1 : 0;
 
     if (acMessage.IsSpell)
     {
         if (acMessage.Unequip)
-            pEquipManager->UnEquipSpell(pActor, pItem, slotId);
+            m_formBridge.ActorUnequipSpell(cActorFormId, itemId, slotId);
         else
-            pEquipManager->EquipSpell(pActor, pItem, slotId);
-
+            m_formBridge.ActorEquipSpell(cActorFormId, itemId, slotId);
         return;
     }
     else if (acMessage.IsShout)
     {
         if (acMessage.Unequip)
-            pEquipManager->UnEquipShout(pActor, pItem);
+            m_formBridge.ActorUnequipShout(cActorFormId, itemId);
         else
-            pEquipManager->EquipShout(pActor, pItem);
-
+            m_formBridge.ActorEquipShout(cActorFormId, itemId);
         return;
     }
 
-    auto* pObject = Cast<TESBoundObject>(pItem);
-
-    // TODO: ExtraData necessary? probably
     if (acMessage.Unequip)
     {
-        pEquipManager->UnEquip(pActor, pItem, nullptr, acMessage.Count, pEquipSlot, false, true, false, false, nullptr);
+        m_formBridge.ActorUnequipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
     }
     else
     {
         // Unequip all armor first, since the game won't auto unequip armor
-        Inventory wornArmor{};
-        if (pItem->formType == FormType::Armor)
+        if (m_formBridge.GetFormType(itemId) == static_cast<uint8_t>(26)) // FormType::Armor = 26
         {
-            wornArmor = pActor->GetWornArmor();
+            Inventory wornArmor = m_formBridge.GetActorWornArmor(cActorFormId);
             for (const auto& armor : wornArmor.Entries)
             {
                 uint32_t armorId = modSystem.GetGameId(armor.BaseId);
-                TESForm* pArmor = TESForm::GetById(armorId);
-                if (pArmor)
-                    pEquipManager->UnEquip(pActor, pArmor, nullptr, 1, pEquipSlot, false, true, false, false, nullptr);
+                if (m_formBridge.FormExists(armorId))
+                    m_formBridge.ActorUnequipItem(cActorFormId, armorId, equipSlotId, 1);
+            }
+
+            m_formBridge.ActorEquipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
+
+            for (const auto& armor : wornArmor.Entries)
+            {
+                uint32_t armorId = modSystem.GetGameId(armor.BaseId);
+                if (m_formBridge.FormExists(armorId))
+                    m_formBridge.ActorEquipItem(cActorFormId, armorId, equipSlotId, 1);
             }
         }
-
-        pEquipManager->Equip(pActor, pItem, nullptr, acMessage.Count, pEquipSlot, false, true, false, false);
-
-        for (const auto& armor : wornArmor.Entries)
+        else
         {
-            uint32_t armorId = modSystem.GetGameId(armor.BaseId);
-            TESForm* pArmor = TESForm::GetById(armorId);
-            if (pArmor)
-                pEquipManager->Equip(pActor, pArmor, nullptr, 1, pEquipSlot, false, true, false, false);
+            m_formBridge.ActorEquipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
         }
     }
 }
@@ -249,10 +232,9 @@ void InventoryService::RunWeaponStateUpdates() noexcept
     for (auto entity : view)
     {
         const auto& formIdComponent = view.get<FormIdComponent>(entity);
-        Actor* const pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
         auto& localComponent = view.get<LocalComponent>(entity);
 
-        bool isWeaponDrawn = pActor->actorState.IsWeaponDrawn();
+        bool isWeaponDrawn = m_actorBridge.IsWeaponDrawn(formIdComponent.Id);
         if (isWeaponDrawn != localComponent.IsWeaponDrawn)
         {
             localComponent.IsWeaponDrawn = isWeaponDrawn;
@@ -285,27 +267,27 @@ void InventoryService::RunNakedNPCBugChecks() noexcept
     for (auto entity : view)
     {
         const auto& formIdComponent = view.get<FormIdComponent>(entity);
-        Actor* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
-        if (!pActor)
+        const uint32_t formId = formIdComponent.Id;
+
+        if (!m_actorBridge.ActorExists(formId))
             continue;
 
-        if (pActor->GetExtension()->IsPlayer())
+        if (m_actorBridge.IsRemotePlayer(formId))
             continue;
 
-        if (pActor->IsDead())
+        if (m_actorBridge.IsActorDead(formId))
             continue;
 
-        if (pActor->IsWearingBodyPiece())
+        if (m_formBridge.ActorIsWearingBodyPiece(formId))
             continue;
 
-        if (!pActor->ShouldWearBodyPiece())
+        if (!m_formBridge.ActorShouldWearBodyPiece(formId))
             continue;
 
         // Don't broadcast changes, it'll just make things messier.
-        // If all clients have this problem, they'll all fix it individually.
         ScopedEquipOverride seo;
         ScopedInventoryOverride sio;
 
-        pActor->ResetInventory(false);
+        m_formBridge.ActorResetInventory(formId, false);
     }
 }

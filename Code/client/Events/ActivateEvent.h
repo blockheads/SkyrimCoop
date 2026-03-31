@@ -29,4 +29,10 @@ struct ActivateEvent
     uint8_t Unk1;
     TESObjectREFR::OpenState PreActivationOpenState;
     bool ActivateFlag;
+
+    // Form IDs extracted from raw pointers at dispatch site (hook layer).
+    // Services use these to avoid including SKSE headers directly.
+    uint32_t ObjectFormId{0};
+    uint32_t ActivatorFormId{0};
+    uint32_t ObjectParentCellFormId{0};
 };
