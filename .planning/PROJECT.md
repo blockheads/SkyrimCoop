@@ -48,7 +48,8 @@ The ultimate goal is to make Skyrim fully host-authoritative for co-op: the host
 
 ### Active
 
-- [ ] Full Code/client/ compiles under MinGW as SKSE DLL (CEF/DirectXTK/Discord excluded)
+- [x] Full Code/client/ compiles under MinGW as SKSE DLL (CEF/DirectXTK/Discord excluded) — Validated in Phase 2: Full Client Compilation
+- [x] SKSE abstraction layer: all services use ISkyrimBridge, ReplayBridge enables headless testing — Validated in Phase 2.5: SKSE Abstraction Layer
 - [x] ABI safety fixes (alignas, try/catch UB, struct layout verification) — Validated in Phase 1: ABI Safety and Source Cleanup
 - [x] Code/relay_dll/ removed from source tree, native_client removed from build system — Validated in Phase 1: ABI Safety and Source Cleanup
 - [ ] LoopbackTransport for host-mode message delivery (in-process, no network)
