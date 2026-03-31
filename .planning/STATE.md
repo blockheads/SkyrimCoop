@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02.5-02-PLAN.md
-last_updated: "2026-03-31T00:46:37.175Z"
+stopped_at: Completed 02.5-03-PLAN.md
+last_updated: "2026-03-31T04:52:12.892Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 ## Current Position
 
 Phase: 02.5 (skse-abstraction-layer-inserted) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-03-31
 
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01-abi-safety-and-source-cleanup P02 | 5 | 2 tasks | 4 files |
 | Phase 02.5 P01 | 30 | 2 tasks | 11 files |
 | Phase 02.5 P02 | 46 | 2 tasks | 24 files |
+| Phase 02.5 P03 | 120 | 2 tasks | 23 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 02.5]: Fat bridge pattern: each method performs complete SKSE operation with primitives-only signatures
 - [Phase 02.5]: QuestService BSTEventSink inheritance removed; replaced with IEventBridge lambda callbacks
 - [Phase 02.5]: IFormBridge.ModEntry struct added for mod list transfer without SKSE Mod* types
+- [Phase 02.5]: PreActivationOpenStateValue (uint8_t) added to ActivateEvent as SKSE-free open-state proxy; TESObjectREFR.cpp populates it at dispatch
+- [Phase 02.5]: HAS_DIRECTXTK guards isolate Utils::GetByServerId and World::DebugService from services boundary — only active in full SKSE builds
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T00:46:37.173Z
-Stopped at: Completed 02.5-02-PLAN.md
+Last session: 2026-03-31T04:52:12.890Z
+Stopped at: Completed 02.5-03-PLAN.md
 Resume file: None
