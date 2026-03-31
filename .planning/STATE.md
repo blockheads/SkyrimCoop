@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: verifying
 stopped_at: Completed 02.5-04-PLAN.md
-last_updated: "2026-03-31T05:07:20.511Z"
+last_updated: "2026-03-31T05:18:29.316Z"
 last_activity: 2026-03-31
 progress:
   total_phases: 6
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-03-30)
 
 ## Current Position
 
-Phase: 02.5 (skse-abstraction-layer-inserted) — EXECUTING
-Plan: 4 of 4
+Phase: 3
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-03-31
 
@@ -81,9 +81,19 @@ Recent decisions affecting current work:
 - [Phase 02.5]: ClientReplayHarness uses bare entt::registry (not World) — World.cpp cannot compile headlessly due to SKSE/PCH dependencies
 - [Phase 02.5]: entt v3.10.0 ctx() multiple inheritance fix: pre-cast each interface reference before ctx().emplace<> to get correct vtable offset
 
+### Roadmap Evolution
+
+- Phase 02.5.1 inserted after Phase 2.5: connection smoke test window focus ini fix and automated service testing (URGENT)
+
 ### Pending Todos
 
 None yet.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260331-fih | skyrim ini background fix and automated connection smoke test | 2026-03-31 | 874fa30d | [260331-fih-skyrim-ini-background-fix-and-automated-](./quick/260331-fih-skyrim-ini-background-fix-and-automated-/) |
 
 ### Blockers/Concerns
 
@@ -92,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T05:07:20.509Z
-Stopped at: Completed 02.5-04-PLAN.md
+Last session: 2026-03-31
+Stopped at: Completed quick task 260331-fih: skyrim ini background fix and automated connection smoke test
 Resume file: None
