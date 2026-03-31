@@ -1,29 +1,35 @@
--- ClientReplayTests — headless bridge smoke tests
+-- ClientReplayTests — headless bridge replay tests
 --
--- Links against SkyrimTogetherClientServices (the SKSE-free services lib)
--- and ReplayBridge, proving the compilation boundary holds.
--- Does NOT reference native_client or any SKSE-bearing target.
+-- Proves the SKSE abstraction layer (BUILD-04): services boundary compiles
+-- without SKSE headers, and ReplayBridge reads NDJSON fixtures for headless testing.
+-- Does NOT reference native_client, World, or any SKSE-bearing target.
 
 target("ClientReplayTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx20")
 
-    -- Test sources
+    -- Test sources (harness + test cases)
     add_files("*.cpp")
 
-    -- Include paths — no Games/Skyrim allowed
+    -- ReplayBridge implementation (SKSE-free, part of client/Bridges)
+    add_files("../../client/Bridges/ReplayBridge.cpp")
+
+    -- Include paths — no Games/Skyrim, no SKSE allowed
+    add_includedirs(".")
     add_includedirs("../../client")
     add_includedirs("../../client/Bridges")
     add_includedirs("../../encoding")
     add_includedirs("../../external")
 
+    -- TiltedCore include path for TiltedPhoques:: types (Buffer, Map, String etc.)
+    add_includedirs("../../TiltedCore")
+
     -- Dependencies
-    add_deps("SkyrimEncoding")
-    -- NOTE: SkyrimTogetherClientServices is listed here as the future dep.
-    -- Until services are migrated (Plans 02.5-02/03), keep it commented to
-    -- avoid build failures blocking the test binary itself.
-    -- add_deps("SkyrimTogetherClientServices")
+    add_deps("SkyrimEncoding", "TiltedCore")
+    -- NOTE: SkyrimTogetherClientServices is NOT linked here per Pitfall 6:
+    -- the services lib may pull in SKSE-bearing compilation units.
+    -- The test proves the bridge compiles and links without SKSE.
 
     -- Packages
     add_packages(
@@ -31,7 +37,9 @@ target("ClientReplayTests")
         "entt",
         "spdlog",
         "nlohmann_json",
-        "glm")
+        "glm",
+        "hopscotch-map",
+        "rpmalloc")
 
     if is_plat("linux") then
         add_syslinks("pthread")

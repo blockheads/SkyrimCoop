@@ -45,12 +45,21 @@ World::World()
 {
     // Create the bridge and register all five interfaces into EnTT context so
     // that services can look them up via ctx().at<IXxxBridge&>().
+    //
+    // IMPORTANT: With multiple inheritance, entt 3.10.0 ctx().emplace<T&>(obj) stores
+    // the raw pointer reinterpreted as T. To get correct virtual dispatch, we must
+    // explicitly cast to each interface type before storing (discovered via ReplayBridge tests).
     m_pSkyrimBridge = std::make_unique<SkyrimBridge>();
-    ctx().emplace<IActorBridge&>(*m_pSkyrimBridge);
-    ctx().emplace<IFormBridge&>(*m_pSkyrimBridge);
-    ctx().emplace<IPlayerBridge&>(*m_pSkyrimBridge);
-    ctx().emplace<IEventBridge&>(*m_pSkyrimBridge);
-    ctx().emplace<IWorldBridge&>(*m_pSkyrimBridge);
+    IActorBridge&  actorRef  = *m_pSkyrimBridge;
+    IFormBridge&   formRef   = *m_pSkyrimBridge;
+    IPlayerBridge& playerRef = *m_pSkyrimBridge;
+    IEventBridge&  eventRef  = *m_pSkyrimBridge;
+    IWorldBridge&  worldRef  = *m_pSkyrimBridge;
+    ctx().emplace<IActorBridge&>(actorRef);
+    ctx().emplace<IFormBridge&>(formRef);
+    ctx().emplace<IPlayerBridge&>(playerRef);
+    ctx().emplace<IEventBridge&>(eventRef);
+    ctx().emplace<IWorldBridge&>(worldRef);
 
     ctx().emplace<ImguiService>();
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher,

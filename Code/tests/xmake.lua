@@ -23,3 +23,4 @@ target("TPTests")
 
 includes("integration")
 includes("replay")
+includes("client_replay")
