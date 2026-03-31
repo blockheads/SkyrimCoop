@@ -12,7 +12,7 @@ Requirements for MinGW full client build with loopback-based embedded server. Ea
 - [ ] **BUILD-01**: Full Code/client/ compiles under MinGW as a single SKSE DLL (CEF/DirectXTK/Discord excluded via preprocessor guards)
 - [x] **BUILD-02**: ABI safety fixes applied — `__declspec(align)` replaced with `alignas()`, try/catch UB removed from HostService, struct layout correctness verified with MinGW
 - [x] **BUILD-03**: Code/relay_dll/ and Code/native_client/ deleted from source tree and build system
-- [ ] **BUILD-04**: SKSE interaction abstracted behind ISkyrimBridge interface — real implementation calls SKSE APIs, test implementation replays recorded events for headless execution without Skyrim
+- [x] **BUILD-04**: SKSE interaction abstracted behind ISkyrimBridge interface — real implementation calls SKSE APIs, test implementation replays recorded events for headless execution without Skyrim
 
 ### Embedded Server (Loopback)
 
@@ -84,7 +84,7 @@ Extend sync to cover ALL game systems — physics, AI, scripting, weather, light
 | BUILD-01 | Phase 2 | Pending |
 | BUILD-02 | Phase 1 | Complete |
 | BUILD-03 | Phase 1 | Complete |
-| BUILD-04 | Phase 2.5 | Pending |
+| BUILD-04 | Phase 2.5 | Complete |
 | HOST-01 | Phase 3 | Pending |
 | HOST-02 | Phase 3 | Pending |
 | HOST-03 | Phase 3 | Pending |
