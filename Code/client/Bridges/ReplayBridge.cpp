@@ -1,0 +1,218 @@
+/// ReplayBridge.cpp — Headless replay implementation.
+///
+/// IMPORTANT: This file must NOT include any SKSE header.
+/// All methods either return safe defaults or look up a canned result from
+/// m_eventLines (lines loaded from an NDJSON recording file).
+
+#include <Bridges/ReplayBridge.h>
+
+#include <fstream>
+#include <sstream>
+#include <string>
+
+// ---------------------------------------------------------------------------
+// LoadRecording
+// ---------------------------------------------------------------------------
+
+void ReplayBridge::LoadRecording(const std::string& aPath) noexcept
+{
+    m_eventLines.clear();
+    m_cursor = 0;
+
+    std::ifstream file(aPath);
+    if (!file.is_open())
+        return;
+
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (!line.empty())
+            m_eventLines.push_back(std::move(line));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// IActorBridge — stub returns
+// ---------------------------------------------------------------------------
+
+bool ReplayBridge::ActorExists(uint32_t aFormId) const noexcept { return false; }
+bool ReplayBridge::IsActorDead(uint32_t aFormId) const noexcept { return false; }
+bool ReplayBridge::IsPlayerSummon(uint32_t aFormId) const noexcept { return false; }
+bool ReplayBridge::IsTemporaryActor(uint32_t aFormId) const noexcept { return false; }
+bool ReplayBridge::IsRemotePlayer(uint32_t aFormId) const noexcept { return false; }
+void ReplayBridge::SetActorRemote(uint32_t, bool) noexcept {}
+void ReplayBridge::SetActorPlayer(uint32_t, bool) noexcept {}
+uint32_t ReplayBridge::GetCommandingActor(uint32_t) const noexcept { return 0; }
+void ReplayBridge::KillActor(uint32_t) noexcept {}
+void ReplayBridge::RespawnActor(uint32_t) noexcept {}
+void ReplayBridge::DeleteActor(uint32_t) noexcept {}
+void ReplayBridge::MoveActorTo(uint32_t, uint32_t, float, float, float) noexcept {}
+void ReplayBridge::SetActorRotation(uint32_t, float, float) noexcept {}
+void ReplayBridge::GetActorPosition(uint32_t, float& aX, float& aY, float& aZ) const noexcept
+    { aX = 0.f; aY = 0.f; aZ = 0.f; }
+void ReplayBridge::GetActorRotation(uint32_t, float& aX, float& aY, float& aZ) const noexcept
+    { aX = 0.f; aY = 0.f; aZ = 0.f; }
+float ReplayBridge::GetActorValue(uint32_t, int32_t) const noexcept { return 0.f; }
+float ReplayBridge::GetActorPermanentValue(uint32_t, int32_t) const noexcept { return 0.f; }
+void ReplayBridge::SetActorValue(uint32_t, int32_t, float) noexcept {}
+void ReplayBridge::ForceActorValue(uint32_t, int32_t, int32_t, float) noexcept {}
+int32_t ReplayBridge::GetActorValueCount() const noexcept { return 164; } // kActorValueCount
+void ReplayBridge::EquipItem(uint32_t, uint32_t, bool) noexcept {}
+void ReplayBridge::UnequipItem(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::DrawWeapon(uint32_t, bool) noexcept {}
+bool ReplayBridge::IsWeaponDrawn(uint32_t) const noexcept { return false; }
+uint32_t ReplayBridge::GetEquippedWeaponFormId(uint32_t, uint32_t) const noexcept { return 0; }
+uint64_t ReplayBridge::GetAnimationGraphDescriptorHash(uint32_t) const noexcept { return 0; }
+void ReplayBridge::SetAnimationGraphDescriptorHash(uint32_t, uint64_t) noexcept {}
+void ReplayBridge::GenerateMagicCasters(uint32_t) noexcept {}
+void ReplayBridge::SetMagicCasterDualCasting(uint32_t, uint32_t, bool) noexcept {}
+void ReplayBridge::CastSpell(uint32_t, uint32_t, uint32_t) noexcept {}
+void ReplayBridge::InterruptCast(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::RemoveSpell(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::AddMagicTarget(uint32_t, uint32_t, uint32_t, bool, bool) noexcept {}
+bool ReplayBridge::IsBleedingOut(uint32_t) const noexcept { return false; }
+void ReplayBridge::PayCrimeGoldToAllFactions(uint32_t) noexcept {}
+uint32_t ReplayBridge::GetEquippedShoutFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetActiveMagicItemFormId(uint32_t, uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetCombatTargetFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetActorBaseFormId(uint32_t) const noexcept { return 0; }
+std::string ReplayBridge::GetActorBaseName(uint32_t) const noexcept { return {}; }
+uint32_t ReplayBridge::GetActorRaceFormId(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::ActorHas3D(uint32_t) const noexcept { return false; }
+
+// ---------------------------------------------------------------------------
+// IFormBridge — stub returns
+// ---------------------------------------------------------------------------
+
+bool ReplayBridge::FormExists(uint32_t) const noexcept { return false; }
+uint8_t ReplayBridge::GetFormType(uint32_t) const noexcept { return 0; }
+std::string ReplayBridge::GetFormEditorId(uint32_t) const noexcept { return {}; }
+std::string ReplayBridge::GetFormName(uint32_t) const noexcept { return {}; }
+float ReplayBridge::GetGlobalValue(uint32_t) const noexcept { return 0.f; }
+void ReplayBridge::SetGlobalValue(uint32_t, float) noexcept {}
+uint32_t ReplayBridge::LookupCellByCoords(uint32_t, int32_t, int32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::LookupWorldSpaceByFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetParentCellFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetParentWorldSpaceFormId(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::QuestExists(uint32_t) const noexcept { return false; }
+uint32_t ReplayBridge::GetQuestStage(uint32_t) const noexcept { return 0; }
+bool ReplayBridge::IsQuestStopped(uint32_t) const noexcept { return false; }
+uint8_t ReplayBridge::GetQuestType(uint32_t) const noexcept { return 0; }
+std::string ReplayBridge::GetQuestName(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetQuestActive(uint32_t, bool) noexcept {}
+uint32_t ReplayBridge::FindQuestByNameId(const std::string&) const noexcept { return 0; }
+uint32_t ReplayBridge::GetModCount() const noexcept { return 0; }
+std::string ReplayBridge::GetModNameByIndex(uint32_t) const noexcept { return {}; }
+uint32_t ReplayBridge::GetModStandardId(const std::string&) const noexcept { return 0; }
+std::vector<std::string> ReplayBridge::GetAllModNames() const noexcept { return {}; }
+uint32_t ReplayBridge::GetModFormIdBySpellId(uint32_t aModStandardId, uint32_t aSpellLocalId) const noexcept
+    { return (aModStandardId << 24) | aSpellLocalId; }
+bool ReplayBridge::IsSpellItem(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsConcentrationSpell(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsHealingSpell(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsWardSpell(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsInvisibilitySpell(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsMagicItem(uint32_t) const noexcept { return false; }
+
+// ---------------------------------------------------------------------------
+// IPlayerBridge — stub returns
+// ---------------------------------------------------------------------------
+
+uint32_t ReplayBridge::GetPlayerFormId() const noexcept { return 0x14; } // Skyrim player form ID
+uint32_t ReplayBridge::GetPlayerBaseNpcFormId() const noexcept { return 0; }
+void ReplayBridge::GetPlayerPosition(float& aX, float& aY, float& aZ) const noexcept
+    { aX = 0.f; aY = 0.f; aZ = 0.f; }
+uint32_t ReplayBridge::GetPlayerCellId() const noexcept { return 0; }
+uint32_t ReplayBridge::GetPlayerParentCellId() const noexcept { return 0; }
+uint32_t ReplayBridge::GetPlayerWorldSpaceId() const noexcept { return 0; }
+void ReplayBridge::SetPlayerWaypoint(float, float, float, uint32_t) noexcept {}
+void ReplayBridge::RemovePlayerWaypoint() noexcept {}
+void ReplayBridge::MovePlayerTo(uint32_t, float, float, float) noexcept {}
+bool ReplayBridge::IsPlayerAlive() const noexcept { return true; }
+bool ReplayBridge::IsPlayerBleedingOut() const noexcept { return false; }
+bool ReplayBridge::IsPlayerInGodMode() const noexcept { return false; }
+void ReplayBridge::SetPlayerGodMode(bool) noexcept {}
+void ReplayBridge::SetPlayerRespawnMode(bool) noexcept {}
+void ReplayBridge::RespawnPlayer() noexcept {}
+void ReplayBridge::KnockdownPlayer(float) noexcept {}
+void ReplayBridge::FadeScreen(bool, bool, float, bool, float) noexcept {}
+void ReplayBridge::PlayerPayGold(uint32_t) noexcept {}
+void ReplayBridge::PlayerPayCrimeGoldToAllFactions() noexcept {}
+uint32_t ReplayBridge::GetDifficulty() const noexcept { return 3; } // Adept
+void ReplayBridge::SetDifficulty(uint32_t) noexcept {}
+float ReplayBridge::GetGreetDistance() const noexcept { return 150.f; }
+void ReplayBridge::SetGreetDistance(float) noexcept {}
+uint16_t ReplayBridge::GetPlayerLevel() const noexcept { return 1; }
+float ReplayBridge::GetPlayerActorValue(int32_t) const noexcept { return 0.f; }
+void ReplayBridge::ForcePlayerActorValue(int32_t, int32_t, float) noexcept {}
+uint32_t ReplayBridge::GetPlayerActiveMagicItemFormId(uint32_t) const noexcept { return 0; }
+uint32_t ReplayBridge::GetPlayerEquippedShoutFormId() const noexcept { return 0; }
+void ReplayBridge::EquipSpell(uint32_t, uint32_t) noexcept {}
+void ReplayBridge::EquipShout(uint32_t) noexcept {}
+uint32_t ReplayBridge::GetPlayerRaceFormId() const noexcept { return 0; }
+std::vector<uint32_t> ReplayBridge::GetPlayerActiveQuestFormIds() const noexcept { return {}; }
+bool ReplayBridge::IsPlayerLoaded() const noexcept { return true; }
+void ReplayBridge::ShowHudMessage(const std::string&) noexcept {}
+
+// ---------------------------------------------------------------------------
+// IEventBridge — callbacks stored locally, injected by test code
+// ---------------------------------------------------------------------------
+
+void ReplayBridge::RegisterQuestStartStopSink(std::function<void(uint32_t, bool)> aCallback) noexcept
+{
+    m_questStartStopCb = std::move(aCallback);
+}
+
+void ReplayBridge::RegisterQuestStageSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept
+{
+    m_questStageCb = std::move(aCallback);
+}
+
+void ReplayBridge::RegisterActivateSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept
+{
+    m_activateCb = std::move(aCallback);
+}
+
+void ReplayBridge::RegisterLockChangeSink(std::function<void(uint32_t, bool)> aCallback) noexcept
+{
+    m_lockChangeCb = std::move(aCallback);
+}
+
+void ReplayBridge::UnregisterAllSinks() noexcept
+{
+    m_questStartStopCb = nullptr;
+    m_questStageCb = nullptr;
+    m_activateCb = nullptr;
+    m_lockChangeCb = nullptr;
+}
+
+void ReplayBridge::InjectQuestStartStopEvent(uint32_t aQuestFormId, bool aStarted) noexcept
+{
+    if (m_questStartStopCb)
+        m_questStartStopCb(aQuestFormId, aStarted);
+}
+
+void ReplayBridge::InjectQuestStageEvent(uint32_t aQuestFormId, uint32_t aNewStage) noexcept
+{
+    if (m_questStageCb)
+        m_questStageCb(aQuestFormId, aNewStage);
+}
+
+void ReplayBridge::InjectActivateEvent(uint32_t aActivatorFormId, uint32_t aActivatedFormId) noexcept
+{
+    if (m_activateCb)
+        m_activateCb(aActivatorFormId, aActivatedFormId);
+}
+
+// ---------------------------------------------------------------------------
+// IWorldBridge — stub returns
+// ---------------------------------------------------------------------------
+
+uint32_t ReplayBridge::GetCurrentWeatherId() const noexcept { return 0; }
+uint32_t ReplayBridge::GetLastWeatherId() const noexcept { return 0; }
+void ReplayBridge::ForceWeather(uint32_t, bool) noexcept {}
+void ReplayBridge::ReleaseWeatherOverride() noexcept {}
+std::string ReplayBridge::GetModName(uint32_t) const noexcept { return {}; }
+void ReplayBridge::SetGameWeatherSystemEnabled(bool) noexcept {}
+float ReplayBridge::GetGameTimeHours() const noexcept { return 12.f; }
+void ReplayBridge::SetGameTimeHours(float) noexcept {}

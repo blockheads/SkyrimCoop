@@ -44,6 +44,8 @@ target(name)
         add_cxflags("-include MinGWCompat.h", {force = true})
     end
 
+    add_files("Bridges/SkyrimBridge.cpp")
+    add_headerfiles("Bridges/*.h")
     add_files("Games/Skyrim/**.cpp")
     add_headerfiles("Games/Skyrim/**.h")
     -- rather hacky:
@@ -161,3 +163,41 @@ if is_plat("mingw") then
         add_includedirs("../external/mem", {public = false})
     target_end()
 end
+
+-- ============================================================================
+-- SkyrimTogetherClientServices — compilation-boundary static lib
+--
+-- Compiles Services/**/*.cpp + Bridges/ReplayBridge.cpp WITHOUT any
+-- Games/Skyrim include path on the include list.  This is the proof that
+-- migrated services carry zero SKSE dependencies.
+--
+-- NOTE: This target will NOT compile today — services still include SKSE
+-- headers directly.  Plans 02.5-02 and 02.5-03 migrate each service to use
+-- the bridge interfaces instead.  Define the target now so the build system
+-- enforces the boundary as soon as a service is migrated.
+-- ============================================================================
+target("SkyrimTogetherClientServices")
+    set_kind("static")
+    set_group("Client")
+    set_languages("cxx20")
+
+    -- Services and bridge (no Games/Skyrim here)
+    add_files("Services/**.cpp")
+    add_files("Bridges/ReplayBridge.cpp")
+    add_headerfiles("Bridges/*.h")
+
+    -- Include paths — deliberately excludes Games/Skyrim
+    add_includedirs(".", "../external/")
+    add_includedirs("Bridges")
+
+    -- Core packages (same subset as main client, minus Windows-only)
+    add_packages(
+        "spdlog",
+        "hopscotch-map",
+        "entt",
+        "glm",
+        "nlohmann_json")
+
+    -- Encoding for message types used by services
+    add_deps("SkyrimEncoding")
+target_end()
