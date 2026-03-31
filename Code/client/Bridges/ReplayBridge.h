@@ -9,10 +9,10 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-// Forward declare nlohmann::json so the header stays light
-namespace nlohmann { class json; }
+#include <nlohmann/json.hpp>
 
 /// Headless replay implementation of all five bridge interfaces.
 ///
@@ -290,10 +290,19 @@ public:
     float GetGameMonth() const noexcept override;
     float GetGameDay() const noexcept override;
 
+    /// Pump events: iterate m_eventEntries and fire registered callbacks for recorded event calls.
+    void PumpEvents() noexcept;
+
 private:
-    /// Stored event lines parsed from NDJSON recording.
-    std::vector<std::string> m_eventLines;
-    mutable size_t m_cursor = 0;
+    /// Canned query responses keyed by "op" name — FIFO per op.
+    mutable std::unordered_map<std::string, std::vector<nlohmann::json>> m_queryResponses;
+
+    /// Event call entries (dir="call" lines for event mutations) for PumpEvents().
+    std::vector<nlohmann::json> m_eventEntries;
+
+    /// Pop and return the next canned response for the given op name.
+    /// Returns an empty JSON object if no response is available.
+    nlohmann::json NextResponse(const char* apOp) const noexcept;
 
     /// Registered callbacks for event injection.
     std::function<void(uint32_t, bool)> m_questStartStopCb;

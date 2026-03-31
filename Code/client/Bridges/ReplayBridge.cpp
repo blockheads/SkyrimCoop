@@ -2,7 +2,7 @@
 ///
 /// IMPORTANT: This file must NOT include any SKSE header.
 /// All methods either return safe defaults or look up a canned result from
-/// m_eventLines (lines loaded from an NDJSON recording file).
+/// m_queryResponses (populated by LoadRecording from an NDJSON recording file).
 
 #include <Bridges/ReplayBridge.h>
 
@@ -24,8 +24,8 @@
 
 void ReplayBridge::LoadRecording(const std::string& aPath) noexcept
 {
-    m_eventLines.clear();
-    m_cursor = 0;
+    m_queryResponses.clear();
+    m_eventEntries.clear();
 
     std::ifstream file(aPath);
     if (!file.is_open())
@@ -34,20 +34,112 @@ void ReplayBridge::LoadRecording(const std::string& aPath) noexcept
     std::string line;
     while (std::getline(file, line))
     {
-        if (!line.empty())
-            m_eventLines.push_back(std::move(line));
+        if (line.empty())
+            continue;
+
+        try
+        {
+            nlohmann::json j = nlohmann::json::parse(line);
+
+            const std::string dir = j.value("dir", "");
+            const std::string op  = j.value("op", "");
+            if (op.empty())
+                continue;
+
+            if (dir == "return")
+            {
+                // Store canned query responses keyed by op name (FIFO order)
+                m_queryResponses[op].push_back(std::move(j));
+            }
+            else if (dir == "call")
+            {
+                // Event/mutation calls recorded for PumpEvents()
+                m_eventEntries.push_back(std::move(j));
+            }
+        }
+        catch (...)
+        {
+            // Skip malformed lines silently
+        }
     }
 }
 
 // ---------------------------------------------------------------------------
-// IActorBridge — stub returns
+// NextResponse — pop the next canned response for an op (FIFO)
 // ---------------------------------------------------------------------------
 
-bool ReplayBridge::ActorExists(uint32_t aFormId) const noexcept { return false; }
-bool ReplayBridge::IsActorDead(uint32_t aFormId) const noexcept { return false; }
+nlohmann::json ReplayBridge::NextResponse(const char* apOp) const noexcept
+{
+    auto it = m_queryResponses.find(apOp);
+    if (it == m_queryResponses.end() || it->second.empty())
+        return nlohmann::json{};
+
+    nlohmann::json result = it->second.front();
+    it->second.erase(it->second.begin());
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// PumpEvents — fire registered callbacks for recorded event entries
+// ---------------------------------------------------------------------------
+
+void ReplayBridge::PumpEvents() noexcept
+{
+    for (const auto& entry : m_eventEntries)
+    {
+        const std::string op = entry.value("op", "");
+
+        if (op == "QuestStartStop" && m_questStartStopCb)
+        {
+            uint32_t questId = entry.value("formId", 0u);
+            bool started = entry.value("started", false);
+            m_questStartStopCb(questId, started);
+        }
+        else if (op == "QuestStage" && m_questStageCb)
+        {
+            uint32_t questId = entry.value("formId", 0u);
+            uint32_t stage = entry.value("stage", 0u);
+            m_questStageCb(questId, stage);
+        }
+        else if (op == "Activate" && m_activateCb)
+        {
+            uint32_t activator = entry.value("activatorFormId", 0u);
+            uint32_t activated = entry.value("activatedFormId", 0u);
+            m_activateCb(activator, activated);
+        }
+        else if (op == "LockChange" && m_lockChangeCb)
+        {
+            uint32_t objectId = entry.value("formId", 0u);
+            bool locked = entry.value("locked", false);
+            m_lockChangeCb(objectId, locked);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// IActorBridge — query methods use NextResponse for canned values
+// ---------------------------------------------------------------------------
+
+bool ReplayBridge::ActorExists(uint32_t aFormId) const noexcept
+{
+    auto r = NextResponse("ActorExists");
+    if (r.contains("result")) return r["result"].get<bool>();
+    return false;
+}
+bool ReplayBridge::IsActorDead(uint32_t aFormId) const noexcept
+{
+    auto r = NextResponse("IsActorDead");
+    if (r.contains("result")) return r["result"].get<bool>();
+    return false;
+}
 bool ReplayBridge::IsPlayerSummon(uint32_t aFormId) const noexcept { return false; }
 bool ReplayBridge::IsTemporaryActor(uint32_t aFormId) const noexcept { return false; }
-bool ReplayBridge::IsRemotePlayer(uint32_t aFormId) const noexcept { return false; }
+bool ReplayBridge::IsRemotePlayer(uint32_t aFormId) const noexcept
+{
+    auto r = NextResponse("IsRemotePlayer");
+    if (r.contains("result")) return r["result"].get<bool>();
+    return false;
+}
 void ReplayBridge::SetActorRemote(uint32_t, bool) noexcept {}
 void ReplayBridge::SetActorPlayer(uint32_t, bool) noexcept {}
 uint32_t ReplayBridge::GetCommandingActor(uint32_t) const noexcept { return 0; }
@@ -216,7 +308,12 @@ void ReplayBridge::AddMagicTargetEffect(uint32_t, uint32_t, uint32_t, uint32_t, 
 // IPlayerBridge — stub returns
 // ---------------------------------------------------------------------------
 
-uint32_t ReplayBridge::GetPlayerFormId() const noexcept { return 0x14; } // Skyrim player form ID
+uint32_t ReplayBridge::GetPlayerFormId() const noexcept
+{
+    auto r = NextResponse("GetPlayerFormId");
+    if (r.contains("result")) return r["result"].get<uint32_t>();
+    return 0x14; // Skyrim player form ID
+}
 uint32_t ReplayBridge::GetPlayerBaseNpcFormId() const noexcept { return 0; }
 void ReplayBridge::GetPlayerPosition(float& aX, float& aY, float& aZ) const noexcept
     { aX = 0.f; aY = 0.f; aZ = 0.f; }
@@ -315,7 +412,12 @@ void ReplayBridge::InjectActivateEvent(uint32_t aActivatorFormId, uint32_t aActi
 // IWorldBridge — stub returns
 // ---------------------------------------------------------------------------
 
-uint32_t ReplayBridge::GetCurrentWeatherId() const noexcept { return 0; }
+uint32_t ReplayBridge::GetCurrentWeatherId() const noexcept
+{
+    auto r = NextResponse("GetCurrentWeatherId");
+    if (r.contains("result")) return r["result"].get<uint32_t>();
+    return 0;
+}
 uint32_t ReplayBridge::GetLastWeatherId() const noexcept { return 0; }
 void ReplayBridge::ForceWeather(uint32_t, bool) noexcept {}
 void ReplayBridge::ReleaseWeatherOverride() noexcept {}

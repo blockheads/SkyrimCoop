@@ -1,0 +1,8 @@
+{"op":"GetCurrentWeatherId","dir":"call","ts":0.001}
+{"op":"GetCurrentWeatherId","dir":"return","result":74325,"ts":0.001}
+{"op":"ForceWeather","formId":"0x12345","override":true,"dir":"call","ts":0.002}
+{"op":"SetGameWeatherSystemEnabled","enabled":false,"dir":"call","ts":0.003}
+{"op":"GetCurrentWeatherId","dir":"call","ts":0.004}
+{"op":"GetCurrentWeatherId","dir":"return","result":74325,"ts":0.004}
+{"op":"GetLastWeatherId","dir":"call","ts":0.005}
+{"op":"GetLastWeatherId","dir":"return","result":74325,"ts":0.005}
