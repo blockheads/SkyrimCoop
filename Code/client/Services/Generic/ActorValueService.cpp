@@ -2,9 +2,8 @@
 
 #include <Services/ActorValueService.h>
 #include <World.h>
-#include <Forms/ActorValueInfo.h>
-#include <Games/References.h>
 #include <Components.h>
+#include <Utils.h>
 
 #include <Events/UpdateEvent.h>
 #include <Events/ActorRemovedEvent.h>
@@ -21,12 +20,13 @@
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/RequestDeathStateChange.h>
 
-#include <Misc/ActorValueOwner.h>
+#include <Bridges/IActorBridge.h>
 
 ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
     , m_transport(aTransport)
+    , m_actorBridge(aWorld.ctx().at<IActorBridge&>())
 {
     m_world.on_construct<LocalComponent>().connect<&ActorValueService::OnLocalComponentAdded>(this);
     m_dispatcher.sink<DisconnectedEvent>().connect<&ActorValueService::OnDisconnected>(this);
@@ -39,15 +39,16 @@ ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatche
     m_dispatcher.sink<NotifyDeathStateChange>().connect<&ActorValueService::OnDeathStateChange>(this);
 }
 
-void ActorValueService::CreateActorValuesComponent(const entt::entity aEntity, Actor* apActor) noexcept
+void ActorValueService::CreateActorValuesComponent(const entt::entity aEntity, uint32_t aFormId) noexcept
 {
     auto& actorValuesComponent = m_world.emplace_or_replace<ActorValuesComponent>(aEntity);
 
-    for (int i = 0; i < ActorValueInfo::kActorValueCount; i++)
+    const int32_t cCount = m_actorBridge.GetActorValueCount();
+    for (int i = 0; i < cCount; i++)
     {
-        float value = apActor->GetActorValue(i);
+        float value = m_actorBridge.GetActorValue(aFormId, i);
         actorValuesComponent.CurrentActorValues.ActorValuesList.insert({i, value});
-        float maxValue = apActor->GetActorPermanentValue(i);
+        float maxValue = m_actorBridge.GetActorPermanentValue(aFormId, i);
         actorValuesComponent.CurrentActorValues.ActorMaxValuesList.insert({i, maxValue});
     }
 }
@@ -55,14 +56,14 @@ void ActorValueService::CreateActorValuesComponent(const entt::entity aEntity, A
 void ActorValueService::OnLocalComponentAdded(entt::registry& aRegistry, const entt::entity aEntity) noexcept
 {
     const auto& formIdComponent = aRegistry.get<FormIdComponent>(aEntity);
-    Actor* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
+    const uint32_t formId = formIdComponent.Id;
 
-    if (pActor != NULL)
+    if (m_actorBridge.ActorExists(formId))
     {
         auto& localComponent = aRegistry.get<LocalComponent>(aEntity);
-        localComponent.IsDead = pActor->IsDead();
-        localComponent.IsWeaponDrawn = pActor->actorState.IsWeaponDrawn();
-        CreateActorValuesComponent(aEntity, pActor);
+        localComponent.IsDead = m_actorBridge.IsActorDead(formId);
+        localComponent.IsWeaponDrawn = m_actorBridge.IsWeaponDrawn(formId);
+        CreateActorValuesComponent(aEntity, formId);
     }
 }
 
@@ -110,10 +111,9 @@ void ActorValueService::BroadcastActorValues() noexcept
     for (auto entity : view)
     {
         auto& formIdComponent = view.get<FormIdComponent>(entity);
-        auto* pForm = TESForm::GetById(formIdComponent.Id);
-        auto* pActor = Cast<Actor>(pForm);
+        const uint32_t formId = formIdComponent.Id;
 
-        if (!pActor)
+        if (!m_actorBridge.ActorExists(formId))
             continue;
 
         auto& localComponent = view.get<LocalComponent>(entity);
@@ -124,14 +124,15 @@ void ActorValueService::BroadcastActorValues() noexcept
         RequestActorMaxValueChanges requestMaxValueChanges;
         requestMaxValueChanges.Id = localComponent.Id;
 
-        bool isPlayer = pActor->GetExtension() && pActor->GetExtension()->IsPlayer();
+        const bool isPlayer = m_actorBridge.IsRemotePlayer(formId);
 
-        for (int i = 0; i < ActorValueInfo::kActorValueCount; i++)
+        const int32_t cCount = m_actorBridge.GetActorValueCount();
+        for (int i = 0; i < cCount; i++)
         {
-            if (isPlayer && i == ActorValueInfo::kDragonSouls)
+            if (isPlayer && i == 133 /* ActorValueInfo::kDragonSouls */)
                 continue;
-            
-            float newValue = pActor->GetActorValue(i);
+
+            float newValue = m_actorBridge.GetActorValue(formId, i);
             float oldValue = actorValuesComponent.CurrentActorValues.ActorValuesList[i];
             if (newValue != oldValue)
             {
@@ -139,7 +140,7 @@ void ActorValueService::BroadcastActorValues() noexcept
                 actorValuesComponent.CurrentActorValues.ActorValuesList[i] = newValue;
             }
 
-            float newMaxValue = pActor->GetActorPermanentValue(i);
+            float newMaxValue = m_actorBridge.GetActorPermanentValue(formId, i);
             float oldMaxValue = actorValuesComponent.CurrentActorValues.ActorMaxValuesList[i];
             if (newMaxValue != oldMaxValue)
             {
@@ -246,13 +247,14 @@ void ActorValueService::RunDeathStateUpdates() noexcept
     for (auto entity : localView)
     {
         const auto& formIdComponent = localView.get<FormIdComponent>(entity);
-        Actor* const pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
-        if (!pActor)
+        const uint32_t formId = formIdComponent.Id;
+
+        if (!m_actorBridge.ActorExists(formId))
             continue;
 
         auto& localComponent = localView.get<LocalComponent>(entity);
 
-        bool isDead = pActor->IsDead();
+        bool isDead = m_actorBridge.IsActorDead(formId);
         if (isDead != localComponent.IsDead)
         {
             localComponent.IsDead = isDead;
@@ -282,29 +284,29 @@ void ActorValueService::RunActorValuesUpdates() noexcept
 
 void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast& acMessage) const noexcept
 {
-    Actor* pActor = Utils::GetByServerId<Actor>(acMessage.Id);
-    if (!pActor)
+    const uint32_t formId = Utils::GetFormIdByServerId(acMessage.Id);
+    if (formId == 0)
     {
         spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.Id);
         return;
     }
 
-    const float newHealth = pActor->GetActorValue(ActorValueInfo::kHealth) + acMessage.DeltaHealth;
-    pActor->ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, ActorValueInfo::kHealth, newHealth);
+    // kHealth = 24 (ActorValueInfo::kHealth)
+    const float newHealth = m_actorBridge.GetActorValue(formId, 24) + acMessage.DeltaHealth;
+    m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, 24, newHealth);
 
-    const float health = pActor->GetActorValue(ActorValueInfo::kHealth);
-    if (!pActor->IsDead() && health <= 0.f)
+    const float health = m_actorBridge.GetActorValue(formId, 24);
+    if (!m_actorBridge.IsActorDead(formId) && health <= 0.f)
     {
-        ActorExtension* pExtension = pActor->GetExtension();
         // Players should never be killed
-        if (!pExtension->IsPlayer())
-            pActor->Kill();
+        if (!m_actorBridge.IsRemotePlayer(formId))
+            m_actorBridge.KillActor(formId);
     }
 
     // TODO(cosideci): find fix for player health sync so this can be used again
     /*
-    if (pActor->GetExtension()->IsRemotePlayer())
-        World::Get().GetOverlayService().SetPlayerHealthPercentage(pActor->formID);
+    if (m_actorBridge.IsRemotePlayer(formId))
+        World::Get().GetOverlayService().SetPlayerHealthPercentage(formId);
     */
 }
 
@@ -318,25 +320,25 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
         return;
 
     auto& formIdComponent = view.get<FormIdComponent>(*itor);
-    Actor* const pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
+    const uint32_t formId = formIdComponent.Id;
 
-    if (!pActor)
+    if (!m_actorBridge.ActorExists(formId))
         return;
 
     for (const auto& [key, value] : acMessage.Values)
     {
         // Syncing dragon souls triggers "Dragon soul collected" event
-        if (key == ActorValueInfo::kDragonSouls || key == ActorValueInfo::kHealth)
+        if (key == 133 /* kDragonSouls */ || key == 24 /* kHealth */)
             continue;
 
         spdlog::debug("Actor value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
 
-        if (key == ActorValueInfo::kStamina || key == ActorValueInfo::kMagicka || key == ActorValueInfo::kHealth)
+        if (key == 26 /* kStamina */ || key == 25 /* kMagicka */ || key == 24 /* kHealth */)
         {
-            pActor->ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, key, value);
+            m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, key, value);
             continue;
         }
-        pActor->SetActorValue(key, value);
+        m_actorBridge.SetActorValue(formId, key, value);
     }
 }
 
@@ -350,19 +352,19 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
         return;
 
     auto& formIdComponent = view.get<FormIdComponent>(*it);
-    Actor* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
+    const uint32_t formId = formIdComponent.Id;
 
-    if (!pActor)
+    if (!m_actorBridge.ActorExists(formId))
         return;
 
     for (const auto& [key, value] : acMessage.Values)
     {
-        if (key == ActorValueInfo::kDragonSouls)
+        if (key == 133 /* kDragonSouls */)
             continue;
 
         spdlog::debug("Actor max value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
 
-        pActor->ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, key, value);
+        m_actorBridge.ForceActorValue(formId, 3 /* ForceMode::PERMANENT */, key, value);
     }
 }
 
@@ -376,16 +378,20 @@ void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessa
         return;
 
     auto& formIdComponent = view.get<FormIdComponent>(*it);
-    Actor* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
+    const uint32_t formId = formIdComponent.Id;
 
-    if (!pActor)
+    if (!m_actorBridge.ActorExists(formId))
         return;
 
-    ActorExtension* pExtension = pActor->GetExtension();
     // Players should never be killed
-    if (pExtension->IsPlayer())
+    if (m_actorBridge.IsRemotePlayer(formId))
         return;
 
-    if (pActor->IsDead() != acMessage.IsDead)
-        acMessage.IsDead ? pActor->Kill() : pActor->Respawn();
+    if (m_actorBridge.IsActorDead(formId) != acMessage.IsDead)
+    {
+        if (acMessage.IsDead)
+            m_actorBridge.KillActor(formId);
+        else
+            m_actorBridge.RespawnActor(formId);
+    }
 }

@@ -16,13 +16,16 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESNPC.h>
+#include <Forms/ActorValueInfo.h>
 #include <Forms/SpellItem.h>
 #include <Games/ActorExtension.h>
 #include <Games/Overrides.h>
 #include <Games/References.h>
+#include <Games/TES.h>
 #include <Sky/Sky.h>
 #include <EquipManager.h>
 #include <Magic/ActorMagicCaster.h>
+#include <TimeManager.h>
 
 #include <spdlog/spdlog.h>
 
@@ -175,14 +178,14 @@ uint32_t SkyrimBridge::GetCommandingActor(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
 {
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::KillActor not yet implemented for {:X}", aFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->Kill();
 }
 
 void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept
 {
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::RespawnActor not yet implemented for {:X}", aFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->Respawn();
 }
 
 void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
@@ -241,8 +244,8 @@ float SkyrimBridge::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) con
 
 void SkyrimBridge::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept
 {
-    // TODO(02.5-02): implement via ActorValueOwner
-    spdlog::warn("SkyrimBridge::SetActorValue not yet implemented for {:X}", aFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->SetActorValue(static_cast<uint32_t>(aIndex), aValue);
 }
 
 void SkyrimBridge::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept
@@ -519,6 +522,30 @@ void SkyrimBridge::SetQuestActive(uint32_t aFormId, bool aActive) noexcept
         pQ->SetActive(aActive);
 }
 
+void SkyrimBridge::ScriptSetQuestStage(uint32_t aFormId, uint32_t aStage) noexcept
+{
+    if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
+        pQ->ScriptSetStage(static_cast<uint16_t>(aStage));
+}
+
+void SkyrimBridge::SetQuestStopped(uint32_t aFormId) noexcept
+{
+    if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
+        pQ->SetStopped();
+}
+
+bool SkyrimBridge::IsQuestStagesEmpty(uint32_t aFormId) const noexcept
+{
+    if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
+        return pQ->stages.Empty();
+    return true;
+}
+
+bool SkyrimBridge::IsQuestOverrideActive() const noexcept
+{
+    return ScopedQuestOverride::IsOverriden();
+}
+
 uint32_t SkyrimBridge::FindQuestByNameId(const std::string& aNameId) const noexcept
 {
     auto& questRegistry = ModManager::Get()->quests;
@@ -551,6 +578,28 @@ std::vector<std::string> SkyrimBridge::GetAllModNames() const noexcept
 {
     // TODO(02.5-02): implement
     return {};
+}
+
+std::vector<IFormBridge::ModEntry> SkyrimBridge::GetLoadedMods() const noexcept
+{
+    std::vector<ModEntry> result;
+    auto* cpModManager = ModManager::Get();
+    if (!cpModManager)
+        return result;
+
+    for (auto* pMod : cpModManager->mods)
+    {
+        if (!pMod || !pMod->IsLoaded())
+            continue;
+
+        ModEntry entry;
+        entry.Id = pMod->GetId();
+        entry.IsLite = pMod->IsLite();
+        entry.Filename = pMod->filename;
+        result.push_back(std::move(entry));
+    }
+
+    return result;
 }
 
 uint32_t SkyrimBridge::GetModFormIdBySpellId(uint32_t aModStandardId, uint32_t aSpellLocalId) const noexcept
@@ -969,7 +1018,8 @@ void SkyrimBridge::SetGameWeatherSystemEnabled(bool aEnable) noexcept
 
 float SkyrimBridge::GetGameTimeHours() const noexcept
 {
-    // TODO(02.5-02): implement via TimeManager or Sky
+    if (TimeData* pTime = TimeData::Get())
+        return pTime->GameHour ? pTime->GameHour->f : 0.f;
     return 0.f;
 }
 
@@ -977,4 +1027,32 @@ void SkyrimBridge::SetGameTimeHours(float aHours) noexcept
 {
     // TODO(02.5-02): implement
     spdlog::warn("SkyrimBridge::SetGameTimeHours({}) not yet implemented", aHours);
+}
+
+float SkyrimBridge::GetGameTimeScale() const noexcept
+{
+    if (TimeData* pTime = TimeData::Get())
+        return pTime->TimeScale ? pTime->TimeScale->f : 0.f;
+    return 0.f;
+}
+
+float SkyrimBridge::GetGameYear() const noexcept
+{
+    if (TimeData* pTime = TimeData::Get())
+        return pTime->GameYear ? pTime->GameYear->f : 0.f;
+    return 0.f;
+}
+
+float SkyrimBridge::GetGameMonth() const noexcept
+{
+    if (TimeData* pTime = TimeData::Get())
+        return pTime->GameMonth ? pTime->GameMonth->f : 0.f;
+    return 0.f;
+}
+
+float SkyrimBridge::GetGameDay() const noexcept
+{
+    if (TimeData* pTime = TimeData::Get())
+        return pTime->GameDay ? pTime->GameDay->f : 0.f;
+    return 0.f;
 }

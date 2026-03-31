@@ -7,6 +7,7 @@ struct SetWaypointEvent;
 struct RemoveWaypointEvent;
 struct NotifySetWaypoint;
 struct NotifyRemoveWaypoint;
+class IPlayerBridge;
 
 /**
  * @brief Handles logic related to the local player.
@@ -28,6 +29,7 @@ struct MapService
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
+    IPlayerBridge& m_playerBridge;
 
     entt::scoped_connection m_playerSetWaypointConnection;
     entt::scoped_connection m_playerRemoveWaypointConnection;

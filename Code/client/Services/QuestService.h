@@ -1,39 +1,40 @@
 #pragma once
 
-#include <World.h>
-#include <Events/EventDispatcher.h>
-#include <Games/Events.h>
-
+struct World;
 struct NotifyQuestUpdate;
-
-struct TESQuest;
+class IFormBridge;
+class IEventBridge;
 
 /**
  * @brief Handles quest sync
  *
  * This service is currently not in use.
  */
-class QuestService final : public BSTEventSink<TESQuestStartStopEvent>, BSTEventSink<TESQuestStageEvent>
+class QuestService final
 {
 public:
     QuestService(World&, entt::dispatcher&);
     ~QuestService() = default;
 
-    static bool IsNonSyncableQuest(TESQuest* apQuest);
+    TP_NOCOPYMOVE(QuestService);
+
+    static bool IsNonSyncableQuest(uint32_t aFormId, IFormBridge& aFormBridge);
     static void DebugDumpQuests();
-    static bool StopQuest(uint32_t aformId);
+    static bool StopQuest(uint32_t aFormId, IFormBridge& aFormBridge);
 
 private:
-    friend struct QuestEventHandler;
-
     void OnConnected(const ConnectedEvent&) noexcept;
 
-    BSTEventResult OnEvent(const TESQuestStartStopEvent*, const EventDispatcher<TESQuestStartStopEvent>*) override;
-    BSTEventResult OnEvent(const TESQuestStageEvent*, const EventDispatcher<TESQuestStageEvent>*) override;
+    // Called by IEventBridge when a quest start/stop event fires.
+    void OnQuestStartStop(uint32_t aFormId, bool aStarted) noexcept;
+    // Called by IEventBridge when a quest stage event fires.
+    void OnQuestStage(uint32_t aFormId, uint32_t aStageId) noexcept;
 
     void OnQuestUpdate(const NotifyQuestUpdate&) noexcept;
 
     World& m_world;
+    IFormBridge& m_formBridge;
+    IEventBridge& m_eventBridge;
 
     entt::scoped_connection m_joinedConnection;
     entt::scoped_connection m_leftConnection;

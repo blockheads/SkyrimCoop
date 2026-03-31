@@ -1,8 +1,5 @@
 #pragma once
 
-#include <Events/EventDispatcher.h>
-#include <Games/Events.h>
-
 struct World;
 
 struct ConnectedEvent;
@@ -17,7 +14,7 @@ struct NotifyActorMaxValueChanges;
 struct NotifyHealthChangeBroadcast;
 struct NotifyDeathStateChange;
 
-struct Actor;
+class IActorBridge;
 
 /**
  * @brief Broadcast and apply actor values and death state.
@@ -112,11 +109,12 @@ private:
     /**
      * @brief Creates actor values component for actor and caches the initial actor values.
      */
-    void CreateActorValuesComponent(entt::entity aEntity, Actor* apActor) noexcept;
+    void CreateActorValuesComponent(entt::entity aEntity, uint32_t aFormId) noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
+    IActorBridge& m_actorBridge;
 
     //! @brief Server ids and collected health changes.
     Map<uint32_t, float> m_smallHealthChanges;

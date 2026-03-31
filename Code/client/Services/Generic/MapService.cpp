@@ -9,10 +9,13 @@
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
 
-#include <PlayerCharacter.h>
+#include <Bridges/IPlayerBridge.h>
 
 MapService::MapService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
-    : m_world(aWorld), m_dispatcher(aDispatcher), m_transport(aTransport)
+    : m_world(aWorld)
+    , m_dispatcher(aDispatcher)
+    , m_transport(aTransport)
+    , m_playerBridge(aWorld.ctx().at<IPlayerBridge&>())
 {
     m_playerNotifySetWaypointConnection =
         m_dispatcher.sink<NotifySetWaypoint>().connect<&MapService::OnNotifySetWaypoint>(this);
@@ -49,20 +52,14 @@ void MapService::OnRemoveWaypoint(const RemoveWaypointEvent& acMessage) noexcept
 
 void MapService::OnNotifySetWaypoint(const NotifySetWaypoint& acMessage) noexcept
 {
-    NiPoint3 pos{};
-    pos.x = acMessage.Position.x;
-    pos.y = acMessage.Position.y;
-    pos.z = acMessage.Position.z;
-
     ModSystem& modSystem = m_world.Get().GetModSystem();
     const uint32_t cWorldSpaceID = modSystem.GetGameId(acMessage.WorldSpaceFormID);
-    TESWorldSpace* pWorldSpace = Cast<TESWorldSpace>(TESForm::GetById(cWorldSpaceID));
 
-    PlayerCharacter::Get()->SetWaypoint(&pos, pWorldSpace);
+    m_playerBridge.SetPlayerWaypoint(acMessage.Position.x, acMessage.Position.y, acMessage.Position.z, cWorldSpaceID);
 }
 
 void MapService::OnNotifyRemoveWaypoint(const NotifyRemoveWaypoint& acMessage) noexcept
 {
-    PlayerCharacter::Get()->RemoveWaypoint();
+    m_playerBridge.RemovePlayerWaypoint();
 }
 

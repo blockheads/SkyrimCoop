@@ -13,6 +13,9 @@ struct AuthenticationResponse;
 struct NotifySettingsChange;
 
 struct World;
+class IPlayerBridge;
+class IFormBridge;
+class IWorldBridge;
 
 using TiltedPhoques::Client;
 
@@ -50,6 +53,9 @@ protected:
 private:
     World& m_world;
     entt::dispatcher& m_dispatcher;
+    IPlayerBridge& m_playerBridge;
+    IFormBridge& m_formBridge;
+    IWorldBridge& m_worldBridge;
     bool m_connected;
     String m_serverPassword{};
     uint32_t m_localPlayerId;

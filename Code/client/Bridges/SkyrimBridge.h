@@ -94,11 +94,16 @@ public:
     std::string GetQuestName(uint32_t aFormId) const noexcept override;
     void SetQuestActive(uint32_t aFormId, bool aActive) noexcept override;
     uint32_t FindQuestByNameId(const std::string& aNameId) const noexcept override;
+    void ScriptSetQuestStage(uint32_t aFormId, uint32_t aStage) noexcept override;
+    void SetQuestStopped(uint32_t aFormId) noexcept override;
+    bool IsQuestStagesEmpty(uint32_t aFormId) const noexcept override;
+    bool IsQuestOverrideActive() const noexcept override;
     uint32_t GetModCount() const noexcept override;
     std::string GetModNameByIndex(uint32_t aIndex) const noexcept override;
     uint32_t GetModStandardId(const std::string& aModName) const noexcept override;
     std::vector<std::string> GetAllModNames() const noexcept override;
     uint32_t GetModFormIdBySpellId(uint32_t aModStandardId, uint32_t aSpellLocalId) const noexcept override;
+    std::vector<ModEntry> GetLoadedMods() const noexcept override;
     bool IsSpellItem(uint32_t aFormId) const noexcept override;
     bool IsConcentrationSpell(uint32_t aFormId) const noexcept override;
     bool IsHealingSpell(uint32_t aFormId) const noexcept override;
@@ -172,6 +177,10 @@ public:
     void SetGameWeatherSystemEnabled(bool aEnable) noexcept override;
     float GetGameTimeHours() const noexcept override;
     void SetGameTimeHours(float aHours) noexcept override;
+    float GetGameTimeScale() const noexcept override;
+    float GetGameYear() const noexcept override;
+    float GetGameMonth() const noexcept override;
+    float GetGameDay() const noexcept override;
 
     // -----------------------------------------------------------------
     // NDJSON recording infrastructure

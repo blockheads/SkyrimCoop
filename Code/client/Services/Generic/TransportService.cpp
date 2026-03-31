@@ -6,16 +6,12 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 
-#include <Games/References.h>
-#include <Games/TES.h>
-#include <Forms/TESWorldSpace.h>
-#include <Forms/TESObjectCELL.h>
-
-#include <TimeManager.h>
-
-#include <Forms/TESNPC.h>
 #include <TiltedOnlinePCH.h>
 #include <World.h>
+
+#include <Bridges/IPlayerBridge.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IWorldBridge.h>
 
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/ServerMessageFactory.h>
@@ -34,6 +30,9 @@ using TiltedPhoques::Packet;
 TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
+    , m_playerBridge(aWorld.ctx().at<IPlayerBridge&>())
+    , m_formBridge(aWorld.ctx().at<IFormBridge&>())
+    , m_worldBridge(aWorld.ctx().at<IWorldBridge&>())
 {
     m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&TransportService::HandleUpdate>(this);
     m_settingsChangeConnection = m_dispatcher.sink<NotifySettingsChange>().connect<&TransportService::HandleNotifySettingsChange>(this);
@@ -119,48 +118,38 @@ void TransportService::OnConnected()
     request.Token = m_serverPassword;
     m_serverPassword = "";
 
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-
     // null if discord is not active
     // TODO: think about user opt out
     request.DiscordId = m_world.ctx().at<DiscordService>().GetUser().id;
-    auto* pNpc = Cast<TESNPC>(pPlayer->baseForm);
-    if (pNpc)
-    {
-        request.Username = pNpc->fullName.value.AsAscii();
-    }
-    else
-    {
-        request.Username = "Some dragon boi";
-    }
 
-    auto* const cpModManager = ModManager::Get();
+    // Player identity — use bridge instead of direct SKSE calls
+    const std::string formName = m_formBridge.GetFormName(m_playerBridge.GetPlayerBaseNpcFormId());
+    request.Username = formName.empty() ? "Some dragon boi" : formName.c_str();
 
-    for (auto* pMod : cpModManager->mods)
+    // Mod list
+    for (const auto& modEntry : m_formBridge.GetLoadedMods())
     {
-        if (!pMod->IsLoaded())
-            continue;
-
         auto& entry = request.UserMods.ModList.emplace_back();
-        entry.Id = pMod->GetId();
-        entry.IsLite = pMod->IsLite();
-        entry.Filename = pMod->filename;
+        entry.Id = modEntry.Id;
+        entry.IsLite = modEntry.IsLite;
+        entry.Filename = modEntry.Filename.c_str();
     }
 
     auto& modSystem = m_world.GetModSystem();
-    if (pPlayer->GetWorldSpace())
-        modSystem.GetServerModId(pPlayer->GetWorldSpace()->formID, request.WorldSpaceId);
 
-    modSystem.GetServerModId(pPlayer->parentCell->formID, request.CellId);
+    const uint32_t worldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
+    if (worldSpaceId != 0)
+        modSystem.GetServerModId(worldSpaceId, request.WorldSpaceId);
 
-    request.Level = pPlayer->GetLevel();
+    modSystem.GetServerModId(m_playerBridge.GetPlayerParentCellId(), request.CellId);
 
-    auto* pGameTime = TimeData::Get();
-    request.PlayerTime.TimeScale = pGameTime->TimeScale->f;
-    request.PlayerTime.Time = pGameTime->GameHour->f;
-    request.PlayerTime.Year = pGameTime->GameYear->f;
-    request.PlayerTime.Month = pGameTime->GameMonth->f;
-    request.PlayerTime.Day = pGameTime->GameDay->f;
+    request.Level = m_playerBridge.GetPlayerLevel();
+
+    request.PlayerTime.TimeScale = m_worldBridge.GetGameTimeScale();
+    request.PlayerTime.Time = m_worldBridge.GetGameTimeHours();
+    request.PlayerTime.Year = m_worldBridge.GetGameYear();
+    request.PlayerTime.Month = m_worldBridge.GetGameMonth();
+    request.PlayerTime.Day = m_worldBridge.GetGameDay();
 
     Send(request);
 }

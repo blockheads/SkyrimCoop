@@ -31,4 +31,10 @@ public:
     /// Get/set game time as hours (0.0 – 24.0).
     virtual float GetGameTimeHours() const noexcept = 0;
     virtual void SetGameTimeHours(float aHours) noexcept = 0;
+
+    /// Additional time data fields used by TransportService authentication.
+    virtual float GetGameTimeScale() const noexcept = 0;
+    virtual float GetGameYear() const noexcept = 0;
+    virtual float GetGameMonth() const noexcept = 0;
+    virtual float GetGameDay() const noexcept = 0;
 };

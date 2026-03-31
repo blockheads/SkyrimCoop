@@ -5,26 +5,18 @@
 #include <Services/QuestService.h>
 #include <Services/ImguiService.h>
 
-#include <PlayerCharacter.h>
-#include <Forms/TESQuest.h>
-#include <Games/TES.h>
-#include <Games/Overrides.h>
+#include <World.h>
 
-#include <Events/EventDispatcher.h>
+#include <Bridges/IFormBridge.h>
+#include <Bridges/IEventBridge.h>
 
 #include <Messages/RequestQuestUpdate.h>
 #include <Messages/NotifyQuestUpdate.h>
 
-static TESQuest* FindQuestByNameId(const String& name)
-{
-    auto& questRegistry = ModManager::Get()->quests;
-    auto it = std::find_if(questRegistry.begin(), questRegistry.end(), [name](auto* it) { return std::strcmp(it->idName.AsAscii(), name.c_str()); });
-
-    return it != questRegistry.end() ? *it : nullptr;
-}
-
 QuestService::QuestService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
+    , m_formBridge(aWorld.ctx().at<IFormBridge&>())
+    , m_eventBridge(aWorld.ctx().at<IEventBridge&>())
 {
     m_joinedConnection = aDispatcher.sink<ConnectedEvent>().connect<&QuestService::OnConnected>(this);
     m_questUpdateConnection = aDispatcher.sink<NotifyQuestUpdate>().connect<&QuestService::OnQuestUpdate>(this);
@@ -32,10 +24,11 @@ QuestService::QuestService(World& aWorld, entt::dispatcher& aDispatcher)
     // A note about the Gameevents:
     // TESQuestStageItemDoneEvent gets fired to late, we instead use TESQuestStageEvent, because it responds immediately.
     // TESQuestInitEvent can be instead managed by start stop quest management.
-    // bind game event listeners
-    auto* pEventList = EventDispatcherManager::Get();
-    pEventList->questStartStopEvent.RegisterSink(this);
-    pEventList->questStageEvent.RegisterSink(this);
+    // Register game event listeners via the bridge instead of direct EventDispatcherManager calls.
+    m_eventBridge.RegisterQuestStartStopSink(
+        [this](uint32_t formId, bool started) { OnQuestStartStop(formId, started); });
+    m_eventBridge.RegisterQuestStageSink(
+        [this](uint32_t formId, uint32_t stageId) { OnQuestStage(formId, stageId); });
 }
 
 void QuestService::OnConnected(const ConnectedEvent&) noexcept
@@ -43,129 +36,123 @@ void QuestService::OnConnected(const ConnectedEvent&) noexcept
     // TODO: this should be followed with whatever the quest leader selected
     /*
     // deselect any active quests
-    auto* pPlayer = PlayerCharacter::Get();
-    for (auto& objective : pPlayer->objectives)
-    {
-        if (auto* pQuest = objective.instance->quest)
-            pQuest->SetActive(false);
-    }
+    for (auto questId : m_playerBridge.GetPlayerActiveQuestFormIds())
+        m_formBridge.SetQuestActive(questId, false);
     */
 }
 
-BSTEventResult QuestService::OnEvent(const TESQuestStartStopEvent* apEvent, const EventDispatcher<TESQuestStartStopEvent>*)
+void QuestService::OnQuestStartStop(uint32_t aFormId, bool aStarted) noexcept
 {
-    if (ScopedQuestOverride::IsOverriden() || !m_world.Get().GetPartyService().IsInParty())
-        return BSTEventResult::kOk;
+    if (m_formBridge.IsQuestOverrideActive() || !m_world.GetPartyService().IsInParty())
+        return;
 
-    spdlog::info("Quest start/stop event: {:X}", apEvent->formId);
+    spdlog::info("Quest start/stop event: {:X}", aFormId);
 
-    if (TESQuest* pQuest = Cast<TESQuest>(TESForm::GetById(apEvent->formId)))
+    if (!m_formBridge.QuestExists(aFormId))
+        return;
+
+    if (IsNonSyncableQuest(aFormId, m_formBridge))
+        return;
+
+    const uint8_t questType = m_formBridge.GetQuestType(aFormId);
+    if (questType == 0 /* TESQuest::Type::None */ || questType == 1 /* TESQuest::Type::Miscellaneous */)
     {
-        if (IsNonSyncableQuest(pQuest))
-            return BSTEventResult::kOk;
-     
-        if (pQuest->type == TESQuest::Type::None || pQuest->type == TESQuest::Type::Miscellaneous)
+        GameId Id;
+        auto& modSys = m_world.GetModSystem();
+        if (modSys.GetServerModId(aFormId, Id))
         {
-            // Perhaps redundant, but necessary. We need the logging and
-            // the lambda coming up is queued and runs later
-            GameId Id;
-            auto& modSys = m_world.GetModSystem();
-            if (modSys.GetServerModId(pQuest->formID, Id))
-            {
-                spdlog::info("{}: : queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
-                             Id.LogFormat(),  pQuest->currentStage, pQuest->IsStopped() ? RequestQuestUpdate::Stopped : RequestQuestUpdate::Started,
-                             static_cast<std::underlying_type_t<TESQuest::Type>>(pQuest->type), 
-                             pQuest->formID, pQuest->fullName.value.AsAscii());
-            }
+            spdlog::info("{}: : queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
+                         Id.LogFormat(), m_formBridge.GetQuestStage(aFormId),
+                         m_formBridge.IsQuestStopped(aFormId) ? RequestQuestUpdate::Stopped : RequestQuestUpdate::Started,
+                         questType,
+                         aFormId, m_formBridge.GetQuestName(aFormId));
         }
-        
-        m_world.GetRunner().Queue(
-            [&, formId = pQuest->formID, stageId = pQuest->currentStage, stopped = pQuest->IsStopped(), type = pQuest->type]()
-            {
-                GameId Id;
-                auto& modSys = m_world.GetModSystem();
-                if (modSys.GetServerModId(formId, Id))
-                {
-                    RequestQuestUpdate update;
-                    update.Id = Id;
-                    update.Stage = stageId;
-                    update.Status = stopped ? RequestQuestUpdate::Stopped : RequestQuestUpdate::Started;
-                    update.ClientQuestType = static_cast<std::underlying_type_t<TESQuest::Type>>(type); 
-
-                    m_world.GetTransport().Send(update);
-                }
-            });
     }
 
-    return BSTEventResult::kOk;
+    const bool stopped = m_formBridge.IsQuestStopped(aFormId);
+    const uint32_t stage = m_formBridge.GetQuestStage(aFormId);
+
+    m_world.GetRunner().Queue(
+        [this, formId = aFormId, stageId = stage, stopped, questType]()
+        {
+            GameId Id;
+            auto& modSys = m_world.GetModSystem();
+            if (modSys.GetServerModId(formId, Id))
+            {
+                RequestQuestUpdate update;
+                update.Id = Id;
+                update.Stage = stageId;
+                update.Status = stopped ? RequestQuestUpdate::Stopped : RequestQuestUpdate::Started;
+                update.ClientQuestType = questType;
+
+                m_world.GetTransport().Send(update);
+            }
+        });
 }
 
-BSTEventResult QuestService::OnEvent(const TESQuestStageEvent* apEvent, const EventDispatcher<TESQuestStageEvent>*)
+void QuestService::OnQuestStage(uint32_t aFormId, uint32_t aStageId) noexcept
 {
-    if (ScopedQuestOverride::IsOverriden() || !m_world.Get().GetPartyService().IsInParty())
-        return BSTEventResult::kOk;
+    if (m_formBridge.IsQuestOverrideActive() || !m_world.GetPartyService().IsInParty())
+        return;
 
-    spdlog::info("Quest stage event: {:X}, stage: {}", apEvent->formId, apEvent->stageId);
+    spdlog::info("Quest stage event: {:X}, stage: {}", aFormId, aStageId);
 
-    // there is no reason to even fetch the quest object, since the event provides everything already....
-    if (TESQuest* pQuest = Cast<TESQuest>(TESForm::GetById(apEvent->formId)))
+    if (!m_formBridge.QuestExists(aFormId))
+        return;
+
+    if (IsNonSyncableQuest(aFormId, m_formBridge))
+        return;
+
+    const uint8_t questType = m_formBridge.GetQuestType(aFormId);
+    if (questType == 0 /* TESQuest::Type::None */ || questType == 1 /* TESQuest::Type::Miscellaneous */)
     {
-        if (IsNonSyncableQuest(pQuest))
-            return BSTEventResult::kOk;
-
-        if (pQuest->type == TESQuest::Type::None || pQuest->type == TESQuest::Type::Miscellaneous)
+        GameId Id;
+        auto& modSys = m_world.GetModSystem();
+        if (modSys.GetServerModId(aFormId, Id))
         {
-            // Perhaps redundant, but necessary. We need the logging and
-            // the lambda coming up is queued and runs later
-            GameId Id;
-            auto& modSys = m_world.GetModSystem();
-            if (modSys.GetServerModId(pQuest->formID, Id))
-            {
-                spdlog::info("{}: : queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
-                             Id.LogFormat(), pQuest->currentStage,
-                             RequestQuestUpdate::StageUpdate,
-                             static_cast<std::underlying_type_t<TESQuest::Type>>(pQuest->type),
-                             pQuest->formID, pQuest->fullName.value.AsAscii());
-            }
+            spdlog::info("{}: : queuing type none/misc quest gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
+                         Id.LogFormat(), aStageId,
+                         RequestQuestUpdate::StageUpdate,
+                         questType,
+                         aFormId, m_formBridge.GetQuestName(aFormId));
         }
-
-        m_world.GetRunner().Queue(
-            [&, formId = apEvent->formId, stageId = apEvent->stageId, type = pQuest->type]()
-            {
-                GameId Id;
-                auto& modSys = m_world.GetModSystem();
-                if (modSys.GetServerModId(formId, Id))
-                {
-                    RequestQuestUpdate update;
-                    update.Id = Id;
-                    update.Stage = stageId;
-                    update.Status = RequestQuestUpdate::StageUpdate;
-                    update.ClientQuestType = static_cast<std::underlying_type_t<TESQuest::Type>>(type);
-
-                    m_world.GetTransport().Send(update);
-                }
-            });
     }
 
-    return BSTEventResult::kOk;
+    m_world.GetRunner().Queue(
+        [this, formId = aFormId, stageId = aStageId, questType]()
+        {
+            GameId Id;
+            auto& modSys = m_world.GetModSystem();
+            if (modSys.GetServerModId(formId, Id))
+            {
+                RequestQuestUpdate update;
+                update.Id = Id;
+                update.Stage = stageId;
+                update.Status = RequestQuestUpdate::StageUpdate;
+                update.ClientQuestType = questType;
+
+                m_world.GetTransport().Send(update);
+            }
+        });
 }
 
 void QuestService::OnQuestUpdate(const NotifyQuestUpdate& aUpdate) noexcept
 {
     ModSystem& modSystem = World::Get().GetModSystem();
     uint32_t formId = modSystem.GetGameId(aUpdate.Id);
-    TESQuest* pQuest = Cast<TESQuest>(TESForm::GetById(formId));
-    if (!pQuest)
+
+    if (!m_formBridge.QuestExists(formId))
     {
         spdlog::error("Failed to find quest, base id: {:X}, mod id: {:X}", aUpdate.Id.BaseId, aUpdate.Id.ModId);
         return;
     }
 
-    if (pQuest->type == TESQuest::Type::None || pQuest->type == TESQuest::Type::Miscellaneous)
+    const uint8_t questType = m_formBridge.GetQuestType(formId);
+    if (questType == 0 || questType == 1)
     {
         spdlog::info("{}: : receiving type none/misc quest update gameId {:X} questStage {} questStatus {} questType {} formId {:X} name {}", __FUNCTION__,
                      aUpdate.Id.LogFormat(), aUpdate.Stage, aUpdate.Status,
-                     aUpdate.ClientQuestType, formId, pQuest->fullName.value.AsAscii());
+                     aUpdate.ClientQuestType, formId, m_formBridge.GetQuestName(formId));
     }
 
     bool bResult = false;
@@ -173,19 +160,19 @@ void QuestService::OnQuestUpdate(const NotifyQuestUpdate& aUpdate) noexcept
     {
     case NotifyQuestUpdate::Started:
     {
-        pQuest->ScriptSetStage(aUpdate.Stage);
-        pQuest->SetActive(true);
+        m_formBridge.ScriptSetQuestStage(formId, aUpdate.Stage);
+        m_formBridge.SetQuestActive(formId, true);
         bResult = true;
         spdlog::info("Remote quest started: {:X}, stage: {}", formId, aUpdate.Stage);
         break;
     }
     case NotifyQuestUpdate::StageUpdate:
-        pQuest->ScriptSetStage(aUpdate.Stage);
+        m_formBridge.ScriptSetQuestStage(formId, aUpdate.Stage);
         bResult = true;
         spdlog::info("Remote quest updated: {:X}, stage: {}", formId, aUpdate.Stage);
         break;
     case NotifyQuestUpdate::Stopped:
-        bResult = StopQuest(formId);
+        bResult = StopQuest(formId, m_formBridge);
         spdlog::info("Remote quest stopped: {:X}, stage: {}", formId, aUpdate.Stage);
         break;
     default: break;
@@ -195,13 +182,12 @@ void QuestService::OnQuestUpdate(const NotifyQuestUpdate& aUpdate) noexcept
         spdlog::error("Failed to update the client quest state, quest: {:X}, stage: {}, status: {}", formId, aUpdate.Stage, aUpdate.Status);
 }
 
-bool QuestService::StopQuest(uint32_t aformId)
+bool QuestService::StopQuest(uint32_t aFormId, IFormBridge& aFormBridge)
 {
-    TESQuest* pQuest = Cast<TESQuest>(TESForm::GetById(aformId));
-    if (pQuest)
+    if (aFormBridge.QuestExists(aFormId))
     {
-        pQuest->SetActive(false);
-        pQuest->SetStopped();
+        aFormBridge.SetQuestActive(aFormId, false);
+        aFormBridge.SetQuestStopped(aFormId);
         return true;
     }
 
@@ -216,18 +202,17 @@ static constexpr std::array kNonSyncableQuestIds = std::to_array<uint32_t>({
     0xF2593 // Skill experience quest
 });
 
-bool QuestService::IsNonSyncableQuest(TESQuest* apQuest)
+bool QuestService::IsNonSyncableQuest(uint32_t aFormId, IFormBridge& aFormBridge)
 {
     // Quests with no quest stages are never synced. Most TESQues::Type:: quests should
     // be synced, including Type::None and Type::Miscellaneous, but there are a few
     // known exceptions that should be excluded that are in the table.
-    return    apQuest->stages.Empty() 
-           || std::find(kNonSyncableQuestIds.begin(), kNonSyncableQuestIds.end(), apQuest->formID) != kNonSyncableQuestIds.end();
+    return    aFormBridge.IsQuestStagesEmpty(aFormId)
+           || std::find(kNonSyncableQuestIds.begin(), kNonSyncableQuestIds.end(), aFormId) != kNonSyncableQuestIds.end();
 }
 
 void QuestService::DebugDumpQuests()
 {
-    auto& quests = ModManager::Get()->quests;
-    for (TESQuest* pQuest : quests)
-        spdlog::info("{:X}|{}|{}|{}", pQuest->formID, (uint8_t)pQuest->type, pQuest->priority, pQuest->idName.AsAscii());
+    // TODO(02.5-02): implement via IFormBridge when GetAllQuestFormIds() is available
+    spdlog::info("QuestService::DebugDumpQuests: not yet implemented via bridge");
 }
