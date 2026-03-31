@@ -44,4 +44,7 @@ target("ClientReplayTests")
     if is_plat("linux") then
         add_syslinks("pthread")
     end
+
+    -- Run tests from project root so relative fixture paths resolve correctly
+    set_rundir("$(projectdir)")
 target_end()
