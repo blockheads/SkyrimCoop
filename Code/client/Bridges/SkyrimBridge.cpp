@@ -371,16 +371,41 @@ void SkyrimBridge::SetMagicCasterDualCasting(uint32_t aFormId, uint32_t aCasting
     }
 }
 
-void SkyrimBridge::CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource) noexcept
+static MagicCaster* GetCaster(Actor* apActor, uint32_t aCastingSource) noexcept
 {
-    // TODO(02.5-02): implement via ActorMagicCaster
-    spdlog::warn("SkyrimBridge::CastSpell not yet implemented");
+    if (!apActor || aCastingSource >= 4)
+        return nullptr;
+    apActor->GenerateMagicCasters();
+    return apActor->GetMagicCaster(static_cast<MagicSystem::CastingSource>(aCastingSource));
+}
+
+void SkyrimBridge::CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
+                             uint32_t aDesiredTargetFormId) noexcept
+{
+    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
+    MagicCaster* pCaster = GetCaster(GetActor(aActorFormId), aCastingSource);
+    if (!pSpell || !pCaster)
+    {
+        spdlog::warn("{}: no spell {:X} or caster {} for actor {:X}", __FUNCTION__, aSpellFormId, aCastingSource, aActorFormId);
+        return;
+    }
+    TESObjectREFR* pTarget = aDesiredTargetFormId ? Cast<TESObjectREFR>(TESForm::GetById(aDesiredTargetFormId)) : nullptr;
+    pCaster->CastSpellImmediate(pSpell, false, pTarget, 1.0f, false, 0.0f);
 }
 
 void SkyrimBridge::InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept
 {
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::InterruptCast not yet implemented");
+    if (MagicCaster* pCaster = GetCaster(GetActor(aFormId), aCastingSource))
+        pCaster->InterruptCast();
+}
+
+uint32_t SkyrimBridge::GetCastingSpellFormId(uint32_t aFormId, uint32_t aCastingSource) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || aCastingSource >= 4 || !pActor->casters[aCastingSource])
+        return 0;
+    MagicItem* pSpell = pActor->casters[aCastingSource]->pCurrentSpell;
+    return pSpell ? pSpell->formID : 0;
 }
 
 void SkyrimBridge::RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noexcept

@@ -168,7 +168,7 @@ void MagicService::OnNotifySpellCast(const NotifySpellCast& acMessage) const noe
 
     ScopedSpellCastOverride _;
 
-    m_actorBridge.CastSpell(cFormId, spellFormId, acMessage.CastingSource);
+    m_actorBridge.CastSpell(cFormId, spellFormId, acMessage.CastingSource, desiredTargetFormId);
 
     spdlog::debug("Successfully casted remote spell");
 }

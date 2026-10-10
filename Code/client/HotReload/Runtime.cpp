@@ -94,6 +94,14 @@ static nlohmann::json EquippedItems(uint32_t aFormId)
     return items;
 }
 
+// Spell being cast per casting source: [left hand, right hand, other, instant].
+static nlohmann::json CastingSpells(uint32_t aFormId)
+{
+    auto& actors = World::Get().GetActorBridge();
+    return {actors.GetCastingSpellFormId(aFormId, 0), actors.GetCastingSpellFormId(aFormId, 1),
+            actors.GetCastingSpellFormId(aFormId, 2), actors.GetCastingSpellFormId(aFormId, 3)};
+}
+
 static nlohmann::json ActorRotation(uint32_t aFormId)
 {
     float rotation[3]{};
@@ -111,7 +119,7 @@ static nlohmann::json PlayerStatus()
     actors.GetActorRotation(0x14, rotation[0], rotation[1], rotation[2]);
     return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}},
             {"loaded_actors", actors.GetLoadedActorFormIds()}, {"equipped", EquippedItems(0x14)},
-            {"weapon_drawn", actors.IsWeaponDrawn(0x14)}};
+            {"weapon_drawn", actors.IsWeaponDrawn(0x14)}, {"casting", CastingSpells(0x14)}};
 }
 
 void Runtime::Poll()
@@ -170,7 +178,8 @@ void Runtime::Poll()
             {"requested_rotation", {observation.requestedRotation[0], observation.requestedRotation[1], observation.requestedRotation[2]}},
             {"rotation", ActorRotation(id)},
             {"remote_player", World::Get().GetActorBridge().IsRemotePlayer(id)},
-            {"weapon_drawn", World::Get().GetActorBridge().IsWeaponDrawn(id)}
+            {"weapon_drawn", World::Get().GetActorBridge().IsWeaponDrawn(id)},
+            {"casting", CastingSpells(id)}
         };
     nlohmann::json status = {
         {"pid", GetCurrentProcessId()}, {"heartbeat_ms", unixMs},

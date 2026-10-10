@@ -71,8 +71,13 @@ public:
 
     // --- Magic ---
     virtual void SetMagicCasterDualCasting(uint32_t aFormId, uint32_t aCastingSource, bool aDual) noexcept = 0;
-    virtual void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource) noexcept = 0;
+    /// Casts immediately from the actor's caster for that source (remote spell cast sync);
+    /// aDesiredTargetFormId 0 = no target.
+    virtual void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
+                           uint32_t aDesiredTargetFormId) noexcept = 0;
     virtual void InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept = 0;
+    /// Spell currently being cast from that source (0 if none).
+    virtual uint32_t GetCastingSpellFormId(uint32_t aFormId, uint32_t aCastingSource) const noexcept = 0;
     virtual void RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noexcept = 0;
     virtual void AddMagicTarget(uint32_t aActorFormId, uint32_t aCasterFormId, uint32_t aTargetFormId,
                                  bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept = 0;

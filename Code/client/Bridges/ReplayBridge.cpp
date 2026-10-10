@@ -183,8 +183,9 @@ uint64_t ReplayBridge::GetAnimationGraphDescriptorHash(uint32_t) const noexcept 
 void ReplayBridge::SetAnimationGraphDescriptorHash(uint32_t, uint64_t) noexcept {}
 void ReplayBridge::GenerateMagicCasters(uint32_t) noexcept {}
 void ReplayBridge::SetMagicCasterDualCasting(uint32_t, uint32_t, bool) noexcept {}
-void ReplayBridge::CastSpell(uint32_t, uint32_t, uint32_t) noexcept {}
+void ReplayBridge::CastSpell(uint32_t, uint32_t, uint32_t, uint32_t) noexcept {}
 void ReplayBridge::InterruptCast(uint32_t, uint32_t) noexcept {}
+uint32_t ReplayBridge::GetCastingSpellFormId(uint32_t, uint32_t) const noexcept { return 0; }
 void ReplayBridge::RemoveSpell(uint32_t, uint32_t) noexcept {}
 void ReplayBridge::AddMagicTarget(uint32_t, uint32_t, uint32_t, bool, bool) noexcept {}
 bool ReplayBridge::IsBleedingOut(uint32_t) const noexcept { return false; }

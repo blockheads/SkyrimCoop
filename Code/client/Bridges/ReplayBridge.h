@@ -70,8 +70,10 @@ public:
     void SetAnimationGraphDescriptorHash(uint32_t aFormId, uint64_t aHash) noexcept override;
     void GenerateMagicCasters(uint32_t aFormId) noexcept override;
     void SetMagicCasterDualCasting(uint32_t aFormId, uint32_t aCastingSource, bool aDual) noexcept override;
-    void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource) noexcept override;
+    void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
+                   uint32_t aDesiredTargetFormId) noexcept override;
     void InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept override;
+    uint32_t GetCastingSpellFormId(uint32_t aFormId, uint32_t aCastingSource) const noexcept override;
     void RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noexcept override;
     void AddMagicTarget(uint32_t aActorFormId, uint32_t aCasterFormId, uint32_t aTargetFormId,
                          bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept override;

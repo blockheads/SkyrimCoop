@@ -656,6 +656,74 @@ def scenario_draw_client_player():
     draw_roundtrip("client", "", "client's character")
 
 
+FLAMES = 0x00012FCD  # concentration spell: synced through spell cast + interrupt messages
+RIGHT_HAND = 1
+
+
+def mouse_on(instance, action, button=1):
+    """mousedown/mouseup in an instance's game window (button 1 = attack/cast with the right hand)."""
+    select_instance(instance)
+    env = dict(os.environ, DISPLAY=VIRTUAL_DISPLAY)
+    window = subprocess.run(["xdotool", "search", "--name", "^Skyrim"], env=env,
+                            capture_output=True, text=True).stdout.split()[0]
+    # Wine's DirectInput mouse ignores synthetic per-window events: use real (XTEST) input. It only
+    # touches the off-screen display, never the desktop.
+    for command in (["windowfocus", window], ["mousemove", "--window", window, "640", "360"],
+                    [action, str(button)]):
+        subprocess.run(["xdotool", *command], env=env, check=True, stderr=subprocess.DEVNULL)
+
+
+def local_player(instance):
+    select_instance(instance)
+    return (read_status() or {}).get("player") or {}
+
+
+def press_until(instance, key, condition, what, attempts=5):
+    """Presses `key` until `condition(local player status)` holds (Skyrim drops input mid-animation)."""
+    for _ in range(attempts):
+        key_on(instance, key)
+        deadline = time.monotonic() + 2.5
+        while time.monotonic() < deadline:
+            if condition(local_player(instance)):
+                return
+            time.sleep(0.1)
+    raise TestFailure(f"[{instance or 'host'}] {what} never happened (input not reaching the game?)")
+
+
+def cast_roundtrip(actor_instance, observer, label):
+    """Player holds a Flames cast then releases; the other game's copy must cast, then stop."""
+    console_on(actor_instance, f"player.addspell {FLAMES:08X}")
+    console_on(actor_instance, f"player.equipspell {FLAMES:08X} right")
+    show(observer, remote_player)
+    press_until(actor_instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+
+    def replica_casting(expected):
+        def check(actors):
+            target = remote_player(actors)
+            return target is not None and (actors[str(target)]["casting"][RIGHT_HAND] == FLAMES) == expected
+        return check
+    try:
+        mouse_on(actor_instance, "mousedown")
+        wait_for(f"[{actor_instance or 'host'}] player casts Flames",
+                 lambda: local_player(actor_instance).get("casting", [0, 0])[RIGHT_HAND] == FLAMES, 10)
+        wait_on(observer, f"{label} casts Flames", replica_casting(True))
+        hold()
+    finally:
+        mouse_on(actor_instance, "mouseup")
+    wait_on(observer, f"{label} stops casting", replica_casting(False))
+    press_until(actor_instance, "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
+
+
+def scenario_cast_host_player():
+    """Host casts Flames (held) and stops; the client's copy of the host must follow."""
+    cast_roundtrip("", "client", "host's character")
+
+
+def scenario_cast_client_player():
+    """Client casts Flames (held) and stops; the host's copy of the client must follow."""
+    cast_roundtrip("client", "", "client's character")
+
+
 def ensure_host_npc(base="000A2C8E"):
     """Returns (host ref id, client replica id) of a host-owned NPC, spawning one if needed."""
     select_instance("")
@@ -682,6 +750,8 @@ SCENARIOS = {
     "equip-host-npc": scenario_equip_host_npc,
     "draw-host-player": scenario_draw_host_player,
     "draw-client-player": scenario_draw_client_player,
+    "cast-host-player": scenario_cast_host_player,
+    "cast-client-player": scenario_cast_client_player,
 }
 
 
