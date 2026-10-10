@@ -157,6 +157,7 @@ void ReplayBridge::SetActorPlayer(uint32_t, bool) noexcept {}
 uint32_t ReplayBridge::GetCommandingActor(uint32_t) const noexcept { return 0; }
 void ReplayBridge::KillActor(uint32_t) noexcept {}
 void ReplayBridge::RespawnActor(uint32_t) noexcept {}
+void ReplayBridge::ResurrectActor(uint32_t) noexcept {}
 void ReplayBridge::DeleteActor(uint32_t) noexcept {}
 void ReplayBridge::MoveActorTo(uint32_t, uint32_t, float, float, float) noexcept {}
 void ReplayBridge::SetActorRotation(uint32_t, float, float) noexcept {}

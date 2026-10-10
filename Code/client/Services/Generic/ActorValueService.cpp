@@ -100,6 +100,13 @@ void ActorValueService::OnUpdate(const UpdateEvent& acEvent) noexcept
     RunHealthUpdates();
     RunDeathStateUpdates();
     RunActorValuesUpdates();
+
+    const auto cNow = std::chrono::steady_clock::now();
+    if (!m_pendingDeathStates.empty() && cNow >= m_nextDeathStateRetry)
+    {
+        m_nextDeathStateRetry = cNow + 500ms;
+        ApplyPendingDeathStates();
+    }
 }
 
 void ActorValueService::BroadcastActorValues() noexcept
@@ -413,30 +420,31 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
     }
 }
 
-void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessage) const noexcept
+void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessage) noexcept
 {
-    auto view = m_world.view<FormIdComponent, RemoteComponent>();
+    m_pendingDeathStates[acMessage.Id] = acMessage.IsDead;
+    ApplyPendingDeathStates();
+}
 
-    const auto it = std::find_if(std::begin(view), std::end(view), [id = acMessage.Id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
-
-    if (it == std::end(view))
-        return;
-
-    auto& formIdComponent = view.get<FormIdComponent>(*it);
-    const uint32_t formId = formIdComponent.Id;
-
-    if (!m_actorBridge.ActorExists(formId))
-        return;
-
-    // Players should never be killed
-    if (m_actorBridge.IsRemotePlayer(formId))
-        return;
-
-    if (m_actorBridge.IsActorDead(formId) != acMessage.IsDead)
+void ActorValueService::ApplyPendingDeathStates() noexcept
+{
+    Vector<uint32_t> done;
+    for (const auto& [cServerId, cIsDead] : m_pendingDeathStates)
     {
-        if (acMessage.IsDead)
-            m_actorBridge.KillActor(formId);
+        const uint32_t cFormId = Utils::GetFormIdByServerId(cServerId);
+        // Gone, not a copy, or a player (players are never killed): nothing to apply.
+        if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorRemote(cFormId) ||
+            m_actorBridge.IsRemotePlayer(cFormId) || m_actorBridge.IsActorDead(cFormId) == cIsDead)
+        {
+            done.push_back(cServerId);
+            continue;
+        }
+
+        if (cIsDead)
+            m_actorBridge.KillActor(cFormId);
         else
-            m_actorBridge.RespawnActor(formId);
+            m_actorBridge.ResurrectActor(cFormId);
     }
+    for (const uint32_t cServerId : done)
+        m_pendingDeathStates.erase(cServerId);
 }

@@ -39,6 +39,8 @@ public:
     // --- State ---
     virtual void KillActor(uint32_t aFormId) noexcept = 0;
     virtual void RespawnActor(uint32_t aFormId) noexcept = 0;
+    // Brings a dead actor back where it is (the console's `resurrect`), without a Reset.
+    virtual void ResurrectActor(uint32_t aFormId) noexcept = 0;
     virtual void DeleteActor(uint32_t aFormId) noexcept = 0;
 
     // --- Position / movement ---

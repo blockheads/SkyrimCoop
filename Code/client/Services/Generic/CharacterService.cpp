@@ -30,6 +30,7 @@
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
+#include <Messages/RequestRemoveCharacter.h>
 #include <Messages/NotifySpawnData.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyMount.h>
@@ -1209,6 +1210,17 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
 
         DeleteRemoteEntityComponents(aEntity);
 
+        return;
+    }
+
+    // We own it and stopped simulating it: the copies on other games must be removed too.
+    if (const auto* pLocalComponent = m_world.try_get<LocalComponent>(aEntity))
+    {
+        RequestRemoveCharacter message;
+        message.ServerId = pLocalComponent->Id;
+        m_transport.Send(message);
+
+        m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
         return;
     }
 

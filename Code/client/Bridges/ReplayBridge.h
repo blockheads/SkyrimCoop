@@ -50,6 +50,7 @@ public:
     uint32_t GetCommandingActor(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;
     void RespawnActor(uint32_t aFormId) noexcept override;
+    void ResurrectActor(uint32_t aFormId) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;

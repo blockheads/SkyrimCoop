@@ -20,12 +20,13 @@
 template <class T>
 struct MessageName;
 
-// Client message name registrations (all 47 opcodes, 0..kClientOpcodeMax-1)
+// Client message name registrations (all 48 opcodes, 0..kClientOpcodeMax-1)
 #define DEF_MSG_NAME(T) \
     template <> struct MessageName<T> { static constexpr const char* value = #T; };
 
 DEF_MSG_NAME(AuthenticationRequest)
 DEF_MSG_NAME(CancelAssignmentRequest)
+DEF_MSG_NAME(RequestRemoveCharacter)
 DEF_MSG_NAME(AssignCharacterRequest)
 DEF_MSG_NAME(ClientReferencesMoveRequest)
 DEF_MSG_NAME(RequestInventoryChanges)

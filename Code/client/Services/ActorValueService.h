@@ -80,7 +80,8 @@ private:
     /**
      * @brief Receives death state changes and applies them locally.
      */
-    void OnDeathStateChange(const NotifyDeathStateChange& acEvent) const noexcept;
+    void OnDeathStateChange(const NotifyDeathStateChange& acEvent) noexcept;
+    void ApplyPendingDeathStates() noexcept;
 
     /**
      * @brief Checks and broadcasts new actor values.
@@ -119,4 +120,8 @@ private:
 
     //! @brief Server ids and collected health changes.
     Map<uint32_t, float> m_smallHealthChanges;
+    // Copies whose dead/alive state still differs from the owner's, by server id. Kill/Respawn on
+    // a copy does not always take (e.g. resurrect while the death is still playing), so retry.
+    Map<uint32_t, bool> m_pendingDeathStates;
+    std::chrono::steady_clock::time_point m_nextDeathStateRetry;
 };

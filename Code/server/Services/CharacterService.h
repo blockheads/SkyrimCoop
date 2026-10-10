@@ -15,6 +15,7 @@ struct RequestRespawn;
 struct SyncExperienceRequest;
 struct DialogueRequest;
 struct SubtitleRequest;
+struct RequestRemoveCharacter;
 
 namespace Server
 {
@@ -41,6 +42,7 @@ protected:
     void OnUpdate(const UpdateEvent& acEvent) const noexcept;
     void OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept;
     void OnCharacterRemoveEvent(const CharacterRemoveEvent& acEvent) const noexcept;
+    void OnRequestRemoveCharacter(const PacketEvent<RequestRemoveCharacter>& acMessage) const noexcept;
     void OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) const noexcept;
     void OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) const noexcept;
     void OnReferencesMoveRequest(const PacketEvent<ClientReferencesMoveRequest>& acMessage) const noexcept;
@@ -68,6 +70,7 @@ private:
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_characterAssignRequestConnection;
     entt::scoped_connection m_removeCharacterConnection;
+    entt::scoped_connection m_requestRemoveCharacterConnection;
     entt::scoped_connection m_characterSpawnedConnection;
     entt::scoped_connection m_playerEnterWorldConnection;
     entt::scoped_connection m_referenceMovementSnapshotConnection;

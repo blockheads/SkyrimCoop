@@ -10,6 +10,7 @@
   coop_test.py stop                                   kill the test Skyrim instance(s)
   coop_test.py screenshot [out.png]                   capture the off-screen game display
   coop_test.py console <command...>                   run a console command in the test game
+  coop_test.py status [-f]                            both games side by side: health, death, weapon, casting
   coop_test.py watch                                  live view of the off-screen game in a window
   coop_test.py setup-display                          one-time: install the off-screen X server (sudo)
 
@@ -233,7 +234,9 @@ def prepare_prefix():
                                     "iLocation X": "0", "iLocation Y": "0"},
                             # Silent test games. (Muting via PulseAudio would be remembered per app
                             # name and silence normal Skyrim too.)
-                            "AudioMenu": {"fAudioMasterVolume": "0.0000"}})
+                            "AudioMenu": {"fAudioMasterVolume": "0.0000"},
+                            # Tutorial popups (e.g. "Magicka Low") swallow all input until closed.
+                            "Interface": {"bShowTutorials": "0"}})
 
 
 def read_status():
@@ -613,8 +616,13 @@ def key_on(instance, key):
                              capture_output=True, text=True).stdout.split()
     if not windows:
         raise TestFailure(f"[{instance or 'host'}] game window not found on {VIRTUAL_DISPLAY}")
-    subprocess.run(["xdotool", "key", "--window", windows[0], key], env=env, check=True,
-                   stderr=subprocess.DEVNULL)  # dummy X server: harmless XGetInputFocus warning
+    # Real (XTEST) input held for 100ms: the game polls the keyboard once per frame, and a quick
+    # synthetic press (~12ms) is missed whenever a frame takes longer than that. Only the
+    # off-screen display is touched. (stderr: harmless XGetInputFocus warning on the dummy X server)
+    for command in (["windowfocus", windows[0]], ["keydown", key]):
+        subprocess.run(["xdotool", *command], env=env, check=True, stderr=subprocess.DEVNULL)
+    time.sleep(0.1)
+    subprocess.run(["xdotool", "keyup", key], env=env, check=True, stderr=subprocess.DEVNULL)
 
 
 def draw_roundtrip(actor_instance, observer, label):
@@ -694,6 +702,7 @@ def cast_roundtrip(actor_instance, observer, label):
     """Player holds a Flames cast then releases; the other game's copy must cast, then stop."""
     console_on(actor_instance, f"player.addspell {FLAMES:08X}")
     console_on(actor_instance, f"player.equipspell {FLAMES:08X} right")
+    console_on(actor_instance, "player.restoreav magicka 1000")  # repeated casts drain it
     show(observer, remote_player)
     press_until(actor_instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
 
@@ -819,14 +828,89 @@ def scenario_death_host_npc():
         console_on("", f"{npc:08X}.disable")  # keep the scene to the players + Lydia for reruns
 
 
+def scenario_remove_host_npc():
+    """Host disables an NPC it owns; the client's copy must disappear."""
+    npc, replica = spawn_host_npc(CHICKEN)
+    show("client", lambda actors: replica if str(replica) in actors else None)
+    console_on("", f"{npc:08X}.disable")
+    wait_for("[host] NPC unloaded", lambda: str(npc) not in local_player("").get("local_actors", {}), 10)
+    wait_on("client", f"NPC copy {replica:08X} removed", lambda actors: str(replica) not in actors)
+    hold()
+
+
+def distance(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+
+
+def place(instance, ref, goal, current):
+    """Moves `ref` to `goal` in an instance's game by lifting it 100 units, sliding it over and
+    letting it drop onto the floor there. Separate setpos x/y/z at floor height can slide it into
+    furniture or under the floor, and it then falls through the world."""
+    console_on(instance, f"{ref}.setpos z {max(current[2], goal[2]) + 100:.0f}")
+    console_on(instance, f"{ref}.setpos x {goal[0]:.0f}")
+    console_on(instance, f"{ref}.setpos y {goal[1]:.0f}")
+
+
+def scenario_move_host_npc():
+    """Host moves its NPC to a player; the client's copy must end up where the host's NPC is."""
+    npc, replica = ensure_host_npc()
+    show("client", lambda actors: replica if str(replica) in actors else None)
+    host_actors = actors_on("")
+    # Move to whichever player is farther away (both stand on valid floor).
+    players = {"player": local_player("")["position"]}
+    client_on_host = remote_player(host_actors)
+    if client_on_host:
+        players[f"{client_on_host:08X}"] = host_actors[str(client_on_host)]["actual"]
+    start = host_npc_state(npc)["position"]
+    target = max(players, key=lambda ref: distance(players[ref], start))
+    goal = players[target]
+    place("", f"{npc:08X}", goal, start)
+    wait_for("[host] NPC moved and landed", lambda: distance(host_npc_state(npc)["position"], start) > 100
+             and abs(host_npc_state(npc)["position"][2] - goal[2]) < 60, 10)
+    last = {}
+    def copy_matches(actors):
+        copy = actors.get(str(replica), {}).get("actual")
+        last.update(copy=copy, owned=host_npc_state(npc)["position"])
+        return copy and distance(copy, last["owned"]) < 30
+    try:
+        wait_on("client", f"NPC copy {replica:08X} at the host NPC's position", copy_matches)
+    except TestFailure:
+        raise TestFailure(f"copy at {[round(v) for v in last['copy'] or []]}, "
+                          f"host's NPC at {[round(v) for v in last['owned']]}")
+    hold()
+
+
+def scenario_steady_state():
+    """At rest, every character's copy matches its owner: drawn/dead/health, and no extra or missing NPCs."""
+    def mismatches():
+        problems = []
+        for row in status_table().splitlines()[1:]:
+            if "MISSING" in row or "GONE" in row:
+                problems.append(row.strip())
+                continue
+            host_side, client_side = row[21:45].split(), row[46:].split()
+            if "apart" in client_side:  # NPC copy: also within 50 units of the host's NPC
+                gap = int(client_side[client_side.index("apart") - 1])
+                client_side = client_side[:client_side.index("apart") - 1]
+                if gap > 50:
+                    problems.append(row.strip())
+                    continue
+            if host_side != client_side:
+                problems.append(row.strip())
+        return problems
+    deadline = time.time() + 10
+    while (problems := mismatches()) and time.time() < deadline:
+        time.sleep(0.5)
+    if problems:
+        raise TestFailure("copies differ from their owners: " + " | ".join(problems))
+
+
 def scenario_melee_client_hits_host_npc():
     """Client hits the host's NPC with a sword; the host's real NPC must lose health."""
     npc, replica = ensure_host_npc()
     target = actors_on("client")[str(replica)]["actual"]
-    console_on("client", f"player.setpos x {target[0] + 70:.0f}")
-    console_on("client", f"player.setpos y {target[1]:.0f}")
-    console_on("client", f"player.setpos z {target[2]:.0f}")
-    time.sleep(0.5)
+    place("client", "player", (target[0] + 70, target[1], target[2]), local_player("client")["position"])
+    time.sleep(1.0)
     select_instance("client")
     face_actor(replica)
     console_on("client", f"player.additem {IRON_SWORD:08X} 1")
@@ -854,6 +938,7 @@ def scenario_melee_client_hits_host_npc():
 
 
 SCENARIOS = {
+    "steady-state": scenario_steady_state,
     "equip-host-player": scenario_equip_host_player,
     "equip-client-player": scenario_equip_client_player,
     "equip-host-npc": scenario_equip_host_npc,
@@ -865,8 +950,63 @@ SCENARIOS = {
     "health-client-player": scenario_health_client_player,
     "health-host-npc": scenario_health_host_npc,
     "death-host-npc": scenario_death_host_npc,
+    "remove-host-npc": scenario_remove_host_npc,
+    "move-host-npc": scenario_move_host_npc,
     "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
+    "steady-state-after": scenario_steady_state,
 }
+
+
+def status_table():
+    """One row per character, as each game sees it: owner's values next to the copies'."""
+    games = {}
+    for name in ("", "client"):
+        select_instance(name)
+        games[name or "host"] = read_status() or {}
+    host, client = games["host"], games["client"]
+    rows = []
+
+    def describe(entry):
+        if not entry:
+            return "-"
+        hp = entry.get("health")
+        parts = [f"hp {hp:5.0f}" if isinstance(hp, (int, float)) else "hp     ?"]
+        if entry.get("dead"):
+            parts.append("DEAD")
+        if entry.get("weapon_drawn"):
+            parts.append("drawn")
+        if any(entry.get("casting") or []):
+            parts.append("casting")
+        return " ".join(parts)
+
+    host_player = host.get("player") or {}
+    client_player = client.get("player") or {}
+    host_on_client = (client.get("actors") or {}).get(str(remote_player(client.get("actors") or {})))
+    client_on_host = (host.get("actors") or {}).get(str(remote_player(host.get("actors") or {})))
+    rows.append(("host's character", describe(host_player), describe(host_on_client)))
+    rows.append(("client's character", describe(client_on_host), describe(client_player)))
+    # Pair each host NPC with the client copy linked to the same server actor; anything left
+    # unpaired on either side is a desync (a copy the host no longer has, or a missing copy).
+    copies = {v.get("server_id"): v for v in (client.get("actors") or {}).values() if not v.get("remote_player")}
+    for npc, owned in sorted((host_player.get("local_actors") or {}).items()):
+        copy = copies.pop(owned.get("server_id"), None)
+        gap = f"  {distance(owned['position'], copy['actual']):.0f} apart" if copy and owned.get("position") else ""
+        rows.append((f"NPC {int(npc):08X}", describe(owned), (describe(copy) if copy else "MISSING") + gap))
+    for server_id, copy in copies.items():
+        rows.append((f"NPC server {server_id}", "GONE on host", describe(copy)))
+    lines = [f"{'':20s} {'HOST game':24s} {'CLIENT game':24s}"]
+    lines += [f"{who:20s} {h:24s} {c:24s}" for who, h, c in rows]
+    return "\n".join(lines)
+
+
+def command_status(args):
+    while True:
+        table = status_table()
+        if not args.follow:
+            print(table)
+            return
+        print("\033[2J\033[H" + table + "\n\n(refreshing every 0.5s, Ctrl+C to stop)", flush=True)
+        time.sleep(0.5)
 
 
 def command_scenario(args):
@@ -928,12 +1068,15 @@ def main():
     stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
     console = commands.add_parser("console", help="run a console command in the running test game")
     console.add_argument("text", nargs="+")
+    status = commands.add_parser("status", help="both games side by side: health, death, weapon, casting")
+    status.add_argument("--follow", "-f", action="store_true", help="keep refreshing")
     watch = commands.add_parser("watch", help="live view of the off-screen game display in a window (ffplay)")
     commands.add_parser("setup-display", help="one-time: install the off-screen dummy X server (sudo)")
     shot = commands.add_parser("screenshot", help="save a PNG of the off-screen game display")
     shot.add_argument("output", nargs="?", type=Path)
     for sub in (stop, console, watch, shot):
-        sub.add_argument("--instance", choices=("host", "client"), help="which `duo` game (default: host)")
+        sub.add_argument("--instance", choices=("host", "client", "both") if sub is watch else ("host", "client"),
+                         help="which `duo` game (default: host)")
     args = parser.parse_args()
     global VISIBLE
     VISIBLE = getattr(args, "visible", False)
@@ -952,10 +1095,19 @@ def main():
         elif args.command == "console":
             run_console(" ".join(args.text))
             log("Done")
+        elif args.command == "status":
+            command_status(args)
         elif args.command == "watch":
-            subprocess.run(["ffplay", "-loglevel", "error", "-window_title", "Skyrim (coop test, off-screen)",
-                            "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720",
-                            "-i", f"{VIRTUAL_DISPLAY}+4,30"])
+            names = ["", "client"] if args.instance == "both" else [INSTANCE]
+            viewers = []
+            for index, name in enumerate(names):
+                select_instance(name)
+                viewers.append(subprocess.Popen(
+                    ["ffplay", "-loglevel", "error", "-window_title", f"Skyrim {name or 'host'} (coop test)",
+                     "-left", str(40 + index * 660), "-top", "40", "-x", "640", "-y", "360",
+                     "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720", "-i", f"{VIRTUAL_DISPLAY}+4,30"]))
+            for viewer in viewers:
+                viewer.wait()
         elif args.command == "setup-display":
             setup_display()
         elif args.command == "screenshot":

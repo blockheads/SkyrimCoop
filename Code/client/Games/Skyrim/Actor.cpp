@@ -260,6 +260,12 @@ void Actor::SetWeaponDrawnEx(bool aDraw) noexcept
 {
     spdlog::debug("Setting weapon drawn: {:X}:{}, current state: {}", formID, aDraw, actorState.IsWeaponDrawn());
 
+    // Already sheathed: nothing to play, and the toggle below could strand the flag at "drawn".
+    if (!aDraw && !actorState.IsWeaponDrawn())
+        return;
+
+    // The game ignores a draw for an actor already flagged drawn, so flip the flag first to make
+    // it play the draw again.
     if (actorState.IsWeaponDrawn() == aDraw)
     {
         actorState.SetWeaponDrawn(!aDraw);

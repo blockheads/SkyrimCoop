@@ -2,6 +2,7 @@
 #include "Runtime.h"
 #include "Session.h"
 #include <World.h>
+#include <Components.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Games/Skyrim/Interface/UI.h>
@@ -110,14 +111,37 @@ static nlohmann::json ActorRotation(uint32_t aFormId)
 }
 
 // Loaded actors this game simulates itself (on the host: every NPC it owns), with health.
+// The server id the mod links this game actor to (-1 if none; 0 is a valid id), so the harness
+// can pair an owned actor with its copy in the other game.
+static int64_t ServerId(uint32_t aFormId)
+{
+    auto& world = World::Get();
+    for (const auto entity : world.view<FormIdComponent>())
+    {
+        if (world.get<FormIdComponent>(entity).Id != aFormId)
+            continue;
+        if (const auto* pLocal = world.try_get<LocalComponent>(entity))
+            return pLocal->Id;
+        if (const auto* pRemote = world.try_get<RemoteComponent>(entity))
+            return pRemote->Id;
+    }
+    return -1;
+}
+
 static nlohmann::json LocalActors()
 {
     auto& actors = World::Get().GetActorBridge();
     auto result = nlohmann::json::object();
     for (const uint32_t cFormId : actors.GetLoadedActorFormIds())
         if (!actors.IsActorRemote(cFormId))
+        {
+            float position[3]{};
+            actors.GetActorPosition(cFormId, position[0], position[1], position[2]);
             result[std::to_string(cFormId)] = {{"health", actors.GetActorValue(cFormId, 24)},
-                                               {"dead", actors.IsActorDead(cFormId)}};
+                                               {"dead", actors.IsActorDead(cFormId)},
+                                               {"position", {position[0], position[1], position[2]}},
+                                               {"server_id", ServerId(cFormId)}};
+        }
     return result;
 }
 
@@ -180,9 +204,14 @@ void Runtime::Poll()
 
     const auto unixMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
+    // Only copies the mod still links to a server actor: a removed copy must leave the status too.
+    std::erase_if(m_observations, [](const auto& aEntry) {
+        return ServerId(aEntry.first) < 0 || !World::Get().GetActorBridge().ActorExists(aEntry.first);
+    });
     auto actors = nlohmann::json::object();
     for (const auto& [id, observation] : m_observations)
         actors[std::to_string(id)] = {
+            {"server_id", ServerId(id)},
             {"observed_ms", observation.observedMs}, {"generation", observation.generation},
             {"has_3d", observation.has3D},
             {"requested", {observation.requested[0], observation.requested[1], observation.requested[2]}},

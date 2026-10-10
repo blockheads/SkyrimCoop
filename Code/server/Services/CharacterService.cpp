@@ -18,6 +18,7 @@
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
+#include <Messages/RequestRemoveCharacter.h>
 #include <Messages/NotifySpawnData.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyMount.h>
@@ -50,6 +51,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher)
     , m_updateConnection(aDispatcher.sink<UpdateEvent>().connect<&CharacterService::OnUpdate>(this))
     , m_characterAssignRequestConnection(aDispatcher.sink<PacketEvent<AssignCharacterRequest>>().connect<&CharacterService::OnAssignCharacterRequest>(this))
     , m_removeCharacterConnection(aDispatcher.sink<CharacterRemoveEvent>().connect<&CharacterService::OnCharacterRemoveEvent>(this))
+    , m_requestRemoveCharacterConnection(aDispatcher.sink<PacketEvent<RequestRemoveCharacter>>().connect<&CharacterService::OnRequestRemoveCharacter>(this))
     , m_characterSpawnedConnection(aDispatcher.sink<CharacterSpawnedEvent>().connect<&CharacterService::OnCharacterSpawned>(this))
     , m_playerEnterWorldConnection(aDispatcher.sink<PlayerEnterWorldEvent>().connect<&CharacterService::OnPlayerEnterWorld>(this))
     , m_referenceMovementSnapshotConnection(aDispatcher.sink<PacketEvent<ClientReferencesMoveRequest>>().connect<&CharacterService::OnReferencesMoveRequest>(this))
@@ -195,6 +197,8 @@ void CharacterService::OnCharacterRemoveEvent(const CharacterRemoveEvent& acEven
 {
     const auto view = m_world.view<OwnerComponent>();
     const auto it = view.find(static_cast<entt::entity>(acEvent.ServerId));
+    if (it == view.end())
+        return;
     const auto& characterOwnerComponent = view.get<OwnerComponent>(*it);
 
     GameServer::Get()->GetWorld().GetScriptService().HandleCharacterDestoy(*it);
@@ -212,6 +216,18 @@ void CharacterService::OnCharacterRemoveEvent(const CharacterRemoveEvent& acEven
 
     m_world.destroy(*it);
     spdlog::debug("Character destroyed {:X}", acEvent.ServerId);
+}
+
+// The owner stopped simulating one of its actors (unloaded, disabled or deleted in its game):
+// every copy has to go too, or peers keep a stale actor the owner no longer drives.
+void CharacterService::OnRequestRemoveCharacter(const PacketEvent<RequestRemoveCharacter>& acMessage) const noexcept
+{
+    const auto view = m_world.view<OwnerComponent>();
+    const auto it = view.find(static_cast<entt::entity>(acMessage.Packet.ServerId));
+    if (it == view.end() || view.get<OwnerComponent>(*it).GetOwner() != acMessage.pPlayer)
+        return;
+
+    m_world.GetDispatcher().trigger(CharacterRemoveEvent(acMessage.Packet.ServerId));
 }
 
 void CharacterService::OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) const noexcept

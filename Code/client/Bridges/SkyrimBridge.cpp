@@ -211,6 +211,12 @@ void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept
         pActor->Respawn();
 }
 
+void SkyrimBridge::ResurrectActor(uint32_t aFormId) noexcept
+{
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->Resurrect(false);
+}
+
 void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
 {
     // Engine Delete is for dynamically-created references only. Never delete
