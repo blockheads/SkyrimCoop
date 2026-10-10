@@ -128,6 +128,14 @@ static int64_t ServerId(uint32_t aFormId)
     return -1;
 }
 
+// What the actor is, to catch a copy built from the wrong record (e.g. a blank custom actor).
+static nlohmann::json Identity(uint32_t aFormId)
+{
+    auto& actors = World::Get().GetActorBridge();
+    return {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+            {"race", actors.GetActorRaceFormId(aFormId)}};
+}
+
 static nlohmann::json LocalActors()
 {
     auto& actors = World::Get().GetActorBridge();
@@ -140,7 +148,8 @@ static nlohmann::json LocalActors()
             result[std::to_string(cFormId)] = {{"health", actors.GetActorValue(cFormId, 24)},
                                                {"dead", actors.IsActorDead(cFormId)},
                                                {"position", {position[0], position[1], position[2]}},
-                                               {"server_id", ServerId(cFormId)}};
+                                               {"server_id", ServerId(cFormId)},
+                                               {"identity", Identity(cFormId)}};
         }
     return result;
 }
@@ -211,7 +220,7 @@ void Runtime::Poll()
     auto actors = nlohmann::json::object();
     for (const auto& [id, observation] : m_observations)
         actors[std::to_string(id)] = {
-            {"server_id", ServerId(id)},
+            {"server_id", ServerId(id)}, {"identity", Identity(id)},
             {"observed_ms", observation.observedMs}, {"generation", observation.generation},
             {"has_3d", observation.has3D},
             {"requested", {observation.requested[0], observation.requested[1], observation.requested[2]}},

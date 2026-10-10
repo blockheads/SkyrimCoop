@@ -885,7 +885,7 @@ def scenario_steady_state():
     def mismatches():
         problems = []
         for row in status_table().splitlines()[1:]:
-            if "MISSING" in row or "GONE" in row:
+            if "MISSING" in row or "GONE" in row or "WRONG-ACTOR" in row:
                 problems.append(row.strip())
                 continue
             host_side, client_side = row[21:45].split(), row[46:].split()
@@ -991,7 +991,12 @@ def status_table():
     for npc, owned in sorted((host_player.get("local_actors") or {}).items()):
         copy = copies.pop(owned.get("server_id"), None)
         gap = f"  {distance(owned['position'], copy['actual']):.0f} apart" if copy and owned.get("position") else ""
-        rows.append((f"NPC {int(npc):08X}", describe(owned), (describe(copy) if copy else "MISSING") + gap))
+        mine, theirs = owned.get("identity") or {}, (copy or {}).get("identity") or {}
+        # Same name and race, or the copy is a different-looking actor (built from the wrong record).
+        wrong = "" if not copy or (mine.get("name"), mine.get("race")) == (theirs.get("name"), theirs.get("race")) \
+            else f" WRONG-ACTOR({theirs.get('name') or '?'})"
+        label = f"NPC {mine.get('name') or ''} {int(npc):08X}".replace("  ", " ")[:20]
+        rows.append((label, describe(owned), (describe(copy) + wrong if copy else "MISSING") + gap))
     for server_id, copy in copies.items():
         rows.append((f"NPC server {server_id}", "GONE on host", describe(copy)))
     lines = [f"{'':20s} {'HOST game':24s} {'CLIENT game':24s}"]

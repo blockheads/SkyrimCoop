@@ -1169,7 +1169,13 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
 
     if (isTemporary)
     {
-        const uint32_t cNpcTemplateId = m_actorBridge.GetActorNpcTemplateBaseFormId(formIdComponent.Id);
+        // The reference only exists in this game, so peers rebuild it from its NPC base. A
+        // temporary base (leveled spawns) is described by its template; a real base (e.g. placeatme
+        // of a game NPC) is sent as is. Without one the copy is a blank custom actor with the
+        // default face and race.
+        uint32_t cNpcTemplateId = m_actorBridge.GetActorNpcTemplateBaseFormId(formIdComponent.Id);
+        if (!cNpcTemplateId && !m_actorBridge.IsActorNpcTemporary(formIdComponent.Id))
+            cNpcTemplateId = m_actorBridge.GetActorBaseFormId(formIdComponent.Id);
         if (cNpcTemplateId && !m_world.GetModSystem().GetServerModId(cNpcTemplateId, message.FormId))
         {
             spdlog::error("Server NPC form id not found for form id {:X}", cNpcTemplateId);
