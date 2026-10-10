@@ -363,6 +363,15 @@ private:
    - Keep message formats compatible
    - **Recommendation:** Feature flag for old vs new mode during transition
 
+4. **What if a peer is in a cell the host has not loaded?** (decided 2026-10-10)
+   - The host's Skyrim only simulates cells it has loaded, so it cannot be the authority for
+     NPCs anywhere else.
+   - **Decision: party tether.** Everyone stays in the same cell as the host. Leaving (doors,
+     fast travel, `coc`) is a Borderlands-style travel request: it is announced to the party,
+     everyone travels together when it completes, and anyone can press a button to cancel it.
+   - Consequence: peers never own NPCs and need no cell tracking; the host discovers and owns
+     every actor in its loaded cells, peers only replicate them.
+
 ## Conclusion
 
 True P2P means the host **IS** the authority, not a client of a local server. This eliminates redundant networking, reduces latency for the host, and simplifies the architecture. The key mental shift is: **Host owns World directly, peers connect to them.**

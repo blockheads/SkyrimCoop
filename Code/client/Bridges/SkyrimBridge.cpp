@@ -162,9 +162,9 @@ bool SkyrimBridge::IsPlayerSummon(uint32_t aFormId) const noexcept
 
 bool SkyrimBridge::IsTemporaryActor(uint32_t aFormId) const noexcept
 {
-    // TODO(02.5-02): implement via Actor flags
-    spdlog::warn("SkyrimBridge::IsTemporaryActor not yet implemented for {:X}", aFormId);
-    return false;
+    // Runtime-created references (placeatme, spawned remote players) live in the 0xFF range.
+    Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->IsTemporary();
 }
 
 bool SkyrimBridge::IsRemotePlayer(uint32_t aFormId) const noexcept
@@ -463,6 +463,22 @@ bool SkyrimBridge::ActorHas3D(uint32_t aFormId) const noexcept
     if (Actor* pActor = GetActor(aFormId))
         return pActor->GetNiNode() != nullptr;
     return false;
+}
+
+std::vector<uint32_t> SkyrimBridge::GetLoadedActorFormIds() const noexcept
+{
+    std::vector<uint32_t> formIds;
+    ProcessLists* const pProcessLists = ProcessLists::Get();
+    if (!pProcessLists)
+        return formIds;
+
+    for (uint32_t i = 0; i < pProcessLists->highActorHandleArray.length; ++i)
+    {
+        TESObjectREFR* const pRefr = TESObjectREFR::GetByHandle(pProcessLists->highActorHandleArray[i]);
+        if (pRefr && pRefr->GetNiNode())
+            formIds.push_back(pRefr->formID);
+    }
+    return formIds;
 }
 
 // ---------------------------------------------------------------------------
@@ -1766,8 +1782,9 @@ void SkyrimBridge::SetupActorFaceGen(uint32_t aFormId) noexcept
 
 void SkyrimBridge::SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept
 {
-    // Cache setup is done in CharacterService::ProcessNewEntity via CacheSystem::Setup
-    // Bridge no-op: requires World + entity context not available here
+    // aEntityHint is the entity (CharacterService::ProcessNewEntity), as before the bridge refactor.
+    if (Actor* pActor = GetActor(aFormId))
+        CacheSystem::Setup(World::Get(), static_cast<entt::entity>(aEntityHint), pActor);
 }
 
 void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept
@@ -1775,14 +1792,30 @@ void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) no
     // InterpolationSystem::Update requires InterpolationComponent; called directly in CharacterService
 }
 
+// These two were empty since the bridge refactor, which silently disabled animation replay
+// (remote actors never drew weapons, attacked, ...) and remote face tints.
 void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept
 {
-    // AnimationSystem::Update requires RemoteAnimationComponent; called directly in CharacterService
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    auto& world = World::Get();
+    auto view = world.view<FormIdComponent, RemoteAnimationComponent>();
+    for (auto entity : view)
+        if (view.get<FormIdComponent>(entity).Id == aFormId)
+            AnimationSystem::Update(world, pActor, view.get<RemoteAnimationComponent>(entity), aTick);
 }
 
 void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
 {
-    // FaceGenSystem::Update requires FaceGenComponent; called directly in CharacterService
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    auto& world = World::Get();
+    auto view = world.view<FormIdComponent, FaceGenComponent>();
+    for (auto entity : view)
+        if (view.get<FormIdComponent>(entity).Id == aFormId)
+            FaceGenSystem::Update(world, pActor, view.get<FaceGenComponent>(entity));
 }
 
 void SkyrimBridge::ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept

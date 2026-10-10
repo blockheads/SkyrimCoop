@@ -93,6 +93,8 @@ public:
 
     // --- Node / 3D ---
     virtual bool ActorHas3D(uint32_t aFormId) const noexcept = 0;
+    /// Actors in the engine's high process list with loaded 3D, excluding the player.
+    virtual std::vector<uint32_t> GetLoadedActorFormIds() const noexcept = 0;
 
     // --- Actor values (bulk) ---
     virtual ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept = 0;

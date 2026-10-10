@@ -196,6 +196,7 @@ uint32_t ReplayBridge::GetActorBaseFormId(uint32_t) const noexcept { return 0; }
 std::string ReplayBridge::GetActorBaseName(uint32_t) const noexcept { return {}; }
 uint32_t ReplayBridge::GetActorRaceFormId(uint32_t) const noexcept { return 0; }
 bool ReplayBridge::ActorHas3D(uint32_t) const noexcept { return false; }
+std::vector<uint32_t> ReplayBridge::GetLoadedActorFormIds() const noexcept { return {}; }
 // --- IActorBridge extended (Plan 03) ---
 ActorValues ReplayBridge::GetActorEssentialValues(uint32_t) const noexcept { return {}; }
 void ReplayBridge::SetActorValues(uint32_t, const ActorValues&) noexcept {}

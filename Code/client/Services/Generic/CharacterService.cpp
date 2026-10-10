@@ -217,7 +217,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
-    RunPlayerDiscovery();
+    RunActorDiscovery();
     RunSpawnUpdates();
     RunLocalUpdates();
     RunFactionsUpdates();
@@ -226,23 +226,40 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     ApplyCachedWeaponDraws(acUpdateEvent);
 }
 
-// Announces the local player (added once it has 3D, removed while it has none, e.g. loading)
-// through the ActorAddedEvent path the removed DiscoveryService (ec7d02d1) drove, so the player
-// is assigned on the server and other players see it. NPC discovery is deliberately not
-// restored: clients claiming NPCs would conflict with the host owning them.
-void CharacterService::RunPlayerDiscovery() noexcept
+// Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
+// server assignment (replaces the actor half of DiscoveryService, removed in ec7d02d1).
+// Everyone announces their own player. Only the host announces NPCs: under the party tether
+// (P2P_ARCHITECTURE.md, open question 4) every player is in the host's cell, so the host owns
+// every actor and peers only replicate them.
+void CharacterService::RunActorDiscovery() noexcept
 {
+    Set<uint32_t> loaded;
     const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
-    const bool cLoaded = cPlayerId != 0 && m_actorBridge.ActorHas3D(cPlayerId);
-    if (cLoaded == m_playerDiscovered)
-        return;
+    if (cPlayerId != 0 && m_actorBridge.ActorHas3D(cPlayerId))
+        loaded.insert(cPlayerId);
+    if (m_world.GetHostService().IsHosting())
+        for (const uint32_t cFormId : m_actorBridge.GetLoadedActorFormIds())
+            loaded.insert(cFormId);
 
-    m_playerDiscovered = cLoaded;
-    spdlog::debug("Player discovery: {:X} {}", cPlayerId, cLoaded ? "added" : "removed");
-    if (cLoaded)
-        m_dispatcher.trigger(ActorAddedEvent(cPlayerId));
-    else
-        m_dispatcher.trigger(ActorRemovedEvent(cPlayerId));
+    // Removals first, as the original DiscoveryService did.
+    Vector<uint32_t> removed;
+    for (const uint32_t cFormId : m_discoveredActors)
+        if (!loaded.count(cFormId))
+            removed.push_back(cFormId);
+    for (const uint32_t cFormId : removed)
+    {
+        m_discoveredActors.erase(cFormId);
+        spdlog::debug("Actor discovery: {:X} removed", cFormId);
+        m_dispatcher.trigger(ActorRemovedEvent(cFormId));
+    }
+
+    for (const uint32_t cFormId : loaded)
+    {
+        if (!m_discoveredActors.insert(cFormId).second)
+            continue;
+        spdlog::debug("Actor discovery: {:X} added", cFormId);
+        m_dispatcher.trigger(ActorAddedEvent(cFormId));
+    }
 }
 
 void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept

@@ -84,6 +84,7 @@ public:
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
+    std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override;
     // --- IActorBridge extended (Plan 03) ---
     ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
