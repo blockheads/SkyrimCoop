@@ -85,6 +85,34 @@ void Runtime::PollConsoleCommand()
     ExecuteConsoleCommand(line.c_str() + separator + 1);
 }
 
+// Names of the open menus (what blocks input: popups, console, menus).
+static nlohmann::json OpenMenus()
+{
+    auto names = nlohmann::json::array();
+    if (UI* pUI = UI::Get())
+        for (IMenu* pMenu : pUI->menuStack)
+            if (const BSFixedString* pName = pUI->LookupMenuNameByInstance(pMenu))
+                names.push_back(pName->AsAscii());
+    return names;
+}
+
+// Tutorial help popups ("Magicka Low", "Health Low"...) swallow all input and console commands
+// until closed, which stalls the test harness: close them as soon as they open.
+static void CloseTutorialPopups()
+{
+    UI* pUI = UI::Get();
+    if (!pUI || !pUI->GetMenuOpen("Tutorial Menu"))
+        return;
+    using TAddMessage = void(void*, const BSFixedString*, uint32_t, void*);
+    POINTER_SKYRIMSE(TAddMessage, s_addMessage, 13631); // UIMessageQueue::AddMessage
+    VersionDbPtr<void*> queue(400445);                   // UIMessageQueue singleton (RVA 0x20F8950)
+    if (!*queue.Get())
+        return;
+    const BSFixedString cName("Tutorial Menu");
+    s_addMessage.Get()(*queue.Get(), &cName, UIMessage::kHide, nullptr);
+    spdlog::info("Closed a tutorial popup");
+}
+
 // Game form IDs of the items an actor has equipped (worn armor, weapons, spells).
 static nlohmann::json EquippedItems(uint32_t aFormId)
 {
@@ -135,6 +163,18 @@ static nlohmann::json Identity(uint32_t aFormId)
     auto& actors = World::Get().GetActorBridge();
     return {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
             {"race", actors.GetActorRaceFormId(aFormId)}};
+}
+
+// Active magic effects: abilities and worn enchantments are permanent (duration 0), spells and
+// hits are timed. Flags: 0x8000 inactive, 0x40000 dispelled.
+static nlohmann::json ActiveEffects(uint32_t aFormId)
+{
+    auto effects = nlohmann::json::array();
+    for (const auto& cEffect : World::Get().GetActorBridge().GetActorActiveEffects(aFormId))
+        effects.push_back({{"effect", cEffect.EffectFormId}, {"spell", cEffect.SpellFormId},
+                           {"caster", cEffect.CasterFormId}, {"magnitude", cEffect.Magnitude},
+                           {"duration", cEffect.Duration}, {"elapsed", cEffect.Elapsed}, {"flags", cEffect.Flags}});
+    return effects;
 }
 
 // Everything this game knows about one actor, for the desync checker (coop_test.py desync): the
@@ -202,10 +242,13 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                     {"max_magicka", actors.GetActorPermanentValue(aFormId, 25)},
                     {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}}},
         {"equipment", EquippedItems(aFormId)},
+        {"effects", ActiveEffects(aFormId)},
         {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},
                        {"action", latest.ActionId}, {"idle", latest.IdleId},
                        {"state1", latest.State1}, {"state2", latest.State2}}},
         {"mod", mod},
+        // AI runs only on the owner (a copy's is disabled), so this is shown, not compared.
+        {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}}},
     };
 }
 
@@ -267,7 +310,10 @@ void Runtime::Poll()
     m_nextPoll = now + std::chrono::milliseconds(250);
     PollBootCommand();
     if (m_bootState == "executed")
+    {
         PollConsoleCommand();
+        CloseTutorialPopups();
+    }
     std::ifstream requestFile(m_directory / "request.txt");
     if (!requestFile) return; // Opt-in by publishing a module.
     char buffer[128]{};
@@ -334,7 +380,8 @@ void Runtime::Poll()
         {"actors", actors}, {"session", PollSession(m_directory)},
         {"steam", CoopSteam::Poll(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
-        {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()}
+        {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()},
+        {"menus", OpenMenus()}
     };
     const auto temporary = m_directory / "status.json.tmp";
     const auto destination = m_directory / "status.json";

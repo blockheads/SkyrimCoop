@@ -2,6 +2,7 @@
 
 #include <GameServer.h>
 #include <World.h>
+#include <Components.h>
 
 #include <Messages/SpellCastRequest.h>
 #include <Messages/InterruptCastRequest.h>
@@ -63,7 +64,14 @@ void MagicService::OnAddTargetRequest(const PacketEvent<AddTargetRequest>& acMes
     notify.ApplyHealPerkBonus = message.ApplyHealPerkBonus;
     notify.ApplyStaminaPerkBonus = message.ApplyStaminaPerkBonus;
 
-    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
+    // Direct authority: only the target's owner applies the effect.
+    const auto ownerView = m_world.view<OwnerComponent>();
+    const auto it = ownerView.find(static_cast<entt::entity>(message.TargetId));
+    if (it == ownerView.end())
+        return;
+    Player* pOwner = ownerView.get<OwnerComponent>(*it).GetOwner();
+    if (pOwner && pOwner != acMessage.pPlayer)
+        pOwner->Send(notify);
 }
 
 void MagicService::OnRemoveSpellRequest(const PacketEvent<RemoveSpellRequest>& acMessage) const noexcept

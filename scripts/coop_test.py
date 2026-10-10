@@ -384,7 +384,8 @@ def face_actor(actor_id):
     """Turns the player toward an actor so it is on screen (for screenshots / `watch`)."""
     status = read_status() or {}
     player = (status.get("player") or {}).get("position")
-    actor = status.get("actors", {}).get(str(actor_id), {}).get("actual")
+    actor = (status.get("actors", {}).get(str(actor_id), {}).get("actual")
+             or ((status.get("world") or {}).get(str(actor_id)) or {}).get("placement", {}).get("position"))
     if not player or not actor:
         return
     # Skyrim heading: degrees clockwise from north (+Y).
@@ -477,6 +478,11 @@ def command_duo(args):
         select_instance("client")
         start_session(f"join {port}")
         log("Client joined the host")
+        # Test players never run low on magicka: the "Magicka Low" help popup blocks all input
+        # (bShowTutorials does not suppress it).
+        for name in ("", "client"):
+            select_instance(name)
+            run_console("player.setav magicka 5000")
         # Both players spawn on the same spot: step the client aside so each can see the other.
         select_instance("")
         host_position = ((read_status() or {}).get("player") or {}).get("position")
@@ -612,6 +618,34 @@ def scenario_equip_client_player():
     equip_roundtrip("client", "player", "", remote_player, "client's character")
 
 
+def hold_key(instance, key, seconds):
+    """Holds a key in an instance's game for `seconds` (e.g. walking)."""
+    select_instance(instance)
+    env = dict(os.environ, DISPLAY=VIRTUAL_DISPLAY)
+    windows = subprocess.run(["xdotool", "search", "--name", "^Skyrim"], env=env,
+                             capture_output=True, text=True).stdout.split()
+    if not windows:
+        raise TestFailure(f"[{instance or 'host'}] game window not found on {VIRTUAL_DISPLAY}")
+    for command in (["windowfocus", windows[0]], ["keydown", key]):
+        subprocess.run(["xdotool", *command], env=env, check=True, stderr=subprocess.DEVNULL)
+    time.sleep(seconds)
+    subprocess.run(["xdotool", "keyup", key], env=env, check=True, stderr=subprocess.DEVNULL)
+
+
+def approach(instance, target, back_seconds):
+    """Puts the instance's player in front of `target` (form id in that game), facing it: teleport
+    onto it (the game finds a valid spot) and walk backwards. Raw setpos can drop the player
+    through the floor."""
+    console_on(instance, f"player.moveto {target:08X}")
+    time.sleep(1.0)
+    select_instance(instance)
+    face_actor(target)
+    hold_key(instance, "s", back_seconds)
+    time.sleep(0.4)
+    select_instance(instance)
+    face_actor(target)
+
+
 def key_on(instance, key):
     """Presses a key in an instance's game window (off-screen display), like a player would."""
     select_instance(instance)
@@ -669,6 +703,7 @@ def scenario_draw_client_player():
 
 
 FLAMES = 0x00012FCD  # concentration spell: synced through spell cast + interrupt messages
+FIREBOLT = 0x00012FD0  # fire-and-forget spell
 RIGHT_HAND = 1
 
 
@@ -923,11 +958,7 @@ def scenario_repair_equipment_drift():
 def scenario_melee_client_hits_host_npc():
     """Client hits the host's NPC with a sword; the host's real NPC must lose health."""
     npc, replica = ensure_host_npc()
-    target = actors_on("client")[str(replica)]["actual"]
-    place("client", "player", (target[0] + 70, target[1], target[2]), local_player("client")["position"])
-    time.sleep(1.0)
-    select_instance("client")
-    face_actor(replica)
+    approach("client", replica, 0.25)
     console_on("client", f"player.additem {IRON_SWORD:08X} 1")
     console_on("client", f"player.equipitem {IRON_SWORD:08X}")
     press_until("client", "r", lambda me: me.get("weapon_drawn"), "drawing the sword")
@@ -952,6 +983,88 @@ def scenario_melee_client_hits_host_npc():
         press_until("client", "r", lambda me: not me.get("weapon_drawn"), "sheathing the sword")
 
 
+def cast_at(instance, target, spell, hold_seconds, until, attempts=4):
+    """In an instance's game: stand 150 units from `target` (form id in that game), face it, ready
+    `spell` and cast (hold, release) until `until()` is true. Calls `during()` while waiting."""
+    approach(instance, target, 0.8)
+    console_on(instance, f"player.addspell {spell:08X}")
+    console_on(instance, f"player.equipspell {spell:08X} right")
+    console_on(instance, "player.restoreav magicka 1000")
+    press_until(instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+    try:
+        for _ in range(attempts):
+            mouse_on(instance, "mousedown")
+            time.sleep(hold_seconds)
+            mouse_on(instance, "mouseup")
+            end = time.time() + 2.0
+            while time.time() < end:
+                if until():
+                    return True
+                time.sleep(0.1)
+        return False
+    finally:
+        press_until(instance, "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
+
+
+def spell_hits_host_npc(spell, hold_seconds):
+    """Client casts `spell` at the host's NPC. The host's real NPC must take the damage, and the
+    client's copy must only ever show the host's value: a copy that drops below its owner applied
+    the effect itself (two games simulating one actor)."""
+    npc, replica = ensure_host_npc()
+    approach("client", replica, 0.8)
+    console_on("client", f"player.addspell {spell:08X}")
+    console_on("client", f"player.equipspell {spell:08X} right")
+    console_on("client", "player.restoreav magicka 1000")
+    press_until("client", "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+    before = host_npc_state(npc).get("health")
+    log(f"host's real NPC health before: {before:.0f}")
+    worst_gap = 0.0
+    def sample():
+        nonlocal worst_gap
+        owner = host_npc_state(npc).get("health")
+        copy = actors_on("client").get(str(replica), {}).get("health")
+        if owner is not None and copy is not None:
+            worst_gap = max(worst_gap, owner - copy)
+        return owner
+    try:
+        for _ in range(4):  # cast until something lands
+            mouse_on("client", "mousedown")
+            end = time.time() + hold_seconds
+            while time.time() < end:
+                sample(); time.sleep(0.1)
+            mouse_on("client", "mouseup")
+            end = time.time() + 2.0
+            while time.time() < end:
+                sample(); time.sleep(0.1)
+            now = sample()
+            if now is not None and now < before - 1:
+                log(f"host's real NPC health after the client's spell: {now:.0f}")
+                break
+        else:
+            raise TestFailure(f"host's NPC health stayed at {host_npc_state(npc).get('health')} (before {before}); "
+                              f"client's copy went down to {before - worst_gap:.0f}" if worst_gap > 1 else
+                              f"host's NPC health stayed at {host_npc_state(npc).get('health')} (before {before})")
+        if worst_gap > 5:
+            raise TestFailure(f"the client's copy dropped {worst_gap:.0f} below the host's real NPC: "
+                              "the client applied the spell to its copy itself")
+        wait_on("client", "NPC copy health matches the host's",
+                lambda actors: close(actors.get(str(replica), {}).get("health"), host_npc_state(npc).get("health")))
+        hold()
+    finally:
+        console_on("", f"{npc:08X}.resurrect")
+        press_until("client", "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
+
+
+def scenario_firebolt_client_hits_host_npc():
+    """Client's Firebolt hits the host's NPC: only the host applies it."""
+    spell_hits_host_npc(FIREBOLT, 1.0)  # charge, then release to fire
+
+
+def scenario_flames_client_hits_host_npc():
+    """Client's Flames stream hits the host's NPC: only the host applies it."""
+    spell_hits_host_npc(FLAMES, 2.0)
+
+
 SCENARIOS = {
     "steady-state": scenario_steady_state,
     "equip-host-player": scenario_equip_host_player,
@@ -969,6 +1082,8 @@ SCENARIOS = {
     "move-host-npc": scenario_move_host_npc,
     "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
     "repair-equipment-drift": scenario_repair_equipment_drift,
+    "firebolt-client-hits-host-npc": scenario_firebolt_client_hits_host_npc,
+    "flames-client-hits-host-npc": scenario_flames_client_hits_host_npc,
     "steady-state-after": scenario_steady_state,
 }
 
@@ -1027,6 +1142,8 @@ def status_table():
 # Snapshot() is checked without touching this code. Rules below only say how to compare a field
 # (tolerances) or why a field is expected to differ.
 
+# Differences the design does not handle yet: reported by `desync`, but they do not fail scenarios.
+KNOWN_GAP = "known gap (copies do not show magic effects yet): "
 POSITION_TOLERANCE = 50.0   # units; copies trail the owner by the interpolation delay
 ANGLE_TOLERANCE = 0.35      # radians
 VALUE_TOLERANCE = 1.0       # actor values
@@ -1043,8 +1160,18 @@ def flatten(tree, prefix=""):
 
 def compare_field(field, owner, copy, owner_snapshot):
     """Returns None when the copy agrees with the owner, else a short reason."""
-    if field.startswith("mod.") or field in ("role", "identity.template_base", "identity.temporary_base"):
-        return None  # the mod's bookkeeping differs by design (Local vs Remote); checked separately
+    if field.startswith(("mod.", "ai.")) or field in ("role", "identity.template_base", "identity.temporary_base"):
+        return None  # bookkeeping (Local vs Remote) and AI (owner only) differ by design
+    if field == "effects":  # copies carry no abilities or worn enchantments: compare timed effects
+        timed = lambda effects: sorted((e["effect"], e["spell"], round(e["magnitude"])) for e in effects or []
+                                       if e["duration"] > 0 and not e["flags"] & 0x48000)
+        missing = set(timed(owner)) - set(timed(copy))
+        extra = set(timed(copy)) - set(timed(owner))
+        if not missing and not extra:
+            return None
+        fmt = lambda items: ",".join(f"{e:08X}/{s:08X}" for e, s, _ in sorted(items))
+        return KNOWN_GAP + " ".join(filter(None, [missing and "copy lacks " + fmt(missing),
+                                                  extra and "copy also has " + fmt(extra)]))
     if field == "identity.base" and (owner_snapshot["player"] or owner_snapshot["identity"]["temporary_base"]):
         return None  # players and leveled spawns are rebuilt on a new base: name and race are compared
     if field == "identity.name" and owner_snapshot["player"]:
@@ -1128,11 +1255,11 @@ def find_desyncs():
     return problems
 
 
-def check_desync(samples=3, interval=1.0):
+def check_desync(samples=3, interval=1.0, include_known=False):
     """Only differences seen in every sample count (copies legitimately lag for a moment)."""
     persistent = None
     for index in range(samples):
-        current = dict(find_desyncs())
+        current = {k: v for k, v in find_desyncs() if include_known or KNOWN_GAP not in v}
         persistent = current if persistent is None else {k: v for k, v in current.items() if k in persistent}
         if not persistent:
             return []
@@ -1143,11 +1270,14 @@ def check_desync(samples=3, interval=1.0):
 
 def command_desync(args):
     while True:
-        problems = check_desync(args.samples, args.interval)
+        problems = check_desync(args.samples, args.interval, include_known=True)
+        real = [p for p in problems if KNOWN_GAP not in p]
         report = "\n".join(problems) if problems else "in sync: every copy matches its owner"
+        if problems and not real:
+            report += "\n(only known gaps: in sync otherwise)"
         if not args.follow:
             print(report)
-            if problems:
+            if real:
                 raise SystemExit(1)
             return
         print("\033[2J\033[H" + time.strftime("%H:%M:%S ") + report + "\n\n(Ctrl+C to stop)", flush=True)

@@ -80,6 +80,7 @@ public:
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override;
+    std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept override;
     std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override;
     ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;

@@ -702,7 +702,6 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
             extraInventory.Entries.push_back(std::move(entry));
     }
 
-    spdlog::debug("ExtraInventory count: {}", extraInventory.Entries.size());
 
     Inventory minimizedExtraInventory{};
 
@@ -719,7 +718,6 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
         duplicate->Count += entry.Count;
     }
 
-    spdlog::debug("MinExtraInventory count: {}", minimizedExtraInventory.Entries.size());
 
     for (auto& entry : minimizedExtraInventory.Entries)
     {
@@ -735,15 +733,12 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
         duplicate->Count = 0;
     }
 
-    spdlog::debug("MinExtraInventory count after: {}", minimizedExtraInventory.Entries.size());
 
     inventory.Entries.insert(inventory.Entries.end(), minimizedExtraInventory.Entries.begin(), minimizedExtraInventory.Entries.end());
 
-    spdlog::debug("Inventory count before: {}", inventory.Entries.size());
 
     inventory.RemoveByFilter([](const auto& entry) { return entry.Count == 0; });
 
-    spdlog::debug("Inventory count after: {}", inventory.Entries.size());
 
     return inventory;
 }

@@ -348,6 +348,7 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, 24, newHealth);
 
     const float health = m_actorBridge.GetActorValue(formId, 24);
+    spdlog::debug("Applied forwarded hit on {:X}: delta {:f}, health now {:f}", formId, acMessage.DeltaHealth, health);
     if (!m_actorBridge.IsActorDead(formId) && health <= 0.f)
     {
         // Players should never be killed

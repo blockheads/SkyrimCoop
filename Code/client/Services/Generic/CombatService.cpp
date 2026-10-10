@@ -44,7 +44,10 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
     const auto shooterEntityIt = std::find_if(std::begin(view), std::end(view), [shooterFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == shooterFormId; });
 
     if (shooterEntityIt == std::end(view))
+    {
+        spdlog::debug("Projectile launched by {:X}: not ours, not sent", shooterFormId);
         return;
+    }
 
     LocalComponent& localComponent = view.get<LocalComponent>(*shooterEntityIt);
 
@@ -83,11 +86,13 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
     request.UnkBool2 = acEvent.UnkBool2;
 
     m_transport.Send(request);
+    spdlog::debug("Projectile launched by {:X} (spell {:X}): sent", shooterFormId, acEvent.SpellID);
 }
 
 void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMessage) const noexcept
 {
     ModSystem& modSystem = World::Get().GetModSystem();
+    spdlog::debug("Projectile from server id {:X} received", acMessage.ShooterID);
 
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
     const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ShooterID](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
@@ -112,6 +117,7 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
     const uint32_t cAmmoId          = modSystem.GetGameId(acMessage.AmmoID);
     const uint32_t cSpellId         = modSystem.GetGameId(acMessage.SpellID);
 
+    spdlog::debug("Projectile from server id {:X}: relaunching", acMessage.ShooterID);
     m_formBridge.LaunchProjectile(
         formIdComponent.Id,
         cParentCellId,

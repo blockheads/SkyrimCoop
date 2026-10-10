@@ -82,6 +82,8 @@ Actor* MagicTarget::GetTargetAsActor()
 bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& arData)
 {
     Actor* pTargetActor = apThis->GetTargetAsActor();
+    spdlog::trace("HookAddTarget: target {:X}, caster {:X}, spell {:X}", pTargetActor ? pTargetActor->formID : 0,
+                  arData.pCaster ? arData.pCaster->formID : 0, arData.pSpell ? arData.pSpell->formID : 0);
     if (!pTargetActor || arData.IsForbiddenEffect(pTargetActor))
         return TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
 
@@ -104,81 +106,48 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
     addTargetEvent.Magnitude = arData.fMagnitude;
     addTargetEvent.IsDualCasting = arData.bDualCast;
 
-    if (pTargetActorEx->IsRemotePlayer())
+    // Direct authority: the caster's game decides that a spell hit, and only the target's owner
+    // applies it (effects requested by others arrive through MagicTarget::AddTarget, which skips
+    // this hook). Copies never apply effects themselves; they show the owner's resulting state.
+    ActorExtension* pCasterExtension = arData.pCaster ? arData.pCaster->GetExtension() : nullptr;
+    const bool cCasterIsCopy = pCasterExtension && pCasterExtension->IsRemote();
+
+    if (pTargetActorEx->IsRemote())
     {
-        if (!arData.pCaster)
+        // Someone else's actor hit by someone else's spell, or by nothing of ours: their games
+        // handle it.
+        if (!arData.pCaster || cCasterIsCopy)
             return false;
 
-        if (!arData.pSpell->IsHealingSpell() && !arData.pSpell->IsBuffSpell())
-            return false;
-
-        ActorExtension* pCasterExtension = arData.pCaster->GetExtension();
-        if (!pCasterExtension->IsLocalPlayer())
-            return false;
-
-        if (arData.pSpell->IsHealingSpell())
+        if (pTargetActorEx->IsRemotePlayer())
         {
-            addTargetEvent.ApplyHealPerkBonus = arData.pCaster->HasPerk(0x581f8);
-            addTargetEvent.ApplyStaminaPerkBonus = arData.pCaster->HasPerk(0x581f9);
-        }
+            const bool cFriendly = arData.pSpell->IsHealingSpell() || arData.pSpell->IsBuffSpell();
+            if (!cFriendly && !World::Get().GetServerSettings().PvpEnabled)
+                return false;
 
-        bool result = TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
-        if (result)
-            World::Get().GetRunner().Trigger(addTargetEvent);
-        return result;
-    }
-
-    if (pTargetActorEx->IsLocalPlayer())
-    {
-        if (arData.pCaster)
-        {
-            ActorExtension* pCasterExtension = arData.pCaster->GetExtension();
-            if (pCasterExtension->IsRemotePlayer())
+            if (arData.pSpell->IsHealingSpell())
             {
-                if (!World::Get().GetServerSettings().PvpEnabled)
-                    return false;
-
-                // Heal and buff spells are already synced by the caster.
-                if (arData.pSpell->IsHealingSpell() || arData.pSpell->IsBuffSpell())
-                    return false;
+                addTargetEvent.ApplyHealPerkBonus = arData.pCaster->HasPerk(0x581f8);
+                addTargetEvent.ApplyStaminaPerkBonus = arData.pCaster->HasPerk(0x581f9);
             }
         }
 
-        bool result = TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
-        if (result && arData.ShouldSync())
+        // Our spell hit their actor: ask the owner to apply it.
+        if (arData.ShouldSync())
             World::Get().GetRunner().Trigger(addTargetEvent);
-        return result;
-    }
-
-    if (arData.pCaster)
-    {
-        ActorExtension* pCasterExtension = arData.pCaster->GetExtension();
-        if (pCasterExtension->IsLocalPlayer())
-        {
-            bool result = TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
-            if (result && arData.ShouldSync())
-                World::Get().GetRunner().Trigger(addTargetEvent);
-            return result;
-        }
-        else if (pCasterExtension->IsRemotePlayer())
-        {
-            // Send out a HitEvent because TakeDamage is never triggered.
-            World::Get().GetRunner().Trigger(HitEvent(arData.pCaster->formID, pTargetActor->formID));
-            return false;
-        }
-    }
-
-    if (pTargetActorEx->IsLocal())
-    {
-        bool result = TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
-        if (result && arData.ShouldSync())
-            World::Get().GetRunner().Trigger(addTargetEvent);
-        return result;
-    }
-    else
-    {
         return false;
     }
+
+    // Our actor. A replayed spell from someone else's character also lands here, but its caster's
+    // game already sent us the request for this hit: applying it too would double it.
+    if (cCasterIsCopy)
+    {
+        // Send out a HitEvent because TakeDamage is never triggered (combat targeting).
+        World::Get().GetRunner().Trigger(HitEvent(arData.pCaster->formID, pTargetActor->formID));
+        return false;
+    }
+
+    return TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
 }
 
 bool TP_MAKE_THISCALL(HookCheckAddEffectTargetData, MagicTarget::AddTargetData, void* arArgs, float afResistance)

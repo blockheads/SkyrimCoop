@@ -39,6 +39,8 @@
 #include <Services/QuestService.h>
 #include <Forms/MagicItem.h>
 #include <Magic/MagicTarget.h>
+#include <Effects/ActiveEffect.h>
+#include <Magic/EffectItem.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_WerewolfBehavior.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_VampireLordBehavior.h>
 #include <Systems/FaceGenSystem.h>
@@ -463,8 +465,11 @@ uint32_t SkyrimBridge::GetActiveMagicItemFormId(uint32_t aFormId, uint32_t aSlot
 
 uint32_t SkyrimBridge::GetCombatTargetFormId(uint32_t aFormId) const noexcept
 {
-    // TODO(02.5-02): implement via pCombatController
-    return 0;
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->pCombatController)
+        return 0;
+    Actor* pTarget = pActor->GetCombatTarget();
+    return pTarget ? pTarget->formID : 0;
 }
 
 uint32_t SkyrimBridge::GetActorBaseFormId(uint32_t aFormId) const noexcept
@@ -487,6 +492,43 @@ uint32_t SkyrimBridge::GetActorRaceFormId(uint32_t aFormId) const noexcept
     if (Actor* pActor = GetActor(aFormId))
         return pActor->race ? pActor->race->formID : 0;
     return 0;
+}
+
+std::vector<IActorBridge::ActiveEffectInfo> SkyrimBridge::GetActorActiveEffects(uint32_t aFormId) const noexcept
+{
+    std::vector<ActiveEffectInfo> result;
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return result;
+
+    // MagicTarget::GetActiveEffectList is vtable slot 7 (CommonLibSSE); the list is a
+    // BSSimpleList<ActiveEffect*>: an inline head node {item, next}.
+    struct Node
+    {
+        ActiveEffect* pItem;
+        Node* pNext;
+    };
+    MagicTarget* pTarget = &pActor->magicTarget;
+    using TGetList = Node* (*)(MagicTarget*);
+    const auto cGetList = reinterpret_cast<TGetList>((*reinterpret_cast<void***>(pTarget))[7]);
+    for (Node* pNode = cGetList(pTarget); pNode; pNode = pNode->pNext)
+    {
+        ActiveEffect* pEffect = pNode->pItem;
+        if (!pEffect)
+            continue;
+        ActiveEffectInfo info;
+        auto* pEffectItem = static_cast<EffectItem*>(pEffect->pEffect);
+        info.EffectFormId = pEffectItem && pEffectItem->pEffectSetting ? pEffectItem->pEffectSetting->formID : 0;
+        info.SpellFormId = pEffect->pSpell ? pEffect->pSpell->formID : 0;
+        if (TESObjectREFR* pCaster = TESObjectREFR::GetByHandle(pEffect->hCaster))
+            info.CasterFormId = pCaster->formID;
+        info.Magnitude = pEffect->fMagnitude;
+        info.Duration = pEffect->fDuration;
+        info.Elapsed = pEffect->fElapsedSeconds;
+        info.Flags = pEffect->uiFlags;
+        result.push_back(info);
+    }
+    return result;
 }
 
 bool SkyrimBridge::IsAnimationGraphReady(uint32_t aFormId) const noexcept

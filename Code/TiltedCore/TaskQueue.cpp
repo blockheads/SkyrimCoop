@@ -18,14 +18,19 @@ namespace TiltedPhoques
 
     size_t TaskQueue::Drain() noexcept
     {
-        size_t count = 0;
-
-        std::scoped_lock _{ m_mutex };
-
-        std::function<void()> func;
-        while (UnsafePop(func))
+        // Take the tasks out under the lock, but run them without it: a task may queue more work
+        // (e.g. a game hook firing while the task runs), which would otherwise deadlock on m_mutex.
+        decltype(m_tasks) tasks;
         {
-            func();
+            std::scoped_lock _{ m_mutex };
+            std::swap(tasks, m_tasks);
+        }
+
+        size_t count = 0;
+        while (!tasks.empty())
+        {
+            tasks.front()();
+            tasks.pop();
             ++count;
         }
 

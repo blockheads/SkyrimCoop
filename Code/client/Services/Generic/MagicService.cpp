@@ -226,19 +226,13 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
     if (!m_transport.IsConnected())
         return;
 
-    // These effects are applied through spell cast sync
+    // Self-only effects follow the caster's own state. Everything else that hits another
+    // game's actor, concentration spells included, is a request for that actor's owner.
     if (m_formBridge.FormExists(acEvent.SpellID))
     {
-        const bool cIsConcentration = m_formBridge.IsConcentrationSpell(acEvent.SpellID);
-        const bool cIsHealing = m_formBridge.IsHealingSpell(acEvent.SpellID);
-        const bool cIsWard = m_formBridge.IsWardSpell(acEvent.SpellID);
-        const bool cIsInvis = m_formBridge.IsInvisibilitySpell(acEvent.SpellID);
-        const bool cIsBound = m_formBridge.IsBoundWeaponSpell(acEvent.SpellID);
-
-        if ((cIsConcentration && !cIsHealing) || cIsWard || cIsInvis || cIsBound)
-        {
+        if (m_formBridge.IsWardSpell(acEvent.SpellID) || m_formBridge.IsInvisibilitySpell(acEvent.SpellID) ||
+            m_formBridge.IsBoundWeaponSpell(acEvent.SpellID))
             return;
-        }
     }
 
     AddTargetRequest request{};
@@ -350,6 +344,13 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
             m_queuedRemoteEffects.push(acMessage);
             return;
         }
+    }
+
+    // Only the owner applies effects; a copy shows the owner's result.
+    if (m_actorBridge.IsActorRemote(cTargetFormId))
+    {
+        spdlog::warn("{}: effect for a copy ({:X}) ignored", __FUNCTION__, cTargetFormId);
+        return;
     }
 
     m_formBridge.AddMagicTargetEffect(cTargetFormId, cCasterFormId, cSpellId, cEffectId,

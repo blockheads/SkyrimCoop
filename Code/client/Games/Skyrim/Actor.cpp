@@ -969,6 +969,10 @@ TP_THIS_FUNCTION(TDamageActor, bool, Actor, float aDamage, Actor* apHitter, bool
 static TDamageActor* RealDamageActor = nullptr;
 
 // TODO: this is flawed, since it does not account for invulnerable actors
+// Set while an active effect applies its value (HookApplyActorEffect): damage then comes from an
+// effect this game owns, never from a replayed melee swing.
+static thread_local bool s_applyingEffect = false;
+
 bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bool aKillMove)
 {
     if (apHitter)
@@ -1010,6 +1014,14 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
         }
         if (pExHitter->IsRemotePlayer())
         {
+            // Our actor, damaged by an effect we applied at that player's request (see HookAddTarget):
+            // apply it with them as the attacker, so the game handles aggro and kill credit.
+            if (s_applyingEffect && pExHittee->IsLocal())
+            {
+                World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
+                return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
+            }
+            // Otherwise their replayed swing hit our actor; their game already sent the request.
             return wouldKill;
         }
     }
@@ -1030,6 +1042,12 @@ static TApplyActorEffect* RealApplyActorEffect = nullptr;
 
 void TP_MAKE_THISCALL(HookApplyActorEffect, ActiveEffect, Actor* apTarget, float aEffectValue, unsigned int unk1)
 {
+    struct ScopedEffect
+    {
+        ScopedEffect() { s_applyingEffect = true; }
+        ~ScopedEffect() { s_applyingEffect = false; }
+    } scope;
+
     const auto* pValueModEffect = Cast<ValueModifierEffect>(apThis);
 
     if (pValueModEffect)
