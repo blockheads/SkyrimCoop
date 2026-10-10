@@ -744,6 +744,115 @@ def scenario_equip_host_npc():
                     f"NPC replica {replica:08X}")
 
 
+def close(a, b, tolerance=1.0):
+    return a is not None and b is not None and abs(a - b) <= tolerance
+
+
+def health_roundtrip(actor_instance, ref, real_health, observer, observed, label):
+    """Damages then restores health on `ref` in its owner's game; the other game's copy must
+    show the owner's value each time (owners broadcast actor values once a second)."""
+    def matches():
+        def check(actors):
+            target = observed(actors)
+            real = real_health()
+            return target is not None and close(actors[str(target)].get("health"), real) and real
+        return check
+    show(observer, observed)
+    for command, what in ((f"{ref}.damageav health 40", "damaged"), (f"{ref}.restoreav health 40", "restored")):
+        console_on(actor_instance, command)
+        time.sleep(0.3)
+        health = wait_on(observer, f"{label} health matches after being {what}", matches())
+        log(f"{label}: health {health:.0f} on both sides")
+        hold()
+
+
+def scenario_health_host_player():
+    """Host player loses/regains health; the client's copy of the host must match."""
+    health_roundtrip("", "player", lambda: local_player("").get("health"), "client", remote_player, "host's character")
+
+
+def scenario_health_client_player():
+    """Client player loses/regains health; the host's copy of the client must match."""
+    health_roundtrip("client", "player", lambda: local_player("client").get("health"), "", remote_player,
+                     "client's character")
+
+
+def host_npc_state(npc):
+    return local_player("").get("local_actors", {}).get(str(npc), {})
+
+
+def scenario_health_host_npc():
+    """Host's NPC loses/regains health; the client's replica must match."""
+    npc, replica = ensure_host_npc()
+    health_roundtrip("", f"{npc:08X}", lambda: host_npc_state(npc).get("health"), "client",
+                     lambda actors: replica if str(replica) in actors else None, f"NPC replica {replica:08X}")
+
+
+CHICKEN = "000FA6D9"  # a plain non-essential creature (Lydia is essential: `kill` won't kill her)
+
+
+def spawn_host_npc(base):
+    """Host spawns a new NPC; returns (host ref id, client replica id) of the new one."""
+    host_before = set(local_player("").get("local_actors", {}))
+    client_before = remote_npcs(actors_on("client"))
+    console_on("", f"player.placeatme {base} 1")
+    npc = int(next(iter(wait_for("[host] new NPC loaded",
+                                 lambda: set(local_player("").get("local_actors", {})) - host_before, 15))))
+    replica = next(iter(wait_on("client", "new NPC replicated",
+                                lambda actors: remote_npcs(actors) - client_before)))
+    return npc, replica
+
+
+def scenario_death_host_npc():
+    """Host kills then resurrects an NPC it owns; the client's replica must die and come back."""
+    npc, replica = spawn_host_npc(CHICKEN)
+    show("client", lambda actors: replica if str(replica) in actors else None)
+    try:
+        for command, dead in ((f"{npc:08X}.kill", True), (f"{npc:08X}.resurrect", False)):
+            console_on("", command)
+            wait_for(f"[host] NPC {'dies' if dead else 'is alive again'}",
+                     lambda: host_npc_state(npc).get("dead") == dead, 10)
+            wait_on("client", f"NPC replica {replica:08X} {'dies' if dead else 'is alive again'}",
+                    lambda actors: actors.get(str(replica), {}).get("dead") == dead)
+            hold()
+    finally:
+        console_on("", f"{npc:08X}.disable")  # keep the scene to the players + Lydia for reruns
+
+
+def scenario_melee_client_hits_host_npc():
+    """Client hits the host's NPC with a sword; the host's real NPC must lose health."""
+    npc, replica = ensure_host_npc()
+    target = actors_on("client")[str(replica)]["actual"]
+    console_on("client", f"player.setpos x {target[0] + 70:.0f}")
+    console_on("client", f"player.setpos y {target[1]:.0f}")
+    console_on("client", f"player.setpos z {target[2]:.0f}")
+    time.sleep(0.5)
+    select_instance("client")
+    face_actor(replica)
+    console_on("client", f"player.additem {IRON_SWORD:08X} 1")
+    console_on("client", f"player.equipitem {IRON_SWORD:08X}")
+    press_until("client", "r", lambda me: me.get("weapon_drawn"), "drawing the sword")
+    before = host_npc_state(npc).get("health")
+    log(f"host's real NPC health before: {before:.0f}")
+    try:
+        for _ in range(8):  # swing until something lands
+            mouse_on("client", "mousedown"); time.sleep(0.15); mouse_on("client", "mouseup")
+            time.sleep(0.9)
+            now = host_npc_state(npc).get("health")
+            if now is not None and before is not None and now < before - 1:
+                log(f"host's real NPC health after the client's hits: {now:.0f}")
+                break
+        else:
+            raise TestFailure(f"host's NPC health stayed at {host_npc_state(npc).get('health')} (before {before})")
+        # The client's copy must show the host's value (no locally applied damage of its own).
+        wait_on("client", "NPC replica health matches the host's",
+                lambda actors: close(actors.get(str(replica), {}).get("health"), host_npc_state(npc).get("health")))
+        hold()
+    finally:
+        console_on("", f"{npc:08X}.resurrect")  # also restores health and calms it for reruns
+        press_until("client", "r", lambda me: not me.get("weapon_drawn"), "sheathing the sword")
+
+
 SCENARIOS = {
     "equip-host-player": scenario_equip_host_player,
     "equip-client-player": scenario_equip_client_player,
@@ -752,6 +861,11 @@ SCENARIOS = {
     "draw-client-player": scenario_draw_client_player,
     "cast-host-player": scenario_cast_host_player,
     "cast-client-player": scenario_cast_client_player,
+    "health-host-player": scenario_health_host_player,
+    "health-client-player": scenario_health_client_player,
+    "health-host-npc": scenario_health_host_npc,
+    "death-host-npc": scenario_death_host_npc,
+    "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
 }
 
 

@@ -97,6 +97,7 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
 void ActorValueService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     RunSmallHealthUpdates();
+    RunHealthUpdates();
     RunDeathStateUpdates();
     RunActorValuesUpdates();
 }
@@ -134,7 +135,9 @@ void ActorValueService::BroadcastActorValues() noexcept
 
             float newValue = m_actorBridge.GetActorValue(formId, i);
             float oldValue = actorValuesComponent.CurrentActorValues.ActorValuesList[i];
-            if (newValue != oldValue)
+            // Health always goes out: copies mirror the owner's value, so a copy that drifted
+            // is corrected even while the owner's health is unchanged.
+            if (newValue != oldValue || i == 24 /* kHealth */)
             {
                 requestValueChanges.Values.insert({i, newValue});
                 actorValuesComponent.CurrentActorValues.ActorValuesList[i] = newValue;
@@ -175,6 +178,11 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
         spdlog::warn("Health change event form id component not found, form id: {:X}", acEvent.HitteeId);
         return;
     }
+
+    // Our own actors' health reaches everyone through RunHealthUpdates. Only a hit on an actor
+    // someone else owns is sent: as a request the server forwards to that owner.
+    if (m_world.all_of<LocalComponent>(*hitteeIt))
+        return;
 
     std::optional<uint32_t> serverIdRes = Utils::GetServerId(*hitteeIt);
     if (!serverIdRes.has_value())
@@ -228,6 +236,39 @@ void ActorValueService::RunSmallHealthUpdates() noexcept
         }
 
         m_smallHealthChanges.clear();
+    }
+}
+
+// Direct authority: the owner's health is the truth. Send it within 100ms of a change (the
+// 1s BroadcastActorValues resends it regardless).
+void ActorValueService::RunHealthUpdates() noexcept
+{
+    if (!m_transport.IsConnected())
+        return;
+
+    static std::chrono::steady_clock::time_point lastSendTimePoint;
+    const auto now = std::chrono::steady_clock::now();
+    if (now - lastSendTimePoint < 100ms)
+        return;
+    lastSendTimePoint = now;
+
+    auto view = m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>();
+    for (auto entity : view)
+    {
+        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
+        if (!m_actorBridge.ActorExists(cFormId))
+            continue;
+
+        auto& values = view.get<ActorValuesComponent>(entity).CurrentActorValues.ActorValuesList;
+        const float cHealth = m_actorBridge.GetActorValue(cFormId, 24 /* kHealth */);
+        if (values[24] == cHealth)
+            continue;
+        values[24] = cHealth;
+
+        RequestActorValueChanges request;
+        request.Id = view.get<LocalComponent>(entity).Id;
+        request.Values.insert({24, cHealth});
+        m_transport.Send(request);
     }
 }
 
@@ -291,6 +332,10 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
         return;
     }
 
+    // The server only forwards hits to the actor's owner; never apply one to a copy.
+    if (m_actorBridge.IsActorRemote(formId))
+        return;
+
     // kHealth = 24 (ActorValueInfo::kHealth)
     const float newHealth = m_actorBridge.GetActorValue(formId, 24) + acMessage.DeltaHealth;
     m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, 24, newHealth);
@@ -328,7 +373,7 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
     for (const auto& [key, value] : acMessage.Values)
     {
         // Syncing dragon souls triggers "Dragon soul collected" event
-        if (key == 133 /* kDragonSouls */ || key == 24 /* kHealth */)
+        if (key == 133 /* kDragonSouls */)
             continue;
 
         spdlog::debug("Actor value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);

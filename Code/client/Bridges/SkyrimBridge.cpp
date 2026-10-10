@@ -490,6 +490,12 @@ bool SkyrimBridge::ActorHas3D(uint32_t aFormId) const noexcept
     return false;
 }
 
+bool SkyrimBridge::IsActorRemote(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->GetExtension()->IsRemote();
+}
+
 std::vector<uint32_t> SkyrimBridge::GetLoadedActorFormIds() const noexcept
 {
     std::vector<uint32_t> formIds;

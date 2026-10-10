@@ -109,6 +109,18 @@ static nlohmann::json ActorRotation(uint32_t aFormId)
     return {rotation[0], rotation[1], rotation[2]};
 }
 
+// Loaded actors this game simulates itself (on the host: every NPC it owns), with health.
+static nlohmann::json LocalActors()
+{
+    auto& actors = World::Get().GetActorBridge();
+    auto result = nlohmann::json::object();
+    for (const uint32_t cFormId : actors.GetLoadedActorFormIds())
+        if (!actors.IsActorRemote(cFormId))
+            result[std::to_string(cFormId)] = {{"health", actors.GetActorValue(cFormId, 24)},
+                                               {"dead", actors.IsActorDead(cFormId)}};
+    return result;
+}
+
 static nlohmann::json PlayerStatus()
 {
     auto& actors = World::Get().GetActorBridge();
@@ -119,7 +131,8 @@ static nlohmann::json PlayerStatus()
     actors.GetActorRotation(0x14, rotation[0], rotation[1], rotation[2]);
     return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}},
             {"loaded_actors", actors.GetLoadedActorFormIds()}, {"equipped", EquippedItems(0x14)},
-            {"weapon_drawn", actors.IsWeaponDrawn(0x14)}, {"casting", CastingSpells(0x14)}};
+            {"weapon_drawn", actors.IsWeaponDrawn(0x14)}, {"casting", CastingSpells(0x14)},
+            {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()}};
 }
 
 void Runtime::Poll()
@@ -179,7 +192,9 @@ void Runtime::Poll()
             {"rotation", ActorRotation(id)},
             {"remote_player", World::Get().GetActorBridge().IsRemotePlayer(id)},
             {"weapon_drawn", World::Get().GetActorBridge().IsWeaponDrawn(id)},
-            {"casting", CastingSpells(id)}
+            {"casting", CastingSpells(id)},
+            {"health", World::Get().GetActorBridge().GetActorValue(id, 24 /* kHealth */)},
+            {"dead", World::Get().GetActorBridge().IsActorDead(id)}
         };
     nlohmann::json status = {
         {"pid", GetCurrentProcessId()}, {"heartbeat_ms", unixMs},

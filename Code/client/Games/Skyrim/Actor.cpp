@@ -996,6 +996,10 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
         if (pExHitter->IsLocalPlayer())
         {
             World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
+            // Direct authority: a hit on an actor someone else owns (e.g. a host NPC) is only a
+            // request to that owner. Our copy mirrors the owner's health instead of applying it.
+            if (pExHittee->IsRemote())
+                return wouldKill;
             return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
         }
         if (pExHitter->IsRemotePlayer())

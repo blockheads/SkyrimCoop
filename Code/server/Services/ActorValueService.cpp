@@ -77,24 +77,22 @@ void ActorValueService::OnHealthChangeBroadcast(const PacketEvent<RequestHealthC
 {
     auto& message = acMessage.Packet;
 
-    // TODO(cosideci): should server side health not be updated?
-    auto actorValuesView = m_world.view<ActorValuesComponent, OwnerComponent>();
+    // Direct authority: a hit on someone else's actor is a request for that actor's owner (the
+    // host for NPCs). Only the owner applies it; everyone else gets the owner's resulting health
+    // through RequestActorValueChanges, which also keeps this server's copy current.
+    const auto ownerView = m_world.view<OwnerComponent>();
+    const auto it = ownerView.find(static_cast<entt::entity>(message.Id));
+    if (it == ownerView.end())
+        return;
 
-    auto it = actorValuesView.find(static_cast<entt::entity>(message.Id));
-
-    if (it != actorValuesView.end())
-    {
-        auto& actorValuesComponent = actorValuesView.get<ActorValuesComponent>(*it);
-        auto currentHealth = actorValuesComponent.CurrentActorValues.ActorValuesList[24];
-        actorValuesComponent.CurrentActorValues.ActorValuesList[24] = currentHealth - message.DeltaHealth;
-    }
+    Player* pOwner = ownerView.get<OwnerComponent>(*it).GetOwner();
+    if (!pOwner || pOwner == acMessage.pPlayer)
+        return;
 
     NotifyHealthChangeBroadcast notify;
     notify.Id = message.Id;
     notify.DeltaHealth = message.DeltaHealth;
-
-    const entt::entity cEntity = static_cast<entt::entity>(message.Id);
-    GameServer::Get()->SendToPlayers(notify, acMessage.pPlayer);
+    pOwner->Send(notify);
 }
 
 void ActorValueService::OnDeathStateChange(const PacketEvent<RequestDeathStateChange>& acMessage) const noexcept
