@@ -1,0 +1,2 @@
+{"dir":"c2s","opcode":0,"payload":"AAEABG5vbmUAQAFKb2luUGxheWVyAAAAAAAAAKBBAABAQQEBAQ==","peer":2,"ts":5.0,"type":"AuthenticationRequest"}
+{"dir":"c2s","opcode":2,"payload":"ARQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","peer":2,"ts":5.1,"type":"AssignCharacterRequest"}
