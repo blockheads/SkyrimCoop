@@ -258,6 +258,11 @@ Client (CharacterService)
 - `OverlayService` manages CEF lifecycle
 - UI state managed via NgELF reactive store
 
+### Reverse Engineering Reference
+- Start at `docs/re/README.md`: generated `docs/re/ENGINE_REFERENCE.md` lists every engine address (Address Library ID) the client uses with its CommonLibSSE/SKSE/meh321 name and hook/call usage; `docs/re/systems/` and `docs/re/crashes/` hold hand-written findings
+- Regenerate after adding/changing `POINTER_SKYRIMSE` IDs: `python3 scripts/re/build_re_data.py` (references fetched by `scripts/re/fetch_references.sh` into git-ignored `reference/`)
+- IDA database (not committed): `build/re/SkyrimSE_1.6.1170.i64`, built by `scripts/re/make_ida_db.sh`; sync with `scripts/re/ida_apply.py` / `ida_export.py`
+
 ### Animation Synchronization
 - `AnimationSystem` interpolates remote animations
 - `LocalAnimationComponent` / `RemoteAnimationComponent` track state
@@ -344,26 +349,24 @@ Direct dependencies managed via XMake:
 - [Nexus Mods Page](https://www.nexusmods.com/skyrimspecialedition/mods/69993)
 - Animation Mods Support: See README-ANIMATION-MODS.md
 
-<!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
 **SkyrimCoop**
 
-A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked from Tilted Online (Skyrim Together Reborn). Converts the original MMO-style client-server architecture to a host-based co-op model (2-4 players, drop-in via Steam invite). The entire toolchain builds and debugs natively on Linux, cross-compiling the Windows client DLL via MinGW following the LethalInjection pattern.
+A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked from Tilted Online (Skyrim Together Reborn). Converts the original MMO-style client-server architecture to a host-based co-op model (2-4 players, drop-in via Steam invite). The entire toolchain builds and debugs natively on Linux, cross-compiling the Windows client DLL with clang-cl (MSVC ABI) and xwin's Windows SDK.
 
 **Core Value:** Two friends can drop into Skyrim together on Linux with zero server setup — host clicks "host," friend joins via Steam invite, and it just works.
 
 ### Constraints
 
-- **Build system**: Must cross-compile Windows DLL from Linux via MinGW (LethalInjection pattern)
+- **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
+- **Testing**: `scripts/coop_test.py net` (headless bots), `game` (Skyrim + bot), `duo` (two Skyrim instances); games run off-screen, see the script docstring
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
 - **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
 - **License**: GPLv3 — all modifications must remain open source
 - **Mod compatibility**: Host's mod list is authoritative; clients must match to connect
 - **Platform**: Linux-first development, Windows compatibility maintained for end users
-<!-- GSD:project-end -->
 
-<!-- GSD:stack-start source:codebase/STACK.md -->
 ## Technology Stack
 
 ## Languages
@@ -456,9 +459,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **Symbol Upload:** Sentry CLI for uploading .pdb (Windows) and .debug (Linux) files
 - **Automatic Crash Reporting:** Sentry Integration with Crashpad backend, auto-session tracking disabled
 - **Debug Symbols:** BuildInfo.h auto-generated with branch and commit hash for telemetry
-<!-- GSD:stack-end -->
 
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
 ## Naming Patterns
@@ -561,9 +562,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - Avoid excessive macros
 - Use `#pragma once` for header guards (no `#ifndef` guards)
 - Example: all headers start with `#pragma once`
-<!-- GSD:conventions-end -->
 
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
 ## Pattern Overview
@@ -702,24 +701,3 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - `SerializeRaw()`: Full baseline state for new connections or periodic sync
 - `SerializeDifferential()`: Delta encoding for bandwidth optimization (e.g., only changed fields)
 - Quantization: `Vector3_NetQuantize` compresses float positions into 64-bit integers
-<!-- GSD:architecture-end -->
-
-<!-- GSD:workflow-start source:GSD defaults -->
-## GSD Workflow Enforcement
-
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
-
-Use these entry points:
-- `/gsd:quick` for small fixes, doc updates, and ad-hoc tasks
-- `/gsd:debug` for investigation and bug fixing
-- `/gsd:execute-phase` for planned phase work
-
-Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
-<!-- GSD:workflow-end -->
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->

@@ -19,6 +19,10 @@ This simplifies:
 
 This is a work-in-progress fork. For build instructions, see CLAUDE.md.
 
+For the Linux development workflow using one Skyrim instance, a network bot and
+reloadable movement code, see [HOT_RELOAD.md](HOT_RELOAD.md). Its validation notes
+distinguish standalone tests from actual in-game verification.
+
 ## Acknowledgments
 
 This project is based on [Tilted Online](https://github.com/tiltedphoques/TiltedEvolution) by Tilted Phoques. We are grateful for their excellent work creating the foundation for Skyrim multiplayer.

@@ -1,0 +1,4 @@
+id	rva	name	comment
+104788	0x1445fe0	BSScript::Internal::VirtualMachine::BindNativeMethod	vtable slot 0x18 of VirtualMachine (verified in IDA 2026-10-10); we hook it as HookRegisterPapyrusFunction
+104790	0x1446280	BSScript::Internal::VirtualMachine::SetCallableFromTasklets1	vtable slot 0x19; error strings 'Type %s does not exist. Function %s in state %s ...'. GCC vtable shift made our BindNativeMethod call land here
+104789	0x1446250	BSScript::Internal::VirtualMachine::SetCallableFromTasklets2	vtable slot 0x1a
