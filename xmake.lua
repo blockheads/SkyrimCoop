@@ -7,7 +7,9 @@ set_xmakever("2.8.5")
 -- For constrained machines: xmake -j4 (or lower)
 
 -- Enable ccache in devbuild mode for fast rebuilds (D-04)
--- Other modes keep ccache disabled (historical XMake compatibility)
+-- Other modes keep ccache disabled (historical XMake compatibility).
+-- Not in dev mode: xmake's compile cache ignores precompiled header contents, so
+-- editing a PCH header left every object stale (verified with a probe symbol).
 if set_policy ~= nil then
     if is_mode("devbuild") then
         set_policy("build.ccache", true)
@@ -82,7 +84,55 @@ add_vectorexts("sse", "sse2", "sse3", "ssse3")
 add_vectorexts("neon")
 
 -- build configurations
-add_rules("mode.debug", "mode.releasedbg", "mode.release", "mode.devbuild")
+add_rules("mode.debug", "mode.releasedbg", "mode.release", "mode.devbuild", "mode.dev")
+
+-- dev mode: fast edit-build-test loop for the client DLL.
+-- Usage: xmake f -p mingw -m dev --mingw=.toolchain
+-- Same NDEBUG behaviour as releasedbg, but -O1 and line-table debug info (-g1).
+-- Full -g made objects ~15x larger and the client DLL link ~9x slower
+-- (293s vs 32s); -g1 keeps file:line in backtraces.
+if is_plat("windows") then
+    -- clang-cl targeting the MSVC ABI from Linux: configure through scripts/xmake-msvc.sh,
+    -- which puts build/toolchains/msvc-bin first in PATH (clang-cl, lld-link shims) and
+    -- passes --sdk=build/toolchains/winsysroot (Windows SDK + MSVC CRT from xwin).
+    -- Engine classes are MSVC-compiled: only an MSVC-ABI compiler gets their vtable and
+    -- struct layouts right (see docs/re/systems/compiler-abi.md).
+    set_arch("x64")
+    add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00", "NOMINMAX")
+    -- spdlog 1.13's bundled fmt trips newer Clang's consteval checks; disable fmt's
+    -- compile-time format-string validation (formatting itself is unchanged).
+    add_defines("FMT_CONSTEVAL=")
+    -- Static CRT like upstream: the plugin carries no VC++ runtime DLL dependency.
+    set_runtimes("MT")
+    set_exceptions("cxx")
+    add_cxflags("/bigobj", "/Zc:__cplusplus", {tools = {"clang_cl", "cl"}})
+    -- Package CMake builds: Ninja instead of the Visual Studio generator.
+    set_policy("package.cmake_generator.ninja", true)
+end
+
+if is_mode("dev") and is_plat("mingw") then
+    -- lld links the client DLL in <1s vs ~44s for GNU ld (see the script header).
+    local lldlink = path.join(os.projectdir(), "scripts", "mingw_lld_link.py")
+    set_toolset("sh", "gxx@" .. lldlink)
+    set_toolset("ld", "gxx@" .. lldlink)
+    -- Thin archives reference the .obj files instead of copying them: re-archiving
+    -- the client after a one-file change took ~16s (349MB rewrite), now ~instant.
+    add_arflags("-T", {force = true})
+end
+rule("mode.dev")
+    on_config(function (target)
+        if is_mode("dev") then
+            target:set("optimize", "fast")
+            if target:is_plat("windows") then
+                -- clang-cl: PDB debug info; lld-link writes it quickly.
+                target:set("symbols", "debug")
+            else
+                target:add("cxflags", "-g1")
+            end
+            target:add("defines", "NDEBUG")
+        end
+    end)
+rule_end()
 
 -- Custom devbuild mode: fastest iteration speed (per D-06)
 -- Usage: xmake f -p mingw -m devbuild
@@ -115,10 +165,8 @@ add_requires(
     "entt v3.10.0",
     "recastnavigation v1.6.0",
     -- tiltedcore is now built from Code/TiltedCore/ instead of external package
-    "cryptopp 8.9.0",
     "spdlog v1.13.0",
     -- cpp-httplib is manually included from Code/external/cpp-httplib (bypasses xmake package check)
-    "gtest v1.14.0",
     "glm 0.9.9+8",
     "zlib v1.3.1",
     -- Merged library dependencies (formerly in submodules)
@@ -128,17 +176,24 @@ add_requires(
     -- enet6: Replaced GameNetworkingSockets with enet6 for simpler networking
     "enet6",
     "libuv v1.48.0",
-    "catch2 2.13.9",
     "nlohmann_json v3.11.3"
 )
 
 -- Windows/MinGW-only packages (Tier 3 client dependencies)
 if is_plat("windows") or is_plat("mingw") then
     add_requires("minhook v1.3.3", "xbyak v7.06")
-    -- mem is header-only; unsupported on mingw in xmake-repo, so only require for MSVC
-    if not is_plat("mingw") then
-        add_requires("mem 1.0.0")
-    end
+    -- mem is header-only and vendored in Code/external/mem
+end
+if is_plat("windows") then
+    -- MSVC treats __movsb as a builtin; clang-cl only declares it in <intrin.h>.
+    add_requireconfs("minhook", {configs = {cflags = "/FIintrin.h"}})
+    -- Match the static CRT in every package.
+    add_requireconfs("*", {configs = {runtimes = "MT"}})
+end
+
+-- Linux-only: native tools and tests. CryptoPP refuses to build with clang-cl.
+if is_plat("linux") then
+    add_requires("cryptopp 8.9.0", "gtest v1.14.0", "catch2 2.13.9")
 end
 
 -- dependencies' dependencies version pinning

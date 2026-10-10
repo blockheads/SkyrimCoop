@@ -1,25 +1,42 @@
 
 local function build_client(name)
 target(name)
-    set_kind("static")
+    if is_plat("mingw", "windows") then
+        -- Objects, not a static archive: every .obj is linked into the DLL. From an
+        -- archive the linker dropped the ~38 files only referenced through
+        -- self-registering TiltedPhoques::Initializer hooks (ActorMagicCaster,
+        -- SkyrimVM64, UI, ...), so their hooks never installed. This matches the
+        -- MSVC build's /WHOLEARCHIVE and also skips re-archiving ~350MB per build.
+        set_kind("object")
+    else
+        set_kind("static")
+    end
     set_group("Client")
     add_includedirs(".","../external/")
     -- Add server include directory for embedded GameServer (P2P hosting)
     add_includedirs("../server", {public = false})
-    if is_plat("mingw") then
+    if is_plat("mingw") and not is_mode("dev") then
         -- On MinGW, GCC precompiled headers don't preserve #undef state for calling
         -- convention macros. Use textual force-include instead of .gch precompilation.
         add_cxflags("-include TiltedOnlinePCH.h", {force = true})
     else
+        -- dev mode on MinGW: MinGWCompat.h is force-included after the PCH below,
+        -- which restores the calling convention macros (verified: identical symbols).
         set_pcxxheader("TiltedOnlinePCH.h")
     end
 
     -- exclude game specific stuff and Vivox
-    add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
-    add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|link_stubs.cpp|skse_entry.cpp")
+    if is_plat("mingw") then
+        -- MinGW: also exclude Debug views (DebugService is gated off for __MINGW32__)
+        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**")
+        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**|link_stubs.cpp|skse_entry.cpp")
+    else
+        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
+        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|link_stubs.cpp|skse_entry.cpp")
+    end
 
     -- Feature-gated packages and targets (per D-01: per-feature guards)
-    if not is_plat("mingw") then
+    if not is_plat("mingw", "windows") then
         add_defines("HAS_CEF=1", "HAS_DISCORD=1", "HAS_DIRECTXTK=1")
         add_packages("discord", "cef")
         add_deps("SkyrimCoopUIProcess", "SkyrimCoopUI")
@@ -38,13 +55,19 @@ target(name)
             os.rm(path.join(target:installdir(), "bin", "**Tests.exe"))
         end)
     else
-        -- MinGW: no CEF, no Discord, no DirectXTK
+        -- SKSE builds: no CEF, no Discord, no DirectXTK library
+        -- But HAS_DIRECTXTK is needed to gate SKSE-typed struct fields (ActivateEvent, etc.)
+        add_defines("HAS_DIRECTXTK=1")
         -- ImGui stays for Phase 6 readiness (D-04)
-        -- Force-include MinGW compatibility header after PCH to fix calling convention macros
-        add_cxflags("-include MinGWCompat.h", {force = true})
+        if is_plat("mingw") then
+            -- Force-include MinGW compatibility header after PCH to fix calling convention macros
+            add_cxflags("-include MinGWCompat.h", {force = true})
+        end
     end
 
     add_files("Bridges/SkyrimBridge.cpp")
+    -- Resident loader: game hooks never point into the replaceable module.
+    add_files("../hotreload/MovementLoader.cpp")
     add_headerfiles("Bridges/*.h")
     add_files("Games/Skyrim/**.cpp")
     add_headerfiles("Games/Skyrim/**.h")
@@ -70,19 +93,15 @@ target(name)
         "rpmalloc",
         "spdlog",
         "hopscotch-map",
-        "cryptopp",
         "enet6",
         "minhook",
         "entt",
         "glm",
-        "xbyak")
+        "xbyak",
+        "nlohmann_json")
 
-    -- mem is header-only; use package on MSVC, local vendored copy on MinGW
-    if not is_plat("mingw") then
-        add_packages("mem")
-    else
-        add_includedirs("../external/mem", {public = false})
-    end
+    -- mem is header-only; vendored copy
+    add_includedirs("../external/mem", {public = false})
 
     -- ImGui unconditional for Phase 6 readiness (D-04)
     add_packages("imgui")
@@ -106,19 +125,20 @@ end
 
 build_client("SkyrimTogetherClient")
 
--- MinGW-only: Thin DLL wrapper that links the static client lib
--- and exports SKSE plugin entry points (SKSEPlugin_Version, SKSEPlugin_Load, DllMain)
--- Equivalent of immersive_launcher's /WHOLEARCHIVE but producing a DLL instead of EXE
-if is_plat("mingw") then
+-- SKSE plugin DLL: links every client object and exports the SKSE entry points
+-- (SKSEPlugin_Version, SKSEPlugin_Load, DllMain). MinGW, or clang-cl ("windows").
+if is_plat("mingw", "windows") then
     target("SkyrimTogetherClientDLL")
         set_kind("shared")
         set_group("Client")
         set_basename("SkyrimTogetherClient")  -- output: SkyrimTogetherClient.dll
         set_prefixname("")                    -- no "lib" prefix on MinGW
 
-        add_files("skse_entry.cpp", "link_stubs.cpp")
+        add_files("skse_entry.cpp")
+        if is_plat("mingw") then
+            add_files("link_stubs.cpp")
+        end
         add_deps("SkyrimTogetherClient")
-
         -- Remove stale import libraries before linking. Without this, the linker
         -- picks up a tiny .dll.a import lib instead of the 1.5GB static archive.
         before_link(function (target)
@@ -136,14 +156,14 @@ if is_plat("mingw") then
 
         -- Statically link MinGW runtime (no libgcc/libstdc++/libwinpthread DLL deps)
         -- xmake strips add_ldflags for shared targets, so use add_shflags
-        add_shflags(
+        if is_plat("mingw") then add_shflags(
             "-static-libgcc",
             "-static-libstdc++",
             "-Wl,-Bstatic", "-lstdc++", "-lpthread",
             "-Wl,-Bdynamic",
             "-Wl,--allow-multiple-definition",
             "-Wl,-Map,SkyrimTogetherClient.map",
-            {force = true})
+            {force = true}) end
 
         -- Devbuild: internal deps are shared DLLs, so linking is fast
         -- No need for full static archive chain -- just link against import libs
@@ -155,8 +175,10 @@ if is_plat("mingw") then
         add_syslinks(
             "comctl32",
             "gdi32",
-            "dwmapi",
-            "stdc++fs")
+            "dwmapi")
+        if is_plat("mingw") then
+            add_syslinks("stdc++fs")
+        end
 
         -- Include paths needed for skse_entry.cpp, link_stubs.cpp, and TiltedCore headers
         add_includedirs(".", "../external/", "..", "Games/Skyrim")
@@ -178,6 +200,8 @@ end
 -- ============================================================================
 target("SkyrimTogetherClientServices")
     set_kind("static")
+    -- Nothing links this; building it by default compiled the services twice.
+    set_default(false)
     set_group("Client")
     set_languages("cxx20")
 
@@ -233,20 +257,16 @@ target("SkyrimTogetherClientServices")
         "rpmalloc",
         "spdlog",
         "hopscotch-map",
-        "cryptopp",
         "enet6",
         "minhook",
         "entt",
         "glm",
         "xbyak",
-        "imgui")
+        "imgui",
+        "nlohmann_json")
 
-    -- mem is header-only; use package on MSVC, local vendored copy on MinGW
-    if not is_plat("mingw") then
-        add_packages("mem")
-    else
-        add_includedirs("../external/mem", {public = false})
-    end
+    -- mem is header-only; vendored copy
+    add_includedirs("../external/mem", {public = false})
 
     -- Encoding + networking + core deps needed by TiltedOnlinePCH.h
     -- SkyrimTogetherServer needed for HostService (embedded server)

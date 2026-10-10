@@ -4,11 +4,8 @@ includes("libraries")
 
 -- External vendored libraries (Tier 3 client deps)
 if is_plat("windows") or is_plat("mingw") then
-    -- DirectXTK requires Windows SDK headers (case-sensitive #include <Windows.h>)
-    -- which are unavailable in MinGW cross-compilation on Linux
-    if not is_plat("mingw") then
-        includes("external/DirectXTK")
-    end
+    -- DirectXTK (CEF overlay renderer) is not part of the SKSE plugin builds
+    -- (MinGW, or clang-cl targeting windows from Linux).
     includes("external/imgui")
 end
 
@@ -16,11 +13,8 @@ end
 if is_plat("windows") or is_plat("mingw") then
     includes("client")
     includes("immersive_elf")
-    -- CEF-dependent targets: Windows MSVC only, not MinGW
-    if not is_plat("mingw") then
-        includes("immersive_launcher")
-        includes("tp_process")
-    end
+    -- CEF launcher/tp_process targets belonged to the original MSVC-on-Windows
+    -- build and are not built here.
 end
 
 includes("common")
@@ -30,8 +24,9 @@ includes("admin_protocol")
 -- server_runner removed (P2P host-only, per Phase 5 D-01)
 includes("server")
 includes("encoding")
+includes("hotreload")
 
--- Tests need native build, not MinGW cross-compile
-if not is_plat("mingw") then
+-- Tests need a native Linux build, not the Windows cross-compile
+if is_plat("linux") then
     includes("tests")
 end
