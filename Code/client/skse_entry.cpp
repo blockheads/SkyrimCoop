@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include <TiltedCore/Stl.hpp>
+#include "HotReload/Runtime.h"
 
 using TiltedPhoques::String;
 
@@ -45,7 +46,7 @@ struct SKSEInterface
 
 static HINSTANCE s_dllInstance = nullptr;
 
-extern "C" __attribute__((dllexport))
+extern "C" __declspec(dllexport)
 const SKSEPluginVersionData SKSEPlugin_Version = {
     SKSEPluginVersionData::kVersion,
     1,
@@ -62,7 +63,7 @@ const SKSEPluginVersionData SKSEPlugin_Version = {
 extern void RunTiltedInit(const std::filesystem::path& acGamePath, const TiltedPhoques::String& aExeVersion);
 extern void RunTiltedApp();
 
-extern "C" __attribute__((dllexport))
+extern "C" __declspec(dllexport)
 bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 {
     if (!apSkse)
@@ -72,6 +73,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     wchar_t dllPath[MAX_PATH]{};
     GetModuleFileNameW(s_dllInstance, dllPath, MAX_PATH);
     std::filesystem::path gamePath = std::filesystem::path(dllPath).parent_path().parent_path().parent_path().parent_path();
+    CoopReload::Runtime::Get().Configure(std::filesystem::path(dllPath).parent_path());
 
     TiltedPhoques::String exeVersion("1.6.1170.0");
 

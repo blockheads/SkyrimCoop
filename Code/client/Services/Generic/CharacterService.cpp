@@ -56,6 +56,8 @@
 #include <Systems/FaceGenSystem.h>
 
 #include <World.h>
+#include <HotReload/Runtime.h>
+#include "../../../hotreload/MovementMath.h"
 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept
@@ -215,6 +217,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
+    RunPlayerDiscovery();
     RunSpawnUpdates();
     RunLocalUpdates();
     RunFactionsUpdates();
@@ -223,11 +226,31 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     ApplyCachedWeaponDraws(acUpdateEvent);
 }
 
+// Announces the local player (added once it has 3D, removed while it has none, e.g. loading)
+// through the ActorAddedEvent path the removed DiscoveryService (ec7d02d1) drove, so the player
+// is assigned on the server and other players see it. NPC discovery is deliberately not
+// restored: clients claiming NPCs would conflict with the host owning them.
+void CharacterService::RunPlayerDiscovery() noexcept
+{
+    const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
+    const bool cLoaded = cPlayerId != 0 && m_actorBridge.ActorHas3D(cPlayerId);
+    if (cLoaded == m_playerDiscovered)
+        return;
+
+    m_playerDiscovered = cLoaded;
+    spdlog::debug("Player discovery: {:X} {}", cPlayerId, cLoaded ? "added" : "removed");
+    if (cLoaded)
+        m_dispatcher.trigger(ActorAddedEvent(cPlayerId));
+    else
+        m_dispatcher.trigger(ActorRemovedEvent(cPlayerId));
+}
+
 void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept
 {
     // Go through all the forms that were previously detected
     auto view = m_world.view<FormIdComponent>(entt::exclude<ObjectComponent>);
     Vector<entt::entity> entities(view.begin(), view.end());
+    spdlog::debug("CharacterService::OnConnected: processing {} discovered entities", entities.size());
 
     for (auto entity : entities)
     {
@@ -452,6 +475,10 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
     }
 
     auto& remoteComponent = m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.ServerId, actorFormId);
+    // Link the engine actor now: DiscoveryService (removed in ec7d02d1) used to do this when the
+    // actor entered a loaded cell, via ActorAddedEvent -> OnActorAdded. Without the link,
+    // RunRemoteUpdates has no actor to apply interpolated movement to.
+    m_world.emplace_or_replace<FormIdComponent>(*entity, actorFormId);
 
     auto& interpolationComponent = InterpolationSystem::Setup(m_world, *entity);
     interpolationComponent.Position = acMessage.Position;
@@ -1049,10 +1076,13 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
     if (!m_actorBridge.ActorExists(formIdComponent.Id))
         return;
 
-    // Get the NPC template base form ID for the assignment request
-    const uint32_t cNpcBaseFormId = m_actorBridge.GetActorNpcTemplateBaseFormId(formIdComponent.Id);
-    if (!cNpcBaseFormId)
+    // The actor needs an NPC base form. (Not the *template* base: that only exists for temporary
+    // NPCs, so checking it here skipped the player and every placed NPC.)
+    if (!m_actorBridge.GetActorBaseFormId(formIdComponent.Id))
+    {
+        spdlog::warn("RequestServerAssignment: no base form for {:X}", formIdComponent.Id);
         return;
+    }
 
     AssignCharacterRequest message{};
 
@@ -1075,7 +1105,10 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
     if (cWorldSpaceId)
     {
         if (!m_world.GetModSystem().GetServerModId(cWorldSpaceId, message.WorldSpaceId))
+        {
+            spdlog::error("Server worldspace id not found for {:X}", cWorldSpaceId);
             return;
+        }
     }
 
     float posX = 0.f, posY = 0.f, posZ = 0.f;
@@ -1288,17 +1321,58 @@ void CharacterService::RunLocalUpdates() const noexcept
 void CharacterService::RunRemoteUpdates() noexcept
 {
     // Delay by 300ms to let the interpolation system accumulate interpolation points
-    const auto tick = m_transport.GetClock().GetCurrentTick() - 300;
+    const auto currentTick = m_transport.GetClock().GetCurrentTick();
+    const auto tick = currentTick > 300 ? currentTick - 300 : 0;
 
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
+
+    static auto s_nextDiagnostic = std::chrono::steady_clock::now();
+    const bool cLogDiagnostic = std::chrono::steady_clock::now() >= s_nextDiagnostic;
+    if (cLogDiagnostic)
+        s_nextDiagnostic = std::chrono::steady_clock::now() + std::chrono::seconds(2);
 
     for (auto entity : interpolatedEntities)
     {
         auto* pFormIdComponent = m_world.try_get<FormIdComponent>(entity);
         auto& interpolationComponent = interpolatedEntities.get<InterpolationComponent>(entity);
 
-        m_actorBridge.ActorUpdateInterpolation(pFormIdComponent ? pFormIdComponent->Id : 0, tick);
+        auto& points = interpolationComponent.TimePoints;
+        if (cLogDiagnostic)
+            spdlog::debug("RunRemoteUpdates: entity {} formId {:X} points {} tick {} first {} last {}",
+                          entt::to_integral(entity), pFormIdComponent ? pFormIdComponent->Id : 0, points.size(), tick,
+                          points.empty() ? 0 : points.front().Tick, points.empty() ? 0 : points.back().Tick);
+        if (points.size() < 2) continue;
+        while (points.size() > 2 && tick > std::next(points.begin())->Tick)
+            points.pop_front();
+        const auto& first = points.front();
+        const auto& second = *std::next(points.begin());
+        CoopMovementInput input{};
+        input.tick = tick;
+        input.first_tick = first.Tick;
+        input.second_tick = second.Tick;
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            input.first_position[axis] = first.Position[axis];
+            input.second_position[axis] = second.Position[axis];
+            input.first_rotation[axis] = first.Rotation[axis];
+            input.second_rotation[axis] = second.Rotation[axis];
+        }
+        CoopMovementOutput output{};
+        auto& runtime = CoopReload::Runtime::Get();
+        runtime.Evaluate(input, output);
+        if (!CoopReload::ValidMovement(output)) continue;
+        interpolationComponent.Position = {output.position[0], output.position[1], output.position[2]};
+        // Observed with built-in movement too: scripts/coop_test.py reads these
+        // engine positions to verify remote players actually move in-game.
+        if (pFormIdComponent && m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id,
+                output.position, output.rotation, second.Direction, second.Variables))
+        {
+            float actual[3]{};
+            m_actorBridge.GetActorPosition(pFormIdComponent->Id, actual[0], actual[1], actual[2]);
+            runtime.Observe(pFormIdComponent->Id, output, actual,
+                            m_actorBridge.ActorHas3D(pFormIdComponent->Id));
+        }
     }
 
     auto animatedView = m_world.view<RemoteComponent, RemoteAnimationComponent, FormIdComponent>();

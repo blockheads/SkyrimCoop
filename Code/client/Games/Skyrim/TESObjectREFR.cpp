@@ -147,7 +147,7 @@ using TiltedPhoques::Serialization;
 void TESObjectREFR::SaveAnimationVariables(AnimationVariables& aVariables) const noexcept
 {
     BSAnimationGraphManager* pManager = nullptr;
-    if (animationGraphHolder.GetBSAnimationGraph(&pManager))
+    if (EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager))
     {
         BSScopedLock<BSRecursiveLock> _{pManager->lock};
 
@@ -228,7 +228,7 @@ void TESObjectREFR::SaveAnimationVariables(AnimationVariables& aVariables) const
 void TESObjectREFR::LoadAnimationVariables(const AnimationVariables& aVariables) const noexcept
 {
     BSAnimationGraphManager* pManager = nullptr;
-    if (animationGraphHolder.GetBSAnimationGraph(&pManager))
+    if (EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager))
     {
         BSScopedLock<BSRecursiveLock> _{pManager->lock};
 
@@ -963,7 +963,7 @@ bool TESObjectREFR::PlayAnimation(BSFixedString* apEventName) noexcept
 
 bool TESObjectREFR::SendAnimationEvent(BSFixedString* apEventName) noexcept
 {
-    return animationGraphHolder.SendAnimationEvent(apEventName);
+    return EngineVirtual(animationGraphHolder).SendAnimationEvent(apEventName);
 }
 
 bool TP_MAKE_THISCALL(HookPlayAnimation, void, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName)

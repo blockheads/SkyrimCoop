@@ -29,7 +29,7 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
     if (it != std::end(actions) && it->Tick <= aTick)
     {
         // Check if animation graph is ready before attempting to play animations
-        if (!apActor->animationGraphHolder.IsReady())
+        if (!EngineVirtual(apActor->animationGraphHolder).IsReady())
         {
             // Animation graph not ready, keep the action in queue and try again later
             return;

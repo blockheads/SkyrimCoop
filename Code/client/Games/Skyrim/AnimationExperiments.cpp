@@ -276,11 +276,11 @@ uint8_t Class142F3A1E8::SendGraphAction(TESActionData* apAction)
 
             auto& stringManager = DefaultStringManager::Get();
 
-            apAction->actor->animationGraphHolder.SetVariableFloat(&stringManager.fIdleTimer, result);
+            EngineVirtual(apAction->actor->animationGraphHolder).SetVariableFloat(&stringManager.fIdleTimer, result);
         }
     }
 
-    return apAction->actor->animationGraphHolder.ReSendAnimationEvent(&apAction->eventName);
+    return EngineVirtual(apAction->actor->animationGraphHolder).ReSendAnimationEvent(&apAction->eventName);
 }
 
 bool ActorMediator::RePerformAction(TESActionData* apAction) noexcept
@@ -293,7 +293,7 @@ bool ActorMediator::RePerformAction(TESActionData* apAction) noexcept
     uint8_t result = 0;
 
     auto pActor = static_cast<Actor*>(apAction->actor);
-    if (!pActor || pActor->animationGraphHolder.IsReady())
+    if (!pActor || EngineVirtual(pActor->animationGraphHolder).IsReady())
     {
         // result = TiltedPhoques::ThisCall(PerformIdleAction, this, apAction);
 

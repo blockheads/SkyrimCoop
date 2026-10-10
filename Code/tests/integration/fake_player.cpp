@@ -4,6 +4,7 @@
 //
 // Usage:
 //   ./fake_player --self-test          # Headless: create server, connect, send moves, exit 0
+//   ./fake_player --net-test --bots N  # Headless: embedded server, N bots must see each other spawn + move
 //   ./fake_player --port 10578         # Connect to external server
 //   ./fake_player --verify-pid <pid>   # After sending, verify via /proc/pid/mem
 //   ./fake_player --bots N             # Multi-bot: spawn N concurrent clients
@@ -34,6 +35,10 @@
 #include <numeric>
 #include <fstream>
 #include <sstream>
+#include <set>
+#include <map>
+#include <limits>
+#include <algorithm>
 
 #include <glm/glm.hpp>
 #include <entt/entt.hpp>
@@ -58,11 +63,16 @@ using TiltedPhoques::Vector;
 
 #include "mock_client.h"
 #include <GameServer.h>
+#include <World.h>
+#include <Components.h>
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
+#include <Messages/AssignCharacterRequest.h>
+#include <Messages/ClientMessageFactory.h>
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Messages/ServerReferencesMoveRequest.h>
 #include <Messages/ServerMessageFactory.h>
+#include <Messages/CharacterSpawnRequest.h>
 #include <Structs/ReferenceUpdate.h>
 #include <Structs/Movement.h>
 #include <Opcodes.h>
@@ -93,6 +103,8 @@ struct Config
     bool verifyBroadcast = false;
     bool metrics = false;
     int tickRate = 5;
+    std::string fixtureDir;
+    bool netTest = false;
 };
 
 static Config ParseArgs(int argc, char* argv[])
@@ -105,6 +117,10 @@ static Config ParseArgs(int argc, char* argv[])
         {
             cfg.selfTest = true;
         }
+        else if (arg == "--net-test")
+        {
+            cfg.netTest = true;
+        }
         else if (arg == "--port" && i + 1 < argc)
         {
             cfg.port = static_cast<uint16_t>(std::atoi(argv[++i]));
@@ -112,6 +128,10 @@ static Config ParseArgs(int argc, char* argv[])
         else if (arg == "--duration" && i + 1 < argc)
         {
             cfg.duration = std::atoi(argv[++i]);
+        }
+        else if (arg == "--fixture-dir" && i + 1 < argc)
+        {
+            cfg.fixtureDir = argv[++i];
         }
         else if (arg == "--verify-pid" && i + 1 < argc)
         {
@@ -224,8 +244,7 @@ static void SendMovement(MockClient& aClient, Server::GameServer& aServer,
     update.UpdatedMovement.Position.z = aPosition.z;
     // Rotation, Direction, Variables left at defaults
 
-    // Use serverId 1 as the character reference (first assigned actor)
-    moveReq.Updates[1] = update;
+    moveReq.Updates[aClient.m_characterServerId] = update;
 
     aClient.SendGameMessage(moveReq);
     aClient.Pump(aServer, 5);
@@ -385,42 +404,27 @@ static int RunSelfTest(const Config& aCfg)
     }
     spdlog::info("fake_player: authentication accepted");
 
-    // In self-test mode (no Skyrim, no assigned character), we verify:
-    // 1. Server creation, client connection, authentication handshake
-    // 2. Movement message serialization and sending (server receives but skips
-    //    because no character entity is assigned via AssignCharacterRequest)
-    //
-    // Full movement verification with /proc/pid/mem requires a running Skyrim
-    // instance with the relay DLL loaded, which is handled by test_ingame_sync.sh.
-
-    // Demonstrate movement message construction and serialization
-    spdlog::info("fake_player: constructing movement message (serialization test)");
+    AssignCharacterRequest assign;
+    assign.Cookie = 1;
+    assign.ReferenceId = GameId{0, 0x14};
+    client.SendGameMessage(assign);
+    client.Pump(server, 100);
+    if (!client.m_gotAssignment)
     {
-        ClientReferencesMoveRequest moveReq;
-        moveReq.Tick = 1;
-
-        ReferenceUpdate update;
-        glm::vec3 testPos = WalkPattern::GetPosition(0.0f);
-        update.UpdatedMovement.Position.x = testPos.x;
-        update.UpdatedMovement.Position.y = testPos.y;
-        update.UpdatedMovement.Position.z = testPos.z;
-        moveReq.Updates[1] = update;
-
-        // Serialize to buffer to verify the message can be encoded
-        TiltedPhoques::Buffer buffer(1 << 16);
-        TiltedPhoques::Buffer::Writer writer(&buffer);
-        writer.WriteBits(0, 8);
-        moveReq.Serialize(writer);
-
-        spdlog::info("fake_player: movement message serialized OK ({} bytes), "
-                     "position ({:.1f}, {:.1f}, {:.1f})",
-                     writer.Size(), testPos.x, testPos.y, testPos.z);
+        spdlog::error("self-test: character was not registered");
+        return 1;
     }
-
-    // Pump a few more ticks to let server process any remaining messages
-    client.Pump(server, 20);
-
-    spdlog::info("fake_player: self-test complete (connection + auth + serialization verified)");
+    const glm::vec3 expected(120.f, 240.f, 360.f);
+    SendMovement(client, server, expected, 100);
+    client.Pump(server, 100);
+    const auto entity = static_cast<entt::entity>(client.m_characterServerId);
+    auto* movement = server.GetWorld().try_get<Server::MovementComponent>(entity);
+    if (!movement || glm::distance(movement->Position, expected) > 1.f)
+    {
+        spdlog::error("self-test: server did not apply registered character movement");
+        return 1;
+    }
+    spdlog::info("fake_player: connection, registration and server movement verified; no Skyrim actor tested");
 
     // Cleanup
     client.Close();
@@ -436,6 +440,35 @@ static int RunSelfTest(const Config& aCfg)
 // ---------------------------------------------------------------------------
 static int RunExternal(const Config& aCfg)
 {
+    if (aCfg.fixtureDir.empty())
+    {
+        spdlog::error("In-game simulation requires --fixture-dir from hot_reload.py host. "
+                      "Authentication alone cannot create a visible player.");
+        return 1;
+    }
+    auto load = [&](const char* name, ClientOpcode opcode) -> TiltedPhoques::UniquePtr<ClientMessage> {
+        std::ifstream file(std::filesystem::path(aCfg.fixtureDir) / name, std::ios::binary | std::ios::ate);
+        if (!file) return nullptr;
+        const auto size = file.tellg();
+        if (size <= 0 || size >= (1 << 16)) return nullptr;
+        file.seekg(0);
+        std::vector<uint8_t> bytes(static_cast<size_t>(size));
+        if (!file.read(reinterpret_cast<char*>(bytes.data()), bytes.size()) || bytes[0] != opcode)
+            return nullptr;
+        TiltedPhoques::Buffer buffer(bytes.size());
+        TiltedPhoques::Buffer::Writer writer(&buffer);
+        writer.WriteBytes(bytes.data(), bytes.size());
+        TiltedPhoques::Buffer::Reader reader(&buffer);
+        return ClientMessageFactory().Extract(reader);
+    };
+    auto auth = load("auth.bin", kAuthenticationRequest);
+    auto assignment = load("assign.bin", kAssignCharacterRequest);
+    if (!auth || !assignment)
+    {
+        spdlog::error("Missing/invalid bot snapshot. Run hot_reload.py host with a save loaded.");
+        return 1;
+    }
+    const auto& character = static_cast<const AssignCharacterRequest&>(*assignment);
     spdlog::info("fake_player: connecting to external server on port {}", aCfg.port);
 
     MockClient client;
@@ -461,17 +494,8 @@ static int RunExternal(const Config& aCfg)
     }
     spdlog::info("fake_player: connected to server on port {}", aCfg.port);
 
-    // Authenticate
-    AuthenticationRequest authReq;
-    authReq.Version = BUILD_COMMIT;
-    authReq.Token = "";
-    authReq.Username = "FakePlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
-    authReq.DiscordId = 99999;
-    authReq.Level = 1;
-
-    client.SendGameMessage(authReq);
+    // Use the running game's version and mod list, not an old bot binary's build ID.
+    client.SendGameMessage(*auth);
 
     // Wait for auth response
     for (int i = 0; i < 300; ++i)
@@ -490,6 +514,18 @@ static int RunExternal(const Config& aCfg)
     }
     spdlog::info("fake_player: authentication accepted");
 
+    client.SendGameMessage(*assignment);
+    for (int i = 0; i < 500 && !client.m_gotAssignment; ++i)
+    {
+        client.Update();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (!client.m_gotAssignment)
+    {
+        spdlog::error("Character registration timed out. No movement test was performed.");
+        return 1;
+    }
+
     // Send scripted movement for the configured duration
     auto start = std::chrono::steady_clock::now();
     uint64_t tick = 1;
@@ -500,17 +536,27 @@ static int RunExternal(const Config& aCfg)
         if (elapsed >= static_cast<float>(aCfg.duration))
             break;
 
-        glm::vec3 pos = WalkPattern::GetPosition(elapsed);
+        if (!client.IsConnected())
+        {
+            spdlog::error("Connection lost during movement simulation");
+            return 1;
+        }
+        const glm::vec3 origin(character.Position.x, character.Position.y, character.Position.z);
+        const glm::vec3 pos = origin + (WalkPattern::GetPosition(elapsed) - WalkPattern::GetPosition(0.f)) * 0.25f;
 
         // Build and send movement message
         ClientReferencesMoveRequest moveReq;
-        moveReq.Tick = tick++;
+        moveReq.Tick = client.GetClock().GetCurrentTick();
+        ++tick;
 
         ReferenceUpdate update;
         update.UpdatedMovement.Position.x = pos.x;
         update.UpdatedMovement.Position.y = pos.y;
         update.UpdatedMovement.Position.z = pos.z;
-        moveReq.Updates[1] = update;
+        update.UpdatedMovement.CellId = character.CellId;
+        update.UpdatedMovement.WorldSpaceId = character.WorldSpaceId;
+        update.UpdatedMovement.Variables = character.LatestAction.Variables;
+        moveReq.Updates[client.m_characterServerId] = update;
 
         client.SendGameMessage(moveReq);
         client.Update();
@@ -539,7 +585,7 @@ static int RunExternal(const Config& aCfg)
 #endif
 
     client.Close();
-    spdlog::info("fake_player: PASS");
+    spdlog::info("fake_player: network scenario completed. Verify engine movement with hot_reload.py observe.");
     return 0;
 }
 
@@ -794,6 +840,258 @@ static int RunMultiBot(const Config& aCfg)
 }
 
 // ---------------------------------------------------------------------------
+// Net test: embedded server + N registered bots, all on one thread.
+// Every bot must see every other bot spawn and receive its movement.
+// ---------------------------------------------------------------------------
+struct NetBot : MockClient
+{
+    std::set<uint32_t> spawnsSeen;
+    // Peer server ID -> received movement updates and the last position
+    std::map<uint32_t, uint64_t> movesReceived;
+    std::map<uint32_t, glm::vec3> lastPosition;
+    uint64_t movesSent{0};
+
+protected:
+    void OnConsume(const void* apData, uint32_t aSize) override
+    {
+        MockClient::OnConsume(apData, aSize);
+        if (m_lastOpcode != kCharacterSpawnRequest && m_lastOpcode != kServerReferencesMoveRequest)
+            return;
+
+        TiltedPhoques::Buffer buffer(aSize);
+        TiltedPhoques::Buffer::Writer writer(&buffer);
+        writer.WriteBytes(reinterpret_cast<const uint8_t*>(apData), aSize);
+        TiltedPhoques::Buffer::Reader reader(&buffer);
+        auto pMessage = ServerMessageFactory().Extract(reader);
+        if (!pMessage)
+            return;
+
+        if (pMessage->GetOpcode() == kCharacterSpawnRequest)
+        {
+            spawnsSeen.insert(static_cast<CharacterSpawnRequest*>(pMessage.get())->ServerId);
+        }
+        else
+        {
+            for (const auto& [id, update] : static_cast<ServerReferencesMoveRequest*>(pMessage.get())->Updates)
+            {
+                const auto& position = update.UpdatedMovement.Position;
+                ++movesReceived[id];
+                lastPosition[id] = glm::vec3(position.x, position.y, position.z);
+            }
+        }
+    }
+};
+
+static glm::vec3 NetBotCenter(int aIndex)
+{
+    // Far enough apart that a position can only belong to one bot's path.
+    return glm::vec3(static_cast<float>(aIndex) * 2000.f, 1000.f, 0.f);
+}
+
+static int RunNetTest(const Config& aCfg)
+{
+    const int botCount = std::max(2, aCfg.bots);
+    const int tickRate = std::max(1, aCfg.tickRate);
+    spdlog::info("net-test: {} bots, {}s of movement at {} Hz", botCount, aCfg.duration, tickRate);
+
+    if (!spdlog::get("ConOut"))
+        spdlog::stdout_color_mt("ConOut");
+    ServerConsole::ConsoleRegistry console("ConOut");
+    Server::GameServer server(console);
+    if (auto* pMaxPlayers = console.FindSetting("GameServer:uMaxPlayerCount");
+        pMaxPlayers && pMaxPlayers->data.as_uint32 < static_cast<uint32_t>(botCount))
+    {
+        spdlog::warn("net-test: raising player cap {} -> {} for stress testing", pMaxPlayers->data.as_uint32, botCount);
+        pMaxPlayers->data.as_uint32 = static_cast<uint32_t>(botCount);
+    }
+    server.Initialize();
+    const auto port = server.GetPort();
+
+    std::vector<std::unique_ptr<NetBot>> bots;
+    for (int i = 0; i < botCount; ++i)
+        bots.push_back(std::make_unique<NetBot>());
+
+    double maxServerUpdateMs = 0.0;
+    auto pumpAll = [&]() {
+        const auto start = std::chrono::steady_clock::now();
+        server.Update();
+        maxServerUpdateMs = std::max(maxServerUpdateMs,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count());
+        for (auto& pBot : bots)
+            pBot->Update();
+    };
+    // Pumps until aDone() holds or the timeout expires.
+    auto pumpUntil = [&](auto aDone, std::chrono::milliseconds aTimeout) {
+        const auto deadline = std::chrono::steady_clock::now() + aTimeout;
+        while (std::chrono::steady_clock::now() < deadline)
+        {
+            pumpAll();
+            if (aDone())
+                return true;
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        return false;
+    };
+    auto fail = [&](const std::string& aReason) {
+        spdlog::error("net-test: FAIL - {}", aReason);
+        bots.clear();
+        server.Kill();
+        server.Close();
+        return 1;
+    };
+
+    // 1. Connect
+    for (auto& pBot : bots)
+    {
+        if (!pBot->ConnectByIp("::1:" + std::to_string(port)))
+            return fail("ConnectByIp failed");
+    }
+    if (!pumpUntil([&] { return std::all_of(bots.begin(), bots.end(), [](auto& b) { return b->IsConnected(); }); },
+                   std::chrono::seconds(10)))
+        return fail("not every bot connected within 10s");
+    spdlog::info("net-test: [1/4] {} bots connected", botCount);
+
+    // 2. Authenticate
+    for (int i = 0; i < botCount; ++i)
+    {
+        AuthenticationRequest auth;
+        auth.Version = BUILD_COMMIT;
+        auth.Username = "NetBot-" + std::to_string(i);
+        auth.SKSEActive = true;
+        auth.DiscordId = static_cast<uint64_t>(80000 + i);
+        auth.Level = 1;
+        bots[i]->SendGameMessage(auth);
+    }
+    if (!pumpUntil([&] { return std::all_of(bots.begin(), bots.end(), [](auto& b) { return b->m_gotAuthResponse; }); },
+                   std::chrono::seconds(10)))
+        return fail("not every bot got an authentication response within 10s");
+    for (int i = 0; i < botCount; ++i)
+    {
+        if (!bots[i]->m_authAccepted)
+            return fail(fmt::format("NetBot-{} authentication rejected (type={})", i,
+                                    static_cast<int>(bots[i]->m_authResponseType)));
+    }
+    spdlog::info("net-test: [2/4] all bots authenticated");
+
+    // 3. Register a player character per bot
+    for (int i = 0; i < botCount; ++i)
+    {
+        AssignCharacterRequest assign;
+        assign.Cookie = 1;
+        assign.ReferenceId = GameId{0, 0x14};
+        const auto center = NetBotCenter(i);
+        assign.Position.x = center.x;
+        assign.Position.y = center.y;
+        assign.Position.z = center.z;
+        bots[i]->SendGameMessage(assign);
+    }
+    if (!pumpUntil([&] { return std::all_of(bots.begin(), bots.end(), [](auto& b) { return b->m_gotAssignment; }); },
+                   std::chrono::seconds(10)))
+        return fail("not every bot was assigned a character within 10s");
+
+    std::map<uint32_t, int> serverIdToBot;
+    for (int i = 0; i < botCount; ++i)
+    {
+        if (!serverIdToBot.emplace(bots[i]->m_characterServerId, i).second)
+            return fail(fmt::format("duplicate server ID {} assigned", bots[i]->m_characterServerId));
+    }
+    spdlog::info("net-test: [3/4] all bots registered characters");
+
+    // 4. Move every bot around its own center
+    const auto moveStart = std::chrono::steady_clock::now();
+    const auto moveEnd = moveStart + std::chrono::seconds(std::max(1, aCfg.duration));
+    const auto sendInterval = std::chrono::microseconds(1000000 / tickRate);
+    auto nextSend = moveStart;
+    uint64_t tick = 1;
+    while (std::chrono::steady_clock::now() < moveEnd)
+    {
+        if (std::chrono::steady_clock::now() >= nextSend)
+        {
+            nextSend += sendInterval;
+            const float elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - moveStart).count();
+            for (int i = 0; i < botCount; ++i)
+            {
+                if (!bots[i]->IsConnected())
+                    return fail(fmt::format("NetBot-{} disconnected during movement", i));
+                const glm::vec3 pos = NetBotCenter(i) + WalkPattern::GetPosition(elapsed + static_cast<float>(i));
+                ClientReferencesMoveRequest move;
+                move.Tick = tick;
+                ReferenceUpdate update;
+                update.UpdatedMovement.Position.x = pos.x;
+                update.UpdatedMovement.Position.y = pos.y;
+                update.UpdatedMovement.Position.z = pos.z;
+                move.Updates[bots[i]->m_characterServerId] = update;
+                bots[i]->SendGameMessage(move);
+                ++bots[i]->movesSent;
+            }
+            ++tick;
+        }
+        pumpAll();
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    // Drain in-flight packets.
+    pumpUntil([] { return false; }, std::chrono::milliseconds(300));
+    spdlog::info("net-test: [4/4] movement phase complete ({} ticks)", tick - 1);
+
+    // Verify every bot saw every other bot spawn and move along that bot's path.
+    int failures = 0;
+    uint64_t minPairMoves = std::numeric_limits<uint64_t>::max();
+    for (int i = 0; i < botCount; ++i)
+    {
+        for (int j = 0; j < botCount; ++j)
+        {
+            if (i == j)
+                continue;
+            const auto peerId = bots[j]->m_characterServerId;
+            if (!bots[i]->spawnsSeen.count(peerId))
+            {
+                spdlog::error("net-test: NetBot-{} never saw NetBot-{} spawn (server ID {})", i, j, peerId);
+                ++failures;
+                continue;
+            }
+            const auto received = bots[i]->movesReceived.count(peerId) ? bots[i]->movesReceived[peerId] : 0;
+            minPairMoves = std::min(minPairMoves, received);
+            if (received == 0)
+            {
+                spdlog::error("net-test: NetBot-{} received no movement for NetBot-{}", i, j);
+                ++failures;
+                continue;
+            }
+            const auto offset = bots[i]->lastPosition[peerId] - NetBotCenter(j);
+            if (std::abs(offset.x) > 300.f || std::abs(offset.y) > 300.f || std::abs(offset.z) > 50.f)
+            {
+                const auto& p = bots[i]->lastPosition[peerId];
+                spdlog::error("net-test: NetBot-{} sees NetBot-{} at ({:.0f}, {:.0f}, {:.0f}), off its path", i, j, p.x, p.y, p.z);
+                ++failures;
+            }
+        }
+        // A bot must never be told to spawn its own character.
+        if (bots[i]->spawnsSeen.count(bots[i]->m_characterServerId))
+        {
+            spdlog::error("net-test: NetBot-{} was sent a spawn for its own character", i);
+            ++failures;
+        }
+    }
+
+    const uint64_t moves = bots[0]->movesSent;
+    spdlog::info("net-test: bots={} moves_sent_per_bot={} min_moves_received_per_pair={} max_server_update_ms={:.2f}",
+                 botCount, moves, minPairMoves == std::numeric_limits<uint64_t>::max() ? 0 : minPairMoves,
+                 maxServerUpdateMs);
+
+    bots.clear();
+    server.Kill();
+    server.Close();
+
+    if (failures > 0)
+    {
+        spdlog::error("net-test: FAIL - {} problem(s)", failures);
+        return 1;
+    }
+    spdlog::info("net-test: PASS - all {} bots see each other spawn and move", botCount);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 int main(int argc, char* argv[])
@@ -802,6 +1100,9 @@ int main(int argc, char* argv[])
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
 
     Config cfg = ParseArgs(argc, argv);
+
+    if (cfg.netTest)
+        return RunNetTest(cfg);
 
     if (cfg.selfTest)
         return RunSelfTest(cfg);

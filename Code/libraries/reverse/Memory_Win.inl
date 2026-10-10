@@ -2,16 +2,19 @@
 namespace TiltedPhoques::vp
 {
     ScopedContext::ScopedContext(const mem::pointer aEa, const size_t aSize) noexcept
-        : m_oldProtect(0)
+        : m_size(aSize)
+        , m_oldProtect(0)
         , m_ea(aEa)
-        , m_size(aSize)
     {
-        VirtualProtect(aEa.as<void*>(), m_size, PAGE_EXECUTE_READWRITE, reinterpret_cast<DWORD*>(&m_oldProtect));
+        if (!VirtualProtect(aEa.as<void*>(), m_size, PAGE_EXECUTE_READWRITE, reinterpret_cast<DWORD*>(&m_oldProtect)))
+            std::abort();
     }
 
     ScopedContext::~ScopedContext()
     {
-        VirtualProtect(m_ea.as<void*>(), m_size, m_oldProtect, reinterpret_cast<DWORD*>(&m_oldProtect));
+        FlushInstructionCache(GetCurrentProcess(), m_ea.as<void*>(), m_size);
+        if (!VirtualProtect(m_ea.as<void*>(), m_size, m_oldProtect, reinterpret_cast<DWORD*>(&m_oldProtect)))
+            std::abort();
     }
 
     bool ScopedContext::WriteBuffer(const uint8_t* acpData, const size_t aSize, const size_t aOffset) const noexcept

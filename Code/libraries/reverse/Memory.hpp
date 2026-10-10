@@ -7,6 +7,9 @@
 #include <mem/module.h>
 
 #include <MemoryVP.hpp>
+#ifdef _WIN32
+#include <SkseBranchPatch.hpp>
+#endif
 
 namespace TiltedPhoques
 {
@@ -73,6 +76,9 @@ namespace TiltedPhoques
     MEM_STRONG_INLINE void Put(mem::pointer aEa, const T acVal) noexcept
     {
         if (IsVAOnly(aEa)) TuneBase(aEa);
+#ifdef _WIN32 // SKSE-loaded: game code pages are read-only and may be >2GB from us
+        const vp::ScopedContext writable(aEa, sizeof(T));
+#endif
 
         if constexpr (std::is_trivially_copyable_v<T> && sizeof(T) < sizeof(uintptr_t))
             // directly set value if it fits within one register
@@ -84,6 +90,9 @@ namespace TiltedPhoques
     MEM_STRONG_INLINE void Nop(mem::pointer aEa, size_t aLength) noexcept
     {
         if (IsVAOnly(aEa)) TuneBase(aEa);
+#ifdef _WIN32
+        const vp::ScopedContext writable(aEa, aLength);
+#endif
         mem::region(aEa, aLength).fill(0x90);
     }
 
@@ -92,8 +101,12 @@ namespace TiltedPhoques
     MEM_STRONG_INLINE constexpr void Jump(mem::pointer aEa, const T& aFunc) noexcept
     {
         if (IsVAOnly(aEa)) TuneBase(aEa);
+#ifdef _WIN32
+        detail::WriteSkseBranch(aEa.as<void*>(), reinterpret_cast<const void*>(aFunc), 0xE9);
+#else
         Put<uint8_t>(aEa, 0xE9);
         Put<int32_t>(aEa.as<intptr_t>() + 1, (intptr_t)aFunc - aEa.as<intptr_t>() - 5);
+#endif
     }
 
     // jump class member function
@@ -120,11 +133,15 @@ namespace TiltedPhoques
     MEM_STRONG_INLINE void PutCall(mem::pointer aEa, const TFunc& new_fn)
     {
         if (IsVAOnly(aEa)) TuneBase(aEa);
+#ifdef _WIN32
+        detail::WriteSkseBranch(aEa.as<void*>(), reinterpret_cast<const void*>(*new_fn), 0xE8);
+#else
         // put new call VA
         int32_t disp = static_cast<int32_t>(reinterpret_cast<uintptr_t>(*new_fn) - aEa.as<uintptr_t>() - 5);
 
         Put<uint8_t>(aEa, 0xE8);
         Put<int32_t>(aEa.as<uintptr_t>() + 1, disp);
+#endif
     }
 
     template <typename TFunc>
@@ -133,11 +150,15 @@ namespace TiltedPhoques
         if (IsVAOnly(aEa)) TuneBase(aEa);
 
         old_fn = GetCall<TFunc>(aEa);
+#ifdef _WIN32
+        detail::WriteSkseBranch(aEa.as<void*>(), reinterpret_cast<const void*>(*new_fn), 0xE8);
+#else
         // put new call VA
         int32_t disp = static_cast<int32_t>(reinterpret_cast<uintptr_t>(*new_fn) - aEa.as<uintptr_t>() - 5);
 
         Put<uint8_t>(aEa, 0xE8);
         Put<int32_t>(aEa.as<uintptr_t>() + 1, disp);
+#endif
     }
 
     // Support code for reflection - don't use

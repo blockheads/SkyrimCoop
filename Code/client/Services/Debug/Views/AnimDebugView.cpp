@@ -96,7 +96,7 @@ void DebugService::DrawAnimDebugView()
     }
 
     BSAnimationGraphManager* pManager = nullptr;
-    pActor->animationGraphHolder.GetBSAnimationGraph(&pManager);
+    EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager);
 
     if (!pManager)
     {

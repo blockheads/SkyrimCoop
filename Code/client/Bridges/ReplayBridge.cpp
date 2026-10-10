@@ -4,6 +4,18 @@
 /// All methods either return safe defaults or look up a canned result from
 /// m_queryResponses (populated by LoadRecording from an NDJSON recording file).
 
+// TiltedPhoques must be in scope before encoding struct headers
+// (ActorValues, Inventory, etc. use TiltedPhoques::Map/String without self-including).
+// When compiled inside the full client build, these come via TiltedOnlinePCH.h.
+// When compiled standalone (ClientReplayTests), we include them directly.
+#ifndef TILTED_ONLINE_PCH_H
+#include <optional>
+#include <mutex>
+#include <TiltedCore/Stl.hpp>
+#include <TiltedCore/Buffer.hpp>
+#include <TiltedCore/Serialization.hpp>
+#endif
+
 #include <Bridges/ReplayBridge.h>
 
 #include <Structs/ActorValues.h>
@@ -148,6 +160,11 @@ void ReplayBridge::RespawnActor(uint32_t) noexcept {}
 void ReplayBridge::DeleteActor(uint32_t) noexcept {}
 void ReplayBridge::MoveActorTo(uint32_t, uint32_t, float, float, float) noexcept {}
 void ReplayBridge::SetActorRotation(uint32_t, float, float) noexcept {}
+bool ReplayBridge::ApplyRemoteMovement(uint32_t, const float[3], const float[3], float, const AnimationVariables&) noexcept
+{
+    // A replay cannot attest that a real engine actor moved.
+    return false;
+}
 void ReplayBridge::GetActorPosition(uint32_t, float& aX, float& aY, float& aZ) const noexcept
     { aX = 0.f; aY = 0.f; aZ = 0.f; }
 void ReplayBridge::GetActorRotation(uint32_t, float& aX, float& aY, float& aZ) const noexcept

@@ -132,7 +132,7 @@ float Actor::GetSpeed() noexcept
 {
     static BSFixedString speedSampledStr("SpeedSampled");
     float speed = 0.f;
-    animationGraphHolder.GetVariableFloat(&speedSampledStr, &speed);
+    EngineVirtual(animationGraphHolder).GetVariableFloat(&speedSampledStr, &speed);
 
     return speed;
 }
@@ -140,7 +140,7 @@ float Actor::GetSpeed() noexcept
 void Actor::SetSpeed(float aSpeed) noexcept
 {
     static BSFixedString speedSampledStr("SpeedSampled");
-    animationGraphHolder.SetVariableFloat(&speedSampledStr, aSpeed);
+    EngineVirtual(animationGraphHolder).SetVariableFloat(&speedSampledStr, aSpeed);
 }
 
 uint16_t Actor::GetLevel() const noexcept
@@ -602,9 +602,9 @@ ActorValues Actor::GetEssentialActorValues() const noexcept
     int essentialValues[] = {ActorValueInfo::kHealth, ActorValueInfo::kStamina, ActorValueInfo::kMagicka};
     for (auto i : essentialValues)
     {
-        float value = actorValueOwner.GetValue(i);
+        float value = EngineVirtual(actorValueOwner).GetValue(i);
         actorValues.ActorValuesList.insert({i, value});
-        float maxValue = actorValueOwner.GetPermanentValue(i);
+        float maxValue = EngineVirtual(actorValueOwner).GetPermanentValue(i);
         actorValues.ActorMaxValuesList.insert({i, maxValue});
     }
 
@@ -613,17 +613,17 @@ ActorValues Actor::GetEssentialActorValues() const noexcept
 
 float Actor::GetActorValue(uint32_t aId) const noexcept
 {
-    return actorValueOwner.GetValue(aId);
+    return EngineVirtual(actorValueOwner).GetValue(aId);
 }
 
 float Actor::GetActorPermanentValue(uint32_t aId) const noexcept
 {
-    return actorValueOwner.GetPermanentValue(aId);
+    return EngineVirtual(actorValueOwner).GetPermanentValue(aId);
 }
 
 void Actor::SetActorValue(uint32_t aId, float aValue) noexcept
 {
-    actorValueOwner.SetValue(aId, aValue);
+    EngineVirtual(actorValueOwner).SetValue(aId, aValue);
 }
 
 void Actor::ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, float aValue) noexcept
@@ -635,7 +635,7 @@ void Actor::ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, floa
     if (aValue == initialValue)
         return;
 
-    actorValueOwner.ForceCurrent(aMode, aId, aValue - initialValue);
+    EngineVirtual(actorValueOwner).ForceCurrent(aMode, aId, aValue - initialValue);
 }
 
 Inventory Actor::GetActorInventory() const noexcept

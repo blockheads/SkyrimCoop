@@ -80,6 +80,9 @@ public:
     // Phase 15: Handle spawn_result event from DLL (actor pointer feedback)
     void OnSpawnResult(uint32_t aFormId, uint64_t aActorPtr, bool aSuccess);
 
+    // Phase 16: Register local entity's serverId from AssignCharacterResponse
+    void OnLocalAssign(uint32_t aServerId, uint32_t aFormId);
+
     // Phase 16: Dual-path spawn routing (per D-02)
     void OnSpawnCharacter(uint32_t aServerId, uint32_t aFormId,
                           const glm::vec3& aPosition, const glm::vec2& aRotation,
@@ -158,6 +161,10 @@ private:
     // Phase 15: serverId -> game actor pointer mapping
     // Populated by OnSpawnResult, consumed by ApplyRemotePositions and OnRemoveCharacter
     std::unordered_map<uint32_t, uint64_t> m_serverIdToPtr;
+
+    // Phase 16: local formId -> serverId mapping (for movement message keys)
+    // Populated by OnLocalAssign when server assigns a serverId to our local entity
+    std::unordered_map<uint32_t, uint32_t> m_localFormIdToServerId;
 
     // Game memory offsets (Skyrim SE)
     static constexpr uint64_t kFormIdOffset = 0x14;

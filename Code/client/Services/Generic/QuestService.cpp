@@ -202,7 +202,7 @@ static constexpr std::array kNonSyncableQuestIds = std::to_array<uint32_t>({
     0xF2593 // Skill experience quest
 });
 
-bool QuestService::IsNonSyncableQuest(uint32_t aFormId, IFormBridge& aFormBridge)
+bool QuestService::IsNonSyncableQuest(uint32_t aFormId, const IFormBridge& aFormBridge)
 {
     // Quests with no quest stages are never synced. Most TESQues::Type:: quests should
     // be synced, including Type::None and Type::Miscellaneous, but there are a few

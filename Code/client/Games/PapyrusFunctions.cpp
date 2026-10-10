@@ -1,5 +1,6 @@
 #include "PapyrusFunctions.h"
 
+#include <Actor.h>
 #include <Games/ActorExtension.h>
 
 namespace PapyrusFunctions

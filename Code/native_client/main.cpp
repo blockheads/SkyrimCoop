@@ -234,6 +234,8 @@ public:
         Send(&packet);
     }
 
+    void SetGameReader(GameReader* apReader) { m_pGameReader = apReader; }
+
     void SendAssignCharacterRequest() {
         AssignCharacterRequest req;
         req.Cookie = 1;
@@ -242,6 +244,18 @@ public:
         // Setting it to non-empty causes server to reject with "Unexpected NpcId"
         // because CreateCharacter treats non-empty FormId on a player as invalid.
         req.CurrentActorData.IsDead = false;
+
+        // Read actual player position from Skyrim's memory
+        if (m_pGameReader)
+        {
+            uint64_t playerPtr = m_pGameReader->LookupPointer(0x14);
+            if (playerPtr)
+            {
+                req.Position = m_pGameReader->ReadActorPosition(playerPtr);
+                spdlog::info("JoinClient: read player position ({:.0f},{:.0f},{:.0f})",
+                             req.Position.x, req.Position.y, req.Position.z);
+            }
+        }
 
         TiltedPhoques::Buffer buffer(1 << 16);
         TiltedPhoques::Buffer::Writer writer(&buffer);
@@ -256,6 +270,7 @@ public:
 private:
     ServerMessageRouter* m_pRouter{nullptr};
     CharacterService* m_pCharService{nullptr};
+    GameReader* m_pGameReader{nullptr};
     bool m_connected{false};
     uint64_t m_messagesReceived{0};
 };
@@ -559,7 +574,10 @@ int main(int argc, char* argv[]) {
             });
         pRouter->SetAssignCallback(
             [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy, bool aOwner) {
-                if (!aOwner) {
+                if (aOwner) {
+                    // Our own entity: register serverId for movement messages
+                    characterService.OnLocalAssign(aServerId, 0x14); // player character
+                } else {
                     characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
                 }
             });
@@ -614,6 +632,18 @@ int main(int argc, char* argv[]) {
             assignReq.ReferenceId = GameId{0, 0x14}; // player character
             // FormId left as default GameId{} -- required for player characters
             assignReq.CurrentActorData.IsDead = false;
+
+            // Read actual player position from Skyrim's memory
+            {
+                uint64_t playerPtr = gameReader.LookupPointer(0x14);
+                if (playerPtr)
+                {
+                    assignReq.Position = gameReader.ReadActorPosition(playerPtr);
+                    spdlog::info("Host: read player position ({:.0f},{:.0f},{:.0f})",
+                                 assignReq.Position.x, assignReq.Position.y, assignReq.Position.z);
+                }
+            }
+
             pLoopback->SendToServer(assignReq);
             pGameServer->Update(); // Process the assign message
             spdlog::info("Host player character registered with GameServer");
@@ -629,6 +659,7 @@ int main(int argc, char* argv[]) {
         pJoinClient = std::make_unique<JoinClient>();
         pJoinClient->SetRouter(pRouter.get());
         pJoinClient->SetCharacterService(&characterService);
+        pJoinClient->SetGameReader(&gameReader);
 
         // Wire auth callback: trigger AssignCharacterRequest after auth acceptance
         pRouter->SetAuthCallback(
@@ -650,6 +681,7 @@ int main(int argc, char* argv[]) {
             [&characterService](uint32_t aServerId, uint32_t aFormId, float aX, float aY, float aZ, float aRx, float aRy, bool aOwner) {
                 if (aOwner) {
                     spdlog::info("JoinClient: own character assigned serverId={}", aServerId);
+                    characterService.OnLocalAssign(aServerId, 0x14); // player character
                 } else {
                     characterService.OnAssignCharacter(aServerId, aFormId, {aX, aY, aZ}, {aRx, aRy});
                 }

@@ -55,7 +55,9 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain)
 
     m_imguiService.Create(this, GetWindow());
     m_overlay.Create(this);
+#ifndef __MINGW32__
     DebugService::ArrangeGameWindows(GetWindow());
+#endif
 }
 
 void RenderSystemD3D11::OnRender()

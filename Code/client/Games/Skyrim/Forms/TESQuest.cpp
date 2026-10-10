@@ -1,4 +1,5 @@
 #include <Forms/TESQuest.h>
+#include <TESObjectREFR.h>
 
 #include <Services/PapyrusService.h>
 

@@ -9,6 +9,7 @@
 #include <PlayerCharacter.h>
 #include <Games/ActorExtension.h>
 #include <Games/PapyrusFunctions.h>
+#include <Games/Memory.h>
 
 TP_THIS_FUNCTION(TRegisterPapyrusFunction, void, BSScript::IVirtualMachine, NativeFunction*);
 TP_THIS_FUNCTION(TBindEverythingToScript, void, BSScript::IVirtualMachine*);
@@ -22,20 +23,23 @@ TCompareVariables* RealCompareVariables = nullptr;
 
 void TP_MAKE_THISCALL(HookRegisterPapyrusFunction, BSScript::IVirtualMachine, NativeFunction* apFunction)
 {
-    auto& runner = World::Get().GetRunner();
-
-    PapyrusFunctionRegisterEvent event(apFunction->functionName.AsAscii(), apFunction->typeName.AsAscii(), apFunction->functionAddress);
-
-    runner.Trigger(std::move(event));
+    // Synchronous: natives register on the main thread during VM setup, and hooks such as
+    // HookActivate look them up (PAPYRUS_FUNCTION) before the first World::Update would
+    // drain a queued event, caching a null function pointer for good.
+    World::Get().GetDispatcher().trigger(
+        PapyrusFunctionRegisterEvent(apFunction->functionName.AsAscii(), apFunction->typeName.AsAscii(), apFunction->functionAddress));
 
     TiltedPhoques::ThisCall(RealRegisterPapyrusFunction, apThis, apFunction);
 }
 
 void TP_MAKE_THISCALL(HookBindEverythingToScript, BSScript::IVirtualMachine*)
 {
-    (*apThis)->BindNativeMethod(new BSScript::IsRemotePlayerFunc("IsRemotePlayer", "SkyrimTogetherUtils", PapyrusFunctions::IsRemotePlayer, BSScript::Variable::kBoolean));
-    (*apThis)->BindNativeMethod(new BSScript::IsPlayerFunc("IsPlayer", "SkyrimTogetherUtils", PapyrusFunctions::IsPlayer, BSScript::Variable::kBoolean));
-    (*apThis)->BindNativeMethod(new BSScript::DidLaunchSkyrimTogetherFunc("DidLaunchSkyrimTogether", "SkyrimTogetherVerifyLaunchScript", PapyrusFunctions::DidLaunchSkyrimTogether, BSScript::Variable::kBoolean));
+    // The VM owns bound functions and frees them with the game heap (e.g. when the
+    // script class is not installed), so they must come from the game heap too.
+    // Plain `new` used the DLL's allocator and crashed BSSmallBlockAllocator at startup.
+    (*apThis)->BindNativeMethod(Memory::New<BSScript::IsRemotePlayerFunc>("IsRemotePlayer", "SkyrimTogetherUtils", PapyrusFunctions::IsRemotePlayer, BSScript::Variable::kBoolean));
+    (*apThis)->BindNativeMethod(Memory::New<BSScript::IsPlayerFunc>("IsPlayer", "SkyrimTogetherUtils", PapyrusFunctions::IsPlayer, BSScript::Variable::kBoolean));
+    (*apThis)->BindNativeMethod(Memory::New<BSScript::DidLaunchSkyrimTogetherFunc>("DidLaunchSkyrimTogether", "SkyrimTogetherVerifyLaunchScript", PapyrusFunctions::DidLaunchSkyrimTogether, BSScript::Variable::kBoolean));
 
     TiltedPhoques::ThisCall(RealBindEverythingToScript, apThis);
 }

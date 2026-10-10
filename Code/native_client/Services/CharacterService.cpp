@@ -355,6 +355,10 @@ void CharacterService::SyncMovement()
         }
 
         if (changed && m_pLoopback) {
+            // Use serverId as the key (server expects entity ID, not formId)
+            auto sidIt = m_localFormIdToServerId.find(comp.formId);
+            if (sidIt == m_localFormIdToServerId.end()) continue; // no serverId assigned yet
+
             ClientReferencesMoveRequest moveReq;
             moveReq.Tick = 0; // Phase 8 MVP: tick ordering deferred
 
@@ -364,11 +368,14 @@ void CharacterService::SyncMovement()
             update.UpdatedMovement.Position.z = currentPos.z;
             update.UpdatedMovement.Rotation.x = currentRot.x;
             update.UpdatedMovement.Rotation.y = currentRot.y;
-            moveReq.Updates[comp.formId] = update;
+            moveReq.Updates[sidIt->second] = update;
 
             m_pLoopback->SendToServer(moveReq);
-            spdlog::debug("CharacterService: Sent movement via loopback formId={:#x}", comp.formId);
+            spdlog::debug("CharacterService: Sent movement via loopback formId={:#x} serverId={}", comp.formId, sidIt->second);
         } else if (changed && m_pJoinClient) {
+            auto sidIt = m_localFormIdToServerId.find(comp.formId);
+            if (sidIt == m_localFormIdToServerId.end()) continue;
+
             ClientReferencesMoveRequest moveReq;
             moveReq.Tick = 0;
 
@@ -378,7 +385,7 @@ void CharacterService::SyncMovement()
             update.UpdatedMovement.Position.z = currentPos.z;
             update.UpdatedMovement.Rotation.x = currentRot.x;
             update.UpdatedMovement.Rotation.y = currentRot.y;
-            moveReq.Updates[comp.formId] = update;
+            moveReq.Updates[sidIt->second] = update;
 
             TiltedPhoques::Buffer buffer(1 << 16);
             TiltedPhoques::Buffer::Writer writer(&buffer);
@@ -628,6 +635,12 @@ void CharacterService::SendRemoveActor(uint64_t aActorPtr)
     spdlog::info("CharacterService: Sent cmd_remove_actor ptr={:#x}", aActorPtr);
 }
 
+void CharacterService::OnLocalAssign(uint32_t aServerId, uint32_t aFormId)
+{
+    m_localFormIdToServerId[aFormId] = aServerId;
+    spdlog::info("CharacterService: Local assign formId={:#x} -> serverId={}", aFormId, aServerId);
+}
+
 void CharacterService::OnSpawnResult(uint32_t aFormId, uint64_t aActorPtr, bool aSuccess)
 {
     if (!aSuccess || aActorPtr == 0) {
@@ -735,6 +748,20 @@ void CharacterService::OnSpawnCharacter(uint32_t aServerId, uint32_t aFormId,
         // World NPC path: existing formId-based spawn
         SendSpawnActor(aFormId, aPosition, aRotation);
         spdlog::info("CharacterService: Spawn formId-path serverId={} formId={:#x}", aServerId, aFormId);
+    } else if (aIsPlayer) {
+        // Player character with no appearance data: fall back to formId 0x14 (PlayerRef)
+        // Update RemoteComponent formId so OnSpawnResult can match the result
+        auto view = m_registry.view<RemoteComponent>();
+        for (auto ent : view) {
+            auto& comp = view.get<RemoteComponent>(ent);
+            if (comp.serverId == aServerId) {
+                comp.formId = 0x14;
+                break;
+            }
+        }
+        SendSpawnActor(0x14, aPosition, aRotation);
+        spdlog::info("CharacterService: Spawn player-fallback serverId={} formId=0x14 pos=({:.0f},{:.0f},{:.0f})",
+                     aServerId, aPosition.x, aPosition.y, aPosition.z);
     } else {
         spdlog::warn("CharacterService: Spawn serverId={} has formId=0 but no appearance data", aServerId);
     }

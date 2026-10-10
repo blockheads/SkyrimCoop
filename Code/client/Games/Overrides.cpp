@@ -2,6 +2,7 @@
 
 #include <Games/Overrides.h>
 
+#ifndef __MINGW32__
 template<> thread_local uint32_t ScopedReferencesOverride::s_refCount = 0;
 template<> thread_local uint32_t ScopedEquipOverride::s_refCount = 0;
 template<> thread_local uint32_t ScopedUnequipOverride::s_refCount = 0;
@@ -12,3 +13,4 @@ template<> thread_local uint32_t ScopedInventoryOverride::s_refCount = 0;
 template<> thread_local uint32_t ScopedExtraDataOverride::s_refCount = 0;
 template<> thread_local uint32_t ScopedQuestOverride::s_refCount = 0;
 template<> thread_local uint32_t ScopedSpellCastOverride::s_refCount = 0;
+#endif

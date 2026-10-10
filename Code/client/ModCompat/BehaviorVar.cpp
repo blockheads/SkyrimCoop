@@ -31,6 +31,7 @@
 #include <immersive_launcher/launcher.h>
 #endif
 #include <BSAnimationGraphManager.h>
+#include <Actor.h>
 #include <Games/ActorExtension.h>
 #include "BehaviorVar.h"
 #include "BehaviorVarsMap.h"

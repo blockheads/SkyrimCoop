@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <cstdlib>
 #include <AutoPtr.hpp>
 
 #include <mem/mem.h>

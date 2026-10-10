@@ -41,7 +41,8 @@ void DispatchHookEvent(const nlohmann::json& aMsg,
         op == JsonOp::kSetPosition || op == JsonOp::kSpawnActor ||
         op == JsonOp::kCharacterCtor || op == JsonOp::kDeathItems ||
         op == JsonOp::kPerformAction || op == JsonOp::kActorProcess ||
-        op == JsonOp::kPlayAnimation || op == JsonOp::kMountPackage)
+        op == JsonOp::kPlayAnimation || op == JsonOp::kMountPackage ||
+        op == JsonOp::kSpawnResult)
         aCharacter.OnHookEvent(aMsg);
 
     if (op == JsonOp::kWeatherChange || op == JsonOp::kSetWeather || op == JsonOp::kForceWeather)

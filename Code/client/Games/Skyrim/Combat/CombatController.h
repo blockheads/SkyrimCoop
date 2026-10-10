@@ -1,5 +1,7 @@
 #pragma once
 
+#include <NetImmerse/NiPointer.h>
+
 struct CombatTargetSelector;
 struct CombatGroup;
 struct CombatState;

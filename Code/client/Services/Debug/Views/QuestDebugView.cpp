@@ -1,5 +1,6 @@
 #include <Services/DebugService.h>
 #include <Services/QuestService.h>
+#include <Bridges/IFormBridge.h>
 #include <Services/PapyrusService.h>
 #include <Services/PartyService.h>
 
@@ -35,7 +36,7 @@ void DebugService::DrawQuestDebugView()
             if (!pQuest)
                 continue;
 
-            if (QuestService::IsNonSyncableQuest(pQuest))
+            if (QuestService::IsNonSyncableQuest(pQuest->formID, m_world.ctx().at<IFormBridge&>()))
                 continue;
 
             if (foundQuests.contains(pQuest->formID))

@@ -52,6 +52,8 @@ public:
     void DeleteActor(uint32_t aFormId) noexcept override;
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
+    bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
+        const float aRotation[3], float aDirection, const AnimationVariables& aVariables) noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;

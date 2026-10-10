@@ -125,7 +125,9 @@ void TP_MAKE_THISCALL(HookSetCurrentPickREFR, Console, BSPointerHandle<TESObject
     if (pObject)
         formId = pObject->formID;
 
+#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
     World::Get().GetDebugService().SetDebugId(formId);
+#endif
 
     return TiltedPhoques::ThisCall(RealSetCurrentPickREFR, apThis, apRefr);
 }

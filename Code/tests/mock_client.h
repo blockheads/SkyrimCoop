@@ -33,6 +33,8 @@ struct MockClient : TiltedPhoques::Client
     bool m_authAccepted{false};
     AuthenticationResponse::ResponseType m_authResponseType{};
     bool m_gotAuthResponse{false};
+    bool m_gotAssignment{false};
+    uint32_t m_characterServerId{0};
 
 protected:
     void OnConsume(const void* apData, uint32_t aSize) override;

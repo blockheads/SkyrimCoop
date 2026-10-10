@@ -2,7 +2,7 @@
 
 class IFormBridge;
 class IEventBridge;
-struct IActorBridge;
+class IActorBridge;
 
 struct ServerTimeSettings;
 struct DisconnectedEvent;

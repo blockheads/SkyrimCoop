@@ -115,6 +115,15 @@ void LoadScriptExender()
     if (!needle)
         return;
 
+    // When entered as an SKSE plugin, SKSE is already loading its plugins.
+    // Calling StartSKSE again would recursively initialize the host loader.
+    if (auto existing = GetModuleHandleW(needle->filename().c_str()))
+    {
+        g_SKSEModuleHandle = existing;
+        spdlog::info("SKSE is already active");
+        return;
+    }
+
     FileVersion fileVersion;
     if (GetFileVersion(*needle, fileVersion) != 0)
     {

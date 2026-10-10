@@ -105,6 +105,7 @@ private:
 
     void RunLocalUpdates() const noexcept;
     void RunRemoteUpdates() noexcept;
+    void RunPlayerDiscovery() noexcept;
     void RunFactionsUpdates() const noexcept;
     void RunSpawnUpdates() const noexcept;
     void RunExperienceUpdates() noexcept;
@@ -116,6 +117,7 @@ private:
     IActorBridge& m_actorBridge;
     IFormBridge& m_formBridge;
     IPlayerBridge& m_playerBridge;
+    bool m_playerDiscovered = false;
 
     float m_cachedExperience = 0.f;
 

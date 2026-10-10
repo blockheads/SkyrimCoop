@@ -46,8 +46,11 @@ namespace TiltedPhoques
 
         // Create server host
         // enet_host_create(type, address, peerCount, channelLimit, incomingBandwidth, outgoingBandwidth)
+        // Socket type ANY with an IPv6 address is how enet6 asks for dual stack: only then does
+        // it clear IPV6_V6ONLY. Windows defaults that to 1 (Linux to 0), which silently drops
+        // IPv4 / IPv4-mapped clients such as the host's own 127.0.0.1 connection.
         m_pHost = enet_host_create(
-            addressType,
+            bEnableDualStackIP ? ENET_ADDRESS_TYPE_ANY : addressType,
             &address,
             128,  // Max 128 clients (kMaxPlayerCount from original code)
             2,    // 2 channels (0 = reliable, 1 = unreliable)

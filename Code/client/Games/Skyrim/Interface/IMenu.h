@@ -171,6 +171,6 @@ struct IMenu : FxDelegateHandler
     void* fxDelegate{nullptr};
 };
 
-constexpr auto x = offsetof(IMenu, IMenu::uiMenuFlags);
+constexpr auto x = offsetof(IMenu, uiMenuFlags);
 
-SKYRIM_STRUCT_ASSERT(offsetof(IMenu, IMenu::uiMenuFlags) == 0x1C);
+SKYRIM_STRUCT_ASSERT(offsetof(IMenu, uiMenuFlags) == 0x1C);

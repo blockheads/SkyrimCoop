@@ -1,5 +1,6 @@
 #pragma once
 
+#include <new>
 #include <optional>
 #include "VersionDb.h"
 #include "World.h"
@@ -15,6 +16,16 @@
     }
 
 struct TESForm;
+
+// Engine sub-objects we declare as members (actorValueOwner, animationGraphHolder,
+// keywordForm) are base-class sub-objects in the engine, carrying the engine's vtables.
+// Clang turns a call on a member of known type into a direct call (MSVC does not),
+// which bypasses the engine's override. Call through this to keep virtual dispatch:
+//   EngineVirtual(actorValueOwner).GetValue(id)
+template <class T> [[nodiscard]] T& EngineVirtual(T& aObject) noexcept
+{
+    return *std::launder(&aObject);
+}
 
 namespace Utils
 {

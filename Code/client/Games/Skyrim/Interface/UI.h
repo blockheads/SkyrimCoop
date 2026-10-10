@@ -89,4 +89,4 @@ public:
 
 // intellisense is too dumb but the compiler knows.
 SKYRIM_STRUCT_ASSERT(sizeof(UI) == 0x1C8);
-SKYRIM_STRUCT_ASSERT(offsetof(UI, UI::numPausesGame) == 0x160);
+SKYRIM_STRUCT_ASSERT(offsetof(UI, numPausesGame) == 0x160);

@@ -48,7 +48,7 @@ struct World : entt::registry
     const CharacterService& GetCharacterService() const noexcept { return ctx().at<const CharacterService>(); }
     OverlayService& GetOverlayService() noexcept { return ctx().at<OverlayService>(); }
     const OverlayService& GetOverlayService() const noexcept { return ctx().at<const OverlayService>(); }
-#ifdef HAS_DIRECTXTK
+#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
     DebugService& GetDebugService() noexcept { return ctx().at<DebugService>(); }
     const DebugService& GetDebugService() const noexcept { return ctx().at<const DebugService>(); }
 #endif
@@ -76,6 +76,8 @@ struct World : entt::registry
 
 private:
     entt::dispatcher m_dispatcher;
+    // Must exist before TransportService looks up its bridge references.
+    std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
     RunnerService m_runner;
     TransportService m_transport;
     ModSystem m_modSystem;
@@ -83,6 +85,4 @@ private:
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
 
-    // Owns the single SkyrimBridge instance; interfaces registered into ctx() in ctor.
-    std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
 };

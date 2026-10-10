@@ -31,7 +31,7 @@ template <class Return, class Type, class... Args> struct PapyrusFunction
     using TFunction = Return(*)(BSScript::IVirtualMachine*, uint32_t, const Type*, Args...);
 
     PapyrusFunction(const void* apAddress)
-        : m_pFunction(reinterpret_cast<TFunction>(apAddress))
+        : m_pFunction(reinterpret_cast<TFunction>(const_cast<void*>(apAddress)))
     {
     }
 
@@ -46,7 +46,7 @@ template <class Return, class... Args> struct GlobalPapyrusFunction
     using TFunction = Return(*)(BSScript::IVirtualMachine*, Args...);
 
     GlobalPapyrusFunction(const void* apAddress)
-        : m_pFunction(reinterpret_cast<TFunction>(apAddress))
+        : m_pFunction(reinterpret_cast<TFunction>(const_cast<void*>(apAddress)))
     {
     }
 
@@ -68,7 +68,7 @@ template <class Return, class Type, class... Args> struct LatentPapyrusFunction
     using TFunction = Return(*)(BSScript::IVirtualMachine*, uint32_t, const RefrOrInventoryObj&, Args...);
 
     LatentPapyrusFunction(const void* apAddress)
-        : m_pFunction(reinterpret_cast<TFunction>(apAddress))
+        : m_pFunction(reinterpret_cast<TFunction>(const_cast<void*>(apAddress)))
     {
     }
 

@@ -1,7 +1,9 @@
 #include <BranchInfo.h>
 #include "CrashHandler.h"
 #include <dbghelp.h>
+#include <FunctionHook.hpp>
 #include <windows.h>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
@@ -19,6 +21,61 @@ std::string SerializeTimePoint(const time_point& time, const std::string& format
     std::stringstream ss;
     ss << std::put_time(&tm, format.c_str());
     return ss.str();
+}
+
+// Unwinds with each module's own unwind tables (ntdll only, no loader lock), so it is
+// safe on a suspended thread. Returns the number of return addresses written.
+static int CaptureBacktrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames)
+{
+    CONTEXT context = acContext;
+    int count = 0;
+    // Rip 0 on frame 0 is a call through a null pointer: unwind it like a leaf below.
+    while (count < aMaxFrames && (context.Rip || count == 0))
+    {
+        apFrames[count++] = context.Rip;
+
+        DWORD64 imageBase = 0;
+        auto* pFunction = context.Rip ? RtlLookupFunctionEntry(context.Rip, &imageBase, nullptr) : nullptr;
+        if (pFunction)
+        {
+            void* pHandlerData = nullptr;
+            DWORD64 establisherFrame = 0;
+            RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, context.Rip, pFunction, &context, &pHandlerData,
+                             &establisherFrame, nullptr);
+        }
+        else if (count == 1)
+        {
+            // Leaf function: the return address is on top of the stack.
+            context.Rip = *reinterpret_cast<DWORD64*>(context.Rsp);
+            context.Rsp += sizeof(DWORD64);
+        }
+        else
+            break; // No unwind data mid-stack: JIT code or garbage, stop rather than guess.
+    }
+    return count;
+}
+
+// Logs module+offset per frame.
+// Symbolize afterwards with scripts/re/symbolize_crash.py (engine IDs + our source lines).
+static void LogFrames(const DWORD64* apFrames, int aCount)
+{
+    for (int frame = 0; frame < aCount; ++frame)
+    {
+        HMODULE module = nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(apFrames[frame]), &module);
+        char path[MAX_PATH] = "?";
+        if (module)
+            GetModuleFileNameA(module, path, MAX_PATH);
+        spdlog::error("  backtrace #{:02} {}+{:#x}", frame, std::filesystem::path(path).filename().string(),
+                      apFrames[frame] - reinterpret_cast<uintptr_t>(module));
+    }
+}
+
+static void LogBacktrace(const CONTEXT& acContext)
+{
+    DWORD64 frames[48];
+    LogFrames(frames, CaptureBacktrace(acContext, frames, 48));
 }
 
 LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
@@ -40,6 +97,8 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
                       pExceptionInfo->ExceptionRecord->ExceptionCode,
                       pExceptionInfo->ExceptionRecord->ExceptionAddress,
                       pExceptionInfo->ExceptionRecord->ExceptionFlags);
+        LogBacktrace(*pExceptionInfo->ContextRecord);
+        spdlog::default_logger()->flush();
 
 #if (IS_MASTER)
         volatile static bool bMiniDump = false;
@@ -120,6 +179,20 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
     return retval;
 }
 
+// Logs who ends the process: a clean exit (code 0) otherwise leaves no trace in our log.
+using TExitProcess = void(WINAPI*)(UINT);
+static TExitProcess RealExitProcess = nullptr;
+
+static void WINAPI HookExitProcess(UINT aExitCode)
+{
+    spdlog::error("ExitProcess({}) called", aExitCode);
+    CONTEXT context{};
+    RtlCaptureContext(&context);
+    LogBacktrace(context);
+    spdlog::default_logger()->flush();
+    RealExitProcess(aExitCode);
+}
+
 LPTOP_LEVEL_EXCEPTION_FILTER CrashHandler::m_pUnhandled;
 CrashHandler::CrashHandler()
 {
@@ -131,6 +204,10 @@ CrashHandler::CrashHandler()
     SetUnhandledExceptionFilter(m_pUnhandled);
 
     m_handler = AddVectoredExceptionHandler(1, &VectoredExceptionHandler);
+
+    RealExitProcess = reinterpret_cast<TExitProcess>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "ExitProcess"));
+    if (RealExitProcess)
+        TP_HOOK_IMMEDIATE(&RealExitProcess, &HookExitProcess);
 }
 
 CrashHandler::~CrashHandler()
@@ -146,4 +223,50 @@ void CrashHandler::RemovePreviousDump(std::filesystem::path path)
             DeleteFileA(entry.path().string().c_str());
         }
     }
+}
+
+static std::atomic<uint64_t> s_mainLoopTicks{0};
+
+// Logs the main thread's stack when the main loop stops ticking for 10s, once per stall.
+static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
+{
+    const HANDLE cMainThread = apMainThread;
+    uint64_t lastTicks = 0;
+    int stalledSeconds = 0;
+    while (true)
+    {
+        Sleep(1000);
+        const uint64_t cTicks = s_mainLoopTicks.load(std::memory_order_relaxed);
+        stalledSeconds = cTicks == lastTicks ? stalledSeconds + 1 : 0;
+        lastTicks = cTicks;
+        if (stalledSeconds != 10)
+            continue;
+
+        if (SuspendThread(cMainThread) == static_cast<DWORD>(-1))
+            continue;
+        // Nothing that can take a lock (logging, allocation, loader) while it is suspended.
+        CONTEXT context{};
+        context.ContextFlags = CONTEXT_FULL;
+        DWORD64 frames[48];
+        int frameCount = 0;
+        if (GetThreadContext(cMainThread, &context))
+            frameCount = CaptureBacktrace(context, frames, 48);
+        ResumeThread(cMainThread);
+
+        spdlog::error("HangWatchdog: main loop stalled for 10s after {} ticks", cTicks);
+        LogFrames(frames, frameCount);
+        spdlog::default_logger()->flush();
+    }
+}
+
+void CrashHandler::OnMainLoopTick() noexcept
+{
+    if (s_mainLoopTicks.fetch_add(1, std::memory_order_relaxed) != 0)
+        return;
+
+    HANDLE mainThread = nullptr;
+    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &mainThread,
+                    THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, 0);
+    if (const HANDLE cWatchdog = CreateThread(nullptr, 0, &HangWatchdog, mainThread, 0, nullptr))
+        CloseHandle(cWatchdog);
 }

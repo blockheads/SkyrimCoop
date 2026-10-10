@@ -1,6 +1,7 @@
 #include <TiltedOnlinePCH.h>
 
 #include "World.h"
+#include <HotReload/Runtime.h>
 
 // SkyrimBridge is included here (not in World.h) to keep SKSE headers out of
 // every service that includes World.h.
@@ -37,11 +38,9 @@
 
 #include <ModCompat/BehaviorVar.h>  
 
-World::World()
-    : m_runner(m_dispatcher)
-    , m_transport(*this, m_dispatcher)
-    , m_modSystem(m_dispatcher)
-    , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
+namespace
+{
+std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
 {
     // Create the bridge and register all five interfaces into EnTT context so
     // that services can look them up via ctx().at<IXxxBridge&>().
@@ -49,17 +48,28 @@ World::World()
     // IMPORTANT: With multiple inheritance, entt 3.10.0 ctx().emplace<T&>(obj) stores
     // the raw pointer reinterpreted as T. To get correct virtual dispatch, we must
     // explicitly cast to each interface type before storing (discovered via ReplayBridge tests).
-    m_pSkyrimBridge = std::make_unique<SkyrimBridge>();
-    IActorBridge&  actorRef  = *m_pSkyrimBridge;
-    IFormBridge&   formRef   = *m_pSkyrimBridge;
-    IPlayerBridge& playerRef = *m_pSkyrimBridge;
-    IEventBridge&  eventRef  = *m_pSkyrimBridge;
-    IWorldBridge&  worldRef  = *m_pSkyrimBridge;
-    ctx().emplace<IActorBridge&>(actorRef);
-    ctx().emplace<IFormBridge&>(formRef);
-    ctx().emplace<IPlayerBridge&>(playerRef);
-    ctx().emplace<IEventBridge&>(eventRef);
-    ctx().emplace<IWorldBridge&>(worldRef);
+    auto bridge = std::make_unique<SkyrimBridge>();
+    IActorBridge&  actorRef  = *bridge;
+    IFormBridge&   formRef   = *bridge;
+    IPlayerBridge& playerRef = *bridge;
+    IEventBridge&  eventRef  = *bridge;
+    IWorldBridge&  worldRef  = *bridge;
+    world.ctx().emplace<IActorBridge&>(actorRef);
+    world.ctx().emplace<IFormBridge&>(formRef);
+    world.ctx().emplace<IPlayerBridge&>(playerRef);
+    world.ctx().emplace<IEventBridge&>(eventRef);
+    world.ctx().emplace<IWorldBridge&>(worldRef);
+    return bridge;
+}
+}
+
+World::World()
+    : m_pSkyrimBridge(CreateBridgeContext(*this))
+    , m_runner(m_dispatcher)
+    , m_transport(*this, m_dispatcher)
+    , m_modSystem(m_dispatcher)
+    , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
+{
 
     ctx().emplace<ImguiService>();
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher,
@@ -69,7 +79,9 @@ World::World()
 #endif
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
+#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
+#endif
     ctx().emplace<PapyrusService>(m_dispatcher);
     ctx().emplace<DiscordService>(m_dispatcher, ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport,

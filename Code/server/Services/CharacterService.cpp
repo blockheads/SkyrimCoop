@@ -51,6 +51,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher)
     , m_characterAssignRequestConnection(aDispatcher.sink<PacketEvent<AssignCharacterRequest>>().connect<&CharacterService::OnAssignCharacterRequest>(this))
     , m_removeCharacterConnection(aDispatcher.sink<CharacterRemoveEvent>().connect<&CharacterService::OnCharacterRemoveEvent>(this))
     , m_characterSpawnedConnection(aDispatcher.sink<CharacterSpawnedEvent>().connect<&CharacterService::OnCharacterSpawned>(this))
+    , m_playerEnterWorldConnection(aDispatcher.sink<PlayerEnterWorldEvent>().connect<&CharacterService::OnPlayerEnterWorld>(this))
     , m_referenceMovementSnapshotConnection(aDispatcher.sink<PacketEvent<ClientReferencesMoveRequest>>().connect<&CharacterService::OnReferencesMoveRequest>(this))
     , m_factionsChangesConnection(aDispatcher.sink<PacketEvent<RequestFactionsChanges>>().connect<&CharacterService::OnFactionsChanges>(this))
     , m_mountConnection(aDispatcher.sink<PacketEvent<MountRequest>>().connect<&CharacterService::OnMountRequest>(this))
@@ -225,6 +226,31 @@ void CharacterService::OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) 
     GameServer::Get()->SendToPlayers(message, ownerComp.GetOwner());
 
     GameServer::Get()->GetWorld().GetScriptService().HandleCharacterSpawn(acEvent.Entity);
+}
+
+void CharacterService::OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) const noexcept
+{
+    // Send all existing characters to the newly-joined player
+    auto view = m_world.view<CharacterComponent, OwnerComponent>();
+    uint32_t count = 0;
+
+    for (auto entity : view)
+    {
+        const auto& ownerComp = view.get<OwnerComponent>(entity);
+
+        // Don't send the player their own character
+        if (ownerComp.GetOwner() == acEvent.pPlayer)
+            continue;
+
+        CharacterSpawnRequest message;
+        Serialize(m_world, entity, &message);
+
+        acEvent.pPlayer->Send(message);
+        ++count;
+    }
+
+    spdlog::info("OnPlayerEnterWorld: sent {} existing characters to player {:x}",
+                 count, acEvent.pPlayer->GetConnectionId());
 }
 
 void CharacterService::OnReferencesMoveRequest(const PacketEvent<ClientReferencesMoveRequest>& acMessage) const noexcept
@@ -414,9 +440,12 @@ void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>
 
     auto* const pServer = GameServer::Get();
 
-    // Host-only ownership: Always assign NPCs to the host player
+    // Ownership: Player characters belong to their player, NPCs belong to the host
     Player* pHostPlayer = m_world.GetPlayerManager().GetHostPlayer();
-    Player* pOwner = pHostPlayer ? pHostPlayer : acMessage.pPlayer; // Fallback to requester if no host
+    Player* pOwner = isPlayer ? acMessage.pPlayer : (pHostPlayer ? pHostPlayer : acMessage.pPlayer);
+    spdlog::info("CreateCharacter: isPlayer={}, owner={:x} (requester={:x}, host={:x})",
+                 isPlayer, pOwner->GetConnectionId(), acMessage.pPlayer->GetConnectionId(),
+                 pHostPlayer ? pHostPlayer->GetConnectionId() : 0);
     m_world.emplace<OwnerComponent>(cEntity, pOwner);
 
     auto& cellIdComponent = m_world.emplace<CellIdComponent>(cEntity, message.CellId);

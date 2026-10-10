@@ -35,6 +35,7 @@ using TiltedPhoques::Vector;
 
 #include <Messages/ServerMessageFactory.h>
 #include <Messages/AuthenticationResponse.h>
+#include <Messages/AssignCharacterResponse.h>
 #include <GameServer.h>
 
 MockClient::MockClient() noexcept = default;
@@ -99,6 +100,17 @@ void MockClient::OnConsume(const void* apData, uint32_t aSize)
     }
 
     m_lastOpcode = pMessage->GetOpcode();
+
+    if (pMessage->GetOpcode() == kAssignCharacterResponse)
+    {
+        auto* response = static_cast<AssignCharacterResponse*>(pMessage.get());
+        if (response->Cookie == 1)
+        {
+            m_gotAssignment = true;
+            m_characterServerId = response->ServerId;
+            spdlog::info("MockClient: character registered as server ID {}", m_characterServerId);
+        }
+    }
 
     // Handle AuthenticationResponse specifically
     if (pMessage->GetOpcode() == kAuthenticationResponse)

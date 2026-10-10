@@ -97,9 +97,10 @@ void ServerMessageRouter::OnServerMessage(const void* apData, uint32_t aSize)
     else if (pMessage->GetOpcode() == kCharacterSpawnRequest)
     {
         auto* pSpawn = static_cast<CharacterSpawnRequest*>(pMessage.get());
-        spdlog::info("ServerMessageRouter: CharacterSpawnRequest serverId={}, formId={:#x}, isPlayer={}, appearanceLen={}",
+        spdlog::info("ServerMessageRouter: CharacterSpawnRequest serverId={}, formId={:#x}, isPlayer={}, appearanceLen={}, pos=({:.0f},{:.0f},{:.0f})",
                      pSpawn->ServerId, pSpawn->FormId.BaseId, pSpawn->IsPlayer,
-                     pSpawn->AppearanceBuffer.size());
+                     pSpawn->AppearanceBuffer.size(),
+                     pSpawn->Position.x, pSpawn->Position.y, pSpawn->Position.z);
         if (m_onSpawn)
         {
             // Convert TiltedPhoques::String to std::string for appearance data

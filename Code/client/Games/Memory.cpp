@@ -144,6 +144,11 @@ static TiltedPhoques::Initializer s_memoryHooks(
         RealFormAllocate = s_formAllocate.Get();
         RealFormFree = s_formFree.Get();
 
+#ifdef TP_ORIGINAL_LAUNCHER // never defined: SKSE loads us too late to swap the CRT heap
+        // The original launcher installs these before the game allocates.
+        // SKSE loads us after CRT startup: replacing malloc/free then would mix
+        // existing game allocations with rpmalloc and uninitialized engine
+        // threads. Keep the game's CRT allocator in the SKSE build.
         using T_msize = decltype(&Hook_msize);
         using Tfree = decltype(&Hookfree);
         using Tcalloc = decltype(&Hookcalloc);
@@ -165,6 +170,7 @@ static TiltedPhoques::Initializer s_memoryHooks(
         TP_HOOK_IAT(malloc, cModuleName);
         TP_HOOK_IAT(_aligned_malloc, cModuleName);
         TP_HOOK_IAT(_aligned_free, cModuleName);
+#endif
 
         TP_HOOK(&RealFormAllocate, HookFormAllocate);
     });

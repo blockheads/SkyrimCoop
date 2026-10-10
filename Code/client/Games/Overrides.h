@@ -11,7 +11,14 @@ template <class T> struct ScopedOverride
     static bool IsOverriden() { return s_refCount > 0; }
 
 private:
+#ifdef __MINGW32__
+    // Keep the constant initializer visible at every call site. With separate
+    // explicit specializations, GCC emits calls to undefined weak TLS init
+    // helpers; PE linkers resolve those into invalid executable addresses.
+    inline static thread_local uint32_t s_refCount = 0;
+#else
     static thread_local uint32_t s_refCount;
+#endif
 };
 
 namespace details

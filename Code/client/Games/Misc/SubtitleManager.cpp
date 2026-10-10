@@ -3,6 +3,7 @@
 #include <Events/SubtitleEvent.h>
 
 #include <TESObjectREFR.h>
+#include <Actor.h>
 #include <Games/ActorExtension.h>
 
 #include <Forms/TESTopicInfo.h>

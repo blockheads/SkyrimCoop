@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <cstring>
+#include <cstdlib>
 #include <windows.h>
 
 // --- Skyrim engine virtual function stubs ---
@@ -135,35 +136,6 @@ bool BGSKeywordForm::Contains(BGSKeyword* apKeyword) const
 
 void BGSKeywordForm::sub_5()
 {
-}
-
-// --- Global variable stubs ---
-// These globals are defined in immersive_launcher or SkyrimSE.exe.
-// The DLL references them but at runtime they live in the host process.
-
-HICON g_SharedWindowIcon = nullptr;
-
-// --- RipAllocateN stub ---
-// Defined in immersive_launcher/memory/RipAllocator.cpp. The DLL uses this
-// for JIT assembly allocation. Provide a simple heap-based fallback that
-// satisfies the linker; the real allocator is in the launcher process.
-
-static uint8_t s_ripHeap[1024 * 1024]; // 1MB fallback pool
-static uint8_t* s_pRipCursor = s_ripHeap;
-
-void* RipAllocateN(size_t aBlockLength)
-{
-    const size_t cAlignment = 16;
-    uintptr_t current = reinterpret_cast<uintptr_t>(s_pRipCursor);
-    uintptr_t aligned = (current + (cAlignment - 1)) & ~(cAlignment - 1);
-    size_t alignedLen = (aBlockLength + (cAlignment - 1)) & ~(cAlignment - 1);
-
-    // Bounds check against pool
-    if (aligned + alignedLen > reinterpret_cast<uintptr_t>(s_ripHeap + sizeof(s_ripHeap)))
-        return nullptr;
-
-    s_pRipCursor = reinterpret_cast<uint8_t*>(aligned + alignedLen);
-    return reinterpret_cast<void*>(aligned);
 }
 
 // --- MSVC intrinsic stubs ---

@@ -18,7 +18,7 @@ public:
 
     TP_NOCOPYMOVE(QuestService);
 
-    static bool IsNonSyncableQuest(uint32_t aFormId, IFormBridge& aFormBridge);
+    static bool IsNonSyncableQuest(uint32_t aFormId, const IFormBridge& aFormBridge);
     static void DebugDumpQuests();
     static bool StopQuest(uint32_t aFormId, IFormBridge& aFormBridge);
 

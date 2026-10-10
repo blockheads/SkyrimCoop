@@ -22,6 +22,6 @@ struct Sky
     uint8_t unk50[0x2C8 - 0x50];
 };
 
-bool Sky::s_shouldUpdateWeather = true;
+inline bool Sky::s_shouldUpdateWeather = true;
 
 SKYRIM_STRUCT_ASSERT(sizeof(Sky) == 0x2C8);

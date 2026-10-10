@@ -6,6 +6,7 @@ struct TESObjectREFR;
 struct TESWorldSpace;
 struct BGSEncounterZone;
 struct LoadedCellData;
+#include <ExtraData/ExtraDataList.h>
 
 struct TESObjectCELL : TESForm
 {

@@ -36,6 +36,7 @@
 #include <Forms/TESTopicInfo.h>
 #include <Forms/TESRace.h>
 #include <Forms/BGSEncounterZone.h>
+#include <Services/QuestService.h>
 #include <Forms/MagicItem.h>
 #include <Magic/MagicTarget.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_WerewolfBehavior.h>
@@ -212,8 +213,11 @@ void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept
 
 void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
 {
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::DeleteActor not yet implemented for {:X}", aFormId);
+    // Engine Delete is for dynamically-created references only. Never delete
+    // the local player or an NPC reference that belongs to the save/plugin.
+    if ((aFormId & 0xFF000000u) != 0xFF000000u) return;
+    if (auto* actor = GetActor(aFormId))
+        actor->Delete();
 }
 
 void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept
@@ -221,13 +225,36 @@ void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, flo
     Actor* pActor = GetActor(aFormId);
     TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellId));
     if (pActor && pCell)
-        pActor->MoveTo(pCell, {aX, aY, aZ});
+    {
+        NiPoint3 pos;
+        pos.x = aX;
+        pos.y = aY;
+        pos.z = aZ;
+        pActor->MoveTo(pCell, pos);
+    }
 }
 
 void SkyrimBridge::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept
 {
     // TODO(02.5-02): implement via actor rotation fields
     spdlog::warn("SkyrimBridge::SetActorRotation not yet implemented for {:X}", aFormId);
+}
+
+bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
+    const float aRotation[3], float aDirection, const AnimationVariables& aVariables) noexcept
+{
+    auto* actor = GetActor(aFormId);
+    if (!actor) return false;
+    NiPoint3 position;
+    position.x = aPosition[0];
+    position.y = aPosition[1];
+    position.z = aPosition[2];
+    actor->ForcePosition(position);
+    actor->LoadAnimationVariables(aVariables);
+    if (actor->currentProcess && actor->currentProcess->middleProcess)
+        actor->currentProcess->middleProcess->direction = aDirection;
+    actor->SetRotation(aRotation[0], aRotation[1], aRotation[2]);
+    return true;
 }
 
 void SkyrimBridge::GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
@@ -383,7 +410,10 @@ bool SkyrimBridge::IsBleedingOut(uint32_t aFormId) const noexcept
 void SkyrimBridge::PayCrimeGoldToAllFactions(uint32_t aFormId) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
-        pActor->PayCrimeGoldToAllFactions();
+    {
+        if (auto* pPlayer = Cast<PlayerCharacter>(pActor))
+            pPlayer->PayCrimeGoldToAllFactions();
+    }
 }
 
 uint32_t SkyrimBridge::GetEquippedShoutFormId(uint32_t aFormId) const noexcept
@@ -581,7 +611,7 @@ uint32_t SkyrimBridge::FindQuestByNameId(const std::string& aNameId) const noexc
 
 uint32_t SkyrimBridge::GetModCount() const noexcept
 {
-    return static_cast<uint32_t>(ModManager::Get()->modCount);
+    return static_cast<uint32_t>(ModManager::Get()->mods.Size());
 }
 
 std::string SkyrimBridge::GetModNameByIndex(uint32_t aIndex) const noexcept
@@ -1050,7 +1080,10 @@ void SkyrimBridge::SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWor
         : nullptr;
     if (pPlayer)
     {
-        NiPoint3 pos{aX, aY, aZ};
+        NiPoint3 pos;
+        pos.x = aX;
+        pos.y = aY;
+        pos.z = aZ;
         pPlayer->SetWaypoint(&pos, pWS);
     }
 }
@@ -1066,7 +1099,13 @@ void SkyrimBridge::MovePlayerTo(uint32_t aCellId, float aX, float aY, float aZ) 
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellId));
     if (pPlayer && pCell)
-        pPlayer->MoveTo(pCell, {aX, aY, aZ});
+    {
+        NiPoint3 pos;
+        pos.x = aX;
+        pos.y = aY;
+        pos.z = aZ;
+        pPlayer->MoveTo(pCell, pos);
+    }
 }
 
 bool SkyrimBridge::IsPlayerAlive() const noexcept
@@ -1434,20 +1473,14 @@ Factions SkyrimBridge::GetActorFactions(uint32_t aFormId) const noexcept
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return {};
-    Factions result;
-    result.ExtraFactions = pActor->GetFactions();
-    // NpcFactions come from the base NPC form
-    TESNPC* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
-    if (pNpc)
-        result.NpcFactions = pNpc->GetFactions();
-    return result;
+    return pActor->GetFactions();
 }
 
 void SkyrimBridge::SetActorFactions(uint32_t aFormId, const Factions& acFactions) noexcept
 {
     Actor* pActor = GetActor(aFormId);
     if (pActor)
-        pActor->SetFactions(acFactions.ExtraFactions);
+        pActor->SetFactions(acFactions);
 }
 
 void SkyrimBridge::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
@@ -1641,12 +1674,7 @@ uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 
 uint32_t SkyrimBridge::CreateCustomActor(const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
 {
-    // Wrap the string bytes in a Buffer::Reader for SKSE deserialization
-    TiltedPhoques::Buffer buf(acAppearance.size());
-    std::memcpy(buf.GetWriteData(), acAppearance.data(), acAppearance.size());
-    buf.SetUsed(acAppearance.size());
-    TiltedPhoques::Buffer::Reader reader(&buf);
-    TESNPC* pNpc = TESNPC::Create(reader, aChangeFlags);
+    TESNPC* pNpc = TESNPC::Create(acAppearance, aChangeFlags);
     if (!pNpc)
         return 0;
     Actor* pActor = Actor::Create(pNpc);
@@ -1661,11 +1689,7 @@ void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::St
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
     if (!pNpc)
         return;
-    TiltedPhoques::Buffer buf(acAppearance.size());
-    std::memcpy(buf.GetWriteData(), acAppearance.data(), acAppearance.size());
-    buf.SetUsed(acAppearance.size());
-    TiltedPhoques::Buffer::Reader reader(&buf);
-    pNpc->Deserialize(reader, aChangeFlags);
+    pNpc->Deserialize(acAppearance, aChangeFlags);
 }
 
 uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept
@@ -1676,10 +1700,7 @@ uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String
     TESNPC* pNpc = Cast<TESNPC>(pActor->baseForm);
     if (!pNpc)
         return 0;
-    TiltedPhoques::Buffer buf(1 << 16);  // 64KB initial size
-    TiltedPhoques::Buffer::Writer writer(&buf);
-    pNpc->Serialize(&writer);
-    aBuffer.assign(reinterpret_cast<const char*>(buf.GetData()), buf.GetUsed());
+    pNpc->Serialize(&aBuffer);
     return pNpc->GetChangeFlags();
 }
 
@@ -1793,7 +1814,10 @@ void SkyrimBridge::PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, fl
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
-    NiPoint3 pos{aX, aY, aZ};
+    NiPoint3 pos;
+    pos.x = aX;
+    pos.y = aY;
+    pos.z = aZ;
     pActor->currentProcess->KnockExplosion(pActor, &pos, aForce);
 }
 
@@ -1900,7 +1924,7 @@ QuestLog SkyrimBridge::GetPlayerQuestLog() const noexcept
         auto* pQuest = objective.instance->quest;
         if (!pQuest)
             continue;
-        if (!QuestService::IsNonSyncableQuest(pQuest))
+        if (!QuestService::IsNonSyncableQuest(pQuest->formID, *this))
         {
             GameId id{};
             if (modSystem.GetServerModId(pQuest->formID, id))

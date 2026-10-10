@@ -6,6 +6,7 @@
 #include <WindowsHook.hpp>
 
 #include <World.h>
+#include <HotReload/Runtime.h>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -36,13 +37,20 @@ TiltedOnlineApp::TiltedOnlineApp()
     std::error_code ec;
     create_directory(logPath, ec);
 
-    auto rotatingLogger = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logPath / "tp_client.log", 1048576 * 5, 3);
+    auto rotatingLogger = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logPath / ("tp_client" + CoopReload::InstanceSuffix() + ".log"), 1048576 * 5, 3);
     // rotatingLogger->set_level(spdlog::level::debug);
     auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     console->set_pattern("%^[%H:%M:%S.%e] [%l] [tid %t] %$ %v");
 
     auto logger = std::make_shared<spdlog::logger>("", spdlog::sinks_init_list{console, rotatingLogger});
     set_default_logger(logger);
+    // e.g. SKYRIMCOOP_LOG_LEVEL=debug (set by scripts/coop_test.py)
+    char level[16]{};
+    if (GetEnvironmentVariableA("SKYRIMCOOP_LOG_LEVEL", level, sizeof(level)) > 0)
+        logger->set_level(spdlog::level::from_str(level));
+    // Readable while the game runs (test harness, hangs); errors land before a crash dump.
+    logger->flush_on(spdlog::level::warn);
+    spdlog::flush_every(std::chrono::seconds(1));
 }
 
 TiltedOnlineApp::~TiltedOnlineApp() = default;
@@ -77,6 +85,7 @@ bool TiltedOnlineApp::BeginMain()
 
 bool TiltedOnlineApp::EndMain()
 {
+    CoopReload::Runtime::Get().Shutdown();
     UninstallHooks();
 #ifdef HAS_DIRECTXTK
     if (m_pDevice)

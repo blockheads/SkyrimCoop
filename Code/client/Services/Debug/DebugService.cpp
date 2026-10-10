@@ -74,7 +74,7 @@ static void DrawBuildTag()
 {
     auto* pWindow = BSGraphics::GetMainWindow();
     const ImVec2 coord{50.f, static_cast<float>((pWindow->uiWindowHeight + 25) - 100)};
-    ImGui::GetBackgroundDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), coord, ImColor::ImColor(255.f, 0.f, 0.f), kBuildTag);
+    ImGui::GetBackgroundDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), coord, ImColor(255.f, 0.f, 0.f), kBuildTag);
 }
 
 void __declspec(noinline) DebugService::PlaceActorInWorld() noexcept

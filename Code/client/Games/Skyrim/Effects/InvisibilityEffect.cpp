@@ -1,5 +1,6 @@
 #include "InvisibilityEffect.h"
 
+#include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <Forms/ActorValueInfo.h>
 
