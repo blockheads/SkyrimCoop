@@ -6,6 +6,7 @@
   coop_test.py game   [--cell CELL --seconds S]       fast-boot, host, connect a bot, verify the bot's
                                                       actor exists in the engine and moves; then quit
   coop_test.py duo    [--keep-running --visible]      two real games: host + client, each must show the other
+  coop_test.py scenario [names]                       sync scenarios (equip, ...) against a running duo
   coop_test.py stop                                   kill the test Skyrim instance(s)
   coop_test.py screenshot [out.png]                   capture the off-screen game display
   coop_test.py console <command...>                   run a console command in the test game
@@ -229,7 +230,10 @@ def prepare_prefix():
     }})
     set_ini(prefs_ini, {"Display": {"bFull Screen": "0", "bBorderless": "0",
                                     "iSize W": "1280", "iSize H": "720",
-                                    "iLocation X": "0", "iLocation Y": "0"}})
+                                    "iLocation X": "0", "iLocation Y": "0"},
+                            # Silent test games. (Muting via PulseAudio would be remembered per app
+                            # name and silence normal Skyrim too.)
+                            "AudioMenu": {"fAudioMasterVolume": "0.0000"}})
 
 
 def read_status():
@@ -466,6 +470,13 @@ def command_duo(args):
         select_instance("client")
         start_session(f"join {port}")
         log("Client joined the host")
+        # Both players spawn on the same spot: step the client aside so each can see the other.
+        select_instance("")
+        host_position = ((read_status() or {}).get("player") or {}).get("position")
+        if host_position:
+            select_instance("client")
+            run_console(f"player.setpos x {host_position[0] + 200:.0f}")
+            run_console(f"player.setpos y {host_position[1]:.0f}")
 
         def both_see_each_other():
             seen = {}
@@ -480,8 +491,20 @@ def command_duo(args):
         for name, players in seen.items():
             for actor, position in players.items():
                 log(f"{name} shows remote player {actor:08X} at ({position[0]:.0f}, {position[1]:.0f}, {position[2]:.0f})")
+        if args.npc:
+            # Host-owned NPC: spawned in the host's game, must be replicated to the client.
+            select_instance("client")
+            before = set(remote_players())
+            select_instance("")
+            run_console(f"player.placeatme {args.npc} 1")
+            select_instance("client")
+            new_actors = wait_for(f"Client shows the host's new NPC (base {args.npc})",
+                                  lambda: set(remote_players()) - before, args.seconds)
+            for actor in new_actors:
+                log(f"client shows host NPC {actor:08X}")
         passed = True
-        print(f"\nPASS: host and client are connected and each shows the other's character. Logs: {run_dir}")
+        print(f"\nPASS: host and client are connected and each shows the other's character"
+              f"{' and the host NPC' if args.npc else ''}. Logs: {run_dir}")
         if args.keep_running:
             for name in ("", "client"):
                 select_instance(name)
@@ -501,6 +524,192 @@ def command_duo(args):
                 select_instance(name)
                 stop_game()
             log("Both games stopped" + ("" if passed else " (failed run)"))
+
+# --- Sync scenarios: run against a `duo --keep-running` session, a few seconds each ------------
+IRON_SWORD = 0x00012EB7
+HOLD = 0.0  # scenario --hold: seconds to pause after each synced step, for watching
+
+
+def actors_on(instance):
+    select_instance(instance)
+    return (read_status() or {}).get("actors", {})
+
+
+def wait_on(instance, description, predicate, timeout=15):
+    """Polls `predicate(actors)` against an instance's status until it returns a truthy value."""
+    def check():
+        return predicate(actors_on(instance))
+    return wait_for(f"[{instance or 'host'}] {description}", check, timeout)
+
+
+def console_on(instance, command):
+    select_instance(instance)
+    run_console(command)
+
+
+def remote_player(actors):
+    return next((int(a) for a, s in actors.items() if s.get("remote_player") and s.get("has_3d")), None)
+
+
+def remote_npcs(actors):
+    return {int(a) for a, s in actors.items() if not s.get("remote_player") and s.get("has_3d")}
+
+
+def show(observer, observed):
+    """With --hold, turns the observer's camera toward the actor under test (and a player under
+    test back toward the observer)."""
+    if HOLD:
+        actors = actors_on(observer)
+        target = observed(actors)
+        if target is not None:
+            select_instance(observer)
+            face_actor(target)
+            if actors.get(str(target), {}).get("remote_player"):
+                # The observed player turns around too, so the camera sees their front.
+                other = "client" if observer == "" else ""
+                select_instance(other)
+                face_actor(remote_player(actors_on(other)))
+
+
+def hold():
+    if HOLD:
+        log(f"(holding {HOLD:.0f}s so you can look)")
+        time.sleep(HOLD)
+
+
+def equip_roundtrip(actor_instance, ref, observer, observed, label):
+    """Equips then unequips an Iron Sword on `ref` in one game; the other game's copy must follow
+    both ways. Ending unequipped keeps reruns honest."""
+    def wears(expected):
+        def check(actors):
+            target = observed(actors)
+            return target is not None and (IRON_SWORD in actors[str(target)]["equipped"]) == expected
+        return check
+    show(observer, observed)
+    console_on(actor_instance, f"{ref}.additem {IRON_SWORD:08X} 1")
+    console_on(actor_instance, f"{ref}.equipitem {IRON_SWORD:08X}")
+    wait_on(observer, f"{label} wears the Iron Sword", wears(True))
+    hold()
+    console_on(actor_instance, f"{ref}.unequipitem {IRON_SWORD:08X}")
+    wait_on(observer, f"{label} no longer wears it", wears(False))
+    hold()
+
+
+def scenario_equip_host_player():
+    """Host equips/unequips a sword; the client's copy of the host must follow."""
+    equip_roundtrip("", "player", "client", remote_player, "host's character")
+
+
+def scenario_equip_client_player():
+    """Client equips/unequips a sword; the host's copy of the client must follow."""
+    equip_roundtrip("client", "player", "", remote_player, "client's character")
+
+
+def key_on(instance, key):
+    """Presses a key in an instance's game window (off-screen display), like a player would."""
+    select_instance(instance)
+    env = dict(os.environ, DISPLAY=VIRTUAL_DISPLAY)
+    windows = subprocess.run(["xdotool", "search", "--name", "^Skyrim"], env=env,
+                             capture_output=True, text=True).stdout.split()
+    if not windows:
+        raise TestFailure(f"[{instance or 'host'}] game window not found on {VIRTUAL_DISPLAY}")
+    subprocess.run(["xdotool", "key", "--window", windows[0], key], env=env, check=True,
+                   stderr=subprocess.DEVNULL)  # dummy X server: harmless XGetInputFocus warning
+
+
+def draw_roundtrip(actor_instance, observer, label):
+    """Player readies then sheathes a sword (R key); the other game's copy must follow."""
+    def drawn(expected):
+        def check(actors):
+            target = remote_player(actors)
+            return target is not None and actors[str(target)].get("weapon_drawn") == expected
+        return check
+    console_on(actor_instance, f"player.additem {IRON_SWORD:08X} 1")
+    console_on(actor_instance, f"player.equipitem {IRON_SWORD:08X}")
+    show(observer, remote_player)
+    def local_drawn():
+        select_instance(actor_instance)
+        return ((read_status() or {}).get("player") or {}).get("weapon_drawn")
+    for expected, verb in ((True, "draws"), (False, "sheathes")):
+        # Skyrim ignores R while a draw/sheathe animation is still playing: press until it reacts.
+        for _ in range(5):
+            key_on(actor_instance, "r")
+            deadline = time.monotonic() + 2.5
+            while time.monotonic() < deadline and local_drawn() != expected:
+                time.sleep(0.1)
+            if local_drawn() == expected:
+                break
+        else:
+            raise TestFailure(f"[{actor_instance or 'host'}] player never {verb} the sword (input not reaching the game?)")
+        wait_on(observer, f"{label} {verb} the sword", drawn(expected))
+        hold()
+    console_on(actor_instance, f"player.unequipitem {IRON_SWORD:08X}")
+
+
+def scenario_draw_host_player():
+    """Host readies/sheathes a weapon; the client's copy of the host must follow."""
+    draw_roundtrip("", "client", "host's character")
+
+
+def scenario_draw_client_player():
+    """Client readies/sheathes a weapon; the host's copy of the client must follow."""
+    draw_roundtrip("client", "", "client's character")
+
+
+def ensure_host_npc(base="000A2C8E"):
+    """Returns (host ref id, client replica id) of a host-owned NPC, spawning one if needed."""
+    select_instance("")
+    host_player = int(remote_player(actors_on("")) or 0)
+    host_npcs = [a for a in (read_status() or {}).get("player", {}).get("loaded_actors", []) if a != host_player]
+    if not host_npcs:
+        console_on("", f"player.placeatme {base} 1")
+        host_npcs = wait_for("[host] NPC loaded", lambda: [
+            a for a in ((read_status() or {}).get("player") or {}).get("loaded_actors", []) if a != host_player], 15)
+    replicas = wait_on("client", "host NPC replicated", remote_npcs)
+    return host_npcs[0], next(iter(replicas))
+
+
+def scenario_equip_host_npc():
+    """Host equips/unequips a sword on its NPC; the client's replica must follow."""
+    npc, replica = ensure_host_npc()
+    equip_roundtrip("", f"{npc:08X}", "client", lambda actors: replica if str(replica) in actors else None,
+                    f"NPC replica {replica:08X}")
+
+
+SCENARIOS = {
+    "equip-host-player": scenario_equip_host_player,
+    "equip-client-player": scenario_equip_client_player,
+    "equip-host-npc": scenario_equip_host_npc,
+    "draw-host-player": scenario_draw_host_player,
+    "draw-client-player": scenario_draw_client_player,
+}
+
+
+def command_scenario(args):
+    global HOLD
+    HOLD = args.hold
+    names = args.names or list(SCENARIOS)
+    unknown = [name for name in names if name not in SCENARIOS]
+    if unknown:
+        raise TestFailure(f"unknown scenario(s) {unknown}; known: {', '.join(SCENARIOS)}")
+    for name in ("", "client"):
+        select_instance(name)
+        if not read_status():
+            raise TestFailure(f"{name or 'host'} game is not running: start `{sys.argv[0]} duo --keep-running` first")
+    results = {}
+    for name in names:
+        log(f"=== {name}: {SCENARIOS[name].__doc__}")
+        try:
+            SCENARIOS[name]()
+            results[name] = "PASS"
+        except TestFailure as error:
+            results[name] = f"FAIL ({error})"
+        log(f"=== {name}: {results[name]}")
+    print()
+    for name, result in results.items():
+        print(f"{name:24s} {result}")
+    if any(r != "PASS" for r in results.values()):
+        raise SystemExit(1)
 
 
 def main():
@@ -525,6 +734,13 @@ def main():
             sub.add_argument("--seconds", type=float, default=30, help="how long to wait for bot movement")
             sub.add_argument("--tolerance", type=float, default=5, help="max engine vs requested distance")
             sub.add_argument("--keep-running", action="store_true", help="leave Skyrim open afterwards")
+        if name == "duo":
+            sub.add_argument("--npc", default="000A2C8E",
+                             help="NPC base form (8 hex digits) the host spawns; the client must show it (default Lydia, '' to skip)")
+    scenario = commands.add_parser("scenario", help="sync scenarios against a running `duo --keep-running`")
+    scenario.add_argument("--hold", type=float, default=0,
+                          help="pause N seconds after each synced step and face the camera at it (for watching)")
+    scenario.add_argument("names", nargs="*", help=f"default: all of {', '.join(SCENARIOS)}")
     stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
     console = commands.add_parser("console", help="run a console command in the running test game")
     console.add_argument("text", nargs="+")
@@ -547,6 +763,8 @@ def main():
             command_game(args)
         elif args.command == "duo":
             command_duo(args)
+        elif args.command == "scenario":
+            command_scenario(args)
         elif args.command == "console":
             run_console(" ".join(args.text))
             log("Done")

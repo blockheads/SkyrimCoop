@@ -41,6 +41,7 @@ private:
         bool has3D;
         float requested[3];
         float actual[3];
+        float requestedRotation[3];
     };
     std::map<uint32_t, Observation> m_observations;
 };

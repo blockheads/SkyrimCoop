@@ -3,6 +3,7 @@
 #include "Session.h"
 #include <World.h>
 #include <Bridges/IActorBridge.h>
+#include <Bridges/IFormBridge.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <algorithm>
 #include <fstream>
@@ -82,6 +83,24 @@ void Runtime::PollConsoleCommand()
     ExecuteConsoleCommand(line.c_str() + separator + 1);
 }
 
+// Game form IDs of the items an actor has equipped (worn armor, weapons, spells).
+static nlohmann::json EquippedItems(uint32_t aFormId)
+{
+    auto& world = World::Get();
+    auto items = nlohmann::json::array();
+    for (const auto& entry : world.GetFormBridge().GetActorEquipment(aFormId).Entries)
+        if (entry.IsWorn())
+            items.push_back(world.GetModSystem().GetGameId(entry.BaseId));
+    return items;
+}
+
+static nlohmann::json ActorRotation(uint32_t aFormId)
+{
+    float rotation[3]{};
+    World::Get().GetActorBridge().GetActorRotation(aFormId, rotation[0], rotation[1], rotation[2]);
+    return {rotation[0], rotation[1], rotation[2]};
+}
+
 static nlohmann::json PlayerStatus()
 {
     auto& actors = World::Get().GetActorBridge();
@@ -90,7 +109,9 @@ static nlohmann::json PlayerStatus()
     float position[3]{}, rotation[3]{};
     actors.GetActorPosition(0x14, position[0], position[1], position[2]);
     actors.GetActorRotation(0x14, rotation[0], rotation[1], rotation[2]);
-    return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}}};
+    return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}},
+            {"loaded_actors", actors.GetLoadedActorFormIds()}, {"equipped", EquippedItems(0x14)},
+            {"weapon_drawn", actors.IsWeaponDrawn(0x14)}};
 }
 
 void Runtime::Poll()
@@ -144,7 +165,12 @@ void Runtime::Poll()
             {"observed_ms", observation.observedMs}, {"generation", observation.generation},
             {"has_3d", observation.has3D},
             {"requested", {observation.requested[0], observation.requested[1], observation.requested[2]}},
-            {"actual", {observation.actual[0], observation.actual[1], observation.actual[2]}}
+            {"actual", {observation.actual[0], observation.actual[1], observation.actual[2]}},
+            {"equipped", EquippedItems(id)},
+            {"requested_rotation", {observation.requestedRotation[0], observation.requestedRotation[1], observation.requestedRotation[2]}},
+            {"rotation", ActorRotation(id)},
+            {"remote_player", World::Get().GetActorBridge().IsRemotePlayer(id)},
+            {"weapon_drawn", World::Get().GetActorBridge().IsWeaponDrawn(id)}
         };
     nlohmann::json status = {
         {"pid", GetCurrentProcessId()}, {"heartbeat_ms", unixMs},
@@ -180,6 +206,7 @@ void Runtime::Observe(uint32_t formId, const CoopMovementOutput& requested,
     // Read back from Actor in the engine, never from the interpolation cache.
     m_observations[formId] = {unixMs, m_loader.Generation(), has3D,
         {requested.position[0], requested.position[1], requested.position[2]},
-        {actual[0], actual[1], actual[2]}};
+        {actual[0], actual[1], actual[2]},
+        {requested.rotation[0], requested.rotation[1], requested.rotation[2]}};
 }
 }
