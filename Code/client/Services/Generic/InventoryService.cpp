@@ -6,6 +6,8 @@
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/NotifyEquipmentChanges.h>
+#include <Messages/RequestEquipmentSnapshot.h>
+#include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/NotifyDrawWeapon.h>
 
@@ -17,6 +19,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Games/Overrides.h>
+#include <set>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                     IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
@@ -31,11 +34,13 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
     m_equipmentConnection = m_dispatcher.sink<EquipmentChangeEvent>().connect<&InventoryService::OnEquipmentChangeEvent>(this);
     m_inventoryChangeConnection = m_dispatcher.sink<NotifyInventoryChanges>().connect<&InventoryService::OnNotifyInventoryChanges>(this);
     m_equipmentChangeConnection = m_dispatcher.sink<NotifyEquipmentChanges>().connect<&InventoryService::OnNotifyEquipmentChanges>(this);
+    m_equipmentSnapshotConnection = m_dispatcher.sink<NotifyEquipmentSnapshot>().connect<&InventoryService::OnNotifyEquipmentSnapshot>(this);
 }
 
 void InventoryService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     RunWeaponStateUpdates();
+    RunEquipmentSnapshots();
     RunNakedNPCBugChecks();
 }
 
@@ -211,6 +216,78 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
             m_formBridge.ActorEquipItem(cActorFormId, itemId, equipSlotId, acMessage.Count);
         }
     }
+}
+
+// Equipment changes are sent as events, so a copy that misses or undoes one would stay wrong
+// forever. Like health, the owner re-sends the full worn set now and then and copies converge.
+void InventoryService::RunEquipmentSnapshots() noexcept
+{
+    if (!m_transport.IsConnected())
+        return;
+
+    static std::chrono::steady_clock::time_point lastSendTimePoint;
+    constexpr auto cDelayBetweenSnapshots = 3s;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now - lastSendTimePoint < cDelayBetweenSnapshots)
+        return;
+    lastSendTimePoint = now;
+
+    auto view = m_world.view<FormIdComponent, LocalComponent>();
+    for (auto entity : view)
+    {
+        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
+        if (!m_actorBridge.ActorExists(cFormId))
+            continue;
+
+        RequestEquipmentSnapshot request;
+        request.ServerId = view.get<LocalComponent>(entity).Id;
+        request.Equipment = m_formBridge.GetActorEquipment(cFormId);
+        m_transport.Send(request);
+    }
+}
+
+void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept
+{
+    const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId) || !m_actorBridge.IsActorRemote(cActorFormId))
+        return;
+
+    constexpr uint32_t cRightHandSlot = 0x13F42;
+    constexpr uint32_t cLeftHandSlot = 0x13F43;
+    constexpr uint8_t cArmorType = 26;
+    auto& modSystem = World::Get().GetModSystem();
+
+    // Worn items as (game form id, left hand) on each side.
+    const auto worn = [&](const Inventory& acInventory) {
+        std::set<std::pair<uint32_t, bool>> items;
+        for (const auto& entry : acInventory.Entries)
+            if (entry.IsWorn())
+                if (const uint32_t cId = modSystem.GetGameId(entry.BaseId))
+                    items.insert({cId, entry.ExtraWornLeft});
+        return items;
+    };
+    const auto cWanted = worn(acMessage.Equipment);
+    const auto cCurrent = worn(m_formBridge.GetActorEquipment(cActorFormId));
+
+    const auto slotOf = [&](uint32_t aItemId, bool aLeft) -> uint32_t {
+        if (m_formBridge.GetFormType(aItemId) == cArmorType)
+            return 0;
+        return aLeft ? cLeftHandSlot : cRightHandSlot;
+    };
+
+    for (const auto& [cItemId, cLeft] : cCurrent)
+        if (!cWanted.count({cItemId, cLeft}))
+        {
+            spdlog::info("Equipment reconcile {:X}: unequip {:X}", cActorFormId, cItemId);
+            m_formBridge.ActorUnequipItem(cActorFormId, cItemId, slotOf(cItemId, cLeft), 1);
+        }
+    for (const auto& [cItemId, cLeft] : cWanted)
+        if (!cCurrent.count({cItemId, cLeft}) && m_formBridge.FormExists(cItemId))
+        {
+            spdlog::info("Equipment reconcile {:X}: equip {:X}", cActorFormId, cItemId);
+            m_formBridge.ActorEquipItem(cActorFormId, cItemId, slotOf(cItemId, cLeft), 1);
+        }
 }
 
 void InventoryService::RunWeaponStateUpdates() noexcept

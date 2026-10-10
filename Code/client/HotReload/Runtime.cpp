@@ -1,6 +1,7 @@
 #include <TiltedOnlinePCH.h>
 #include "Runtime.h"
 #include "Session.h"
+#include <Steam/Session.h>
 #include <World.h>
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
@@ -136,6 +137,97 @@ static nlohmann::json Identity(uint32_t aFormId)
             {"race", actors.GetActorRaceFormId(aFormId)}};
 }
 
+// Everything this game knows about one actor, for the desync checker (coop_test.py desync): the
+// harness pairs an owner's snapshot with its copy's in the other game and reports every field
+// that differs. Add a field here and it is checked automatically.
+static nlohmann::json Snapshot(uint32_t aFormId)
+{
+    auto& world = World::Get();
+    auto& actors = world.GetActorBridge();
+    float position[3]{};
+    actors.GetActorPosition(aFormId, position[0], position[1], position[2]);
+
+    nlohmann::json mod = {{"server_id", ServerId(aFormId)}};
+    // An owner records its last animation on the actor; a copy records the last one it replayed.
+    ActionEvent latest = actors.GetActorLatestAnimation(aFormId);
+    for (const auto entity : world.view<FormIdComponent>())
+    {
+        if (world.get<FormIdComponent>(entity).Id != aFormId)
+            continue;
+        auto components = nlohmann::json::array();
+        const auto has = [&](auto* apType, const char* apName) {
+            if (world.all_of<std::remove_pointer_t<decltype(apType)>>(entity))
+                components.push_back(apName);
+        };
+        has(static_cast<LocalComponent*>(nullptr), "Local");
+        has(static_cast<RemoteComponent*>(nullptr), "Remote");
+        has(static_cast<WaitingForAssignmentComponent*>(nullptr), "WaitingForAssignment");
+        has(static_cast<WaitingFor3D*>(nullptr), "WaitingFor3D");
+        has(static_cast<InterpolationComponent*>(nullptr), "Interpolation");
+        has(static_cast<LocalAnimationComponent*>(nullptr), "LocalAnimation");
+        has(static_cast<RemoteAnimationComponent*>(nullptr), "RemoteAnimation");
+        has(static_cast<FaceGenComponent*>(nullptr), "FaceGen");
+        has(static_cast<CacheComponent*>(nullptr), "Cache");
+        has(static_cast<ActorValuesComponent*>(nullptr), "ActorValues");
+        has(static_cast<PlayerComponent*>(nullptr), "Player");
+        mod["components"] = components;
+        if (const auto* pAnimation = world.try_get<RemoteAnimationComponent>(entity))
+        {
+            latest = pAnimation->LastRanAction;
+            mod["animation_queue"] = pAnimation->TimePoints.size();
+            mod["animation_graph_ready"] = actors.IsAnimationGraphReady(aFormId);
+        }
+        if (const auto* pInterpolation = world.try_get<InterpolationComponent>(entity))
+            mod["interpolation_points"] = pInterpolation->TimePoints.size();
+        break;
+    }
+
+    return {
+        {"identity", {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+                      {"race", actors.GetActorRaceFormId(aFormId)},
+                      {"template_base", actors.GetActorNpcTemplateBaseFormId(aFormId)},
+                      {"temporary_base", actors.IsActorNpcTemporary(aFormId)},
+                      {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}}},
+        {"placement", {{"position", {position[0], position[1], position[2]}}, {"rotation", ActorRotation(aFormId)},
+                       {"cell", actors.GetActorParentCellFormId(aFormId)},
+                       {"worldspace", actors.GetActorWorldSpaceFormId(aFormId)},
+                       {"has_3d", actors.ActorHas3D(aFormId)}, {"disabled", actors.IsActorDisabled(aFormId)}}},
+        {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},
+                   {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
+                   {"weapon_fully_drawn", actors.IsWeaponFullyDrawn(aFormId)},
+                   {"casting", CastingSpells(aFormId)}}},
+        {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},
+                    {"stamina", actors.GetActorValue(aFormId, 26)},
+                    {"max_health", actors.GetActorPermanentValue(aFormId, 24)},
+                    {"max_magicka", actors.GetActorPermanentValue(aFormId, 25)},
+                    {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}}},
+        {"equipment", EquippedItems(aFormId)},
+        {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},
+                       {"action", latest.ActionId}, {"idle", latest.IdleId},
+                       {"state1", latest.State1}, {"state2", latest.State2}}},
+        {"mod", mod},
+    };
+}
+
+// Snapshots of every loaded actor, keyed by this game's form id. "role": "own" for actors this
+// game simulates (its player, and on the host every NPC), "copy" for actors mirrored from another.
+static nlohmann::json WorldSnapshot()
+{
+    auto& actors = World::Get().GetActorBridge();
+    auto result = nlohmann::json::object();
+    std::vector<uint32_t> ids = actors.GetLoadedActorFormIds();
+    if (actors.ActorHas3D(0x14))
+        ids.push_back(0x14);
+    for (const uint32_t cFormId : ids)
+    {
+        auto snapshot = Snapshot(cFormId);
+        snapshot["role"] = actors.IsActorRemote(cFormId) ? "copy" : "own";
+        snapshot["player"] = cFormId == 0x14 || actors.IsRemotePlayer(cFormId);
+        result[std::to_string(cFormId)] = std::move(snapshot);
+    }
+    return result;
+}
+
 static nlohmann::json LocalActors()
 {
     auto& actors = World::Get().GetActorBridge();
@@ -240,8 +332,9 @@ void Runtime::Poll()
         {"build_id", m_loader.BuildId()}, {"generation", m_loader.Generation()},
         {"evaluations", m_loader.Calls()}, {"invalid_outputs", m_loader.InvalidOutputs()},
         {"actors", actors}, {"session", PollSession(m_directory)},
+        {"steam", CoopSteam::Poll(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
-        {"console_id", m_consoleId}, {"player", PlayerStatus()}
+        {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()}
     };
     const auto temporary = m_directory / "status.json.tmp";
     const auto destination = m_directory / "status.json";
@@ -252,7 +345,7 @@ void Runtime::Poll()
         MoveFileExW(temporary.c_str(), destination.c_str(), MOVEFILE_REPLACE_EXISTING);
 }
 
-void Runtime::Shutdown() { m_loader.Unload(); }
+void Runtime::Shutdown() { CoopSteam::Shutdown(); m_loader.Unload(); }
 bool Runtime::Evaluate(const CoopMovementInput& input, CoopMovementOutput& output)
 {
     return m_loader.Evaluate(input, output);

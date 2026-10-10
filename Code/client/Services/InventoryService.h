@@ -12,6 +12,7 @@ struct NotifyInventoryChanges;
 struct InventoryChangeEvent;
 struct EquipmentChangeEvent;
 struct NotifyEquipmentChanges;
+struct NotifyEquipmentSnapshot;
 
 /**
  * @brief Manages inventories of actors and containers.
@@ -53,6 +54,7 @@ struct InventoryService
      * @brief Applies equipment changes sent by the server.
      */
     void OnNotifyEquipmentChanges(const NotifyEquipmentChanges& acMessage) noexcept;
+    void OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept;
 
 private:
     /**
@@ -60,6 +62,7 @@ private:
      * and if so, send the new states to the server.
      */
     void RunWeaponStateUpdates() noexcept;
+    void RunEquipmentSnapshots() noexcept;
     /**
     * Checks whether an NPC's (local or remote) equipment is bugged (i.e. naked NPCS)
     * and resets their inventory.
@@ -77,4 +80,5 @@ private:
     entt::scoped_connection m_equipmentConnection;
     entt::scoped_connection m_inventoryChangeConnection;
     entt::scoped_connection m_equipmentChangeConnection;
+    entt::scoped_connection m_equipmentSnapshotConnection;
 };

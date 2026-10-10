@@ -27,6 +27,7 @@ struct MessageName;
 DEF_MSG_NAME(AuthenticationRequest)
 DEF_MSG_NAME(CancelAssignmentRequest)
 DEF_MSG_NAME(RequestRemoveCharacter)
+DEF_MSG_NAME(RequestEquipmentSnapshot)
 DEF_MSG_NAME(AssignCharacterRequest)
 DEF_MSG_NAME(ClientReferencesMoveRequest)
 DEF_MSG_NAME(RequestInventoryChanges)
@@ -129,6 +130,7 @@ DEF_MSG_NAME(NotifySetWaypoint)
 DEF_MSG_NAME(NotifyRemoveWaypoint)
 DEF_MSG_NAME(NotifySetTimeResult)
 DEF_MSG_NAME(WorldStateSync)
+DEF_MSG_NAME(NotifyEquipmentSnapshot)
 
 #undef DEF_MSG_NAME
 

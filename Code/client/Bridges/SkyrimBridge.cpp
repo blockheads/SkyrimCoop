@@ -489,6 +489,12 @@ uint32_t SkyrimBridge::GetActorRaceFormId(uint32_t aFormId) const noexcept
     return 0;
 }
 
+bool SkyrimBridge::IsAnimationGraphReady(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    return pActor && EngineVirtual(pActor->animationGraphHolder).IsReady();
+}
+
 bool SkyrimBridge::ActorHas3D(uint32_t aFormId) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))

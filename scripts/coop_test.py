@@ -70,6 +70,10 @@ class TestFailure(RuntimeError):
     pass
 
 
+class TestSkipped(Exception):
+    """A scenario could not set up its situation; says nothing about sync."""
+
+
 def log(message):
     print(f"[{time.monotonic() - START:6.1f}s] {message}", flush=True)
 
@@ -881,28 +885,39 @@ def scenario_move_host_npc():
 
 
 def scenario_steady_state():
-    """At rest, every character's copy matches its owner: drawn/dead/health, and no extra or missing NPCs."""
-    def mismatches():
-        problems = []
-        for row in status_table().splitlines()[1:]:
-            if "MISSING" in row or "GONE" in row or "WRONG-ACTOR" in row:
-                problems.append(row.strip())
-                continue
-            host_side, client_side = row[21:45].split(), row[46:].split()
-            if "apart" in client_side:  # NPC copy: also within 50 units of the host's NPC
-                gap = int(client_side[client_side.index("apart") - 1])
-                client_side = client_side[:client_side.index("apart") - 1]
-                if gap > 50:
-                    problems.append(row.strip())
-                    continue
-            if host_side != client_side:
-                problems.append(row.strip())
-        return problems
-    deadline = time.time() + 10
-    while (problems := mismatches()) and time.time() < deadline:
-        time.sleep(0.5)
+    """Desync checker: every actor's full state matches between owner and copy."""
+    problems = check_desync(samples=4)
     if problems:
-        raise TestFailure("copies differ from their owners: " + " | ".join(problems))
+        raise TestFailure("desync: " + " | ".join(problems))
+
+
+def scenario_repair_equipment_drift():
+    """A copy's equipment is broken behind the owner's back; it must converge back to the owner's."""
+    npc, replica = ensure_host_npc()
+    def world(instance):
+        select_instance(instance)
+        return (read_status() or {}).get("world", {})
+    owner_equipment = set(world("")[str(npc)]["equipment"])
+    def broken():
+        return set(world("client").get(str(replica), {}).get("equipment") or []) != owner_equipment
+    for _ in range(3):  # the strip only takes effect on reload, and not always: retry it
+        for command in ("unequipall", "disable", "enable"):
+            console_on("client", f"{replica:08X}.{command}")
+            time.sleep(0.5)
+        deadline = time.time() + 4
+        while not broken() and time.time() < deadline:
+            time.sleep(0.1)
+        if broken():
+            log(f"copy now wears {len(world('client')[str(replica)]['equipment'])} of the owner's "
+                f"{len(owner_equipment)} items")
+            break
+    else:
+        raise TestSkipped("could not break the copy's equipment to test the repair")
+    deadline = time.time() + 15
+    while (problems := check_desync(samples=1)) and time.time() < deadline:
+        time.sleep(1)
+    if problems:
+        raise TestFailure("never converged: " + " | ".join(problems))
 
 
 def scenario_melee_client_hits_host_npc():
@@ -953,6 +968,7 @@ SCENARIOS = {
     "remove-host-npc": scenario_remove_host_npc,
     "move-host-npc": scenario_move_host_npc,
     "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
+    "repair-equipment-drift": scenario_repair_equipment_drift,
     "steady-state-after": scenario_steady_state,
 }
 
@@ -1004,6 +1020,139 @@ def status_table():
     return "\n".join(lines)
 
 
+# --- Desync checker -------------------------------------------------------------------------
+# Each game's status.json carries "world": a snapshot of every loaded actor (Runtime.cpp
+# Snapshot()). Every actor has exactly one owner game; the other game holds a copy linked by the
+# same server id. The checker pairs them and compares every snapshot field, so a field added to
+# Snapshot() is checked without touching this code. Rules below only say how to compare a field
+# (tolerances) or why a field is expected to differ.
+
+POSITION_TOLERANCE = 50.0   # units; copies trail the owner by the interpolation delay
+ANGLE_TOLERANCE = 0.35      # radians
+VALUE_TOLERANCE = 1.0       # actor values
+
+
+def flatten(tree, prefix=""):
+    if isinstance(tree, dict):
+        out = {}
+        for key, value in tree.items():
+            out.update(flatten(value, f"{prefix}{key}."))
+        return out
+    return {prefix[:-1]: tree}
+
+
+def compare_field(field, owner, copy, owner_snapshot):
+    """Returns None when the copy agrees with the owner, else a short reason."""
+    if field.startswith("mod.") or field in ("role", "identity.template_base", "identity.temporary_base"):
+        return None  # the mod's bookkeeping differs by design (Local vs Remote); checked separately
+    if field == "identity.base" and (owner_snapshot["player"] or owner_snapshot["identity"]["temporary_base"]):
+        return None  # players and leveled spawns are rebuilt on a new base: name and race are compared
+    if field == "identity.name" and owner_snapshot["player"]:
+        return None  # a player's copy shows the player's name, its own base is unnamed
+    if field == "placement.position":
+        gap = distance(owner, copy)
+        return None if gap <= POSITION_TOLERANCE else f"{gap:.0f} units apart"
+    if field == "placement.rotation":
+        gap = abs((owner[2] - copy[2] + math.pi) % (2 * math.pi) - math.pi)
+        return None if gap <= ANGLE_TOLERANCE else f"facing differs by {math.degrees(gap):.0f} deg"
+    if field == "equipment":
+        missing, extra = set(owner) - set(copy), set(copy) - set(owner)
+        if not missing and not extra:
+            return None
+        return " ".join(filter(None, [missing and "copy lacks " + ",".join(f"{i:08X}" for i in sorted(missing)),
+                                      extra and "copy also wears " + ",".join(f"{i:08X}" for i in sorted(extra))]))
+    if isinstance(owner, (int, float)) and isinstance(copy, (int, float)) and not isinstance(owner, bool):
+        return None if abs(owner - copy) <= VALUE_TOLERANCE else "differs"
+    return None if owner == copy else "differs"
+
+
+def mod_problems(snapshot, role):
+    """The mod's bookkeeping must match the actor's role."""
+    components = set((snapshot.get("mod") or {}).get("components") or [])
+    need = {"Local"} if role == "own" else {"Remote", "Interpolation"}
+    problems = [f"mod: missing {name}Component" for name in sorted(need - components)]
+    if role == "copy" and "Local" in components:
+        problems.append("mod: copy also has LocalComponent (two owners)")
+    return problems
+
+
+def describe_actor(snapshot, form_id, game):
+    name = snapshot["identity"].get("name") or ("player" if snapshot["player"] else "?")
+    return f"{name} [{game} {int(form_id):08X}, sid {snapshot['mod']['server_id']}]"
+
+
+def find_desyncs():
+    """Compares both games once. Returns a list of (key, message)."""
+    worlds = {}
+    for instance, game in (("", "host"), ("client", "client")):
+        select_instance(instance)
+        status = read_status() or {}
+        if "world" not in status:
+            raise TestFailure(f"{game} game reports no world snapshot (old DLL or not running)")
+        worlds[game] = status["world"]
+    problems = []
+    copies = {game: {s["mod"]["server_id"]: (fid, s) for fid, s in world.items() if s["role"] == "copy"}
+              for game, world in worlds.items()}
+    paired = {game: set() for game in worlds}
+    for game, world in worlds.items():
+        other = "client" if game == "host" else "host"
+        for form_id, owned in world.items():
+            if owned["role"] != "own":
+                continue
+            who = describe_actor(owned, form_id, game)
+            for problem in mod_problems(owned, "own"):
+                problems.append((f"{who} {problem}", f"{who} (owned by {game}): {problem}"))
+            sid = owned["mod"]["server_id"]
+            if sid < 0:
+                problems.append((f"{who} unlinked", f"{who}: owned by {game} but never registered with the server"))
+                continue
+            if sid not in copies[other]:
+                problems.append((f"{who} missing", f"{who}: owned by {game}, but {other} has no copy"))
+                continue
+            copy_id, copy = copies[other][sid]
+            paired[other].add(sid)
+            for problem in mod_problems(copy, "copy"):
+                problems.append((f"{who} {problem}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
+            mine, theirs = flatten(owned), flatten(copy)
+            for field in sorted(set(mine) | set(theirs)):
+                reason = compare_field(field, mine.get(field), theirs.get(field), owned)
+                if reason:
+                    problems.append((f"{who} {field}",
+                                     f"{who} {field}: {game} (owner) {mine.get(field)!r} vs {other} copy "
+                                     f"{theirs.get(field)!r} - {reason}"))
+    for game, by_sid in copies.items():
+        for sid, (form_id, copy) in by_sid.items():
+            if sid not in paired[game]:
+                who = describe_actor(copy, form_id, game)
+                problems.append((f"{who} orphan", f"{who}: copy in {game} with no owner in the other game"))
+    return problems
+
+
+def check_desync(samples=3, interval=1.0):
+    """Only differences seen in every sample count (copies legitimately lag for a moment)."""
+    persistent = None
+    for index in range(samples):
+        current = dict(find_desyncs())
+        persistent = current if persistent is None else {k: v for k, v in current.items() if k in persistent}
+        if not persistent:
+            return []
+        if index + 1 < samples:
+            time.sleep(interval)
+    return list(persistent.values())
+
+
+def command_desync(args):
+    while True:
+        problems = check_desync(args.samples, args.interval)
+        report = "\n".join(problems) if problems else "in sync: every copy matches its owner"
+        if not args.follow:
+            print(report)
+            if problems:
+                raise SystemExit(1)
+            return
+        print("\033[2J\033[H" + time.strftime("%H:%M:%S ") + report + "\n\n(Ctrl+C to stop)", flush=True)
+
+
 def command_status(args):
     while True:
         table = status_table()
@@ -1030,14 +1179,20 @@ def command_scenario(args):
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
         try:
             SCENARIOS[name]()
+            # Whatever the scenario did, both games must agree afterwards.
+            problems = check_desync(samples=4)
+            if problems:
+                raise TestFailure("desync afterwards: " + " | ".join(problems))
             results[name] = "PASS"
+        except TestSkipped as error:
+            results[name] = f"SKIP ({error})"
         except TestFailure as error:
             results[name] = f"FAIL ({error})"
         log(f"=== {name}: {results[name]}")
     print()
     for name, result in results.items():
         print(f"{name:24s} {result}")
-    if any(r != "PASS" for r in results.values()):
+    if any(r.startswith("FAIL") for r in results.values()):
         raise SystemExit(1)
 
 
@@ -1075,6 +1230,10 @@ def main():
     console.add_argument("text", nargs="+")
     status = commands.add_parser("status", help="both games side by side: health, death, weapon, casting")
     status.add_argument("--follow", "-f", action="store_true", help="keep refreshing")
+    desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
+    desync.add_argument("--follow", "-f", action="store_true", help="keep checking")
+    desync.add_argument("--samples", type=int, default=3, help="a difference must persist this many samples")
+    desync.add_argument("--interval", type=float, default=1.0, help="seconds between samples")
     watch = commands.add_parser("watch", help="live view of the off-screen game display in a window (ffplay)")
     commands.add_parser("setup-display", help="one-time: install the off-screen dummy X server (sudo)")
     shot = commands.add_parser("screenshot", help="save a PNG of the off-screen game display")
@@ -1100,6 +1259,8 @@ def main():
         elif args.command == "console":
             run_console(" ".join(args.text))
             log("Done")
+        elif args.command == "desync":
+            command_desync(args)
         elif args.command == "status":
             command_status(args)
         elif args.command == "watch":

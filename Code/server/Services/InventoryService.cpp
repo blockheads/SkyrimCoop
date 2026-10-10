@@ -9,6 +9,8 @@
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/NotifyEquipmentChanges.h>
+#include <Messages/RequestEquipmentSnapshot.h>
+#include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/DrawWeaponRequest.h>
 
 #include <Setting.h>
@@ -26,6 +28,8 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher)
 {
     m_inventoryChangeConnection = aDispatcher.sink<PacketEvent<RequestInventoryChanges>>().connect<&InventoryService::OnInventoryChanges>(this);
     m_equipmentChangeConnection = aDispatcher.sink<PacketEvent<RequestEquipmentChanges>>().connect<&InventoryService::OnEquipmentChanges>(this);
+    m_equipmentSnapshotConnection = aDispatcher.sink<PacketEvent<RequestEquipmentSnapshot>>().connect<&InventoryService::OnEquipmentSnapshot>(this);
+    m_equipmentSnapshotConnection = aDispatcher.sink<PacketEvent<RequestEquipmentSnapshot>>().connect<&InventoryService::OnEquipmentSnapshot>(this);
     m_drawWeaponConnection = aDispatcher.sink<PacketEvent<DrawWeaponRequest>>().connect<&InventoryService::OnWeaponDrawnRequest>(this);
 }
 
@@ -94,6 +98,22 @@ void InventoryService::OnWeaponDrawnRequest(const PacketEvent<DrawWeaponRequest>
         characterComponent.SetWeaponDrawn(message.IsWeaponDrawn);
         spdlog::debug("Updating weapon drawn state {:x}:{}", message.Id, message.IsWeaponDrawn);
     }
+}
+
+// Relay the owner's equipment snapshot to everyone else (copies reconcile against it).
+void InventoryService::OnEquipmentSnapshot(const PacketEvent<RequestEquipmentSnapshot>& acMessage) noexcept
+{
+    auto& message = acMessage.Packet;
+
+    const auto ownerView = m_world.view<OwnerComponent>();
+    const auto it = ownerView.find(static_cast<entt::entity>(message.ServerId));
+    if (it == ownerView.end() || ownerView.get<OwnerComponent>(*it).GetOwner() != acMessage.pPlayer)
+        return;
+
+    NotifyEquipmentSnapshot notify;
+    notify.ServerId = message.ServerId;
+    notify.Equipment = message.Equipment;
+    GameServer::Get()->SendToPlayers(notify, acMessage.pPlayer);
 }
 
 } // namespace Server

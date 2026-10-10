@@ -102,6 +102,8 @@ public:
 
     // --- Node / 3D ---
     virtual bool ActorHas3D(uint32_t aFormId) const noexcept = 0;
+    // Whether the actor's animation graph can play actions (a copy's replay waits for this).
+    virtual bool IsAnimationGraphReady(uint32_t aFormId) const noexcept = 0;
     /// Actors in the engine's high process list with loaded 3D, excluding the player.
     virtual std::vector<uint32_t> GetLoadedActorFormIds() const noexcept = 0;
 

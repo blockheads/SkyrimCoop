@@ -627,7 +627,9 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
         if (auto* pFormIdComponent = m_world.try_get<FormIdComponent>(*itor))
         {
             const uint32_t cFormId = pFormIdComponent->Id;
-            if (m_actorBridge.IsActorNpcTemporary(cFormId))
+            // A copy we spawned (temporary reference) goes with its owner's actor. Checking only for a
+            // temporary *base* kept copies of real NPC bases (e.g. a placed chicken) as frozen leftovers.
+            if (m_actorBridge.IsActorTemporary(cFormId) || m_actorBridge.IsActorNpcTemporary(cFormId))
             {
                 m_actorBridge.DeleteActor(cFormId);
                 spdlog::info("\tDeleted actor {:X}", cFormId);
@@ -1203,7 +1205,7 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
     {
         if (m_actorBridge.ActorExists(aFormId))
         {
-            if (m_actorBridge.IsActorNpcTemporary(aFormId))
+            if (m_actorBridge.IsActorTemporary(aFormId) || m_actorBridge.IsActorNpcTemporary(aFormId))
             {
                 spdlog::info("Temporary Remote Deleted {:X}", aFormId);
                 m_actorBridge.DeleteActor(aFormId);
