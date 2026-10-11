@@ -467,6 +467,49 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
                                                 cRequest.value("source", 1u), cRequest.value("target", 0u));
         return R"({"ok": true})";
     }
+    if (cCommand == "objects")
+    {
+        // {"cmd": "objects"}: the doors and containers in the player's cell (state, lock, load door).
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        constexpr uint8_t cDoor = 29; // FormType::Door
+        auto& forms = World::Get().GetFormBridge();
+        auto objects = nlohmann::json::array();
+        for (const uint32_t cId : forms.GetCellObjectIds())
+        {
+            const bool cIsDoor = forms.IsObjectBaseFormType(cId, cDoor);
+            const bool cHasLock = forms.ObjectHasLock(cId);
+            // open_state: TESObjectREFR::OpenState, 1 open, 2 opening, 3 closed, 4 closing.
+            objects.push_back({{"id", cId}, {"door", cIsDoor}, {"load_door", forms.IsLoadDoor(cId)},
+                               {"open_state", cIsDoor ? forms.GetObjectOpenState(cId) : 0}, {"has_lock", cHasLock},
+                               {"locked", cHasLock && forms.ObjectIsLocked(cId)},
+                               {"lock_level", cHasLock ? forms.GetObjectLockLevel(cId) : 0}});
+        }
+        return nlohmann::json{{"ok", true}, {"objects", objects}}.dump();
+    }
+    if (cCommand == "activate" || cCommand == "lock")
+    {
+        // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
+        // {"cmd": "lock", "object": id, "locked": true, "level": 50}: changes its lock as the game
+        // does (the lock-change hook sees it).
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        auto& forms = World::Get().GetFormBridge();
+        const uint32_t cObject = cRequest.value("object", 0u);
+        if (!forms.FormExists(cObject))
+            return R"({"ok": false, "error": "no such object"})";
+        if (cCommand == "activate")
+        {
+            spdlog::info("Activate (rpc): {:X}", cObject);
+            forms.PlayerActivates(cObject);
+        }
+        else
+        {
+            spdlog::info("Lock (rpc): {:X} {}", cObject, cRequest.value("locked", true));
+            forms.ChangeLockAsGame(cObject, cRequest.value("locked", true), uint8_t(cRequest.value("level", 0u)));
+        }
+        return R"({"ok": true})";
+    }
     if (cCommand == "interrupt")
     {
         // {"cmd": "interrupt", "caster": id, "source": 1}: ends a held (concentration) cast.

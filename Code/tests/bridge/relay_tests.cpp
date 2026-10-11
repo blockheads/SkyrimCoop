@@ -273,3 +273,53 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifySyncExperience>(kOtherPeer)[0]->Experience == 12.5f);
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }
+
+TEST_CASE("Objects: an activation, a lock and a script animation reach everyone else", "[Bridge][Objects]")
+{
+    Session session;
+    const uint32_t cPlayer = session.Character(kPeer);
+
+    ActivateRequest activate;
+    activate.Id = GameId(0, 0x1A2B);
+    activate.CellId = GameId(0, 0x9732);
+    activate.ActivatorId = cPlayer;
+    activate.PreActivationOpenState = 2;
+    session.Receive(kPeer, activate);
+
+    LockChangeRequest lock;
+    lock.Id = GameId(0, 0x1A2B);
+    lock.CellId = GameId(0, 0x9732);
+    lock.IsLocked = false;
+    lock.LockLevel = 25;
+    session.Receive(kPeer, lock);
+
+    ScriptAnimationRequest animation;
+    animation.FormID = 0x1A2C;
+    animation.EventName = "Open";
+    session.Receive(kHost, animation);
+
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cActivations = session.SentTo<NotifyActivate>(cTo);
+        REQUIRE(cActivations.size() == 1);
+        CHECK(cActivations[0]->Id == GameId(0, 0x1A2B));
+        CHECK(cActivations[0]->ActivatorId == cPlayer);
+        CHECK(cActivations[0]->PreActivationOpenState == 2);
+
+        const auto cLocks = session.SentTo<NotifyLockChange>(cTo);
+        REQUIRE(cLocks.size() == 1);
+        CHECK_FALSE(cLocks[0]->IsLocked);
+        CHECK(cLocks[0]->LockLevel == 25);
+    }
+    CHECK(session.SentTo<NotifyActivate>(kPeer).empty());
+    CHECK(session.SentTo<NotifyLockChange>(kPeer).empty());
+
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cAnimations = session.SentTo<NotifyScriptAnimation>(cTo);
+        REQUIRE(cAnimations.size() == 1);
+        CHECK(cAnimations[0]->FormID == 0x1A2C);
+        CHECK(cAnimations[0]->EventName == "Open");
+    }
+    CHECK(session.SentTo<NotifyScriptAnimation>(kHost).empty());
+}

@@ -1702,6 +1702,115 @@ def scenario_party_changes_cells():
         step_both()
 
 
+def cell_objects(instance):
+    """The doors and containers in that game's cell, by reference id ({"cmd": "objects"})."""
+    select_instance(instance)
+    response = rpc({"cmd": "objects"}) or {}
+    return {o["id"]: o for o in response.get("objects", [])}
+
+
+def inner_door():
+    """A door in the host's cell that is not a load door (QASmoke has two), closed."""
+    doors = [o for o in cell_objects("").values() if o["door"] and not o["load_door"]]
+    if not doors:
+        raise TestFailure("no door in the host's cell that stays in it")
+    return min(doors, key=lambda o: o["id"])["id"]
+
+
+DOOR_OPEN, DOOR_CLOSED = 1, 3  # TESObjectREFR::OpenState
+
+
+def object_command(instance, request):
+    """{"cmd": "activate"/"lock", ...} in that game; the player does it, as by hand."""
+    select_instance(instance)
+    response = rpc(request)
+    if not response or not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] {request} failed: {response}")
+    log(f"[{instance or 'host'}] {request['cmd']} {request['object']:X}")
+
+
+def activate_on(instance, door):
+    object_command(instance, {"cmd": "activate", "object": door})
+
+
+def lock_on(instance, door, locked, level=0):
+    object_command(instance, {"cmd": "lock", "object": door, "locked": locked, "level": level})
+
+
+def door_state(instance, door):
+    return cell_objects(instance).get(door, {}).get("open_state")
+
+
+def scenario_door_opens_for_both():
+    """A player opens a door: the other game's door opens too (the bridge relays the activation and
+    the other game's copy of the player opens it there). Then the host closes it for both."""
+    door = inner_door()
+    try:
+        for name in ("", "client"):
+            if door_state(name, door) != DOOR_CLOSED:
+                raise TestFailure(f"[{name or 'host'}] door {door:X} is not closed to begin with")
+        activate_on("client", door)
+        for name in ("client", ""):
+            wait_for(f"[{name or 'host'}] door {door:X} is open", lambda name=name: door_state(name, door) == DOOR_OPEN, 15)
+        activate_on("", door)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] door {door:X} is closed again", lambda name=name: door_state(name, door) == DOOR_CLOSED, 15)
+    finally:
+        for name in ("", "client"):
+            if door_state(name, door) == DOOR_OPEN:
+                activate_on(name, door)
+
+
+def door_lock(instance, door):
+    o = cell_objects(instance).get(door, {})
+    return (o.get("locked"), o.get("lock_level")) if o.get("has_lock") else (False, None)
+
+
+def scenario_lock_reaches_others():
+    """The host locks a door: the client's door is locked too, at the same level. The client
+    unlocks it: the host's is unlocked."""
+    door = inner_door()
+    try:
+        lock_on("", door, True, 50)
+        wait_for(f"[client] door {door:X} is locked at 50", lambda: door_lock("client", door) == (True, 50), 15)
+        lock_on("client", door, False, 50)
+        wait_for(f"[host] door {door:X} is unlocked", lambda: not door_lock("", door)[0], 15)
+    finally:
+        for name in ("", "client"):
+            if door_lock(name, door)[0]:
+                lock_on(name, door, False)
+
+
+INN = "RiverwoodSleepingGiantInn"
+
+
+def scenario_load_door_not_replayed():
+    """In the inn, the client walks out through its door: the host's game gets the activation and
+    does not replay it (the door would take the client's copy, or anyone, out of the host's cell);
+    only the client's own game takes it through."""
+    try:
+        for name in ("", "client"):
+            console_on(name, f"coc {INN}")
+        wait_for(f"In {INN}, each game shows the other player", both_see_each_other, 60)
+        doors = [o for o in cell_objects("").values() if o["load_door"]]
+        if not doors:
+            raise TestFailure(f"no load door in {INN}")
+        door = doors[0]["id"]
+        log_file = plugin_log("")
+        start = log_file.stat().st_size
+        activate_on("client", door)
+        wait_for(f"[host] load door {door:X} not replayed",
+                 lambda: f"Load door {door:X} not replayed" in log_file.read_bytes()[start:].decode(errors="replace"), 15)
+        wait_for("[client] the client went out through the door", lambda: door not in cell_objects("client"), 30)
+        if door not in cell_objects(""):
+            raise TestFailure("the host left the inn: the activation took its player through")
+    finally:
+        for name in ("", "client"):
+            console_on(name, f"coc {HOME_CELL}")
+        wait_for("Each game shows the other player again", both_see_each_other, 60)
+        step_both()
+
+
 def scenario_client_spell_kill_credit():
     """Client kills a host NPC with a spell: the host records the client's character as the killer."""
     kill_credit("spell")
@@ -1895,6 +2004,9 @@ SCENARIOS = {
     "host-kicks-client": scenario_host_kicks_client,
     "weather-follows-host": scenario_weather_follows_host,
     "party-changes-cells": scenario_party_changes_cells,
+    "door-opens-for-both": scenario_door_opens_for_both,
+    "lock-reaches-others": scenario_lock_reaches_others,
+    "load-door-not-replayed": scenario_load_door_not_replayed,
 }
 
 # What each scenario exercises, for running only the ones a change can affect:
@@ -1932,6 +2044,9 @@ TAGS = {
     "host-kicks-client": {'session', 'spawn'},
     "weather-follows-host": {'weather'},
     "party-changes-cells": {'spawn'},
+    "door-opens-for-both": {'objects'},
+    "lock-reaches-others": {'objects'},
+    "load-door-not-replayed": {'objects', 'spawn'},
 }
 
 

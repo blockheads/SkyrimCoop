@@ -294,6 +294,10 @@ bool ReplayBridge::SetObjectLock(uint32_t, bool, uint8_t) noexcept { return fals
 void ReplayBridge::NotifyObjectLockChange(uint32_t) noexcept {}
 uint32_t ReplayBridge::GetObjectParentCellId(uint32_t) const noexcept { return 0; }
 void ReplayBridge::ActivateObjectFromActor(uint32_t, uint32_t, uint8_t) noexcept {}
+void ReplayBridge::PlayerActivates(uint32_t) noexcept {}
+std::vector<uint32_t> ReplayBridge::GetCellObjectIds() const noexcept { return {}; }
+bool ReplayBridge::IsLoadDoor(uint32_t) const noexcept { return false; }
+void ReplayBridge::ChangeLockAsGame(uint32_t, bool, uint8_t) noexcept {}
 void ReplayBridge::PlayObjectAnimation(uint32_t, const std::string&, const std::string&) noexcept {}
 uint8_t ReplayBridge::GetObjectOpenState(uint32_t) const noexcept { return 0; }
 bool ReplayBridge::IsObjectBaseFormType(uint32_t, uint8_t) const noexcept { return false; }

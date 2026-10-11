@@ -5,12 +5,15 @@
 
 #include <type_traits>
 
+#include <Messages/ActivateRequest.h>
 #include <Messages/AddTargetRequest.h>
 #include <Messages/DialogueRequest.h>
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/InterruptCastRequest.h>
+#include <Messages/LockChangeRequest.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NewPackageRequest.h>
+#include <Messages/NotifyActivate.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyActorValueChanges.h>
 #include <Messages/NotifyAddTarget.h>
@@ -23,10 +26,12 @@
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyInterruptCast.h>
 #include <Messages/NotifyInventoryChanges.h>
+#include <Messages/NotifyLockChange.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NotifyNewPackage.h>
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyRemoveSpell.h>
+#include <Messages/NotifyScriptAnimation.h>
 #include <Messages/NotifySpellCast.h>
 #include <Messages/NotifySubtitle.h>
 #include <Messages/NotifySyncExperience.h>
@@ -40,13 +45,14 @@
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>
+#include <Messages/ScriptAnimationRequest.h>
 #include <Messages/SpellCastRequest.h>
 #include <Messages/SubtitleRequest.h>
 #include <Messages/SyncExperienceRequest.h>
 
 namespace
 {
-// The two relays that change what they pass on; the rest share a payload (Messages/Payloads.h).
+// The relays that change what they pass on; the rest share a payload (Messages/Payloads.h).
 
 NotifyInventoryChanges ToNotify(const RequestInventoryChanges& acRequest)
 {
@@ -68,6 +74,34 @@ NotifyEquipmentChanges ToNotify(const RequestEquipmentChanges& acRequest)
     notify.Unequip = acRequest.Unequip;
     notify.IsSpell = acRequest.IsSpell;
     notify.IsShout = acRequest.IsShout;
+    return notify;
+}
+
+// Objects: without the cell (under the party tether every game has the host's cells loaded).
+NotifyActivate ToNotify(const ActivateRequest& acRequest)
+{
+    NotifyActivate notify;
+    notify.Id = acRequest.Id;
+    notify.ActivatorId = acRequest.ActivatorId;
+    notify.PreActivationOpenState = acRequest.PreActivationOpenState;
+    return notify;
+}
+
+NotifyLockChange ToNotify(const LockChangeRequest& acRequest)
+{
+    NotifyLockChange notify;
+    notify.Id = acRequest.Id;
+    notify.IsLocked = acRequest.IsLocked;
+    notify.LockLevel = acRequest.LockLevel;
+    return notify;
+}
+
+NotifyScriptAnimation ToNotify(const ScriptAnimationRequest& acRequest)
+{
+    NotifyScriptAnimation notify;
+    notify.FormID = acRequest.FormID;
+    notify.Animation = acRequest.Animation;
+    notify.EventName = acRequest.EventName;
     return notify;
 }
 
@@ -128,6 +162,11 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
+
+    // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
+    Relay<ActivateRequest, NotifyActivate>(FromAnyone);
+    Relay<LockChangeRequest, NotifyLockChange>(FromAnyone);
+    Relay<ScriptAnimationRequest, NotifyScriptAnimation>(FromAnyone);
 
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     m_server.SetLeaveHandler([this](ConnectionId_t aPlayer) { m_characters.OnPlayerLeft(aPlayer); });

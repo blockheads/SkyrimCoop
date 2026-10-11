@@ -194,6 +194,10 @@ struct TESObjectREFR : TESForm
 
     Lock* CreateLock() noexcept;
     void LockChange() noexcept;
+    // Tests: the engine's own entry points, so our hooks see them as they see the game's (Activate
+    // and LockChange above call past the hooks: replays must not be reported again).
+    bool ActivateThroughHooks(TESObjectREFR* apActivator) noexcept;
+    void LockChangeThroughHooks() noexcept;
 
     const float GetHeight() noexcept;
     void EnableImpl() noexcept;

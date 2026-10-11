@@ -186,7 +186,9 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     auto view = m_world.view<FormIdComponent>();
     const auto pEntity = std::find_if(std::begin(view), std::end(view), [id = acEvent.ActivatorFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
 
-    if (pEntity == std::end(view))
+    // Only what our own actors do: another game says what its actors did. (Replays do not come
+    // back through here: they call the engine's activation past our hook.)
+    if (pEntity == std::end(view) || !m_world.all_of<LocalComponent>(*pEntity))
         return;
 
     std::optional<uint32_t> serverIdRes = Utils::GetServerId(*pEntity);

@@ -10,6 +10,12 @@
 #include <Services/Host/HostBridge.h>
 
 #include <Messages/AddTargetRequest.h>
+#include <Messages/ActivateRequest.h>
+#include <Messages/LockChangeRequest.h>
+#include <Messages/NotifyActivate.h>
+#include <Messages/NotifyLockChange.h>
+#include <Messages/NotifyScriptAnimation.h>
+#include <Messages/ScriptAnimationRequest.h>
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/ServerTimeSettings.h>
