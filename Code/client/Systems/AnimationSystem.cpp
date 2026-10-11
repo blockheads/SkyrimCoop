@@ -43,12 +43,13 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
         const auto pAction = Cast<BGSAction>(TESForm::GetById(actionId));
         const auto pTarget = Cast<TESObjectREFR>(TESForm::GetById(targetId));
 
+        // The action is played from the owner's state just before it performed it.
+        const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
+        const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
         apActor->actorState.flags1 = first.State1;
         apActor->actorState.flags2 = first.State2;
 
         apActor->LoadAnimationVariables(first.Variables);
-
-        aAnimationComponent.LastRanAction = first;
 
         // Play the animation
         TESActionData actionData(first.Type & 0x3, apActor, pAction, pTarget);
@@ -59,9 +60,21 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
         const auto result = ActorMediator::Get()->ForceAction(&actionData);
         // A refused action leaves the copy showing something else than its owner (the cause is
         // usually the copy's graph or weapon state, not the network).
-        if (!result)
+        if (result)
+        {
+            aAnimationComponent.LastRanAction = first;
+            apActor->GetExtension()->LatestAnimation = first;
+        }
+        else
+        {
+            // Refused: the copy is still in its own state. Keeping the owner's flags would claim
+            // e.g. hands drawn on a copy whose draw was refused, and its next sheathe would be
+            // refused too (nothing to sheathe).
+            apActor->actorState.flags1 = cPreviousFlags1;
+            apActor->actorState.flags2 = cPreviousFlags2;
             spdlog::debug("Copy {:X} refused replayed action {:X} '{}' (weapon state {})", apActor->formID, actionId,
                           first.EventName, apActor->actorState.flags2 >> 5 & 7);
+        }
 
         actions.pop_front();
     }

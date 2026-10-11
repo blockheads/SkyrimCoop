@@ -13,6 +13,7 @@ struct InventoryChangeEvent;
 struct EquipmentChangeEvent;
 struct NotifyEquipmentChanges;
 struct NotifyEquipmentSnapshot;
+struct NotifyDrawWeapon;
 
 /**
  * @brief Manages inventories of actors and containers.
@@ -55,13 +56,24 @@ struct InventoryService
      */
     void OnNotifyEquipmentChanges(const NotifyEquipmentChanges& acMessage) noexcept;
     void OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept;
+    /**
+     * @brief A copy's owner raised or lowered its hands.
+     */
+    void OnNotifyDrawWeapon(const NotifyDrawWeapon& acMessage) noexcept;
 
 private:
     /**
-     * Checks whether local actors their weapon draw states have changed,
-     * and if so, send the new states to the server.
+     * Sends the hands' direction of actors this game owns when it changes (and once when an actor
+     * becomes ours). The owner decides; the server only relays.
      */
     void RunWeaponStateUpdates() noexcept;
+    /**
+     * Copies replay their owner's draw/sheathe animations. A refused replay would leave a copy's
+     * hands wrong for good: once it has nothing left to replay, it draws or sheathes to match.
+     */
+    void RunWeaponDrawConvergence(double aDelta) noexcept;
+    void OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    void OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void RunEquipmentSnapshots() noexcept;
     /**
     * Checks whether an NPC's (local or remote) equipment is bugged (i.e. naked NPCS)
@@ -81,4 +93,7 @@ private:
     entt::scoped_connection m_inventoryChangeConnection;
     entt::scoped_connection m_equipmentChangeConnection;
     entt::scoped_connection m_equipmentSnapshotConnection;
+    entt::scoped_connection m_drawWeaponConnection;
+    entt::scoped_connection m_localComponentRemoved;
+    entt::scoped_connection m_remoteComponentRemoved;
 };

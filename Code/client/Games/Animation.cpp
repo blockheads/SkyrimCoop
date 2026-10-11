@@ -43,21 +43,31 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
         // spdlog::debug("Action event name: {}, target name: {}", apAction->eventName.AsAscii(), apAction->targetEventName.AsAscii());
 
         // This is a weird case where it gets spammed and doesn't do much, not sure if it still needs to be sent over the network
-        if (apAction->someFlag == 1 || g_forceAnimation)
+        if (apAction->someFlag == 1)
             return res;
 
         action.EventName = apAction->eventName.AsAscii();
         action.TargetEventName = apAction->targetEventName.AsAscii();
         action.IdleId = apAction->idleForm ? apAction->idleForm->formID : 0;
 
-        // Save for later
-        if (res)
+        // An action the engine refused changed nothing here: replayed on a copy it could take
+        // (e.g. a late 'MRh_Equipped_Event' after the hands were lowered) and leave the copy
+        // showing something its owner never did.
+        if (!res)
         {
-            pExtension->LatestAnimation = action;
-            
-            if(apAction->action->formID == 0x132AF)
-                pExtension->LatestWeapEquipAnimation = action;
+            if (!g_forceAnimation)
+                spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
+            return res;
         }
+
+        // What this actor's graph last took, owner or copy (see AnimationSystem for replays).
+        pExtension->LatestAnimation = action;
+        if (apAction->action->formID == 0x132AF)
+            pExtension->LatestWeapEquipAnimation = action;
+
+        // Forced by us (a copy converging, a special case of ours): never the owner's own action.
+        if (g_forceAnimation)
+            return res;
 
         World::Get().GetRunner().Trigger(action);
 

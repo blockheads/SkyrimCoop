@@ -106,9 +106,9 @@ void DebugService::DrawComponentDebugView()
                 ImGui::InputScalar("Server ID", ImGuiDataType_U32, &(*serverIdRes), 0, 0, "%" PRIx32, ImGuiInputTextFlags_CharsHexadecimal);
             }
 
-            if (auto* pComponent = m_world.try_get<LocalComponent>(entity))
+            if (auto* pComponent = m_world.try_get<ActorValuesComponent>(entity))
             {
-                if (ImGui::CollapsingHeader("LocalComponent"))
+                if (ImGui::CollapsingHeader("ActorValuesComponent"))
                 {
                     ImGui::InputScalar("Is dead?", ImGuiDataType_U8, &pComponent->IsDead, 0, 0, "%" PRIx8, ImGuiInputTextFlags_CharsHexadecimal);
                 }

@@ -92,7 +92,7 @@ public:
     Factions GetActorFactions(uint32_t aFormId) const noexcept override;
     void SetActorFactions(uint32_t aFormId, const Factions& acFactions) noexcept override;
     void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
-    bool IsWeaponFullyDrawn(uint32_t aFormId) const noexcept override;
+    WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
     bool IsActorTemporary(uint32_t aFormId) const noexcept override;
     bool IsActorMount(uint32_t aFormId) const noexcept override;
     bool IsActorDragon(uint32_t aFormId) const noexcept override;

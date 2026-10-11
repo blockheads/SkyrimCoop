@@ -548,6 +548,14 @@ def both_see_each_other():
 def command_reload(args):
     """Swaps the current build into both running games (the loader unloads the old client and
     loads the new one between two frames), then hosts and joins again. No game restart."""
+    started = time.monotonic()
+    reload_games(args.seconds)
+    print(f"\nRELOADED: both games run the new build and are connected again "
+          f"({time.monotonic() - started:.1f}s)")
+
+
+def reload_games(seconds=60):
+    """Hot reloads the client in both games (the deployed build, rebuilt or not) and reconnects them."""
     if not LOADER.exists():
         raise TestFailure(f"Build the loader first: scripts/xmake-msvc.sh build SkyrimCoopLoader ({LOADER})")
     deploy_dll()
@@ -584,12 +592,10 @@ def command_reload(args):
     port = start_session("")["port"]
     select_instance("client")
     start_session(f"join {port}")
-    seen = wait_for("Each game shows the other player", both_see_each_other, args.seconds)
+    seen = wait_for("Each game shows the other player", both_see_each_other, seconds)
     for name in names:
         select_instance(name)
         face_actor(next(iter(seen[name or "host"])))
-    print(f"\nRELOADED: both games run the new build and are connected again "
-          f"({time.monotonic() - started:.1f}s)")
 
 
 def command_duo(args):
@@ -893,6 +899,59 @@ def scenario_cast_host_player():
 def scenario_cast_client_player():
     """Client casts Flames (held) and stops; the host's copy of the client must follow."""
     cast_roundtrip("client", "", "client's character")
+
+
+def quick_sheathe(actor_instance, observer, label):
+    """Player raises a spell and lowers it again at once, a few times. The owner's engine fires a
+    late 'MRh_Equipped_Event' it refuses itself: sent anyway, the copy took it after the sheathe
+    and kept showing the spell ready."""
+    console_on(actor_instance, f"player.addspell {FLAMES:08X}")
+    console_on(actor_instance, f"player.equipspell {FLAMES:08X} right")
+    for _ in range(3):
+        press_until(actor_instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+        press_until(actor_instance, "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
+    time.sleep(1.0)  # the late event reaches the copy a few hundred ms after the sheathe
+    wait_on(observer, f"{label}'s copy lowers the hands",
+            lambda actors: remote_player(actors) is not None
+            and not actors[str(remote_player(actors))].get("weapon_drawn"))
+
+
+def hands_survive_reload(actor_instance, observer, label):
+    """The player keeps its hands up through a hot reload, then lowers them and reloads again: each
+    time the other game respawns its copy, which must show the hands as they are (the server's
+    record from before the reload was stale)."""
+    console_on(actor_instance, f"player.addspell {FLAMES:08X}")
+    console_on(actor_instance, f"player.equipspell {FLAMES:08X} right")
+    def copy_hands(expected):
+        return lambda actors: remote_player(actors) is not None and \
+            actors[str(remote_player(actors))].get("weapon_drawn") == expected
+    for up, verb in ((True, "raised"), (False, "lowered")):
+        press_until(actor_instance, "r", lambda me: me.get("weapon_drawn") == up, f"hands {verb}")
+        wait_on(observer, f"{label}'s copy has the hands {verb}", copy_hands(up))
+        reload_games()
+        if local_player(actor_instance).get("weapon_drawn") != up:
+            raise TestFailure(f"the reload changed the {actor_instance or 'host'} player's hands")
+        wait_on(observer, f"{label}'s respawned copy has the hands {verb}", copy_hands(up))
+
+
+def scenario_hands_survive_reload_host_player():
+    """Host's hands up/down across hot reloads; the client's respawned copy must match."""
+    hands_survive_reload("", "client", "host's character")
+
+
+def scenario_hands_survive_reload_client_player():
+    """Client's hands up/down across hot reloads; the host's respawned copy must match."""
+    hands_survive_reload("client", "", "client's character")
+
+
+def scenario_quick_sheathe_host_player():
+    """Host raises and at once lowers a spell; the client's copy must end with the hands down."""
+    quick_sheathe("", "client", "host's character")
+
+
+def scenario_quick_sheathe_client_player():
+    """Client raises and at once lowers a spell; the host's copy must end with the hands down."""
+    quick_sheathe("client", "", "client's character")
 
 
 def ensure_host_npc():
@@ -1357,6 +1416,11 @@ def owned_npcs(instance):
     return [int(a) for a in local_player(instance).get("local_actors", {})]
 
 
+def foreign_in_hands(state, home):
+    """Something in the hands that the baseline does not wear (a test's sword or spell)."""
+    return any(item and item not in home["equipment"] for item in state.get("hands") or [])
+
+
 def reset_player(instance, home):
     me = player_snapshot(instance)
     state = me.get("state") or {}
@@ -1367,7 +1431,7 @@ def reset_player(instance, home):
         # The R key, like a player: the sheathe action is what copies replay (setting the engine
         # flag directly leaves them drawn).
         press_until(instance, "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
-    if sorted(me.get("equipment", [])) != home["equipment"] or any(state.get("hands") or []):
+    if sorted(me.get("equipment", [])) != home["equipment"] or foreign_in_hands(state, home):
         run_console("player.unequipall")
         for item in home["equipment"]:
             run_console(f"player.equipitem {item:08X}")
@@ -1408,7 +1472,7 @@ def check_baseline():
         values = me.get("values") or {}
         if any(state.get("casting") or []):
             problems.append(f"{game}: player still casting {state['casting']}")
-        if any(state.get("hands") or []):
+        if foreign_in_hands(state, home):
             problems.append(f"{game}: player holds {state['hands']} in the hands")
         if state.get("weapon_drawn"):
             problems.append(f"{game}: player's hands are raised")
@@ -1465,6 +1529,10 @@ SCENARIOS = {
     "draw-client-player": scenario_draw_client_player,
     "cast-host-player": scenario_cast_host_player,
     "cast-client-player": scenario_cast_client_player,
+    "quick-sheathe-host-player": scenario_quick_sheathe_host_player,
+    "quick-sheathe-client-player": scenario_quick_sheathe_client_player,
+    "hands-survive-reload-host-player": scenario_hands_survive_reload_host_player,
+    "hands-survive-reload-client-player": scenario_hands_survive_reload_client_player,
     "health-host-player": scenario_health_host_player,
     "health-client-player": scenario_health_client_player,
     "health-host-npc": scenario_health_host_npc,

@@ -237,8 +237,8 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     actors.GetActorPosition(aFormId, position[0], position[1], position[2]);
 
     nlohmann::json mod = {{"server_id", ServerId(aFormId)}};
-    // An owner records its last animation on the actor; a copy records the last one it replayed.
-    ActionEvent latest = actors.GetActorLatestAnimation(aFormId);
+    // The last action the actor's graph took: an owner's own, or a copy's accepted replay or forced action.
+    const ActionEvent latest = actors.GetActorLatestAnimation(aFormId);
     for (const auto entity : world.view<FormIdComponent>())
     {
         if (world.get<FormIdComponent>(entity).Id != aFormId)
@@ -262,7 +262,6 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         mod["components"] = components;
         if (const auto* pAnimation = world.try_get<RemoteAnimationComponent>(entity))
         {
-            latest = pAnimation->LastRanAction;
             mod["animation_queue"] = pAnimation->TimePoints.size();
             mod["animation_graph_ready"] = actors.IsAnimationGraphReady(aFormId);
         }
@@ -283,7 +282,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                        {"has_3d", actors.ActorHas3D(aFormId)}, {"disabled", actors.IsActorDisabled(aFormId)}}},
         {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},
                    {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
-                   {"weapon_fully_drawn", actors.IsWeaponFullyDrawn(aFormId)},
+                   {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
                    {"casting", CastingSpells(aFormId)},
                    {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
         {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},

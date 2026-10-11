@@ -60,10 +60,8 @@ void ActorValueService::OnLocalComponentAdded(entt::registry& aRegistry, const e
 
     if (m_actorBridge.ActorExists(formId))
     {
-        auto& localComponent = aRegistry.get<LocalComponent>(aEntity);
-        localComponent.IsDead = m_actorBridge.IsActorDead(formId);
-        localComponent.IsWeaponDrawn = m_actorBridge.IsWeaponDrawn(formId);
         CreateActorValuesComponent(aEntity, formId);
+        aRegistry.get<ActorValuesComponent>(aEntity).IsDead = m_actorBridge.IsActorDead(formId);
     }
 }
 
@@ -301,7 +299,7 @@ void ActorValueService::RunDeathStateUpdates() noexcept
 
     lastSendTimePoint = now;
 
-    auto localView = m_world.view<FormIdComponent, LocalComponent>();
+    auto localView = m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>();
 
     for (auto entity : localView)
     {
@@ -312,11 +310,12 @@ void ActorValueService::RunDeathStateUpdates() noexcept
             continue;
 
         auto& localComponent = localView.get<LocalComponent>(entity);
+        auto& actorValuesComponent = localView.get<ActorValuesComponent>(entity);
 
         bool isDead = m_actorBridge.IsActorDead(formId);
-        if (isDead != localComponent.IsDead)
+        if (isDead != actorValuesComponent.IsDead)
         {
-            localComponent.IsDead = isDead;
+            actorValuesComponent.IsDead = isDead;
 
             RequestDeathStateChange requestChange;
             requestChange.Id = localComponent.Id;

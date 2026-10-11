@@ -261,6 +261,14 @@ void Actor::SetWeaponDrawnEx(bool aDraw) noexcept
 {
     spdlog::debug("Setting weapon drawn: {:X}:{}, current state: {}", formID, aDraw, actorState.IsWeaponDrawn());
 
+    // A copy's own draw/sheathe actions are refused, so a request the engine made for it can stay
+    // pending (1 wants to draw, 4 wants to sheathe) and swallow every new one: settle it back to
+    // what the actor shows first.
+    if (actorState.GetWeaponState() == 1)
+        actorState.SetWeaponStateFlags(0);
+    else if (actorState.GetWeaponState() == 4)
+        actorState.SetWeaponStateFlags(3);
+
     // Already sheathed: nothing to play, and the toggle below could strand the flag at "drawn".
     if (!aDraw && !actorState.IsWeaponDrawn())
         return;

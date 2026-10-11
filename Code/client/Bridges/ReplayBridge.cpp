@@ -208,7 +208,7 @@ void ReplayBridge::SetActorInventory(uint32_t, const Inventory&) noexcept {}
 Factions ReplayBridge::GetActorFactions(uint32_t) const noexcept { return {}; }
 void ReplayBridge::SetActorFactions(uint32_t, const Factions&) noexcept {}
 void ReplayBridge::SetActorWeaponDrawnEx(uint32_t, bool) noexcept {}
-bool ReplayBridge::IsWeaponFullyDrawn(uint32_t) const noexcept { return false; }
+WeaponState ReplayBridge::GetWeaponState(uint32_t) const noexcept { return WeaponState::Sheathed; }
 bool ReplayBridge::IsActorTemporary(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsActorMount(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsActorDragon(uint32_t) const noexcept { return false; }

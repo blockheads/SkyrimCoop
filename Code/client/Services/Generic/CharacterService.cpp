@@ -224,7 +224,6 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     RunFactionsUpdates();
     RunRemoteUpdates();
     RunExperienceUpdates();
-    ApplyCachedWeaponDraws(acUpdateEvent);
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
@@ -372,7 +371,7 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
         if (cIsDead != acMessage.IsDead)
             acMessage.IsDead ? m_actorBridge.KillActor(formIdComponent->Id) : m_actorBridge.RespawnActor(formIdComponent->Id);
 
-        m_weaponDrawUpdates[formIdComponent->Id] = {acMessage.IsWeaponDrawn};
+        m_world.emplace_or_replace<RemoteWeaponDrawComponent>(cEntity, acMessage.IsWeaponDrawn);
 
         MoveActor(formIdComponent->Id, acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position);
     }
@@ -543,7 +542,8 @@ void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessag
 
     m_actorBridge.SetActorValues(formIdComponent.Id, acMessage.NewActorData.InitialActorValues);
     m_actorBridge.SetActorInventory(formIdComponent.Id, acMessage.NewActorData.InitialInventory);
-    m_weaponDrawUpdates[formIdComponent.Id] = {acMessage.NewActorData.IsWeaponDrawn};
+    if (m_world.all_of<RemoteComponent>(*itor))
+        m_world.emplace_or_replace<RemoteWeaponDrawComponent>(*itor, acMessage.NewActorData.IsWeaponDrawn);
 
     const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
     if (cIsDead != acMessage.NewActorData.IsDead)
@@ -1334,7 +1334,7 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
     actorData.InitialActorValues = m_actorBridge.GetActorEssentialValues(aFormId);
     actorData.InitialInventory = m_actorBridge.GetActorInventory(aFormId);
     actorData.IsDead = m_actorBridge.IsActorDead(aFormId);
-    actorData.IsWeaponDrawn = m_actorBridge.IsWeaponFullyDrawn(aFormId);
+    actorData.IsWeaponDrawn = HandsUp(m_actorBridge.GetWeaponState(aFormId));
 
     return actorData;
 }
@@ -1457,7 +1457,8 @@ void CharacterService::RunRemoteUpdates() noexcept
         m_actorBridge.SetActorInventory(formIdComponent.Id, waitingFor3D.SpawnRequest.InventoryContent);
         m_actorBridge.SetActorFactions(formIdComponent.Id, waitingFor3D.SpawnRequest.FactionsContent);
         m_actorBridge.ActorLoadAnimationVariables(formIdComponent.Id, waitingFor3D.SpawnRequest.LatestAction.Variables);
-        m_weaponDrawUpdates[formIdComponent.Id] = {waitingFor3D.SpawnRequest.IsWeaponDrawn};
+        if (m_world.all_of<RemoteComponent>(entity))
+            m_world.emplace_or_replace<RemoteWeaponDrawComponent>(entity, waitingFor3D.SpawnRequest.IsWeaponDrawn);
 
         const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
         if (cIsDead != waitingFor3D.SpawnRequest.IsDead)
@@ -1576,37 +1577,4 @@ void CharacterService::RunExperienceUpdates() noexcept
     m_transport.Send(message);
 
     spdlog::debug("Sending over experience {}", message.Experience);
-}
-
-void CharacterService::ApplyCachedWeaponDraws(const UpdateEvent& acUpdateEvent) noexcept
-{
-    std::vector<uint32_t> toRemove{};
-
-    for (auto& [cId, _] : m_weaponDrawUpdates)
-    {
-        auto& data = m_weaponDrawUpdates[cId];
-
-        data.m_timer += acUpdateEvent.Delta;
-
-        // We do 2 passes because Skyrim's weapon drawing is the most finnicky thing in existence
-        double maxTime = data.m_isFirstPass ? 0.5 : 2.0;
-        if (data.m_timer <= maxTime)
-            continue;
-
-        if (!m_actorBridge.ActorExists(cId))
-        {
-            toRemove.push_back(cId);
-            continue;
-        }
-
-        m_actorBridge.SetActorWeaponDrawnEx(cId, data.m_drawWeapon);
-
-        if (!data.m_isFirstPass)
-            toRemove.push_back(cId);
-
-        data.m_isFirstPass = false;
-    }
-
-    for (uint32_t id : toRemove)
-        m_weaponDrawUpdates.erase(id);
 }

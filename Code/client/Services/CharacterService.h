@@ -109,7 +109,6 @@ private:
     void RunFactionsUpdates() const noexcept;
     void RunSpawnUpdates() const noexcept;
     void RunExperienceUpdates() noexcept;
-    void ApplyCachedWeaponDraws(const UpdateEvent& acUpdateEvent) noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -121,21 +120,6 @@ private:
 
     float m_cachedExperience = 0.f;
 
-    // TODO: revamp this, read the local anim var like vampire lord?
-    struct WeaponDrawData
-    {
-        WeaponDrawData() = default;
-        WeaponDrawData(bool aDrawWeapon)
-            : m_drawWeapon(aDrawWeapon)
-        {
-        }
-
-        double m_timer = 0.0;
-        bool m_drawWeapon = false;
-        bool m_isFirstPass = true;
-    };
-
-    Map<uint32_t, WeaponDrawData> m_weaponDrawUpdates{};
 
     entt::scoped_connection m_referenceAddedConnection;
     entt::scoped_connection m_referenceRemovedConnection;

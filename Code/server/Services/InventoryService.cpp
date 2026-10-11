@@ -12,6 +12,7 @@
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/DrawWeaponRequest.h>
+#include <Messages/NotifyDrawWeapon.h>
 
 #include <Setting.h>
 
@@ -97,6 +98,12 @@ void InventoryService::OnWeaponDrawnRequest(const PacketEvent<DrawWeaponRequest>
         auto& characterComponent = characterView.get<CharacterComponent>(*it);
         characterComponent.SetWeaponDrawn(message.IsWeaponDrawn);
         spdlog::debug("Updating weapon drawn state {:x}:{}", message.Id, message.IsWeaponDrawn);
+
+        // The owner's own choice: relayed as is, copies converge to it.
+        NotifyDrawWeapon notify;
+        notify.Id = message.Id;
+        notify.IsWeaponDrawn = message.IsWeaponDrawn;
+        GameServer::Get()->SendToPlayers(notify, acMessage.pPlayer);
     }
 }
 

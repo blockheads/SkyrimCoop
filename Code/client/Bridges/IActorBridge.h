@@ -10,6 +10,7 @@
 #include <Structs/Factions.h>
 #include <Structs/Tints.h>
 #include <Structs/ActionEvent.h>
+#include <Structs/WeaponState.h>
 
 /// All Actor* and related operations abstracted away from SKSE headers.
 /// Implementations must NOT leak any SKSE type into the return type or
@@ -141,7 +142,7 @@ public:
 
     // --- Weapon draw ---
     virtual void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept = 0;
-    virtual bool IsWeaponFullyDrawn(uint32_t aFormId) const noexcept = 0;
+    virtual WeaponState GetWeaponState(uint32_t aFormId) const noexcept = 0;
 
     // --- Actor lifecycle flags ---
     virtual bool IsActorTemporary(uint32_t aFormId) const noexcept = 0;

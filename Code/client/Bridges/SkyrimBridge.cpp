@@ -1686,12 +1686,12 @@ void SkyrimBridge::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
         pActor->SetWeaponDrawnEx(aDraw);
 }
 
-bool SkyrimBridge::IsWeaponFullyDrawn(uint32_t aFormId) const noexcept
+WeaponState SkyrimBridge::GetWeaponState(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
-        return false;
-    return pActor->actorState.IsWeaponFullyDrawn();
+        return WeaponState::Sheathed;
+    return static_cast<WeaponState>(pActor->actorState.GetWeaponState());
 }
 
 bool SkyrimBridge::IsActorTemporary(uint32_t aFormId) const noexcept

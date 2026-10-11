@@ -10,6 +10,8 @@
 #include <Components/WaitingForAssignmentComponent.h>
 #include <Components/LocalComponent.h>
 #include <Components/RemoteComponent.h>
+#include <Components/LocalWeaponDrawComponent.h>
+#include <Components/RemoteWeaponDrawComponent.h>
 #include <Components/FaceGenComponent.h>
 #include <Components/CacheComponent.h>
 #include <Components/WaitingFor3D.h>
