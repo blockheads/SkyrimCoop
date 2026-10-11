@@ -8,6 +8,16 @@
 #include <Services/HostBridge.h>
 
 #include <Messages/AddTargetRequest.h>
+#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AssignCharacterResponse.h>
+#include <Messages/CancelAssignmentRequest.h>
+#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/ClientReferencesMoveRequest.h>
+#include <Messages/NotifyRemoveCharacter.h>
+#include <Messages/NotifyRespawn.h>
+#include <Messages/PlayerRespawnRequest.h>
+#include <Messages/RequestRemoveCharacter.h>
+#include <Messages/RequestRespawn.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyMount.h>
@@ -58,13 +68,7 @@ struct Session
 {
     Session()
         : m_pServer(std::make_unique<Server::GameServer>(Console(), GameServerTestMode{}))
-        , m_bridge(*m_pServer, [this](uint32_t aJoinerServerId) {
-            Vector<CharacterSpawnRequest> spawns;
-            for (const auto& cSpawn : Spawns)
-                if (cSpawn.ServerId != aJoinerServerId)
-                    spawns.push_back(cSpawn);
-            return spawns;
-        })
+        , m_bridge(*m_pServer, Game())
     {
         // Sends arrive as [packet type byte][opcode][payload].
         m_pServer->SetTestSendCallback([this](ConnectionId_t aTo, const void* apData, uint32_t aSize) {
@@ -82,13 +86,22 @@ struct Session
 
     Server::World& World() { return m_pServer->GetWorld(); }
 
-    // A character owned by aOwner; returns its server id.
+    // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player.
+    // Returns its server id; what the announcement sent is cleared.
     uint32_t Character(ConnectionId_t aOwner)
     {
-        const auto cEntity = World().create();
-        World().emplace<Server::OwnerComponent>(cEntity, World().GetPlayerManager().GetByConnectionId(aOwner));
-        return Server::World::ToInteger(cEntity);
+        AssignCharacterRequest announce;
+        announce.Cookie = ++m_cookie;
+        announce.ReferenceId = aOwner == kHost ? GameId(1, 0x1000 + m_cookie) : GameId(0, 0x14);
+        Receive(aOwner, announce);
+        const auto cResponses = SentTo<AssignCharacterResponse>(aOwner);
+        REQUIRE(cResponses.size() == 1);
+        const uint32_t cServerId = cResponses[0]->ServerId;
+        Outbox.clear();
+        return cServerId;
     }
+
+    void Leave(ConnectionId_t aPlayer) { m_pServer->InjectDisconnection(aPlayer); }
 
     void Receive(ConnectionId_t aFrom, const ClientMessage& acMessage)
     {
@@ -107,10 +120,32 @@ struct Session
         return found;
     }
 
-    Vector<CharacterSpawnRequest> Spawns; // what the host's game shows
+    Vector<CharacterSpawnRequest> Spawns;                // the host's own actors in its game
+    TiltedPhoques::Map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     std::vector<Sent> Outbox;
 
 private:
+    HostBridge::HostGame Game()
+    {
+        HostBridge::HostGame game;
+        game.OwnSpawns = [this](uint32_t aExcludedServerId) {
+            Vector<CharacterSpawnRequest> spawns;
+            for (const auto& cSpawn : Spawns)
+                if (cSpawn.ServerId != aExcludedServerId)
+                    spawns.push_back(cSpawn);
+            return spawns;
+        };
+        game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) {
+            const auto it = Copies.find(aServerId);
+            if (it == Copies.end())
+                return false;
+            aSpawn.Position = it->second;
+            return true;
+        };
+        return game;
+    }
+
+    uint32_t m_cookie = 0;
     // One per process: it takes over the static setting and command lists when created.
     static ServerConsole::ConsoleRegistry& Console()
     {
@@ -215,26 +250,6 @@ TEST_CASE("Equipment: a change reaches everyone else", "[Bridge][Inventory]")
     CHECK(session.SentTo<NotifyEquipmentChanges>(kHost)[0]->ItemId == GameId(0, 0x12EB7));
     CHECK(session.SentTo<NotifyEquipmentChanges>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyEquipmentChanges>(kPeer).empty());
-}
-
-TEST_CASE("Late join: every character the host knows but the joiner's own", "[Bridge][Characters]")
-{
-    Session session;
-    for (const uint32_t cServerId : {10u, 11u, 12u})
-    {
-        CharacterSpawnRequest spawn;
-        spawn.ServerId = cServerId;
-        session.Spawns.push_back(spawn);
-    }
-
-    const auto& cLateJoin = Server::GameServer::Get()->GetLateJoinHandler();
-    REQUIRE(cLateJoin);
-    cLateJoin(kPeer, 11);
-
-    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kPeer);
-    REQUIRE(cSpawns.size() == 2);
-    CHECK(cSpawns[0]->ServerId == 10);
-    CHECK(cSpawns[1]->ServerId == 12);
 }
 
 TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[Bridge][Values]")
@@ -414,4 +429,133 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     REQUIRE(session.SentTo<NotifySyncExperience>(kHost).size() == 1);
     CHECK(session.SentTo<NotifySyncExperience>(kOtherPeer)[0]->Experience == 12.5f);
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
+}
+
+TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it everyone else's", "[Bridge][Characters]")
+{
+    Session session;
+    for (const uint32_t cServerId : {100u, 101u})
+    {
+        CharacterSpawnRequest spawn;
+        spawn.ServerId = cServerId;
+        session.Spawns.push_back(spawn);
+    }
+    const uint32_t cOtherPlayer = session.Character(kOtherPeer);
+    session.Copies[cOtherPlayer] = glm::vec3(7.f, 8.f, 9.f);
+
+    AssignCharacterRequest announce;
+    announce.Cookie = 5;
+    announce.ReferenceId = GameId(0, 0x14);
+    announce.AppearanceBuffer = "face";
+    session.Receive(kPeer, announce);
+
+    const auto cResponses = session.SentTo<AssignCharacterResponse>(kPeer);
+    REQUIRE(cResponses.size() == 1);
+    CHECK(cResponses[0]->Cookie == 5);
+    CHECK(cResponses[0]->Owner);
+    const uint32_t cPlayer = cResponses[0]->ServerId;
+    CHECK(cPlayer != cOtherPlayer);
+
+    // The joiner: the host's actors and the other player as the host's copy shows it.
+    const auto cToJoiner = session.SentTo<CharacterSpawnRequest>(kPeer);
+    REQUIRE(cToJoiner.size() == 3);
+    CHECK(cToJoiner[0]->ServerId == 100);
+    CHECK(cToJoiner[1]->ServerId == 101);
+    CHECK(cToJoiner[2]->ServerId == cOtherPlayer);
+    CHECK(cToJoiner[2]->IsPlayer);
+    CHECK(cToJoiner[2]->Position == session.Copies[cOtherPlayer]);
+
+    // Everyone else: the new player, as it announced itself.
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cSpawns = session.SentTo<CharacterSpawnRequest>(cTo);
+        REQUIRE(cSpawns.size() == 1);
+        CHECK(cSpawns[0]->ServerId == cPlayer);
+        CHECK(cSpawns[0]->AppearanceBuffer == "face");
+    }
+}
+
+TEST_CASE("Characters: only the host announces anything but a player's own", "[Bridge][Characters]")
+{
+    Session session;
+    AssignCharacterRequest announce;
+    announce.ReferenceId = GameId(1, 0x1234);
+    session.Receive(kPeer, announce);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    RequestRemoveCharacter removal;
+    removal.ServerId = cHostNpc;
+    session.Receive(kPeer, removal); // not its
+    CHECK(session.Outbox.empty());
+    session.Receive(kHost, removal);
+    REQUIRE(session.SentTo<NotifyRemoveCharacter>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kPeer)[0]->ServerId == cHostNpc);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kHost).empty());
+
+    // Gone: the owner no longer speaks for it.
+    session.Outbox.clear();
+    DrawWeaponRequest draw;
+    draw.Id = cHostNpc;
+    session.Receive(kHost, draw);
+    CHECK(session.Outbox.empty());
+
+    // The host gave up an announcement it was still waiting on.
+    const uint32_t cCancelled = session.Character(kHost);
+    CancelAssignmentRequest cancel;
+    cancel.Cookie = 3; // the third announcement in this session
+    session.Receive(kHost, cancel);
+    REQUIRE(session.SentTo<NotifyRemoveCharacter>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kPeer)[0]->ServerId == cCancelled);
+
+    session.Outbox.clear();
+    session.Leave(kPeer);
+    REQUIRE(session.SentTo<NotifyRemoveCharacter>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->ServerId == cPeerPlayer);
+}
+
+TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    // A beast form: the owner sends its new appearance.
+    RequestRespawn respawn;
+    respawn.ActorId = cPeerPlayer;
+    respawn.AppearanceBuffer = "werewolf";
+    respawn.ChangeFlags = 7;
+    session.Receive(kPeer, respawn);
+    REQUIRE(session.SentTo<NotifyRespawn>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRespawn>(kOtherPeer)[0]->ActorId == cPeerPlayer);
+
+    // The host dropped its copy and asks again: the new appearance, where the player last moved.
+    ClientReferencesMoveRequest movement;
+    movement.Updates[cPeerPlayer].UpdatedMovement.Position = glm::vec3(40.f, 50.f, 60.f);
+    session.Receive(kPeer, movement);
+    session.Outbox.clear();
+    RequestRespawn again;
+    again.ActorId = cPeerPlayer;
+    session.Receive(kHost, again);
+    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kHost);
+    REQUIRE(cSpawns.size() == 1);
+    CHECK(cSpawns[0]->AppearanceBuffer == "werewolf");
+    CHECK(cSpawns[0]->ChangeFlags == 7);
+    CHECK(cSpawns[0]->Position == movement.Updates[cPeerPlayer].UpdatedMovement.Position);
+}
+
+TEST_CASE("Player respawn: everyone else respawns its character", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    session.Receive(kPeer, PlayerRespawnRequest{});
+    REQUIRE(session.SentTo<NotifyRespawn>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRespawn>(kHost)[0]->ActorId == cPeerPlayer);
+    CHECK(session.SentTo<NotifyRespawn>(kPeer).empty());
 }

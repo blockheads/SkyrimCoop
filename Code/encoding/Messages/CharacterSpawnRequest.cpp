@@ -1,4 +1,37 @@
 #include <Messages/CharacterSpawnRequest.h>
+#include <Messages/AssignCharacterRequest.h>
+
+#include <limits>
+
+CharacterSpawnRequest CharacterSpawnRequest::FromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aServerId, uint32_t aPlayerId) noexcept
+{
+    const bool cIsPlayer = acAssignment.ReferenceId == GameId{0, 0x14};
+    const bool cIsTemporary = acAssignment.ReferenceId.ModId == std::numeric_limits<uint32_t>::max();
+
+    CharacterSpawnRequest spawn;
+    spawn.ServerId = aServerId;
+    // A game reference everyone has is found by its id; the player and temporary references are
+    // created from their base and appearance instead.
+    if (!cIsPlayer && !cIsTemporary)
+        spawn.FormId = acAssignment.ReferenceId;
+    spawn.BaseId = acAssignment.FormId;
+    spawn.CellId = acAssignment.CellId;
+    spawn.Position = acAssignment.Position;
+    spawn.Rotation = acAssignment.Rotation;
+    spawn.ChangeFlags = acAssignment.ChangeFlags;
+    spawn.AppearanceBuffer = acAssignment.AppearanceBuffer;
+    spawn.InventoryContent = acAssignment.CurrentActorData.InitialInventory;
+    spawn.FactionsContent = acAssignment.FactionsContent;
+    spawn.LatestAction = acAssignment.LatestAction;
+    spawn.FaceTints = acAssignment.FaceTints;
+    spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
+    spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
+    spawn.IsDead = acAssignment.CurrentActorData.IsDead;
+    spawn.IsPlayer = cIsPlayer;
+    spawn.IsWeaponDrawn = acAssignment.CurrentActorData.IsWeaponDrawn;
+    spawn.IsPlayerSummon = acAssignment.IsPlayerSummon;
+    return spawn;
+}
 
 void CharacterSpawnRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {

@@ -207,11 +207,27 @@ built from its records) never reaches a peer, because only the host announces NP
 assignment in 3b. Two other readers of the records that stopped updating: gold loss on respawn
 (off by default, `fGoldLossFactor` 0) and a non-owner's `RequestRespawn`; both move in step 4.
 
-**3b. Ids and assignment.** The host's `World` hands out server ids: its own actors get one at
-discovery (no `AssignCharacterRequest` round trip), and a peer's player gets one when the peer asks.
-Spawning, removal and respawn become bridge rules, `OwnerOf` reads the host's `World`, and the
-server's `CharacterService` and its components go. After this nothing reads the server `World`'s
-characters.
+**3b. Ids and assignment.** Done. The bridge keeps the characters: who owns each, the cookie it
+was announced with, and for players a spawn record (appearance, base, face; kept current with their
+movement), since the host's copy of a player cannot show those and is dropped when it respawns.
+- `AssignCharacterRequest`: a player's own character, or (the host only) one of the host's actors,
+  gets an id. The owner gets `AssignCharacterResponse`, everyone else a spawn; a player's character
+  also gets every other character (the host's actors from its engine, players from their record
+  and the host's copy). The host still asks in-process like any player, so its services are
+  unchanged.
+- Removal by the owner, `CancelAssignmentRequest` (nothing handled it: a copy announced and then
+  cancelled stayed on peers forever), and a player leaving remove characters everywhere.
+- `RequestRespawn`: the owner's goes to everyone (and updates the record's appearance); anyone
+  else's is answered with a fresh spawn. `PlayerRespawnRequest`: everyone else respawns the
+  player's character. Gold loss on death (`fGoldLossFactor`, off by default) is dropped.
+- Ids come from the server `World`'s entity ids (`GameServer::NewCharacterId`) while objects still
+  get theirs there, so the two cannot collide; phase 4 moves objects and the ids become a counter.
+- Deleted: the server's `CharacterService` (and its Lua binding), `OwnerView`, the character events,
+  the late-join hook, `OwnerConnection`, and `EnforceProximity` (it compared stale positions; the
+  party tether replaces it). The client's `SpawnRecordComponent` went to the bridge's records.
+
+Still on the server, reading positions that have been stale since phase 2: teleport to a player
+(`OverlayService::OnTeleport`, `CommandService` teleport). Phase 4 answers them from the host's game.
 
 
 ### Phase 4: Host-decided state

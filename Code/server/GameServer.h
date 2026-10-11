@@ -13,6 +13,7 @@ using TiltedPhoques::String;
 
 class EnetRecorder;
 struct AuthenticationRequest;
+struct QuestLog;
 struct Player;
 struct PartyComponent;
 
@@ -61,24 +62,29 @@ struct GameServer final : TiltedPhoques::Server
 
     void UpdateTimeScale();
     void UpdateSettings();
-    void EnforceProximity(); // P2P co-op: Teleport players back if they wander too far from host
 
     // Loopback support for P2P host mode (in-process message delivery without enet6)
     void InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId);
+    // A connection ending without the network (tests).
+    void InjectDisconnection(ConnectionId_t aConnectionId) { OnDisconnection(aConnectionId, EDisconnectReason::Quit); }
     void SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
     // The host's bridge (client HostBridge) sees every message first; true: it handled it.
     using FrontDoor = std::function<bool(const ClientMessage&, ConnectionId_t)>;
     void SetFrontDoor(FrontDoor aFrontDoor) noexcept { m_frontDoor = std::move(aFrontDoor); }
     // For the bridge, in connection ids (it cannot include the server's World).
     [[nodiscard]] bool IsAuthenticated(ConnectionId_t aConnectionId) const noexcept;
-    // The connection of the player owning the actor with this server id (0: none).
-    [[nodiscard]] ConnectionId_t OwnerConnection(uint32_t aServerId) const noexcept;
+    [[nodiscard]] ConnectionId_t HostConnection() const noexcept;
+    // The player's id in the player list (0: no such player).
+    [[nodiscard]] uint32_t PlayerIdOf(ConnectionId_t aConnectionId) const noexcept;
+    // The player's own character, for the player list and the services still here (quests, chat).
+    void SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept;
+    // Character ids share the World's entity ids with objects (one id space while both exist).
+    [[nodiscard]] uint32_t NewCharacterId() noexcept;
+    void FreeCharacterId(uint32_t aServerId) noexcept;
     void SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const;
-    // A player's character entered: the bridge sends it every character the host knows, built from
-    // live state (no handler: the server's records, for the standalone server tests).
-    using LateJoinHandler = std::function<void(ConnectionId_t aPlayer, uint32_t aCharacterServerId)>;
-    void SetLateJoinHandler(LateJoinHandler aHandler) noexcept { m_lateJoinHandler = std::move(aHandler); }
-    [[nodiscard]] const LateJoinHandler& GetLateJoinHandler() const noexcept { return m_lateJoinHandler; }
+    // A player is leaving (before it is removed): the bridge removes its characters.
+    using LeaveHandler = std::function<void(ConnectionId_t aPlayer)>;
+    void SetLeaveHandler(LeaveHandler aHandler) noexcept { m_leaveHandler = std::move(aHandler); }
     // The host's own client connecting in-process (replies go to aCallback) and leaving again.
     void OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
     void CloseLoopback();
@@ -181,7 +187,7 @@ struct GameServer final : TiltedPhoques::Server
 
     // Loopback routing for P2P host mode
     ConnectionId_t m_loopbackConnectionId{0};
-    LateJoinHandler m_lateJoinHandler;
+    LeaveHandler m_leaveHandler;
     FrontDoor m_frontDoor;
     std::function<void(const void*, uint32_t)> m_loopbackCallback;
     // Test mode: catch-all send callback for multi-peer replay

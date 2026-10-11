@@ -60,9 +60,10 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return false;
     }
 
-    m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, [this](uint32_t aJoinerServerId) {
-        return m_world.GetCharacterService().BuildSpawnRequests(aJoinerServerId);
-    });
+    HostBridge::HostGame game;
+    game.OwnSpawns = [this](uint32_t aExcludedServerId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedServerId); };
+    game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) { return m_world.GetCharacterService().ReadCopy(aServerId, aSpawn); };
+    m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, std::move(game));
 
     m_isHosting = true;
 

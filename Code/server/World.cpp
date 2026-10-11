@@ -1,7 +1,6 @@
 #include <World.h>
 #include <Components.h>
 
-#include <Services/CharacterService.h>
 #include <Services/ObjectService.h>
 #include <Services/QuestService.h>
 #include <Services/AdminService.h>
@@ -21,7 +20,6 @@ World::World()
     m_spAdminService = std::make_shared<AdminService>(*this, m_dispatcher);
     spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
 
-    ctx().emplace<CharacterService>(*this, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher);
     ctx().emplace<CalendarService>(*this, m_dispatcher);
     ctx().emplace<ObjectService>(*this, m_dispatcher);
@@ -52,7 +50,6 @@ World::World(WorldTestMode)
     m_spAdminService = std::make_shared<AdminService>(*this, m_dispatcher);
     spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
 
-    ctx().emplace<CharacterService>(*this, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher);
     ctx().emplace<CalendarService>(*this, m_dispatcher);
     ctx().emplace<ObjectService>(*this, m_dispatcher);
@@ -87,7 +84,6 @@ World::~World()
     ctx().erase<ObjectService>();
     ctx().erase<CalendarService>();
     ctx().erase<PlayerService>();
-    ctx().erase<CharacterService>();
 }
 
 } // namespace Server

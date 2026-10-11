@@ -96,10 +96,14 @@ struct CharacterService
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
 
     /**
-     * @brief Hosting: what a player who joins now needs to spawn every character we know, built
-     * from live state (our actors from the engine, other players' copies from their record).
+     * @brief Hosting: spawns for our own actors as the engine shows them now, but aExcludedServerId.
      */
     Vector<CharacterSpawnRequest> BuildSpawnRequests(uint32_t aExcludedServerId) const noexcept;
+    /**
+     * @brief Hosting: our copy of another player's character as it is now (position, values,
+     * items, hands, action) into aSpawn; false when we have no copy of it.
+     */
+    bool ReadCopy(uint32_t aServerId, CharacterSpawnRequest& aSpawn) const noexcept;
 
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;

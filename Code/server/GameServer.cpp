@@ -4,7 +4,6 @@
 #include <Recording/EnetRecorder.h>
 
 #include <Events/AdminPacketEvent.h>
-#include <Events/CharacterRemoveEvent.h>
 #include <Events/PacketEvent.h>
 #include <Events/PlayerJoinEvent.h>
 #include <Events/PlayerLeaveEvent.h>
@@ -531,94 +530,6 @@ void GameServer::UpdateTimeScale()
     }
 }
 
-void GameServer::EnforceProximity()
-{
-    // P2P co-op proximity enforcement: Keep all players near the host
-    static constexpr float kMaxDistanceSquared = 5000.0f * 5000.0f; // 5000 units max distance
-    static uint32_t sCheckCounter = 0;
-
-    // Only check every 60 ticks (~1 second at 60 tick rate) to avoid overhead
-    if (++sCheckCounter < 60)
-        return;
-
-    sCheckCounter = 0;
-
-    Player* pHostPlayer = m_pWorld->GetPlayerManager().GetHostPlayer();
-    if (!pHostPlayer)
-        return; // No host yet
-
-    auto hostCharacter = pHostPlayer->GetCharacter();
-    if (!hostCharacter.has_value())
-        return; // Host doesn't have a character spawned yet
-
-    // Get host's position
-    const auto* pHostMovement = m_pWorld->try_get<MovementComponent>(*hostCharacter);
-    if (!pHostMovement)
-        return; // Host has no movement component
-
-    const auto& hostPos = pHostMovement->Position;
-    const auto& hostCell = pHostPlayer->GetCellComponent();
-
-    // Check each client's distance from host
-    for (Player* pPlayer : m_pWorld->GetPlayerManager())
-    {
-        if (pPlayer == pHostPlayer)
-            continue; // Skip the host
-
-        auto playerCharacter = pPlayer->GetCharacter();
-        if (!playerCharacter.has_value())
-            continue; // Player doesn't have a character yet
-
-        const auto* pPlayerMovement = m_pWorld->try_get<MovementComponent>(*playerCharacter);
-        if (!pPlayerMovement)
-            continue; // No movement component
-
-        const auto& playerPos = pPlayerMovement->Position;
-        const auto& playerCell = pPlayer->GetCellComponent();
-
-        // Check if player is in a different cell or too far away
-        bool needsTeleport = false;
-        String reason;
-
-        if (hostCell.Cell != playerCell.Cell)
-        {
-            needsTeleport = true;
-            reason = "You wandered into a different cell!";
-        }
-        else
-        {
-            // Calculate distance squared (avoid expensive sqrt)
-            const auto delta = playerPos - hostPos;
-            const float distSq = glm::dot(delta, delta);
-
-            if (distSq > kMaxDistanceSquared)
-            {
-                needsTeleport = true;
-                reason = "You wandered too far from the host!";
-            }
-        }
-
-        if (needsTeleport)
-        {
-            // Teleport player back to host's position
-            NotifyTeleport teleportMsg;
-            teleportMsg.CellId = hostCell.Cell;
-            teleportMsg.Position = hostPos;
-            teleportMsg.WorldSpaceId = hostCell.WorldSpaceId;
-            pPlayer->Send(teleportMsg);
-
-            // Send system notification
-            NotifyChatMessageBroadcast notifyMsg;
-            notifyMsg.MessageType = kSystemMessage;
-            notifyMsg.PlayerName = "Server";
-            notifyMsg.ChatMessage = reason + " Teleporting you back to the host.";
-            pPlayer->Send(notifyMsg);
-
-            spdlog::info("Teleported player '{}' back to host (reason: {})", pPlayer->GetUsername(), reason);
-        }
-    }
-}
-
 void GameServer::OnUpdate()
 {
     const auto cNow = std::chrono::high_resolution_clock::now();
@@ -631,8 +542,6 @@ void GameServer::OnUpdate()
 
     dispatcher.trigger(UpdateEvent{cDeltaSeconds});
 
-    // P2P co-op: Enforce proximity - teleport players who wander too far from host
-    EnforceProximity();
 
     if (m_requestStop)
         Close();
@@ -710,25 +619,8 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
         notify.Username = pPlayer->GetUsername();
         SendToPlayers(notify);
 
-        entt::entity playerCharacter = pPlayer->GetCharacter().value_or(static_cast<entt::entity>(0));
-
-        // Cleanup all entities that we own
-        auto ownerView = m_pWorld->view<OwnerComponent>();
-        for (auto entity : ownerView)
-        {
-            if (entity == playerCharacter)
-            {
-                m_pWorld->GetDispatcher().enqueue(CharacterRemoveEvent(World::ToInteger(entity)));
-                continue;
-            }
-
-            const auto& [ownerComponent] = ownerView.get(entity);
-            if (ownerComponent.GetOwner() == pPlayer)
-            {
-            }
-        }
-
-        m_pWorld->GetDispatcher().update();
+        if (m_leaveHandler)
+            m_leaveHandler(aConnectionId);
 
         m_pWorld->GetPlayerManager().Remove(pPlayer);
     }
@@ -752,13 +644,36 @@ bool GameServer::IsAuthenticated(ConnectionId_t aConnectionId) const noexcept
     return m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId) != nullptr;
 }
 
-ConnectionId_t GameServer::OwnerConnection(uint32_t aServerId) const noexcept
+ConnectionId_t GameServer::HostConnection() const noexcept
 {
-    const auto cEntity = static_cast<entt::entity>(aServerId);
-    if (!m_pWorld->valid(cEntity))
-        return 0;
-    const auto* pOwner = m_pWorld->try_get<OwnerComponent>(cEntity);
-    return pOwner && pOwner->GetOwner() ? pOwner->GetOwner()->GetConnectionId() : 0;
+    const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
+    return pHost ? pHost->GetConnectionId() : 0;
+}
+
+uint32_t GameServer::PlayerIdOf(ConnectionId_t aConnectionId) const noexcept
+{
+    const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
+    return pPlayer ? pPlayer->GetId() : 0;
+}
+
+void GameServer::SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept
+{
+    if (auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId))
+    {
+        pPlayer->SetCharacter(static_cast<entt::entity>(aServerId));
+        pPlayer->GetQuestLogComponent().QuestContent = acQuests;
+    }
+}
+
+uint32_t GameServer::NewCharacterId() noexcept
+{
+    return World::ToInteger(m_pWorld->create());
+}
+
+void GameServer::FreeCharacterId(uint32_t aServerId) noexcept
+{
+    if (const auto cEntity = static_cast<entt::entity>(aServerId); m_pWorld->valid(cEntity))
+        m_pWorld->destroy(cEntity);
 }
 
 void GameServer::SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const

@@ -12,6 +12,8 @@
 
 using TiltedPhoques::String;
 
+struct AssignCharacterRequest;
+
 struct CharacterSpawnRequest final : ServerMessage
 {
     static constexpr ServerOpcode Opcode = kCharacterSpawnRequest;
@@ -20,6 +22,9 @@ struct CharacterSpawnRequest final : ServerMessage
         : ServerMessage(Opcode)
     {
     }
+
+    // What others spawn for a character its owner announced (aPlayerId: the owner's, for players).
+    static CharacterSpawnRequest FromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aServerId, uint32_t aPlayerId) noexcept;
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;

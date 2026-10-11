@@ -112,7 +112,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept
 {
-    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent, SpawnRecordComponent>(aEntity);
+    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent>(aEntity);
 }
 
 bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acServerId, const entt::entity acEntity) const noexcept
@@ -476,7 +476,6 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
         m_actorBridge.SetActorPlayerRespawnMode(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
-        m_world.emplace_or_replace<SpawnRecordComponent>(*entity, acMessage);
     }
 
     const bool cIsDead = m_actorBridge.IsActorDead(actorFormId);
@@ -1212,34 +1211,6 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
 // What a peer needs to spawn a copy of one of our actors, as the embedded server built it from the
 // assignment (CreateCharacter + Serialize): a game reference keeps its id, a player or temporary
 // actor is rebuilt from its appearance and base.
-static CharacterSpawnRequest SpawnFromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aServerId, uint32_t aPlayerId)
-{
-    const bool cIsPlayer = acAssignment.ReferenceId == GameId{0, 0x14};
-    const bool cIsTemporary = acAssignment.ReferenceId.ModId == std::numeric_limits<uint32_t>::max();
-
-    CharacterSpawnRequest spawn;
-    spawn.ServerId = aServerId;
-    if (!cIsPlayer && !cIsTemporary)
-        spawn.FormId = acAssignment.ReferenceId;
-    spawn.BaseId = acAssignment.FormId;
-    spawn.CellId = acAssignment.CellId;
-    spawn.Position = acAssignment.Position;
-    spawn.Rotation = acAssignment.Rotation;
-    spawn.ChangeFlags = acAssignment.ChangeFlags;
-    spawn.AppearanceBuffer = acAssignment.AppearanceBuffer;
-    spawn.InventoryContent = acAssignment.CurrentActorData.InitialInventory;
-    spawn.FactionsContent = acAssignment.FactionsContent;
-    spawn.LatestAction = acAssignment.LatestAction;
-    spawn.FaceTints = acAssignment.FaceTints;
-    spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
-    spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
-    spawn.IsDead = acAssignment.CurrentActorData.IsDead;
-    spawn.IsPlayer = cIsPlayer;
-    spawn.IsWeaponDrawn = acAssignment.CurrentActorData.IsWeaponDrawn;
-    spawn.IsPlayerSummon = acAssignment.IsPlayerSummon;
-    return spawn;
-}
-
 Vector<CharacterSpawnRequest> CharacterService::BuildSpawnRequests(uint32_t aExcludedServerId) const noexcept
 {
     Vector<CharacterSpawnRequest> spawns;
@@ -1251,29 +1222,32 @@ Vector<CharacterSpawnRequest> CharacterService::BuildSpawnRequests(uint32_t aExc
         if (cServerId == aExcludedServerId)
             continue;
         if (const auto cAssignment = BuildAssignment(cEntity))
-            spawns.push_back(SpawnFromAssignment(*cAssignment, cServerId, m_transport.GetLocalPlayerId()));
-    }
-
-    // Copies of other players' characters: their record, with the copy's live state.
-    for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent, SpawnRecordComponent>())
-    {
-        const uint32_t cServerId = m_world.get<RemoteComponent>(cEntity).Id;
-        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        if (cServerId == aExcludedServerId || !m_actorBridge.ActorExists(cFormId))
-            continue;
-        auto spawn = m_world.get<SpawnRecordComponent>(cEntity).Spawn;
-        const auto cState = ReadLiveState(cFormId);
-        spawn.Position = cState.Position;
-        spawn.Rotation = cState.Rotation;
-        spawn.InventoryContent = cState.Data.InitialInventory;
-        spawn.InitialActorValues = cState.Data.InitialActorValues;
-        spawn.IsDead = cState.Data.IsDead;
-        spawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
-        spawn.LatestAction = cState.LatestAction;
-        spawns.push_back(std::move(spawn));
+            spawns.push_back(CharacterSpawnRequest::FromAssignment(*cAssignment, cServerId, m_transport.GetLocalPlayerId()));
     }
 
     return spawns;
+}
+
+bool CharacterService::ReadCopy(uint32_t aServerId, CharacterSpawnRequest& aSpawn) const noexcept
+{
+    for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent>())
+    {
+        if (m_world.get<RemoteComponent>(cEntity).Id != aServerId)
+            continue;
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        if (!m_actorBridge.ActorExists(cFormId))
+            return false;
+        const auto cState = ReadLiveState(cFormId);
+        aSpawn.Position = cState.Position;
+        aSpawn.Rotation = cState.Rotation;
+        aSpawn.InventoryContent = cState.Data.InitialInventory;
+        aSpawn.InitialActorValues = cState.Data.InitialActorValues;
+        aSpawn.IsDead = cState.Data.IsDead;
+        aSpawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
+        aSpawn.LatestAction = cState.LatestAction;
+        return true;
+    }
+    return false;
 }
 
 void CharacterService::CancelServerAssignment(const entt::entity aEntity, const uint32_t aFormId) const noexcept

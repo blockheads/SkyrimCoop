@@ -6,6 +6,14 @@
 #include <type_traits>
 
 #include <Messages/AddTargetRequest.h>
+#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AssignCharacterResponse.h>
+#include <Messages/CancelAssignmentRequest.h>
+#include <Messages/NotifyRemoveCharacter.h>
+#include <Messages/NotifyRespawn.h>
+#include <Messages/PlayerRespawnRequest.h>
+#include <Messages/RequestRemoveCharacter.h>
+#include <Messages/RequestRespawn.h>
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Messages/DialogueRequest.h>
 #include <Messages/DrawWeaponRequest.h>
@@ -102,13 +110,25 @@ template <class TRequest> void HostBridge::On(void (HostBridge::*apRule)(const T
     };
 }
 
-HostBridge::HostBridge(Server::GameServer& aServer, SpawnSource aSpawns) noexcept
+template <class TRequest> void HostBridge::On(void (HostBridge::*apRule)(const TRequest&, ConnectionId_t) noexcept) noexcept
+{
+    m_rules[TRequest::Opcode] = [this, apRule](const ClientMessage& acMessage, ConnectionId_t aSender) {
+        (this->*apRule)(static_cast<const TRequest&>(acMessage), aSender);
+    };
+}
+
+HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     : m_server(aServer)
-    , m_spawns(std::move(aSpawns))
+    , m_game(std::move(aGame))
 {
     using enum Delivery;
 
     // Characters
+    On<AssignCharacterRequest>(&HostBridge::OnAssignCharacter);
+    On<CancelAssignmentRequest>(&HostBridge::OnCancelAssignment);
+    On<RequestRemoveCharacter>(&HostBridge::OnRemoveCharacter);
+    On<RequestRespawn>(&HostBridge::OnRespawn);
+    On<PlayerRespawnRequest>(&HostBridge::OnPlayerRespawn);
     On<ClientReferencesMoveRequest>(&HostBridge::OnMovement);
     On<RequestFactionsChanges>(&HostBridge::OnFactionsChanges);
     Relay<MountRequest, NotifyMount>(FromAnyone);
@@ -137,13 +157,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, SpawnSource aSpawns) noexcep
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
 
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
-    // Late join from the host's live state, not the server's records.
-    m_server.SetLateJoinHandler([this](ConnectionId_t aPlayer, uint32_t aCharacterServerId) {
-        const auto cSpawns = m_spawns(aCharacterServerId);
-        spdlog::info("HostBridge: {} characters for the player who joined ({:x})", cSpawns.size(), aPlayer);
-        for (const auto& cSpawn : cSpawns)
-            m_server.Send(aPlayer, cSpawn);
-    });
+    m_server.SetLeaveHandler([this](ConnectionId_t aPlayer) { OnPlayerLeft(aPlayer); });
 }
 
 bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept
@@ -158,16 +172,25 @@ bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) 
     return true;
 }
 
-void HostBridge::OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) const noexcept
+void HostBridge::OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     ServerReferencesMoveRequest notify;
     notify.Tick = m_server.GetTick();
     for (const auto& [cServerId, cUpdate] : acRequest.Updates)
     {
-        if (m_server.OwnerConnection(cServerId) == aSender)
-            notify.Updates[cServerId] = cUpdate;
-        else
+        auto it = m_characters.find(cServerId);
+        if (it == m_characters.end() || it->second.Owner != aSender)
+        {
             spdlog::debug("HostBridge: {:x} moved {:x}, which it does not own", aSender, cServerId);
+            continue;
+        }
+        notify.Updates[cServerId] = cUpdate;
+        if (auto& record = it.value().PlayerRecord)
+        {
+            record->CellId = cUpdate.UpdatedMovement.CellId;
+            record->Position = cUpdate.UpdatedMovement.Position;
+            record->Rotation = cUpdate.UpdatedMovement.Rotation;
+        }
     }
     if (!notify.Updates.empty())
         m_server.SendToOthers(notify, aSender, TiltedPhoques::kUnreliable);
@@ -183,7 +206,7 @@ void HostBridge::OnFactionsChanges(const RequestFactionsChanges& acRequest, Conn
 {
     NotifyFactionsChanges notify;
     for (const auto& [cServerId, cFactions] : acRequest.Changes)
-        if (m_server.OwnerConnection(cServerId) == aSender)
+        if (OwnerOf(cServerId) == aSender)
             notify.Changes[cServerId] = cFactions;
     if (!notify.Changes.empty())
         m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
@@ -194,15 +217,188 @@ void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint
     switch (aDelivery)
     {
     case Delivery::FromOwner:
-        if (m_server.OwnerConnection(aActor) == aSender)
+        if (OwnerOf(aActor) == aSender)
             m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
         else
             spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, acNotify.GetOpcode(), aActor);
         break;
     case Delivery::FromAnyone: m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
     case Delivery::ToOwner:
-        if (const ConnectionId_t cOwner = m_server.OwnerConnection(aActor); cOwner != 0 && cOwner != aSender)
+        if (const ConnectionId_t cOwner = OwnerOf(aActor); cOwner != 0 && cOwner != aSender)
             m_server.Send(cOwner, acNotify);
         break;
     }
+}
+
+void HostBridge::OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    const bool cIsPlayer = acRequest.ReferenceId == GameId{0, 0x14};
+    if (!cIsPlayer && aSender != m_server.HostConnection())
+    {
+        // Under the party tether every actor but a player's own is in the host's game.
+        spdlog::warn("HostBridge: {:x} announced {:x}:{:x}, which only the host may", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId);
+        return;
+    }
+
+    if (cIsPlayer)
+    {
+        // A player has one character: an earlier one (re-announced after a respawn) goes.
+        Vector<uint32_t> previous;
+        for (const auto& [cServerId, cCharacter] : m_characters)
+            if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
+                previous.push_back(cServerId);
+        for (const uint32_t cServerId : previous)
+            RemoveCharacter(cServerId);
+    }
+
+    const uint32_t cServerId = m_server.NewCharacterId();
+    const uint32_t cPlayerId = cIsPlayer ? m_server.PlayerIdOf(aSender) : 0;
+    const auto cSpawn = CharacterSpawnRequest::FromAssignment(acRequest, cServerId, cPlayerId);
+
+    auto& character = m_characters[cServerId];
+    character.Owner = aSender;
+    character.Cookie = acRequest.Cookie;
+    if (cIsPlayer)
+    {
+        character.PlayerRecord = cSpawn;
+        m_server.SetPlayerCharacter(aSender, cServerId, acRequest.QuestContent);
+        if (aSender != m_server.HostConnection())
+            SendExistingCharacters(aSender, cServerId);
+    }
+
+    AssignCharacterResponse response;
+    response.Cookie = acRequest.Cookie;
+    response.ServerId = cServerId;
+    response.PlayerId = cPlayerId;
+    response.Owner = true;
+    m_server.Send(aSender, response);
+
+    m_server.SendToOthers(cSpawn, aSender, TiltedPhoques::kReliable);
+    spdlog::info("HostBridge: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cServerId);
+}
+
+void HostBridge::OnCancelAssignment(const CancelAssignmentRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    for (const auto& [cServerId, cCharacter] : m_characters)
+    {
+        if (cCharacter.Owner == aSender && cCharacter.Cookie == acRequest.Cookie)
+        {
+            RemoveCharacter(cServerId);
+            return;
+        }
+    }
+}
+
+void HostBridge::OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (OwnerOf(acRequest.ServerId) == aSender)
+        RemoveCharacter(acRequest.ServerId);
+}
+
+void HostBridge::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept
+{
+    auto it = m_characters.find(acRequest.ActorId);
+    if (it == m_characters.end())
+        return;
+
+    if (it->second.Owner != aSender)
+    {
+        if (const auto cSpawn = BuildSpawn(acRequest.ActorId))
+            m_server.Send(aSender, *cSpawn);
+        return;
+    }
+
+    if (auto& record = it.value().PlayerRecord; record && !acRequest.AppearanceBuffer.empty())
+    {
+        record->AppearanceBuffer = acRequest.AppearanceBuffer;
+        record->ChangeFlags = acRequest.ChangeFlags;
+    }
+    NotifyRespawn notify;
+    notify.ActorId = acRequest.ActorId;
+    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+}
+
+void HostBridge::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t aSender) const noexcept
+{
+    // Its copies come back from death badly otherwise: everyone else spawns it again.
+    for (const auto& [cServerId, cCharacter] : m_characters)
+    {
+        if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
+        {
+            NotifyRespawn notify;
+            notify.ActorId = cServerId;
+            m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+        }
+    }
+}
+
+void HostBridge::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
+{
+    Vector<uint32_t> owned;
+    for (const auto& [cServerId, cCharacter] : m_characters)
+        if (cCharacter.Owner == aPlayer)
+            owned.push_back(cServerId);
+    for (const uint32_t cServerId : owned)
+        RemoveCharacter(cServerId);
+}
+
+ConnectionId_t HostBridge::OwnerOf(uint32_t aServerId) const noexcept
+{
+    const auto it = m_characters.find(aServerId);
+    return it != m_characters.end() ? it->second.Owner : 0;
+}
+
+std::optional<CharacterSpawnRequest> HostBridge::BuildSpawn(uint32_t aServerId) const noexcept
+{
+    const auto it = m_characters.find(aServerId);
+    if (it == m_characters.end())
+        return std::nullopt;
+
+    if (it->second.PlayerRecord && it->second.Owner != m_server.HostConnection())
+    {
+        auto spawn = *it->second.PlayerRecord;
+        m_game.ReadCopy(aServerId, spawn); // else as recorded
+        return spawn;
+    }
+
+    for (auto& spawn : m_game.OwnSpawns(0))
+        if (spawn.ServerId == aServerId)
+            return std::move(spawn);
+    return std::nullopt;
+}
+
+void HostBridge::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnServerId) const noexcept
+{
+    const ConnectionId_t cHost = m_server.HostConnection();
+    uint32_t count = 0;
+    for (const auto& cSpawn : m_game.OwnSpawns(aOwnServerId))
+    {
+        m_server.Send(aPlayer, cSpawn);
+        ++count;
+    }
+    for (const auto& [cServerId, cCharacter] : m_characters)
+    {
+        if (cServerId == aOwnServerId || cCharacter.Owner == cHost || !cCharacter.PlayerRecord)
+            continue;
+        if (const auto cSpawn = BuildSpawn(cServerId))
+        {
+            m_server.Send(aPlayer, *cSpawn);
+            ++count;
+        }
+    }
+    spdlog::info("HostBridge: {} characters for the player who joined ({:x})", count, aPlayer);
+}
+
+void HostBridge::RemoveCharacter(uint32_t aServerId) noexcept
+{
+    const auto it = m_characters.find(aServerId);
+    if (it == m_characters.end())
+        return;
+
+    NotifyRemoveCharacter notify;
+    notify.ServerId = aServerId;
+    m_server.SendToOthers(notify, it->second.Owner, TiltedPhoques::kReliable);
+
+    m_characters.erase(it);
+    m_server.FreeCharacterId(aServerId);
 }
