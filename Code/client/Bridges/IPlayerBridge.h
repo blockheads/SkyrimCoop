@@ -80,6 +80,9 @@ public:
     virtual bool IsPlayerLoaded() const noexcept = 0;
     // Whether the engine teleported the player since the last call (experimental: coc only so far).
     virtual bool ConsumeTeleported() noexcept = 0;
+    // Stops listening for teleports (CharacterService going away: the engine must not call into a
+    // DLL that is being unloaded).
+    virtual void StopTeleportEvents() noexcept = 0;
 
     // --- Show HUD message ---
     virtual void ShowHudMessage(const std::string& aMessage) noexcept = 0;

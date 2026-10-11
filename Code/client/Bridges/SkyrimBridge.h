@@ -256,6 +256,7 @@ public:
     std::vector<uint32_t> GetPlayerActiveQuestFormIds() const noexcept override;
     bool IsPlayerLoaded() const noexcept override;
     bool ConsumeTeleported() noexcept override;
+    void StopTeleportEvents() noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
     QuestLog GetPlayerQuestLog() const noexcept override;
     Tints GetPlayerFaceTints() const noexcept override;

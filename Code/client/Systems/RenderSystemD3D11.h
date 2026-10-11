@@ -20,7 +20,9 @@ struct RenderSystemD3D11
     [[nodiscard]] IDXGISwapChain* GetSwapChain() const;
 
     // to make yamashi mad
-    void OnDeviceCreation(IDXGISwapChain* apSwapChain);
+    // The game created its device (aArrangeWindows: tile the test games' windows), or a hot
+    // reloaded DLL found it already made (its windows were arranged by the first load).
+    void OnDeviceCreation(IDXGISwapChain* apSwapChain, bool aArrangeWindows = true);
     void OnRender();
     void OnReset(IDXGISwapChain* apSwapChain);
 

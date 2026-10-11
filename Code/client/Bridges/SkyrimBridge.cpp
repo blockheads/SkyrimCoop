@@ -1529,6 +1529,11 @@ bool SkyrimBridge::ConsumeTeleported() noexcept
     return PlayerCharacter::ConsumeTeleported();
 }
 
+void SkyrimBridge::StopTeleportEvents() noexcept
+{
+    PlayerCharacter::StopTeleportEvents();
+}
+
 void SkyrimBridge::ShowHudMessage(const std::string& aMessage) noexcept
 {
     Utils::ShowHudMessage(String(aMessage));

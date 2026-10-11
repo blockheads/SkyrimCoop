@@ -56,7 +56,7 @@ struct CharacterService
 {
     CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                      IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept;
-    ~CharacterService() noexcept = default;
+    ~CharacterService() noexcept;
 
     TP_NOCOPYMOVE(CharacterService);
 

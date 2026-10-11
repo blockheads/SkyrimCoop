@@ -282,21 +282,40 @@ PositionPlayerSink s_positionPlayerSink;
 bool s_positionPlayerRegistered = false;
 } // namespace
 
+namespace
+{
+// PlayerCharacter's BSTEventSource<PositionPlayerEvent> base: +0x388 on 1.6.1170, from the game's
+// RTTI (its base class descriptor's mdisp); CommonLibSSE's 0x380 is the SE layout.
+EventDispatcher<PositionPlayerEvent>* PositionPlayerSource() noexcept
+{
+    constexpr size_t cPositionPlayerSource = 0x388;
+    auto* pPlayer = PlayerCharacter::Get();
+    return pPlayer ? reinterpret_cast<EventDispatcher<PositionPlayerEvent>*>(reinterpret_cast<uint8_t*>(pPlayer) + cPositionPlayerSource)
+                   : nullptr;
+}
+} // namespace
+
 bool PlayerCharacter::ConsumeTeleported() noexcept
 {
-    // PlayerCharacter's BSTEventSource<PositionPlayerEvent> base: +0x388 on 1.6.1170, from the game's
-    // RTTI (its base class descriptor's mdisp); CommonLibSSE's 0x380 is the SE layout.
-    constexpr size_t cPositionPlayerSource = 0x388;
     if (!s_positionPlayerRegistered)
     {
-        auto* pPlayer = PlayerCharacter::Get();
-        if (!pPlayer)
+        auto* pSource = PositionPlayerSource();
+        if (!pSource)
             return false;
-        auto* pSource = reinterpret_cast<EventDispatcher<PositionPlayerEvent>*>(reinterpret_cast<uint8_t*>(pPlayer) + cPositionPlayerSource);
         pSource->RegisterSink(&s_positionPlayerSink);
         s_positionPlayerRegistered = true;
     }
     return std::exchange(s_positionPlayerSink.Teleported, false);
+}
+
+void PlayerCharacter::StopTeleportEvents() noexcept
+{
+    // A hot reload leaves this DLL's code loaded but its state torn down: a sink left registered
+    // would be called into it on the next teleport.
+    if (!std::exchange(s_positionPlayerRegistered, false))
+        return;
+    if (auto* pSource = PositionPlayerSource())
+        pSource->UnRegisterSink(&s_positionPlayerSink);
 }
 
 static TiltedPhoques::Initializer s_playerCharacterHooks(

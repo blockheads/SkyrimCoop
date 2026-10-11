@@ -95,7 +95,7 @@ void Hook_StopTimer(int type)
         RendererWindow* pWindow = GetMainWindow();
         g_sRs = pWindow && pWindow->pSwapChain ? World::Get().ctx().find<RenderSystemD3D11>() : nullptr;
         if (g_sRs)
-            g_sRs->OnDeviceCreation(pWindow->pSwapChain);
+            g_sRs->OnDeviceCreation(pWindow->pSwapChain, false);
     }
     if (g_sRs)
         g_sRs->OnRender();

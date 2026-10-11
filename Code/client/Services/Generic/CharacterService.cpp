@@ -376,6 +376,11 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
     }
 }
 
+CharacterService::~CharacterService() noexcept
+{
+    m_playerBridge.StopTeleportEvents();
+}
+
 void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) const noexcept
 {
     auto remoteView = m_world.view<RemoteComponent>();

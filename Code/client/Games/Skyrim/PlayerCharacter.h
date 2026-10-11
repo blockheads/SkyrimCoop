@@ -104,6 +104,8 @@ struct PlayerCharacter : Actor
     // The engine repositioned the player (coc) since the last call: its PositionPlayerEvent.
     // Experimental: only coc is validated; doors and fast travel may need a more generic hook.
     static bool ConsumeTeleported() noexcept;
+    // Unregisters from the engine's event (before the DLL goes: a hot reload).
+    static void StopTeleportEvents() noexcept;
 
     static PlayerCharacter* Get() noexcept;
 

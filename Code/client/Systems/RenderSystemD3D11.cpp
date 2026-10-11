@@ -22,7 +22,7 @@ RenderSystemD3D11::RenderSystemD3D11(OverlayService& aOverlay, ImguiService& aIm
 {
     auto& d3d11 = TiltedPhoques::D3D11Hook::Get();
 
-    m_createConnection = d3d11.OnCreate.Connect(std::bind(&RenderSystemD3D11::OnDeviceCreation, this, std::placeholders::_1));
+    m_createConnection = d3d11.OnCreate.Connect([this](IDXGISwapChain* apSwapChain) { OnDeviceCreation(apSwapChain); });
     m_resetConnection = d3d11.OnLost.Connect(std::bind(&RenderSystemD3D11::OnReset, this, std::placeholders::_1));
 
     // m_renderConnection = d3d11.OnPresent.Connect(std::bind(&RenderSystemD3D11::OnRender, this, std::placeholders::_1));
@@ -53,7 +53,7 @@ IDXGISwapChain* RenderSystemD3D11::GetSwapChain() const
     return m_pSwapChain;
 }
 
-void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain)
+void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain, bool aArrangeWindows)
 {
     m_pSwapChain = apSwapChain;
 
@@ -64,7 +64,10 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain)
         pUi->Create(apSwapChain);
 #endif
 #ifndef __MINGW32__
-    DebugService::ArrangeGameWindows(GetWindow());
+    // Not again after a hot reload: its "another game is open" mutex is our own process's by then,
+    // and it would move this window to the second game's place.
+    if (aArrangeWindows)
+        DebugService::ArrangeGameWindows(GetWindow());
 #endif
 }
 
