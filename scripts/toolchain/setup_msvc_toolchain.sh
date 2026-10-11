@@ -30,10 +30,13 @@ done
 
 B="$T/msvc-bin"
 rm -rf "$B" && mkdir -p "$B"
-for tool in clang-cl lld-link llvm-lib llvm-rc llvm-ml llvm-dlltool llvm-ar llvm-mt; do
+for tool in lld-link llvm-lib llvm-rc llvm-ml llvm-dlltool llvm-ar llvm-mt; do
     ln -s "../LLVM/bin/$tool" "$B/$tool"
 done
-ln -s ../LLVM/bin/clang-cl "$B/clang-cl.exe"
+# Fixes up the dependency files xmake reads (see the script).
+cp "$ROOT/scripts/toolchain/clang_cl_wrapper.sh" "$B/clang-cl"
+chmod +x "$B/clang-cl"
+ln -s clang-cl "$B/clang-cl.exe"
 ln -s ../LLVM/bin/lld-link "$B/lld-link.exe"
 ln -s ../LLVM/bin/llvm-dlltool "$B/llvm-dlltool.exe"
 ln -s ../LLVM/bin/llvm-lib "$B/lib.exe"
