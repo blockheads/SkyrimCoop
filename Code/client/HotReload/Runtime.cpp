@@ -1,7 +1,6 @@
 #include <TiltedOnlinePCH.h>
 #include "Runtime.h"
 #include "Session.h"
-#include <Steam/Session.h>
 #include <World.h>
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
@@ -523,7 +522,6 @@ std::string Runtime::BuildStatus(int aIndent)
         {"build_id", m_loader.BuildId()}, {"generation", m_loader.Generation()},
         {"evaluations", m_loader.Calls()}, {"invalid_outputs", m_loader.InvalidOutputs()},
         {"actors", actors}, {"session", PollSession(m_directory)},
-        {"steam", CoopSteam::Poll(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
         {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()}, {"game", GameStatus()},
         {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}, {"reload", ReloadStatus()}
@@ -531,7 +529,7 @@ std::string Runtime::BuildStatus(int aIndent)
     return status.dump(aIndent);
 }
 
-void Runtime::Shutdown() { m_commands.Stop(); CoopSteam::Shutdown(); m_loader.Unload(); }
+void Runtime::Shutdown() { m_commands.Stop(); m_loader.Unload(); }
 bool Runtime::Evaluate(const CoopMovementInput& input, CoopMovementOutput& output)
 {
     return m_loader.Evaluate(input, output);
