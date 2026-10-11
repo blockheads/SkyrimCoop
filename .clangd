@@ -1,0 +1,8 @@
+# clangd for the clang-cl cross build (compile database: `xmake project -k compile_commands`
+# with XMAKE_CONFIGDIR=build/msvc-config, written to build/compile_commands.json). xmake hands
+# clang-cl the Windows SDK and MSVC headers through the environment, which clangd does not see.
+CompileFlags:
+  CompilationDatabase: build
+  Add: [/winsysroot, build/toolchains/winsysroot]
+  # Precompiled headers are the build's; clangd makes its own preambles.
+  Remove: [-Yu*, -Yc*, -Fp*, /Yu*, /Yc*, /Fp*]

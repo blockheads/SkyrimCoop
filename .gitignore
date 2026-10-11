@@ -106,3 +106,5 @@ tests/*.dll
 tests/*.exe
 /client
 /workspace
+/compile_commands.json
+/.cache/
