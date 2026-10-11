@@ -3,7 +3,17 @@
 
 #include <GameServer.h>
 
+#include <Messages/AddTargetRequest.h>
 #include <Messages/ClientReferencesMoveRequest.h>
+#include <Messages/InterruptCastRequest.h>
+#include <Messages/NotifyAddTarget.h>
+#include <Messages/NotifyInterruptCast.h>
+#include <Messages/NotifyProjectileLaunch.h>
+#include <Messages/NotifyRemoveSpell.h>
+#include <Messages/NotifySpellCast.h>
+#include <Messages/ProjectileLaunchRequest.h>
+#include <Messages/RemoveSpellRequest.h>
+#include <Messages/SpellCastRequest.h>
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyActorValueChanges.h>
@@ -43,15 +53,20 @@ bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) 
 
     switch (acMessage.GetOpcode())
     {
-    case kClientReferencesMoveRequest: OnMovement(static_cast<const ClientReferencesMoveRequest&>(acMessage), aSender); return true;
-    case kRequestInventoryChanges: OnInventoryChanges(static_cast<const RequestInventoryChanges&>(acMessage), aSender); return true;
-    case kRequestEquipmentChanges: OnEquipmentChanges(static_cast<const RequestEquipmentChanges&>(acMessage), aSender); return true;
-    case kRequestEquipmentSnapshot: OnEquipmentSnapshot(static_cast<const RequestEquipmentSnapshot&>(acMessage), aSender); return true;
-    case kDrawWeaponRequest: OnDrawWeapon(static_cast<const DrawWeaponRequest&>(acMessage), aSender); return true;
-    case kRequestActorValueChanges: OnActorValues(static_cast<const RequestActorValueChanges&>(acMessage), aSender); return true;
-    case kRequestActorMaxValueChanges: OnActorMaxValues(static_cast<const RequestActorMaxValueChanges&>(acMessage), aSender); return true;
-    case kRequestDeathStateChange: OnDeathState(static_cast<const RequestDeathStateChange&>(acMessage), aSender); return true;
-    case kRequestHealthChangeBroadcast: OnHealthChange(static_cast<const RequestHealthChangeBroadcast&>(acMessage), aSender); return true;
+    case ClientReferencesMoveRequest::Opcode: OnMovement(static_cast<const ClientReferencesMoveRequest&>(acMessage), aSender); return true;
+    case RequestInventoryChanges::Opcode: OnInventoryChanges(static_cast<const RequestInventoryChanges&>(acMessage), aSender); return true;
+    case RequestEquipmentChanges::Opcode: OnEquipmentChanges(static_cast<const RequestEquipmentChanges&>(acMessage), aSender); return true;
+    case RequestEquipmentSnapshot::Opcode: OnEquipmentSnapshot(static_cast<const RequestEquipmentSnapshot&>(acMessage), aSender); return true;
+    case DrawWeaponRequest::Opcode: OnDrawWeapon(static_cast<const DrawWeaponRequest&>(acMessage), aSender); return true;
+    case RequestActorValueChanges::Opcode: OnActorValues(static_cast<const RequestActorValueChanges&>(acMessage), aSender); return true;
+    case RequestActorMaxValueChanges::Opcode: OnActorMaxValues(static_cast<const RequestActorMaxValueChanges&>(acMessage), aSender); return true;
+    case RequestDeathStateChange::Opcode: OnDeathState(static_cast<const RequestDeathStateChange&>(acMessage), aSender); return true;
+    case RequestHealthChangeBroadcast::Opcode: OnHealthChange(static_cast<const RequestHealthChangeBroadcast&>(acMessage), aSender); return true;
+    case SpellCastRequest::Opcode: OnSpellCast(static_cast<const SpellCastRequest&>(acMessage), aSender); return true;
+    case InterruptCastRequest::Opcode: OnInterruptCast(static_cast<const InterruptCastRequest&>(acMessage), aSender); return true;
+    case ProjectileLaunchRequest::Opcode: OnProjectileLaunch(static_cast<const ProjectileLaunchRequest&>(acMessage), aSender); return true;
+    case AddTargetRequest::Opcode: OnAddTarget(static_cast<const AddTargetRequest&>(acMessage), aSender); return true;
+    case RemoveSpellRequest::Opcode: OnRemoveSpell(static_cast<const RemoveSpellRequest&>(acMessage), aSender); return true;
     default: return false;
     }
 }
@@ -138,16 +153,82 @@ void HostBridge::OnDeathState(const RequestDeathStateChange& acRequest, Connecti
 
 void HostBridge::OnHealthChange(const RequestHealthChangeBroadcast& acRequest, ConnectionId_t aSender) const noexcept
 {
-    const ConnectionId_t cOwner = m_server.OwnerConnection(acRequest.Id);
-    if (cOwner == 0 || cOwner == aSender)
-        return;
-
     NotifyHealthChangeBroadcast notify;
     notify.Id = acRequest.Id;
     notify.DeltaHealth = acRequest.DeltaHealth;
     notify.HasAttacker = acRequest.HasAttacker;
     notify.AttackerId = acRequest.AttackerId;
-    m_server.Send(cOwner, notify);
+    SendToOwner(acRequest.Id, notify, aSender);
+}
+
+void HostBridge::OnSpellCast(const SpellCastRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifySpellCast notify;
+    notify.CasterId = acRequest.CasterId;
+    notify.SpellFormId = acRequest.SpellFormId;
+    notify.CastingSource = acRequest.CastingSource;
+    notify.IsDualCasting = acRequest.IsDualCasting;
+    notify.DesiredTarget = acRequest.DesiredTarget;
+    RelayFromOwner(acRequest.CasterId, notify, aSender);
+}
+
+void HostBridge::OnInterruptCast(const InterruptCastRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyInterruptCast notify;
+    notify.CasterId = acRequest.CasterId;
+    notify.CastingSource = acRequest.CastingSource;
+    RelayFromOwner(acRequest.CasterId, notify, aSender);
+}
+
+void HostBridge::OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyProjectileLaunch notify;
+    notify.ShooterID = acRequest.ShooterID;
+    notify.OriginX = acRequest.OriginX;
+    notify.OriginY = acRequest.OriginY;
+    notify.OriginZ = acRequest.OriginZ;
+    notify.ProjectileBaseID = acRequest.ProjectileBaseID;
+    notify.WeaponID = acRequest.WeaponID;
+    notify.AmmoID = acRequest.AmmoID;
+    notify.ZAngle = acRequest.ZAngle;
+    notify.XAngle = acRequest.XAngle;
+    notify.YAngle = acRequest.YAngle;
+    notify.ParentCellID = acRequest.ParentCellID;
+    notify.SpellID = acRequest.SpellID;
+    notify.CastingSource = acRequest.CastingSource;
+    notify.Area = acRequest.Area;
+    notify.Power = acRequest.Power;
+    notify.Scale = acRequest.Scale;
+    notify.AlwaysHit = acRequest.AlwaysHit;
+    notify.NoDamageOutsideCombat = acRequest.NoDamageOutsideCombat;
+    notify.AutoAim = acRequest.AutoAim;
+    notify.DeferInitialization = acRequest.DeferInitialization;
+    notify.ForceConeOfFire = acRequest.ForceConeOfFire;
+    notify.UnkBool1 = acRequest.UnkBool1;
+    notify.UnkBool2 = acRequest.UnkBool2;
+    RelayFromOwner(acRequest.ShooterID, notify, aSender);
+}
+
+void HostBridge::OnAddTarget(const AddTargetRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyAddTarget notify;
+    notify.TargetId = acRequest.TargetId;
+    notify.CasterId = acRequest.CasterId;
+    notify.SpellId = acRequest.SpellId;
+    notify.EffectId = acRequest.EffectId;
+    notify.Magnitude = acRequest.Magnitude;
+    notify.IsDualCasting = acRequest.IsDualCasting;
+    notify.ApplyHealPerkBonus = acRequest.ApplyHealPerkBonus;
+    notify.ApplyStaminaPerkBonus = acRequest.ApplyStaminaPerkBonus;
+    SendToOwner(acRequest.TargetId, notify, aSender);
+}
+
+void HostBridge::OnRemoveSpell(const RemoveSpellRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    NotifyRemoveSpell notify;
+    notify.TargetId = acRequest.TargetId;
+    notify.SpellId = acRequest.SpellId;
+    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
 void HostBridge::RelayFromOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept
@@ -158,4 +239,11 @@ void HostBridge::RelayFromOwner(uint32_t aServerId, const ServerMessage& acNotif
         return;
     }
     m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
+}
+
+void HostBridge::SendToOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept
+{
+    const ConnectionId_t cOwner = m_server.OwnerConnection(aServerId);
+    if (cOwner != 0 && cOwner != aSender)
+        m_server.Send(cOwner, acNotify);
 }

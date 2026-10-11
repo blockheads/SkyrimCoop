@@ -17,6 +17,11 @@ struct RequestActorValueChanges;
 struct RequestActorMaxValueChanges;
 struct RequestHealthChangeBroadcast;
 struct RequestDeathStateChange;
+struct SpellCastRequest;
+struct InterruptCastRequest;
+struct AddTargetRequest;
+struct RemoveSpellRequest;
+struct ProjectileLaunchRequest;
 
 namespace Server
 {
@@ -66,9 +71,19 @@ private:
     // A hit on someone else's actor goes to its owner alone, which applies it; everyone else then
     // gets the owner's resulting health as values.
     void OnHealthChange(const RequestHealthChangeBroadcast& acRequest, ConnectionId_t aSender) const noexcept;
+    // Casts and shots come from the caster's owner; everyone else replays them on their copy.
+    void OnSpellCast(const SpellCastRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnInterruptCast(const InterruptCastRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // A spell landing on someone else's actor: its owner applies the effect (like a hit).
+    void OnAddTarget(const AddTargetRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // An effect ending on any actor (whoever saw it end).
+    void OnRemoveSpell(const RemoveSpellRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
     // Sends acNotify to everyone but aSender when aSender owns aServerId.
     void RelayFromOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept;
+    // Sends acNotify to aServerId's owner alone, unless that is aSender.
+    void SendToOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept;
 
     Server::GameServer& m_server;
     SpawnSource m_spawns;

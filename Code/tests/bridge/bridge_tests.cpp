@@ -7,7 +7,15 @@
 #include <Game/Player.h>
 #include <Services/HostBridge.h>
 
+#include <Messages/AddTargetRequest.h>
 #include <Messages/DrawWeaponRequest.h>
+#include <Messages/NotifyAddTarget.h>
+#include <Messages/NotifyProjectileLaunch.h>
+#include <Messages/NotifyRemoveSpell.h>
+#include <Messages/NotifySpellCast.h>
+#include <Messages/ProjectileLaunchRequest.h>
+#include <Messages/RemoveSpellRequest.h>
+#include <Messages/SpellCastRequest.h>
 #include <Messages/NotifyActorValueChanges.h>
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/NotifyHealthChangeBroadcast.h>
@@ -270,4 +278,73 @@ TEST_CASE("Hits: go to the actor's owner alone", "[Bridge][Values]")
     session.Outbox.clear();
     session.Receive(kHost, hit);
     CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner only", "[Bridge][Magic]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cHostNpc = session.Character(kHost);
+
+    SpellCastRequest cast;
+    cast.CasterId = cPeerPlayer;
+    cast.SpellFormId = GameId(0, 0x12FCD); // firebolt
+    session.Receive(kPeer, cast);
+    REQUIRE(session.SentTo<NotifySpellCast>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifySpellCast>(kHost)[0]->SpellFormId == GameId(0, 0x12FCD));
+    CHECK(session.SentTo<NotifySpellCast>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifySpellCast>(kPeer).empty());
+
+    ProjectileLaunchRequest shot;
+    shot.ShooterID = cPeerPlayer;
+    shot.OriginX = 10.f;
+    session.Receive(kPeer, shot);
+    REQUIRE(session.SentTo<NotifyProjectileLaunch>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyProjectileLaunch>(kHost)[0]->OriginX == 10.f);
+
+    session.Outbox.clear();
+    cast.CasterId = cHostNpc;
+    session.Receive(kPeer, cast);
+    shot.ShooterID = cHostNpc;
+    session.Receive(kPeer, shot);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("Spell effects: applied by the target's owner alone", "[Bridge][Magic]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cHostNpc = session.Character(kHost);
+
+    AddTargetRequest effect;
+    effect.TargetId = cHostNpc;
+    effect.CasterId = cPeerPlayer;
+    effect.Magnitude = 25.f;
+    session.Receive(kPeer, effect);
+
+    REQUIRE(session.SentTo<NotifyAddTarget>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyAddTarget>(kHost)[0]->Magnitude == 25.f);
+    CHECK(session.SentTo<NotifyAddTarget>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyAddTarget>(kPeer).empty());
+
+    // On its own actor the caster's game already applied it.
+    session.Outbox.clear();
+    effect.TargetId = cPeerPlayer;
+    session.Receive(kPeer, effect);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("Spell removal: reaches everyone else", "[Bridge][Magic]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+
+    RemoveSpellRequest removal;
+    removal.TargetId = cHostNpc;
+    removal.SpellId = GameId(0, 0x12FCD);
+    session.Receive(kPeer, removal);
+
+    REQUIRE(session.SentTo<NotifyRemoveSpell>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveSpell>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveSpell>(kPeer).empty());
 }

@@ -5,11 +5,9 @@
 #include <Services/ObjectService.h>
 #include <Services/QuestService.h>
 #include <Services/AdminService.h>
-#include <Services/MagicService.h>
 #include <Services/OverlayService.h>
 #include <Services/CommandService.h>
 #include <Services/StringCacheService.h>
-#include <Services/CombatService.h>
 #include <Services/WeatherService.h>
 #include <Services/ScriptService.h>
 
@@ -30,11 +28,9 @@ World::World()
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<PartyService>(*this, m_dispatcher);
-    ctx().emplace<MagicService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_dispatcher);
     ctx().emplace<CommandService>(*this, m_dispatcher);
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
-    ctx().emplace<CombatService>(*this, m_dispatcher);
     ctx().emplace<WeatherService>(*this, m_dispatcher);
 
     ESLoader::ESLoader loader;
@@ -63,11 +59,9 @@ World::World(WorldTestMode)
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<PartyService>(*this, m_dispatcher);
-    ctx().emplace<MagicService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_dispatcher);
     ctx().emplace<CommandService>(*this, m_dispatcher);
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
-    ctx().emplace<CombatService>(*this, m_dispatcher);
     ctx().emplace<WeatherService>(*this, m_dispatcher);
 
     // ScriptService is safe to create -- it just won't have any loaded scripts
@@ -85,11 +79,9 @@ World::~World()
     // The services live in the registry's context, destroyed after m_dispatcher (one of our
     // members): their connections to it go first, newest service first.
     ctx().erase<WeatherService>();
-    ctx().erase<CombatService>();
     ctx().erase<StringCacheService>();
     ctx().erase<CommandService>();
     ctx().erase<OverlayService>();
-    ctx().erase<MagicService>();
     ctx().erase<PartyService>();
     ctx().erase<QuestService>();
     ctx().erase<ObjectService>();

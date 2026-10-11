@@ -180,6 +180,9 @@ Done:
 - **2. Actor values.** Values, max values and death are relayed from the owner only (clients only
   send them for actors they own). A hit on someone else's actor goes to its owner alone. The
   server's `ActorValueService` is deleted.
+- **3. Magic and combat.** Casts, interrupts and projectiles are relayed from the caster's owner
+  only. A spell effect landing on someone else's actor goes to its owner alone (like a hit); an
+  effect ending is relayed from anyone. The server's `MagicService` and `CombatService` are deleted.
 
 Found on the way: the server's "this character is already managed" answer (an `AssignCharacterResponse`
 built from its records) never reaches a peer, because only the host announces NPCs. It goes with
