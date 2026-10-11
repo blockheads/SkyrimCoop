@@ -371,6 +371,7 @@ void ReplayBridge::EquipShout(uint32_t) noexcept {}
 uint32_t ReplayBridge::GetPlayerRaceFormId() const noexcept { return 0; }
 std::vector<uint32_t> ReplayBridge::GetPlayerActiveQuestFormIds() const noexcept { return {}; }
 bool ReplayBridge::IsPlayerLoaded() const noexcept { return true; }
+bool ReplayBridge::ConsumeTeleported() noexcept { return false; }
 void ReplayBridge::ShowHudMessage(const std::string&) noexcept {}
 // --- IPlayerBridge extended (Plan 03) ---
 QuestLog ReplayBridge::GetPlayerQuestLog() const noexcept { return {}; }

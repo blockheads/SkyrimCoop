@@ -130,6 +130,9 @@ private:
     void RunFactionsUpdates() const noexcept;
     void RunSpawnUpdates() const noexcept;
     void RunExperienceUpdates() noexcept;
+    // The player arrived somewhere new: drop the copies the old cell took and tell the host.
+    void RunArrivals() noexcept;
+    void DropCopies() noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -138,6 +141,9 @@ private:
     IFormBridge& m_formBridge;
     IPlayerBridge& m_playerBridge;
     Set<uint32_t> m_discoveredActors;
+
+    // Teleported since the last arrival: the next frame in a cell is one.
+    bool m_arriving = false;
 
     float m_cachedExperience = 0.f;
 

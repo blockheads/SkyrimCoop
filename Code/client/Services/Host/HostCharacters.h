@@ -13,6 +13,7 @@ struct CancelAssignmentRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
 struct PlayerRespawnRequest;
+struct EnterCellRequest;
 
 namespace Server
 {
@@ -25,6 +26,11 @@ struct GameServer;
  *
  * Players' characters keep a record of what the host's copy cannot show (appearance, base, face),
  * kept current with their movement; the host's own actors are read from its engine.
+ *
+ * Under the party tether everyone is where the host is, or on the way there. Arriving somewhere (a
+ * door, coc, fast travel), a game loses its copies with the old cell and says where it is. Once it
+ * is with the host, it gets everyone with the host and they get it; a player still on the way gets
+ * nothing, so nothing lands in the wrong place.
  */
 struct HostCharacters
 {
@@ -57,6 +63,11 @@ private:
     void OnPlayerRespawn(const PlayerRespawnRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
     void OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
+    void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // Its game is where the host's is (not still on the way).
+    [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
+    void SendToOthersWithHost(const CharacterSpawnRequest& acSpawn, ConnectionId_t aSender) const noexcept;
 
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
     // record and the host's copy.
@@ -75,4 +86,15 @@ private:
     Server::GameServer& m_server;
     const HostGame& m_game;
     TiltedPhoques::Map<uint32_t, Character> m_characters;
+
+    // Where a player's game is: a worldspace (outdoors) or an interior cell.
+    struct Place
+    {
+        GameId WorldSpaceId{};
+        GameId CellId{};
+        bool operator==(const Place&) const noexcept = default;
+    };
+    static Place PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept;
+    // From each player's announcement, then its arrivals.
+    TiltedPhoques::Map<ConnectionId_t, Place> m_places;
 };

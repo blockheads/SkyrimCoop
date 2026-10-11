@@ -65,6 +65,7 @@ DEF_MSG_NAME(RequestPlayerHealthUpdate)
 DEF_MSG_NAME(RequestSetWaypoint)
 DEF_MSG_NAME(RequestRemoveWaypoint)
 DEF_MSG_NAME(SetTimeCommandRequest)
+DEF_MSG_NAME(EnterCellRequest)
 
 // Server message name registrations (all 53 opcodes, 0..kServerOpcodeMax-1)
 DEF_MSG_NAME(AuthenticationResponse)

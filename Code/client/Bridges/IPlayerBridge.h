@@ -78,6 +78,8 @@ public:
 
     // --- 3D loaded ---
     virtual bool IsPlayerLoaded() const noexcept = 0;
+    // Whether the engine teleported the player since the last call (experimental: coc only so far).
+    virtual bool ConsumeTeleported() noexcept = 0;
 
     // --- Show HUD message ---
     virtual void ShowHudMessage(const std::string& aMessage) noexcept = 0;

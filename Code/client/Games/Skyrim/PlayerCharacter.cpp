@@ -7,6 +7,7 @@
 
 #include <Games/Overrides.h>
 
+#include <Games/Events.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
@@ -241,6 +242,61 @@ void TP_MAKE_THISCALL(HookRemoveWaypoint, PlayerCharacter)
     World::Get().GetRunner().Trigger(RemoveWaypointEvent());
 
     return TiltedPhoques::ThisCall(RealRemoveWaypoint, apThis);
+}
+
+namespace
+{
+// The player's own "related to cell transitions" event (CommonLibSSE PositionPlayerEvent; skymp's
+// "positionPlayer"): the engine sends its phases as it repositions the player.
+//
+// EXPERIMENTAL: validated for coc only. Opening a door and fast travel are not checked yet; if
+// they do not send it, we need a more generic hook (the player's move to its queued location,
+// Address Library ID 40438, is where coc, doors and fast travel all end).
+struct PositionPlayerEvent
+{
+    enum Type : uint32_t
+    {
+        kPre = 0,
+        kPreUpdatePackages = 1,
+        kPostUpdatePackages = 2,
+        kPost = 3,
+        kFinish = 4
+    };
+    Type Phase;
+};
+
+struct PositionPlayerSink final : BSTEventSink<PositionPlayerEvent>
+{
+    BSTEventResult OnEvent(const PositionPlayerEvent* apEvent, const EventDispatcher<PositionPlayerEvent>*) override
+    {
+        spdlog::info("PositionPlayerEvent phase {}", static_cast<uint32_t>(apEvent->Phase));
+        if (apEvent->Phase == PositionPlayerEvent::kFinish)
+            Teleported = true;
+        return BSTEventResult::kOk;
+    }
+
+    bool Teleported = false;
+};
+
+PositionPlayerSink s_positionPlayerSink;
+bool s_positionPlayerRegistered = false;
+} // namespace
+
+bool PlayerCharacter::ConsumeTeleported() noexcept
+{
+    // PlayerCharacter's BSTEventSource<PositionPlayerEvent> base: +0x388 on 1.6.1170, from the game's
+    // RTTI (its base class descriptor's mdisp); CommonLibSSE's 0x380 is the SE layout.
+    constexpr size_t cPositionPlayerSource = 0x388;
+    if (!s_positionPlayerRegistered)
+    {
+        auto* pPlayer = PlayerCharacter::Get();
+        if (!pPlayer)
+            return false;
+        auto* pSource = reinterpret_cast<EventDispatcher<PositionPlayerEvent>*>(reinterpret_cast<uint8_t*>(pPlayer) + cPositionPlayerSource);
+        pSource->RegisterSink(&s_positionPlayerSink);
+        s_positionPlayerRegistered = true;
+    }
+    return std::exchange(s_positionPlayerSink.Teleported, false);
 }
 
 static TiltedPhoques::Initializer s_playerCharacterHooks(

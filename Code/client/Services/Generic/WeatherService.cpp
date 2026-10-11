@@ -7,6 +7,7 @@
 
 #include <Bridges/IWorldBridge.h>
 #include <Bridges/IFormBridge.h>
+#include <Services/HostService.h>
 
 namespace
 {
@@ -62,6 +63,10 @@ void WeatherService::OnDisconnected(const DisconnectedEvent&) noexcept
 
 void WeatherService::OnWeatherChange(const NotifyWeatherChange& acMessage) noexcept
 {
+    // The host's weather is its own: following a notification would pin it (OnUpdate re-forces it).
+    if (m_world.GetHostService().IsHosting())
+        return;
+
     const uint32_t cWeatherId = m_world.GetModSystem().GetGameId(acMessage.Id);
     if (!m_formBridge.FormExists(cWeatherId))
     {

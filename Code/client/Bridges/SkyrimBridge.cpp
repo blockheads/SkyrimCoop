@@ -1524,6 +1524,11 @@ bool SkyrimBridge::IsPlayerLoaded() const noexcept
     return pPlayer && pPlayer->GetNiNode() != nullptr;
 }
 
+bool SkyrimBridge::ConsumeTeleported() noexcept
+{
+    return PlayerCharacter::ConsumeTeleported();
+}
+
 void SkyrimBridge::ShowHudMessage(const std::string& aMessage) noexcept
 {
     Utils::ShowHudMessage(String(aMessage));

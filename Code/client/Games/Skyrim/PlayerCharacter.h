@@ -101,6 +101,9 @@ struct PlayerCharacter : Actor
 {
     static constexpr FormType Type = FormType::Character;
     static int32_t LastUsedCombatSkill;
+    // The engine repositioned the player (coc) since the last call: its PositionPlayerEvent.
+    // Experimental: only coc is validated; doors and fast travel may need a more generic hook.
+    static bool ConsumeTeleported() noexcept;
 
     static PlayerCharacter* Get() noexcept;
 

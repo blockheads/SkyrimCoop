@@ -82,6 +82,8 @@ struct GameServer final : TiltedPhoques::Server
     [[nodiscard]] uint32_t NewCharacterId() noexcept;
     void FreeCharacterId(uint32_t aServerId) noexcept;
     void SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const;
+    // Every connected player's connection, the host's included.
+    [[nodiscard]] TiltedPhoques::Vector<ConnectionId_t> PlayerConnections() const noexcept;
     // A player is leaving (before it is removed): the bridge removes its characters.
     using LeaveHandler = std::function<void(ConnectionId_t aPlayer)>;
     void SetLeaveHandler(LeaveHandler aHandler) noexcept { m_leaveHandler = std::move(aHandler); }

@@ -1,6 +1,8 @@
 // HostCharacters: ids, owners, spawns, removal and respawn.
 #include "session.h"
 
+#include <Messages/EnterCellRequest.h>
+
 TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it everyone else's", "[Bridge][Characters]")
 {
     Session session;
@@ -117,6 +119,144 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     CHECK(cSpawns[0]->AppearanceBuffer == "werewolf");
     CHECK(cSpawns[0]->ChangeFlags == 7);
     CHECK(cSpawns[0]->Position == movement.Updates[cPeerPlayer].UpdatedMovement.Position);
+}
+
+TEST_CASE("Respawn: a peer that lost the host's first character gets it again", "[Bridge][Characters]")
+{
+    Session session;
+    // The first id handed out: the host's player, whose copy a peer drops when it changes cells.
+    const uint32_t cHostPlayer = session.Character(kHost);
+    REQUIRE(cHostPlayer == 0);
+    CharacterSpawnRequest spawn;
+    spawn.ServerId = cHostPlayer;
+    session.Spawns.push_back(spawn);
+
+    RequestRespawn request;
+    request.ActorId = cHostPlayer;
+    session.Receive(kPeer, request);
+    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kPeer);
+    REQUIRE(cSpawns.size() == 1);
+    CHECK(cSpawns[0]->ServerId == cHostPlayer);
+}
+
+namespace
+{
+EnterCellRequest Arrival(uint32_t aCell, uint32_t aWorldSpace = 0, glm::vec3 aPosition = {})
+{
+    EnterCellRequest arrival;
+    arrival.CellId = GameId(0, aCell);
+    if (aWorldSpace)
+        arrival.WorldSpaceId = GameId(0, aWorldSpace);
+    arrival.Position = aPosition;
+    return arrival;
+}
+} // namespace
+
+TEST_CASE("Arriving: a player gets everyone with the host, and they get it", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    CharacterSpawnRequest npc;
+    npc.ServerId = cHostNpc;
+    session.Spawns.push_back(npc);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cOtherPlayer = session.Character(kOtherPeer);
+
+    // The host and the other peer are in Riverwood (an exterior) already.
+    session.Receive(kHost, Arrival(0x100, 0x3C));
+    session.Receive(kOtherPeer, Arrival(0x101, 0x3C));
+    session.Outbox.clear();
+
+    session.Receive(kPeer, Arrival(0x102, 0x3C, {1.f, 2.f, 3.f}));
+    // It: the host's actors and the other player.
+    const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
+    REQUIRE(cToPeer.size() == 2);
+    CHECK(cToPeer[0]->ServerId == cHostNpc);
+    CHECK(cToPeer[1]->ServerId == cOtherPlayer);
+    // Those there: it, where it arrived.
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cSpawns = session.SentTo<CharacterSpawnRequest>(cTo);
+        REQUIRE(cSpawns.size() == 1);
+        CHECK(cSpawns[0]->ServerId == cPeerPlayer);
+        CHECK(cSpawns[0]->Position == glm::vec3(1.f, 2.f, 3.f));
+    }
+}
+
+TEST_CASE("Arriving: the host's actors only go to players with the host", "[Bridge][Characters]")
+{
+    Session session;
+    session.Character(kPeer);
+    // The host went into an interior; the peer is still outside, loading.
+    session.Receive(kHost, Arrival(0x200));
+    session.Receive(kPeer, Arrival(0x102, 0x3C));
+    session.Outbox.clear();
+
+    const uint32_t cHostNpc = session.Character(kHost);
+    CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
+
+    CharacterSpawnRequest npc;
+    npc.ServerId = cHostNpc;
+    session.Spawns.push_back(npc);
+    session.Receive(kPeer, Arrival(0x200));
+    const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
+    REQUIRE(cToPeer.size() == 1);
+    CHECK(cToPeer[0]->ServerId == cHostNpc);
+}
+
+namespace
+{
+// Both players announce in QASmoke (an interior), as joining does; the peer's player's id.
+uint32_t BothInQASmoke(Session& aSession)
+{
+    AssignCharacterRequest player;
+    player.Cookie = 1;
+    player.ReferenceId = GameId(0, 0x14);
+    player.CellId = GameId(0, 0x32AE7);
+    aSession.Receive(kHost, player);
+    // The host's player, as its engine shows it.
+    CharacterSpawnRequest hostPlayer;
+    hostPlayer.ServerId = aSession.SentTo<AssignCharacterResponse>(kHost)[0]->ServerId;
+    aSession.Spawns.push_back(hostPlayer);
+    aSession.Receive(kPeer, player);
+    const uint32_t cPeerPlayer = aSession.SentTo<AssignCharacterResponse>(kPeer)[0]->ServerId;
+    aSession.Outbox.clear();
+    return cPeerPlayer;
+}
+} // namespace
+
+TEST_CASE("Arriving: the host first, then a peer still on its way", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = BothInQASmoke(session);
+
+    // The host reaches Riverwood first: the peer is still in QASmoke, it gets nothing yet.
+    session.Receive(kHost, Arrival(0x9732, 0x3C));
+    CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
+    CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
+    // The peer arrives: the host gets it, once.
+    session.Receive(kPeer, Arrival(0x9732, 0x3C));
+    const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
+    REQUIRE(cToHost.size() == 1);
+    CHECK(cToHost[0]->ServerId == cPeerPlayer);
+}
+
+TEST_CASE("Arriving: a peer ahead of the host gets everyone when the host arrives", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = BothInQASmoke(session);
+
+    // The peer reaches Riverwood first: nothing yet, either way.
+    session.Receive(kPeer, Arrival(0x9732, 0x3C));
+    CHECK(session.Outbox.empty());
+    // The host arrives: it gets the peer, the peer gets it.
+    session.Receive(kHost, Arrival(0x9733, 0x3C));
+    const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
+    REQUIRE(cToHost.size() == 1);
+    CHECK(cToHost[0]->ServerId == cPeerPlayer);
+    const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
+    REQUIRE(cToPeer.size() == 1);
+    CHECK(cToPeer[0]->ServerId == session.Spawns[0].ServerId);
 }
 
 TEST_CASE("Player respawn: everyone else respawns its character", "[Bridge][Characters]")

@@ -266,6 +266,7 @@ public:
     uint32_t GetPlayerRaceFormId() const noexcept override;
     std::vector<uint32_t> GetPlayerActiveQuestFormIds() const noexcept override;
     bool IsPlayerLoaded() const noexcept override;
+    bool ConsumeTeleported() noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
     // --- IPlayerBridge extended (Plan 03) ---
     QuestLog GetPlayerQuestLog() const noexcept override;

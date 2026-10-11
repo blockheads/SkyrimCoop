@@ -1626,7 +1626,8 @@ def scenario_host_kicks_client():
     rejoin_client()
 
 
-CLEAR_WEATHER, RAIN_WEATHER = 0x81A, 0x10A23  # SkyrimClear, SkyrimStormRain
+# SkyrimClear, and a weather Riverwood itself shows (0x10A23 is refused by `fw` there).
+CLEAR_WEATHER, OTHER_WEATHER = 0x81A, 0x10E1F1
 OUTDOOR_CELL, HOME_CELL = "Riverwood", "QASmoke"   # the suite's home is an interior: no sky
 
 
@@ -1638,7 +1639,7 @@ def scenario_weather_follows_host():
             console_on(name, f"coc {OUTDOOR_CELL}")
         for name in ("", "client"):
             wait_for(f"[{name or 'host'}] outdoors, under a sky", lambda name=name: game_state(name).get("weather"), 60)
-        weather = CLEAR_WEATHER if game_state("").get("weather") == RAIN_WEATHER else RAIN_WEATHER
+        weather = OTHER_WEATHER if game_state("").get("weather") == CLEAR_WEATHER else CLEAR_WEATHER
         console_on("", f"fw {weather:x}")
         wait_for("[host] shows the forced weather", lambda: game_state("").get("weather") == weather, 10)
         wait_for("[client] follows the host's weather", lambda: game_state("client").get("weather") == weather, 10)
@@ -1650,6 +1651,43 @@ def scenario_weather_follows_host():
         for name in ("", "client"):
             console_on(name, f"coc {HOME_CELL}")
         wait_for("Each game shows the other player again", both_see_each_other, 60)
+        step_both()
+
+
+def step_both():
+    """Each player steps forward and back until its game records a new action. After a teleport the
+    owner's latest action is one its copy refuses (swimStop: the copy is not swimming), so the copy
+    shows none until its owner does something it can replay; the baseline reset does the same."""
+    def latest_action(name):
+        select_instance(name)
+        return (((read_status() or {}).get("world") or {}).get("20") or {}).get("animation", {}).get("action")
+
+    for name in ("", "client"):
+        before = latest_action(name)
+        for _ in range(5):  # input is dropped while the game still settles after a load
+            hold_key(name, "w", 0.4)
+            hold_key(name, "s", 0.4)
+            if latest_action(name) != before:
+                break
+        else:
+            raise TestFailure(f"[{name or 'host'}] stepping never started a move (input not reaching the game?)")
+
+
+def scenario_party_changes_cells():
+    """The party goes to another cell and back together (the party tether): each arrival drops the
+    copies the old cell took, and the host sends what is there. In each cell both games show the
+    other player again, and the client shows the host's NPCs there."""
+    try:
+        for name in ("", "client"):
+            console_on(name, f"coc {OUTDOOR_CELL}")
+        wait_for(f"In {OUTDOOR_CELL}, each game shows the other player", both_see_each_other, 60)
+        wait_on("client", f"shows the host's NPCs in {OUTDOOR_CELL}", lambda actors: remote_npcs(actors), 30)
+    finally:
+        for name in ("", "client"):
+            console_on(name, f"coc {HOME_CELL}")
+        wait_for("Each game shows the other player again", both_see_each_other, 60)
+        step_both()
+
 
 def scenario_client_spell_kill_credit():
     """Client kills a host NPC with a spell: the host records the client's character as the killer."""
@@ -1843,6 +1881,7 @@ SCENARIOS = {
     "session-roster": scenario_session_roster,
     "host-kicks-client": scenario_host_kicks_client,
     "weather-follows-host": scenario_weather_follows_host,
+    "party-changes-cells": scenario_party_changes_cells,
 }
 
 # What each scenario exercises, for running only the ones a change can affect:
@@ -1879,6 +1918,7 @@ TAGS = {
     "session-roster": {'session'},
     "host-kicks-client": {'session', 'spawn'},
     "weather-follows-host": {'weather'},
+    "party-changes-cells": {'spawn'},
 }
 
 

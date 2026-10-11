@@ -43,6 +43,7 @@ enum ClientOpcode : unsigned char
     kSetTimeCommandRequest,
     kRequestRemoveCharacter,
     kRequestEquipmentSnapshot,
+    kEnterCellRequest,
     kClientOpcodeMax
 };
 

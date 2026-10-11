@@ -13,14 +13,16 @@ HostWeather::HostWeather(Server::GameServer& aServer, const HostGame& acGame) no
 
 void HostWeather::Update() noexcept
 {
+    // Not before the host's own player is in: "everyone but the host" would include it.
+    const ConnectionId_t cHost = m_server.HostConnection();
     const auto cWeather = m_game.ReadWeather();
-    if (!cWeather || *cWeather == m_peersWeather)
+    if (!cHost || !cWeather || *cWeather == m_peersWeather)
         return;
 
     m_peersWeather = *cWeather;
     NotifyWeatherChange notify;
     notify.Id = m_peersWeather;
-    m_server.SendToOthers(notify, m_server.HostConnection(), TiltedPhoques::kReliable);
+    m_server.SendToOthers(notify, cHost, TiltedPhoques::kReliable);
 }
 
 void HostWeather::SendWeather(ConnectionId_t aPlayer) const noexcept

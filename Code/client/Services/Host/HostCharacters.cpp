@@ -7,12 +7,21 @@
 #include <Messages/AssignCharacterResponse.h>
 #include <Messages/CancelAssignmentRequest.h>
 #include <Messages/ClientReferencesMoveRequest.h>
+#include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/PlayerRespawnRequest.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/ServerReferencesMoveRequest.h>
+
+#include <limits>
+
+namespace
+{
+// For OwnSpawns: exclude no one (0 is a real id, usually the host's player).
+constexpr uint32_t cNoCharacter = std::numeric_limits<uint32_t>::max();
+} // namespace
 
 HostCharacters::HostCharacters(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept
     : m_bridge(aBridge)
@@ -25,6 +34,7 @@ HostCharacters::HostCharacters(HostBridge& aBridge, Server::GameServer& aServer,
     aBridge.On(*this, &HostCharacters::OnRespawn);
     aBridge.On(*this, &HostCharacters::OnPlayerRespawn);
     aBridge.On(*this, &HostCharacters::OnMovement);
+    aBridge.On(*this, &HostCharacters::OnEnterCell);
 }
 
 void HostCharacters::OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -81,6 +91,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
     character.Cookie = acRequest.Cookie;
     if (cIsPlayer)
     {
+        m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
         character.PlayerRecord = cSpawn;
         m_server.SetPlayerCharacter(aSender, cServerId, acRequest.QuestContent);
         if (aSender != m_server.HostConnection())
@@ -94,7 +105,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
     response.Owner = true;
     m_server.Send(aSender, response);
 
-    m_server.SendToOthers(cSpawn, aSender, TiltedPhoques::kReliable);
+    SendToOthersWithHost(cSpawn, aSender);
     spdlog::info("HostCharacters: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cServerId);
 }
 
@@ -155,12 +166,88 @@ void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t
 
 void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
+    m_places.erase(aPlayer);
     Vector<uint32_t> owned;
     for (const auto& [cServerId, cCharacter] : m_characters)
         if (cCharacter.Owner == aPlayer)
             owned.push_back(cServerId);
     for (const uint32_t cServerId : owned)
         RemoveCharacter(cServerId);
+}
+
+void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
+    for (auto it = m_characters.begin(); it != m_characters.end(); ++it)
+    {
+        auto& record = it.value().PlayerRecord;
+        if (it->second.Owner == aSender && record)
+        {
+            record->CellId = acRequest.CellId;
+            record->Position = acRequest.Position;
+        }
+    }
+    // Ahead of the host: it gets everyone, and everyone it, when the host arrives here.
+    if (!WithHost(aSender))
+    {
+        spdlog::info("HostCharacters: {:x} arrived in {:x}:{:x} ahead of the host", aSender, acRequest.CellId.ModId,
+                     acRequest.CellId.BaseId);
+        return;
+    }
+
+    // It: everyone with the host. The host's game needs none of its own actors.
+    const ConnectionId_t cHost = m_server.HostConnection();
+    uint32_t count = 0;
+    if (aSender != cHost)
+    {
+        for (const auto& cSpawn : m_game.OwnSpawns(cNoCharacter))
+        {
+            m_server.Send(aSender, cSpawn);
+            ++count;
+        }
+    }
+    for (const auto& [cServerId, cCharacter] : m_characters)
+    {
+        if (cCharacter.Owner == aSender || cCharacter.Owner == cHost || !cCharacter.PlayerRecord || !WithHost(cCharacter.Owner))
+            continue;
+        if (const auto cSpawn = BuildSpawn(cServerId))
+        {
+            m_server.Send(aSender, *cSpawn);
+            ++count;
+        }
+    }
+
+    // Everyone with the host: its character.
+    for (const auto& [cServerId, cCharacter] : m_characters)
+        if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
+            if (const auto cSpawn = BuildSpawn(cServerId))
+                SendToOthersWithHost(*cSpawn, aSender);
+
+    spdlog::info("HostCharacters: {:x} arrived in {:x}:{:x}; sent it {} characters", aSender, acRequest.CellId.ModId,
+                 acRequest.CellId.BaseId, count);
+}
+
+HostCharacters::Place HostCharacters::PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept
+{
+    // Outdoors the cell changes with every step; the worldspace is the place.
+    return aWorldSpaceId ? Place{aWorldSpaceId, {}} : Place{{}, aCellId};
+}
+
+bool HostCharacters::WithHost(ConnectionId_t aPlayer) const noexcept
+{
+    const auto cPlayer = m_places.find(aPlayer);
+    const auto cHost = m_places.find(m_server.HostConnection());
+    // Not announced yet: it is joining, where the host is.
+    if (cPlayer == m_places.end() || cHost == m_places.end())
+        return true;
+    return cPlayer->second == cHost->second;
+}
+
+void HostCharacters::SendToOthersWithHost(const CharacterSpawnRequest& acSpawn, ConnectionId_t aSender) const noexcept
+{
+    for (const ConnectionId_t cPlayer : m_server.PlayerConnections())
+        if (cPlayer != aSender && WithHost(cPlayer))
+            m_server.Send(cPlayer, acSpawn, TiltedPhoques::kReliable);
 }
 
 ConnectionId_t HostCharacters::OwnerOf(uint32_t aServerId) const noexcept
@@ -182,7 +269,7 @@ std::optional<CharacterSpawnRequest> HostCharacters::BuildSpawn(uint32_t aServer
         return spawn;
     }
 
-    for (auto& spawn : m_game.OwnSpawns(0))
+    for (auto& spawn : m_game.OwnSpawns(cNoCharacter))
         if (spawn.ServerId == aServerId)
             return std::move(spawn);
     return std::nullopt;
@@ -199,7 +286,7 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
     }
     for (const auto& [cServerId, cCharacter] : m_characters)
     {
-        if (cServerId == aOwnServerId || cCharacter.Owner == cHost || !cCharacter.PlayerRecord)
+        if (cServerId == aOwnServerId || cCharacter.Owner == cHost || !cCharacter.PlayerRecord || !WithHost(cCharacter.Owner))
             continue;
         if (const auto cSpawn = BuildSpawn(cServerId))
         {

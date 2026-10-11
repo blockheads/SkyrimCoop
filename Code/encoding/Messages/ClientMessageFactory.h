@@ -40,6 +40,7 @@
 #include <Messages/SubtitleRequest.h>
 #include <Messages/PlayerDialogueRequest.h>
 #include <Messages/PlayerLevelRequest.h>
+#include <Messages/EnterCellRequest.h>
 #include <Messages/TeleportRequest.h>
 #include <Messages/RequestPlayerHealthUpdate.h>
 #include <Messages/RequestSetWaypoint.h>
@@ -58,7 +59,7 @@ struct ClientMessageFactory
             RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, 
             RequestObjectInventoryChanges, SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, ScriptAnimationRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
             RequestEquipmentChanges, SendChatMessageRequest, TeleportCommandRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerDialogueRequest, PlayerLevelRequest, TeleportRequest, RequestPlayerHealthUpdate, RequestSetWaypoint,
-            RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot>;
+            RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot, EnterCellRequest>;
 
         return s_visitor(std::forward<T>(func));
     }

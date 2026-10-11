@@ -629,6 +629,14 @@ void GameServer::SendToOthers(const ServerMessage& acServerMessage, ConnectionId
             pPlayer->Send(acServerMessage, aFlags);
 }
 
+TiltedPhoques::Vector<ConnectionId_t> GameServer::PlayerConnections() const noexcept
+{
+    TiltedPhoques::Vector<ConnectionId_t> connections;
+    for (const Player* pPlayer : m_pWorld->GetPlayerManager())
+        connections.push_back(pPlayer->GetConnectionId());
+    return connections;
+}
+
 void GameServer::OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback)
 {
     SetLoopbackRoute(aConnectionId, std::move(aCallback));
