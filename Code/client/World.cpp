@@ -104,7 +104,36 @@ World::World()
     BehaviorVar::Get()->Init();
 }
 
-World::~World() = default;
+World::~World()
+{
+    // The services live in the registry's context, which is destroyed after our own members: their
+    // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
+    // hot reloads now and then). They go first, newest first.
+    ctx().erase<HostService>();
+    ctx().erase<WeatherService>();
+    ctx().erase<CombatService>();
+    ctx().erase<StringCacheService>();
+    ctx().erase<PlayerService>();
+    ctx().erase<CommandService>();
+    ctx().erase<MagicService>();
+    ctx().erase<InventoryService>();
+    ctx().erase<ActorValueService>();
+    ctx().erase<PartyService>();
+    ctx().erase<QuestService>();
+    ctx().erase<CalendarService>();
+    ctx().erase<ObjectService>();
+    ctx().erase<DiscordService>();
+    ctx().erase<PapyrusService>();
+#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
+    ctx().erase<DebugService>();
+#endif
+    ctx().erase<CharacterService>();
+#ifdef HAS_CEF
+    ctx().erase<InputService>();
+#endif
+    ctx().erase<OverlayService>();
+    ctx().erase<ImguiService>();
+}
 
 void World::Update() noexcept
 {

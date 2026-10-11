@@ -85,7 +85,25 @@ World::World(WorldTestMode)
 
 World::~World()
 {
+    m_spAdminService->Detach();
     m_pScriptService.reset();
+
+    // The services live in the registry's context, destroyed after m_dispatcher (one of our
+    // members): their connections to it go first, newest service first.
+    ctx().erase<WeatherService>();
+    ctx().erase<CombatService>();
+    ctx().erase<StringCacheService>();
+    ctx().erase<CommandService>();
+    ctx().erase<OverlayService>();
+    ctx().erase<MagicService>();
+    ctx().erase<InventoryService>();
+    ctx().erase<ActorValueService>();
+    ctx().erase<PartyService>();
+    ctx().erase<QuestService>();
+    ctx().erase<ObjectService>();
+    ctx().erase<CalendarService>();
+    ctx().erase<PlayerService>();
+    ctx().erase<CharacterService>();
 }
 
 } // namespace Server

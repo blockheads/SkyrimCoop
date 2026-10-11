@@ -122,32 +122,57 @@ migration):
 - Checked: the suite (same results as before the phase), hot reload 30/30, and the host leaving and
   hosting again (`host-rejoins`).
 
-### Phase 2: Characters and ids (the backbone)
+### Phase 2: The bridge, movement and late join
 
-Everything else refers to actors by server id, so this moves first and as one unit.
+Ids stay as they are for now: the old services that still pass messages on (inventory, actor
+values, magic…) find actors in the server `World` by those ids and check ownership there. Switching
+the id source first would break all of them at once, so ids move last (phase 3b), when only one
+lookup is left to change.
 
-- The host's `World` hands out server ids. Its own actors get an id at discovery, and the
-  `AssignCharacterRequest` round trip for host-owned actors goes away.
-- A peer's `AssignCharacterRequest` (its player) is answered by the bridge with an id from the host.
-  The host spawns its copy, and the other peers get a `CharacterSpawnRequest` built from it.
-- Late join: the bridge builds spawn messages from the host's `World` and engine (`BuildActorData`
-  already exists on the client).
-- Movement: the host collects its own actors' movement and peers' updates (already applied to its
-  copies) and sends `ServerReferencesMoveRequest` to peers at its tick, on the unreliable channel.
-- Removal and respawn follow ownership as today.
-- Add the `HostBridge` front door in `GameServer::OnConsume`: a message the bridge has a rule for
-  is handled there, everything else by the old services.
-- The old server `CharacterService` and its components stop being used. Other old services still
-  find what they need (ownership) through a small lookup the bridge provides until they move too.
+- **2a. `HostBridge`.** Owned by `HostService`, installed as the front door of
+  `GameServer::OnConsume`: a message the bridge has a rule for is handled there, everything else by
+  the old services. A relay rule is "forward as a notification to everyone but the sender". The
+  host is one of the recipients: its copy gets the change through the in-process route like any
+  peer. Ownership checks go through one bridge function (`OwnerOf(serverId)`), which reads the
+  server `World` until phase 3b.
+- **2b. Movement.** `ClientReferencesMoveRequest` is forwarded straight to the other players as
+  `ServerReferencesMoveRequest` (unreliable), instead of being stored in the server's
+  `MovementComponent` and batched at 50Hz. `WorldStateSync` is deleted: it was broadcast every
+  second, and no client ever handled it.
+- **2c. Late join from live state.** When a peer's player enters, the host builds a
+  `CharacterSpawnRequest` for every character it knows. Its own actors are read from its engine;
+  copies of other peers' players combine a small record kept when they spawned (appearance, face
+  tints, base) with the copy's live state. The server's records (`Serialize`) are no longer used for
+  this. `late-join-client` guards it.
+- **The host leaving ends the session.** The host is the session, so it cannot leave and come back
+  while peers stay: stopping hosting disconnects everyone (the harness's `disconnect` on the host
+  does that). `host-rejoins` checks that a host who hosts again still owns its NPCs.
 
-### Phase 3: Relay families
+Done (2a-2c): `HostBridge` with the movement rule and the late-join handler. The server's movement
+handler, its 50Hz batching and `WorldStateSync` are deleted.
 
-These are mechanical once ids live on the host. One family per step, with the suite after each:
+Found on the way: both `World`s keep their services in the registry's context, which outlives the
+`World`'s own dispatcher, so the services' event connections were released against a destroyed
+dispatcher. The server's `AdminService` also stayed alive as a spdlog sink with such a connection.
+Both crashed hot reloads now and then (reliably when the host left and hosted again). Each `World`
+now destroys its services first, and `AdminService` detaches with its `World`.
+
+### Phase 3: Relay families, then ids
+
+**3a. Relay families.** Each becomes a bridge rule (ownership through `OwnerOf`), and its server
+service and records go. One family per step, with the suite after each:
 
 1. Inventory and equipment: `RequestInventoryChanges`, `RequestEquipmentChanges`, the snapshot, `DrawWeaponRequest`.
 2. Actor values: values, max values, health, death.
 3. Magic and combat: spell cast, interrupt, add target, remove spell, projectile launch.
 4. Character extras: factions, mount, AI package, dialogue, subtitle, experience, level, respawn.
+
+**3b. Ids and assignment.** The host's `World` hands out server ids: its own actors get one at
+discovery (no `AssignCharacterRequest` round trip), and a peer's player gets one when the peer asks.
+Spawning, removal and respawn become bridge rules, `OwnerOf` reads the host's `World`, and the
+server's `CharacterService` and its components go. After this nothing reads the server `World`'s
+characters.
+
 
 ### Phase 4: Host-decided state
 

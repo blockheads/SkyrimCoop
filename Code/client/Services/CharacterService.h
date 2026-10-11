@@ -1,6 +1,8 @@
 #pragma once
 #include "Structs/Inventory.h"
 #include "Structs/ActorData.h"
+#include <Messages/AssignCharacterRequest.h>
+#include <Messages/CharacterSpawnRequest.h>
 
 struct ActorAddedEvent;
 struct ActorRemovedEvent;
@@ -93,6 +95,12 @@ struct CharacterService
 
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
 
+    /**
+     * @brief Hosting: what a player who joins now needs to spawn every character we know, built
+     * from live state (our actors from the engine, other players' copies from their record).
+     */
+    Vector<CharacterSpawnRequest> BuildSpawnRequests(uint32_t aExcludedServerId) const noexcept;
+
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
 
@@ -102,6 +110,17 @@ private:
 
     uint32_t CreateCharacterForEntity(entt::entity aEntity) const noexcept;
     ActorData BuildActorData(uint32_t aFormId) const noexcept;
+    // An actor as it is now: where, its values, inventory and hands, and the action it last took.
+    struct ActorLiveState
+    {
+        Vector3_NetQuantize Position{};
+        Rotator2_NetQuantize Rotation{};
+        ActorData Data{};
+        ActionEvent LatestAction{};
+    };
+    ActorLiveState ReadLiveState(uint32_t aFormId) const noexcept;
+    // Everything a peer needs about one of our actors, read from the engine now.
+    std::optional<AssignCharacterRequest> BuildAssignment(entt::entity aEntity) const noexcept;
 
     void RunLocalUpdates() const noexcept;
     void RunRemoteUpdates() noexcept;

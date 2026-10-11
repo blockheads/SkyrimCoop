@@ -10,6 +10,7 @@
 #include <Bridges/IWorldBridge.h>
 #include <Services/PartyService.h>
 #include <Services/TransportService.h>
+#include <Services/HostService.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <algorithm>
 #include <fstream>
@@ -352,7 +353,7 @@ static nlohmann::json GameStatus()
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
             {"weather", bridge.GetCurrentWeatherId()},
             {"party", {{"in_party", party.IsInParty()}, {"leader", party.IsLeader()}, {"members", party.GetPartyMembers().size()}}},
-            {"online", world.GetTransport().IsOnline()}};
+            {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }
 
 static nlohmann::json PlayerStatus()
@@ -405,8 +406,13 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
     }
     if (cCommand == "disconnect")
     {
-        // {"cmd": "disconnect"}: leaves the session like a player quitting (join again with a new session request).
-        World::Get().GetTransport().Close();
+        // {"cmd": "disconnect"}: leaves the session like a player quitting (join again with a new
+        // session request). The host is the session: when it leaves, the session ends for everyone.
+        auto& world = World::Get();
+        if (world.GetHostService().IsHosting())
+            world.GetHostService().StopHosting();
+        else
+            world.GetTransport().Close();
         return R"({"ok": true})";
     }
     if (cCommand == "reload")

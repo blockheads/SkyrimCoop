@@ -5,6 +5,7 @@
 #include <GameServer.h>
 #include <World.h>
 #include <Services/TransportService.h>
+#include <Services/HostBridge.h>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -58,6 +59,11 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return false;
     }
 
+    m_pBridge = std::make_unique<HostBridge>(*m_pGameServer);
+    m_pGameServer->SetFrontDoor([pBridge = m_pBridge.get()](const ClientMessage& acMessage, TiltedPhoques::ConnectionId_t aSender) {
+        return pBridge->Handle(acMessage, aSender);
+    });
+
     m_isHosting = true;
 
     spdlog::info("[HostService] Successfully started hosting session on port {}", m_pGameServer->GetPort());
@@ -102,6 +108,7 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
             // Server has closed all connections and sockets
             // Safe to destroy and clear singleton
             m_pGameServer.reset();
+            m_pBridge.reset();
             m_pConsole.reset();
 
             m_isHosting = false;

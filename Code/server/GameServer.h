@@ -66,6 +66,19 @@ struct GameServer final : TiltedPhoques::Server
     // Loopback support for P2P host mode (in-process message delivery without enet6)
     void InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId);
     void SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
+    // The host's bridge (client HostBridge) sees every message first; true: it handled it.
+    using FrontDoor = std::function<bool(const ClientMessage&, ConnectionId_t)>;
+    void SetFrontDoor(FrontDoor aFrontDoor) noexcept { m_frontDoor = std::move(aFrontDoor); }
+    // For the bridge, in connection ids (it cannot include the server's World).
+    [[nodiscard]] bool IsAuthenticated(ConnectionId_t aConnectionId) const noexcept;
+    // The connection of the player owning the actor with this server id (0: none).
+    [[nodiscard]] ConnectionId_t OwnerConnection(uint32_t aServerId) const noexcept;
+    void SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const;
+    // A player's character entered: the bridge sends it every character the host knows, built from
+    // live state (no handler: the server's records, for the standalone server tests).
+    using LateJoinHandler = std::function<void(ConnectionId_t aPlayer, uint32_t aCharacterServerId)>;
+    void SetLateJoinHandler(LateJoinHandler aHandler) noexcept { m_lateJoinHandler = std::move(aHandler); }
+    [[nodiscard]] const LateJoinHandler& GetLateJoinHandler() const noexcept { return m_lateJoinHandler; }
     // The host's own client connecting in-process (replies go to aCallback) and leaving again.
     void OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
     void CloseLoopback();
@@ -168,6 +181,8 @@ struct GameServer final : TiltedPhoques::Server
 
     // Loopback routing for P2P host mode
     ConnectionId_t m_loopbackConnectionId{0};
+    LateJoinHandler m_lateJoinHandler;
+    FrontDoor m_frontDoor;
     std::function<void(const void*, uint32_t)> m_loopbackCallback;
     // Test mode: catch-all send callback for multi-peer replay
     std::function<void(ConnectionId_t, const void*, uint32_t)> m_testSendCallback;

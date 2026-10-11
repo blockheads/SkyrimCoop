@@ -112,7 +112,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept
 {
-    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent>(aEntity);
+    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent, SpawnRecordComponent>(aEntity);
 }
 
 bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acServerId, const entt::entity acEntity) const noexcept
@@ -476,6 +476,7 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
         m_actorBridge.SetActorPlayerRespawnMode(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
+        m_world.emplace_or_replace<SpawnRecordComponent>(*entity, acMessage);
     }
 
     const bool cIsDead = m_actorBridge.IsActorDead(actorFormId);
@@ -1096,41 +1097,34 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
     RequestServerAssignment(aEntity);
 }
 
-void CharacterService::RequestServerAssignment(const entt::entity aEntity) const noexcept
+std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const entt::entity aEntity) const noexcept
 {
-    if (!m_transport.IsOnline())
-        return;
-
-    static uint32_t sCookieSeed = 0;
-
     const auto& formIdComponent = m_world.get<FormIdComponent>(aEntity);
 
     if (!m_actorBridge.ActorExists(formIdComponent.Id))
-        return;
+        return std::nullopt;
 
     // The actor needs an NPC base form. (Not the *template* base: that only exists for temporary
     // NPCs, so checking it here skipped the player and every placed NPC.)
     if (!m_actorBridge.GetActorBaseFormId(formIdComponent.Id))
     {
         spdlog::warn("RequestServerAssignment: no base form for {:X}", formIdComponent.Id);
-        return;
+        return std::nullopt;
     }
 
     AssignCharacterRequest message{};
 
-    message.Cookie = sCookieSeed;
-
     if (!m_world.GetModSystem().GetServerModId(formIdComponent.Id, message.ReferenceId))
     {
         spdlog::error("Server reference id not found for form id {:X}", formIdComponent.Id);
-        return;
+        return std::nullopt;
     }
 
     const uint32_t cParentCellId = m_actorBridge.GetActorParentCellFormId(formIdComponent.Id);
     if (!m_world.GetModSystem().GetServerModId(cParentCellId, message.CellId))
     {
         spdlog::error("Server cell id not found for cell id {:X}", cParentCellId);
-        return;
+        return std::nullopt;
     }
 
     const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(formIdComponent.Id);
@@ -1139,20 +1133,15 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
         if (!m_world.GetModSystem().GetServerModId(cWorldSpaceId, message.WorldSpaceId))
         {
             spdlog::error("Server worldspace id not found for {:X}", cWorldSpaceId);
-            return;
+            return std::nullopt;
         }
     }
 
-    float posX = 0.f, posY = 0.f, posZ = 0.f;
-    m_actorBridge.GetActorPosition(formIdComponent.Id, posX, posY, posZ);
-    message.Position.x = posX;
-    message.Position.y = posY;
-    message.Position.z = posZ;
-
-    float rotX = 0.f, rotY = 0.f, rotZ = 0.f;
-    m_actorBridge.GetActorRotation(formIdComponent.Id, rotX, rotY, rotZ);
-    message.Rotation.x = rotX;
-    message.Rotation.y = rotZ;
+    const auto cState = ReadLiveState(formIdComponent.Id);
+    message.Position = cState.Position;
+    message.Rotation = cState.Rotation;
+    message.CurrentActorData = cState.Data;
+    message.LatestAction = cState.LatestAction;
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);
@@ -1171,8 +1160,6 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
         message.FaceTints = m_playerBridge.GetPlayerFaceTints();
         message.QuestContent = m_playerBridge.GetPlayerQuestLog();
     }
-
-    message.CurrentActorData = BuildActorData(formIdComponent.Id);
 
     message.FactionsContent = m_actorBridge.GetActorFactions(formIdComponent.Id);
     message.IsDragon = m_actorBridge.IsActorDragon(formIdComponent.Id);
@@ -1193,22 +1180,100 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
         if (cNpcTemplateId && !m_world.GetModSystem().GetServerModId(cNpcTemplateId, message.FormId))
         {
             spdlog::error("Server NPC form id not found for form id {:X}", cNpcTemplateId);
-            return;
+            return std::nullopt;
         }
     }
 
-    // Serialize actions
-    message.LatestAction = m_actorBridge.GetActorLatestAnimation(formIdComponent.Id);
-    m_actorBridge.ActorSaveAnimationVariables(formIdComponent.Id, message.LatestAction.Variables);
+    return message;
+}
 
-    spdlog::info("Request id: {:X}, cookie: {:X}, entity: {:X}", formIdComponent.Id, sCookieSeed, to_integral(aEntity));
+void CharacterService::RequestServerAssignment(const entt::entity aEntity) const noexcept
+{
+    if (!m_transport.IsOnline())
+        return;
 
-    if (m_transport.Send(message))
+    static uint32_t sCookieSeed = 0;
+
+    auto message = BuildAssignment(aEntity);
+    if (!message)
+        return;
+    message->Cookie = sCookieSeed;
+
+    spdlog::info("Request id: {:X}, cookie: {:X}, entity: {:X}", m_world.get<FormIdComponent>(aEntity).Id, sCookieSeed, to_integral(aEntity));
+
+    if (m_transport.Send(*message))
     {
         m_world.emplace<WaitingForAssignmentComponent>(aEntity, sCookieSeed);
 
         sCookieSeed++;
     }
+}
+
+// What a peer needs to spawn a copy of one of our actors, as the embedded server built it from the
+// assignment (CreateCharacter + Serialize): a game reference keeps its id, a player or temporary
+// actor is rebuilt from its appearance and base.
+static CharacterSpawnRequest SpawnFromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aServerId, uint32_t aPlayerId)
+{
+    const bool cIsPlayer = acAssignment.ReferenceId == GameId{0, 0x14};
+    const bool cIsTemporary = acAssignment.ReferenceId.ModId == std::numeric_limits<uint32_t>::max();
+
+    CharacterSpawnRequest spawn;
+    spawn.ServerId = aServerId;
+    if (!cIsPlayer && !cIsTemporary)
+        spawn.FormId = acAssignment.ReferenceId;
+    spawn.BaseId = acAssignment.FormId;
+    spawn.CellId = acAssignment.CellId;
+    spawn.Position = acAssignment.Position;
+    spawn.Rotation = acAssignment.Rotation;
+    spawn.ChangeFlags = acAssignment.ChangeFlags;
+    spawn.AppearanceBuffer = acAssignment.AppearanceBuffer;
+    spawn.InventoryContent = acAssignment.CurrentActorData.InitialInventory;
+    spawn.FactionsContent = acAssignment.FactionsContent;
+    spawn.LatestAction = acAssignment.LatestAction;
+    spawn.FaceTints = acAssignment.FaceTints;
+    spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
+    spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
+    spawn.IsDead = acAssignment.CurrentActorData.IsDead;
+    spawn.IsPlayer = cIsPlayer;
+    spawn.IsWeaponDrawn = acAssignment.CurrentActorData.IsWeaponDrawn;
+    spawn.IsPlayerSummon = acAssignment.IsPlayerSummon;
+    return spawn;
+}
+
+Vector<CharacterSpawnRequest> CharacterService::BuildSpawnRequests(uint32_t aExcludedServerId) const noexcept
+{
+    Vector<CharacterSpawnRequest> spawns;
+
+    // Ours, read from the engine as it is now.
+    for (const auto cEntity : m_world.view<FormIdComponent, LocalComponent>())
+    {
+        const uint32_t cServerId = m_world.get<LocalComponent>(cEntity).Id;
+        if (cServerId == aExcludedServerId)
+            continue;
+        if (const auto cAssignment = BuildAssignment(cEntity))
+            spawns.push_back(SpawnFromAssignment(*cAssignment, cServerId, m_transport.GetLocalPlayerId()));
+    }
+
+    // Copies of other players' characters: their record, with the copy's live state.
+    for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent, SpawnRecordComponent>())
+    {
+        const uint32_t cServerId = m_world.get<RemoteComponent>(cEntity).Id;
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        if (cServerId == aExcludedServerId || !m_actorBridge.ActorExists(cFormId))
+            continue;
+        auto spawn = m_world.get<SpawnRecordComponent>(cEntity).Spawn;
+        const auto cState = ReadLiveState(cFormId);
+        spawn.Position = cState.Position;
+        spawn.Rotation = cState.Rotation;
+        spawn.InventoryContent = cState.Data.InitialInventory;
+        spawn.InitialActorValues = cState.Data.InitialActorValues;
+        spawn.IsDead = cState.Data.IsDead;
+        spawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
+        spawn.LatestAction = cState.LatestAction;
+        spawns.push_back(std::move(spawn));
+    }
+
+    return spawns;
 }
 
 void CharacterService::CancelServerAssignment(const entt::entity aEntity, const uint32_t aFormId) const noexcept
@@ -1326,6 +1391,21 @@ uint32_t CharacterService::CreateCharacterForEntity(entt::entity aEntity) const 
     spdlog::info("Spawned character for entity, server id: {:X}", remoteComponent.Id);
 
     return actorFormId;
+}
+
+CharacterService::ActorLiveState CharacterService::ReadLiveState(uint32_t aFormId) const noexcept
+{
+    ActorLiveState state;
+    float x = 0.f, y = 0.f, z = 0.f;
+    m_actorBridge.GetActorPosition(aFormId, x, y, z);
+    state.Position = {x, y, z};
+    m_actorBridge.GetActorRotation(aFormId, x, y, z);
+    state.Rotation.x = x;
+    state.Rotation.y = z;
+    state.Data = BuildActorData(aFormId);
+    state.LatestAction = m_actorBridge.GetActorLatestAnimation(aFormId);
+    m_actorBridge.ActorSaveAnimationVariables(aFormId, state.LatestAction.Variables);
+    return state;
 }
 
 ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept

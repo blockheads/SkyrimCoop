@@ -45,7 +45,6 @@ protected:
     void OnRequestRemoveCharacter(const PacketEvent<RequestRemoveCharacter>& acMessage) const noexcept;
     void OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) const noexcept;
     void OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) const noexcept;
-    void OnReferencesMoveRequest(const PacketEvent<ClientReferencesMoveRequest>& acMessage) const noexcept;
     void OnFactionsChanges(const PacketEvent<RequestFactionsChanges>& acMessage) const noexcept;
     void OnMountRequest(const PacketEvent<MountRequest>& acMessage) const noexcept;
     void OnNewPackageRequest(const PacketEvent<NewPackageRequest>& acMessage) const noexcept;
@@ -60,12 +59,9 @@ protected:
     void BroadcastActorData(Player* apPlayer, const entt::entity acEntity, const ActorData& acActorData) const noexcept;
 
     void ProcessFactionsChanges() const noexcept;
-    void ProcessMovementChanges() const noexcept;
-    void BroadcastWorldStateSync() const noexcept;
 
 private:
     World& m_world;
-    mutable std::chrono::steady_clock::time_point m_lastWorldStateSyncTime;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_characterAssignRequestConnection;
@@ -73,7 +69,6 @@ private:
     entt::scoped_connection m_requestRemoveCharacterConnection;
     entt::scoped_connection m_characterSpawnedConnection;
     entt::scoped_connection m_playerEnterWorldConnection;
-    entt::scoped_connection m_referenceMovementSnapshotConnection;
     entt::scoped_connection m_factionsChangesConnection;
     entt::scoped_connection m_mountConnection;
     entt::scoped_connection m_newPackageConnection;

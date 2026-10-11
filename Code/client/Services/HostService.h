@@ -12,6 +12,7 @@ namespace Server
 }
 
 namespace ServerConsole { class ConsoleRegistry; }
+struct HostBridge;
 
 
 
@@ -71,6 +72,8 @@ private:
 
     bool m_isHosting{false};
     bool m_isShuttingDown{false};
+    // Declared first so it outlives the server, which calls into it.
+    std::unique_ptr<HostBridge> m_pBridge;
     std::unique_ptr<Server::GameServer> m_pGameServer;
     std::unique_ptr<ServerConsole::ConsoleRegistry> m_pConsole;
 

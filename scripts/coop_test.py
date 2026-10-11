@@ -6,7 +6,7 @@
   coop_test.py game   [--cell CELL --seconds S]       fast-boot, host, connect a bot, verify the bot's
                                                       actor exists in the engine and moves; then quit
   coop_test.py duo    [--keep-running --visible]      two real games: host + client, each must show the other
-  coop_test.py scenario [names] [--shuffle --repeat N] sync scenarios against a running duo; each
+  coop_test.py scenario [names] [--tag a,b] [--shuffle --repeat N] sync scenarios against a running duo; each
                                                       starts from the same baseline and is cleaned up after
   coop_test.py reload                                 swap the current build into a running duo and reconnect
   coop_test.py stop                                   kill the test Skyrim instance(s)
@@ -1419,16 +1419,16 @@ def scenario_late_join_client():
 
 
 def scenario_host_rejoins():
-    """The host leaves its own session and hosts again while the client stays: it must still be the
-    host (own the NPCs it spawns), not the player who happens to have the lowest id now."""
+    """The host leaves (which ends the session for everyone: the host is the session) and hosts
+    again, and the client joins again: the host must own the NPCs it spawns, not the client."""
     select_instance("")
     if not (rpc({"cmd": "disconnect"}) or {}).get("ok"):
         raise TestFailure("[host] the plugin did not take the disconnect command (old DLL?)")
-    wait_for("[host] left its session", lambda: game_state("").get("online") is False, 10)
-    wait_on("client", "the host's character leaves the client's game", lambda actors: remote_player(actors) is None)
+    wait_for("[host] stopped hosting", lambda: not game_state("").get("hosting") and game_state("").get("online") is False, 15)
+    wait_for("[client] the session ended", lambda: game_state("client").get("online") is False, 15)
     select_instance("")
     start_session("")
-    wait_for("Each game shows the other player again", both_see_each_other, 30)
+    rejoin_client()
     npc, replica = spawn_host_npc(LYDIA)
     log(f"host's NPC {npc:08X} reaches the client as {replica:08X}")
 
@@ -1587,7 +1587,10 @@ def check_baseline():
 
 def settle_baseline(timeout=8.0):
     """Resets both games and waits until they match the baseline; returns what still differs."""
-    reset_baseline()
+    try:
+        reset_baseline()
+    except TestFailure as error:  # e.g. a game that crashed: the scenario before it is to blame
+        return [f"reset failed: {error}"]
     deadline = time.monotonic() + timeout
     reset_again = time.monotonic() + timeout / 2
     while True:
@@ -1635,6 +1638,39 @@ SCENARIOS = {
     "late-join-client": scenario_late_join_client,
     "host-rejoins": scenario_host_rejoins,
     "host-time-reaches-client": scenario_host_time_reaches_client,
+}
+
+# What each scenario exercises, for running only the ones a change can affect:
+# `scenario --tag movement,spawn`. The full suite still runs before a commit.
+TAGS = {
+    "steady-state": {'session', 'movement', 'spawn'},
+    "equip-host-player": {'inventory'},
+    "equip-client-player": {'inventory'},
+    "equip-host-npc": {'inventory'},
+    "draw-host-player": {'hands'},
+    "draw-client-player": {'hands'},
+    "cast-host-player": {'magic', 'hands'},
+    "cast-client-player": {'magic', 'hands'},
+    "quick-sheathe-host-player": {'hands', 'magic'},
+    "quick-sheathe-client-player": {'hands', 'magic'},
+    "hands-survive-reload-host-player": {'hands', 'spawn', 'session'},
+    "hands-survive-reload-client-player": {'hands', 'spawn', 'session'},
+    "health-host-player": {'values'},
+    "health-client-player": {'values'},
+    "health-host-npc": {'values'},
+    "death-host-npc": {'values', 'spawn'},
+    "remove-host-npc": {'spawn'},
+    "move-host-npc": {'movement'},
+    "melee-client-hits-host-npc": {'combat', 'values'},
+    "repair-equipment-drift": {'inventory'},
+    "firebolt-client-hits-host-npc": {'combat', 'magic', 'values'},
+    "flames-client-hits-host-npc": {'combat', 'magic', 'values'},
+    "client-angers-host-ally": {'combat'},
+    "client-spell-kill-credit": {'combat', 'magic'},
+    "client-melee-kill-credit": {'combat'},
+    "late-join-client": {'spawn', 'session', 'movement', 'inventory', 'hands', 'values'},
+    "host-rejoins": {'session', 'spawn'},
+    "host-time-reaches-client": {'time'},
 }
 
 
@@ -1898,6 +1934,12 @@ def command_scenario(args):
     global HOLD
     HOLD = args.hold
     names = args.names or list(SCENARIOS)
+    if args.tag:
+        wanted = set(args.tag.split(","))
+        known = set().union(*TAGS.values())
+        if wanted - known:
+            raise TestFailure(f"unknown tag(s) {sorted(wanted - known)}; known: {', '.join(sorted(known))}")
+        names = [name for name in names if TAGS.get(name, set()) & wanted]
     unknown = [name for name in names if name not in SCENARIOS]
     if unknown:
         raise TestFailure(f"unknown scenario(s) {unknown}; known: {', '.join(SCENARIOS)}")
@@ -2003,6 +2045,7 @@ def main():
     scenario.add_argument("--shuffle", action="store_true", help="random order (scenarios must not depend on each other)")
     scenario.add_argument("--seed", type=int, help="with --shuffle: repeat a shuffled order")
     scenario.add_argument("--repeat", type=int, default=1, help="run the list N times")
+    scenario.add_argument("--tag", help="only scenarios with one of these comma-separated tags (see TAGS)")
     stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
     console = commands.add_parser("console", help="run a console command in the running test game")
     console.add_argument("text", nargs="+")

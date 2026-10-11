@@ -21,6 +21,10 @@ class AdminService : public spdlog::sinks::base_sink<spdlog::details::null_mutex
 public:
     AdminService(World& aWorld, entt::dispatcher& aDispatcher);
 
+    // The default logger keeps this sink alive after the World: its connection to the World's
+    // dispatcher must go with the World (released later, it crashed hot reloads).
+    void Detach() noexcept { m_shutdownConnection.release(); }
+
 private:
     void HandleShutdown(const AdminPacketEvent<AdminShutdownRequest>& aChanges) noexcept;
 

@@ -670,6 +670,9 @@ void GameServer::OnConsume(const void* apData, const uint32_t aSize, const Conne
     if (m_pRecorder)
         m_pRecorder->RecordClientMessage(aConnectionId, *pMessage);
 
+    if (m_frontDoor && m_frontDoor(*pMessage, aConnectionId))
+        return;
+
     spdlog::info("GameServer::OnConsume opcode={} from {:x} (size={})", pMessage->GetOpcode(), aConnectionId, aSize);
     m_messageHandlers[pMessage->GetOpcode()](pMessage, aConnectionId);
     //}
@@ -742,6 +745,27 @@ void GameServer::SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<vo
 {
     m_loopbackConnectionId = aConnectionId;
     m_loopbackCallback = std::move(aCallback);
+}
+
+bool GameServer::IsAuthenticated(ConnectionId_t aConnectionId) const noexcept
+{
+    return m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId) != nullptr;
+}
+
+ConnectionId_t GameServer::OwnerConnection(uint32_t aServerId) const noexcept
+{
+    const auto cEntity = static_cast<entt::entity>(aServerId);
+    if (!m_pWorld->valid(cEntity))
+        return 0;
+    const auto* pOwner = m_pWorld->try_get<OwnerComponent>(cEntity);
+    return pOwner && pOwner->GetOwner() ? pOwner->GetOwner()->GetConnectionId() : 0;
+}
+
+void GameServer::SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const
+{
+    for (Player* pPlayer : m_pWorld->GetPlayerManager())
+        if (pPlayer->GetConnectionId() != aExcluded)
+            pPlayer->Send(acServerMessage, aFlags);
 }
 
 void GameServer::OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback)

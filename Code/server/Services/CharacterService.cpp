@@ -34,7 +34,6 @@
 #include <Messages/NotifySubtitle.h>
 #include <Messages/NotifyActorTeleport.h>
 #include <Messages/NotifyRelinquishControl.h>
-#include <Messages/WorldStateSync.h>
 
 #include <Setting.h>
 
@@ -54,7 +53,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher)
     , m_requestRemoveCharacterConnection(aDispatcher.sink<PacketEvent<RequestRemoveCharacter>>().connect<&CharacterService::OnRequestRemoveCharacter>(this))
     , m_characterSpawnedConnection(aDispatcher.sink<CharacterSpawnedEvent>().connect<&CharacterService::OnCharacterSpawned>(this))
     , m_playerEnterWorldConnection(aDispatcher.sink<PlayerEnterWorldEvent>().connect<&CharacterService::OnPlayerEnterWorld>(this))
-    , m_referenceMovementSnapshotConnection(aDispatcher.sink<PacketEvent<ClientReferencesMoveRequest>>().connect<&CharacterService::OnReferencesMoveRequest>(this))
     , m_factionsChangesConnection(aDispatcher.sink<PacketEvent<RequestFactionsChanges>>().connect<&CharacterService::OnFactionsChanges>(this))
     , m_mountConnection(aDispatcher.sink<PacketEvent<MountRequest>>().connect<&CharacterService::OnMountRequest>(this))
     , m_newPackageConnection(aDispatcher.sink<PacketEvent<NewPackageRequest>>().connect<&CharacterService::OnNewPackageRequest>(this))
@@ -124,8 +122,6 @@ void CharacterService::Serialize(World& aRegistry, entt::entity aEntity, Charact
 void CharacterService::OnUpdate(const UpdateEvent&) const noexcept
 {
     ProcessFactionsChanges();
-    ProcessMovementChanges();
-    BroadcastWorldStateSync();
 }
 
 void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept
@@ -246,6 +242,13 @@ void CharacterService::OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) 
 
 void CharacterService::OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) const noexcept
 {
+    if (const auto& cLateJoin = GameServer::Get()->GetLateJoinHandler())
+    {
+        const auto cCharacter = acEvent.pPlayer->GetCharacter();
+        cLateJoin(acEvent.pPlayer->GetConnectionId(), cCharacter ? World::ToInteger(*cCharacter) : 0);
+        return;
+    }
+
     // Send all existing characters to the newly-joined player
     auto view = m_world.view<CharacterComponent, OwnerComponent>();
     uint32_t count = 0;
@@ -267,58 +270,6 @@ void CharacterService::OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) 
 
     spdlog::info("OnPlayerEnterWorld: sent {} existing characters to player {:x}",
                  count, acEvent.pPlayer->GetConnectionId());
-}
-
-void CharacterService::OnReferencesMoveRequest(const PacketEvent<ClientReferencesMoveRequest>& acMessage) const noexcept
-{
-    OwnerView<AnimationComponent, MovementComponent, CellIdComponent> view(m_world, acMessage.GetSender());
-
-    auto& message = acMessage.Packet;
-
-    for (auto& entry : message.Updates)
-    {
-        const auto entity = static_cast<entt::entity>(entry.first);
-
-        auto itor = view.find(entity);
-        if (itor == std::end(view))
-        {
-            spdlog::debug("{:x} requested move of {:x} but does not exist", acMessage.pPlayer->GetConnectionId(), static_cast<uint32_t>(entity));
-            continue;
-        }
-
-        auto& movementComponent = view.get<MovementComponent>(*itor);
-        auto& cellIdComponent = view.get<CellIdComponent>(*itor);
-        auto& animationComponent = view.get<AnimationComponent>(*itor);
-
-        movementComponent.Tick = message.Tick;
-
-        const auto movementCopy = movementComponent;
-
-        auto& update = entry.second;
-        auto& movement = update.UpdatedMovement;
-
-        movementComponent.Position = movement.Position;
-        movementComponent.Rotation = glm::vec3(movement.Rotation.x, 0.f, movement.Rotation.y);
-        movementComponent.Variables = movement.Variables;
-        movementComponent.Direction = movement.Direction;
-
-        cellIdComponent.Cell = movement.CellId;
-        cellIdComponent.WorldSpaceId = movement.WorldSpaceId;
-        cellIdComponent.CenterCoords = GridCellCoords::CalculateGridCellCoords(movement.Position.x, movement.Position.y);
-
-        for (auto& action : update.ActionEvents)
-        {
-            auto [canceled, reason] = GameServer::Get()->GetWorld().GetScriptService().HandleCharacterMove(entity);
-            if (canceled)
-                continue;
-
-            animationComponent.CurrentAction = action;
-
-            animationComponent.Actions.push_back(animationComponent.CurrentAction);
-        }
-
-        movementComponent.Sent = false;
-    }
 }
 
 void CharacterService::OnFactionsChanges(const PacketEvent<RequestFactionsChanges>& acMessage) const noexcept
@@ -636,110 +587,6 @@ void CharacterService::ProcessFactionsChanges() const noexcept
     {
         if (!message.Changes.empty())
             pPlayer->Send(message);
-    }
-}
-
-void CharacterService::ProcessMovementChanges() const noexcept
-{
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenSnapshots = 1000ms / 50;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenSnapshots)
-        return;
-
-    lastSendTimePoint = now;
-
-    const auto characterView = m_world.view<CharacterComponent, CellIdComponent, MovementComponent, AnimationComponent, OwnerComponent>();
-
-    TiltedPhoques::Map<Player*, ServerReferencesMoveRequest> messages;
-
-    for (auto pPlayer : m_world.GetPlayerManager())
-    {
-        auto& message = messages[pPlayer];
-
-        message.Tick = GameServer::Get()->GetTick();
-    }
-
-    for (auto entity : characterView)
-    {
-        auto& characterComponent = characterView.get<CharacterComponent>(entity);
-        auto& movementComponent = characterView.get<MovementComponent>(entity);
-        auto& cellIdComponent = characterView.get<CellIdComponent>(entity);
-        auto& ownerComponent = characterView.get<OwnerComponent>(entity);
-        auto& animationComponent = characterView.get<AnimationComponent>(entity);
-
-        // If we have nothing new to send skip this
-        if (movementComponent.Sent == true)
-            continue;
-
-        // P2P co-op: Send to all players except owner (no range check needed)
-        for (auto pPlayer : m_world.GetPlayerManager())
-        {
-            if (pPlayer == ownerComponent.GetOwner())
-                continue;
-
-            auto& message = messages[pPlayer];
-            auto& update = message.Updates[World::ToInteger(entity)];
-            auto& movement = update.UpdatedMovement;
-
-            movement.Position = movementComponent.Position;
-
-            movement.Rotation.x = movementComponent.Rotation.x;
-            movement.Rotation.y = movementComponent.Rotation.z;
-
-            movement.Direction = movementComponent.Direction;
-            movement.Variables = movementComponent.Variables;
-
-            update.ActionEvents = animationComponent.Actions;
-        }
-    }
-
-    m_world.view<AnimationComponent>().each(
-        [](AnimationComponent& animationComponent)
-        {
-            if (!animationComponent.Actions.empty())
-                animationComponent.LastSerializedAction = animationComponent.Actions[animationComponent.Actions.size() - 1];
-
-            animationComponent.Actions.clear();
-        });
-
-    m_world.view<MovementComponent>().each([](MovementComponent& movementComponent) { movementComponent.Sent = true; });
-
-    for (auto& [pPlayer, message] : messages)
-    {
-        if (!message.Updates.empty())
-            pPlayer->Send(message, TiltedPhoques::kUnreliable);
-    }
-}
-
-void CharacterService::BroadcastWorldStateSync() const noexcept
-{
-    using namespace std::chrono;
-    constexpr auto cSyncInterval = 1000ms;
-
-    auto now = steady_clock::now();
-    if (now - m_lastWorldStateSyncTime < cSyncInterval)
-        return;
-    m_lastWorldStateSyncTime = now;
-
-    WorldStateSync sync;
-
-    auto view = m_world.view<MovementComponent, CharacterComponent>();
-    for (auto entity : view)
-    {
-        auto& movement = view.get<MovementComponent>(entity);
-        WorldStateSync::EntityEntry entry;
-        entry.ServerId = World::ToInteger(entity);
-        entry.Position = movement.Position;
-        entry.Rotation.x = movement.Rotation.x;
-        entry.Rotation.y = movement.Rotation.z;
-        sync.Entities.push_back(entry);
-    }
-
-    if (!sync.Entities.empty())
-    {
-        GameServer::Get()->SendToPlayers(sync);
     }
 }
 
