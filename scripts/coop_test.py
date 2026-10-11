@@ -31,6 +31,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -244,7 +245,44 @@ def prepare_prefix():
                             "Interface": {"bShowTutorials": "0"}})
 
 
+# The plugin's command socket (CommandServer.cpp): one JSON line per request, answered within a
+# frame. Port and pid are in <control dir>/rpc.json. Falls back to the control files (250ms
+# poll) for an older DLL or when the socket does not answer.
+_rpc_connections = {}
+
+
+def rpc(request, timeout=3.0):
+    """Sends one request to the selected game; returns the decoded response, or None."""
+    key = str(CONTROL)
+    try:
+        info = json.loads((CONTROL / "rpc.json").read_text())
+    except (OSError, ValueError):
+        return None
+    connection = _rpc_connections.get(key)
+    if connection and connection[0] != info.get("pid"):
+        connection[1].close()
+        connection = None
+    try:
+        if not connection:
+            sock = socket.create_connection(("127.0.0.1", info["port"]), timeout=1.0)
+            connection = _rpc_connections[key] = [info.get("pid"), sock, sock.makefile("rb")]
+        connection[1].settimeout(timeout)
+        connection[1].sendall((json.dumps(request) + "\n").encode())
+        line = connection[2].readline()
+        if not line:
+            raise OSError("closed")
+        return json.loads(line)
+    except (OSError, ValueError, KeyError):
+        if connection:
+            connection[1].close()
+        _rpc_connections.pop(key, None)
+        return None
+
+
 def read_status():
+    response = rpc({"cmd": "status"})
+    if response and response.get("ok"):
+        return response["status"]
     try:
         status = json.loads((CONTROL / "status.json").read_text())
     except (OSError, ValueError):
@@ -264,7 +302,7 @@ def wait_for(description, predicate, timeout, launcher=None):
             return result
         if launcher is not None and launcher.poll() is not None and not prefix_processes():
             raise TestFailure(f"Skyrim exited while waiting: {description}")
-        time.sleep(0.25)
+        time.sleep(0.05)
     raise TestFailure(f"Timed out after {timeout:.0f}s: {description}")
 
 
@@ -281,7 +319,7 @@ def launch(args, run_dir):
     command = f"load {args.save}" if args.save else f"coc {args.cell}"
     prepare_prefix()
     CONTROL.mkdir(parents=True, exist_ok=True)
-    for stale in ("status.json", "session.txt", "console.txt"):
+    for stale in ("status.json", "session.txt", "console.txt", "rpc.json"):
         (CONTROL / stale).unlink(missing_ok=True)
     atomic_write(CONTROL / "boot.txt", command + "\n")  # run by the plugin at the main menu
     atomic_write(CONTROL / "request.txt", "builtin\n")  # turns on the plugin's status heartbeat
@@ -376,6 +414,10 @@ def command_launch(args):
 
 def run_console(command, timeout=10):
     """Runs a console command in the test game (after the boot command) and waits for it."""
+    response = rpc({"cmd": "console", "line": command}, timeout=timeout)
+    if response and response.get("ok"):
+        log(f"Console: {command}")
+        return
     request_id = uuid.uuid4().hex[:12]
     atomic_write(CONTROL / "console.txt", f"{request_id} {command}\n")
     wait_for(f"Console: {command}", lambda: (read_status() or {}).get("console_id") == request_id, timeout)
@@ -392,6 +434,8 @@ def face_actor(actor_id):
     # Skyrim heading: degrees clockwise from north (+Y).
     heading = math.degrees(math.atan2(actor[0] - player[0], actor[1] - player[1])) % 360
     run_console(f"player.setangle z {heading:.0f}")
+    # Level, not looking down after walking: aimed spells fly where the player looks.
+    run_console("player.setangle x 0")
 
 
 def command_game(args):
@@ -928,7 +972,7 @@ def scenario_move_host_npc():
 
 def scenario_steady_state():
     """Desync checker: every actor's full state matches between owner and copy."""
-    problems = check_desync(samples=4)
+    problems = check_desync()
     if problems:
         raise TestFailure("desync: " + " | ".join(problems))
 
@@ -957,7 +1001,7 @@ def scenario_repair_equipment_drift():
         raise TestSkipped("could not break the copy's equipment to test the repair")
     deadline = time.time() + 15
     while (problems := check_desync(samples=1)) and time.time() < deadline:
-        time.sleep(1)
+        time.sleep(0.1)
     if problems:
         raise TestFailure("never converged: " + " | ".join(problems))
 
@@ -986,57 +1030,59 @@ def scenario_melee_client_hits_host_npc():
                 lambda actors: close(actors.get(str(replica), {}).get("health"), host_npc_state(npc).get("health")))
         hold()
     finally:
+        stop_casting("client")
         console_on("", f"{npc:08X}.resurrect")  # also restores health and calms it for reruns
         press_until("client", "r", lambda me: not me.get("weapon_drawn"), "sheathing the sword")
 
 
-def cast_at(instance, target, spell, hold_seconds, until, attempts=4):
-    """In an instance's game: stand 150 units from `target` (form id in that game), face it, ready
-    `spell` and cast (hold, release) until `until()` is true. Calls `during()` while waiting."""
-    approach(instance, target, 0.8)
-    console_on(instance, f"player.addspell {spell:08X}")
-    console_on(instance, f"player.equipspell {spell:08X} right")
-    console_on(instance, "player.restoreav magicka 1000")
-    press_until(instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+def cast_spell(instance, target, spell, source=1):
+    """The instance's player casts `spell` at `target` right away (the plugin's "cast" command:
+    the magic caster fires as on release, through the same sync path). An aimed spell flies where
+    the player faces, so this faces the target first."""
+    select_instance(instance)
+    face_actor(target)
+    if not (rpc({"cmd": "cast", "caster": 0x14, "spell": spell, "target": target, "source": source}) or {}).get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] the plugin did not take the cast command (old DLL?)")
+
+
+def stop_casting(instance, source=1):
+    """Ends a held (concentration) cast that cast_spell started."""
+    select_instance(instance)
+    rpc({"cmd": "interrupt", "caster": 0x14, "source": source})
+
+
+def cast_at(instance, target, spell, until, attempts=4, wait=1.0):
+    """In an instance's game: stand in front of `target` (form id in that game) and cast `spell`
+    at it until `until()` is true. Casting animation sync has its own input-driven scenarios."""
+    approach(instance, target, 0.5)
     def target_position():
         select_instance(instance)
         status = read_status() or {}
         return ((status.get("actors", {}).get(str(target)) or {}).get("actual")
                 or ((status.get("world") or {}).get(str(target)) or {}).get("placement", {}).get("position"))
     aimed_at = target_position()
-    try:
-        for _ in range(attempts):
-            # A hit staggers the target back: re-aim every cast, walk up again if it moved far.
-            now = target_position()
-            if now and aimed_at and distance(now, aimed_at) > 100:
-                approach(instance, target, 0.8)
-                press_until(instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
-                aimed_at = now
-            select_instance(instance)
-            face_actor(target)
-            mouse_on(instance, "mousedown")
-            time.sleep(hold_seconds)
-            mouse_on(instance, "mouseup")
-            end = time.time() + 2.0
-            while time.time() < end:
-                if until():
-                    return True
-                time.sleep(0.1)
-        return False
-    finally:
-        press_until(instance, "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
-
+    for _ in range(attempts):
+        # A hit staggers the target back: walk up again if it moved far.
+        now = target_position()
+        if now and aimed_at and distance(now, aimed_at) > 100:
+            approach(instance, target, 0.5)
+            aimed_at = now
+        cast_spell(instance, target, spell)
+        end = time.time() + wait
+        while time.time() < end:
+            if until():
+                stop_casting(instance)
+                return True
+            time.sleep(0.05)
+    stop_casting(instance)
+    return False
 
 def spell_hits_host_npc(spell, hold_seconds):
     """Client casts `spell` at the host's NPC. The host's real NPC must take the damage, and the
     client's copy must only ever show the host's value: a copy that drops below its owner applied
     the effect itself (two games simulating one actor)."""
     npc, replica = ensure_host_npc()
-    approach("client", replica, 0.8)
-    console_on("client", f"player.addspell {spell:08X}")
-    console_on("client", f"player.equipspell {spell:08X} right")
-    console_on("client", "player.restoreav magicka 1000")
-    press_until("client", "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+    approach("client", replica, 0.5)
     before = host_npc_state(npc).get("health")
     log(f"host's real NPC health before: {before:.0f}")
     worst_gap = 0.0
@@ -1049,15 +1095,13 @@ def spell_hits_host_npc(spell, hold_seconds):
         return owner
     try:
         for _ in range(4):  # cast until something lands
-            mouse_on("client", "mousedown")
-            end = time.time() + hold_seconds
+            cast_spell("client", replica, spell)
+            end = time.time() + 1.0
             while time.time() < end:
-                sample(); time.sleep(0.1)
-            mouse_on("client", "mouseup")
-            end = time.time() + 2.0
-            while time.time() < end:
-                sample(); time.sleep(0.1)
-            now = sample()
+                now = sample()
+                if now is not None and now < before - 1:
+                    break
+                time.sleep(0.05)
             if now is not None and now < before - 1:
                 log(f"host's real NPC health after the client's spell: {now:.0f}")
                 break
@@ -1125,7 +1169,7 @@ def scenario_client_angers_host_ally():
     with GodMode(), OthersAway([npc]):
         try:
             console_on("", f"{npc:08X}.setav health 3000")
-            if not cast_at("client", replica, FIREBOLT, 1.0,
+            if not cast_at("client", replica, FIREBOLT,
                            lambda: host_world(npc).get("ai", {}).get("combat_target") == client_on_host, attempts=8):
                 raise TestFailure(f"host's NPC never turned on the client (combat target "
                                   f"{host_world(npc).get('ai', {}).get('combat_target', 0):08X}, client is {client_on_host:08X})")
@@ -1145,7 +1189,7 @@ def kill_credit(weapon):
             time.sleep(0.5)
             dead = lambda: host_world(npc).get("state", {}).get("dead")
             if weapon == "spell":
-                cast_at("client", replica, FIREBOLT, 1.0, dead, attempts=6)
+                cast_at("client", replica, FIREBOLT, dead, attempts=12)
             else:
                 approach("client", replica, 0.25)
                 console_on("client", f"player.additem {IRON_SWORD:08X} 1")
@@ -1377,7 +1421,13 @@ def find_desyncs():
     return problems
 
 
-def check_desync(samples=3, interval=1.0, include_known=False):
+# A copy legitimately trails its owner by the interpolation and replay delay (~0.3-0.5s): only a
+# difference that lasts the whole window is a desync. Most checks pass on the first sample.
+DESYNC_WINDOW = 0.8
+DESYNC_INTERVAL = 0.1
+
+
+def check_desync(samples=int(DESYNC_WINDOW / DESYNC_INTERVAL) + 1, interval=DESYNC_INTERVAL, include_known=False):
     """Only differences seen in every sample count (copies legitimately lag for a moment)."""
     persistent = None
     for index in range(samples):
@@ -1471,13 +1521,16 @@ def command_scenario(args):
         if not read_status():
             raise TestFailure(f"{name or 'host'} game is not running: start `{sys.argv[0]} duo --keep-running` first")
     results = {}
+    durations = {}
+    suite_start = time.monotonic()
     for name in names:
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
+        scenario_start = time.monotonic()
         try:
             known_locks = lock_order_reports()
             SCENARIOS[name]()
             # Whatever the scenario did, both games must agree afterwards.
-            problems = check_desync(samples=4)
+            problems = check_desync()
             if problems:
                 raise TestFailure("desync afterwards: " + " | ".join(problems))
             new_locks = [v for k, v in lock_order_reports().items() if k not in known_locks]
@@ -1491,10 +1544,12 @@ def command_scenario(args):
             results[name] = f"SKIP ({error})"
         except TestFailure as error:
             results[name] = f"FAIL ({error})"
+        durations[name] = time.monotonic() - scenario_start
         log(f"=== {name}: {results[name]}")
     print()
     for name, result in results.items():
-        print(f"{name:24s} {result}")
+        print(f"{name:28s} {durations[name]:5.1f}s  {result}")
+    print(f"{'total':28s} {time.monotonic() - suite_start:5.1f}s")
     if any(r.startswith("FAIL") for r in results.values()):
         raise SystemExit(1)
 

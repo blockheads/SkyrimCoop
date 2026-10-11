@@ -1,5 +1,6 @@
 #pragma once
 #include "../../hotreload/MovementLoader.h"
+#include "CommandServer.h"
 #include <chrono>
 #include <map>
 
@@ -22,6 +23,12 @@ public:
 private:
     void PollBootCommand();
     void PollConsoleCommand();
+    // The status JSON (status.json and the command socket's "status").
+    std::string BuildStatus(int aIndent = -1);
+    std::string HandleCommand(const std::string& acRequest);
+
+    CommandServer m_commands;
+    bool m_commandsStarted = false;
 
     MovementLoader m_loader;
     std::string m_bootCommand;

@@ -327,10 +327,56 @@ static nlohmann::json PlayerStatus()
             {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()}};
 }
 
+// One request line from the test harness: {"cmd": "status"} or {"cmd": "console", "line": "..."}.
+std::string Runtime::HandleCommand(const std::string& acRequest)
+{
+    const auto cRequest = nlohmann::json::parse(acRequest, nullptr, false);
+    if (cRequest.is_discarded() || !cRequest.is_object())
+        return R"({"ok": false, "error": "not a JSON object"})";
+    const std::string cCommand = cRequest.value("cmd", "");
+    if (cCommand == "status")
+        return R"({"ok": true, "status": )" + BuildStatus() + "}";
+    if (cCommand == "console")
+    {
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        const std::string cLine = cRequest.value("line", "");
+        spdlog::info("Console command (rpc): {}", cLine);
+        ExecuteConsoleCommand(cLine.c_str());
+        return R"({"ok": true})";
+    }
+    if (cCommand == "cast")
+    {
+        // {"cmd": "cast", "caster": id, "spell": id, "target": id, "source": 1 (right hand)}: casts
+        // through the actor's magic caster like a released cast, without aiming.
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        World::Get().GetActorBridge().CastSpell(cRequest.value("caster", 0x14u), cRequest.value("spell", 0u),
+                                                cRequest.value("source", 1u), cRequest.value("target", 0u));
+        return R"({"ok": true})";
+    }
+    if (cCommand == "interrupt")
+    {
+        // {"cmd": "interrupt", "caster": id, "source": 1}: ends a held (concentration) cast.
+        World::Get().GetActorBridge().InterruptCast(cRequest.value("caster", 0x14u), cRequest.value("source", 1u));
+        return R"({"ok": true})";
+    }
+    return nlohmann::json{{"ok", false}, {"error", "unknown cmd " + cCommand}}.dump();
+}
+
 void Runtime::Poll()
 {
+    if (m_directory.empty()) return;
+    if (!m_commandsStarted)
+    {
+        m_commandsStarted = true;
+        if (!m_commands.Start(m_directory.string(), [this](const std::string& acRequest) { return HandleCommand(acRequest); }))
+            spdlog::warn("Command server did not start; the test harness falls back to control files");
+    }
+    m_commands.Poll();
+
     const auto now = std::chrono::steady_clock::now();
-    if (m_directory.empty() || now < m_nextPoll) return;
+    if (now < m_nextPoll) return;
     m_nextPoll = now + std::chrono::milliseconds(250);
     PollBootCommand();
     if (m_bootState == "executed")
@@ -373,6 +419,17 @@ void Runtime::Poll()
         }
     }
 
+    const auto temporary = m_directory / "status.json.tmp";
+    const auto destination = m_directory / "status.json";
+    std::ofstream output(temporary, std::ios::trunc);
+    output << BuildStatus(2) << '\n';
+    output.close();
+    if (output)
+        MoveFileExW(temporary.c_str(), destination.c_str(), MOVEFILE_REPLACE_EXISTING);
+}
+
+std::string Runtime::BuildStatus(int aIndent)
+{
     const auto unixMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
     // Only copies the mod still links to a server actor: a removed copy must leave the status too.
@@ -407,13 +464,7 @@ void Runtime::Poll()
         {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()},
         {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}
     };
-    const auto temporary = m_directory / "status.json.tmp";
-    const auto destination = m_directory / "status.json";
-    std::ofstream output(temporary, std::ios::trunc);
-    output << status.dump(2) << '\n';
-    output.close();
-    if (output)
-        MoveFileExW(temporary.c_str(), destination.c_str(), MOVEFILE_REPLACE_EXISTING);
+    return status.dump(aIndent);
 }
 
 void Runtime::Shutdown() { CoopSteam::Shutdown(); m_loader.Unload(); }
