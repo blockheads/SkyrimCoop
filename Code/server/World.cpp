@@ -4,9 +4,7 @@
 #include <Services/CharacterService.h>
 #include <Services/ObjectService.h>
 #include <Services/QuestService.h>
-#include <Services/ActorValueService.h>
 #include <Services/AdminService.h>
-#include <Services/InventoryService.h>
 #include <Services/MagicService.h>
 #include <Services/OverlayService.h>
 #include <Services/CommandService.h>
@@ -32,8 +30,6 @@ World::World()
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<PartyService>(*this, m_dispatcher);
-    ctx().emplace<ActorValueService>(*this, m_dispatcher);
-    ctx().emplace<InventoryService>(*this, m_dispatcher);
     ctx().emplace<MagicService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_dispatcher);
     ctx().emplace<CommandService>(*this, m_dispatcher);
@@ -67,8 +63,6 @@ World::World(WorldTestMode)
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<PartyService>(*this, m_dispatcher);
-    ctx().emplace<ActorValueService>(*this, m_dispatcher);
-    ctx().emplace<InventoryService>(*this, m_dispatcher);
     ctx().emplace<MagicService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_dispatcher);
     ctx().emplace<CommandService>(*this, m_dispatcher);
@@ -96,8 +90,6 @@ World::~World()
     ctx().erase<CommandService>();
     ctx().erase<OverlayService>();
     ctx().erase<MagicService>();
-    ctx().erase<InventoryService>();
-    ctx().erase<ActorValueService>();
     ctx().erase<PartyService>();
     ctx().erase<QuestService>();
     ctx().erase<ObjectService>();

@@ -167,6 +167,25 @@ service and records go. One family per step, with the suite after each:
 3. Magic and combat: spell cast, interrupt, add target, remove spell, projectile launch.
 4. Character extras: factions, mount, AI package, dialogue, subtitle, experience, level, respawn.
 
+Each family's rules have headless tests in `Code/tests/bridge` (`BridgeTests`, native Linux build:
+`XMAKE_CONFIGDIR=build/linux-config xmake build BridgeTests`). They feed requests into a test-mode
+server as the transport sends them and check who receives what. The bridge needs no client `World`
+for that: the host's game reaches it as a callback (`SpawnSource`, from `CharacterService`).
+
+Done:
+- **1. Inventory and equipment.** Item and equipment changes are relayed from anyone (a peer can
+  hand the host's follower a sword; the owner's game applies it like every copy). The equipment
+  snapshot and hands are relayed from the owner only. Dropped items stay unsynced. The server's
+  `InventoryService` is deleted.
+- **2. Actor values.** Values, max values and death are relayed from the owner only (clients only
+  send them for actors they own). A hit on someone else's actor goes to its owner alone. The
+  server's `ActorValueService` is deleted.
+
+Found on the way: the server's "this character is already managed" answer (an `AssignCharacterResponse`
+built from its records) never reaches a peer, because only the host announces NPCs. It goes with
+assignment in 3b. Two other readers of the records that stopped updating: gold loss on respawn
+(off by default, `fGoldLossFactor` 0) and a non-owner's `RequestRespawn`; both move in step 4.
+
 **3b. Ids and assignment.** The host's `World` hands out server ids: its own actors get one at
 discovery (no `AssignCharacterRequest` round trip), and a peer's player gets one when the peer asks.
 Spawning, removal and respawn become bridge rules, `OwnerOf` reads the host's `World`, and the

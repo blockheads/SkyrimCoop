@@ -21,6 +21,7 @@ target("TPTests")
     add_packages("catch2", "glm", "spdlog", "hopscotch-map", "enet6", "entt",
                  "sqlite3", "lua", "sol2")
 
+includes("bridge")
 includes("integration")
 includes("replay")
 includes("client_replay")

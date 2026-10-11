@@ -6,6 +6,7 @@
 #include <World.h>
 #include <Services/TransportService.h>
 #include <Services/HostBridge.h>
+#include <Services/CharacterService.h>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -59,9 +60,8 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return false;
     }
 
-    m_pBridge = std::make_unique<HostBridge>(*m_pGameServer);
-    m_pGameServer->SetFrontDoor([pBridge = m_pBridge.get()](const ClientMessage& acMessage, TiltedPhoques::ConnectionId_t aSender) {
-        return pBridge->Handle(acMessage, aSender);
+    m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, [this](uint32_t aJoinerServerId) {
+        return m_world.GetCharacterService().BuildSpawnRequests(aJoinerServerId);
     });
 
     m_isHosting = true;
