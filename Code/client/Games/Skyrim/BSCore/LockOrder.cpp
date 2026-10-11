@@ -2,8 +2,13 @@
 
 #include "LockOrder.h"
 
+#include <HotReload/Handoff.h>
+#include <SkseBranchPatch.hpp>
+
+#include <charconv>
 #include <intrin.h>
 #include <mutex>
+#include <span>
 
 // BSReadWriteLock (1.6.1170): {uint32 writer thread id, uint32 lock word}. The word holds the
 // reader count, or 0x80000001 plus nested acquisitions while a thread writes. The writer may
@@ -60,7 +65,10 @@ struct Edge
 };
 
 constexpr size_t cEdgeCapacity = 1 << 20;
-Edge s_edges[cEdgeCapacity];
+// 32MB, allocated once per game: a hot reload hands it to the next client (the old client's
+// image is never freed, so a static table would stay behind with it on every reload).
+Edge* s_edges = nullptr;
+constexpr char cEdgesHandoffKey[] = "lock_order_edges";
 std::atomic<uint32_t> s_edgeCount{0};
 std::atomic<uint32_t> s_tooDeep{0};
 std::atomic<uint32_t> s_tableFull{0};
@@ -117,7 +125,7 @@ void ResetEdges()
     bool expected = false;
     if (!s_clearing.compare_exchange_strong(expected, true))
         return;
-    for (Edge& edge : s_edges)
+    for (Edge& edge : std::span(s_edges, cEdgeCapacity))
     {
         edge.Key.store(0, std::memory_order_relaxed);
         edge.Modes.store(0, std::memory_order_relaxed);
@@ -412,6 +420,22 @@ static TiltedPhoques::Initializer s_lockOrderHooks([]() {
     char value[8]{};
     if (GetEnvironmentVariableA("SKYRIMCOOP_LOCKORDER", value, sizeof(value)) > 0 && value[0] == '0')
         return;
+
+    if (const auto cHandoff = CoopReload::TakeHandoff(cEdgesHandoffKey))
+    {
+        uintptr_t address = 0;
+        std::from_chars(cHandoff->data(), cHandoff->data() + cHandoff->size(), address);
+        s_edges = reinterpret_cast<Edge*>(address);
+    }
+    if (s_edges)
+        ResetEdges(); // The previous client's pairs name its call sites.
+    else
+        s_edges = static_cast<Edge*>(VirtualAlloc(nullptr, sizeof(Edge) * cEdgeCapacity, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    if (!s_edges)
+        return;
+    TiltedPhoques::AtUnload([] {
+        CoopReload::HandOff(cEdgesHandoffKey, std::to_string(reinterpret_cast<uintptr_t>(s_edges)));
+    });
 
     ModuleRange(GetModuleHandleW(nullptr), s_engineBase, s_engineEnd);
     ModuleRange(reinterpret_cast<HMODULE>(&__ImageBase), s_ourBase, s_ourEnd);

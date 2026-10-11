@@ -552,6 +552,33 @@ def command_reload(args):
     reload_games(args.seconds)
     print(f"\nRELOADED: both games run the new build and are connected again "
           f"({time.monotonic() - started:.1f}s)")
+    report_game_memory()
+
+
+# Each reload leaves the old client copy mapped (Code/hotreload/Loader.cpp) with whatever its
+# singletons held: ~60MB a reload. Past this, restart the games.
+GAME_MEMORY_LIMIT_MB = 6000
+
+
+def report_game_memory():
+    """Prints each running game's memory (resident + swapped) and warns when a restart is due."""
+    sizes = []
+    for status in Path("/proc").glob("[0-9]*/status"):
+        try:
+            if "SkyrimSE.exe" not in (status.parent / "cmdline").read_bytes().decode(errors="replace"):
+                continue
+            fields = dict(line.split(":", 1) for line in status.read_text().splitlines() if ":" in line)
+        except OSError:
+            continue
+        kb = sum(int(fields.get(key, "0 kB").split()[0]) for key in ("VmRSS", "VmSwap"))
+        if kb > 100 * 1024:  # not the launcher stubs that share the name
+            sizes.append(kb // 1024)
+    if not sizes:
+        return
+    print("Game memory: " + ", ".join(f"{mb}MB" for mb in sorted(sizes)))
+    if max(sizes) > GAME_MEMORY_LIMIT_MB:
+        print(f"WARNING: a game is over {GAME_MEMORY_LIMIT_MB}MB from hot reloads; restart them "
+              f"(`stop`, then `duo --keep-running`)")
 
 
 def reload_games(seconds=60):
