@@ -242,6 +242,11 @@ Still on the server, reading positions that have been stale since phase 2: telep
   Done: `HostClock` and `HostWeather` (a peer forces the host's weather over its own each frame;
   the host shares nothing without a sky or while its map is open). Only the host's game spawns
   world encounters.
+- Cell arrivals: done. Everyone is where the host is (the party tether). A game teleported by the
+  engine (its `PositionPlayerEvent`) drops its copies and sends `EnterCellRequest`; once it is with
+  the host, `HostCharacters` sends it everyone with the host and them it. A player still on the way
+  gets nothing until the host is there. The tether itself (pulling a player along, travel requests)
+  is not built: a player that leaves on its own is only logged.
 - Quests: the host's quest log is the authority, and stage changes are sent to peers.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter.
@@ -256,6 +261,22 @@ Still on the server, reading positions that have been stale since phase 2: telep
 - Waypoints, chat, player dialogue, overlay health: relays.
 - Commands: `SetTimeCommandRequest` from any player sets the host's clock (peers follow it);
   `TeleportCommandRequest` is answered from the host's game.
+
+### Follow-ups (noted, not scheduled)
+
+- **Copy pose after a teleport.** After `coc` a copy replays the owner's last action, which is the
+  engine's `swimStop`; the copy refuses it and stays in a swim or T-pose until the owner acts again.
+  The scenarios step each player after `coc` to hide it (`step_both`).
+- **Arrivals through doors and fast travel.** `PositionPlayerEvent` is validated for `coc` only
+  (phases 0, 3, 4 per teleport). If a door or fast travel does not send it, hook the player's move
+  to its queued location (Address Library ID 40438), where all three end.
+- **Lock checker blames our hook for the engine's own inversion.** A `coc` run from our console
+  hook is tagged "[ours]" (cell unload `ExtraDataList` lock against Havok's world lock); it is
+  timing-dependent and failed `party-changes-cells` once. The checker should not count a console
+  command frame as ours.
+- **Known bugs:** Lydia's stagger desyncs after a client's firebolt
+  (`firebolt-client-hits-host-npc`); the `duo` harness process once segfaulted on exit after PASS.
+- Run the full scenario suite once phase 4 is done.
 
 ### Phase 5: Delete the server
 
