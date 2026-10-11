@@ -105,7 +105,7 @@ void SetUIActive(OverlayService& aOverlay, auto apRenderer, bool aActive)
     aOverlay.SetActive(aActive);
 
     // Ensures the game is actually loaded, in case the initial event was sent too early
-    aOverlay.SetVersion(BUILD_COMMIT);
+    aOverlay.SetVersion(BuildCommit());
     aOverlay.GetOverlayApp()->ExecuteAsync("enterGame");
 
     apRenderer->SetCursorVisible(aActive);

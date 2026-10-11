@@ -47,7 +47,8 @@ static void HookPresent()
 
 static bool HookCreateViewport(void* viewport, ViewportConfig* pConfig, WindowConfig* pWindowConfig, void* a4)
 {
-    pConfig->name = "Skyrim Together | " BUILD_BRANCH "@" BUILD_COMMIT;
+    static const std::string s_name = fmt::format("Skyrim Together | {}@{}", BuildBranch(), BuildCommit());
+    pConfig->name = s_name.c_str();
 
 #if 0
     pWindowConfig->bBorderlessDisplay = false;

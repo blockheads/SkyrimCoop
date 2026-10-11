@@ -93,7 +93,7 @@ ServerConsole::Command<int64_t> SetDifficulty(
 
 ServerConsole::Command<> ShowVersion("version", "Show the version the server was compiled with",
                                      [](ServerConsole::ArgStack&) {
-                                         spdlog::get("ConOut")->info("Server " BUILD_COMMIT);
+                                         spdlog::get("ConOut")->info("Server {}", BuildCommit());
                                      });
 
 ServerConsole::Command<> CrashServer("crash", "Crashes the server, don't use!", [](ServerConsole::ArgStack&) {
@@ -188,7 +188,7 @@ GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept
     m_info.tagList = "";
     m_info.tick_rate = GetUserTickRate();
 
-    spdlog::info("Server {} started on port {}", BUILD_COMMIT, GetPort());
+    spdlog::info("Server {} started on port {}", BuildCommit(), GetPort());
     UpdateTitle();
 
     m_pWorld = MakeUnique<World>();
@@ -889,7 +889,7 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
     }
 
     AuthenticationResponse serverResponse;
-    serverResponse.Version = BUILD_COMMIT;
+    serverResponse.Version = BuildCommit();
 
     using RT = AuthenticationResponse::ResponseType;
     auto sendKick = [&](const RT type) {
@@ -900,7 +900,7 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
     };
 #if 1
     // to make our testing life a bit easier.
-    if (acRequest->Version != BUILD_COMMIT)
+    if (acRequest->Version != BuildCommit())
     {
         spdlog::info("New player {:x} '{}' tried to connect with client {} - Version mismatch", aConnectionId,
                      remoteAddress, acRequest->Version.c_str());
@@ -1102,8 +1102,8 @@ void GameServer::UpdateTitle() const
     const auto& name = m_info.name;
     const char* playerText = GetClientCount() <= 1 ? " player" : " players";
 
-    const auto title = fmt::format("{} - {} {} - {} Ticks - " BUILD_BRANCH "@" BUILD_COMMIT, name.c_str(),
-                                   GetClientCount(), playerText, GetTickRate());
+    const auto title = fmt::format("{} - {} {} - {} Ticks - {}@{}", name.c_str(), GetClientCount(), playerText, GetTickRate(),
+                                   BuildBranch(), BuildCommit());
 
 #if TP_PLATFORM_WINDOWS
     SetConsoleTitleA(title.c_str());

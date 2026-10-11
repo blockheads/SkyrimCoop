@@ -83,7 +83,7 @@ extern void* RipAllocateN(size_t blockLength);
 #include <filesystem>
 #include <fstream>
 
-#include <BuildInfo.h>
+#include <BuildVersion.h>
 #include <Games/Primitives.h>
 
 using TiltedPhoques::Allocator;

@@ -97,7 +97,7 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
     if (state == "authenticating_host" && ready && world.GetTransport().IsOnline())
     {
         AuthenticationRequest auth;
-        auth.Version = BUILD_COMMIT;
+        auth.Version = BuildCommit();
         auth.Username = "CoopTestBot";
         auth.DiscordId = 99999;
         auth.SKSEActive = true;

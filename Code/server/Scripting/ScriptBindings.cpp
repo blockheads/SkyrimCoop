@@ -22,8 +22,8 @@ namespace Script
 void BindMetadata(sol::state_view aState)
 {
     auto table = aState.create_named_table("BuildInfo");
-    table["Commit"] = BUILD_COMMIT;
-    table["Branch"] = BUILD_BRANCH;
+    table["Commit"] = BuildCommit();
+    table["Branch"] = BuildBranch();
 }
 
 void BindEnttEntity(sol::state_view aState)

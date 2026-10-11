@@ -215,7 +215,7 @@ void OverlayService::SetInGame(bool aInGame) noexcept
 
     if (m_inGame)
     {
-        SetVersion(BUILD_COMMIT);
+        SetVersion(BuildCommit());
         m_pOverlay->ExecuteAsync("enterGame");
     }
     else
