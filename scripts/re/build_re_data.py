@@ -23,7 +23,7 @@ from collections import defaultdict
 
 ROOT = Path(__file__).resolve().parents[2]
 GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
-                           "/media/bighass/BlackHole/SteamLibrary/steamapps/common/Skyrim Special Edition"))
+                           "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
 VERSIONLIB = GAME / "Data/SKSE/Plugins/versionlib-1-6-1170-0.bin"
 SKSE_SRC = GAME / "src/skse64"
 COMMONLIB = ROOT / "reference/CommonLibSSE"

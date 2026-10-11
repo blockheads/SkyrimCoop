@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RE="$ROOT/build/re"
 IDA_DIR="${IDA_DIR:-/media/bighass/4d2c4781-34de-41a5-8939-e35551bc9a5d1/apps/aur-ida-pro}"
-GAME="${SKYRIM_GAME_DIR:-/media/bighass/BlackHole/SteamLibrary/steamapps/common/Skyrim Special Edition}"
+GAME="${SKYRIM_GAME_DIR:-/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition}"
 EXE="$RE/SkyrimSE_1.6.1170_unpacked.exe"
 DB="$RE/SkyrimSE_1.6.1170.i64"
 mkdir -p "$RE/tools"

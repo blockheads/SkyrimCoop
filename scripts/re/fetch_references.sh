@@ -16,6 +16,6 @@ curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"
 
-GAME="${SKYRIM_GAME_DIR:-/media/bighass/BlackHole/SteamLibrary/steamapps/common/Skyrim Special Edition}"
+GAME="${SKYRIM_GAME_DIR:-/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition}"
 [[ -d "$GAME/src/skse64" ]] && echo "SKSE source: $GAME/src/skse64" \
     || echo "SKSE source missing: extract the SKSE 2.2.6 archive's src/ into $GAME"
