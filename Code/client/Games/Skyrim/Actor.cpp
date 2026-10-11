@@ -960,21 +960,6 @@ void TP_MAKE_THISCALL(HookForceState, Actor, const NiPoint3& acPosition, float a
     return TiltedPhoques::ThisCall(RealForceState, apThis, acPosition, aX, aZ, apCell, apWorldSpace, aUnkBool);
 }
 
-TP_THIS_FUNCTION(TSpawnActorInWorld, bool, Actor);
-static TSpawnActorInWorld* RealSpawnActorInWorld = nullptr;
-
-// TODO: this isn't SpawnActorInWorld, this is TESObjectREFR::UpdateReference3D()
-bool TP_MAKE_THISCALL(HookSpawnActorInWorld, Actor)
-{
-    const auto* pNpc = Cast<TESNPC>(apThis->baseForm);
-    if (pNpc)
-    {
-        spdlog::info("Spawn Actor: {:X}, and NPC {}", apThis->formID, pNpc->fullName.value);
-    }
-
-    return TiltedPhoques::ThisCall(RealSpawnActorInWorld, apThis);
-}
-
 TP_THIS_FUNCTION(TDamageActor, bool, Actor, float aDamage, Actor* apHitter, bool aKillMove);
 static TDamageActor* RealDamageActor = nullptr;
 
@@ -1489,7 +1474,6 @@ static TiltedPhoques::Initializer s_actorHooks(
         POINTER_SKYRIMSE(TCharacterDestructor, s_characterDtor, 37175);
         POINTER_SKYRIMSE(TGetLocation, s_GetActorLocation, 19812);
         POINTER_SKYRIMSE(TForceState, s_ForceState, 37313);
-        POINTER_SKYRIMSE(TSpawnActorInWorld, s_SpawnActorInWorld, 19742);
         POINTER_SKYRIMSE(TDamageActor, s_damageActor, 37335);
         POINTER_SKYRIMSE(TApplyActorEffect, s_applyActorEffect, 35086);
         POINTER_SKYRIMSE(TRegenAttributes, s_regenAttributes, 37448);
@@ -1511,7 +1495,6 @@ static TiltedPhoques::Initializer s_actorHooks(
         RealCharacterConstructor = s_characterCtor.Get();
         RealCharacterConstructor2 = s_characterCtor2.Get();
         RealForceState = s_ForceState.Get();
-        RealSpawnActorInWorld = s_SpawnActorInWorld.Get();
         RealDamageActor = s_damageActor.Get();
         RealApplyActorEffect = s_applyActorEffect.Get();
         RealRegenAttributes = s_regenAttributes.Get();
@@ -1532,7 +1515,6 @@ static TiltedPhoques::Initializer s_actorHooks(
         TP_HOOK(&RealCharacterConstructor, HookCharacterConstructor);
         TP_HOOK(&RealCharacterConstructor2, HookCharacterConstructor2);
         TP_HOOK(&RealForceState, HookForceState);
-        TP_HOOK(&RealSpawnActorInWorld, HookSpawnActorInWorld);
         TP_HOOK(&RealDamageActor, HookDamageActor);
         TP_HOOK(&RealApplyActorEffect, HookApplyActorEffect);
         TP_HOOK(&RealRegenAttributes, HookRegenAttributes);
