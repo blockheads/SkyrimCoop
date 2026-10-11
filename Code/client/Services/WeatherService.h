@@ -1,57 +1,44 @@
 #pragma once
 
+#include <Structs/GameId.h>
+
+#include <optional>
+
 struct World;
-struct TransportService;
 struct UpdateEvent;
 struct DisconnectedEvent;
-struct PartyJoinedEvent;
-struct PartyLeftEvent;
 struct NotifyWeatherChange;
 class IWorldBridge;
 class IFormBridge;
 
 /**
- * @brief Responsible for weather changes, which is controlled on a party-per-party basis.
+ * @brief The session's weather is the host's (HostWeather): the host shares what its game shows,
+ * and a peer holds the host's weather in place of its own while in the session.
  */
 struct WeatherService
 {
-    WeatherService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher);
+    WeatherService(World& aWorld, entt::dispatcher& aDispatcher);
     ~WeatherService() noexcept = default;
 
     TP_NOCOPYMOVE(WeatherService);
 
+    // This game's weather to share, as a server id (none: no sky, or the map's).
+    [[nodiscard]] std::optional<GameId> ReadSharedWeather() const noexcept;
+
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
-    void OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept;
-    void OnPartyLeftEvent(const PartyLeftEvent& acEvent) noexcept;
-    void OnWaitingFor3DRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
-    void OnPlayerComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void OnWeatherChange(const NotifyWeatherChange& acMessage) noexcept;
-
-    void RunWeatherUpdates(const double acDelta) noexcept;
-
-    void ToggleGameWeatherSystem(bool aToggle) noexcept;
-    void SetCachedWeather() noexcept;
 
 private:
     World& m_world;
-    TransportService& m_transport;
     IWorldBridge& m_worldBridge;
     IFormBridge& m_formBridge;
 
-    /**
-    * This variable has two uses:
-    * For the party leader, it is used to detect weather changes.
-    * For non-leaders, it is used to reapply the server weather if it changes.
-    */
-    uint32_t m_cachedWeatherId{};
+    // The host's weather, held in place of this game's own (0: none, as on the host).
+    uint32_t m_hostWeatherId{};
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_disconnectConnection;
-    entt::scoped_connection m_partyJoinedConnection;
-    entt::scoped_connection m_partyLeftConnection;
-    entt::scoped_connection m_playerAddedConnection;
-    entt::scoped_connection m_playerRemovedConnection;
     entt::scoped_connection m_weatherChangeConnection;
 };

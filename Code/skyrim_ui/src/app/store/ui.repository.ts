@@ -1,11 +1,9 @@
 import { Injectable } from '@angular/core';
 import { createStore, select, withProps } from '@ngneat/elf';
-import { PlayerManagerTab } from '../models/player-manager-tab.enum';
 import { View } from '../models/view.enum';
 
 interface UiProps {
   view: View | null;
-  playerManagerTab: PlayerManagerTab;
   connectIp: string;
   connectPort: number;
   connectName: string;
@@ -18,7 +16,6 @@ const uiStore = createStore(
   { name: 'auth' },
   withProps<UiProps>({
     view: null,
-    playerManagerTab: PlayerManagerTab.PLAYER_LIST,
     connectIp: null,
     connectPort: null,
     connectName: null,
@@ -33,9 +30,6 @@ const uiStore = createStore(
 })
 export class UiRepository {
   public readonly view$ = uiStore.pipe(select(state => state.view));
-  public readonly playerManagerTab$ = uiStore.pipe(
-    select(state => state.playerManagerTab),
-  );
   public readonly connectIp$ = uiStore.pipe(select((state) => state.connectIp));
   public readonly connectPort$ = uiStore.pipe(select((state) => state.connectPort));
   public readonly connectName$ = uiStore.pipe(select((state) => state.connectName));
@@ -108,13 +102,6 @@ export class UiRepository {
       ...state,
       hidePasswordProtectedServers,
     }))
-  }
-
-  openPlayerManagerTab(playerManagerTab: UiProps['playerManagerTab']) {
-    uiStore.update(state => ({
-      ...state,
-      playerManagerTab,
-    }));
   }
 
   openConnectWithPasswordView(connectIp: string, connectPort: number, connectName: string) {

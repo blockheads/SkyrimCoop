@@ -232,7 +232,6 @@ target("SkyrimTogetherClientServices")
               "Services/Generic/ObjectService.cpp",
               "Services/Generic/OverlayClient.cpp",
               "Services/Generic/OverlayService.cpp",
-              "Services/Generic/PartyService.cpp",
               "Services/Generic/PlayerService.cpp",
               "Services/Generic/QuestService.cpp",
               "Services/Generic/RunnerService.cpp",

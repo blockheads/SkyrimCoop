@@ -26,22 +26,14 @@ void MapService::OnSetWaypointRequest(const PacketEvent<RequestSetWaypoint>& acM
     notify.Position = message.Position;
     notify.WorldSpaceFormID = message.WorldSpaceFormID;
 
-    const auto& partyComponent = acMessage.pPlayer->GetParty();
-    if (!partyComponent.JoinedPartyId.has_value())
-        return;
-
-    GameServer::Get()->SendToParty(notify, partyComponent, acMessage.GetSender());
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 void MapService::OnRemoveWaypointRequest(const PacketEvent<RequestRemoveWaypoint>& acMessage) const noexcept
 {
     NotifyRemoveWaypoint notify{};
 
-    const auto& partyComponent = acMessage.pPlayer->GetParty();
-    if (!partyComponent.JoinedPartyId.has_value())
-        return;
-
-    GameServer::Get()->SendToParty(notify, partyComponent, acMessage.GetSender());
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 } // namespace Server

@@ -220,24 +220,25 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
 
 TEST_CASE("Relayed messages keep their bytes", "[Wire]")
 {
-    // {request, notification}, recorded from the messages before they shared payload structs.
+    // {request, notification} payloads, recorded from the messages before they shared payload
+    // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
-        {"ActorMaxValues", {"0de78a01011a00007a43", "0ee78a01011a00007a43"}},
-        {"ActorValues", {"0cd668021800004d4219000060c0", "0dd668021800004d4219000060c0"}},
-        {"AddTarget", {"17ef9b03f0bd03cddf0401cedf04010000cc4103", "19ef9b03f0bd03cddf0401cedf04010000cc4103"}},
-        {"DeathState", {"12f8ac0101", "14f8ac0101"}},
-        {"Dialogue", {"24c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a", "27c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a"}},
-        {"DrawWeapon", {"1bc54601", "1dc54601"}},
-        {"EquipmentSnapshot", {"30d6e84801b7dd04030200000000000000000000c03f0000000004", "37d6e84801b7dd04030200000000000000000000c03f0000000004"}},
-        {"HealthChange", {"0e89cf0100004cc135e30300", "0f89cf0100004cc135e30300"}},
-        {"InterruptCast", {"16cdd70203", "18cdd70203"}},
-        {"Mount", {"1c92e003a302", "1e92e003a302"}},
-        {"NewPackage", {"1db424b2a80100", "1fb424b2a80100"}},
-        {"ProjectileLaunch", {"19def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "1bdef9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
-        {"RemoveSpell", {"1881de03cddf0402", "1a81de03cddf0402"}},
-        {"SpellCast", {"15ab9302cddf040102796b0500", "17ab9302cddf040102796b0500"}},
-        {"Subtitle", {"25d6680f4c6574206d652067756573732e2e2ee78a01", "28d6680f4c6574206d652067756573732e2e2ee78a01"}},
-        {"SyncExperience", {"1f00004841", "2100004841"}},
+        {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
+        {"ActorValues", {"d668021800004d4219000060c0", "d668021800004d4219000060c0"}},
+        {"AddTarget", {"ef9b03f0bd03cddf0401cedf04010000cc4103", "ef9b03f0bd03cddf0401cedf04010000cc4103"}},
+        {"DeathState", {"f8ac0101", "f8ac0101"}},
+        {"Dialogue", {"c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a", "c5462b536f756e645c566f6963655c536b7972696d2e65736d5c46656d616c654e6f72645c68656c6c6f2e66757a"}},
+        {"DrawWeapon", {"c54601", "c54601"}},
+        {"EquipmentSnapshot", {"d6e84801b7dd04030200000000000000000000c03f0000000004", "d6e84801b7dd04030200000000000000000000c03f0000000004"}},
+        {"HealthChange", {"89cf0100004cc135e30300", "89cf0100004cc135e30300"}},
+        {"InterruptCast", {"cdd70203", "cdd70203"}},
+        {"Mount", {"92e003a302", "92e003a302"}},
+        {"NewPackage", {"b424b2a80100", "b424b2a80100"}},
+        {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
+        {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
+        {"SpellCast", {"ab9302cddf040102796b0500", "ab9302cddf040102796b0500"}},
+        {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a01", "d6680f4c6574206d652067756573732e2e2ee78a01"}},
+        {"SyncExperience", {"00004841", "00004841"}},
     };
 
     const auto cEncoded = Encode();
@@ -246,7 +247,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     {
         INFO(cName);
         REQUIRE(cRecorded.count(cName) == 1);
-        CHECK(cBytes.first == cRecorded.at(cName).first);
-        CHECK(cBytes.second == cRecorded.at(cName).second);
+        CHECK(cBytes.first.substr(2) == cRecorded.at(cName).first);
+        CHECK(cBytes.second.substr(2) == cRecorded.at(cName).second);
     }
 }

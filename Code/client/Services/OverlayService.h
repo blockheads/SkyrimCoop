@@ -32,8 +32,6 @@ struct NotifyPlayerLevel;
 struct NotifyTeleport;
 struct NotifyPlayerHealthUpdate;
 enum ChatMessageTypes;
-struct PartyJoinedEvent;
-struct PartyLeftEvent;
 
 using TiltedPhoques::OverlayApp;
 
@@ -84,8 +82,6 @@ protected:
     void OnPlayerLevel(const NotifyPlayerLevel&) noexcept;
     void OnNotifyTeleport(const NotifyTeleport& acMessage) noexcept;
     void OnNotifyPlayerHealthUpdate(const NotifyPlayerHealthUpdate& acMessage) noexcept;
-    void OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept;
-    void OnPartyLeftEvent(const PartyLeftEvent& acEvent) noexcept;
 
 private:
     void RunDebugDataUpdates() noexcept;
@@ -116,8 +112,6 @@ private:
     entt::scoped_connection m_playerLevelConnection;
     entt::scoped_connection m_teleportConnection;
     entt::scoped_connection m_playerHealthConnection;
-    entt::scoped_connection m_partyJoinedConnection;
-    entt::scoped_connection m_partyLeftConnection;
 };
 
 #else

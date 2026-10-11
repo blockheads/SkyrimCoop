@@ -45,8 +45,6 @@ ServerConsole::Setting bSyncPlayerCalendar{"Gameplay:bSyncPlayerCalendar",
                                            "Syncs up all player calendars to be the same day, month, and year. This "
                                            "uses the date of the player with the furthest ahead date at connection.",
                                            false};
-ServerConsole::Setting bAutoPartyJoin{
-    "Gameplay:bAutoPartyJoin", "Join parties automatically, as long as there is only one party in the server", true};
 // ModPolicy Stuff
 ServerConsole::Setting bEnableModCheck{"ModPolicy:bEnableModCheck", "Bypass the checking of mods on the server", false,
                                        ServerConsole::SettingsFlags::kLocked};
@@ -139,7 +137,6 @@ ServerSettings GetSettings()
     settings.SyncPlayerHomes = bSyncPlayerHomes;
     settings.DeathSystemEnabled = bEnableDeathSystem;
     settings.SyncPlayerCalendar = bSyncPlayerCalendar;
-    settings.AutoPartyJoin = bAutoPartyJoin;
     return settings;
 }
 
@@ -584,6 +581,15 @@ bool GameServer::IsAuthenticated(ConnectionId_t aConnectionId) const noexcept
     return m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId) != nullptr;
 }
 
+void GameServer::KickPlayer(uint32_t aPlayerId) noexcept
+{
+    const auto* pPlayer = m_pWorld->GetPlayerManager().GetById(aPlayerId);
+    if (!pPlayer || pPlayer == m_pWorld->GetPlayerManager().GetHostPlayer())
+        return;
+    spdlog::info("Kicking '{}' [{:x}]", pPlayer->GetUsername().c_str(), pPlayer->GetConnectionId());
+    Kick(pPlayer->GetConnectionId());
+}
+
 ConnectionId_t GameServer::HostConnection() const noexcept
 {
     const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
@@ -725,28 +731,6 @@ void GameServer::SendToPlayers(const ServerMessage& acServerMessage, const Playe
     {
         if (pPlayer != apExcludedPlayer)
             pPlayer->Send(acServerMessage);
-    }
-}
-
-void GameServer::SendToParty(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent,
-                             const Player* apExcludeSender) const
-{
-    if (!acPartyComponent.JoinedPartyId.has_value())
-    {
-        spdlog::warn("Party does not exist, canceling broadcast.");
-        return;
-    }
-
-    for (Player* pPlayer : m_pWorld->GetPlayerManager())
-    {
-        if (pPlayer == apExcludeSender)
-            continue;
-
-        const auto& partyComponent = pPlayer->GetParty();
-        if (partyComponent.JoinedPartyId == acPartyComponent.JoinedPartyId)
-        {
-            pPlayer->Send(acServerMessage);
-        }
     }
 }
 
@@ -946,25 +930,29 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
 
         Send(aConnectionId, initStringCache);
 
+        // The session's players: the newcomer learns everyone already here, and everyone else
+        // learns the newcomer.
+        const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
+        const auto joined = [pHost](const Player& acPlayer, GameId aWorldSpaceId, GameId aCellId)
+        {
+            NotifyPlayerJoined notify{};
+            notify.PlayerId = acPlayer.GetId();
+            notify.Username = acPlayer.GetUsername();
+            notify.WorldSpaceId = aWorldSpaceId;
+            notify.CellId = aCellId;
+            notify.Level = acPlayer.GetLevel();
+            notify.IsHost = &acPlayer == pHost;
+            return notify;
+        };
         for (auto* pOtherPlayer : m_pWorld->GetPlayerManager())
         {
             if (pOtherPlayer == pPlayer)
                 continue;
 
-            NotifyPlayerJoined notify{};
-            notify.PlayerId = pOtherPlayer->GetId();
-            notify.Username = pOtherPlayer->GetUsername();
-
-            auto& cellComponent = pOtherPlayer->GetCellComponent();
-            notify.WorldSpaceId = cellComponent.WorldSpaceId;
-            notify.CellId = cellComponent.Cell;
-
-            notify.Level = pOtherPlayer->GetLevel();
-
-            spdlog::debug("[GameServer] New notify player {:x} {}", notify.PlayerId, notify.Username.c_str());
-
-            Send(pPlayer->GetConnectionId(), notify);
+            const auto& cellComponent = pOtherPlayer->GetCellComponent();
+            Send(pPlayer->GetConnectionId(), joined(*pOtherPlayer, cellComponent.WorldSpaceId, cellComponent.Cell));
         }
+        SendToPlayers(joined(*pPlayer, acRequest->WorldSpaceId, acRequest->CellId), pPlayer);
 
         m_pWorld->GetDispatcher().trigger(
             PlayerJoinEvent(pPlayer, acRequest->WorldSpaceId, acRequest->CellId, acRequest->PlayerTime));

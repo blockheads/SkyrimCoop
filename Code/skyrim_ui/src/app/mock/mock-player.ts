@@ -4,8 +4,4 @@ export interface MockPlayer {
   level: number;
   health: number;
   cellName: string;
-  hasOwnParty: boolean;
-  isInGroup: boolean;
-  invited: boolean;
-  invitedLocalPlayer: boolean;
 }

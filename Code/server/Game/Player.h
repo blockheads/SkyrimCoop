@@ -21,7 +21,6 @@ struct Player
     [[nodiscard]] uint32_t GetId() const noexcept { return m_id; }
     [[nodiscard]] ConnectionId_t GetConnectionId() const noexcept { return m_connectionId; }
     [[nodiscard]] std::optional<entt::entity> GetCharacter() const noexcept { return m_character; }
-    [[nodiscard]] PartyComponent& GetParty() noexcept { return m_party; }
     [[nodiscard]] const String& GetUsername() const noexcept { return m_username; }
     [[nodiscard]] const String& GetEndPoint() const noexcept { return m_endpoint; }
     [[nodiscard]] const uint64_t GetDiscordId() const noexcept { return m_discordId; }
@@ -57,7 +56,6 @@ private:
     uint64_t m_discordId{0};
     String m_endpoint;
     String m_username;
-    PartyComponent m_party;
     QuestLogComponent m_questLog;
     CellIdComponent m_cell;
     uint32_t m_stringCacheId{0};

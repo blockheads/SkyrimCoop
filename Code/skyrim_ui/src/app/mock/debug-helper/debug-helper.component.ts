@@ -94,20 +94,4 @@ export class DebugHelperComponent implements OnInit {
   disconnectMockPlayer(playerId: number) {
     this.mockClientService.skyrimtogether.disconnectMockPlayer(playerId);
   }
-
-  accteptMockPlayerInvite(playerId: number) {
-    this.mockClientService.skyrimtogether.accteptMockPlayerInvite(playerId);
-  }
-
-  inviteToPlayerMockParty(playerId: number) {
-    this.mockClientService.skyrimtogether.inviteToPlayerMockParty(playerId);
-  }
-
-  startPlayerMockParty(playerId: number) {
-    this.mockClientService.skyrimtogether.startPlayerMockParty(playerId);
-  }
-
-  mockPlayerLeaveParty(playerId: number) {
-    this.mockClientService.skyrimtogether.mockPlayerLeaveParty(playerId);
-  }
 }

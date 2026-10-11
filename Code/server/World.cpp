@@ -7,7 +7,6 @@
 #include <Services/OverlayService.h>
 #include <Services/CommandService.h>
 #include <Services/StringCacheService.h>
-#include <Services/WeatherService.h>
 #include <Services/ScriptService.h>
 
 #include <es_loader/ESLoader.h>
@@ -24,11 +23,9 @@ World::World()
     ctx().emplace<ObjectService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
-    ctx().emplace<PartyService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_dispatcher);
     ctx().emplace<CommandService>(*this, m_dispatcher);
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
-    ctx().emplace<WeatherService>(*this, m_dispatcher);
 
     ESLoader::ESLoader loader;
     // emplace loaded mods into modscomponent.
@@ -53,11 +50,9 @@ World::World(WorldTestMode)
     ctx().emplace<ObjectService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
-    ctx().emplace<PartyService>(*this, m_dispatcher);
     ctx().emplace<OverlayService>(*this, m_dispatcher);
     ctx().emplace<CommandService>(*this, m_dispatcher);
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
-    ctx().emplace<WeatherService>(*this, m_dispatcher);
 
     // ScriptService is safe to create -- it just won't have any loaded scripts
     m_pScriptService = TiltedPhoques::MakeUnique<ScriptService>(*this, m_dispatcher);
@@ -73,11 +68,9 @@ World::~World()
 
     // The services live in the registry's context, destroyed after m_dispatcher (one of our
     // members): their connections to it go first, newest service first.
-    ctx().erase<WeatherService>();
     ctx().erase<StringCacheService>();
     ctx().erase<CommandService>();
     ctx().erase<OverlayService>();
-    ctx().erase<PartyService>();
     ctx().erase<QuestService>();
     ctx().erase<ObjectService>();
     ctx().erase<PlayerService>();

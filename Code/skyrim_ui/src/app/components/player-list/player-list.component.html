@@ -21,20 +21,20 @@
       <tbody class="listBody">
         <tr *ngFor="let player of playerList$ | async">
           <td>{{ player.level }}</td>
-          <td>{{ player.name }}</td>
+          <td>
+            {{ player.name }}
+            <span *ngIf="player.isHost">{{
+              'COMPONENT.PARTY_LIST.HOST' | transloco
+            }}</span>
+          </td>
           <td>{{ player.cellName }}</td>
           <td class="actions-col">
             <button
-              [class.hidden]="player.isMember || !(isPartyLeader$ | async)"
-              [disabled]="
-                player.hasBeenInvited ||
-                player.isMember ||
-                !(isPartyLeader$ | async)
-              "
+              *ngIf="isHost"
               class="user-action-button"
-              (click)="sendPartyInvite(player.id)"
+              (click)="kick(player.id)"
             >
-              {{ 'COMPONENT.PARTY_LIST.INVITE' | transloco }}
+              {{ 'COMPONENT.PARTY_LIST.KICK' | transloco }}
             </button>
           </td>
         </tr>

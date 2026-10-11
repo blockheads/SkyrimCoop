@@ -98,6 +98,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     , m_game(std::move(aGame))
     , m_characters(*this, aServer, m_game)
     , m_clock(*this, aServer, m_game)
+    , m_weather(aServer, m_game)
 {
     using enum Delivery;
 
@@ -135,11 +136,18 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
 void HostBridge::Update(uint64_t aTick) noexcept
 {
     m_clock.Update(aTick);
+    m_weather.Update();
+}
+
+void HostBridge::Kick(uint32_t aPlayerId) noexcept
+{
+    m_server.KickPlayer(aPlayerId);
 }
 
 void HostBridge::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) const noexcept
 {
     m_clock.SendTime(aPlayer);
+    m_weather.SendWeather(aPlayer);
     m_characters.SendExistingCharacters(aPlayer, aCharacterServerId);
 }
 

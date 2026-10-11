@@ -78,7 +78,12 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
         if (error && typeof error !== 'boolean') {
           this.emit('triggerError', JSON.stringify(error));
         } else {
-          this.emit('setLocalPlayerId', (this.localPlayerId = nextPlayerId++));
+          // The browser hosts the mock session.
+          this.emit(
+            'setLocalPlayerId',
+            (this.localPlayerId = nextPlayerId++),
+            true,
+          );
         }
         for (const player of playerStore.query(getAllEntities())) {
           this.emit(
@@ -87,6 +92,7 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
             player.name,
             player.level,
             player.cellName,
+            false,
           );
           this.emit('setPlayer3dLoaded', player.id, player.health);
         }
@@ -140,61 +146,8 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
     }
   }
 
-  launchParty(): void {
-    if (this.connected) {
-      this.emit('partyCreated');
-    }
-  }
-
-  createPartyInvite(playerId: number): void {
-    playerStore.update(updateEntities(playerId, { invited: true }));
-  }
-
-  acceptPartyInvite(inviterId: number): void {
-    this.emit('partyCreated');
-    this.emit(
-      'partyInfo',
-      [
-        ...playerStore
-          .query(getAllEntities())
-          .filter(p => p.isInGroup)
-          .map(p => p.id),
-      ],
-      inviterId,
-    );
-  }
-
-  kickPartyMember(playerId: number): void {
-    playerStore.update(updateEntities(playerId, { isInGroup: false }));
-    this.emit(
-      'partyInfo',
-      playerStore
-        .query(getAllEntities())
-        .filter(p => p.isInGroup)
-        .map(p => p.id),
-      this.localPlayerId,
-    );
-  }
-
-  leaveParty(): void {
-    if (this.connected) {
-      this.emit('partyInfo', [], -1);
-      this.emit('partyLeft');
-    }
-  }
-
-  changePartyLeader(playerId: number): void {
-    playerStore.update(updateEntities(playerId, { hasOwnParty: true }));
-    this.emit(
-      'partyInfo',
-      [
-        ...playerStore
-          .query(getAllEntities())
-          .filter(p => p.isInGroup)
-          .map(p => p.id),
-      ],
-      playerId,
-    );
+  kickPlayer(playerId: number): void {
+    this.disconnectMockPlayer(playerId);
   }
 
   initMock() {
@@ -266,10 +219,6 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
       level: Math.floor(Math.random() * 100),
       health: Math.floor(Math.random() * 100),
       cellName: cities[Math.floor(Math.random() * cities.length)],
-      hasOwnParty: false,
-      isInGroup: false,
-      invited: false,
-      invitedLocalPlayer: false,
     };
     playerStore.update(addEntities(newPlayer));
     if (this.connected) {
@@ -279,6 +228,7 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
         newPlayer.name,
         newPlayer.level,
         newPlayer.cellName,
+        false,
       );
       this.emit('setPlayer3dLoaded', newPlayer.id, newPlayer.health);
     }
@@ -293,57 +243,6 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
         this.emit('playerDisconnected', mockPlayer.id, mockPlayer.name);
       }
       playerStore.update(deleteEntities(mockPlayer.id));
-    }
-  }
-
-  accteptMockPlayerInvite(playerId: number) {
-    playerStore.update(
-      updateEntities(playerId, { invited: false, isInGroup: true }),
-    );
-    this.emit(
-      'partyInfo',
-      playerStore
-        .query(getAllEntities())
-        .filter(p => p.isInGroup)
-        .map(p => p.id),
-      this.localPlayerId,
-    );
-  }
-
-  inviteToPlayerMockParty(playerId: number) {
-    playerStore.update(updateEntities(playerId, { invitedLocalPlayer: true }));
-    this.emit('partyInviteReceived', playerId);
-  }
-
-  startPlayerMockParty(playerId: number) {
-    playerStore.update(
-      updateEntities(playerId, { hasOwnParty: true, isInGroup: true }),
-    );
-  }
-
-  mockPlayerLeaveParty(playerId: number) {
-    const player = playerStore.query(getEntity(playerId));
-
-    playerStore.update(
-      updateEntities(playerId, {
-        hasOwnParty: false,
-        invitedLocalPlayer: false,
-        isInGroup: false,
-      }),
-    );
-    if (this.connected) {
-      if (player.isInGroup) {
-        this.emit(
-          'partyInfo',
-          playerStore
-            .query(getAllEntities())
-            .filter(p => p.isInGroup)
-            .map(p => p.id),
-          this.localPlayerId,
-        );
-      } else if (player.hasOwnParty) {
-        this.emit('partyInfo', [], -1);
-      }
     }
   }
 

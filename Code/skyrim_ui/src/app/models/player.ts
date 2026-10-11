@@ -27,19 +27,14 @@ export class Player implements Friend {
   /** Connected in server. */
   connected: boolean;
 
-  /** Has local player received invitation from this player. */
-  hasInvitedLocalPlayer: boolean;
-
-  /** invitation sent. */
-  hasBeenInvited: boolean;
-
   /** CellName */
   cellName: string;
 
   /** isLoaded */
   isLoaded: boolean;
 
-  isInLocalParty: boolean;
+  /** The session's host. */
+  isHost: boolean;
 
   constructor(
     options: {
@@ -50,17 +45,14 @@ export class Player implements Friend {
       connected?: boolean;
       health?: number;
       level?: number;
-      hasInvitedLocalPlayer?: boolean;
-      hasBeenInvited?: boolean;
       cellName?: string;
       isLoaded?: boolean;
-      isInLocalParty?: boolean;
+      isHost?: boolean;
     } = {},
   ) {
     this.id = options.id || 0;
     this.name = options.name || '';
     this.avatar = options.avatar || '';
-    this.hasInvitedLocalPlayer = options.hasInvitedLocalPlayer || false;
     this.cellName = options.cellName || 'vide';
 
     if (options.health || options.health === 0) {
@@ -87,14 +79,6 @@ export class Player implements Friend {
       this.connected = options.connected;
     }
 
-    if (
-      options.hasBeenInvited === undefined ||
-      options.hasBeenInvited === null
-    ) {
-      this.hasBeenInvited = false;
-    } else {
-      this.hasBeenInvited = options.hasBeenInvited;
-    }
 
     if (options.isLoaded === undefined || options.isLoaded === null) {
       this.isLoaded = false;
@@ -102,6 +86,6 @@ export class Player implements Friend {
       this.isLoaded = options.isLoaded;
     }
 
-    this.isInLocalParty = options.isInLocalParty || false;
+    this.isHost = options.isHost || false;
   }
 }

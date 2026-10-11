@@ -59,6 +59,9 @@ struct HostService
      */
     [[nodiscard]] Server::GameServer* GetServer() const noexcept { return m_pGameServer.get(); }
 
+    // Removes a player from the session (hosting only).
+    void KickPlayer(uint32_t aPlayerId) noexcept;
+
 protected:
     /**
      * @brief Update the embedded server every frame

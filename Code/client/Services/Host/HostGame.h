@@ -4,6 +4,7 @@
 #include <Structs/TimeModel.h>
 
 #include <functional>
+#include <optional>
 
 /**
  * @brief The host's game as the bridge sees it: what it reads and changes in the engine. The
@@ -19,4 +20,6 @@ struct HostGame
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;
+    // The host's weather, when it shows one to share (none: no sky, or the map's).
+    std::function<std::optional<GameId>()> ReadWeather;
 };

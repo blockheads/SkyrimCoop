@@ -53,7 +53,7 @@ private:
     void DrawFormDebugView();
     void DrawSkillView();
     void DrawNetworkView();
-    void DrawPartyView();
+    void DrawSessionView();
     void DrawActorValuesView();
     void DrawQuestDebugView();
     void DrawCellView();

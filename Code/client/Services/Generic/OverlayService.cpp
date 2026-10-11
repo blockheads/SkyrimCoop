@@ -33,8 +33,6 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/ConnectionErrorEvent.h>
 #include <Events/UpdateEvent.h>
-#include <Events/PartyJoinedEvent.h>
-#include <Events/PartyLeftEvent.h>
 
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -129,8 +127,6 @@ OverlayService::OverlayService(World& aWorld, TransportService& transport, entt:
     m_playerLevelConnection = aDispatcher.sink<NotifyPlayerLevel>().connect<&OverlayService::OnPlayerLevel>(this);
     m_teleportConnection = aDispatcher.sink<NotifyTeleport>().connect<&OverlayService::OnNotifyTeleport>(this);
     m_playerHealthConnection = aDispatcher.sink<NotifyPlayerHealthUpdate>().connect<&OverlayService::OnNotifyPlayerHealthUpdate>(this);
-    m_partyJoinedConnection = aDispatcher.sink<PartyJoinedEvent>().connect<&OverlayService::OnPartyJoinedEvent>(this);
-    m_partyLeftConnection = aDispatcher.sink<PartyLeftEvent>().connect<&OverlayService::OnPartyLeftEvent>(this);
 }
 
 OverlayService::~OverlayService() noexcept
@@ -293,6 +289,7 @@ void OverlayService::OnConnectedEvent(const ConnectedEvent& acEvent) noexcept
 
     auto pArguments = CefListValue::Create();
     pArguments->SetInt(0, acEvent.PlayerId);
+    pArguments->SetBool(1, m_world.GetHostService().IsHosting());
     m_pOverlay->ExecuteAsync("setLocalPlayerId", pArguments);
 }
 
@@ -376,6 +373,7 @@ void OverlayService::OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcep
 
     String cellName = GetCellName(acMessage.WorldSpaceId, acMessage.CellId, m_formBridge);
     pArguments->SetString(3, cellName.c_str());
+    pArguments->SetBool(4, acMessage.IsHost);
 
     m_pOverlay->ExecuteAsync("playerConnected", pArguments);
 }
@@ -433,17 +431,6 @@ void OverlayService::OnNotifyPlayerHealthUpdate(const NotifyPlayerHealthUpdate& 
     m_pOverlay->ExecuteAsync("setHealth", pArguments);
 }
 
-void OverlayService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept
-{
-    if (acEvent.IsLeader)
-        m_world.GetOverlayService().GetOverlayApp()->ExecuteAsync("partyCreated");
-}
-
-void OverlayService::OnPartyLeftEvent(const PartyLeftEvent& acEvent) noexcept
-{
-    m_world.GetOverlayService().GetOverlayApp()->ExecuteAsync("partyLeft");
-}
-
 void OverlayService::RunDebugDataUpdates() noexcept
 {
     static std::chrono::steady_clock::time_point lastSendTimePoint;
@@ -473,7 +460,7 @@ void OverlayService::RunDebugDataUpdates() noexcept
 // health sync code being somewhat broken for players.
 void OverlayService::RunPlayerHealthUpdates() noexcept
 {
-    if (!m_transport.IsConnected() || !m_world.GetPartyService().IsInParty())
+    if (!m_transport.IsConnected())
         return;
 
     static std::chrono::steady_clock::time_point lastSendTimePoint;

@@ -12,7 +12,6 @@
 #include <Components/AnimationComponent.h>
 #include <Components/InventoryComponent.h>
 #include <Components/QuestLogComponent.h>
-#include <Components/PartyComponent.h>
 #include <Components/ActorValuesComponent.h>
 #include <Components/ObjectComponent.h>
 

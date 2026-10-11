@@ -340,7 +340,7 @@ TEST_CASE("Two-player: full protocol message flow", "[Enet6][TwoPlayer]")
     CHECK(hasType("AuthenticationResponse"));
     CHECK(hasType("AssignCharacterResponse"));
     CHECK(hasType("ServerTimeSettings"));
-    CHECK(hasType("NotifyPlayerList"));
+    CHECK(hasType("NotifyPlayerJoined"));
 
     // Total captured messages should be substantial (auth responses, time settings,
     // player list updates, character assigns, spawn notifications)

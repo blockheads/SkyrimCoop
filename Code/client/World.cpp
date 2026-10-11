@@ -88,7 +88,7 @@ World::World()
                                   ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(), ctx().at<IEventBridge&>());
     ctx().emplace<CalendarService>(*this, m_dispatcher, m_transport);
     ctx().emplace<QuestService>(*this, m_dispatcher);
-    ctx().emplace<PartyService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport,
@@ -98,7 +98,7 @@ World::World()
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<StringCacheService>(m_dispatcher);
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>());
-    ctx().emplace<WeatherService>(*this, m_transport, m_dispatcher);
+    ctx().emplace<WeatherService>(*this, m_dispatcher);
     ctx().emplace<HostService>(*this, m_dispatcher);
 
     BehaviorVar::Get()->Init();
@@ -118,7 +118,7 @@ World::~World()
     ctx().erase<MagicService>();
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
-    ctx().erase<PartyService>();
+    ctx().erase<SessionService>();
     ctx().erase<QuestService>();
     ctx().erase<CalendarService>();
     ctx().erase<ObjectService>();

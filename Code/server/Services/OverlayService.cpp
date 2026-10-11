@@ -46,9 +46,9 @@ void sendPlayerMessage(const ChatMessageType acType, const String acContent, Pla
 
     case kSystemMessage: spdlog::error("PlayerId {} attempted to send a System Message.", aSendingPlayer->GetId()); break;
 
-    case kPlayerDialogue: GameServer::Get()->SendToParty(notifyMessage, aSendingPlayer->GetParty()); break;
+    case kPlayerDialogue: GameServer::Get()->SendToPlayers(notifyMessage); break;
 
-    case kPartyChat: GameServer::Get()->SendToParty(notifyMessage, aSendingPlayer->GetParty()); break;
+    case kPartyChat: GameServer::Get()->SendToPlayers(notifyMessage); break;
 
     case kLocalChat:
         if (character)
@@ -104,7 +104,7 @@ void OverlayService::OnPlayerHealthUpdate(const PacketEvent<RequestPlayerHealthU
     notify.PlayerId = acMessage.pPlayer->GetId();
     notify.Percentage = acMessage.Packet.Percentage;
 
-    GameServer::Get()->SendToParty(notify, acMessage.pPlayer->GetParty(), acMessage.GetSender());
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 } // namespace Server

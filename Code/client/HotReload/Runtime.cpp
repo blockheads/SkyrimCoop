@@ -7,7 +7,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
-#include <Services/PartyService.h>
+#include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <Services/HostService.h>
 #include <Games/Skyrim/Interface/UI.h>
@@ -351,16 +351,18 @@ static nlohmann::json LocalActors()
     return result;
 }
 
-// Session-wide state each game holds: its clock, weather, party and connection.
+// Session-wide state each game holds: its clock, weather, the other players and connection.
 static nlohmann::json GameStatus()
 {
     auto& world = World::Get();
     const auto& bridge = world.GetWorldBridge();
-    const auto& party = world.GetPartyService();
+    nlohmann::json players = nlohmann::json::array();
+    for (const auto& [cId, cPlayer] : world.GetSessionService().GetPlayers())
+        players.push_back({{"id", cId}, {"name", cPlayer.Name.c_str()}, {"host", cPlayer.IsHost}});
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
             {"weather", bridge.GetCurrentWeatherId()},
-            {"party", {{"in_party", party.IsInParty()}, {"leader", party.IsLeader()}, {"members", party.GetPartyMembers().size()}}},
+            {"players", players},
             {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }
 
@@ -421,6 +423,15 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
             world.GetHostService().StopHosting();
         else
             world.GetTransport().Close();
+        return R"({"ok": true})";
+    }
+    if (cCommand == "kick")
+    {
+        // {"cmd": "kick", "player": id}: the host removes a player from the session.
+        auto& host = World::Get().GetHostService();
+        if (!host.IsHosting())
+            return R"({"ok": false, "error": "not hosting"})";
+        host.KickPlayer(cRequest.value("player", 0u));
         return R"({"ok": true})";
     }
     if (cCommand == "reload")

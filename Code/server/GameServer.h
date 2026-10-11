@@ -15,7 +15,6 @@ class EnetRecorder;
 struct AuthenticationRequest;
 struct QuestLog;
 struct Player;
-struct PartyComponent;
 
 namespace Resources
 {
@@ -75,6 +74,8 @@ struct GameServer final : TiltedPhoques::Server
     [[nodiscard]] ConnectionId_t HostConnection() const noexcept;
     // The player's id in the player list (0: no such player).
     [[nodiscard]] uint32_t PlayerIdOf(ConnectionId_t aConnectionId) const noexcept;
+    // Disconnects the player (never the host: the host is the session).
+    void KickPlayer(uint32_t aPlayerId) noexcept;
     // The player's own character, for the player list and the services still here (quests, chat).
     void SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept;
     // Character ids share the World's entity ids with objects (one id space while both exist).
@@ -102,8 +103,6 @@ struct GameServer final : TiltedPhoques::Server
     void SendToLoaded(const ServerMessage& acServerMessage) const;
     void SendToPlayers(const ServerMessage& acServerMessage,
                        const Player* apExcludeSender = nullptr) const; // Primary broadcast method for P2P co-op
-    void SendToParty(const ServerMessage& acServerMessage, const PartyComponent& acPartyComponent,
-                     const Player* apExcludeSender = nullptr) const;
 
     const Info& GetInfo() const noexcept
     {

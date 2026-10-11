@@ -94,11 +94,7 @@ void QuestService::OnQuestChanges(const PacketEvent<RequestQuestUpdate>& acMessa
         notify.Status = NotifyQuestUpdate::Stopped;
     }
 
-    const auto& partyComponent = acMessage.pPlayer->GetParty();
-    if (!partyComponent.JoinedPartyId.has_value())
-        return;
-
-    GameServer::Get()->SendToParty(notify, partyComponent, acMessage.GetSender());
+    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 } // namespace Server

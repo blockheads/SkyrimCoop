@@ -53,30 +53,10 @@ bool OverlayClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefR
             ProcessChatMessage(eventArgs);
         else if (eventName == "setTime")
             ProcessSetTimeCommand(eventArgs);
-        else if (eventName == "launchParty")
-            World::Get().GetPartyService().CreateParty();
-        else if (eventName == "leaveParty")
-            World::Get().GetPartyService().LeaveParty();
-        else if (eventName == "createPartyInvite")
+        else if (eventName == "kickPlayer")
         {
-            uint32_t aPlayerId = eventArgs->GetInt(0);
-            World::Get().GetPartyService().CreateInvite(aPlayerId);
-        }
-        else if (eventName == "acceptPartyInvite")
-        {
-            uint32_t aInviterId = eventArgs->GetInt(0);
-            // push to main thread because the party service has to check validity of invite thread safely
-            World::Get().GetRunner().Queue([aInviterId]() { World::Get().GetPartyService().AcceptInvite(aInviterId); });
-        }
-        else if (eventName == "kickPartyMember")
-        {
-            uint32_t aPlayerId = eventArgs->GetInt(0);
-            World::Get().GetPartyService().KickPartyMember(aPlayerId);
-        }
-        else if (eventName == "changePartyLeader")
-        {
-            uint32_t aPlayerId = eventArgs->GetInt(0);
-            World::Get().GetPartyService().ChangePartyLeader(aPlayerId);
+            const uint32_t cPlayerId = eventArgs->GetInt(0);
+            World::Get().GetRunner().Queue([cPlayerId]() { World::Get().GetHostService().KickPlayer(cPlayerId); });
         }
         else if (eventName == "teleportToPlayer")
             ProcessTeleportMessage(eventArgs);

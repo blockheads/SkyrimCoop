@@ -12,13 +12,6 @@
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestQuestUpdate.h>
-#include <Messages/PartyInviteRequest.h>
-#include <Messages/PartyAcceptInviteRequest.h>
-#include <Messages/PartyLeaveRequest.h>
-#include <Messages/PartyCreateRequest.h>
-#include <Messages/PartyChangeLeaderRequest.h>
-#include <Messages/PartyKickRequest.h>
-#include <Messages/PartyInviteRequest.h>
 #include <Messages/RequestActorValueChanges.h>
 #include <Messages/RequestActorMaxValueChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
@@ -49,8 +42,6 @@
 #include <Messages/PlayerLevelRequest.h>
 #include <Messages/TeleportRequest.h>
 #include <Messages/RequestPlayerHealthUpdate.h>
-#include <Messages/RequestWeatherChange.h>
-#include <Messages/RequestCurrentWeather.h>
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
 
@@ -63,10 +54,10 @@ struct ClientMessageFactory
     template <class T> static auto Visit(T&& func)
     {
         auto s_visitor = CreateMessageVisitor<
-            AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges, RequestQuestUpdate, PartyInviteRequest, PartyAcceptInviteRequest, PartyLeaveRequest, PartyCreateRequest,
-            PartyChangeLeaderRequest, PartyKickRequest, RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, 
+            AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges, RequestQuestUpdate,
+            RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, 
             RequestObjectInventoryChanges, SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, ScriptAnimationRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
-            RequestEquipmentChanges, SendChatMessageRequest, TeleportCommandRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerDialogueRequest, PlayerLevelRequest, TeleportRequest, RequestPlayerHealthUpdate, RequestWeatherChange, RequestCurrentWeather, RequestSetWaypoint,
+            RequestEquipmentChanges, SendChatMessageRequest, TeleportCommandRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerDialogueRequest, PlayerLevelRequest, TeleportRequest, RequestPlayerHealthUpdate, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot>;
 
         return s_visitor(std::forward<T>(func));

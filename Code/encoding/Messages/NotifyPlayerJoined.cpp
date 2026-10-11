@@ -8,6 +8,7 @@ void NotifyPlayerJoined::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
     WorldSpaceId.Serialize(aWriter);
     CellId.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Level);
+    Serialization::WriteBool(aWriter, IsHost);
 }
 
 void NotifyPlayerJoined::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -19,4 +20,5 @@ void NotifyPlayerJoined::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) 
     WorldSpaceId.Deserialize(aReader);
     CellId.Deserialize(aReader);
     Level = Serialization::ReadVarInt(aReader) & 0xFFFF;
+    IsHost = Serialization::ReadBool(aReader);
 }

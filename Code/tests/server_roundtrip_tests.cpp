@@ -64,7 +64,7 @@ TEST_CASE("RoundTrip_AuthenticationRequest", "[NetworkRoundTrip]")
 
     // Verify response was received and correctly deserialized through the full path.
     // Note: m_lastOpcode may not be kAuthenticationResponse because the server sends
-    // additional messages after auth (NotifyPlayerList, StringCacheUpdate, etc.)
+    // additional messages after auth (StringCacheUpdate, NotifyPlayerJoined, etc.)
     REQUIRE(client.m_gotAuthResponse);
     REQUIRE(client.m_authAccepted);
 }

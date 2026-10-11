@@ -1,5 +1,4 @@
 #include <Services/CharacterService.h>
-#include <Services/PartyService.h>
 #include <Services/QuestService.h>
 #include <Services/TransportService.h>
 
@@ -17,7 +16,6 @@
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
 #include <Events/MoveActorEvent.h>
-#include <Events/PartyJoinedEvent.h>
 
 #include <Structs/ActionEvent.h>
 #include <Structs/GridCellCoords.h>
@@ -107,7 +105,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     m_relinquishConnection = m_dispatcher.sink<NotifyRelinquishControl>().connect<&CharacterService::OnNotifyRelinquishControl>(this);
 
-    m_partyJoinedConnection = aDispatcher.sink<PartyJoinedEvent>().connect<&CharacterService::OnPartyJoinedEvent>(this);
 }
 
 void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept
@@ -1023,19 +1020,6 @@ void CharacterService::OnNotifyActorTeleport(const NotifyActorTeleport& acMessag
     spdlog::info("Successfully teleported actor, form id: {:X}, world space: {:X}, cell: {:X}, position: ({}, {}, {})", cActorId, acMessage.WorldSpaceId.BaseId, acMessage.CellId.BaseId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
 }
 
-void CharacterService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept
-{
-    // Takes ownership of all actors
-    if (acEvent.IsLeader)
-    {
-        auto view = m_world.view<FormIdComponent>(entt::exclude<ObjectComponent>);
-        Vector<entt::entity> entities(view.begin(), view.end());
-
-        for (auto entity : entities)
-            ProcessNewEntity(entity);
-    }
-}
-
 void CharacterService::MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept
 {
     uint32_t cellFormId = 0;
@@ -1074,17 +1058,7 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
 
     if (auto* pRemoteComponent = m_world.try_get<RemoteComponent>(aEntity); pRemoteComponent)
     {
-        // TODO(cosideci): don't just take all actors (i.e. from other parties),
-        // maybe check it server side, add a variable to the request.
-        if (m_world.GetPartyService().IsLeader() && !m_actorBridge.IsTemporaryActor(formIdComponent.Id) && !m_actorBridge.IsActorMount(formIdComponent.Id))
-        {
-            spdlog::info("Sending ownership claim for actor {:X} with server id {:X}", formIdComponent.Id, pRemoteComponent->Id);
-
-            TakeOwnership(formIdComponent.Id, pRemoteComponent->Id, aEntity);
-        }
-        else
-            spdlog::info("New entity remotely managed, form id: {:X}, server id: {:X}", formIdComponent.Id, pRemoteComponent->Id);
-
+        spdlog::info("New entity remotely managed, form id: {:X}, server id: {:X}", formIdComponent.Id, pRemoteComponent->Id);
         return;
     }
 
@@ -1620,8 +1594,6 @@ void CharacterService::RunExperienceUpdates() noexcept
     if (m_cachedExperience == 0.f)
         return;
 
-    if (!World::Get().GetPartyService().IsInParty())
-        return;
 
     SyncExperienceRequest message;
     message.Experience = m_cachedExperience;

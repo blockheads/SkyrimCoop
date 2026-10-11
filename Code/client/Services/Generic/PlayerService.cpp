@@ -7,8 +7,6 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/PlayerDialogueEvent.h>
 #include <Events/PlayerLevelEvent.h>
-#include <Events/PartyJoinedEvent.h>
-#include <Events/PartyLeftEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 
 #include <Messages/PlayerRespawnRequest.h>
@@ -52,8 +50,6 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     m_notifyRespawnConnection = m_dispatcher.sink<NotifyPlayerRespawn>().connect<&PlayerService::OnNotifyPlayerRespawn>(this);
     m_playerDialogueConnection = m_dispatcher.sink<PlayerDialogueEvent>().connect<&PlayerService::OnPlayerDialogueEvent>(this);
     m_playerLevelConnection = m_dispatcher.sink<PlayerLevelEvent>().connect<&PlayerService::OnPlayerLevelEvent>(this);
-    m_partyJoinedConnection = aDispatcher.sink<PartyJoinedEvent>().connect<&PlayerService::OnPartyJoinedEvent>(this);
-    m_partyLeftConnection = aDispatcher.sink<PartyLeftEvent>().connect<&PlayerService::OnPartyLeftEvent>(this);
 }
 
 void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
@@ -69,7 +65,8 @@ void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
 {
     // TODO: SkyrimTogether.esm
     m_formBridge.SetGlobalValue(kKillMoveGlobalFormId, 0.f);
-    m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 0.f);
+    // World encounters are the host's world: only its game spawns them.
+    m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, m_world.GetHostService().IsHosting() ? 1.f : 0.f);
 }
 
 void PlayerService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
@@ -115,10 +112,6 @@ void PlayerService::OnPlayerDialogueEvent(const PlayerDialogueEvent& acEvent) co
     if (!m_transport.IsConnected())
         return;
 
-    const auto& partyService = m_world.GetPartyService();
-    if (!partyService.IsInParty())
-        return;
-
     PlayerDialogueRequest request{};
     request.Text = acEvent.Text;
 
@@ -134,24 +127,6 @@ void PlayerService::OnPlayerLevelEvent(const PlayerLevelEvent& acEvent) const no
     request.NewLevel = m_playerBridge.GetPlayerLevel();
 
     m_transport.Send(request);
-}
-
-void PlayerService::OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept
-{
-    // TODO: this can be done a bit prettier
-    if (acEvent.IsLeader)
-    {
-        m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 1.f);
-    }
-}
-
-void PlayerService::OnPartyLeftEvent(const PartyLeftEvent& acEvent) noexcept
-{
-    // TODO: this can be done a bit prettier
-    if (World::Get().GetTransport().IsConnected())
-    {
-        m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 0.f);
-    }
 }
 
 void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept

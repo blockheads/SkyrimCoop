@@ -7,6 +7,7 @@
 #include <Services/TransportService.h>
 #include <Services/Host/HostBridge.h>
 #include <Services/CharacterService.h>
+#include <Services/WeatherService.h>
 #include <Bridges/IWorldBridge.h>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -75,6 +76,7 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return time;
     };
     game.SetHour = [this](float aHours) { m_world.ctx().at<IWorldBridge&>().SetGameTimeHours(aHours); };
+    game.ReadWeather = [this] { return m_world.GetWeatherService().ReadSharedWeather(); };
     m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, std::move(game));
 
     m_isHosting = true;
@@ -103,6 +105,12 @@ void HostService::StopHosting() noexcept
         // The server will finish shutting down asynchronously in OnUpdate()
         // Once IsRunning() returns false, we'll destroy it and create a fresh one next time
     }
+}
+
+void HostService::KickPlayer(uint32_t aPlayerId) noexcept
+{
+    if (m_pBridge)
+        m_pBridge->Kick(aPlayerId);
 }
 
 void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept

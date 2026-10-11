@@ -11,6 +11,7 @@
 
 #include <Messages/AddTargetRequest.h>
 #include <Messages/NotifySetTimeResult.h>
+#include <Messages/NotifyWeatherChange.h>
 #include <Messages/ServerTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
 #include <Messages/AssignCharacterRequest.h>
@@ -129,6 +130,7 @@ struct Session
     Vector<CharacterSpawnRequest> Spawns;                // the host's own actors in its game
     TiltedPhoques::Map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
+    std::optional<GameId> Weather;                           // the host's weather to share
     std::vector<Sent> Outbox;
 
 private:
@@ -144,6 +146,7 @@ private:
         };
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
+        game.ReadWeather = [this] { return Weather; };
         game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) {
             const auto it = Copies.find(aServerId);
             if (it == Copies.end())

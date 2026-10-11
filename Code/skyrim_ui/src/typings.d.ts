@@ -62,6 +62,7 @@ declare namespace SkyrimTogetherTypes {
     username: string,
     level: number,
     cellName: string,
+    isHost: boolean,
   ) => void;
 
   type PlayerDisconnectedCallback = (
@@ -79,7 +80,7 @@ declare namespace SkyrimTogetherTypes {
 
   type SetPlayer3dUnloadedCallback = (playerId: number) => void;
 
-  type SetLocalPlayerIdCallback = (playerId: number) => void;
+  type SetLocalPlayerIdCallback = (playerId: number, isHost: boolean) => void;
 
   type ProtocolMismatch = () => void;
 
@@ -87,13 +88,6 @@ declare namespace SkyrimTogetherTypes {
 
   type DummyDataCallback = (data: Array<number>) => void;
 
-  type PartyInfoCallback = (playerIds: Array<number>, leaderId: number) => void;
-
-  type PartyCreatedCallback = () => void;
-
-  type PartyLeftCallback = (inviterId: number) => void;
-
-  type PartyInviteReceivedCallback = (inviterId: number) => void;
 }
 
 /** Global Skyrim: Together object. */
@@ -205,19 +199,6 @@ interface SkyrimTogether {
 
   on(event: 'dummyData', callback: SkyrimTogetherTypes.DummyDataCallback): void;
 
-  on(event: 'partyInfo', callback: SkyrimTogetherTypes.PartyInfoCallback): void;
-
-  on(
-    event: 'partyCreated',
-    callback: SkyrimTogetherTypes.PartyCreatedCallback,
-  ): void;
-
-  on(event: 'partyLeft', callback: SkyrimTogetherTypes.PartyLeftCallback): void;
-
-  on(
-    event: 'partyInviteReceived',
-    callback: SkyrimTogetherTypes.PartyInviteReceivedCallback,
-  ): void;
 
   /** Remove listener from when the application is first initialized. */
   off(event: 'init', callback?: SkyrimTogetherTypes.InitCallback): void;
@@ -329,25 +310,6 @@ interface SkyrimTogether {
     callback?: SkyrimTogetherTypes.DummyDataCallback,
   ): void;
 
-  off(
-    event: 'partyInfo',
-    callback?: SkyrimTogetherTypes.PartyInfoCallback,
-  ): void;
-
-  off(
-    event: 'partyCreated',
-    callback?: SkyrimTogetherTypes.PartyCreatedCallback,
-  ): void;
-
-  off(
-    event: 'partyLeft',
-    callback?: SkyrimTogetherTypes.PartyLeftCallback,
-  ): void;
-
-  off(
-    event: 'partyInviteReceived',
-    callback?: SkyrimTogetherTypes.PartyInviteReceivedCallback,
-  ): void;
 
   /**
    * Connect to server at given address and port.
@@ -396,40 +358,9 @@ interface SkyrimTogether {
   reconnect(): void;
 
   /**
-   * Launch a party.
-   */
-  launchParty(): void;
-
-  /**
-   * Send a party invite to player with player id.
+   * As the host, remove a player from the session.
    *
-   * @param playerId Id of the player to which the invite should be sent.
+   * @param playerId Id of the player to remove.
    */
-  createPartyInvite(playerId: number): void;
-
-  /**
-   * Accept a party invite.
-   *
-   * @param inviterId Id of the player who sent the invite.
-   */
-  acceptPartyInvite(inviterId: number): void;
-
-  /**
-   * As a party leader, kick a member from the party.
-   *
-   * @param playerId Id of the player who gets kicked.
-   */
-  kickPartyMember(playerId: number): void;
-
-  /**
-   * Leave the currently joined party.
-   */
-  leaveParty(): void;
-
-  /**
-   * As a party leader, make someone else the leader.
-   *
-   * @param playerId Id of the new leader.
-   */
-  changePartyLeader(playerId: number): void;
+  kickPlayer(playerId: number): void;
 }

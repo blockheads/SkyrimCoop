@@ -243,7 +243,7 @@ static bool g_enableNetworkWindow{false};
 static bool g_enableFormsWindow{false};
 static bool g_enablePlayerWindow{false};
 static bool g_enableSkillsWindow{false};
-static bool g_enablePartyWindow{false};
+static bool g_enableSessionWindow{false};
 static bool g_enableActorValuesWindow{false};
 static bool g_enableQuestWindow{false};
 static bool g_enableCellWindow{false};
@@ -346,7 +346,7 @@ void DebugService::OnDraw() noexcept
         ImGui::MenuItem("Quests", nullptr, &g_enableQuestWindow);
         ImGui::MenuItem("Entities", nullptr, &g_enableEntitiesWindow);
         ImGui::MenuItem("Server", nullptr, &g_enableServerWindow);
-        ImGui::MenuItem("Party", nullptr, &g_enablePartyWindow);
+        ImGui::MenuItem("Session", nullptr, &g_enableSessionWindow);
         ImGui::MenuItem("Dragon spawner", nullptr, &g_enableDragonSpawnerWindow);
 
 #if (!IS_MASTER)
@@ -390,8 +390,8 @@ void DebugService::OnDraw() noexcept
         DrawEntitiesView();
     if (g_enableServerWindow)
         DrawServerView();
-    if (g_enablePartyWindow)
-        DrawPartyView();
+    if (g_enableSessionWindow)
+        DrawSessionView();
     if (g_enableDragonSpawnerWindow)
         DrawDragonSpawnerView();
 

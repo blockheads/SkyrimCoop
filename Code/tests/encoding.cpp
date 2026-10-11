@@ -46,8 +46,8 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
     }
 
     {
-        PartyAcceptInviteRequest request;
-        request.InviterId = 123456;
+        PlayerLevelRequest request;
+        request.NewLevel = 42;
 
         Buffer::Writer writer(&buff);
         request.Serialize(writer);
@@ -60,8 +60,8 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
         REQUIRE(pMessage);
         REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
 
-        auto pRequest = CastUnique<PartyAcceptInviteRequest>(std::move(pMessage));
-        REQUIRE(pRequest->InviterId == request.InviterId);
+        auto pRequest = CastUnique<PlayerLevelRequest>(std::move(pMessage));
+        REQUIRE(pRequest->NewLevel == request.NewLevel);
     }
 }
 

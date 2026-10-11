@@ -13,6 +13,13 @@
 #include <Messages/RequestQuestUpdate.h>
 #include <Messages/NotifyQuestUpdate.h>
 
+namespace
+{
+// Quest sync waits for its host-authority design (docs/design/host-authority-migration.md): the
+// relay here would carry every player's progress both ways.
+constexpr bool cSyncQuests = false;
+} // namespace
+
 QuestService::QuestService(World& aWorld, entt::dispatcher& aDispatcher)
     : m_world(aWorld)
     , m_formBridge(aWorld.ctx().at<IFormBridge&>())
@@ -43,7 +50,7 @@ void QuestService::OnConnected(const ConnectedEvent&) noexcept
 
 void QuestService::OnQuestStartStop(uint32_t aFormId, bool aStarted) noexcept
 {
-    if (m_formBridge.IsQuestOverrideActive() || !m_world.GetPartyService().IsInParty())
+    if (m_formBridge.IsQuestOverrideActive() || !cSyncQuests)
         return;
 
     spdlog::info("Quest start/stop event: {:X}", aFormId);
@@ -92,7 +99,7 @@ void QuestService::OnQuestStartStop(uint32_t aFormId, bool aStarted) noexcept
 
 void QuestService::OnQuestStage(uint32_t aFormId, uint32_t aStageId) noexcept
 {
-    if (m_formBridge.IsQuestOverrideActive() || !m_world.GetPartyService().IsInParty())
+    if (m_formBridge.IsQuestOverrideActive() || !cSyncQuests)
         return;
 
     spdlog::info("Quest stage event: {:X}, stage: {}", aFormId, aStageId);

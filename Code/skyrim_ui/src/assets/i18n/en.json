@@ -71,7 +71,8 @@
         "NAME": "Name",
         "LOCATION": "Location"
       },
-      "INVITE": "Invite"
+      "KICK": "Kick",
+      "HOST": "(host)"
     },
     "PLAYER_MANAGER": {
       "PLAYER_LIST": "Player List",

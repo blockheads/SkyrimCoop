@@ -81,7 +81,7 @@ export class GroupComponent implements OnInit, OnDestroy {
     this.onPositionUpdate();
 
     this.subscribeChangeHealth();
-    this.onPartyInfo();
+    this.onGroupChange();
     this.onConnectionState();
     this.subscribeActivation();
   }
@@ -102,8 +102,8 @@ export class GroupComponent implements OnInit, OnDestroy {
       });
   }
 
-  private onPartyInfo() {
-    this.clientService.partyInfoChange
+  private onGroupChange() {
+    this.groupService.group
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         this.flashGroup();
@@ -208,21 +208,5 @@ export class GroupComponent implements OnInit, OnDestroy {
         });
       }
     }
-  }
-
-  public invite(playerId: number) {
-    this.groupService.invite(playerId);
-  }
-
-  public accept(inviterId: number) {
-    return this.groupService.accept(inviterId);
-  }
-
-  public kick(playerId: number) {
-    return this.groupService.kick(playerId);
-  }
-
-  public changeLeader(playerId: number) {
-    return this.groupService.changeLeader(playerId);
   }
 }

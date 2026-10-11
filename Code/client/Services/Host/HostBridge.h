@@ -6,6 +6,7 @@
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostClock.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostWeather.h>
 
 #include <array>
 #include <functional>
@@ -30,7 +31,7 @@ struct GameServer;
  * The bridge is the front door and the plain relays: most rules pass a request on as its
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
  * receives it (Delivery). The parts that keep state register their own rules: HostCharacters
- * (ids, owners, spawns) and HostClock (the session's time).
+ * (ids, owners, spawns) and HostClock (the session's time); HostWeather has no rules.
  */
 struct HostBridge
 {
@@ -63,6 +64,8 @@ struct HostBridge
 
     // A player's own character is in the world: everything it must know about the session.
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) const noexcept;
+    // The host removes a player from the session.
+    void Kick(uint32_t aPlayerId) noexcept;
 
 private:
     enum class Delivery
@@ -91,4 +94,5 @@ private:
     // The parts, after the rules they register into.
     HostCharacters m_characters;
     HostClock m_clock;
+    HostWeather m_weather;
 };

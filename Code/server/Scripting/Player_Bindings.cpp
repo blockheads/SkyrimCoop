@@ -13,7 +13,6 @@ void BindPlayer(sol::state_view aState)
     playerType["GetId"] = &Server::Player::GetId;
     playerType["GetConnectionId"] = &Server::Player::GetConnectionId;
     playerType["GetCharacter"] = &Server::Player::GetCharacter;
-    playerType["GetParty"] = &Server::Player::GetParty;
     playerType["GetUsername"] = &Server::Player::GetUsername;
     playerType["GetEndPoint"] = &Server::Player::GetEndPoint;
     playerType["GetDiscordId"] = &Server::Player::GetDiscordId;
@@ -32,10 +31,6 @@ void BindPlayer(sol::state_view aState)
     playerType["SetLevel"] = &Server::Player::SetLevel;
     playerType["SetCellComponent"] = &Server::Player::SetCellComponent;
     playerType["Send"] = static_cast<void (Server::Player::*)(const ServerMessage&) const>(&Server::Player::Send);
-    playerType["IsPartyLeader"] = [](Server::Player& aSelf) {
-        return Server::GameServer::Get()->GetWorld().GetPartyService().IsPlayerLeader(
-            Server::PlayerManager::Get()->GetByConnectionId(aSelf.GetConnectionId()));
-    };
 }
 
 void BindPlayerManager(sol::state_view aState)

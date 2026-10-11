@@ -22,7 +22,6 @@ import { NotificationPopupContainerComponent } from './components/notification-p
 import { NotificationPopupComponent } from './components/notification-popup/notification-popup.component';
 import { NotificationsComponent } from './components/notifications/notifications.component';
 import { OrderComponent } from './components/order/order.component';
-import { PartyMenuComponent } from './components/party-menu/party-menu.component';
 import { PlayerListComponent } from './components/player-list/player-list.component';
 import { PlayerManagerComponent } from './components/player-manager/player-manager.component';
 import { PopupComponent } from './components/popup/popup.component';
@@ -62,7 +61,6 @@ import { TranslocoRootModule } from './transloco-root.module';
     NotificationPopupContainerComponent,
     NotificationsComponent,
     OrderComponent,
-    PartyMenuComponent,
     PlayerListComponent,
     PlayerManagerComponent,
     ActionButtonsComponent,

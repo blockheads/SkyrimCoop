@@ -195,7 +195,8 @@ Done:
 
 The bridge lives in `Code/client/Services/Host/`. `HostBridge` is the front door, the deliveries
 and the plain relays; the parts that keep state register their own rules with it: `HostCharacters`
-(ids, owners, spawns, removal, respawn, movement) and `HostClock` (the session's time). What the
+(ids, owners, spawns, removal, respawn, movement) and `HostClock` (the session's time);
+`HostWeather` (the session's weather) only sends. What the
 bridge reads and changes in the host's game comes in as `HostGame` callbacks. What a joining
 player is sent is listed in one place, `HostBridge::PlayerEntered`. A plain relay is one line in
 the bridge's constructor, naming the request and who
@@ -238,10 +239,20 @@ Still on the server, reading positions that have been stale since phase 2: telep
 ### Phase 4: Host-decided state
 
 - Time and weather: the host's engine is the clock. Peers get it on join and on change.
+  Done: `HostClock` and `HostWeather` (a peer forces the host's weather over its own each frame;
+  the host shares nothing without a sky or while its map is open). Only the host's game spawns
+  world encounters.
 - Quests: the host's quest log is the authority, and stage changes are sent to peers.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter.
-- Party: everyone in the session, the host leads (see Decisions). The party request messages go.
+- Party: done, as no party at all: being connected is being in the session (see Decisions).
+  The party messages, `PartyService` (server and client), `PartyComponent`, `SendToParty`,
+  `bAutoPartyJoin` and `NotifyPlayerList` are gone. What a party gated (XP, player dialogue,
+  waypoints, chat, overlay health) goes to everyone; leader checks are "is the host". The session's
+  players stay `NotifyPlayerJoined`/`NotifyPlayerLeft` from `GameServer` (it marks the host) until
+  phase 5; the client keeps them in `SessionService`. The host alone can kick, through
+  `HostBridge::Kick` (overlay player list, debug view, `kick` test command). Quest sync stays off
+  (`cSyncQuests` in the client's `QuestService`) until quests have their own design.
 - Waypoints, chat, player dialogue, overlay health: relays.
 - Commands: `SetTimeCommandRequest` from any player sets the host's clock (peers follow it);
   `TeleportCommandRequest` is answered from the host's game.
@@ -278,8 +289,8 @@ Built on the bridge's unreliable channel:
 
 ## Decisions
 
-1. **Party:** everyone in the session is one party, automatically, and the host is the leader. No
-   invites, kicks or leader changes.
+1. **Party:** there are no parties: everyone connected is in the session, and the host is its
+   authority. No invites or leader changes; the host alone can kick a player (a disconnect).
 2. **Set-time command:** any player can run it; it runs on the host's clock, which everyone
    follows. **Teleport command:** the host only, for now. Later a peer can ask for it as a
    Borderlands-style request that anyone can cancel, like leaving a cell under the party tether.
@@ -301,10 +312,10 @@ Built on the bridge's unreliable channel:
 | MagicService | `SpellCastRequest`, `InterruptCastRequest`, `AddTargetRequest`, `RemoveSpellRequest` | Relay |
 | CombatService | `ProjectileLaunchRequest` | Relay |
 | CalendarService | (time on join and on change) | Host-decided |
-| WeatherService | `RequestCurrentWeather`, `RequestWeatherChange` | Host-decided |
+| WeatherService | `RequestCurrentWeather`, `RequestWeatherChange` | Host-decided (done: deleted, `HostWeather` sends the host's) |
 | QuestService | `RequestQuestUpdate` | Host-decided |
 | ObjectService | `AssignObjectsRequest`, `ActivateRequest`, `LockChangeRequest`, `ScriptAnimationRequest` | Host-decided |
-| PartyService | `PartyCreateRequest`, `PartyInviteRequest`, `PartyAcceptInviteRequest`, `PartyLeaveRequest`, `PartyKickRequest`, `PartyChangeLeaderRequest` | Host-decided |
+| PartyService | `PartyCreateRequest`, `PartyInviteRequest`, `PartyAcceptInviteRequest`, `PartyLeaveRequest`, `PartyKickRequest`, `PartyChangeLeaderRequest` | Dropped (no parties; the host kicks through the bridge) |
 | MapService | `RequestSetWaypoint`, `RequestRemoveWaypoint` | Relay |
 | OverlayService | `SendChatMessageRequest`, `PlayerDialogueRequest`, `RequestPlayerHealthUpdate`, `TeleportRequest` | Relay |
 | CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host-decided (set time: any player, on the host's clock; teleport: the host only for now) |

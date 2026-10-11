@@ -41,7 +41,6 @@ struct SubtitleEvent;
 struct NotifySubtitle;
 struct NotifyActorTeleport;
 struct NotifyRelinquishControl;
-struct PartyJoinedEvent;
 
 class IActorBridge;
 class IFormBridge;
@@ -91,7 +90,6 @@ struct CharacterService
     void OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept;
     void OnNotifyActorTeleport(const NotifyActorTeleport& acMessage) noexcept;
     void OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept;
-    void OnPartyJoinedEvent(const PartyJoinedEvent& acEvent) noexcept;
 
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
 
@@ -170,5 +168,4 @@ private:
     entt::scoped_connection m_subtitleSyncConnection;
     entt::scoped_connection m_actorTeleportConnection;
     entt::scoped_connection m_relinquishConnection;
-    entt::scoped_connection m_partyJoinedConnection;
 };

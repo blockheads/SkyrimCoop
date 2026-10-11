@@ -3,11 +3,9 @@ import { TranslocoService } from '@ngneat/transloco';
 import { AsyncSubject, BehaviorSubject, ReplaySubject, Subject } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Debug } from '../models/debug';
-import { PartyInfo } from '../models/party-info';
 import { Player } from '../models/player';
 import { ChatService } from './chat.service';
 import { ErrorEvents, ErrorService } from './error.service';
-import { LoadingService } from './loading.service';
 
 /** Client game service. */
 @Injectable({
@@ -46,15 +44,6 @@ export class ClientService implements OnDestroy {
   /** Connect player to server change. */
   public playerConnectedChange = new Subject<Player>();
 
-  /** Connect party info change. */
-  public partyInfoChange = new Subject<PartyInfo>();
-
-  /** Connect party info change. */
-  public partyLeftChange = new Subject<void>();
-
-  /** Connect party invite received. */
-  public partyInviteReceivedChange = new Subject<number>();
-
   /** Disconnect player to server change. */
   public playerDisconnectedChange = new Subject<Player>();
 
@@ -78,24 +67,10 @@ export class ClientService implements OnDestroy {
   /** Used purely for debugging. */
   public debugChange = new Subject<void>();
 
-  // The below emitters are used in the mocking service
-
-  /** Used for when a party leader changed. */
-  public partyLaunchedChange = new Subject<void>();
-
-  /** Used for when a party invite is sent. */
-  public partyInviteChange = new Subject<number>();
-
-  /** Used for when a party invite was accepted by the local player. */
-  public partyJoinedChange = new Subject<number>();
-
-  /** Used for when a party member was kicked. */
-  public memberKickedChange = new Subject<number>();
-
-  /** Used for when a party leader changed. */
-  public partyLeaderChange = new Subject<number>();
-
   public localPlayerId = undefined;
+
+  /** This game hosts the session (the authority, who alone may kick). */
+  public isHost = false;
 
   private _host: string;
 
@@ -111,7 +86,6 @@ export class ClientService implements OnDestroy {
   public constructor(
     private readonly zone: NgZone,
     private readonly errorService: ErrorService,
-    private readonly loadingService: LoadingService,
     private readonly translocoService: TranslocoService,
     private readonly chatService: ChatService,
   ) {
@@ -144,13 +118,6 @@ export class ClientService implements OnDestroy {
     skyrimtogether.on('protocolMismatch', this.onProtocolMismatch.bind(this));
     skyrimtogether.on('triggerError', this.onTriggerError.bind(this));
     skyrimtogether.on('dummyData', this.onDummyData.bind(this));
-    skyrimtogether.on('partyInfo', this.onPartyInfo.bind(this));
-    skyrimtogether.on('partyCreated', this.onPartyCreated.bind(this));
-    skyrimtogether.on('partyLeft', this.onPartyLeft.bind(this));
-    skyrimtogether.on(
-      'partyInviteReceived',
-      this.onPartyInviteReceived.bind(this),
-    );
   }
 
   /**
@@ -180,10 +147,6 @@ export class ClientService implements OnDestroy {
     skyrimtogether.off('protocolMismatch');
     skyrimtogether.off('triggerError');
     skyrimtogether.off('dummyData');
-    skyrimtogether.off('partyInfo');
-    skyrimtogether.off('partyCreated');
-    skyrimtogether.off('partyLeft');
-    skyrimtogether.off('partyInviteReceived');
   }
 
   /**
@@ -217,45 +180,10 @@ export class ClientService implements OnDestroy {
   }
 
   /**
-   * Launch a party.
+   * As the host, remove a player from the session.
    */
-  public launchParty(): void {
-    skyrimtogether.launchParty();
-  }
-
-  /**
-   * Create a party invite.
-   */
-  public createPartyInvite(playerId: number): void {
-    skyrimtogether.createPartyInvite(playerId);
-  }
-
-  /**
-   * Accept a party invite.
-   */
-  public acceptPartyInvite(inviterId: number): void {
-    skyrimtogether.acceptPartyInvite(inviterId);
-  }
-
-  /**
-   * As a party leader, kick a player from the party.
-   */
-  public kickPartyMember(playerId: number): void {
-    skyrimtogether.kickPartyMember(playerId);
-  }
-
-  /**
-   * Leave a party.
-   */
-  public leaveParty(): void {
-    skyrimtogether.leaveParty();
-  }
-
-  /**
-   * As a party leader, make someone else the leader.
-   */
-  public changePartyLeader(playerId: number): void {
-    skyrimtogether.changePartyLeader(playerId);
+  public kickPlayer(playerId: number): void {
+    skyrimtogether.kickPlayer(playerId);
   }
 
   /**
@@ -353,6 +281,7 @@ export class ClientService implements OnDestroy {
   private onDisconnect(isError: boolean): void {
     void this.zone.run(async () => {
       this.localPlayerId = undefined;
+      this.isHost = false;
       this.connectionStateChange.next(false);
       this.isConnectionInProgressChange.next(false);
 
@@ -430,6 +359,7 @@ export class ClientService implements OnDestroy {
     username: string,
     level: number,
     cellName: string,
+    isHost: boolean,
   ) {
     if (environment.game) {
       console.log(
@@ -446,6 +376,7 @@ export class ClientService implements OnDestroy {
           connected: true,
           level: level,
           cellName: cellName,
+          isHost: isHost,
         }),
       );
     });
@@ -530,7 +461,7 @@ export class ClientService implements OnDestroy {
     });
   }
 
-  private onSetLocalPlayerId(playerId: number) {
+  private onSetLocalPlayerId(playerId: number, isHost: boolean) {
     if (environment.game) {
       console.log(
         `%conSetLocalPlayerId`,
@@ -540,6 +471,7 @@ export class ClientService implements OnDestroy {
     }
     this.zone.run(() => {
       this.localPlayerId = playerId;
+      this.isHost = isHost;
     });
   }
 
@@ -566,69 +498,6 @@ export class ClientService implements OnDestroy {
       }
       console.log(data);
       */
-    });
-  }
-
-  public onPartyInfo(playerIds: Array<number>, leaderId: number) {
-    if (environment.game) {
-      console.log(
-        `%conPartyInfo`,
-        'background: #009688; color: #fff; padding: 3px; font-size: 9px;',
-        ...Array.from(arguments).map(v => JSON.stringify(v)),
-      );
-    }
-    this.zone.run(() => {
-      this.partyInfoChange.next(
-        new PartyInfo({
-          playerIds: playerIds,
-          leaderId: leaderId,
-        }),
-      );
-    });
-  }
-
-  private onPartyCreated() {
-    if (environment.game) {
-      console.log(
-        `%conPartyCreated`,
-        'background: #009688; color: #fff; padding: 3px; font-size: 9px;',
-        ...Array.from(arguments).map(v => JSON.stringify(v)),
-      );
-    }
-    this.zone.run(() => {
-      this.loadingService.setLoading(false);
-      this.partyInfoChange.next(
-        new PartyInfo({
-          playerIds: [this.localPlayerId],
-          leaderId: this.localPlayerId,
-        }),
-      );
-    });
-  }
-
-  private onPartyLeft() {
-    if (environment.game) {
-      console.log(
-        `%conPartyLeft`,
-        'background: #009688; color: #fff; padding: 3px; font-size: 9px;',
-        ...Array.from(arguments).map(v => JSON.stringify(v)),
-      );
-    }
-    this.zone.run(() => {
-      this.partyLeftChange.next();
-    });
-  }
-
-  private onPartyInviteReceived(inviterId: number) {
-    if (environment.game) {
-      console.log(
-        `%conPartyInviteReceived`,
-        'background: #009688; color: #fff; padding: 3px; font-size: 9px;',
-        ...Array.from(arguments).map(v => JSON.stringify(v)),
-      );
-    }
-    this.zone.run(() => {
-      this.partyInviteReceivedChange.next(inviterId);
     });
   }
 }

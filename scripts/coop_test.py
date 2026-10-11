@@ -364,6 +364,8 @@ def launch(args, run_dir):
     wait_for(f"Waiting for the player to be in the world ({command})",
              lambda: (read_status() or {}).get("session", {}).get("world_ready"), args.world_timeout, launcher)
     log("Player is in the world")
+    # The Survival Mode prompt opens on the first exterior and pauses the game until answered.
+    run_console("set Survival_PlayerHasBeenPrompted to 1")
     return launcher
 
 
@@ -1476,6 +1478,63 @@ def scenario_host_time_reaches_client():
              lambda: near(game_state("client").get("time", {}).get("hour"), game_state("").get("time", {}).get("hour")), 10)
 
 
+
+def session_players(instance):
+    """{player name: is host} for the other players this game lists."""
+    return {p["name"]: p["host"] for p in game_state(instance).get("players", [])}
+
+
+def scenario_session_roster():
+    """Everyone connected is in the session (there are no parties): each game lists the other
+    player, and both agree the host hosts."""
+    wait_for("[host] lists the client, not as the host",
+             lambda: len(session_players("")) == 1 and not any(session_players("").values()), 10)
+    wait_for("[client] lists the host, as the host",
+             lambda: list(session_players("client").values()) == [True], 10)
+    if not game_state("").get("hosting") or game_state("client").get("hosting"):
+        raise TestFailure("the host's game must host and the client's must not")
+
+
+def scenario_host_kicks_client():
+    """The host removes the client from the session: the client is disconnected, its character
+    leaves the host's game and the host no longer lists it. The client can join again."""
+    select_instance("")
+    players = game_state("").get("players", [])
+    if len(players) != 1:
+        raise TestFailure(f"[host] expected the client in the session, got {players}")
+    if not (rpc({"cmd": "kick", "player": players[0]["id"]}) or {}).get("ok"):
+        raise TestFailure("[host] the plugin did not take the kick command (old DLL?)")
+    wait_for("[client] disconnected", lambda: game_state("client").get("online") is False, 10)
+    wait_for("[host] no longer lists the client", lambda: not game_state("").get("players"), 10)
+    wait_on("", "the client's character leaves the host's game", lambda actors: remote_player(actors) is None)
+    rejoin_client()
+
+
+CLEAR_WEATHER, RAIN_WEATHER = 0x81A, 0x10A23  # SkyrimClear, SkyrimStormRain
+OUTDOOR_CELL, HOME_CELL = "Riverwood", "QASmoke"   # the suite's home is an interior: no sky
+
+
+def scenario_weather_follows_host():
+    """Both players outdoors; the host's weather changes: the client's game takes it (the host's
+    weather is the session's), and keeps it while its own weather system would move on."""
+    try:
+        for name in ("", "client"):
+            console_on(name, f"coc {OUTDOOR_CELL}")
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] outdoors, under a sky", lambda name=name: game_state(name).get("weather"), 60)
+        weather = CLEAR_WEATHER if game_state("").get("weather") == RAIN_WEATHER else RAIN_WEATHER
+        console_on("", f"fw {weather:x}")
+        wait_for("[host] shows the forced weather", lambda: game_state("").get("weather") == weather, 10)
+        wait_for("[client] follows the host's weather", lambda: game_state("client").get("weather") == weather, 10)
+        time.sleep(3.0)  # long enough for the client's own weather system to have moved on
+        held = game_state("client").get("weather")
+        if held != weather:
+            raise TestFailure(f"the client lost the host's weather: {held:X}, host's {weather:X}")
+    finally:
+        for name in ("", "client"):
+            console_on(name, f"coc {HOME_CELL}")
+        wait_for("Each game shows the other player again", both_see_each_other, 60)
+
 def scenario_client_spell_kill_credit():
     """Client kills a host NPC with a spell: the host records the client's character as the killer."""
     kill_credit("spell")
@@ -1665,6 +1724,9 @@ SCENARIOS = {
     "late-join-client": scenario_late_join_client,
     "host-rejoins": scenario_host_rejoins,
     "host-time-reaches-client": scenario_host_time_reaches_client,
+    "session-roster": scenario_session_roster,
+    "host-kicks-client": scenario_host_kicks_client,
+    "weather-follows-host": scenario_weather_follows_host,
 }
 
 # What each scenario exercises, for running only the ones a change can affect:
@@ -1698,6 +1760,9 @@ TAGS = {
     "late-join-client": {'spawn', 'session', 'movement', 'inventory', 'hands', 'values'},
     "host-rejoins": {'session', 'spawn'},
     "host-time-reaches-client": {'time'},
+    "session-roster": {'session'},
+    "host-kicks-client": {'session', 'spawn'},
+    "weather-follows-host": {'weather'},
 }
 
 

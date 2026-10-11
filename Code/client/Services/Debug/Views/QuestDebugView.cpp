@@ -2,7 +2,6 @@
 #include <Services/QuestService.h>
 #include <Bridges/IFormBridge.h>
 #include <Services/PapyrusService.h>
-#include <Services/PartyService.h>
 
 #include <PlayerCharacter.h>
 #include <Forms/TESQuest.h>
@@ -22,9 +21,9 @@ void DebugService::DrawQuestDebugView()
     ImGui::Begin("Quests");
 
     // TODO(cosideci): yes I'll refactor this
-    if (!m_world.GetPartyService().IsLeader())
+    if (m_world.GetTransport().IsConnected() && !m_world.GetHostService().IsHosting())
     {
-        ImGui::Text("You need to be the quest leader to access the quest debugger.");
+        ImGui::Text("Only the host can use the quest debugger.");
     }
     else
     {
