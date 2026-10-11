@@ -188,6 +188,20 @@ static nlohmann::json ActiveEffects(uint32_t aFormId)
 // Everything this game knows about one actor, for the desync checker (coop_test.py desync): the
 // harness pairs an owner's snapshot with its copy's in the other game and reports every field
 // that differs. Add a field here and it is checked automatically.
+// What the actor's animation graph holds right now (the variables the animation sync carries),
+// as opposed to "animation", which is the last action the mod recorded.
+static nlohmann::json GraphVariables(uint32_t aFormId)
+{
+    AnimationVariables variables;
+    World::Get().GetActorBridge().ActorSaveAnimationVariables(aFormId, variables);
+    auto bools = nlohmann::json::array();
+    for (const bool cValue : variables.Booleans)
+        bools.push_back(cValue);
+    return {{"booleans", bools},
+            {"integers", std::vector<uint32_t>(variables.Integers.begin(), variables.Integers.end())},
+            {"floats", std::vector<float>(variables.Floats.begin(), variables.Floats.end())}};
+}
+
 static nlohmann::json Snapshot(uint32_t aFormId)
 {
     auto& world = World::Get();
@@ -243,7 +257,8 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},
                    {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
                    {"weapon_fully_drawn", actors.IsWeaponFullyDrawn(aFormId)},
-                   {"casting", CastingSpells(aFormId)}}},
+                   {"casting", CastingSpells(aFormId)},
+                   {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
         {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},
                     {"stamina", actors.GetActorValue(aFormId, 26)},
                     {"max_health", actors.GetActorPermanentValue(aFormId, 24)},
@@ -254,6 +269,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},
                        {"action", latest.ActionId}, {"idle", latest.IdleId},
                        {"state1", latest.State1}, {"state2", latest.State2}}},
+        {"graph", GraphVariables(aFormId)},
         {"mod", mod},
         // AI runs only on the owner (a copy's is disabled), so this is shown, not compared.
         {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}, {"killer", actors.GetKillerFormId(aFormId)}}},

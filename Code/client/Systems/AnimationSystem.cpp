@@ -57,6 +57,11 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
         actionData.someFlag = ((first.Type & 0x4) != 0) ? 1 : 0;
 
         const auto result = ActorMediator::Get()->ForceAction(&actionData);
+        // A refused action leaves the copy showing something else than its owner (the cause is
+        // usually the copy's graph or weapon state, not the network).
+        if (!result)
+            spdlog::debug("Copy {:X} refused replayed action {:X} '{}' (weapon state {})", apActor->formID, actionId,
+                          first.EventName, apActor->actorState.flags2 >> 5 & 7);
 
         actions.pop_front();
     }

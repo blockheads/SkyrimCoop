@@ -1281,8 +1281,9 @@ def flatten(tree, prefix=""):
 
 def compare_field(field, owner, copy, owner_snapshot):
     """Returns None when the copy agrees with the owner, else a short reason."""
-    if field.startswith(("mod.", "ai.")) or field in ("role", "identity.template_base", "identity.temporary_base"):
-        return None  # bookkeeping (Local vs Remote) and AI (owner only) differ by design
+    if field.startswith(("mod.", "ai.", "graph")) or field in ("role", "identity.template_base", "identity.temporary_base"):
+        return None  # bookkeeping (Local vs Remote) and AI (owner only) differ by design; the live
+                     # graph changes every frame (compared over time by `coop_test.py graph`)
     if field == "effects":  # copies carry no abilities or worn enchantments: compare timed effects
         timed = lambda effects: sorted((e["effect"], e["spell"], round(e["magnitude"])) for e in effects or []
                                        if e["duration"] > 0 and not e["flags"] & 0x48000)

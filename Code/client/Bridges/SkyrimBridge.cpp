@@ -351,8 +351,12 @@ bool SkyrimBridge::IsWeaponDrawn(uint32_t aFormId) const noexcept
 
 uint32_t SkyrimBridge::GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept
 {
-    // TODO(02.5-02): implement
-    return 0;
+    // What the actor holds: AIProcess::equippedObjects[0 left, 1 right] at +0xF0 (CommonLibSSE).
+    Actor* pActor = GetActor(aActorFormId);
+    if (!pActor || !pActor->currentProcess || aSlot > 1)
+        return 0;
+    const auto* pObjects = reinterpret_cast<TESForm* const*>(reinterpret_cast<const uint8_t*>(pActor->currentProcess) + 0xF0);
+    return pObjects[aSlot] ? pObjects[aSlot]->formID : 0;
 }
 
 uint64_t SkyrimBridge::GetAnimationGraphDescriptorHash(uint32_t aFormId) const noexcept
