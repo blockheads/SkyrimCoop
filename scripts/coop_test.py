@@ -1365,6 +1365,90 @@ def kill_credit(weapon):
         remove_host_npc(npc)
 
 
+def game_state(instance):
+    select_instance(instance)
+    return (read_status() or {}).get("game") or {}
+
+
+def disconnect_client():
+    """The client leaves the session like a player quitting."""
+    select_instance("client")
+    if not (rpc({"cmd": "disconnect"}) or {}).get("ok"):
+        raise TestFailure("[client] the plugin did not take the disconnect command (old DLL?)")
+    wait_for("[client] disconnected", lambda: game_state("client").get("online") is False, 10)
+
+
+def rejoin_client():
+    """The client joins the host's running session again."""
+    select_instance("")
+    port = ((read_status() or {}).get("session") or {}).get("port")
+    if not port:
+        raise TestFailure("[host] no session port to rejoin")
+    select_instance("client")
+    start_session(f"join {port}")
+    wait_for("Each game shows the other player again", both_see_each_other, 30)
+
+
+def scenario_late_join_client():
+    """The client leaves and joins again while the host's world changed: it must see the world as it
+    is now (the host's player and NPC as they are), and the host must drop the client's character
+    while it is away."""
+    npc, _ = spawn_host_npc(LYDIA)
+    console_on("", f"{npc:08X}.additem {IRON_SWORD:08X} 1")
+    console_on("", f"{npc:08X}.equipitem {IRON_SWORD:08X}")
+    console_on("", f"player.additem {IRON_SWORD:08X} 1")
+    console_on("", f"player.equipitem {IRON_SWORD:08X}")
+    disconnect_client()
+    wait_on("", "the client's character leaves the host's game", lambda actors: remote_player(actors) is None)
+    # While the client is away.
+    press_until("", "r", lambda me: me.get("weapon_drawn"), "drawing the sword")
+    console_on("", f"{npc:08X}.damageav health 50")
+    rejoin_client()
+
+    def npc_copy(actors):
+        copies = remote_npcs(actors)
+        return actors[str(next(iter(copies)))] if len(copies) == 1 else None
+    wait_on("client", "the host's NPC is there", npc_copy)
+    wait_on("client", "the NPC's copy holds the sword",
+            lambda actors: IRON_SWORD in (npc_copy(actors) or {}).get("equipped", []))
+    wait_on("client", "the NPC's copy has the NPC's health now",
+            lambda actors: close((npc_copy(actors) or {}).get("health"), host_npc_state(npc).get("health")))
+    wait_on("client", "the host's character has the sword drawn",
+            lambda actors: remote_player(actors) is not None and actors[str(remote_player(actors))].get("weapon_drawn"))
+    hold()
+
+
+def scenario_host_rejoins():
+    """The host leaves its own session and hosts again while the client stays: it must still be the
+    host (own the NPCs it spawns), not the player who happens to have the lowest id now."""
+    select_instance("")
+    if not (rpc({"cmd": "disconnect"}) or {}).get("ok"):
+        raise TestFailure("[host] the plugin did not take the disconnect command (old DLL?)")
+    wait_for("[host] left its session", lambda: game_state("").get("online") is False, 10)
+    wait_on("client", "the host's character leaves the client's game", lambda actors: remote_player(actors) is None)
+    select_instance("")
+    start_session("")
+    wait_for("Each game shows the other player again", both_see_each_other, 30)
+    npc, replica = spawn_host_npc(LYDIA)
+    log(f"host's NPC {npc:08X} reaches the client as {replica:08X}")
+
+
+def scenario_host_time_reaches_client():
+    """The host sets the hour: it stays set on the host (the host's clock is the session's) and the
+    client's clock follows."""
+    hour = (game_state("").get("time", {}).get("hour", 0) + 6) % 24
+    console_on("", f"set gamehour to {hour:.2f}")
+    def near(value, target, tolerance=0.2):
+        return value is not None and min(abs(value - target), 24 - abs(value - target)) < tolerance
+    time.sleep(2.0)  # long enough for anything to override it
+    host_hour = game_state("").get("time", {}).get("hour")
+    if not near(host_hour, hour):
+        raise TestFailure(f"the host set the hour to {hour:.2f} but its clock shows {host_hour:.2f}: "
+                          "something else drives the host's clock")
+    wait_for("[client] the client's clock follows the host's",
+             lambda: near(game_state("client").get("time", {}).get("hour"), game_state("").get("time", {}).get("hour")), 10)
+
+
 def scenario_client_spell_kill_credit():
     """Client kills a host NPC with a spell: the host records the client's character as the killer."""
     kill_credit("spell")
@@ -1453,6 +1537,8 @@ def reset_player(instance, home):
 
 
 def reset_baseline():
+    if game_state("client").get("online") is False:
+        rejoin_client()
     for name in ("", "client"):
         for npc in owned_npcs(name):
             console_on(name, f"{npc:08X}.disable")
@@ -1546,6 +1632,9 @@ SCENARIOS = {
     "client-angers-host-ally": scenario_client_angers_host_ally,
     "client-spell-kill-credit": scenario_client_spell_kill_credit,
     "client-melee-kill-credit": scenario_client_melee_kill_credit,
+    "late-join-client": scenario_late_join_client,
+    "host-rejoins": scenario_host_rejoins,
+    "host-time-reaches-client": scenario_host_time_reaches_client,
 }
 
 

@@ -7,6 +7,9 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
+#include <Bridges/IWorldBridge.h>
+#include <Services/PartyService.h>
+#include <Services/TransportService.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <algorithm>
 #include <fstream>
@@ -339,6 +342,19 @@ static nlohmann::json LocalActors()
     return result;
 }
 
+// Session-wide state each game holds: its clock, weather, party and connection.
+static nlohmann::json GameStatus()
+{
+    auto& world = World::Get();
+    const auto& bridge = world.GetWorldBridge();
+    const auto& party = world.GetPartyService();
+    return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
+                      {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
+            {"weather", bridge.GetCurrentWeatherId()},
+            {"party", {{"in_party", party.IsInParty()}, {"leader", party.IsLeader()}, {"members", party.GetPartyMembers().size()}}},
+            {"online", world.GetTransport().IsOnline()}};
+}
+
 static nlohmann::json PlayerStatus()
 {
     auto& actors = World::Get().GetActorBridge();
@@ -385,6 +401,12 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
     {
         // {"cmd": "interrupt", "caster": id, "source": 1}: ends a held (concentration) cast.
         World::Get().GetActorBridge().InterruptCast(cRequest.value("caster", 0x14u), cRequest.value("source", 1u));
+        return R"({"ok": true})";
+    }
+    if (cCommand == "disconnect")
+    {
+        // {"cmd": "disconnect"}: leaves the session like a player quitting (join again with a new session request).
+        World::Get().GetTransport().Close();
         return R"({"ok": true})";
     }
     if (cCommand == "reload")
@@ -497,7 +519,7 @@ std::string Runtime::BuildStatus(int aIndent)
         {"actors", actors}, {"session", PollSession(m_directory)},
         {"steam", CoopSteam::Poll(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
-        {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()},
+        {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()}, {"game", GameStatus()},
         {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}, {"reload", ReloadStatus()}
     };
     return status.dump(aIndent);
