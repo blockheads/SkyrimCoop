@@ -105,6 +105,13 @@ target(name)
 
     -- ImGui unconditional for Phase 6 readiness (D-04)
     add_packages("imgui")
+    if is_plat("windows") then
+        add_packages("rmlui")
+        add_defines("HAS_RMLUI=1")
+        add_syslinks("d3dcompiler", "windowscodecs", "ole32")
+    else
+        remove_files("Ui/**.cpp")
+    end
 
     if has_config("vivox") then
         add_files("Services/Vivox/**.cpp")

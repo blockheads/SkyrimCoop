@@ -15,6 +15,8 @@ struct SessionService
     {
         String Name;
         bool IsHost{};
+        // When it joined.
+        uint16_t Level{};
     };
 
     SessionService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;

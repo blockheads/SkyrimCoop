@@ -49,4 +49,7 @@ cp "$ROOT/scripts/toolchain/link_shim.py" "$B/link.exe"
 chmod +x "$B/cl.exe" "$B/link.exe"
 # CMake also probes the bare names; without these it finds coreutils' /usr/bin/link.
 for tool in cl link lib rc mt ml64; do ln -s "$tool.exe" "$B/$tool"; done
+# CMake's Ninja generator wraps resource compiles in cmcldeps, which Linux lacks (see the script).
+cp "$ROOT/scripts/toolchain/cmcldeps_rc_shim.sh" "$B/RC"
+chmod +x "$B/RC"
 echo "Toolchain ready: $("$T/LLVM/bin/clang-cl" --version | head -1)"

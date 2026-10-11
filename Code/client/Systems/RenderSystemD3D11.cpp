@@ -7,6 +7,10 @@
 #include <Services/DebugService.h>
 #include <Services/OverlayService.h>
 #include <Services/ImguiService.h>
+#ifdef HAS_RMLUI
+#include <Ui/UiService.h>
+#include <World.h>
+#endif
 
 #include <D3D11Hook.hpp>
 #include <d3d11.h>
@@ -55,6 +59,10 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain)
 
     m_imguiService.Create(this, GetWindow());
     m_overlay.Create(this);
+#ifdef HAS_RMLUI
+    if (auto* pUi = World::Get().ctx().find<UiService>())
+        pUi->Create(apSwapChain);
+#endif
 #ifndef __MINGW32__
     DebugService::ArrangeGameWindows(GetWindow());
 #endif
@@ -62,6 +70,11 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain)
 
 void RenderSystemD3D11::OnRender()
 {
+#ifdef HAS_RMLUI
+    // Under ImGui: the debug views stay on top.
+    if (auto* pUi = World::Get().ctx().find<UiService>())
+        pUi->Render();
+#endif
     m_imguiService.Render();
     m_overlay.Render();
 }

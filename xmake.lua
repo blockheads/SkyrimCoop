@@ -185,6 +185,10 @@ if is_plat("windows") or is_plat("mingw") then
     -- mem is header-only and vendored in Code/external/mem
 end
 if is_plat("windows") then
+    -- The in-game UI (Code/client/Ui): HTML/CSS-like documents, FreeType fonts.
+    add_requires("rmlui 6.2", {configs = {freetype = true}})
+end
+if is_plat("windows") then
     -- MSVC treats __movsb as a builtin; clang-cl only declares it in <intrin.h>.
     add_requireconfs("minhook", {configs = {cflags = "/FIintrin.h"}})
     -- Match the static CRT in every package.

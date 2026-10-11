@@ -130,7 +130,9 @@ def game_env():
     env = dict(os.environ)
     env.update(SteamAppId="489830", SteamGameId="489830", STEAM_COMPAT_DATA_PATH=str(PREFIX),
                STEAM_COMPAT_CLIENT_INSTALL_PATH=str(STEAM), WINEDEBUG=env.get("WINEDEBUG", "-all"),
-               SKYRIMCOOP_LOG_LEVEL=env.get("SKYRIMCOOP_LOG_LEVEL", "debug"))
+               SKYRIMCOOP_LOG_LEVEL=env.get("SKYRIMCOOP_LOG_LEVEL", "debug"),
+               # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
+               SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
     if INSTANCE:
         env["SKYRIMCOOP_INSTANCE"] = INSTANCE
     if not VISIBLE:
@@ -193,13 +195,24 @@ def copy_if_changed(source, target):
     temporary = target.with_name(target.name + ".tmp")
     shutil.copy2(source, temporary)
     os.replace(temporary, target)
-    log(f"Deployed {source.relative_to(ROOT)} ({stat.st_size // 1048576} MB)")
+    log(f"Deployed {source.relative_to(ROOT)} ({stat.st_size // 1024} KB)")
     return True
+
+
+UI_SOURCE = ROOT / "Code/client/Ui/assets"
+
+
+def deploy_ui():
+    """The in-game UI's documents, styles and fonts: Plugins/SkyrimCoop/ui (UiService)."""
+    for source in sorted(UI_SOURCE.rglob("*")):
+        if source.is_file():
+            copy_if_changed(source, PLUGINS / "SkyrimCoop/ui" / source.relative_to(UI_SOURCE))
 
 
 def deploy_dll():
     """With the loader built: Plugins/SkyrimCoopLoader.dll loads Plugins/SkyrimCoop/<client>.
     Otherwise the client is the SKSE plugin. Never both: the client would load twice."""
+    deploy_ui()
     direct = PLUGINS / "SkyrimTogetherClient.dll"
     if LOADER.exists():
         direct.unlink(missing_ok=True)

@@ -1,0 +1,56 @@
+/*
+ * The look every document shares, after Skyrim's menus (and SkyUI): tall condensed type with a
+ * soft shadow, off-white text, thin light rules that fade out at their ends, dark translucent
+ * panels. Sizes are in dp: one dp is a pixel at 1080 lines (UiService scales it).
+ *
+ * RmlUi has no default style sheet: elements are inline until given a display here.
+ */
+
+body, div, p, h1, h2, h3, header, footer, section, table, tr {
+    display: block;
+}
+table { display: table; }
+tr { display: table-row; }
+td { display: table-cell; }
+
+body {
+    font-family: Oswald;
+    font-weight: 300;
+    font-size: 22dp;
+    color: #e8e4da;
+    font-effect: shadow(1dp 1dp #000000b0);
+}
+
+/* A dim label (secondary text, units, hints). */
+.dim { color: #a7a196; }
+
+/* Small spaced capitals, as Skyrim's headings and column names. */
+.caps {
+    font-weight: 400;
+    font-size: 18dp;
+    letter-spacing: 1.5dp;
+    text-transform: uppercase;
+    color: #cfc9bc;
+}
+
+/* A thin rule that fades out at both ends. */
+.rule {
+    height: 1dp;
+    decorator: linear-gradient(to right, #e8e4da00, #e8e4dac8 25%, #e8e4dac8 60%, #e8e4da00);
+}
+
+/* A dark panel that fades out toward its right edge. */
+.panel {
+    padding: 12dp 18dp 14dp 16dp;
+    decorator: linear-gradient(to right, #000000c0, #00000098 45%, #00000000);
+}
+
+/* A key prompt box ("E Equip"). */
+.key {
+    display: inline-block;
+    min-width: 18dp;
+    padding: 0 5dp;
+    border: 1dp #e8e4dac0;
+    text-align: center;
+    font-weight: 400;
+}

@@ -18,6 +18,9 @@
 #include <Services/TransportService.h>
 #include <Services/RunnerService.h>
 #include <Services/ImguiService.h>
+#ifdef HAS_RMLUI
+#include <Ui/UiService.h>
+#endif
 #include <Services/PapyrusService.h>
 #include <Services/DiscordService.h>
 #include <Services/ObjectService.h>
@@ -72,6 +75,9 @@ World::World()
 {
 
     ctx().emplace<ImguiService>();
+#ifdef HAS_RMLUI
+    ctx().emplace<UiService>(*this, ctx().at<IActorBridge&>());
+#endif
     ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher,
                                   ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
 #ifdef HAS_CEF
@@ -132,6 +138,9 @@ World::~World()
     ctx().erase<InputService>();
 #endif
     ctx().erase<OverlayService>();
+#ifdef HAS_RMLUI
+    ctx().erase<UiService>();
+#endif
     ctx().erase<ImguiService>();
 }
 

@@ -15,7 +15,7 @@ SessionService::SessionService(World& aWorld, entt::dispatcher& aDispatcher) noe
 void SessionService::OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcept
 {
     spdlog::info("[SessionService] {} ({}) joined{}", acMessage.Username.c_str(), acMessage.PlayerId, acMessage.IsHost ? ", the host" : "");
-    m_players[acMessage.PlayerId] = {acMessage.Username, acMessage.IsHost};
+    m_players[acMessage.PlayerId] = {acMessage.Username, acMessage.IsHost, acMessage.Level};
 }
 
 void SessionService::OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept

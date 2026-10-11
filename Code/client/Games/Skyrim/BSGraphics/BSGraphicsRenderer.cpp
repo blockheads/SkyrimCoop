@@ -89,6 +89,14 @@ void (*StopTimer)(int) = nullptr;
 void Hook_StopTimer(int type)
 {
 #ifdef HAS_DIRECTXTK
+    // Hot reloaded into a running game: the device was created in an earlier load.
+    if (!g_sRs)
+    {
+        RendererWindow* pWindow = GetMainWindow();
+        g_sRs = pWindow && pWindow->pSwapChain ? World::Get().ctx().find<RenderSystemD3D11>() : nullptr;
+        if (g_sRs)
+            g_sRs->OnDeviceCreation(pWindow->pSwapChain);
+    }
     if (g_sRs)
         g_sRs->OnRender();
 #endif
