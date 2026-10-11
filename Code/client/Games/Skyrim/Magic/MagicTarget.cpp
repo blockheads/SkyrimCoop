@@ -133,9 +133,12 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
             }
         }
 
-        // Our spell hit their actor: ask the owner to apply it.
+        // Our spell hit their actor: ask the owner to apply it. A hostile one is a hit for the
+        // attacker's feedback (CombatService shows the target's health bar).
         if (arData.ShouldSync())
             World::Get().GetRunner().Trigger(addTargetEvent);
+        if (!arData.pSpell->IsHealingSpell() && !arData.pSpell->IsBuffSpell())
+            World::Get().GetRunner().Trigger(HitEvent(arData.pCaster->formID, pTargetActor->formID));
         return false;
     }
 

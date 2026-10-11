@@ -2,6 +2,7 @@
 
 #include <TiltedCore/Stl.hpp>
 #include <Messages/NotifyEquipmentSnapshot.h>
+#include <Messages/NotifyActiveEffects.h>
 #include <Messages/Message.h>
 #include <MetaMessage.h>
 
@@ -69,7 +70,7 @@ struct ServerMessageFactory
             NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, NotifyLockChange, AssignObjectsResponse, NotifyDeathStateChange, NotifyObjectInventoryChanges, NotifySpellCast,
             NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyScriptAnimation, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, TeleportCommandResponse, NotifyPlayerRespawn, NotifyDialogue,
             NotifySubtitle, NotifyPlayerDialogue, NotifyActorTeleport, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerDialogue, NotifyPlayerLevel, NotifyTeleport, NotifyPlayerHealthUpdate, NotifySettingsChange,
-            NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifySetTimeResult, NotifyRemoveSpell, WorldStateSync, NotifyEquipmentSnapshot>;
+            NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifySetTimeResult, NotifyRemoveSpell, WorldStateSync, NotifyEquipmentSnapshot, NotifyActiveEffects>;
 
         return s_visitor(std::forward<T>(func));
     }

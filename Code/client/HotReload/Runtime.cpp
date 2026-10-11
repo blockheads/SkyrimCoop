@@ -354,6 +354,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                     {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}}},
         {"equipment", EquippedItems(aFormId)},
         {"effects", ActiveEffects(aFormId)},
+        {"visuals", actors.GetPlayingVisualFormIds(aFormId)},
         {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},
                        {"action", latest.ActionId}, {"idle", latest.IdleId},
                        {"state1", latest.State1}, {"state2", latest.State2}}},
@@ -427,7 +428,8 @@ static nlohmann::json PlayerStatus()
     return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}},
             {"loaded_actors", actors.GetLoadedActorFormIds()}, {"equipped", EquippedItems(0x14)},
             {"weapon_drawn", actors.IsWeaponDrawn(0x14)}, {"casting", CastingSpells(0x14)},
-            {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()}};
+            {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()},
+            {"enemy_health_target", World::Get().GetPlayerBridge().GetEnemyHealthTarget()}};
 }
 
 // One request line from the test harness: {"cmd": "status"} or {"cmd": "console", "line": "..."}.

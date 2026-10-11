@@ -22,6 +22,8 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | AI packages (picked or engine-created) | no | `HookCheckForNewPackage` and `HookPutCreatedPackage` (References.cpp) |
 | Package sync from the owner | no | `AI_SYNC` stays 0 (References.cpp) |
 | Applying spell effects locally | no | the owner applies them (MagicTarget.cpp) |
+| Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects with visuals; the copy plays just their hit shader and art while listed (EffectVisualsService) |
+| Hit feedback for the attacker (enemy health bar) | in the attacker's game | our player's hit on a copy shows its health bar at once, from the owner's health (CombatService::OnHitEvent) |
 | Combat decisions, dialogue, reservations | no (audit when touched) | to check when syncing combat or dialogue |
 | Crime, followers, quests | undecided | decide when the system is synced |
 

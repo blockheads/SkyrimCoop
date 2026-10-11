@@ -218,4 +218,16 @@ struct SyncExperience
 
     float Experience{};
 };
+// An actor's active magic effects that show on it (a hit shader or hit art: burning, frost,
+// a healing glow), from its owner. Copies play only those visuals; the owner applies the effects.
+struct ActiveEffects
+{
+    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const ActiveEffects&) const noexcept = default;
+
+    uint32_t ServerId{};
+    Vector<GameId> EffectIds{};
+};
 } // namespace Payloads

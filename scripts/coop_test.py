@@ -1294,6 +1294,13 @@ def scenario_repair_equipment_drift():
         raise TestFailure("never converged: " + " | ".join(problems))
 
 
+def health_bar_shows(instance, target):
+    """The attacker's HUD shows its target's health bar (hit feedback is the attacker's own; the
+    owner applies the hit)."""
+    wait_for(f"[{instance or 'host'}] HUD shows {target:X}'s health bar",
+             lambda: local_player(instance).get("enemy_health_target") == target, 5)
+
+
 def scenario_melee_client_hits_host_npc():
     """Client hits the host's NPC with a sword; the host's real NPC must lose health."""
     npc, replica = ensure_host_npc()
@@ -1313,6 +1320,7 @@ def scenario_melee_client_hits_host_npc():
                 break
         else:
             raise TestFailure(f"host's NPC health stayed at {host_npc_state(npc).get('health')} (before {before})")
+        health_bar_shows("client", replica)
         # The client's copy must show the host's value (no locally applied damage of its own).
         wait_on("client", "NPC replica health matches the host's",
                 lambda actors: close(actors.get(str(replica), {}).get("health"), host_npc_state(npc).get("health")))
@@ -1412,6 +1420,7 @@ def spell_hits_host_npc(spell, hold_seconds):
                               "the client applied the spell to its copy itself")
         wait_on("client", "NPC copy health matches the host's",
                 lambda actors: close(actors.get(str(replica), {}).get("health"), host_npc_state(npc).get("health")))
+        health_bar_shows("client", replica)
         hold()
     finally:
         console_on("", f"{npc:08X}.resurrect")
@@ -1426,6 +1435,46 @@ def scenario_firebolt_client_hits_host_npc():
 def scenario_flames_client_hits_host_npc():
     """Client's Flames stream hits the host's NPC: only the host applies it."""
     spell_hits_host_npc(FLAMES, 2.0)
+
+
+def visuals(instance, form_id):
+    """The effect shaders and art the engine plays on that actor in that game."""
+    select_instance(instance)
+    return set((((read_status() or {}).get("world") or {}).get(str(form_id)) or {}).get("visuals") or [])
+
+
+def scenario_burning_shows_on_copy():
+    """Client's Flames set the host's NPC burning: the host's game applies the effect, and the
+    client's copy shows the same fire (its owner's active effects, played as visuals only). When
+    the burning ends there, it ends on the copy too."""
+    npc, replica = ensure_host_npc()
+    console_on("client", f"player.addspell {FLAMES:08X}")
+    console_on("client", f"player.equipspell {FLAMES:08X} right")
+    approach("client", replica, 0.5)
+    press_until("client", "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+    try:
+        burning = set()
+        for _ in range(4):  # cast until the stream sets it burning
+            cast_spell("client", replica, FLAMES)
+            end = time.time() + 2.0
+            while time.time() < end and not burning:
+                burning = visuals("", npc)
+                time.sleep(0.1)
+            if burning:
+                break
+            stop_casting("client")
+        else:
+            raise TestFailure("the host's NPC never showed a fire effect (the Flames never landed?)")
+        log(f"host's NPC burning: {', '.join(f'{v:X}' for v in sorted(burning))}")
+        wait_for("[client] its copy shows the same fire", lambda: burning <= visuals("client", replica), 3)
+        stop_casting("client")
+        wait_for("[host] the burning ends", lambda: not (burning & visuals("", npc)), 10)
+        wait_for("[client] the copy's fire ends too", lambda: not (burning & visuals("client", replica)), 4)
+        hold()
+    finally:
+        stop_casting("client")
+        console_on("", f"{npc:08X}.resurrect")
+        press_until("client", "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
 
 
 WOLF = "00023ABE"
@@ -1994,6 +2043,7 @@ SCENARIOS = {
     "repair-equipment-drift": scenario_repair_equipment_drift,
     "firebolt-client-hits-host-npc": scenario_firebolt_client_hits_host_npc,
     "flames-client-hits-host-npc": scenario_flames_client_hits_host_npc,
+    "burning-shows-on-copy": scenario_burning_shows_on_copy,
     "client-angers-host-ally": scenario_client_angers_host_ally,
     "client-spell-kill-credit": scenario_client_spell_kill_credit,
     "client-melee-kill-credit": scenario_client_melee_kill_credit,
@@ -2034,6 +2084,7 @@ TAGS = {
     "repair-equipment-drift": {'inventory'},
     "firebolt-client-hits-host-npc": {'combat', 'magic', 'values'},
     "flames-client-hits-host-npc": {'combat', 'magic', 'values'},
+    "burning-shows-on-copy": {'combat', 'magic'},
     "client-angers-host-ally": {'combat'},
     "client-spell-kill-credit": {'combat', 'magic'},
     "client-melee-kill-credit": {'combat'},

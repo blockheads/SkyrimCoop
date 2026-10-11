@@ -302,4 +302,25 @@ void SyncExperience::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) 
 {
     Experience = Serialization::ReadFloat(aReader);
 }
+
+void ActiveEffects::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, EffectIds.size());
+    for (const auto& cEffectId : EffectIds)
+        cEffectId.Serialize(aWriter);
+}
+
+void ActiveEffects::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    const auto cCount = Serialization::ReadVarInt(aReader);
+    EffectIds.clear();
+    for (uint64_t i = 0; i < cCount && i < 256; ++i)
+    {
+        GameId effectId;
+        effectId.Deserialize(aReader);
+        EffectIds.push_back(effectId);
+    }
+}
 } // namespace Payloads

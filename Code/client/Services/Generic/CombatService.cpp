@@ -12,12 +12,18 @@
 #include <Systems/ModSystem.h>
 #include <World.h>
 
+#include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
+#include <Components.h>
 
-CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge)
+CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher, IFormBridge& aFormBridge,
+                             IActorBridge& aActorBridge, IPlayerBridge& aPlayerBridge)
     : m_world(aWorld)
     , m_transport(aTransport)
     , m_formBridge(aFormBridge)
+    , m_actorBridge(aActorBridge)
+    , m_playerBridge(aPlayerBridge)
 {
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&CombatService::OnUpdate>(this);
     m_hitConnection = aDispatcher.sink<HitEvent>().connect<&CombatService::OnHitEvent>(this);
@@ -26,8 +32,9 @@ CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::
     m_projectileLaunchConnection = aDispatcher.sink<NotifyProjectileLaunch>().connect<&CombatService::OnNotifyProjectileLaunch>(this);
 }
 
-void CombatService::OnUpdate(const UpdateEvent& acEvent) const noexcept
+void CombatService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
+    RunHitFeedback();
     UpdateRemotePlayerAnger();
     RefreshHangLockWatch();
     RunTargetUpdates(static_cast<float>(acEvent.Delta));
@@ -134,43 +141,46 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
         acMessage.UnkBool1, acMessage.UnkBool2);
 }
 
-void CombatService::OnHitEvent(const HitEvent& acEvent) const noexcept
+void CombatService::OnHitEvent(const HitEvent& acEvent) noexcept
 {
-#if 0
-    if (!m_transport.IsConnected())
+    // Hit feedback belongs to the attacker's game: our player's hit on another game's actor shows
+    // its health bar now. The owner applies the hit (our copy never does), so the HUD may refuse
+    // the copy while its health is still full; RunHitFeedback shows it again when the owner's
+    // lower health arrives.
+    if (acEvent.HitterId != m_playerBridge.GetPlayerFormId())
+        return;
+    auto view = m_world.view<FormIdComponent, RemoteComponent>();
+    const auto cCopy = std::find_if(view.begin(), view.end(), [&](entt::entity aEntity) {
+        return view.get<FormIdComponent>(aEntity).Id == acEvent.HitteeId;
+    });
+    if (cCopy == view.end())
         return;
 
-    // The targeting system does not apply to players, and only local actors should be considered.
-    auto* pHittee = Cast<Actor>(TESForm::GetById(acEvent.HitteeId));
-    if (!pHittee || pHittee->GetExtension()->IsPlayer() || pHittee->GetExtension()->IsRemote())
-        return;
+    const float cHealth = m_actorBridge.GetActorValue(acEvent.HitteeId, 24 /* kHealth */);
+    if (!m_recentHits.contains(acEvent.HitteeId))
+        m_recentHits[acEvent.HitteeId].Health = cHealth;
+    m_recentHits[acEvent.HitteeId].At = std::chrono::steady_clock::now();
+    m_playerBridge.ShowEnemyHealth(acEvent.HitteeId);
+}
 
-    // NPCs should not affect targeting.
-    auto* pHitter = Cast<Actor>(TESForm::GetById(acEvent.HitterId));
-    if (!pHitter || !pHitter->GetExtension()->IsPlayer())
-        return;
-
-    // If the target is not in combat, don't start combat, let the game take care of that first.
-    if (!pHittee->IsInCombat())
-        return;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent>(entt::exclude<ObjectComponent>);
-
-    const auto hitteeIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.HitteeId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (hitteeIt == std::end(view))
+void CombatService::RunHitFeedback() noexcept
+{
+    constexpr auto cWatchFor = std::chrono::seconds(5);
+    const auto cNow = std::chrono::steady_clock::now();
+    for (auto it = m_recentHits.begin(); it != m_recentHits.end();)
     {
-        spdlog::warn("{}: : hittee form id component not found, form id: {:X}", __FUNCTION__, acEvent.HitterId);
-        return;
+        auto& hit = it.value();
+        if (cNow - hit.At > cWatchFor)
+        {
+            it = m_recentHits.erase(it);
+            continue;
+        }
+        const float cHealth = m_actorBridge.GetActorValue(it->first, 24 /* kHealth */);
+        if (cHealth < hit.Health)
+            m_playerBridge.ShowEnemyHealth(it->first);
+        hit.Health = cHealth;
+        ++it;
     }
-
-    if (m_world.any_of<CombatComponent>(*hitteeIt))
-        return;
-
-    m_world.emplace_or_replace<CombatComponent>(*hitteeIt, acEvent.HitterId);
-
-    pHittee->SetCombatTargetEx(pHitter);
-#endif
 }
 
 void CombatService::RunTargetUpdates(const float acDelta) const noexcept

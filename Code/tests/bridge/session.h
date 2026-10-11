@@ -54,9 +54,11 @@
 #include <Messages/RequestHealthChangeBroadcast.h>
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyEquipmentChanges.h>
+#include <Messages/NotifyActiveEffects.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>
+#include <Messages/RequestActiveEffects.h>
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/ServerMessageFactory.h>

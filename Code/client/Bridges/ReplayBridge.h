@@ -138,6 +138,11 @@ public:
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateFaceGen(uint32_t aFormId) noexcept override;
     void ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept override;
+    bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override;
+    bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
+    void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
+    bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override;
+    std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) const noexcept override;
     void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept override;
 
     // -----------------------------------------------------------------
@@ -273,6 +278,8 @@ public:
     bool ConsumeTeleported() noexcept override;
     void StopTeleportEvents() noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
+    void ShowEnemyHealth(uint32_t aActorFormId) noexcept override;
+    uint32_t GetEnemyHealthTarget() const noexcept override;
     // --- IPlayerBridge extended (Plan 03) ---
     QuestLog GetPlayerQuestLog() const noexcept override;
     Tints GetPlayerFaceTints() const noexcept override;

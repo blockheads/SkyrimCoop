@@ -51,6 +51,24 @@ TEST_CASE("Equipment snapshot: relayed from the owner only", "[Bridge][Inventory
     CHECK(session.SentTo<NotifyEquipmentSnapshot>(kHost).empty());
 }
 
+TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[Bridge][Magic]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+
+    RequestActiveEffects effects;
+    effects.ServerId = cHostNpc;
+    effects.EffectIds = {GameId(0, 0x12F03)};
+    session.Receive(kPeer, effects);
+    CHECK(session.SentTo<NotifyActiveEffects>(kOtherPeer).empty());
+
+    session.Receive(kHost, effects);
+    REQUIRE(session.SentTo<NotifyActiveEffects>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyActiveEffects>(kPeer)[0]->EffectIds == effects.EffectIds);
+    CHECK(session.SentTo<NotifyActiveEffects>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyActiveEffects>(kHost).empty());
+}
+
 TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[Bridge][Inventory]")
 {
     Session session;

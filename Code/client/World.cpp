@@ -27,6 +27,7 @@
 #include <Services/QuestService.h>
 #include <Services/ActorValueService.h>
 #include <Services/InventoryService.h>
+#include <Services/EffectVisualsService.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/CalendarService.h>
@@ -99,11 +100,13 @@ World::World()
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport,
                                ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
+    ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CommandService>(*this, m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<StringCacheService>(m_dispatcher);
-    ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>());
+    ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
+                                 ctx().at<IPlayerBridge&>());
     ctx().emplace<WeatherService>(*this, m_dispatcher);
     ctx().emplace<HostService>(*this, m_dispatcher);
 
@@ -121,6 +124,7 @@ World::~World()
     ctx().erase<StringCacheService>();
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
+    ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();

@@ -15,6 +15,7 @@
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/NotifyDialogue.h>
 #include <Messages/NotifyDrawWeapon.h>
+#include <Messages/NotifyActiveEffects.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyInterruptCast.h>
@@ -30,6 +31,7 @@
 #include <Messages/RequestActorMaxValueChanges.h>
 #include <Messages/RequestActorValueChanges.h>
 #include <Messages/RequestDeathStateChange.h>
+#include <Messages/RequestActiveEffects.h>
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
 #include <Messages/SpellCastRequest.h>
@@ -90,6 +92,12 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.ServerId = 0x123456;
         m.Equipment = SomeEquipment();
         add("EquipmentSnapshot", m, (NotifyEquipmentSnapshot*)nullptr);
+    }
+    {
+        RequestActiveEffects m;
+        m.ServerId = 0x2345;
+        m.EffectIds = {GameId(1, 0x12F03), GameId(2, 0x1B212)};
+        add("ActiveEffects", m, (NotifyActiveEffects*)nullptr);
     }
     {
         DrawWeaponRequest m;
@@ -223,6 +231,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
+        {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
         {"ActorValues", {"d668021800004d4219000060c0", "d668021800004d4219000060c0"}},
         {"AddTarget", {"ef9b03f0bd03cddf0401cedf04010000cc4103", "ef9b03f0bd03cddf0401cedf04010000cc4103"}},

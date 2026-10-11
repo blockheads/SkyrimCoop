@@ -21,6 +21,7 @@
 #include <Messages/NotifyDialogue.h>
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyEquipmentChanges.h>
+#include <Messages/NotifyActiveEffects.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyHealthChangeBroadcast.h>
@@ -41,6 +42,7 @@
 #include <Messages/RequestActorValueChanges.h>
 #include <Messages/RequestDeathStateChange.h>
 #include <Messages/RequestEquipmentChanges.h>
+#include <Messages/RequestActiveEffects.h>
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
@@ -162,6 +164,8 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
+    // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
+    Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::ServerId);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);

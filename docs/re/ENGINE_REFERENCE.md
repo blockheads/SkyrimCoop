@@ -7,7 +7,7 @@ RVAs are relative to image base `0x140000000`. Sources: **CL** = CommonLibSSE (s
 available), **SKSE** = SKSE source, **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **268** distinct engine addresses used; **108** have code in CommonLib or SKSE; **76** have no community name at all.
+- **273** distinct engine addresses used; **110** have code in CommonLib or SKSE; **79** have no community name at all.
 - **98** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -27,19 +27,19 @@ available), **SKSE** = SKSE source, **meh** = meh321 AddressLibraryDatabase name
 | 19790 | `0x2ea960` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `s_setPosition` | [Actor.cpp:1470](../../Code/client/Games/Skyrim/Actor.cpp#L1470) |  |
 | 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | hook → `HookActivate` | `s_activate` | [TESObjectREFR.cpp:403](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L403) |  |
 | 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | hook → `HookActivate` | `s_activate` | [TESObjectREFR.cpp:1119](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1119) |  |
-| 21622 | `0x332e80` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `hasPerk` | [MagicTarget.cpp:204](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L204) |  |
+| 21622 | `0x332e80` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `hasPerk` | [MagicTarget.cpp:207](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L207) |  |
 | 26231 | `0x40b490` | `Sky::UpdateWeather` | meh | hook → `HookUpdateWeather` | `updateWeather` | [Sky.cpp:95](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L95) |  |
 | 26241 | `0x40e0c0` | `Sky::SetWeather` | CL meh | hook → `HookSetWeather` | `setWeather` | [Sky.cpp:93](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L93) |  |
 | 26243 | `0x40e1c0` | `Sky::ForceWeather` | CL meh | hook → `HookForceWeather` | `forceWeather` | [Sky.cpp:94](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L94) |  |
 | 27244 | `0x43e060` | `?` | - | hook → `HookCalculateExperience` | `s_calculateExperience` | [PlayerCharacter.cpp:328](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L328) | **undocumented** |
 | 33236 | `0x559930` | `?` | - | hook → `HookUpdateTarget` | `s_updateTarget` | [CombatController.cpp:85](../../Code/client/Games/Skyrim/Combat/CombatController.cpp#L85) | **undocumented** |
-| 34053 | `0x5ac3a0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `adjustForPerks` | [MagicTarget.cpp:203](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L203) |  |
+| 34053 | `0x5ac3a0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `adjustForPerks` | [MagicTarget.cpp:206](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L206) |  |
 | 34140 | `0x5b0b70` | `ActorMagicCaster::Func8_34140` | meh | hook → `HookInterruptCast` | `s_interruptCast` | [ActorMagicCaster.cpp:68](../../Code/client/Games/Skyrim/Magic/ActorMagicCaster.cpp#L68) |  |
 | 34144 | `0x5b1290` | `ActorMagicCaster::Func9_34144` | meh | hook → `HookSpellCast` | `s_spellCast` | [ActorMagicCaster.cpp:67](../../Code/client/Games/Skyrim/Magic/ActorMagicCaster.cpp#L67) |  |
 | 34370 | `0x5ba640` | `InvisibilityEffect::Func21_34370` | meh | hook → `HookFinish` | `s_finish` | [InvisibilityEffect.cpp:30](../../Code/client/Games/Skyrim/Effects/InvisibilityEffect.cpp#L30) |  |
-| 34410 | `0x5bc160` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `findTargets` | [MagicTarget.cpp:202](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L202) |  |
-| 34525 | `0x5c30c0` | `MagicTarget::AddTargetData::CheckAddEffect` | CL | hook → `HookCheckAddEffectTargetData` | `checkAddEffectTargetData` | [MagicTarget.cpp:201](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L201) |  |
-| 34526 | `0x5c3250` | `?` | - | hook → `HookAddTarget` | `addTarget` | [MagicTarget.cpp:200](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L200) | **undocumented** |
+| 34410 | `0x5bc160` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `findTargets` | [MagicTarget.cpp:205](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L205) |  |
+| 34525 | `0x5c30c0` | `MagicTarget::AddTargetData::CheckAddEffect` | CL | hook → `HookCheckAddEffectTargetData` | `checkAddEffectTargetData` | [MagicTarget.cpp:204](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L204) |  |
+| 34526 | `0x5c3250` | `?` | - | hook → `HookAddTarget` | `addTarget` | [MagicTarget.cpp:203](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L203) | **undocumented** |
 | 34989 | `0x5d44c0` | `?` | - | hook → `HookInitializeSummonCreatureEffect` | `s_start` | [SummonCreatureEffect.h:32](../../Code/client/Games/Skyrim/Effects/SummonCreatureEffect.h#L32) | **undocumented** |
 | 35086 | `0x5d8a70` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `s_applyActorEffect` | [Actor.cpp:1478](../../Code/client/Games/Skyrim/Actor.cpp#L1478) |  |
 | 35269 | `0x5dfa50` | `MenuTopicManager::sub_35269` | meh | hook → `HookPlayDialogueOption` | `s_playDialogueOption` | [MenuTopicManager.cpp:42](../../Code/client/Games/Misc/MenuTopicManager.cpp#L42) |  |
@@ -62,7 +62,7 @@ available), **SKSE** = SKSE source, **meh** = meh321 AddressLibraryDatabase name
 | 37577 | `0x67efe0` | `Character::sub_37577` | meh | hook → `HookIsFleeing` | `isFleeing` | [Actor.cpp:1489](../../Code/client/Games/Skyrim/Actor.cpp#L1489) |  |
 | 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | hook → `HookGetFactionReaction` | `s_getFactionReaction` | [Actor.cpp:1526](../../Code/client/Games/Skyrim/Actor.cpp#L1526) |  |
 | 37667 | `0x689fb0` | `Character::sub_37667` | meh | hook → `HookComputeReaction` | `s_computeReaction` | [Actor.cpp:1534](../../Code/client/Games/Skyrim/Actor.cpp#L1534) |  |
-| 37698 | `0x68cdf0` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:205](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L205) |  |
+| 37698 | `0x68cdf0` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:208](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L208) |  |
 | 37905 | `0x6992c0` | `Actor::sub_37905` | meh | hook → `HookInitiateMountPackage` | `s_initiateMountPackage` | [Actor.cpp:1485](../../Code/client/Games/Skyrim/Actor.cpp#L1485) |  |
 | 37975 | `0x69d1b0` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `s_unequipObject` | [Actor.cpp:1486](../../Code/client/Games/Skyrim/Actor.cpp#L1486) |  |
 | 38717 | `0x6c14b0` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `s_removeSpell` | [Actor.cpp:1471](../../Code/client/Games/Skyrim/Actor.cpp#L1471) |  |
@@ -128,9 +128,14 @@ available), **SKSE** = SKSE source, **meh** = meh321 AddressLibraryDatabase name
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | call | `s_getFactionReaction` | [SkyrimBridge.cpp:596](../../Code/client/Bridges/SkyrimBridge.cpp#L596) |  |
-| 37671 | `0x68a640` | `Actor::GetAggression` | meh | call | `s_getAggression` | [SkyrimBridge.cpp:638](../../Code/client/Bridges/SkyrimBridge.cpp#L638) |  |
-| 38626 | `0x6ba1d0` | `fUnk_Attacked` | meh | call | `s_attacked` | [SkyrimBridge.cpp:640](../../Code/client/Bridges/SkyrimBridge.cpp#L640) |  |
+| 19872 | `0x2f0e20` | `TESObjectREFR::ApplyEffectShader` | CL | call | `s_applyEffectShader` | [SkyrimBridge.cpp:2249](../../Code/client/Bridges/SkyrimBridge.cpp#L2249) |  |
+| 22769 | `0x366b20` | `TESObjectREFR::ApplyArtObject` | CL | call | `s_applyArtObject` | [SkyrimBridge.cpp:2250](../../Code/client/Bridges/SkyrimBridge.cpp#L2250) |  |
+| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | call | `s_getFactionReaction` | [SkyrimBridge.cpp:597](../../Code/client/Bridges/SkyrimBridge.cpp#L597) |  |
+| 37671 | `0x68a640` | `Actor::GetAggression` | meh | call | `s_getAggression` | [SkyrimBridge.cpp:639](../../Code/client/Bridges/SkyrimBridge.cpp#L639) |  |
+| 38626 | `0x6ba1d0` | `fUnk_Attacked` | meh | call | `s_attacked` | [SkyrimBridge.cpp:641](../../Code/client/Bridges/SkyrimBridge.cpp#L641) |  |
+| 41395 | `0x7725f0` | `?` | - | call | `s_stopEffectShader` | [SkyrimBridge.cpp:2279](../../Code/client/Bridges/SkyrimBridge.cpp#L2279) | **undocumented** |
+| 41396 | `0x772700` | `?` | - | call | `s_stopArtObject` | [SkyrimBridge.cpp:2280](../../Code/client/Bridges/SkyrimBridge.cpp#L2280) | **undocumented** |
+| 52844 | `0x976710` | `?` | - | call | `s_showEnemyHealth` | [SkyrimBridge.cpp:1574](../../Code/client/Bridges/SkyrimBridge.cpp#L1574) | **undocumented** |
 
 ## Games
 
@@ -442,18 +447,18 @@ available), **SKSE** = SKSE source, **meh** = meh321 AddressLibraryDatabase name
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 21622 | `0x332e80` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `hasPerk` | [MagicTarget.cpp:204](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L204) |  |
-| 34053 | `0x5ac3a0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `adjustForPerks` | [MagicTarget.cpp:203](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L203) |  |
+| 21622 | `0x332e80` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `hasPerk` | [MagicTarget.cpp:207](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L207) |  |
+| 34053 | `0x5ac3a0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `adjustForPerks` | [MagicTarget.cpp:206](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L206) |  |
 | 34140 | `0x5b0b70` | `ActorMagicCaster::Func8_34140` | meh | hook → `HookInterruptCast` | `s_interruptCast` | [ActorMagicCaster.cpp:68](../../Code/client/Games/Skyrim/Magic/ActorMagicCaster.cpp#L68) |  |
 | 34144 | `0x5b1290` | `ActorMagicCaster::Func9_34144` | meh | hook → `HookSpellCast` | `s_spellCast` | [ActorMagicCaster.cpp:67](../../Code/client/Games/Skyrim/Magic/ActorMagicCaster.cpp#L67) |  |
 | 34401 | `0x5bb720` | `?` | - | call | `s_castSpell` | [MagicCaster.cpp:7](../../Code/client/Games/Skyrim/Magic/MagicCaster.cpp#L7) | **undocumented** |
 | 34408 | `0x5bbfa0` | `MagicCaster::InterruptCast` | CL meh | call | `s_interruptCast` | [MagicCaster.cpp:16](../../Code/client/Games/Skyrim/Magic/MagicCaster.cpp#L16) |  |
-| 34410 | `0x5bc160` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `findTargets` | [MagicTarget.cpp:202](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L202) |  |
+| 34410 | `0x5bc160` | `MagicCaster::FindTargets` | CL meh | hook → `HookFindTargets` | `findTargets` | [MagicTarget.cpp:205](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L205) |  |
 | 34512 | `0x5c28b0` | `MagicTarget::DispelAllSpells` | meh | call | `dispelAllSpells` | [MagicTarget.cpp:43](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L43) |  |
-| 34525 | `0x5c30c0` | `MagicTarget::AddTargetData::CheckAddEffect` | CL | hook → `HookCheckAddEffectTargetData` | `checkAddEffectTargetData` | [MagicTarget.cpp:201](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L201) |  |
-| 34526 | `0x5c3250` | `?` | - | hook → `HookAddTarget` | `addTarget` | [MagicTarget.cpp:200](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L200) | **undocumented** |
+| 34525 | `0x5c30c0` | `MagicTarget::AddTargetData::CheckAddEffect` | CL | hook → `HookCheckAddEffectTargetData` | `checkAddEffectTargetData` | [MagicTarget.cpp:204](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L204) |  |
+| 34526 | `0x5c3250` | `?` | - | hook → `HookAddTarget` | `addTarget` | [MagicTarget.cpp:203](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L203) | **undocumented** |
 | 34529 | `0x5c3b90` | `MagicTarget::GetOwnerActor` | meh | call | `getTargetAsActor` | [MagicTarget.cpp:79](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L79) |  |
-| 37698 | `0x68cdf0` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:205](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L205) |  |
+| 37698 | `0x68cdf0` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:208](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L208) |  |
 
 ## Games/Skyrim/Misc
 
