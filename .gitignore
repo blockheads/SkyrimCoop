@@ -93,3 +93,16 @@ new_addresses.txt
 packaged/*
 build.hdd
 reference/
+
+# Local run output (logs, replay captures, linker maps, stray build products)
+/logs/
+*.map
+session*.ndjson
+/session_enet/
+/test_client.txt
+/test_host.txt
+/skyrim-coop
+tests/*.dll
+tests/*.exe
+/client
+/workspace
