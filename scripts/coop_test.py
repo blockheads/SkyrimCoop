@@ -6,7 +6,8 @@
   coop_test.py game   [--cell CELL --seconds S]       fast-boot, host, connect a bot, verify the bot's
                                                       actor exists in the engine and moves; then quit
   coop_test.py duo    [--keep-running --visible]      two real games: host + client, each must show the other
-  coop_test.py scenario [names]                       sync scenarios (equip, ...) against a running duo
+  coop_test.py scenario [names] [--shuffle --repeat N] sync scenarios against a running duo; each
+                                                      starts from the same baseline and is cleaned up after
   coop_test.py reload                                 swap the current build into a running duo and reconnect
   coop_test.py stop                                   kill the test Skyrim instance(s)
   coop_test.py screenshot [out.png]                   capture the off-screen game display
@@ -28,6 +29,7 @@ import argparse
 import json
 import math
 import os
+import random
 from pathlib import Path
 import re
 import shutil
@@ -641,6 +643,8 @@ def command_duo(args):
             for name in ("", "client"):
                 select_instance(name)
                 face_actor(next(iter(seen[name or "host"])))
+            time.sleep(0.3)
+            save_home()
     except TestFailure as error:
         print(f"\nFAIL: {error}\nLogs: {run_dir}", file=sys.stderr)
         raise SystemExit(1)
@@ -891,17 +895,10 @@ def scenario_cast_client_player():
     cast_roundtrip("client", "", "client's character")
 
 
-def ensure_host_npc(base="000A2C8E"):
-    """Returns (host ref id, client replica id) of a host-owned NPC, spawning one if needed."""
-    select_instance("")
-    host_player = int(remote_player(actors_on("")) or 0)
-    host_npcs = [a for a in (read_status() or {}).get("player", {}).get("loaded_actors", []) if a != host_player]
-    if not host_npcs:
-        console_on("", f"player.placeatme {base} 1")
-        host_npcs = wait_for("[host] NPC loaded", lambda: [
-            a for a in ((read_status() or {}).get("player") or {}).get("loaded_actors", []) if a != host_player], 15)
-    replicas = wait_on("client", "host NPC replicated", remote_npcs)
-    return host_npcs[0], next(iter(replicas))
+def ensure_host_npc():
+    """(host ref id, client replica id) of a Lydia spawned for this scenario: scenarios never share
+    an NPC (the baseline reset removes it afterwards)."""
+    return spawn_host_npc(LYDIA)
 
 
 def scenario_equip_host_npc():
@@ -1141,6 +1138,12 @@ def cast_at(instance, target, spell, until, attempts=4, wait=1.0):
         if now and aimed_at and distance(now, aimed_at) > 100:
             approach(instance, target, 0.5)
             aimed_at = now
+        # NPCs walk up to greet the player; from closer than this the bolt spawns inside them.
+        me = player_snapshot(instance).get("placement", {}).get("position")
+        if now and me and distance(now, me) < 100:
+            select_instance(instance)
+            face_actor(target)
+            hold_key(instance, "s", 0.3)
         cast_spell(instance, target, spell)
         end = time.time() + wait
         while time.time() < end:
@@ -1156,7 +1159,11 @@ def spell_hits_host_npc(spell, hold_seconds):
     client's copy must only ever show the host's value: a copy that drops below its owner applied
     the effect itself (two games simulating one actor)."""
     npc, replica = ensure_host_npc()
+    # A held (concentration) cast only streams from the hand the spell is equipped in.
+    console_on("client", f"player.addspell {spell:08X}")
+    console_on("client", f"player.equipspell {spell:08X} right")
     approach("client", replica, 0.5)
+    press_until("client", "r", lambda me: me.get("weapon_drawn"), "readying the spell")
     before = host_npc_state(npc).get("health")
     log(f"host's real NPC health before: {before:.0f}")
     worst_gap = 0.0
@@ -1243,10 +1250,21 @@ def scenario_client_angers_host_ally():
     with GodMode(), OthersAway([npc]):
         try:
             console_on("", f"{npc:08X}.setav health 3000")
-            if not cast_at("client", replica, FIREBOLT,
-                           lambda: host_world(npc).get("ai", {}).get("combat_target") == client_on_host, attempts=8):
-                raise TestFailure(f"host's NPC never turned on the client (combat target "
+            hits = 0
+            last_health = None
+            def turned():
+                nonlocal hits, last_health
+                world = host_world(npc)
+                health = world.get("values", {}).get("health")
+                if health is not None and last_health is not None and health < last_health - 5:
+                    hits += 1
+                last_health = health
+                return world.get("ai", {}).get("combat_target") == client_on_host
+            # Lydia takes 6-7 Firebolts before she turns: room for a few misses.
+            if not cast_at("client", replica, FIREBOLT, turned, attempts=14):
+                raise TestFailure(f"host's NPC never turned on the client after {hits} hits (combat target "
                                   f"{host_world(npc).get('ai', {}).get('combat_target', 0):08X}, client is {client_on_host:08X})")
+            log(f"host's NPC turned after {hits} hits")
             log(f"host's NPC {npc:08X} now fights the client's character {client_on_host:08X}")
             hold()
         finally:
@@ -1298,6 +1316,146 @@ def scenario_client_melee_kill_credit():
     kill_credit("melee")
 
 
+# --- Isolation: every scenario starts from the same baseline and leaves nothing behind ----------
+# reset_baseline() puts both players back (casts, hands, equipment, values, combat, place) and
+# removes every NPC; scenarios spawn their own NPCs fresh. check_baseline() lists what still
+# differs. The runner resets and checks after every scenario: one that leaves something the reset
+# cannot undo (usually a copy stuck out of sync) fails, instead of the innocent one after it.
+HOME_FILE = "home.json"     # in each game's control dir, written by `duo --keep-running`
+TEST_ITEMS = {IRON_SWORD}   # given out by scenarios, never part of the baseline
+HOME_TOLERANCE = 40.0       # units from the recorded spot
+PLAYER_VALUES = ("health", "magicka", "stamina")
+
+
+def player_snapshot(instance):
+    select_instance(instance)
+    return ((read_status() or {}).get("world") or {}).get("20") or {}
+
+
+def save_home():
+    """Records each player's spot, heading and clothes as the baseline the scenarios start from."""
+    for name in ("", "client"):
+        me = player_snapshot(name)
+        placement = me.get("placement") or {}
+        if not placement.get("position"):
+            raise TestFailure(f"{name or 'host'}: no player snapshot to record the baseline from")
+        home = {"position": placement["position"], "heading": placement["rotation"][2],
+                "equipment": sorted(i for i in me.get("equipment", []) if i not in TEST_ITEMS)}
+        atomic_write(CONTROL / HOME_FILE, json.dumps(home) + "\n")
+    log("Recorded both players' baseline (home.json)")
+
+
+def load_home(instance):
+    select_instance(instance)
+    try:
+        return json.loads((CONTROL / HOME_FILE).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def owned_npcs(instance):
+    return [int(a) for a in local_player(instance).get("local_actors", {})]
+
+
+def reset_player(instance, home):
+    me = player_snapshot(instance)
+    state = me.get("state") or {}
+    select_instance(instance)
+    for source in (0, 1):
+        rpc({"cmd": "interrupt", "caster": 0x14, "source": source})
+    if state.get("weapon_drawn"):
+        # The R key, like a player: the sheathe action is what copies replay (setting the engine
+        # flag directly leaves them drawn).
+        press_until(instance, "r", lambda me: not me.get("weapon_drawn"), "lowering the hands")
+    if sorted(me.get("equipment", [])) != home["equipment"] or any(state.get("hands") or []):
+        run_console("player.unequipall")
+        for item in home["equipment"]:
+            run_console(f"player.equipitem {item:08X}")
+    values = me.get("values") or {}
+    for value in PLAYER_VALUES:
+        if values.get(value, 0) < values.get(f"max_{value}", 0) - 0.5:
+            run_console(f"player.restoreav {value} 100000")
+    if (me.get("ai") or {}).get("combat_target"):
+        run_console("player.stopcombat")
+    position = (me.get("placement") or {}).get("position")
+    goal = home["position"]
+    if not position or distance(position, goal) > HOME_TOLERANCE:
+        # Lifted a little and dropped onto the floor there (see place()).
+        run_console(f"player.setpos z {goal[2] + 20:.0f}")
+        run_console(f"player.setpos x {goal[0]:.0f}")
+        run_console(f"player.setpos y {goal[1]:.0f}")
+    run_console(f"player.setangle z {math.degrees(home['heading']) % 360:.0f}")
+    run_console("player.setangle x 0")
+
+
+def reset_baseline():
+    for name in ("", "client"):
+        for npc in owned_npcs(name):
+            console_on(name, f"{npc:08X}.disable")
+            console_on(name, f"{npc:08X}.markfordelete")
+    for name in ("", "client"):
+        reset_player(name, load_home(name))
+
+
+def check_baseline():
+    """What differs from the baseline in either game (empty: a scenario can start)."""
+    problems = []
+    for name in ("", "client"):
+        game = name or "host"
+        home = load_home(name)
+        me = player_snapshot(name)
+        state = me.get("state") or {}
+        values = me.get("values") or {}
+        if any(state.get("casting") or []):
+            problems.append(f"{game}: player still casting {state['casting']}")
+        if any(state.get("hands") or []):
+            problems.append(f"{game}: player holds {state['hands']} in the hands")
+        if state.get("weapon_drawn"):
+            problems.append(f"{game}: player's hands are raised")
+        if sorted(me.get("equipment", [])) != home["equipment"]:
+            problems.append(f"{game}: player wears {sorted(me.get('equipment', []))}, baseline {home['equipment']}")
+        for value in PLAYER_VALUES:
+            if values.get(value, 0) < values.get(f"max_{value}", 0) - 1:
+                problems.append(f"{game}: player {value} {values.get(value):.0f} of {values.get(f'max_{value}'):.0f}")
+        if (me.get("ai") or {}).get("combat_target"):
+            problems.append(f"{game}: player in combat with {me['ai']['combat_target']:08X}")
+        position = (me.get("placement") or {}).get("position")
+        if not position or distance(position, home["position"]) > HOME_TOLERANCE:
+            problems.append(f"{game}: player at {[round(v) for v in position or []]}, "
+                            f"baseline {[round(v) for v in home['position']]}")
+        if npcs := owned_npcs(name):
+            problems.append(f"{game}: still owns NPCs {[f'{n:08X}' for n in npcs]}")
+        actors = actors_on(name)
+        if remote_player(actors) is None:
+            problems.append(f"{game}: does not show the other player")
+        if copies := remote_npcs(actors):
+            problems.append(f"{game}: still shows NPC copies {[f'{n:08X}' for n in copies]}")
+    if not problems:
+        problems = check_desync(samples=1)
+    return problems
+
+
+def settle_baseline(timeout=8.0):
+    """Resets both games and waits until they match the baseline; returns what still differs."""
+    reset_baseline()
+    deadline = time.monotonic() + timeout
+    reset_again = time.monotonic() + timeout / 2
+    while True:
+        problems = check_baseline()
+        if not problems or time.monotonic() > deadline:
+            return problems
+        if reset_again and time.monotonic() > reset_again:
+            reset_again = None
+            # A player copy can keep an animation the reset's teleport or keypress left it with:
+            # a step forward and back gives it a fresh action from its owner to replay.
+            for name, role in (("", "host"), ("client", "client")):
+                if any(f"[{role} 00000014" in problem and "animation." in problem for problem in problems):
+                    hold_key(name, "w", 0.15)
+                    hold_key(name, "s", 0.15)
+            reset_baseline()
+        time.sleep(0.1)
+
+
 SCENARIOS = {
     "steady-state": scenario_steady_state,
     "equip-host-player": scenario_equip_host_player,
@@ -1320,10 +1478,6 @@ SCENARIOS = {
     "client-angers-host-ally": scenario_client_angers_host_ally,
     "client-spell-kill-credit": scenario_client_spell_kill_credit,
     "client-melee-kill-credit": scenario_client_melee_kill_credit,
-    "client-angers-host-ally": scenario_client_angers_host_ally,
-    "client-spell-kill-credit": scenario_client_spell_kill_credit,
-    "client-melee-kill-credit": scenario_client_melee_kill_credit,
-    "steady-state-after": scenario_steady_state,
 }
 
 
@@ -1594,10 +1748,26 @@ def command_scenario(args):
         select_instance(name)
         if not read_status():
             raise TestFailure(f"{name or 'host'} game is not running: start `{sys.argv[0]} duo --keep-running` first")
-    results = {}
-    durations = {}
+    if not all(load_home(name) for name in ("", "client")):
+        log("warning: no baseline recorded by `duo --keep-running`: using where the players stand now")
+        for name in ("", "client"):
+            reset_player(name, {"position": player_snapshot(name)["placement"]["position"],
+                                "heading": player_snapshot(name)["placement"]["rotation"][2],
+                                "equipment": sorted(i for i in player_snapshot(name).get("equipment", [])
+                                                    if i not in TEST_ITEMS)})
+        save_home()
+    order = [name for _ in range(args.repeat) for name in names]
+    if args.shuffle:
+        seed = args.seed if args.seed is not None else random.randrange(1 << 30)
+        random.Random(seed).shuffle(order)
+        log(f"Shuffled order (--seed {seed} repeats it): {' '.join(order)}")
+
     suite_start = time.monotonic()
-    for name in names:
+    log("=== baseline: resetting both games")
+    if problems := settle_baseline():
+        raise TestFailure("cannot reach the baseline before the first scenario: " + " | ".join(problems))
+    runs = []  # (name, seconds, result)
+    for index, name in enumerate(order):
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
         scenario_start = time.monotonic()
         try:
@@ -1613,18 +1783,32 @@ def command_scenario(args):
                     log(f"warning: engine-only lock-order pattern on {game}: {report}")
             if ours_locks := [f"{game}: {report}" for game, report, ours in new_locks if ours]:
                 raise TestFailure("lock order (our code on the stack): " + " | ".join(ours_locks))
-            results[name] = "PASS"
+            result = "PASS"
         except TestSkipped as error:
-            results[name] = f"SKIP ({error})"
+            result = f"SKIP ({error})"
         except TestFailure as error:
-            results[name] = f"FAIL ({error})"
-        durations[name] = time.monotonic() - scenario_start
-        log(f"=== {name}: {results[name]}")
+            result = f"FAIL ({error})"
+        # Back to the baseline for the next one; what the reset cannot undo is this scenario's.
+        leftovers = settle_baseline()
+        if leftovers:
+            left = "left behind: " + " | ".join(leftovers)
+            result = f"FAIL ({left})" if result == "PASS" else f"{result} [{left}]"
+        runs.append((name, time.monotonic() - scenario_start, result))
+        log(f"=== {name}: {result}")
+        if leftovers:
+            for skipped in order[index + 1:]:
+                runs.append((skipped, 0.0, "NOT RUN (the games could not be reset to the baseline)"))
+            break
     print()
-    for name, result in results.items():
-        print(f"{name:28s} {durations[name]:5.1f}s  {result}")
+    for name, seconds, result in runs:
+        print(f"{name:28s} {seconds:5.1f}s  {result}")
+    if args.repeat > 1 or args.shuffle:
+        print()
+        for name in names:
+            mine = [result for run, _, result in runs if run == name]
+            print(f"{name:28s} {sum(r == 'PASS' for r in mine)}/{len(mine)} passed")
     print(f"{'total':28s} {time.monotonic() - suite_start:5.1f}s")
-    if any(r.startswith("FAIL") for r in results.values()):
+    if any(not r.startswith(("PASS", "SKIP")) for _, _, r in runs):
         raise SystemExit(1)
 
 
@@ -1659,6 +1843,9 @@ def main():
     scenario.add_argument("--hold", type=float, default=0,
                           help="pause N seconds after each synced step and face the camera at it (for watching)")
     scenario.add_argument("names", nargs="*", help=f"default: all of {', '.join(SCENARIOS)}")
+    scenario.add_argument("--shuffle", action="store_true", help="random order (scenarios must not depend on each other)")
+    scenario.add_argument("--seed", type=int, help="with --shuffle: repeat a shuffled order")
+    scenario.add_argument("--repeat", type=int, default=1, help="run the list N times")
     stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
     console = commands.add_parser("console", help="run a console command in the running test game")
     console.add_argument("text", nargs="+")

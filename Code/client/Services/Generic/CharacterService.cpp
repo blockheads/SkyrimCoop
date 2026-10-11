@@ -624,7 +624,9 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
 
     if (itor != std::end(view))
     {
-        if (auto* pFormIdComponent = m_world.try_get<FormIdComponent>(*itor))
+        const entt::entity cEntity = *itor;
+        bool deleted = false;
+        if (auto* pFormIdComponent = m_world.try_get<FormIdComponent>(cEntity))
         {
             const uint32_t cFormId = pFormIdComponent->Id;
             // A copy we spawned (temporary reference) goes with its owner's actor. Checking only for a
@@ -632,11 +634,21 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
             if (m_actorBridge.IsActorTemporary(cFormId) || m_actorBridge.IsActorNpcTemporary(cFormId))
             {
                 m_actorBridge.DeleteActor(cFormId);
+                deleted = true;
                 spdlog::info("\tDeleted actor {:X}", cFormId);
             }
         }
 
-        DeleteRemoteEntityComponents(*itor);
+        DeleteRemoteEntityComponents(cEntity);
+        // The engine reuses a deleted copy's form id for the next one: an entity left holding it
+        // shadowed the new copy in form id lookups (its hits were dropped). Peers never see actor
+        // discovery remove a copy, so this is the only place it goes.
+        if (deleted)
+        {
+            m_world.remove<FormIdComponent>(cEntity);
+            if (m_world.orphan(cEntity))
+                m_world.destroy(cEntity);
+        }
     }
 }
 
