@@ -46,6 +46,9 @@ namespace TiltedPhoques
 
         void InstallDelayedHooks() noexcept;
         void UninstallHooks() noexcept;
+        // Disables and removes every hook and puts the import tables back (hot reload unloads
+        // the plugin; UninstallHooks leaves the hooks in place for process exit).
+        void RemoveAllHooks() noexcept;
 
         void Add(FunctionHook aFunctionHook, bool aDelayed = false) noexcept;
         void* Add(void* apFunctionDetour, const char* acpLibraryName, const char* acpMethod) noexcept;
@@ -100,6 +103,7 @@ namespace TiltedPhoques
         auto pVTable = *reinterpret_cast<uintptr_t * *>(pInstance);
         Func pRealFunction = reinterpret_cast<Func>(pVTable[aIndex]);
 
+        RecordPatch(&pVTable[aIndex], sizeof(pVTable[aIndex]));
         const vp::ScopedContext memory(&pVTable[aIndex], sizeof(&pVTable[aIndex]));
         memory.Write(aFunctionPtr);
 

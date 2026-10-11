@@ -473,4 +473,9 @@ namespace TiltedPhoques
             OnConsume(data.data(), data.size() & 0xFFFFFFFF);
         }
     }
+
+    void ShutdownNetworkWorkers() noexcept
+    {
+        uv_library_shutdown();
+    }
 }

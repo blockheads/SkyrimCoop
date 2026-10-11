@@ -61,12 +61,46 @@ namespace TiltedPhoques
         return RealRegisterClassExW(lpWndClass);
     }
 
+    // The process's top-level windows, visited with this process id.
+    static void ForEachOwnWindow(BOOL(CALLBACK* apVisit)(HWND, LPARAM))
+    {
+        EnumWindows(apVisit, static_cast<LPARAM>(GetCurrentProcessId()));
+    }
+
+    // Plugin unload (hot reload): windows must not keep calling into the unloaded DLL.
+    static void RestoreWndProc()
+    {
+        ForEachOwnWindow([](HWND aWindow, LPARAM aProcess) -> BOOL {
+            DWORD process = 0;
+            GetWindowThreadProcessId(aWindow, &process);
+            if (process != static_cast<DWORD>(aProcess) || !RealWndProc)
+                return TRUE;
+            if (reinterpret_cast<WNDPROC>(GetWindowLongPtrW(aWindow, GWLP_WNDPROC)) == HookWndProc)
+                SetWindowLongPtrW(aWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(RealWndProc));
+            if (reinterpret_cast<WNDPROC>(GetClassLongPtrW(aWindow, GCLP_WNDPROC)) == HookWndProc)
+                SetClassLongPtrW(aWindow, GCLP_WNDPROC, reinterpret_cast<LONG_PTR>(RealWndProc));
+            return TRUE;
+        });
+    }
+
     void WindowsHook::Install() noexcept
     {
         TP_HOOK_IAT(RegisterClassA, "user32.dll");
         TP_HOOK_IAT(RegisterClassW, "user32.dll");
         TP_HOOK_IAT(RegisterClassExA, "user32.dll");
         TP_HOOK_IAT(RegisterClassExW, "user32.dll");
+
+        // Loaded after the game window exists (hot reload): take over its procedure directly.
+        ForEachOwnWindow([](HWND aWindow, LPARAM aProcess) -> BOOL {
+            DWORD process = 0;
+            GetWindowThreadProcessId(aWindow, &process);
+            if (process == static_cast<DWORD>(aProcess) && IsWindowVisible(aWindow) &&
+                reinterpret_cast<WNDPROC>(GetWindowLongPtrW(aWindow, GWLP_WNDPROC)) != HookWndProc)
+                RealWndProc = reinterpret_cast<WNDPROC>(
+                    SetWindowLongPtrW(aWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HookWndProc)));
+            return TRUE;
+        });
+        AtUnload(&RestoreWndProc);
     }
 
     WindowsHook& WindowsHook::Get() noexcept

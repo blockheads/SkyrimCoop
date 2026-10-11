@@ -228,17 +228,15 @@ void Actor::SetLevelMod(uint32_t aLevel) noexcept
 
 ActorExtension* Actor::GetExtension() noexcept
 {
+    ActorExtension* pExtension = nullptr;
     if (AsExActor())
-    {
-        return static_cast<ActorExtension*>(AsExActor());
-    }
+        pExtension = static_cast<ActorExtension*>(AsExActor());
+    else if (AsExPlayerCharacter())
+        pExtension = static_cast<ActorExtension*>(AsExPlayerCharacter());
 
-    if (AsExPlayerCharacter())
-    {
-        return static_cast<ActorExtension*>(AsExPlayerCharacter());
-    }
-
-    return nullptr;
+    if (pExtension)
+        pExtension->EnsureCurrent();
+    return pExtension;
 }
 
 ExActor* Actor::AsExActor() noexcept

@@ -63,17 +63,31 @@ const SKSEPluginVersionData SKSEPlugin_Version = {
 extern void RunTiltedInit(const std::filesystem::path& acGamePath, const TiltedPhoques::String& aExeVersion);
 extern void RunTiltedApp();
 
+// The resident hot-reload loader (Code/loader) loads a copy of this DLL from elsewhere and tells it
+// where the SKSE plugin directory is.
+static std::filesystem::path s_pluginDirectory;
+
+extern "C" __declspec(dllexport) void SkyrimCoop_SetPluginDirectory(const wchar_t* apDirectory)
+{
+    s_pluginDirectory = apDirectory;
+}
+
 extern "C" __declspec(dllexport)
 bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 {
     if (!apSkse)
         return false;
 
-    // Derive game root from DLL path: Data/SKSE/Plugins/SkyrimTogetherClient.dll -> Skyrim root
-    wchar_t dllPath[MAX_PATH]{};
-    GetModuleFileNameW(s_dllInstance, dllPath, MAX_PATH);
-    std::filesystem::path gamePath = std::filesystem::path(dllPath).parent_path().parent_path().parent_path().parent_path();
-    CoopReload::Runtime::Get().Configure(std::filesystem::path(dllPath).parent_path());
+    // Data/SKSE/Plugins/SkyrimTogetherClient.dll -> Skyrim root
+    std::filesystem::path pluginDirectory = s_pluginDirectory;
+    if (pluginDirectory.empty())
+    {
+        wchar_t dllPath[MAX_PATH]{};
+        GetModuleFileNameW(s_dllInstance, dllPath, MAX_PATH);
+        pluginDirectory = std::filesystem::path(dllPath).parent_path();
+    }
+    std::filesystem::path gamePath = pluginDirectory.parent_path().parent_path().parent_path();
+    CoopReload::Runtime::Get().Configure(pluginDirectory);
 
     TiltedPhoques::String exeVersion("1.6.1170.0");
 

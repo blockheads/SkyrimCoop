@@ -22,6 +22,13 @@ struct ActorExtension
     ActionEvent LatestWeapEquipAnimation{};
     size_t GraphDescriptorHash = 0;
 
+    // Hot reload: an extension made by an earlier load of the plugin holds strings and vectors
+    // from that load's heap. It is reset (leaking them) before use, never freed or read.
+    static uint32_t CurrentGeneration() noexcept;
+    void EnsureCurrent() noexcept;
+
   private:
     uint32_t onlineFlags{0};
+    // Last: written after everything else when an extension is (re)made.
+    uint32_t m_generation{CurrentGeneration()};
 };

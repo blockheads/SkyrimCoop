@@ -467,7 +467,7 @@ std::string Runtime::BuildStatus(int aIndent)
     return status.dump(aIndent);
 }
 
-void Runtime::Shutdown() { CoopSteam::Shutdown(); m_loader.Unload(); }
+void Runtime::Shutdown() { m_commands.Stop(); CoopSteam::Shutdown(); m_loader.Unload(); }
 bool Runtime::Evaluate(const CoopMovementInput& input, CoopMovementOutput& output)
 {
     return m_loader.Evaluate(input, output);

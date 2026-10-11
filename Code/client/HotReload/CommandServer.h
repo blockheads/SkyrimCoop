@@ -21,6 +21,8 @@ public:
     bool Start(const std::string& aDirectory, THandler aHandler);
     // Game thread, every frame: accepts, reads and answers without blocking.
     void Poll();
+    // Closes the socket and every connection (the plugin unloads).
+    void Stop();
 
 private:
     struct Client

@@ -7,6 +7,18 @@
 
 extern void* RipAllocateN(size_t bytes);
 
+namespace TiltedPhoques
+{
+// Records the bytes at apAddress before a patch overwrites them (PatchJournal.cpp).
+void RecordPatch(void* apAddress, size_t aSize) noexcept;
+// Puts every recorded patch back, newest first (hot reload unloads the plugin).
+void RestorePatches() noexcept;
+// Undo steps that are not byte patches (a window procedure, ...), run newest first by
+// RunUnloadCallbacks when the plugin unloads.
+void AtUnload(void (*apCallback)()) noexcept;
+void RunUnloadCallbacks() noexcept;
+}
+
 namespace TiltedPhoques::detail
 {
 inline void WriteSkseBranch(void* source, const void* destination, uint8_t opcode) noexcept
@@ -27,6 +39,7 @@ inline void WriteSkseBranch(void* source, const void* destination, uint8_t opcod
         displacement = reinterpret_cast<intptr_t>(stub) - from - 5;
         if (displacement < INT32_MIN || displacement > INT32_MAX) std::abort();
     }
+    RecordPatch(source, 5);
     DWORD previous = 0;
     if (!VirtualProtect(source, 5, PAGE_EXECUTE_READWRITE, &previous)) std::abort();
     const auto relative = static_cast<int32_t>(displacement);

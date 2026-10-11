@@ -19,10 +19,17 @@ static void SetNonBlocking(SOCKET aSocket)
 
 CommandServer::~CommandServer()
 {
+    Stop();
+}
+
+void CommandServer::Stop()
+{
     for (const Client& cClient : m_clients)
         CloseSocket(cClient.Socket);
+    m_clients.clear();
     if (m_listener != ~uintptr_t(0))
         CloseSocket(m_listener);
+    m_listener = ~uintptr_t(0);
 }
 
 bool CommandServer::Start(const std::string& aDirectory, THandler aHandler)

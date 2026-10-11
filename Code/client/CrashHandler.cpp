@@ -213,8 +213,21 @@ CrashHandler::CrashHandler()
         TP_HOOK_IMMEDIATE(&RealExitProcess, &HookExitProcess);
 }
 
+static std::atomic<bool> s_watchdogStop{false};
+static HANDLE s_watchdogThread = nullptr;
+
+// The plugin unloads (hot reload): nothing of ours may run afterwards.
 CrashHandler::~CrashHandler()
 {
+    if (m_handler)
+        RemoveVectoredExceptionHandler(m_handler);
+    if (s_watchdogThread)
+    {
+        s_watchdogStop = true;
+        WaitForSingleObject(s_watchdogThread, 3000);
+        CloseHandle(s_watchdogThread);
+        s_watchdogThread = nullptr;
+    }
 }
 
 void CrashHandler::RemovePreviousDump(std::filesystem::path path)
@@ -304,7 +317,7 @@ static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
     const HANDLE cMainThread = apMainThread;
     uint64_t lastTicks = 0;
     int stalledSeconds = 0;
-    while (true)
+    while (!s_watchdogStop)
     {
         Sleep(1000);
         const uint64_t cTicks = s_mainLoopTicks.load(std::memory_order_relaxed);
@@ -341,6 +354,5 @@ void CrashHandler::OnMainLoopTick() noexcept
     HANDLE mainThread = nullptr;
     DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &mainThread,
                     THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, 0);
-    if (const HANDLE cWatchdog = CreateThread(nullptr, 0, &HangWatchdog, mainThread, 0, nullptr))
-        CloseHandle(cWatchdog);
+    s_watchdogThread = CreateThread(nullptr, 0, &HangWatchdog, mainThread, 0, nullptr);
 }

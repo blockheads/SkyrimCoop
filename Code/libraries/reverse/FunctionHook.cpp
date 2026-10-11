@@ -91,6 +91,25 @@ namespace TiltedPhoques
         }
     }
 
+    void FunctionHookManager::RemoveAllHooks() noexcept
+    {
+        MH_DisableHook(MH_ALL_HOOKS);
+        for (auto& hook : m_installedHooks)
+        {
+            MH_RemoveHook(hook.m_pSystemFunction);
+            hook.m_ppDetourFunction = nullptr;
+        }
+        m_installedHooks.clear();
+        m_delayedHooks.clear();
+
+        for (auto& iatHook : m_iatHooks)
+        {
+            const vp::ScopedContext thunkMemory(iatHook.pThunk, sizeof(iatHook.pThunk));
+            thunkMemory.Write(iatHook.pOriginal);
+        }
+        m_iatHooks.clear();
+    }
+
     void FunctionHookManager::Add(FunctionHook aFunctionHook, const bool aDelayed) noexcept
     {
         if (aDelayed)

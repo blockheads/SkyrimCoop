@@ -71,4 +71,8 @@ namespace TiltedPhoques
         void* m_pHandle{};
         bool m_connected{};
     };
+
+    // Stops the network library's worker threads (libuv's thread pool): the plugin is about to be
+    // unloaded (hot reload). No network object may be used afterwards.
+    void ShutdownNetworkWorkers() noexcept;
 }
