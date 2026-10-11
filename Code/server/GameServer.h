@@ -66,6 +66,9 @@ struct GameServer final : TiltedPhoques::Server
     // Loopback support for P2P host mode (in-process message delivery without enet6)
     void InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId);
     void SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
+    // The host's own client connecting in-process (replies go to aCallback) and leaving again.
+    void OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
+    void CloseLoopback();
     // Test mode: intercept ALL outgoing messages regardless of peer (for multi-peer replay tests)
     void SetTestSendCallback(std::function<void(ConnectionId_t, const void*, uint32_t)> aCallback);
 

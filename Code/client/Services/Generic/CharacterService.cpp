@@ -1351,7 +1351,7 @@ void CharacterService::RunLocalUpdates() const noexcept
     lastSendTimePoint = now;
 
     ClientReferencesMoveRequest message;
-    message.Tick = m_transport.GetClock().GetCurrentTick();
+    message.Tick = m_transport.GetTick();
 
     auto animatedLocalView = m_world.view<LocalComponent, LocalAnimationComponent, FormIdComponent>();
 
@@ -1370,7 +1370,7 @@ void CharacterService::RunLocalUpdates() const noexcept
 void CharacterService::RunRemoteUpdates() noexcept
 {
     // Delay by 300ms to let the interpolation system accumulate interpolation points
-    const auto currentTick = m_transport.GetClock().GetCurrentTick();
+    const auto currentTick = m_transport.GetTick();
     const auto tick = currentTick > 300 ? currentTick - 300 : 0;
 
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it

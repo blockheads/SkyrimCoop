@@ -50,8 +50,10 @@ struct PlayerManager
     Player* GetByUsername(const String& acUsername) const noexcept;
     Player const* GetByUsername(const String& acUsername) noexcept;
 
-    // Get the host player (first player to connect, lowest ID)
+    // The host player: the one on the host's in-process connection once one is set, else the
+    // first to connect (lowest ID). The lowest ID alone loses the host when it rejoins after a peer.
     Player* GetHostPlayer() noexcept;
+    void SetHostConnection(ConnectionId_t aConnectionId) noexcept { m_hostConnectionId = aConnectionId; }
     Player const* GetHostPlayer() const noexcept;
 
     uint32_t Count() const noexcept;
@@ -68,6 +70,7 @@ struct PlayerManager
 
 private:
     TMap m_players;
+    ConnectionId_t m_hostConnectionId{0};
 };
 
 } // namespace Server

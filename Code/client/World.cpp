@@ -163,7 +163,7 @@ IWorldBridge& World::GetWorldBridge() noexcept
 
 uint64_t World::GetTick() const noexcept
 {
-    return m_transport.GetClock().GetCurrentTick();
+    return m_transport.GetTick();
 }
 
 void World::Create() noexcept

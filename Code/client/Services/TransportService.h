@@ -17,6 +17,11 @@ class IPlayerBridge;
 class IFormBridge;
 class IWorldBridge;
 
+namespace Server
+{
+struct GameServer;
+}
+
 using TiltedPhoques::Client;
 
 /**
@@ -30,6 +35,20 @@ struct TransportService : Client
     TP_NOCOPYMOVE(TransportService);
 
     bool Send(const ClientMessage& acMessage) const noexcept;
+
+    /**
+     * @brief Hosting: talks to the embedded server in this process instead of over a socket.
+     * Messages go straight into the server; its replies are queued and handled on our next update.
+     */
+    void ConnectLocal(Server::GameServer& aServer) noexcept;
+    // Both hide Client's: they cover the in-process connection too.
+    [[nodiscard]] bool IsConnected() const noexcept;
+    [[nodiscard]] bool IsConnectedLocally() const noexcept { return m_pLocalServer != nullptr; }
+    void Close() noexcept;
+    /**
+     * @brief The session's tick: the server's own when hosting, else our clock synchronized to it.
+     */
+    [[nodiscard]] uint64_t GetTick() const noexcept;
 
     void OnConsume(const void* apData, uint32_t aSize) override;
     void OnConnected() override;
@@ -57,6 +76,8 @@ private:
     IFormBridge& m_formBridge;
     IWorldBridge& m_worldBridge;
     bool m_connected;
+    Server::GameServer* m_pLocalServer{nullptr};
+    Vector<Vector<uint8_t>> m_localInbox;
     String m_serverPassword{};
     uint32_t m_localPlayerId;
 

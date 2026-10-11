@@ -744,6 +744,21 @@ void GameServer::SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<vo
     m_loopbackCallback = std::move(aCallback);
 }
 
+void GameServer::OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback)
+{
+    SetLoopbackRoute(aConnectionId, std::move(aCallback));
+    m_pWorld->GetPlayerManager().SetHostConnection(aConnectionId);
+    OnConnection(aConnectionId);
+}
+
+void GameServer::CloseLoopback()
+{
+    const auto cConnectionId = m_loopbackConnectionId;
+    SetLoopbackRoute(0, nullptr);
+    if (cConnectionId != 0)
+        OnDisconnection(cConnectionId, EDisconnectReason::Quit);
+}
+
 void GameServer::SetTestSendCallback(std::function<void(ConnectionId_t, const void*, uint32_t)> aCallback)
 {
     m_testSendCallback = std::move(aCallback);
@@ -751,11 +766,18 @@ void GameServer::SetTestSendCallback(std::function<void(ConnectionId_t, const vo
 
 void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& acServerMessage) const
 {
+    Send(aConnectionId, acServerMessage, TiltedPhoques::kReliable);
+}
+
+void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& acServerMessage,
+                      TiltedPhoques::EPacketFlags aFlags) const
+{
     // Recording tap: capture outgoing ServerMessage as NDJSON
     if (m_pRecorder)
         m_pRecorder->RecordServerMessage(aConnectionId, acServerMessage);
 
-    // Loopback intercept: route host messages in-process instead of through enet6
+    // Loopback intercept: route host messages in-process instead of through enet6 (every send,
+    // reliable or not: the host's movement updates are unreliable)
     if (m_loopbackConnectionId != 0 && aConnectionId == m_loopbackConnectionId && m_loopbackCallback)
     {
         Buffer buffer(1 << 20);
@@ -777,12 +799,6 @@ void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& a
         return;
     }
 
-    Send(aConnectionId, acServerMessage, TiltedPhoques::kReliable);
-}
-
-void GameServer::Send(const ConnectionId_t aConnectionId, const ServerMessage& acServerMessage,
-                      TiltedPhoques::EPacketFlags aFlags) const
-{
     static thread_local TiltedPhoques::ScratchAllocator s_allocator{1 << 18};
 
     Buffer buffer(1 << 20);

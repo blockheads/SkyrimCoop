@@ -4,6 +4,7 @@
 #include <Events/UpdateEvent.h>
 #include <GameServer.h>
 #include <World.h>
+#include <Services/TransportService.h>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -94,6 +95,9 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
         if (m_isShuttingDown && !m_pGameServer->IsListening())
         {
             spdlog::info("[HostService] Server has shut down, destroying instance");
+            // Our own in-process connection points at it.
+            if (m_world.GetTransport().IsConnectedLocally())
+                m_world.GetTransport().Close();
 
             // Server has closed all connections and sockets
             // Safe to destroy and clear singleton

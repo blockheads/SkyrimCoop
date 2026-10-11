@@ -90,7 +90,7 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         {
             port = host.GetServer()->GetPort();
             if (!world.GetTransport().IsOnline())
-                world.GetTransport().Connect("127.0.0.1:" + std::to_string(port));
+                world.GetTransport().ConnectLocal(*host.GetServer());
             state = "authenticating_host";
         }
     }

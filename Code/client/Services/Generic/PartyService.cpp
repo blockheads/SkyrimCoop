@@ -85,7 +85,7 @@ void PartyService::ChangePartyLeader(const uint32_t aPlayerId) const noexcept
 
 void PartyService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
-    const auto cCurrentTick = m_transport.GetClock().GetCurrentTick();
+    const auto cCurrentTick = m_transport.GetTick();
     if (m_nextUpdate > cCurrentTick)
         return;
 

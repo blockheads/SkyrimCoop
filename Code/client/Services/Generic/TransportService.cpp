@@ -15,6 +15,7 @@
 
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/ServerMessageFactory.h>
+#include <GameServer.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Packet.hpp>
 
@@ -64,6 +65,52 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     };
 }
 
+// The host's in-process connection to its embedded server. Real connection ids are enet peer
+// addresses, so this one cannot collide.
+static constexpr ConnectionId_t kLocalConnectionId = 1;
+
+void TransportService::ConnectLocal(Server::GameServer& aServer) noexcept
+{
+    if (m_pLocalServer || Client::IsConnected())
+        return;
+
+    m_pLocalServer = &aServer;
+    m_localInbox.clear();
+    // The server's replies arrive while it handles a message: queued, so none of our handlers runs
+    // inside another service's.
+    aServer.OpenLoopback(kLocalConnectionId, [this](const void* apData, uint32_t aSize) {
+        const auto* pData = static_cast<const uint8_t*>(apData);
+        m_localInbox.emplace_back(pData, pData + aSize);
+    });
+    spdlog::info("Connected to the embedded server in this process");
+    OnConnected();
+}
+
+bool TransportService::IsConnected() const noexcept
+{
+    return m_pLocalServer != nullptr || Client::IsConnected();
+}
+
+void TransportService::Close() noexcept
+{
+    if (!m_pLocalServer)
+    {
+        Client::Close();
+        return;
+    }
+
+    auto* pServer = m_pLocalServer;
+    m_pLocalServer = nullptr;
+    m_localInbox.clear();
+    pServer->CloseLoopback();
+    OnDisconnected(kNormal);
+}
+
+uint64_t TransportService::GetTick() const noexcept
+{
+    return m_pLocalServer ? m_pLocalServer->GetTick() : GetClock().GetCurrentTick();
+}
+
 bool TransportService::Send(const ClientMessage& acMessage) const noexcept
 {
     static thread_local ScratchAllocator s_allocator(1 << 18);
@@ -72,6 +119,23 @@ bool TransportService::Send(const ClientMessage& acMessage) const noexcept
     {
         ~ScopedReset() { s_allocator.Reset(); }
     } allocatorGuard;
+
+    if (m_pLocalServer)
+    {
+        // The server handles it right away, and must not allocate from our scratch allocator: the
+        // bytes are copied out (into room reserved beforehand) and handed over after its scope.
+        Vector<uint8_t> payload;
+        payload.reserve(1 << 16);
+        {
+            ScopedAllocator _{s_allocator};
+            Buffer buffer(1 << 16);
+            Buffer::Writer writer(&buffer);
+            acMessage.Serialize(writer);
+            payload.assign(buffer.GetWriteData(), buffer.GetWriteData() + writer.Size());
+        }
+        m_pLocalServer->InjectMessage(payload.data(), static_cast<uint32_t>(payload.size()), kLocalConnectionId);
+        return true;
+    }
 
     if (IsConnected())
     {
@@ -82,6 +146,7 @@ bool TransportService::Send(const ClientMessage& acMessage) const noexcept
         writer.WriteBits(0, 8); // Write first byte as packet needs it
 
         acMessage.Serialize(writer);
+
         TiltedPhoques::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
 
         Client::Send(&packet);
@@ -169,7 +234,23 @@ void TransportService::OnUpdate()
 
 void TransportService::HandleUpdate(const UpdateEvent& acEvent) noexcept
 {
-    Update();
+    if (!m_pLocalServer)
+    {
+        Update();
+        return;
+    }
+
+    // Handling one can queue more (or close the connection): take the batch first.
+    const auto cInbox = std::move(m_localInbox);
+    m_localInbox.clear();
+    for (const auto& cPacket : cInbox)
+    {
+        if (!m_pLocalServer)
+            break;
+        // The server's packet type byte first: the loopback only carries plain payloads.
+        if (cPacket.size() > 1)
+            OnConsume(cPacket.data() + 1, static_cast<uint32_t>(cPacket.size() - 1));
+    }
 }
 
 void TransportService::HandleConnected(const ConnectedEvent& acEvent) noexcept

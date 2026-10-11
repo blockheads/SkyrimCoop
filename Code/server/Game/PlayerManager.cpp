@@ -119,6 +119,9 @@ Player const* PlayerManager::GetByUsername(const String& acUsername) noexcept
 
 Player* PlayerManager::GetHostPlayer() noexcept
 {
+    if (m_hostConnectionId != 0)
+        return GetByConnectionId(m_hostConnectionId);
+
     // Host is the player with the lowest ID (first to connect)
     Player* pHost = nullptr;
     uint32_t lowestId = UINT32_MAX;
