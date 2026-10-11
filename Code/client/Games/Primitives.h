@@ -238,6 +238,37 @@ struct BSRecursiveLock
     void Unlock();
 };
 
+// The engine's reader/writer lock ({writer thread id, lock word}): goes through the engine's own
+// functions (and so through the lock-order checker). ExtraDataList uses one in 1.6.1170.
+struct BSReadWriteLock
+{
+    volatile DWORD m_writerThread;
+    volatile LONG m_lockCount;
+
+    void LockForRead();
+    void UnlockForRead();
+    void LockForWrite();
+    void UnlockForWrite();
+};
+
+struct BSReadLockGuard
+{
+    explicit BSReadLockGuard(BSReadWriteLock& aLock) : m_lock(aLock) { m_lock.LockForRead(); }
+    ~BSReadLockGuard() { m_lock.UnlockForRead(); }
+
+private:
+    BSReadWriteLock& m_lock;
+};
+
+struct BSWriteLockGuard
+{
+    explicit BSWriteLockGuard(BSReadWriteLock& aLock) : m_lock(aLock) { m_lock.LockForWrite(); }
+    ~BSWriteLockGuard() { m_lock.UnlockForWrite(); }
+
+private:
+    BSReadWriteLock& m_lock;
+};
+
 template <class T> struct BSScopedLock
 {
     BSScopedLock(T& aLock)
@@ -356,8 +387,3 @@ template <class T, class THandle = BSUntypedPointerHandle<>> struct BSPointerHan
     THandle handle{};
 };
 
-struct BSReadWriteLock
-{
-    uint32_t uiWriterThread;
-    volatile uint32_t uiLock;
-};

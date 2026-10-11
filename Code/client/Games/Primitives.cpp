@@ -66,3 +66,29 @@ void BSRecursiveLock::Unlock()
         }
     }
 }
+
+using TReadWriteLockFunction = void(BSReadWriteLock*);
+
+void BSReadWriteLock::LockForRead()
+{
+    POINTER_SKYRIMSE(TReadWriteLockFunction, s_lockForRead, 68233);
+    s_lockForRead.Get()(this);
+}
+
+void BSReadWriteLock::UnlockForRead()
+{
+    POINTER_SKYRIMSE(TReadWriteLockFunction, s_unlockForRead, 68239);
+    s_unlockForRead.Get()(this);
+}
+
+void BSReadWriteLock::LockForWrite()
+{
+    POINTER_SKYRIMSE(TReadWriteLockFunction, s_lockForWrite, 68234);
+    s_lockForWrite.Get()(this);
+}
+
+void BSReadWriteLock::UnlockForWrite()
+{
+    POINTER_SKYRIMSE(TReadWriteLockFunction, s_unlockForWrite, 68240);
+    s_unlockForWrite.Get()(this);
+}

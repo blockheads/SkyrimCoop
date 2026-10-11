@@ -40,5 +40,6 @@ struct ExtraDataList
     };
 
     Bitfield* bitfield{};
-    mutable BSRecursiveLock lock{};
+    // A reader/writer lock in 1.6.1170 (it was handled as a spin lock, which strands the engine).
+    mutable BSReadWriteLock lock{};
 };
