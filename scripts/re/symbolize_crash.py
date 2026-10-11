@@ -5,7 +5,8 @@
 
 SkyrimSE.exe frames -> nearest Address Library ID + best known name (build/re/annotations.json,
 falling back to the raw ID list); our DLL frames -> function and source line (addr2line).
-Defaults to the newest crash in the deployed plugin's log.
+Defaults to the newest crash in the deployed plugin's log. A log without a crash (say a
+LockOrder report or a HangWatchdog dump cut out of one) is symbolized whole, headers included.
 """
 import argparse
 import bisect
@@ -37,6 +38,20 @@ def engine_resolver():
     return resolve
 
 
+LLVM_SYMBOLIZER = ROOT / "build/toolchains/LLVM/bin/llvm-symbolizer"
+
+
+def symbolize_ours(dll, offset):
+    """Function and source line of an RVA in our DLL (clang-cl writes a PDB, so llvm-symbolizer)."""
+    tool = str(LLVM_SYMBOLIZER) if LLVM_SYMBOLIZER.exists() else "llvm-symbolizer"
+    result = subprocess.run([tool, f"--obj={dll}", "--relative-address", hex(offset)],
+                            capture_output=True, text=True).stdout.split("\n")
+    if not result or result[0] in ("", "??"):
+        return "?"
+    source = result[1].split("/Code/")[-1] if len(result) > 1 else ""
+    return f"{result[0]}  (Code/{source})"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("log", nargs="?", type=Path, default=DEFAULT_LOG)
@@ -45,24 +60,22 @@ def main():
 
     lines = args.log.read_text(errors="replace").splitlines()
     starts = [i for i, line in enumerate(lines) if "crash occurred" in line]
-    if not starts:
-        raise SystemExit(f"No crash in {args.log}")
-    crash = lines[starts[-1]:]
-    print("\n".join(crash[:2]))
+    whole = not starts
+    crash = lines if whole else lines[starts[-1]:]
+    if not whole:
+        print("\n".join(crash[:2]))
     resolve_engine = engine_resolver()
-    image_base = 0x180000000
     for line in crash:
         match = FRAME.search(line)
         if not match:
+            if whole and line.strip():
+                print(line)
             continue
         number, module, offset = match.group(1), match.group(2), int(match.group(3), 16)
         if module.lower() == "skyrimse.exe":
             where = resolve_engine(offset)
         elif module.lower() == args.dll.name.lower():
-            result = subprocess.run(["x86_64-w64-mingw32-addr2line", "-f", "-C", "-e", str(args.dll),
-                                     hex(image_base + offset)], capture_output=True, text=True).stdout.split("\n")
-            source = result[1].split("/Code/")[-1] if len(result) > 1 else ""
-            where = f"{result[0]}  (Code/{source})" if result and result[0] != "??" else "?"
+            where = symbolize_ours(args.dll, offset)
         else:
             where = ""
         print(f"#{number} {module}+{offset:#x}  {where}")

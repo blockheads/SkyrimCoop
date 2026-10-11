@@ -3,6 +3,7 @@
 #include <dbghelp.h>
 #include <FunctionHook.hpp>
 #include <windows.h>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -10,6 +11,8 @@
 #include <iostream>
 #include <sstream>
 #include <strsafe.h>
+#include <tlhelp32.h>
+#include <vector>
 
 using time_point = std::chrono::system_clock::time_point;
 
@@ -226,6 +229,74 @@ void CrashHandler::RemovePreviousDump(std::filesystem::path path)
 }
 
 static std::atomic<uint64_t> s_mainLoopTicks{0};
+static std::atomic<void (*)()> s_hangDiagnostic{nullptr};
+
+void CrashHandler::SetHangDiagnostic(void (*apDiagnostic)()) noexcept
+{
+    s_hangDiagnostic = apDiagnostic;
+}
+
+// After a stall: the stack of every other thread (a stuck worker the main thread waits for is
+// otherwise invisible). Each thread is suspended only while capturing.
+static void LogOtherThreadsInOurCode(DWORD aMainThreadId)
+{
+    HMODULE ourModule = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCWSTR>(&LogOtherThreadsInOurCode), &ourModule);
+    const auto cOurBase = reinterpret_cast<DWORD64>(ourModule);
+    DWORD64 ourEnd = cOurBase;
+    {
+        const auto* pDos = reinterpret_cast<const IMAGE_DOS_HEADER*>(ourModule);
+        const auto* pNt = reinterpret_cast<const IMAGE_NT_HEADERS*>(reinterpret_cast<const uint8_t*>(ourModule) + pDos->e_lfanew);
+        ourEnd = cOurBase + pNt->OptionalHeader.SizeOfImage;
+    }
+
+    struct Captured
+    {
+        DWORD Id;
+        DWORD64 Frames[32];
+        int Count;
+    };
+    std::vector<DWORD> threadIds;
+    const HANDLE cSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (cSnapshot == INVALID_HANDLE_VALUE)
+        return;
+    THREADENTRY32 entry{sizeof(entry)};
+    for (BOOL more = Thread32First(cSnapshot, &entry); more; more = Thread32Next(cSnapshot, &entry))
+        if (entry.th32OwnerProcessID == GetCurrentProcessId() && entry.th32ThreadID != aMainThreadId &&
+            entry.th32ThreadID != GetCurrentThreadId())
+            threadIds.push_back(entry.th32ThreadID);
+    CloseHandle(cSnapshot);
+
+    std::vector<Captured> captured(threadIds.size());
+    size_t used = 0;
+    for (const DWORD cId : threadIds)
+    {
+        const HANDLE cThread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, cId);
+        if (!cThread)
+            continue;
+        if (SuspendThread(cThread) != static_cast<DWORD>(-1))
+        {
+            CONTEXT context{};
+            context.ContextFlags = CONTEXT_FULL;
+            Captured& slot = captured[used];
+            slot.Id = cId;
+            slot.Count = GetThreadContext(cThread, &context) ? CaptureBacktrace(context, slot.Frames, 32) : 0;
+            ResumeThread(cThread);
+            ++used;
+        }
+        CloseHandle(cThread);
+    }
+
+    for (size_t i = 0; i < used; ++i)
+    {
+        const Captured& cThread = captured[i];
+        const bool cInOurCode = std::any_of(cThread.Frames, cThread.Frames + cThread.Count,
+                                            [&](DWORD64 aFrame) { return aFrame >= cOurBase && aFrame < ourEnd; });
+        spdlog::error("HangWatchdog: thread {}{}:", cThread.Id, cInOurCode ? " (our code on its stack)" : "");
+        LogFrames(cThread.Frames, cThread.Count);
+    }
+}
 
 // Logs the main thread's stack when the main loop stops ticking for 10s, once per stall.
 static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
@@ -255,6 +326,9 @@ static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
 
         spdlog::error("HangWatchdog: main loop stalled for 10s after {} ticks", cTicks);
         LogFrames(frames, frameCount);
+        LogOtherThreadsInOurCode(GetThreadId(cMainThread));
+        if (auto* pDiagnostic = s_hangDiagnostic.load())
+            pDiagnostic();
         spdlog::default_logger()->flush();
     }
 }

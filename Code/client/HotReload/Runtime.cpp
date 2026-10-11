@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <Games/Skyrim/BSCore/LockOrder.h>
 
 namespace CoopReload
 {
@@ -86,6 +87,13 @@ void Runtime::PollConsoleCommand()
 }
 
 // Names of the open menus (what blocks input: popups, console, menus).
+static nlohmann::json LockOrderStatus()
+{
+    const auto cStats = LockOrder::GetStats();
+    return {{"enabled", cStats.Enabled}, {"edges", cStats.Edges}, {"reports", LockOrder::GetReports()},
+            {"report_count", cStats.Reports}, {"too_deep", cStats.TooDeep}, {"table_full", cStats.TableFull}, {"table_resets", cStats.TableResets}};
+}
+
 static nlohmann::json OpenMenus()
 {
     auto names = nlohmann::json::array();
@@ -248,7 +256,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                        {"state1", latest.State1}, {"state2", latest.State2}}},
         {"mod", mod},
         // AI runs only on the owner (a copy's is disabled), so this is shown, not compared.
-        {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}}},
+        {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}, {"killer", actors.GetKillerFormId(aFormId)}}},
     };
 }
 
@@ -381,7 +389,7 @@ void Runtime::Poll()
         {"steam", CoopSteam::Poll(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
         {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()},
-        {"menus", OpenMenus()}
+        {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}
     };
     const auto temporary = m_directory / "status.json.tmp";
     const auto destination = m_directory / "status.json";

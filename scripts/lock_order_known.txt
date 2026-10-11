@@ -1,0 +1,11 @@
+# Lock-order patterns reviewed and accepted (coop_test.py ignores them).
+# One pattern per line, as the checker prints it between the brackets; '#' starts a comment.
+# Only add a pattern after reading both stacks (scripts/re/symbolize_crash.py on the report).
+
+# Load: worker threads read extra-data while the main thread writes them; only our pass-through
+# hooks (HookCheckForNewPackage, HookForceState) are on the stack. Vanilla.
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x15ff00 vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x3d1507 vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x3d157f vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
