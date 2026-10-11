@@ -3,7 +3,11 @@
 #include <windows.h>
 #include <cstddef>
 #include <cstdint>
+#include <charconv>
 #include <mutex>
+#include <string>
+
+#include <HotReload/Handoff.h>
 
 namespace CoopSkse
 {
@@ -15,6 +19,7 @@ struct JitPool
     uint8_t* Memory = nullptr;
     size_t Used = 0;
     bool Reserved = false;
+    bool Searched = false;
     std::mutex Mutex;
 };
 
@@ -50,6 +55,17 @@ inline uint8_t* ReserveFreeRegion(uintptr_t aFrom, uintptr_t aTo, size_t aCapaci
     return nullptr;
 }
 
+inline constexpr char kJitHandoffKey[] = "jit_pool";
+
+inline uint8_t* TakeHandoffJit()
+{
+    const auto cData = CoopReload::TakeHandoff(kJitHandoffKey);
+    uintptr_t address = 0;
+    if (!cData || std::from_chars(cData->data(), cData->data() + cData->size(), address).ec != std::errc{})
+        return nullptr;
+    return reinterpret_cast<uint8_t*>(address);
+}
+
 inline void* AllocateJit(size_t bytes)
 {
     constexpr size_t alignment = 16;
@@ -58,6 +74,14 @@ inline void* AllocateJit(size_t bytes)
     if (!pool.Reserved)
     {
         pool.Reserved = true;
+        // Hot reloaded: the previous client's pool. By now the heaps have usually filled the space
+        // near the game, so a new reservation there would fail.
+        if (const auto cHandoff = TakeHandoffJit())
+            pool.Memory = cHandoff;
+    }
+    if (!pool.Memory && !pool.Searched)
+    {
+        pool.Searched = true;
         const auto game = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
         // All candidates are within 1.75 GiB of the image base, leaving room for relative
         // jumps from the start and end of the game's image. Above first, then below.
@@ -75,14 +99,15 @@ inline void* AllocateJit(size_t bytes)
     return result;
 }
 
-// Hot reload: the plugin unloads after restoring every patch that branches into the pool, and the
-// next load reserves its own (repeated reloads would otherwise use up the space near the game).
-inline void ReleaseJit()
+// Hot reload: the plugin unloads after restoring every patch that branches into the pool, so the
+// next load can start it over. It is handed on rather than freed: a fresh reservation near the
+// game fails once the heaps have grown into that space (seen after ~20 reloads).
+inline void HandOffJit()
 {
     JitPool& pool = GetJitPool();
     std::lock_guard<std::mutex> lock(pool.Mutex);
     if (pool.Memory)
-        VirtualFree(pool.Memory, 0, MEM_RELEASE);
+        CoopReload::HandOff(kJitHandoffKey, std::to_string(reinterpret_cast<uintptr_t>(pool.Memory)));
     pool.Memory = nullptr;
     pool.Used = 0;
 }

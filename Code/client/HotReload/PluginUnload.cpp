@@ -63,7 +63,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
     TiltedPhoques::FunctionHookManager::GetInstance().RemoveAllHooks();
     TiltedPhoques::RestorePatches();
     TiltedPhoques::RunUnloadCallbacks();
-    CoopSkse::ReleaseJit(); // Only the patches just restored branched into it.
+    CoopSkse::HandOffJit(); // Only the patches just restored branched into it.
 
     // Our threads: the hang watchdog (crash handler), the network library's, spdlog's flusher.
     g_appInstance.reset();
