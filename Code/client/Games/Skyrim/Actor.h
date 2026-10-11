@@ -380,3 +380,12 @@ SKYRIM_STRUCT_ASSERT(offsetof(Actor, equippedShout) == 0x1E8);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorLock) == 0x284);
 SKYRIM_STRUCT_ASSERT(sizeof(Actor) == 0x2B8);
 SKYRIM_STRUCT_ASSERT(sizeof(Actor::SpellItemEntry) == 0x18);
+
+// The engine's "angry with the player" exists only for its own player. For a remote player, an
+// actor pushed past its friendly-hit tolerance is marked angry with that player's character here,
+// and Actor::IsHostileToActor reports it hostile (see HookIsHostileToActor).
+void MarkAngryWithRemotePlayer(Actor* apActor, Actor* apRemotePlayer) noexcept;
+// Main thread, every frame: ends the anger once Skyrim has resolved the fight.
+void UpdateRemotePlayerAnger() noexcept;
+// Main thread: refreshes the actors whose locks the hang watchdog reports.
+void RefreshHangLockWatch() noexcept;

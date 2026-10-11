@@ -4,6 +4,8 @@ void RequestHealthChangeBroadcast::SerializeRaw(TiltedPhoques::Buffer::Writer& a
 {
     Serialization::WriteVarInt(aWriter, Id);
     Serialization::WriteFloat(aWriter, DeltaHealth);
+    Serialization::WriteBool(aWriter, HasAttacker);
+    Serialization::WriteVarInt(aWriter, AttackerId);
 }
 
 void RequestHealthChangeBroadcast::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -12,4 +14,6 @@ void RequestHealthChangeBroadcast::DeserializeRaw(TiltedPhoques::Buffer::Reader&
 
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     DeltaHealth = Serialization::ReadFloat(aReader);
+    HasAttacker = Serialization::ReadBool(aReader);
+    AttackerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

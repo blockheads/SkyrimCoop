@@ -207,6 +207,14 @@ void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
         pActor->Kill();
 }
 
+void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || pActor->GetExtension()->IsPlayer())
+        return;
+    pActor->KillImpl(aKillerFormId ? GetActor(aKillerFormId) : nullptr, 100.f, true, true);
+}
+
 void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -531,6 +539,82 @@ std::vector<IActorBridge::ActiveEffectInfo> SkyrimBridge::GetActorActiveEffects(
     return result;
 }
 
+uint32_t SkyrimBridge::GetKillerFormId(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->IsDead())
+        return 0;
+    // Killer handle at Actor+0x108 (papyrus Actor.GetKiller, ID 54689 on 1.6.1170).
+    const uint32_t cHandle = *reinterpret_cast<const uint32_t*>(reinterpret_cast<const uint8_t*>(pActor) + 0x108);
+    TESObjectREFR* pKiller = TESObjectREFR::GetByHandle(cHandle);
+    return pKiller ? pKiller->formID : 0;
+}
+
+void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept
+{
+    Actor* pVictim = GetActor(aVictimFormId);
+    Actor* pAttacker = GetActor(aAttackerFormId);
+    if (!pVictim || !pAttacker || pVictim == pAttacker)
+        return;
+
+    // A remote player's character carries their factions (PlayerFaction...), so allies and friends
+    // of the player see it as one of their own and the engine's reaction below ignores its hits.
+    // The engine only tolerates-then-retaliates for its own player, with these settings; apply the
+    // same rule to remote players: after too many hits the victim fights them.
+    if (pAttacker->GetExtension()->IsRemotePlayer())
+    {
+        TP_THIS_FUNCTION(TGetFactionReaction, int32_t, Actor, Actor*);
+        POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
+        const int32_t cReaction = TiltedPhoques::ThisCall(s_getFactionReaction.Get(), pVictim, pAttacker);
+        constexpr int32_t cAlly = 2, cFriend = 3;
+        if (cReaction == cAlly || cReaction == cFriend)
+        {
+            VersionDbPtr<int32_t> friendHitNonCombat(370673), friendHitCombat(370670);
+            VersionDbPtr<int32_t> allyHitNonCombat(370679), allyHitCombat(370676);
+            const bool cInCombat = pVictim->IsInCombat();
+            const int32_t cAllowed = cReaction == cFriend ? *(cInCombat ? friendHitCombat : friendHitNonCombat).Get()
+                                                          : *(cInCombat ? allyHitCombat : allyHitNonCombat).Get();
+
+            // Hits per (victim, attacker); forgotten after a while, like the engine's friendly hits.
+            struct Hits
+            {
+                int32_t Count{};
+                std::chrono::steady_clock::time_point Last{};
+            };
+            static Map<uint64_t, Hits> s_friendlyHits;
+            auto& hits = s_friendlyHits[(uint64_t(aVictimFormId) << 32) | aAttackerFormId];
+            const auto cNow = std::chrono::steady_clock::now();
+            // One spell arrives as one request per effect: those are the same hit.
+            if (cNow - hits.Last < std::chrono::milliseconds(250))
+                return;
+            if (cNow - hits.Last > std::chrono::seconds(30))
+                hits.Count = 0;
+            hits.Last = cNow;
+
+            spdlog::debug("ReactToAttack: {:X} hit by remote player {:X} ({}), friendly hit {}/{}", aVictimFormId,
+                          aAttackerFormId, cReaction == cFriend ? "friend" : "ally", hits.Count + 1, cAllowed);
+            if (++hits.Count <= cAllowed)
+                return;
+
+            hits.Count = 0;
+            MarkAngryWithRemotePlayer(pVictim, pAttacker);
+            spdlog::info("ReactToAttack: {:X} is now angry with remote player {:X}", aVictimFormId, aAttackerFormId);
+            // Now hostile: react to this hit the way the engine reacts to an enemy's (below).
+        }
+    }
+
+    // Called by the engine's hit processing as Attacked(victim, attacker, 0, victim aggression)
+    // (IDA: TESObjectREFR::sub_38586 at +0x1352 on 1.6.1170).
+    TP_THIS_FUNCTION(TGetAggression, uint32_t, Actor);
+    POINTER_SKYRIMSE(TGetAggression, s_getAggression, 37671);
+    using TAttacked = void(Actor*, Actor*, uint64_t, uint32_t);
+    POINTER_SKYRIMSE(TAttacked, s_attacked, 38626);
+
+    const uint32_t cAggression = TiltedPhoques::ThisCall(s_getAggression.Get(), pVictim);
+    s_attacked.Get()(pVictim, pAttacker, 0, cAggression);
+    spdlog::debug("ReactToAttack: {:X} attacked by {:X} (aggression {})", aVictimFormId, aAttackerFormId, cAggression);
+}
+
 bool SkyrimBridge::IsAnimationGraphReady(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -776,6 +860,13 @@ bool SkyrimBridge::IsHealingSpell(uint32_t aFormId) const noexcept
 {
     if (SpellItem* pSpell = Cast<SpellItem>(TESForm::GetById(aFormId)))
         return pSpell->IsHealingSpell();
+    return false;
+}
+
+bool SkyrimBridge::IsBuffSpell(uint32_t aFormId) const noexcept
+{
+    if (MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aFormId)))
+        return pSpell->IsBuffSpell();
     return false;
 }
 

@@ -70,6 +70,7 @@ public:
     virtual bool IsSpellItem(uint32_t aFormId) const noexcept = 0;
     virtual bool IsConcentrationSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsHealingSpell(uint32_t aFormId) const noexcept = 0;
+    virtual bool IsBuffSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsWardSpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsInvisibilitySpell(uint32_t aFormId) const noexcept = 0;
     virtual bool IsBoundWeaponSpell(uint32_t aFormId) const noexcept = 0;

@@ -92,6 +92,8 @@ void ActorValueService::OnHealthChangeBroadcast(const PacketEvent<RequestHealthC
     NotifyHealthChangeBroadcast notify;
     notify.Id = message.Id;
     notify.DeltaHealth = message.DeltaHealth;
+    notify.HasAttacker = message.HasAttacker;
+    notify.AttackerId = message.AttackerId;
     pOwner->Send(notify);
 }
 

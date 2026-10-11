@@ -276,6 +276,7 @@ uint32_t ReplayBridge::GetModFormIdBySpellId(uint32_t aModStandardId, uint32_t a
 bool ReplayBridge::IsSpellItem(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsConcentrationSpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsHealingSpell(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsBuffSpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsWardSpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsInvisibilitySpell(uint32_t) const noexcept { return false; }
 bool ReplayBridge::IsMagicItem(uint32_t) const noexcept { return false; }

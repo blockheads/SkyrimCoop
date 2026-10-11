@@ -152,7 +152,8 @@ void ActorValueService::BroadcastActorValues() noexcept
 
             float newMaxValue = m_actorBridge.GetActorPermanentValue(formId, i);
             float oldMaxValue = actorValuesComponent.CurrentActorValues.ActorMaxValuesList[i];
-            if (newMaxValue != oldMaxValue)
+            // Health, magicka and stamina maxima always go out too, so copies converge.
+            if (newMaxValue != oldMaxValue || (i >= 24 && i <= 26))
             {
                 requestMaxValueChanges.Values.insert({i, newMaxValue});
                 actorValuesComponent.CurrentActorValues.ActorMaxValuesList[i] = newMaxValue;
@@ -212,6 +213,16 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
     RequestHealthChangeBroadcast requestHealthChange;
     requestHealthChange.Id = serverId;
     requestHealthChange.DeltaHealth = acEvent.DeltaHealth;
+    if (acEvent.AttackerId)
+    {
+        const auto attackerIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.AttackerId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
+        if (attackerIt != std::end(view))
+            if (const auto cAttackerServerId = Utils::GetServerId(*attackerIt))
+            {
+                requestHealthChange.HasAttacker = true;
+                requestHealthChange.AttackerId = *cAttackerServerId;
+            }
+    }
 
     m_transport.Send(requestHealthChange);
 
@@ -348,12 +359,18 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, 24, newHealth);
 
     const float health = m_actorBridge.GetActorValue(formId, 24);
-    spdlog::debug("Applied forwarded hit on {:X}: delta {:f}, health now {:f}", formId, acMessage.DeltaHealth, health);
+    const uint32_t cAttackerFormId = acMessage.HasAttacker ? Utils::GetFormIdByServerId(acMessage.AttackerId) : 0;
+    spdlog::debug("Applied forwarded hit on {:X}: delta {:f}, health now {:f}, attacker {:X}", formId, acMessage.DeltaHealth, health, cAttackerFormId);
     if (!m_actorBridge.IsActorDead(formId) && health <= 0.f)
     {
         // Players should never be killed
         if (!m_actorBridge.IsRemotePlayer(formId))
-            m_actorBridge.KillActor(formId);
+            m_actorBridge.KillActorBy(formId, cAttackerFormId);
+    }
+    else if (cAttackerFormId && acMessage.DeltaHealth < 0.f)
+    {
+        // The hit happened in the attacker's game: react here as if it had landed here.
+        m_actorBridge.ReactToAttack(formId, cAttackerFormId);
     }
 
     // TODO(cosideci): find fix for player health sync so this can be used again
@@ -417,7 +434,7 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
 
         spdlog::debug("Actor max value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
 
-        m_actorBridge.ForceActorValue(formId, 3 /* ForceMode::PERMANENT */, key, value);
+        m_actorBridge.ForceActorValue(formId, 0 /* ForceMode::PERMANENT */, key, value);
     }
 }
 

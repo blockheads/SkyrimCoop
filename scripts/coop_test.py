@@ -28,6 +28,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -851,6 +852,12 @@ def spawn_host_npc(base):
     return npc, replica
 
 
+def remove_host_npc(npc):
+    """Takes a spawned NPC out of the scene for good, so reruns do not pile up copies."""
+    console_on("", f"{npc:08X}.disable")
+    console_on("", f"{npc:08X}.markfordelete")
+
+
 def scenario_death_host_npc():
     """Host kills then resurrects an NPC it owns; the client's replica must die and come back."""
     npc, replica = spawn_host_npc(CHICKEN)
@@ -864,7 +871,7 @@ def scenario_death_host_npc():
                     lambda actors: actors.get(str(replica), {}).get("dead") == dead)
             hold()
     finally:
-        console_on("", f"{npc:08X}.disable")  # keep the scene to the players + Lydia for reruns
+        remove_host_npc(npc)  # keep the scene to the players + Lydia for reruns
 
 
 def scenario_remove_host_npc():
@@ -991,8 +998,22 @@ def cast_at(instance, target, spell, hold_seconds, until, attempts=4):
     console_on(instance, f"player.equipspell {spell:08X} right")
     console_on(instance, "player.restoreav magicka 1000")
     press_until(instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+    def target_position():
+        select_instance(instance)
+        status = read_status() or {}
+        return ((status.get("actors", {}).get(str(target)) or {}).get("actual")
+                or ((status.get("world") or {}).get(str(target)) or {}).get("placement", {}).get("position"))
+    aimed_at = target_position()
     try:
         for _ in range(attempts):
+            # A hit staggers the target back: re-aim every cast, walk up again if it moved far.
+            now = target_position()
+            if now and aimed_at and distance(now, aimed_at) > 100:
+                approach(instance, target, 0.8)
+                press_until(instance, "r", lambda me: me.get("weapon_drawn"), "readying the spell")
+                aimed_at = now
+            select_instance(instance)
+            face_actor(target)
             mouse_on(instance, "mousedown")
             time.sleep(hold_seconds)
             mouse_on(instance, "mouseup")
@@ -1065,6 +1086,100 @@ def scenario_flames_client_hits_host_npc():
     spell_hits_host_npc(FLAMES, 2.0)
 
 
+WOLF = "00023ABE"
+LYDIA = "000A2C8E"
+
+
+def host_world(form_id):
+    select_instance("")
+    return ((read_status() or {}).get("world") or {}).get(str(form_id)) or {}
+
+
+class GodMode:
+    """Both players invulnerable for the scenario (toggled back afterwards)."""
+    def __enter__(self):
+        for instance in ("", "client"):
+            console_on(instance, "tgm")
+    def __exit__(self, *exc):
+        for instance in ("", "client"):
+            console_on(instance, "tgm")
+
+
+class OthersAway:
+    """Disables the host's other NPCs (Lydia joins the player's fights and would steal hits/kills)."""
+    def __init__(self, keep):
+        self.keep = set(keep)
+    def __enter__(self):
+        self.others = [int(a) for a, v in local_player("").get("local_actors", {}).items() if int(a) not in self.keep]
+        for npc in self.others:
+            console_on("", f"{npc:08X}.disable")
+    def __exit__(self, *exc):
+        for npc in self.others:
+            console_on("", f"{npc:08X}.enable")
+
+
+def scenario_client_angers_host_ally():
+    """Client keeps hitting an ally NPC of the host: after the friendly-hit tolerance it fights the client."""
+    npc, replica = spawn_host_npc(LYDIA)
+    client_on_host = remote_player(actors_on(""))
+    with GodMode(), OthersAway([npc]):
+        try:
+            console_on("", f"{npc:08X}.setav health 3000")
+            if not cast_at("client", replica, FIREBOLT, 1.0,
+                           lambda: host_world(npc).get("ai", {}).get("combat_target") == client_on_host, attempts=8):
+                raise TestFailure(f"host's NPC never turned on the client (combat target "
+                                  f"{host_world(npc).get('ai', {}).get('combat_target', 0):08X}, client is {client_on_host:08X})")
+            log(f"host's NPC {npc:08X} now fights the client's character {client_on_host:08X}")
+            hold()
+        finally:
+            # Before the others come back: a second Lydia on screen is only confusing.
+            remove_host_npc(npc)
+
+
+def kill_credit(weapon):
+    npc, replica = spawn_host_npc(WOLF)
+    client_on_host = remote_player(actors_on(""))
+    try:
+        with GodMode(), OthersAway([npc]):
+            console_on("", f"{npc:08X}.setrestrained 1")  # stays put to be hit
+            time.sleep(0.5)
+            dead = lambda: host_world(npc).get("state", {}).get("dead")
+            if weapon == "spell":
+                cast_at("client", replica, FIREBOLT, 1.0, dead, attempts=6)
+            else:
+                approach("client", replica, 0.25)
+                console_on("client", f"player.additem {IRON_SWORD:08X} 1")
+                console_on("client", f"player.equipitem {IRON_SWORD:08X}")
+                press_until("client", "r", lambda me: me.get("weapon_drawn"), "drawing the sword")
+                for _ in range(12):
+                    select_instance("client"); face_actor(replica)
+                    mouse_on("client", "mousedown"); time.sleep(0.15); mouse_on("client", "mouseup")
+                    time.sleep(0.8)
+                    if dead():
+                        break
+                press_until("client", "r", lambda me: not me.get("weapon_drawn"), "sheathing the sword")
+            if not dead():
+                raise TestFailure(f"the client never killed the host's wolf (health {host_world(npc).get('values', {}).get('health')})")
+            killer = wait_for("[host] killer recorded", lambda: host_world(npc).get("ai", {}).get("killer"), 5)
+            if killer != client_on_host:
+                raise TestFailure(f"host records killer {killer:08X}, expected the client's character {client_on_host:08X}")
+            log(f"host's wolf killed by the client's character {killer:08X}")
+            wait_on("client", "wolf's copy dead too", lambda actors: actors.get(str(replica), {}).get("dead"))
+            hold()
+    finally:
+        remove_host_npc(npc)
+
+
+def scenario_client_spell_kill_credit():
+    """Client kills a host NPC with a spell: the host records the client's character as the killer."""
+    kill_credit("spell")
+
+
+def scenario_client_melee_kill_credit():
+    """Client kills a host NPC with a sword: the host records the client's character as the killer."""
+    kill_credit("melee")
+
+
 SCENARIOS = {
     "steady-state": scenario_steady_state,
     "equip-host-player": scenario_equip_host_player,
@@ -1084,6 +1199,12 @@ SCENARIOS = {
     "repair-equipment-drift": scenario_repair_equipment_drift,
     "firebolt-client-hits-host-npc": scenario_firebolt_client_hits_host_npc,
     "flames-client-hits-host-npc": scenario_flames_client_hits_host_npc,
+    "client-angers-host-ally": scenario_client_angers_host_ally,
+    "client-spell-kill-credit": scenario_client_spell_kill_credit,
+    "client-melee-kill-credit": scenario_client_melee_kill_credit,
+    "client-angers-host-ally": scenario_client_angers_host_ally,
+    "client-spell-kill-credit": scenario_client_spell_kill_credit,
+    "client-melee-kill-credit": scenario_client_melee_kill_credit,
     "steady-state-after": scenario_steady_state,
 }
 
@@ -1293,6 +1414,50 @@ def command_status(args):
         time.sleep(0.5)
 
 
+# Each game's status.json carries "lock_order": the plugin's lock-order checker (LockOrder.cpp)
+# reports engine-lock patterns that can deadlock, the first time they occur. Vanilla Skyrim has
+# latent ones too, so a scenario fails only on a new pattern with our code on the reporting
+# thread's stack ("[ours]") that is not in scripts/lock_order_known.txt; others are warnings.
+LOCK_PATTERN = re.compile(r"^(\[ours\] )?(lock order inversion|self-deadlock) \[([^\]]*)\]")
+KNOWN_LOCK_PATTERNS = Path(__file__).with_name("lock_order_known.txt")
+
+
+def known_lock_patterns():
+    try:
+        lines = KNOWN_LOCK_PATTERNS.read_text().splitlines()
+    except OSError:
+        return set()
+    return {line.split("#")[0].strip() for line in lines} - {""}
+
+
+def lock_order_reports():
+    """{sites: (game, report, ours)} over both games, without reviewed patterns."""
+    known = known_lock_patterns()
+    found = {}
+    for name in ("", "client"):
+        select_instance(name)
+        status = read_status() or {}
+        for report in status.get("lock_order", {}).get("reports", []):
+            match = LOCK_PATTERN.match(report)
+            sites = match.group(3) if match else report
+            if sites not in known:
+                found.setdefault(sites, (name or "host", report, bool(match and match.group(1))))
+    return found
+
+
+def command_locks(args):
+    for name in ("", "client"):
+        select_instance(name)
+        status = read_status()
+        if not status:
+            print(f"{name or 'host'}: not running")
+            continue
+        lock_order = status.get("lock_order", {})
+        print(f"{name or 'host'}: " + ", ".join(f"{k} {v}" for k, v in lock_order.items() if k != "reports"))
+        for report in lock_order.get("reports", []):
+            print("  " + report)
+
+
 def command_scenario(args):
     global HOLD
     HOLD = args.hold
@@ -1308,11 +1473,18 @@ def command_scenario(args):
     for name in names:
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
         try:
+            known_locks = lock_order_reports()
             SCENARIOS[name]()
             # Whatever the scenario did, both games must agree afterwards.
             problems = check_desync(samples=4)
             if problems:
                 raise TestFailure("desync afterwards: " + " | ".join(problems))
+            new_locks = [v for k, v in lock_order_reports().items() if k not in known_locks]
+            for game, report, ours in new_locks:
+                if not ours:
+                    log(f"warning: engine-only lock-order pattern on {game}: {report}")
+            if ours_locks := [f"{game}: {report}" for game, report, ours in new_locks if ours]:
+                raise TestFailure("lock order (our code on the stack): " + " | ".join(ours_locks))
             results[name] = "PASS"
         except TestSkipped as error:
             results[name] = f"SKIP ({error})"
@@ -1360,6 +1532,7 @@ def main():
     console.add_argument("text", nargs="+")
     status = commands.add_parser("status", help="both games side by side: health, death, weapon, casting")
     status.add_argument("--follow", "-f", action="store_true", help="keep refreshing")
+    commands.add_parser("locks", help="both games' lock-order checker reports (deadlock patterns)")
     desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
     desync.add_argument("--follow", "-f", action="store_true", help="keep checking")
     desync.add_argument("--samples", type=int, default=3, help="a difference must persist this many samples")
@@ -1389,6 +1562,8 @@ def main():
         elif args.command == "console":
             run_console(" ".join(args.text))
             log("Done")
+        elif args.command == "locks":
+            command_locks(args)
         elif args.command == "desync":
             command_desync(args)
         elif args.command == "status":

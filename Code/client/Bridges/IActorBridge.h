@@ -38,6 +38,8 @@ public:
 
     // --- State ---
     virtual void KillActor(uint32_t aFormId) noexcept = 0;
+    // Kill with a killer (0 = none), so death events and kill credit name them.
+    virtual void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
     virtual void RespawnActor(uint32_t aFormId) noexcept = 0;
     // Brings a dead actor back where it is (the console's `resurrect`), without a Reset.
     virtual void ResurrectActor(uint32_t aFormId) noexcept = 0;
@@ -117,6 +119,11 @@ public:
         uint32_t Flags{};
     };
     virtual std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept = 0;
+    // The game's own reaction to being attacked (fight back, flee, alarm), as when a weapon or
+    // spell physically hits. Used by the owner when it applies a hit requested by another game.
+    virtual void ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept = 0;
+    // Who killed a dead actor (0 if alive or unknown), as Papyrus Actor.GetKiller().
+    virtual uint32_t GetKillerFormId(uint32_t aFormId) const noexcept = 0;
     /// Actors in the engine's high process list with loaded 3D, excluding the player.
     virtual std::vector<uint32_t> GetLoadedActorFormIds() const noexcept = 0;
 

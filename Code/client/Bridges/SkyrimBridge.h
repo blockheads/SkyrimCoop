@@ -40,6 +40,7 @@ public:
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetCommandingActor(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;
+    void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
     void RespawnActor(uint32_t aFormId) noexcept override;
     void ResurrectActor(uint32_t aFormId) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
@@ -81,6 +82,8 @@ public:
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override;
     std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept override;
+    void ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept override;
+    uint32_t GetKillerFormId(uint32_t aFormId) const noexcept override;
     std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override;
     ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
@@ -160,6 +163,7 @@ public:
     bool IsSpellItem(uint32_t aFormId) const noexcept override;
     bool IsConcentrationSpell(uint32_t aFormId) const noexcept override;
     bool IsHealingSpell(uint32_t aFormId) const noexcept override;
+    bool IsBuffSpell(uint32_t aFormId) const noexcept override;
     bool IsWardSpell(uint32_t aFormId) const noexcept override;
     bool IsInvisibilitySpell(uint32_t aFormId) const noexcept override;
     bool IsMagicItem(uint32_t aFormId) const noexcept override;

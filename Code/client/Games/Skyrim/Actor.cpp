@@ -1,3 +1,5 @@
+#include <CrashHandler.h>
+#include <BSCore/LockOrder.h>
 #include <Games/References.h>
 #include <Games/Skyrim/EquipManager.h>
 #include <AI/AIProcess.h>
@@ -21,6 +23,7 @@
 
 #include <Games/TES.h>
 #include <World.h>
+#include <Bridges/IActorBridge.h>
 #include <Services/PapyrusService.h>
 
 #include <Forms/ActorValueInfo.h>
@@ -1005,7 +1008,7 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
         const auto* pExHitter = apHitter->GetExtension();
         if (pExHitter->IsLocalPlayer())
         {
-            World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
+            World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter->formID));
             // Direct authority: a hit on an actor someone else owns (e.g. a host NPC) is only a
             // request to that owner. Our copy mirrors the owner's health instead of applying it.
             if (pExHittee->IsRemote())
@@ -1292,6 +1295,181 @@ bool TP_MAKE_THISCALL(HookIsFleeing, Actor)
     return TiltedPhoques::ThisCall(RealIsFleeing, apThis);
 }
 
+TP_THIS_FUNCTION(TIsHostileToActor, bool, Actor, Actor* apOther);
+static TIsHostileToActor* RealIsHostileToActor = nullptr;
+
+namespace
+{
+// Who is angry with which remote player's character: key = actor form id << 32 | character form
+// id. The hooks below run on the engine's AI worker threads, often while it holds reference locks,
+// so they must never block: they only read these atomic slots. Only the main thread writes them.
+constexpr size_t cAngerSlots = 32;
+std::atomic<uint64_t> s_angerKeys[cAngerSlots]{};
+bool s_angerFought[cAngerSlots]{}; // main thread only: has fought them since getting angry
+std::atomic<size_t> s_angerCount{0};
+
+uint64_t AngerKey(const Actor* apActor, const Actor* apOther) noexcept
+{
+    return (uint64_t(apActor->formID) << 32) | apOther->formID;
+}
+} // namespace
+
+void MarkAngryWithRemotePlayer(Actor* apActor, Actor* apRemotePlayer) noexcept
+{
+    const uint64_t cKey = AngerKey(apActor, apRemotePlayer);
+    size_t free = cAngerSlots;
+    for (size_t i = 0; i < cAngerSlots; ++i)
+    {
+        const uint64_t cSlot = s_angerKeys[i].load(std::memory_order_relaxed);
+        if (cSlot == cKey)
+            return;
+        if (cSlot == 0 && free == cAngerSlots)
+            free = i;
+    }
+    if (free == cAngerSlots)
+        return;
+    s_angerFought[free] = false;
+    s_angerKeys[free].store(cKey, std::memory_order_release);
+    s_angerCount.fetch_add(1, std::memory_order_relaxed);
+}
+
+void UpdateRemotePlayerAnger() noexcept
+{
+    if (s_angerCount.load(std::memory_order_relaxed) == 0)
+        return;
+
+    for (size_t i = 0; i < cAngerSlots; ++i)
+    {
+        const uint64_t cKey = s_angerKeys[i].load(std::memory_order_relaxed);
+        if (!cKey)
+            continue;
+        auto* pActor = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey >> 32)));
+        auto* pRemotePlayer = Cast<Actor>(TESForm::GetById(static_cast<uint32_t>(cKey)));
+        bool resolved = !pActor || !pRemotePlayer || pActor->IsDead() || !pActor->GetNiNode();
+        // Skyrim decides when the fight is over (yield, flee, death, distance...): once the actor
+        // has fought them and is out of combat, the anger is resolved, like the engine's own
+        // "angry with player" for its player.
+        if (!resolved)
+        {
+            if (pActor->GetCombatTarget() == pRemotePlayer)
+                s_angerFought[i] = true;
+            else if (s_angerFought[i] && !pActor->IsInCombat())
+                resolved = true;
+        }
+        if (resolved)
+        {
+            spdlog::info("Anger of {:X} at remote player {:X} resolved", static_cast<uint32_t>(cKey >> 32), static_cast<uint32_t>(cKey));
+            s_angerKeys[i].store(0, std::memory_order_release);
+            s_angerCount.fetch_sub(1, std::memory_order_relaxed);
+        }
+    }
+}
+
+static bool IsAngryWithRemotePlayer(Actor* apActor, Actor* apOther) noexcept
+{
+    if (!apActor || !apOther || s_angerCount.load(std::memory_order_relaxed) == 0)
+        return false;
+    const uint64_t cKey = AngerKey(apActor, apOther);
+    for (const auto& cSlot : s_angerKeys)
+        if (cSlot.load(std::memory_order_acquire) == cKey)
+            return true;
+    return false;
+}
+
+// Hang diagnostics: every loaded actor's reference lock (TESObjectREFR+0x88, BSReadWriteLock
+// {writer thread id, lock word}); held ones are logged from the watchdog thread (read-only peeks
+// of pointers refreshed by the main thread).
+static std::atomic<Actor*> s_lockWatch[128]{};
+
+static void LogHeldReferenceLocks()
+{
+    for (auto& slot : s_lockWatch)
+        if (Actor* pActor = slot.load())
+        {
+            const auto* pLock = reinterpret_cast<const volatile uint32_t*>(reinterpret_cast<const uint8_t*>(pActor) + 0x88);
+            if (pLock[0] || pLock[1])
+                spdlog::error("HangWatchdog: actor {:X} reference lock held: writer thread {}, lock word {:#x}", pActor->formID, pLock[0], pLock[1]);
+        }
+    spdlog::error("HangWatchdog: (end of held reference locks)");
+    LockOrder::LogHeldLocks();
+}
+
+static bool DescribeReferenceLock(const void* apLock, char* apBuffer, size_t aSize)
+{
+    for (auto& slot : s_lockWatch)
+        if (Actor* pActor = slot.load())
+            if (reinterpret_cast<const uint8_t*>(pActor) + 0x88 == apLock)
+            {
+                *fmt::format_to_n(apBuffer, aSize - 1, "actor {:X} reference lock", pActor->formID).out = '\0';
+                return true;
+            }
+    return false;
+}
+
+void RefreshHangLockWatch() noexcept
+{
+    static const bool s_diagnosticSet = [] {
+        CrashHandler::SetHangDiagnostic(&LogHeldReferenceLocks);
+        LockOrder::SetLockDescriber(&DescribeReferenceLock);
+        return true;
+    }();
+    size_t index = 0;
+    if (auto* pPlayer = Cast<Actor>(TESForm::GetById(0x14)))
+        s_lockWatch[index++] = pPlayer;
+    for (const uint32_t cFormId : World::Get().GetActorBridge().GetLoadedActorFormIds())
+        if (index < std::size(s_lockWatch))
+            if (auto* pActor = Cast<Actor>(TESForm::GetById(cFormId)))
+                s_lockWatch[index++] = pActor;
+    for (; index < std::size(s_lockWatch); ++index)
+        s_lockWatch[index] = nullptr;
+}
+
+bool TP_MAKE_THISCALL(HookIsHostileToActor, Actor, Actor* apOther)
+{
+    if (IsAngryWithRemotePlayer(apThis, apOther))
+        return true;
+    return TiltedPhoques::ThisCall(RealIsHostileToActor, apThis, apOther);
+}
+
+// The relationship every hostility and combat decision reads: 0 neutral, 1 enemy, 2 ally, 3 friend.
+// GetFactionReaction (37666) returns the value cached in the actor's knowledge of the other, else
+// computes it (37667); the cache is refreshed from 37667. An angry actor sees the remote player as
+// an enemy in both.
+constexpr int32_t cReactionEnemy = 1;
+
+TP_THIS_FUNCTION(TGetFactionReaction, int32_t, Actor, Actor* apOther);
+static TGetFactionReaction* RealGetFactionReaction = nullptr;
+
+int32_t TP_MAKE_THISCALL(HookGetFactionReaction, Actor, Actor* apOther)
+{
+    if (IsAngryWithRemotePlayer(apThis, apOther))
+        return cReactionEnemy;
+    return TiltedPhoques::ThisCall(RealGetFactionReaction, apThis, apOther);
+}
+
+// The core "may this actor attack that one" check (CanAttackActor, IsHostileToActor and combat
+// use it). It reads the relationship cached in the actor's knowledge of the other directly, which
+// still says ally right after the actor got angry, so answer it here too.
+TP_THIS_FUNCTION(TShouldAttack, bool, Actor, Actor* apOther, int32_t aAggression, uint8_t aFlags);
+static TShouldAttack* RealShouldAttack = nullptr;
+
+bool TP_MAKE_THISCALL(HookShouldAttack, Actor, Actor* apOther, int32_t aAggression, uint8_t aFlags)
+{
+    if (IsAngryWithRemotePlayer(apThis, apOther))
+        return true;
+    return TiltedPhoques::ThisCall(RealShouldAttack, apThis, apOther, aAggression, aFlags);
+}
+
+TP_THIS_FUNCTION(TComputeReaction, int32_t, Actor, Actor* apOther, bool aUnk);
+static TComputeReaction* RealComputeReaction = nullptr;
+
+int32_t TP_MAKE_THISCALL(HookComputeReaction, Actor, Actor* apOther, bool aUnk)
+{
+    if (IsAngryWithRemotePlayer(apThis, apOther))
+        return cReactionEnemy;
+    return TiltedPhoques::ThisCall(RealComputeReaction, apThis, apOther, aUnk);
+}
+
 static TiltedPhoques::Initializer s_actorHooks(
     []()
     {
@@ -1350,6 +1528,22 @@ static TiltedPhoques::Initializer s_actorHooks(
         TP_HOOK(&RealDamageActor, HookDamageActor);
         TP_HOOK(&RealApplyActorEffect, HookApplyActorEffect);
         TP_HOOK(&RealRegenAttributes, HookRegenAttributes);
+
+        POINTER_SKYRIMSE(TIsHostileToActor, s_isHostileToActor, 37537);
+        RealIsHostileToActor = s_isHostileToActor.Get();
+        TP_HOOK(&RealIsHostileToActor, HookIsHostileToActor);
+
+        POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
+        RealGetFactionReaction = s_getFactionReaction.Get();
+        TP_HOOK(&RealGetFactionReaction, HookGetFactionReaction);
+
+        POINTER_SKYRIMSE(TShouldAttack, s_shouldAttack, 37534);
+        RealShouldAttack = s_shouldAttack.Get();
+        TP_HOOK(&RealShouldAttack, HookShouldAttack);
+
+        POINTER_SKYRIMSE(TComputeReaction, s_computeReaction, 37667);
+        RealComputeReaction = s_computeReaction.Get();
+        TP_HOOK(&RealComputeReaction, HookComputeReaction);
         TP_HOOK(&RealAddInventoryItem, HookAddInventoryItem);
         TP_HOOK(&RealPickUpObject, HookPickUpObject);
         TP_HOOK(&RealDropObject, HookDropObject);

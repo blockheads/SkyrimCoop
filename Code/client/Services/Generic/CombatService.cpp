@@ -2,6 +2,7 @@
 #include <Services/TransportService.h>
 
 #include <Events/UpdateEvent.h>
+#include <Games/Skyrim/Actor.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Events/HitEvent.h>
 
@@ -27,6 +28,8 @@ CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::
 
 void CombatService::OnUpdate(const UpdateEvent& acEvent) const noexcept
 {
+    UpdateRemotePlayerAnger();
+    RefreshHangLockWatch();
     RunTargetUpdates(static_cast<float>(acEvent.Delta));
 }
 
