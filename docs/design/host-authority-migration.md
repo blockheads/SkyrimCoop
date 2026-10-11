@@ -183,6 +183,24 @@ Done:
 - **3. Magic and combat.** Casts, interrupts and projectiles are relayed from the caster's owner
   only. A spell effect landing on someone else's actor goes to its owner alone (like a hit); an
   effect ending is relayed from anyone. The server's `MagicService` and `CombatService` are deleted.
+- **4. Character extras.** Factions are relayed per actor from its owner (immediately; the client
+  already sends them at most every 2s). Mount, AI package, dialogue, subtitle and experience are
+  relayed from anyone. Experience goes to everyone else, since everyone is in the host's party (the
+  client only sends it while in a party, so it starts once phase 4 makes the party). The server's
+  handlers for these, its 2s faction batching and `bEnableXpSync` are deleted.
+  Respawn (`RequestRespawn`, `PlayerRespawnRequest`) moves to 3b: a non-owner respawning a peer's
+  player drops its copy and asks for a fresh spawn, and the record that spawn needs (appearance)
+  moves to the host's `World` with assignment. Player level stays on the server with the player
+  list (session, phase 5).
+
+The bridge is one file. A plain relay is one line in its constructor, naming the request and who
+gets it (`Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId)`). A
+request and its notification inherit one payload struct (`Code/encoding/Messages/Payloads.h`):
+its fields and their bytes are written once, and the relay copies the payload. Only items and
+equipment changes pass on something different (`ToNotify`). `Code/tests/bridge/wire_tests.cpp` pins
+the bytes of every relayed message. Deliveries: `FromOwner` (the actor's owner says it;
+everyone else replays it), `FromAnyone`, and `ToOwner` (done to another's actor; its owner alone
+applies it). Rules with more to them are member functions (`On<...>`): movement, items, factions.
 
 Found on the way: the server's "this character is already managed" answer (an `AssignCharacterResponse`
 built from its records) never reaches a peer, because only the host announces NPCs. It goes with

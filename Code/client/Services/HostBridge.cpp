@@ -3,39 +3,139 @@
 
 #include <GameServer.h>
 
+#include <type_traits>
+
 #include <Messages/AddTargetRequest.h>
 #include <Messages/ClientReferencesMoveRequest.h>
-#include <Messages/InterruptCastRequest.h>
-#include <Messages/NotifyAddTarget.h>
-#include <Messages/NotifyInterruptCast.h>
-#include <Messages/NotifyProjectileLaunch.h>
-#include <Messages/NotifyRemoveSpell.h>
-#include <Messages/NotifySpellCast.h>
-#include <Messages/ProjectileLaunchRequest.h>
-#include <Messages/RemoveSpellRequest.h>
-#include <Messages/SpellCastRequest.h>
+#include <Messages/DialogueRequest.h>
 #include <Messages/DrawWeaponRequest.h>
+#include <Messages/InterruptCastRequest.h>
+#include <Messages/MountRequest.h>
+#include <Messages/NewPackageRequest.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyActorValueChanges.h>
+#include <Messages/NotifyAddTarget.h>
 #include <Messages/NotifyDeathStateChange.h>
-#include <Messages/NotifyHealthChangeBroadcast.h>
-#include <Messages/RequestActorMaxValueChanges.h>
-#include <Messages/RequestActorValueChanges.h>
-#include <Messages/RequestDeathStateChange.h>
-#include <Messages/RequestHealthChangeBroadcast.h>
+#include <Messages/NotifyDialogue.h>
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
+#include <Messages/NotifyFactionsChanges.h>
+#include <Messages/NotifyHealthChangeBroadcast.h>
+#include <Messages/NotifyInterruptCast.h>
 #include <Messages/NotifyInventoryChanges.h>
+#include <Messages/NotifyMount.h>
+#include <Messages/NotifyNewPackage.h>
+#include <Messages/NotifyProjectileLaunch.h>
+#include <Messages/NotifyRemoveSpell.h>
+#include <Messages/NotifySpellCast.h>
+#include <Messages/NotifySubtitle.h>
+#include <Messages/NotifySyncExperience.h>
+#include <Messages/ProjectileLaunchRequest.h>
+#include <Messages/RemoveSpellRequest.h>
+#include <Messages/RequestActorMaxValueChanges.h>
+#include <Messages/RequestActorValueChanges.h>
+#include <Messages/RequestDeathStateChange.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestEquipmentSnapshot.h>
+#include <Messages/RequestFactionsChanges.h>
+#include <Messages/RequestHealthChangeBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/ServerReferencesMoveRequest.h>
+#include <Messages/SpellCastRequest.h>
+#include <Messages/SubtitleRequest.h>
+#include <Messages/SyncExperienceRequest.h>
+
+namespace
+{
+// The two relays that change what they pass on; the rest share a payload (Messages/Payloads.h).
+
+NotifyInventoryChanges ToNotify(const RequestInventoryChanges& acRequest)
+{
+    NotifyInventoryChanges notify;
+    notify.ServerId = acRequest.ServerId;
+    notify.Item = acRequest.Item;
+    notify.Drop = false; // Dropped items are not synced (the server's experimental bEnableItemDrops, off).
+    return notify;
+}
+
+NotifyEquipmentChanges ToNotify(const RequestEquipmentChanges& acRequest)
+{
+    // Without the sender's whole equipment: copies get that from the owner's snapshots.
+    NotifyEquipmentChanges notify;
+    notify.ServerId = acRequest.ServerId;
+    notify.ItemId = acRequest.ItemId;
+    notify.EquipSlotId = acRequest.EquipSlotId;
+    notify.Count = acRequest.Count;
+    notify.Unequip = acRequest.Unequip;
+    notify.IsSpell = acRequest.IsSpell;
+    notify.IsShout = acRequest.IsShout;
+    return notify;
+}
+
+template <class TRequest, class TNotify> TNotify ToNotify(const TRequest& acRequest)
+{
+    if constexpr (requires { typename TRequest::Payload; })
+    {
+        static_assert(std::is_same_v<typename TRequest::Payload, typename TNotify::Payload>);
+        TNotify notify;
+        static_cast<typename TNotify::Payload&>(notify) = acRequest;
+        return notify;
+    }
+    else
+        return ToNotify(acRequest);
+}
+} // namespace
+
+template <class TRequest, class TNotify> void HostBridge::Relay(Delivery aDelivery, uint32_t TRequest::*apActor) noexcept
+{
+    m_rules[TRequest::Opcode] = [this, aDelivery, apActor](const ClientMessage& acMessage, ConnectionId_t aSender) {
+        const auto& cRequest = static_cast<const TRequest&>(acMessage);
+        Deliver(ToNotify<TRequest, TNotify>(cRequest), aDelivery, apActor ? cRequest.*apActor : 0, aSender);
+    };
+}
+
+template <class TRequest> void HostBridge::On(void (HostBridge::*apRule)(const TRequest&, ConnectionId_t) const noexcept) noexcept
+{
+    m_rules[TRequest::Opcode] = [this, apRule](const ClientMessage& acMessage, ConnectionId_t aSender) {
+        (this->*apRule)(static_cast<const TRequest&>(acMessage), aSender);
+    };
+}
 
 HostBridge::HostBridge(Server::GameServer& aServer, SpawnSource aSpawns) noexcept
     : m_server(aServer)
     , m_spawns(std::move(aSpawns))
 {
+    using enum Delivery;
+
+    // Characters
+    On<ClientReferencesMoveRequest>(&HostBridge::OnMovement);
+    On<RequestFactionsChanges>(&HostBridge::OnFactionsChanges);
+    Relay<MountRequest, NotifyMount>(FromAnyone);
+    Relay<NewPackageRequest, NotifyNewPackage>(FromAnyone);
+    Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
+    Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);
+    Relay<SyncExperienceRequest, NotifySyncExperience>(FromAnyone); // everyone is in the host's party
+
+    // Inventory and hands
+    On<RequestInventoryChanges>(&HostBridge::OnInventoryChanges);
+    Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
+    Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::ServerId);
+    Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
+
+    // Actor values: a hit lands in its owner's game, which then reports the resulting values.
+    Relay<RequestActorValueChanges, NotifyActorValueChanges>(FromOwner, &RequestActorValueChanges::Id);
+    Relay<RequestActorMaxValueChanges, NotifyActorMaxValueChanges>(FromOwner, &RequestActorMaxValueChanges::Id);
+    Relay<RequestDeathStateChange, NotifyDeathStateChange>(FromOwner, &RequestDeathStateChange::Id);
+    Relay<RequestHealthChangeBroadcast, NotifyHealthChangeBroadcast>(ToOwner, &RequestHealthChangeBroadcast::Id);
+
+    // Magic and combat: an effect landing works like a hit.
+    Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId);
+    Relay<InterruptCastRequest, NotifyInterruptCast>(FromOwner, &InterruptCastRequest::CasterId);
+    Relay<ProjectileLaunchRequest, NotifyProjectileLaunch>(FromOwner, &ProjectileLaunchRequest::ShooterID);
+    Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
+    Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
+
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // Late join from the host's live state, not the server's records.
     m_server.SetLateJoinHandler([this](ConnectionId_t aPlayer, uint32_t aCharacterServerId) {
@@ -51,24 +151,11 @@ bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) 
     if (!m_server.IsAuthenticated(aSender))
         return false; // the server's own handling until the player is in
 
-    switch (acMessage.GetOpcode())
-    {
-    case ClientReferencesMoveRequest::Opcode: OnMovement(static_cast<const ClientReferencesMoveRequest&>(acMessage), aSender); return true;
-    case RequestInventoryChanges::Opcode: OnInventoryChanges(static_cast<const RequestInventoryChanges&>(acMessage), aSender); return true;
-    case RequestEquipmentChanges::Opcode: OnEquipmentChanges(static_cast<const RequestEquipmentChanges&>(acMessage), aSender); return true;
-    case RequestEquipmentSnapshot::Opcode: OnEquipmentSnapshot(static_cast<const RequestEquipmentSnapshot&>(acMessage), aSender); return true;
-    case DrawWeaponRequest::Opcode: OnDrawWeapon(static_cast<const DrawWeaponRequest&>(acMessage), aSender); return true;
-    case RequestActorValueChanges::Opcode: OnActorValues(static_cast<const RequestActorValueChanges&>(acMessage), aSender); return true;
-    case RequestActorMaxValueChanges::Opcode: OnActorMaxValues(static_cast<const RequestActorMaxValueChanges&>(acMessage), aSender); return true;
-    case RequestDeathStateChange::Opcode: OnDeathState(static_cast<const RequestDeathStateChange&>(acMessage), aSender); return true;
-    case RequestHealthChangeBroadcast::Opcode: OnHealthChange(static_cast<const RequestHealthChangeBroadcast&>(acMessage), aSender); return true;
-    case SpellCastRequest::Opcode: OnSpellCast(static_cast<const SpellCastRequest&>(acMessage), aSender); return true;
-    case InterruptCastRequest::Opcode: OnInterruptCast(static_cast<const InterruptCastRequest&>(acMessage), aSender); return true;
-    case ProjectileLaunchRequest::Opcode: OnProjectileLaunch(static_cast<const ProjectileLaunchRequest&>(acMessage), aSender); return true;
-    case AddTargetRequest::Opcode: OnAddTarget(static_cast<const AddTargetRequest&>(acMessage), aSender); return true;
-    case RemoveSpellRequest::Opcode: OnRemoveSpell(static_cast<const RemoveSpellRequest&>(acMessage), aSender); return true;
-    default: return false;
-    }
+    const auto cOpcode = acMessage.GetOpcode();
+    if (cOpcode >= m_rules.size() || !m_rules[cOpcode])
+        return false;
+    m_rules[cOpcode](acMessage, aSender);
+    return true;
 }
 
 void HostBridge::OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -88,162 +175,34 @@ void HostBridge::OnMovement(const ClientReferencesMoveRequest& acRequest, Connec
 
 void HostBridge::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
-    if (!acRequest.UpdateClients)
-        return;
-
-    NotifyInventoryChanges notify;
-    notify.ServerId = acRequest.ServerId;
-    notify.Item = acRequest.Item;
-    notify.Drop = false; // Dropped items are not synced (the server's experimental bEnableItemDrops, off).
-    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+    if (acRequest.UpdateClients)
+        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
 }
 
-void HostBridge::OnEquipmentChanges(const RequestEquipmentChanges& acRequest, ConnectionId_t aSender) const noexcept
+void HostBridge::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
-    NotifyEquipmentChanges notify;
-    notify.ServerId = acRequest.ServerId;
-    notify.ItemId = acRequest.ItemId;
-    notify.EquipSlotId = acRequest.EquipSlotId;
-    notify.Count = acRequest.Count;
-    notify.Unequip = acRequest.Unequip;
-    notify.IsSpell = acRequest.IsSpell;
-    notify.IsShout = acRequest.IsShout;
-    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+    NotifyFactionsChanges notify;
+    for (const auto& [cServerId, cFactions] : acRequest.Changes)
+        if (m_server.OwnerConnection(cServerId) == aSender)
+            notify.Changes[cServerId] = cFactions;
+    if (!notify.Changes.empty())
+        m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
-void HostBridge::OnEquipmentSnapshot(const RequestEquipmentSnapshot& acRequest, ConnectionId_t aSender) const noexcept
+void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
 {
-    NotifyEquipmentSnapshot notify;
-    notify.ServerId = acRequest.ServerId;
-    notify.Equipment = acRequest.Equipment;
-    RelayFromOwner(acRequest.ServerId, notify, aSender);
-}
-
-void HostBridge::OnDrawWeapon(const DrawWeaponRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyDrawWeapon notify;
-    notify.Id = acRequest.Id;
-    notify.IsWeaponDrawn = acRequest.IsWeaponDrawn;
-    RelayFromOwner(acRequest.Id, notify, aSender);
-}
-
-void HostBridge::OnActorValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyActorValueChanges notify;
-    notify.Id = acRequest.Id;
-    notify.Values = acRequest.Values;
-    RelayFromOwner(acRequest.Id, notify, aSender);
-}
-
-void HostBridge::OnActorMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyActorMaxValueChanges notify;
-    notify.Id = acRequest.Id;
-    notify.Values = acRequest.Values;
-    RelayFromOwner(acRequest.Id, notify, aSender);
-}
-
-void HostBridge::OnDeathState(const RequestDeathStateChange& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyDeathStateChange notify;
-    notify.Id = acRequest.Id;
-    notify.IsDead = acRequest.IsDead;
-    RelayFromOwner(acRequest.Id, notify, aSender);
-}
-
-void HostBridge::OnHealthChange(const RequestHealthChangeBroadcast& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyHealthChangeBroadcast notify;
-    notify.Id = acRequest.Id;
-    notify.DeltaHealth = acRequest.DeltaHealth;
-    notify.HasAttacker = acRequest.HasAttacker;
-    notify.AttackerId = acRequest.AttackerId;
-    SendToOwner(acRequest.Id, notify, aSender);
-}
-
-void HostBridge::OnSpellCast(const SpellCastRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifySpellCast notify;
-    notify.CasterId = acRequest.CasterId;
-    notify.SpellFormId = acRequest.SpellFormId;
-    notify.CastingSource = acRequest.CastingSource;
-    notify.IsDualCasting = acRequest.IsDualCasting;
-    notify.DesiredTarget = acRequest.DesiredTarget;
-    RelayFromOwner(acRequest.CasterId, notify, aSender);
-}
-
-void HostBridge::OnInterruptCast(const InterruptCastRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyInterruptCast notify;
-    notify.CasterId = acRequest.CasterId;
-    notify.CastingSource = acRequest.CastingSource;
-    RelayFromOwner(acRequest.CasterId, notify, aSender);
-}
-
-void HostBridge::OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyProjectileLaunch notify;
-    notify.ShooterID = acRequest.ShooterID;
-    notify.OriginX = acRequest.OriginX;
-    notify.OriginY = acRequest.OriginY;
-    notify.OriginZ = acRequest.OriginZ;
-    notify.ProjectileBaseID = acRequest.ProjectileBaseID;
-    notify.WeaponID = acRequest.WeaponID;
-    notify.AmmoID = acRequest.AmmoID;
-    notify.ZAngle = acRequest.ZAngle;
-    notify.XAngle = acRequest.XAngle;
-    notify.YAngle = acRequest.YAngle;
-    notify.ParentCellID = acRequest.ParentCellID;
-    notify.SpellID = acRequest.SpellID;
-    notify.CastingSource = acRequest.CastingSource;
-    notify.Area = acRequest.Area;
-    notify.Power = acRequest.Power;
-    notify.Scale = acRequest.Scale;
-    notify.AlwaysHit = acRequest.AlwaysHit;
-    notify.NoDamageOutsideCombat = acRequest.NoDamageOutsideCombat;
-    notify.AutoAim = acRequest.AutoAim;
-    notify.DeferInitialization = acRequest.DeferInitialization;
-    notify.ForceConeOfFire = acRequest.ForceConeOfFire;
-    notify.UnkBool1 = acRequest.UnkBool1;
-    notify.UnkBool2 = acRequest.UnkBool2;
-    RelayFromOwner(acRequest.ShooterID, notify, aSender);
-}
-
-void HostBridge::OnAddTarget(const AddTargetRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyAddTarget notify;
-    notify.TargetId = acRequest.TargetId;
-    notify.CasterId = acRequest.CasterId;
-    notify.SpellId = acRequest.SpellId;
-    notify.EffectId = acRequest.EffectId;
-    notify.Magnitude = acRequest.Magnitude;
-    notify.IsDualCasting = acRequest.IsDualCasting;
-    notify.ApplyHealPerkBonus = acRequest.ApplyHealPerkBonus;
-    notify.ApplyStaminaPerkBonus = acRequest.ApplyStaminaPerkBonus;
-    SendToOwner(acRequest.TargetId, notify, aSender);
-}
-
-void HostBridge::OnRemoveSpell(const RemoveSpellRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    NotifyRemoveSpell notify;
-    notify.TargetId = acRequest.TargetId;
-    notify.SpellId = acRequest.SpellId;
-    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
-}
-
-void HostBridge::RelayFromOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept
-{
-    if (m_server.OwnerConnection(aServerId) != aSender)
+    switch (aDelivery)
     {
-        spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, acNotify.GetOpcode(), aServerId);
-        return;
+    case Delivery::FromOwner:
+        if (m_server.OwnerConnection(aActor) == aSender)
+            m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
+        else
+            spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, acNotify.GetOpcode(), aActor);
+        break;
+    case Delivery::FromAnyone: m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
+    case Delivery::ToOwner:
+        if (const ConnectionId_t cOwner = m_server.OwnerConnection(aActor); cOwner != 0 && cOwner != aSender)
+            m_server.Send(cOwner, acNotify);
+        break;
     }
-    m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
-}
-
-void HostBridge::SendToOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept
-{
-    const ConnectionId_t cOwner = m_server.OwnerConnection(aServerId);
-    if (cOwner != 0 && cOwner != aSender)
-        m_server.Send(cOwner, acNotify);
 }

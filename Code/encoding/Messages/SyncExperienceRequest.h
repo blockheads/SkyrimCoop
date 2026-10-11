@@ -1,20 +1,20 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 
-struct SyncExperienceRequest final : ClientMessage
+struct SyncExperienceRequest final : ClientMessage, Payloads::SyncExperience
 {
     static constexpr ClientOpcode Opcode = kSyncExperienceRequest;
+    using Payload = Payloads::SyncExperience;
 
     SyncExperienceRequest()
         : ClientMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const SyncExperienceRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Experience == acRhs.Experience; }
-
-    float Experience{};
+    bool operator==(const SyncExperienceRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

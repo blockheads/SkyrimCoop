@@ -1,22 +1,20 @@
 #pragma once
 
 #include "Message.h"
-#include <Structs/GameId.h>
+#include "Payloads.h"
 
-struct NotifyNewPackage final : ServerMessage
+struct NotifyNewPackage final : ServerMessage, Payloads::NewPackage
 {
     static constexpr ServerOpcode Opcode = kNotifyNewPackage;
+    using Payload = Payloads::NewPackage;
 
     NotifyNewPackage()
         : ServerMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const NotifyNewPackage& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && ActorId == acRhs.ActorId && PackageId == acRhs.PackageId; }
-
-    uint32_t ActorId = 0;
-    GameId PackageId{};
+    bool operator==(const NotifyNewPackage& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

@@ -1,24 +1,20 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 
-using TiltedPhoques::String;
-
-struct SubtitleRequest final : ClientMessage
+struct SubtitleRequest final : ClientMessage, Payloads::Subtitle
 {
     static constexpr ClientOpcode Opcode = kSubtitleRequest;
+    using Payload = Payloads::Subtitle;
 
     SubtitleRequest()
         : ClientMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const SubtitleRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && ServerId == acRhs.ServerId && Text == acRhs.Text && TopicFormId == acRhs.TopicFormId; }
-
-    uint32_t ServerId{};
-    TiltedPhoques::String Text{};
-    uint32_t TopicFormId{};
+    bool operator==(const SubtitleRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

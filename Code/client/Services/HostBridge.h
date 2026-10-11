@@ -2,26 +2,16 @@
 
 #include <ENetInterface.hpp>
 #include <Messages/CharacterSpawnRequest.h>
+#include <Opcodes.h>
 
+#include <array>
 #include <functional>
-
 
 struct ClientMessage;
 struct ServerMessage;
 struct ClientReferencesMoveRequest;
 struct RequestInventoryChanges;
-struct RequestEquipmentChanges;
-struct RequestEquipmentSnapshot;
-struct DrawWeaponRequest;
-struct RequestActorValueChanges;
-struct RequestActorMaxValueChanges;
-struct RequestHealthChangeBroadcast;
-struct RequestDeathStateChange;
-struct SpellCastRequest;
-struct InterruptCastRequest;
-struct AddTargetRequest;
-struct RemoveSpellRequest;
-struct ProjectileLaunchRequest;
+struct RequestFactionsChanges;
 
 namespace Server
 {
@@ -36,6 +26,9 @@ struct GameServer;
  * goes to the embedded server's services while the migration is under way. The host is a player
  * like the others: what it sends comes through here in-process, and what is forwarded to it
  * reaches its copies through the in-process route.
+ *
+ * Most rules pass a request on as its notification, which carries the same payload
+ * (Messages/Payloads.h); they differ only in who receives it (Delivery).
  */
 struct HostBridge
 {
@@ -45,8 +38,8 @@ struct HostBridge
     // (aJoinerServerId). The host's CharacterService::BuildSpawnRequests; a fake in the tests.
     using SpawnSource = std::function<TiltedPhoques::Vector<CharacterSpawnRequest>(uint32_t aJoinerServerId)>;
 
-    // Installs itself on aServer (front door, late join), which calls into it
-    // from then on: the bridge must outlive the server.
+    // Installs itself on aServer (front door, late join), which calls into it from then on: the
+    // bridge must outlive the server.
     HostBridge(Server::GameServer& aServer, SpawnSource aSpawns) noexcept;
 
     TP_NOCOPYMOVE(HostBridge);
@@ -55,36 +48,31 @@ struct HostBridge
     bool Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept;
 
 private:
+    enum class Delivery
+    {
+        FromOwner,  // the actor's owner says it; everyone else replays it
+        FromAnyone, // whoever saw it happen; everyone else replays it
+        ToOwner,    // something done to another's actor: its owner alone applies it
+    };
+
+    using Rule = std::function<void(const ClientMessage&, ConnectionId_t aSender)>;
+
+    // TRequest passed on as TNotify (the same payload); apActor names the actor Delivery checks.
+    template <class TRequest, class TNotify> void Relay(Delivery aDelivery, uint32_t TRequest::*apActor = nullptr) noexcept;
+    // TRequest handled by a member function (rules with more to them than a relay).
+    template <class TRequest> void On(void (HostBridge::*apRule)(const TRequest&, ConnectionId_t) const noexcept) noexcept;
+
     // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
     void OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Anyone may change an actor's items (a peer handing its follower a sword); the owner's game
     // applies it like every other copy.
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnEquipmentChanges(const RequestEquipmentChanges& acRequest, ConnectionId_t aSender) const noexcept;
-    // Only the owner says what its actor wears and whether its hands are up.
-    void OnEquipmentSnapshot(const RequestEquipmentSnapshot& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnDrawWeapon(const DrawWeaponRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // An actor's values and death come from its owner.
-    void OnActorValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnActorMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnDeathState(const RequestDeathStateChange& acRequest, ConnectionId_t aSender) const noexcept;
-    // A hit on someone else's actor goes to its owner alone, which applies it; everyone else then
-    // gets the owner's resulting health as values.
-    void OnHealthChange(const RequestHealthChangeBroadcast& acRequest, ConnectionId_t aSender) const noexcept;
-    // Casts and shots come from the caster's owner; everyone else replays them on their copy.
-    void OnSpellCast(const SpellCastRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnInterruptCast(const InterruptCastRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    void OnProjectileLaunch(const ProjectileLaunchRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A spell landing on someone else's actor: its owner applies the effect (like a hit).
-    void OnAddTarget(const AddTargetRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // An effect ending on any actor (whoever saw it end).
-    void OnRemoveSpell(const RemoveSpellRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // Each actor's factions from its owner (one message carries many actors).
+    void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
 
-    // Sends acNotify to everyone but aSender when aSender owns aServerId.
-    void RelayFromOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept;
-    // Sends acNotify to aServerId's owner alone, unless that is aSender.
-    void SendToOwner(uint32_t aServerId, const ServerMessage& acNotify, ConnectionId_t aSender) const noexcept;
+    void Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 
     Server::GameServer& m_server;
     SpawnSource m_spawns;
+    std::array<Rule, kClientOpcodeMax> m_rules{};
 };

@@ -1,21 +1,20 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 
-struct RequestActorMaxValueChanges final : ClientMessage
+struct RequestActorMaxValueChanges final : ClientMessage, Payloads::ActorMaxValueChanges
 {
     static constexpr ClientOpcode Opcode = kRequestActorMaxValueChanges;
+    using Payload = Payloads::ActorMaxValueChanges;
 
     RequestActorMaxValueChanges()
         : ClientMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const RequestActorMaxValueChanges& acRhs) const noexcept { return Id == acRhs.Id && Values == acRhs.Values && GetOpcode() == acRhs.GetOpcode(); }
-
-    uint32_t Id;
-    TiltedPhoques::Map<uint32_t, float> Values;
+    bool operator==(const RequestActorMaxValueChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

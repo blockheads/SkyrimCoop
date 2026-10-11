@@ -5,7 +5,6 @@
 
 #include <Events/CharacterSpawnedEvent.h>
 #include <Events/PlayerEnterWorldEvent.h>
-#include <Events/UpdateEvent.h>
 #include <Events/CharacterRemoveEvent.h>
 
 #include <Game/OwnerView.h>
@@ -15,51 +14,25 @@
 #include <Messages/ServerReferencesMoveRequest.h>
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Messages/CharacterSpawnRequest.h>
-#include <Messages/RequestFactionsChanges.h>
-#include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/NotifySpawnData.h>
-#include <Messages/MountRequest.h>
-#include <Messages/NotifyMount.h>
-#include <Messages/NewPackageRequest.h>
-#include <Messages/NotifyNewPackage.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/NotifyRespawn.h>
-#include <Messages/SyncExperienceRequest.h>
-#include <Messages/NotifySyncExperience.h>
-#include <Messages/DialogueRequest.h>
-#include <Messages/NotifyDialogue.h>
-#include <Messages/SubtitleRequest.h>
-#include <Messages/NotifySubtitle.h>
 #include <Messages/NotifyActorTeleport.h>
 #include <Messages/NotifyRelinquishControl.h>
-
-#include <Setting.h>
 
 namespace Server
 {
 
-namespace
-{
-ServerConsole::Setting bEnableXpSync{"Gameplay:bEnableXpSync", "Syncs combat XP within the party", true};
-}
-
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
-    , m_updateConnection(aDispatcher.sink<UpdateEvent>().connect<&CharacterService::OnUpdate>(this))
     , m_characterAssignRequestConnection(aDispatcher.sink<PacketEvent<AssignCharacterRequest>>().connect<&CharacterService::OnAssignCharacterRequest>(this))
     , m_removeCharacterConnection(aDispatcher.sink<CharacterRemoveEvent>().connect<&CharacterService::OnCharacterRemoveEvent>(this))
     , m_requestRemoveCharacterConnection(aDispatcher.sink<PacketEvent<RequestRemoveCharacter>>().connect<&CharacterService::OnRequestRemoveCharacter>(this))
     , m_characterSpawnedConnection(aDispatcher.sink<CharacterSpawnedEvent>().connect<&CharacterService::OnCharacterSpawned>(this))
     , m_playerEnterWorldConnection(aDispatcher.sink<PlayerEnterWorldEvent>().connect<&CharacterService::OnPlayerEnterWorld>(this))
-    , m_factionsChangesConnection(aDispatcher.sink<PacketEvent<RequestFactionsChanges>>().connect<&CharacterService::OnFactionsChanges>(this))
-    , m_mountConnection(aDispatcher.sink<PacketEvent<MountRequest>>().connect<&CharacterService::OnMountRequest>(this))
-    , m_newPackageConnection(aDispatcher.sink<PacketEvent<NewPackageRequest>>().connect<&CharacterService::OnNewPackageRequest>(this))
     , m_requestRespawnConnection(aDispatcher.sink<PacketEvent<RequestRespawn>>().connect<&CharacterService::OnRequestRespawn>(this))
-    , m_syncExperienceConnection(aDispatcher.sink<PacketEvent<SyncExperienceRequest>>().connect<&CharacterService::OnSyncExperienceRequest>(this))
-    , m_dialogueConnection(aDispatcher.sink<PacketEvent<DialogueRequest>>().connect<&CharacterService::OnDialogueRequest>(this))
-    , m_subtitleConnection(aDispatcher.sink<PacketEvent<SubtitleRequest>>().connect<&CharacterService::OnSubtitleRequest>(this))
 {
 }
 
@@ -117,11 +90,6 @@ void CharacterService::Serialize(World& aRegistry, entt::entity aEntity, Charact
 
     const auto& animationComponent = aRegistry.get<AnimationComponent>(aEntity);
     apSpawnRequest->LatestAction = animationComponent.CurrentAction;
-}
-
-void CharacterService::OnUpdate(const UpdateEvent&) const noexcept
-{
-    ProcessFactionsChanges();
 }
 
 void CharacterService::OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept
@@ -272,47 +240,6 @@ void CharacterService::OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) 
                  count, acEvent.pPlayer->GetConnectionId());
 }
 
-void CharacterService::OnFactionsChanges(const PacketEvent<RequestFactionsChanges>& acMessage) const noexcept
-{
-    OwnerView<CharacterComponent> view(m_world, acMessage.GetSender());
-
-    auto& message = acMessage.Packet;
-
-    for (auto& [id, factions] : message.Changes)
-    {
-        auto it = view.find(static_cast<entt::entity>(id));
-
-        if (it == std::end(view) || view.get<OwnerComponent>(*it).GetOwner() != acMessage.pPlayer)
-            continue;
-
-        auto& characterComponent = view.get<CharacterComponent>(*it);
-        characterComponent.FactionsContent = factions;
-        characterComponent.SetDirtyFactions(true);
-    }
-}
-
-void CharacterService::OnMountRequest(const PacketEvent<MountRequest>& acMessage) const noexcept
-{
-    auto& message = acMessage.Packet;
-
-    NotifyMount notify;
-    notify.RiderId = message.RiderId;
-    notify.MountId = message.MountId;
-
-    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
-}
-
-void CharacterService::OnNewPackageRequest(const PacketEvent<NewPackageRequest>& acMessage) const noexcept
-{
-    auto& message = acMessage.Packet;
-
-    NotifyNewPackage notify;
-    notify.ActorId = message.ActorId;
-    notify.PackageId = message.PackageId;
-
-    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
-}
-
 void CharacterService::OnRequestRespawn(const PacketEvent<RequestRespawn>& acMessage) const noexcept
 {
     auto view = m_world.view<OwnerComponent, CharacterComponent>();
@@ -345,40 +272,6 @@ void CharacterService::OnRequestRespawn(const PacketEvent<RequestRespawn>& acMes
 
         acMessage.GetSender()->Send(message);
     }
-}
-
-void CharacterService::OnSyncExperienceRequest(const PacketEvent<SyncExperienceRequest>& acMessage) const noexcept
-{
-    if (!bEnableXpSync)
-        return;
-
-    NotifySyncExperience notify;
-    notify.Experience = acMessage.Packet.Experience;
-
-    const auto& partyComponent = acMessage.pPlayer->GetParty();
-    GameServer::Get()->SendToParty(notify, partyComponent, acMessage.GetSender());
-}
-
-void CharacterService::OnDialogueRequest(const PacketEvent<DialogueRequest>& acMessage) const noexcept
-{
-    auto& message = acMessage.Packet;
-
-    NotifyDialogue notify{};
-    notify.ServerId = message.ServerId;
-    notify.SoundFilename = message.SoundFilename;
-
-    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
-}
-
-void CharacterService::OnSubtitleRequest(const PacketEvent<SubtitleRequest>& acMessage) const noexcept
-{
-    auto& message = acMessage.Packet;
-
-    NotifySubtitle notify{};
-    notify.ServerId = message.ServerId;
-    notify.Text = message.Text;
-
-    GameServer::Get()->SendToPlayers(notify, acMessage.GetSender());
 }
 
 void CharacterService::CreateCharacter(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept
@@ -541,53 +434,6 @@ void CharacterService::BroadcastActorData(Player* apPlayer, const entt::entity a
     notifySpawnData.NewActorData = acActorData;
 
     GameServer::Get()->SendToPlayers(notifySpawnData, apPlayer);
-}
-
-void CharacterService::ProcessFactionsChanges() const noexcept
-{
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenSnapshots = 2000ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenSnapshots)
-        return;
-
-    lastSendTimePoint = now;
-
-    const auto characterView = m_world.view<CellIdComponent, CharacterComponent, OwnerComponent>();
-
-    TiltedPhoques::Map<Player*, NotifyFactionsChanges> messages;
-
-    for (auto entity : characterView)
-    {
-        auto& characterComponent = characterView.get<CharacterComponent>(entity);
-        auto& cellIdComponent = characterView.get<CellIdComponent>(entity);
-        auto& ownerComponent = characterView.get<OwnerComponent>(entity);
-
-        // If we have nothing new to send skip this
-        if (!characterComponent.IsDirtyFactions())
-            continue;
-
-        // P2P co-op: Send to all players except owner (no range check needed)
-        for (auto pPlayer : m_world.GetPlayerManager())
-        {
-            if (pPlayer == ownerComponent.GetOwner())
-                continue;
-
-            auto& message = messages[pPlayer];
-            auto& change = message.Changes[World::ToInteger(entity)];
-
-            change = characterComponent.FactionsContent;
-        }
-
-        characterComponent.SetDirtyFactions(false);
-    }
-
-    for (auto [pPlayer, message] : messages)
-    {
-        if (!message.Changes.empty())
-            pPlayer->Send(message);
-    }
 }
 
 } // namespace Server

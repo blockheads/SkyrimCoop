@@ -8,6 +8,14 @@
 #include <Services/HostBridge.h>
 
 #include <Messages/AddTargetRequest.h>
+#include <Messages/MountRequest.h>
+#include <Messages/NotifyFactionsChanges.h>
+#include <Messages/NotifyMount.h>
+#include <Messages/NotifySubtitle.h>
+#include <Messages/NotifySyncExperience.h>
+#include <Messages/RequestFactionsChanges.h>
+#include <Messages/SubtitleRequest.h>
+#include <Messages/SyncExperienceRequest.h>
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/NotifyAddTarget.h>
 #include <Messages/NotifyProjectileLaunch.h>
@@ -49,8 +57,7 @@ struct Sent
 struct Session
 {
     Session()
-        : m_console("BridgeTest")
-        , m_pServer(std::make_unique<Server::GameServer>(m_console, GameServerTestMode{}))
+        : m_pServer(std::make_unique<Server::GameServer>(Console(), GameServerTestMode{}))
         , m_bridge(*m_pServer, [this](uint32_t aJoinerServerId) {
             Vector<CharacterSpawnRequest> spawns;
             for (const auto& cSpawn : Spawns)
@@ -104,7 +111,13 @@ struct Session
     std::vector<Sent> Outbox;
 
 private:
-    ServerConsole::ConsoleRegistry m_console;
+    // One per process: it takes over the static setting and command lists when created.
+    static ServerConsole::ConsoleRegistry& Console()
+    {
+        static ServerConsole::ConsoleRegistry s_console("BridgeTest");
+        return s_console;
+    }
+
     std::unique_ptr<Server::GameServer> m_pServer;
     HostBridge m_bridge;
 };
@@ -347,4 +360,58 @@ TEST_CASE("Spell removal: reaches everyone else", "[Bridge][Magic]")
     REQUIRE(session.SentTo<NotifyRemoveSpell>(kHost).size() == 1);
     CHECK(session.SentTo<NotifyRemoveSpell>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyRemoveSpell>(kPeer).empty());
+}
+
+TEST_CASE("Factions: each actor's from its owner only", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    RequestFactionsChanges changes;
+    changes.Changes[cPeerPlayer] = {};
+    changes.Changes[cHostNpc] = {}; // not the peer's to say
+    session.Receive(kPeer, changes);
+
+    const auto cToHost = session.SentTo<NotifyFactionsChanges>(kHost);
+    REQUIRE(cToHost.size() == 1);
+    CHECK(cToHost[0]->Changes.size() == 1);
+    CHECK(cToHost[0]->Changes.count(cPeerPlayer) == 1);
+    CHECK(session.SentTo<NotifyFactionsChanges>(kPeer).empty());
+
+    session.Outbox.clear();
+    changes.Changes.erase(cPeerPlayer);
+    session.Receive(kPeer, changes);
+    CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+    const uint32_t cHorse = session.Character(kHost);
+
+    MountRequest mount;
+    mount.RiderId = cHostNpc;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount);
+    REQUIRE(session.SentTo<NotifyMount>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyMount>(kHost)[0]->MountId == cHorse);
+
+    SubtitleRequest subtitle;
+    subtitle.ServerId = cHostNpc;
+    subtitle.Text = "Let me guess...";
+    subtitle.TopicFormId = 0x1234;
+    session.Receive(kHost, subtitle);
+    const auto cSubtitles = session.SentTo<NotifySubtitle>(kPeer);
+    REQUIRE(cSubtitles.size() == 1);
+    CHECK(cSubtitles[0]->Text == "Let me guess...");
+    CHECK(cSubtitles[0]->TopicFormId == 0x1234);
+
+    SyncExperienceRequest experience;
+    experience.Experience = 12.5f;
+    session.Receive(kPeer, experience);
+    REQUIRE(session.SentTo<NotifySyncExperience>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifySyncExperience>(kOtherPeer)[0]->Experience == 12.5f);
+    CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }

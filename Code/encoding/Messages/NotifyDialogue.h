@@ -1,21 +1,20 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 
-struct NotifyDialogue final : ServerMessage
+struct NotifyDialogue final : ServerMessage, Payloads::Dialogue
 {
     static constexpr ServerOpcode Opcode = kNotifyDialogue;
+    using Payload = Payloads::Dialogue;
 
     NotifyDialogue()
         : ServerMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const NotifyDialogue& achRhs) const noexcept { return GetOpcode() == achRhs.GetOpcode() && ServerId == achRhs.ServerId && SoundFilename == achRhs.SoundFilename; }
-
-    uint32_t ServerId{};
-    TiltedPhoques::String SoundFilename{};
+    bool operator==(const NotifyDialogue& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

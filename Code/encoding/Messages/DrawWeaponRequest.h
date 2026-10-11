@@ -1,21 +1,20 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 
-struct DrawWeaponRequest final : ClientMessage
+struct DrawWeaponRequest final : ClientMessage, Payloads::DrawWeapon
 {
     static constexpr ClientOpcode Opcode = kDrawWeaponRequest;
+    using Payload = Payloads::DrawWeapon;
 
     DrawWeaponRequest()
         : ClientMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const DrawWeaponRequest& acRhs) const noexcept { return Id == acRhs.Id && IsWeaponDrawn == acRhs.IsWeaponDrawn && GetOpcode() == acRhs.GetOpcode(); }
-
-    uint32_t Id{};
-    bool IsWeaponDrawn{};
+    bool operator==(const DrawWeaponRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

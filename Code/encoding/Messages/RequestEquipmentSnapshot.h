@@ -1,26 +1,20 @@
 #pragma once
 
 #include "Message.h"
-#include <Structs/Inventory.h>
+#include "Payloads.h"
 
-// The owner's full worn equipment for one actor, re-sent periodically so a copy that drifted
-// (missed or undone change) converges back to the owner's state.
-struct RequestEquipmentSnapshot final : ClientMessage
+struct RequestEquipmentSnapshot final : ClientMessage, Payloads::EquipmentSnapshot
 {
     static constexpr ClientOpcode Opcode = kRequestEquipmentSnapshot;
+    using Payload = Payloads::EquipmentSnapshot;
 
     RequestEquipmentSnapshot()
         : ClientMessage(Opcode)
     {
     }
 
-    virtual ~RequestEquipmentSnapshot() = default;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
-
-    bool operator==(const RequestEquipmentSnapshot& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && ServerId == acRhs.ServerId && Equipment == acRhs.Equipment; }
-
-    uint32_t ServerId{};
-    Inventory Equipment{};
+    bool operator==(const RequestEquipmentSnapshot& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

@@ -1,21 +1,20 @@
 #pragma once
 
 #include "Message.h"
+#include "Payloads.h"
 
-struct MountRequest final : ClientMessage
+struct MountRequest final : ClientMessage, Payloads::Mount
 {
     static constexpr ClientOpcode Opcode = kMountRequest;
+    using Payload = Payloads::Mount;
 
     MountRequest()
         : ClientMessage(Opcode)
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const MountRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && RiderId == acRhs.RiderId && MountId == acRhs.MountId; }
-
-    uint32_t RiderId;
-    uint32_t MountId;
+    bool operator==(const MountRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

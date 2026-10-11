@@ -2,25 +2,17 @@
 
 #include <Events/PacketEvent.h>
 #include <Structs/ActorData.h>
-#include <chrono>
 
 struct AssignCharacterRequest;
 struct CharacterSpawnRequest;
 struct ClientReferencesMoveRequest;
-struct RequestFactionsChanges;
 struct GridCellCoords;
-struct MountRequest;
-struct NewPackageRequest;
 struct RequestRespawn;
-struct SyncExperienceRequest;
-struct DialogueRequest;
-struct SubtitleRequest;
 struct RequestRemoveCharacter;
 
 namespace Server
 {
 
-struct UpdateEvent;
 struct CharacterSpawnedEvent;
 struct PlayerEnterWorldEvent;
 struct World;
@@ -39,43 +31,27 @@ struct CharacterService
     static void Serialize(World& aRegistry, entt::entity aEntity, CharacterSpawnRequest* apSpawnRequest) noexcept;
 
 protected:
-    void OnUpdate(const UpdateEvent& acEvent) const noexcept;
     void OnAssignCharacterRequest(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept;
     void OnCharacterRemoveEvent(const CharacterRemoveEvent& acEvent) const noexcept;
     void OnRequestRemoveCharacter(const PacketEvent<RequestRemoveCharacter>& acMessage) const noexcept;
     void OnCharacterSpawned(const CharacterSpawnedEvent& acEvent) const noexcept;
     void OnPlayerEnterWorld(const PlayerEnterWorldEvent& acEvent) const noexcept;
-    void OnFactionsChanges(const PacketEvent<RequestFactionsChanges>& acMessage) const noexcept;
-    void OnMountRequest(const PacketEvent<MountRequest>& acMessage) const noexcept;
-    void OnNewPackageRequest(const PacketEvent<NewPackageRequest>& acMessage) const noexcept;
     void OnRequestRespawn(const PacketEvent<RequestRespawn>& acMessage) const noexcept;
-    void OnSyncExperienceRequest(const PacketEvent<SyncExperienceRequest>& acMessage) const noexcept;
-    void OnDialogueRequest(const PacketEvent<DialogueRequest>& acMessage) const noexcept;
-    void OnSubtitleRequest(const PacketEvent<SubtitleRequest>& acMessage) const noexcept;
 
     void CreateCharacter(const PacketEvent<AssignCharacterRequest>& acMessage) const noexcept;
     ActorData BuildActorData(const entt::entity acEntity) const noexcept;
     void ApplyActorData(const entt::entity acEntity, const ActorData& acActorData) const noexcept;
     void BroadcastActorData(Player* apPlayer, const entt::entity acEntity, const ActorData& acActorData) const noexcept;
 
-    void ProcessFactionsChanges() const noexcept;
-
 private:
     World& m_world;
 
-    entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_characterAssignRequestConnection;
     entt::scoped_connection m_removeCharacterConnection;
     entt::scoped_connection m_requestRemoveCharacterConnection;
     entt::scoped_connection m_characterSpawnedConnection;
     entt::scoped_connection m_playerEnterWorldConnection;
-    entt::scoped_connection m_factionsChangesConnection;
-    entt::scoped_connection m_mountConnection;
-    entt::scoped_connection m_newPackageConnection;
     entt::scoped_connection m_requestRespawnConnection;
-    entt::scoped_connection m_syncExperienceConnection;
-    entt::scoped_connection m_dialogueConnection;
-    entt::scoped_connection m_subtitleConnection;
 };
 
 } // namespace Server

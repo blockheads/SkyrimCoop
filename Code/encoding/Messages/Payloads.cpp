@@ -1,0 +1,305 @@
+#include <Messages/Payloads.h>
+#include <TiltedCore/Serialization.hpp>
+
+using TiltedPhoques::Serialization;
+
+namespace Payloads
+{
+void EquipmentSnapshot::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ServerId);
+    Equipment.Serialize(aWriter);
+}
+
+void EquipmentSnapshot::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Equipment.Deserialize(aReader);
+}
+
+void DrawWeapon::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    Serialization::WriteBool(aWriter, IsWeaponDrawn);
+}
+
+void DrawWeapon::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    IsWeaponDrawn = Serialization::ReadBool(aReader);
+}
+
+void ActorValueChanges::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+
+    Serialization::WriteVarInt(aWriter, Values.size());
+    for (auto& value : Values)
+    {
+        Serialization::WriteVarInt(aWriter, value.first);
+        Serialization::WriteFloat(aWriter, value.second);
+    }
+}
+
+void ActorValueChanges::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+
+    auto count = Serialization::ReadVarInt(aReader);
+    for (int i = 0; i < count; i++)
+    {
+        auto key = Serialization::ReadVarInt(aReader);
+        auto value = Serialization::ReadFloat(aReader);
+        Values.insert({key, value});
+    }
+}
+
+void ActorMaxValueChanges::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+
+    Serialization::WriteVarInt(aWriter, Values.size());
+    for (const auto& value : Values)
+    {
+        Serialization::WriteVarInt(aWriter, value.first);
+        Serialization::WriteFloat(aWriter, value.second);
+    }
+}
+
+void ActorMaxValueChanges::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+
+    auto count = Serialization::ReadVarInt(aReader);
+    for (decltype(count) i = 0; i < count; i++)
+    {
+        uint32_t key = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+        auto value = Serialization::ReadFloat(aReader);
+        Values.insert({key, value});
+    }
+}
+
+void DeathStateChange::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    Serialization::WriteBool(aWriter, IsDead);
+}
+
+void DeathStateChange::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    IsDead = Serialization::ReadBool(aReader);
+}
+
+void HealthChange::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Id);
+    Serialization::WriteFloat(aWriter, DeltaHealth);
+    Serialization::WriteBool(aWriter, HasAttacker);
+    Serialization::WriteVarInt(aWriter, AttackerId);
+}
+
+void HealthChange::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    DeltaHealth = Serialization::ReadFloat(aReader);
+    HasAttacker = Serialization::ReadBool(aReader);
+    AttackerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void SpellCast::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, CasterId);
+    SpellFormId.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, CastingSource);
+    Serialization::WriteBool(aWriter, IsDualCasting);
+    Serialization::WriteVarInt(aWriter, DesiredTarget);
+}
+
+void SpellCast::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SpellFormId.Deserialize(aReader);
+    CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    IsDualCasting = Serialization::ReadBool(aReader);
+    DesiredTarget = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void InterruptCast::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, CasterId);
+    Serialization::WriteVarInt(aWriter, CastingSource);
+}
+
+void InterruptCast::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void ProjectileLaunch::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ShooterID);
+
+    Serialization::WriteFloat(aWriter, OriginX);
+    Serialization::WriteFloat(aWriter, OriginY);
+    Serialization::WriteFloat(aWriter, OriginZ);
+
+    ProjectileBaseID.Serialize(aWriter);
+    WeaponID.Serialize(aWriter);
+    AmmoID.Serialize(aWriter);
+
+    Serialization::WriteFloat(aWriter, ZAngle);
+    Serialization::WriteFloat(aWriter, XAngle);
+    Serialization::WriteFloat(aWriter, YAngle);
+
+    ParentCellID.Serialize(aWriter);
+    SpellID.Serialize(aWriter);
+
+    Serialization::WriteVarInt(aWriter, CastingSource);
+
+    Serialization::WriteVarInt(aWriter, Area);
+    Serialization::WriteFloat(aWriter, Power);
+    Serialization::WriteFloat(aWriter, Scale);
+
+    Serialization::WriteBool(aWriter, AlwaysHit);
+    Serialization::WriteBool(aWriter, NoDamageOutsideCombat);
+    Serialization::WriteBool(aWriter, AutoAim);
+    Serialization::WriteBool(aWriter, DeferInitialization);
+    Serialization::WriteBool(aWriter, ForceConeOfFire);
+
+    Serialization::WriteBool(aWriter, UnkBool1);
+    Serialization::WriteBool(aWriter, UnkBool2);
+}
+
+void ProjectileLaunch::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ShooterID = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+
+    OriginX = Serialization::ReadFloat(aReader);
+    OriginY = Serialization::ReadFloat(aReader);
+    OriginZ = Serialization::ReadFloat(aReader);
+
+    ProjectileBaseID.Deserialize(aReader);
+    WeaponID.Deserialize(aReader);
+    AmmoID.Deserialize(aReader);
+
+    ZAngle = Serialization::ReadFloat(aReader);
+    XAngle = Serialization::ReadFloat(aReader);
+    YAngle = Serialization::ReadFloat(aReader);
+
+    ParentCellID.Deserialize(aReader);
+    SpellID.Deserialize(aReader);
+
+    CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+
+    Area = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Power = Serialization::ReadFloat(aReader);
+    Scale = Serialization::ReadFloat(aReader);
+
+    AlwaysHit = Serialization::ReadBool(aReader);
+    NoDamageOutsideCombat = Serialization::ReadBool(aReader);
+    AutoAim = Serialization::ReadBool(aReader);
+    DeferInitialization = Serialization::ReadBool(aReader);
+    ForceConeOfFire = Serialization::ReadBool(aReader);
+
+    UnkBool1 = Serialization::ReadBool(aReader);
+    UnkBool2 = Serialization::ReadBool(aReader);
+}
+
+void AddTarget::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, TargetId);
+    Serialization::WriteVarInt(aWriter, CasterId);
+    SpellId.Serialize(aWriter);
+    EffectId.Serialize(aWriter);
+    Serialization::WriteFloat(aWriter, Magnitude);
+    Serialization::WriteBool(aWriter, IsDualCasting);
+    Serialization::WriteBool(aWriter, ApplyHealPerkBonus);
+    Serialization::WriteBool(aWriter, ApplyStaminaPerkBonus);
+}
+
+void AddTarget::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    TargetId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SpellId.Deserialize(aReader);
+    EffectId.Deserialize(aReader);
+    Magnitude = Serialization::ReadFloat(aReader);
+    IsDualCasting = Serialization::ReadBool(aReader);
+    ApplyHealPerkBonus = Serialization::ReadBool(aReader);
+    ApplyStaminaPerkBonus = Serialization::ReadBool(aReader);
+}
+
+void RemoveSpell::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, TargetId);
+    SpellId.Serialize(aWriter);
+}
+
+void RemoveSpell::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    TargetId = Serialization::ReadVarInt(aReader);
+    SpellId.Deserialize(aReader);
+}
+
+void Mount::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, RiderId);
+    Serialization::WriteVarInt(aWriter, MountId);
+}
+
+void Mount::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    RiderId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    MountId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void NewPackage::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ActorId);
+    PackageId.Serialize(aWriter);
+}
+
+void NewPackage::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    PackageId.Deserialize(aReader);
+}
+
+void Dialogue::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteString(aWriter, SoundFilename);
+}
+
+void Dialogue::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SoundFilename = Serialization::ReadString(aReader);
+}
+
+void Subtitle::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteString(aWriter, Text);
+    Serialization::WriteVarInt(aWriter, TopicFormId);
+}
+
+void Subtitle::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Text = Serialization::ReadString(aReader);
+    TopicFormId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void SyncExperience::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteFloat(aWriter, Experience);
+}
+
+void SyncExperience::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    Experience = Serialization::ReadFloat(aReader);
+}
+} // namespace Payloads

@@ -1,16 +1,20 @@
 #pragma once
-#include "Message.h"
-#include <Structs/GameId.h>
 
-struct RemoveSpellRequest final: ClientMessage
+#include "Message.h"
+#include "Payloads.h"
+
+struct RemoveSpellRequest final : ClientMessage, Payloads::RemoveSpell
 {
     static constexpr ClientOpcode Opcode = kRequestRemoveSpell;
-    RemoveSpellRequest() : ClientMessage(Opcode) {}
-    virtual ~RemoveSpellRequest() = default;
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
-    bool operator==(const RemoveSpellRequest& achRhs) const noexcept { return  Opcode == achRhs.Opcode && TargetId == achRhs.TargetId && SpellId == achRhs.SpellId; }
+    using Payload = Payloads::RemoveSpell;
 
-    uint32_t TargetId{};
-    GameId SpellId{};
+    RemoveSpellRequest()
+        : ClientMessage(Opcode)
+    {
+    }
+
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
+
+    bool operator==(const RemoveSpellRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };
