@@ -84,14 +84,27 @@ void FadeOutGame(bool aFadingOut, bool aBlackFade, float aFadeDuration, bool aRe
 TP_THIS_FUNCTION(TCheckForNewPackage, bool, void, Actor* apActor, uint64_t aUnk1);
 static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 
+// Copy contract (docs/design/copy-contract.md): a copy runs no AI packages. Its owner's game
+// decides what it does; packages here only fight the movement sync and reach into the local
+// game (a remote player's copy resuming a package that reserves our player deadlocked Disable).
 bool TP_MAKE_THISCALL(HookCheckForNewPackage, void, Actor* apActor, uint64_t aUnk1)
 {
-#if AI_SYNC
     if (apActor && apActor->GetExtension()->IsRemote())
         return false;
 
-#endif
     return TiltedPhoques::ThisCall(RealCheckForNewPackage, apThis, apActor, aUnk1);
+}
+
+// Packages the engine creates on the fly (movement blocked, flee, ...) all arrive here.
+TP_THIS_FUNCTION(TPutCreatedPackage, void, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk);
+static TPutCreatedPackage* RealPutCreatedPackage = nullptr;
+
+void TP_MAKE_THISCALL(HookPutCreatedPackage, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk)
+{
+    if (apThis->GetExtension()->IsRemote())
+        return;
+
+    TiltedPhoques::ThisCall(RealPutCreatedPackage, apThis, apPackage, aRunOnce, aUnk);
 }
 
 TP_THIS_FUNCTION(TInitFromPackage, void, void, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor);
@@ -138,6 +151,7 @@ static TiltedPhoques::Initializer s_referencesHooks(
         POINTER_SKYRIMSE(TCheckForNewPackage, s_checkForNewPackage, 39114);
         POINTER_SKYRIMSE(TInitFromPackage, s_initFromPackage, 38959);
         POINTER_SKYRIMSE(TSetCurrentPickREFR, s_setCurrentPickREFR, 51093);
+        POINTER_SKYRIMSE(TPutCreatedPackage, s_putCreatedPackage, 37570);
 
         RealCheckForNewPackage = s_checkForNewPackage.Get();
         RealInitFromPackage = s_initFromPackage.Get();
@@ -146,4 +160,7 @@ static TiltedPhoques::Initializer s_referencesHooks(
         TP_HOOK(&RealCheckForNewPackage, HookCheckForNewPackage);
         TP_HOOK(&RealInitFromPackage, HookInitFromPackage);
         TP_HOOK(&RealSetCurrentPickREFR, HookSetCurrentPickREFR);
+
+        RealPutCreatedPackage = s_putCreatedPackage.Get();
+        TP_HOOK(&RealPutCreatedPackage, HookPutCreatedPackage);
     });
