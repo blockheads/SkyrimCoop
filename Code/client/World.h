@@ -38,6 +38,18 @@ struct World : entt::registry
 
     void Update() noexcept;
 
+    // Frames that stalled (over kStallMs), and how much of the worst ones was our own update: the
+    // rest is the engine (or Wine) between our updates.
+    static constexpr double kStallMs = 100.0;
+    struct FrameStats
+    {
+        uint64_t Frames{};
+        uint32_t Stalls{};
+        double LongestFrameMs{};
+        double LongestUpdateMs{};
+    };
+    [[nodiscard]] const FrameStats& GetFrameStats() const noexcept { return m_frameStats; }
+
     RunnerService& GetRunner() noexcept;
     TransportService& GetTransport() noexcept;
     ModSystem& GetModSystem() noexcept;
@@ -84,5 +96,7 @@ private:
     ServerSettings m_serverSettings{};
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
+    FrameStats m_frameStats;
+    double m_lastUpdateMs{};
 
 };

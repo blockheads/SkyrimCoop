@@ -143,11 +143,25 @@ void World::Update() noexcept
 
     const auto cDeltaSeconds = std::chrono::duration_cast<std::chrono::duration<double>>(cDelta).count();
 
+    const double cFrameMs = cDeltaSeconds * 1000.0;
+    ++m_frameStats.Frames;
+    m_frameStats.LongestFrameMs = std::max(m_frameStats.LongestFrameMs, cFrameMs);
+    if (cFrameMs > kStallMs && m_frameStats.Frames > 1)
+    {
+        ++m_frameStats.Stalls;
+        spdlog::warn("Frame stalled: {:.0f}ms since the last one (our last update took {:.1f}ms)", cFrameMs, m_lastUpdateMs);
+    }
+
     m_dispatcher.trigger(PreUpdateEvent(cDeltaSeconds));
 
     // Force run this before so we get the tasks scheduled to run
     m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));
     m_dispatcher.trigger(UpdateEvent(cDeltaSeconds));
+
+    m_lastUpdateMs = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - cNow).count();
+    m_frameStats.LongestUpdateMs = std::max(m_frameStats.LongestUpdateMs, m_lastUpdateMs);
+    if (m_lastUpdateMs > kStallMs)
+        spdlog::warn("Our update took {:.0f}ms", m_lastUpdateMs);
 }
 
 RunnerService& World::GetRunner() noexcept

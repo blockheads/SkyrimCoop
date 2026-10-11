@@ -1,0 +1,78 @@
+#pragma once
+
+#include <ENetInterface.hpp>
+#include <Messages/CharacterSpawnRequest.h>
+
+#include <optional>
+
+struct HostBridge;
+struct HostGame;
+struct ClientReferencesMoveRequest;
+struct AssignCharacterRequest;
+struct CancelAssignmentRequest;
+struct RequestRemoveCharacter;
+struct RequestRespawn;
+struct PlayerRespawnRequest;
+
+namespace Server
+{
+struct GameServer;
+}
+
+/**
+ * @brief The session's characters on the host: hands out their server ids, knows who owns each,
+ * and spawns them for players who did not see them appear.
+ *
+ * Players' characters keep a record of what the host's copy cannot show (appearance, base, face),
+ * kept current with their movement; the host's own actors are read from its engine.
+ */
+struct HostCharacters
+{
+    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+
+    // Registers its rules with aBridge.
+    HostCharacters(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept;
+
+    TP_NOCOPYMOVE(HostCharacters);
+
+    // The owner's connection (0: no such character).
+    [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aServerId) const noexcept;
+    // Every character but aPlayer's own (aOwnServerId), as it is now.
+    void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnServerId) const noexcept;
+    // Its characters leave with it.
+    void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
+
+private:
+    // A player's own character, or (the host only) one of the host's actors, gets a server id; its
+    // owner gets the id, everyone else a spawn.
+    void OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // The owner dropped an announcement it is still waiting on.
+    void OnCancelAssignment(const CancelAssignmentRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // The owner stopped simulating the actor.
+    void OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept;
+    // The owner respawns its actor everywhere (a new appearance after a beast form); anyone else
+    // lost its copy and asks for a fresh spawn.
+    void OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept;
+    // A player came back from death: everyone else respawns its character.
+    void OnPlayerRespawn(const PlayerRespawnRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
+    void OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
+
+    // A spawn of the character as it is now: the host's actor from its engine, a player's from its
+    // record and the host's copy.
+    [[nodiscard]] std::optional<CharacterSpawnRequest> BuildSpawn(uint32_t aServerId) const noexcept;
+    void RemoveCharacter(uint32_t aServerId) noexcept;
+
+    struct Character
+    {
+        ConnectionId_t Owner{};
+        uint32_t Cookie{}; // of the owner's announcement
+        // A player's: what is needed to spawn it again, kept current with its movement.
+        std::optional<CharacterSpawnRequest> PlayerRecord;
+    };
+
+    HostBridge& m_bridge;
+    Server::GameServer& m_server;
+    const HostGame& m_game;
+    TiltedPhoques::Map<uint32_t, Character> m_characters;
+};

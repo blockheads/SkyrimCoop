@@ -193,7 +193,12 @@ Done:
   moves to the host's `World` with assignment. Player level stays on the server with the player
   list (session, phase 5).
 
-The bridge is one file. A plain relay is one line in its constructor, naming the request and who
+The bridge lives in `Code/client/Services/Host/`. `HostBridge` is the front door, the deliveries
+and the plain relays; the parts that keep state register their own rules with it: `HostCharacters`
+(ids, owners, spawns, removal, respawn, movement) and `HostClock` (the session's time). What the
+bridge reads and changes in the host's game comes in as `HostGame` callbacks. What a joining
+player is sent is listed in one place, `HostBridge::PlayerEntered`. A plain relay is one line in
+the bridge's constructor, naming the request and who
 gets it (`Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId)`). A
 request and its notification inherit one payload struct (`Code/encoding/Messages/Payloads.h`):
 its fields and their bytes are written once, and the relay copies the payload. Only items and
@@ -238,7 +243,8 @@ Still on the server, reading positions that have been stale since phase 2: telep
   result reaches peers. With the party tether, only the host's loaded cells matter.
 - Party: everyone in the session, the host leads (see Decisions). The party request messages go.
 - Waypoints, chat, player dialogue, overlay health: relays.
-- Commands (`TeleportCommandRequest`, `SetTimeCommandRequest`): the host only for now.
+- Commands: `SetTimeCommandRequest` from any player sets the host's clock (peers follow it);
+  `TeleportCommandRequest` is answered from the host's game.
 
 ### Phase 5: Delete the server
 
@@ -274,7 +280,8 @@ Built on the bridge's unreliable channel:
 
 1. **Party:** everyone in the session is one party, automatically, and the host is the leader. No
    invites, kicks or leader changes.
-2. **Teleport and set-time commands:** the host only, for now. Later a peer can ask for them as a
+2. **Set-time command:** any player can run it; it runs on the host's clock, which everyone
+   follows. **Teleport command:** the host only, for now. Later a peer can ask for it as a
    Borderlands-style request that anyone can cancel, like leaving a cell under the party tether.
 3. **The host owns every NPC.** A peer only ever owns its own player, so peers need no ids, no
    discovery and no cell tracking for anything else. Keeping peers this simple is the point of the
@@ -300,5 +307,5 @@ Built on the bridge's unreliable channel:
 | PartyService | `PartyCreateRequest`, `PartyInviteRequest`, `PartyAcceptInviteRequest`, `PartyLeaveRequest`, `PartyKickRequest`, `PartyChangeLeaderRequest` | Host-decided |
 | MapService | `RequestSetWaypoint`, `RequestRemoveWaypoint` | Relay |
 | OverlayService | `SendChatMessageRequest`, `PlayerDialogueRequest`, `RequestPlayerHealthUpdate`, `TeleportRequest` | Relay |
-| CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host only (for now) |
+| CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host-decided (set time: any player, on the host's clock; teleport: the host only for now) |
 | ScriptService, AdminService | (Lua events, admin protocol) | Dropped |

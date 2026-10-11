@@ -41,9 +41,6 @@ ServerConsole::Setting bSyncPlayerHomes{"Gameplay:bSyncPlayerHomes",
                                         "Sync chests and displays in player homes and other NoResetZones", false};
 ServerConsole::Setting bEnableDeathSystem{"Gameplay:bEnableDeathSystem", "Enables the custom multiplayer death system",
                                           true};
-ServerConsole::Setting uTimeScale{
-    "Gameplay:uTimeScale",
-    "How many seconds pass ingame for every real second (0 to 1000). Changing this can make the game unstable", 20u};
 ServerConsole::Setting bSyncPlayerCalendar{"Gameplay:bSyncPlayerCalendar",
                                            "Syncs up all player calendars to be the same day, month, and year. This "
                                            "uses the date of the player with the furthest ahead date at connection.",
@@ -193,7 +190,6 @@ GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept
     m_pWorld = MakeUnique<World>();
 
     BindMessageHandlers();
-    UpdateTimeScale();
 
     m_pResources = MakeUnique<Resources::ResourceCollection>();
 }
@@ -372,47 +368,6 @@ void GameServer::BindServerCommands()
 
     m_commands.RegisterCommand<>("quit", "Stop the server", [&](ServerConsole::ArgStack&) { Kill(); });
 
-    m_commands.RegisterCommand<int64_t, int64_t>(
-        "SetTime", "Set ingame hour and minute", [&](ServerConsole::ArgStack& aStack) {
-            auto out = spdlog::get("ConOut");
-
-            auto hour = aStack.Pop<int64_t>();
-            auto minute = aStack.Pop<int64_t>();
-            auto timescale = m_pWorld->GetCalendarService().GetTimeScale();
-
-            bool time_set_successfully = m_pWorld->GetCalendarService().SetTime(hour, minute, timescale);
-
-            if (time_set_successfully)
-            {
-                out->info("Time set to {:02}:{:02}", hour, minute);
-            }
-            else
-            {
-                out->error("Hour must be between 0-23 and minute must be between 0-59");
-            }
-        });
-
-    m_commands.RegisterCommand<
-        int64_t, int64_t, int64_t>("SetDate", "Set ingame day, month, and year", [&](ServerConsole::ArgStack& aStack) {
-        auto out = spdlog::get("ConOut");
-
-        auto day = aStack.Pop<int64_t>();
-        auto month = aStack.Pop<int64_t>();
-        auto year = aStack.Pop<int64_t>();
-
-        bool time_set_successfully = m_pWorld->GetCalendarService().SetDate(day, month, year);
-
-        if (time_set_successfully)
-        {
-            out->info("Time set to {:02}/{:02}:{:02}", month, day, year);
-        }
-        else
-        {
-            out->error(
-                "Day must be between 0 and 31, month must be between 0 and 11, and year must be between 0 and 999.");
-        }
-    });
-
     m_commands.RegisterCommand<std::string>("AddAdmin", "Add admin privileges to player",
                                             [&](ServerConsole::ArgStack& aStack) {
                                                 auto out = spdlog::get("ConOut");
@@ -514,21 +469,6 @@ void GameServer::BindServerCommands()
     });
 }
 
-void GameServer::UpdateTimeScale()
-{
-    auto timescale = uTimeScale.value_as<float>();
-
-    bool timescale_set_successfully = m_pWorld->GetCalendarService().SetTimeScale(timescale);
-
-    if (!timescale_set_successfully)
-    {
-        spdlog::warn(
-            "TimeScale is invalid (should be from 0 to 1000, current value is {}), setting TimeScale to 20 (default)",
-            timescale);
-
-        uTimeScale = 20u;
-    }
-}
 
 void GameServer::OnUpdate()
 {

@@ -5,8 +5,9 @@
 #include <GameServer.h>
 #include <World.h>
 #include <Services/TransportService.h>
-#include <Services/HostBridge.h>
+#include <Services/Host/HostBridge.h>
 #include <Services/CharacterService.h>
+#include <Bridges/IWorldBridge.h>
 
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -60,9 +61,20 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return false;
     }
 
-    HostBridge::HostGame game;
+    HostGame game;
     game.OwnSpawns = [this](uint32_t aExcludedServerId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedServerId); };
     game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) { return m_world.GetCharacterService().ReadCopy(aServerId, aSpawn); };
+    game.ReadTime = [this] {
+        const auto& cClock = m_world.ctx().at<IWorldBridge&>();
+        TimeModel time;
+        time.TimeScale = cClock.GetGameTimeScale();
+        time.Time = cClock.GetGameTimeHours();
+        time.Day = static_cast<uint32_t>(cClock.GetGameDay());
+        time.Month = static_cast<uint32_t>(cClock.GetGameMonth());
+        time.Year = static_cast<uint32_t>(cClock.GetGameYear());
+        return time;
+    };
+    game.SetHour = [this](float aHours) { m_world.ctx().at<IWorldBridge&>().SetGameTimeHours(aHours); };
     m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, std::move(game));
 
     m_isHosting = true;
@@ -128,6 +140,8 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
                              sUpdateCounter, m_pGameServer->GetClientCount());
             }
             m_pGameServer->Update();
+            if (m_pBridge)
+                m_pBridge->Update(m_pGameServer->GetTick());
         }
     }
 }

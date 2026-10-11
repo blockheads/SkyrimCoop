@@ -3,7 +3,6 @@
 #include <Events/PacketEvent.h>
 
 struct TeleportCommandRequest;
-struct SetTimeCommandRequest;
 
 namespace Server
 {
@@ -21,7 +20,6 @@ struct CommandService
     TP_NOCOPYMOVE(CommandService);
 
 protected:
-    void OnSetTimeCommand(const PacketEvent<SetTimeCommandRequest>& acMessage) const noexcept;
     /**
      * @brief Returns the location of the target player of the teleport command.
      */
@@ -30,7 +28,6 @@ protected:
 private:
     World& m_world;
 
-    entt::scoped_connection m_setTimeConnection;
     entt::scoped_connection m_teleportConnection;
 };
 

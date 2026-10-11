@@ -21,7 +21,6 @@ World::World()
     spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
 
     ctx().emplace<PlayerService>(*this, m_dispatcher);
-    ctx().emplace<CalendarService>(*this, m_dispatcher);
     ctx().emplace<ObjectService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
@@ -51,7 +50,6 @@ World::World(WorldTestMode)
     spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
 
     ctx().emplace<PlayerService>(*this, m_dispatcher);
-    ctx().emplace<CalendarService>(*this, m_dispatcher);
     ctx().emplace<ObjectService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
@@ -82,7 +80,6 @@ World::~World()
     ctx().erase<PartyService>();
     ctx().erase<QuestService>();
     ctx().erase<ObjectService>();
-    ctx().erase<CalendarService>();
     ctx().erase<PlayerService>();
 }
 

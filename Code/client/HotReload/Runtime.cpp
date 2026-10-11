@@ -117,6 +117,15 @@ static nlohmann::json ReloadStatus()
 }
 
 // Names of the open menus (what blocks input: popups, console, menus).
+static nlohmann::json FrameStatus()
+{
+    if (!entt::locator<World>::has_value())
+        return {};
+    const auto& cStats = World::Get().GetFrameStats();
+    return {{"frames", cStats.Frames}, {"stalls", cStats.Stalls}, {"longest_frame_ms", cStats.LongestFrameMs},
+            {"longest_update_ms", cStats.LongestUpdateMs}};
+}
+
 static nlohmann::json LockOrderStatus()
 {
     const auto cStats = LockOrder::GetStats();
@@ -524,7 +533,7 @@ std::string Runtime::BuildStatus(int aIndent)
         {"actors", actors}, {"session", PollSession(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
         {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()}, {"game", GameStatus()},
-        {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}, {"reload", ReloadStatus()}
+        {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}, {"reload", ReloadStatus()}, {"frames", FrameStatus()}
     };
     return status.dump(aIndent);
 }

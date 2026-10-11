@@ -60,7 +60,6 @@ struct GameServer final : TiltedPhoques::Server
     void BindMessageHandlers();
     void BindServerCommands();
 
-    void UpdateTimeScale();
     void UpdateSettings();
 
     // Loopback support for P2P host mode (in-process message delivery without enet6)

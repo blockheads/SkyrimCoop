@@ -1,6 +1,5 @@
 #include <stdafx.h>
 
-#include <Services/CalendarService.h>
 #include <Services/ScriptService.h>
 #include <World.h>
 
