@@ -6,9 +6,11 @@
 #include <HotReload/Runtime.h>
 #include <Games/References.h>
 #include <Bridges/IActorBridge.h>
+#include <Services/PapyrusService.h>
 
 #include <Client.hpp>
 #include <FunctionHook.hpp>
+#include <SkseRipAllocator.h>
 
 extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
 
@@ -22,6 +24,13 @@ extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
 extern "C" __declspec(dllexport) uint32_t SkyrimCoop_ExtensionLayout()
 {
     return static_cast<uint32_t>(sizeof(ExActor)) << 16 | static_cast<uint32_t>(sizeof(ExPlayerCharacter) & 0xFFFF);
+}
+
+// The engine's main loop, which the loader hooks on top of ours.
+extern "C" __declspec(dllexport) void* SkyrimCoop_MainLoopAddress()
+{
+    POINTER_SKYRIMSE(void, s_mainLoop, 36564);
+    return s_mainLoop.GetPtr();
 }
 
 extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
@@ -43,6 +52,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
             else
                 actors.SetActorRemote(cFormId, false);
         }
+        world.ctx().at<PapyrusService>().HandOffFunctions();
         world.GetTransport().Close();
         entt::locator<World>::reset();
     }
@@ -53,6 +63,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
     TiltedPhoques::FunctionHookManager::GetInstance().RemoveAllHooks();
     TiltedPhoques::RestorePatches();
     TiltedPhoques::RunUnloadCallbacks();
+    CoopSkse::ReleaseJit(); // Only the patches just restored branched into it.
 
     // Our threads: the hang watchdog (crash handler), the network library's, spdlog's flusher.
     g_appInstance.reset();

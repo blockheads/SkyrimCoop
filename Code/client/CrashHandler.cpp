@@ -213,7 +213,8 @@ CrashHandler::CrashHandler()
         TP_HOOK_IMMEDIATE(&RealExitProcess, &HookExitProcess);
 }
 
-static std::atomic<bool> s_watchdogStop{false};
+// Set when the plugin unloads (hot reload): wakes the watchdog so it exits at once.
+static HANDLE s_watchdogStop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
 static HANDLE s_watchdogThread = nullptr;
 
 // The plugin unloads (hot reload): nothing of ours may run afterwards.
@@ -223,7 +224,7 @@ CrashHandler::~CrashHandler()
         RemoveVectoredExceptionHandler(m_handler);
     if (s_watchdogThread)
     {
-        s_watchdogStop = true;
+        SetEvent(s_watchdogStop);
         WaitForSingleObject(s_watchdogThread, 3000);
         CloseHandle(s_watchdogThread);
         s_watchdogThread = nullptr;
@@ -317,9 +318,8 @@ static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
     const HANDLE cMainThread = apMainThread;
     uint64_t lastTicks = 0;
     int stalledSeconds = 0;
-    while (!s_watchdogStop)
+    while (WaitForSingleObject(s_watchdogStop, 1000) == WAIT_TIMEOUT)
     {
-        Sleep(1000);
         const uint64_t cTicks = s_mainLoopTicks.load(std::memory_order_relaxed);
         stalledSeconds = cTicks == lastTicks ? stalledSeconds + 1 : 0;
         lastTicks = cTicks;
@@ -344,6 +344,8 @@ static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
             pDiagnostic();
         spdlog::default_logger()->flush();
     }
+    CloseHandle(cMainThread);
+    return 0;
 }
 
 void CrashHandler::OnMainLoopTick() noexcept

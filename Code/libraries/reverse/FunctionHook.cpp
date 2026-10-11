@@ -108,6 +108,10 @@ namespace TiltedPhoques
             thunkMemory.Write(iatHook.pOriginal);
         }
         m_iatHooks.clear();
+
+        // Also hooks made with MinHook directly; frees the trampoline blocks it reserved next to
+        // the game, which repeated reloads would otherwise use up.
+        MH_Uninitialize();
     }
 
     void FunctionHookManager::Add(FunctionHook aFunctionHook, const bool aDelayed) noexcept

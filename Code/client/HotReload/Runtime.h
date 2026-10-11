@@ -14,6 +14,8 @@ class Runtime
 public:
     static Runtime& Get();
     void Configure(const std::filesystem::path& pluginDirectory);
+    // Data/SKSE/Plugins, also when the hot reload loader runs us from a copy elsewhere.
+    const std::filesystem::path& PluginDirectory() const { return m_pluginDirectory; }
     // Game update thread only, before dispatching service events.
     void Poll();
     void Shutdown();
@@ -36,6 +38,7 @@ private:
     std::string m_consoleRequest; // "<id> <command>" from console.txt
     std::string m_consoleId;      // id of the last executed request
 
+    std::filesystem::path m_pluginDirectory;
     std::filesystem::path m_directory;
     std::string m_request;
     std::string m_error;

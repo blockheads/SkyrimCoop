@@ -7,6 +7,7 @@
                                                       actor exists in the engine and moves; then quit
   coop_test.py duo    [--keep-running --visible]      two real games: host + client, each must show the other
   coop_test.py scenario [names]                       sync scenarios (equip, ...) against a running duo
+  coop_test.py reload                                 swap the current build into a running duo and reconnect
   coop_test.py stop                                   kill the test Skyrim instance(s)
   coop_test.py screenshot [out.png]                   capture the off-screen game display
   coop_test.py console <command...>                   run a console command in the test game
@@ -47,6 +48,9 @@ STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".
 TEST_HOME = ROOT / "build/coop-test"
 PREFIX = TEST_HOME / "prefix-host"
 DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"))
+# Resident SKSE plugin that loads the client from a copy, so `reload` can swap in a rebuild
+# (Code/hotreload/Loader.cpp). Without it the client is deployed as the SKSE plugin itself.
+LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 BOT = ROOT / "build/linux/x86_64/release/fake_player"
 PLUGINS = GAME / "Data/SKSE/Plugins"
 CONTROL = PLUGINS / "SkyrimCoopHotReload"
@@ -159,7 +163,7 @@ def check_prerequisites(need_bot):
         required.append(BOT)
     missing = [str(path) for path in required if not path.exists()]
     if missing:
-        hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL"
+        hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL SkyrimCoopLoader"
                 "\nBuild the bot: XMAKE_CONFIGDIR=build/hotreload-native-config xmake build -j16 fake_player")
         raise TestFailure("Missing:\n  " + "\n  ".join(missing) + hint)
     if subprocess.run(["pgrep", "-x", "steam"], capture_output=True).returncode != 0:
@@ -168,15 +172,35 @@ def check_prerequisites(need_bot):
         raise TestFailure(f"Remove the old relay plugin first: {PLUGINS / 'skyrim_coop_hooks.dll'}")
 
 
+def copy_if_changed(source, target):
+    """Replaces target atomically (a running game keeps the file it mapped); True if it changed."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    stat = source.stat()
+    if target.exists() and target.stat().st_size == stat.st_size and target.stat().st_mtime >= stat.st_mtime:
+        return False
+    temporary = target.with_name(target.name + ".tmp")
+    shutil.copy2(source, temporary)
+    os.replace(temporary, target)
+    log(f"Deployed {source.relative_to(ROOT)} ({stat.st_size // 1048576} MB)")
+    return True
+
+
 def deploy_dll():
-    PLUGINS.mkdir(parents=True, exist_ok=True)
-    target = PLUGINS / "SkyrimTogetherClient.dll"
-    source = DLL.stat()
-    if not target.exists() or target.stat().st_size != source.st_size or target.stat().st_mtime < source.st_mtime:
-        temporary = target.with_name(target.name + ".tmp")
-        shutil.copy2(DLL, temporary)
-        os.replace(temporary, target)
-        log(f"Deployed {DLL.relative_to(ROOT)} ({source.st_size // 1048576} MB)")
+    """With the loader built: Plugins/SkyrimCoopLoader.dll loads Plugins/SkyrimCoop/<client>.
+    Otherwise the client is the SKSE plugin. Never both: the client would load twice."""
+    direct = PLUGINS / "SkyrimTogetherClient.dll"
+    if LOADER.exists():
+        direct.unlink(missing_ok=True)
+        copy_if_changed(LOADER, PLUGINS / LOADER.name)
+        copy_if_changed(DLL, PLUGINS / "SkyrimCoop" / DLL.name)
+    else:
+        (PLUGINS / LOADER.name).unlink(missing_ok=True)
+        copy_if_changed(DLL, direct)
+
+
+def remove_plugin():
+    (PLUGINS / "SkyrimTogetherClient.dll").unlink(missing_ok=True)
+    (PLUGINS / LOADER.name).unlink(missing_ok=True)
 
 
 VIRTUAL_DISPLAY = os.environ.get("COOP_DISPLAY", ":99")
@@ -259,13 +283,13 @@ def rpc(request, timeout=3.0):
     except (OSError, ValueError):
         return None
     connection = _rpc_connections.get(key)
-    if connection and connection[0] != info.get("pid"):
+    if connection and connection[0] != (info.get("pid"), info.get("port")):
         connection[1].close()
         connection = None
     try:
         if not connection:
             sock = socket.create_connection(("127.0.0.1", info["port"]), timeout=1.0)
-            connection = _rpc_connections[key] = [info.get("pid"), sock, sock.makefile("rb")]
+            connection = _rpc_connections[key] = [(info.get("pid"), info.get("port")), sock, sock.makefile("rb")]
         connection[1].settimeout(timeout)
         connection[1].sendall((json.dumps(request) + "\n").encode())
         line = connection[2].readline()
@@ -313,7 +337,7 @@ def launch(args, run_dir):
         ensure_virtual_display()
     vanilla = getattr(args, "vanilla", False)
     if vanilla:  # A/B baseline: same prefix and settings, SKSE without our plugin
-        (PLUGINS / "SkyrimTogetherClient.dll").unlink(missing_ok=True)
+        remove_plugin()
     else:
         deploy_dll()
     command = f"load {args.save}" if args.save else f"coc {args.cell}"
@@ -507,6 +531,65 @@ def remote_players():
     return {int(actor): sample["actual"] for actor, sample in status.get("actors", {}).items() if sample.get("has_3d")}
 
 
+def both_see_each_other():
+    """{"host"/"client": remote players} once each game shows the other's player, else None."""
+    seen = {}
+    for name in ("", "client"):
+        select_instance(name)
+        players = remote_players()
+        if not players:
+            return None
+        seen[name or "host"] = players
+    return seen
+
+
+def command_reload(args):
+    """Swaps the current build into both running games (the loader unloads the old client and
+    loads the new one between two frames), then hosts and joins again. No game restart."""
+    if not LOADER.exists():
+        raise TestFailure(f"Build the loader first: scripts/xmake-msvc.sh build SkyrimCoopLoader ({LOADER})")
+    deploy_dll()
+    started = time.monotonic()
+    names = ("", "client")
+    for name in names:
+        # The new client would act on the old session request (and join a stale port).
+        select_instance(name)
+        (CONTROL / "session.txt").unlink(missing_ok=True)
+    before = {}
+    for name in names:
+        select_instance(name)
+        response = rpc({"cmd": "reload"})
+        if not response or not response.get("ok"):
+            raise TestFailure(f"{name or 'host'}: the reload request failed ({response}); was the game "
+                              f"launched with the loader? Relaunch with `duo --keep-running`.")
+        before[name] = response["reload"]["generation"]
+    for name in names:
+        select_instance(name)
+
+        def reloaded():
+            reload = (read_status() or {}).get("reload") or {}
+            if reload.get("generation", -1) > before[name]:
+                if reload.get("error"):
+                    raise TestFailure(f"{name or 'host'}: reloaded but {reload['error']}")
+                return reload
+            if reload.get("error"):
+                raise TestFailure(f"{name or 'host'}: reload refused: {reload['error']}")
+            return None
+        wait_for(f"{name or 'host'}: reloading", reloaded, 30)
+    log(f"Both games run the new build ({time.monotonic() - started:.1f}s)")
+
+    select_instance("")
+    port = start_session("")["port"]
+    select_instance("client")
+    start_session(f"join {port}")
+    seen = wait_for("Each game shows the other player", both_see_each_other, args.seconds)
+    for name in names:
+        select_instance(name)
+        face_actor(next(iter(seen[name or "host"])))
+    print(f"\nRELOADED: both games run the new build and are connected again "
+          f"({time.monotonic() - started:.1f}s)")
+
+
 def command_duo(args):
     """Two real Skyrim instances: host + client on one machine, each must show the other."""
     check_prerequisites(need_bot=False)
@@ -536,15 +619,6 @@ def command_duo(args):
             run_console(f"player.setpos x {host_position[0] + 200:.0f}")
             run_console(f"player.setpos y {host_position[1]:.0f}")
 
-        def both_see_each_other():
-            seen = {}
-            for name in ("", "client"):
-                select_instance(name)
-                players = remote_players()
-                if not players:
-                    return None
-                seen[name or "host"] = players
-            return seen
         seen = wait_for("Each game shows the other player", both_see_each_other, args.seconds)
         for name, players in seen.items():
             for actor, position in players.items():
@@ -1579,6 +1653,8 @@ def main():
         if name == "duo":
             sub.add_argument("--npc", default="000A2C8E",
                              help="NPC base form (8 hex digits) the host spawns; the client must show it (default Lydia, '' to skip)")
+    reload = commands.add_parser("reload", help="swap the current build into a running duo and reconnect")
+    reload.add_argument("--seconds", type=float, default=30, help="how long to wait for the players to reappear")
     scenario = commands.add_parser("scenario", help="sync scenarios against a running `duo --keep-running`")
     scenario.add_argument("--hold", type=float, default=0,
                           help="pause N seconds after each synced step and face the camera at it (for watching)")
@@ -1615,6 +1691,8 @@ def main():
             command_duo(args)
         elif args.command == "scenario":
             command_scenario(args)
+        elif args.command == "reload":
+            command_reload(args)
         elif args.command == "console":
             run_console(" ".join(args.text))
             log("Done")

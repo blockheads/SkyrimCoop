@@ -6,6 +6,7 @@
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <algorithm>
 #include <fstream>
@@ -37,6 +38,7 @@ Runtime& Runtime::Get()
 
 void Runtime::Configure(const std::filesystem::path& pluginDirectory)
 {
+    m_pluginDirectory = pluginDirectory;
     m_directory = pluginDirectory / ("SkyrimCoopHotReload" + InstanceSuffix());
 }
 
@@ -62,6 +64,18 @@ void Runtime::PollBootCommand()
     if (m_bootState != "waiting_for_main_menu")
         return;
 
+    // Hot reloaded into a running game: the boot command ran in an earlier load.
+    if (entt::locator<World>::has_value())
+    {
+        auto& player = World::Get().GetPlayerBridge();
+        if (player.IsPlayerLoaded() && player.GetPlayerParentCellId() != 0)
+        {
+            spdlog::info("Boot command skipped: already in the world");
+            m_bootState = "executed";
+            return;
+        }
+    }
+
     const auto* pUI = UI::Get();
     if (!pUI || !pUI->GetMenuOpen("Main Menu"))
         return;
@@ -84,6 +98,19 @@ void Runtime::PollConsoleCommand()
     m_consoleId = line.substr(0, separator);
     spdlog::info("Console command {}: {}", m_consoleId, line.substr(separator + 1));
     ExecuteConsoleCommand(line.c_str() + separator + 1);
+}
+
+// The loader's reload count and last error; null without the loader (SKSE loaded us directly).
+static nlohmann::json ReloadStatus()
+{
+    const HMODULE cLoader = GetModuleHandleW(L"SkyrimCoopLoader.dll");
+    if (!cLoader)
+        return nullptr;
+    const auto pGeneration = reinterpret_cast<uint32_t (*)()>(GetProcAddress(cLoader, "SkyrimCoopLoader_Generation"));
+    const auto pLastError = reinterpret_cast<const char* (*)()>(GetProcAddress(cLoader, "SkyrimCoopLoader_LastError"));
+    if (!pGeneration || !pLastError)
+        return nullptr;
+    return {{"generation", pGeneration()}, {"error", pLastError()}};
 }
 
 // Names of the open menus (what blocks input: popups, console, menus).
@@ -361,6 +388,16 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
         World::Get().GetActorBridge().InterruptCast(cRequest.value("caster", 0x14u), cRequest.value("source", 1u));
         return R"({"ok": true})";
     }
+    if (cCommand == "reload")
+    {
+        // {"cmd": "reload"}: the loader swaps in the current build next frame (Code/hotreload/Loader.cpp).
+        const HMODULE cLoader = GetModuleHandleW(L"SkyrimCoopLoader.dll");
+        const auto pRequest = cLoader ? reinterpret_cast<void (*)()>(GetProcAddress(cLoader, "SkyrimCoopLoader_RequestReload")) : nullptr;
+        if (!pRequest)
+            return R"({"ok": false, "error": "not loaded by SkyrimCoopLoader"})";
+        pRequest();
+        return nlohmann::json{{"ok", true}, {"reload", ReloadStatus()}}.dump();
+    }
     return nlohmann::json{{"ok", false}, {"error", "unknown cmd " + cCommand}}.dump();
 }
 
@@ -462,7 +499,7 @@ std::string Runtime::BuildStatus(int aIndent)
         {"steam", CoopSteam::Poll(m_directory)},
         {"boot", {{"command", m_bootCommand}, {"state", m_bootState}}},
         {"console_id", m_consoleId}, {"player", PlayerStatus()}, {"world", WorldSnapshot()},
-        {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}
+        {"menus", OpenMenus()}, {"lock_order", LockOrderStatus()}, {"reload", ReloadStatus()}
     };
     return status.dump(aIndent);
 }

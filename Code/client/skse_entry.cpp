@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <csignal>
+#include <cstdio>
+#include <cstdlib>
+#include <exception>
 
 #include <TiltedCore/Stl.hpp>
 #include "HotReload/Runtime.h"
@@ -72,6 +76,46 @@ extern "C" __declspec(dllexport) void SkyrimCoop_SetPluginDirectory(const wchar_
     s_pluginDirectory = apDirectory;
 }
 
+// abort() fast-fails, which ends the process before any exception handler (ours or the hot reload
+// loader's) runs; std::terminate ends in abort(). Both leave a stack in logs/SkyrimCoopAbort*.log.
+static std::filesystem::path s_abortLogPath;
+
+static void LogAbort(const char* apReason)
+{
+    void* frames[48];
+    const USHORT cCount = RtlCaptureStackBackTrace(1, 48, frames, nullptr);
+    FILE* pFile = _wfopen(s_abortLogPath.c_str(), L"a");
+    if (!pFile)
+        return;
+    fprintf(pFile, "%s (thread %lu)\n", apReason, GetCurrentThreadId());
+    for (USHORT i = 0; i < cCount; ++i)
+    {
+        HMODULE module = nullptr;
+        char name[MAX_PATH] = "?";
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               static_cast<LPCSTR>(frames[i]), &module))
+            GetModuleFileNameA(module, name, sizeof(name));
+        const char* pBase = strrchr(name, '\\');
+        fprintf(pFile, "  backtrace #%02u %s+0x%llx\n", i, pBase ? pBase + 1 : name,
+                static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(frames[i]) - reinterpret_cast<uintptr_t>(module)));
+    }
+    fclose(pFile);
+}
+
+static void InstallAbortLogging(const std::filesystem::path& acPluginDirectory)
+{
+    wchar_t instance[64]{};
+    const DWORD cLength = GetEnvironmentVariableW(L"SKYRIMCOOP_INSTANCE", instance, 64);
+    s_abortLogPath = acPluginDirectory / "logs" /
+                     (std::wstring(L"SkyrimCoopAbort") + (cLength > 0 && cLength < 64 ? L"-" + std::wstring(instance) : L"") + L".log");
+    _set_abort_behavior(0, _CALL_REPORTFAULT); // Raise SIGABRT instead of fast-failing.
+    signal(SIGABRT, [](int) { LogAbort("abort()"); });
+    std::set_terminate([] {
+        LogAbort("std::terminate");
+        std::_Exit(3);
+    });
+}
+
 extern "C" __declspec(dllexport)
 bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 {
@@ -86,6 +130,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
         GetModuleFileNameW(s_dllInstance, dllPath, MAX_PATH);
         pluginDirectory = std::filesystem::path(dllPath).parent_path();
     }
+    InstallAbortLogging(pluginDirectory);
     std::filesystem::path gamePath = pluginDirectory.parent_path().parent_path().parent_path();
     CoopReload::Runtime::Get().Configure(pluginDirectory);
 

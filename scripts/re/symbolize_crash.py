@@ -74,7 +74,9 @@ def main():
         number, module, offset = match.group(1), match.group(2), int(match.group(3), 16)
         if module.lower() == "skyrimse.exe":
             where = resolve_engine(offset)
-        elif module.lower() == args.dll.name.lower():
+        # The hot reload loader runs copies: SkyrimTogetherClient[-instance].<pid>.<n>.dll.
+        elif module.lower() == args.dll.name.lower() or re.fullmatch(
+                re.escape(args.dll.stem) + r"(-[\w-]+)?\.\d+\.\d+\.dll", module, re.IGNORECASE):
             where = symbolize_ours(args.dll, offset)
         else:
             where = ""

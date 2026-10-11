@@ -30,6 +30,13 @@ static constexpr char kTogetherWindowName[]{"Skyrim Together"};
 } // namespace
 RendererWindow* GetMainWindow()
 {
+    // Hot reloaded into a running game: Hook_Renderer_Init ran in an earlier load.
+    if (!g_RenderWindow)
+    {
+        POINTER_SKYRIMSE(Renderer, s_renderer, 411393);
+        if (s_renderer.Get()->Data.RenderWindowA[0].hWnd)
+            g_RenderWindow = &s_renderer.Get()->Data.RenderWindowA[0];
+    }
     return g_RenderWindow;
 }
 

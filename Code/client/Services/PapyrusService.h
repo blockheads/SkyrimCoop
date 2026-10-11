@@ -20,6 +20,9 @@ struct PapyrusService
 
     void HandlePapyrusFunctionEvent(const PapyrusFunctionRegisterEvent&) noexcept;
 
+    // Hot reload: natives register once at boot, so the next client gets them from this one.
+    void HandOffFunctions() const noexcept;
+
 private:
     Map<String, void*> m_functions;
 
