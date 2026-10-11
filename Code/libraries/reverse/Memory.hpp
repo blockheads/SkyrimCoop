@@ -77,6 +77,8 @@ namespace TiltedPhoques
     {
         if (IsVAOnly(aEa)) TuneBase(aEa);
 #ifdef _WIN32 // SKSE-loaded: game code pages are read-only and may be >2GB from us
+        if (PatchesSuppressed())
+            return;
         RecordPatch(aEa.as<void*>(), sizeof(T));
         const vp::ScopedContext writable(aEa, sizeof(T));
 #endif
@@ -92,6 +94,8 @@ namespace TiltedPhoques
     {
         if (IsVAOnly(aEa)) TuneBase(aEa);
 #ifdef _WIN32
+        if (PatchesSuppressed())
+            return;
         RecordPatch(aEa.as<void*>(), aLength);
         const vp::ScopedContext writable(aEa, aLength);
 #endif

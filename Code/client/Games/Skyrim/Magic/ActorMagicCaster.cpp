@@ -1,4 +1,5 @@
 #include "ActorMagicCaster.h"
+#include <HookSwitch.h>
 
 #include <Events/SpellCastEvent.h>
 #include <Events/InterruptCastEvent.h>
@@ -62,6 +63,7 @@ void TP_MAKE_THISCALL(HookInterruptCast, ActorMagicCaster, bool abRefund)
 static TiltedPhoques::Initializer s_actorMagicCasterHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSpellCast, s_spellCast, 34144);
         POINTER_SKYRIMSE(TInterruptCast, s_interruptCast, 34140);
 

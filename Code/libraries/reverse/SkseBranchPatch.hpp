@@ -17,12 +17,19 @@ void RestorePatches() noexcept;
 // RunUnloadCallbacks when the plugin unloads.
 void AtUnload(void (*apCallback)()) noexcept;
 void RunUnloadCallbacks() noexcept;
+// While set, nothing is patched: no hook is installed and no byte written, and hooked function
+// pointers keep pointing at the game's code. The client's HookSwitch sets it around the
+// initializers of files left out, to bisect a crash to the hooks that cause it.
+void SuppressPatches(bool aSuppress) noexcept;
+[[nodiscard]] bool PatchesSuppressed() noexcept;
 }
 
 namespace TiltedPhoques::detail
 {
 inline void WriteSkseBranch(void* source, const void* destination, uint8_t opcode) noexcept
 {
+    if (PatchesSuppressed())
+        return;
     auto from = reinterpret_cast<intptr_t>(source);
     auto to = reinterpret_cast<intptr_t>(destination);
     auto displacement = to - from - 5;

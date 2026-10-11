@@ -1,4 +1,6 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
+#include <HeapHistory.h>
 
 #include <Games/Memory.h>
 #include <Games/References.h>
@@ -24,9 +26,11 @@ struct GameHeap
 
 TP_THIS_FUNCTION(TFormAllocate, void*, GameHeap, size_t aSize, size_t aAlignment, bool aAligned);
 TP_THIS_FUNCTION(TFormFree, void, GameHeap, void* apPtr, bool aAligned);
+TP_THIS_FUNCTION(TFormReallocate, void*, GameHeap, void* apOld, size_t aSize, uint32_t aAlignment, bool aAligned);
 
 TFormAllocate* RealFormAllocate = nullptr;
 TFormFree* RealFormFree = nullptr;
+TFormReallocate* RealFormReallocate = nullptr;
 
 static TiltedPhoques::RpmallocAllocator s_allocator;
 
@@ -39,7 +43,9 @@ void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignme
     default: break;
     }
 
-    auto* pPointer = TiltedPhoques::ThisCall(RealFormAllocate, apThis, aSize, aAlignment, aAligned);
+    void* pPointer = HeapHistory::Start() ? HeapHistory::GuardAllocate(aSize) : nullptr;
+    if (!pPointer)
+        pPointer = TiltedPhoques::ThisCall(RealFormAllocate, apThis, aSize, aAlignment, aAligned);
 
     if (!pPointer)
         return nullptr;
@@ -58,7 +64,45 @@ void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignme
         new (pExtension) ActorExtension;
     }
 
+    if (HeapHistory::Start())
+        HeapHistory::OnAllocate(pPointer, aSize);
+
     return pPointer;
+}
+
+// Only hooked with the heap history on (HeapHistory.h); our own frees always come through here.
+void TP_MAKE_THISCALL(HookFormFree, GameHeap, void* apPtr, bool aAligned)
+{
+    if (apPtr && HeapHistory::Start())
+    {
+        HeapHistory::OnFree(apPtr);
+        if (HeapHistory::GuardFree(apPtr))
+            return;
+        if (HeapHistory::Quarantine(apPtr, aAligned))
+        {
+            void* pEvicted = nullptr;
+            bool evictedAligned = false;
+            while (HeapHistory::TakeEvicted(pEvicted, evictedAligned))
+                TiltedPhoques::ThisCall(RealFormFree, apThis, pEvicted, evictedAligned);
+            return;
+        }
+    }
+    TiltedPhoques::ThisCall(RealFormFree, apThis, apPtr, aAligned);
+}
+
+// Only hooked with the heap guard on: the engine's own cannot size a guarded block.
+void* TP_MAKE_THISCALL(HookFormReallocate, GameHeap, void* apOld, size_t aSize, uint32_t aAlignment, bool aAligned)
+{
+    const size_t cOldSize = apOld ? HeapHistory::GuardedSize(apOld) : 0;
+    if (!cOldSize)
+        return TiltedPhoques::ThisCall(RealFormReallocate, apThis, apOld, aSize, aAlignment, aAligned);
+    if (!aSize)
+        return nullptr; // as the engine's: a zero size allocates nothing and keeps the old block
+    void* pNew = TiltedPhoques::ThisCall(HookFormAllocate, apThis, aSize, aAlignment, aAligned);
+    if (pNew)
+        std::memcpy(pNew, apOld, std::min(aSize, cOldSize));
+    TiltedPhoques::ThisCall(HookFormFree, apThis, apOld, aAligned);
+    return pNew;
 }
 
 void* Memory::Allocate(const size_t aSize) noexcept
@@ -68,7 +112,7 @@ void* Memory::Allocate(const size_t aSize) noexcept
 
 void Memory::Free(void* apData) noexcept
 {
-    TiltedPhoques::ThisCall(RealFormFree, GameHeap::Get(), apData, false);
+    TiltedPhoques::ThisCall(HookFormFree, GameHeap::Get(), apData, false);
 }
 
 static bool IsFormAllocateReplacedByEF(TFormAllocate** appOutEngineFixesAlloc) noexcept
@@ -137,12 +181,15 @@ void* Hook_aligned_malloc(size_t aSize, size_t aAlignment)
 static TiltedPhoques::Initializer s_memoryHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TFormAllocate, s_formAllocate, 68115);
 
         POINTER_SKYRIMSE(TFormFree, s_formFree, 68117);
+        POINTER_SKYRIMSE(TFormReallocate, s_formReallocate, 68116);
 
         RealFormAllocate = s_formAllocate.Get();
         RealFormFree = s_formFree.Get();
+        RealFormReallocate = s_formReallocate.Get();
 
 #ifdef TP_ORIGINAL_LAUNCHER // never defined: SKSE loads us too late to swap the CRT heap
         // The original launcher installs these before the game allocates.
@@ -173,6 +220,11 @@ static TiltedPhoques::Initializer s_memoryHooks(
 #endif
 
         TP_HOOK(&RealFormAllocate, HookFormAllocate);
+        if (HeapHistory::Start())
+        {
+            TP_HOOK(&RealFormFree, HookFormFree);
+            TP_HOOK(&RealFormReallocate, HookFormReallocate);
+        }
     });
 
 #ifdef _MSC_VER

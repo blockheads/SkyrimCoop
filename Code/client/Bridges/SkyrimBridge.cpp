@@ -5,6 +5,7 @@
 /// test targets.
 
 #include <Bridges/SkyrimBridge.h>
+#include <Breadcrumbs.h>
 
 // SKSE / game headers (allowed only here)
 #include <Actor.h>
@@ -179,6 +180,7 @@ bool SkyrimBridge::IsRemotePlayer(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetActorRemote(uint32_t aFormId, bool aRemote) noexcept
 {
+    Breadcrumbs::Record("SetActorRemote", aFormId, static_cast<uint32_t>(aRemote));
     if (Actor* pActor = GetActor(aFormId))
         if (ActorExtension* pExt = pActor->GetExtension())
             pExt->SetRemote(aRemote);
@@ -186,6 +188,7 @@ void SkyrimBridge::SetActorRemote(uint32_t aFormId, bool aRemote) noexcept
 
 void SkyrimBridge::SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept
 {
+    Breadcrumbs::Record("SetActorPlayer", aFormId, static_cast<uint32_t>(aPlayer));
     if (Actor* pActor = GetActor(aFormId))
         if (ActorExtension* pExt = pActor->GetExtension())
             pExt->SetPlayer(aPlayer);
@@ -203,12 +206,14 @@ uint32_t SkyrimBridge::GetCommandingActor(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("KillActor", aFormId);
     if (Actor* pActor = GetActor(aFormId))
         pActor->Kill();
 }
 
 void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
 {
+    Breadcrumbs::Record("KillActorBy", aFormId, aKillerFormId);
     Actor* pActor = GetActor(aFormId);
     if (!pActor || pActor->GetExtension()->IsPlayer())
         return;
@@ -217,18 +222,21 @@ void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcep
 
 void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("RespawnActor", aFormId);
     if (Actor* pActor = GetActor(aFormId))
         pActor->Respawn();
 }
 
 void SkyrimBridge::ResurrectActor(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("ResurrectActor", aFormId);
     if (Actor* pActor = GetActor(aFormId))
         pActor->Resurrect(false);
 }
 
 void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("DeleteActor", aFormId);
     // Engine Delete is for dynamically-created references only. Never delete
     // the local player or an NPC reference that belongs to the save/plugin.
     if ((aFormId & 0xFF000000u) != 0xFF000000u) return;
@@ -238,6 +246,7 @@ void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
 
 void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept
 {
+    Breadcrumbs::Record("MoveActorTo", aFormId, aCellId);
     Actor* pActor = GetActor(aFormId);
     TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellId));
     if (pActor && pCell)
@@ -252,6 +261,7 @@ void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, flo
 
 void SkyrimBridge::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept
 {
+    Breadcrumbs::Record("SetActorRotation", aFormId);
     // TODO(02.5-02): implement via actor rotation fields
     spdlog::warn("SkyrimBridge::SetActorRotation not yet implemented for {:X}", aFormId);
 }
@@ -259,6 +269,7 @@ void SkyrimBridge::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexce
 bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
     const float aRotation[3], float aDirection, const AnimationVariables& aVariables) noexcept
 {
+    Breadcrumbs::Record("ApplyRemoteMovement", aFormId);
     auto* actor = GetActor(aFormId);
     if (!actor) return false;
     NiPoint3 position;
@@ -309,12 +320,14 @@ float SkyrimBridge::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) con
 
 void SkyrimBridge::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept
 {
+    Breadcrumbs::Record("SetActorValue", aFormId, static_cast<uint32_t>(aIndex));
     if (Actor* pActor = GetActor(aFormId))
         pActor->SetActorValue(static_cast<uint32_t>(aIndex), aValue);
 }
 
 void SkyrimBridge::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept
 {
+    Breadcrumbs::Record("ForceActorValue", aFormId, static_cast<uint32_t>(aForceMode));
     if (Actor* pActor = GetActor(aFormId))
         pActor->ForceActorValue(static_cast<ActorValueOwner::ForceMode>(aForceMode), aIndex, aValue);
 }
@@ -326,18 +339,21 @@ int32_t SkyrimBridge::GetActorValueCount() const noexcept
 
 void SkyrimBridge::EquipItem(uint32_t aActorFormId, uint32_t aItemFormId, bool aUnequipSlot) noexcept
 {
+    Breadcrumbs::Record("EquipItem", aActorFormId, aItemFormId);
     // TODO(02.5-02): implement via EquipManager
     spdlog::warn("SkyrimBridge::EquipItem not yet implemented");
 }
 
 void SkyrimBridge::UnequipItem(uint32_t aActorFormId, uint32_t aItemFormId) noexcept
 {
+    Breadcrumbs::Record("UnequipItem", aActorFormId, aItemFormId);
     // TODO(02.5-02): implement via EquipManager
     spdlog::warn("SkyrimBridge::UnequipItem not yet implemented");
 }
 
 void SkyrimBridge::DrawWeapon(uint32_t aFormId, bool aDraw) noexcept
 {
+    Breadcrumbs::Record("DrawWeapon", aFormId, static_cast<uint32_t>(aDraw));
     // TODO(02.5-02): implement
     spdlog::warn("SkyrimBridge::DrawWeapon not yet implemented");
 }
@@ -369,6 +385,7 @@ uint64_t SkyrimBridge::GetAnimationGraphDescriptorHash(uint32_t aFormId) const n
 
 void SkyrimBridge::SetAnimationGraphDescriptorHash(uint32_t aFormId, uint64_t aHash) noexcept
 {
+    Breadcrumbs::Record("SetAnimationGraphDescriptorHash", aFormId);
     if (Actor* pActor = GetActor(aFormId))
         if (ActorExtension* pExt = pActor->GetExtension())
             pExt->GraphDescriptorHash = aHash;
@@ -376,12 +393,14 @@ void SkyrimBridge::SetAnimationGraphDescriptorHash(uint32_t aFormId, uint64_t aH
 
 void SkyrimBridge::GenerateMagicCasters(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("GenerateMagicCasters", aFormId);
     if (Actor* pActor = GetActor(aFormId))
         pActor->GenerateMagicCasters();
 }
 
 void SkyrimBridge::SetMagicCasterDualCasting(uint32_t aFormId, uint32_t aCastingSource, bool aDual) noexcept
 {
+    Breadcrumbs::Record("SetMagicCasterDualCasting", aFormId, aCastingSource);
     if (Actor* pActor = GetActor(aFormId))
     {
         using CS = MagicSystem::CastingSource;
@@ -402,6 +421,7 @@ static MagicCaster* GetCaster(Actor* apActor, uint32_t aCastingSource) noexcept
 void SkyrimBridge::CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
                              uint32_t aDesiredTargetFormId) noexcept
 {
+    Breadcrumbs::Record("CastSpell", aActorFormId, aSpellFormId);
     MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
     MagicCaster* pCaster = GetCaster(GetActor(aActorFormId), aCastingSource);
     if (!pSpell || !pCaster)
@@ -415,6 +435,7 @@ void SkyrimBridge::CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint3
 
 void SkyrimBridge::InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept
 {
+    Breadcrumbs::Record("InterruptCast", aFormId, aCastingSource);
     if (MagicCaster* pCaster = GetCaster(GetActor(aFormId), aCastingSource))
         pCaster->InterruptCast();
 }
@@ -430,6 +451,7 @@ uint32_t SkyrimBridge::GetCastingSpellFormId(uint32_t aFormId, uint32_t aCasting
 
 void SkyrimBridge::RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noexcept
 {
+    Breadcrumbs::Record("RemoveSpell", aActorFormId, aSpellFormId);
     Actor* pActor = GetActor(aActorFormId);
     if (!pActor)
         return;
@@ -441,6 +463,7 @@ void SkyrimBridge::RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noe
 void SkyrimBridge::AddMagicTarget(uint32_t aActorFormId, uint32_t aCasterFormId, uint32_t aTargetFormId,
                                     bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
 {
+    Breadcrumbs::Record("AddMagicTarget", aActorFormId, aCasterFormId);
     // TODO(02.5-02): implement via magicTarget.AddTarget
     spdlog::warn("SkyrimBridge::AddMagicTarget not yet implemented");
 }
@@ -454,6 +477,7 @@ bool SkyrimBridge::IsBleedingOut(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::PayCrimeGoldToAllFactions(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("PayCrimeGoldToAllFactions", aFormId);
     if (Actor* pActor = GetActor(aFormId))
     {
         if (auto* pPlayer = Cast<PlayerCharacter>(pActor))
@@ -556,6 +580,7 @@ uint32_t SkyrimBridge::GetKillerFormId(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept
 {
+    Breadcrumbs::Record("ReactToAttack", aVictimFormId, aAttackerFormId);
     Actor* pVictim = GetActor(aVictimFormId);
     Actor* pAttacker = GetActor(aAttackerFormId);
     if (!pVictim || !pAttacker || pVictim == pAttacker)
@@ -692,6 +717,7 @@ float SkyrimBridge::GetGlobalValue(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetGlobalValue(uint32_t aFormId, float aValue) noexcept
 {
+    Breadcrumbs::Record("SetGlobalValue", aFormId);
     if (TESGlobal* pGlobal = Cast<TESGlobal>(TESForm::GetById(aFormId)))
         pGlobal->f = aValue;
 }
@@ -759,18 +785,21 @@ std::string SkyrimBridge::GetQuestName(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetQuestActive(uint32_t aFormId, bool aActive) noexcept
 {
+    Breadcrumbs::Record("SetQuestActive", aFormId, static_cast<uint32_t>(aActive));
     if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
         pQ->SetActive(aActive);
 }
 
 void SkyrimBridge::ScriptSetQuestStage(uint32_t aFormId, uint32_t aStage) noexcept
 {
+    Breadcrumbs::Record("ScriptSetQuestStage", aFormId, aStage);
     if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
         pQ->ScriptSetStage(static_cast<uint16_t>(aStage));
 }
 
 void SkyrimBridge::SetQuestStopped(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("SetQuestStopped", aFormId);
     if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
         pQ->SetStopped();
 }
@@ -927,6 +956,7 @@ uint8_t SkyrimBridge::GetObjectLockLevel(uint32_t aObjectFormId) const noexcept
 
 bool SkyrimBridge::SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
 {
+    Breadcrumbs::Record("SetObjectLock", aObjectFormId, static_cast<uint32_t>(aLocked));
     TESObjectREFR* pObj = GetRefr(aObjectFormId);
     if (!pObj)
         return false;
@@ -953,6 +983,7 @@ bool SkyrimBridge::SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t a
 
 void SkyrimBridge::NotifyObjectLockChange(uint32_t aObjectFormId) noexcept
 {
+    Breadcrumbs::Record("NotifyObjectLockChange", aObjectFormId);
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
         pObj->LockChange();
 }
@@ -968,6 +999,7 @@ uint32_t SkyrimBridge::GetObjectParentCellId(uint32_t aObjectFormId) const noexc
 void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId,
                                              uint8_t aPreActivationState) noexcept
 {
+    Breadcrumbs::Record("ActivateObjectFromActor", aObjectFormId, aActivatorFormId);
     TESObjectREFR* pObject = GetRefr(aObjectFormId);
     Actor* pActor = GetActor(aActivatorFormId);
     if (!pObject || !pActor)
@@ -991,6 +1023,7 @@ void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aAct
 void SkyrimBridge::PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation,
                                          const std::string& aEventName) noexcept
 {
+    Breadcrumbs::Record("PlayObjectAnimation", aObjectFormId);
     TESObjectREFR* pObject = GetRefr(aObjectFormId);
     if (!pObject)
     {
@@ -1036,6 +1069,7 @@ void SkyrimBridge::SetObjectInventoryRetainingQuestItems(uint32_t aObjectFormId,
                                                            const Inventory& aCurrentInventory,
                                                            const Inventory& aNewInventory) noexcept
 {
+    Breadcrumbs::Record("SetObjectInventoryRetainingQuestItems", aObjectFormId);
     TESObjectREFR* pObj = GetRefr(aObjectFormId);
     if (!pObj)
         return;
@@ -1045,6 +1079,7 @@ void SkyrimBridge::SetObjectInventoryRetainingQuestItems(uint32_t aObjectFormId,
 
 void SkyrimBridge::SetObjectInventory(uint32_t aObjectFormId, const Inventory& aInventory) noexcept
 {
+    Breadcrumbs::Record("SetObjectInventory", aObjectFormId);
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
         pObj->SetInventory(aInventory);
 }
@@ -1069,6 +1104,7 @@ void SkyrimBridge::LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormI
                                      bool aDeferInit, bool aForceConeOfFire,
                                      bool aUnkBool1, bool aUnkBool2) noexcept
 {
+    Breadcrumbs::Record("LaunchProjectile", aShooterFormId, aCellFormId);
     TESObjectCELL* pParentCell = Cast<TESObjectCELL>(TESForm::GetById(aCellFormId));
     if (!pParentCell)
     {
@@ -1120,12 +1156,14 @@ Inventory SkyrimBridge::GetActorEquipment(uint32_t aActorFormId) const noexcept
 
 void SkyrimBridge::ActorDropOrPickUpObject(uint32_t aActorFormId, const Inventory::Entry& aItem) noexcept
 {
+    Breadcrumbs::Record("ActorDropOrPickUpObject", aActorFormId);
     if (Actor* pActor = GetActor(aActorFormId))
         pActor->DropOrPickUpObject(aItem, nullptr, nullptr);
 }
 
 void SkyrimBridge::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
+    Breadcrumbs::Record("ObjectAddOrRemoveItem", aObjectFormId);
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
         pObj->AddOrRemoveItem(aItem);
 }
@@ -1153,12 +1191,14 @@ bool SkyrimBridge::ActorShouldWearBodyPiece(uint32_t aActorFormId) const noexcep
 
 void SkyrimBridge::ActorResetInventory(uint32_t aActorFormId, bool aBroadcast) noexcept
 {
+    Breadcrumbs::Record("ActorResetInventory", aActorFormId, static_cast<uint32_t>(aBroadcast));
     if (TESObjectREFR* pObj = GetRefr(aActorFormId))
         pObj->ResetInventory(aBroadcast);
 }
 
 void SkyrimBridge::ActorEquipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept
 {
+    Breadcrumbs::Record("ActorEquipSpell", aActorFormId, aSpellFormId);
     Actor* pActor = GetActor(aActorFormId);
     TESForm* pSpell = TESForm::GetById(aSpellFormId);
     if (pActor && pSpell)
@@ -1167,6 +1207,7 @@ void SkyrimBridge::ActorEquipSpell(uint32_t aActorFormId, uint32_t aSpellFormId,
 
 void SkyrimBridge::ActorUnequipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlotId) noexcept
 {
+    Breadcrumbs::Record("ActorUnequipSpell", aActorFormId, aSpellFormId);
     Actor* pActor = GetActor(aActorFormId);
     TESForm* pSpell = TESForm::GetById(aSpellFormId);
     if (pActor && pSpell)
@@ -1175,6 +1216,7 @@ void SkyrimBridge::ActorUnequipSpell(uint32_t aActorFormId, uint32_t aSpellFormI
 
 void SkyrimBridge::ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
 {
+    Breadcrumbs::Record("ActorEquipShout", aActorFormId, aShoutFormId);
     Actor* pActor = GetActor(aActorFormId);
     TESForm* pShout = TESForm::GetById(aShoutFormId);
     if (pActor && pShout)
@@ -1183,6 +1225,7 @@ void SkyrimBridge::ActorEquipShout(uint32_t aActorFormId, uint32_t aShoutFormId)
 
 void SkyrimBridge::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormId) noexcept
 {
+    Breadcrumbs::Record("ActorUnequipShout", aActorFormId, aShoutFormId);
     Actor* pActor = GetActor(aActorFormId);
     TESForm* pShout = TESForm::GetById(aShoutFormId);
     if (pActor && pShout)
@@ -1192,6 +1235,7 @@ void SkyrimBridge::ActorUnequipShout(uint32_t aActorFormId, uint32_t aShoutFormI
 void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
                                     uint32_t aEquipSlotFormId, int32_t aCount) noexcept
 {
+    Breadcrumbs::Record("ActorEquipItem", aActorFormId, aItemFormId);
     Actor* pActor = GetActor(aActorFormId);
     TESForm* pItem = TESForm::GetById(aItemFormId);
     TESForm* pSlot = aEquipSlotFormId ? TESForm::GetById(aEquipSlotFormId) : nullptr;
@@ -1202,6 +1246,7 @@ void SkyrimBridge::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId,
 void SkyrimBridge::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId,
                                       uint32_t aEquipSlotFormId, int32_t aCount) noexcept
 {
+    Breadcrumbs::Record("ActorUnequipItem", aActorFormId, aItemFormId);
     Actor* pActor = GetActor(aActorFormId);
     TESForm* pItem = TESForm::GetById(aItemFormId);
     TESForm* pSlot = aEquipSlotFormId ? TESForm::GetById(aEquipSlotFormId) : nullptr;
@@ -1270,6 +1315,7 @@ uint32_t SkyrimBridge::GetPlayerWorldSpaceId() const noexcept
 
 void SkyrimBridge::SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept
 {
+    Breadcrumbs::Record("SetPlayerWaypoint", aWorldSpaceFormId);
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     TESWorldSpace* pWS = aWorldSpaceFormId
         ? Cast<TESWorldSpace>(TESForm::GetById(aWorldSpaceFormId))
@@ -1286,12 +1332,14 @@ void SkyrimBridge::SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWor
 
 void SkyrimBridge::RemovePlayerWaypoint() noexcept
 {
+    Breadcrumbs::Record("RemovePlayerWaypoint", 0);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->RemoveWaypoint();
 }
 
 void SkyrimBridge::MovePlayerTo(uint32_t aCellId, float aX, float aY, float aZ) noexcept
 {
+    Breadcrumbs::Record("MovePlayerTo", aCellId);
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellId));
     if (pPlayer && pCell)
@@ -1326,23 +1374,27 @@ bool SkyrimBridge::IsPlayerInGodMode() const noexcept
 
 void SkyrimBridge::SetPlayerGodMode(bool aEnable) noexcept
 {
+    Breadcrumbs::Record("SetPlayerGodMode", static_cast<uint32_t>(aEnable));
     PlayerCharacter::SetGodMode(aEnable);
 }
 
 void SkyrimBridge::SetPlayerRespawnMode(bool aEnable) noexcept
 {
+    Breadcrumbs::Record("SetPlayerRespawnMode", static_cast<uint32_t>(aEnable));
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->SetPlayerRespawnMode(aEnable);
 }
 
 void SkyrimBridge::RespawnPlayer() noexcept
 {
+    Breadcrumbs::Record("RespawnPlayer", 0);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->RespawnPlayer();
 }
 
 void SkyrimBridge::KnockdownPlayer(float aForce) noexcept
 {
+    Breadcrumbs::Record("KnockdownPlayer", 0);
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (pPlayer && pPlayer->currentProcess)
         pPlayer->currentProcess->KnockExplosion(pPlayer, &pPlayer->position, aForce);
@@ -1356,12 +1408,14 @@ void SkyrimBridge::FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration,
 
 void SkyrimBridge::PlayerPayGold(uint32_t aAmount) noexcept
 {
+    Breadcrumbs::Record("PlayerPayGold", aAmount);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->PayGold(static_cast<int32_t>(aAmount));
 }
 
 void SkyrimBridge::PlayerPayCrimeGoldToAllFactions() noexcept
 {
+    Breadcrumbs::Record("PlayerPayCrimeGoldToAllFactions", 0);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->PayCrimeGoldToAllFactions();
 }
@@ -1373,6 +1427,7 @@ uint32_t SkyrimBridge::GetDifficulty() const noexcept
 
 void SkyrimBridge::SetDifficulty(uint32_t aDifficulty) noexcept
 {
+    Breadcrumbs::Record("SetDifficulty", aDifficulty);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->SetDifficulty(static_cast<int32_t>(aDifficulty));
 }
@@ -1385,6 +1440,7 @@ float SkyrimBridge::GetGreetDistance() const noexcept
 
 void SkyrimBridge::SetGreetDistance(float aDistance) noexcept
 {
+    Breadcrumbs::Record("SetGreetDistance", 0);
     float* pDist = Settings::GetGreetDistance();
     if (pDist)
         *pDist = aDistance;
@@ -1406,6 +1462,7 @@ float SkyrimBridge::GetPlayerActorValue(int32_t aIndex) const noexcept
 
 void SkyrimBridge::ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept
 {
+    Breadcrumbs::Record("ForcePlayerActorValue", static_cast<uint32_t>(aForceMode), static_cast<uint32_t>(aIndex));
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->ForceActorValue(static_cast<ActorValueOwner::ForceMode>(aForceMode), aIndex, aValue);
 }
@@ -1426,6 +1483,7 @@ uint32_t SkyrimBridge::GetPlayerEquippedShoutFormId() const noexcept
 
 void SkyrimBridge::EquipSpell(uint32_t aSpellFormId, uint32_t aSlot) noexcept
 {
+    Breadcrumbs::Record("EquipSpell", aSpellFormId, aSlot);
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     TESForm* pSpell = TESForm::GetById(aSpellFormId);
     if (pPlayer && pSpell)
@@ -1434,6 +1492,7 @@ void SkyrimBridge::EquipSpell(uint32_t aSpellFormId, uint32_t aSlot) noexcept
 
 void SkyrimBridge::EquipShout(uint32_t aShoutFormId) noexcept
 {
+    Breadcrumbs::Record("EquipShout", aShoutFormId);
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     TESForm* pShout = TESForm::GetById(aShoutFormId);
     if (pPlayer && pShout)
@@ -1561,6 +1620,7 @@ uint32_t SkyrimBridge::GetLastWeatherId() const noexcept
 
 void SkyrimBridge::ForceWeather(uint32_t aWeatherFormId, bool aOverride) noexcept
 {
+    Breadcrumbs::Record("ForceWeather", aWeatherFormId, static_cast<uint32_t>(aOverride));
     TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(aWeatherFormId));
     if (!pWeather)
     {
@@ -1573,6 +1633,7 @@ void SkyrimBridge::ForceWeather(uint32_t aWeatherFormId, bool aOverride) noexcep
 
 void SkyrimBridge::ReleaseWeatherOverride() noexcept
 {
+    Breadcrumbs::Record("ReleaseWeatherOverride", 0);
     if (Sky* pSky = Sky::Get())
         pSky->ReleaseWeatherOverride();
 }
@@ -1585,6 +1646,7 @@ std::string SkyrimBridge::GetModName(uint32_t aIndex) const noexcept
 
 void SkyrimBridge::SetGameWeatherSystemEnabled(bool aEnable) noexcept
 {
+    Breadcrumbs::Record("SetGameWeatherSystemEnabled", static_cast<uint32_t>(aEnable));
     // TODO(02.5-02): implement via Sky toggle
     spdlog::warn("SkyrimBridge::SetGameWeatherSystemEnabled({}) not yet implemented", aEnable);
 }
@@ -1598,6 +1660,7 @@ float SkyrimBridge::GetGameTimeHours() const noexcept
 
 void SkyrimBridge::SetGameTimeHours(float aHours) noexcept
 {
+    Breadcrumbs::Record("SetGameTimeHours", 0);
     // TODO(02.5-02): implement
     spdlog::warn("SkyrimBridge::SetGameTimeHours({}) not yet implemented", aHours);
 }
@@ -1644,6 +1707,7 @@ ActorValues SkyrimBridge::GetActorEssentialValues(uint32_t aFormId) const noexce
 
 void SkyrimBridge::SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept
 {
+    Breadcrumbs::Record("SetActorValues", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetActorValues(acValues);
@@ -1659,6 +1723,7 @@ Inventory SkyrimBridge::GetActorInventory(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept
 {
+    Breadcrumbs::Record("SetActorInventory", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetActorInventory(acInventory);
@@ -1674,6 +1739,7 @@ Factions SkyrimBridge::GetActorFactions(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetActorFactions(uint32_t aFormId, const Factions& acFactions) noexcept
 {
+    Breadcrumbs::Record("SetActorFactions", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetFactions(acFactions);
@@ -1681,6 +1747,7 @@ void SkyrimBridge::SetActorFactions(uint32_t aFormId, const Factions& acFactions
 
 void SkyrimBridge::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
 {
+    Breadcrumbs::Record("SetActorWeaponDrawnEx", aFormId, static_cast<uint32_t>(aDraw));
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetWeaponDrawnEx(aDraw);
@@ -1736,6 +1803,7 @@ bool SkyrimBridge::IsActorDisabled(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::EnableActor(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("EnableActor", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->EnableImpl();
@@ -1743,6 +1811,7 @@ void SkyrimBridge::EnableActor(uint32_t aFormId) noexcept
 
 void SkyrimBridge::ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept
 {
+    Breadcrumbs::Record("ActorSpeakSound", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SpeakSound(acFilename.c_str());
@@ -1750,6 +1819,7 @@ void SkyrimBridge::ActorSpeakSound(uint32_t aFormId, const std::string& acFilena
 
 void SkyrimBridge::ActorStopCurrentDialogue(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("ActorStopCurrentDialogue", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->StopCurrentDialogue(true);
@@ -1757,6 +1827,7 @@ void SkyrimBridge::ActorStopCurrentDialogue(uint32_t aFormId) noexcept
 
 void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept
 {
+    Breadcrumbs::Record("SetActorIgnoreFriendlyHit", aFormId, static_cast<uint32_t>(aIgnore));
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetIgnoreFriendlyHit(aIgnore);
@@ -1764,6 +1835,7 @@ void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noe
 
 void SkyrimBridge::SetActorPlayerRespawnMode(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("SetActorPlayerRespawnMode", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->SetPlayerRespawnMode();
@@ -1771,6 +1843,7 @@ void SkyrimBridge::SetActorPlayerRespawnMode(uint32_t aFormId) noexcept
 
 void SkyrimBridge::SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept
 {
+    Breadcrumbs::Record("SetActorCommandingActor", aFormId, aCommanderFormId);
     Actor* pActor = GetActor(aFormId);
     Actor* pCommander = GetActor(aCommanderFormId);
     if (pActor && pCommander)
@@ -1790,6 +1863,7 @@ uint32_t SkyrimBridge::GetActorCommandingActorFormId(uint32_t aFormId) const noe
 
 void SkyrimBridge::SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept
 {
+    Breadcrumbs::Record("SetActorPackage", aFormId, aPackageFormId);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
@@ -1800,6 +1874,7 @@ void SkyrimBridge::SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) no
 
 void SkyrimBridge::ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept
 {
+    Breadcrumbs::Record("ActorLoadAnimationVariables", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->LoadAnimationVariables(acVars);
@@ -1822,6 +1897,7 @@ ActionEvent SkyrimBridge::GetActorLatestAnimation(uint32_t aFormId) const noexce
 
 void SkyrimBridge::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept
 {
+    Breadcrumbs::Record("SetActorLatestAnimation", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->GetExtension()->LatestAnimation = acEvent;
@@ -1829,6 +1905,7 @@ void SkyrimBridge::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& 
 
 void SkyrimBridge::ActorFixVampireLordModel(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("ActorFixVampireLordModel", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->FixVampireLordModel();
@@ -1836,6 +1913,7 @@ void SkyrimBridge::ActorFixVampireLordModel(uint32_t aFormId) noexcept
 
 void SkyrimBridge::ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept
 {
+    Breadcrumbs::Record("ActorInitiateMountPackage", aRiderFormId, aMountFormId);
     Actor* pRider = GetActor(aRiderFormId);
     Actor* pMount = GetActor(aMountFormId);
     if (pRider && pMount)
@@ -1861,6 +1939,7 @@ uint32_t SkyrimBridge::GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept
 
 uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 {
+    Breadcrumbs::Record("SpawnActorFromNpc", aNpcFormId);
     TESNPC* pNpc = Cast<TESNPC>(TESForm::GetById(aNpcFormId));
     if (!pNpc)
         return 0;
@@ -1870,6 +1949,7 @@ uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 
 uint32_t SkyrimBridge::CreateCustomActor(const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
 {
+    Breadcrumbs::Record("CreateCustomActor", aChangeFlags);
     TESNPC* pNpc = TESNPC::Create(acAppearance, aChangeFlags);
     if (!pNpc)
         return 0;
@@ -1879,6 +1959,7 @@ uint32_t SkyrimBridge::CreateCustomActor(const TiltedPhoques::String& acAppearan
 
 void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
 {
+    Breadcrumbs::Record("DeserializeActorNpc", aFormId, aChangeFlags);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
@@ -1890,6 +1971,7 @@ void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::St
 
 uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept
 {
+    Breadcrumbs::Record("SerializeActorNpc", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return 0;
@@ -1902,6 +1984,7 @@ uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String
 
 void SkyrimBridge::MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept
 {
+    Breadcrumbs::Record("MarkActorNpcChanged", aFormId, aFlags);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
@@ -1956,12 +2039,14 @@ Tints SkyrimBridge::GetActorFaceTints(uint32_t aFormId) const noexcept
 
 void SkyrimBridge::SetupActorFaceGen(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("SetupActorFaceGen", aFormId);
     // FaceGen setup is entity-based; this is a no-op at bridge level
     // Actual setup happens in CharacterService::OnCharacterSpawn via FaceGenSystem::Setup
 }
 
 void SkyrimBridge::SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexcept
 {
+    Breadcrumbs::Record("SetupActorCache", aFormId, aEntityHint);
     // aEntityHint is the entity (CharacterService::ProcessNewEntity), as before the bridge refactor.
     if (Actor* pActor = GetActor(aFormId))
         CacheSystem::Setup(World::Get(), static_cast<entt::entity>(aEntityHint), pActor);
@@ -1969,6 +2054,7 @@ void SkyrimBridge::SetupActorCache(uint32_t aFormId, uint32_t aEntityHint) noexc
 
 void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept
 {
+    Breadcrumbs::Record("ActorUpdateInterpolation", aFormId);
     // InterpolationSystem::Update requires InterpolationComponent; called directly in CharacterService
 }
 
@@ -1976,6 +2062,7 @@ void SkyrimBridge::ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) no
 // (remote actors never drew weapons, attacked, ...) and remote face tints.
 void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept
 {
+    Breadcrumbs::Record("ActorUpdateAnimation", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
@@ -1988,6 +2075,7 @@ void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexce
 
 void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
 {
+    Breadcrumbs::Record("ActorUpdateFaceGen", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
@@ -2000,6 +2088,7 @@ void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
 
 void SkyrimBridge::ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept
 {
+    Breadcrumbs::Record("ApplyRevealEffect", aFormId);
     // Apply SkyrimTogether.esp detect effect to a remote player
     Mod* pSkyrimTogether = ModManager::Get()->GetByName("SkyrimTogether.esp");
     if (!pSkyrimTogether)
@@ -2024,6 +2113,7 @@ void SkyrimBridge::ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcep
 
 void SkyrimBridge::PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept
 {
+    Breadcrumbs::Record("PlayerKnockExplosion", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return;
@@ -2084,6 +2174,7 @@ void SkyrimBridge::AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCaster
                                          float aMagnitude, bool aIsDualCasting,
                                          bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
 {
+    Breadcrumbs::Record("AddMagicTargetEffect", aTargetFormId, aCasterFormId);
     MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
     if (!pSpell)
         return;
@@ -2164,6 +2255,7 @@ Tints SkyrimBridge::GetPlayerFaceTints() const noexcept
 
 void SkyrimBridge::AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept
 {
+    Breadcrumbs::Record("AddPlayerSkillExperience", static_cast<uint32_t>(aSkillId));
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (pPlayer)
         pPlayer->AddSkillExperience(aSkillId, aExperience);

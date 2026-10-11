@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 struct ScaleFormValue
 {
@@ -46,6 +47,7 @@ void RequestLoadingText(ScaleFormContext* apContext)
 static TiltedPhoques::Initializer s_loadingScreenHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TRequestLoadingText, s_requestLoadingText, 51925);
 
         RealRequestLoadingText = s_requestLoadingText.Get();

@@ -25,6 +25,7 @@ includes("admin_protocol")
 includes("server")
 includes("encoding")
 includes("hotreload")
+includes("vanilla_harness")
 
 -- Tests need a native Linux build, not the Windows cross-compile
 if is_plat("linux") then

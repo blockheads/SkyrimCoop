@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ActiveEffect.h"
+#include <HookSwitch.h>
 
 #include <Actor.h>
 #include <Games/ActorExtension.h>
@@ -27,6 +28,7 @@ void* TP_MAKE_THISCALL(HookInitializeSummonCreatureEffect, Actor, MagicItem* apS
 static TiltedPhoques::Initializer s_summonCreatureEffectsHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TInitializeSummonCreatureEffect, s_start, 34989);
 
         RealInitializeSummonCreatureEffect = s_start.Get();

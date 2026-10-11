@@ -1,5 +1,6 @@
 
 #include "Interface/MenuControls.h"
+#include <HookSwitch.h>
 
 void MenuControls::SetToggle(bool b)
 {
@@ -16,5 +17,6 @@ MenuControls* MenuControls::GetInstance()
 
 static TiltedPhoques::Initializer s_init(
     []() {
+        const HookGate cGate(__FILE__);
 
     });

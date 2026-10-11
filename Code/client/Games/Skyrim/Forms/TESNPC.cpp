@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <Forms/TESNPC.h>
 
@@ -15,6 +16,7 @@ TESNPC* TP_MAKE_THISCALL(HookSetLeveledNpc, TESNPC, TESNPC* apSelectedNpc)
 static TiltedPhoques::Initializer s_npcInitHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSetLeveledNpc, s_SetLeveledNpc, 14375);
 
         RealSetLeveledNpc = s_SetLeveledNpc.Get();

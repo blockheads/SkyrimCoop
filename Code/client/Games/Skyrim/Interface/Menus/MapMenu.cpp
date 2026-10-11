@@ -1,8 +1,10 @@
 
 #include <Interface/Menus/MapMenu.h>
+#include <HookSwitch.h>
 
 static TiltedPhoques::Initializer s_init(
     []() {
+        const HookGate cGate(__FILE__);
 // Disabled because the mapmenu in first person breaks.
 // I fix that later, but for now it doesn't break gameplay.
 #if 0

@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <EquipManager.h>
 #include <Games/References.h>
@@ -308,6 +309,7 @@ void* TP_MAKE_THISCALL(UnEquipShoutHook, EquipManager, Actor* apActor, TESForm* 
 static TiltedPhoques::Initializer s_equipmentHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TEquip, s_equipFunc, 38929);
         POINTER_SKYRIMSE(TUnEquip, s_unequipFunc, 38934);
         POINTER_SKYRIMSE(TEquipSpell, s_equipSpellFunc, 38928);

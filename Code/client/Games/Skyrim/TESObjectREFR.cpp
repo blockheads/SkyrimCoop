@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <Games/References.h>
 #include <Games/Overrides.h>
@@ -1098,6 +1099,7 @@ void TP_MAKE_THISCALL(HookLockChange, TESObjectREFR)
 static TiltedPhoques::Initializer s_objectReferencesHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TLockChange, s_lockChange, 19512);
         POINTER_SKYRIMSE(TRotate, s_rotateX, 19787);
         POINTER_SKYRIMSE(TRotate, s_rotateY, 19788);

@@ -1,4 +1,5 @@
 #include "MenuTopicManager.h"
+#include <HookSwitch.h>
 
 #include <Events/PlayerDialogueEvent.h>
 
@@ -37,6 +38,7 @@ bool TP_MAKE_THISCALL(HookPlayDialogueOption, MenuTopicManager, int32_t aIndex)
 static TiltedPhoques::Initializer s_menuTopicHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TPlayDialogueOption, s_playDialogueOption, 35269);
 
         RealPlayDialogueOption = s_playDialogueOption.Get();

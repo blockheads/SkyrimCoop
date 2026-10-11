@@ -14,6 +14,8 @@ class Runtime
 public:
     static Runtime& Get();
     void Configure(const std::filesystem::path& pluginDirectory);
+    // SKSE's AddUITask (SKSETaskInterface), for console commands run where typed ones run.
+    static void SetUITaskQueue(void (*apAddUITask)(void*));
     // Data/SKSE/Plugins, also when the hot reload loader runs us from a copy elsewhere.
     const std::filesystem::path& PluginDirectory() const { return m_pluginDirectory; }
     // Game update thread only, before dispatching service events.

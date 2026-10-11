@@ -1,4 +1,5 @@
 #include "Projectile.h"
+#include <HookSwitch.h>
 #include <Games/Skyrim/Forms/TESObjectWEAP.h>
 #include <Games/Skyrim/Forms/MagicItem.h>
 #include <Games/Skyrim/Forms/TESAmmo.h>
@@ -114,6 +115,7 @@ BSPointerHandle<Projectile>* TP_MAKE_THISCALL(HookLaunch, BSPointerHandle<Projec
 static TiltedPhoques::Initializer s_projectileHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TLaunch, s_launch, 44108);
 
         RealLaunch = s_launch.Get();

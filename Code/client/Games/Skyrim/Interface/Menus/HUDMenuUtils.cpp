@@ -1,5 +1,6 @@
 
 #include <Games/Skyrim/Interface/Menus/HUDMenuUtils.h>
+#include <HookSwitch.h>
 #include <Games/Skyrim/NetImmerse/NiCamera.h>
 
 namespace HUDMenuUtils
@@ -16,6 +17,7 @@ bool WorldPtToScreenPt3(const NiPoint3& aWorldPt, NiPoint3& aScreenPt)
 static TiltedPhoques::Initializer s_Init(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(float[4][4], s_matrix, 406126);
         POINTER_SKYRIMSE(NiRect<float>, s_port, 406160);
 

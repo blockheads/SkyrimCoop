@@ -7,10 +7,18 @@
 
 namespace TiltedPhoques
 {
+    // Told of every observed hook call, with the hook's name and its first argument (for a member
+    // hook, the object it runs on), before the hook runs. The client records them as crash
+    // breadcrumbs. Set it before hooks are added; hooks the filter refuses (very frequent ones)
+    // are not observed.
+    using HookObserver = void (*)(const char* acpHookName, const void* apFirstArgument);
+    using HookObserverFilter = bool (*)(const char* acpHookName);
+    void SetHookObserver(HookObserver aObserver, HookObserverFilter aFilter) noexcept;
+
     struct FunctionHook
     {
         FunctionHook() noexcept;
-        explicit FunctionHook(void** appSystemFunction, void* apHookFunction) noexcept;
+        explicit FunctionHook(void** appSystemFunction, void* apHookFunction, const char* acpName = nullptr) noexcept;
         ~FunctionHook() noexcept;
         FunctionHook(const FunctionHook& acRhs) = delete;
         FunctionHook(FunctionHook&& aRhs) noexcept;
@@ -24,6 +32,7 @@ namespace TiltedPhoques
         void** m_ppDetourFunction;
         void* m_pSystemFunction;
         void* m_pHookFunction;
+        const char* m_pName;
     };
 
     class FunctionHookManager
@@ -51,6 +60,10 @@ namespace TiltedPhoques
         void RemoveAllHooks() noexcept;
 
         void Add(FunctionHook aFunctionHook, bool aDelayed = false) noexcept;
+        // A probe: the engine function runs as before, but every call is reported to the hook
+        // observer first (name, first argument). False when it cannot be hooked (already hooked
+        // by MinHook, say) or there is no observer.
+        bool AddProbe(void* apFunction, const char* acpName) noexcept;
         void* Add(void* apFunctionDetour, const char* acpLibraryName, const char* acpMethod) noexcept;
 
         // Template overload for function references (GCC does not implicitly convert to void*)
@@ -61,9 +74,9 @@ namespace TiltedPhoques
         }
 
         template<class T, class U>
-        void Add(T** aSystemFunction, U* aHookFunction, bool aDelayed = false) noexcept
+        void Add(T** aSystemFunction, U* aHookFunction, bool aDelayed = false, const char* acpName = nullptr) noexcept
         {
-            Add(FunctionHook(reinterpret_cast<void**>(aSystemFunction), reinterpret_cast<void*>(aHookFunction)), aDelayed);
+            Add(FunctionHook(reinterpret_cast<void**>(aSystemFunction), reinterpret_cast<void*>(aHookFunction), acpName), aDelayed);
         }
 
         template<class T>
@@ -102,6 +115,8 @@ namespace TiltedPhoques
     {
         auto pVTable = *reinterpret_cast<uintptr_t * *>(pInstance);
         Func pRealFunction = reinterpret_cast<Func>(pVTable[aIndex]);
+        if (PatchesSuppressed())
+            return pRealFunction;
 
         RecordPatch(&pVTable[aIndex], sizeof(pVTable[aIndex]));
         const vp::ScopedContext memory(&pVTable[aIndex], sizeof(&pVTable[aIndex]));
@@ -111,8 +126,8 @@ namespace TiltedPhoques
     }
 }
 
-#define TP_HOOK(systemFunction, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, true)
-#define TP_HOOK_IMMEDIATE(systemFunction, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, false)
+#define TP_HOOK(systemFunction, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, true, #hookFunction)
+#define TP_HOOK_IMMEDIATE(systemFunction, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, false, #hookFunction)
 
 #define TP_HOOK_SYSTEM(libraryName, functionName, hookFunction) TiltedPhoques::FunctionHookManager::GetInstance().AddSystem(libraryName, functionName, hookFunction)
 #define TP_HOOK_IAT(functionName, libraryName) Real ##functionName = (T ##functionName)TiltedPhoques::FunctionHookManager::GetInstance().Add(Hook ## functionName, libraryName, #functionName)

@@ -1,4 +1,5 @@
 #include <NetImmerse/NiCamera.h>
+#include <HookSwitch.h>
 #include <TiltedOnlinePCH.h>
 
 using TWorldPtToScreenPt3 = bool(float*, const NiRect<float>*, const NiPoint3*, float*, float*, float*, float);
@@ -20,6 +21,7 @@ bool NiCamera::WorldPtToScreenPt3(float* matrix, const NiRect<float>* port, cons
 static TiltedPhoques::Initializer s_Init(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TWorldPtToScreenPt3, s_w2s, 70640);
         s_WorldPtToScreenPt3 = s_w2s.Get();
     });

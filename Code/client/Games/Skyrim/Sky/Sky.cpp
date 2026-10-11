@@ -1,4 +1,5 @@
 #include "Sky.h"
+#include <HookSwitch.h>
 
 TP_THIS_FUNCTION(TSetWeather, void, Sky, TESWeather* apWeather, bool abOverride, bool abAccelerate);
 TP_THIS_FUNCTION(TForceWeather, void, Sky, TESWeather* apWeather, bool abOverride);
@@ -88,6 +89,7 @@ void TP_MAKE_THISCALL(HookUpdateWeather, Sky)
 static TiltedPhoques::Initializer s_skyHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSetWeather, setWeather, 26241);
         POINTER_SKYRIMSE(TForceWeather, forceWeather, 26243);
         POINTER_SKYRIMSE(TUpdateWeather, updateWeather, 26231);

@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <Renderer.h>
 
@@ -67,4 +68,5 @@ static bool HookCreateViewport(void* viewport, ViewportConfig* pConfig, WindowCo
 static TiltedPhoques::Initializer s_viewportHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
     });

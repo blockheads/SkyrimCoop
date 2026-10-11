@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <Games/TES.h>
 
@@ -73,6 +74,7 @@ TESObjectCELL* ModManager::GetCellFromCoordinates(int32_t aX, int32_t aY, TESWor
 static TiltedPhoques::Initializer s_tesHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSpawnNewREFR, s_realSpawnNewREFR, 13723);
 
         RealSpawnNewREFR = s_realSpawnNewREFR.Get();

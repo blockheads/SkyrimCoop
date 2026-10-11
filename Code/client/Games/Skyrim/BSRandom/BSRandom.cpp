@@ -1,5 +1,6 @@
 
 #include <Games/Skyrim/BSRandom/BSRandom.h>
+#include <HookSwitch.h>
 
 namespace BSRandom
 {
@@ -14,6 +15,7 @@ uint32_t UnsignedInt(uint32_t aMin, uint32_t aMax)
 static TiltedPhoques::Initializer s_randomInit(
     []()
     {
+        const HookGate cGate(__FILE__);
         const VersionDbPtr<void> unsignedInt(68276);
         Real_UnsignedInt = reinterpret_cast<decltype(Real_UnsignedInt)>(unsignedInt.GetPtr());
 

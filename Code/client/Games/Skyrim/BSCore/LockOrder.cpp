@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include "LockOrder.h"
 
@@ -417,6 +418,7 @@ void ModuleRange(HMODULE aModule, uintptr_t& aBase, uintptr_t& aEnd)
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 static TiltedPhoques::Initializer s_lockOrderHooks([]() {
+    const HookGate cGate(__FILE__);
     char value[8]{};
     if (GetEnvironmentVariableA("SKYRIMCOOP_LOCKORDER", value, sizeof(value)) > 0 && value[0] == '0')
         return;

@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 #include "TiltedOnlineApp.h"
 #include "CrashHandler.h"
 #include "HotReload/Runtime.h"
@@ -57,6 +58,7 @@ uintptr_t TP_MAKE_THISCALL(HookVMDestructor, void)
 static TiltedPhoques::Initializer s_mainHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TMainLoop, cMainLoop, 36564);
         POINTER_SKYRIMSE(TVMUpdate, cVMUpdate, 53926);
         POINTER_SKYRIMSE(TVMDestructor, cVMDestructor, 40412);

@@ -53,6 +53,44 @@ static void ExecuteConsoleCommand(const char* apCommand)
     s_executeCommand.Get()(apCommand);
 }
 
+// SKSE's task interface AddUITask: runs a task where the UI processes its messages, which is where
+// the console runs what is typed into it. Null without SKSE's interface.
+static void (*s_addUITask)(void*) = nullptr;
+
+void Runtime::SetUITaskQueue(void (*apAddUITask)(void*))
+{
+    s_addUITask = apAddUITask;
+}
+
+// SKSE's UIDelegate_v1: Run, then Dispose.
+struct ConsoleTask
+{
+    explicit ConsoleTask(std::string aLine) : Line(std::move(aLine)) {}
+    virtual void Run()
+    {
+        spdlog::info("Console command (in the UI's message processing): {}", Line);
+        ExecuteConsoleCommand(Line.c_str());
+    }
+    virtual void Dispose() { delete this; }
+    virtual ~ConsoleTask() = default;
+    std::string Line;
+};
+
+// Where the harness's console commands run: SKYRIMCOOP_CONSOLE_PHASE=ui runs them where typed
+// commands run (the UI's message processing), otherwise at the top of the frame (Poll).
+static void RunHarnessCommand(const std::string& acLine)
+{
+    static const bool s_inUI = []
+    {
+        const char* pPhase = std::getenv("SKYRIMCOOP_CONSOLE_PHASE");
+        return pPhase && std::string_view(pPhase) == "ui";
+    }();
+    if (s_inUI && s_addUITask)
+        s_addUITask(new ConsoleTask(acLine));
+    else
+        ExecuteConsoleCommand(acLine.c_str());
+}
+
 // boot.txt holds one console command (e.g. `coc QASmoke`) run once the main menu is up.
 // The engine only runs the INI's sStartingConsoleCommand on shutdown in 1.6.1170.
 void Runtime::PollBootCommand()
@@ -100,7 +138,7 @@ void Runtime::PollConsoleCommand()
         return;
     m_consoleId = line.substr(0, separator);
     spdlog::info("Console command {}: {}", m_consoleId, line.substr(separator + 1));
-    ExecuteConsoleCommand(line.c_str() + separator + 1);
+    RunHarnessCommand(line.substr(separator + 1));
 }
 
 // The loader's reload count and last error; null without the loader (SKSE loaded us directly).
@@ -141,6 +179,18 @@ static nlohmann::json OpenMenus()
             if (const BSFixedString* pName = pUI->LookupMenuNameByInstance(pMenu))
                 names.push_back(pName->AsAscii());
     return names;
+}
+
+// Shows or hides a menu through the UI message queue, as the game does (the console: "Console").
+static void SetMenuShown(const char* acpMenu, bool aShown)
+{
+    using TAddMessage = void(void*, const BSFixedString*, uint32_t, void*);
+    POINTER_SKYRIMSE(TAddMessage, s_addMessage, 13631); // UIMessageQueue::AddMessage
+    VersionDbPtr<void*> queue(400445);                   // UIMessageQueue singleton (RVA 0x20F8950)
+    if (!*queue.Get())
+        return;
+    const BSFixedString cName(acpMenu);
+    s_addMessage.Get()(*queue.Get(), &cName, aShown ? UIMessage::kShow : UIMessage::kHide, nullptr);
 }
 
 // Tutorial help popups ("Magicka Low", "Health Low"...) swallow all input and console commands
@@ -395,7 +445,16 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
             return R"({"ok": false, "error": "not in the world yet"})";
         const std::string cLine = cRequest.value("line", "");
         spdlog::info("Console command (rpc): {}", cLine);
-        ExecuteConsoleCommand(cLine.c_str());
+        RunHarnessCommand(cLine);
+        return R"({"ok": true})";
+    }
+    if (cCommand == "menu")
+    {
+        // {"cmd": "menu", "name": "Console", "show": true}: opens or closes a menu like the game.
+        const std::string cName = cRequest.value("name", "");
+        const bool cShow = cRequest.value("show", true);
+        spdlog::info("Menu (rpc): {} {}", cShow ? "show" : "hide", cName);
+        SetMenuShown(cName.c_str(), cShow);
         return R"({"ok": true})";
     }
     if (cCommand == "cast")

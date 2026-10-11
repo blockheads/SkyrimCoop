@@ -1,4 +1,5 @@
 #include "CombatController.h"
+#include <HookSwitch.h>
 #include "CombatTargetSelector.h"
 #include <Actor.h>
 #include <TESObjectREFR.h>
@@ -79,6 +80,7 @@ void CombatController::SetTarget(Actor* apTarget)
 static TiltedPhoques::Initializer s_combatControllerHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
 #if 0
         POINTER_SKYRIMSE(TUpdateTarget, s_updateTarget, 33236);
 

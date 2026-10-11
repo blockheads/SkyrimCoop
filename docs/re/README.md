@@ -43,6 +43,47 @@ In IDA (open `build/re/SkyrimSE_1.6.1170.i64`):
 The exe in `SkyrimSE.exe` is encrypted by SteamStub DRM; IDA needs the copy unpacked by
 Steamless (`make_ida_db.sh` does it). Never commit the exe or the database (Bethesda code).
 
+## Crashes
+
+Test games run with [CrashLoggerSSE](https://github.com/alandtse/CrashLoggerSSE) (pinned and
+deployed by `scripts/coop_test.py`). Any harness wait fails at once when a game crashes, printing
+the report; `scripts/coop_test.py crash` prints the newest crash of each game again. The report
+(`scripts/re/crash_report.py`) has:
+
+- the exception and CrashLogger's access-violation analysis;
+- the objects the registers and stack point to (RTTI types, form IDs and names, scene node names);
+- the probable call stack, engine frames named from `build/re/annotations.json`;
+- our breadcrumbs: the last engine changes our code made through `SkyrimBridge`, with times
+  before the crash and repeat counts (`Code/client/Breadcrumbs.h`, written by our crash handler);
+- the last lines of `tp_client.log` before the crash.
+
+A crash with no breadcrumbs in the last second or so did not start with something we just did.
+
+**First: is it us?** Make the crash a recipe in `REPROS` (`scripts/coop_test.py`) and run
+`coop_test.py repro NAME --vanilla`: the same commands, frame and camera with a stand-in plugin
+(`Code/vanilla_harness`) instead of ours. A hand-typed vanilla run is not the same test.
+
+**Crashes on freed memory** (garbage in a register, a fault far from the cause) are the common
+kind in the engine: something deleted an object another system still lists. The heap tools
+(`Code/client/HeapHistory.h`, off unless asked for) say who freed what:
+
+1. `coop_test.py repro NAME --heap-history`: every engine allocation and free of the last seconds
+   with its stack; the report gives each register's and stack value's block its story
+   (allocated by, FREED by, reused by).
+2. `--follow`: a second run watching the crash's register addresses from boot (they repeat when
+   the game boots the same way), for objects allocated long before the crash.
+3. `--guard SIZE` (the freed block's size from step 1): blocks of that size get pages of their
+   own, inaccessible once freed. The game then faults at the first access after the free, in the
+   code that still holds the pointer, and the report names who freed it. `--quarantine` (poison
+   freed memory) is cheaper but misses stale pointers that are only read and compared.
+
+4. `--probe ID,ID`: engine functions (Address Library IDs) whose calls go into the breadcrumbs,
+   for the order of events: did the engine run X before the crash, how often, on what.
+
+`docs/re/crashes/2026-10-11-qasmoke-exit-portal-graph.md` is the worked example.
+For a hang, press Ctrl+Shift+F12 in the game for CrashLogger's thread dump; our `HangWatchdog`
+logs the main thread's stack to `tp_client.log` after 10s.
+
 ## Conventions
 
 - Address Library **IDs**, not raw offsets, in code: `POINTER_SKYRIMSE(type, name, ID)`.

@@ -1,4 +1,5 @@
 #include <PlayerCharacter.h>
+#include <HookSwitch.h>
 #include <Games/ActorExtension.h>
 
 #include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
@@ -245,6 +246,7 @@ void TP_MAKE_THISCALL(HookRemoveWaypoint, PlayerCharacter)
 static TiltedPhoques::Initializer s_playerCharacterHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TPickUpObject, s_pickUpObject, 40533);
         POINTER_SKYRIMSE(TSetBeastForm, s_setBeastForm, 55497);
         POINTER_SKYRIMSE(TAddSkillExperience, s_addSkillExperience, 40488);

@@ -1,4 +1,5 @@
 #include <Misc/BSScript.h>
+#include <HookSwitch.h>
 #include <Misc/NativeFunction.h>
 
 #include <World.h>
@@ -99,6 +100,7 @@ int64_t TP_MAKE_THISCALL(HookCompareVariables, void, BSScript::Variable* apVar1,
 static TiltedPhoques::Initializer s_vmHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TRegisterPapyrusFunction, s_registerPapyrusFunction, 104788);
         POINTER_SKYRIMSE(TBindEverythingToScript, s_bindEverythingToScript, 55739);
         POINTER_SKYRIMSE(TSignaturesMatch, s_signaturesMatch, 104359);

@@ -20,7 +20,18 @@ struct Patch
 std::mutex s_lock;
 std::vector<Patch> s_patches;
 std::vector<void (*)()> s_unloadCallbacks;
+bool s_suppressed = false;
 } // namespace
+
+void SuppressPatches(bool aSuppress) noexcept
+{
+    s_suppressed = aSuppress;
+}
+
+bool PatchesSuppressed() noexcept
+{
+    return s_suppressed;
+}
 
 void AtUnload(void (*apCallback)()) noexcept
 {

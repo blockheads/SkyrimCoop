@@ -1,4 +1,5 @@
 #include <CrashHandler.h>
+#include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
 #include <Games/References.h>
 #include <Games/Skyrim/EquipManager.h>
@@ -1479,6 +1480,7 @@ int32_t TP_MAKE_THISCALL(HookComputeReaction, Actor, Actor* apOther, bool aUnk)
 static TiltedPhoques::Initializer s_actorHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TActorProcess, s_actorProcess, 37356);
         POINTER_SKYRIMSE(TSetPosition, s_setPosition, 19790);
         POINTER_SKYRIMSE(TRemoveSpell, s_removeSpell, 38717);

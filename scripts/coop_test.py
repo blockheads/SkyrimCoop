@@ -13,6 +13,14 @@
   coop_test.py screenshot [out.png]                   capture the off-screen game display
   coop_test.py console <command...>                   run a console command in the test game
   coop_test.py status [-f]                            both games side by side: health, death, weapon, casting
+  coop_test.py crash [--instance client]             newest crash per game: engine state (CrashLoggerSSE) + our last engine changes
+  coop_test.py repro NAME [--heap-history] [--follow] cause a known crash (REPROS) and print its report;
+                                                      --vanilla: the same recipe without our plugin (is it us?);
+                                                      --heap-history: who allocated/freed the memory involved;
+                                                      --follow: a second run watching the crash's addresses from boot;
+                                                      --quarantine: poison freed memory, a use after free faults at once;
+                                                      --guard 0x130: page-heap that block size, any access after free faults;
+                                                      --probe 13408,36559: engine functions' calls into the breadcrumbs
   coop_test.py watch                                  live view of the off-screen game in a window
   coop_test.py setup-display                          one-time: install the off-screen X server (sudo)
 
@@ -53,6 +61,8 @@ DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogeth
 # Resident SKSE plugin that loads the client from a copy, so `reload` can swap in a rebuild
 # (Code/hotreload/Loader.cpp). Without it the client is deployed as the SKSE plugin itself.
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
+# The harness without SkyrimCoop (Code/vanilla_harness): `repro --vanilla` and `launch --vanilla`.
+VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
 BOT = ROOT / "build/linux/x86_64/release/fake_player"
 PLUGINS = GAME / "Data/SKSE/Plugins"
 CONTROL = PLUGINS / "SkyrimCoopHotReload"
@@ -200,9 +210,110 @@ def deploy_dll():
         copy_if_changed(DLL, direct)
 
 
+# CrashLoggerSSE (github.com/alandtse/CrashLoggerSSE, GPL-3 with a modding exception): on a crash it
+# writes My Games/Skyrim Special Edition/SKSE/crash-*.log in the game's prefix with the call stack
+# symbolized (our DLL from its PDB), every register and stack slot decoded into the object it
+# points to (form IDs and names, NiAVObject names, RTTI types) and the loaded modules. Pinned and
+# checked; cached under build/third_party.
+CRASH_LOGGER_VERSION = "1.25.0"
+CRASH_LOGGER_SHA256 = "ce8592d60a2394bc05874d4cc759d3513686c3e26f841fe831a98c9d66fa979c"
+CRASH_LOGGER_FILES = ("CrashLogger.dll", "CrashLogger.pdb", "msdia140.dll")
+CRASH_LOGGER_INI = """[Debug]
+Auto Open Crash Log = false
+Auto Upload Crash Log = false
+Crash Log Write Minidump = false
+Max Crash Logs = 50
+"""
+
+
+def deploy_crash_logger():
+    cache = ROOT / f"build/third_party/crashlogger-{CRASH_LOGGER_VERSION}"
+    if not all((cache / name).exists() for name in CRASH_LOGGER_FILES):
+        archive = cache.with_suffix(".7z")
+        cache.mkdir(parents=True, exist_ok=True)
+        url = (f"https://github.com/alandtse/CrashLoggerSSE/releases/download/v{CRASH_LOGGER_VERSION}/"
+               f"CrashLogger_{CRASH_LOGGER_VERSION}.7z")
+        log(f"Downloading CrashLoggerSSE {CRASH_LOGGER_VERSION}")
+        subprocess.run(["curl", "-sSfL", "-o", str(archive), url], check=True)
+        import hashlib
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if digest != CRASH_LOGGER_SHA256:
+            archive.unlink()
+            raise TestFailure(f"CrashLoggerSSE archive checksum mismatch: {digest}")
+        subprocess.run(["7z", "e", "-y", f"-o{cache}", str(archive), "SKSE/Plugins/*"], check=True,
+                       stdout=subprocess.DEVNULL)
+    for name in CRASH_LOGGER_FILES:
+        copy_if_changed(cache / name, PLUGINS / name)
+    # The plugin fills in every other key (and its comment) on start.
+    (PLUGINS / "CrashLogger.ini").write_text(CRASH_LOGGER_INI)
+
+
+def crash_logs(name):
+    """CrashLoggerSSE's logs for a game instance, oldest first."""
+    directory = TEST_HOME / f"prefix-{name or 'host'}/pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/SKSE"
+    return sorted(directory.glob("crash-*.log"))
+
+
+def plugin_log(name):
+    return PLUGINS / f"logs/tp_client{'-' + name if name else ''}.log"
+
+
+def settle_crash_log(crash_log, timeout=30):
+    """Waits for CrashLoggerSSE to finish writing (the file stops growing for 2s, or the game is
+    gone): reporting or stopping the game earlier cuts the log short."""
+    deadline = time.monotonic() + timeout
+    size, stable_since = -1, time.monotonic()
+    while time.monotonic() < deadline:
+        current = crash_log.stat().st_size if crash_log.exists() else 0
+        if current != size:
+            size, stable_since = current, time.monotonic()
+        elif time.monotonic() - stable_since >= 2 or not prefix_processes():
+            return
+        time.sleep(0.25)
+
+
+def crash_report(name, crash_log, ours=True):
+    """The crash's report; with `ours`, our plugin's log adds the breadcrumbs and heap history."""
+    settle_crash_log(crash_log)
+    sys.path.insert(0, str(ROOT / "scripts/re"))
+    import crash_report as report
+    return report.report(crash_log, plugin_log(name) if ours else None)
+
+
+# Crashes seen before this run: wait_for fails at once on a new one, with its report.
+KNOWN_CRASHES = {name: set(crash_logs(name)) for name in ("", "client")}
+_next_crash_check = 0.0
+
+
+def check_for_crash():
+    global _next_crash_check
+    if time.monotonic() < _next_crash_check:
+        return
+    _next_crash_check = time.monotonic() + 1.0
+    for name in ("", "client"):
+        new = [path for path in crash_logs(name) if path not in KNOWN_CRASHES[name]]
+        if new:
+            KNOWN_CRASHES[name].update(new)
+            raise TestFailure(f"{name or 'host'} crashed:\n" + crash_report(name, new[-1]))
+
+
+def command_crash(args):
+    """The newest crash of each game (or --instance), as one report."""
+    names = [INSTANCE] if args.instance else ["", "client"]
+    for name in names:
+        logs = crash_logs(name)
+        if not logs:
+            print(f"{name or 'host'}: no crash logs")
+            continue
+        print(f"===== {name or 'host'} ({len(logs)} crash logs) =====")
+        print(crash_report(name, logs[-1]))
+        print()
+
+
 def remove_plugin():
     (PLUGINS / "SkyrimTogetherClient.dll").unlink(missing_ok=True)
     (PLUGINS / LOADER.name).unlink(missing_ok=True)
+    (PLUGINS / VANILLA_HARNESS.name).unlink(missing_ok=True)
 
 
 VIRTUAL_DISPLAY = os.environ.get("COOP_DISPLAY", ":99")
@@ -328,6 +439,7 @@ def wait_for(description, predicate, timeout, launcher=None):
             return result
         if launcher is not None and launcher.poll() is not None and not prefix_processes():
             raise TestFailure(f"Skyrim exited while waiting: {description}")
+        check_for_crash()
         time.sleep(0.05)
     raise TestFailure(f"Timed out after {timeout:.0f}s: {description}")
 
@@ -340,8 +452,12 @@ def launch(args, run_dir):
     vanilla = getattr(args, "vanilla", False)
     if vanilla:  # A/B baseline: same prefix and settings, SKSE without our plugin
         remove_plugin()
+        if VANILLA_HARNESS.exists():  # runs the harness's commands, nothing of ours
+            copy_if_changed(VANILLA_HARNESS, PLUGINS / VANILLA_HARNESS.name)
     else:
+        (PLUGINS / VANILLA_HARNESS.name).unlink(missing_ok=True)
         deploy_dll()
+    deploy_crash_logger()
     command = f"load {args.save}" if args.save else f"coc {args.cell}"
     prepare_prefix()
     CONTROL.mkdir(parents=True, exist_ok=True)
@@ -355,7 +471,7 @@ def launch(args, run_dir):
         [str(RUNTIME / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
          str(GAME / "skse64_loader.exe")],
         env=game_env(), cwd=GAME, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
-    if vanilla:
+    if vanilla and not VANILLA_HARNESS.exists():
         log(f"Vanilla run (no plugin): at the main menu, open the console (~) and type `{command}`")
         return launcher
     status = wait_for("Waiting for the plugin heartbeat (SKSE loaded our DLL)", read_status,
@@ -2022,6 +2138,123 @@ def command_locks(args):
             print("  " + report)
 
 
+# Crashes we can cause on demand: a cell to boot into and console commands that crash the game
+# after it (3s apart). `repro NAME` runs one; docs/re/crashes/ has what each one taught us.
+# "@show Menu" / "@hide Menu" open and close a menu instead (the console for typed commands).
+REPROS = {
+    "qasmoke-exit": ("QASmoke", ["player.placeatme 000A2C8E", "coc Riverwood"]),
+    # The same with the console open, as when typed (vanilla does not crash that way).
+    "qasmoke-exit-console": ("QASmoke", ["player.placeatme 000A2C8E", "@show Console", "coc Riverwood"]),
+}
+
+
+def run_step(step):
+    """A repro step: a console command, or @show / @hide a menu."""
+    if step.startswith(("@show ", "@hide ")):
+        rpc({"cmd": "menu", "name": step[6:], "show": step.startswith("@show")})
+        log(f"Menu: {step}")
+    else:
+        run_console(step)
+
+
+def reproduce_once(args, cell, commands):
+    """Fresh game in `cell`, runs the commands, waits for a crash; its report, or None."""
+    stop_game()
+    if args.heap_history:
+        os.environ["SKYRIMCOOP_HEAP_HISTORY"] = str(args.heap_history)
+    if args.watch:
+        os.environ["SKYRIMCOOP_HEAP_WATCH"] = args.watch
+    if args.quarantine:
+        os.environ["SKYRIMCOOP_HEAP_QUARANTINE"] = str(args.quarantine)
+    if args.guard:
+        os.environ["SKYRIMCOOP_HEAP_GUARD"] = args.guard
+    if args.probe:
+        os.environ["SKYRIMCOOP_PROBE"] = args.probe
+    args.cell, args.save = cell, None
+    run_dir = new_run_dir("repro")
+    before = set(crash_logs(""))
+    started = time.monotonic()
+    try:
+        launch(args, run_dir)
+        try:
+            for command in commands:
+                run_step(command)
+                time.sleep(3)
+        except TestFailure:
+            if not set(crash_logs("")) - before:  # a crash mid-command is the expected outcome
+                raise
+        deadline = time.monotonic() + args.wait
+        while time.monotonic() < deadline and not set(crash_logs("")) - before:
+            time.sleep(0.5)
+        new = sorted(set(crash_logs("")) - before)
+        KNOWN_CRASHES[""].update(new)
+        # The crash handler's part of the plugin log is complete once the game is gone.
+        if new:
+            wait_for("Waiting for the crashed game to exit", lambda: not prefix_processes(), 30)
+    finally:
+        stop_game()
+        collect_logs(run_dir)
+        os.environ.pop("SKYRIMCOOP_HEAP_HISTORY", None)
+        os.environ.pop("SKYRIMCOOP_HEAP_WATCH", None)
+        os.environ.pop("SKYRIMCOOP_HEAP_QUARANTINE", None)
+        os.environ.pop("SKYRIMCOOP_HEAP_GUARD", None)
+        os.environ.pop("SKYRIMCOOP_PROBE", None)
+    KNOWN_CRASHES[""].update(crash_logs(""))
+    if not new:
+        return None
+    log(f"Crashed {time.monotonic() - started:.0f}s after launch (logs in {run_dir})")
+    return new[-1]
+
+
+CRASH_REGISTER = re.compile(r"^\t(R[A-Z0-9]+)\s+0x([0-9A-F]+)\s")
+
+
+def crash_registers(crash_log):
+    """The crash's registers that hold heap-like addresses (not the game's image, not small numbers)."""
+    registers = {}
+    for line in crash_log.read_text(errors="replace").splitlines():
+        match = CRASH_REGISTER.match(line)
+        value = int(match.group(2), 16) if match else 0
+        if match and match.group(1) not in ("RSP", "R11") and 0x100000 < value < 0x7FF000000000 \
+                and not 0x140000000 <= value < 0x150000000:
+            registers[match.group(1)] = value
+    return registers
+
+
+def command_repro(args):
+    """Runs a crash recipe (REPROS, or --cell and console commands) and prints each crash's report."""
+    if args.name in REPROS:
+        cell, commands = REPROS[args.name]
+    else:  # console commands of its own
+        cell, commands = args.cell, ([args.name] if args.name else []) + args.commands
+    if not commands:
+        raise TestFailure("nothing to run: name a repro or give console commands")
+    crashes = 0
+    for run in range(1, args.runs + 1):
+        log(f"Run {run}/{args.runs}: {cell}, then {' / '.join(commands)}")
+        crash_log = reproduce_once(args, cell, commands)
+        if not crash_log:
+            log(f"No crash within {args.wait:.0f}s")
+            continue
+        crashes += 1
+        print(crash_report("", crash_log, ours=not args.vanilla))
+        if args.follow:
+            # Heap addresses repeat when the game boots the same way: watch the crash's from boot.
+            registers = crash_registers(crash_log)
+            args.watch = ",".join(f"{value:#x}" for value in dict.fromkeys(registers.values()))
+            log(f"Following: a second run watching {', '.join(f'{name} {value:#x}' for name, value in registers.items())}")
+            follow_log = reproduce_once(args, cell, commands)
+            if not follow_log:
+                log("The second run did not crash: nothing to follow")
+                continue
+            again = crash_registers(follow_log)
+            same = [name for name, value in registers.items() if again.get(name) == value]
+            log(f"Registers the same as the first crash: {', '.join(same) or 'none'}"
+                + ("" if len(same) == len(registers) else " (the others' watches are about different memory)"))
+            print(crash_report("", follow_log, ours=not args.vanilla))
+    log(f"Crashed {crashes} of {args.runs} runs")
+
+
 def command_scenario(args):
     global HOLD
     HOLD = args.hold
@@ -2110,7 +2343,7 @@ def main():
     net.add_argument("--bots", type=int, default=4)
     net.add_argument("--seconds", type=int, default=3)
     net.add_argument("--hz", type=int, default=5)
-    for name in ("launch", "game", "duo"):
+    for name in ("launch", "game", "duo", "repro"):
         sub = commands.add_parser(name)
         sub.add_argument("--cell", default="QASmoke", help="cell for `coc` from the main menu (default QASmoke)")
         sub.add_argument("--save", help="load this save instead of coc")
@@ -2118,13 +2351,34 @@ def main():
         sub.add_argument("--world-timeout", type=float, default=180)
         sub.add_argument("--visible", action="store_true",
                          help="show the game on the desktop (default: off-screen Xvfb display; see `screenshot`)")
-        if name == "launch":
+        if name in ("launch", "repro"):
             sub.add_argument("--vanilla", action="store_true",
-                             help="launch without our plugin (A/B baseline; the next normal launch redeploys it)")
+                             help="without our plugin (A/B baseline): the stand-in harness plugin "
+                                  "(Code/vanilla_harness) runs the commands; the next normal launch redeploys ours")
         if name in ("game", "duo"):
             sub.add_argument("--seconds", type=float, default=30, help="how long to wait for bot movement")
             sub.add_argument("--tolerance", type=float, default=5, help="max engine vs requested distance")
             sub.add_argument("--keep-running", action="store_true", help="leave Skyrim open afterwards")
+        if name == "repro":
+            sub.add_argument("name", nargs="?", help=f"a known crash: {', '.join(REPROS)}")
+            sub.add_argument("commands", nargs="*", help="or: console commands after booting into --cell (3s apart)")
+            sub.add_argument("--wait", type=float, default=25, help="seconds to wait for the crash after them")
+            sub.add_argument("--runs", type=int, default=1, help="repeat N times (how reliably it crashes)")
+            sub.add_argument("--heap-history", nargs="?", type=int, const=2, default=0, metavar="MILLIONS",
+                             help="record engine allocations and frees with stacks (Code/client/HeapHistory.h)")
+            sub.add_argument("--watch", default="", metavar="ADDR,ADDR",
+                             help="keep every allocation and free of the blocks at these addresses since boot")
+            sub.add_argument("--quarantine", nargs="?", type=int, const=256, default=0, metavar="MB",
+                             help="poison freed blocks and hold them back from reuse: a use after free faults at "
+                                  "its first read (with --heap-history: on the freed block's story)")
+            sub.add_argument("--guard", default="", metavar="SIZE,SIZE",
+                             help="page-heap these block sizes (hex, from a heap history): any access to one after "
+                                  "its free faults right there, even a read that poison would not catch")
+            sub.add_argument("--probe", default="", metavar="ID,ID",
+                             help="engine functions (Address Library IDs) whose calls go into the breadcrumbs: "
+                                  "whether, when and on what the engine ran them before the crash")
+            sub.add_argument("--follow", action="store_true",
+                             help="after a crash, run again watching the addresses in its registers from boot")
         if name == "duo":
             sub.add_argument("--npc", default="000A2C8E",
                              help="NPC base form (8 hex digits) the host spawns; the client must show it (default Lydia, '' to skip)")
@@ -2144,6 +2398,8 @@ def main():
     status = commands.add_parser("status", help="both games side by side: health, death, weapon, casting")
     status.add_argument("--follow", "-f", action="store_true", help="keep refreshing")
     commands.add_parser("locks", help="both games' lock-order checker reports (deadlock patterns)")
+    crash = commands.add_parser("crash", help="the newest crash of each game: engine state (CrashLoggerSSE) and our last engine changes")
+    crash.add_argument("--instance", choices=["client"], help="only this game (default: both)")
     desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
     desync.add_argument("--follow", "-f", action="store_true", help="keep checking")
     desync.add_argument("--samples", type=int, default=3, help="a difference must persist this many samples")
@@ -2177,6 +2433,10 @@ def main():
             log("Done")
         elif args.command == "locks":
             command_locks(args)
+        elif args.command == "crash":
+            command_crash(args)
+        elif args.command == "repro":
+            command_repro(args)
         elif args.command == "desync":
             command_desync(args)
         elif args.command == "status":

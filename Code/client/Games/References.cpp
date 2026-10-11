@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <Games/References.h>
 
@@ -148,6 +149,7 @@ void TP_MAKE_THISCALL(HookSetCurrentPickREFR, Console, BSPointerHandle<TESObject
 static TiltedPhoques::Initializer s_referencesHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TCheckForNewPackage, s_checkForNewPackage, 39114);
         POINTER_SKYRIMSE(TInitFromPackage, s_initFromPackage, 38959);
         POINTER_SKYRIMSE(TSetCurrentPickREFR, s_setCurrentPickREFR, 51093);

@@ -1,5 +1,6 @@
 
 #include <BSGraphics/BSGraphicsRenderer.h>
+#include <HookSwitch.h>
 
 struct BSInputDeviceManager;
 
@@ -16,6 +17,7 @@ void Hook_BSInputDeviceManager_PollInputDevices(BSInputDeviceManager* inputDevic
 static TiltedPhoques::Initializer s_initInputDeviceManager(
     []()
     {
+        const HookGate cGate(__FILE__);
         const VersionDbPtr<void> pollInputDevices(68617);
 
         BSInputDeviceManager_PollInputDevices = reinterpret_cast<decltype(BSInputDeviceManager_PollInputDevices)>(pollInputDevices.GetPtr());

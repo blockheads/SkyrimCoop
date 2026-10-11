@@ -1,10 +1,12 @@
 
 // The game calls it statsmenu.
 #include <Interface/Menus/SkillsMenu.h>
+#include <HookSwitch.h>
 
 static TiltedPhoques::Initializer s_skillsMenuInit(
     []()
     {
+        const HookGate cGate(__FILE__);
         // https://github.com/Vermunds/SkyrimSoulsRE/blob/master/src/Menus/StatsMenuEx.cpp
         // Hoooks from souls RE
         // Fix for menu not appearing

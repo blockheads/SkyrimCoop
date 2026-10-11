@@ -1,5 +1,6 @@
 
 #include <Games/Skyrim/BSSystem/BSThread.h>
+#include <HookSwitch.h>
 #include <base/threading/ThreadUtils.h>
 
 namespace
@@ -75,6 +76,7 @@ HANDLE WINAPI Hook_CreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T
 static TiltedPhoques::Initializer s_BSThreadInit(
     []()
     {
+        const HookGate cGate(__FILE__);
         const VersionDbPtr<uint8_t> threadInit(68261);
         BSThread_Initialize = reinterpret_cast<decltype(BSThread_Initialize)>(threadInit.GetPtr());
         // need to detour this for now :/

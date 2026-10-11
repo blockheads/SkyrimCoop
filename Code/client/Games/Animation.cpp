@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <HookSwitch.h>
 
 #include <Games/References.h>
 
@@ -196,6 +197,7 @@ TESActionData::~TESActionData()
 static TiltedPhoques::Initializer s_animationHook(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TPerformAction, performAction, 38949);
 
         RealPerformAction = performAction.Get();

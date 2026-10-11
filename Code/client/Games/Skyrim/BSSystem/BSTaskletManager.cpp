@@ -1,5 +1,6 @@
 
 #include <base/threading/ThreadUtils.h>
+#include <HookSwitch.h>
 
 namespace
 {
@@ -29,6 +30,7 @@ static void Hook_Construct_TaskletManager(BSTaskletManager* apSelf)
 static TiltedPhoques::Initializer s_BSThreadInit(
     []()
     {
+        const HookGate cGate(__FILE__);
         const VersionDbPtr<uint8_t> getTaskletManagerInstance(69554);
 
         // tasklet naming

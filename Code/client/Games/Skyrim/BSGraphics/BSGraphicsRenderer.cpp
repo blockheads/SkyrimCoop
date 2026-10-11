@@ -2,6 +2,7 @@
 #ifdef HAS_CEF
 #include "Services/InputService.h"
 #endif
+#include <HookSwitch.h>
 #ifdef HAS_DIRECTXTK
 #include "Systems/RenderSystemD3D11.h"
 #endif
@@ -98,6 +99,7 @@ void Hook_StopTimer(int type)
 static TiltedPhoques::Initializer s_viewportHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         const VersionDbPtr<void> initWindowLoc(77226);
         // patch dwStyle in BSGraphics::InitWindows
         TiltedPhoques::Put(mem::pointer(initWindowLoc.GetPtr()) + 0x174 + 1, WS_OVERLAPPEDWINDOW);

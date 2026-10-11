@@ -1,4 +1,5 @@
 #include "MagicTarget.h"
+#include <HookSwitch.h>
 
 #include <Actor.h>
 #include <Games/ActorExtension.h>
@@ -195,6 +196,7 @@ uint8_t TP_MAKE_THISCALL(HookGetPerkRank, Actor, TESForm* apPerk)
 }
 
 static TiltedPhoques::Initializer s_magicTargetHooks([]() {
+    const HookGate cGate(__FILE__);
     POINTER_SKYRIMSE(TAddTarget, addTarget, 34526);
     POINTER_SKYRIMSE(TCheckAddEffectTargetData, checkAddEffectTargetData, 34525);
     POINTER_SKYRIMSE(TFindTargets, findTargets, 34410);

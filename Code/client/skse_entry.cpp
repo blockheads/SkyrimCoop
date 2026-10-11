@@ -133,6 +133,15 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     InstallAbortLogging(pluginDirectory);
     std::filesystem::path gamePath = pluginDirectory.parent_path().parent_path().parent_path();
     CoopReload::Runtime::Get().Configure(pluginDirectory);
+    // SKSETaskInterface (kTask = 4): { version, AddTask, AddUITask }.
+    struct TaskInterface
+    {
+        uint32_t Version;
+        void (*AddTask)(void*);
+        void (*AddUITask)(void*);
+    };
+    if (const auto* pTasks = static_cast<const TaskInterface*>(apSkse->QueryInterface(4)))
+        CoopReload::Runtime::SetUITaskQueue(pTasks->AddUITask);
 
     TiltedPhoques::String exeVersion("1.6.1170.0");
 

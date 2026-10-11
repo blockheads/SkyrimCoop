@@ -1,4 +1,5 @@
 #include "InvisibilityEffect.h"
+#include <HookSwitch.h>
 
 #include <Actor.h>
 #include <Games/ActorExtension.h>
@@ -25,6 +26,7 @@ void TP_MAKE_THISCALL(HookFinish, InvisibilityEffect)
 static TiltedPhoques::Initializer s_invisibilityEffectsHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TFinish, s_finish, 34370);
 
         RealFinish = s_finish.Get();

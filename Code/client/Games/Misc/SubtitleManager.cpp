@@ -1,4 +1,5 @@
 #include "SubtitleManager.h"
+#include <HookSwitch.h>
 
 #include <Events/SubtitleEvent.h>
 
@@ -44,6 +45,7 @@ void TP_MAKE_THISCALL(HookShowSubtitle, SubtitleManager, TESObjectREFR* apSpeake
 static TiltedPhoques::Initializer s_subtitleHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TShowSubtitle, s_showSubtitle, 52626);
 
         RealShowSubtitle = s_showSubtitle.Get();

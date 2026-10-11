@@ -1,6 +1,11 @@
 #include <TiltedOnlinePCH.h>
 
 #include <TiltedOnlineApp.h>
+#include <Breadcrumbs.h>
+#include <VersionDb.h>
+
+#include <deque>
+#include <FunctionHook.hpp>
 
 #include <DInputHook.hpp>
 #include <WindowsHook.hpp>
@@ -130,9 +135,37 @@ bool TiltedOnlineApp::Detach()
     return true;
 }
 
+// SKYRIMCOOP_PROBE=13408,36559: engine functions (Address Library IDs) whose calls leave crash
+// breadcrumbs ("probe:13408": calls, when, thread, first argument), to see whether and in what order
+// the engine ran them before a crash. No code change per investigation.
+static void InstallProbes()
+{
+    const char* pProbes = std::getenv("SKYRIMCOOP_PROBE");
+    if (!pProbes)
+        return;
+    static std::deque<std::string> s_names; // breadcrumbs keep the pointers
+    for (const char* p = pProbes; *p;)
+    {
+        char* pEnd = nullptr;
+        const auto cId = static_cast<uint32_t>(std::strtoul(p, &pEnd, 10));
+        if (pEnd == p)
+            break;
+        p = *pEnd == ',' ? pEnd + 1 : pEnd;
+        VersionDbPtr<void> function(cId);
+        const std::string& cName = s_names.emplace_back("probe:" + std::to_string(cId));
+        if (function.GetPtr() && TiltedPhoques::FunctionHookManager::GetInstance().AddProbe(function.GetPtr(), cName.c_str()))
+            spdlog::warn("Probe on engine function {}", cName);
+        else
+            spdlog::error("Probe on engine function {}: could not hook it (unknown ID, or hooked already)", cName);
+    }
+}
+
 void TiltedOnlineApp::InstallHooks2()
 {
+    // Before any hook is added: each is wrapped so that its calls leave crash breadcrumbs.
+    TiltedPhoques::SetHookObserver(&Breadcrumbs::RecordHook, &Breadcrumbs::ObservesHook);
     TiltedPhoques::Initializer::RunAll();
+    InstallProbes();
 
     TiltedPhoques::DInputHook::Install();
 }

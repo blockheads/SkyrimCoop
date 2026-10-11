@@ -1,4 +1,5 @@
 #include <Games/Skyrim/Interface/IMenu.h>
+#include <HookSwitch.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <Misc/BSFixedString.h>
 #include <TiltedOnlinePCH.h>
@@ -120,6 +121,7 @@ void UIMessageQueue__AddMessage(void* a1, const BSFixedString* a2, UIMessage::UI
 static TiltedPhoques::Initializer s_s(
     []()
     {
+        const HookGate cGate(__FILE__);
         // pray that this doesnt fail!
         VersionDbPtr<uint8_t> ProcessHook(82082);
         TiltedPhoques::SwapCall(ProcessHook.Get() + 0x682, UI_AddToActiveQueue, &UI_AddToActiveQueue_Hook);

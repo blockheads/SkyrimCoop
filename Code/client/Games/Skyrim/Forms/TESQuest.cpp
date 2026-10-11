@@ -1,4 +1,5 @@
 #include <Forms/TESQuest.h>
+#include <HookSwitch.h>
 #include <TESObjectREFR.h>
 
 #include <Services/PapyrusService.h>
@@ -117,6 +118,7 @@ void TESQuest::SetStopped()
 static TiltedPhoques::Initializer s_questInitHooks(
     []()
     {
+        const HookGate cGate(__FILE__);
         // kill quest init in cold blood
         // TiltedPhoques::Write<uint8_t>(25003, 0xC3);
     });
