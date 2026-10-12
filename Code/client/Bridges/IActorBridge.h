@@ -168,6 +168,9 @@ public:
     // --- Animation variables ---
     virtual void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept = 0;
     virtual void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept = 0;
+    // The actor's behaviour graph state as a savegame keeps it, and loading it into a copy.
+    virtual TiltedPhoques::String SaveActorGraphState(uint32_t aFormId) const noexcept = 0;
+    virtual bool LoadActorGraphState(uint32_t aFormId, const TiltedPhoques::String& acState) noexcept = 0;
     virtual ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept = 0;
 

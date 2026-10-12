@@ -21,9 +21,38 @@
 
 extern thread_local const char* g_animErrorCode;
 
-void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationComponent& aAnimationComponent, const uint64_t aTick) noexcept
+void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor, RemoteAnimationComponent& aAnimationComponent, const uint64_t aTick) noexcept
 {
     auto& actions = aAnimationComponent.TimePoints;
+
+    // Off-screen graphs update only now and then (38054); a copy's is driven every frame.
+    apActor->flags2 |= Actor::kForceAnimGraphUpdate;
+
+    // A fresh copy starts in its owner's graph state; the queue waits for it.
+    if (const auto* pSpawn = aWorld.try_get<SpawnGraphStateComponent>(aEntity))
+    {
+        if (aWorld.all_of<WaitingFor3D>(aEntity) || !EngineVirtual(apActor->animationGraphHolder).IsReady())
+            return;
+        if (apActor->LoadAnimationGraphState(pSpawn->State))
+        {
+            // The state holds the spawn action's result: it is taken, not replayed.
+            if (!actions.empty())
+            {
+                const auto& cSpawnAction = actions.front();
+                spdlog::debug("Copy {:X} starts in its owner's graph state; spawn action {:X} '{}' taken", apActor->formID,
+                              cSpawnAction.ActionId, cSpawnAction.EventName);
+                aAnimationComponent.LastRanAction = cSpawnAction;
+                aAnimationComponent.Variables = cSpawnAction.Variables;
+                aAnimationComponent.VariablesTick = cSpawnAction.Tick;
+                apActor->GetExtension()->LatestAnimation = cSpawnAction;
+                actions.pop_front();
+            }
+            aAnimationComponent.HeadVariablesLoaded = false;
+        }
+        else
+            spdlog::warn("Copy {:X}: the owner's graph state did not load, replaying its last action", apActor->formID);
+        aWorld.remove<SpawnGraphStateComponent>(aEntity);
+    }
 
     const auto it = std::begin(actions);
     if (it != std::end(actions) && it->Tick <= aTick)
@@ -37,6 +66,20 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
 
         const auto& first = *it;
 
+        // The variables go in one update before the action, as on the owner (some actions need the state
+        // they lead to, e.g. bWantCastRight -> BeginCastRight).
+        if (!aAnimationComponent.HeadVariablesLoaded)
+        {
+            if (first.Tick >= aAnimationComponent.VariablesTick)
+            {
+                aAnimationComponent.Variables = first.Variables;
+                aAnimationComponent.VariablesTick = first.Tick;
+            }
+            apActor->LoadAnimationVariables(aAnimationComponent.Variables);
+            aAnimationComponent.HeadVariablesLoaded = true;
+            return;
+        }
+
         const auto actionId = first.ActionId;
         const auto targetId = first.TargetId;
 
@@ -49,7 +92,7 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
         apActor->actorState.flags1 = first.State1;
         apActor->actorState.flags2 = first.State2;
 
-        apActor->LoadAnimationVariables(first.Variables);
+        apActor->LoadAnimationVariables(aAnimationComponent.Variables);
 
         // Play the animation
         TESActionData actionData(first.Type & 0x3, apActor, pAction, pTarget);
@@ -77,6 +120,7 @@ void AnimationSystem::Update(World& aWorld, Actor* apActor, RemoteAnimationCompo
         }
 
         actions.pop_front();
+        aAnimationComponent.HeadVariablesLoaded = false;
     }
 }
 

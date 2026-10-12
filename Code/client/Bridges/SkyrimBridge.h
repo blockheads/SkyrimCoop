@@ -108,6 +108,8 @@ public:
     void SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept override;
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override;
     void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override;
+    TiltedPhoques::String SaveActorGraphState(uint32_t aFormId) const noexcept override;
+    bool LoadActorGraphState(uint32_t aFormId, const TiltedPhoques::String& acState) noexcept override;
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept override;
     void ActorFixVampireLordModel(uint32_t aFormId) noexcept override;

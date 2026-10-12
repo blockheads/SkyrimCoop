@@ -1920,6 +1920,21 @@ void SkyrimBridge::ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariab
         pActor->SaveAnimationVariables(aVars);
 }
 
+TiltedPhoques::String SkyrimBridge::SaveActorGraphState(uint32_t aFormId) const noexcept
+{
+    TiltedPhoques::String state;
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->SaveAnimationGraphState(state);
+    return state;
+}
+
+bool SkyrimBridge::LoadActorGraphState(uint32_t aFormId, const TiltedPhoques::String& acState) noexcept
+{
+    Breadcrumbs::Record("LoadActorGraphState", aFormId);
+    Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->LoadAnimationGraphState(acState);
+}
+
 ActionEvent SkyrimBridge::GetActorLatestAnimation(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -2103,7 +2118,7 @@ void SkyrimBridge::ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexce
     auto view = world.view<FormIdComponent, RemoteAnimationComponent>();
     for (auto entity : view)
         if (view.get<FormIdComponent>(entity).Id == aFormId)
-            AnimationSystem::Update(world, pActor, view.get<RemoteAnimationComponent>(entity), aTick);
+            AnimationSystem::Update(world, entity, pActor, view.get<RemoteAnimationComponent>(entity), aTick);
 }
 
 void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept

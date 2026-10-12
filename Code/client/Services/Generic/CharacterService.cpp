@@ -339,16 +339,11 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
         spdlog::info("Received local actor, form id: {:X}", formIdComponent->Id);
 
         m_world.emplace_or_replace<LocalComponent>(cEntity, acMessage.ServerId);
-        auto& localAnimationComponent = m_world.emplace_or_replace<LocalAnimationComponent>(cEntity);
+        m_world.emplace_or_replace<LocalAnimationComponent>(cEntity);
 
         m_actorBridge.SetActorRemote(formIdComponent->Id, false);
 
-        const ActionEvent latestAnim = m_actorBridge.GetActorLatestAnimation(formIdComponent->Id);
-        if (latestAnim.ActionId != 0)
-        {
-            localAnimationComponent.Append(latestAnim);
-            m_actorBridge.SetActorLatestAnimation(formIdComponent->Id, ActionEvent{});
-        }
+        // Nothing is re-sent: copies start in this actor's graph state (CharacterSpawnRequest::GraphState).
     }
     else
     {
@@ -508,6 +503,8 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
 
     auto& remoteAnimationComponent = m_world.get<RemoteAnimationComponent>(*entity);
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
+    if (!acMessage.GraphState.empty())
+        m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
 }
 
 void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessage) noexcept
@@ -1120,6 +1117,7 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
     message.Rotation = cState.Rotation;
     message.CurrentActorData = cState.Data;
     message.LatestAction = cState.LatestAction;
+    message.GraphState = cState.GraphState;
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);
@@ -1224,6 +1222,7 @@ bool CharacterService::ReadCopy(uint32_t aServerId, CharacterSpawnRequest& aSpaw
         aSpawn.IsDead = cState.Data.IsDead;
         aSpawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
         aSpawn.LatestAction = cState.LatestAction;
+        aSpawn.GraphState = cState.GraphState;
         return true;
     }
     return false;
@@ -1358,6 +1357,7 @@ CharacterService::ActorLiveState CharacterService::ReadLiveState(uint32_t aFormI
     state.Data = BuildActorData(aFormId);
     state.LatestAction = m_actorBridge.GetActorLatestAnimation(aFormId);
     m_actorBridge.ActorSaveAnimationVariables(aFormId, state.LatestAction.Variables);
+    state.GraphState = m_actorBridge.SaveActorGraphState(aFormId);
     return state;
 }
 
@@ -1436,9 +1436,20 @@ void CharacterService::RunRemoteUpdates() noexcept
         interpolationComponent.Position = position;
         if (pFormIdComponent)
         {
+            // The current snapshot's variables, never the next one's or older ones (graphs react to changes).
+            const AnimationVariables* pVariables = &first.Variables;
+            if (auto* pAnimation = m_world.try_get<RemoteAnimationComponent>(entity))
+            {
+                if (first.Tick > pAnimation->VariablesTick)
+                {
+                    pAnimation->Variables = first.Variables;
+                    pAnimation->VariablesTick = first.Tick;
+                }
+                pVariables = &pAnimation->Variables;
+            }
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
-            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, second.Variables);
+            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables);
         }
     }
 
@@ -1610,6 +1621,9 @@ void CharacterService::RunArrivals() noexcept
     float x, y, z;
     m_playerBridge.GetPlayerPosition(x, y, z);
     request.Position = glm::vec3(x, y, z);
+    const auto cState = ReadLiveState(m_playerBridge.GetPlayerFormId());
+    request.LatestAction = cState.LatestAction;
+    request.GraphState = cState.GraphState;
     m_transport.Send(request);
     spdlog::info("Arrived in cell {:X} (worldspace {:X}): copies dropped, the host sends what is here", cCellId, cWorldSpaceId);
 }

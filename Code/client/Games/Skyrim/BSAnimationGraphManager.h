@@ -18,7 +18,9 @@ struct BSAnimationGraphManager
     }
 
     volatile LONG refCount;
-    void* pad_ptrs[6];
+    // The channels feeding the graphs (CommonLib).
+    GameArray<struct BSAnimationGraphChannel*> boundChannels; // 10
+    GameArray<struct BSAnimationGraphChannel*> bumpedChannels; // 28
     BSTSmallArray<BShkbAnimationGraph> animationGraphs; // 40 - 20
     void* pad_ptrs2[9];
     BSRecursiveLock lock;  // 98 - 4C
@@ -36,6 +38,7 @@ struct BSAnimationGraphManager
 };
 
 #if TP_PLATFORM_64
+SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, boundChannels) == 0x10);
 SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, animationGraphs) == 0x40);
 SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, lock) == 0xA0);
 SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0xB0);

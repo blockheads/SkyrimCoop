@@ -175,6 +175,9 @@ struct TESObjectREFR : TESForm
 
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;
     void LoadAnimationVariables(const AnimationVariables& aReader) const noexcept;
+    // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h).
+    bool SaveAnimationGraphState(TiltedPhoques::String& aState) const noexcept;
+    bool LoadAnimationGraphState(const TiltedPhoques::String& acState) const noexcept;
     uint32_t GetAnimationVariableInt(BSFixedString* apVariableName) noexcept;
 
     void RemoveAllItems() noexcept;

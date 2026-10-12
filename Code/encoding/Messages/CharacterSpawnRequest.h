@@ -33,7 +33,7 @@ struct CharacterSpawnRequest final : ServerMessage
     {
         return ServerId == acRhs.ServerId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
                InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
-               IsPlayerSummon == acRhs.IsPlayerSummon && GetOpcode() == acRhs.GetOpcode();
+               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && GetOpcode() == acRhs.GetOpcode();
     }
 
     uint32_t ServerId{};
@@ -47,6 +47,8 @@ struct CharacterSpawnRequest final : ServerMessage
     Inventory InventoryContent{};
     Factions FactionsContent{};
     ActionEvent LatestAction{};
+    // The owner's behaviour graphs' state: the copy's fresh graph loads it instead of replaying LatestAction.
+    String GraphState{};
     Tints FaceTints{};
     ActorValues InitialActorValues{};
     uint32_t PlayerId{};

@@ -185,6 +185,8 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         {
             record->CellId = acRequest.CellId;
             record->Position = acRequest.Position;
+            record->LatestAction = acRequest.LatestAction;
+            record->GraphState = acRequest.GraphState;
         }
     }
     // Ahead of the host: it gets everyone, and everyone it, when the host arrives here.

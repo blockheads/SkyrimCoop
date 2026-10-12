@@ -344,7 +344,10 @@ public:
     uint32_t someRefrHandle;
     TESRace* race;
     float weight; // set to -1.0 by extra container changes data ctor, asuming it's the weight
-    uint32_t flags2;
+    uint32_t flags2; // CommonLib boolFlags
+    // flags2: run the animation graph update even while the actor is off-screen (CommonLib
+    // BOOL_FLAGS::kForceAnimGraphUpdate; read by Actor::ModifyAnimationUpdateData, 38054).
+    static constexpr uint32_t kForceAnimGraphUpdate = 1u << 29;
     void* unk200[4];
     struct BGSDialogueBranch* dialogueBranch;
     ActorValueModifiers healthModifiers;

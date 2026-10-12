@@ -119,6 +119,8 @@ private:
         Rotator2_NetQuantize Rotation{};
         ActorData Data{};
         ActionEvent LatestAction{};
+        // Its behaviour graphs' state, for a copy to start in (IActorBridge::SaveActorGraphState).
+        String GraphState{};
     };
     ActorLiveState ReadLiveState(uint32_t aFormId) const noexcept;
     // Everything a peer needs about one of our actors, read from the engine now.

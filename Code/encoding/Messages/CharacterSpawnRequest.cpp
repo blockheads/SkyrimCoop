@@ -23,6 +23,7 @@ CharacterSpawnRequest CharacterSpawnRequest::FromAssignment(const AssignCharacte
     spawn.InventoryContent = acAssignment.CurrentActorData.InitialInventory;
     spawn.FactionsContent = acAssignment.FactionsContent;
     spawn.LatestAction = acAssignment.LatestAction;
+    spawn.GraphState = acAssignment.GraphState;
     spawn.FaceTints = acAssignment.FaceTints;
     spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
@@ -53,6 +54,7 @@ void CharacterSpawnRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
     Serialization::WriteBool(aWriter, IsPlayer);
     Serialization::WriteBool(aWriter, IsWeaponDrawn);
     Serialization::WriteBool(aWriter, IsPlayerSummon);
+    Serialization::WriteString(aWriter, GraphState);
 }
 
 void CharacterSpawnRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -88,4 +90,5 @@ void CharacterSpawnRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReade
     IsPlayer = Serialization::ReadBool(aReader);
     IsWeaponDrawn = Serialization::ReadBool(aReader);
     IsPlayerSummon = Serialization::ReadBool(aReader);
+    GraphState = Serialization::ReadString(aReader);
 }

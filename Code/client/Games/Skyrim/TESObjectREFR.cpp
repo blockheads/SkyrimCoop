@@ -1,4 +1,6 @@
 #include <TiltedOnlinePCH.h>
+#include <Havok/AnimationGraphState.h>
+#include <cstring>
 #include <HookSwitch.h>
 
 #include <Games/References.h>
@@ -144,6 +146,43 @@ void TESObjectREFR::SetRotation(float aX, float aY, float aZ) noexcept
 }
 
 using TiltedPhoques::Serialization;
+
+// The actor's state flags (weapon, sitting, life state) go first: the graph and they must agree.
+bool TESObjectREFR::SaveAnimationGraphState(TiltedPhoques::String& aState) const noexcept
+{
+    aState.clear();
+    const auto* pActor = Cast<Actor>(this);
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!pActor || !EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return false;
+    TiltedPhoques::String graphs;
+    const bool cSaved = AnimationGraphState::Save(pManager, graphs);
+    pManager->Release();
+    if (!cSaved)
+        return false;
+    const uint32_t cFlags[2]{pActor->actorState.flags1, pActor->actorState.flags2};
+    aState.append(reinterpret_cast<const char*>(cFlags), sizeof(cFlags));
+    aState += graphs;
+    return true;
+}
+
+bool TESObjectREFR::LoadAnimationGraphState(const TiltedPhoques::String& acState) const noexcept
+{
+    auto* pActor = Cast<Actor>(const_cast<TESObjectREFR*>(this));
+    uint32_t flags[2]{};
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!pActor || acState.size() < sizeof(flags) || !EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return false;
+    std::memcpy(flags, acState.data(), sizeof(flags));
+    const bool cLoaded = AnimationGraphState::Load(pManager, acState.substr(sizeof(flags)));
+    pManager->Release();
+    if (cLoaded)
+    {
+        pActor->actorState.flags1 = flags[0];
+        pActor->actorState.flags2 = flags[1];
+    }
+    return cLoaded;
+}
 
 void TESObjectREFR::SaveAnimationVariables(AnimationVariables& aVariables) const noexcept
 {

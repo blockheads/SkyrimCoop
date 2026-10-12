@@ -315,14 +315,15 @@ AnimationGraphDescriptor_Master_Behavior::AnimationGraphDescriptor_Master_Behavi
              kbCastReady, kIsAttacking, kbAllowRotation, kbMagicDraw, kbMLh_Ready, kbMRh_Ready, kbInMoveState, kbSprintOK, kbIdlePlaying, kbIsDialogueExpressive, kbAnimObjectLoaded, kbEquipUnequip, kbAttached, kbIsH2HSolo, kbHeadTracking, kbIsRiding, kbTalkable, kbRitualSpellActive, kbInJumpState,
              kbHeadTrackSpine, kbLeftHandAttack, kbIsInMT, kbHumanoidFootIKEnable, kbHumanoidFootIKDisable, kbStaggerPlayerOverride, kbNoStagger, kbIsStaffLeftCasting, kbPerkShieldCharge, kbPerkQuickShot, kIsBlocking, kIsBashing, kIsStaggering, kIsRecoiling, kIsEquipping, kIsUnequipping,
              kisInFurniture, kbNeutralState, kbBowDrawn,
+             // Not synced: NotCasting, which the graph writes itself (forced, it ends a copy's cast).
              // TODO: this was added extra for spell cast sync
-             kPitchOverride, kNotCasting},
+             kPitchOverride},
             {kTurnDelta, kDirection, kSpeedSampled, kweapAdj, kSpeed,
              // TODO: this was added extra for spell cast sync
              kCastBlend, kPitchOffset, kSpeedDamped, kPitch, kVelocityZ, k1stPRot, k1stPRotDamped, kCastBlendDamped},
             {kiRightHandEquipped, kiLeftHandEquipped, ki1HMState, kiState, kiLeftHandType, kiRightHandType, kiSyncIdleLocomotion, kiSyncForwardState, kiSyncTurnState, kiIsInSneak, kiWantBlock, kiRegularAttack,
-             // TODO: this was added extra for spell cast sync
-             ktestint, kcurrentDefaultState}));
+             // Not synced: currentDefaultState, the graph's own state id (forced, it overrides the copy's).
+             ktestint}));
 }
 
 /*
