@@ -28,6 +28,12 @@ The game runs on an off-screen X display (COOP_DISPLAY, default :99; the GPU sti
 so it never covers the desktop; pass --visible to launch/game/duo to show it instead. `duo` runs a second game ("client") on
 display :100 with its own prefix; watch/screenshot/console/stop take --instance client.
 
+The games are driven through the plugin's test harness (Code/client/TestHarness: a loopback
+command socket and control files in Data/SKSE/Plugins/SkyrimCoopHotReload<-instance>), which only
+test builds have: `scripts/xmake-msvc.sh f -m dev` configures one (--test_harness=y), then
+`scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL` and `scripts/xmake-msvc.sh build
+SkyrimCoopLoader`. A player build has neither the harness nor the hot reload.
+
 Skyrim runs in its own Proton prefix under build/coop-test (never your normal saves or
 settings): no intro, windowed, low preset, and `coc <cell>` from the main menu. Paths
 default to this machine; override with SKYRIM_GAME_DIR, SKYRIM_PROTON_DIR,
@@ -173,7 +179,7 @@ def check_prerequisites(need_bot):
         required.append(BOT)
     missing = [str(path) for path in required if not path.exists()]
     if missing:
-        hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL SkyrimCoopLoader"
+        hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL && scripts/xmake-msvc.sh build SkyrimCoopLoader"
                 "\nBuild the bot: XMAKE_CONFIGDIR=build/hotreload-native-config xmake build -j16 fake_player")
         raise TestFailure("Missing:\n  " + "\n  ".join(missing) + hint)
     if subprocess.run(["pgrep", "-x", "steam"], capture_output=True).returncode != 0:
@@ -205,9 +211,18 @@ def deploy_ui():
             copy_if_changed(source, PLUGINS / "SkyrimCoop/ui" / source.relative_to(UI_SOURCE))
 
 
+def require_test_harness():
+    """These scripts drive the plugin through its test harness (Code/client/TestHarness), which only
+    builds configured with --test_harness=y have; a player build would never answer."""
+    if b"SkyrimCoopHotReload" not in DLL.read_bytes():
+        raise TestFailure(f"{DLL} has no test harness. Configure with scripts/xmake-msvc.sh f -m dev "
+                          "(it turns on --test_harness=y) and build again.")
+
+
 def deploy_dll():
     """With the loader built: Plugins/SkyrimCoopLoader.dll loads Plugins/SkyrimCoop/<client>.
     Otherwise the client is the SKSE plugin. Never both: the client would load twice."""
+    require_test_harness()
     deploy_ui()
     direct = PLUGINS / "SkyrimTogetherClient.dll"
     if LOADER.exists():
@@ -470,10 +485,9 @@ def launch(args, run_dir):
     command = f"load {args.save}" if args.save else f"coc {args.cell}"
     prepare_prefix()
     CONTROL.mkdir(parents=True, exist_ok=True)
-    for stale in ("status.json", "session.txt", "console.txt", "rpc.json"):
+    for stale in ("status.json", "session.txt", "console.txt", "rpc.json", "request.txt"):
         (CONTROL / stale).unlink(missing_ok=True)
     atomic_write(CONTROL / "boot.txt", command + "\n")  # run by the plugin at the main menu
-    atomic_write(CONTROL / "request.txt", "builtin\n")  # turns on the plugin's status heartbeat
     log(f"Launching Skyrim (start command: {command!r})")
     output = open(run_dir / f"proton{'-' + INSTANCE if INSTANCE else ''}.log", "w")
     launcher = subprocess.Popen(
@@ -825,7 +839,7 @@ def command_duo(args):
             log("Both games stopped" + ("" if passed else " (failed run)"))
 
 # --- Sync scenarios: run against a `duo --keep-running` session, a few seconds each ------------
-# Scenarios drive both games through the plugin (Runtime.cpp commands): the player draws, attacks,
+# Scenarios drive both games through the plugin (its test harness, Code/client/TestHarness): the player draws, attacks,
 # casts and stands where the scenario puts it, through the same engine calls its input makes, so
 # the same sync runs without input timing. Each step waits for a stated condition and fails at the
 # first one that does not hold; nothing is retried to hide a miss. Real keyboard and mouse input is
@@ -2223,7 +2237,7 @@ def status_table():
 
 
 # --- Desync checker -------------------------------------------------------------------------
-# Each game's status.json carries "world": a snapshot of every loaded actor (Runtime.cpp
+# Each game's status.json carries "world": a snapshot of every loaded actor (TestHarness/Status.cpp
 # Snapshot()). Every actor has exactly one owner game; the other game holds a copy linked by the
 # same server id. The checker pairs them and compares every snapshot field, so a field added to
 # Snapshot() is checked without touching this code. Rules below only say how to compare a field

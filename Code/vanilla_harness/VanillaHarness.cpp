@@ -3,7 +3,7 @@
 // exactly as with our plugin (same commands, same frame, same camera) and answers "is it us?".
 //
 // It speaks the subset of the client's control files the harness falls back to without the
-// command socket (Code/client/HotReload/Runtime.cpp): boot.txt (one command once the main menu is
+// command socket (Code/client/TestHarness/ControlFiles.h): boot.txt (one command once the main menu is
 // up), console.txt ("<id> <command>", or "<id> @show Menu" / "@hide Menu"), and status.json
 // (heartbeat_ms, pid, console_id, session.world_ready). Nothing else of ours is loaded.
 //

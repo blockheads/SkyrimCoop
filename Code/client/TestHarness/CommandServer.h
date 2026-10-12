@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace CoopReload
+namespace TestHarness
 {
 // Test-harness command socket: line-delimited JSON on 127.0.0.1, served on the game thread every
 // frame (scripts/coop_test.py). The port is written to <control dir>/rpc.json, so a request costs
@@ -36,4 +36,4 @@ private:
     std::vector<Client> m_clients;
     THandler m_handler;
 };
-} // namespace CoopReload
+} // namespace TestHarness

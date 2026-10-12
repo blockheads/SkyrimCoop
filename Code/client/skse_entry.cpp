@@ -10,7 +10,10 @@
 #include <exception>
 
 #include <TiltedCore/Stl.hpp>
-#include "HotReload/Runtime.h"
+#include "PluginPaths.h"
+#if COOP_TEST_HARNESS
+#include "TestHarness/TestHarness.h"
+#endif
 
 using TiltedPhoques::String;
 
@@ -71,10 +74,13 @@ extern void RunTiltedApp();
 // where the SKSE plugin directory is.
 static std::filesystem::path s_pluginDirectory;
 
+#if COOP_TEST_HARNESS
+// The hot reload loader (Code/hotreload/Loader.cpp) runs the client from a copy outside Plugins.
 extern "C" __declspec(dllexport) void SkyrimCoop_SetPluginDirectory(const wchar_t* apDirectory)
 {
     s_pluginDirectory = apDirectory;
 }
+#endif
 
 // abort() fast-fails, which ends the process before any exception handler (ours or the hot reload
 // loader's) runs; std::terminate ends in abort(). Both leave a stack in logs/SkyrimCoopAbort*.log.
@@ -104,10 +110,7 @@ static void LogAbort(const char* apReason)
 
 static void InstallAbortLogging(const std::filesystem::path& acPluginDirectory)
 {
-    wchar_t instance[64]{};
-    const DWORD cLength = GetEnvironmentVariableW(L"SKYRIMCOOP_INSTANCE", instance, 64);
-    s_abortLogPath = acPluginDirectory / "logs" /
-                     (std::wstring(L"SkyrimCoopAbort") + (cLength > 0 && cLength < 64 ? L"-" + std::wstring(instance) : L"") + L".log");
+    s_abortLogPath = acPluginDirectory / "logs" / ("SkyrimCoopAbort" + PluginPaths::InstanceSuffix() + ".log");
     _set_abort_behavior(0, _CALL_REPORTFAULT); // Raise SIGABRT instead of fast-failing.
     signal(SIGABRT, [](int) { LogAbort("abort()"); });
     std::set_terminate([] {
@@ -132,7 +135,8 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     }
     InstallAbortLogging(pluginDirectory);
     std::filesystem::path gamePath = pluginDirectory.parent_path().parent_path().parent_path();
-    CoopReload::Runtime::Get().Configure(pluginDirectory);
+    PluginPaths::SetDirectory(pluginDirectory);
+#if COOP_TEST_HARNESS
     // SKSETaskInterface (kTask = 4): { version, AddTask, AddUITask }.
     struct TaskInterface
     {
@@ -140,8 +144,9 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
         void (*AddTask)(void*);
         void (*AddUITask)(void*);
     };
-    if (const auto* pTasks = static_cast<const TaskInterface*>(apSkse->QueryInterface(4)))
-        CoopReload::Runtime::SetUITaskQueue(pTasks->AddUITask);
+    const auto* pTasks = static_cast<const TaskInterface*>(apSkse->QueryInterface(4));
+    TestHarness::Configure(pluginDirectory, pTasks ? pTasks->AddUITask : nullptr);
+#endif
 
     TiltedPhoques::String exeVersion("1.6.1170.0");
 

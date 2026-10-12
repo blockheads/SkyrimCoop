@@ -4,7 +4,7 @@
 #include <winsock2.h>
 #include <fstream>
 
-namespace CoopReload
+namespace TestHarness
 {
 static void CloseSocket(uintptr_t aSocket)
 {
@@ -109,4 +109,4 @@ void CommandServer::Poll()
 
     std::erase_if(m_clients, [](const Client& acClient) { return acClient.Socket == ~uintptr_t(0); });
 }
-} // namespace CoopReload
+} // namespace TestHarness

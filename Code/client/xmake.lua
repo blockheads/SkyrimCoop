@@ -1,3 +1,8 @@
+-- The test_harness option (root xmake.lua). COOP_TEST_HARNESS is always defined, 0 or 1, for
+-- `#if COOP_TEST_HARNESS`.
+local function add_test_harness_define()
+    add_defines(has_config("test_harness") and "COOP_TEST_HARNESS=1" or "COOP_TEST_HARNESS=0")
+end
 
 local function build_client(name)
 target(name)
@@ -28,11 +33,18 @@ target(name)
     -- exclude game specific stuff and Vivox
     if is_plat("mingw") then
         -- MinGW: also exclude Debug views (DebugService is gated off for __MINGW32__)
-        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**")
-        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**|link_stubs.cpp|skse_entry.cpp")
+        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**|TestHarness/**|HotReload/**")
+        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**|TestHarness/**|HotReload/**|link_stubs.cpp|skse_entry.cpp")
     else
-        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**")
-        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|link_stubs.cpp|skse_entry.cpp")
+        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|TestHarness/**|HotReload/**")
+        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|TestHarness/**|HotReload/**|link_stubs.cpp|skse_entry.cpp")
+    end
+    -- HotReload/Handoff.h is used by production code either way: without the harness it is no-ops.
+    add_headerfiles("HotReload/Handoff.h")
+    add_test_harness_define()
+    if has_config("test_harness") then
+        add_files("TestHarness/**.cpp", "HotReload/**.cpp")
+        add_headerfiles("TestHarness/**.h", "HotReload/**.h")
     end
 
     -- Feature-gated packages and targets (per D-01: per-feature guards)
@@ -66,8 +78,6 @@ target(name)
     end
 
     add_files("Bridges/SkyrimBridge.cpp")
-    -- Resident loader: game hooks never point into the replaceable module.
-    add_files("../hotreload/MovementLoader.cpp")
     add_headerfiles("Bridges/*.h")
     add_files("Games/Skyrim/**.cpp")
     add_headerfiles("Games/Skyrim/**.h")
@@ -142,6 +152,7 @@ if is_plat("mingw", "windows") then
         set_prefixname("")                    -- no "lib" prefix on MinGW
 
         add_files("skse_entry.cpp")
+        add_test_harness_define()
         if is_plat("mingw") then
             add_files("link_stubs.cpp")
         end

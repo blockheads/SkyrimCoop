@@ -1,16 +1,6 @@
-target("SkyrimCoopMovementCore")
-    set_kind("shared")
-    set_basename("SkyrimCoopMovementCore")
-    set_prefixname("")
-    set_languages("cxx17")
-    add_files("MovementCore.cpp")
-    if is_plat("mingw") then
-        add_shflags("-static-libgcc", "-static-libstdc++", {force = true})
-    end
-target_end()
-
 -- Resident SKSE plugin that loads the client from a copy and swaps in rebuilds (Loader.cpp).
-if is_plat("windows") then
+-- Test builds only, with the client's hot reload (the test_harness option, Code/client/xmake.lua).
+if is_plat("windows") and has_config("test_harness") then
 target("SkyrimCoopLoader")
     set_kind("shared")
     set_basename("SkyrimCoopLoader")

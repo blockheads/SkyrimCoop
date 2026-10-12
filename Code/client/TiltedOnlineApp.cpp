@@ -11,7 +11,10 @@
 #include <WindowsHook.hpp>
 
 #include <World.h>
-#include <HotReload/Runtime.h>
+#include <PluginPaths.h>
+#if COOP_TEST_HARNESS
+#include <TestHarness/TestHarness.h>
+#endif
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -37,12 +40,12 @@ TiltedOnlineApp::TiltedOnlineApp()
     // Set console code page to UTF-8 so console known how to interpret string data
     SetConsoleOutputCP(CP_UTF8);
 
-    auto logPath = CoopReload::Runtime::Get().PluginDirectory() / "logs";
+    auto logPath = PluginPaths::GetDirectory() / "logs";
 
     std::error_code ec;
     create_directory(logPath, ec);
 
-    auto rotatingLogger = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logPath / ("tp_client" + CoopReload::InstanceSuffix() + ".log"), 1048576 * 5, 3);
+    auto rotatingLogger = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(logPath / ("tp_client" + PluginPaths::InstanceSuffix() + ".log"), 1048576 * 5, 3);
     // rotatingLogger->set_level(spdlog::level::debug);
     auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     console->set_pattern("%^[%H:%M:%S.%e] [%l] [tid %t] %$ %v");
@@ -90,7 +93,9 @@ bool TiltedOnlineApp::BeginMain()
 
 bool TiltedOnlineApp::EndMain()
 {
-    CoopReload::Runtime::Get().Shutdown();
+#if COOP_TEST_HARNESS
+    TestHarness::Shutdown();
+#endif
     UninstallHooks();
 #ifdef HAS_DIRECTXTK
     if (m_pDevice)

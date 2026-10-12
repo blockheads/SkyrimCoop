@@ -3,7 +3,7 @@
 #include <TiltedOnlineApp.h>
 #include <World.h>
 #include <Components.h>
-#include <HotReload/Runtime.h>
+#include <TestHarness/TestHarness.h>
 #include <Games/References.h>
 #include <Bridges/IActorBridge.h>
 #include <Services/PapyrusService.h>
@@ -14,10 +14,10 @@
 
 extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
 
-// Hot reload (scripts/coop_test.py reload): the resident loader (Code/loader) calls these to swap
-// this DLL inside a running game. Unload runs on the main thread from the loader's own main-loop
-// hook, so none of our frames are on that stack; the loader then waits until no other thread is
-// inside our code before FreeLibrary.
+// Hot reload (scripts/coop_test.py reload), test builds only: the resident loader
+// (Code/hotreload/Loader.cpp) calls these to swap this DLL inside a running game. Unload runs on
+// the main thread from the loader's own main-loop hook, so none of our frames are on that stack;
+// the loader then waits until no other thread is inside our code before FreeLibrary.
 
 // The actor memory layout the engine's existing actors carry: a reload that changes it needs a
 // game restart.
@@ -57,7 +57,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
         entt::locator<World>::reset();
     }
 
-    CoopReload::Runtime::Get().Shutdown();
+    TestHarness::Shutdown();
 
     // Nothing in the game may point into this DLL afterwards.
     TiltedPhoques::FunctionHookManager::GetInstance().RemoveAllHooks();

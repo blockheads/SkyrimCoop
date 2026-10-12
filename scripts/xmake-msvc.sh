@@ -3,6 +3,8 @@
 # keeps its own configuration so the MinGW/native configs are untouched.
 #   scripts/xmake-msvc.sh f -m dev        # configure (first time)
 #   scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL
+# Configures with the test harness and hot reload (scripts/coop_test.py needs both); a player build
+# turns them off: scripts/xmake-msvc.sh f -m release --test_harness=n
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 T="$ROOT/build/toolchains"
@@ -12,6 +14,6 @@ export XMAKE_CONFIGDIR="$ROOT/build/msvc-config"
 cd "$ROOT"
 if [[ "${1:-}" == "f" || "${1:-}" == "config" ]]; then
     shift
-    exec xmake f -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" "$@"
+    exec xmake f -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" --test_harness=y "$@"
 fi
 exec xmake "$@"

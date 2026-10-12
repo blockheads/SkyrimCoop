@@ -1,5 +1,37 @@
 # Split the test harness out of the shipping client
 
+**Status: done (2026-10-11), uncommitted for review.** Where things ended up:
+
+- `Code/client/TestHarness/`: `TestHarness.{h,cpp}` (the only entry points: `Configure`, `Poll`,
+  `Shutdown`), `Harness.h` (its state), `CommandServer`, `Commands.{h,cpp}` plus
+  `CommandsStaging/Input/World/Session.cpp`, `Status` (reads the copies itself: `status["actors"]`
+  comes from the world's `RemoteComponent` entities, no hook in `CharacterService`), `ControlFiles`,
+  `PlayerInput` (held buttons, equip-animation count), `Session`, `EngineCalls` (the old
+  `HotReload/Harness`, plus console, menus, the player activating and locking objects and the cell's
+  objects, which left `IFormBridge` and `TESObjectREFR`).
+- `Code/client/HotReload/`: `PluginUnload.cpp`, `Handoff.{h,cpp}`. `Handoff.h` compiles to no-ops
+  without the harness, so `PapyrusService`, `LockOrder` and `SkseRipAllocator.h` are unchanged.
+- `Code/client/PluginPaths.{h,cpp}`: the plugin directory and instance suffix (production).
+- The movement-module reload is gone: `InterpolationSystem::Interpolate` (same math) is called
+  directly; `MovementLoader`, `SkyrimCoopMovementCore`, `scripts/hot_reload.py`,
+  `scripts/launch_dev_game.sh`, `HOT_RELOAD.md`, their tests and `request.txt` are deleted. The status
+  file is written every 250 ms without it. The unused `cast` command is deleted.
+- Build switch: xmake option `test_harness` (root `xmake.lua`, default off) defines
+  `COOP_TEST_HARNESS` 0/1. On: `TestHarness/**` and `HotReload/**` are compiled and the
+  `SkyrimCoopLoader` target exists. `scripts/xmake-msvc.sh f` passes `--test_harness=y`;
+  `coop_test.py` refuses a DLL without the harness.
+- Verified: the suite before (27/38, fresh duo at 088d78da) and after (28/38 once, then 3× shuffled)
+  fails the same real bugs. A build with `--test_harness=n` has none of the harness's strings or
+  exports, and booted in the game it opens no socket (under Wine the listener shows up as
+  `wineserver`) and writes no status. `coop_test.py game` passes.
+- Found on the way: **door-opens-for-both fails whenever lock-reaches-others ran first** in the same
+  session (any shuffled run). The unlocked door keeps lock level 50, and `ObjectService::OnActivate`
+  skips doors with a nonzero lock *level* instead of locked ones, so the activation is never relayed.
+- Release mode (`-m release`) does not link with the clang-cl cross toolchain (xmake passes
+  `/opt:ref` to the archiver); the player-build check used `-m dev --test_harness=n -o build/player`.
+
+The rest of this page is the plan as handed over.
+
 Handoff for the agent doing this work (written 2026-10-11). Read this whole page first, then
 `CLAUDE.md` and the memory index. Ask the user before committing anything; they review every change.
 

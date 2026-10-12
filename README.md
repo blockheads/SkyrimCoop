@@ -19,9 +19,8 @@ This simplifies:
 
 This is a work-in-progress fork. For build instructions, see CLAUDE.md.
 
-For the Linux development workflow using one Skyrim instance, a network bot and
-reloadable movement code, see [HOT_RELOAD.md](HOT_RELOAD.md). Its validation notes
-distinguish standalone tests from actual in-game verification.
+For the Linux test workflow (two off-screen Skyrim instances, sync scenarios, swapping a
+rebuilt plugin into the running games), see the docstring of `scripts/coop_test.py`.
 
 ## Acknowledgments
 

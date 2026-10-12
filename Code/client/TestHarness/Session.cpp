@@ -10,7 +10,7 @@
 #include <fstream>
 #include <algorithm>
 
-namespace CoopReload
+namespace TestHarness
 {
 namespace
 {

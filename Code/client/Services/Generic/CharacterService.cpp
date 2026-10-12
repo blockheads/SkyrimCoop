@@ -56,8 +56,6 @@
 #include <Systems/FaceGenSystem.h>
 
 #include <World.h>
-#include <HotReload/Runtime.h>
-#include "../../../hotreload/MovementMath.h"
 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept
@@ -1431,31 +1429,16 @@ void CharacterService::RunRemoteUpdates() noexcept
             points.pop_front();
         const auto& first = points.front();
         const auto& second = *std::next(points.begin());
-        CoopMovementInput input{};
-        input.tick = tick;
-        input.first_tick = first.Tick;
-        input.second_tick = second.Tick;
-        for (int axis = 0; axis < 3; ++axis)
+        glm::vec3 position{};
+        glm::vec3 rotation{};
+        if (!InterpolationSystem::Interpolate(first, second, tick, position, rotation))
+            continue;
+        interpolationComponent.Position = position;
+        if (pFormIdComponent)
         {
-            input.first_position[axis] = first.Position[axis];
-            input.second_position[axis] = second.Position[axis];
-            input.first_rotation[axis] = first.Rotation[axis];
-            input.second_rotation[axis] = second.Rotation[axis];
-        }
-        CoopMovementOutput output{};
-        auto& runtime = CoopReload::Runtime::Get();
-        runtime.Evaluate(input, output);
-        if (!CoopReload::ValidMovement(output)) continue;
-        interpolationComponent.Position = {output.position[0], output.position[1], output.position[2]};
-        // Observed with built-in movement too: scripts/coop_test.py reads these
-        // engine positions to verify remote players actually move in-game.
-        if (pFormIdComponent && m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id,
-                output.position, output.rotation, second.Direction, second.Variables))
-        {
-            float actual[3]{};
-            m_actorBridge.GetActorPosition(pFormIdComponent->Id, actual[0], actual[1], actual[2]);
-            runtime.Observe(pFormIdComponent->Id, output, actual,
-                            m_actorBridge.ActorHas3D(pFormIdComponent->Id));
+            const float cPosition[3]{position.x, position.y, position.z};
+            const float cRotation[3]{rotation.x, rotation.y, rotation.z};
+            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, second.Variables);
         }
     }
 

@@ -42,10 +42,10 @@ event source, so every sink sees it exactly as it would see a device event.
   `AttackBlockHandler::ProcessButton` and rewrites `userEvent` to `rightAttack` before calling the
   original.
 
-Ours: `SkyrimBridge::SendPlayerButton` (the plugin's `input` command; `scripts/coop_test.py` press/release/tap).
+Ours: `TestHarness::EngineCalls::SendPlayerButton` (`Code/client/TestHarness/EngineCalls.cpp`; the harness's `input` command, test builds only; `scripts/coop_test.py` press/release/tap).
 What it took to drive a player like this (verified 2026-10-11):
 
-- **A held button is sent every frame**, value 1 with the time held so far, as devices do (`Runtime::Poll`).
+- **A held button is sent every frame**, value 1 with the time held so far, as devices do (`TestHarness::PlayerInput::Poll`).
   Spells charge without it (the magic caster drives the charge), but a melee swing only starts from
   those updates: a press and release with nothing between does nothing.
 - **Presses during an animation are ignored**, a player's too. Wait for the game, not for time:

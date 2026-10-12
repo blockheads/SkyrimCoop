@@ -2,7 +2,9 @@
 #include <HookSwitch.h>
 #include "TiltedOnlineApp.h"
 #include "CrashHandler.h"
-#include "HotReload/Runtime.h"
+#if COOP_TEST_HARNESS
+#include "TestHarness/TestHarness.h"
+#endif
 
 extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
 
@@ -41,9 +43,11 @@ short TP_MAKE_THISCALL(HookMainLoop, Main)
     TP_EMPTY_HOOK_PLACEHOLDER
 
     CrashHandler::OnMainLoopTick();
+#if COOP_TEST_HARNESS
     // Every frame from boot (the VM update hook only runs in-world), so the test
     // harness sees the plugin alive at the main menu too.
-    CoopReload::Runtime::Get().Poll();
+    TestHarness::Poll();
+#endif
 
     return TiltedPhoques::ThisCall(MainLoop, apThis);
 }

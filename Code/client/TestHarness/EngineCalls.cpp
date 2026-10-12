@@ -1,5 +1,5 @@
 #include <TiltedOnlinePCH.h>
-#include "Harness.h"
+#include "EngineCalls.h"
 
 #include <Actor.h>
 #include <PlayerCharacter.h>
@@ -11,13 +11,16 @@
 #include <Magic/ActorMagicCaster.h>
 #include <Misc/BSFixedString.h>
 #include <Utils.h>
+#include <Forms/TESObjectCELL.h>
+#include <World.h>
+#include <Bridges/IFormBridge.h>
 
 #include <algorithm>
 #include <cmath>
 
-// The test harness's own engine calls (scripts/coop_test.py, through Runtime's commands): staging, the
+// The test harness's own engine calls (scripts/coop_test.py, through the harness's commands): staging, the
 // player's input, and what scenarios check. Nothing in the client uses them.
-namespace CoopReload::Harness
+namespace TestHarness::EngineCalls
 {
 namespace
 {
@@ -25,7 +28,80 @@ Actor* GetActor(uint32_t aFormId) noexcept
 {
     return Cast<Actor>(TESForm::GetById(aFormId));
 }
+
+// SKSE's task interface AddUITask: runs a task where the UI processes its messages, which is where
+// the console runs what is typed into it. Null without SKSE's interface.
+void (*s_addUITask)(void*) = nullptr;
+
+// SKSE's UIDelegate_v1: Run, then Dispose.
+struct ConsoleTask
+{
+    explicit ConsoleTask(std::string aLine)
+        : Line(std::move(aLine))
+    {
+    }
+    virtual void Run()
+    {
+        spdlog::info("Console command (in the UI's message processing): {}", Line);
+        ExecuteConsoleCommand(Line.c_str());
+    }
+    virtual void Dispose() { delete this; }
+    virtual ~ConsoleTask() = default;
+    std::string Line;
+};
 } // namespace
+
+void SetUITaskQueue(void (*apAddUITask)(void*)) noexcept
+{
+    s_addUITask = apAddUITask;
+}
+
+void ExecuteConsoleCommand(const char* acpLine) noexcept
+{
+    using TExecuteCommand = void(const char*);
+    POINTER_SKYRIMSE(TExecuteCommand, s_executeCommand, 442672); // Console::ExecuteCommand
+    s_executeCommand.Get()(acpLine);
+}
+
+void RunConsoleCommand(const std::string& acLine) noexcept
+{
+    static const bool s_inUI = []
+    {
+        const char* pPhase = std::getenv("SKYRIMCOOP_CONSOLE_PHASE");
+        return pPhase && std::string_view(pPhase) == "ui";
+    }();
+    if (s_inUI && s_addUITask)
+        s_addUITask(new ConsoleTask(acLine));
+    else
+        ExecuteConsoleCommand(acLine.c_str());
+}
+
+bool IsMenuOpen(const char* acpMenu) noexcept
+{
+    const UI* pUI = UI::Get();
+    return pUI && pUI->GetMenuOpen(acpMenu);
+}
+
+void SetMenuShown(const char* acpMenu, bool aShown) noexcept
+{
+    using TAddMessage = void(void*, const BSFixedString*, uint32_t, void*);
+    POINTER_SKYRIMSE(TAddMessage, s_addMessage, 13631); // UIMessageQueue::AddMessage
+    VersionDbPtr<void*> queue(400445);                   // UIMessageQueue singleton (RVA 0x20F8950)
+    if (!*queue.Get())
+        return;
+    const BSFixedString cName(acpMenu);
+    s_addMessage.Get()(*queue.Get(), &cName, aShown ? UIMessage::kShow : UIMessage::kHide, nullptr);
+}
+
+std::vector<std::string> GetOpenMenus() noexcept
+{
+    std::vector<std::string> names;
+    if (UI* pUI = UI::Get())
+        for (IMenu* pMenu : pUI->menuStack)
+            if (const BSFixedString* pName = pUI->LookupMenuNameByInstance(pMenu))
+                names.emplace_back(pName->AsAscii());
+    return names;
+}
 
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
 {
@@ -60,6 +136,35 @@ uint32_t GetEnemyHealthTarget() noexcept
         return pTarget ? pTarget->formID : 0;
     }
     return 0;
+}
+
+void PlayerActivates(uint32_t aObjectFormId) noexcept
+{
+    TP_THIS_FUNCTION(TActivate, bool, TESObjectREFR, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing);
+    POINTER_SKYRIMSE(TActivate, s_activate, 19796); // TESObjectREFR::ActivateRef
+    if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId)))
+        TiltedPhoques::ThisCall(s_activate.Get(), pObject, PlayerCharacter::Get(), 0, nullptr, 1, 0);
+}
+
+bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
+{
+    if (!World::Get().GetFormBridge().SetObjectLock(aObjectFormId, aLocked, aLockLevel))
+        return false;
+    TP_THIS_FUNCTION(TLockChange, void, TESObjectREFR);
+    POINTER_SKYRIMSE(TLockChange, s_lockChange, 19512); // TESObjectREFR::AddLockChange
+    if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId)))
+        TiltedPhoques::ThisCall(s_lockChange.Get(), pObject);
+    return true;
+}
+
+std::vector<uint32_t> GetCellObjectIds() noexcept
+{
+    std::vector<uint32_t> ids;
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCell() : nullptr)
+        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container}))
+            ids.push_back(pRef->formID);
+    return ids;
 }
 
 void UnequipAllUnsynced(uint32_t aFormId) noexcept
@@ -217,4 +322,4 @@ bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance) noexcept
     pPlayer->SetPosition(cSpot, true);
     return FacePlayerToward(aTargetFormId);
 }
-} // namespace CoopReload::Harness
+} // namespace TestHarness::EngineCalls

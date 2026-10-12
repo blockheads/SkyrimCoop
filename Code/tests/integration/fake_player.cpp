@@ -442,7 +442,7 @@ static int RunExternal(const Config& aCfg)
 {
     if (aCfg.fixtureDir.empty())
     {
-        spdlog::error("In-game simulation requires --fixture-dir from hot_reload.py host. "
+        spdlog::error("In-game simulation requires --fixture-dir (the host's session snapshot; scripts/coop_test.py game passes it). "
                       "Authentication alone cannot create a visible player.");
         return 1;
     }
@@ -465,7 +465,7 @@ static int RunExternal(const Config& aCfg)
     auto assignment = load("assign.bin", kAssignCharacterRequest);
     if (!auth || !assignment)
     {
-        spdlog::error("Missing/invalid bot snapshot. Run hot_reload.py host with a save loaded.");
+        spdlog::error("Missing/invalid bot snapshot: the host game writes it once hosting (scripts/coop_test.py game).");
         return 1;
     }
     const auto& character = static_cast<const AssignCharacterRequest&>(*assignment);
@@ -585,7 +585,7 @@ static int RunExternal(const Config& aCfg)
 #endif
 
     client.Close();
-    spdlog::info("fake_player: network scenario completed. Verify engine movement with hot_reload.py observe.");
+    spdlog::info("fake_player: network scenario completed. scripts/coop_test.py game checks the movement in the engine.");
     return 0;
 }
 

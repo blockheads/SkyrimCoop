@@ -102,10 +102,6 @@ public:
     virtual void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept = 0;
     /// Returns the form ID of the object's parent cell.
     virtual uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept = 0;
-    /// Tests: as the game does them, through our hooks (unlike the replays above): the player
-    /// activates the object (pressing E on it), and the object's lock changes.
-    virtual void PlayerActivates(uint32_t aObjectFormId) noexcept = 0;
-    virtual void ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept = 0;
     /// Activate an object as if the given actor activated it.
     virtual void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept = 0;
     /// Play an animation on an object (for ScriptAnimationEvent).
@@ -114,8 +110,6 @@ public:
     virtual uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept = 0;
     /// Returns true if the object's base form is of the specified FormType enum value.
     virtual bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept = 0;
-    /// The doors and containers in the player's cell.
-    virtual std::vector<uint32_t> GetCellObjectIds() const noexcept = 0;
     /// A door that leads to another cell.
     virtual bool IsLoadDoor(uint32_t aObjectFormId) const noexcept = 0;
     /// Get the current inventory contents of an object (container).

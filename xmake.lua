@@ -250,6 +250,15 @@ end
 
 -- add projects
 -- Libraries are now merged into Code/libraries/
+-- The test harness scripts/coop_test.py drives (Code/client/TestHarness/) and the hot reload
+-- (Code/client/HotReload/, Code/hotreload/Loader.cpp). Off by default: a player's build has neither
+-- the command socket nor the control files. scripts/xmake-msvc.sh turns it on.
+option("test_harness")
+    set_default(false)
+    set_showmenu(true)
+    set_description("Build the test harness and hot reload into the client (never for release)")
+option_end()
+
 includes("Code")
 
 task("upload-symbols")

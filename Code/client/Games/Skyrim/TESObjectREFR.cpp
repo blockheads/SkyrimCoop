@@ -392,18 +392,6 @@ void TESObjectREFR::LockChange() noexcept
     TiltedPhoques::ThisCall(RealLockChange, this);
 }
 
-void TESObjectREFR::LockChangeThroughHooks() noexcept
-{
-    POINTER_SKYRIMSE(TLockChange, s_lockChange, 19512);
-    TiltedPhoques::ThisCall(s_lockChange.Get(), this);
-}
-
-bool TESObjectREFR::ActivateThroughHooks(TESObjectREFR* apActivator) noexcept
-{
-    POINTER_SKYRIMSE(TActivate, s_activate, 19796);
-    return TiltedPhoques::ThisCall(s_activate.Get(), this, apActivator, 0, nullptr, 1, 0);
-}
-
 const float TESObjectREFR::GetHeight() noexcept
 {
     auto boundMax = GetBoundMax();

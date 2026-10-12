@@ -189,12 +189,9 @@ public:
     void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept override;
     uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept override;
     void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept override;
-    void PlayerActivates(uint32_t aObjectFormId) noexcept override;
-    void ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept override;
     void PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation, const std::string& aEventName) noexcept override;
     uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override;
     bool IsObjectBaseFormType(uint32_t aObjectFormId, uint8_t aFormType) const noexcept override;
-    std::vector<uint32_t> GetCellObjectIds() const noexcept override;
     bool IsLoadDoor(uint32_t aObjectFormId) const noexcept override;
     Inventory GetObjectInventory(uint32_t aObjectFormId) const noexcept override;
     void SetObjectInventoryRetainingQuestItems(uint32_t aObjectFormId, const Inventory& aCurrentInventory, const Inventory& aNewInventory) noexcept override;

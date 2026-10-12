@@ -119,6 +119,8 @@ Code/
 │   ├── Services/        # Game systems (Character, Inventory, Combat, etc.)
 │   ├── Components/      # ECS components (LocalComponent, RemoteComponent, etc.)
 │   ├── Games/Skyrim/    # Skyrim-specific hooks and RTTI
+│   ├── TestHarness/     # What scripts/coop_test.py drives; test builds only (--test_harness=y)
+│   ├── HotReload/       # Swapping a rebuilt DLL into a running game; test builds only
 │   └── main.cpp         # SKSE plugin entry point
 ├── server/              # Game server (5,310 LOC)
 │   ├── Services/        # Server authority (PlayerService, CharacterService, etc.)
@@ -360,12 +362,21 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 ### Constraints
 
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
-- **Testing**: `scripts/coop_test.py net` (headless bots), `game` (Skyrim + bot), `duo` (two Skyrim instances); games run off-screen, see the script docstring
+- **Testing**: `scripts/coop_test.py net` (headless bots), `game` (Skyrim + bot), `duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the script docstring
+- **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
 - **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
 - **License**: GPLv3 — all modifications must remain open source
 - **Mod compatibility**: Host's mod list is authoritative; clients must match to connect
 - **Platform**: Linux-first development, Windows compatibility maintained for end users
+
+### Engineering rules
+
+- **Test code never widens production interfaces.** No harness methods on the bridges, services or engine structs; the harness reads engine state through its own `TestHarness/EngineCalls`, and production code calls the harness only through the gated entry points.
+- **Engine access goes through typed structs** in `Code/client/Games/` with `static_assert`ed offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or the harness.
+- **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add good ones to `scripts/re/fetch_references.sh`.
+- **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
+- **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 
 ## Technology Stack
 

@@ -1029,20 +1029,6 @@ void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aAct
     pObject->Activate(pActor, 0, nullptr, 1, 0);
 }
 
-void SkyrimBridge::PlayerActivates(uint32_t aObjectFormId) noexcept
-{
-    if (TESObjectREFR* pObject = GetRefr(aObjectFormId))
-        pObject->ActivateThroughHooks(PlayerCharacter::Get());
-}
-
-void SkyrimBridge::ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
-{
-    if (!SetObjectLock(aObjectFormId, aLocked, aLockLevel))
-        return;
-    if (TESObjectREFR* pObject = GetRefr(aObjectFormId))
-        pObject->LockChangeThroughHooks();
-}
-
 void SkyrimBridge::PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation,
                                          const std::string& aEventName) noexcept
 {
@@ -2405,16 +2391,6 @@ bool SkyrimBridge::IsActorBleedingOut(uint32_t aFormId) const noexcept
     if (!pActor)
         return false;
     return pActor->actorState.IsBleedingOut();
-}
-
-std::vector<uint32_t> SkyrimBridge::GetCellObjectIds() const noexcept
-{
-    std::vector<uint32_t> ids;
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCell() : nullptr)
-        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container}))
-            ids.push_back(pRef->formID);
-    return ids;
 }
 
 bool SkyrimBridge::IsLoadDoor(uint32_t aObjectFormId) const noexcept

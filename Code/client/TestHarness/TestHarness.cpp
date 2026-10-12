@@ -1,0 +1,71 @@
+#include <TiltedOnlinePCH.h>
+#include "TestHarness.h"
+#include "Harness.h"
+#include "Commands.h"
+#include "EngineCalls.h"
+#include "Status.h"
+
+namespace TestHarness
+{
+namespace
+{
+std::chrono::steady_clock::time_point s_nextFilePoll{};
+
+// Tutorial help popups ("Magicka Low", "Health Low"...) swallow all input and console commands
+// until closed, which stalls the harness: close them as soon as they open.
+void CloseTutorialPopups()
+{
+    if (!EngineCalls::IsMenuOpen("Tutorial Menu"))
+        return;
+    EngineCalls::SetMenuShown("Tutorial Menu", false);
+    spdlog::info("Closed a tutorial popup");
+}
+} // namespace
+
+Harness& Harness::Get()
+{
+    // Process-lifetime. Shut down from EndMain or the hot reload, never from CRT destructors/DllMain.
+    static Harness* s_harness = new Harness;
+    return *s_harness;
+}
+
+void Configure(const std::filesystem::path& acPluginDirectory, void (*apAddUITask)(void*))
+{
+    Harness::Get().Files.Configure(acPluginDirectory);
+    EngineCalls::SetUITaskQueue(apAddUITask);
+}
+
+void Poll()
+{
+    auto& harness = Harness::Get();
+    if (harness.Files.Directory().empty())
+        return;
+    if (!harness.CommandsStarted)
+    {
+        harness.CommandsStarted = true;
+        if (!harness.Commands.Start(harness.Files.Directory().string(), [&harness](const std::string& acRequest) { return HandleCommand(harness, acRequest); }))
+            spdlog::warn("Command server did not start; the test harness falls back to control files");
+    }
+    harness.Commands.Poll();
+
+    if (harness.Files.InWorld())
+        harness.Input.Poll();
+
+    const auto cNow = std::chrono::steady_clock::now();
+    if (cNow < s_nextFilePoll)
+        return;
+    s_nextFilePoll = cNow + std::chrono::milliseconds(250);
+    harness.Files.PollBootCommand();
+    if (harness.Files.InWorld())
+    {
+        harness.Files.PollConsoleCommand();
+        CloseTutorialPopups();
+    }
+    harness.Files.WriteStatus(BuildStatus(harness).dump(2));
+}
+
+void Shutdown()
+{
+    Harness::Get().Commands.Stop();
+}
+} // namespace TestHarness
