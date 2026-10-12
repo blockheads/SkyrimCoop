@@ -124,8 +124,10 @@ void* EquipManager::EquipShout(Actor* apActor, TESForm* apShout)
 
 void* EquipManager::UnEquipShout(Actor* apActor, TESForm* apShout)
 {
+    // ActorEquipManager::UnequipShout, the mirror of EquipShout (38897). Not 38903: that is the unequip
+    // by slot (left, right, voice) and takes the slot as a fourth argument.
     TP_THIS_FUNCTION(TUnEquipShoutInternal, void*, EquipManager, Actor*, TESForm*);
-    POINTER_SKYRIMSE(TUnEquipShoutInternal, s_unequipFunc, 38903);
+    POINTER_SKYRIMSE(TUnEquipShoutInternal, s_unequipFunc, 38904);
 
     ScopedEquipOverride equipOverride;
 

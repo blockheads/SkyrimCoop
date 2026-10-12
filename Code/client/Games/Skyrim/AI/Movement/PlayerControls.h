@@ -43,8 +43,8 @@ struct PlayerControls
     void SetCamSwitch(bool aSet) noexcept;
 
 public:
-    char pad0[0x20];
-    PlayerControlsData Data;
+    char pad0[0x24];                         // AE: 0x20 on SE (CommonLibSSE-NG; ProcessEvent passes this+0x24)
+    PlayerControlsData Data;                 // 024
     std::uint32_t pad054;                    // 054
     GameArray<void*> handlers;               // 058
     GameArray<void*> unk070;                 // 070
@@ -77,7 +77,8 @@ public:
 };
 
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerControls, bBlockPlayerInput) == 0x1D9);
-SKYRIM_STRUCT_ASSERT(offsetof(PlayerControls, Data) == 0x20);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerControls, Data) == 0x24);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerControls, handlers) == 0x58);
 
 struct BSInputEnableManager
 {

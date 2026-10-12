@@ -1065,24 +1065,19 @@ void TP_MAKE_THISCALL(HookApplyActorEffect, ActiveEffect, Actor* apTarget, float
     return TiltedPhoques::ThisCall(RealApplyActorEffect, apThis, apTarget, aEffectValue, unk1);
 }
 
-TP_THIS_FUNCTION(TRegenAttributes, void*, Actor, int aId, float regenValue);
-static TRegenAttributes* RealRegenAttributes = nullptr;
+// The passive regeneration of health (24), magicka (25) and stamina (26): aDelta seconds' worth, restored
+// into the damage modifier. The per-value updates (38451 health, 38452 stamina, 38453 magicka) call it every
+// frame. Copies take these values from their owner, so they never regenerate. (Upstream hooked 37448,
+// Actor::GetSubmergedLevel, here since its 2021 AE port; see docs/re/systems/actor-values.md.)
+TP_THIS_FUNCTION(TRegenerateActorValue, void, Actor, int32_t aActorValue, float aDelta);
+static TRegenerateActorValue* RealRegenerateActorValue = nullptr;
 
-void* TP_MAKE_THISCALL(HookRegenAttributes, Actor, int aId, float aRegenValue)
+void TP_MAKE_THISCALL(HookRegenerateActorValue, Actor, int32_t aActorValue, float aDelta)
 {
-    if (aId != ActorValueInfo::kHealth)
-    {
-        return TiltedPhoques::ThisCall(RealRegenAttributes, apThis, aId, aRegenValue);
-    }
+    if (apThis->GetExtension()->IsRemote())
+        return;
 
-    const auto* pExTarget = apThis->GetExtension();
-    if (pExTarget->IsRemote())
-    {
-        return 0;
-    }
-
-    World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, aRegenValue));
-    return TiltedPhoques::ThisCall(RealRegenAttributes, apThis, aId, aRegenValue);
+    TiltedPhoques::ThisCall(RealRegenerateActorValue, apThis, aActorValue, aDelta);
 }
 
 void TP_MAKE_THISCALL(HookAddInventoryItem, Actor, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
@@ -1204,17 +1199,19 @@ void TP_MAKE_THISCALL(HookUpdateDetectionState, ActorKnowledge, void* apState)
 struct DialogueItem;
 
 // TODO: This is an AIProcess function
-TP_THIS_FUNCTION(TProcessResponse, uint64_t, void, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor);
+// The engine passes a fifth argument (a byte it hands on to the response's processing); dropping it left
+// the original reading an uninitialized stack slot.
+TP_THIS_FUNCTION(TProcessResponse, uint64_t, void, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk);
 static TProcessResponse* RealProcessResponse = nullptr;
 
-uint64_t TP_MAKE_THISCALL(HookProcessResponse, void, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor)
+uint64_t TP_MAKE_THISCALL(HookProcessResponse, void, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk)
 {
     if (apTalkingActor)
     {
         if (apTalkingActor->GetExtension()->IsRemotePlayer())
             return 0;
     }
-    return TiltedPhoques::ThisCall(RealProcessResponse, apThis, apVoice, apTalkingActor, apTalkedToActor);
+    return TiltedPhoques::ThisCall(RealProcessResponse, apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
 }
 
 bool TP_MAKE_THISCALL(HookInitiateMountPackage, Actor, Actor* apMount)
@@ -1476,7 +1473,7 @@ static TiltedPhoques::Initializer s_actorHooks(
         POINTER_SKYRIMSE(TForceState, s_ForceState, 37313);
         POINTER_SKYRIMSE(TDamageActor, s_damageActor, 37335);
         POINTER_SKYRIMSE(TApplyActorEffect, s_applyActorEffect, 35086);
-        POINTER_SKYRIMSE(TRegenAttributes, s_regenAttributes, 37448);
+        POINTER_SKYRIMSE(TRegenerateActorValue, s_regenerateActorValue, 38459);
         POINTER_SKYRIMSE(TAddInventoryItem, s_addInventoryItem, 37525);
         POINTER_SKYRIMSE(TPickUpObject, s_pickUpObject, 37521);
         POINTER_SKYRIMSE(TDropObject, s_dropObject, 40454);
@@ -1497,7 +1494,7 @@ static TiltedPhoques::Initializer s_actorHooks(
         RealForceState = s_ForceState.Get();
         RealDamageActor = s_damageActor.Get();
         RealApplyActorEffect = s_applyActorEffect.Get();
-        RealRegenAttributes = s_regenAttributes.Get();
+        RealRegenerateActorValue = s_regenerateActorValue.Get();
         RealAddInventoryItem = s_addInventoryItem.Get();
         RealPickUpObject = s_pickUpObject.Get();
         RealDropObject = s_dropObject.Get();
@@ -1517,7 +1514,7 @@ static TiltedPhoques::Initializer s_actorHooks(
         TP_HOOK(&RealForceState, HookForceState);
         TP_HOOK(&RealDamageActor, HookDamageActor);
         TP_HOOK(&RealApplyActorEffect, HookApplyActorEffect);
-        TP_HOOK(&RealRegenAttributes, HookRegenAttributes);
+        TP_HOOK(&RealRegenerateActorValue, HookRegenerateActorValue);
 
         POINTER_SKYRIMSE(TIsHostileToActor, s_isHostileToActor, 37537);
         RealIsHostileToActor = s_isHostileToActor.Get();

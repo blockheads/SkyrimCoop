@@ -2,3 +2,16 @@ id	rva	name	comment
 104788	0x1445fe0	BSScript::Internal::VirtualMachine::BindNativeMethod	vtable slot 0x18 of VirtualMachine (verified in IDA 2026-10-10); we hook it as HookRegisterPapyrusFunction
 104790	0x1446280	BSScript::Internal::VirtualMachine::SetCallableFromTasklets1	vtable slot 0x19; error strings 'Type %s does not exist. Function %s in state %s ...'. GCC vtable shift made our BindNativeMethod call land here
 104789	0x1446250	BSScript::Internal::VirtualMachine::SetCallableFromTasklets2	vtable slot 0x1a
+68655	0xcd9e00	BSTEventSource_InputEvent__SendEvent	BSInputDeviceManager's dispatch of the frame's input chain to every sink (MenuControls, PlayerControls, ...); called from PollInputDevices (68617) with BSInputEventQueue+0x380 (queue head). CommonLib inlines it (template), so no RELOCATION_ID. See docs/re/systems/input.md
+68542	0xcd4f70	ControlMap::MapUserEvents	Called from PollInputDevices before the dispatch: gives each queued event with an empty userEvent the user event mapped to its (device, idCode) in the active contexts; disabled controls get "Skip" (then "")
+42338	0x79a970	PlayerControls::ProcessEvent_InputEvent	BSTEventSink<InputEvent*> of PlayerControls: bails while menus/VATS/etc. are up, then for each event calls handler->CanProcess (vfunc 1) and ProcessButton (vfunc 4, data = PlayerControls+0x24), then UpdateHeldStateActive for held handlers
+38459	0x6b1e30	Actor::RegenerateActorValue	(actor, avId, deltaSecs): restores rate*delta into the damage modifier when the value is damaged. Called by 38451/38452/38453. We hook it (HookRegenerateActorValue): copies never regenerate
+38460	0x6b1ee0	Actor::GetActorValueRegenRate	(actor, avId) -> per-second regen for health 24 (HealRate, combat mult 134, fCombatHealthRegenRateMult...), magicka 25, stamina 26
+38451	0x6b1b30	Actor::UpdateHealthRegen	per frame (actor, deltaSecs); unless 38461(actor, 24) and if the process allows it, calls 38459(24)
+38452	0x6b1ba0	Actor::UpdateStaminaRegen	per frame (actor, deltaSecs); calls 38459(26)
+38453	0x6b1cb0	Actor::UpdateMagickaRegen	per frame (actor, deltaSecs); calls 38459(25)
+37448	0x673170	Actor::GetSubmergedLevel	(actor, zPos, cell) -> 0..1, how deep under the water level (CommonLibSSE-NG). Tilted Online hooked it by mistake as RegenAttributes from 2021 to 2026-10
+38904	0x6ca320	ActorEquipManager::UnequipShout	(manager, actor, shout): mirror of EquipShout 38897. EquipManager::UnEquipShout called 38903 here by mistake until 2026-10-11
+38903	0x6ca2b0	ActorEquipManager::UnequipSpellBySlot	(manager, actor, form, int slot 0 left / 1 right / 2 voice); any other slot returns without doing anything. Mirror of 38896 EquipSpellBySlot
+38896	0x6c9a70	ActorEquipManager::EquipSpellBySlot	(manager, actor, form, int slot 0 left / 1 right / 2 voice)
+39643	0x6f8020	DialogueResponse::Process	our name; (this, response smart pointer*, speaker actor, target actor, byte): the 5th argument goes on to sub_14070C2B0. Hooked as HookProcessResponse

@@ -3,10 +3,12 @@
 
 Sources, in priority order for names:
   1. docs/re/ida_notes.tsv            names/comments exported from our IDA database (ida_export.py)
-  2. reference/CommonLibSSE           community RE headers: functions, singletons, vtables, RTTI
+  2. reference/CommonLibSSE(-NG)      community RE headers: functions, singletons, vtables, RTTI
+                                      (powerof3's fork first, alandtse's NG fills the gaps)
   3. SKSE source (game dir src/)      SKSE's own engine bindings for this exact exe version
   4. meh321 AddressLibraryDatabase    community names for Address Library IDs
-plus how *our* code uses each address (POINTER_SKYRIMSE: hook / patch / call / data).
+plus how *our* code uses each address (POINTER_SKYRIMSE: hook / patch / call / data), and which
+SKSE plugins in reference/plugins hook or call it (names from their offsets only after meh321's).
 
 Outputs:
   build/re/annotations.json   consumed by scripts/re/ida_apply.py
@@ -26,7 +28,8 @@ GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
                            "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/SteamLibrary/steamapps/common/Skyrim Special Edition"))
 VERSIONLIB = GAME / "Data/SKSE/Plugins/versionlib-1-6-1170-0.bin"
 SKSE_SRC = GAME / "src/skse64"
-COMMONLIB = ROOT / "reference/CommonLibSSE"
+COMMONLIBS = (ROOT / "reference/CommonLibSSE", ROOT / "reference/CommonLibSSE-NG")
+PLUGINS = ROOT / "reference/plugins"
 MEH_NAMES = ROOT / "reference/AddressLibraryDatabase/skyrimae.rename"
 IDA_NOTES = ROOT / "docs/re/ida_notes.tsv"
 CLIENT = ROOT / "Code/client"
@@ -88,6 +91,16 @@ def load_meh_names():
 
 
 def load_commonlib():
+    """{ae_id: (name, kind, 'path:line')} from every CommonLib tree; the first tree that names an ID wins."""
+    found = {}
+    for root in COMMONLIBS:
+        for ident, entry in load_commonlib_tree(root).items():
+            if ident not in found or (not found[ident][0] and entry[0]):
+                found[ident] = entry
+    return found
+
+
+def load_commonlib_tree(COMMONLIB):
     """{ae_id: (name, kind, 'path:line')} from RELOCATION_ID(se, ae) uses and the AE offset tables."""
     found = {}
     if not COMMONLIB.exists():
@@ -97,7 +110,7 @@ def load_commonlib():
     variable = re.compile(r"REL::Relocation<[^>]*>+\s+(\w+)\s*[{(]")
     table_entry = re.compile(r"inline constexpr .*?\s(\w+)\s*\{\s*(.*?)\s*\};")
     for path in sorted((COMMONLIB / "include").rglob("*.h")) + sorted((COMMONLIB / "src").rglob("*.cpp")):
-        relative = path.relative_to(COMMONLIB)
+        relative = path.relative_to(COMMONLIB.parent)
         lines = path.read_text(errors="replace").splitlines()
         in_ae, has_ae_block = False, any("#ifdef SKYRIM_SUPPORT_AE" in line for line in lines)
         for number, line in enumerate(lines, 1):
@@ -132,6 +145,29 @@ def load_commonlib():
                         else:
                             name, kind = label, "data"
                         found.setdefault(ident, (name, kind, f"{relative}:{number}"))
+    return found
+
+
+def load_plugins():
+    """{ae_id: [(name or '', 'plugin/path:line')]} from RELOCATION_ID(se, ae) / VariantID(se, ae, vr) in
+    the SKSE plugins under reference/plugins. A name only when the relocation is the function itself
+    (no call-site offset, not a generic variable such as `target` or `hook`)."""
+    found = defaultdict(list)
+    if not PLUGINS.exists():
+        return found
+    relocation = re.compile(r"(?:RELOCATION_ID|RelocationID|VariantID)\(\s*\d+\s*,\s*(\d+)")
+    variable = re.compile(r"(?:REL::Relocation<[^>]*>+|void\*|auto)\s+(?:g_)?(\w+)\s*(?:[{(]|=)")
+    generic = re.compile(r"(?i)^(target|hook\w*|func\w*|addr\w*|ptr|call\w*|jmp|vtbl\w*|t?\d*|offset\w*|patch\w*|"
+                         r"loc\w*|start|end|base|reloc\w*|\w*hook\d*|[0-9A-Fa-f]+|\w{1,4})$")
+    for path in sorted(PLUGINS.rglob("*")):
+        if path.suffix not in (".h", ".hpp", ".cpp", ".inl") or not path.is_file() or "extern" in path.parts:
+            continue
+        for number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            for match in relocation.finditer(line):
+                var = variable.search(line)
+                named = var and not generic.match(var.group(1)) and not re.search(r"OFFSET|VAR_NUM|\+\s*0x", line)
+                found[int(match.group(1))].append((var.group(1) if named else "",
+                                                   f"{path.relative_to(PLUGINS)}:{number}"))
     return found
 
 
@@ -207,18 +243,20 @@ def main():
         raise SystemExit(f"Address Library not found: {VERSIONLIB}")
     ids = load_address_library(VERSIONLIB)
     rva_to_id = {rva: ident for ident, rva in ids.items()}
-    meh, commonlib, skse, notes, ours = (load_meh_names(), load_commonlib(), load_skse(rva_to_id),
-                                         load_ida_notes(), scan_our_code())
+    meh, commonlib, skse, notes, ours, plugins = (load_meh_names(), load_commonlib(), load_skse(rva_to_id),
+                                                  load_ida_notes(), scan_our_code(), load_plugins())
 
     annotations = []
-    everything = set(meh) | set(commonlib) | set(skse) | set(notes) | set(ours)
+    everything = set(meh) | set(commonlib) | set(skse) | set(notes) | set(ours) | set(plugins)
     for ident in sorted(everything):
         if ident not in ids:
             continue
         cl, sk, ida = commonlib.get(ident), skse.get(ident), notes.get(ident)
         uses = ours.get(ident, [])
-        name = (ida and ida[0]) or (cl and cl[0]) or (sk and sk[0]) or meh.get(ident) or \
-               ("coop_" + uses[0]["var"].removeprefix("s_") if uses else None)
+        plugin_name = next((n for n, _ in plugins.get(ident, []) if n), None)
+        name = (ida and ida[0]) or (cl and cl[0]) or (sk and sk[0]) or \
+               (plugin_name if not meh.get(ident) or re.search(r"(sub|Func\d+|unk\w*)_\d+$", meh[ident]) else None) or \
+               meh.get(ident) or ("coop_" + uses[0]["var"].removeprefix("s_") if uses else None)
         kind = (cl and cl[1]) or ("func" if uses and uses[0]["kind"] in ("hook", "call") else "data")
         comment = [f"AddressLib ID {ident}"]
         if meh.get(ident) and meh[ident] != name:
@@ -227,6 +265,8 @@ def main():
             comment.append(f"CommonLibSSE: {cl[0] or 'function'} ({cl[2]})")
         if sk:
             comment.append(f"SKSE: {sk[0]} ({sk[1]})")
+        for plugin_use, where in plugins.get(ident, [])[:4]:
+            comment.append(f"Used by plugin: {where}" + (f" as {plugin_use}" if plugin_use else ""))
         for use in uses:
             action = f"hooked by {use['hook']}" if use["kind"] == "hook" else use["kind"]
             comment.append(f"SkyrimCoop: {action} as {use['var']} ({use['file']}:{use['line']})")
@@ -238,21 +278,22 @@ def main():
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(json.dumps({"image_base": IMAGE_BASE, "exe_version": "1.6.1170.0",
                                     "annotations": annotations}))
-    write_markdown(ids, meh, commonlib, skse, ours, notes)
+    write_markdown(ids, meh, commonlib, skse, ours, notes, plugins)
     used = [a for a in annotations if a["ours"]]
     print(f"{len(annotations)} annotated addresses ({len(commonlib)} CommonLib, {len(skse)} SKSE, "
-          f"{len(meh)} meh321, {len(notes)} IDA notes); SkyrimCoop uses {len(used)} "
+          f"{len(meh)} meh321, {len(plugins)} used by plugins, {len(notes)} IDA notes); SkyrimCoop uses {len(used)} "
           f"({sum(a['hook'] for a in used)} hooked)")
     print(f"Wrote {OUT_JSON.relative_to(ROOT)} and {OUT_MD.relative_to(ROOT)}")
 
 
-def write_markdown(ids, meh, commonlib, skse, ours, notes):
+def write_markdown(ids, meh, commonlib, skse, ours, notes, plugins):
     def link(use):
         return f"[{Path(use['file']).name}:{use['line']}](../../{use['file']}#L{use['line']})"
 
     def row(ident, use):
         cl, sk, ida = commonlib.get(ident), skse.get(ident), notes.get(ident)
-        sources = " ".join(s for s, ok in (("IDA", ida), ("CL", cl), ("SKSE", sk), ("meh", ident in meh)) if ok)
+        sources = " ".join(s for s, ok in (("IDA", ida), ("CL", cl), ("SKSE", sk), ("PL", ident in plugins),
+                                            ("meh", ident in meh)) if ok)
         flags = list(use["flags"])
         if not (ida or cl or sk or ident in meh):
             flags.append("**undocumented**")
@@ -283,7 +324,8 @@ def write_markdown(ids, meh, commonlib, skse, ours, notes):
         "",
         "Every SkyrimSE.exe 1.6.1170 address SkyrimCoop uses, cross-referenced with the community references.",
         "RVAs are relative to image base `0x140000000`. Sources: **CL** = CommonLibSSE (signature/layout",
-        "available), **SKSE** = SKSE source, **meh** = meh321 AddressLibraryDatabase name only,",
+        "available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** = hooked or called by an",
+        "SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,",
         "**IDA** = our own IDA work (`docs/re/ida_notes.tsv`).",
         "",
         f"- **{total}** distinct engine addresses used; **{documented}** have code in CommonLib or SKSE; "

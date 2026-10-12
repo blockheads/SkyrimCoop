@@ -16,9 +16,20 @@ touches it. The repo is the record; IDA is a workbench that syncs into it.
 2. **CommonLibSSE** (powerof3, GPL-3) in `reference/CommonLibSSE`: engine classes, layouts,
    vtables, RTTI, and `RELOCATION_ID(SE, AE)` for ~9.7k addresses. The best reference for
    struct layouts; check our hand-written structs in `Code/client/Games/` against it.
+   **CommonLibSSE-NG** (alandtse) in `reference/CommonLibSSE-NG` fills the gaps: ~170 more AE IDs,
+   AE layout fixes (e.g. `PlayerControls::data` at 0x24, the `ButtonEvent` stride) and helpers such
+   as `ButtonEvent::Create`. When the two disagree on an AE layout, check IDA.
 3. **SKSE 2.2.6 source**, shipped with SKSE in the game dir (`src/skse64`): raw 1.6.1170
    offsets. Also shows which engine functions SKSE itself hooks (we stack on some of them).
 4. **meh321 AddressLibraryDatabase** (`skyrimae.rename`): names for ~42k Address Library IDs.
+5. **SKSE plugins** in `reference/plugins` (Precision, TrueHUD, EngineFixes, po3-Tweaks, Papyrus
+   Extender): where other mods hook or call an address and how. Each such ID gets "Used by plugin:
+   file:line" in its IDA comment, and their offset names fill in where meh321 has only `sub_`.
+   Add a plugin to `fetch_references.sh` when it works in a system we touch.
+
+Not every mod that does what we need uses Address Library IDs: some only call CommonLib APIs
+(e.g. input injection, see [systems/input.md](systems/input.md)). When the engine path is
+unclear, search GitHub for mods doing the same thing before reversing it.
 
 Not available: Tilted Phoques' own IDA work. They ran a private shared database (they forked
 IDArling); it was never published. ~76 of our addresses have no public name; IDA is the only

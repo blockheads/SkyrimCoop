@@ -140,9 +140,10 @@ void ActorValueService::BroadcastActorValues() noexcept
 
             float newValue = m_actorBridge.GetActorValue(formId, i);
             float oldValue = actorValuesComponent.CurrentActorValues.ActorValuesList[i];
-            // Health always goes out: copies mirror the owner's value, so a copy that drifted
-            // is corrected even while the owner's health is unchanged.
-            if (newValue != oldValue || i == 24 /* kHealth */)
+            // Health, magicka and stamina always go out: copies mirror the owner's values, so a copy
+            // that drifted (its replayed cast spent magicka, and copies never regenerate) is corrected
+            // even while the owner's value is unchanged.
+            if (newValue != oldValue || (i >= 24 && i <= 26) /* kHealth, kMagicka, kStamina */)
             {
                 requestValueChanges.Values.insert({i, newValue});
                 actorValuesComponent.CurrentActorValues.ActorValuesList[i] = newValue;

@@ -46,19 +46,20 @@ struct MagicCaster
     void InterruptCast() noexcept;
     void FindTargets(const NiPoint3& arLocation, Projectile* apProjectile, TESObjectREFR* apCollidee, float afPowerScale, float afAreaOverride, bool abAreaOverrideInWorldUnits, bool abApplyAll);
 
-    enum State
+    // CommonLibSSE-NG's names. Seen holding the attack button with Firebolt (2026-10-11): 2 while it
+    // charges, 3 once charged, 4 just after the release, then 0.
+    enum State : uint32_t
     {
-        DERIVED_ATTRIBUTE = 0x0,
-        ATTRIBUTE = 0x1,
-        SKILL = 0x2,
-        AI_ATTRIBUTE = 0x3,
-        RESISTANCE = 0x4,
-        CONDITION = 0x5,
-        CHARGE = 0x6,
-        INT_VALUE = 0x7,
-        VARIABLE = 0x8,
-        RESOURCE = 0x9,
-        TYPE_COUNT = 0xA,
+        kNone = 0,
+        kUnk01 = 1,
+        kUnk02 = 2, // charging (a held button)
+        kReady = 3, // charged: a release casts
+        kUnk04 = 4, // released, the cast going out
+        kCharging = 5,
+        kCasting = 6,
+        kUnk07 = 7,
+        kUnk08 = 8, // interrupt
+        kUnk09 = 9, // interrupt or deselect
     };
 
     GameArray<uint64_t> hSounds; // BSTArray<BSSoundHandle> hSounds;
