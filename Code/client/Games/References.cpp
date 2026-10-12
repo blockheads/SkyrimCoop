@@ -85,13 +85,17 @@ void FadeOutGame(bool aFadingOut, bool aBlackFade, float aFadeDuration, bool aRe
 TP_THIS_FUNCTION(TCheckForNewPackage, bool, void, Actor* apActor, uint64_t aUnk1);
 static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 
-// Copy contract (docs/design/copy-contract.md): a copy runs no AI packages. Its owner's game
-// decides what it does; packages here only fight the movement sync and reach into the local
-// game (a remote player's copy resuming a package that reserves our player deadlocked Disable).
+// A copy runs no packages (copy contract) but holds the engine's do-nothing one, so the engine treats it
+// like any NPC with a package; HookUpdateAI keeps it from running.
 bool TP_MAKE_THISCALL(HookCheckForNewPackage, void, Actor* apActor, uint64_t aUnk1)
 {
     if (apActor && apActor->GetExtension()->IsRemote())
+    {
+        const AIProcess* pProcess = apActor->currentProcess;
+        if (pProcess && !(pProcess->package && pProcess->package->packType == TESPackage::kDoNothing))
+            apActor->InitiateDoNothingPackage();
         return false;
+    }
 
     return TiltedPhoques::ThisCall(RealCheckForNewPackage, apThis, apActor, aUnk1);
 }
@@ -100,12 +104,26 @@ bool TP_MAKE_THISCALL(HookCheckForNewPackage, void, Actor* apActor, uint64_t aUn
 TP_THIS_FUNCTION(TPutCreatedPackage, void, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk);
 static TPutCreatedPackage* RealPutCreatedPackage = nullptr;
 
+// Set while Actor::InitiateDoNothingPackage gives a copy its package.
+static thread_local bool s_copyPackage = false;
+
 void TP_MAKE_THISCALL(HookPutCreatedPackage, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk)
 {
-    if (apThis->GetExtension()->IsRemote())
+    if (apThis->GetExtension()->IsRemote() && !s_copyPackage)
         return;
 
     TiltedPhoques::ThisCall(RealPutCreatedPackage, apThis, apPackage, aRunOnce, aUnk);
+}
+
+// Actor::InitiateDoNothingPackage (37402): only in high or middle-high process.
+void Actor::InitiateDoNothingPackage() noexcept
+{
+    TP_THIS_FUNCTION(TInitiateDoNothingPackage, void, Actor);
+    POINTER_SKYRIMSE(TInitiateDoNothingPackage, s_initiateDoNothingPackage, 37402);
+
+    s_copyPackage = true;
+    TiltedPhoques::ThisCall(s_initiateDoNothingPackage, this);
+    s_copyPackage = false;
 }
 
 TP_THIS_FUNCTION(TInitFromPackage, void, void, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor);

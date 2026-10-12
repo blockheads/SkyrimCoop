@@ -2,6 +2,7 @@
 
 struct TESForm;
 struct MiddleProcess;
+struct HighProcessData;
 struct TESAmmo;
 
 struct AIProcess
@@ -12,7 +13,7 @@ struct AIProcess
 
     void* unk0;
     MiddleProcess* middleProcess;
-    void* unk8;
+    HighProcessData* highProcess; // 10 (CommonLib high)
     void* packageLock;
     struct TESPackage* package;
     uint32_t unk10[7];
@@ -23,8 +24,9 @@ struct AIProcess
 
     uint8_t pad88[0x137 - 0x88];
 
-    int8_t movementType;
+    int8_t processLevel; // 0 high .. 3 low (CommonLib)
 };
+
 
 struct HighProcessData
 {
@@ -33,4 +35,6 @@ struct HighProcessData
     GameArray<std::tuple<uint32_t, void*>> KnowledgeArray; // BSTuple, std::tuple is prolly wrong
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, movementType) == 0x137);
+SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, highProcess) == 0x10);
+
+SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, processLevel) == 0x137);

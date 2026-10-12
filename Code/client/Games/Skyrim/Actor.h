@@ -223,6 +223,7 @@ struct Actor : TESObjectREFR
     void ForcePosition(const NiPoint3& acPosition) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
     void SetPackage(TESPackage* apPackage) noexcept;
+    void InitiateDoNothingPackage() noexcept;
     void SetActorInventory(const Inventory& aInventory) noexcept;
     void SetMagicEquipment(const MagicEquipment& acEquipment) noexcept;
     void SetEssentialEx(bool aSet) noexcept;
@@ -307,7 +308,9 @@ public:
     BSTEventSink<void*> tdEvent;
     BSTEventSink<void*> cmfEvent;
     IPostAnimationChannelUpdateFunctor unk78;
-    uint32_t flags1;
+    uint32_t flags1; // CommonLib boolBits
+    // flags1: the engine updates the actor this frame (CommonLib BOOL_BITS::kProcessMe).
+    static constexpr uint32_t kProcessMe = 1u << 1;
     float headTrackingUpdateDelay;
     uint32_t unk84;
     AIProcess* currentProcess;
@@ -315,7 +318,7 @@ public:
     uint32_t combatHandle;
     uint32_t killerHandle;
     uint32_t unk98;
-    float fVoiceTimer;
+    float fVoiceTimer; // seconds left of the voice line (CommonLib voiceTimer)
     uint32_t unkA0;
     uint32_t unkA4;
     int32_t iThiefCrimeStamp;
@@ -353,7 +356,8 @@ public:
     void* actorWeightData;
     float fArmorRating;
     float fArmorBaseFactorSum;
-    uint8_t unk194;
+    // Voice line state (CommonLib soundCallBackSet): 3 queued, -1 playing, 1/2 ended.
+    int8_t soundCallBackSet;
     uint8_t unk195;
     uint8_t unk196;
     uint8_t flag197;
@@ -370,7 +374,7 @@ SKYRIM_STRUCT_ASSERT(offsetof(Actor, flags1) == 0xE8);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorValueOwner) == 0xB8);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorState) == 0xC0);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, flags2) == 0x204);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk194) == 0x278);
+SKYRIM_STRUCT_ASSERT(offsetof(Actor, soundCallBackSet) == 0x278);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, fVoiceTimer) == 0x110);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk84) == 0xF0);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk17C) == 0x184);

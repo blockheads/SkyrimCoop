@@ -1,0 +1,354 @@
+# Actor AI, the per-frame update, and copies
+
+How the engine updates an NPC every frame, what SkyrimCoop cuts for **copies** (actors another game
+owns, `ActorExtension::IsRemote()`), and how a replayed action reaches a copy's behaviour graph. IDs
+are Address Library IDs for 1.6.1170; names marked "our name" have no community name (CommonLib,
+meh321, the reference plugins and a web search had only `sub_`). Every name below is in IDA and in
+`docs/re/ida_notes.tsv`. Decision and contract: `docs/design/copy-contract.md`.
+
+## The per-frame update of a high-process actor
+
+`ProcessLists` (CommonLib layout: high/low/middle-high/middle-low handle arrays at +0x30/+0x48/+0x60/
++0x78) feeds the frame's job lists. The job entries carry Bethesda's own job names:
+
+| Job | Per high actor | Gated on `kProcessMe` |
+|---|---|---|
+| `Job_Actor_update` (39050) → `QueueHighActorUpdates` (41367) → `UpdateActor` (41448) → `ProcessLists::UpdateHighActor` (41369) | if processable: `Character::UpdateAI` (37347) (or, off-screen with no package, only `checkForNewPackage`), `NearbyActors::Insert`, follower timers, then `Actor::Update` (37348, vfunc 0xAD); otherwise `Actor::UpdateNoAI` (37349, vfunc 0xAE → `UpdateActor3DPosition`) | yes |
+| `Job_Actor_movement` (39053) → `QueueHighActorMovement` (41306) → `UpdateActorMovementJob` (41444) → `Actor::UpdateMovement` (37350) | movement controller update, `Actor::ApplyMovement` (37356), character controller settings | no |
+| `Job_Actor_animation` (39054) → `QueueHighActorAnimation` (41370) → `RunOneActorAnimationUpdateJob` (41453) | animation graph update (`TESObjectREFR::UpdateAnimation` 20119 via 37364) | yes (list built by 41466) |
+| `Job_Combat_and_magic` (39065) → `UpdateHighActorsMagic` (41372) → `Character::UpdateMagicAndRegen` (38785) | magic casters, `MagicTarget::UpdateActiveEffects`, regen | no |
+| `Job_Ragdoll_post_physics` (39068) | `UpdateRagdollPostPhysics` (41447) → `UpdateNoAI` | no |
+| `Job_Non_render_safe_AI` (39089) | `ProcessActorAnimSG`, `Actor::UpdateNonRenderSafe` (37360) | no |
+
+Middle-high, middle-low and low actors get `Character::UpdateAI` time-sliced from 41305, 41304 and
+41302, which also need `kProcessMe`.
+
+"Processable" is `!kInTempChangeList (boolBits 0x200) && !(form flags 0x200000) && kProcessMe
+(boolBits 0x2) && currentProcess`. `boolBits` is CommonLib's `Actor::boolBits` (AE +0xE8, our
+`Actor::flags1`).
+
+### Every reader of `kProcessMe`
+
+A scan of the whole code section (capstone, with register copies followed), checked one by one in IDA:
+`Character::UpdateAI` (its second test), `ProcessLists::UpdateHighActor` (41369), the three lower-level
+AI passes (41302/41304/41305), `CollectAnimatedHighActors` (41466, the animation job list),
+`UpdateHighActorsAnimationSerial` (41377, vfunc 0x7D `UpdateAnimation`), `CheckHighActorsDetectPlayer`
+(41409), `UpdateFollowPackages` (41295), `SendMovementMessage` (41656), 33216 (an AI condition), and
+the console/Papyrus toggles (`ToggleAI`, `ToggleActorsAI`, `IsActorsAIOff`, `SetActorsAI`). The only
+writers are the actor constructors (initial `boolBits` 0x10602182 includes it) and `Actor::EnableAI`
+(37504, also called by the `EnableAI` and `SetPlayerControls` natives).
+
+So `EnableAI(false)` stops the AI **and** `Actor::Update` **and** the animation graph job. That is the
+CK wiki's "disabling AI disables havok processing" and the model left behind while the collision
+moves: the graph and the 3D update stop, while `ApplyMovement` and the character controller keep
+running.
+
+### What `Character::UpdateAI` (37347) does
+
+1. Returns at once if the form is disabled (flag 0x800) or `kProcessMe` is clear.
+2. Scene and voice line upkeep, favour following, the headtracking choice (38011 →
+   `kShouldRotateToTrack`), timers, essential/protected flags, lip sync.
+3. For actors not in high process: the movement controller (+0x150, vfunc 8) and 38785.
+4. Then, alive: package evaluation, crime and faction bookkeeping, the do-nothing package, and
+   `AIProcess::UpdatePackageAndProcess` (39108). That runs the per-level AI first (high:
+   `AIProcess::UpdateHighProcessAI` 39637 with the weapon draw/sheathe decision that told every copy
+   to sheathe) and then the package procedures (heading, travel, `MoveRefToNewSpace`).
+5. Dead or down: essential recovery (`SetLifeState(0)`), respawn queueing.
+6. Last, for an actor below high process: `Character::UpdateCellAttachment` (37352, our name). In an
+   exterior it loads or unloads the actor's 3D to match whether its cell is attached, or queues a
+   move to the exterior cell of the same worldspace it stands in; in an interior it does nothing.
+   That is world upkeep, not a decision, and its only other caller is `Actor::UpdateNonRenderSafe`
+   (37360), which runs for high actors only.
+
+The Dying→Dead change (`SetLifeState(2)`) is not in here: `KillImmediate` and two `ProcessLists`
+functions do it. The player runs this function too, from `PlayerCharacter` 40748; its movement
+controller is controls-driven and its package is the player's.
+
+A high actor reaches it only when `Character::ShouldOnlyCheckPackage` (37277, our name) is false. That
+is true for an actor with no package (or a Wander/Travel one, types 5/6), no quest alias and no pending
+forced update (middle process +0x31D), whose 3D is far enough from the camera to fade
+(`BSFadeNode::sub_105490` compares the distance to the camera with the node's fade radius; it does not
+test the view: 1000 units away and behind the player still counts as seen in QASmoke). `ProcessLists::
+UpdateHighActor` then runs only `checkForNewPackage` (39114). Every NPC has a package. The player has
+none (`mod.package_type` -1): the main loop updates it, not `UpdateHighActor`.
+
+### Every callee, decision or upkeep (audited 2026-10-12)
+
+UpdateAI makes 82 calls to 65 functions, plus virtual calls. Each was looked up first in
+CommonLibSSE-NG, meh321's names, the plugins in `reference/plugins` (SkyMP included) and a GitHub
+code search of every ID (`RELOCATION_ID(se, ae)` with the ID in the AE slot; hits where it is an SE ID
+of another function were dropped). Then IDA for the rest. Names marked "ours" had none anywhere; all
+are in IDA and `docs/re/ida_notes.tsv`.
+
+**Decision**: what the actor chooses to do; its owner's game does it. **Upkeep**: what its body or the
+world needs whoever decides; a copy runs it from `HookUpdateAI`. **Helper**: no effect of its own.
+
+| ID | Name (source) | What it does there | Class | Copy |
+|---|---|---|---|---|
+| vfunc 0x4A, 24126, vfunc 0x4B | `GetCurrentScene` (CL), `BGSScene::UpdatePhase` (ours; meh: `BGSScene::sub_24126`), `SetCurrentScene` (CL) | With `boolBits` 8: advances the actor's running scene, or drops it | decision (quest scenes, the host's) | no |
+| vfunc 0x99 | `IsDead` (CL) | Sets `boolFlags` `kCanSpeak` (1<<13, CL) when alive, not knocked down, not unconscious. Read by scene dialogue (37468), `CommentOnPlayerAction` and combat grunts (0x8022B0 → SpeakSound): the local game choosing what the actor says | upkeep of a decision input | no: a copy's lines are its owner's, so it keeps `kCanSpeak` clear (as spawned) |
+| 37752 | `Character::UpdateVoiceTimer` (ours; meh: `Character::sub_37752`) | Counts the voice line's timer (`Actor::voiceTimer` +0x110) down; at 0 marks it ended (`soundCallBackSet` 1, or 2 when talking to the player) | upkeep | **yes** |
+| vfunc 0x40 = 37544 | `Actor::UpdateSoundCallback` (CL `UpdateSoundCallBack`) | Starts a queued line (`soundCallBackSet` 3, set by `SpeakSound` 37542 or its sound's callback): timer from the sound's duration, the face's expression, the subtitle. Ends an ended one: hides the subtitle, clears head tracking, the dialogue menu's topic when it is the speaker's | upkeep | **yes** |
+| 39344, 37715, 39345, 29559, 19822, 37493 | `ActorProcess::IsDoingFavor` (meh), `Character::IsFollowingOrEscorting` (ours), `AIProcess::GetFavorPackage` (ours, high +0x358), `TESPackage::GetLocationPosition` (ours; IntuitiveDragonRideControl hooks it as `TESPackage_sub_140437ac0`), `TESObjectREFR::GetDistanceSquared` (ours), `Character::SetDoingFavor` (ours) | A follower doing a favour stops when the player is too far from the favour's spot | decision | no |
+| 38011 | `Character::ShouldRotateToTrack` (ours; meh: `Character::sub_38011`) | Whether the body turns toward the headtracking target, from the package and target → `boolBits` `kShouldRotateToTrack` | decision | no (the sync turns copies) |
+| 39942 | `AIProcess::UpdateSleepTimer` (ours) | A sleeping actor's wake timer → `boolFlags` | decision | no |
+| 44302 | `GetGlobalTimeMultiplier` (meh) | VATS slow motion for the delta | helper | - |
+| 39943 | `AIProcess::UpdateIdleTimers` (ours) | Idle timers: stops an idle (`StopCurrentIdle`, the "StartIdleAnimationDriven" check) when they run out | decision (idles are replayed from the owner) | no |
+| 37410 | `Character::InitiateMovementBlockedPackage` (ours) | On `boolFlags` `kMovementBlocked`: a MovementBlocked package (type 36) | decision | no (and `HookPutCreatedPackage` refuses it) |
+| 37227 | `Character::CalculateEssentialProtected` (po3, EssentialsBeGone; NoahBoddie's DDS hooks it too) | `boolFlags` `kEssential`/`kProtected` from the base NPC and the quest aliases holding the actor. Its only other caller is `Actor::KillImpl` | upkeep | **yes**, in high process as UpdateAI does |
+| 39373, 39377 | `AIProcess::GetLipData`, `AIProcess::UpdateLipSyncGraph` (ours) | For a race without a FaceGen head (dragons): the phoneme graph variables (`TESRace::phonemeTargets`) from the line's lip data at 30 fps | upkeep | **yes**, in high process |
+| 40413, 36310 | `PlayerCharacter::IsSleeping` (meh), `Calendar::GetTimeScale` (ours) | The catch-up delta for an actor below high process while the player sleeps or waits | helper | - |
+| 68167, 68160, 13822 | scratch array init and free | | helper | - |
+| 19816, mover vfuncs 15 and 8, 41298 | `TESObjectREFR::GetWorldSpace` (meh), `MovementControllerNPC` update, `ProcessLists::QueueActorMovementUpdate` (ours) | Below high process: the AI's movement controller update, and its pending path requests queued | decision (movement) | no (the sync positions copies) |
+| 38785 | `Character::UpdateMagicAndRegen` (ours; MagicUtils hooks its regen calls) | Below high process: casters, `MagicTarget::UpdateActiveEffects`, regen | upkeep, not needed | no: high copies get it from `Job_Combat_and_magic`; a copy's values and effects are its owner's |
+| 37401 | `Actor::EvaluatePackage` (CL; DragonWar has a commented-out hook) | Picks the package | decision | no |
+| 37799, 39867 | `Actor::GetActorMover` (meh), `ActorProcess::HasRunOncePackage` (meh) | Results unused (debug leftovers) | helper | - |
+| 39118, 36300, 11672 | `AIProcess::GetLastUpdateDay` (ours), `Calendar::GetGameDay` (meh), `ExtraDataList::RemoveInfoGeneralTopic` (ours, extra 0x4C) | On a new day, forgets the general topics said | decision (dialogue state) | no |
+| 39197, 11726, 24505, 37668, 37380, 24525, 11943 | `AIProcess::GetEndAlarmOnActor` (ours, CL field `endAlarmOnActor`), `ExtraDataList::GetPlayerCrimeList` (ours, extra 0x34), `TESFaction::SetPlayerEnemy` (ours), `Character::ResetKnowledgeOfActor` (ours), `Actor::GetCrimeFaction` (meh), `TESFaction::sub_24525` (meh), `ExtraDataList::ClearPlayerCrimeList` (ours) | When the alarm on the player ends: the crimes this actor saw are dropped, its factions stop being the player's enemy, detection of the player resets | decision (crime, world state) | no |
+| 29581, 39347, 39607, 12325, 37474 | `TESPackage::IsInterruptType` (ours), `AIProcess::IsTalkingToPC` (ours, CL field `talkingToPC`), `AIProcess::GetHighUnk464` (ours), `GetHandleUnsafe` (meh), `Actor::EndInterruptPackage` (CL) | Ends a DoNothing interrupt once the dialogue menu has another speaker | decision | no |
+| 38303, 13894, vfunc 0x48, 37402, 37907 | `Actor::IsMountBeingRidden` (ours), `BGSDefaultObjectManager::GetSingleton` (CL), `HasKeywordHelper` (CL), `Actor::InitiateDoNothingPackage` (CL), `Actor::InitiateClearMountPositionPackage` (ours, type 43) | A mount being got on or off: a DoNothing or ClearMountPosition package | decision | no |
+| 39108, 39109 | `AIProcess::UpdatePackageAndProcess` (ours), `AIProcess::UpdatePackageAndProcessTimed` (ours) | The AI proper (above); 39109 re-enters UpdateAI with 0 for low actors | decision | no |
+| 11736 | `ExtraDataList::PruneRunOncePacks` (ours, extra 0x1B) | Drops run-once packages from another day | decision (package bookkeeping) | no |
+| 39174 | `AIProcess::UpdateLowMountRider` (ours) | A low-process mount takes its low-process rider along or dismounts it | decision (movement) | no |
+| 39116 | `AIProcess::ComputeLastTimeProcessed` (CL) | Dead actors: the process clock and a corpse timer | decision | no |
+| 39132, 39131, vfunc 0xE5, 37612, 441532, 38469, 38455 | `AIProcess::GetEssentialDownTimer`/`UpdateEssentialDownTimer` (ours), `StopCombat` (CL), `Actor::SetLifeState` (CL), a `TESDataHandler` flag, `GetActorValueModifier`/`RestoreActorValue` (meh) | An essential actor gets up when its down timer ends | decision (life state is the owner's) | no |
+| 40011, 36911 | `ActorProcess::sub_40011` (meh), `TaskQueueInterface::QueueKillActor` (ours, task 10) | A down actor that is no longer essential or protected is killed | decision | no |
+| 19804, 13308, 36304, 37730, 41343 | `TESObjectREFR::Respawns` (meh), `TES::IsCellLoaded` (ours), `Calendar::GetHoursPassed` (ours), `Character::CanRespawn` (ours), `ProcessLists::AddToTempChangeList` (ours, sets `kInTempChangeList`) | A dead actor that respawns is queued for it once its cell is unloaded and the time has passed | decision (world state, the host's) | no |
+| 37352 | `Character::UpdateCellAttachment` (ours) | Below high process: 3D and exterior cell follow whether the cell is attached | upkeep | **yes**, below high process |
+
+CL: CommonLibSSE-NG. meh: meh321's AddressLibraryDatabase names. po3: powerof3's EssentialsBeGone
+(`CalculateEssentialProtected`, hooked at UpdateAI +0x293 and in `KillImpl`). NoahBoddie's
+death-defiance-system hooks 37227 and patches UpdateAI's essential check in the dead branch
+(+0x96A). The search found no plugin, SkyMP or upstream Tilted Online code that calls UpdateAI's
+upkeep for actors without AI: nobody else cuts it.
+
+The four upkeep rows are what `HookUpdateAI` runs for copies. The voice line one is proven by
+`copy-ends-voice-line`: without it, a copy queued its owner's greeting and never played it (the
+scenario fails at "copy's line plays", control run 2026-10-12); with it, the copy's line plays and
+ends within 0.15 s of its owner's. A line's state `soundCallBackSet` 3 with no sound behind it can
+also rest after a line (the audio system's callback, `Character::SoundCallback_SetCallbackState`,
+sets it by form id, ours); `UpdateSoundCallback` leaves that one alone, on owners as well (the
+client's own player was seen resting at 3). Where one such 3 on a copy came from in
+`move-host-npc` was not traced.
+
+The same scenario found a regression from the bridge migration (36e2241d): `OnNotifySubtitle` played
+the owner's subtitle text as a sound file on the copy (`ActorSpeakSound(text)`), which queued a line
+with an empty sound over the real one. It shows the text again (`ActorShowSubtitle` →
+`SubtitleManager::ShowSubtitle`), as before the migration.
+
+## `Actor::Update` (37348): audited 2026-10-12
+
+Run for every high actor after `UpdateAI` (vfunc 0xAD), copies included: a copy needs most of it. 100
+callees in 0x12B1 bytes; audited by block, since its decisions sit in a few branches. It returns at once
+without 3D or outside an attached cell; after a skip of 900 s or more it only sets the force-update flag.
+
+| Block | What it does | Class | On a copy |
+|---|---|---|---|
+| Bleedout start | `boolFlags` kInBleedoutAnimation while essential-down or bleeding out: the default object 77 action | follow-through of the life state | the action is refused (`HookPerformAction`); the owner's bleedout is replayed |
+| `Actor::UpdateTrespassing` (37578, ours) | only the player can trespass; any other actor's `kIsTrespassing` is cleared | player only | a remote player's copy never trespasses on the other game: crime is the owner's, undecided in the contract |
+| `Character::UpdateSprintStamina` (38022, ours) | sprint drains stamina, for the player or the player's mount | player only | nothing |
+| Character controller | LOD settings from the camera; while attacking with animation-driven movement, the target's controller | upkeep | runs |
+| Face, attack sound, light | blinking/eyes by sit state, the weapon's attack loop sound, the actor's light | upkeep | runs |
+| **Sneak** | decides whether the actor should sneak: its combat controller in combat, `forceSneak` (ActorState2 bit 2), its package's always-sneak flag, or a teammate (`kPlayerTeammate`) while the player sneaks and is followed (40492). If its sneaking flag differs, it clears the middle process's movement flags (37592) and performs the sneak toggle | decision | a copy has none of those reasons, so while its owner sneaks it tries to stand up every frame. The toggle is an action (0x13007), which `HookPerformAction` refuses: 86 refusals in 1.4 s of sneaking (probe, 2026-10-12). The copy keeps its owner's state: `sneak-host-player` and `sneak-client-player` hold it for 1 s |
+| Water | submerged level → controller swim flag, `kInWater`, `kUnderwater`, time underwater; entering or leaving water: swim state, sheathe, torch put away, splash sound and ripples | upkeep, with follow-through | the state runs (the copy is where its owner is); equipment changes go through the equip hooks, which refuse them on copies |
+| Drowning | a head that was under for `fActorLeaveWaterBreathTimer` (4 s) gasps when it surfaces (`AIProcess::QueueSayComment` (7, 102), ours, every actor in high process, the player too); NPCs out of breath get a Surface package (type 29); the player out of breath takes damage and plays a drowning sound | decision | the package is refused (`HookPutCreatedPackage`). The gasp: the owner's line arrives over `NotifyDialogue` while the copy, a little behind, is still under water; when the copy surfaces it is talking, and `QueueSayComment` then only appends to the high process's deferred comments (+0x240), which nothing a copy runs plays. A copy not talking would say it at once (0x6E1A10: the story manager picks a line, no `kCanSpeak` test), so a copy that surfaced before its owner's line arrived could gasp on its own. `dive-host-player` / `dive-client-player`: the owner dives 6 s and surfaces; the copy plays exactly the owner's gasp (same 1578 ms line), keeps the do-nothing package and its owner's health (6 of 6, 2026-10-12) |
+| Harmful water | a cell's water damage per second through `Actor::DoDamage` (37335) | decision (damage) | `HookDamageActor` drops damage to a copy that does not come from its owner |
+| Dying | life state 1: stop movement, face, `TESObjectREFR::sub_14630` | follow-through | runs on the owner's synced life state |
+| Dead | resets the greeting timer | bookkeeping | harmless |
+| `Actor::UpdateCombatSearchState` (37273, ours) | in combat: caches the combat target and `kSearchingInCombat` | decision bookkeeping | a copy is not in combat (no AI); clears both |
+| Pending hands | weapon state 1 or 4 (ActorState2 bits 5-7): `DrawWeaponMagicHands` (vfunc 0xA6) again | follow-through | retried, as for any actor; with the AI cut no decision leaves a copy at 4 |
+
+So `Actor::Update` needs no copy hook of its own: every decision in it acts through a function an
+engine-level guard already holds (actions, created packages, damage, equipment). The copy contract's
+third principle, guarding the engine's functions rather than the callers, covers it. The sneak toggle
+is the cost: a refused action built each frame while a copy sneaks.
+
+## The cut
+
+Copies return at the entry of `Character::UpdateAI` (`HookUpdateAI`, Actor.cpp). That is the engine's
+own `kProcessMe` early-out applied to the AI alone; every body job above keeps running. The hook still
+runs UpdateAI's upkeep for copies (the table above), under `UpdateAI`'s own conditions, and
+A copy holds the engine's do-nothing package (type 27, `Actor::InitiateDoNothingPackage` 37402): whenever
+the engine asks for a copy's package (`checkForNewPackage` 39114: no package unseen, a process level
+change, a scene or dialogue ending), `HookCheckForNewPackage` gives it that one, and `HookPutCreatedPackage`
+lets it through. So `ShouldOnlyCheckPackage` is false for a copy as for any NPC with a package, and an
+unseen copy gets its upkeep too. This replaced a hook on 37277 that returned false for copies (2026-10-12).
+The package never runs: UpdateAI, where packages are picked and run, returns for copies.
+`PutCreatedPackage` (37570) also skips its "stop interacting" step for types 26-28, so it does not stand a
+seated copy up. Checked: every copy holds type 27 (`copy-ends-voice-line` asserts it), and the full suite
+gives 33 pass / 6 fail, every failure one listed under "Still open" or the baseline's. The unseen case
+itself was not reproduced in QASmoke: at 1000 units the copy counts as seen, and at 4000 units the owner's
+line is never queued on the copy at all, with or without the package (callback -1, no sound; not traced). Without the cell attachment, a copy left behind when the
+party changed cells kept its 3D and stayed loaded with no owner (Gerdur after `party-changes-cells`,
+the regression the reverted attempt also showed), and every later baseline reset failed.
+`HookApplyMovement` (37356, previously misnamed `HookActorProcess`) still skips the movement
+integration, since the sync positions copies.
+
+`ProcessLists::UpdateHighActor` runs on the job threads, several actors at once, so the hook must not
+touch shared state without a lock (a debugging map once hung the game there).
+
+### What the AI used to repair
+
+Cutting the AI showed one of our own bugs it had been hiding. `OnCharacterSpawn` put every copy in
+the local player's cell at its owner's position. The host's answer to an `EnterCellRequest` can
+arrive after the player left again (`party-changes-cells` goes to Riverwood and straight back):
+the Riverwood copies then stood in QASmoke at their Riverwood coordinates. With AI, their packages
+moved them back to Riverwood, out of the player's sight; as puppets they stayed, owned by nobody,
+and every later baseline reset failed. Logged on 2026-10-11: the spawns at 23:18:21.554, 32 ms after
+the client arrived in QASmoke, then Sven's parent cell 9731 → 32AE7 (QASmoke). Neither
+`UpdateCellAttachment` nor `ForcePosition` changed it. A copy of a reference from the game's data now
+goes to its owner's cell (`CharacterSpawnRequest::CellId`). Forcing the race (both games go to
+Riverwood and back after 0.25 s): before, the round whose 24 Riverwood spawns came late left 4 copies
+in QASmoke; after, the round with 24 late spawns left none, in 12 rounds. Actors created for a spawn
+(players, temporary NPCs) still start at the player: no case of theirs was seen.
+
+What a copy still gets from the engine:
+- `Actor::Update` (37348): audited below ("`Actor::Update`"). Body upkeep, plus four decisions that
+  the engine-level guards already stop on copies.
+- Detection of others (`Job_Detection`; `HookUpdateDetectionState` covers copies), combat groups:
+  "audit when touched" in the contract.
+
+Rejected: `EnableAI(false)` / `kProcessMe` (stops the graph job), `SetPlayerControls` (the same plus
+controls-driven movement), keeping the AI and filtering its effects (SkyMP overrides
+`DrawWeaponMagicHands`' argument, `reference/plugins/skymp/skyrim-platform/.../FridaHooks.cpp`; the
+reverted attempt dropped sheathe calls).
+
+## How a replayed action reaches a copy's graph
+
+The owner's `HookPerformAction` records each action its engine **accepted**, with the graph
+variables just before it (a refused action is not sent; the player's input handlers retry every frame
+until the graph takes them). On the copy, `AnimationSystem::Update` replays it 300 ms behind with
+`ActorMediator::ForceAction` → `PerformComplexAction` (38953) → `NotifyAnimationGraph` (32901) →
+`BSAnimationGraphManager::NotifyAllGraphs` (63362). That sends the event to every graph of the actor
+and succeeds if any state machine has a transition for it from its current state. A refusal means
+the copy's graph is not in the state the owner's was in.
+
+Behaviour files can be read with `scripts/re/behavior_dump.py` (BSA extraction, state machines with
+event names and conditions, writers of a variable). The magic chain, from `magicbehavior.hkx` and
+`0_master.hkx`:
+- `MagicRootBehavior` goes `MagicReadyState` → `CastingState` only on `BeginCastRight`/`BeginCastLeft`.
+  `MRh_ReadyCast_Behavior [MRh_Ready_State]` takes `MRh_SpellAimedStart` and the like only inside
+  `CastingState`. `CastStop` returns to `MagicReadyState`.
+- Nothing in the exe or the ESM sends `BeginCastRight`. `BeginCast_OnFalseToTrueMod`, a
+  `BSEventOnFalseToTrueModifier` on `MagicRoot_MG`, raises it when `bWantCastRight` goes false →
+  true. The engine sets that variable in `Actor::SetWantCast` (37950), from `ActorMagicCaster`
+  `RequestCastImpl`/`FinishCastImpl` (34136/34141). The modifier compares its bound member with
+  the value from its previous update (63226), so it only sees changes the graph's update processes.
+- `CastStop_EventOnFalseToTrueMod` raises `CastStop` when `NotCasting` goes false → true, and
+  `NotCasting` is written by the graph itself (`InvertNotCasting_IsActiveModifier`).
+
+The refusals measured on 2026-10-11 (DIAG traces of the copy's active state machines next to the
+owner's, since removed) had four causes, each fixed where it starts:
+
+1. **Variables from the future.** Interpolation applied the *next* snapshot's variables
+   (`second.Variables`), up to 100 ms ahead of the playback time, every frame. Edges landed early
+   (while the copy was still equipping, so the modifier never fired), and an action's newer variables
+   were overwritten by an older snapshot. Now the copy's graph holds the newest variables by owner
+   tick among the current snapshot (`first`) and the replayed actions (`RemoteAnimationComponent::
+   Variables`). In 20 refused casts the bool had already gone true before the action; 15 of those
+   were refused.
+2. **Variables and event in the same instant.** The owner's graph had processed the variables in an
+   update before it accepted the action. The copy now loads the head action's variables one frame
+   before playing it.
+3. **Variables the graph writes itself, forced from the owner.** `currentDefaultState` is
+   `Default_Behavior`'s `syncVariable` (its state id). The root's `JumpLandEnd` reads it to return to
+   the state it left, so the owner's value made a copy that equipped while landing drop its hands.
+   `NotCasting` forced false on a copy that was not casting yet flipped every update and raised
+   `CastStop` each time. Both are no longer synced (`AnimationGraphDescriptor_Master_Behavior`).
+   The owner's values also come from its active graph, which is the first-person one for a
+   first-person player.
+4. **Throttled graph updates off-screen.** `Actor::ModifyAnimationUpdateData` (38054) marks the
+   update not visible for a culled actor, and its graph is then updated only now and then. A copy
+   behind the camera held `bWantCastRight` true in its variable set for 11 frames before the
+   modifier's member saw it. Copies set `kForceAnimGraphUpdate` (`boolFlags` 1<<29, CommonLib)
+   every frame, as Precision does for the actors whose ragdoll it drives.
+
+Measured with the magic/combat/hands scenarios twice: refused cast starts went from 11-15 per run to 3.
+
+## A copy's spawn: its owner's graph state
+
+A copy used to start by replaying its owner's last action. A fresh graph refuses any action that
+needs a state it is not in: `Unequip` (it is already sheathed), `JumpLand` (it never jumped), a
+furniture idle (`IdleChairFrontEnter`), a ready spell. The checker then saw the copy's last action as
+0 against its owner's, and a seated NPC stood on the other game.
+
+The engine has the state itself, for savegames: `TESObjectREFR::SaveAnimation` (20098, our name;
+change flag 1<<28) → `IAnimationGraphManagerHolder::SaveAnimationGraphs` (32879) →
+`BSAnimationGraphManager::SaveGraphStates` (63368) → `BShkbAnimationGraph::SaveState` (63601), which
+writes an hkbCharacter snapshot (active states, variables, clips) through an `AnimationStream`; the
+load side is 32881 → 63369 → `BShkbAnimationGraph::LoadState` (63602). Nobody had published the
+stream: goonJungus/skyrim-cpp has empty stubs, and no plugin calls these.
+
+`AnimationGraphState` (Games/Skyrim/Havok) implements the stream over a byte buffer (12 write slots,
+14 read slots, the same sizes and byte order as `AnimationStreamSaveGame`/`LoadGame`) and saves each
+graph by project name (`BShkbAnimationGraph::projectName`, 0x1F0): a player has `DefaultMale` and
+`FirstPerson`, its copy only the first, and the manager's own load matches graphs by count and
+order, which would skip both. The owner's state (about 7.5 KB per graph) goes with every spawn
+(`AssignCharacterRequest`, `CharacterSpawnRequest`, and `EnterCellRequest`, so the host's record of a
+player is not the one from when it joined). The copy loads it once its graph is ready
+(`AnimationSystem`), and the spawn action then counts as taken instead of being replayed. If the
+load fails, the action is replayed as before (logged).
+
+The engine keeps the actor's state flags (`ActorState` flags1/flags2: weapon state, sitting, life
+state) beside the graph, so they travel first in the same data and are set with the graph: a graph
+loaded alone showed drawn hands on an actor whose flags said sheathed, and the hands convergence drew
+again (`Magic_Equip` as the copy's last action, then refused casts). The load waits for the 3D set-up
+(inventory, factions) and the action queue waits for the load, so nothing lands on top of it.
+
+Measured 2026-10-12: `host-kicks-client` after `draw-host-player` (2 of 2 failures before),
+`party-changes-cells` and `load-door-not-replayed` pass; every load read all its bytes;
+`burning-shows-on-copy` right after a hot reload passed 3 of 3 with the load and failed 3 of 3 without.
+Full suite on the same games: 30 pass both with this session's changes and with them switched off,
+but the sets differ. Fixed here: `copy-ends-voice-line`, `burning-shows-on-copy`,
+`load-door-not-replayed` (the spawn refusal). Failing in both: `late-join-client` (party panel after
+rejoin), `death-host-npc`, `client-spell-kill-credit`, `client-melee-kill-credit`, and the magic chain
+run in sequence (`firebolt`/`flames`/`burning`: the client's copy left on `Magic_Equip`, its spell then
+missing from the copy's equipment in `load-door-not-replayed` and `weather-follows-host`).
+
+Two regressions from the bridge migration (36e2241d) showed up on the way: when the server confirmed
+an actor as ours, `LatestAnimation` was cleared instead of `LatestWeapEquipAnimation` (the owner then
+reported no last action while its copies had one), and `OnNotifySubtitle` played the subtitle as a
+sound (above). `both_go` in the scenarios waited only for "each game shows the other player", which
+holds before the `coc` takes effect; it now waits for each game to arrive first.
+
+### Still open
+
+- `Actor::Update` on copies: the trespass rule (only the real player trespasses, so a remote player is
+  never caught on the other game; decided answer: a shared party bounty, copy-contract.md). A copy
+  that surfaces before its owner's gasp arrives could gasp on its own (above): not seen, the copy lags
+  its owner.
+- Leveled wildlife picks its own base on each game (seen at the river, Tamriel 7,-8, 2026-10-12):
+  host `105987` Rabbit is a Fox on the client, host `EBC51` Deer an Elk. The copy should take its
+  owner's base. Not investigated.
+- AI patches inherited from upstream, from before copies ran no AI: `HookIsFleeing` (forces "not
+  fleeing" for players; its comment asks why the flag gets set on remote players at all) and
+  `HookProcessResponse` (a remote player's copy speaks no AI dialogue response), and the detection and
+  anger hooks (`HookUpdateDetectionState`, `HookIsHostileToActor`). Re-check each during the
+  `Actor::Update`, combat and detection audits: delete it if the cut already covers it.
+
+- The magic scenarios run back to back: the host's copy of the client's player ends on `Magic_Equip`
+  with later casts refused, in the baseline as well (above). Not yet explained.
+- Once, after 376 hot reloads, the client crashed in the harness's `strip` (`EquipManager::UnequipAll`
+  → `InventoryChanges::VisitWornItems` reading a garbage list node on a copy). Not reproduced on fresh
+  games (5 of 5).
+- `death-host-npc` fails its desync check on the chicken's `animation.state1` (owner 0x200041, the
+  Dying life state, copy 0x41), 2 of 2, also with the new upkeep runs and the 37277 hook (since replaced by the do-nothing package)
+  disabled (2026-10-12): not from them.
+- First-person owner, jump-land, magic equip and cast within ~250 ms: the copy's third-person graph is
+  still landing or equipping when the cast arrives (3 refusals in the last measurement). The owner's
+  own third-person graph keeps up (20/20 casts accepted in its state), so the difference is in the
+  copy's graph timing around `JumpLandEnd`, not in a missing event. Not yet explained.
+- More synced Master_Behavior variables are graph outputs of the same kind: `BSIsActiveModifier`
+  outputs and state machines' `isActive`, e.g. `IsCastingRight/Left`, `bMRh_Ready`, `IsEquipping`,
+  `IsAttacking`, `bInJumpState`. List them with `behavior_dump.py writers`. They were left synced
+  because no trace showed harm yet, and some names are also used by the engine (in the exe).
+  `currentDefaultState` is also synced by the troll, draugr, werewolf, steam and falmer descriptors.
+- A copy's casters spend its own magicka (`values.magicka` 4963-4998 on the copy vs the owner's
+  5000 after firebolt/flames). It happens in the baseline too (final.log), and more often now that
+  copies take their casts. Its magicka should be the owner's.
+- With `HookUpdateAI` on the path, the lock checker reported `+0x768b30 > +0x3d1507 vs +0x3d21c8 >
+  +0x767bdb` as `[ours]`: an NPC's package travel under `UpdateLowActorsAI` against a Character being
+  constructed during a cell load, our frames only the pass-throughs `HookUpdateAI` and
+  `HookCharacterConstructor`. Both stacks read (2026-10-12); in `scripts/lock_order_known.txt`.
+- The copy's `ActorMagicCaster` still writes `bWantCast*` when `NotifySpellCast`/`NotifyInterruptCast`
+  arrive, on the network's time base, not the replay's.

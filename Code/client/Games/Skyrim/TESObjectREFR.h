@@ -68,7 +68,7 @@ struct TESObjectREFR : TESForm
     virtual void sub_3D();
     virtual void sub_3E();
     virtual void Update3DPosition(bool abWarp);
-    virtual void sub_40();
+    virtual void UpdateSoundCallback(bool aEndSceneAction); // 40: starts and ends the queued voice line
     virtual void sub_41();
     virtual void sub_42();
     virtual void sub_43();

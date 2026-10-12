@@ -87,7 +87,7 @@ void Actor::Save_Reversed(const uint32_t aChangeFlags, Buffer::Writer& aWriter)
     if (pProcess)
         ; // Skyrim saves the process manager state, but we don't give a shit so skip !
 
-    aWriter.WriteBytes((uint8_t*)&unk194, 4);
+    aWriter.WriteBytes((uint8_t*)&soundCallBackSet, 4);
     aWriter.WriteBytes((uint8_t*)&headTrackingUpdateDelay, 4);
     aWriter.WriteBytes((uint8_t*)&unk9C, 4);
     // We skip 0x180 as it's not something we care about, some timer related data
@@ -116,7 +116,7 @@ TP_THIS_FUNCTION(TAddInventoryItem, void, Actor, TESBoundObject* apItem, ExtraDa
 TP_THIS_FUNCTION(TPickUpObject, void*, Actor, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2);
 TP_THIS_FUNCTION(TDropObject, void*, Actor, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation);
 TP_THIS_FUNCTION(TSetPosition, char, Actor, NiPoint3& acPosition);
-TP_THIS_FUNCTION(TActorProcess, char, Actor, float aValue);
+TP_THIS_FUNCTION(TApplyMovement, void, Actor, float aDelta);
 
 using TGetLocation = TESForm*(TESForm*);
 static TGetLocation* FUNC_GetActorLocation;
@@ -130,7 +130,7 @@ static TAddInventoryItem* RealAddInventoryItem = nullptr;
 static TPickUpObject* RealPickUpObject = nullptr;
 static TDropObject* RealDropObject = nullptr;
 static TSetPosition* RealSetPosition = nullptr;
-static TActorProcess* RealActorProcess = nullptr;
+static TApplyMovement* RealApplyMovement = nullptr;
 
 float Actor::GetSpeed() noexcept
 {
@@ -1250,14 +1250,61 @@ void Actor::SpeakSound(const char* pFile)
     TiltedPhoques::ThisCall(RealSpeakSoundFunction, this, pFile, handle, 0, 0x32, 0, 0, 0, 0, 0, 0, 0, 1, 1);
 }
 
-char TP_MAKE_THISCALL(HookActorProcess, Actor, float a2)
+// Actor::ApplyMovement (37356): the sync positions copies.
+void TP_MAKE_THISCALL(HookApplyMovement, Actor, float aDelta)
 {
-    // Don't process AI if we own the actor
-
     if (apThis->GetExtension()->IsRemote())
-        return 0;
+        return;
 
-    return TiltedPhoques::ThisCall(RealActorProcess, apThis, a2);
+    TiltedPhoques::ThisCall(RealApplyMovement, apThis, aDelta);
+}
+
+// Character::UpdateAI (37347). Copies skip it but run its body upkeep below
+// (docs/re/systems/actor-ai-and-copies.md).
+TP_THIS_FUNCTION(TUpdateAI, void, Actor, float aDelta);
+static TUpdateAI* RealUpdateAI = nullptr;
+// Character::UpdateCellAttachment (37352): loads/unloads 3D as the actor's cell attaches.
+TP_THIS_FUNCTION(TUpdateCellAttachment, void, Actor);
+static TUpdateCellAttachment* UpdateCellAttachment = nullptr;
+// Character::UpdateVoiceTimer (37752): counts the voice line down and marks it ended.
+TP_THIS_FUNCTION(TUpdateVoiceTimer, void, Actor, bool aForceEnd);
+static TUpdateVoiceTimer* UpdateVoiceTimer = nullptr;
+// Character::CalculateEssentialProtected (37227): kEssential/kProtected.
+TP_THIS_FUNCTION(TCalculateEssentialProtected, void, Actor);
+static TCalculateEssentialProtected* CalculateEssentialProtected = nullptr;
+// AIProcess::GetLipData (39373), AIProcess::UpdateLipSyncGraph (39377): mouth movement of races
+// without a FaceGen head (dragons).
+using TGetLipData = void*(AIProcess*);
+static TGetLipData* GetLipData = nullptr;
+using TUpdateLipSyncGraph = void(AIProcess*, void* apLipData, Actor* apActor);
+static TUpdateLipSyncGraph* UpdateLipSyncGraph = nullptr;
+
+void TP_MAKE_THISCALL(HookUpdateAI, Actor, float aDelta)
+{
+    if (apThis->GetExtension()->IsRemote())
+    {
+        // UpdateAI's own early return.
+        if (!(apThis->flags1 & Actor::kProcessMe) || apThis->IsDisabled())
+            return;
+
+        TiltedPhoques::ThisCall(UpdateVoiceTimer, apThis, false);
+        apThis->UpdateSoundCallback(false);
+
+        AIProcess* pProcess = apThis->currentProcess;
+        if (pProcess && pProcess->processLevel == 0)
+        {
+            TiltedPhoques::ThisCall(CalculateEssentialProtected, apThis);
+            if (void* pLipData = GetLipData(pProcess); pLipData && apThis->race && !(apThis->race->raceFlags & TESRace::kFaceGenHead))
+                UpdateLipSyncGraph(pProcess, pLipData, apThis);
+        }
+
+        // UpdateAI does this last, below high process.
+        if (apThis->baseForm && (!pProcess || pProcess->processLevel != 0))
+            TiltedPhoques::ThisCall(UpdateCellAttachment, apThis);
+        return;
+    }
+
+    TiltedPhoques::ThisCall(RealUpdateAI, apThis, aDelta);
 }
 
 TP_THIS_FUNCTION(TAddDeathItems, void, Actor);
@@ -1463,7 +1510,8 @@ static TiltedPhoques::Initializer s_actorHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TActorProcess, s_actorProcess, 37356);
+        POINTER_SKYRIMSE(TApplyMovement, s_applyMovement, 37356);
+        POINTER_SKYRIMSE(TUpdateAI, s_updateAI, 37347);
         POINTER_SKYRIMSE(TSetPosition, s_setPosition, 19790);
         POINTER_SKYRIMSE(TRemoveSpell, s_removeSpell, 38717);
         POINTER_SKYRIMSE(TCharacterConstructor, s_characterCtor, 40245);
@@ -1485,7 +1533,18 @@ static TiltedPhoques::Initializer s_actorHooks(
         POINTER_SKYRIMSE(TAddDeathItems, addDeathItems, 37198);
         POINTER_SKYRIMSE(TIsFleeing, isFleeing, 37577);
 
-        RealActorProcess = s_actorProcess.Get();
+        RealApplyMovement = s_applyMovement.Get();
+        RealUpdateAI = s_updateAI.Get();
+        POINTER_SKYRIMSE(TUpdateCellAttachment, s_updateCellAttachment, 37352);
+        UpdateCellAttachment = s_updateCellAttachment.Get();
+        POINTER_SKYRIMSE(TUpdateVoiceTimer, s_updateVoiceTimer, 37752);
+        UpdateVoiceTimer = s_updateVoiceTimer.Get();
+        POINTER_SKYRIMSE(TCalculateEssentialProtected, s_calculateEssentialProtected, 37227);
+        CalculateEssentialProtected = s_calculateEssentialProtected.Get();
+        POINTER_SKYRIMSE(TGetLipData, s_getLipData, 39373);
+        GetLipData = s_getLipData.Get();
+        POINTER_SKYRIMSE(TUpdateLipSyncGraph, s_updateLipSyncGraph, 39377);
+        UpdateLipSyncGraph = s_updateLipSyncGraph.Get();
         RealSetPosition = s_setPosition.Get();
         RealRemoveSpell = s_removeSpell.Get();
         FUNC_GetActorLocation = s_GetActorLocation.Get();
@@ -1506,7 +1565,8 @@ static TiltedPhoques::Initializer s_actorHooks(
         RealAddDeathItems = addDeathItems.Get();
         RealIsFleeing = isFleeing.Get();
 
-        TP_HOOK(&RealActorProcess, HookActorProcess);
+        TP_HOOK(&RealApplyMovement, HookApplyMovement);
+        TP_HOOK(&RealUpdateAI, HookUpdateAI);
         TP_HOOK(&RealSetPosition, HookSetPosition);
         TP_HOOK(&RealRemoveSpell, HookRemoveSpell);
         TP_HOOK(&RealCharacterConstructor, HookCharacterConstructor);
