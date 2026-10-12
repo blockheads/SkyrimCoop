@@ -157,11 +157,10 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     if (!m_transport.IsConnected())
         return;
 
-    if (m_formBridge.ObjectHasLock(acEvent.ObjectFormId))
-    {
-        if (m_formBridge.GetObjectLockLevel(acEvent.ObjectFormId) & 0xFF)
-            return;
-    }
+    // A locked object's activation is a lockpick attempt, not an opening. Its lock level stays set
+    // once it is unlocked: that door opens like any other.
+    if (m_formBridge.ObjectHasLock(acEvent.ObjectFormId) && m_formBridge.ObjectIsLocked(acEvent.ObjectFormId))
+        return;
 
     ActivateRequest request;
 
