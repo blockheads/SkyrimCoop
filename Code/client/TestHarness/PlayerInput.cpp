@@ -8,7 +8,7 @@ namespace TestHarness
 namespace
 {
 // In EngineCalls::Button order.
-constexpr std::string_view cButtonNames[] = {"right", "left", "ready"};
+constexpr std::string_view cButtonNames[] = {"right", "left", "ready", "sneak", "forward"};
 } // namespace
 
 std::optional<EngineCalls::Button> PlayerInput::ButtonByName(std::string_view aName) noexcept

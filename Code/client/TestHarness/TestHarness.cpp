@@ -40,6 +40,7 @@ void Poll()
     auto& harness = Harness::Get();
     if (harness.Files.Directory().empty())
         return;
+    EngineCalls::EndConsolePauses();
     if (!harness.CommandsStarted)
     {
         harness.CommandsStarted = true;

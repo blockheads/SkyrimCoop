@@ -13,7 +13,7 @@ namespace TestHarness
 class PlayerInput
 {
 public:
-    // "right", "left" or "ready".
+    // "right", "left", "ready", "sneak" or "forward".
     static std::optional<EngineCalls::Button> ButtonByName(std::string_view aName) noexcept;
     // Presses or releases the button through the game's input dispatch. The seconds it was held (0 for a
     // press), or nothing if the input system is not up.
@@ -30,7 +30,7 @@ private:
         bool Down = false;
         std::chrono::steady_clock::time_point Pressed{};
     };
-    HeldButton m_buttons[3]{};
+    HeldButton m_buttons[5]{};
     bool m_equipping = false;
     uint32_t m_equipAnimations = 0;
 };

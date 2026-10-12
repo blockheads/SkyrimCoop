@@ -10,7 +10,7 @@ namespace TestHarness
 {
 namespace
 {
-// {"cmd": "input", "button": "right" | "left" | "ready", "down": true | false}: the player presses or
+// {"cmd": "input", "button": "right" | "left" | "ready" | "sneak" | "forward", "down": true | false}: the player presses or
 // releases the button. While it is down it is sent again every frame with the time held; the release
 // carries the total.
 nlohmann::json Input(Harness& aHarness, const nlohmann::json& acRequest)

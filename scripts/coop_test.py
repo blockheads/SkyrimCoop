@@ -403,7 +403,9 @@ def prepare_prefix():
                             # name and silence normal Skyrim too.)
                             "AudioMenu": {"fAudioMasterVolume": "0.0000"},
                             # Tutorial popups (e.g. "Magicka Low") swallow all input until closed.
-                            "Interface": {"bShowTutorials": "0"}})
+                            "Interface": {"bShowTutorials": "0",
+                                          # Subtitles on, as players have them (Low.ini turns them off).
+                                          "bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
 
 
 # The plugin's command socket (CommandServer.cpp): one JSON line per request, answered within a
@@ -1324,6 +1326,67 @@ def scenario_move_host_npc():
     hold()
 
 
+def voice(instance, form_id):
+    """The actor's voice line in that game (mod.voice): callback state, seconds left, sound id."""
+    select_instance(instance)
+    snapshot = (((read_status() or {}).get("world") or {}).get(str(form_id)) or {})
+    return (snapshot.get("mod") or {}).get("voice") or {}
+
+
+DO_NOTHING_PACKAGE = 27  # TESPackage::packType of Actor::InitiateDoNothingPackage's package
+
+
+def package_type(instance, form_id):
+    """The type of the actor's current package in that game (mod.package_type), -1 without one."""
+    select_instance(instance)
+    snapshot = (((read_status() or {}).get("world") or {}).get(str(form_id)) or {})
+    return (snapshot.get("mod") or {}).get("package_type")
+
+
+def subtitle(instance, form_id):
+    """The subtitle that game shows over the actor (mod.subtitle), "" if none."""
+    select_instance(instance)
+    snapshot = (((read_status() or {}).get("world") or {}).get(str(form_id)) or {})
+    return (snapshot.get("mod") or {}).get("subtitle") or ""
+
+
+def line_playing(instance, form_id):
+    """Started (UpdateSoundCallback set its timer) and not over."""
+    line = voice(instance, form_id)
+    return line.get("callback") == -1 and (line.get("seconds") or -1) > 0
+
+
+def line_over(instance, form_id):
+    """No time left, and nothing queued with a sound behind it."""
+    line = voice(instance, form_id)
+    return (line.get("seconds") or -1) <= 0 and not (line.get("callback") == 3 and line.get("sound", -1) != -1)
+
+
+def scenario_copy_ends_voice_line():
+    """The host player talks to its NPC: she greets him, and the client's copy plays the same line
+    (NotifyDialogue) with the same subtitle (NotifySubtitle) and ends it, as the host's NPC does. SpeakSound only queues a line; the engine's
+    voice upkeep in Character::UpdateAI starts and ends it (Actor::UpdateSoundCallback,
+    Character::UpdateVoiceTimer), which copies run from HookUpdateAI. A copy holds the engine's do-nothing
+    package (HookCheckForNewPackage): an actor without one gets no UpdateAI once its 3D is far enough from
+    the camera to fade (Character::ShouldOnlyCheckPackage)."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        wait_for(f"[client] copy {copy:08X} holds the do-nothing package",
+                 lambda: package_type("client", copy) == DO_NOTHING_PACKAGE, 5)
+        place_before("", npc, 100)
+        activate_on("", npc)
+        wait_for("[host] NPC's line plays", lambda: line_playing("", npc), 10)
+        wait_for(f"[client] copy {copy:08X}'s line plays", lambda: line_playing("client", copy), 5)
+        text = wait_for("[host] NPC's subtitle shows", lambda: subtitle("", npc), 5)
+        wait_for(f"[client] copy {copy:08X} shows the same subtitle", lambda: subtitle("client", copy) == text, 5)
+        wait_for("[host] NPC's line ends", lambda: line_over("", npc), 30)
+        wait_for(f"[client] copy {copy:08X}'s line ends", lambda: line_over("client", copy), 5)
+    finally:
+        select_instance("")
+        rpc({"cmd": "menu", "name": "Dialogue Menu", "show": False})
+    hold()
+
+
 def scenario_remove_host_npc():
     """Host disables an NPC it owns; the client's copy must disappear."""
     npc, _, copy = spawn_host_npc(CHICKEN)
@@ -1360,10 +1423,122 @@ OUTDOOR_CELL, HOME_CELL = "Riverwood", "QASmoke"   # the suite's home is an inte
 INN = "RiverwoodSleepingGiantInn"
 
 
-def both_go(cell):
+def player_cell(instance):
+    """The cell the player is in, by that game's snapshot."""
+    select_instance(instance)
+    return ((((read_status() or {}).get("world") or {}).get("20") or {}).get("placement") or {}).get("cell")
+
+
+def both_go(cell, command=None):
+    """Both players go to `cell` with coc (or `command`, e.g. "cow Tamriel 7 -8"). Each game's arrival is
+    waited for first: until then both still show the other player in the old cell, and that check alone
+    passed at once."""
+    before = {name: player_cell(name) for name in ("", "client")}
     for name in ("", "client"):
-        console_on(name, f"coc {cell}")
+        console_on(name, command or f"coc {cell}")
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] arrived in {cell}",
+                 lambda name=name: player_cell(name) not in (None, before[name]), 60)
     wait_for(f"In {cell}, each game shows the other player", both_see_each_other, 60)
+
+
+# The White River west of Whiterun, Tamriel cell (7, -8): water at -1280 over a bed at about -1536,
+# deepest south of the spot (Skyrim.esm XCLW and LAND), deep enough for a head to go under.
+RIVER_CELL, RIVER_SPOT, RIVER_BANK = "cow Tamriel 7 -8", (30592, -29696, -1300), (30592, -29200, -1100)
+DIVE_SECONDS = 6           # fActorLeaveWaterBreathTimer is 4: surfacing after that gasps
+SURFACE_PACKAGE = 29       # TESPackage::packType of the package Actor::Update gives a drowning NPC
+
+
+def water(instance, form_id=None):
+    """The actor's mod.water in that game (submerged, swimming, head_under, seconds_under); the player's
+    own without `form_id`."""
+    if form_id is None:
+        return (player_snapshot(instance).get("mod") or {}).get("water") or {}
+    select_instance(instance)
+    return ((((read_status() or {}).get("world") or {}).get(str(form_id)) or {}).get("mod") or {}).get("water") or {}
+
+
+def dive_roundtrip(diver, observer, label):
+    """The diver swims to the river bed, stays under, then surfaces: the owner gasps (Actor::Update
+    queues a comment once a head was under for 4 s). The copy runs Actor::Update too; its own decisions
+    there (gasp, Surface package, drowning damage) must not act. It plays the owner's line only, once,
+    and keeps the do-nothing package and its owner's health."""
+    both_go("river", RIVER_CELL)
+    # The river's wildlife (wolves within 3000 units) would join in: a fight, grunts on the voice line.
+    # The host runs every NPC's AI: its combat AI off (tcai, a toggle) keeps them out until the end.
+    console_on("", "tcai")
+    try:
+        for name, spot in ((diver, RIVER_SPOT), (observer, RIVER_BANK)):
+            for axis, value in zip("xyz", spot):
+                console_on(name, f"player.setpos {axis} {value}")
+        wait_for(f"[{diver or 'host'}] swims", lambda: water(diver).get("swimming"), 10)
+        show(observer, remote_player)
+        select_instance(observer)
+        copy = remote_player((read_status() or {}).get("actors", {}))
+        lines = {"owner": [], "copy": []}
+        packages, healths = set(), set()
+        def watch():
+            owner_line = (player_snapshot(diver).get("mod") or {}).get("voice") or {}
+            select_instance(observer)
+            snap = ((read_status() or {}).get("world") or {}).get(str(copy)) or {}
+            copy_line = (snap.get("mod") or {}).get("voice") or {}
+            # A line counts once it plays (time left, UpdateSoundCallback started it): the voice slot can
+            # still hold an old sound that never played.
+            for who, line in (("owner", owner_line), ("copy", copy_line)):
+                if (line.get("seconds") or -1) > 0 and line.get("sound", -1) != -1:
+                    if line["sound"] not in [l["sound"] for l in lines[who]]:
+                        lines[who].append({"sound": line["sound"], "duration_ms": line.get("duration_ms", 0)})
+                    else:
+                        lines[who][-1]["duration_ms"] = max(lines[who][-1]["duration_ms"], line.get("duration_ms", 0))
+            packages.add((snap.get("mod") or {}).get("package_type"))
+            healths.add(round((snap.get("values") or {}).get("health", 0)))
+        # Dive: look down and swim forward, as a player does; south, where the bed is deepest (the bank
+        # where the observer stands is north).
+        console_on(diver, "player.setangle z 180")
+        console_on(diver, "player.setangle x 80")
+        press(diver, "forward")
+        try:
+            wait_for(f"[{diver or 'host'}] head under water", lambda: water(diver).get("head_under"), 5)
+            wait_for(f"[{observer or 'host'}] {label}'s head under water", lambda: water(observer, copy).get("head_under"), 5)
+            wait_for(f"[{diver or 'host'}] under for {DIVE_SECONDS}s",
+                     lambda: (watch(), water(diver).get("seconds_under", 0) >= DIVE_SECONDS)[1], DIVE_SECONDS + 5)
+        finally:
+            release(diver, "forward")
+        console_on(diver, "player.setangle x -80")
+        press(diver, "forward")
+        try:
+            wait_for(f"[{diver or 'host'}] surfaces and gasps",
+                     lambda: (watch(), not water(diver).get("head_under") and lines["owner"])[1], 10)
+        finally:
+            release(diver, "forward")
+        console_on(diver, "player.setangle x 0")
+        # Until both lines are over: a gasp of the copy's own would start after it surfaced.
+        wait_for(f"[{observer or 'host'}] {label} surfaced and its line is over",
+                 lambda: (watch(), not water(observer, copy).get("head_under")
+                          and line_over(observer, copy) and line_over(diver, 0x14))[1], 10)
+        if len(lines["owner"]) != 1:
+            raise TestFailure(f"owner's lines {lines['owner']}: expected its one gasp")
+        if len(lines["copy"]) != 1 or lines["copy"][0]["duration_ms"] != lines["owner"][0]["duration_ms"]:
+            raise TestFailure(f"copy's lines {lines['copy']}, owner's {lines['owner']}: the copy should play the owner's gasp only")
+        if packages != {DO_NOTHING_PACKAGE}:
+            raise TestFailure(f"copy's packages while under water: {sorted(packages, key=str)} (a Surface package is {SURFACE_PACKAGE})")
+        owner_health = round((player_snapshot(diver).get("values") or {}).get("health", 0))
+        if healths != {owner_health}:
+            raise TestFailure(f"copy's health while under water {sorted(healths)}, owner's {owner_health}")
+        hold()
+    finally:
+        console_on("", "tcai")
+        both_go(HOME_CELL)
+
+
+def scenario_dive_host_player():
+    """Host dives, stays under, surfaces; the client's copy of the host follows without its own decisions."""
+    dive_roundtrip("", "client", "host's character")
+
+
+def scenario_dive_client_player():
+    """Client dives, stays under, surfaces; the host's copy of the client follows without its own decisions."""
+    dive_roundtrip("client", "", "client's character")
 
 
 def scenario_party_changes_cells():
@@ -1449,6 +1624,54 @@ def draw_roundtrip(actor_instance, observer, label):
 def scenario_draw_host_player():
     """Host readies/sheathes a weapon; the client's copy of the host must follow."""
     draw_roundtrip("", "client", "host's character")
+
+
+def sneaking(instance):
+    return bool((player_snapshot(instance).get("state") or {}).get("sneaking"))
+
+
+def copy_sneaking(observer):
+    """The observer's copy of the other player: its sneaking flag (what detection reads), or None."""
+    select_instance(observer)
+    status = read_status() or {}
+    target = remote_player(status.get("actors", {}))
+    if target is None:
+        return None
+    return bool((((status.get("world") or {}).get(str(target)) or {}).get("state") or {}).get("sneaking"))
+
+
+def sneak(instance, down):
+    """The player presses Sneak (a toggle) until it is sneaking (`down`) or standing."""
+    if sneaking(instance) != down:
+        tap(instance, "sneak")
+    wait_for(f"[{instance or 'host'}] {'sneaks' if down else 'stands up'}", lambda: sneaking(instance) == down, 5)
+
+
+def sneak_roundtrip(actor_instance, observer, label):
+    """Player sneaks then stands up; the other game's copy must follow and stay there. A copy runs
+    Actor::Update, which decides whether its actor should sneak (package, combat, teammate rules) and
+    toggles it if not: on a copy that toggle is an action our PerformAction hook refuses, so it keeps
+    its owner's state (docs/re/systems/actor-ai-and-copies.md, "Actor::Update")."""
+    show(observer, remote_player)
+    sneak(actor_instance, True)
+    wait_for(f"[{observer or 'host'}] {label} sneaks", lambda: copy_sneaking(observer) is True, 5)
+    # Held for a while: Actor::Update runs every frame on the copy.
+    stable_until = time.time() + 1.0
+    wait_for(f"[{observer or 'host'}] {label} still sneaks after 1s",
+             lambda: copy_sneaking(observer) is True and time.time() >= stable_until, 3)
+    hold()
+    sneak(actor_instance, False)
+    wait_for(f"[{observer or 'host'}] {label} stands up", lambda: copy_sneaking(observer) is False, 5)
+
+
+def scenario_sneak_host_player():
+    """Host sneaks and stands up; the client's copy of the host must follow."""
+    sneak_roundtrip("", "client", "host's character")
+
+
+def scenario_sneak_client_player():
+    """Client sneaks and stands up; the host's copy of the client must follow."""
+    sneak_roundtrip("client", "", "client's character")
 
 
 def scenario_draw_client_player():
@@ -1909,6 +2132,8 @@ def scenario_input_keyboard_draw():
     and the client's copy of the host follows."""
     give_sword("")
     for state, verb in ((WEAPON_DRAWN, "draws"), (WEAPON_SHEATHED, "sheathes")):
+        # The game ignores Ready Weapon while a draw or sheathe still plays, a player's key as well.
+        wait_for("[host] the last draw or sheathe has played out", lambda: hands_settled(""), 5)
         key_on("", "r")
         wait_for(f"[host] the R key {verb} the sword", lambda: weapon_state("") == state, 3)
         wait_on("client", f"host's character {verb} the sword", copy_drawn(state == WEAPON_DRAWN), 5)
@@ -1977,11 +2202,16 @@ def reset_player(instance, home):
     select_instance(instance)
     # First person, and no idle camera orbiting the player: what `watch` shows is the player's view.
     run_console('setini "fAutoVanityModeDelay:Camera" 1000000')
+    # Subtitles on in a game started before the prefs had them (prepare_prefix).
+    run_console('setini "bDialogueSubtitles:Interface" 1')
+    run_console('setini "bGeneralSubtitles:Interface" 1')
     rpc({"cmd": "first_person"})
     for button in sorted(HELD_BUTTONS.get(instance, set())):
         release(instance, button)
     for source in (0, 1):
         rpc({"cmd": "interrupt", "caster": 0x14, "source": source})
+    if state.get("sneaking"):
+        sneak(instance, False)
     if state.get("weapon_drawn") or state.get("weapon_state"):
         # The sheathe action, as a player's: that is what copies replay (setting the engine flag
         # directly leaves them drawn).
@@ -2100,6 +2330,7 @@ SCENARIOS = {
     "steady-state": scenario_steady_state,
     "move-host-npc": scenario_move_host_npc,
     "remove-host-npc": scenario_remove_host_npc,
+    "copy-ends-voice-line": scenario_copy_ends_voice_line,
     "teleport-keeps-copies": scenario_teleport_keeps_copies,
     "party-changes-cells": scenario_party_changes_cells,
     # inventory
@@ -2110,6 +2341,10 @@ SCENARIOS = {
     # hands
     "draw-host-player": scenario_draw_host_player,
     "draw-client-player": scenario_draw_client_player,
+    "sneak-host-player": scenario_sneak_host_player,
+    "sneak-client-player": scenario_sneak_client_player,
+    "dive-host-player": scenario_dive_host_player,
+    "dive-client-player": scenario_dive_client_player,
     "cast-host-player": scenario_cast_host_player,
     "cast-client-player": scenario_cast_client_player,
     "quick-sheathe-host-player": scenario_quick_sheathe_host_player,
@@ -2154,6 +2389,7 @@ TAGS = {
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
     "remove-host-npc": {'spawn'},
+    "copy-ends-voice-line": {'dialogue', 'ai'},
     "teleport-keeps-copies": {'spawn', 'movement', 'cells'},
     "party-changes-cells": {'spawn', 'cells'},
     "equip-host-player": {'inventory'},
@@ -2162,6 +2398,10 @@ TAGS = {
     "repair-equipment-drift": {'inventory'},
     "draw-host-player": {'hands'},
     "draw-client-player": {'hands'},
+    "sneak-host-player": {'movement', 'ai'},
+    "sneak-client-player": {'movement', 'ai'},
+    "dive-host-player": {'movement', 'ai', 'dialogue', 'cells'},
+    "dive-client-player": {'movement', 'ai', 'dialogue', 'cells'},
     "cast-host-player": {'hands', 'magic'},
     "cast-client-player": {'hands', 'magic'},
     "quick-sheathe-host-player": {'hands', 'magic'},

@@ -167,6 +167,20 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         break;
     }
 
+    // The voice line, shown and not compared: a copy's starts a little after its owner's, and the
+    // callback state can rest at 3 once a line is over (the audio system's late callback).
+    const auto cVoiceSound = EngineCalls::GetVoiceSound(aFormId);
+    mod["voice"] = {{"callback", EngineCalls::GetVoiceLineState(aFormId)}, {"seconds", EngineCalls::GetVoiceTimer(aFormId)},
+                    {"sound", static_cast<int64_t>(static_cast<int32_t>(cVoiceSound.Id))}, {"duration_ms", cVoiceSound.DurationMs}};
+    mod["process_level"] = EngineCalls::GetProcessLevel(aFormId);
+    mod["process_me"] = EngineCalls::IsProcessMe(aFormId);
+    mod["package_type"] = EngineCalls::GetPackageType(aFormId);
+    mod["subtitle"] = EngineCalls::GetSubtitle(aFormId);
+    // Water, shown and not compared: a copy's height follows its owner's a little late.
+    const auto cWater = EngineCalls::GetWater(aFormId);
+    mod["water"] = {{"submerged", cWater.Submerged}, {"swimming", cWater.Swimming}, {"head_under", cWater.HeadUnder},
+                    {"seconds_under", cWater.SecondsUnder}};
+
     return {
         {"identity", {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
                       {"race", actors.GetActorRaceFormId(aFormId)},
@@ -180,6 +194,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},
                    {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
                    {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
+                   {"sneaking", EngineCalls::IsSneaking(aFormId)},
                    {"casting", CastingSpells(aFormId)},
                    {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
         {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},

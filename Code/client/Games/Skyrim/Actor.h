@@ -319,7 +319,7 @@ public:
     uint32_t killerHandle;
     uint32_t unk98;
     float fVoiceTimer; // seconds left of the voice line (CommonLib voiceTimer)
-    uint32_t unkA0;
+    float fUnderWaterTimer; // seconds the head has been under water (CommonLib underWaterTimer)
     uint32_t unkA4;
     int32_t iThiefCrimeStamp;
     int32_t iActionValue;
@@ -348,6 +348,8 @@ public:
     // flags2: run the animation graph update even while the actor is off-screen (CommonLib
     // BOOL_FLAGS::kForceAnimGraphUpdate; read by Actor::ModifyAnimationUpdateData, 38054).
     static constexpr uint32_t kForceAnimGraphUpdate = 1u << 29;
+    // flags2: the head is under water (CommonLib BOOL_FLAGS::kUnderwater; set by Actor::Update, 37348).
+    static constexpr uint32_t kUnderwater = 1u << 31;
     void* unk200[4];
     struct BGSDialogueBranch* dialogueBranch;
     ActorValueModifiers healthModifiers;
@@ -379,6 +381,7 @@ SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorState) == 0xC0);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, flags2) == 0x204);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, soundCallBackSet) == 0x278);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, fVoiceTimer) == 0x110);
+SKYRIM_STRUCT_ASSERT(offsetof(Actor, fUnderWaterTimer) == 0x114);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk84) == 0xF0);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk17C) == 0x184);
 SKYRIM_STRUCT_ASSERT(offsetof(Actor, pCombatController) == 0x160);

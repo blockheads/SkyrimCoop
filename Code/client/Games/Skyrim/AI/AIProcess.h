@@ -27,14 +27,25 @@ struct AIProcess
     int8_t processLevel; // 0 high .. 3 low (CommonLib)
 };
 
+// BSSoundHandle (CommonLibSSE-NG): the audio system's id for a playing sound.
+struct BSSoundHandle
+{
+    uint32_t soundID; // -1 none
+    bool assumeSuccess;
+    uint32_t state;
+};
 
 struct HighProcessData
 {
     uint8_t pad0[0x218];
     char* strVoiceSubtitle;
     GameArray<std::tuple<uint32_t, void*>> KnowledgeArray; // BSTuple, std::tuple is prolly wrong
+    uint8_t pad238[0x2FC - 0x238];
+    BSSoundHandle soundHandles[2]; // [0] the voice line (CommonLib)
 };
 
+static_assert(sizeof(BSSoundHandle) == 0xC);
+SKYRIM_STRUCT_ASSERT(offsetof(HighProcessData, soundHandles) == 0x2FC);
 SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, highProcess) == 0x10);
 
 SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, processLevel) == 0x137);

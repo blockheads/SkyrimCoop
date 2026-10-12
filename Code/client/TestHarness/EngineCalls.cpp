@@ -2,6 +2,7 @@
 #include "EngineCalls.h"
 
 #include <Actor.h>
+#include <AI/AIProcess.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 #include <Forms/TESForm.h>
@@ -12,6 +13,8 @@
 #include <Misc/BSFixedString.h>
 #include <Utils.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESPackage.h>
+#include <Games/Misc/SubtitleManager.h>
 #include <World.h>
 #include <Bridges/IFormBridge.h>
 
@@ -51,6 +54,29 @@ struct ConsoleTask
 };
 } // namespace
 
+namespace
+{
+// Pauses the harness holds for console lines queued this frame (UI::numPausesGame, as the open console does).
+uint32_t s_consolePauses = 0;
+} // namespace
+
+bool IsCellChange(std::string_view aLine) noexcept
+{
+    const auto cEnd = aLine.find(' ');
+    std::string verb(aLine.substr(0, cEnd));
+    std::transform(verb.begin(), verb.end(), verb.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return verb == "coc" || verb == "cow" || verb == "centeroncell" || verb == "centeronworld";
+}
+
+void EndConsolePauses() noexcept
+{
+    if (s_consolePauses == 0)
+        return;
+    if (UI* pUI = UI::Get())
+        pUI->numPausesGame -= s_consolePauses;
+    s_consolePauses = 0;
+}
+
 void SetUITaskQueue(void (*apAddUITask)(void*)) noexcept
 {
     s_addUITask = apAddUITask;
@@ -71,9 +97,21 @@ void RunConsoleCommand(const std::string& acLine) noexcept
         return pPhase && std::string_view(pPhase) == "ui";
     }();
     if (s_inUI && s_addUITask)
+    {
         s_addUITask(new ConsoleTask(acLine));
-    else
-        ExecuteConsoleCommand(acLine.c_str());
+        return;
+    }
+    // A cell change runs paused, as a typed one: no combat jobs run while it unloads actors
+    // (docs/re/crashes/2026-10-12-wolf-combat-coc.md). Other lines run live: an NPC's equip is lost in menu mode.
+    if (IsCellChange(acLine))
+    {
+        if (UI* pUI = UI::Get())
+        {
+            ++pUI->numPausesGame;
+            ++s_consolePauses;
+        }
+    }
+    ExecuteConsoleCommand(acLine.c_str());
 }
 
 bool IsMenuOpen(const char* acpMenu) noexcept
@@ -184,6 +222,82 @@ int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept
     return static_cast<int32_t>(pActor->casters[aCastingSource]->eState);
 }
 
+int32_t GetVoiceLineState(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->soundCallBackSet : -2;
+}
+
+float GetVoiceTimer(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->fVoiceTimer : 0.f;
+}
+
+int32_t GetProcessLevel(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->currentProcess ? pActor->currentProcess->processLevel : -1;
+}
+
+VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->highProcess)
+        return {};
+    BSSoundHandle* pHandle = &pActor->currentProcess->highProcess->soundHandles[0];
+    TP_THIS_FUNCTION(TGetDuration, uint64_t, BSSoundHandle);
+    POINTER_SKYRIMSE(TGetDuration, s_getDuration, 67630); // BSSoundHandle::GetDuration (CommonLib)
+    return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : TiltedPhoques::ThisCall(s_getDuration.Get(), pHandle)};
+}
+
+bool IsProcessMe(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && (pActor->flags1 & Actor::kProcessMe);
+}
+
+int32_t GetPackageType(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->package)
+        return -1;
+    return pActor->currentProcess->package->packType;
+}
+
+Water GetWater(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    using TGetSubmergedLevel = float(const Actor*, float, TESObjectCELL*);
+    POINTER_SKYRIMSE(TGetSubmergedLevel, s_getSubmergedLevel, 37448); // Actor::GetSubmergedLevel (CommonLib)
+    return {pActor->parentCell ? s_getSubmergedLevel.Get()(pActor, pActor->position.z, pActor->parentCell) : 0.f,
+            pActor->actorState.IsSwimming(), (pActor->flags2 & Actor::kUnderwater) != 0, pActor->fUnderWaterTimer};
+}
+
+std::string GetSubtitle(uint32_t aFormId) noexcept
+{
+    SubtitleManager* pManager = SubtitleManager::Get();
+    if (!pManager)
+        return {};
+    BSScopedLock<BSRecursiveLock> _{pManager->lock};
+    for (uint32_t i = 0; i < pManager->subtitles.length; ++i)
+    {
+        SubtitleInfo& info = pManager->subtitles.data[i];
+        const TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(info.speakerHandle);
+        if (pSpeaker && pSpeaker->formID == aFormId && info.text.AsAscii())
+            return info.text.AsAscii();
+    }
+    return {};
+}
+
+bool IsSneaking(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->actorState.IsSneaking();
+}
+
 bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -226,14 +340,16 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     };
     static_assert(offsetof(RawButtonEvent, UserEvent) == 0x18 && offsetof(RawButtonEvent, IdCode) == 0x20 &&
                   offsetof(RawButtonEvent, Value) == 0x28 && sizeof(RawButtonEvent) == 0x30);
-    // The default mapping: the left mouse button is the right hand's, the right one the left hand's, R readies.
+    // The default mapping: the left mouse button is the right hand's, the right one the left hand's, R readies,
+    // left Ctrl sneaks, W moves forward.
     struct Mapping
     {
-        uint32_t UserEventOffset; // in UserEvents (singleton 402638): leftAttack 0x40, rightAttack 0x48, readyWeapon 0x68
+        uint32_t UserEventOffset; // in UserEvents (singleton 402638): leftAttack 0x40, rightAttack 0x48, readyWeapon 0x68,
+                                  // sneak 0x90, forward 0x08
         uint32_t Device;
         uint32_t IdCode;
     };
-    constexpr Mapping cMappings[] = {{0x48, 1, 0}, {0x40, 1, 1}, {0x68, 0, 0x13}};
+    constexpr Mapping cMappings[] = {{0x48, 1, 0}, {0x40, 1, 1}, {0x68, 0, 0x13}, {0x90, 0, 0x1D}, {0x08, 0, 0x11}};
     static RawButtonEvent s_events[std::size(cMappings)]{};
 
     VersionDbPtr<uint8_t*> userEvents(402638);

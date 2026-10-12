@@ -16,8 +16,10 @@ void SetUITaskQueue(void (*apAddUITask)(void*)) noexcept;
 // Runs the line now, as the console does (Console::ExecuteCommand).
 void ExecuteConsoleCommand(const char* acpLine) noexcept;
 // Runs the line where SKYRIMCOOP_CONSOLE_PHASE says: "ui" where typed commands run (the UI's message
-// processing), otherwise now (the top of the frame).
+// processing), otherwise queued for this frame; a cell change with the game paused, as the open console does.
 void RunConsoleCommand(const std::string& acLine) noexcept;
+// Lifts the pauses of the lines queued last frame (they have run). Once a frame, before new commands.
+void EndConsolePauses() noexcept;
 bool IsMenuOpen(const char* acpMenu) noexcept;
 // Shows or hides a menu through the UI message queue, as the game does (the console: "Console").
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
@@ -31,7 +33,9 @@ enum class Button : uint8_t
 {
     RightHand,  // "Right Attack/Block": swing, block, or charge and cast the right hand's spell
     LeftHand,   // "Left Attack/Block"
-    ReadyWeapon // "Ready Weapon": draw or sheathe
+    ReadyWeapon, // "Ready Weapon": draw or sheathe
+    Sneak,       // "Sneak": toggles sneaking (the default mapping)
+    Forward      // "Forward": walks or swims where the camera looks
 };
 // Sends the button through the game's input dispatch, as its device would (docs/re/systems/input.md):
 // down with aHeldSecs 0 is the press, down with aHeldSecs > 0 the event a device sends every frame while
@@ -66,6 +70,38 @@ uint32_t GetEnemyHealthTarget() noexcept;
 int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
 bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept;
+// Actor::soundCallBackSet: 3 queued, -1 playing (or none), 1/2 ending; -2 without the actor.
+int32_t GetVoiceLineState(uint32_t aFormId) noexcept;
+// Seconds left of the actor's voice line once it has started (Actor::fVoiceTimer), else -1.
+float GetVoiceTimer(uint32_t aFormId) noexcept;
+// The actor's AI process level (0 high .. 3 low), -1 without a process; and whether the engine updates its
+// AI at all (kProcessMe).
+int32_t GetProcessLevel(uint32_t aFormId) noexcept;
+// The voice line's sound (HighProcessData::soundHandles[0]): its id (-1 none), and its duration in ms
+// (BSSoundHandle::GetDuration, 0 until the audio system knows it).
+struct VoiceSound
+{
+    uint32_t Id = UINT32_MAX;
+    uint64_t DurationMs = 0;
+};
+VoiceSound GetVoiceSound(uint32_t aFormId) noexcept;
+bool IsProcessMe(uint32_t aFormId) noexcept;
+// The type of the actor's current package (TESPackage::packType: 27 do-nothing), -1 without one.
+int32_t GetPackageType(uint32_t aFormId) noexcept;
+// The actor's sneaking flag (ActorState1::sneaking), what detection reads; false without the actor.
+bool IsSneaking(uint32_t aFormId) noexcept;
+// The actor in water: how deep (Actor::GetSubmergedLevel, 0 dry .. 1; Actor::Update counts the head under at
+// 0.875), swimming (ActorState1), the head under (boolFlags kUnderwater) and for how long (underWaterTimer).
+struct Water
+{
+    float Submerged = 0.f;
+    bool Swimming = false;
+    bool HeadUnder = false;
+    float SecondsUnder = 0.f;
+};
+Water GetWater(uint32_t aFormId) noexcept;
+// The subtitle on screen over the actor (SubtitleManager), empty if none.
+std::string GetSubtitle(uint32_t aFormId) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
 } // namespace TestHarness::EngineCalls
