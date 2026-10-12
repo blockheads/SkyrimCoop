@@ -6,6 +6,8 @@ struct TESWorldSpace;
 struct NiPoint3;
 struct TESForm;
 struct Actor;
+struct BSTempEffect;
+struct TESObjectREFR;
 
 struct GridCellArray
 {
@@ -50,6 +52,13 @@ struct ProcessLists
 {
     static ProcessLists* Get() noexcept;
 
+    // The effect shaders and art objects playing on the reference (sorted, unique form ids).
+    std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aRefHandle) noexcept;
+    // Stops the effect shader / art object playing on the reference (Papyrus EffectShader.Stop,
+    // VisualEffect.Stop).
+    void StopEffectShader(TESObjectREFR* apRef, TESForm* apEffectShader) noexcept;
+    void StopArtObject(TESObjectREFR* apRef, TESForm* apArtObject) noexcept;
+
     uint8_t pad00[0x8];
 
     bool bProcessHigh;
@@ -65,10 +74,15 @@ struct ProcessLists
     GameArray<uint32_t> middleHighActorHandleArray;
     GameArray<uint32_t> middleLowActorHandleArray;
     GameArray<uint32_t>* actorBuckets[4];
+    uint8_t padB0[0x108 - 0xB0];
+    GameArray<BSTempEffect*> magicEffects; // 108 - NiPointer<BSTempEffect>
+    BSRecursiveLock magicEffectsLock;      // 120 - BSSpinLock
 };
 
 static_assert(offsetof(ProcessLists, highActorHandleArray) == 0x30);
 static_assert(offsetof(ProcessLists, actorBuckets) == 0x90);
+static_assert(offsetof(ProcessLists, magicEffects) == 0x108);
+static_assert(offsetof(ProcessLists, magicEffectsLock) == 0x120);
 
 struct Mod
 {

@@ -248,7 +248,6 @@ bool ReplayBridge::EffectHasHitVisuals(uint32_t) const noexcept { return false; 
 bool ReplayBridge::PlayEffectHitVisuals(uint32_t, uint32_t) noexcept { return true; }
 void ReplayBridge::StopEffectHitVisuals(uint32_t, uint32_t) noexcept {}
 bool ReplayBridge::IsPlayingEffectHitVisuals(uint32_t, uint32_t) const noexcept { return true; }
-std::vector<uint32_t> ReplayBridge::GetPlayingVisualFormIds(uint32_t) const noexcept { return {}; }
 void ReplayBridge::PlayerKnockExplosion(uint32_t, float, float, float, float) noexcept {}
 
 // ---------------------------------------------------------------------------
@@ -384,7 +383,6 @@ bool ReplayBridge::ConsumeTeleported() noexcept { return false; }
 void ReplayBridge::StopTeleportEvents() noexcept {}
 void ReplayBridge::ShowHudMessage(const std::string&) noexcept {}
 void ReplayBridge::ShowEnemyHealth(uint32_t) noexcept {}
-uint32_t ReplayBridge::GetEnemyHealthTarget() const noexcept { return 0; }
 // --- IPlayerBridge extended (Plan 03) ---
 QuestLog ReplayBridge::GetPlayerQuestLog() const noexcept { return {}; }
 Tints ReplayBridge::GetPlayerFaceTints() const noexcept { return {}; }

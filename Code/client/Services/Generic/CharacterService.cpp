@@ -1590,10 +1590,11 @@ void CharacterService::RunSpawnUpdates() const noexcept
 // A coc teleports the player (PlayerCharacter::ConsumeTeleported; experimental: doors and fast
 // travel are not validated yet), and the engine deletes the references of our copies with the old
 // cell. Under the party tether everyone arrives where the host is: once in a cell again, our
-// entities for the deleted copies are dropped (or the host's spawns would be refused as already
-// spawned) and the host told, which sends what is here (HostCharacters::OnEnterCell). Walking and
-// riding are no teleport, and keep the copies. Runs here, not in the engine's event: the engine
-// sends that mid-teleport with its cell locks held.
+// entities for the copies left behind are dropped (or the host's spawns would be refused as already
+// spawned) and the host told, which sends what is here (HostCharacters::OnEnterCell); copies still
+// here are kept, and their spawns refused. A teleport within the cell (moveto, setpos) keeps them
+// all: respawned, they would lose their state. Walking and riding are no teleport. Runs here, not
+// in the engine's event: the engine sends that mid-teleport with its cell locks held.
 void CharacterService::RunArrivals() noexcept
 {
     if (!m_transport.IsOnline())
@@ -1609,7 +1610,12 @@ void CharacterService::RunArrivals() noexcept
     m_arriving = false;
     const uint32_t cWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
 
-    DropCopies();
+    DropCopies([&](uint32_t aFormId) {
+        // Interiors: the same cell. Exteriors: the same worldspace, loaded around the player.
+        const bool cHere = cWorldSpaceId ? m_actorBridge.GetActorWorldSpaceFormId(aFormId) == cWorldSpaceId
+                                         : m_actorBridge.GetActorParentCellFormId(aFormId) == cCellId;
+        return !m_actorBridge.ActorExists(aFormId) || !m_actorBridge.ActorHas3D(aFormId) || !cHere;
+    });
 
     EnterCellRequest request;
     auto& modSystem = m_world.GetModSystem();
@@ -1625,7 +1631,7 @@ void CharacterService::RunArrivals() noexcept
     spdlog::info("Arrived in cell {:X} (worldspace {:X}): copies dropped, the host sends what is here", cCellId, cWorldSpaceId);
 }
 
-void CharacterService::DropCopies() noexcept
+void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept
 {
     auto remoteView = m_world.view<RemoteComponent>();
     const Vector<entt::entity> cCopies(remoteView.begin(), remoteView.end());
@@ -1633,6 +1639,8 @@ void CharacterService::DropCopies() noexcept
     {
         const auto* pFormIdComponent = m_world.try_get<FormIdComponent>(entity);
         const uint32_t cFormId = pFormIdComponent ? pFormIdComponent->Id : 0;
+        if (cFormId && !acShouldDrop(cFormId))
+            continue;
         // Deletes what is left of a copy we spawned; the game's own references stop being copies.
         CancelServerAssignment(entity, cFormId);
         // Gone without discovery noticing: it must not report it removed later.

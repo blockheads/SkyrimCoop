@@ -47,6 +47,10 @@ struct UiService
         bool operator==(const Member&) const = default;
     };
 
+    // What the party panel lists (test harness), and whether its document is up.
+    [[nodiscard]] const Rml::Vector<Member>& GetPartyMembers() const noexcept { return m_members; }
+    [[nodiscard]] bool IsPartyPanelShown() const noexcept { return m_pParty != nullptr; }
+
 private:
     void UpdateParty() noexcept;
     void LoadDocuments() noexcept;

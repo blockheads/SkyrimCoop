@@ -88,8 +88,6 @@ public:
     virtual void ShowHudMessage(const std::string& aMessage) noexcept = 0;
     // Shows that actor's health bar on the HUD, as when the player's hit lowers its health.
     virtual void ShowEnemyHealth(uint32_t aActorFormId) noexcept = 0;
-    // The actor whose health bar the HUD shows, or 0 (test harness).
-    virtual uint32_t GetEnemyHealthTarget() const noexcept = 0;
 
     // --- Quest / objectives ---
     virtual QuestLog GetPlayerQuestLog() const noexcept = 0;

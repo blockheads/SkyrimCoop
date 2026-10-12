@@ -231,6 +231,4 @@ public:
     virtual bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept = 0;
     virtual void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept = 0;
     virtual bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept = 0;
-    // The effect shaders and art objects the engine is playing on the actor (test harness).
-    virtual std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) const noexcept = 0;
 };

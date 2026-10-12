@@ -24,6 +24,8 @@ public:
     bool Evaluate(const CoopMovementInput& input, CoopMovementOutput& output);
     void Observe(uint32_t formId, const CoopMovementOutput& requested,
                  const float actual[3], bool has3D);
+    [[nodiscard]] uint32_t PlayerEquipAnimations() const noexcept { return m_playerEquipAnimations; }
+
 private:
     void PollBootCommand();
     void PollConsoleCommand();
@@ -46,6 +48,17 @@ private:
     std::string m_error;
     std::string m_state = "builtin";
     std::chrono::steady_clock::time_point m_nextPoll{};
+    // The player's draw and sheathe animations, counted every frame: one can start and end between two
+    // status reads (a spell's lasts a third of a second), and a press during one is ignored.
+    bool m_playerEquipping = false;
+    // Buttons the harness holds down ("input" command): sent again every frame while down, as a device does.
+    struct HeldButton
+    {
+        bool Down = false;
+        std::chrono::steady_clock::time_point Pressed{};
+    };
+    HeldButton m_heldButtons[3]{};
+    uint32_t m_playerEquipAnimations = 0;
     struct Observation
     {
         int64_t observedMs;

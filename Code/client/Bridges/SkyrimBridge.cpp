@@ -1576,32 +1576,6 @@ void SkyrimBridge::ShowEnemyHealth(uint32_t aActorFormId) noexcept
     s_showEnemyHealth(&cHandle);
 }
 
-uint32_t SkyrimBridge::GetEnemyHealthTarget() const noexcept
-{
-    // HUDMenu (1.6.1170): BSTArray<HUDObject*> objects at +0x40 (data, then size at +0x50). The
-    // EnemyHealth object keeps its actor's handle at +0x28 and its mode at +0x34 (0: none,
-    // 1: combat target, 2: damaged; EnemyHealth 51672).
-    UI* pUi = UI::Get();
-    IMenu* pHud = pUi ? pUi->FindMenuByName(BSFixedString("HUD Menu")) : nullptr;
-    if (!pHud)
-        return 0;
-    VersionDbPtr<void> enemyHealthVtable(215382);
-    const auto* pBytes = reinterpret_cast<const uint8_t*>(pHud);
-    auto* const* ppObjects = *reinterpret_cast<void* const* const*>(pBytes + 0x40);
-    const uint32_t cCount = *reinterpret_cast<const uint32_t*>(pBytes + 0x50);
-    for (uint32_t i = 0; ppObjects && i < cCount; ++i)
-    {
-        const auto* pObject = static_cast<const uint8_t*>(ppObjects[i]);
-        if (!pObject || *reinterpret_cast<void* const*>(pObject) != enemyHealthVtable.Get())
-            continue;
-        if (*reinterpret_cast<const int32_t*>(pObject + 0x34) == 0)
-            return 0;
-        const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(*reinterpret_cast<const uint32_t*>(pObject + 0x28));
-        return pTarget ? pTarget->formID : 0;
-    }
-    return 0;
-}
-
 std::string SkyrimBridge::GetPlayerLocationName() const noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
@@ -2206,27 +2180,7 @@ HitVisuals GetHitVisuals(uint32_t aEffectFormId) noexcept
     return {*reinterpret_cast<TESForm* const*>(pData + 0x30), *reinterpret_cast<TESForm* const*>(pData + 0x88)};
 }
 
-// ProcessLists (1.6.1170): its magic temp effects (BSTArray<BSTempEffect*>) at +0x108 with the size
-// at +0x118, guarded by the BSSpinLock at +0x120 (ProcessLists 41395, which stops a shader).
-// ReferenceEffect: target handle +0x38, finished +0x40 (stopping sets it; the effect then fades
-// out and leaves the list); ModelReferenceEffect: art object +0xB8;
-// ShaderReferenceEffect: effect shader +0x108. NiObject::GetRTTI is vtable slot 2, an NiRTTI is
-// {name, parent}.
-void* GetProcessLists() noexcept
-{
-    VersionDbPtr<void*> processLists(400315);
-    return *processLists.Get();
-}
 
-bool IsKindOf(void* apObject, const void* apRtti) noexcept
-{
-    using TGetRtti = const void* (*)(void*);
-    const auto cGetRtti = reinterpret_cast<TGetRtti>((*reinterpret_cast<void***>(apObject))[2]);
-    for (const void* pRtti = cGetRtti(apObject); pRtti; pRtti = *reinterpret_cast<const void* const*>(static_cast<const uint8_t*>(pRtti) + 8))
-        if (pRtti == apRtti)
-            return true;
-    return false;
-}
 } // namespace
 
 bool SkyrimBridge::EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept
@@ -2258,7 +2212,10 @@ bool SkyrimBridge::PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId
 bool SkyrimBridge::IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept
 {
     const HitVisuals cVisuals = GetHitVisuals(aEffectFormId);
-    const auto cPlaying = GetPlayingVisualFormIds(aFormId);
+    Actor* pActor = GetActor(aFormId);
+    ProcessLists* pProcessLists = ProcessLists::Get();
+    const auto cPlaying = pActor && pProcessLists ? pProcessLists->GetPlayingVisualFormIds(pActor->GetHandle().handle.iBits)
+                                                  : std::vector<uint32_t>{};
     const auto cIsPlaying = [&](const TESForm* apForm) {
         return !apForm || std::binary_search(cPlaying.begin(), cPlaying.end(), apForm->formID);
     };
@@ -2269,70 +2226,14 @@ void SkyrimBridge::StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId
 {
     Breadcrumbs::Record("StopEffectHitVisuals", aFormId, aEffectFormId);
     Actor* pActor = GetActor(aFormId);
-    void* pProcessLists = GetProcessLists();
+    ProcessLists* pProcessLists = ProcessLists::Get();
     if (!pActor || !pProcessLists)
         return;
     const HitVisuals cVisuals = GetHitVisuals(aEffectFormId);
-    // ProcessLists: stop this shader / art object on this reference (Papyrus EffectShader.Stop,
-    // VisualEffect.Stop).
-    using TStop = void(void*, TESObjectREFR*, TESForm*);
-    POINTER_SKYRIMSE(TStop, s_stopEffectShader, 41395);
-    POINTER_SKYRIMSE(TStop, s_stopArtObject, 41396);
     if (cVisuals.pShader)
-        s_stopEffectShader(pProcessLists, pActor, cVisuals.pShader);
+        pProcessLists->StopEffectShader(pActor, cVisuals.pShader);
     if (cVisuals.pArt)
-        s_stopArtObject(pProcessLists, pActor, cVisuals.pArt);
-}
-
-std::vector<uint32_t> SkyrimBridge::GetPlayingVisualFormIds(uint32_t aFormId) const noexcept
-{
-    std::vector<uint32_t> result;
-    Actor* pActor = GetActor(aFormId);
-    auto* pProcessLists = static_cast<uint8_t*>(GetProcessLists());
-    if (!pActor || !pProcessLists)
-        return result;
-    const uint32_t cHandle = pActor->GetHandle().handle.iBits;
-    VersionDbPtr<const void> shaderEffectRtti(402958), modelEffectRtti(402943);
-
-    // The engine's BSSpinLock: {owning thread, count}.
-    auto* pLock = reinterpret_cast<volatile long*>(pProcessLists + 0x120);
-    const long cThread = static_cast<long>(GetCurrentThreadId());
-    const bool cOwned = pLock[0] == cThread;
-    if (cOwned)
-        _InterlockedIncrement(&pLock[1]);
-    else
-    {
-        while (_InterlockedCompareExchange(&pLock[1], 1, 0) != 0)
-            YieldProcessor();
-        pLock[0] = cThread;
-    }
-
-    auto* const* ppEffects = *reinterpret_cast<void* const* const*>(pProcessLists + 0x108);
-    const uint32_t cCount = *reinterpret_cast<const uint32_t*>(pProcessLists + 0x118);
-    for (uint32_t i = 0; ppEffects && i < cCount; ++i)
-    {
-        auto* pEffect = static_cast<uint8_t*>(ppEffects[i]);
-        if (!pEffect || *reinterpret_cast<const uint32_t*>(pEffect + 0x38) != cHandle || pEffect[0x40])
-            continue;
-        const TESForm* pForm = nullptr;
-        if (IsKindOf(pEffect, shaderEffectRtti.Get()))
-            pForm = *reinterpret_cast<const TESForm* const*>(pEffect + 0x108);
-        else if (IsKindOf(pEffect, modelEffectRtti.Get()))
-            pForm = *reinterpret_cast<const TESForm* const*>(pEffect + 0xB8);
-        if (pForm)
-            result.push_back(pForm->formID);
-    }
-
-    if (cOwned)
-        _InterlockedDecrement(&pLock[1]);
-    else
-    {
-        pLock[0] = 0;
-        _InterlockedExchange(&pLock[1], 0);
-    }
-    std::sort(result.begin(), result.end());
-    result.erase(std::unique(result.begin(), result.end()), result.end());
-    return result;
+        pProcessLists->StopArtObject(pActor, cVisuals.pArt);
 }
 
 void SkyrimBridge::PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept

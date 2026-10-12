@@ -132,7 +132,8 @@ private:
     void RunExperienceUpdates() noexcept;
     // The player arrived somewhere new: drop the copies the old cell took and tell the host.
     void RunArrivals() noexcept;
-    void DropCopies() noexcept;
+    // Drops our entities for the copies acShouldDrop picks (by form id).
+    void DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;

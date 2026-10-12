@@ -1,6 +1,7 @@
 #include <TiltedOnlinePCH.h>
 #include "Runtime.h"
 #include "Session.h"
+#include "Harness.h"
 #include <World.h>
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
@@ -10,6 +11,7 @@
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <Services/HostService.h>
+#include <Ui/UiService.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <algorithm>
 #include <fstream>
@@ -354,7 +356,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                     {"max_stamina", actors.GetActorPermanentValue(aFormId, 26)}}},
         {"equipment", EquippedItems(aFormId)},
         {"effects", ActiveEffects(aFormId)},
-        {"visuals", actors.GetPlayingVisualFormIds(aFormId)},
+        {"visuals", Harness::GetPlayingVisualFormIds(aFormId)},
         {"animation", {{"event", latest.EventName.c_str()}, {"target_event", latest.TargetEventName.c_str()},
                        {"action", latest.ActionId}, {"idle", latest.IdleId},
                        {"state1", latest.State1}, {"state2", latest.State2}}},
@@ -410,10 +412,18 @@ static nlohmann::json GameStatus()
     nlohmann::json players = nlohmann::json::array();
     for (const auto& [cId, cPlayer] : world.GetSessionService().GetPlayers())
         players.push_back({{"id", cId}, {"name", cPlayer.Name.c_str()}, {"host", cPlayer.IsHost}});
+    // The party panel as drawn: null when the UI is not up (no device yet, or no document).
+    nlohmann::json party = nullptr;
+    if (const auto* pUi = world.ctx().find<UiService>(); pUi && pUi->IsPartyPanelShown())
+    {
+        party = nlohmann::json::array();
+        for (const auto& cMember : pUi->GetPartyMembers())
+            party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"health", cMember.Health}});
+    }
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
             {"weather", bridge.GetCurrentWeatherId()},
-            {"players", players},
+            {"players", players}, {"party_panel", party},
             {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }
 
@@ -428,11 +438,22 @@ static nlohmann::json PlayerStatus()
     return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}},
             {"loaded_actors", actors.GetLoadedActorFormIds()}, {"equipped", EquippedItems(0x14)},
             {"weapon_drawn", actors.IsWeaponDrawn(0x14)}, {"casting", CastingSpells(0x14)},
+            // MagicCaster::State per casting source: 3 once a spell is charged (a release casts it).
+            {"caster_states", {Harness::GetCasterState(0x14, 0), Harness::GetCasterState(0x14, 1), Harness::GetCasterState(0x14, 2),
+                               Harness::GetCasterState(0x14, 3)}},
+            // The draw or sheathe animation still playing: the game ignores Ready Weapon until it ends.
+            {"equipping", Harness::GetGraphBool(0x14, "IsEquipping")}, {"unequipping", Harness::GetGraphBool(0x14, "IsUnequipping")},
+            {"equip_animations", Runtime::Get().PlayerEquipAnimations()},
+            // 0 on the ground, 2 in the air (a move with SetPosition leaves the player falling for a moment).
+            {"character_state", Harness::GetCharacterState(0x14)},
             {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()},
-            {"enemy_health_target", World::Get().GetPlayerBridge().GetEnemyHealthTarget()}};
+            {"enemy_health_target", Harness::GetEnemyHealthTarget()}};
 }
 
 // One request line from the test harness: {"cmd": "status"} or {"cmd": "console", "line": "..."}.
+// The "input" command's buttons, in IPlayerBridge::PlayerButton order.
+static constexpr std::string_view cButtonNames[] = {"right", "left", "ready"};
+
 std::string Runtime::HandleCommand(const std::string& acRequest)
 {
     const auto cRequest = nlohmann::json::parse(acRequest, nullptr, false);
@@ -462,12 +483,79 @@ std::string Runtime::HandleCommand(const std::string& acRequest)
     if (cCommand == "cast")
     {
         // {"cmd": "cast", "caster": id, "spell": id, "target": id, "source": 1 (right hand)}: casts
-        // through the actor's magic caster like a released cast, without aiming.
+        // through the actor's magic caster like a released cast. The player first faces the
+        // target: aimed spells fly where it looks.
         if (m_bootState != "executed")
             return R"({"ok": false, "error": "not in the world yet"})";
+        const uint32_t cCaster = cRequest.value("caster", 0x14u);
+        const uint32_t cTarget = cRequest.value("target", 0u);
+        if (cCaster == 0x14 && cTarget && !Harness::FacePlayerToward(cTarget))
+            return R"({"ok": false, "error": "no such target"})";
         World::Get().GetActorBridge().CastSpell(cRequest.value("caster", 0x14u), cRequest.value("spell", 0u),
                                                 cRequest.value("source", 1u), cRequest.value("target", 0u));
         return R"({"ok": true})";
+    }
+    if (cCommand == "first_person")
+    {
+        // {"cmd": "first_person"}: the player's camera to first person.
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        Harness::ForcePlayerFirstPerson();
+        return R"({"ok": true})";
+    }
+    if (cCommand == "strip")
+    {
+        // {"cmd": "strip", "actor": id}: unequips everything on it in this game only (a copy whose
+        // equipment drifted from its owner's).
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        Harness::UnequipAllUnsynced(cRequest.value("actor", 0u));
+        return R"({"ok": true})";
+    }
+    if (cCommand == "input")
+    {
+        // {"cmd": "input", "button": "right" | "left" | "ready", "down": true | false}: the player presses
+        // or releases the button, through the game's input dispatch as its device would. While it is down
+        // Poll sends it again every frame with the time held; the release carries the total.
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        const std::string cName = cRequest.value("button", "");
+        const auto cFound = std::find(std::begin(cButtonNames), std::end(cButtonNames), cName);
+        if (cFound == std::end(cButtonNames))
+            return R"({"ok": false, "error": "unknown button"})";
+        const auto cIndex = static_cast<size_t>(cFound - std::begin(cButtonNames));
+        auto& button = m_heldButtons[cIndex];
+        const bool cDown = cRequest.value("down", true);
+        const auto cNow = std::chrono::steady_clock::now();
+        const float cHeld = cDown ? 0.f : std::chrono::duration<float>(cNow - button.Pressed).count();
+        if (!Harness::SendPlayerButton(static_cast<Harness::Button>(cIndex), cDown, cHeld))
+            return R"({"ok": false, "error": "the input system is not up"})";
+        button.Down = cDown;
+        if (cDown)
+            button.Pressed = cNow;
+        return nlohmann::json{{"ok", true}, {"held", cHeld}}.dump();
+    }
+    if (cCommand == "graph_bool")
+    {
+        // {"cmd": "graph_bool", "actor": id, "names": ["IsAttackReady", ...]}: the actor's behavior graph
+        // booleans by name (false for one its graph lacks).
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        nlohmann::json values = nlohmann::json::object();
+        for (const auto& cName : cRequest.value("names", std::vector<std::string>{}))
+            values[cName] = Harness::GetGraphBool(cRequest.value("actor", 0x14u), cName.c_str());
+        return nlohmann::json{{"ok", true}, {"values", values}}.dump();
+    }
+    if (cCommand == "face" || cCommand == "place")
+    {
+        // {"cmd": "face", "target": id}: the player turns toward the actor (yaw and pitch).
+        // {"cmd": "place", "target": id, "distance": 120}: the player stands that far from the actor,
+        // facing it (a move, not a teleport).
+        if (m_bootState != "executed")
+            return R"({"ok": false, "error": "not in the world yet"})";
+        const bool cDone = cCommand == "face" ? Harness::FacePlayerToward(cRequest.value("target", 0u))
+                                              : Harness::PlacePlayerBefore(cRequest.value("target", 0u), cRequest.value("distance", 120.f));
+        return cDone ? R"({"ok": true})" : R"({"ok": false, "error": "no such target"})";
     }
     if (cCommand == "objects")
     {
@@ -561,6 +649,21 @@ void Runtime::Poll()
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
     m_commands.Poll();
+
+    if (m_bootState == "executed")
+    {
+        // A held button, as its device reports it: every frame, value 1, the time held so far.
+        const auto cNow = std::chrono::steady_clock::now();
+        for (size_t i = 0; i < std::size(m_heldButtons); ++i)
+            if (m_heldButtons[i].Down)
+                Harness::SendPlayerButton(static_cast<Harness::Button>(i), true,
+                    std::max(std::chrono::duration<float>(cNow - m_heldButtons[i].Pressed).count(), 0.001f));
+
+        const bool cEquipping = Harness::GetGraphBool(0x14, "IsEquipping") || Harness::GetGraphBool(0x14, "IsUnequipping");
+        if (cEquipping && !m_playerEquipping)
+            ++m_playerEquipAnimations;
+        m_playerEquipping = cEquipping;
+    }
 
     const auto now = std::chrono::steady_clock::now();
     if (now < m_nextPoll) return;
