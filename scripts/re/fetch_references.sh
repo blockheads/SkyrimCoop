@@ -29,6 +29,18 @@ for repo in ersh1/Precision ersh1/TrueHUD aers/EngineFixesSkyrim64 powerof3/po3-
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# SkyMP: the other open-source Skyrim multiplayer. How it shows remote actors: engine AI left on,
+# moved with keepOffsetFromActor/TranslateTo (skymp5-client/src/sync/movementApply.ts), hands forced by
+# overriding DrawWeaponMagicHands' argument (skyrim-platform/.../FridaHooks.cpp). See
+# docs/re/systems/actor-ai-and-copies.md.
+fetch skyrim-multiplayer/skymp "$ROOT/reference/plugins/skymp"
+
+# Plugins that hook Character::UpdateAI's essential/protected upkeep (CalculateEssentialProtected, 37227) and
+# its essential check (docs/re/systems/actor-ai-and-copies.md, the audit of UpdateAI's callees).
+for repo in powerof3/EssentialsBeGone NoahBoddie/death-defiance-system; do
+    fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
+done
+
 curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"

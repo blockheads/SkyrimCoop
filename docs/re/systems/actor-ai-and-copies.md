@@ -279,6 +279,22 @@ writes an hkbCharacter snapshot (active states, variables, clips) through an `An
 load side is 32881 → 63369 → `BShkbAnimationGraph::LoadState` (63602). Nobody had published the
 stream: goonJungus/skyrim-cpp has empty stubs, and no plugin calls these.
 
+Where the engine itself uses it (IDA, 2026-10-12):
+- **Savegames.** `TESObjectREFR::CheckSaveGame` (19527) keeps the animation change flag for a reference
+  with 3D whose `ShouldSaveAnimationOnSaving` (vfunc 0x7B; actors override it) says so; loading the save
+  runs `LoadState` on the fresh graphs. This is why a seated NPC is still seated after a load.
+- **3D unloading, objects only.** `TESObjectREFR::Set3D` (0x2e47c0) saves the state into the reference's
+  extra data (`0x6258c0`, "BGSLoadGameSubBuffer::SaveAnimation" in its error string) when
+  `ShouldSaveAnimationOnUnloading` (vfunc 0x7A) is true: doors, animated activators. Actors return false
+  (CommonLib), so an actor whose 3D reloads gets a fresh graph and its AI puts it back in place.
+- **Not on cell changes.** The player keeps its 3D and graph through `coc`, doors and fast travel; NPCs
+  of the old cell drop theirs, NPCs of the new one start fresh and their AI rebuilds the pose.
+
+A copy is the case the engine never has: a fresh graph, an owner with a history, and no AI to rebuild
+the pose. So it takes the savegame path at creation. The load runs once per copy and is never used to
+repair drift mid-play (that would hide replay bugs); state changes while a copy is loaded go through
+replayed actions, and scenarios have to cover them live (furniture has no such scenario yet).
+
 `AnimationGraphState` (Games/Skyrim/Havok) implements the stream over a byte buffer (12 write slots,
 14 read slots, the same sizes and byte order as `AnimationStreamSaveGame`/`LoadGame`) and saves each
 graph by project name (`BShkbAnimationGraph::projectName`, 0x1F0): a player has `DefaultMale` and
