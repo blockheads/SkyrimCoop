@@ -9,3 +9,24 @@ SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d3bb > SkyrimS
 SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
 SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x3d1507 vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
 SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x3d157f vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
+
+# coc while the exterior world steps: the main thread detaches a cell (CenterOnCell -> TES -> TESObjectCELL ->
+# TESObjectREFR::DetachHavok -> ExtraDataList::RemoveExtraData, then bhkWorld enter-write) while
+# UpdateExteriorWorldJob holds the bhkWorld write lock and a trap trigger reads a ref's keywords
+# (bhkTrapListener -> TriggerEntry -> TESObjectREFR::HasKeywordHelper -> ExtraDataList::GetExtraData). Both
+# stacks read on 2026-10-12 (the checker now prints the other thread's first stack); ours is only the main loop.
+SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682 vs SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x17928d
+SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682
+
+# An NPC's package travel (UpdateLowActorsAI -> Character::UpdateAI -> AIProcess::UpdatePackageAndProcess ->
+# PackageLocation) against a Character being constructed during a cell load. Ours on the stacks: only the
+# pass-throughs HookUpdateAI (an owned actor) and HookCharacterConstructor. Both stacks read on 2026-10-12.
+SkyrimSE.exe+0x768b30 > SkyrimSE.exe+0x3d1507 vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x767bdb
+SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x767bdb vs SkyrimSE.exe+0x768b30 > SkyrimSE.exe+0x3d1507
+
+# The same coc detach, against the world step's Havok island activation (bhkWorld::Func50_77851 ->
+# ahkpWorld -> FOIslandActivationListener::islandActivatedCallback -> hkpRigidBody -> extra-data read at
+# 0x1650b0+0x55), seen leaving the river in dive-host-player. Both stacks read on 2026-10-12; ours is only
+# the main loop.
+SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682 vs SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x165105
+SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x165105 vs SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682

@@ -76,6 +76,60 @@ std::atomic<uint32_t> s_tableFull{0};
 std::atomic<uint32_t> s_tableResets{0};
 std::atomic<bool> s_clearing{false};
 
+// The first stack seen per pair of call sites, so an inversion report can show the other thread's side.
+constexpr size_t cPairFrames = 24;
+struct PairStack
+{
+    std::atomic<uint64_t> Key;
+    std::atomic<bool> Ready;
+    uint16_t Count;
+    uint64_t Frames[cPairFrames];
+};
+PairStack s_pairStacks[4096];
+
+uint64_t PairKey(uint64_t aOuterCaller, uint64_t aInnerCaller)
+{
+    return (aOuterCaller * 0x9E3779B97F4A7C15ull ^ _rotl64(aInnerCaller, 23)) | 1;
+}
+
+void RememberPairStack(uint64_t aOuterCaller, uint64_t aInnerCaller)
+{
+    const uint64_t cKey = PairKey(aOuterCaller, aInnerCaller);
+    for (size_t probe = 0; probe < 16; ++probe)
+    {
+        PairStack& slot = s_pairStacks[(cKey + probe) & (std::size(s_pairStacks) - 1)];
+        uint64_t seen = slot.Key.load(std::memory_order_acquire);
+        if (seen == cKey)
+            return;
+        if (seen == 0 && slot.Key.compare_exchange_strong(seen, cKey, std::memory_order_acq_rel))
+        {
+            void* frames[cPairFrames];
+            slot.Count = RtlCaptureStackBackTrace(2, static_cast<ULONG>(cPairFrames), frames, nullptr);
+            for (uint16_t i = 0; i < slot.Count; ++i)
+                slot.Frames[i] = reinterpret_cast<uint64_t>(frames[i]);
+            slot.Ready.store(true, std::memory_order_release);
+            return;
+        }
+        if (seen == cKey)
+            return;
+    }
+}
+
+const PairStack* FindPairStack(uint64_t aOuterCaller, uint64_t aInnerCaller)
+{
+    const uint64_t cKey = PairKey(aOuterCaller, aInnerCaller);
+    for (size_t probe = 0; probe < 16; ++probe)
+    {
+        const PairStack& slot = s_pairStacks[(cKey + probe) & (std::size(s_pairStacks) - 1)];
+        const uint64_t cSeen = slot.Key.load(std::memory_order_acquire);
+        if (cSeen == cKey)
+            return slot.Ready.load(std::memory_order_acquire) ? &slot : nullptr;
+        if (cSeen == 0)
+            return nullptr;
+    }
+    return nullptr;
+}
+
 // Report each pattern (the call sites involved) once, not once per pair of objects.
 std::atomic<uint64_t> s_reportedPatterns[1024];
 std::atomic<uint32_t> s_reportCount{0};
@@ -171,6 +225,7 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
         {
             if (edge.Key.compare_exchange_strong(seen, cKey, std::memory_order_acq_rel))
             {
+                RememberPairStack(acOuter.Caller, aInnerCaller);
                 edge.ThreadId = aThreadId;
                 edge.OuterCaller = acOuter.Caller;
                 edge.InnerCaller = aInnerCaller;
@@ -213,7 +268,7 @@ std::string DescribeLock(const void* apLock)
 
 // aPattern identifies the call sites involved; each pattern is reported once. Reports with our
 // DLL on the reporting thread's stack are tagged "[ours]".
-void Report(uint64_t aPattern, std::string aMessage)
+void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherStack = nullptr)
 {
     if (!FirstOfPattern(aPattern))
         return;
@@ -237,6 +292,12 @@ void Report(uint64_t aPattern, std::string aMessage)
         }
         if (ours)
             aMessage = "[ours] " + aMessage;
+        if (apOtherStack)
+        {
+            stack += "\n  the other thread, when it first took this pair of locks:";
+            for (uint16_t i = 0; i < apOtherStack->Count; ++i)
+                stack += fmt::format("\n  backtrace #{:02} {}", i, FormatAddress(apOtherStack->Frames[i]));
+        }
         spdlog::error("LockOrder: {}{}", aMessage, stack);
         spdlog::default_logger()->flush();
 
@@ -320,7 +381,8 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
                         FormatAddress(cHeld.Caller), DescribeLock(apLock), ModeName(aMode), FormatAddress(aCaller),
                         pReverse->ThreadId, DescribeLock(apLock),
                         ModeName(theirHeld), FormatAddress(pReverse->OuterCaller), DescribeLock(cHeld.Lock),
-                        ModeName(theirWant), FormatAddress(pReverse->InnerCaller)));
+                        ModeName(theirWant), FormatAddress(pReverse->InnerCaller)),
+                           FindPairStack(pReverse->OuterCaller, pReverse->InnerCaller));
                 }
         }
     }
