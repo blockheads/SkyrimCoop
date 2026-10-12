@@ -460,9 +460,15 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
 
     m_actorBridge.SetActorRemote(actorFormId, true);
 
-    // Move to player cell
-    const uint32_t cPlayerCellId = m_playerBridge.GetPlayerParentCellFormId();
-    m_actorBridge.MoveActorTo(actorFormId, cPlayerCellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
+    // Where the copy goes: an NPC from the game's data (FormId set) to the cell its owner reported, even if
+    // the player has left it since; a created actor (a player's copy) to the player's cell.
+    uint32_t cellId = m_playerBridge.GetPlayerParentCellFormId();
+    if (acMessage.FormId != GameId{})
+    {
+        if (const uint32_t cOwnerCellId = m_world.GetModSystem().GetGameId(acMessage.CellId))
+            cellId = cOwnerCellId;
+    }
+    m_actorBridge.MoveActorTo(actorFormId, cellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
     m_actorBridge.SetActorRotation(actorFormId, acMessage.Rotation.x, acMessage.Rotation.y);
 
     m_actorBridge.SetActorValues(actorFormId, acMessage.InitialActorValues);
@@ -954,10 +960,8 @@ void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcep
 
     auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
 
-    // SubtitleManager bridge integration: use actor bridge to speak a subtitle line
-    // The topic form ID for Skyrim is not fully wired through the current bridge,
-    // but the SubtitleManager call uses pInfo=nullptr fallback gracefully.
-    m_actorBridge.ActorSpeakSound(formIdComponent.Id, std::string(acMessage.Text.c_str()));
+    // The owner's subtitle text over the copy (its voice comes through NotifyDialogue).
+    m_actorBridge.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId);
 }
 
 void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept

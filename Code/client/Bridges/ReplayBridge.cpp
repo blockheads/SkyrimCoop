@@ -217,6 +217,7 @@ bool ReplayBridge::IsActorDisabled(uint32_t) const noexcept { return false; }
 void ReplayBridge::EnableActor(uint32_t) noexcept {}
 void ReplayBridge::ActorSpeakSound(uint32_t, const std::string&) noexcept {}
 void ReplayBridge::ActorStopCurrentDialogue(uint32_t) noexcept {}
+void ReplayBridge::ActorShowSubtitle(uint32_t, const std::string&, uint32_t) noexcept {}
 void ReplayBridge::SetActorIgnoreFriendlyHit(uint32_t, bool) noexcept {}
 void ReplayBridge::SetActorPlayerRespawnMode(uint32_t) noexcept {}
 void ReplayBridge::SetActorCommandingActor(uint32_t, uint32_t) noexcept {}
