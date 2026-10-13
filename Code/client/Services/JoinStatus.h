@@ -18,7 +18,7 @@ struct JoinStatus
     };
 
     State Current = State::kIdle;
-    // When refused, a stable code: wrong_build, full, mods_differ, refused.
+    // When refused, a stable code: wrong_build, wrong_game, full, mods_differ, refused.
     std::string Reason;
     // When refused, one sentence the player can act on, and a line per difference.
     std::string Message;

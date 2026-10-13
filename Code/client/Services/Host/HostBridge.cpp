@@ -154,7 +154,7 @@ template <class TRequest, class TNotify> void HostBridge::Relay(Delivery aDelive
 HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     : m_server(aServer)
     , m_game(std::move(aGame))
-    , m_session(*this, aServer)
+    , m_session(*this, aServer, m_game)
     , m_characters(*this, aServer, m_game)
     , m_clock(*this, aServer, m_game)
     , m_weather(aServer, m_game)

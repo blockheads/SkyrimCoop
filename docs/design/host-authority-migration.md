@@ -361,9 +361,24 @@ that needs the standalone server goes with the section that breaks it.
        reports it as `join`. Tested by bridge cases and the scenario `join-refused-shows-why`, which
        checks reason codes and the host's chat line and uses `coop_peer` (`Code/tests/peer`): a
        stand-in on the real network, as a host refusing every join or as a game asking to join.
-     - **3a.2:** the game and SKSE versions in the join request; a mismatch refused.
-     - **3a.3:** the plugin list and load order against the host's game, refused with the differences
-       (one shared comparison, `join-flow.md` stage 3).
+     - **3a.2, done:** the game and SKSE versions (`GameVersions`, from SKSE at load through
+       `RunningGame`) in the join request; the host compares them with its own (`HostGame::Versions`)
+       after the build and refuses a mismatch with `kWrongGame` and its versions (reason
+       `wrong_game`). The SKSE and MO2 "active" flags left both messages. Bridge cases, the encoding
+       round trip, and `join-refused-shows-why` (stand-ins on another Skyrim and SKSE, both ways).
+     - **3a.3, done:** the plugin list and load order against the host's game (`HostGame::Plugins`,
+       read at hosting; `RunningGame::Plugins` builds the list the same way everywhere), compared by
+       one shared function (`CompareLoadOrders`, `Code/encoding/Structs/LoadOrder.h`: missing, extra,
+       light flag, the first place the order parts; names without case). A difference is refused with
+       `kModsMismatch` and the host's list; the refused game computes and words the differences
+       (`mods_differ`, one detail line each) and the host's chat says how many. Tested by bridge cases
+       and with two real games: `join-refused-plugins-differ` restarts the client game with one more
+       plugin (an empty `SkyrimCoopTest.esp` in its own `Plugins.txt`), which the host refuses.
+       That test found that a game that ends without a word (crash, kill) was never dropped: enet6
+       reports a timeout as its own event (`ENET_EVENT_TYPE_DISCONNECT_TIMEOUT`), which neither
+       `Server::Update` nor `Client::Update` handled, so the host kept the player and took the next
+       game on that peer for it ("asked to join again"), and a friend never noticed a host that died.
+       Both handle it now; a kick no longer reports the same disconnection twice.
      - **3a.4:** the host's real settings (its difficulty).
    - **3b, player list:** `NotifyPlayerJoined` both ways, `NotifyPlayerLeft`, the host flag, levels.
    - **3c, player records:** ids, names, levels, characters, the host's connection and kick move from

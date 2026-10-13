@@ -1345,8 +1345,8 @@ def run_peer(*args):
 
 class StandInHost:
     """A host on the network that refuses every game asking to join (coop_peer host); its port."""
-    def __init__(self, refuse, version="v0.0.0-stand-in"):
-        self.args = ("host", "--refuse", refuse, "--version", version)
+    def __init__(self, refuse, *options):
+        self.args = ("host", "--refuse", refuse, "--version", "v0.0.0-stand-in", "--game", "1.6.640", "--skse", "2.2.3", *options)
 
     def __enter__(self):
         port = free_port()
@@ -1369,10 +1369,11 @@ def client_joins(port):
 
 def scenario_join_refused_shows_why():
     """A refused game's join status says why (a reason code and a sentence), and the host's chat says
-    who could not join. The client asks stand-in hosts (coop_peer) on another build, then a full one,
-    and a game on another build asks the real host. The client then joins the host again."""
+    who could not join. The client asks stand-in hosts (coop_peer) on another build, on another
+    Skyrim and SKSE, and a full one; games on another build and on another Skyrim ask the real host.
+    The client then joins the host again."""
     disconnect_client()
-    for refuse, reason in (("wrong_version", "wrong_build"), ("full", "full")):
+    for refuse, reason in (("wrong_version", "wrong_build"), ("wrong_game", "wrong_game"), ("full", "full")):
         with StandInHost(refuse) as port:
             client_joins(port)
             wait_for(f"[client] refused: {reason}",
@@ -1383,16 +1384,78 @@ def scenario_join_refused_shows_why():
 
     select_instance("")
     port = (read_status() or {}).get("session", {}).get("port")
-    answer = subprocess.run(run_peer("join", "--port", port, "--version", "v0.0.0-stand-in", "--name", "Intruder"),
-                            capture_output=True, text=True, timeout=20).stdout.strip()
-    if answer != "refused wrong_version":
-        raise TestFailure(f"the host answered a game on another build with {answer!r}")
-    wait_for("[host] the chat says Intruder couldn't join",
-             lambda: any(line.startswith("Intruder couldn't join: they run SkyrimCoop v0.0.0-stand-in")
-                         for line in system_chat("")), 10)
+    host_build = game_state("")["build"]
+    for name, options, answer, said in (
+            ("Intruder", ("--version", "v0.0.0-stand-in"), "refused wrong_version", "they run SkyrimCoop v0.0.0-stand-in"),
+            ("Visitor", ("--version", host_build, "--game", "1.6.640", "--skse", "2.2.3"), "refused wrong_game",
+             "they run Skyrim 1.6.640 with SKSE 2.2.3")):
+        result = subprocess.run(run_peer("join", "--port", port, "--name", name, *options),
+                                capture_output=True, text=True, timeout=20).stdout.strip()
+        if result != answer:
+            raise TestFailure(f"the host answered {name} with {result!r}, expected {answer!r}")
+        wait_for(f"[host] the chat says {name} couldn't join: {said}",
+                 lambda: any(line.startswith(f"{name} couldn't join: {said}") for line in system_chat("")), 10)
     if game_state("").get("players"):
         raise TestFailure(f"[host] lists players after a refusal: {game_state('').get('players')}")
 
+    rejoin_client()
+    wait_for("[client] joined", lambda: join_status("client")["state"] == "joined", 5)
+
+
+# A plugin with nothing in it (a TES4 header only): a real difference in a load order, changing nothing.
+TEST_PLUGIN = "SkyrimCoopTest.esp"
+
+
+def empty_plugin():
+    import struct
+    fields = (b"HEDR" + struct.pack("<HfiI", 12, 1.71, 0, 0x800)
+              + b"CNAM" + struct.pack("<H", 11) + b"SkyrimCoop\0")
+    return b"TES4" + struct.pack("<IIIHHHH", len(fields), 0, 0, 0, 0, 44, 0) + fields
+
+
+def load_order_file():
+    """The selected game's Plugins.txt (in its own prefix: each test game has its own load order)."""
+    return PREFIX / "pfx/drive_c/users/steamuser/AppData/Local/Skyrim Special Edition/Plugins.txt"
+
+
+def restart_client(plugins, dropped=True):
+    """Starts the client game again with `plugins` as its Plugins.txt; it joins nothing yet. A game
+    killed in a session says no goodbye: the host must notice it stopped answering (enet's timeout,
+    up to 30 s) and drop the player, or the next game on that connection is taken for it."""
+    select_instance("client")
+    stop_game()
+    if dropped:
+        wait_for("[host] drops the client whose game ended", lambda: not game_state("").get("players"), 40)
+        select_instance("client")
+    load_order_file().write_bytes(plugins)
+    launch(argparse.Namespace(cell="QASmoke", save=None, boot_timeout=240, world_timeout=180), new_run_dir("restart"))
+    run_console("player.setav magicka 5000")  # as `duo`: no "Magicka Low" popup
+
+
+def scenario_join_refused_plugins_differ():
+    """Two real games with different load orders: the client game restarts with one plugin more
+    than the host, asks the host to join and is refused with that difference listed; the host's chat
+    says why. The client then restarts with the host's load order and joins again."""
+    select_instance("client")
+    original = load_order_file().read_bytes()
+    (GAME / "Data" / TEST_PLUGIN).write_bytes(empty_plugin())  # inactive unless a load order lists it
+    try:
+        restart_client(original.rstrip(b"\n") + f"\n*{TEST_PLUGIN}\n".encode())
+        select_instance("")
+        port = (read_status() or {}).get("session", {}).get("port")
+        client_joins(port)
+        wait_for(f"[client] refused: mods_differ, extra {TEST_PLUGIN}",
+                 lambda: (status := join_status("client"))["state"] == "refused" and status["reason"] == "mods_differ"
+                 and status["details"] == [f"extra {TEST_PLUGIN}"], 30)
+        wait_for("[host] the chat says the client's plugins differ",
+                 lambda: any(line.endswith("couldn't join: their plugins differ from yours (1 difference).")
+                             for line in system_chat("")), 10)
+        if game_state("").get("players"):
+            raise TestFailure(f"[host] lists players after a refusal: {game_state('').get('players')}")
+    finally:
+        # Put the client back whatever failed: its own load order, the plugin gone.
+        (GAME / "Data" / TEST_PLUGIN).unlink(missing_ok=True)
+        restart_client(original, dropped=False)
     rejoin_client()
     wait_for("[client] joined", lambda: join_status("client")["state"] == "joined", 5)
 
@@ -2806,6 +2869,7 @@ SCENARIOS = {
     "host-rejoins": scenario_host_rejoins,
     "host-kicks-client": scenario_host_kicks_client,
     "join-refused-shows-why": scenario_join_refused_shows_why,
+    "join-refused-plugins-differ": scenario_join_refused_plugins_differ,
     # characters
     "steady-state": scenario_steady_state,
     "move-host-npc": scenario_move_host_npc,
@@ -2868,7 +2932,8 @@ SCENARIOS = {
 
 # What each scenario exercises, for running only the ones a change can affect:
 # `scenario --tag movement,spawn`. The full suite still runs before a commit. Scenarios tagged
-# `input` drive the real keyboard and mouse and run only when named or tagged.
+# `input` drive the real keyboard and mouse and run only when named or tagged. Scenarios tagged
+# `restart` restart a game (minutes): in the full suite, but in a tag run only with `--tag restart`.
 TAGS = {
     "session-roster": {'session'},
     "party-panel": {'session', 'ui', 'reload'},
@@ -2876,7 +2941,8 @@ TAGS = {
     "late-join-client": {'session', 'spawn', 'inventory', 'hands', 'values'},
     "host-rejoins": {'session', 'spawn'},
     "host-kicks-client": {'session', 'spawn'},
-    "join-refused-shows-why": {'session', 'ui'},
+    "join-refused-shows-why": {'session'},
+    "join-refused-plugins-differ": {'session', 'restart'},
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
     "remove-host-npc": {'spawn'},
@@ -3302,6 +3368,9 @@ def command_scenario(args):
     names = args.names or [name for name in SCENARIOS if "input" not in TAGS.get(name, set()) or args.tag]
     if args.tag:
         wanted = set(args.tag.split(","))
+        # Restarting a game takes minutes: only when named, or asked for by its tag.
+        if "restart" not in wanted:
+            names = [name for name in names if "restart" not in TAGS.get(name, set()) or name in (args.names or [])]
         known = set().union(*TAGS.values())
         if wanted - known:
             raise TestFailure(f"unknown tag(s) {sorted(wanted - known)}; known: {', '.join(sorted(known))}")

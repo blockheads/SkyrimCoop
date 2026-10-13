@@ -1,7 +1,10 @@
 #pragma once
 
+#include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Services/JoinStatus.h>
+#include <Structs/GameVersions.h>
+#include <Structs/Mods.h>
 
 #include <string>
 #include <string_view>
@@ -10,9 +13,16 @@
 // reason and its data, and these word it.
 namespace JoinRefusal
 {
-// The refused game's status; aOurBuild is its own build.
-JoinStatus ForPlayer(const AuthenticationResponse& acResponse, std::string_view aOurBuild) noexcept;
-// The line the host's chat shows: aName, on aTheirBuild, was refused.
-std::string ForHost(AuthenticationResponse::ResponseType aReason, std::string_view aName, std::string_view aTheirBuild,
-                    std::string_view aOurBuild) noexcept;
+// What a game runs, as the gate compares it.
+struct Install
+{
+    std::string_view Build;
+    GameVersions Game;
+    Mods Plugins;
+};
+
+// The refused game's status, against its own install.
+JoinStatus ForPlayer(const AuthenticationResponse& acResponse, const Install& acOurs) noexcept;
+// The line the host's chat shows: the game that sent acRequest was refused.
+std::string ForHost(AuthenticationResponse::ResponseType aReason, const AuthenticationRequest& acRequest, const Install& acOurs) noexcept;
 } // namespace JoinRefusal

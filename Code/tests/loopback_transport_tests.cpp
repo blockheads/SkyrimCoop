@@ -66,8 +66,6 @@ TEST_CASE("Loopback_AuthRoundTrip", "[Loopback]")
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "HostTest";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.DiscordId = 0;
     authReq.Level = 1;
 

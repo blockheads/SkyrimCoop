@@ -40,7 +40,6 @@ static void GenerateTwoPlayerFixture()
         authReq.Token = "";
         authReq.Version = BUILD_COMMIT;
         authReq.Username = "Host";
-        authReq.SKSEActive = true;
         auto j = MessageSerializer::ClientToJson(authReq);
         j["dir"] = "c2s";
         j["peer"] = 1;
@@ -70,7 +69,6 @@ static void GenerateTwoPlayerFixture()
         authReq.Token = "";
         authReq.Version = BUILD_COMMIT;
         authReq.Username = "JoinPlayer";
-        authReq.SKSEActive = true;
         auto j = MessageSerializer::ClientToJson(authReq);
         j["dir"] = "c2s";
         j["peer"] = 2;
@@ -244,7 +242,6 @@ TEST_CASE("Two-player: empty FormId is accepted (no forging packets rejection)",
         authReq.Token = "";
         authReq.Version = BUILD_COMMIT;
         authReq.Username = "BadPlayer";
-        authReq.SKSEActive = true;
         auto j = MessageSerializer::ClientToJson(authReq);
         j["dir"] = "c2s";
         j["peer"] = 1;
@@ -282,7 +279,6 @@ TEST_CASE("Two-player: empty FormId is accepted (no forging packets rejection)",
         authReq.Token = "";
         authReq.Version = BUILD_COMMIT;
         authReq.Username = "GoodPlayer";
-        authReq.SKSEActive = true;
         auto j = MessageSerializer::ClientToJson(authReq);
         j["dir"] = "c2s";
         j["peer"] = 1;

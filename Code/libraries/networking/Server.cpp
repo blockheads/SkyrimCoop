@@ -143,12 +143,19 @@ namespace TiltedPhoques
                     break;
                 }
 
+                // A game that stopped answering (crashed, killed, lost) times out: enet6 reports that
+                // apart, and its peer is free for the next connection right after.
                 case ENET_EVENT_TYPE_DISCONNECT:
+                case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
                 {
                     ConnectionId_t connectionId = reinterpret_cast<ConnectionId_t>(event.peer);
 
-                    spdlog::info("[SkyrimCoopNetworking] SERVER: Client {} disconnected (reason: {})", connectionId, event.data);
+                    spdlog::info("[SkyrimCoopNetworking] SERVER: Client {} {} (reason: {})", connectionId,
+                                 event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT ? "timed out" : "disconnected", event.data);
 
+                    // A kick has already removed it and said so.
+                    if (!m_peers.contains(connectionId))
+                        break;
                     Remove(connectionId);
 
                     // Map enet disconnect code to EDisconnectReason
@@ -160,6 +167,8 @@ namespace TiltedPhoques
                     case 2: reason = Banned; break;
                     default: reason = TimedOut; break;
                     }
+                    if (event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT)
+                        reason = TimedOut;
 
                     OnDisconnection(connectionId, reason);
                     break;

@@ -3,8 +3,7 @@
 void AuthenticationRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, DiscordId);
-    Serialization::WriteBool(aWriter, SKSEActive);
-    Serialization::WriteBool(aWriter, MO2Active);
+    Game.Serialize(aWriter);
     Serialization::WriteString(aWriter, Token);
     Serialization::WriteString(aWriter, Version);
     UserMods.Serialize(aWriter);
@@ -20,8 +19,7 @@ void AuthenticationRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReade
     ClientMessage::DeserializeRaw(aReader);
 
     DiscordId = Serialization::ReadVarInt(aReader);
-    SKSEActive = Serialization::ReadBool(aReader);
-    MO2Active = Serialization::ReadBool(aReader);
+    Game.Deserialize(aReader);
     Token = Serialization::ReadString(aReader);
     Version = Serialization::ReadString(aReader);
     UserMods.Deserialize(aReader);

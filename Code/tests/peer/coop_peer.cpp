@@ -1,10 +1,11 @@
 // A game stand-in for scenarios, speaking the session's protocol over the network:
-//   coop_peer host --port P --refuse wrong_version|full [--version V]
-//       a host that refuses every game asking to join (as V, for wrong_version); prints "listening P",
-//       then "refused <name>" for each
-//   coop_peer join --port P [--version V] [--name N]
-//       a game on build V (default: this one) asking 127.0.0.1:P to join; prints the answer
-//       ("accepted", "refused <type>") and exits 0, or exits 1 without one in 10 s
+//   coop_peer host --port P --refuse wrong_version|wrong_game|full [--version V] [--game G --skse S]
+//       a host that refuses every game asking to join, as build V on Skyrim G with SKSE S; prints
+//       "listening P", then "refused <name>" for each
+//   coop_peer join --port P [--version V] [--game G --skse S] [--name N]
+//       a game on build V (default: this one), Skyrim G and SKSE S (versions as "1.6.1170") asking
+//       127.0.0.1:P to join; prints the answer ("accepted", "refused <type>") and exits 0, or exits 1
+//       without one in 10 s
 #include <chrono>
 #include <mutex>
 #include <optional>
@@ -71,6 +72,7 @@ const char* Name(ResponseType aType)
     case ResponseType::kWrongVersion: return "wrong_version";
     case ResponseType::kModsMismatch: return "mods_mismatch";
     case ResponseType::kServerFull: return "full";
+    case ResponseType::kWrongGame: return "wrong_game";
     default: return "other";
     }
 }
@@ -79,6 +81,7 @@ struct RefusingHost final : TiltedPhoques::Server
 {
     ResponseType Reason{};
     std::string Version;
+    GameVersions Game;
 
     void OnUpdate() override {}
     void OnConnection(ConnectionId_t) override {}
@@ -95,6 +98,7 @@ struct RefusingHost final : TiltedPhoques::Server
         AuthenticationResponse response;
         response.Type = Reason;
         response.Version = Version.c_str();
+        response.Game = Game;
         SendMessage(response, [&](TiltedPhoques::Packet* apPacket) { Send(aConnection, apPacket); });
         Kick(aConnection);
         std::printf("refused %s\n", static_cast<const AuthenticationRequest&>(*pMessage).Username.c_str());
@@ -125,10 +129,18 @@ struct JoiningGame final : TiltedPhoques::Client
     }
 };
 
+// "1.6.1170" packed as SKSE packs it.
+uint32_t ParseVersion(const std::string& acText)
+{
+    uint32_t parts[3]{};
+    std::sscanf(acText.c_str(), "%u.%u.%u", &parts[0], &parts[1], &parts[2]);
+    return GameVersions::Pack(parts[0], parts[1], parts[2]);
+}
+
 int Usage()
 {
-    std::fprintf(stderr, "usage: coop_peer host --port P --refuse wrong_version|full [--version V]\n"
-                         "       coop_peer join --port P [--version V] [--name N]\n");
+    std::fprintf(stderr, "usage: coop_peer host --port P --refuse wrong_version|wrong_game|full [--version V] [--game G --skse S]\n"
+                         "       coop_peer join --port P [--version V] [--game G --skse S] [--name N]\n");
     return 2;
 }
 } // namespace
@@ -141,6 +153,7 @@ int main(int argc, char** argv)
     const std::string cMode = argv[1];
     uint16_t port = 0;
     std::string refuse, version = BuildCommit(), name = "CoopPeer";
+    GameVersions game;
     for (int i = 2; i + 1 < argc; i += 2)
     {
         const std::string cOption = argv[i];
@@ -152,6 +165,10 @@ int main(int argc, char** argv)
             version = argv[i + 1];
         else if (cOption == "--name")
             name = argv[i + 1];
+        else if (cOption == "--game")
+            game.Runtime = ParseVersion(argv[i + 1]);
+        else if (cOption == "--skse")
+            game.Skse = ParseVersion(argv[i + 1]);
         else
             return Usage();
     }
@@ -163,11 +180,14 @@ int main(int argc, char** argv)
         RefusingHost host;
         if (refuse == "wrong_version")
             host.Reason = ResponseType::kWrongVersion;
+        else if (refuse == "wrong_game")
+            host.Reason = ResponseType::kWrongGame;
         else if (refuse == "full")
             host.Reason = ResponseType::kServerFull;
         else
             return Usage();
         host.Version = version;
+        host.Game = game;
         if (!host.Host(port, 60))
             return 1;
         std::printf("listening %u\n", port);
@@ -181,28 +201,29 @@ int main(int argc, char** argv)
 
     if (cMode == "join")
     {
-        JoiningGame game;
-        game.Request.Version = version.c_str();
-        game.Request.Username = name.c_str();
-        game.Request.Level = 1;
-        if (!game.ConnectByIp("127.0.0.1:" + std::to_string(port)))
+        JoiningGame joining;
+        joining.Request.Version = version.c_str();
+        joining.Request.Game = game;
+        joining.Request.Username = name.c_str();
+        joining.Request.Level = 1;
+        if (!joining.ConnectByIp("127.0.0.1:" + std::to_string(port)))
             return 1;
         const auto cDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        while (!game.Answer && std::chrono::steady_clock::now() < cDeadline)
+        while (!joining.Answer && std::chrono::steady_clock::now() < cDeadline)
         {
-            game.Update();
+            joining.Update();
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
-        if (!game.Answer)
+        if (!joining.Answer)
         {
             std::printf("no answer\n");
             return 1;
         }
-        if (*game.Answer == ResponseType::kAccepted)
+        if (*joining.Answer == ResponseType::kAccepted)
             std::printf("accepted\n");
         else
-            std::printf("refused %s\n", Name(*game.Answer));
-        game.Close();
+            std::printf("refused %s\n", Name(*joining.Answer));
+        joining.Close();
         return 0;
     }
     return Usage();

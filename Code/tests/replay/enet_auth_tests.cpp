@@ -27,7 +27,6 @@ static void GenerateAuthFixture()
     req.Token = "test_token_abc123";
     req.Version = BUILD_COMMIT;
     req.Username = "TestPlayer";
-    req.SKSEActive = true;
 
     auto j = MessageSerializer::ClientToJson(req);
     j["dir"] = "c2s";
@@ -69,7 +68,6 @@ TEST_CASE("Auth replay with wrong version is rejected", "[Enet6][Auth]")
     req.Token = "test_token";
     req.Version = "wrong_version";
     req.Username = "BadPlayer";
-    req.SKSEActive = true;
 
     auto j = MessageSerializer::ClientToJson(req);
     j["dir"] = "c2s";

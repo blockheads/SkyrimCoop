@@ -294,7 +294,7 @@ static nlohmann::json GameStatus()
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
             {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()},
             {"players", players}, {"party_panel", party}, {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
-            {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
+            {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }
 
 static nlohmann::json PlayerStatus(const Harness& acHarness)

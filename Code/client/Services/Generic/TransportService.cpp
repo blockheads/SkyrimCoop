@@ -19,12 +19,11 @@
 #include <Messages/NotifySettingsChange.h>
 #include <Packet.hpp>
 
-#include <ScriptExtender.h>
+#include <RunningGame.h>
 #include <Services/DiscordService.h>
+#include <Structs/GameVersions.h>
 
 // #include <imgui_internal.h>
-
-static constexpr wchar_t kMO2DllName[] = L"usvfs_x64.dll";
 
 using TiltedPhoques::Packet;
 
@@ -184,8 +183,7 @@ void TransportService::OnConnected()
 {
     AuthenticationRequest request{};
     request.Version = BuildCommit();
-    request.SKSEActive = IsScriptExtenderLoaded();
-    request.MO2Active = GetModuleHandleW(kMO2DllName);
+    request.Game = RunningGame::GetVersions();
 
     request.Token = m_serverPassword;
     m_serverPassword = "";
@@ -198,14 +196,7 @@ void TransportService::OnConnected()
     const std::string formName = m_formBridge.GetFormName(m_playerBridge.GetPlayerBaseNpcFormId());
     request.Username = formName.empty() ? "Some dragon boi" : formName.c_str();
 
-    // Mod list
-    for (const auto& modEntry : m_formBridge.GetLoadedMods())
-    {
-        auto& entry = request.UserMods.ModList.emplace_back();
-        entry.Id = modEntry.Id;
-        entry.IsLite = modEntry.IsLite;
-        entry.Filename = modEntry.Filename.c_str();
-    }
+    request.UserMods = RunningGame::Plugins(m_formBridge);
 
     auto& modSystem = m_world.GetModSystem();
 
@@ -290,7 +281,7 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
     }
 
     // Refused: the join status says why.
-    m_joinStatus = JoinRefusal::ForPlayer(acMessage, BuildCommit());
+    m_joinStatus = JoinRefusal::ForPlayer(acMessage, {BuildCommit(), RunningGame::GetVersions(), RunningGame::Plugins(m_formBridge)});
     spdlog::error("Couldn't join the session ({}): {}", m_joinStatus.Reason, m_joinStatus.Message);
 }
 

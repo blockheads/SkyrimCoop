@@ -4,6 +4,7 @@
 #include <Structs/Mods.h>
 #include <TiltedCore/Buffer.hpp>
 #include <Structs/GameId.h>
+#include <Structs/GameVersions.h>
 #include <Structs/TimeModel.h>
 
 struct AuthenticationRequest final : ClientMessage
@@ -22,14 +23,13 @@ struct AuthenticationRequest final : ClientMessage
 
     bool operator==(const AuthenticationRequest& achRhs) const noexcept
     {
-        return GetOpcode() == achRhs.GetOpcode() && DiscordId == achRhs.DiscordId && SKSEActive == achRhs.SKSEActive && MO2Active == achRhs.MO2Active && Token == achRhs.Token && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
+        return GetOpcode() == achRhs.GetOpcode() && DiscordId == achRhs.DiscordId && Game == achRhs.Game && Token == achRhs.Token && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
                WorldSpaceId == achRhs.WorldSpaceId && CellId == achRhs.CellId && Level == achRhs.Level
             && PlayerTime == achRhs.PlayerTime;
     }
 
     uint64_t DiscordId{};
-    bool SKSEActive{};
-    bool MO2Active{};
+    GameVersions Game{};
     String Token{};
     String Version{};
     Mods UserMods{};

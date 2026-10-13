@@ -63,8 +63,6 @@ TEST_CASE("MockClient_AuthHandshake_Accepted", "[NetworkIntegration]")
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "TestPlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.DiscordId = 12345;
     authReq.Level = 1;
 
@@ -90,8 +88,6 @@ TEST_CASE("MockClient_AuthHandshake_WrongVersion", "[NetworkIntegration]")
     authReq.Version = "wrong_version_hash";
     authReq.Token = "";
     authReq.Username = "WrongVersionPlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.Level = 1;
 
     client.SendGameMessage(authReq);
@@ -126,8 +122,6 @@ TEST_CASE("MockClient_ServerPlayerCount", "[NetworkIntegration]")
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "CountTestPlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.Level = 1;
 
     client.SendGameMessage(authReq);

@@ -11,6 +11,7 @@
 
 #include <TiltedCore/Stl.hpp>
 #include "PluginPaths.h"
+#include "RunningGame.h"
 #if COOP_TEST_HARNESS
 #include "TestHarness/TestHarness.h"
 #endif
@@ -136,6 +137,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     InstallAbortLogging(pluginDirectory);
     std::filesystem::path gamePath = pluginDirectory.parent_path().parent_path().parent_path();
     PluginPaths::SetDirectory(pluginDirectory);
+    RunningGame::SetVersions(apSkse->runtimeVersion, apSkse->skseVersion);
 #if COOP_TEST_HARNESS
     // SKSETaskInterface (kTask = 4): { version, AddTask, AddUITask }.
     struct TaskInterface

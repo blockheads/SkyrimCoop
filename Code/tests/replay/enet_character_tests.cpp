@@ -27,7 +27,6 @@ static nlohmann::json MakeAuthLine()
     req.Token = "test_token_abc123";
     req.Version = BUILD_COMMIT;
     req.Username = "TestPlayer";
-    req.SKSEActive = true;
 
     auto j = MessageSerializer::ClientToJson(req);
     j["dir"] = "c2s";

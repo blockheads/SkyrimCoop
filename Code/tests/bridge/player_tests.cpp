@@ -35,11 +35,7 @@ TEST_CASE("Player level: a player joining later sees each player's level as it i
     session.Outbox.clear();
 
     constexpr ConnectionId_t cLateJoiner = 4;
-    AuthenticationRequest join;
-    join.Version = BuildCommit();
-    join.Username = "Serana";
-    join.Level = 30;
-    session.Receive(cLateJoiner, join);
+    session.Receive(cLateJoiner, JoinRequest("Serana", 30));
 
     const auto cPlayers = session.SentTo<NotifyPlayerJoined>(cLateJoiner);
     const auto cPeer = std::find_if(cPlayers.begin(), cPlayers.end(), [cPeerId](const auto* apJoined) { return apJoined->PlayerId == cPeerId; });

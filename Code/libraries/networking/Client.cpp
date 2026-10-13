@@ -291,9 +291,12 @@ namespace TiltedPhoques
                 enet_packet_destroy(event.packet);
                 break;
 
+            // The server stopped answering (its game crashed or quit without a word): enet6 reports a
+            // timeout apart.
             case ENET_EVENT_TYPE_DISCONNECT:
+            case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
             {
-                spdlog::info("[SkyrimCoopNetworking] CLIENT: Disconnected (reason: {})", event.data);
+                spdlog::info("[SkyrimCoopNetworking] CLIENT: {} (reason: {})", event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT ? "Timed out" : "Disconnected", event.data);
 
                 m_pPeer = nullptr;
                 m_clock.Reset();
@@ -308,6 +311,8 @@ namespace TiltedPhoques
                 case 2: reason = kKicked; break;  // Banned treated as kicked
                 default: reason = kTimeout; break;
                 }
+                if (event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT)
+                    reason = kTimeout;
 
                 OnDisconnected(reason);
                 break;

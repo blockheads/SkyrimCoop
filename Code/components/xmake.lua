@@ -3,7 +3,6 @@ function component(name)
   target(name)
     devbuild_shared()
     set_group("Components")
-    add_configfiles("BuildInfo.h.in")
     add_includedirs(
       ".",
       "../",
@@ -23,7 +22,6 @@ function unittest(name)
     target(name .. "_Tests")
       set_kind("binary")
       set_group("Tests")
-      add_configfiles("BuildInfo.h.in")
       add_includedirs(
         ".",
         "../",

@@ -387,8 +387,6 @@ static int RunSelfTest(const Config& aCfg)
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "FakePlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.DiscordId = 99999;
     authReq.Level = 1;
 
@@ -635,8 +633,6 @@ static void BotWorkerThread(BotContext& aCtx, const Config& aCfg)
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "FakeBot-" + std::to_string(aCtx.id);
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.DiscordId = static_cast<uint64_t>(90000 + aCtx.id);
     authReq.Level = 1;
 
@@ -956,7 +952,6 @@ static int RunNetTest(const Config& aCfg)
         AuthenticationRequest auth;
         auth.Version = BUILD_COMMIT;
         auth.Username = "NetBot-" + std::to_string(i);
-        auth.SKSEActive = true;
         auth.DiscordId = static_cast<uint64_t>(80000 + i);
         auth.Level = 1;
         bots[i]->SendGameMessage(auth);

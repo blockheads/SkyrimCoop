@@ -52,8 +52,8 @@ Removed one section at a time, each with its bridge replacement and tests first
 1. Player levels: done.
 2. String cache: dropped, not moved (uncommitted).
 3. Session, in steps: 3a auth gate (3a.1 build and cap: done, uncommitted; 3a.1b refusals
-   delivered as data (join status, host chat line): done, uncommitted; 3a.2 game and SKSE
-   versions; 3a.3 plugin list and order; 3a.4 the host's settings), 3b player list, 3c player records
+   delivered as data (join status, host chat line): done; 3a.2 game and SKSE versions, 3a.3 plugin
+   list and order: done, uncommitted; 3a.4 the host's settings), 3b player list, 3c player records
    and kick, 3d mod id table.
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
    server console commands, recording.
@@ -109,6 +109,17 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Plugins and load order with real games (3a.3, 2026-10-13, uncommitted): new
+  `join-refused-plugins-differ` (tag `restart`, ~30 s: the client game restarts with an extra empty
+  plugin, the real host refuses it, the client's join status lists `extra SkyrimCoopTest.esp`, the
+  host's chat says why; the host must drop the killed client within enet's timeout) passes, and
+  fails at that step without the timeout handling. The `session` and `restart` scenarios (10) pass;
+  `BridgeTests` 378 of 378; `TPTests` pass. Seen in a screenshot: the host's chat line.
+- Game versions (3a.2, 2026-10-13, uncommitted): `BridgeTests` 365 of 365 (Skyrim and SKSE
+  mismatches, the build checked first, the wording), `TPTests` pass (the new fields round-trip);
+  `join-refused-shows-why` adds a stand-in host on another Skyrim and SKSE and a game on another Skyrim
+  asking the real host, and fails at that step with the host's check skipped; the `session`
+  scenarios (9) pass. The real games send Skyrim 1.6.1170 with SKSE 2.2.6.
 - Refusals as data (3a.1b, 2026-10-13, uncommitted): new `join-refused-shows-why` (the client refused
   by stand-in hosts on another build and full, the real host refusing a game on another build)
   passes; it fails at the step concerned with the old kick, with no refusal status, and with no host
@@ -223,6 +234,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are still in the tree**, compiled out of the
   Windows build: the RmlUi panels replace them (party, chat).
 - **Quests** need their own design before sync goes on.
+- **Build ids of uncommitted trees match each other.** `BuildCommit()` is `git describe --tags
+  --always --dirty`, written on every xmake run (`Code/common/xmake.lua`; it was configure-time only
+  and lagged commits until 2026-10-13): two different uncommitted trees on the same commit both read
+  `...-dirty` and pass the gate's stage 1. Fine for development; release builds come from commits.
 
 ### Tests and harness
 
@@ -266,8 +281,9 @@ order" says what comes during the migration and what after.
   make one. Only the host saves; a friend's game cannot save while connected.
 - The plugin's file interface (`request`, `status`, `events`, `manifest`) and the error model (state
   with stable reason codes, events as chat system lines); the harness moves onto the files.
-- The join panel over the main menu, and a Host button in game; needs mouse and keyboard input for
-  RmlUi.
+- The join screen: one component, a dark full screen over the main menu with our panel, showing
+  each step and a refusal in the same place; a Host button in game; needs mouse and keyboard input
+  for RmlUi. Built once, with joining from the main menu and save transfer (`join-flow.md`).
 - Session settings from the host: its real difficulty (forced to Master today), a settings screen.
 - In-game screens besides the party panel: player list with kick, settings.
 - A launcher: not decided; the mod sync spike answers whether one is needed. Steam research and a

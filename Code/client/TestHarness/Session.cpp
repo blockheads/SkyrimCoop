@@ -7,6 +7,8 @@
 #include <Bridges/IPlayerBridge.h>
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AssignCharacterRequest.h>
+#include <RunningGame.h>
+#include <Structs/GameVersions.h>
 #include <fstream>
 #include <algorithm>
 
@@ -98,17 +100,11 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
     {
         AuthenticationRequest auth;
         auth.Version = BuildCommit();
+        auth.Game = RunningGame::GetVersions();
         auth.Username = "CoopTestBot";
         auth.DiscordId = 99999;
-        auth.SKSEActive = true;
         auth.Level = player.GetPlayerLevel();
-        for (const auto& mod : world.GetFormBridge().GetLoadedMods())
-        {
-            auto& entry = auth.UserMods.ModList.emplace_back();
-            entry.Id = mod.Id;
-            entry.IsLite = mod.IsLite;
-            entry.Filename = mod.Filename.c_str();
-        }
+        auth.UserMods = RunningGame::Plugins(world.GetFormBridge());
 
         AssignCharacterRequest assign;
         assign.Cookie = 1;

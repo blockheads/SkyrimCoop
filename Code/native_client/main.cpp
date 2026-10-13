@@ -219,8 +219,6 @@ public:
         authReq.Version = BUILD_COMMIT;
         authReq.Token = "";
         authReq.Username = aUsername;
-        authReq.SKSEActive = true;
-        authReq.MO2Active = false;
         authReq.DiscordId = 0;
         authReq.Level = 1;
 
@@ -400,8 +398,6 @@ int main(int argc, char* argv[]) {
         authReq.Version = BUILD_COMMIT;
         authReq.Token = "";
         authReq.Username = "Host";
-        authReq.SKSEActive = true;
-        authReq.MO2Active = false;
         authReq.DiscordId = 0;
         authReq.Level = 1;
         pLoopback->SendToServer(authReq);
@@ -612,8 +608,6 @@ int main(int argc, char* argv[]) {
         authReq.Version = BUILD_COMMIT;
         authReq.Token = "";
         authReq.Username = "Host";
-        authReq.SKSEActive = true;
-        authReq.MO2Active = false;
         authReq.DiscordId = 0;
         authReq.Level = 1;
         pLoopback->SendToServer(authReq);

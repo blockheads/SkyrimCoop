@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Messages/CharacterSpawnRequest.h>
+#include <Structs/GameVersions.h>
+#include <Structs/Mods.h>
 #include <Structs/TimeModel.h>
 
 #include <functional>
@@ -22,4 +24,7 @@ struct HostGame
     std::function<void(float aHours)> SetHour;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
+    // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.
+    GameVersions Versions;
+    Mods Plugins;
 };

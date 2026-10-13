@@ -53,8 +53,6 @@ TEST_CASE("RoundTrip_AuthenticationRequest", "[NetworkRoundTrip]")
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "RoundTripPlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.DiscordId = 99999;
     authReq.Level = 5;
 
@@ -82,8 +80,6 @@ TEST_CASE("RoundTrip_MessageSurvivesNetwork", "[NetworkRoundTrip]")
     authReq.Version = BUILD_COMMIT;
     authReq.Token = "";
     authReq.Username = "SurvivalPlayer";
-    authReq.SKSEActive = true;
-    authReq.MO2Active = false;
     authReq.Level = 10;
 
     client.SendGameMessage(authReq);

@@ -82,6 +82,30 @@ namespace BridgeTest
 constexpr ConnectionId_t kHost = 1;
 constexpr ConnectionId_t kPeer = 2;
 constexpr ConnectionId_t kOtherPeer = 3;
+// The host's Skyrim 1.6.1170 with SKSE 2.2.6.
+constexpr GameVersions kHostGame{GameVersions::Pack(1, 6, 1170), GameVersions::Pack(2, 2, 6)};
+
+// The host's plugins: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm.
+inline Mods HostPlugins()
+{
+    Mods plugins;
+    plugins.ModList.push_back({"Skyrim.esm", 0});
+    plugins.ModList.push_back({"Update.esm", 1});
+    plugins.ModList.push_back({"ccBGSSSE001-Fish.esm", 0, true});
+    return plugins;
+}
+
+// What a game on the host's build, game and plugins sends to join.
+inline AuthenticationRequest JoinRequest(const char* acpName, uint16_t aLevel = 5)
+{
+    AuthenticationRequest join;
+    join.Version = BuildCommit();
+    join.Game = kHostGame;
+    join.UserMods = HostPlugins();
+    join.Username = acpName;
+    join.Level = aLevel;
+    return join;
+}
 
 struct Sent
 {
@@ -166,6 +190,8 @@ private:
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.ReadWeather = [this] { return Weather; };
+        game.Versions = kHostGame;
+        game.Plugins = HostPlugins();
         game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) {
             const auto it = Copies.find(aServerId);
             if (it == Copies.end())

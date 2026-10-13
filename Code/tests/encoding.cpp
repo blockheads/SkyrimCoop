@@ -296,6 +296,7 @@ TEST_CASE("Packets", "[encoding.packets]")
 
         AuthenticationRequest sendMessage, recvMessage;
         sendMessage.Token = "TesSt";
+        sendMessage.Game = {GameVersions::Pack(1, 6, 1170), GameVersions::Pack(2, 2, 6)};
         sendMessage.UserMods.ModList.push_back({"Hello", 42});
         sendMessage.UserMods.ModList.push_back({"Hi", 14});
         sendMessage.UserMods.ModList.push_back({"Test", 8});
@@ -319,7 +320,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         Buffer buff(1000);
 
         AuthenticationResponse sendMessage, recvMessage;
-        sendMessage.Type = AuthenticationResponse::ResponseType::kAccepted;
+        sendMessage.Type = AuthenticationResponse::ResponseType::kWrongGame;
+        sendMessage.Version = "v1.6.7-0-gdeadbeef";
+        sendMessage.Game = {GameVersions::Pack(1, 6, 640), GameVersions::Pack(2, 2, 3)};
         sendMessage.UserMods.ModList.push_back({"Hello", 42});
         sendMessage.UserMods.ModList.push_back({"Hi", 14});
         sendMessage.UserMods.ModList.push_back({"Test", 8});

@@ -33,6 +33,7 @@ leaving (or the session ending): the friend's game goes back to the main menu, a
   against `BuildCommit()`). Exact match: every game runs the same build, which is also why the wire
   format can change freely between commits.
 - **Today:** checked by the bridge (`HostSession`); refusal `kWrongVersion` with the host's version.
+  The id is `git describe --tags --always --dirty`, written on every build.
 - **Later: updating.** Download the host's build, restart the game, rejoin. A loaded DLL cannot replace
   itself, but a small resident loader can load the newest staged build at start (the test-only hot
   reload loader, `Code/hotreload/Loader.cpp`, already loads the client from a copy). The `request`
@@ -42,10 +43,10 @@ leaving (or the session ending): the friend's game goes back to the main menu, a
 ### 2. Game version
 
 - **Check:** the Skyrim runtime version is the same; a mismatch is always an error, never synced.
-- **Today:** not sent. SKSE gives our plugin `runtimeVersion` at load (`Code/client/skse_entry.cpp`).
-  The plugin declares 1.6.1170 as its only compatible runtime, so SKSE does not load it on any other
-  version and two players cannot differ yet; the check is for when more versions are supported.
-- **Now (3a.2):** send it, with SKSE's version, in the join request and refuse on a mismatch.
+- **Today (3a.2):** the join request carries the Skyrim and SKSE versions SKSE gives our plugin at
+  load (`GameVersions`, `RunningGame`); the host refuses any difference (`wrong_game`, with its own
+  versions). The plugin declares 1.6.1170 as its only compatible runtime, so SKSE does not load it on
+  any other version and two players' Skyrim cannot differ yet; their SKSE can.
 
 ### 3. Identical installs
 
@@ -59,17 +60,18 @@ save (stage 5) is only safe when they do.
   install). The gate's check is a diff of two manifests; the refusal lists the differences: missing on
   the player, extra on the player, the first position where the order differs. The comparison is one
   plain function in shared code, so every place that checks (the gate, any later tool) agrees.
-- **Layer 1, plugins (3a.3):** the plugin list in load order against the host's game. The joining game
-  already sends its list (`AuthenticationRequest::UserMods`, from `IFormBridge::GetLoadedMods`).
+- **Layer 1, plugins (today, 3a.3):** the plugin list in load order, with each plugin's light flag,
+  against the host's game (`CompareLoadOrders`). A refusal carries the host's list; the refused game
+  lists missing, extra, light-flag and the first order difference as its join status's details.
 - **Layer 2, files (later):** plugins alone do not make an install identical. Loose files, archive
   (BSA) contents, SKSE plugin DLLs and some INI settings change the game too.
-- **SKSE:** its version (`SKSEInterface::skseVersion`) is a manifest line. Mod Organizer 2 does not
+- **SKSE:** its version is checked in stage 2, and is a manifest line. Mod Organizer 2 does not
   matter: it is how files get deployed, and the manifest sees the result.
 - **Making installs match (open, see "Mod sync" below):** 1.0 at least detects and lists the
   differences, with links where the source is known. Downloading and installing for the player is the
   subject of a research spike.
 - **Dropped:** the old ModPolicy check compared against a load order file the server read from disk
-  (`ESLoader`), not the host's game (removed in 3a.1); the SKSE/MO2 "allowed" flags go with it.
+  (`ESLoader`), not the host's game (removed in 3a.1); the SKSE/MO2 "allowed" flags went in 3a.2.
 
 ### Mod ids (not a check, but part of joining)
 
@@ -190,8 +192,10 @@ click Host and Join.
 
 ## The join panel
 
-A screen in the RmlUi UI, over Skyrim's main menu: the friend's view of joining. It opens by itself
-when a Steam invite arrives, or from a co-op entry at the main menu, and follows the state:
+One component, the only place a friend sees anything about joining: a dark full screen over Skyrim's
+main menu with our panel on it (RmlUi). It opens by itself when a Steam invite arrives, or from a
+co-op entry at the main menu, and follows the state through its steps; a refusal or an ended session
+is one of its states, shown in the same panel, never a separate popup:
 
 ```
 +-----------------------------------------------+
@@ -225,6 +229,10 @@ know the game is at the main menu. The panel only shows the state; the scenarios
 
 The host's side is smaller: a Host button in game (pause menu or a key) and its state (hosting on a
 port, or why hosting failed).
+
+**Today:** not built. A refusal reaches the join status (the log, the harness) and is shown nowhere
+in game; the join screen is built once, in this form (Build order below). An earlier panel that
+showed refusals over the game world (2026-10-13) was removed: a second place for the same message.
 
 ## Mod sync: open, under investigation
 
@@ -276,11 +284,14 @@ Now, during the server migration (section 3, `host-authority-migration.md`, "Ser
 3. **3c, player records:** the session record moves to the bridge, keyed and shaped for stage 4.
 4. **3d, mod id table:** moves to the bridge, tests first.
 
-Then, roughly in this order:
+Then, roughly in this order. Items 1 to 4 are one piece of work done back to back, so the join
+screen is built once, in its final place; nothing player-facing is built for today's join from a
+loaded save, which stays as test scaffolding until save transfer replaces it.
 
 1. Joining from the main menu, driven through the harness (connect and gate with no save loaded).
 2. The production files (`request`, `status`, `events`, `manifest`); the harness moves onto them.
-3. The join panel and the Host button, with RmlUi input.
+3. The join screen (the panel on a full-screen backdrop over the main menu, with its progress steps)
+   and the Host button, with RmlUi input.
 4. Save transfer and the friend's character replacing the save's player (stage 5).
 5. Characters in the host's save, character creation (stage 4).
 6. Blocking saves on the friend's side; leaving and kicks back to the main menu.

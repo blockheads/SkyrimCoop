@@ -1,6 +1,5 @@
 
 target("BaseLib")
-    add_configfiles("BuildInfo.h.in")
     devbuild_shared()
     set_group("common")
     add_includedirs(".", "../", "../../build", {public = true})

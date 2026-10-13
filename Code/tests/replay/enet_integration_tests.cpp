@@ -38,7 +38,6 @@ static void GenerateIntegrationFixture()
     authReq.Token = "integ_token";
     authReq.Version = BUILD_COMMIT;
     authReq.Username = "IntegPlayer";
-    authReq.SKSEActive = true;
     {
         auto j = MessageSerializer::ClientToJson(authReq);
         j["dir"] = "c2s";
@@ -118,7 +117,6 @@ static void GenerateAuthFixtureForDual()
     req.Token = "dual_token";
     req.Version = BUILD_COMMIT;
     req.Username = "DualPlayer";
-    req.SKSEActive = true;
 
     auto j = MessageSerializer::ClientToJson(req);
     j["dir"] = "c2s";
