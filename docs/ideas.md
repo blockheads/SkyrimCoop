@@ -64,9 +64,19 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   `static_assert` in every build we make; its MinGW branch is dead. Replace the ~209 uses (79 files),
   drop the macro from `TiltedOnlinePCH.h`, and drop the `is_plat("mingw")` branches in `xmake.lua` and
   `Code/client/xmake.lua`.
-- **`TiltedPhoques` containers → std.** `Vector`, `String`, `List`, `Deque`, `UniquePtr` are std types
-  with TiltedCore's allocator (`Code/TiltedCore/Stl.hpp`); `Map`/`Set` are `tsl::hopscotch`. Plain std
-  types (with mimalloc as the global allocator) would end the copies between `String` and `std::string`.
-  Large: the types are in the message structs shared with the server; check the `ScopedAllocator` uses
-  (`TransportService.cpp`) first. `Buffer`/`Serialization`, `ThisCall`/hooks and networking have no std
-  equivalent and stay (maybe in our own namespace).
+- **Modern C++ over `TiltedPhoques`.** A track of its own after the server is gone (phase 5 deletes
+  `Code/server` and replaces `libraries/networking`, a large share of the `TiltedPhoques` code).
+  - Containers: `Vector`, `String`, `List`, `Deque`, `UniquePtr` are std types with TiltedCore's
+    allocator (`Code/TiltedCore/Stl.hpp`); `Map`/`Set` are `tsl::hopscotch` (iterators need
+    `it.value()` to assign). Plain std types would end the copies between `String` and `std::string`
+    at every boundary (spdlog, nlohmann, RmlUi, engine strings).
+  - First the allocator question: the DLL replaces global `new`/`delete`
+    (`AllocatorSymbolOverride.hpp`), tied to SKSE load order, foreign threads and hot reload
+    (`test_allocator_startup.py`, `Code/tests/hot_reload/allocator_startup.cpp`). Changing a container
+    changes which allocator frees what; check the `ScopedAllocator` uses (`TransportService.cpp`) too.
+  - Interfaces: `std::span`/`std::string_view` at boundaries, `std::expected` in place of `Outcome`
+    (check what C++ version clang-cl with the MSVC STL allows; C++23 likely).
+  - `Buffer`/`Serialization` stay as the wire format (pinned by `wire_tests.cpp`); only their
+    interface could change. `ThisCall`/hooks have no std equivalent.
+  - Start with a clang-tidy `modernize-*`/`readability-*` baseline count, then a short plan
+    (`docs/design/`), then one area per change with the bridge tests and the affected scenarios.
