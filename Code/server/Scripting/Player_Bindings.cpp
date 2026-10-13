@@ -16,7 +16,6 @@ void BindPlayer(sol::state_view aState)
     playerType["GetUsername"] = &Server::Player::GetUsername;
     playerType["GetEndPoint"] = &Server::Player::GetEndPoint;
     playerType["GetDiscordId"] = &Server::Player::GetDiscordId;
-    playerType["GetStringCacheId"] = &Server::Player::GetStringCacheId;
     playerType["GetLevel"] = &Server::Player::GetLevel;
     // playerType["GetCellComponent"] = sol::overload(&Server::Player::GetCellComponent, &Server::Player::GetCellComponent);
     //  playerType["GetQuestLogComponent"] = sol::overload(&Server::Player::GetQuestLogComponent,
@@ -27,7 +26,6 @@ void BindPlayer(sol::state_view aState)
     playerType["SetMods"] = &Server::Player::SetMods;
     playerType["SetModIds"] = &Server::Player::SetModIds;
     playerType["SetCharacter"] = &Server::Player::SetCharacter;
-    playerType["SetStringCacheId"] = &Server::Player::SetStringCacheId;
     playerType["SetLevel"] = &Server::Player::SetLevel;
     playerType["SetCellComponent"] = &Server::Player::SetCellComponent;
     playerType["Send"] = static_cast<void (Server::Player::*)(const ServerMessage&) const>(&Server::Player::Send);

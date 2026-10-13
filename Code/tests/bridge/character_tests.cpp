@@ -291,3 +291,43 @@ TEST_CASE("Player respawn: everyone else respawns its character", "[Bridge][Char
     CHECK(session.SentTo<NotifyRespawn>(kHost)[0]->ActorId == cPeerPlayer);
     CHECK(session.SentTo<NotifyRespawn>(kPeer).empty());
 }
+
+TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    // A tinted NPC of the host's, announced as a player joins: its spawn carries the texture names.
+    AssignCharacterRequest announce;
+    announce.Cookie = 77;
+    announce.ReferenceId = GameId(1, 0x2000);
+    Tints::Entry tint;
+    tint.Name = "Actors\\Character\\Character Assets\\TintMasks\\SkinTone.dds";
+    tint.Alpha = 0.5f;
+    tint.Color = 0x00C8A080;
+    tint.Type = 6;
+    announce.FaceTints.Entries.push_back(tint);
+    session.Receive(kHost, announce);
+    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kPeer);
+    REQUIRE(cSpawns.size() == 1);
+    REQUIRE(cSpawns[0]->FaceTints.Entries.size() == 1);
+    CHECK(cSpawns[0]->FaceTints.Entries[0].Name == tint.Name);
+
+    // The peer casts: the other players replay the action by its graph event names.
+    ClientReferencesMoveRequest movement;
+    ActionEvent cast;
+    cast.ActionId = 0x13005;
+    cast.EventName = "MRh_SpellAimedStart";
+    cast.TargetEventName = "BeginCastRight";
+    movement.Updates[cPeerPlayer].ActionEvents.push_back(cast);
+    session.Receive(kPeer, movement);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cMoves = session.SentTo<ServerReferencesMoveRequest>(cTo);
+        REQUIRE(cMoves.size() == 1);
+        const auto& cActions = cMoves[0]->Updates.at(cPeerPlayer).ActionEvents;
+        REQUIRE(cActions.size() == 1);
+        CHECK(cActions[0].EventName == "MRh_SpellAimedStart");
+        CHECK(cActions[0].TargetEventName == "BeginCastRight");
+    }
+}

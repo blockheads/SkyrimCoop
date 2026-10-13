@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include "AnimationVariables.h"
-#include "CachedString.h"
 
 using TiltedPhoques::String;
 
@@ -16,8 +15,8 @@ struct ActionEvent
     uint32_t State1{0};
     uint32_t State2{0};
     uint32_t Type{0};
-    CachedString EventName{};
-    CachedString TargetEventName{};
+    String EventName{};
+    String TargetEventName{};
     AnimationVariables Variables{};
 
     ActionEvent() = default;

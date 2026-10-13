@@ -30,7 +30,6 @@
 #include <spdlog/spdlog.h>
 
 #include <ConsoleRegistry.h>
-#include <StringCache.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>

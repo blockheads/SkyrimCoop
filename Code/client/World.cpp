@@ -30,7 +30,6 @@
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/CalendarService.h>
-#include <Services/StringCacheService.h>
 #include <Services/PlayerService.h>
 #include <Services/CombatService.h>
 #include <Services/WeatherService.h>
@@ -104,7 +103,6 @@ World::World()
     ctx().emplace<CommandService>(*this, m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
-    ctx().emplace<StringCacheService>(m_dispatcher);
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<WeatherService>(*this, m_dispatcher);
@@ -123,7 +121,6 @@ World::~World()
     ctx().erase<MapService>();
     ctx().erase<WeatherService>();
     ctx().erase<CombatService>();
-    ctx().erase<StringCacheService>();
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
     ctx().erase<EffectVisualsService>();

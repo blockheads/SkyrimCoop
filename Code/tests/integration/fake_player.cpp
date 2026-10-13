@@ -58,7 +58,6 @@ using TiltedPhoques::String;
 using TiltedPhoques::UniquePtr;
 using TiltedPhoques::Vector;
 
-#include <StringCache.h>
 #include <ConsoleRegistry.h>
 
 #include "mock_client.h"

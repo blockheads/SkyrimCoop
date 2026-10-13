@@ -33,7 +33,6 @@ using TiltedPhoques::String;
 using TiltedPhoques::UniquePtr;
 using TiltedPhoques::Vector;
 
-#include <StringCache.h>
 
 #include <catch2/catch.hpp>
 #include "test_server_fixture.h"

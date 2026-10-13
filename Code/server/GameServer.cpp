@@ -941,13 +941,6 @@ void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
         serverResponse.Type = AuthenticationResponse::ResponseType::kAccepted;
         Send(aConnectionId, serverResponse);
 
-        uint32_t startId = 0;
-        auto initStringCache = StringCache::Get().Serialize(startId);
-
-        pPlayer->SetStringCacheId(startId);
-
-        Send(aConnectionId, initStringCache);
-
         // The session's players: the newcomer learns everyone already here, and everyone else
         // learns the newcomer.
         const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();

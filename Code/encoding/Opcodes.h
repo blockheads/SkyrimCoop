@@ -77,7 +77,6 @@ enum ServerOpcode : unsigned char
     kNotifySyncExperience,
     kNotifyEquipmentChanges,
     kNotifyChatMessageBroadcast,
-    kStringCacheUpdate,
     kNotifyPlayerRespawn,
     kNotifyDialogue,
     kNotifySubtitle,

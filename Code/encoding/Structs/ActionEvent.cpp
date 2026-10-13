@@ -93,12 +93,12 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoqu
 
     if (flags & kEventName)
     {
-        EventName.Serialize(aWriter);
+        Serialization::WriteString(aWriter, EventName);
     }
 
     if (flags & kTargetEventName)
     {
-        TargetEventName.Serialize(aWriter);
+        Serialization::WriteString(aWriter, TargetEventName);
     }
 
     if (flags & kVariables)
@@ -149,12 +149,12 @@ void ActionEvent::ApplyDifferential(TiltedPhoques::Buffer::Reader& aReader) noex
 
     if (flags & kEventName)
     {
-        EventName.Deserialize(aReader);
+        EventName = Serialization::ReadString(aReader);
     }
 
     if (flags & kTargetEventName)
     {
-        TargetEventName.Deserialize(aReader);
+        TargetEventName = Serialization::ReadString(aReader);
     }
 
     if (flags & kVariables)

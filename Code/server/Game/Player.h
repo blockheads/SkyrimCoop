@@ -24,7 +24,6 @@ struct Player
     [[nodiscard]] const String& GetUsername() const noexcept { return m_username; }
     [[nodiscard]] const String& GetEndPoint() const noexcept { return m_endpoint; }
     [[nodiscard]] const uint64_t GetDiscordId() const noexcept { return m_discordId; }
-    [[nodiscard]] const uint32_t GetStringCacheId() const noexcept { return m_stringCacheId; }
     [[nodiscard]] const uint16_t GetLevel() const noexcept { return m_level; }
 
     [[nodiscard]] CellIdComponent& GetCellComponent() noexcept;
@@ -38,7 +37,6 @@ struct Player
     void SetMods(Vector<String> aMods) noexcept;
     void SetModIds(Vector<uint16_t> aModIds) noexcept;
     void SetCharacter(entt::entity aCharacter) noexcept;
-    void SetStringCacheId(uint32_t aStringCacheId) noexcept;
     // TODO(cosideci): update on level up
     void SetLevel(uint16_t aLevel) noexcept;
 
@@ -58,7 +56,6 @@ private:
     String m_username;
     QuestLogComponent m_questLog;
     CellIdComponent m_cell;
-    uint32_t m_stringCacheId{0};
     uint16_t m_level{0};
 };
 

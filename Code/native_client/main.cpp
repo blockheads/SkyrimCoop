@@ -23,7 +23,6 @@ using TiltedPhoques::String;
 using TiltedPhoques::UniquePtr;
 using TiltedPhoques::Vector;
 
-#include <StringCache.h>
 
 // -- Standard includes --
 #include <cstdio>

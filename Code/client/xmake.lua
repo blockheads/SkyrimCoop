@@ -253,7 +253,6 @@ target("SkyrimTogetherClientServices")
               "Services/Generic/PlayerService.cpp",
               "Services/Generic/QuestService.cpp",
               "Services/Generic/RunnerService.cpp",
-              "Services/Generic/StringCacheService.cpp",
               "Services/Generic/TransportService.cpp",
               "Services/Generic/WeatherService.cpp")
     add_files("Services/HostService.cpp")

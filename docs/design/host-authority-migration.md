@@ -330,7 +330,14 @@ that needs the standalone server goes with the section that breaks it.
    Lua binding are deleted; the client's never-sent `PlayerLevelEvent` too (a once-a-second check sends
    level-ups). Bridge cases in `player_tests.cpp`, scenario `party-shows-levels` (the baseline restores
    levels with `setlevel`).
-2. **String cache:** the bridge sends the snapshot on join and broadcasts additions.
+2. **String cache:** dropped rather than moved (2026-10-13). It sent each animation event, face tint
+   and script animation name once and an id after that, an optimisation for Skyrim Together's
+   server sizes; for 2-4 players the names cost a few KB/s. Every game runs the same build (auth
+   checks the commit), so the wire format changed with it: those fields are plain strings now.
+   Deleted: `StringCache`, `CachedString`, `StringCacheUpdate` and its opcode, the client's and the
+   server's `StringCacheService`, the join snapshot and the player's progress in it. Packet sizes
+   were not measured; that belongs with stress tests. Bridge case: names arrive as sent with nothing
+   shared first (`character_tests.cpp`); the action, spawn, object and session scenarios pass (39 of 39).
 3. **Session:** `HostSession` takes auth (version, player count, mod check), the player list and kick;
    the player records move there.
 4. **The listener (phase 5).**

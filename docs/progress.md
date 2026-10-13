@@ -48,8 +48,8 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 Removed one section at a time, each with its bridge replacement and tests first
 (`docs/design/host-authority-migration.md`, "Server sections"):
 
-1. Player levels: done (uncommitted).
-2. `StringCacheService`.
+1. Player levels: done.
+2. String cache: dropped, not moved (uncommitted).
 3. Session: `AuthenticationRequest`, connections, version and mod-list check, player list
    (`NotifyPlayerJoined`/`Left`), kick.
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
@@ -224,6 +224,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   duo); a restart cleared it.
 - The map's fast travel UI (open the map, pick a marker, confirm) is not driven; `party-fast-travels` uses
   the console's `FastTravel`, which queues the same move (`docs/re/systems/player-travel.md`).
+- `TPTests` does not build: the target compiles `native_client` files, and `tcp_client.h` includes
+  `line_buffer.h`, deleted with the relay in `a94b0002`. The encoding tests in it pass when built on
+  their own (`encoding.cpp`, `main.cpp`). Fix with the section that deletes the server tests.
 - The `duo` harness process once segfaulted on exit after a pass.
 - A harness command with a wrongly typed field (`place` with a hex string target) throws in `nlohmann::json`
   and takes the game down (`CommandsStaging.cpp` `Place`, 2026-10-13). Commands should read fields without

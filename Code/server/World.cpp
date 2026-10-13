@@ -3,7 +3,6 @@
 
 #include <Services/QuestService.h>
 #include <Services/AdminService.h>
-#include <Services/StringCacheService.h>
 #include <Services/ScriptService.h>
 
 #include <es_loader/ESLoader.h>
@@ -18,7 +17,6 @@ World::World()
 
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
-    ctx().emplace<StringCacheService>(*this, m_dispatcher);
 
     ESLoader::ESLoader loader;
     // emplace loaded mods into modscomponent.
@@ -41,7 +39,6 @@ World::World(WorldTestMode)
 
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
-    ctx().emplace<StringCacheService>(*this, m_dispatcher);
 
     // ScriptService is safe to create -- it just won't have any loaded scripts
     m_pScriptService = TiltedPhoques::MakeUnique<ScriptService>(*this, m_dispatcher);
@@ -57,7 +54,6 @@ World::~World()
 
     // The services live in the registry's context, destroyed after m_dispatcher (one of our
     // members): their connections to it go first, newest service first.
-    ctx().erase<StringCacheService>();
     ctx().erase<QuestService>();
 }
 

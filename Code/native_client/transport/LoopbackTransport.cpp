@@ -27,7 +27,6 @@ using TiltedPhoques::String;
 using TiltedPhoques::UniquePtr;
 using TiltedPhoques::Vector;
 
-#include <StringCache.h>
 #include <GameServer.h>
 
 #include "LoopbackTransport.h"

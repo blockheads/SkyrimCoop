@@ -1,6 +1,6 @@
 #pragma once
 
-#include "CachedString.h"
+#include <TiltedCore/Stl.hpp>
 
 using TiltedPhoques::Buffer;
 using TiltedPhoques::Vector;
@@ -9,7 +9,7 @@ struct Tints
 {
     struct Entry
     {
-        CachedString Name;
+        TiltedPhoques::String Name;
         float Alpha;
         uint32_t Color;
         uint32_t Type;

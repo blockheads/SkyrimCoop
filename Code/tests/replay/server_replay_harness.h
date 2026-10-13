@@ -11,7 +11,6 @@
 #include <Server.hpp>
 #include <BuildInfo.h>
 #include <optional>
-#include <StringCache.h>
 #include <sol/sol.hpp>
 
 using TiltedPhoques::ConnectionId_t;
