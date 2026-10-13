@@ -272,7 +272,7 @@ void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint
         if (m_characters.OwnerOf(aActor) == aSender)
             m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
         else
-            spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, acNotify.GetOpcode(), aActor);
+            spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, uint32_t(acNotify.GetOpcode()), aActor);
         break;
     case Delivery::FromAnyone: m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
     case Delivery::ToOwner:
