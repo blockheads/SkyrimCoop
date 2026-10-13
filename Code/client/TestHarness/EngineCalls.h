@@ -107,6 +107,23 @@ struct Water
 Water GetWater(uint32_t aFormId) noexcept;
 // The subtitle on screen over the actor (SubtitleManager), empty if none.
 std::string GetSubtitle(uint32_t aFormId) noexcept;
+// The actor's behaviour graph state as a spawn sends it (TESObjectREFR::SaveAnimationGraphState), and the
+// microseconds the save took; empty without the actor or its graphs. Measuring graph replication.
+std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept;
+// Loads a saved state into the actor now, as a spawn does (LoadAnimationGraphState); false if it failed.
+bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicroseconds) noexcept;
+// The variables each of the actor's graphs writes itself (GraphVariableWriters), with the node writing it and
+// the project-wide name of the node's index, to check how sub-behaviours index variables.
+struct GraphWriter
+{
+    std::string Project;
+    std::string Variable;
+    std::string ProjectName; // the project's variable at the node's index
+    std::string Behaviour;
+    std::string Node;
+    int32_t Index = -1;
+};
+std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
 } // namespace TestHarness::EngineCalls

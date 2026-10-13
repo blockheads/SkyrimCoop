@@ -27,16 +27,10 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   same mods.
 - **Havok sync.** Physics objects and ragdolls from the host. Should fix failures where the games'
   physics disagree.
-- **Graph replication (prediction + reconciliation).** Actions and variables keep driving copies
-  (prediction); the owner's behaviour graph state, delta-synced (a byte-level delta of each
-  `SaveState` snapshot against the last one sent, so the format stays opaque), corrects what drifted
-  (reconciliation). Payoff: animation mods sync with no descriptors, and refused replays get corrected.
-  The work is the correction layer, since `LoadState` is a hard set: fire the annotations a forward jump
-  skips (weapon attach, footsteps, hit frames), suppress repeats on a backward one, keep the actor's
-  state flags in the same correction. Log every correction's size; scenarios assert they stay rare.
-  First an experiment: time `SaveState`/`LoadState`, delta size per tick (players and host NPCs), and
-  whether `LoadState` fires state-enter events. Builds on the spawn graph state
-  (`docs/re/systems/actor-ai-and-copies.md`).
+- **Animation mods on copies (parked).** Graph variables synced by name from the engine's graph state,
+  so behaviour mods need no descriptors; then the mods' animation events and Open Animation Replacer's
+  clip choice, which are probably what a modded copy misses first. Start with one modded setup through the
+  scenarios. Design, measurements and why it is parked: `docs/design/graph-replication.md`.
 - **Graph state over the world-sync buffers.** `AnimationGraphState` has its own stream adapter for the
   engine's graph serializer; once world sync has save/load form buffers, the graph state can use them.
 - **Rest of the copy audit.** After the AI update (`docs/re/systems/actor-ai-and-copies.md`): combat,

@@ -41,6 +41,12 @@ for repo in powerof3/EssentialsBeGone NoahBoddie/death-defiance-system; do
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Behaviour graph internals: Open Animation Replacer walks every node of a behaviour with the engine's own
+# iterator (62942/62944, src/Offsets.h) and hooks project loading. hkxcmd's compat/ has the Havok 2010
+# class layouts (hkbVariableBindingSet::Binding, FLAG_OUTPUT). docs/design/graph-replication.md.
+fetch ersh1/OpenAnimationReplacer "$ROOT/reference/plugins/OpenAnimationReplacer"
+fetch figment/hkxcmd "$ROOT/reference/plugins/hkxcmd"
+
 curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"

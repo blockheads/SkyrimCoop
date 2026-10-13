@@ -139,10 +139,17 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   only if they fire the teleport event, see Migration).
 - **`TESObjectREFR::GetParentCell` (our virtual)** returned null in an exterior after `coc` while the
   field was set: the vtable slot may be wrong; the harness's `GetCellObjectIds` still uses it.
-- **Graph outputs still synced:** Master_Behavior variables that the graph itself writes
-  (`IsCastingRight/Left`, `bMRh_Ready`, `IsEquipping`, `IsAttacking`, `bInJumpState`, ...; list with
-  `behavior_dump.py writers`), and `currentDefaultState` in the troll, draugr, werewolf, steam and
-  falmer descriptors. No harm traced yet.
+- **Graph outputs still synced in creature descriptors:** `NotCasting` in Vampire Lord (the same output
+  that ended the player's casts), `currentDefaultState` in steam, falmer, troll, draugr and werewolf, and
+  per creature the `IsAttacking`/`bAttached` kind. No harm traced, no scenario covers them. Fix as data
+  when each gets a scenario: harness `graph_writers` lists a graph's outputs. Why not a generic runtime
+  skip: `docs/design/graph-replication.md` ("Decision").
+- **Name-keyed graph variable sync (animation mods): parked.** Inputs and outputs are told apart (harness
+  `graph_writers`, `scripts/re/graph_compare.py`); the sync is not built. `docs/ideas.md`,
+  `docs/design/graph-replication.md`.
+- **`flames-client-hits-host-npc` failed once** (2026-10-12, with the since-reverted copy-side skip): Lydia's
+  copy without any animation state after her spawn drop, "desync afterwards"; passed 4 of 4 alone and in
+  the other full runs.
 - **Leveled wildlife picks its own base on each game** (host Rabbit is a Fox on the client, Deer an
   Elk). The copy should take its owner's base.
 - **Console `disable`/`kill` on a wild wolf did nothing** on the host, no error logged. Not investigated.
@@ -183,7 +190,12 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - `party-panel` and `late-join-client` passed in all of today's full runs (order dependency not seen
   since; `cast-host-player`'s was the arrival fade swallowing Ready Weapon, fixed in the harness).
 - The `duo` harness process once segfaulted on exit after a pass.
+- A harness command with a wrongly typed field (`place` with a hex string target) throws in `nlohmann::json`
+  and takes the game down (`CommandsStaging.cpp` `Place`, 2026-10-13). Commands should read fields without
+  throwing.
 - Harness console lines other than cell changes run unpaused, unlike a typed line.
+- `scripts/re/ida_export.py` exported 58,317 rows (every named address) instead of the ~100 hand-set ones
+  (2026-10-12); the six new rows were added to `docs/re/ida_notes.tsv` by hand.
 
 ## Product pieces not started
 

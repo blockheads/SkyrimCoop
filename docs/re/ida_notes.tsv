@@ -99,3 +99,9 @@ id	rva	name	comment
 38022	0x6a2970	Character::UpdateSprintStamina	our name. While sprinting (ActorState1 bit 8) and not mounted: drains stamina (AV 26) by equipped weight, for the player or the player's mount only. From Actor::Update 37348.
 37273	0x662be0	Actor::UpdateCombatSearchState	our name (meh: PlayerCharacter::sub_37273). In combat (vfunc 0xE3 IsInCombat): caches the combat controller's target (+0x104) and sets boolBits kSearchingInCombat (0x4000); out of combat clears both. From Actor::Update 37348.
 442673	0x8f4270	Console::RunQueuedCommands	our name. Runs (Script::CompileAndRun_Impl) the console lines that Console::ExecuteCommand (442672) compiled into its queue (0x1431ACD78, count 0x1431ACD88), then empties it. Called from Main::Update (36564) at +0xA8F, after the AI stages are kicked (SetJobTaskEvent 1-4, +0x82F): outside menu mode the frame's actor and combat jobs still run on worker threads meanwhile (typed lines run with the console open, game paused). docs/re/crashes/2026-10-12-wolf-combat-coc.md
+58524	0xac1770	hkbBindable::CacheBindables	Resolves every binding (59473/59474) on a node's first activation; sets areBindablesCached (+0x28).
+59474	0xae5790	hkbVariableBindingSet::ResolveBinding	Resolves one binding's member offsets/type into it; flags (+0x24) = 1 when the member's hkb.RoleAttribute has FLAG_OUTPUT (0x10), and the set's hasOutputBinding (+0x24).
+63865	0xbc3d90	hkbNodeIterator::ctor	Breadth-first walk of every node under a root, each once (flags: hkbNode::GetChildrenFlagBits); 0x60 bytes. OAR uses it.
+63867	0xbc3f20	hkbNodeIterator::Next	Next node, null at the end; queues its children (getMaxNumChildren +0x40, getChildren +0x48).
+63895	0xbc6720	hkbNodeIterator::FreeLists	Frees the iterator's node lists; after 68109 on +0x40, as 63948 does.
+68109	0xcc3e40	ScrapArray::Free	Frees a scrap-heap array (the iterator's buckets at +0x40).

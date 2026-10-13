@@ -17,9 +17,14 @@
 #include <Games/Misc/SubtitleManager.h>
 #include <World.h>
 #include <Bridges/IFormBridge.h>
+#include <BSAnimationGraphManager.h>
+#include <Havok/BShkbAnimationGraph.h>
+#include <Havok/BShkbHkxDB.h>
+#include <Havok/GraphVariableWriters.h>
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 // The test harness's own engine calls (scripts/coop_test.py, through the harness's commands): staging, the
 // player's input, and what scenarios check. Nothing in the client uses them.
@@ -322,6 +327,69 @@ bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept
     bool value = false;
     EngineVirtual(pActor->animationGraphHolder).GetVariableBool(&name, &value);
     return value;
+}
+
+std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept
+{
+    aMicroseconds = 0;
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return {};
+    TiltedPhoques::String state;
+    const auto cStart = std::chrono::steady_clock::now();
+    const bool cSaved = pActor->SaveAnimationGraphState(state);
+    aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
+    return cSaved ? std::string(state.data(), state.size()) : std::string{};
+}
+
+bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicroseconds) noexcept
+{
+    aMicroseconds = 0;
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return false;
+    const TiltedPhoques::String cState(acState.data(), acState.size());
+    const auto cStart = std::chrono::steady_clock::now();
+    const bool cLoaded = pActor->LoadAnimationGraphState(cState);
+    aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
+    return cLoaded;
+}
+
+std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept
+{
+    std::vector<GraphWriter> writers;
+    Actor* pActor = GetActor(aFormId);
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!pActor || !EngineVirtual(pActor->animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return writers;
+    {
+        BSScopedLock<BSRecursiveLock> _{pManager->lock};
+        for (uint32_t i = 0; i < pManager->animationGraphs.size; ++i)
+        {
+            BShkbAnimationGraph* pGraph = pManager->animationGraphs.Get(i);
+            if (!pGraph || !pGraph->hkxDB)
+                continue;
+            // The project's variables by index (BShkbHkxDB::animationVariables), as the descriptor key reads them.
+            std::map<int32_t, std::string> projectNames;
+            const auto& cTable = pGraph->hkxDB->animationVariables;
+            for (uint32_t b = 0; cTable.buckets && b < cTable.bucketCount; ++b)
+            {
+                auto* pEntry = &cTable.buckets[b];
+                if (!pEntry->next)
+                    continue;
+                for (; pEntry != cTable.end; pEntry = pEntry->next)
+                    projectNames[pEntry->value] = pEntry->key.AsAscii();
+            }
+            for (const auto& cWriter : GraphVariableWriters::Collect(pGraph))
+            {
+                const auto cIt = projectNames.find(cWriter.Index);
+                writers.push_back({pGraph->projectName ? pGraph->projectName : "", cWriter.Variable.c_str(),
+                                   cIt != projectNames.end() ? cIt->second : std::string{}, cWriter.Behaviour.c_str(), cWriter.Node.c_str(), cWriter.Index});
+            }
+        }
+    }
+    pManager->Release();
+    return writers;
 }
 
 int32_t GetCharacterState(uint32_t aFormId) noexcept

@@ -27,6 +27,45 @@ nlohmann::json GraphBool(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"values", values}};
 }
 
+// {"cmd": "graph_state", "actor": id}: the actor's graph state, hex, and the save's microseconds.
+nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
+{
+    int64_t micros = 0;
+    const std::string cState = EngineCalls::SaveGraphState(acRequest.value("actor", 0x14u), micros);
+    if (cState.empty())
+        return Error("no graph state");
+    static constexpr char cDigits[] = "0123456789abcdef";
+    std::string hex(cState.size() * 2, '0');
+    for (size_t i = 0; i < cState.size(); ++i)
+    {
+        hex[2 * i] = cDigits[uint8_t(cState[i]) >> 4];
+        hex[2 * i + 1] = cDigits[uint8_t(cState[i]) & 0xF];
+    }
+    return {{"ok", true}, {"state", hex}, {"micros", micros}};
+}
+
+// {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor now.
+nlohmann::json LoadGraphState(Harness&, const nlohmann::json& acRequest)
+{
+    const std::string cHex = acRequest.value("state", std::string{});
+    std::string state(cHex.size() / 2, '\0');
+    for (size_t i = 0; i < state.size(); ++i)
+        state[i] = char(std::stoi(cHex.substr(2 * i, 2), nullptr, 16));
+    int64_t micros = 0;
+    const bool cLoaded = EngineCalls::LoadGraphState(acRequest.value("actor", 0u), state, micros);
+    return {{"ok", cLoaded}, {"micros", micros}};
+}
+
+// {"cmd": "graph_writers", "actor": id}: the variables the actor's graphs write themselves, by node.
+nlohmann::json GraphWriters(Harness&, const nlohmann::json& acRequest)
+{
+    auto writers = nlohmann::json::array();
+    for (const auto& cWriter : EngineCalls::GetGraphWriters(acRequest.value("actor", 0x14u)))
+        writers.push_back({{"project", cWriter.Project}, {"variable", cWriter.Variable}, {"project_name", cWriter.ProjectName},
+                           {"behaviour", cWriter.Behaviour}, {"node", cWriter.Node}, {"index", cWriter.Index}});
+    return {{"ok", true}, {"writers", writers}};
+}
+
 // {"cmd": "objects"}: the doors, containers and furniture in the player's cell (state, lock, load door).
 nlohmann::json Objects(Harness&, const nlohmann::json&)
 {
@@ -80,7 +119,8 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
 
 constexpr Command cCommands[] = {
     {"status", false, &GetStatus}, {"graph_bool", true, &GraphBool}, {"objects", true, &Objects},
-    {"activate", true, &Activate}, {"lock", true, &Lock},
+    {"activate", true, &Activate}, {"lock", true, &Lock}, {"graph_state", true, &GraphState},
+    {"load_graph_state", true, &LoadGraphState}, {"graph_writers", true, &GraphWriters},
 };
 } // namespace
 
