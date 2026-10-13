@@ -102,6 +102,21 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
         const auto& first = *it;
 
+        // The owner's kill performed this action: the copy dies the same way, on the owner's timeline.
+        if (ActorState::LifeStateOf(first.State1) == ActorState::kLifeDying && !apActor->IsDead())
+        {
+            if (apActor->KillWithDeathAction(first))
+            {
+                aAnimationComponent.LastRanAction = first;
+                apActor->GetExtension()->LatestAnimation = first;
+            }
+            else
+                spdlog::debug("Copy {:X}: its kill did not play the owner's death action {:X} '{}'", apActor->formID,
+                              first.ActionId, first.EventName);
+            actions.pop_front();
+            return;
+        }
+
         if (first.Tick >= aAnimationComponent.VariablesTick)
         {
             aAnimationComponent.Variables = first.Variables;

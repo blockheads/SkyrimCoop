@@ -384,6 +384,11 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     */
 }
 
+namespace
+{
+constexpr float cMinLivingHealth = 0.01f;
+}
+
 void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMessage) const noexcept
 {
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
@@ -409,7 +414,10 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
 
         if (key == 26 /* kStamina */ || key == 25 /* kMagicka */ || key == 24 /* kHealth */)
         {
-            m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, key, value);
+            // A copy dies with its owner's replayed death action (AnimationSystem); health at 0 would make
+            // its engine kill it first, 300ms early and as an instant ragdoll.
+            const bool cKeepAlive = key == 24 && value <= 0.f && !m_actorBridge.IsActorDead(formId);
+            m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, key, cKeepAlive ? cMinLivingHealth : value);
             continue;
         }
         m_actorBridge.SetActorValue(formId, key, value);
@@ -444,8 +452,10 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
 
 void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessage) noexcept
 {
+    // Not at once: a copy dies with its owner's replayed death action (AnimationSystem), 300ms behind. The
+    // state applies to a copy still alive after that, e.g. an owner ragdolled to death with no action.
     m_pendingDeathStates[acMessage.Id] = acMessage.IsDead;
-    ApplyPendingDeathStates();
+    m_nextDeathStateRetry = std::chrono::steady_clock::now() + 500ms;
 }
 
 void ActorValueService::ApplyPendingDeathStates() noexcept

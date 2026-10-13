@@ -21,6 +21,10 @@ struct ActorState : IMovementState
     // ActorState1::swimming (CommonLibSSE-NG).
     bool IsSwimming() const noexcept { return flags1 & (1u << 10); }
 
+    // ActorState1::lifeState (CommonLibSSE-NG ACTOR_LIFE_STATE): 0 alive, 1 dying, 2 dead, ...
+    static constexpr uint8_t kLifeDying = 1;
+    static uint8_t LifeStateOf(uint32_t aFlags1) noexcept { return aFlags1 >> 21 & 0xF; }
+
     bool IsBleedingOut() const noexcept { return (flags1 & 0x1E00000) == 0x1000000 || (flags1 & 0x1E00000) == 0xE00000; }
 
     bool SetWeaponDrawn(bool aDraw) noexcept;

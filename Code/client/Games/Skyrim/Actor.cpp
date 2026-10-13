@@ -861,6 +861,26 @@ void Actor::Kill() noexcept
     */
 }
 
+bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
+{
+    ActorExtension* pExtension = GetExtension();
+    if (pExtension->IsPlayer())
+        return false;
+
+    // KillImpl (37896) performs the death animation, or RagdollInstant when told to ragdoll at once; a
+    // copy's own actions are refused unless forced.
+    const bool cRagdoll = acAction.EventName == "RagdollInstant";
+    const ActionEvent cPrevious = pExtension->LatestAnimation;
+    pExtension->LatestAnimation.ActionId = 0;
+    g_forceAnimation = true;
+    KillImpl(nullptr, 100.f, true, cRagdoll);
+    g_forceAnimation = false;
+    if (pExtension->LatestAnimation.ActionId == acAction.ActionId)
+        return true;
+    pExtension->LatestAnimation = cPrevious;
+    return false;
+}
+
 void Actor::Reset() noexcept
 {
     using ObjectReference = TESObjectREFR;
