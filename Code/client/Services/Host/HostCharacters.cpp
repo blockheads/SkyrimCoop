@@ -40,7 +40,8 @@ HostCharacters::HostCharacters(HostBridge& aBridge, Server::GameServer& aServer,
 void HostCharacters::OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     ServerReferencesMoveRequest notify;
-    notify.Tick = m_server.GetTick();
+    // The owner's time, as its actions carry: copies replay both on one timeline (never in the future).
+    notify.Tick = std::min(acRequest.Tick, m_server.GetTick());
     for (const auto& [cServerId, cUpdate] : acRequest.Updates)
     {
         auto it = m_characters.find(cServerId);

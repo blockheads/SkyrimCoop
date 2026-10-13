@@ -47,11 +47,47 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
                 apActor->GetExtension()->LatestAnimation = cSpawnAction;
                 actions.pop_front();
             }
-            aAnimationComponent.HeadVariablesLoaded = false;
         }
         else
             spdlog::warn("Copy {:X}: the owner's graph state did not load, replaying its last action", apActor->formID);
         aWorld.remove<SpawnGraphStateComponent>(aEntity);
+    }
+
+    // The staged step's outcome (RunReplayStep, in the copy's animation job).
+    using ReplayStep = ActorExtension::ReplayStep;
+    auto& step = apActor->GetExtension()->Replay;
+    uint8_t phase = step.Phase.load(std::memory_order_acquire);
+    if (phase == ReplayStep::kTaken || phase == ReplayStep::kRefused)
+    {
+        const auto& cAction = step.Action;
+        if (phase == ReplayStep::kTaken)
+        {
+            aAnimationComponent.LastRanAction = cAction;
+            apActor->GetExtension()->LatestAnimation = cAction;
+            if (step.Retries)
+                spdlog::debug("Copy {:X} took replayed action {:X} '{}' {} graph updates late", apActor->formID, cAction.ActionId,
+                              cAction.EventName, step.Retries);
+        }
+        else
+            spdlog::debug("Copy {:X} refused replayed action {:X} '{}' (weapon state {})", apActor->formID, cAction.ActionId,
+                          cAction.EventName, apActor->actorState.flags2 >> 5 & 7);
+        if (!actions.empty() && actions.front().Tick == cAction.Tick && actions.front().ActionId == cAction.ActionId)
+            actions.pop_front();
+        step.Phase.store(ReplayStep::kIdle, std::memory_order_release);
+        return;
+    }
+    if (phase != ReplayStep::kIdle)
+    {
+        // Staged for the copy's graph updates; a graph nobody updates gets it here after 10 of ours.
+        constexpr uint8_t cMaxStagedUpdates = 10;
+        if (++aAnimationComponent.StagedUpdates <= cMaxStagedUpdates || phase == ReplayStep::kBusy)
+            return;
+        if (!step.Phase.compare_exchange_strong(phase, ReplayStep::kBusy, std::memory_order_acq_rel))
+            return;
+        spdlog::debug("Copy {:X}: graph not updated, playing {:X} '{}' unstepped", apActor->formID, step.Action.ActionId, step.Action.EventName);
+        apActor->LoadAnimationVariables(step.Variables);
+        step.Phase.store(PlayReplayedAction(apActor, step) ? ReplayStep::kTaken : ReplayStep::kRefused, std::memory_order_release);
+        return;
     }
 
     const auto it = std::begin(actions);
@@ -66,62 +102,71 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
         const auto& first = *it;
 
-        // The variables go in one update before the action, as on the owner (some actions need the state
-        // they lead to, e.g. bWantCastRight -> BeginCastRight).
-        if (!aAnimationComponent.HeadVariablesLoaded)
+        if (first.Tick >= aAnimationComponent.VariablesTick)
         {
-            if (first.Tick >= aAnimationComponent.VariablesTick)
-            {
-                aAnimationComponent.Variables = first.Variables;
-                aAnimationComponent.VariablesTick = first.Tick;
-            }
-            apActor->LoadAnimationVariables(aAnimationComponent.Variables);
-            aAnimationComponent.HeadVariablesLoaded = true;
-            return;
+            aAnimationComponent.Variables = first.Variables;
+            aAnimationComponent.VariablesTick = first.Tick;
         }
 
-        const auto actionId = first.ActionId;
-        const auto targetId = first.TargetId;
-
-        const auto pAction = Cast<BGSAction>(TESForm::GetById(actionId));
-        const auto pTarget = Cast<TESObjectREFR>(TESForm::GetById(targetId));
-
-        // The action is played from the owner's state just before it performed it.
-        const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
-        const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
-        apActor->actorState.flags1 = first.State1;
-        apActor->actorState.flags2 = first.State2;
-
-        apActor->LoadAnimationVariables(aAnimationComponent.Variables);
-
-        // Play the animation
-        TESActionData actionData(first.Type & 0x3, apActor, pAction, pTarget);
-        actionData.eventName = BSFixedString(first.EventName.c_str());
-        actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(first.IdleId));
-        actionData.someFlag = ((first.Type & 0x4) != 0) ? 1 : 0;
-
-        const auto result = ActorMediator::Get()->ForceAction(&actionData);
-        // A refused action leaves the copy showing something else than its owner (the cause is
-        // usually the copy's graph or weapon state, not the network).
-        if (result)
-        {
-            aAnimationComponent.LastRanAction = first;
-            apActor->GetExtension()->LatestAnimation = first;
-        }
-        else
-        {
-            // Refused: the copy is still in its own state. Keeping the owner's flags would claim
-            // e.g. hands drawn on a copy whose draw was refused, and its next sheathe would be
-            // refused too (nothing to sheathe).
-            apActor->actorState.flags1 = cPreviousFlags1;
-            apActor->actorState.flags2 = cPreviousFlags2;
-            spdlog::debug("Copy {:X} refused replayed action {:X} '{}' (weapon state {})", apActor->formID, actionId,
-                          first.EventName, apActor->actorState.flags2 >> 5 & 7);
-        }
-
-        actions.pop_front();
-        aAnimationComponent.HeadVariablesLoaded = false;
+        // Applied in step with the copy's graph: variables, one graph update, the action, as on the owner
+        // (docs/re/systems/actor-ai-and-copies.md, "Replay in step with the graph").
+        step.Action = first;
+        step.Variables = aAnimationComponent.Variables;
+        step.Retries = 0;
+        aAnimationComponent.StagedUpdates = 0;
+        step.Phase.store(ReplayStep::kVariables, std::memory_order_release);
     }
+}
+
+bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept
+{
+    const auto& cAction = acStep.Action;
+    const auto pAction = Cast<BGSAction>(TESForm::GetById(cAction.ActionId));
+    const auto pTarget = Cast<TESObjectREFR>(TESForm::GetById(cAction.TargetId));
+
+    // The action is played from the owner's state just before it performed it.
+    const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
+    const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
+    apActor->actorState.flags1 = cAction.State1;
+    apActor->actorState.flags2 = cAction.State2;
+
+    TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);
+    actionData.eventName = BSFixedString(cAction.EventName.c_str());
+    actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(cAction.IdleId));
+    actionData.someFlag = ((cAction.Type & 0x4) != 0) ? 1 : 0;
+
+    const bool cTaken = ActorMediator::Get()->ForceAction(&actionData);
+    if (!cTaken)
+    {
+        // Refused: the copy keeps its own state flags (the owner's would claim e.g. hands it never drew).
+        apActor->actorState.flags1 = cPreviousFlags1;
+        apActor->actorState.flags2 = cPreviousFlags2;
+    }
+    return cTaken;
+}
+
+void AnimationSystem::RunReplayStep(Actor* apActor) noexcept
+{
+    using ReplayStep = ActorExtension::ReplayStep;
+    auto& step = apActor->GetExtension()->Replay;
+    uint8_t phase = step.Phase.load(std::memory_order_acquire);
+    if (phase != ReplayStep::kVariables && phase != ReplayStep::kAction)
+        return;
+    if (!step.Phase.compare_exchange_strong(phase, ReplayStep::kBusy, std::memory_order_acq_rel))
+        return;
+
+    if (phase == ReplayStep::kVariables)
+    {
+        apActor->LoadAnimationVariables(step.Variables);
+        step.Phase.store(ReplayStep::kAction, std::memory_order_release);
+        return;
+    }
+    // As the owner's input retries until its graph takes it, a copy a graph update behind gets 3 more.
+    constexpr uint8_t cMaxRetries = 3;
+    if (PlayReplayedAction(apActor, step))
+        step.Phase.store(ReplayStep::kTaken, std::memory_order_release);
+    else
+        step.Phase.store(step.Retries++ < cMaxRetries ? ReplayStep::kAction : ReplayStep::kRefused, std::memory_order_release);
 }
 
 void AnimationSystem::Setup(World& aWorld, const entt::entity aEntity) noexcept

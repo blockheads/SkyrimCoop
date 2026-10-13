@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Components.h>
+#include <Games/ActorExtension.h>
 
 struct World;
 struct Actor;
@@ -50,6 +51,9 @@ struct AnimationSystem
      * @param formIdComponent The form id component of the actor, used to fetch the actor pointer.
      */
     static void Serialize(World& aWorld, ClientReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent);
+    // At the start of a copy's graph update (its animation job): applies the staged replay step.
+    static void RunReplayStep(Actor* apActor) noexcept;
+    static bool PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept;
     /**
      * @brief Serializes the actions to-be-sent.
      *

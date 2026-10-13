@@ -14,9 +14,12 @@
 #include <Misc/BSFixedString.h>
 
 #include <World.h>
+#include <Systems/AnimationSystem.h>
 
 TP_THIS_FUNCTION(TPerformAction, uint8_t, ActorMediator, TESActionData* apAction);
 static TPerformAction* RealPerformAction;
+TP_THIS_FUNCTION(TUpdateAnimationGraphs, bool, TESObjectREFR, float aDelta);
+static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
 
 // TODO: make scoped override
 thread_local bool g_forceAnimation = false;
@@ -76,6 +79,20 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
     }
 
     return 0;
+}
+
+// TESObjectREFR::sub_20123 (UpdateAnimationGraphs, our name): an actor's graph update in its animation job
+// (RunOneActorAnimationUpdateJob 41453). A copy's replayed action is applied in step with it.
+bool TP_MAKE_THISCALL(HookUpdateAnimationGraphs, TESObjectREFR, float aDelta)
+{
+    // Runs for every animated reference each frame: a form type test, not an RTTI cast (copies are never the player).
+    if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
+    {
+        Actor* pActor = static_cast<Actor*>(apThis);
+        if (pActor->GetExtension()->IsRemote())
+            AnimationSystem::RunReplayStep(pActor);
+    }
+    return TiltedPhoques::ThisCall(RealUpdateAnimationGraphs, apThis, aDelta);
 }
 
 ActorMediator* ActorMediator::Get() noexcept
@@ -200,7 +217,11 @@ static TiltedPhoques::Initializer s_animationHook(
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TPerformAction, performAction, 38949);
 
+        POINTER_SKYRIMSE(TUpdateAnimationGraphs, updateAnimationGraphs, 20123);
+
         RealPerformAction = performAction.Get();
+        RealUpdateAnimationGraphs = updateAnimationGraphs.Get();
 
         TP_HOOK(&RealPerformAction, HookPerformAction);
+        TP_HOOK(&RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
     });
