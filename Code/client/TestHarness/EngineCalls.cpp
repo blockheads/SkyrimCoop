@@ -150,6 +150,15 @@ std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
     return pProcessLists->GetPlayingVisualFormIds(pActor->GetHandle().handle.iBits);
 }
 
+std::pair<int32_t, float> GetCombatSkillExperience() noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const int32_t cSkill = PlayerCharacter::LastUsedCombatSkill;
+    if (!pPlayer || cSkill == -1)
+        return {-1, 0.f};
+    return {cSkill, pPlayer->GetSkillExperience(Skills::GetSkillFromActorValue(cSkill))};
+}
+
 uint32_t GetEnemyHealthTarget() noexcept
 {
     // HUDMenu (1.6.1170): BSTArray<HUDObject*> objects at +0x40 (data, then size at +0x50). The
@@ -200,7 +209,7 @@ std::vector<uint32_t> GetCellObjectIds() noexcept
     std::vector<uint32_t> ids;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCell() : nullptr)
-        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container}))
+        for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture}))
             ids.push_back(pRef->formID);
     return ids;
 }
@@ -290,6 +299,12 @@ std::string GetSubtitle(uint32_t aFormId) noexcept
             return info.text.AsAscii();
     }
     return {};
+}
+
+uint8_t GetSitSleepState(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->actorState.GetSitSleepState() : 0;
 }
 
 bool IsSneaking(uint32_t aFormId) noexcept
@@ -415,7 +430,7 @@ bool FacePlayerToward(uint32_t aTargetFormId) noexcept
     return true;
 }
 
-bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance) noexcept
+bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     Actor* pTarget = GetActor(aTargetFormId);
@@ -423,8 +438,14 @@ bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance) noexcept
         return false;
     float dx = pPlayer->position.x - pTarget->position.x;
     float dy = pPlayer->position.y - pTarget->position.y;
+    // A bearing (0 north, 90 east) picks the side; two players placed on one side push each other away.
+    if (aBearingDegrees)
+    {
+        dx = std::sin(glm::radians(*aBearingDegrees));
+        dy = std::cos(glm::radians(*aBearingDegrees));
+    }
     const float cLength = std::sqrt(dx * dx + dy * dy);
-    if (cLength < 1.f)
+    if (cLength < 1.f && !aBearingDegrees)
     {
         dx = 0.f;
         dy = -1.f;

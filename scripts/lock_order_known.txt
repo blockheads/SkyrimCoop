@@ -1,5 +1,5 @@
 # Lock-order patterns reviewed and accepted (coop_test.py ignores them).
-# One pattern per line, as the checker prints it between the brackets; '#' starts a comment.
+# One pattern per line, as the checker prints it between the brackets (either order); '#' starts a comment.
 # Only add a pattern after reading both stacks (scripts/re/symbolize_crash.py on the report).
 
 # Load: worker threads read extra-data while the main thread writes them; only our pass-through
@@ -30,3 +30,20 @@ SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x767bdb vs SkyrimSE.exe+0x768b30 > SkyrimS
 # the main loop.
 SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682 vs SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x165105
 SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x165105 vs SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682
+# The same coc detach on one thread, leaving an exterior (dive-client-player, cow river -> coc QASmoke):
+# CenterOnCell_Impl -> 40438 -> TES::SetCurrentCell -> DetachHavok -> RemoveExtraData, then bhkWorld write;
+# and 40438 -> PositionPlayerEvent -> bhkWorld -> FOIslandActivationListener::islandDeactivatedCallback ->
+# GetExtraData under the bhkWorld lock. Both stacks read on 2026-10-13; ours is only HookMainLoop.
+SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682 vs SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d
+SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682
+# An owned NPC's package conditions (UpdateMiddleLowActorsAI -> Character::UpdateAI -> EvaluatePackage ->
+# CheckForNewPackage -> ExtraAliasInstanceArray 12721 -> TESConditionItem -> Actor::IsInFaction -> GetExtraData)
+# against Papyrus filling a quest alias (BGSRefAlias 24012 -> TESObjectREFR 19653 -> ExtraAliasInstanceArray 12719
+# write). Ours: only the pass-throughs HookUpdateAI and HookCheckForNewPackage. Both stacks read on 2026-10-13.
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241
+SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241 vs SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d
+# The same pair the other way round: a coc (CenterOnCell_Impl -> 40438 -> IOManager -> TESQuest 25083 ->
+# BGSRefAlias 24011 -> ExtraAliasInstanceArray 12718 write) against a low actor's package conditions
+# (UpdateLowActorsAI -> HookUpdateAI -> ... -> HookCheckForNewPackage -> 12721 -> GetIsID -> GetExtraData). Ours:
+# only the pass-throughs and HookMainLoop. Both stacks read on 2026-10-13.
+SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d

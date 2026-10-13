@@ -47,11 +47,13 @@ nlohmann::json Face(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::FacePlayerToward(acRequest.value("target", 0u)) ? Ok() : Error("no such target");
 }
 
-// {"cmd": "place", "target": id, "distance": 120}: the player stands that far from the actor, facing it
+// {"cmd": "place", "target": id, "distance": 120, "bearing": 90}: the player stands that far from the actor (on the
+// bearing's side if given), facing it
 // (a move, not a teleport).
 nlohmann::json Place(Harness&, const nlohmann::json& acRequest)
 {
-    return EngineCalls::PlacePlayerBefore(acRequest.value("target", 0u), acRequest.value("distance", 120.f)) ? Ok() : Error("no such target");
+    const auto cBearing = acRequest.contains("bearing") ? std::optional<float>(acRequest["bearing"].get<float>()) : std::nullopt;
+    return EngineCalls::PlacePlayerBefore(acRequest.value("target", 0u), acRequest.value("distance", 120.f), cBearing) ? Ok() : Error("no such target");
 }
 
 constexpr Command cCommands[] = {

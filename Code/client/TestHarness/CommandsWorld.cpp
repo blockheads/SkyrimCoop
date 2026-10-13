@@ -27,10 +27,11 @@ nlohmann::json GraphBool(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"values", values}};
 }
 
-// {"cmd": "objects"}: the doors and containers in the player's cell (state, lock, load door).
+// {"cmd": "objects"}: the doors, containers and furniture in the player's cell (state, lock, load door).
 nlohmann::json Objects(Harness&, const nlohmann::json&)
 {
-    constexpr uint8_t cDoor = 29; // FormType::Door
+    constexpr uint8_t cDoor = 29;      // FormType::Door
+    constexpr uint8_t cFurniture = 40; // FormType::Furniture
     auto& forms = World::Get().GetFormBridge();
     auto objects = nlohmann::json::array();
     for (const uint32_t cId : EngineCalls::GetCellObjectIds())
@@ -41,6 +42,8 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
         objects.push_back(
             {{"id", cId},
              {"door", cIsDoor},
+             {"furniture", forms.IsObjectBaseFormType(cId, cFurniture)},
+             {"name", forms.GetFormName(cId)},
              {"load_door", forms.IsLoadDoor(cId)},
              {"open_state", cIsDoor ? forms.GetObjectOpenState(cId) : 0},
              {"has_lock", cHasLock},

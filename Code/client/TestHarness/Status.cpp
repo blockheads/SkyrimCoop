@@ -195,6 +195,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                    {"weapon_drawn", actors.IsWeaponDrawn(aFormId)},
                    {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
                    {"sneaking", EngineCalls::IsSneaking(aFormId)},
+                   {"sit_sleep", EngineCalls::GetSitSleepState(aFormId)},
                    {"casting", CastingSpells(aFormId)},
                    {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
         {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},
@@ -296,7 +297,8 @@ static nlohmann::json PlayerStatus(const Harness& acHarness)
             // 0 on the ground, 2 in the air (a move with SetPosition leaves the player falling for a moment).
             {"character_state", EngineCalls::GetCharacterState(0x14)},
             {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()},
-            {"enemy_health_target", EngineCalls::GetEnemyHealthTarget()}};
+            {"enemy_health_target", EngineCalls::GetEnemyHealthTarget()},
+            {"combat_skill", {{"skill", EngineCalls::GetCombatSkillExperience().first}, {"xp", EngineCalls::GetCombatSkillExperience().second}}}};
 }
 
 // The copies this game shows of other games' actors (players and NPCs), read from the engine: where

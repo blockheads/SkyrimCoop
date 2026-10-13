@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -48,7 +49,7 @@ void ForcePlayerFirstPerson() noexcept;
 bool FacePlayerToward(uint32_t aTargetFormId) noexcept;
 // Moves the player aDistance from an actor, on the line toward where the player stands, and faces it.
 // A move, not a teleport: no cell arrival.
-bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance) noexcept;
+bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
 // Unequips everything in this game only, nothing sent (a copy that drifted).
 void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
@@ -59,13 +60,15 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
 
 // --- Engine state the scenarios check ---
 
-// The doors and containers in the player's cell.
+// The doors, containers and furniture in the player's cell.
 std::vector<uint32_t> GetCellObjectIds() noexcept;
 
 // The effect shaders and art objects the engine is playing on the actor.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
 // The actor whose health bar the HUD shows, or 0.
 uint32_t GetEnemyHealthTarget() noexcept;
+// The player's last used combat skill (an actor value, -1 none yet) and its experience: where shared XP goes.
+std::pair<int32_t, float> GetCombatSkillExperience() noexcept;
 // The magic caster's state for a casting source (MagicCaster::State; 3 = charged), or -1.
 int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
@@ -90,6 +93,8 @@ bool IsProcessMe(uint32_t aFormId) noexcept;
 int32_t GetPackageType(uint32_t aFormId) noexcept;
 // The actor's sneaking flag (ActorState1::sneaking), what detection reads; false without the actor.
 bool IsSneaking(uint32_t aFormId) noexcept;
+// ActorState1::sitSleepState: 0 normal, 3 sitting, 7 sleeping (CommonLibSSE-NG SIT_SLEEP_STATE).
+uint8_t GetSitSleepState(uint32_t aFormId) noexcept;
 // The actor in water: how deep (Actor::GetSubmergedLevel, 0 dry .. 1; Actor::Update counts the head under at
 // 0.875), swimming (ActorState1), the head under (boolFlags kUnderwater) and for how long (underWaterTimer).
 struct Water

@@ -21,6 +21,9 @@ struct ActorState : IMovementState
     // ActorState1::swimming (CommonLibSSE-NG).
     bool IsSwimming() const noexcept { return flags1 & (1u << 10); }
 
+    // ActorState1::sitSleepState (CommonLibSSE-NG SIT_SLEEP_STATE): 3 sitting, 7 sleeping, 1-2/4-6/8 on the way.
+    uint8_t GetSitSleepState() const noexcept { return flags1 >> 14 & 0xF; }
+
     // ActorState1::lifeState (CommonLibSSE-NG ACTOR_LIFE_STATE): 0 alive, 1 dying, 2 dead, ...
     static constexpr uint8_t kLifeDying = 1;
     static uint8_t LifeStateOf(uint32_t aFlags1) noexcept { return aFlags1 >> 21 & 0xF; }

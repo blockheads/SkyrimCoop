@@ -936,9 +936,18 @@ HELD_BUTTONS = {}
 CASTER_CHARGED = 3
 
 
+def takes_input(instance):
+    """No menu but the HUD is open: a fade (a cell change's Fader Menu), a loading screen or the console
+    swallow a player's buttons."""
+    select_instance(instance)
+    return not set((read_status() or {}).get("menus") or []) - {"HUD Menu"}
+
+
 def press(instance, button):
     """The player presses a button ("right", "left" or "ready") through the game's input dispatch,
-    as its device would: everything that listens to input sees a player's press."""
+    as its device would: everything that listens to input sees a player's press. Once the game takes
+    input, as a player would wait for a fade to end."""
+    wait_for(f"[{instance or 'host'}] the game takes input", lambda: takes_input(instance), 10)
     player_command(instance, {"cmd": "input", "button": button, "down": True})
     HELD_BUTTONS.setdefault(instance, set()).add(button)
 
@@ -1004,7 +1013,10 @@ def equip_in_hand(instance, commands, item, what):
 
 def attack(instance):
     """One right-hand attack: a click of the attack button, held until the swing starts (the game
-    starts it from the held button's updates, so an instant click does nothing)."""
+    starts it from the held button's updates, so an instant click does nothing). A swing still going
+    would pass for the new one, so it waits for that to end first."""
+    wait_for(f"[{instance or 'host'}] the last swing is over",
+             lambda: not graph_bools(instance, "IsAttacking")["IsAttacking"], 3)
     press(instance, "right")
     try:
         wait_for(f"[{instance or 'host'}] swings", lambda: graph_bools(instance, "IsAttacking")["IsAttacking"], 2)
@@ -1025,13 +1037,16 @@ def game_frame(instance):
     return ((read_status() or {}).get("frames") or {}).get("frames", 0)
 
 
-def place_before(instance, target, gap):
+def place_before(instance, target, gap, bearing=None):
     """The player stands `gap` units from `target`, facing it (yaw and pitch, in the same frame).
     Returns once it stands on the ground: the move leaves its character controller in the air for
     a moment, and a draw or a cast started then is cut short when it lands. The controller notices
     the move a frame later, so the ground is checked from a few frames on."""
     moved = game_frame(instance)
-    player_command(instance, {"cmd": "place", "target": target, "distance": gap})
+    request = {"cmd": "place", "target": target, "distance": gap}
+    if bearing is not None:
+        request["bearing"] = bearing  # its side of the target (0 north, 90 east): two players apart
+    player_command(instance, request)
     wait_for(f"[{instance or 'host'}] stands on the ground", lambda: game_frame(instance) >= moved + 3
              and local_player(instance).get("character_state") == ON_GROUND, 5)
 
@@ -1440,6 +1455,9 @@ def both_go(cell, command=None):
         wait_for(f"[{name or 'host'}] arrived in {cell}",
                  lambda name=name: player_cell(name) not in (None, before[name]), 60)
     wait_for(f"In {cell}, each game shows the other player", both_see_each_other, 60)
+    # The arrival's fade: until it ends the game takes no input and resets the player's heading.
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] the arrival's fade is over", lambda name=name: takes_input(name), 10)
 
 
 # The White River west of Whiterun, Tamriel cell (7, -8): water at -1280 over a bed at about -1536,
@@ -1548,6 +1566,24 @@ def scenario_party_changes_cells():
     try:
         both_go(OUTDOOR_CELL)
         wait_on("client", f"shows the host's NPCs in {OUTDOOR_CELL}", lambda actors: remote_npcs(actors), 30)
+    finally:
+        both_go(HOME_CELL)
+
+
+def scenario_party_spreads_on_arrival():
+    """The party arrives on one spot (a coc puts everyone on the cell's marker): the host stays, the
+    client steps aside onto floor, so neither stands in the other."""
+    try:
+        both_go(INN)
+        def apart():
+            host, client = (player_snapshot(n).get("placement") or {} for n in ("", "client"))
+            if not host.get("position") or not client.get("position") or host.get("cell") != client.get("cell"):
+                return None
+            gap = distance(host["position"], client["position"])
+            return gap >= 70 and gap
+        gap = wait_for("the players stand apart in the inn", apart, 5)
+        log(f"players {gap:.0f} units apart")
+        hold()
     finally:
         both_go(HOME_CELL)
 
@@ -1662,6 +1698,43 @@ def sneak_roundtrip(actor_instance, observer, label):
     hold()
     sneak(actor_instance, False)
     wait_for(f"[{observer or 'host'}] {label} stands up", lambda: copy_sneaking(observer) is False, 5)
+
+
+# QASmoke's cooking spit: furniture with no menu on entering (its crafting menu opens on an activation).
+COOKING_SPIT = 0x101973
+IN_FURNITURE = 3  # ActorState1::sitSleepState kIsSitting
+
+
+def sit_state(instance, form_id):
+    select_instance(instance)
+    world = (read_status() or {}).get("world") or {}
+    return (((world.get(str(form_id)) or {}).get("state")) or {}).get("sit_sleep")
+
+
+def furniture_roundtrip(actor_instance, observer, label):
+    """The player gets into furniture and out again; the other game's copy must follow both ways by
+    replay, while loaded (a copy spawned later starts in its owner's graph state instead)."""
+    show(observer, remote_player)
+    copy = remote_player(actors_on(observer))
+    console_on(actor_instance, f"player.moveto {COOKING_SPIT:08X}")
+    wait_for(f"[{actor_instance or 'host'}] player is at the cooking spit", lambda: sit_state(actor_instance, 0x14) == IN_FURNITURE, 5)
+    wait_for(f"[{observer or 'host'}] {label} is at the cooking spit", lambda: sit_state(observer, copy) == IN_FURNITURE, 5)
+    hold()
+    activate_on(actor_instance, COOKING_SPIT)
+    wait_for(f"[{actor_instance or 'host'}] player leaves it", lambda: sit_state(actor_instance, 0x14) == 0, 5)
+    wait_for(f"[{observer or 'host'}] {label} leaves it", lambda: sit_state(observer, copy) == 0, 5)
+    if remote_player(actors_on(observer)) != copy:
+        raise TestFailure(f"{label} was respawned on the way: the state was not replayed")
+
+
+def scenario_furniture_host_player():
+    """Host uses the cooking spit and leaves it; the client's copy must follow both ways."""
+    furniture_roundtrip("", "client", "host's character")
+
+
+def scenario_furniture_client_player():
+    """Client uses the cooking spit and leaves it; the host's copy must follow both ways."""
+    furniture_roundtrip("client", "", "client's character")
 
 
 def scenario_sneak_host_player():
@@ -1919,6 +1992,49 @@ def kill_credit(weapon):
         raise TestFailure(f"host records killer {killer:08X}, expected the client's character {client_on_host:08X}")
     log(f"host's wolf killed by the client's character {killer:08X} after {hit} hits")
     wait_on("client", "the wolf's copy dies too", lambda actors: actors.get(str(copy), {}).get("dead"), 5)
+    hold()
+
+
+def combat_xp(instance):
+    """The player's last used combat skill (an actor value, -1 none) and its experience."""
+    skill = local_player(instance).get("combat_skill") or {}
+    return skill.get("skill", -1), skill.get("xp", 0.0)
+
+
+def scenario_shared_xp():
+    """Everyone shares combat experience: what the client earns hitting the host's NPC, the host's
+    player gains in its own last used combat skill (sent once a second)."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    for instance in ("", "client"):
+        give_sword(instance)
+        draw(instance)
+    # A hit each first: One-Handed becomes both players' last combat skill (where shared experience goes).
+    # On opposite sides of her: two players on one spot push each other out of reach.
+    targets, sides = {"": npc, "client": copy}, {"": 0, "client": 180}
+    for instance in ("", "client"):
+        place_before(instance, targets[instance], MELEE_GAP, sides[instance])  # a hit staggers her back
+        before = host_npc_health(npc)
+        attack(instance)
+        hit_lands(npc, before, f"the {instance or 'host'}'s first swing")
+        wait_for(f"[{instance or 'host'}] has a last combat skill", lambda: combat_xp(instance)[0] != -1, 3)
+    skill = combat_xp("")[0]
+    # Experience goes out once a second: both players' must have settled before measuring.
+    seen = {"since": time.monotonic(), "xp": None}
+    def settled():
+        xp = (combat_xp("")[1], combat_xp("client")[1])
+        if xp != seen["xp"]:
+            seen.update(since=time.monotonic(), xp=xp)
+        return time.monotonic() - seen["since"] >= 1.5 and xp
+    host_before, client_before = wait_for("both players' experience settles", settled, 6)
+    place_before("client", copy, MELEE_GAP, sides["client"])
+    before = host_npc_health(npc)
+    attack("client")
+    hit_lands(npc, before, "the client's swing")
+    earned = wait_for("[client] earns combat experience", lambda: (d := combat_xp("client")[1] - client_before) > 0 and d, 3)
+    gained = wait_for("[host] gains the client's experience", lambda: (d := combat_xp("")[1] - host_before) > 0 and d, 3)
+    log(f"client earned {earned:.2f}, host gained {gained:.2f} in skill {skill}")
+    if abs(gained - earned) > 0.01:
+        raise TestFailure(f"host gained {gained:.2f}, the client earned {earned:.2f}")
     hold()
 
 
@@ -2333,6 +2449,7 @@ SCENARIOS = {
     "copy-ends-voice-line": scenario_copy_ends_voice_line,
     "teleport-keeps-copies": scenario_teleport_keeps_copies,
     "party-changes-cells": scenario_party_changes_cells,
+    "party-spreads-on-arrival": scenario_party_spreads_on_arrival,
     # inventory
     "equip-host-player": scenario_equip_host_player,
     "equip-client-player": scenario_equip_client_player,
@@ -2342,6 +2459,8 @@ SCENARIOS = {
     "draw-host-player": scenario_draw_host_player,
     "draw-client-player": scenario_draw_client_player,
     "sneak-host-player": scenario_sneak_host_player,
+    "furniture-host-player": scenario_furniture_host_player,
+    "furniture-client-player": scenario_furniture_client_player,
     "sneak-client-player": scenario_sneak_client_player,
     "dive-host-player": scenario_dive_host_player,
     "dive-client-player": scenario_dive_client_player,
@@ -2362,6 +2481,7 @@ SCENARIOS = {
     "flames-client-hits-host-npc": scenario_flames_client_hits_host_npc,
     "client-angers-host-ally": scenario_client_angers_host_ally,
     "client-spell-kill-credit": scenario_client_spell_kill_credit,
+    "shared-xp": scenario_shared_xp,
     "client-melee-kill-credit": scenario_client_melee_kill_credit,
     # magic
     "burning-shows-on-copy": scenario_burning_shows_on_copy,
@@ -2392,6 +2512,7 @@ TAGS = {
     "copy-ends-voice-line": {'dialogue', 'ai'},
     "teleport-keeps-copies": {'spawn', 'movement', 'cells'},
     "party-changes-cells": {'spawn', 'cells'},
+    "party-spreads-on-arrival": {'cells'},
     "equip-host-player": {'inventory'},
     "equip-client-player": {'inventory'},
     "equip-host-npc": {'inventory'},
@@ -2402,6 +2523,8 @@ TAGS = {
     "sneak-client-player": {'movement', 'ai'},
     "dive-host-player": {'movement', 'ai', 'dialogue', 'cells'},
     "dive-client-player": {'movement', 'ai', 'dialogue', 'cells'},
+    "furniture-host-player": {'movement'},
+    "furniture-client-player": {'movement'},
     "cast-host-player": {'hands', 'magic'},
     "cast-client-player": {'hands', 'magic'},
     "quick-sheathe-host-player": {'hands', 'magic'},
@@ -2417,6 +2540,7 @@ TAGS = {
     "flames-client-hits-host-npc": {'combat', 'magic', 'values'},
     "client-angers-host-ally": {'combat', 'magic'},
     "client-spell-kill-credit": {'combat', 'magic'},
+    "shared-xp": {'combat'},
     "client-melee-kill-credit": {'combat'},
     "burning-shows-on-copy": {'combat', 'magic'},
     "door-opens-for-both": {'objects'},
@@ -2647,7 +2771,9 @@ def known_lock_patterns():
         lines = KNOWN_LOCK_PATTERNS.read_text().splitlines()
     except OSError:
         return set()
-    return {line.split("#")[0].strip() for line in lines} - {""}
+    patterns = {line.split("#")[0].strip() for line in lines} - {""}
+    # "A vs B" and "B vs A" are one pair: the checker names whichever thread it met first.
+    return patterns | {" vs ".join(reversed(p.split(" vs "))) for p in patterns if " vs " in p}
 
 
 def lock_order_reports():
