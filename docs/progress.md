@@ -45,10 +45,17 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 
 ### Still on the embedded server (what phase 4-5 removes)
 
-- Session: `AuthenticationRequest`, connections, version and mod-list check, player list
-  (`NotifyPlayerJoined`/`Left`), `StringCacheService`, `PlayerLevelRequest`.
-- `QuestService`; `PlayerService` (`PlayerLevelRequest`, a relay like the overlay's health).
-- To delete outright: `ScriptService` (Lua), `AdminService`, server console commands, recording.
+Removed one section at a time, each with its bridge replacement and tests first
+(`docs/design/host-authority-migration.md`, "Server sections"):
+
+1. Player levels: done (uncommitted).
+2. `StringCacheService`.
+3. Session: `AuthenticationRequest`, connections, version and mod-list check, player list
+   (`NotifyPlayerJoined`/`Left`), kick.
+4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
+   server console commands, recording.
+
+`QuestService` stays until quests have a design.
 
 ## Sync by system
 
@@ -73,6 +80,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
 | Time, weather | works | `host-time-reaches-client`, `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
+| Player levels (party panel) | works | `party-shows-levels` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |

@@ -317,6 +317,26 @@ Still on the server, reading positions that had been stale since phase 2: telepo
 - **Known bugs:** the `duo` harness process once segfaulted on exit after PASS.
 - Run the full scenario suite once phase 4 is done.
 
+### Server sections (2026-10-13)
+
+What is left on the server goes one section at a time: the bridge takes the logic over with its
+tests (bridge cases, a scenario where a player sees it), then the server's piece is deleted. Test code
+that needs the standalone server goes with the section that breaks it.
+
+1. **Player levels:** done. The bridge's `PlayerLevelRequest` rule records the level (still on the
+   server's player record, `GameServer::SetPlayerLevel`, until the session moves) and sends
+   `NotifyPlayerLevel` to the others; late joiners get it in `NotifyPlayerJoined`. The client's
+   `SessionService` updates its record, the party panel shows it. The server's `PlayerService` and its
+   Lua binding are deleted; the client's never-sent `PlayerLevelEvent` too (a once-a-second check sends
+   level-ups). Bridge cases in `player_tests.cpp`, scenario `party-shows-levels` (the baseline restores
+   levels with `setlevel`).
+2. **String cache:** the bridge sends the snapshot on join and broadcasts additions.
+3. **Session:** `HostSession` takes auth (version, player count, mod check), the player list and kick;
+   the player records move there.
+4. **The listener (phase 5).**
+
+Quests stay on the server until they have a design.
+
 ### Phase 5: Delete the server
 
 - Nothing falls through to `GameServer` any more. Move the enet6 listener into the bridge.
@@ -364,7 +384,7 @@ Built on the bridge's unreliable channel:
 |---|---|---|
 | GameServer | `AuthenticationRequest`, connect/disconnect | Session |
 | StringCacheService | (dirty-cache broadcast) | Session |
-| PlayerService | `PlayerLevelRequest`, `PlayerRespawnRequest` | Relay |
+| PlayerService | `PlayerLevelRequest`, `PlayerRespawnRequest` | Relay (done: bridge rules, service deleted) |
 | CharacterService | `AssignCharacterRequest`, `ClientReferencesMoveRequest`, `RequestRemoveCharacter`, `RequestRespawn` | Characters |
 | CharacterService | `RequestFactionsChanges`, `MountRequest`, `NewPackageRequest`, `DialogueRequest`, `SubtitleRequest`, `SyncExperienceRequest` | Relay |
 | InventoryService | `RequestInventoryChanges`, `RequestEquipmentChanges`, `RequestEquipmentSnapshot`, `DrawWeaponRequest` | Relay |
