@@ -248,8 +248,8 @@ owner's, since removed) had four causes, each fixed where it starts:
    Variables`). In 20 refused casts the bool had already gone true before the action; 15 of those
    were refused.
 2. **Variables and event in the same instant.** The owner's graph had processed the variables in an
-   update before it accepted the action. The copy now loads the head action's variables one frame
-   before playing it.
+   update before it accepted the action. The copy loaded the head action's variables one frame
+   before playing it; since 2026-10-13 both go in from the copy's own graph update (next section).
 3. **Variables the graph writes itself, forced from the owner.** `currentDefaultState` is
    `Default_Behavior`'s `syncVariable` (its state id). The root's `JumpLandEnd` reads it to return to
    the state it left, so the owner's value made a copy that equipped while landing drop its hands.
@@ -264,6 +264,98 @@ owner's, since removed) had four causes, each fixed where it starts:
    every frame, as Precision does for the actors whose ragdoll it drives.
 
 Measured with the magic/combat/hands scenarios twice: refused cast starts went from 11-15 per run to 3.
+
+## Replay in step with the graph (2026-10-13)
+
+The one-frame lead of fix 2 was not enough: run alone, `firebolt-client-hits-host-npc` still failed
+about half the time on a refused `MRh_SpellAimedStart`, and the magic scenarios run back to back
+left the client's copy on `Magic_Equip`. Traced with per-frame dumps of the copy's active states
+(the names in its `AnimationGraphState` snapshot) next to the owner's:
+
+- On the owner the cast is one causal chain inside its graph update: the input sets
+  `bWantCastRight`, `BeginCast_OnFalseToTrueMod` raises `BeginCastRight`, the graph enters
+  `CastingState`, and the caster performs `MRh_SpellAimedStart`.
+- On the copy, our update (on a job thread inside `HookVMUpdate`) and the copy's graph update
+  (`Job_Actor_animation` → `RunOneActorAnimationUpdateJob` 41453 → `TESObjectREFR::sub_20123`,
+  "UpdateAnimationGraphs", which calls `UpdateAnimationGraphManager` 32899) are not ordered. A
+  variable load "one frame before" was sometimes seen by zero graph updates before the action
+  (`CastingState` showed up one frame after the refusal).
+- Two of our frames instead was worse (8 of 8 failed): without a cast, `CastingState` raises
+  `CastStop` (`NotCasting` false → true) about one graph update after it is entered, so the action
+  has to land within one update of the transition.
+- The copy's own caster never performs the action (nothing requested a cast on it), so the copy
+  cannot be made event-driven that way.
+
+So the replay now runs from the copy's graph update. `AnimationSystem` stages the head action on the
+copy's `ActorExtension::Replay` (atomic phase); `HookUpdateAnimationGraphs` (20123) loads its variables
+at the start of one graph update and plays the action at the start of the next; our update takes the
+outcome a frame later. A copy whose graph nobody updates (no animation job) gets the step from our
+update after 10 frames, logged.
+
+A copy whose equip finished in the same graph update as the variable load still refused (1 in 8):
+the owner's cast request had come only after its graph was ready, because the player's input
+handlers retry every frame until the graph takes them. The step does the same, bounded: a refused
+action is tried again at the start of each of the next 3 graph updates ("took replayed action ... N
+graph updates late", debug).
+
+Measured: `firebolt-client-hits-host-npc` 8 of 8 with no refusal (7 taken at once, 1 after 2
+retries); the magic, hands and combat tags run back to back twice pass apart from the kill-credit
+scenarios (fixed below). The host relay also stamps a snapshot with the owner's tick now
+(`HostCharacters::OnMovement`), the time base the owner's actions carry, instead of the host's
+receive time.
+
+## A copy's casts are free (2026-10-13)
+
+A copy spent its own magicka on the casts it replays (1.2-2.4 below a god-mode owner in every
+firebolt/flames run). `ActorMagicCaster` spends in three places: `Update` (34143) while charging
+(`UsesResourceWhileCharging`, accumulated in `fCostCharged` 0xF0) or channelling (state 6),
+`InterruptCastImpl` (34140, the charge so far), and `SpellCast` (34144, on release; our hook already
+skips it for copies). `uiFlags` (0xF8) bit 1, CommonLib `kSkipCheckCast`, is the engine's free cast
+(`SetSkipCheckCast`, vfunc 0x13): `CheckCast` (34145) returns true without checks and `Update` spends
+nothing; `FinishCastImpl` and `InterruptCastImpl` clear it. These two are its only readers in the
+magic code.
+
+Copies set it in both readers (`HookCheckCast`, `HookCasterUpdate`): a copy's cast is its owner's,
+checked and paid for there. Setting it at the charge start was not enough: the copy's
+`CastSpellImmediate` (from `NotifySpellCast`) runs `FindTargets` (34410), which puts a concentration
+caster into state 6 with no check, and one frame of Flames was spent before the next check. Measured
+with the owner in god mode: gap 0.0 in 3 runs (0.1 with the charge-start hook, 1.2-2.4 without).
+
+The owner's health, magicka and stamina now go out within 100 ms of a change (`RunPoolUpdates`,
+health alone before): a copy that spends nothing shows its owner's value only as fast as it is sent.
+
+## A copy's death (2026-10-13)
+
+`death-host-npc` and the kill-credit scenarios failed on the copy's last action: the owner's
+`DeathAnimation` (or `RagdollInstant`), recorded with the dying life state, was refused on the copy.
+Two things killed the copy before its replay:
+
+- `NotifyDeathStateChange` ran `Actor::Kill` → `KillImpl(nullptr, 100, true, true)` at once, an
+  instant ragdoll 300 ms before the owner's death action replayed.
+- The owner's health reached the copy first (100 ms path) and at 0 the copy's engine killed it
+  itself. `KillImpl` (37896) performs the death action through `PerformAction`; on a copy our hook
+  refuses the copy's own actions, so it fell back to a ragdoll.
+
+Now the copy dies on its owner's timeline. When the replay reaches an action its owner took while
+dying (`ActorState` life state 1 in the action's `State1`) and the copy is alive,
+`Actor::KillWithDeathAction` runs `KillImpl` with the copy's actions forced, on the same branch as
+the owner's (`ragdollInstant` when the owner's action was `RagdollInstant`), and the action counts as
+taken if `KillImpl` performed it. Health applied to a living copy stops at 0.01, and the death-state
+message applies 500 ms later, only to a copy still alive (an owner ragdolled to death with no action).
+Measured: `death-host-npc`, `client-spell-kill-credit`, `client-melee-kill-credit` 3 of 3 each.
+
+`client-melee-kill-credit` also had a test bug: a second `attack()` 0.5 s after the first passed on
+the first swing's `IsAttacking`; it now waits for the last swing to end.
+
+## Actions before the owner has an id (2026-10-13)
+
+The owner's actions reach the network through its `LocalAnimationComponent`, which was added only
+when the host answered the assignment. An NPC placed with `placeatme` falls at once (`JumpFall`,
+`JumpLand`), before the answer, so those actions were lost: its copy started in the graph state from
+the assignment (in the air) and never landed (`firebolt-client-hits-host-npc` failed on Lydia's copy
+having no action against her `JumpLand`). The component now comes with the assignment request, right
+after the snapshot that carries the graph state, so the actions queue in order behind it and go out
+with the first update once the id arrives (dropped if the answer gives the actor to someone else).
 
 ## A copy's spawn: its owner's graph state
 
@@ -293,7 +385,8 @@ Where the engine itself uses it (IDA, 2026-10-12):
 A copy is the case the engine never has: a fresh graph, an owner with a history, and no AI to rebuild
 the pose. So it takes the savegame path at creation. The load runs once per copy and is never used to
 repair drift mid-play (that would hide replay bugs); state changes while a copy is loaded go through
-replayed actions, and scenarios have to cover them live (furniture has no such scenario yet).
+replayed actions, and scenarios have to cover them live (`furniture-host-player`/`-client-player`:
+the owner uses QASmoke's cooking spit and leaves it, the loaded copy follows both ways, 2026-10-13).
 
 `AnimationGraphState` (Games/Skyrim/Havok) implements the stream over a byte buffer (12 write slots,
 14 read slots, the same sizes and byte order as `AnimationStreamSaveGame`/`LoadGame`) and saves each
@@ -321,6 +414,16 @@ rejoin), `death-host-npc`, `client-spell-kill-credit`, `client-melee-kill-credit
 run in sequence (`firebolt`/`flames`/`burning`: the client's copy left on `Magic_Equip`, its spell then
 missing from the copy's equipment in `load-door-not-replayed` and `weather-follows-host`).
 
+**Copies are respawned on travel, not moved (decided 2026-10-13).** Moving a player's copy through a
+door with its owner (keeping its graph through the 3D reload: `Set3D` saves into `ExtraSavedAnimation`,
+extra type 0x41, only with change flag 1<<28 and vfunc 0x7A true) was considered and dropped. A load
+screen ends every animation in progress; only stances carry over (hands out, sneaking), and the
+spawn's graph state already covers them. The spawn path stays for NPC copies (seated, leaning,
+asleep, at a workstation) and joins either way, so moving would add a second path to save ~7.5 KB per
+arrival. SkyMP also respawns on a cell change and corrects only flags (weapon drawn, sneaking,
+blocking, dead) from each movement packet; that covers no furniture or idles. The host's record of a
+player is refreshed from its `EnterCellRequest` so a respawned copy has its current gear.
+
 Two regressions from the bridge migration (36e2241d) showed up on the way: when the server confirmed
 an actor as ours, `LatestAnimation` was cleared instead of `LatestWeapEquipAnimation` (the owner then
 reported no last action while its copies had one), and `OnNotifySubtitle` played the subtitle as a
@@ -342,14 +445,9 @@ holds before the `coc` takes effect; it now waits for each game to arrive first.
   anger hooks (`HookUpdateDetectionState`, `HookIsHostileToActor`). Re-check each during the
   `Actor::Update`, combat and detection audits: delete it if the cut already covers it.
 
-- The magic scenarios run back to back: the host's copy of the client's player ends on `Magic_Equip`
-  with later casts refused, in the baseline as well (above). Not yet explained.
 - Once, after 376 hot reloads, the client crashed in the harness's `strip` (`EquipManager::UnequipAll`
   → `InventoryChanges::VisitWornItems` reading a garbage list node on a copy). Not reproduced on fresh
   games (5 of 5).
-- `death-host-npc` fails its desync check on the chicken's `animation.state1` (owner 0x200041, the
-  Dying life state, copy 0x41), 2 of 2, also with the new upkeep runs and the 37277 hook (since replaced by the do-nothing package)
-  disabled (2026-10-12): not from them.
 - First-person owner, jump-land, magic equip and cast within ~250 ms: the copy's third-person graph is
   still landing or equipping when the cast arrives (3 refusals in the last measurement). The owner's
   own third-person graph keeps up (20/20 casts accepted in its state), so the difference is in the
@@ -359,12 +457,13 @@ holds before the `coc` takes effect; it now waits for each game to arrive first.
   `IsAttacking`, `bInJumpState`. List them with `behavior_dump.py writers`. They were left synced
   because no trace showed harm yet, and some names are also used by the engine (in the exe).
   `currentDefaultState` is also synced by the troll, draugr, werewolf, steam and falmer descriptors.
-- A copy's casters spend its own magicka (`values.magicka` 4963-4998 on the copy vs the owner's
-  5000 after firebolt/flames). It happens in the baseline too (final.log), and more often now that
-  copies take their casts. Its magicka should be the owner's.
 - With `HookUpdateAI` on the path, the lock checker reported `+0x768b30 > +0x3d1507 vs +0x3d21c8 >
   +0x767bdb` as `[ours]`: an NPC's package travel under `UpdateLowActorsAI` against a Character being
   constructed during a cell load, our frames only the pass-throughs `HookUpdateAI` and
   `HookCharacterConstructor`. Both stacks read (2026-10-12); in `scripts/lock_order_known.txt`.
 - The copy's `ActorMagicCaster` still writes `bWantCast*` when `NotifySpellCast`/`NotifyInterruptCast`
   arrive, on the network's time base, not the replay's.
+- NPC copies refuse `turnStop` now and then (wolf, Lydia). Not traced.
+- `TESObjectREFR::GetParentCell` (our virtual) returned null for the player in an exterior right after
+  a `coc` while the `parentCell` field was set: the vtable slot may be wrong. Arrival spacing reads the
+  field. The harness's `GetCellObjectIds` still calls the virtual.

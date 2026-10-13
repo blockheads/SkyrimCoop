@@ -53,7 +53,7 @@ Nothing in Engine Fixes, po3 Tweaks, SCN-Crash-fix or the CrashLogger reports fo
 touches `CombatBehaviorThread`/`CombatBehaviorController`: in normal play the console is open when
 lines run, and the engine's own cell changes happen at its safe points.
 
-## Repro (not run yet)
+## Repro
 
 The window is a few microseconds per `coc`, so it needs combat jobs in flight: more fighters, more
 runs. Two games on one machine slow the AI stage and widen it, which is why the duo hit it.
@@ -73,9 +73,9 @@ python3 scripts/coop_test.py repro --vanilla --cell Riverwood --runs 10 --wait 1
 Adding `--probe 47364,47362` puts the main thread's `Abort` and the workers' controller `Update`
 into the breadcrumbs with their threads, so a crashing run shows the overlap directly.
 
-## Fix (test harness only)
+## First plan (superseded by the fix below)
 
-Run harness console lines as a typed line runs: with the console open. The harness's `console`
+Not built: the pause below does the same with less. Run harness console lines as a typed line runs: with the console open. The harness's `console`
 command opens the Console menu (as `SetMenuShown` does now), waits until the UI reports it open,
 executes the line, and closes the console once `Console::RunQueuedCommands` has emptied the queue
 (`0x1431ACD88` back to 0). Each step waits for game state, no sleeps. `SKYRIMCOOP_CONSOLE_PHASE=ui`

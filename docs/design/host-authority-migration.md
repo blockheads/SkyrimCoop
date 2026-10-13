@@ -247,13 +247,27 @@ Still on the server, reading positions that have been stale since phase 2: telep
   the host, `HostCharacters` sends it everyone with the host and them it. A player still on the way
   gets nothing until the host is there. The tether itself (pulling a player along, travel requests)
   is not built: a player that leaves on its own is only logged.
+  Since 2026-10-13 the `EnterCellRequest` also carries the player's inventory, values and hands, so a
+  copy spawned from the host's record is the player as it arrived (it carried the join-time
+  inventory before: the copy held the wrong spell until the equipment reconcile).
+- Arriving together (2026-10-13): a door or a `coc` puts everyone on one marker. On arrival in a new
+  cell (`CharacterService::RunArrivals`) the host stays and each other player steps aside by its
+  place in the session (slot by player id, the same on every game): 100 units to the right, left or
+  behind, relative to its facing, else the other directions, else 70 units. The spot and the way to it
+  must be on the cell's navmesh (`TESObjectCELL::NavmeshFloorAt`, a point inside a triangle within
+  60 units of its height), so nobody lands in a wall; with no floor the player stays (QASmoke's test
+  navmesh does not cover its `coc` marker). Scenario `party-spreads-on-arrival` (the inn).
 - Quests: the host's quest log is the authority, and stage changes are sent to peers.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter.
 - Party: done, as no party at all: being connected is being in the session (see Decisions).
   The party messages, `PartyService` (server and client), `PartyComponent`, `SendToParty`,
   `bAutoPartyJoin` and `NotifyPlayerList` are gone. What a party gated (XP, player dialogue,
-  waypoints, chat, overlay health) goes to everyone; leader checks are "is the host". The session's
+  waypoints, chat, overlay health) goes to everyone; leader checks are "is the host". Shared XP
+  (upstream's party XP, kept): combat-skill experience a player earns goes out once a second
+  (`SyncExperienceRequest`, relayed to everyone) and each other player adds it to its own last used
+  combat skill. A player who has not used a combat skill since loading gets nothing. Scenario
+  `shared-xp`. The session's
   players stay `NotifyPlayerJoined`/`NotifyPlayerLeft` from `GameServer` (it marks the host) until
   phase 5; the client keeps them in `SessionService`. The host alone can kick, through
   `HostBridge::Kick` (overlay player list, debug view, `kick` test command). Quest sync stays off
@@ -264,9 +278,8 @@ Still on the server, reading positions that have been stale since phase 2: telep
 
 ### Follow-ups (noted, not scheduled)
 
-- **Copy pose after a teleport.** After `coc` a copy replays the owner's last action, which is the
-  engine's `swimStop`; the copy refuses it and stays in a swim or T-pose until the owner acts again.
-  The scenarios step each player after `coc` to hide it (`step_both`).
+- **Copy pose after a teleport.** Fixed 2026-10-12: copies start in their owner's graph state
+  (`docs/re/systems/actor-ai-and-copies.md`).
 - **Arrivals through doors and fast travel.** `PositionPlayerEvent` is validated for `coc` only
   (phases 0, 3, 4 per teleport). If a door or fast travel does not send it, hook the player's move
   to its queued location (Address Library ID 40438), where all three end.
@@ -274,8 +287,7 @@ Still on the server, reading positions that have been stale since phase 2: telep
   hook is tagged "[ours]" (cell unload `ExtraDataList` lock against Havok's world lock); it is
   timing-dependent and failed `party-changes-cells` once. The checker should not count a console
   command frame as ours.
-- **Known bugs:** Lydia's stagger desyncs after a client's firebolt
-  (`firebolt-client-hits-host-npc`); the `duo` harness process once segfaulted on exit after PASS.
+- **Known bugs:** the `duo` harness process once segfaulted on exit after PASS.
 - Run the full scenario suite once phase 4 is done.
 
 ### Phase 5: Delete the server

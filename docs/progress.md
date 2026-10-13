@@ -8,7 +8,7 @@ Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-12.
+Last updated 2026-10-13.
 
 ## Direct authority migration
 
@@ -32,7 +32,9 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Time (`HostClock`; set-time from any player) | done (`4e0efb0a`) |
 | Weather (`HostWeather`) | done (`50397fa0`) |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
-| Cell arrivals (party tether: copies dropped and resent on teleport) | done for `coc` (`72b90888`); doors and fast travel unverified |
+| Cell arrivals (party tether: copies dropped and resent on teleport) | done for `coc` (`72b90888`); doors and fast travel unverified; the arrival now refreshes the host's record of the player (inventory, values, hands; uncommitted) |
+| Arriving together: players step aside onto navmesh floor by session slot | done (uncommitted), `party-spreads-on-arrival` |
+| Shared XP (upstream's party XP, to everyone) | works, `shared-xp` (uncommitted scenario) |
 | Objects: activation, locks, script animations | done as bridge relays (`31abfd23`, `550ece84`); object ids still from the server (`AssignObjectsRequest`) |
 | Quests | not started; quest sync off (`cSyncQuests`) until it has a design |
 | Waypoints, chat, player dialogue, overlay health | still handled by the server's `MapService`/`OverlayService` |
@@ -60,18 +62,19 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Equipment and hands | works | `equip-*`, `repair-equipment-drift`, `hands-survive-reload-*` |
 | Draw / sheathe | works | `draw-*`, `quick-sheathe-*` |
 | Sneak, swimming, diving | works | `sneak-*`, `dive-*` (uncommitted) |
-| Casting | works; repeat casts on copies were refused intermittently | `cast-*`, `input-mouse-cast` |
+| Casting | works: copies replay in step with their graph and cast for free (uncommitted) | `cast-*`, `input-mouse-cast`, `firebolt-*`, `flames-*` |
 | Health | works | `health-*` |
-| NPC death and removal | removal works; `death-host-npc` failing | `remove-host-npc`, `death-host-npc` |
-| Melee and spells on host NPCs | hits work; kill credit failing; Lydia's stagger desyncs after a firebolt | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
+| NPC death and removal | works: a copy dies with its owner's death action (uncommitted) | `remove-host-npc`, `death-host-npc` |
+| Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Hostility | works | `client-angers-host-ally` |
-| Effect visuals (burning, hit shaders) | failing on copies (the magic chain) | `burning-shows-on-copy` |
+| Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
+| Furniture (live, while the copy is loaded) | works | `furniture-*` (uncommitted) |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` (uncommitted subtitle check) |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
 | Time, weather | works | `host-time-reaches-client`, `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
-| Mount, AI package, dialogue, XP, factions | relayed, no scenario | |
+| Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
 | Mods | host's mod list is meant to be authoritative; world state of mods not synced | `docs/design/world-state-sync.md` (parked) |
 
@@ -81,19 +84,26 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 - Done: no packages (`8b464c19`), hands owned by the player (`704a82d6`), hit feedback and effect
   visuals (`1dd5628c`).
-- In progress (uncommitted, being split into commits 1-6 for review): the AI update skipped for copies
-  with the body upkeep kept, the engine's do-nothing package, the owner's animation graph state loaded
-  at spawn (fixes the copy pose after `coc`: `party-changes-cells` passes without stepping), sneak/dive/subtitle scenarios, the harness pausing cell
-  changes (wolf crash), the lock checker's `coc` pattern.
+- Done 2026-10-12 (`719c2409`..`46bbad21`): the AI update skipped for copies with the body upkeep kept,
+  the do-nothing package, the owner's graph state loaded at spawn, sneak/dive/subtitle scenarios.
+- Uncommitted (2026-10-13, `docs/re/systems/actor-ai-and-copies.md`):
+  - Replay in step with the copy's graph update (`HookUpdateAnimationGraphs`, 20123): fixed the magic
+    chain (refused `MRh_SpellAimedStart`, the copy left on `Magic_Equip`).
+  - Copies cast for free (`kSkipCheckCast` in `CheckCast` and the caster's `Update`): no own magicka spent.
+  - Health, magicka and stamina from the owner within 100 ms.
+  - A copy dies with its owner's death action (`KillWithDeathAction`), never from health alone.
+  - An owner's actions before its id arrives are kept (NPCs falling after `placeatme`).
 - Next audits: combat, detection, magic/magicka; then one copy update in place of scattered
   `IsRemote()` checks.
 
 ## Test suite
 
-- Last full run (2026-10-12, uncommitted build): 36 of 43 pass.
-- Failing: `death-host-npc`, `client-spell-kill-credit`, `client-melee-kill-credit`,
-  `burning-shows-on-copy` (the magic chain), `late-join-client` (party panel).
-- Order-dependent (pass alone): `party-panel`, `cast-host-player`.
+- Last full run (2026-10-13, uncommitted build): **47 of 47**. Earlier the same day: 42 of 43, then
+  45 of 47 with the new scenarios (the two dives, fixed: they had passed only because the arrival fade
+  swallowed the swim input). The morning's baseline was 37 of 43.
+- Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
+  `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
+  bearing; lock patterns match in either order.
 - Bridge rules: headless `BridgeTests` (`Code/tests/bridge`), wire bytes pinned in `wire_tests.cpp`.
 
 ## Loose ends
@@ -109,23 +119,26 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   scattered `IsRemote()` checks.
 - **Upstream AI patches to re-check** (from before copies ran no AI; delete each the cut covers):
   `HookIsFleeing`, `HookProcessResponse`, `HookUpdateDetectionState`, `HookIsHostileToActor`.
-- **A copy spends its own magicka** (4963-4998 vs the owner's 5000 after firebolt/flames); it should
-  have the owner's.
-- **Magic chain:** run back to back, the host's copy of the client ends on `Magic_Equip` and refuses
-  later casts; its spell then goes missing from the copy's equipment in later scenarios. Not explained.
-  Likely behind `burning-shows-on-copy` and the kill-credit failures.
 - **Cast right after a jump landing** (first person, within ~250 ms): the copy's graph is still
   landing and refuses the cast (3 refusals in the last measurement). Not explained.
-- **Repeat casts refused intermittently** (seen 2026-10-10): recheck now that copies skip the AI update.
-- **`death-host-npc`:** the desync check fails on the chicken's `animation.state1` (owner has the
-  Dying life state 0x200041, copy 0x41). Not from the upkeep or the package.
-- **Graph state at spawn, not yet covered:** no live sitting/furniture scenario (a copy must reach the
-  state by replay while loaded; the spawn load would hide it otherwise); behaviour mods (Nemesis/Pandora,
-  Open Animation Replacer) untested; the host's player record (`HostCharacters`) keeps the graph state
-  from the player's last arrival, so a copy spawned from the record rather than the host's live copy can
-  start in an older state. Check when the record is used.
-- **Kill credit** for a client's spell or melee kill: failing (`client-*-kill-credit`).
-- **Lydia's stagger** desyncs after a client's firebolt (`firebolt-client-hits-host-npc`).
+- **Interpolation delay 300 ms → 200 ms** (2× the 100 ms snapshot interval, the usual rule; Source
+  uses 100 ms at 20/s). Tried 2026-10-13 and reverted: `health-host-npc` failed 2 of 4 runs (the
+  copy missed a fresh NPC's `JumpLand`, or had no action at all) and `death-host-npc` 1 of 4, against
+  0 of 4 each at 300 ms. Find why a freshly spawned NPC copy loses its first actions at 200 ms, then
+  retry. The delay is `RunRemoteUpdates` in `CharacterService.cpp`.
+- **Replay retries:** a copy a graph update behind gets 3 more updates to take an action (as the
+  owner's input retries). Logged ("graph updates late"); 1 in 8 casts needed it. Watch the count.
+- **Graph state at spawn, not yet covered:** behaviour mods (Nemesis/Pandora, Open Animation Replacer)
+  untested. The host's record of a player is refreshed on each arrival (graph state, action, inventory,
+  values); between arrivals it is the arrival's.
+- **Copies refuse `turnStop`** now and then (NPC copies). Not traced.
+- **Shared XP** goes to the receiver's last used combat skill only; a player who has not used one since
+  loading gets nothing (upstream's rule). Decide whether to keep it.
+- **Arrival spacing** needs navmesh under the marker: QASmoke's `coc` marker has none (players stay
+  stacked there). Doors and fast travel not checked yet (they arrive through the same `RunArrivals`
+  only if they fire the teleport event, see Migration).
+- **`TESObjectREFR::GetParentCell` (our virtual)** returned null in an exterior after `coc` while the
+  field was set: the vtable slot may be wrong; the harness's `GetCellObjectIds` still uses it.
 - **Graph outputs still synced:** Master_Behavior variables that the graph itself writes
   (`IsCastingRight/Left`, `bMRh_Ready`, `IsEquipping`, `IsAttacking`, `bInJumpState`, ...; list with
   `behavior_dump.py writers`), and `currentDefaultState` in the troll, draugr, werewolf, steam and
@@ -167,8 +180,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
-- Order-dependent: `party-panel` and `cast-host-player` pass alone, fail in the full run.
-- `late-join-client` fails on the party panel after the rejoin.
+- `party-panel` and `late-join-client` passed in all of today's full runs (order dependency not seen
+  since; `cast-host-player`'s was the arrival fade swallowing Ready Weapon, fixed in the harness).
 - The `duo` harness process once segfaulted on exit after a pass.
 - Harness console lines other than cell changes run unpaused, unlike a typed line.
 
