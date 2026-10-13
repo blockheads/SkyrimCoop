@@ -1459,6 +1459,43 @@ def scenario_join_refused_plugins_differ():
     rejoin_client()
     wait_for("[client] joined", lambda: join_status("client")["state"] == "joined", 5)
 
+
+def difficulty(instance):
+    return game_state(instance)["difficulty"]
+
+
+def set_difficulty(instance, value):
+    """Sets the game's difficulty as its settings menu does; the difficulty right after."""
+    return player_command(instance, {"cmd": "difficulty", "value": value})["difficulty"]
+
+
+def scenario_difficulty_follows_host():
+    """The session's difficulty is the host's: a joining game takes it, follows the host's changes
+    and cannot change away from it; the host's own is never changed; leaving gives the client's game
+    its own difficulty back."""
+    start = difficulty("")
+    own = (start + 1) % 6    # the client's own, before it joins
+    other = (start + 3) % 6  # what the host changes to
+    disconnect_client()
+    set_difficulty("client", own)
+    try:
+        rejoin_client()
+        wait_for(f"[client] takes the host's difficulty {start}", lambda: difficulty("client") == start, 5)
+        set_difficulty("", other)
+        wait_for(f"[client] follows the host to {other}", lambda: difficulty("client") == other, 5)
+        if difficulty("") != other:
+            raise TestFailure(f"[host] difficulty {difficulty('')}, set to {other}: the session changed it")
+        if set_difficulty("client", start) != start:
+            raise TestFailure("[client] the difficulty could not be set")
+        wait_for(f"[client] is held at the host's {other}", lambda: difficulty("client") == other, 5)
+        disconnect_client()
+        wait_for(f"[client] has its own difficulty {own} back", lambda: difficulty("client") == own, 5)
+    finally:
+        set_difficulty("", start)
+        if game_state("client").get("online") is False:
+            rejoin_client()
+        wait_for(f"[client] back at the host's {start}", lambda: difficulty("client") == start, 5)
+
 # --- Characters: spawning, moving, removing, cells ------------------------------------------
 
 def scenario_steady_state():
@@ -2870,6 +2907,7 @@ SCENARIOS = {
     "host-kicks-client": scenario_host_kicks_client,
     "join-refused-shows-why": scenario_join_refused_shows_why,
     "join-refused-plugins-differ": scenario_join_refused_plugins_differ,
+    "difficulty-follows-host": scenario_difficulty_follows_host,
     # characters
     "steady-state": scenario_steady_state,
     "move-host-npc": scenario_move_host_npc,
@@ -2943,6 +2981,7 @@ TAGS = {
     "host-kicks-client": {'session', 'spawn'},
     "join-refused-shows-why": {'session'},
     "join-refused-plugins-differ": {'session', 'restart'},
+    "difficulty-follows-host": {'session'},
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
     "remove-host-npc": {'spawn'},

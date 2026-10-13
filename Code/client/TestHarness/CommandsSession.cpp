@@ -5,6 +5,7 @@
 #include <World.h>
 #include <Services/HostService.h>
 #include <Services/TransportService.h>
+#include <Bridges/IPlayerBridge.h>
 
 // The session: leaving, kicking, and swapping in a rebuilt plugin. Hosting and joining are driven by
 // session.txt (Session.h).
@@ -34,6 +35,15 @@ nlohmann::json Kick(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "difficulty", "value": 0-5}: sets the player's difficulty, as the settings menu does;
+// answers with the difficulty right after (before the session's own update can change it).
+nlohmann::json Difficulty(Harness&, const nlohmann::json& acRequest)
+{
+    auto& player = World::Get().GetPlayerBridge();
+    player.SetDifficulty(acRequest.value("value", 2u));
+    return {{"ok", true}, {"difficulty", player.GetDifficulty()}};
+}
+
 // {"cmd": "reload"}: the loader swaps in the current build next frame (Code/hotreload/Loader.cpp).
 nlohmann::json Reload(Harness&, const nlohmann::json&)
 {
@@ -48,6 +58,7 @@ nlohmann::json Reload(Harness&, const nlohmann::json&)
 constexpr Command cCommands[] = {
     {"disconnect", false, &Disconnect},
     {"kick", false, &Kick},
+    {"difficulty", false, &Difficulty},
     {"reload", false, &Reload},
 };
 } // namespace

@@ -292,7 +292,7 @@ static nlohmann::json GameStatus()
         mapMarker = {{"position", {cMarker->X, cMarker->Y, cMarker->Z}}, {"world", cMarker->WorldOrCell}};
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
-            {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()},
+            {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()}, {"difficulty", world.GetPlayerBridge().GetDifficulty()},
             {"players", players}, {"party_panel", party}, {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
             {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }

@@ -114,6 +114,15 @@ Section 3d moves this table to the bridge, with tests first.
 - The friend appears in the host's world next to the host, as their character; the live sync takes
   over from there (copies, time, weather).
 
+### Session settings
+
+- **Rule:** the host sets them, players read them: sent in the join response
+  (`AuthenticationResponse::Settings`) and again on any change (`NotifySettingsChange`).
+- **Today (3a.4):** the difficulty is the host's own; a friend's game takes and holds it, and gets
+  its own back on leaving; the host's is never changed. The co-op options (greetings, PvP, the death
+  system, player homes, calendar sync) are upstream's defaults.
+- **Later:** a host settings screen for the co-op options.
+
 ### Saving: only the host
 
 - Only the host saves and manages saves. While connected, the friend's game cannot save (no manual,

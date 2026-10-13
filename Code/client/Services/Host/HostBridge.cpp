@@ -209,6 +209,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
 
 void HostBridge::Update(uint64_t aTick) noexcept
 {
+    m_session.Update();
     m_clock.Update(aTick);
     m_weather.Update();
 }

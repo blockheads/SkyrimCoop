@@ -8,6 +8,7 @@
 #include <Services/Host/HostBridge.h>
 #include <Services/CharacterService.h>
 #include <Services/WeatherService.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
@@ -79,6 +80,7 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     };
     game.SetHour = [this](float aHours) { m_world.ctx().at<IWorldBridge&>().SetGameTimeHours(aHours); };
     game.ReadWeather = [this] { return m_world.GetWeatherService().ReadSharedWeather(); };
+    game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
     m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, std::move(game));

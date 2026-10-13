@@ -59,7 +59,7 @@ TEST_CASE("Join: accepted with a player id, the session's settings and the sessi
     CHECK(cpPlayer->GetUsername() == "Serana");
     CHECK(cpPlayer->GetLevel() == 5);
 
-    CHECK(cResponse.Settings.Difficulty == 4);
+    CHECK(cResponse.Settings.Difficulty == 3); // the host's
     CHECK(cResponse.Settings.DeathSystemEnabled);
     CHECK_FALSE(cResponse.Settings.PvpEnabled);
     CHECK_FALSE(cResponse.Settings.GreetingsEnabled);
@@ -231,4 +231,31 @@ TEST_CASE("Join: a refused game's status has the reason's code and words", "[Bri
     CHECK(JoinRefusal::ForHost(kWrongGame, join, Ours()) ==
           "A player couldn't join: they run Skyrim 1.6.640 with SKSE 2.2.3, you run Skyrim 1.6.1170 with SKSE 2.2.6.");
     CHECK(JoinRefusal::ForHost(kModsMismatch, join, Ours()) == "A player couldn't join: their plugins differ from yours (3 differences).");
+}
+
+TEST_CASE("Settings: the host's difficulty reaches the others when it changes", "[Bridge][Session]")
+{
+    Session session;
+    session.Frame(1);
+    CHECK(session.SentTo<NotifySettingsChange>(kPeer).empty()); // the joined have it already
+
+    session.Difficulty = 5;
+    session.Frame(2);
+    for (const auto cPeer : {kPeer, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifySettingsChange>(cPeer);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->Settings.Difficulty == 5);
+        CHECK(cNotifies[0]->Settings.DeathSystemEnabled);
+    }
+    CHECK(session.SentTo<NotifySettingsChange>(kHost).empty()); // its own
+
+    // Joining later: the difficulty as it is now; nothing new while it stays.
+    session.Outbox.clear();
+    session.Frame(3);
+    CHECK(session.SentTo<NotifySettingsChange>(kPeer).empty());
+    session.Receive(4, JoinRequest("Serana"));
+    const auto cResponses = session.SentTo<AuthenticationResponse>(4);
+    REQUIRE(cResponses.size() == 1);
+    CHECK(cResponses[0]->Settings.Difficulty == 5);
 }

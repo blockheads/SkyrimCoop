@@ -24,6 +24,8 @@ struct HostGame
     std::function<void(float aHours)> SetHour;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
+    // The host's difficulty (0 Novice to 5 Legendary): the session's.
+    std::function<uint32_t()> ReadDifficulty;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.
     GameVersions Versions;
     Mods Plugins;

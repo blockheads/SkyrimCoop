@@ -379,7 +379,15 @@ that needs the standalone server goes with the section that breaks it.
        `Server::Update` nor `Client::Update` handled, so the host kept the player and took the next
        game on that peer for it ("asked to join again"), and a friend never noticed a host that died.
        Both handle it now; a kick no longer reports the same disconnection twice.
-     - **3a.4:** the host's real settings (its difficulty).
+     - **3a.4, done:** the session's settings are the host's: `HostSession::Settings` reads the host's
+       difficulty (`HostGame::ReadDifficulty`) for every join, and `HostSession::Update` sends
+       `NotifySettingsChange` to the others when it changes. A friend's game takes and holds it
+       (`PlayerService`) and gets its own difficulty back on leaving; the host's game is never
+       changed. Before, every game, the host's too, was forced to Master each frame, so the host could
+       not change its difficulty while hosting, and a second settings message overwrote what a friend
+       got back on leaving. The co-op options (greetings, PvP, death system, homes, calendar) keep
+       upstream's defaults until a settings screen. Bridge cases and `difficulty-follows-host`
+       (through the harness's `difficulty` command, which sets it as the settings menu does).
    - **3b, player list:** `NotifyPlayerJoined` both ways, `NotifyPlayerLeft`, the host flag, levels.
    - **3c, player records:** ids, names, levels, characters, the host's connection and kick move from
      `PlayerManager` to `HostSession`.

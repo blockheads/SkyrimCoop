@@ -71,6 +71,7 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLevel.h>
+#include <Messages/NotifySettingsChange.h>
 #include <Messages/PlayerLevelRequest.h>
 #include <BuildVersion.h>
 
@@ -174,6 +175,7 @@ struct Session
     TiltedPhoques::Map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::vector<Sent> Outbox;
 
 private:
@@ -190,6 +192,7 @@ private:
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.ReadWeather = [this] { return Weather; };
+        game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();
         game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) {

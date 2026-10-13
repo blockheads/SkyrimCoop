@@ -66,8 +66,11 @@ void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
 
 void PlayerService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
-    m_playerBridge.SetDifficulty(static_cast<uint32_t>(m_previousDifficulty));
-    m_serverDifficulty = m_previousDifficulty = 6;
+    // A friend's game gets its own difficulty back; the host's was never changed.
+    if (m_previousDifficulty)
+        m_playerBridge.SetDifficulty(static_cast<uint32_t>(*m_previousDifficulty));
+    m_previousDifficulty.reset();
+    m_serverDifficulty.reset();
 
     ToggleDeathSystem(false);
 
@@ -81,9 +84,15 @@ void PlayerService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 
 void PlayerService::OnServerSettingsReceived(const ServerSettings& acSettings) noexcept
 {
-    m_previousDifficulty = static_cast<int32_t>(m_playerBridge.GetDifficulty());
-    m_playerBridge.SetDifficulty(static_cast<uint32_t>(acSettings.Difficulty));
-    m_serverDifficulty = acSettings.Difficulty;
+    // The session's difficulty is the host's: a friend's game takes it (and keeps its own for
+    // leaving, from the first settings of the session); the host's game is where it comes from.
+    if (!m_world.GetHostService().IsHosting())
+    {
+        if (!m_previousDifficulty)
+            m_previousDifficulty = m_playerBridge.GetDifficulty();
+        m_serverDifficulty = acSettings.Difficulty;
+        m_playerBridge.SetDifficulty(acSettings.Difficulty);
+    }
 
     if (!acSettings.GreetingsEnabled)
     {
@@ -199,10 +208,11 @@ void PlayerService::RunPostDeathUpdates(const double acDeltaTime) noexcept
 
 void PlayerService::RunDifficultyUpdates() const noexcept
 {
-    if (!m_transport.IsConnected())
+    // A friend's game holds the host's difficulty (its settings menu cannot change it away).
+    if (!m_transport.IsConnected() || !m_serverDifficulty || m_playerBridge.GetDifficulty() == *m_serverDifficulty)
         return;
 
-    m_playerBridge.SetDifficulty(static_cast<uint32_t>(m_serverDifficulty));
+    m_playerBridge.SetDifficulty(*m_serverDifficulty);
 }
 
 void PlayerService::RunLevelUpdates() const noexcept

@@ -9,6 +9,7 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
 HostSession::HostSession(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept
@@ -18,17 +19,34 @@ HostSession::HostSession(HostBridge& aBridge, Server::GameServer& aServer, const
     aBridge.On(*this, &HostSession::OnAuthentication);
 }
 
-ServerSettings HostSession::Settings() noexcept
+ServerSettings HostSession::Settings() const noexcept
 {
-    // Upstream's server defaults (docs/design/join-flow.md, stage 4: the host's own values next).
+    // The co-op options are upstream's defaults until a settings screen sets them.
     ServerSettings settings{};
-    settings.Difficulty = 4;
+    settings.Difficulty = m_game.ReadDifficulty();
     settings.GreetingsEnabled = false;
     settings.PvpEnabled = false;
     settings.SyncPlayerHomes = false;
     settings.DeathSystemEnabled = true;
     settings.SyncPlayerCalendar = false;
     return settings;
+}
+
+void HostSession::Update() noexcept
+{
+    // Not before the host's own player is in: "everyone but the host" would include it.
+    const ConnectionId_t cHost = m_server.HostConnection();
+    const auto cSettings = Settings();
+    if (!cHost || cSettings == m_sentSettings)
+        return;
+
+    const bool cFirst = !m_sentSettings;
+    m_sentSettings = cSettings;
+    if (cFirst)
+        return; // everyone who joined got these
+    NotifySettingsChange notify;
+    notify.Settings = cSettings;
+    m_server.SendToOthers(notify, cHost, TiltedPhoques::kReliable);
 }
 
 void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, ConnectionId_t aSender) noexcept
