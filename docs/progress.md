@@ -124,6 +124,9 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - Bridge rules: headless `BridgeTests` (`Code/tests/bridge`), wire bytes pinned in `wire_tests.cpp`. Build with
   `scripts/xmake-linux.sh` (GCC, lld; a one-file change links in ~6 s). Not clang yet: sol2 3.3.0 (the
   server's Lua) does not build with clang 18; the server goes in phase 5.
+- Encoding: `TPTests` (`Code/tests/encoding.cpp`), same build. Encoding only since 2026-10-13: it had not
+  built since `a94b0002` deleted `line_buffer.h`, which the `native_client` files it compiled include.
+  The server and `native_client` test files beside it stay unbuilt until their server section deletes them.
 
 ## Loose ends
 
@@ -224,9 +227,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   duo); a restart cleared it.
 - The map's fast travel UI (open the map, pick a marker, confirm) is not driven; `party-fast-travels` uses
   the console's `FastTravel`, which queues the same move (`docs/re/systems/player-travel.md`).
-- `TPTests` does not build: the target compiles `native_client` files, and `tcp_client.h` includes
-  `line_buffer.h`, deleted with the relay in `a94b0002`. The encoding tests in it pass when built on
-  their own (`encoding.cpp`, `main.cpp`). Fix with the section that deletes the server tests.
 - The `duo` harness process once segfaulted on exit after a pass.
 - A harness command with a wrongly typed field (`place` with a hex string target) throws in `nlohmann::json`
   and takes the game down (`CommandsStaging.cpp` `Place`, 2026-10-13). Commands should read fields without

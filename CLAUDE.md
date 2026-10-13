@@ -70,25 +70,22 @@ xmake -y
 - `SkyrimTogetherClient` - SKSE plugin (Windows only)
 - `SkyrimTogetherServer` - Game server executable + library
 - `SkyrimEncoding` - Network message serialization
-- `TPTests` - Unit tests (Catch2-based)
+- `TPTests` - Message encoding tests (Catch2-based)
+- `BridgeTests` - The host's bridge rules against a headless server
 - `tp_process` - CEF worker process for UI overlay
 - `immersive_launcher` - Game launcher/updater
 
 ### Testing
 
 ```bash
-# Build and run tests
-xmake build TPTests
-./build/release/tests/TPTests
+# Native Linux build (first time: scripts/xmake-linux.sh f)
+scripts/xmake-linux.sh build -j16 TPTests BridgeTests
+build/linux/x86_64/debug/TPTests       # message encoding, quantization, differentials
+build/linux/x86_64/debug/BridgeTests   # the host's bridge rules against a headless server
 
 # Run specific test
-./build/release/tests/TPTests "Vector3_NetQuantize"
+build/linux/x86_64/debug/TPTests "Vector3_NetQuantize"
 ```
-
-**What's tested:**
-- Message encoding/decoding
-- Network quantization accuracy
-- Differential serialization
 
 ### UI Development
 
