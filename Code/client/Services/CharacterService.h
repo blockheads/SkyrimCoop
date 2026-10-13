@@ -68,7 +68,7 @@ struct CharacterService
     void OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept;
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;
     void OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept;
-    void OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) const noexcept;
+    void OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept;
     void OnAssignCharacter(const AssignCharacterResponse& acMessage) noexcept;
     void OnCharacterSpawn(const CharacterSpawnRequest& acMessage) const noexcept;
     void OnReferencesMoveRequest(const ServerReferencesMoveRequest& acMessage) const noexcept;
@@ -110,7 +110,6 @@ private:
     void CancelServerAssignment(entt::entity aEntity, uint32_t aFormId) const noexcept;
     void DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept;
 
-    uint32_t CreateCharacterForEntity(entt::entity aEntity) const noexcept;
     ActorData BuildActorData(uint32_t aFormId) const noexcept;
     // An actor as it is now: where, its values, inventory and hands, and the action it last took.
     struct ActorLiveState
@@ -131,10 +130,15 @@ private:
     void RunRemoteUpdates() noexcept;
     void RunActorDiscovery() noexcept;
     void RunFactionsUpdates() const noexcept;
-    void RunSpawnUpdates() const noexcept;
     void RunExperienceUpdates() noexcept;
     // The player arrived somewhere new: drop the copies the old cell took and tell the host.
     void RunArrivals() noexcept;
+    // Copies whose owner is around us but which are elsewhere or without 3D go where the owner is.
+    void RunPresence() noexcept;
+    // A spawn for a copy we already have: its owner's latest place and spawn data.
+    void RefreshCopy(entt::entity aEntity, const CharacterSpawnRequest& acMessage) const noexcept;
+    // Drops the copy and asks the host to spawn it again.
+    void RespawnCopy(entt::entity aEntity, uint32_t aServerId) const noexcept;
     // Drops our entities for the copies acShouldDrop picks (by form id).
     void DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept;
 

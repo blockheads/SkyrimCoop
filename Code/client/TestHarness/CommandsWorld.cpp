@@ -66,15 +66,16 @@ nlohmann::json GraphWriters(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"writers", writers}};
 }
 
-// {"cmd": "objects"}: the doors, containers and furniture in the player's cell (state, lock, load door).
+// {"cmd": "objects"}: the doors, containers and furniture in the player's cell (state, lock, load door, position).
 nlohmann::json Objects(Harness&, const nlohmann::json&)
 {
     constexpr uint8_t cDoor = 29;      // FormType::Door
     constexpr uint8_t cFurniture = 40; // FormType::Furniture
     auto& forms = World::Get().GetFormBridge();
     auto objects = nlohmann::json::array();
-    for (const uint32_t cId : EngineCalls::GetCellObjectIds())
+    for (const auto& cObject : EngineCalls::GetCellObjects())
     {
+        const uint32_t cId = cObject.Id;
         const bool cIsDoor = forms.IsObjectBaseFormType(cId, cDoor);
         const bool cHasLock = forms.ObjectHasLock(cId);
         // open_state: TESObjectREFR::OpenState, 1 open, 2 opening, 3 closed, 4 closing.
@@ -84,6 +85,7 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
              {"furniture", forms.IsObjectBaseFormType(cId, cFurniture)},
              {"name", forms.GetFormName(cId)},
              {"load_door", forms.IsLoadDoor(cId)},
+             {"position", {cObject.Position[0], cObject.Position[1], cObject.Position[2]}},
              {"open_state", cIsDoor ? forms.GetObjectOpenState(cId) : 0},
              {"has_lock", cHasLock},
              {"locked", cHasLock && forms.ObjectIsLocked(cId)},

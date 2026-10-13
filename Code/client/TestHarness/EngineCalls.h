@@ -60,8 +60,13 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
 
 // --- Engine state the scenarios check ---
 
-// The doors, containers and furniture in the player's cell.
-std::vector<uint32_t> GetCellObjectIds() noexcept;
+// The doors, containers and furniture in the player's cell, with where they stand.
+struct CellObject
+{
+    uint32_t Id;
+    float Position[3];
+};
+std::vector<CellObject> GetCellObjects() noexcept;
 
 // The effect shaders and art objects the engine is playing on the actor.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;

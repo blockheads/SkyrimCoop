@@ -47,3 +47,15 @@ SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241 vs SkyrimSE.exe+0x1823d0 > SkyrimS
 # (UpdateLowActorsAI -> HookUpdateAI -> ... -> HookCheckForNewPackage -> 12721 -> GetIsID -> GetExtraData). Ours:
 # only the pass-throughs and HookMainLoop. Both stacks read on 2026-10-13.
 SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d
+# A door's arrival autosaves: 40438 -> Actor 40445 -> BGSSaveLoadManager::Save_Impl -> TESObjectREFR::SaveGame
+# reads ExtraAliasInstanceArray (12729) while a quest alias fill on Job_IO (BGSRefAlias 24011 -> 39114
+# CheckForNewPackage -> package conditions -> Actor::IsInFaction) reads extra-data; and Papyrus
+# ForceRefIntoAlias (25052) the same chain against Job_Quest_for_events writing the alias (12719). Ours on the
+# stacks: only the pass-through HookCheckForNewPackage and HookMainLoop. Both stacks read on 2026-10-13
+# (party-uses-door).
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16f48b > SkyrimSE.exe+0x182f95
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241
+# The arrival's PositionPlayerEvent (40438 -> TESObjectCELL 13676 -> bhkWorld -> islandDeactivatedCallback ->
+# GetExtraData) against a cell attach on Job_IO (TES 13355 -> TESObjectREFR 19742 -> bhkRigidBody_setMotionType,
+# bhkWorld write). Ours only HookMainLoop. Both stacks read on 2026-10-13 (party-uses-door).
+SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimSE.exe+0xe92c16

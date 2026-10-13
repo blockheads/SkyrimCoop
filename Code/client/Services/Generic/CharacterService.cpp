@@ -109,7 +109,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept
 {
-    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent>(aEntity);
+    m_world.remove<FaceGenComponent, InterpolationComponent, RemoteAnimationComponent, RemoteComponent, CacheComponent, WaitingFor3D, PlayerComponent,
+                   OwnerPlaceComponent>(aEntity);
 }
 
 bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acServerId, const entt::entity acEntity) const noexcept
@@ -217,7 +218,7 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     RunActorDiscovery();
     RunArrivals();
-    RunSpawnUpdates();
+    RunPresence();
     RunLocalUpdates();
     RunFactionsUpdates();
     RunRemoteUpdates();
@@ -281,23 +282,11 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) const
     }
 }
 
-void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) const noexcept
+void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept
 {
-    auto remoteView = m_world.view<FormIdComponent, RemoteComponent>();
-    for (auto entity : remoteView)
-    {
-        auto& formIdComponent = remoteView.get<FormIdComponent>(entity);
-
-        if (!m_actorBridge.ActorExists(formIdComponent.Id))
-            continue;
-
-        if (m_actorBridge.IsRemotePlayer(formIdComponent.Id))
-            m_actorBridge.DeleteActor(formIdComponent.Id);
-        else
-            m_actorBridge.SetActorRemote(formIdComponent.Id, false);
-    }
-
-    m_world.clear<WaitingForAssignmentComponent, LocalComponent, RemoteComponent>();
+    // The session's copies go: the ones we spawned are deleted, the game's own actors are its own again.
+    DropCopies([](uint32_t) { return true; });
+    m_world.clear<WaitingForAssignmentComponent, LocalComponent>();
 }
 
 void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessage) noexcept
@@ -368,6 +357,7 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
 
         m_world.emplace_or_replace<RemoteWeaponDrawComponent>(cEntity, acMessage.IsWeaponDrawn);
 
+        m_world.emplace_or_replace<OwnerPlaceComponent>(cEntity, acMessage.CellId, acMessage.WorldSpaceId, std::chrono::steady_clock::now());
         MoveActor(formIdComponent->Id, acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position);
     }
 }
@@ -384,7 +374,7 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
 
     if (remoteItor != std::end(remoteView))
     {
-        spdlog::warn("Character with remote id {:X} is already spawned.", acMessage.ServerId);
+        RefreshCopy(*remoteItor, acMessage);
         return;
     }
 
@@ -505,6 +495,7 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
 
     auto& interpolationComponent = InterpolationSystem::Setup(m_world, *entity);
     interpolationComponent.Position = acMessage.Position;
+    m_world.emplace_or_replace<OwnerPlaceComponent>(*entity, acMessage.CellId, GameId{}, std::chrono::steady_clock::now());
 
     AnimationSystem::Setup(m_world, *entity);
 
@@ -514,6 +505,23 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
     remoteAnimationComponent.TimePoints.push_back(acMessage.LatestAction);
     if (!acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
+}
+
+void CharacterService::RefreshCopy(entt::entity aEntity, const CharacterSpawnRequest& acMessage) const noexcept
+{
+    // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
+    if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
+        pInterpolation->Position = acMessage.Position;
+    auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
+    place.CellId = acMessage.CellId;
+    place.LastMove = {};
+    if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
+        pWaitingFor3D->SpawnRequest = acMessage;
+    const auto* pFormId = m_world.try_get<FormIdComponent>(aEntity);
+    if (pFormId && !m_actorBridge.ActorHas3D(pFormId->Id) && !acMessage.GraphState.empty())
+        m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
+    spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.ServerId,
+                 acMessage.CellId.BaseId);
 }
 
 void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessage) noexcept
@@ -583,6 +591,12 @@ void CharacterService::OnReferencesMoveRequest(const ServerReferencesMoveRequest
         point.Direction = movement.Direction;
 
         InterpolationSystem::AddPoint(interpolationComponent, point);
+        if (movement.CellId)
+        {
+            auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(*itor);
+            place.CellId = movement.CellId;
+            place.WorldSpaceId = movement.WorldSpaceId;
+        }
 
         for (const auto& action : update.ActionEvents)
         {
@@ -671,20 +685,22 @@ void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) const noe
         return;
     }
 
-    const auto cId = *entityIt;
+    RespawnCopy(*entityIt, acMessage.ActorId);
+}
 
-    auto& formIdComponent = view.get<FormIdComponent>(cId);
-    CancelServerAssignment(*entityIt, formIdComponent.Id);
+void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aServerId) const noexcept
+{
+    CancelServerAssignment(aEntity, m_world.get<FormIdComponent>(aEntity).Id);
 
-    if (m_world.all_of<FormIdComponent>(cId))
-        m_world.remove<FormIdComponent>(cId);
+    if (m_world.all_of<FormIdComponent>(aEntity))
+        m_world.remove<FormIdComponent>(aEntity);
 
-    if (m_world.orphan(cId))
-        m_world.destroy(cId);
+    if (m_world.orphan(aEntity))
+        m_world.destroy(aEntity);
 
+    // Asked by a game that does not own it, the host answers with a fresh spawn (HostCharacters::OnRespawn).
     RequestRespawn request;
-    request.ActorId = acMessage.ActorId;
-
+    request.ActorId = aServerId;
     m_transport.Send(request);
 }
 
@@ -1284,76 +1300,6 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
     }
 }
 
-uint32_t CharacterService::CreateCharacterForEntity(entt::entity aEntity) const noexcept
-{
-    auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity);
-    auto* pInterpolationComponent = m_world.try_get<InterpolationComponent>(aEntity);
-
-    if (!pWaitingFor3D || !pInterpolationComponent)
-    {
-        spdlog::error("{}: : could not find WaitingFor3D or InterpolationComponent", __FUNCTION__);
-        return 0;
-    }
-
-    auto& acMessage = pWaitingFor3D->SpawnRequest;
-
-    uint32_t actorFormId = 0;
-
-    // Custom forms
-    if (acMessage.FormId == GameId{})
-    {
-        if (acMessage.BaseId != GameId{})
-        {
-            const uint32_t cNpcId = World::Get().GetModSystem().GetGameId(acMessage.BaseId);
-            if (cNpcId == 0)
-            {
-                spdlog::error("Failed to retrieve NPC, it will not be spawned, possibly missing mod");
-                return 0;
-            }
-
-            m_actorBridge.DeserializeActorNpc(cNpcId, acMessage.AppearanceBuffer, acMessage.ChangeFlags);
-            actorFormId = m_actorBridge.SpawnActorFromNpc(cNpcId);
-        }
-        else
-        {
-            actorFormId = m_actorBridge.CreateCustomActor(acMessage.AppearanceBuffer, acMessage.ChangeFlags);
-            m_actorBridge.SetupActorFaceGen(actorFormId);
-            FaceGenSystem::Setup(m_world, aEntity, acMessage.FaceTints);
-        }
-    }
-
-    auto& remoteComponent = m_world.get<RemoteComponent>(aEntity);
-
-    if (!actorFormId)
-    {
-        spdlog::error("{}: : could not spawn actor for remote server id {:X}.", __FUNCTION__, remoteComponent.Id);
-        return 0;
-    }
-
-    m_actorBridge.SetActorRemote(actorFormId, true);
-
-    const uint32_t cPlayerCellId = m_playerBridge.GetPlayerParentCellFormId();
-    m_actorBridge.MoveActorTo(actorFormId, cPlayerCellId, pInterpolationComponent->Position.x, pInterpolationComponent->Position.y, pInterpolationComponent->Position.z);
-    m_actorBridge.SetActorRotation(actorFormId, acMessage.Rotation.x, acMessage.Rotation.y);
-    m_actorBridge.SetActorValues(actorFormId, acMessage.InitialActorValues);
-
-    m_actorBridge.SetActorPlayer(actorFormId, acMessage.IsPlayer);
-    if (acMessage.IsPlayer)
-    {
-        m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
-        m_actorBridge.SetActorPlayerRespawnMode(actorFormId);
-        m_world.emplace_or_replace<PlayerComponent>(aEntity, acMessage.PlayerId);
-    }
-
-    const bool cIsDead = m_actorBridge.IsActorDead(actorFormId);
-    if (cIsDead != acMessage.IsDead)
-        acMessage.IsDead ? m_actorBridge.KillActor(actorFormId) : m_actorBridge.RespawnActor(actorFormId);
-
-    spdlog::info("Spawned character for entity, server id: {:X}", remoteComponent.Id);
-
-    return actorFormId;
-}
-
 CharacterService::ActorLiveState CharacterService::ReadLiveState(uint32_t aFormId) const noexcept
 {
     ActorLiveState state;
@@ -1549,55 +1495,8 @@ void CharacterService::RunFactionsUpdates() const noexcept
         m_transport.Send(message);
 }
 
-void CharacterService::RunSpawnUpdates() const noexcept
-{
-    auto invisibleView = m_world.view<RemoteComponent, InterpolationComponent, RemoteAnimationComponent, WaitingFor3D>(entt::exclude<FormIdComponent>);
-    Vector<entt::entity> entities(invisibleView.begin(), invisibleView.end());
-
-    for (const auto entity : entities)
-    {
-        auto& remoteComponent = m_world.get<RemoteComponent>(entity);
-        auto& interpolationComponent = m_world.get<InterpolationComponent>(entity);
-
-        const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
-        if (cPlayerWorldSpaceId)
-        {
-            float characterX = interpolationComponent.Position.x;
-            float characterY = interpolationComponent.Position.y;
-            const auto characterCoords = GridCellCoords::CalculateGridCellCoords(characterX, characterY);
-
-            float playerX = 0.f, playerY = 0.f, playerZ = 0.f;
-            m_playerBridge.GetPlayerPosition(playerX, playerY, playerZ);
-            const auto playerCoords = GridCellCoords::CalculateGridCellCoords(playerX, playerY);
-
-            // TODO(cosideci): IsDragon probably shouldn't be straight up false here.
-            if (GridCellCoords::IsCellInGridCell(characterCoords, playerCoords, false))
-            {
-                uint32_t actorFormId = remoteComponent.CachedRefId;
-                if (!actorFormId || !m_actorBridge.ActorExists(actorFormId))
-                {
-                    actorFormId = CreateCharacterForEntity(entity);
-                    if (!actorFormId)
-                        continue;
-
-                    remoteComponent.CachedRefId = actorFormId;
-                }
-
-                const uint32_t cPlayerCellId = m_playerBridge.GetPlayerParentCellFormId();
-                m_actorBridge.MoveActorTo(actorFormId, cPlayerCellId, interpolationComponent.Position.x, interpolationComponent.Position.y, interpolationComponent.Position.z);
-            }
-        }
-    }
-}
-
-// A coc teleports the player (PlayerCharacter::ConsumeTeleported; experimental: doors and fast
-// travel are not validated yet), and the engine deletes the references of our copies with the old
-// cell. Under the party tether everyone arrives where the host is: once in a cell again, our
-// entities for the copies left behind are dropped (or the host's spawns would be refused as already
-// spawned) and the host told, which sends what is here (HostCharacters::OnEnterCell); copies still
-// here are kept, and their spawns refused. A teleport within the cell (moveto, setpos) keeps them
-// all: respawned, they would lose their state. Walking and riding are no teleport. Runs here, not
-// in the engine's event: the engine sends that mid-teleport with its cell locks held.
+// The player travelled (PlayerCharacter::ConsumeTeleported): drops the copies left behind and tells the host,
+// which sends what is here. Runs here, not in the engine's event, which holds cell locks (player-travel.md).
 void CharacterService::RunArrivals() noexcept
 {
     if (!m_transport.IsOnline())
@@ -1645,6 +1544,71 @@ void CharacterService::RunArrivals() noexcept
     request.Data = cState.Data;
     m_transport.Send(request);
     spdlog::info("Arrived in cell {:X} (worldspace {:X}): copies dropped, the host sends what is here", cCellId, cWorldSpaceId);
+}
+
+// A copy belongs where its owner says it is. One whose owner is around us (our cell; outdoors our worldspace,
+// within the loaded grid) but which is in another cell or has no 3D is moved there: a spawn placed it before
+// its owner arrived, or a move the engine dropped. Each copy is moved at most every 2 s, the time 3D takes.
+void CharacterService::RunPresence() noexcept
+{
+    constexpr auto cRetry = 2s;
+    const uint32_t cPlayerCellId = m_playerBridge.GetPlayerParentCellFormId();
+    if (!m_transport.IsOnline() || !cPlayerCellId)
+        return;
+    const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
+    float x, y, z;
+    m_playerBridge.GetPlayerPosition(x, y, z);
+    const auto cPlayerCoords = GridCellCoords::CalculateGridCellCoords(x, y);
+    const auto cNow = std::chrono::steady_clock::now();
+    auto& modSystem = m_world.GetModSystem();
+
+    Vector<std::pair<entt::entity, uint32_t>> gone;
+    auto view = m_world.view<RemoteComponent, FormIdComponent, InterpolationComponent, OwnerPlaceComponent>();
+    for (const auto entity : view)
+    {
+        auto& place = view.get<OwnerPlaceComponent>(entity);
+        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
+        if (cNow - place.LastMove < cRetry)
+            continue;
+
+        const auto& cPosition = view.get<InterpolationComponent>(entity).Position;
+        bool ownerHere = false, copyHere = false;
+        if (place.WorldSpaceId)
+        {
+            const auto cOwnerCoords = GridCellCoords::CalculateGridCellCoords(cPosition.x, cPosition.y);
+            ownerHere = cPlayerWorldSpaceId && modSystem.GetGameId(place.WorldSpaceId) == cPlayerWorldSpaceId &&
+                        GridCellCoords::IsCellInGridCell(cOwnerCoords, cPlayerCoords, false);
+            copyHere = m_actorBridge.GetActorWorldSpaceFormId(cFormId) == cPlayerWorldSpaceId;
+        }
+        else
+        {
+            ownerHere = modSystem.GetGameId(place.CellId) == cPlayerCellId;
+            copyHere = m_actorBridge.GetActorParentCellFormId(cFormId) == cPlayerCellId;
+        }
+        if (!ownerHere)
+            continue;
+        if (!m_actorBridge.ActorExists(cFormId))
+        {
+            // The engine deleted it (a temporary reference left in a cell it unloaded): spawned again.
+            gone.emplace_back(entity, view.get<RemoteComponent>(entity).Id);
+            continue;
+        }
+        if (copyHere && m_actorBridge.ActorHas3D(cFormId))
+            continue;
+
+        place.LastMove = cNow;
+        Vector3_NetQuantize position;
+        position = cPosition;
+        spdlog::info("Copy {:X} is not where its owner is (cell {:X}, worldspace {:X}): moved there", cFormId, place.CellId.BaseId,
+                     place.WorldSpaceId.BaseId);
+        MoveActor(cFormId, place.WorldSpaceId, place.CellId, position);
+    }
+
+    for (const auto& [cEntity, cServerId] : gone)
+    {
+        spdlog::info("Copy of {:X} is gone where its owner is: spawned again", cServerId);
+        RespawnCopy(cEntity, cServerId);
+    }
 }
 
 // 0 for the host; the others by player id, the same on every game.

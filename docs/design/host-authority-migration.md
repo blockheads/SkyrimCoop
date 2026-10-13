@@ -247,6 +247,9 @@ Still on the server, reading positions that have been stale since phase 2: telep
   the host, `HostCharacters` sends it everyone with the host and them it. A player still on the way
   gets nothing until the host is there. The tether itself (pulling a player along, travel requests)
   is not built: a player that leaves on its own is only logged.
+  Every kind of travel sends the event (doors, map and carriage fast travel, scripted moves, `coc`:
+  all end in Address Library ID 40438, `docs/re/systems/player-travel.md`); scenarios
+  `party-uses-door`, `party-fast-travels`, `party-changes-cells`, `teleport-keeps-copies`.
   Since 2026-10-13 the `EnterCellRequest` also carries the player's inventory, values and hands, so a
   copy spawned from the host's record is the player as it arrived (it carried the join-time
   inventory before: the copy held the wrong spell until the equipment reconcile).
@@ -257,6 +260,17 @@ Still on the server, reading positions that have been stale since phase 2: telep
   must be on the cell's navmesh (`TESObjectCELL::NavmeshFloorAt`, a point inside a triangle within
   60 units of its height), so nobody lands in a wall; with no floor the player stays (QASmoke's test
   navmesh does not cover its `coc` marker). Scenario `party-spreads-on-arrival` (the inn).
+- Copies converge on their owner (2026-10-13): the owner's movement says where it is every 100 ms (cell,
+  worldspace, position), and each game checks its copy against that (`CharacterService::RunPresence`).
+  A copy whose owner is around this game's player (the same cell; outdoors the same worldspace, within
+  the loaded grid) but which is in another cell or has no 3D is moved there, at most every 2 s; one the
+  engine deleted is dropped and asked for again (`RequestRespawn` from a non-owner, which the host answers
+  with a fresh spawn). A spawn for a copy a game already has refreshes it instead of being refused
+  (`RefreshCopy`). Events stay the fast path; this makes a lost or refused one recoverable. Found by
+  `party-fast-travels`: outdoors the host counts a player with it by worldspace, so a player still far off
+  got a copy the engine deleted, and its real arrival spawn was refused. Other state that only arrives as
+  events (dead or alive, inventory beyond equipment, the host's roster of characters) gets the same
+  treatment when a scenario shows it drift, not before.
 - Quests: the host's quest log is the authority, and stage changes are sent to peers.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter.
@@ -280,9 +294,8 @@ Still on the server, reading positions that have been stale since phase 2: telep
 
 - **Copy pose after a teleport.** Fixed 2026-10-12: copies start in their owner's graph state
   (`docs/re/systems/actor-ai-and-copies.md`).
-- **Arrivals through doors and fast travel.** `PositionPlayerEvent` is validated for `coc` only
-  (phases 0, 3, 4 per teleport). If a door or fast travel does not send it, hook the player's move
-  to its queued location (Address Library ID 40438), where all three end.
+- **Arrivals through doors and fast travel.** Done 2026-10-13: 40438 sends `PositionPlayerEvent` for
+  every travel (`docs/re/systems/player-travel.md`).
 - **Lock checker blames our hook for the engine's own inversion.** A `coc` run from our console
   hook is tagged "[ours]" (cell unload `ExtraDataList` lock against Havok's world lock); it is
   timing-dependent and failed `party-changes-cells` once. The checker should not count a console

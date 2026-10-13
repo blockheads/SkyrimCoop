@@ -20,5 +20,6 @@
 #include <Components/PlayerComponent.h>
 #include <Components/CombatComponent.h>
 #include <Components/SpawnGraphStateComponent.h>
+#include <Components/OwnerPlaceComponent.h>
 
 #undef TP_INTERNAL_COMPONENTS_GUARD

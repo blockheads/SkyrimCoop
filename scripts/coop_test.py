@@ -1588,6 +1588,69 @@ def scenario_party_spreads_on_arrival():
         both_go(HOME_CELL)
 
 
+
+# Every way a player travels ends in one engine call that sends PositionPlayerEvent (docs/re/systems/player-travel.md):
+# doors, map and carriage fast travel, scripted moves, coc. These cover what differs after it.
+INN_DOOR_INSIDE, INN_DOOR_OUTSIDE = 0x13419, 0x13424   # the Sleeping Giant Inn's load doors (Skyrim.esm)
+
+
+def travel(instance, how, cell_before):
+    """One player travels (`how` runs it) and arrives: its game is in another cell and takes input again."""
+    how()
+    wait_for(f"[{instance or 'host'}] arrived somewhere new",
+             lambda: player_cell(instance) not in (None, cell_before), 60)
+    wait_for(f"[{instance or 'host'}] the arrival's fade is over", lambda: takes_input(instance), 15)
+
+
+def players_together(where):
+    """Both games show the other player, with 3D, in the same cell (a copy left behind would not count)."""
+    def check():
+        cells = {player_cell(n) for n in ("", "client")}
+        return len(cells) == 1 and all(remote_player(actors_on(n)) for n in ("", "client"))
+    wait_for(f"{where}: both in one cell, each game shows the other player", check, 30)
+
+
+def scenario_party_uses_door():
+    """The party walks out of the inn through its door, one after the other (the host first), and back in
+    (the client first, ahead of the host). Each time both games end up showing the other player, and
+    outside the client shows the host's NPCs."""
+    try:
+        both_go(INN)
+        travel("", lambda: activate_on("", INN_DOOR_INSIDE), player_cell(""))
+        travel("client", lambda: activate_on("client", INN_DOOR_INSIDE), player_cell("client"))
+        players_together("outside the inn")
+        wait_on("client", "shows the host's NPCs outside", lambda actors: remote_npcs(actors), 30)
+        travel("client", lambda: activate_on("client", INN_DOOR_OUTSIDE), player_cell("client"))
+        travel("", lambda: activate_on("", INN_DOOR_OUTSIDE), player_cell(""))
+        players_together("back in the inn")
+        hold()
+    finally:
+        both_go(HOME_CELL)
+
+
+def scenario_party_fast_travels():
+    """The party fast travels from the river to Riverwood, the host first (the client still at the river,
+    in the same worldspace), then the client. The trip passes time on the host and the client keeps the
+    host's time; once both are there, each game shows the other player. Fast travel here is the
+    console's FastTravel: it queues the same move, with the marker, as the map's."""
+    def hour(instance):
+        return game_state(instance).get("time", {}).get("hour")
+    try:
+        both_go("river", RIVER_CELL)
+        before = hour("")
+        travel("", lambda: console_on("", f"fasttravel {INN_DOOR_OUTSIDE:X}"), player_cell(""))
+        passed = (hour("") - before) % 24
+        if passed < 0.5:
+            raise TestFailure(f"the host's trip passed {passed:.2f} h: fast travel passes time")
+        wait_for("[client] keeps the host's time", lambda: close(hour("client"), hour(""), 0.1), 10)
+        travel("client", lambda: console_on("client", f"fasttravel {INN_DOOR_OUTSIDE:X}"), player_cell("client"))
+        players_together("in Riverwood")
+        if not close(hour("client"), hour(""), 0.1):
+            raise TestFailure(f"after its own trip the client's hour is {hour('client'):.2f}, the host's {hour(''):.2f}")
+        hold()
+    finally:
+        both_go(HOME_CELL)
+
 # --- Inventory ------------------------------------------------------------------------------
 
 def equip_roundtrip(actor_instance, ref, observer, observed, label):
@@ -2450,6 +2513,8 @@ SCENARIOS = {
     "teleport-keeps-copies": scenario_teleport_keeps_copies,
     "party-changes-cells": scenario_party_changes_cells,
     "party-spreads-on-arrival": scenario_party_spreads_on_arrival,
+    "party-uses-door": scenario_party_uses_door,
+    "party-fast-travels": scenario_party_fast_travels,
     # inventory
     "equip-host-player": scenario_equip_host_player,
     "equip-client-player": scenario_equip_client_player,
@@ -2513,6 +2578,8 @@ TAGS = {
     "teleport-keeps-copies": {'spawn', 'movement', 'cells'},
     "party-changes-cells": {'spawn', 'cells'},
     "party-spreads-on-arrival": {'cells'},
+    "party-uses-door": {'spawn', 'cells', 'objects'},
+    "party-fast-travels": {'spawn', 'cells', 'world'},
     "equip-host-player": {'inventory'},
     "equip-client-player": {'inventory'},
     "equip-host-npc": {'inventory'},

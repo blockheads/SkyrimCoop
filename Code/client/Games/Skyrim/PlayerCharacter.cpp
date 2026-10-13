@@ -246,12 +246,8 @@ void TP_MAKE_THISCALL(HookRemoveWaypoint, PlayerCharacter)
 
 namespace
 {
-// The player's own "related to cell transitions" event (CommonLibSSE PositionPlayerEvent; skymp's
-// "positionPlayer"): the engine sends its phases as it repositions the player.
-//
-// EXPERIMENTAL: validated for coc only. Opening a door and fast travel are not checked yet; if
-// they do not send it, we need a more generic hook (the player's move to its queued location,
-// Address Library ID 40438, is where coc, doors and fast travel all end).
+// The player's PositionPlayerEvent (CommonLibSSE; skymp's "positionPlayer"), sent by 40438 for every
+// travel: doors, fast travel, MoveTo, coc (docs/re/systems/player-travel.md).
 struct PositionPlayerEvent
 {
     enum Type : uint32_t

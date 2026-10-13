@@ -209,14 +209,14 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
     return true;
 }
 
-std::vector<uint32_t> GetCellObjectIds() noexcept
+std::vector<CellObject> GetCellObjects() noexcept
 {
-    std::vector<uint32_t> ids;
+    std::vector<CellObject> objects;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCell() : nullptr)
+    if (TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCellEx() : nullptr)
         for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture}))
-            ids.push_back(pRef->formID);
-    return ids;
+            objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}});
+    return objects;
 }
 
 void UnequipAllUnsynced(uint32_t aFormId) noexcept

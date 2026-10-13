@@ -32,9 +32,10 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Time (`HostClock`; set-time from any player) | done (`4e0efb0a`) |
 | Weather (`HostWeather`) | done (`50397fa0`) |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
-| Cell arrivals (party tether: copies dropped and resent on teleport) | done for `coc` (`72b90888`); doors and fast travel unverified; the arrival now refreshes the host's record of the player (inventory, values, hands; uncommitted) |
-| Arriving together: players step aside onto navmesh floor by session slot | done (uncommitted), `party-spreads-on-arrival` |
-| Shared XP (upstream's party XP, to everyone) | works, `shared-xp` (uncommitted scenario) |
+| Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios uncommitted); the arrival refreshes the host's record of the player (inventory, values, hands) |
+| Arriving together: players step aside onto navmesh floor by session slot | done (`83178416`), `party-spreads-on-arrival` |
+| Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (uncommitted), `party-fast-travels` |
+| Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
 | Objects: activation, locks, script animations | done as bridge relays (`31abfd23`, `550ece84`); object ids still from the server (`AssignObjectsRequest`) |
 | Quests | not started; quest sync off (`cSyncQuests`) until it has a design |
 | Waypoints, chat, player dialogue, overlay health | still handled by the server's `MapService`/`OverlayService` |
@@ -58,18 +59,18 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 |---|---|---|
 | Session, join, leave, kick, host rejoin | works | `session-roster`, `late-join-client`, `host-rejoins`, `host-kicks-client` |
 | Movement (players, host NPCs) | works | `steady-state`, `move-host-npc` |
-| Cell changes (`coc`) | works | `teleport-keeps-copies`, `party-changes-cells` |
+| Cell changes (`coc`, doors, fast travel) | works | `teleport-keeps-copies`, `party-changes-cells`, `party-uses-door`, `party-fast-travels` |
 | Equipment and hands | works | `equip-*`, `repair-equipment-drift`, `hands-survive-reload-*` |
 | Draw / sheathe | works | `draw-*`, `quick-sheathe-*` |
-| Sneak, swimming, diving | works | `sneak-*`, `dive-*` (uncommitted) |
-| Casting | works: copies replay in step with their graph and cast for free (uncommitted) | `cast-*`, `input-mouse-cast`, `firebolt-*`, `flames-*` |
+| Sneak, swimming, diving | works | `sneak-*`, `dive-*` |
+| Casting | works: copies replay in step with their graph and cast for free | `cast-*`, `input-mouse-cast`, `firebolt-*`, `flames-*` |
 | Health | works | `health-*` |
-| NPC death and removal | works: a copy dies with its owner's death action (uncommitted) | `remove-host-npc`, `death-host-npc` |
+| NPC death and removal | works: a copy dies with its owner's death action | `remove-host-npc`, `death-host-npc` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
-| Furniture (live, while the copy is loaded) | works | `furniture-*` (uncommitted) |
-| Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` (uncommitted subtitle check) |
+| Furniture (live, while the copy is loaded) | works | `furniture-*` |
+| Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
 | Time, weather | works | `host-time-reaches-client`, `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
@@ -86,7 +87,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   visuals (`1dd5628c`).
 - Done 2026-10-12 (`719c2409`..`46bbad21`): the AI update skipped for copies with the body upkeep kept,
   the do-nothing package, the owner's graph state loaded at spawn, sneak/dive/subtitle scenarios.
-- Uncommitted (2026-10-13, `docs/re/systems/actor-ai-and-copies.md`):
+- Done 2026-10-13 (`f3716725`..`e145b097`, `docs/re/systems/actor-ai-and-copies.md`):
   - Replay in step with the copy's graph update (`HookUpdateAnimationGraphs`, 20123): fixed the magic
     chain (refused `MRh_SpellAimedStart`, the copy left on `Magic_Equip`).
   - Copies cast for free (`kSkipCheckCast` in `CheckCast` and the caster's `Update`): no own magicka spent.
@@ -98,7 +99,10 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
-- Last full run (2026-10-13, uncommitted build): **47 of 47**. Earlier the same day: 42 of 43, then
+- Travel and presence (2026-10-13, uncommitted): `party-uses-door` and `party-fast-travels` added; those two,
+  the session scenarios, `teleport-keeps-copies` and `party-changes-cells` pass (8 of 8). A full run was
+  stopped after 26 (25 pass; the failure, `late-join-client`, is fixed: see Tests and harness).
+- Last full run (2026-10-13, `5cdf49d2` build): **47 of 47**. Earlier the same day: 42 of 43, then
   45 of 47 with the new scenarios (the two dives, fixed: they had passed only because the arrival fade
   swallowed the swim input). The morning's baseline was 37 of 43.
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
@@ -135,10 +139,18 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **Shared XP** goes to the receiver's last used combat skill only; a player who has not used one since
   loading gets nothing (upstream's rule). Decide whether to keep it.
 - **Arrival spacing** needs navmesh under the marker: QASmoke's `coc` marker has none (players stay
-  stacked there). Doors and fast travel not checked yet (they arrive through the same `RunArrivals`
-  only if they fire the teleport event, see Migration).
+  stacked there). Doors and fast travel arrive through the same `RunArrivals`; no scenario asserts the
+  spacing there yet.
 - **`TESObjectREFR::GetParentCell` (our virtual)** returned null in an exterior after `coc` while the
-  field was set: the vtable slot may be wrong; the harness's `GetCellObjectIds` still uses it.
+  field was set: the vtable slot may be wrong. Nothing of ours calls it any more (the harness's object
+  list reads the field, `GetParentCellEx`, since 2026-10-13).
+- **Copies converge on their owner for presence only.** State that still arrives only as events (dead or
+  alive, inventory beyond equipment, the host's roster of characters, object state) stays wrong if one is
+  lost. Add each to the same check when a scenario shows it drift
+  (`docs/design/host-authority-migration.md`, "Copies converge on their owner").
+- **Outdoors the host counts a player "with" it by worldspace:** a player still far off (same worldspace)
+  gets the others' spawns there, which the engine deletes; presence recovers it once they meet (an extra
+  spawn round trip). Tighten to the loaded area if it costs anything.
 - **Graph outputs still synced in creature descriptors:** `NotCasting` in Vampire Lord (the same output
   that ended the player's casts), `currentDefaultState` in steam, falmer, troll, draugr and werewolf, and
   per creature the `IsAttacking`/`bAttached` kind. No harm traced, no scenario covers them. Fix as data
@@ -178,8 +190,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Migration
 
-- **Doors and fast travel:** do they send `PositionPlayerEvent`? Only `coc` is checked. If not, hook
-  ID 40438, where all three end.
 - **Tether:** pulling a player along and travel requests are not built.
 - **Teleport command** still reads the server's stale positions.
 - **Object ids** still come from the server (`AssignObjectsRequest`).
@@ -187,8 +197,16 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
-- `party-panel` and `late-join-client` passed in all of today's full runs (order dependency not seen
-  since; `cast-host-player`'s was the arrival fade swallowing Ready Weapon, fixed in the harness).
+- `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other
+  players' copies but left their entities with a `PlayerComponent`, and player ids repeat across sessions,
+  so the panel could pick the dead one (order-dependent, seen before). Fixed 2026-10-13: a disconnect drops
+  every copy (`DropCopies`); the panel check passed in all 4 runs since. Its other failure, Lydia's `JumpLand` missed after the rejoin,
+  is the interpolation delay entry above.
+- A stuck `LoadWaitSpinner` once kept the host from taking input (2026-10-13, a fresh game): the first
+  `cow` to the river took over `both_go`'s 10 s fade wait on the client, and the cleanup `coc` ran while
+  the host's spinner was up; it stayed through later cell changes until a restart. Not reproduced.
+- The map's fast travel UI (open the map, pick a marker, confirm) is not driven; `party-fast-travels` uses
+  the console's `FastTravel`, which queues the same move (`docs/re/systems/player-travel.md`).
 - The `duo` harness process once segfaulted on exit after a pass.
 - A harness command with a wrongly typed field (`place` with a hex string target) throws in `nlohmann::json`
   and takes the game down (`CommandsStaging.cpp` `Place`, 2026-10-13). Commands should read fields without

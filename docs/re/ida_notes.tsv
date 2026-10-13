@@ -105,3 +105,5 @@ id	rva	name	comment
 63867	0xbc3f20	hkbNodeIterator::Next	Next node, null at the end; queues its children (getMaxNumChildren +0x40, getChildren +0x48).
 63895	0xbc6720	hkbNodeIterator::FreeLists	Frees the iterator's node lists; after 68109 on +0x40, as 63948 does.
 68109	0xcc3e40	ScrapArray::Free	Frees a scrap-heap array (the iterator's buckets at +0x40).
+40438	0x7304f0	PlayerCharacter::ProcessQueuedTravel	Carries out the move queued by 40442, once a frame from ProcessEvents_Enter; sends PositionPlayerEvent (+0x388). Every door, fast travel, MoveTo and coc ends here. See docs/re/systems/player-travel.md
+40442	0x7312b0	PlayerCharacter::QueueTravel	Copies a PLAYER_TARGET_LOC into queuedTargetLoc (+0x648 on 1.6.1170); called by doors, the map, Game.FastTravel, MoveTo_Impl, coc. See docs/re/systems/player-travel.md
