@@ -1,8 +1,9 @@
 # Progress
 
 Where SkyrimCoop stands. Update it when a phase, system or known failure changes.
-Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`, later ideas in
-`docs/ideas.md`, engine findings in `docs/re/`.
+Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`, joining a session
+(build, game and mod checks, host-stored characters, arrival) in `docs/design/join-flow.md`, later
+ideas in `docs/ideas.md`, engine findings in `docs/re/`.
 
 **Goal:** two to four friends play Skyrim together, the host's game is the only authority (direct
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
@@ -50,8 +51,8 @@ Removed one section at a time, each with its bridge replacement and tests first
 
 1. Player levels: done.
 2. String cache: dropped, not moved (uncommitted).
-3. Session: `AuthenticationRequest`, connections, version and mod-list check, player list
-   (`NotifyPlayerJoined`/`Left`), kick.
+3. Session, in steps: 3a auth gate, 3b player list, 3c player records and kick, 3d mod id table
+   (the mod check itself is for later).
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
    server console commands, recording.
 
@@ -237,11 +238,25 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ## Product pieces not started
 
+The join flow these build toward is in `docs/design/join-flow.md` (agreed 2026-10-13); its "Build
+order" says what comes during the migration and what after.
+
 - Joining through a Steam invite (the core value: host clicks host, a friend joins). Started work is
   shelved in two git stashes: `Code/client/Steam/` lobby and session (2026-10-11), and a Steam
   probe and launcher with tests (2026-10-10). Not built or tested in the current tree.
-- In-game screens besides the party panel: chat, player list, connect, settings, notifications.
-- Mod list check on by default in host mode.
+- Identical installs: the plugin list and load order checked against the host's game (section 3a),
+  then a manifest of every file (`join-flow.md`, stage 3).
+- The mod syncer: on a mismatch, download the host's mods through Wabbajack or similar and restart.
+- Auto-update of our mod to the host's build.
+- Host-stored characters: the host keeps every player's character; new players make one, known
+  players load in as theirs (needs the world-state sync, `docs/design/world-state-sync.md`).
+- Arrival: a joining player loads in where the host is (the tether).
+- Session settings from the host: its real difficulty (forced to Master today), a settings screen.
+- In-game screens besides the party panel: player list with kick, connect, settings, notifications.
+- The client (launcher): invites and join links, updates, install check and mod sync, starting the
+  game; the gate stays in the game. Steam research shelved in `git stash` ("steam/launcher work");
+  next: the two-account test (`join-flow.md`, "The client"). Side note: AOL-style buddy list, global
+  chat and per-session chat rooms.
 
 ## Infrastructure (done)
 

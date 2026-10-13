@@ -23,8 +23,8 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 - **Mod patches.** Scripts that check `== Game.GetPlayer()` patched to `SkyrimTogetherUtils.IsPlayer`;
   maybe one Papyrus function that forwards a mod event to the other games, so a patch can sync its own
   state. Notes: `docs/design/world-state-sync.md`, `docs/design/copy-contract.md` (deliberate exceptions).
-- **Mod list check on by default in host mode** (`ModPolicy:bEnableModCheck`), so both players run the
-  same mods.
+- **Joining (identical installs, mod syncer, auto-update, host-stored characters, arrival at the
+  host):** the agreed flow is `docs/design/join-flow.md`.
 - **Havok sync.** Physics objects and ragdolls from the host. Should fix failures where the games'
   physics disagree.
 - **Animation mods on copies (parked).** Graph variables synced by name from the engine's graph state,

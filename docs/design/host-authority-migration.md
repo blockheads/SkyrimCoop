@@ -338,8 +338,21 @@ that needs the standalone server goes with the section that breaks it.
    server's `StringCacheService`, the join snapshot and the player's progress in it. Packet sizes
    were not measured; that belongs with stress tests. Bridge case: names arrive as sent with nothing
    shared first (`character_tests.cpp`); the action, spawn, object and session scenarios pass (39 of 39).
-3. **Session:** `HostSession` takes auth (version, player count, mod check), the player list and kick;
-   the player records move there.
+3. **Session**, split in steps, each with bridge cases and the session scenarios before the server's
+   piece goes (`HostSession`):
+   - **3a, auth gate:** the bridge answers `AuthenticationRequest` as the stages of
+     `docs/design/join-flow.md`: our build, the game version (new), the plugin list and load order
+     against the host's game (new), the host's real settings, the player cap; player records and mod
+     ids stay on the server behind temporary calls.
+   - **3b, player list:** `NotifyPlayerJoined` both ways, `NotifyPlayerLeft`, the host flag, levels.
+   - **3c, player records:** ids, names, levels, characters, the host's connection and kick move from
+     `PlayerManager` to `HostSession`.
+   - **3d, mod id table:** session-wide mod ids from each player's mod list (every `GameId` on the wire
+     uses them). First a note on how the client maps them (`ModSystem`, `docs/re/systems/`), then cases:
+     same mod same id for everyone, light and regular mods apart, different load orders agree, a mod
+     only one player has shifts no one else's ids, a rejoin keeps its ids.
+   - The mod check (refusing mismatched mod lists) is a feature for later (`docs/ideas.md`); its
+     disabled code, which reads a load order file instead of the host's game, is dropped in 3a.
 4. **The listener (phase 5).**
 
 Quests stay on the server until they have a design.

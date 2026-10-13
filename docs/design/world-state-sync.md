@@ -21,7 +21,9 @@ machinery for the host's world:
   change.
 
 One code path. The full sync is the dynamic sync run against an empty client. The rule is **the world
-comes from the host; each player's character stays their own.**
+comes from the host; each player's character stays their own.** (Replaced 2026-10-13: the host stores
+every player's character too, `docs/design/join-flow.md` stage 5; this design then also has to load a
+player who has no save of their own.)
 
 ## What a save contains
 
