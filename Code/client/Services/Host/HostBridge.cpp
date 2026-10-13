@@ -204,7 +204,10 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     On(*this, &HostBridge::OnChatMessage);
 
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
-    m_server.SetLeaveHandler([this](ConnectionId_t aPlayer) { m_characters.OnPlayerLeft(aPlayer); });
+    m_server.SetLeaveHandler([this](ConnectionId_t aPlayer) {
+        m_session.OnPlayerLeft(aPlayer);
+        m_characters.OnPlayerLeft(aPlayer);
+    });
 }
 
 void HostBridge::Update(uint64_t aTick) noexcept

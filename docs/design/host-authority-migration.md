@@ -388,7 +388,13 @@ that needs the standalone server goes with the section that breaks it.
        got back on leaving. The co-op options (greetings, PvP, death system, homes, calendar) keep
        upstream's defaults until a settings screen. Bridge cases and `difficulty-follows-host`
        (through the harness's `difficulty` command, which sets it as the settings menu does).
-   - **3b, player list:** `NotifyPlayerJoined` both ways, `NotifyPlayerLeft`, the host flag, levels.
+   - **3b, player list, done:** `HostSession` announces a newcomer both ways (it learns everyone
+     here, with the host marked; they learn it) and, through the bridge's leave handler, tells the
+     others a player left (`NotifyPlayerLeft`, also after a timeout). Deleted from the server:
+     `AnnouncePlayer` and its own `NotifyPlayerLeft`. The joined message lost its cell (only the dead
+     CEF overlay read it, for a cell name). The records stay on the server behind accessors
+     (`PlayerIdOf`, `PlayerNameOf`, `PlayerLevelOf`) until 3c. Bridge cases; on the real games the
+     `session` scenarios, and `host-kicks-client` fails without the leave notice.
    - **3c, player records:** ids, names, levels, characters, the host's connection and kick move from
      `PlayerManager` to `HostSession`.
    - **3d, mod id table:** session-wide mod ids from each player's mod list (every `GameId` on the wire

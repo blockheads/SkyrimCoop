@@ -66,26 +66,6 @@ private:
     RenderSystemD3D11* m_pRenderSystem;
 };
 
-String GetCellName(const GameId& aWorldSpaceId, const GameId& aCellId, IFormBridge& aFormBridge) noexcept
-{
-    auto& modSystem = World::Get().GetModSystem();
-
-    if (aWorldSpaceId)
-    {
-        const uint32_t worldSpaceId = modSystem.GetGameId(aWorldSpaceId);
-        if (aFormBridge.FormExists(worldSpaceId))
-            return aFormBridge.GetFormName(worldSpaceId).c_str();
-    }
-    else
-    {
-        const uint32_t cellId = modSystem.GetGameId(aCellId);
-        if (aFormBridge.FormExists(cellId))
-            return aFormBridge.GetFormName(cellId).c_str();
-    }
-
-    return "UNKNOWN";
-}
-
 float CalculateHealthPercentage(uint32_t aActorFormId, IActorBridge& aActorBridge) noexcept
 {
     const float maxHealth = aActorBridge.GetActorPermanentValue(aActorFormId, kHealth);
@@ -296,8 +276,7 @@ void OverlayService::OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcep
     pArguments->SetString(1, acMessage.Username.c_str());
     pArguments->SetInt(2, acMessage.Level);
 
-    String cellName = GetCellName(acMessage.WorldSpaceId, acMessage.CellId, m_formBridge);
-    pArguments->SetString(3, cellName.c_str());
+    pArguments->SetString(3, "");
     pArguments->SetBool(4, acMessage.IsHost);
 
     m_pOverlay->ExecuteAsync("playerConnected", pArguments);

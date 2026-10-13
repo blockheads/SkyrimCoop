@@ -18,12 +18,10 @@ struct NotifyPlayerJoined final : ServerMessage
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyPlayerJoined& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username && WorldSpaceId == acRhs.WorldSpaceId && CellId == acRhs.CellId && Level == acRhs.Level && IsHost == acRhs.IsHost; }
+    bool operator==(const NotifyPlayerJoined& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username && Level == acRhs.Level && IsHost == acRhs.IsHost; }
 
     uint32_t PlayerId{};
     String Username{};
-    GameId WorldSpaceId{};
-    GameId CellId{};
     uint16_t Level{};
     // The session's host (the authority, who alone may kick).
     bool IsHost{};

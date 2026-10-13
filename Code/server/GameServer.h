@@ -75,12 +75,11 @@ struct GameServer final : TiltedPhoques::Server
     // The player's name as the session shows it (empty: no such player).
     [[nodiscard]] String PlayerNameOf(ConnectionId_t aConnectionId) const noexcept;
     // The player's character level, as the player list shows it.
+    [[nodiscard]] uint16_t PlayerLevelOf(ConnectionId_t aConnectionId) const noexcept;
     void SetPlayerLevel(ConnectionId_t aConnectionId, uint16_t aLevel) noexcept;
     // For the bridge's join (HostSession) until the records and mod ids move to it: a new player's
     // record and its mods' session ids (into aSessionMods); returns its player id.
     uint32_t AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept;
-    // The newcomer learns the session's players, and they learn it.
-    void AnnouncePlayer(ConnectionId_t aConnectionId, GameId aWorldSpaceId, GameId aCellId) noexcept;
     // Ends a connection that is not a player (a refused join).
     void Disconnect(ConnectionId_t aConnectionId) noexcept;
     // Disconnects the player (never the host: the host is the session).

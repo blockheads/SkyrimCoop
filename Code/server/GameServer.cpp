@@ -12,8 +12,6 @@
 #include <AdminMessages/ClientAdminMessageFactory.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/ClientMessageFactory.h>
-#include <Messages/NotifyPlayerJoined.h>
-#include <Messages/NotifyPlayerLeft.h>
 #include <console/ConsoleRegistry.h>
 #include <resources/ResourceCollection.h>
 
@@ -406,11 +404,6 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
 
         m_pWorld->GetDispatcher().trigger(PlayerLeaveEvent(pPlayer));
 
-        NotifyPlayerLeft notify{};
-        notify.PlayerId = pPlayer->GetId();
-        notify.Username = pPlayer->GetUsername();
-        SendToPlayers(notify);
-
         if (m_leaveHandler)
             m_leaveHandler(aConnectionId);
 
@@ -455,6 +448,12 @@ uint32_t GameServer::PlayerIdOf(ConnectionId_t aConnectionId) const noexcept
 {
     const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
     return pPlayer ? pPlayer->GetId() : 0;
+}
+
+uint16_t GameServer::PlayerLevelOf(ConnectionId_t aConnectionId) const noexcept
+{
+    const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
+    return pPlayer ? pPlayer->GetLevel() : 0;
 }
 
 String GameServer::PlayerNameOf(ConnectionId_t aConnectionId) const noexcept
@@ -657,37 +656,6 @@ uint32_t GameServer::AddPlayer(ConnectionId_t aConnectionId, const Authenticatio
     spdlog::info("New player '{}' [{:x}] connected with {} mods\n\t: {}", pPlayer->GetUsername().c_str(), aConnectionId,
                  acRequest.UserMods.ModList.size(), PrettyPrintModList(acRequest.UserMods.ModList).c_str());
     return pPlayer->GetId();
-}
-
-void GameServer::AnnouncePlayer(ConnectionId_t aConnectionId, GameId aWorldSpaceId, GameId aCellId) noexcept
-{
-    Player* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
-    if (!pPlayer)
-        return;
-
-    // The session's players: the newcomer learns everyone already here, and everyone else
-    // learns the newcomer.
-    const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
-    const auto joined = [pHost](const Player& acPlayer, GameId aWorldSpaceId, GameId aCellId)
-    {
-        NotifyPlayerJoined notify{};
-        notify.PlayerId = acPlayer.GetId();
-        notify.Username = acPlayer.GetUsername();
-        notify.WorldSpaceId = aWorldSpaceId;
-        notify.CellId = aCellId;
-        notify.Level = acPlayer.GetLevel();
-        notify.IsHost = &acPlayer == pHost;
-        return notify;
-    };
-    for (auto* pOtherPlayer : m_pWorld->GetPlayerManager())
-    {
-        if (pOtherPlayer == pPlayer)
-            continue;
-
-        const auto& cellComponent = pOtherPlayer->GetCellComponent();
-        Send(pPlayer->GetConnectionId(), joined(*pOtherPlayer, cellComponent.WorldSpaceId, cellComponent.Cell));
-    }
-    SendToPlayers(joined(*pPlayer, aWorldSpaceId, aCellId), pPlayer);
 }
 
 void GameServer::Disconnect(ConnectionId_t aConnectionId) noexcept

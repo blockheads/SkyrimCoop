@@ -9,6 +9,8 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/NotifyPlayerJoined.h>
+#include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
@@ -102,5 +104,34 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
     response.PlayerId = m_server.AddPlayer(aSender, acRequest, response.UserMods);
     response.Settings = Settings();
     m_server.Send(aSender, response);
-    m_server.AnnouncePlayer(aSender, acRequest.WorldSpaceId, acRequest.CellId);
+    Announce(aSender);
+}
+
+void HostSession::Announce(ConnectionId_t aNewcomer) const noexcept
+{
+    const ConnectionId_t cHost = m_server.HostConnection();
+    const auto joined = [&](ConnectionId_t aPlayer) {
+        NotifyPlayerJoined notify;
+        notify.PlayerId = m_server.PlayerIdOf(aPlayer);
+        notify.Username = m_server.PlayerNameOf(aPlayer);
+        notify.Level = m_server.PlayerLevelOf(aPlayer);
+        notify.IsHost = aPlayer == cHost;
+        return notify;
+    };
+    const auto cNewcomer = joined(aNewcomer);
+    for (const ConnectionId_t cPlayer : m_server.PlayerConnections())
+    {
+        if (cPlayer == aNewcomer)
+            continue;
+        m_server.Send(aNewcomer, joined(cPlayer));
+        m_server.Send(cPlayer, cNewcomer);
+    }
+}
+
+void HostSession::OnPlayerLeft(ConnectionId_t aPlayer) const noexcept
+{
+    NotifyPlayerLeft notify;
+    notify.PlayerId = m_server.PlayerIdOf(aPlayer);
+    notify.Username = m_server.PlayerNameOf(aPlayer);
+    m_server.SendToOthers(notify, aPlayer, TiltedPhoques::kReliable);
 }

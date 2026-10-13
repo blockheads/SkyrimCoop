@@ -15,8 +15,9 @@ struct GameServer;
 }
 
 /**
- * @brief Who gets into the session: a joining game's checks, then the session's answer, and the
- * session's settings, which are the host's (docs/design/join-flow.md). Player records and mod ids are still the server's until they move
+ * @brief Who gets into the session: a joining game's checks, then the session's answer; the
+ * session's settings, which are the host's; and the player list every game shows, as players join
+ * and leave (docs/design/join-flow.md). Player records and mod ids are still the server's until they move
  * (docs/design/host-authority-migration.md, "Server sections" 3c and 3d).
  */
 struct HostSession
@@ -38,8 +39,13 @@ struct HostSession
 
     // A game asks to join: accepted as a player, or refused and disconnected (the host's chat says why).
     void OnAuthentication(const AuthenticationRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // A player is leaving (still in the list): the others drop it from theirs.
+    void OnPlayerLeft(ConnectionId_t aPlayer) const noexcept;
 
 private:
+    // The newcomer learns everyone already here, and they learn the newcomer.
+    void Announce(ConnectionId_t aNewcomer) const noexcept;
+
     Server::GameServer& m_server;
     const HostGame& m_game;
     // What the others were last told (none before the first frame).

@@ -3,7 +3,11 @@
 
 #include <Messages/AuthenticationResponse.h>
 #include <Services/Host/JoinRefusal.h>
+#include <Messages/NotifyPlayerLeft.h>
 #include <Structs/LoadOrder.h>
+
+#include <map>
+#include <tuple>
 
 namespace
 {
@@ -258,4 +262,58 @@ TEST_CASE("Settings: the host's difficulty reaches the others when it changes", 
     const auto cResponses = session.SentTo<AuthenticationResponse>(4);
     REQUIRE(cResponses.size() == 1);
     CHECK(cResponses[0]->Settings.Difficulty == 5);
+}
+
+TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, and they learn it", "[Bridge][Session]")
+{
+    Session session;
+    auto& players = session.World().GetPlayerManager();
+    players.GetByConnectionId(kHost)->SetUsername("Dovahkiin");
+    players.GetByConnectionId(kHost)->SetLevel(20);
+    players.GetByConnectionId(kPeer)->SetUsername("Lydia");
+    players.GetByConnectionId(kPeer)->SetLevel(12);
+    session.Receive(kNewcomer, Join("Serana"));
+    const uint32_t cNewcomerId = players.GetByConnectionId(kNewcomer)->GetId();
+
+    // The newcomer: one each for the three already here.
+    std::map<std::string, std::tuple<uint32_t, uint16_t, bool>> known;
+    for (const auto* cpJoined : session.SentTo<NotifyPlayerJoined>(kNewcomer))
+        known[cpJoined->Username.c_str()] = {cpJoined->PlayerId, cpJoined->Level, cpJoined->IsHost};
+    CHECK(known.size() == 3);
+    CHECK(known["Dovahkiin"] == std::tuple<uint32_t, uint16_t, bool>{players.GetByConnectionId(kHost)->GetId(), 20, true});
+    CHECK(known["Lydia"] == std::tuple<uint32_t, uint16_t, bool>{players.GetByConnectionId(kPeer)->GetId(), 12, false});
+
+    // Everyone else: the newcomer, not the host.
+    for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cAnnounced = session.SentTo<NotifyPlayerJoined>(cPlayer);
+        REQUIRE(cAnnounced.size() == 1);
+        CHECK(cAnnounced[0]->PlayerId == cNewcomerId);
+        CHECK(cAnnounced[0]->Username == "Serana");
+        CHECK(cAnnounced[0]->Level == 5);
+        CHECK_FALSE(cAnnounced[0]->IsHost);
+    }
+}
+
+TEST_CASE("Player list: the others drop a player who leaves; a refused game was never in it", "[Bridge][Session]")
+{
+    Session session;
+    session.World().GetPlayerManager().GetByConnectionId(kPeer)->SetUsername("Lydia");
+    const uint32_t cPeerId = session.World().GetPlayerManager().GetByConnectionId(kPeer)->GetId();
+    session.Leave(kPeer);
+    for (const auto cPlayer : {kHost, kOtherPeer})
+    {
+        const auto cLeft = session.SentTo<NotifyPlayerLeft>(cPlayer);
+        REQUIRE(cLeft.size() == 1);
+        CHECK(cLeft[0]->PlayerId == cPeerId);
+        CHECK(cLeft[0]->Username == "Lydia");
+    }
+    CHECK(session.SentTo<NotifyPlayerLeft>(kPeer).empty());
+
+    session.Outbox.clear();
+    auto join = Join("Intruder");
+    join.Version = "v1.0.0-0-gdeadbeef";
+    session.Receive(kNewcomer, join);
+    session.Leave(kNewcomer);
+    CHECK(session.SentTo<NotifyPlayerLeft>(kHost).empty());
 }

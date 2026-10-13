@@ -289,7 +289,7 @@ Now, during the server migration (section 3, `host-authority-migration.md`, "Ser
 
 1. **3a, the gate:** stages 1, 2, 3 layer 1, the host's real settings; refusals as data (the error
    model: join state and events).
-2. **3b, player list:** joined and left notifications from the bridge (behaviour unchanged).
+2. **3b, player list (done):** joined and left notifications from the bridge (behaviour unchanged).
 3. **3c, player records:** the session record moves to the bridge, keyed and shaped for stage 4.
 4. **3d, mod id table:** moves to the bridge, tests first.
 
