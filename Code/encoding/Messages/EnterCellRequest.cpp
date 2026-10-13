@@ -7,6 +7,7 @@ void EnterCellRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
     Position.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
     Serialization::WriteString(aWriter, GraphState);
+    Data.Serialize(aWriter);
 }
 
 void EnterCellRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -19,4 +20,5 @@ void EnterCellRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) no
     LatestAction = ActionEvent{};
     LatestAction.ApplyDifferential(aReader);
     GraphState = Serialization::ReadString(aReader);
+    Data.Deserialize(aReader);
 }

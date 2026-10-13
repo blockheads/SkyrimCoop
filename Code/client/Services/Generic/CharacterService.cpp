@@ -339,7 +339,8 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
         spdlog::info("Received local actor, form id: {:X}", formIdComponent->Id);
 
         m_world.emplace_or_replace<LocalComponent>(cEntity, acMessage.ServerId);
-        m_world.emplace_or_replace<LocalAnimationComponent>(cEntity);
+        // Its actions since the request are queued already (RequestServerAssignment).
+        m_world.get_or_emplace<LocalAnimationComponent>(cEntity);
 
         m_actorBridge.SetActorRemote(formIdComponent->Id, false);
 
@@ -349,6 +350,7 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
     {
         spdlog::info("Received remote actor, form id: {:X}, isweapondrawn: {}", formIdComponent->Id, acMessage.IsWeaponDrawn);
 
+        m_world.remove<LocalAnimationComponent>(cEntity);
         m_world.emplace_or_replace<RemoteComponent>(cEntity, acMessage.ServerId, formIdComponent->Id);
 
         m_actorBridge.SetActorRemote(formIdComponent->Id, true);
@@ -1184,6 +1186,8 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
     if (m_transport.Send(*message))
     {
         m_world.emplace<WaitingForAssignmentComponent>(aEntity, sCookieSeed);
+        // Its actions from here on follow the graph state just sent; they go out once it has an id.
+        m_world.emplace_or_replace<LocalAnimationComponent>(aEntity);
 
         sCookieSeed++;
     }
@@ -1275,7 +1279,7 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
 
         m_transport.Send(message);
 
-        m_world.remove<WaitingForAssignmentComponent>(aEntity);
+        m_world.remove<WaitingForAssignmentComponent, LocalAnimationComponent>(aEntity);
     }
 }
 
@@ -1628,6 +1632,7 @@ void CharacterService::RunArrivals() noexcept
     const auto cState = ReadLiveState(m_playerBridge.GetPlayerFormId());
     request.LatestAction = cState.LatestAction;
     request.GraphState = cState.GraphState;
+    request.Data = cState.Data;
     m_transport.Send(request);
     spdlog::info("Arrived in cell {:X} (worldspace {:X}): copies dropped, the host sends what is here", cCellId, cWorldSpaceId);
 }

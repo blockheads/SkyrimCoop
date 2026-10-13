@@ -259,6 +259,28 @@ TEST_CASE("Arriving: a peer ahead of the host gets everyone when the host arrive
     CHECK(cToPeer[0]->ServerId == session.Spawns[0].ServerId);
 }
 
+TEST_CASE("Arriving: others spawn a player as it arrives, not as it joined", "[Bridge][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+
+    // The peer changed its equipment since it joined, then both go to Riverwood.
+    session.Receive(kHost, Arrival(0x9732, 0x3C));
+    auto arrival = Arrival(0x9732, 0x3C);
+    Inventory::Entry sword;
+    sword.BaseId = GameId(0, 0x12EB7);
+    sword.Count = 1;
+    sword.ExtraWorn = true;
+    arrival.Data.InitialInventory.Entries.push_back(sword);
+    arrival.Data.IsWeaponDrawn = true;
+    session.Receive(kPeer, arrival);
+
+    const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
+    REQUIRE(cToHost.size() == 1);
+    CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);
+    CHECK(cToHost[0]->IsWeaponDrawn);
+}
+
 TEST_CASE("Player respawn: everyone else respawns its character", "[Bridge][Characters]")
 {
     Session session;

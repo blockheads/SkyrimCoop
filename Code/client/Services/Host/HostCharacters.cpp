@@ -188,6 +188,10 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
             record->Position = acRequest.Position;
             record->LatestAction = acRequest.LatestAction;
             record->GraphState = acRequest.GraphState;
+            record->InventoryContent = acRequest.Data.InitialInventory;
+            record->InitialActorValues = acRequest.Data.InitialActorValues;
+            record->IsDead = acRequest.Data.IsDead;
+            record->IsWeaponDrawn = acRequest.Data.IsWeaponDrawn;
         }
     }
     // Ahead of the host: it gets everyone, and everyone it, when the host arrives here.
