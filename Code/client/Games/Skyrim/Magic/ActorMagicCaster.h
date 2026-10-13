@@ -26,6 +26,12 @@ struct ActorMagicCaster : MagicCaster
     float fCostCharged;
     MagicSystem::CastingSource eCastingSource;
     uint32_t uiFlags;
+
+    // uiFlags: the cast is free and unchecked: CheckCast (34145) passes, Update (34143) spends nothing.
+    // Cleared by FinishCastImpl/InterruptCastImpl (CommonLib Flags::kSkipCheckCast).
+    static constexpr uint32_t kSkipCheckCast = 1u << 1;
 };
 
 SKYRIM_STRUCT_ASSERT(sizeof(ActorMagicCaster) == 0x100);
+static_assert(offsetof(ActorMagicCaster, fCostCharged) == 0xF0);
+static_assert(offsetof(ActorMagicCaster, uiFlags) == 0xF8);

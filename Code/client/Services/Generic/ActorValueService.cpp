@@ -95,7 +95,7 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
 void ActorValueService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     RunSmallHealthUpdates();
-    RunHealthUpdates();
+    RunPoolUpdates();
     RunDeathStateUpdates();
     RunActorValuesUpdates();
 
@@ -140,9 +140,8 @@ void ActorValueService::BroadcastActorValues() noexcept
 
             float newValue = m_actorBridge.GetActorValue(formId, i);
             float oldValue = actorValuesComponent.CurrentActorValues.ActorValuesList[i];
-            // Health, magicka and stamina always go out: copies mirror the owner's values, so a copy
-            // that drifted (its replayed cast spent magicka, and copies never regenerate) is corrected
-            // even while the owner's value is unchanged.
+            // Health, magicka and stamina always go out, so copies converge even while the owner's
+            // value is unchanged.
             if (newValue != oldValue || (i >= 24 && i <= 26) /* kHealth, kMagicka, kStamina */)
             {
                 requestValueChanges.Values.insert({i, newValue});
@@ -186,7 +185,7 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
         return;
     }
 
-    // Our own actors' health reaches everyone through RunHealthUpdates. Only a hit on an actor
+    // Our own actors' health reaches everyone through RunPoolUpdates. Only a hit on an actor
     // someone else owns is sent: as a request the server forwards to that owner.
     if (m_world.all_of<LocalComponent>(*hitteeIt))
         return;
@@ -256,9 +255,9 @@ void ActorValueService::RunSmallHealthUpdates() noexcept
     }
 }
 
-// Direct authority: the owner's health is the truth. Send it within 100ms of a change (the
-// 1s BroadcastActorValues resends it regardless).
-void ActorValueService::RunHealthUpdates() noexcept
+// Direct authority: the owner's health, magicka and stamina are the truth (copies neither spend nor
+// regenerate). Send each within 100ms of a change (the 1s BroadcastActorValues resends them regardless).
+void ActorValueService::RunPoolUpdates() noexcept
 {
     if (!m_transport.IsConnected())
         return;
@@ -277,14 +276,19 @@ void ActorValueService::RunHealthUpdates() noexcept
             continue;
 
         auto& values = view.get<ActorValuesComponent>(entity).CurrentActorValues.ActorValuesList;
-        const float cHealth = m_actorBridge.GetActorValue(cFormId, 24 /* kHealth */);
-        if (values[24] == cHealth)
-            continue;
-        values[24] = cHealth;
-
         RequestActorValueChanges request;
+        for (const int32_t cIndex : {24, 25, 26} /* kHealth, kMagicka, kStamina */)
+        {
+            const float cValue = m_actorBridge.GetActorValue(cFormId, cIndex);
+            if (values[cIndex] == cValue)
+                continue;
+            values[cIndex] = cValue;
+            request.Values.insert({cIndex, cValue});
+        }
+        if (request.Values.empty())
+            continue;
+
         request.Id = view.get<LocalComponent>(entity).Id;
-        request.Values.insert({24, cHealth});
         m_transport.Send(request);
     }
 }

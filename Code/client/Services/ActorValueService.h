@@ -97,7 +97,7 @@ private:
      * broadcasts those changes to the other clients.
      */
     void RunSmallHealthUpdates() noexcept;
-    void RunHealthUpdates() noexcept;
+    void RunPoolUpdates() noexcept;
     /**
      * @brief Checks and broadcasts death state changes.
      */
