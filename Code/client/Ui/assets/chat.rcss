@@ -1,0 +1,65 @@
+/*
+ * The chat, at the bottom left above the magicka bar: the last lines for a while after they arrive,
+ * on no box. Open (Enter), it darkens behind them and shows the line being typed.
+ */
+
+/* The whole screen, so the chat can sit from its bottom edge. */
+body {
+    width: 100%;
+    height: 100%;
+}
+
+#chat {
+    position: absolute;
+    left: 36dp;
+    bottom: 120dp;
+    width: 560dp;
+    padding: 8dp 12dp;
+}
+
+#chat.open {
+    decorator: linear-gradient(to right, #000000a8, #00000080 55%, #00000000);
+}
+
+.line {
+    font-size: 19dp;
+    margin-top: 3dp;
+    font-effect: shadow(1dp 1dp #000000d0);
+}
+
+.line .name {
+    font-weight: 400;
+    color: #d8c79b;
+    margin-right: 6dp;
+}
+
+.line.system .text {
+    color: #a7a196;
+}
+
+.entry {
+    margin-top: 8dp;
+    padding-top: 6dp;
+    border-top: 1dp #e8e4da60;
+    font-size: 20dp;
+}
+
+.entry .key {
+    font-size: 14dp;
+    margin-right: 8dp;
+}
+
+/* A thin bar after the typed text that blinks. */
+.entry .caret {
+    display: inline-block;
+    width: 2dp;
+    height: 20dp;
+    margin-left: 2dp;
+    background-color: #e8e4da;
+    animation: 0.5s quadratic-in-out infinite alternate blink;
+}
+
+@keyframes blink {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}

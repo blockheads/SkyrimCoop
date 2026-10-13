@@ -395,17 +395,18 @@ def prepare_prefix():
         "sIntroSequence": "",                     # no Bethesda logo videos
         "sStartingConsoleCommand": "",  # 1.6.1170 only runs this at shutdown; the plugin runs boot.txt instead
         "bAlwaysActive": "1",                      # keep simulating without focus
-    }, "Camera": {"fAutoVanityModeDelay": "1000000"}})  # no idle camera orbiting the player
+    }, "Camera": {"fAutoVanityModeDelay": "1000000"},  # no idle camera orbiting the player
+        # Tutorial popups (the map's, "Magicka Low") swallow all input until closed. A Skyrim.ini
+        # setting (gIni_bShowTutorials_Interface): SkyrimPrefs.ini ignores it.
+        "Interface": {"bShowTutorials": "0"}})
     set_ini(prefs_ini, {"Display": {"bFull Screen": "0", "bBorderless": "0",
                                     "iSize W": "1280", "iSize H": "720",
                                     "iLocation X": "0", "iLocation Y": "0"},
                             # Silent test games. (Muting via PulseAudio would be remembered per app
                             # name and silence normal Skyrim too.)
                             "AudioMenu": {"fAudioMasterVolume": "0.0000"},
-                            # Tutorial popups (e.g. "Magicka Low") swallow all input until closed.
-                            "Interface": {"bShowTutorials": "0",
-                                          # Subtitles on, as players have them (Low.ini turns them off).
-                                          "bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
+                            # Subtitles on, as players have them (Low.ini turns them off).
+                            "Interface": {"bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
 
 
 # The plugin's command socket (CommandServer.cpp): one JSON line per request, answered within a
@@ -2233,6 +2234,203 @@ def scenario_load_door_not_replayed():
         both_go(HOME_CELL)
 
 
+
+# --- Chat -----------------------------------------------------------------------------------
+
+# DirectInput scan codes for typing on a US layout (the test prefix's): (code, shift).
+ENTER_KEY, ESCAPE_KEY, SHIFT_KEY = 0x1C, 0x01, 0x2A
+TYPED_KEYS = {**{c: (code, False) for c, code in zip("qwertyuiop", range(0x10, 0x1A))},
+              **{c: (code, False) for c, code in zip("asdfghjkl", range(0x1E, 0x27))},
+              **{c: (code, False) for c, code in zip("zxcvbnm", range(0x2C, 0x33))},
+              **{c: (code, False) for c, code in zip("1234567890", range(0x02, 0x0C))},
+              " ": (0x39, False), ",": (0x33, False), ".": (0x34, False), "'": (0x28, False),
+              "!": (0x02, True), "?": (0x35, True)}
+
+
+def key(instance, code, down):
+    player_command(instance, {"cmd": "key", "scan": code, "down": down})
+
+
+def tap_key(instance, code, shift=False):
+    """A key pressed and let go, as the keyboard sends it (through the game's input dispatch)."""
+    if shift:
+        key(instance, SHIFT_KEY, True)
+    key(instance, code, True)
+    key(instance, code, False)
+    if shift:
+        key(instance, SHIFT_KEY, False)
+
+
+def type_text(instance, text):
+    for char in text:
+        code, shift = TYPED_KEYS[char.lower()] if char.isalpha() else TYPED_KEYS[char]
+        tap_key(instance, code, shift or char.isupper())
+
+
+def chat(instance):
+    return game_state(instance).get("chat") or {}
+
+
+def open_chat(instance):
+    """The player opens the chat line with Enter, once the game takes input (as a player waits)."""
+    wait_for(f"[{instance or 'host'}] the game takes input", lambda: takes_input(instance), 10)
+    tap_key(instance, ENTER_KEY)
+    wait_for(f"[{instance or 'host'}] the chat line is open", lambda: chat(instance).get("open"), 5)
+
+
+def say(instance, text):
+    """The player types a line into the chat and sends it with Enter."""
+    open_chat(instance)
+    type_text(instance, text)
+    wait_for(f"[{instance or 'host'}] the chat line reads {text!r}", lambda: chat(instance).get("draft") == text, 5)
+    tap_key(instance, ENTER_KEY)
+    wait_for(f"[{instance or 'host'}] the chat line is closed", lambda: not chat(instance).get("open"), 5)
+
+
+def chat_has(instance, name, text):
+    return any(l["name"] == name and l["text"] == text for l in chat(instance).get("lines", []))
+
+
+def scenario_chat_reaches_everyone():
+    """The client types a line (Enter, the text, Enter): both games show it under the client's name, and
+    the client's character did not walk while it typed ("w" is forward). The host answers. A line
+    abandoned with Escape reaches nobody."""
+    client_name = next(n for n, host in session_players("").items() if not host)
+    host_name = next(n for n, host in session_players("client").items() if host)
+    before = player_snapshot("client")["placement"]["position"]
+
+    say("client", "Hello there, wow!")
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] shows the client's line", lambda name=name: chat_has(name, client_name, "Hello there, wow!"), 5)
+    moved = distance(player_snapshot("client")["placement"]["position"], before)
+    if moved > 5:
+        raise TestFailure(f"the client's character moved {moved:.0f} units while it typed")
+
+    say("", "Welcome!")
+    wait_for("[client] shows the host's line", lambda: chat_has("client", host_name, "Welcome!"), 5)
+
+    open_chat("client")
+    type_text("client", "never mind")
+    tap_key("client", ESCAPE_KEY)
+    wait_for("[client] the chat line is closed", lambda: not chat("client").get("open"), 5)
+    hold()
+    if any(l["text"] == "never mind" for l in chat("").get("lines", [])):
+        raise TestFailure("a line abandoned with Escape reached the host")
+    if not takes_input("client"):
+        raise TestFailure("[client] Escape in the chat opened a menu (the game got the key)")
+
+# --- Map markers ----------------------------------------------------------------------------
+
+QUICK_MAP_KEY, PLACE_MARKER_KEY, TWEEN_MENU_KEY = 0x32, 0x19, 0x0F   # M, P, Tab (the game's controlmap.txt)
+
+
+def map_marker(instance):
+    return game_state(instance).get("map_marker")
+
+
+def map_takes_input(instance):
+    """The map is open and ready (MapMenu's controlsReady), and nothing covers it (its fade-in)."""
+    select_instance(instance)
+    status = read_status() or {}
+    return (status.get("game") or {}).get("map_ready") and set(status.get("menus") or []) <= {"HUD Menu", "MapMenu", "Cursor Menu"}
+
+
+def place_map_marker(instance):
+    """The player opens the map (M), places a marker where it is centred (P) and closes it (Tab)."""
+    who = f"[{instance or 'host'}]"
+    wait_for(f"{who} the game takes input", lambda: takes_input(instance), 10)
+    tap_key(instance, QUICK_MAP_KEY)
+    wait_for(f"{who} the map is open and takes input", lambda: map_takes_input(instance), 10)
+    tap_key(instance, PLACE_MARKER_KEY)
+    wait_for(f"{who} its marker is on the map", lambda: map_marker(instance), 5)
+    tap_key(instance, TWEEN_MENU_KEY)
+    wait_for(f"{who} the map is closed", lambda: takes_input(instance), 10)
+    return map_marker(instance)
+
+
+# The "move or remove your marker?" box's buttons, in window pixels at the test games' 1280x720. Vanilla
+# message boxes take only the mouse (docs/re/systems/map-markers.md).
+LEAVE_IT_BUTTON, REMOVE_IT_BUTTON = (630, 393), (746, 393)
+
+
+def menus(instance):
+    select_instance(instance)
+    return set((read_status() or {}).get("menus") or [])
+
+
+def move_cursor(instance, target):
+    """The player moves the mouse until the menu cursor is on target (window pixels)."""
+    who = f"[{instance or 'host'}]"
+    for _ in range(5):
+        position = game_state(instance).get("cursor")
+        if not position:
+            raise TestFailure(f"{who} no menu cursor")
+        delta = (round(target[0] - position[0]), round(target[1] - position[1]))
+        if max(abs(delta[0]), abs(delta[1])) <= 2:
+            return
+        player_command(instance, {"cmd": "mouse", "dx": delta[0], "dy": delta[1]})
+        wait_for(f"{who} the cursor moves", lambda: game_state(instance).get("cursor") != position, 2)
+    raise TestFailure(f"{who} the cursor did not reach {target}: at {game_state(instance).get('cursor')}")
+
+
+def click(instance):
+    player_command(instance, {"cmd": "mouse", "button": 0, "down": True})
+    player_command(instance, {"cmd": "mouse", "button": 0, "down": False})
+
+
+def answer_marker_box(instance, button):
+    """The player clicks a button of the "move or remove" box."""
+    move_cursor(instance, button)
+    click(instance)
+    wait_for(f"[{instance or 'host'}] the box is closed", lambda: "MessageBoxMenu" not in menus(instance), 5)
+
+
+def remove_map_marker(instance):
+    """The player opens the map (M), presses P on its marker and clicks "Remove It", then closes the map."""
+    who = f"[{instance or 'host'}]"
+    wait_for(f"{who} the game takes input", lambda: takes_input(instance), 10)
+    tap_key(instance, QUICK_MAP_KEY)
+    wait_for(f"{who} the map is open and takes input", lambda: map_takes_input(instance), 10)
+    tap_key(instance, PLACE_MARKER_KEY)
+    wait_for(f"{who} asks to move or remove the marker", lambda: "MessageBoxMenu" in menus(instance), 5)
+    answer_marker_box(instance, REMOVE_IT_BUTTON)
+    wait_for(f"{who} its marker is gone", lambda: not map_marker(instance), 5)
+    wait_for(f"{who} the map takes input", lambda: map_takes_input(instance), 5)
+    tap_key(instance, TWEEN_MENU_KEY)
+    wait_for(f"{who} the map is closed", lambda: takes_input(instance), 10)
+
+
+def same_marker(marker, placed):
+    return bool(marker) and marker["world"] == placed["world"] and distance(marker["position"], placed["position"]) < 2
+
+
+def scenario_map_marker_reaches_everyone():
+    """Outdoors, the client places a marker on its map: the host's map shows it at the same spot. Then the
+    host places one: the client's moves there. The client removes it (P on it, "Remove It"): the host's
+    goes too. (Each placement starts without a marker: one already there turns P into that box.)"""
+    def clear_markers():
+        for name in ("", "client"):
+            if "MessageBoxMenu" in menus(name):   # a failure left the box up: it blocks the game until answered
+                answer_marker_box(name, LEAVE_IT_BUTTON)
+            player_command(name, {"cmd": "clear_map_marker"})
+            wait_for(f"[{name or 'host'}] has no map marker", lambda name=name: not map_marker(name), 5)
+    try:
+        both_go(OUTDOOR_CELL)
+        clear_markers()
+        placed = place_map_marker("client")
+        wait_for("[host] shows the client's marker", lambda: same_marker(map_marker(""), placed), 5)
+
+        clear_markers()
+        placed = place_map_marker("")
+        wait_for("[client] shows the host's marker", lambda: same_marker(map_marker("client"), placed), 5)
+
+        remove_map_marker("client")
+        wait_for("[host] the marker is gone", lambda: not map_marker(""), 5)
+    finally:
+        clear_markers()
+        both_go(HOME_CELL)
+
+
 # --- World: time, weather -------------------------------------------------------------------
 
 def scenario_host_time_reaches_client():
@@ -2554,6 +2752,9 @@ SCENARIOS = {
     "door-opens-for-both": scenario_door_opens_for_both,
     "lock-reaches-others": scenario_lock_reaches_others,
     "load-door-not-replayed": scenario_load_door_not_replayed,
+    # chat
+    "chat-reaches-everyone": scenario_chat_reaches_everyone,
+    "map-marker-reaches-everyone": scenario_map_marker_reaches_everyone,
     # world
     "host-time-reaches-client": scenario_host_time_reaches_client,
     "weather-follows-host": scenario_weather_follows_host,
@@ -2613,6 +2814,8 @@ TAGS = {
     "door-opens-for-both": {'objects'},
     "lock-reaches-others": {'objects'},
     "load-door-not-replayed": {'objects', 'cells'},
+    "chat-reaches-everyone": {'ui', 'session'},
+    "map-marker-reaches-everyone": {'ui', 'world'},
     "host-time-reaches-client": {'world'},
     "weather-follows-host": {'world', 'cells'},
     "input-keyboard-draw": {'input', 'hands'},

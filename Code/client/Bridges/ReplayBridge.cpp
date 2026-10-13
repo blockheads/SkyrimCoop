@@ -350,7 +350,6 @@ uint32_t ReplayBridge::GetPlayerParentCellId() const noexcept { return 0; }
 uint32_t ReplayBridge::GetPlayerWorldSpaceId() const noexcept { return 0; }
 void ReplayBridge::SetPlayerWaypoint(float, float, float, uint32_t) noexcept {}
 void ReplayBridge::RemovePlayerWaypoint() noexcept {}
-void ReplayBridge::MovePlayerTo(uint32_t, float, float, float) noexcept {}
 std::string ReplayBridge::GetPlayerLocationName() const noexcept { return {}; }
 std::string ReplayBridge::GetPlayerWorldSpaceName() const noexcept { return {}; }
 bool ReplayBridge::IsPlayerAlive() const noexcept { return true; }

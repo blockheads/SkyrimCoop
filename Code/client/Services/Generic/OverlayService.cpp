@@ -17,15 +17,10 @@
 #include <Services/OverlayClient.h>
 #include <Services/TransportService.h>
 
-#include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyPlayerList.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerJoined.h>
-#include <Messages/NotifyPlayerDialogue.h>
 #include <Messages/NotifyPlayerLevel.h>
-#include <Messages/NotifyTeleport.h>
-#include <Messages/RequestPlayerHealthUpdate.h>
-#include <Messages/NotifyPlayerHealthUpdate.h>
 
 #include <Structs/GridCellCoords.h>
 
@@ -118,15 +113,11 @@ OverlayService::OverlayService(World& aWorld, TransportService& transport, entt:
     m_connectedConnection = aDispatcher.sink<ConnectedEvent>().connect<&OverlayService::OnConnectedEvent>(this);
     m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&OverlayService::OnDisconnectedEvent>(this);
     m_connectionErrorConnection = aDispatcher.sink<ConnectionErrorEvent>().connect<&OverlayService::OnConnectionError>(this);
-    m_chatMessageConnection = aDispatcher.sink<NotifyChatMessageBroadcast>().connect<&OverlayService::OnChatMessageReceived>(this);
     m_playerJoinedConnection = aDispatcher.sink<NotifyPlayerJoined>().connect<&OverlayService::OnPlayerJoined>(this);
     m_playerLeftConnection = aDispatcher.sink<NotifyPlayerLeft>().connect<&OverlayService::OnPlayerLeft>(this);
-    m_playerDialogueConnection = aDispatcher.sink<NotifyPlayerDialogue>().connect<&OverlayService::OnPlayerDialogue>(this);
     m_playerAddedConnection = m_world.on_destroy<WaitingFor3D>().connect<&OverlayService::OnWaitingFor3DRemoved>(this);
     m_playerRemovedConnection = m_world.on_destroy<PlayerComponent>().connect<&OverlayService::OnPlayerComponentRemoved>(this);
     m_playerLevelConnection = aDispatcher.sink<NotifyPlayerLevel>().connect<&OverlayService::OnPlayerLevel>(this);
-    m_teleportConnection = aDispatcher.sink<NotifyTeleport>().connect<&OverlayService::OnNotifyTeleport>(this);
-    m_playerHealthConnection = aDispatcher.sink<NotifyPlayerHealthUpdate>().connect<&OverlayService::OnNotifyPlayerHealthUpdate>(this);
 }
 
 OverlayService::~OverlayService() noexcept
@@ -238,49 +229,9 @@ void OverlayService::SetVersion(const std::string& acVersion)
     m_pOverlay->ExecuteAsync("setVersion", pArguments);
 }
 
-void OverlayService::SendSystemMessage(const std::string& acMessage)
-{
-    if (!m_pOverlay)
-        return;
-
-    auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, kSystemMessage);
-    pArguments->SetString(1, acMessage);
-
-    m_pOverlay->ExecuteAsync("message", pArguments);
-}
-
-void OverlayService::SetPlayerHealthPercentage(uint32_t aFormId) const noexcept
-{
-    if (!m_actorBridge.ActorExists(aFormId))
-    {
-        spdlog::error("{}: cannot find actor for form id {:X}", __FUNCTION__, aFormId);
-        return;
-    }
-
-    float percentage = CalculateHealthPercentage(aFormId, m_actorBridge);
-
-    auto view = m_world.view<FormIdComponent, PlayerComponent>();
-    auto entityIt = std::find_if(view.begin(), view.end(), [view, aFormId](auto aEntity) { return view.get<FormIdComponent>(aEntity).Id == aFormId; });
-
-    if (entityIt == view.end())
-    {
-        spdlog::error("{}: cannot find player entity for form id {:X}", __FUNCTION__, aFormId);
-        return;
-    }
-
-    const auto& playerComponent = view.get<PlayerComponent>(*entityIt);
-
-    auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, playerComponent.Id);
-    pArguments->SetDouble(1, static_cast<double>(percentage));
-    m_pOverlay->ExecuteAsync("setHealth", pArguments);
-}
-
 void OverlayService::OnUpdate(const UpdateEvent&) noexcept
 {
     RunDebugDataUpdates();
-    RunPlayerHealthUpdates();
 }
 
 void OverlayService::OnConnectedEvent(const ConnectedEvent& acEvent) noexcept
@@ -331,32 +282,6 @@ void OverlayService::OnPlayerComponentRemoved(entt::registry& aRegistry, entt::e
     m_pOverlay->ExecuteAsync("setPlayer3dUnloaded", pArguments);
 }
 
-void OverlayService::OnChatMessageReceived(const NotifyChatMessageBroadcast& acMessage) noexcept
-{
-    if (!m_pOverlay)
-        return;
-
-    auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, (int)acMessage.MessageType);
-    pArguments->SetString(1, acMessage.ChatMessage.c_str());
-    pArguments->SetString(2, acMessage.PlayerName.c_str());
-
-    m_pOverlay->ExecuteAsync("message", pArguments);
-}
-
-void OverlayService::OnPlayerDialogue(const NotifyPlayerDialogue& acMessage) noexcept
-{
-    if (!m_pOverlay)
-        return;
-
-    auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, kPlayerDialogue);
-    pArguments->SetString(1, acMessage.Text.c_str());
-    pArguments->SetString(2, acMessage.Name.c_str());
-
-    m_pOverlay->ExecuteAsync("message", pArguments);
-}
-
 void OverlayService::OnConnectionError(const ConnectionErrorEvent& acConnectedEvent) const noexcept
 {
     auto pArgs = CefListValue::Create();
@@ -394,43 +319,6 @@ void OverlayService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept
     m_pOverlay->ExecuteAsync("setLevel", pArguments);
 }
 
-void OverlayService::OnNotifyTeleport(const NotifyTeleport& acMessage) noexcept
-{
-    auto& modSystem = m_world.GetModSystem();
-
-    const uint32_t cellId = modSystem.GetGameId(acMessage.CellId);
-    uint32_t targetCellId = cellId;
-
-    if (!m_formBridge.FormExists(cellId))
-    {
-        const uint32_t worldSpaceId = modSystem.GetGameId(acMessage.WorldSpaceId);
-        if (m_formBridge.FormExists(worldSpaceId))
-        {
-            GridCellCoords coordinates = GridCellCoords::CalculateGridCellCoords(acMessage.Position);
-            targetCellId = m_formBridge.LookupCellByCoords(worldSpaceId, coordinates.X, coordinates.Y);
-        }
-
-        if (targetCellId == 0)
-        {
-            spdlog::error("Failed to fetch cell to teleport to.");
-            m_world.GetOverlayService().SendSystemMessage("Teleporting to player failed.");
-            return;
-        }
-    }
-
-    m_playerBridge.MovePlayerTo(targetCellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
-}
-
-void OverlayService::OnNotifyPlayerHealthUpdate(const NotifyPlayerHealthUpdate& acMessage) noexcept
-{
-    const float percentage = acMessage.Percentage >= 0.f ? acMessage.Percentage : 0.f;
-
-    auto pArguments = CefListValue::Create();
-    pArguments->SetInt(0, acMessage.PlayerId);
-    pArguments->SetDouble(1, static_cast<double>(percentage));
-    m_pOverlay->ExecuteAsync("setHealth", pArguments);
-}
-
 void OverlayService::RunDebugDataUpdates() noexcept
 {
     static std::chrono::steady_clock::time_point lastSendTimePoint;
@@ -458,33 +346,4 @@ void OverlayService::RunDebugDataUpdates() noexcept
 
 // TODO(cosideci): this whole thing is a really hacky solution to
 // health sync code being somewhat broken for players.
-void OverlayService::RunPlayerHealthUpdates() noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenUpdates = 500ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
-        return;
-
-    lastSendTimePoint = now;
-
-    static float s_previousPercentage = -1.f;
-
-    const uint32_t playerFormId = m_playerBridge.GetPlayerFormId();
-    const float newPercentage = playerFormId ? CalculateHealthPercentage(playerFormId, m_actorBridge) : 0.f;
-    if (newPercentage == s_previousPercentage)
-        return;
-
-    s_previousPercentage = newPercentage;
-
-    RequestPlayerHealthUpdate request{};
-    request.Percentage = newPercentage;
-
-    m_transport.Send(request);
-}
-
 #endif

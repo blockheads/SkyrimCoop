@@ -1,0 +1,54 @@
+// The map and chat: a player's waypoint and chat lines.
+#include "session.h"
+
+TEST_CASE("Waypoints: a player's reaches everyone else", "[Bridge][Chat]")
+{
+    Session session;
+
+    RequestSetWaypoint set;
+    set.Position = glm::vec3(100.f, 200.f, 300.f);
+    set.WorldSpaceFormID = GameId(0, 0x3C);
+    session.Receive(kPeer, set);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifySetWaypoint>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->Position == set.Position);
+        CHECK(cNotifies[0]->WorldSpaceFormID == set.WorldSpaceFormID);
+    }
+    CHECK(session.SentTo<NotifySetWaypoint>(kPeer).empty());
+
+    session.Receive(kPeer, RequestRemoveWaypoint{});
+    CHECK(session.SentTo<NotifyRemoveWaypoint>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveWaypoint>(kPeer).empty());
+}
+
+TEST_CASE("Chat: to everyone, the sender too, under its name and without markup", "[Bridge][Chat]")
+{
+    Session session;
+    session.World().GetPlayerManager().GetByConnectionId(kPeer)->SetUsername("Lydia");
+
+    SendChatMessageRequest chat;
+    chat.MessageType = kGlobalChat;
+    chat.ChatMessage = "<b>hello</b> there";
+    session.Receive(kPeer, chat);
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifyChatMessageBroadcast>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->MessageType == kGlobalChat);
+        CHECK(cNotifies[0]->PlayerName == "Lydia");
+        CHECK(cNotifies[0]->ChatMessage == "hello there");
+    }
+}
+
+TEST_CASE("Chat: players cannot send system messages", "[Bridge][Chat]")
+{
+    Session session;
+
+    SendChatMessageRequest chat;
+    chat.MessageType = kSystemMessage;
+    chat.ChatMessage = "The server is shutting down";
+    session.Receive(kPeer, chat);
+    CHECK(session.Outbox.empty());
+}

@@ -59,7 +59,6 @@
       },
       "ACTIONS": {
         "KICK": "At",
-        "TELEPORT": "Işınla",
         "MAKE_LEADER": "Lider yap"
       },
       "LEAVE_PARTY": "Partiden çık"

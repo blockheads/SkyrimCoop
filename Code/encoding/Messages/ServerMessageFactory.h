@@ -37,19 +37,14 @@
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
-#include <Messages/TeleportCommandResponse.h>
 #include <Messages/StringCacheUpdate.h>
 #include <Messages/NotifyPlayerRespawn.h>
 #include <Messages/NotifyDialogue.h>
 #include <Messages/NotifySubtitle.h>
-#include <Messages/NotifyPlayerDialogue.h>
-#include <Messages/NotifyActorTeleport.h>
 #include <Messages/NotifyRelinquishControl.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLevel.h>
-#include <Messages/NotifyTeleport.h>
-#include <Messages/NotifyPlayerHealthUpdate.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/NotifySetWaypoint.h>
@@ -68,8 +63,8 @@ struct ServerMessageFactory
         auto s_visitor = CreateMessageVisitor<
             AuthenticationResponse, AssignCharacterResponse, ServerReferencesMoveRequest, ServerTimeSettings, CharacterSpawnRequest, NotifyInventoryChanges, StringCacheUpdate, NotifyFactionsChanges, NotifyRemoveCharacter, NotifyQuestUpdate,
             NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, NotifyLockChange, AssignObjectsResponse, NotifyDeathStateChange, NotifyObjectInventoryChanges, NotifySpellCast,
-            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyScriptAnimation, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, TeleportCommandResponse, NotifyPlayerRespawn, NotifyDialogue,
-            NotifySubtitle, NotifyPlayerDialogue, NotifyActorTeleport, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerDialogue, NotifyPlayerLevel, NotifyTeleport, NotifyPlayerHealthUpdate, NotifySettingsChange,
+            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyScriptAnimation, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyPlayerRespawn, NotifyDialogue,
+            NotifySubtitle, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerLevel, NotifySettingsChange,
             NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifySetTimeResult, NotifyRemoveSpell, WorldStateSync, NotifyEquipmentSnapshot, NotifyActiveEffects>;
 
         return s_visitor(std::forward<T>(func));

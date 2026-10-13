@@ -57,7 +57,6 @@
       },
       "ACTIONS": {
         "KICK": "キック",
-        "TELEPORT": "テレポート",
         "MAKE_LEADER": "リーダーにする"
       },
       "LEAVE_PARTY": "パーティーを抜ける"

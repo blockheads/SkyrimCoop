@@ -59,7 +59,6 @@
       },
       "ACTIONS": {
         "KICK": "Kick",
-        "TELEPORT": "Teleporteren",
         "MAKE_LEADER": "Maak leider"
       },
       "LEAVE_PARTY": "Verlaat groep"

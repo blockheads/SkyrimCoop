@@ -4,6 +4,7 @@
 
 struct World;
 struct UiRenderer;
+struct NotifyChatMessageBroadcast;
 struct IDXGISwapChain;
 class IActorBridge;
 
@@ -20,7 +21,8 @@ class ElementDocument;
  * The UI folder is Data/SKSE/Plugins/SkyrimCoop/ui (deployed with the DLL), or
  * SKYRIMCOOP_UI_DIR to work on the files in place.
  *
- * Today: the party panel, everyone else in the session (shown while connected).
+ * Today: the party panel (everyone else in the session, while connected) and the chat (Enter opens
+ * its line; the last lines show for a while after they arrive).
  */
 struct UiService
 {
@@ -51,8 +53,27 @@ struct UiService
     [[nodiscard]] const Rml::Vector<Member>& GetPartyMembers() const noexcept { return m_members; }
     [[nodiscard]] bool IsPartyPanelShown() const noexcept { return m_pParty != nullptr; }
 
+    // A line in the chat.
+    struct ChatLine
+    {
+        Rml::String Name;
+        Rml::String Text;
+        bool System = false;
+
+        bool operator==(const ChatLine&) const = default;
+    };
+
+    // What the chat received (test harness), whether its line is open, and what is typed in it.
+    [[nodiscard]] Rml::Vector<ChatLine> GetChatLines() const noexcept;
+    [[nodiscard]] bool IsChatOpen() const noexcept { return m_chatOpen; }
+    [[nodiscard]] const Rml::String& GetChatDraft() const noexcept { return m_chatDraft; }
+
 private:
     void UpdateParty() noexcept;
+    void OnChatMessage(const NotifyChatMessageBroadcast& acMessage) noexcept;
+    // The keys typed into the chat line, and which lines show.
+    void UpdateChat() noexcept;
+    void SendChat() noexcept;
     void LoadDocuments() noexcept;
     // The newest change to any file in the UI folder.
     [[nodiscard]] std::filesystem::file_time_type LastChange() const noexcept;
@@ -63,11 +84,24 @@ private:
     UiRenderer* m_pRenderer = nullptr;
     Rml::Context* m_pContext = nullptr;
     Rml::ElementDocument* m_pParty = nullptr;
+    Rml::ElementDocument* m_pChat = nullptr;
     Rml::String m_directory;
     std::filesystem::file_time_type m_lastChange{};
     std::chrono::steady_clock::time_point m_nextCheck{};
 
     Rml::DataModelHandle m_partyModel;
     Rml::Vector<Member> m_members;
+
+    struct Received
+    {
+        ChatLine Line;
+        std::chrono::steady_clock::time_point At;
+    };
+    Rml::DataModelHandle m_chatModel;
+    Rml::Vector<Received> m_chatHistory;
+    Rml::Vector<ChatLine> m_chatShown;
+    Rml::String m_chatDraft;
+    bool m_chatOpen = false;
+    entt::scoped_connection m_chatConnection;
     bool m_initialized = false;
 };

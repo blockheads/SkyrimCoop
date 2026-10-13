@@ -129,23 +129,6 @@ export class SkyrimtogetherMock extends EventEmitter implements SkyrimTogether {
     throw new Error('NOT YET IMPLEMENTED');
   }
 
-  teleportToPlayer(playerId: number): void {
-    if (this.connected) {
-      const player = playerStore.query(getEntity(playerId));
-      if (player) {
-        console.log(
-          `%cTELEPORT`,
-          'background: #F09688; color: #fff; padding: 3px; font-size: 9px;',
-          'Teleport to player',
-          JSON.stringify(player.name),
-          `(${player.id})`,
-          'in',
-          JSON.stringify(player.cellName),
-        );
-      }
-    }
-  }
-
   kickPlayer(playerId: number): void {
     this.disconnectMockPlayer(playerId);
   }

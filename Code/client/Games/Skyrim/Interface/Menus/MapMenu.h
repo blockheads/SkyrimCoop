@@ -17,5 +17,7 @@ SKYRIM_STRUCT_ASSERT(sizeof(IMapCameraCallbacks) == 0x8);
 
 struct MapMenu final : public IMenu, public BSTEventSink<MenuOpenCloseEvent>, public IMapCameraCallbacks
 {
-    // TBD
+    uint8_t pad40[0x3058C - 0x40];
+    bool controlsReady; // the map takes input once it has opened (MapMenu::PlaceMarker 53113 checks it)
 };
+SKYRIM_STRUCT_ASSERT(offsetof(MapMenu, controlsReady) == 0x3058C);

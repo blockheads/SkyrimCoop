@@ -107,3 +107,7 @@ id	rva	name	comment
 68109	0xcc3e40	ScrapArray::Free	Frees a scrap-heap array (the iterator's buckets at +0x40).
 40438	0x7304f0	PlayerCharacter::ProcessQueuedTravel	Carries out the move queued by 40442, once a frame from ProcessEvents_Enter; sends PositionPlayerEvent (+0x388). Every door, fast travel, MoveTo and coc ends here. See docs/re/systems/player-travel.md
 40442	0x7312b0	PlayerCharacter::QueueTravel	Copies a PLAYER_TARGET_LOC into queuedTargetLoc (+0x648 on 1.6.1170); called by doors, the map, Game.FastTravel, MoveTo_Impl, coc. See docs/re/systems/player-travel.md
+40535	0x73a060	PlayerCharacter::SetPlayerMapMarker	(player, NiPoint3*, TESForm* worldspace or cell); reads the form's type without a null check; one caller, MapMenu's pick 53114. Hooked as HookSetWaypoint. docs/re/systems/map-markers.md
+40536	0x73a1c0	PlayerCharacter::ClearPlayerMapMarker	sets the marker handle (+0x92C) invalid; callers: the map's Remove It (53128), the player dtor, an engine reset. Hooked as HookRemoveWaypoint
+53113	0x987090	MapMenu::PlaceMarker	CommonLibSSE name; no marker: pick (53109), a marker: the move/remove message box
+53119	0x9878a0	MapMenu::OnCameraArrived	IMapCameraCallbacks: opens the Cursor Menu, shows the map tutorial (default object 250) once

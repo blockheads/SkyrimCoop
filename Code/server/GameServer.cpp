@@ -13,11 +13,9 @@
 #include <AdminMessages/ClientAdminMessageFactory.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/ClientMessageFactory.h>
-#include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifySettingsChange.h>
-#include <Messages/NotifyTeleport.h>
 #include <console/ConsoleRegistry.h>
 #include <resources/ResourceCollection.h>
 
@@ -600,6 +598,12 @@ uint32_t GameServer::PlayerIdOf(ConnectionId_t aConnectionId) const noexcept
 {
     const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
     return pPlayer ? pPlayer->GetId() : 0;
+}
+
+String GameServer::PlayerNameOf(ConnectionId_t aConnectionId) const noexcept
+{
+    const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
+    return pPlayer ? pPlayer->GetUsername() : String{};
 }
 
 void GameServer::SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept

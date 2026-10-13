@@ -57,7 +57,6 @@
       },
       "ACTIONS": {
         "KICK": "Vyhodit",
-        "TELEPORT": "Teleportovat",
         "MAKE_LEADER": "Povýšit na lídra"
       },
       "LEAVE_PARTY": "Opustit skupinu"

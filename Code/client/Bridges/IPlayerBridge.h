@@ -26,7 +26,6 @@ public:
     virtual uint32_t GetPlayerWorldSpaceId() const noexcept = 0;
     virtual void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept = 0;
     virtual void RemovePlayerWaypoint() noexcept = 0;
-    virtual void MovePlayerTo(uint32_t aCellId, float aX, float aY, float aZ) noexcept = 0;
 
     // --- Location / discord presence ---
     /// Returns the display name of the player's current location form (e.g. "Riverwood").

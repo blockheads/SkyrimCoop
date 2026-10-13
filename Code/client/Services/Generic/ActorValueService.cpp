@@ -377,11 +377,6 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
         m_actorBridge.ReactToAttack(formId, cAttackerFormId);
     }
 
-    // TODO(cosideci): find fix for player health sync so this can be used again
-    /*
-    if (m_actorBridge.IsRemotePlayer(formId))
-        World::Get().GetOverlayService().SetPlayerHealthPercentage(formId);
-    */
 }
 
 namespace

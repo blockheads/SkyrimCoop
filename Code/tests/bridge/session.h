@@ -61,6 +61,12 @@
 #include <Messages/RequestActiveEffects.h>
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/RequestInventoryChanges.h>
+#include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/NotifyRemoveWaypoint.h>
+#include <Messages/NotifySetWaypoint.h>
+#include <Messages/RequestRemoveWaypoint.h>
+#include <Messages/RequestSetWaypoint.h>
+#include <Messages/SendChatMessageRequest.h>
 #include <Messages/ServerMessageFactory.h>
 
 #include <memory>

@@ -167,8 +167,8 @@ service and records go. One family per step, with the suite after each:
 3. Magic and combat: spell cast, interrupt, add target, remove spell, projectile launch.
 4. Character extras: factions, mount, AI package, dialogue, subtitle, experience, level, respawn.
 
-Each family's rules have headless tests in `Code/tests/bridge` (`BridgeTests`, native Linux build:
-`XMAKE_CONFIGDIR=build/linux-config xmake build BridgeTests`). They feed requests into a test-mode
+Each family's rules have headless tests in `Code/tests/bridge` (`BridgeTests`, native Linux build, GCC
+linked with lld: `scripts/xmake-linux.sh build -j16 BridgeTests && build/linux/x86_64/debug/BridgeTests`). They feed requests into a test-mode
 server as the transport sends them and check who receives what. The bridge needs no client `World`
 for that: the host's game reaches it as a callback (`SpawnSource`, from `CharacterService`).
 
@@ -232,8 +232,8 @@ movement), since the host's copy of a player cannot show those and is dropped wh
   the late-join hook, `OwnerConnection`, and `EnforceProximity` (it compared stale positions; the
   party tether replaces it). The client's `SpawnRecordComponent` went to the bridge's records.
 
-Still on the server, reading positions that have been stale since phase 2: teleport to a player
-(`OverlayService::OnTeleport`, `CommandService` teleport). Phase 4 answers them from the host's game.
+Still on the server, reading positions that had been stale since phase 2: teleport to a player
+(`OverlayService::OnTeleport`, `CommandService` teleport). Dropped in phase 4 (Decisions).
 
 
 ### Phase 4: Host-decided state
@@ -273,7 +273,10 @@ Still on the server, reading positions that have been stale since phase 2: telep
   treatment when a scenario shows it drift, not before.
 - Quests: the host's quest log is the authority, and stage changes are sent to peers.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
-  result reaches peers. With the party tether, only the host's loaded cells matter.
+  result reaches peers. With the party tether, only the host's loaded cells matter. They go by form
+  id, so objects need no server ids: `AssignObjectsRequest` had no sender since `ec7d02d1` (the cell
+  change that sent it was removed), and its leftovers (the server's `ObjectService`, the client's
+  `ObjectComponent` and response handler) were deleted 2026-10-13. Container contents are not synced.
 - Party: done, as no party at all: being connected is being in the session (see Decisions).
   The party messages, `PartyService` (server and client), `PartyComponent`, `SendToParty`,
   `bAutoPartyJoin` and `NotifyPlayerList` are gone. What a party gated (XP, player dialogue,
@@ -286,9 +289,20 @@ Still on the server, reading positions that have been stale since phase 2: telep
   phase 5; the client keeps them in `SessionService`. The host alone can kick, through
   `HostBridge::Kick` (overlay player list, debug view, `kick` test command). Quest sync stays off
   (`cSyncQuests` in the client's `QuestService`) until quests have their own design.
-- Waypoints, chat, player dialogue, overlay health: relays.
-- Commands: `SetTimeCommandRequest` from any player sets the host's clock (peers follow it);
-  `TeleportCommandRequest` is answered from the host's game.
+- Waypoints and chat: done 2026-10-13 as bridge rules; the server's `MapService`, `OverlayService` and
+  `CommandService` are deleted. Waypoints (the map marker a player places) are plain relays,
+  from anyone to everyone else; the client's `MapService` is registered again (it was dropped in
+  `ec7d02d1`), scenario `map-marker-reaches-everyone`. A chat line goes to everyone, the sender too, under its
+  name with markup stripped; players cannot send system messages. The chat is an RmlUi box
+  (`Code/client/Ui/assets/chat.rml`): Enter in gameplay opens its line, the input dispatch hook (68655)
+  gives it the keys and the game none while it is open, Enter sends, Escape cancels. Scenario
+  `chat-reaches-everyone`, bridge cases in `chat_tests.cpp`. Dropped: the player list's health
+  (`RequestPlayerHealthUpdate`; the party panel reads health from the copies), player dialogue lines in
+  chat (`PlayerDialogueRequest` and its dialogue-menu hook, 35269), the server's Lua chat hook and
+  bindings.
+- Commands: `SetTimeCommandRequest` from any player sets the host's clock (peers follow it). Teleporting
+  to a player is gone (2026-10-13): the messages, the overlay's and the debug view's buttons, the
+  chat command's response and the unused `NotifyActorTeleport`.
 
 ### Follow-ups (noted, not scheduled)
 
@@ -338,8 +352,8 @@ Built on the bridge's unreliable channel:
 1. **Party:** there are no parties: everyone connected is in the session, and the host is its
    authority. No invites or leader changes; the host alone can kick a player (a disconnect).
 2. **Set-time command:** any player can run it; it runs on the host's clock, which everyone
-   follows. **Teleport command:** the host only, for now. Later a peer can ask for it as a
-   Borderlands-style request that anyone can cancel, like leaving a cell under the party tether.
+   follows. **Teleporting to a player:** none. Under the party tether everyone is already in the
+   same cell or worldspace, so nobody needs to teleport to anyone (decided 2026-10-13).
 3. **The host owns every NPC.** A peer only ever owns its own player, so peers need no ids, no
    discovery and no cell tracking for anything else. Keeping peers this simple is the point of the
    refactor.
@@ -360,9 +374,9 @@ Built on the bridge's unreliable channel:
 | CalendarService | (time on join and on change) | Host-decided |
 | WeatherService | `RequestCurrentWeather`, `RequestWeatherChange` | Host-decided (done: deleted, `HostWeather` sends the host's) |
 | QuestService | `RequestQuestUpdate` | Host-decided |
-| ObjectService | `AssignObjectsRequest`, `ActivateRequest`, `LockChangeRequest`, `ScriptAnimationRequest` | Host-decided |
+| ObjectService | `AssignObjectsRequest`, `ActivateRequest`, `LockChangeRequest`, `ScriptAnimationRequest` | Relays by form id (done; ids dropped, service deleted) |
 | PartyService | `PartyCreateRequest`, `PartyInviteRequest`, `PartyAcceptInviteRequest`, `PartyLeaveRequest`, `PartyKickRequest`, `PartyChangeLeaderRequest` | Dropped (no parties; the host kicks through the bridge) |
-| MapService | `RequestSetWaypoint`, `RequestRemoveWaypoint` | Relay |
-| OverlayService | `SendChatMessageRequest`, `PlayerDialogueRequest`, `RequestPlayerHealthUpdate`, `TeleportRequest` | Relay |
-| CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host-decided (set time: any player, on the host's clock; teleport: the host only for now) |
+| MapService | `RequestSetWaypoint`, `RequestRemoveWaypoint` | Relay (done, service deleted) |
+| OverlayService | `SendChatMessageRequest`, `PlayerDialogueRequest`, `RequestPlayerHealthUpdate`, `TeleportRequest` | Relay (done, service deleted; teleport dropped) |
+| CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host-decided (set time: any player, on the host's clock; teleport dropped; done, service deleted) |
 | ScriptService, AdminService | (Lua events, admin protocol) | Dropped |

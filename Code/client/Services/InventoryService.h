@@ -20,10 +20,8 @@ struct NotifyDrawWeapon;
  *
  * The initial contents of actor inventories are synced through spawn messages through CharacterService
  * @see CharacterService
- * The initial contents of container inventories are synced through the ObjectService
- * @see ObjectService
- * The InventoryService manages any changes to both the current equipment of actors,
- * and the contents of both actor and object inventories.
+ * The InventoryService manages changes to actors' equipment and to actor and container inventories
+ * (containers' contents are not synced on entering a cell).
  */
 struct InventoryService
 {

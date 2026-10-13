@@ -59,7 +59,6 @@
       },
       "ACTIONS": {
         "KICK": "Kick",
-        "TELEPORT": "Teleport",
         "MAKE_LEADER": "Make leader"
       },
       "LEAVE_PARTY": "Leave party"

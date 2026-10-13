@@ -56,9 +56,17 @@ nlohmann::json Place(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::PlacePlayerBefore(acRequest.value("target", 0u), acRequest.value("distance", 120.f), cBearing) ? Ok() : Error("no such target");
 }
 
+// {"cmd": "clear_map_marker"}: removes the player's map marker in this game only (outside the map, nothing is sent).
+nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
+{
+    EngineCalls::ClearPlayerMapMarker();
+    return Ok();
+}
+
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"menu", false, &Menu}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
+    {"clear_map_marker", true, &ClearMapMarker},
 };
 } // namespace
 

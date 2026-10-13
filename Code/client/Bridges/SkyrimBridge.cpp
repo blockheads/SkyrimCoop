@@ -1327,17 +1327,15 @@ void SkyrimBridge::SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWor
 {
     Breadcrumbs::Record("SetPlayerWaypoint", aWorldSpaceFormId);
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    TESWorldSpace* pWS = aWorldSpaceFormId
-        ? Cast<TESWorldSpace>(TESForm::GetById(aWorldSpaceFormId))
-        : nullptr;
-    if (pPlayer)
-    {
-        NiPoint3 pos;
-        pos.x = aX;
-        pos.y = aY;
-        pos.z = aZ;
-        pPlayer->SetWaypoint(&pos, pWS);
-    }
+    TESForm* pWorldOrCell = TESForm::GetById(aWorldSpaceFormId);
+    // 40535 reads the form's type without a null check.
+    if (!pPlayer || !pWorldOrCell || (pWorldOrCell->formType != FormType::WorldSpace && pWorldOrCell->formType != FormType::Cell))
+        return;
+    NiPoint3 pos;
+    pos.x = aX;
+    pos.y = aY;
+    pos.z = aZ;
+    pPlayer->SetWaypoint(&pos, pWorldOrCell);
 }
 
 void SkyrimBridge::RemovePlayerWaypoint() noexcept
@@ -1345,21 +1343,6 @@ void SkyrimBridge::RemovePlayerWaypoint() noexcept
     Breadcrumbs::Record("RemovePlayerWaypoint", 0);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->RemoveWaypoint();
-}
-
-void SkyrimBridge::MovePlayerTo(uint32_t aCellId, float aX, float aY, float aZ) noexcept
-{
-    Breadcrumbs::Record("MovePlayerTo", aCellId);
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    TESObjectCELL* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellId));
-    if (pPlayer && pCell)
-    {
-        NiPoint3 pos;
-        pos.x = aX;
-        pos.y = aY;
-        pos.z = aZ;
-        pPlayer->MoveTo(pCell, pos);
-    }
 }
 
 bool SkyrimBridge::IsPlayerAlive() const noexcept

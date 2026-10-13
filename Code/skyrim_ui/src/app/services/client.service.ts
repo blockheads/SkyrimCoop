@@ -201,10 +201,6 @@ export class ClientService implements OnDestroy {
     this._remainingReconnectionAttempt = 0;
   }
 
-  public teleportToPlayer(playerId: number): void {
-    skyrimtogether.teleportToPlayer(playerId);
-  }
-
   /**
    * Called when the UI is first initialized.
    */

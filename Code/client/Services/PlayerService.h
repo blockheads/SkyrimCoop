@@ -11,7 +11,6 @@ struct UpdateEvent;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct ServerSettings;
-struct PlayerDialogueEvent;
 struct PlayerLevelEvent;
 
 struct NotifyPlayerRespawn;
@@ -33,7 +32,6 @@ protected:
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
     void OnServerSettingsReceived(const ServerSettings& acSettings) noexcept;
     void OnNotifyPlayerRespawn(const NotifyPlayerRespawn& acMessage) const noexcept;
-    void OnPlayerDialogueEvent(const PlayerDialogueEvent& acEvent) const noexcept;
     void OnPlayerLevelEvent(const PlayerLevelEvent& acEvent) const noexcept;
 
 private:
@@ -79,6 +77,5 @@ private:
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_settingsConnection;
     entt::scoped_connection m_notifyRespawnConnection;
-    entt::scoped_connection m_playerDialogueConnection;
     entt::scoped_connection m_playerLevelConnection;
 };

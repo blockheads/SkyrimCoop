@@ -9,10 +9,14 @@
 #include <Games/Overrides.h>
 #include <Games/TES.h>
 #include <Interface/UI.h>
+#include <Interface/Menus/MapMenu.h>
+#include <Interface/MenuCursor.h>
+#include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Magic/ActorMagicCaster.h>
 #include <Misc/BSFixedString.h>
 #include <Utils.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESWorldSpace.h>
 #include <Forms/TESPackage.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <World.h>
@@ -465,6 +469,106 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     RawButtonEvent* pChain = &event;
     TiltedPhoques::ThisCall(s_sendEvent.Get(), *inputDeviceManager.Get(), &pChain);
     return true;
+}
+
+std::optional<MapMarker> GetPlayerMapMarker() noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    TESObjectREFR* pMarker = pPlayer && pPlayer->playerMapMarker ? TESObjectREFR::GetByHandle(pPlayer->playerMapMarker) : nullptr;
+    if (!pMarker)
+        return std::nullopt;
+    // 40535 puts it in the worldspace's persistent cell, or in the interior cell.
+    const TESWorldSpace* pWorld = pMarker->GetWorldSpace();
+    const uint32_t cWorldOrCell = pWorld ? pWorld->formID : (pMarker->parentCell ? pMarker->parentCell->formID : 0);
+    return MapMarker{pMarker->position.x, pMarker->position.y, pMarker->position.z, cWorldOrCell};
+}
+
+bool IsMapReady() noexcept
+{
+    static const BSFixedString s_mapMenu("MapMenu");
+    UI* pUI = UI::Get();
+    const auto* pMap = pUI && pUI->GetMenuOpen(s_mapMenu) ? static_cast<const MapMenu*>(pUI->FindMenuByName(s_mapMenu)) : nullptr;
+    return pMap && pMap->controlsReady;
+}
+
+void ClearPlayerMapMarker() noexcept
+{
+    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
+        pPlayer->RemoveWaypoint();
+}
+
+namespace
+{
+// Gives the event the user event it maps to in the open menu or gameplay, as the poll does
+// (ControlMap::MapUserEvents 68542; the map's P is PlacePlayerMarker), then sends it.
+bool MapAndSend(InputEvent& aEvent, BSFixedString& aUserEvent) noexcept
+{
+    VersionDbPtr<void*> inputDeviceManager(402776);
+    VersionDbPtr<void*> controlMap(400863); // ControlMap
+    if (!*inputDeviceManager.Get() || !*controlMap.Get())
+        return false;
+
+    aUserEvent.Release();
+    TP_THIS_FUNCTION(TMapUserEvents, void, void, InputEvent*);
+    POINTER_SKYRIMSE(TMapUserEvents, s_mapUserEvents, 68542); // ControlMap::MapUserEvents
+    TiltedPhoques::ThisCall(s_mapUserEvents.Get(), *controlMap.Get(), &aEvent);
+
+    TP_THIS_FUNCTION(TSendEvent, void, void, InputEvent* const*);
+    POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655); // BSTEventSource<InputEvent*>::SendEvent
+    InputEvent* pChain = &aEvent;
+    TiltedPhoques::ThisCall(s_sendEvent.Get(), *inputDeviceManager.Get(), &pChain);
+    return true;
+}
+
+bool SendButton(InputEvent::Device aDevice, uint32_t aIdCode, bool aDown) noexcept
+{
+    // One event per button for the whole run (sinks may keep a pointer to one), as SendPlayerButton.
+    static Map<uint64_t, ButtonEvent> s_events;
+    const VersionDbPtr<void> buttonEventVtable(208708);
+    ButtonEvent& event = s_events[(static_cast<uint64_t>(aDevice) << 32) | aIdCode];
+    event.header.pVtable = buttonEventVtable.GetPtr();
+    event.header.device = aDevice;
+    event.header.eventType = InputEvent::kButton;
+    event.header.pNext = nullptr;
+    event.idCode = aIdCode;
+    event.value = aDown ? 1.f : 0.f;
+    event.heldDownSecs = aDown ? 0.f : 0.05f;
+    return MapAndSend(event.header, event.userEvent);
+}
+} // namespace
+
+bool SendKey(uint32_t aScanCode, bool aDown) noexcept
+{
+    return SendButton(InputEvent::kKeyboard, aScanCode, aDown);
+}
+
+bool SendMouseButton(uint32_t aButton, bool aDown) noexcept
+{
+    return SendButton(InputEvent::kMouse, aButton, aDown);
+}
+
+bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept
+{
+    static MouseMoveEvent s_event{};
+    const VersionDbPtr<void> mouseMoveEventVtable(236703);
+    s_event.header.pVtable = mouseMoveEventVtable.GetPtr();
+    s_event.header.device = InputEvent::kMouse;
+    s_event.header.eventType = InputEvent::kMouseMove;
+    s_event.header.pNext = nullptr;
+    s_event.idCode = 0xA;
+    s_event.mouseInputX = aDeltaX;
+    s_event.mouseInputY = aDeltaY;
+    return MapAndSend(s_event.header, s_event.userEvent);
+}
+
+std::optional<std::pair<float, float>> GetMenuCursor() noexcept
+{
+    static const BSFixedString s_cursorMenu("Cursor Menu");
+    UI* pUI = UI::Get();
+    const MenuCursor* pCursor = MenuCursor::Get();
+    if (!pUI || !pCursor || !pUI->GetMenuOpen(s_cursorMenu))
+        return std::nullopt;
+    return std::pair{pCursor->cursorPosX, pCursor->cursorPosY};
 }
 
 void ForcePlayerFirstPerson() noexcept

@@ -58,7 +58,6 @@
       },
       "ACTIONS": {
         "KICK": "踢出",
-        "TELEPORT": "传送",
         "MAKE_LEADER": "转移队长"
       },
       "LEAVE_PARTY": "离开团队"

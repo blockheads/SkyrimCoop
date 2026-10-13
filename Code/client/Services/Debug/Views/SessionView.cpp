@@ -1,7 +1,5 @@
 #include <Services/DebugService.h>
 
-#include <Messages/TeleportCommandRequest.h>
-
 #include <World.h>
 
 #include <imgui.h>
@@ -26,17 +24,9 @@ void DebugService::DrawSessionView()
             name += " (host)";
         ImGui::BulletText("%s", name.c_str());
 
-        ImGui::SameLine(200);
-        if (ImGui::Button("Teleport"))
-        {
-            TeleportCommandRequest request{};
-            request.TargetPlayer = cPlayer.Name;
-            m_transport.Send(request);
-        }
-
         if (hostService.IsHosting())
         {
-            ImGui::SameLine();
+            ImGui::SameLine(200);
             if (ImGui::Button("Kick"))
                 hostService.KickPlayer(cId);
         }

@@ -2,6 +2,7 @@
 
 #include <Ui/UiService.h>
 #include <Ui/UiRenderer.h>
+#include <Ui/UiInput.h>
 
 #include <World.h>
 #include <Bridges/IActorBridge.h>
@@ -9,6 +10,8 @@
 #include <Components/PlayerComponent.h>
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
+#include <Messages/NotifyChatMessageBroadcast.h>
+#include <Messages/SendChatMessageRequest.h>
 
 #include <RmlUi/Core.h>
 
@@ -44,6 +47,41 @@ struct UiSystem final : Rml::SystemInterface
 
 UiSystem s_system;
 
+// How the chat shows its lines: the last ones for a while after they arrive, more while it is open.
+constexpr auto cChatLineShown = std::chrono::seconds(10);
+constexpr size_t cChatLinesShown = 6;
+constexpr size_t cChatLinesOpen = 12;
+constexpr size_t cChatHistory = 50;
+constexpr size_t cChatMaxLength = 200;
+
+// The text a key types with the player's keyboard layout and shift (as skymp's InputConverter).
+Rml::String TypedText(uint32_t aScanCode, bool aShift) noexcept
+{
+    const HKL cLayout = GetKeyboardLayout(0);
+    const UINT cVirtualKey = MapVirtualKeyExW(aScanCode, MAPVK_VSC_TO_VK_EX, cLayout);
+    BYTE state[256]{};
+    if (aShift)
+        state[VK_SHIFT] = 0x80;
+    if (GetKeyState(VK_CAPITAL) & 1)
+        state[VK_CAPITAL] = 0x01;
+    wchar_t typed[8]{};
+    const int cCount = ToUnicodeEx(cVirtualKey, aScanCode, state, typed, int(std::size(typed)), 0, cLayout);
+    if (cCount <= 0 || typed[0] < 0x20)
+        return {};
+    char utf8[32]{};
+    const int cBytes = WideCharToMultiByte(CP_UTF8, 0, typed, cCount, utf8, int(sizeof(utf8)), nullptr, nullptr);
+    return Rml::String(utf8, std::max(cBytes, 0));
+}
+
+// Removes the last character (a whole UTF-8 sequence).
+void PopCharacter(Rml::String& aText) noexcept
+{
+    while (!aText.empty() && (uint8_t(aText.back()) & 0xC0) == 0x80)
+        aText.pop_back();
+    if (!aText.empty())
+        aText.pop_back();
+}
+
 Rml::String UiDirectory() noexcept
 {
     if (const char* pOverride = std::getenv("SKYRIMCOOP_UI_DIR"); pOverride && *pOverride)
@@ -58,6 +96,7 @@ UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept
     : m_world(aWorld)
     , m_actorBridge(aActorBridge)
 {
+    m_chatConnection = aWorld.GetDispatcher().sink<NotifyChatMessageBroadcast>().connect<&UiService::OnChatMessage>(this);
 }
 
 UiService::~UiService() noexcept
@@ -124,6 +163,21 @@ void UiService::Create(IDXGISwapChain* apSwapChain) noexcept
         m_partyModel = party.GetModelHandle();
     }
 
+    if (Rml::DataModelConstructor chat = m_pContext->CreateDataModel("chat"))
+    {
+        if (auto line = chat.RegisterStruct<ChatLine>())
+        {
+            line.RegisterMember("name", &ChatLine::Name);
+            line.RegisterMember("text", &ChatLine::Text);
+            line.RegisterMember("system", &ChatLine::System);
+        }
+        chat.RegisterArray<Rml::Vector<ChatLine>>();
+        chat.Bind("lines", &m_chatShown);
+        chat.Bind("open", &m_chatOpen);
+        chat.Bind("draft", &m_chatDraft);
+        m_chatModel = chat.GetModelHandle();
+    }
+
     m_lastChange = LastChange();
     LoadDocuments();
     spdlog::info("UI: RmlUi {} ready, {}x{}, documents from {}", Rml::GetVersion(), desc.BufferDesc.Width, desc.BufferDesc.Height, m_directory);
@@ -136,6 +190,12 @@ void UiService::LoadDocuments() noexcept
         m_pParty->Show();
     else
         spdlog::error("UI: {}/party.rml did not load", m_directory);
+
+    m_pChat = m_pContext->LoadDocument(m_directory + "/chat.rml");
+    if (m_pChat)
+        m_pChat->Show();
+    else
+        spdlog::error("UI: {}/chat.rml did not load", m_directory);
 }
 
 void UiService::Reload() noexcept
@@ -185,6 +245,7 @@ void UiService::Render() noexcept
     m_pContext->SetDensityIndependentPixelRatio(float(cSize.y) / 1080.f);
 
     UpdateParty();
+    UpdateChat();
     m_pContext->Update();
 
     m_pRenderer->BeginFrame(cSize.x, cSize.y);
@@ -226,4 +287,80 @@ void UiService::UpdateParty() noexcept
         m_members = std::move(members);
         m_partyModel.DirtyVariable("members");
     }
+}
+
+void UiService::OnChatMessage(const NotifyChatMessageBroadcast& acMessage) noexcept
+{
+    m_chatHistory.push_back({{acMessage.PlayerName.c_str(), acMessage.ChatMessage.c_str(), acMessage.MessageType == kSystemMessage},
+                             std::chrono::steady_clock::now()});
+    if (m_chatHistory.size() > cChatHistory)
+        m_chatHistory.erase(m_chatHistory.begin());
+}
+
+Rml::Vector<UiService::ChatLine> UiService::GetChatLines() const noexcept
+{
+    Rml::Vector<ChatLine> lines;
+    for (const auto& cReceived : m_chatHistory)
+        lines.push_back(cReceived.Line);
+    return lines;
+}
+
+void UiService::UpdateChat() noexcept
+{
+    UiInput::SetChatAvailable(m_pChat && m_world.GetTransport().IsConnected());
+
+    const Rml::String cDraft = m_chatDraft;
+    for (const auto& cKey : UiInput::TakeKeys())
+    {
+        switch (cKey.ScanCode)
+        {
+        case UiInput::cEnter:
+        case UiInput::cNumpadEnter:
+            SendChat();
+            UiInput::CloseChat();
+            break;
+        case UiInput::cEscape: UiInput::CloseChat(); break;
+        case UiInput::cBackspace: PopCharacter(m_chatDraft); break;
+        default:
+            if (m_chatDraft.size() < cChatMaxLength)
+                m_chatDraft += TypedText(cKey.ScanCode, cKey.Shift);
+            break;
+        }
+    }
+
+    const bool cOpen = UiInput::IsChatOpen();
+    if (!cOpen)
+        m_chatDraft.clear();
+    if (cOpen != m_chatOpen)
+    {
+        m_chatOpen = cOpen;
+        m_chatModel.DirtyVariable("open");
+    }
+    if (m_chatDraft != cDraft)
+        m_chatModel.DirtyVariable("draft");
+
+    // Open: the last lines. Closed: the last few, while they are recent.
+    Rml::Vector<ChatLine> shown;
+    const auto cNow = std::chrono::steady_clock::now();
+    const size_t cCount = m_chatOpen ? cChatLinesOpen : cChatLinesShown;
+    for (size_t i = m_chatHistory.size() > cCount ? m_chatHistory.size() - cCount : 0; i < m_chatHistory.size(); ++i)
+        if (m_chatOpen || cNow - m_chatHistory[i].At < cChatLineShown)
+            shown.push_back(m_chatHistory[i].Line);
+    if (shown != m_chatShown)
+    {
+        m_chatShown = std::move(shown);
+        m_chatModel.DirtyVariable("lines");
+    }
+}
+
+void UiService::SendChat() noexcept
+{
+    if (m_chatDraft.empty())
+        return;
+    // Everyone gets it from the host, us too: what shows is what was sent.
+    SendChatMessageRequest request;
+    request.MessageType = kGlobalChat;
+    request.ChatMessage = m_chatDraft.c_str();
+    m_world.GetTransport().Send(request);
+    m_chatDraft.clear();
 }

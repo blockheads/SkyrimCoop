@@ -44,7 +44,6 @@
 #include <Messages/NotifyDialogue.h>
 #include <Messages/SubtitleRequest.h>
 #include <Messages/NotifySubtitle.h>
-#include <Messages/NotifyActorTeleport.h>
 #include <Messages/NotifyRelinquishControl.h>
 
 #include <Bridges/IActorBridge.h>
@@ -100,8 +99,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     m_subtitleEventConnection = m_dispatcher.sink<SubtitleEvent>().connect<&CharacterService::OnSubtitleEvent>(this);
     m_subtitleSyncConnection = m_dispatcher.sink<NotifySubtitle>().connect<&CharacterService::OnNotifySubtitle>(this);
-
-    m_actorTeleportConnection = m_dispatcher.sink<NotifyActorTeleport>().connect<&CharacterService::OnNotifyActorTeleport>(this);
 
     m_relinquishConnection = m_dispatcher.sink<NotifyRelinquishControl>().connect<&CharacterService::OnNotifyRelinquishControl>(this);
 
@@ -264,7 +261,7 @@ void CharacterService::RunActorDiscovery() noexcept
 void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept
 {
     // Go through all the forms that were previously detected
-    auto view = m_world.view<FormIdComponent>(entt::exclude<ObjectComponent>);
+    auto view = m_world.view<FormIdComponent>();
     Vector<entt::entity> entities(view.begin(), view.end());
     spdlog::debug("CharacterService::OnConnected: processing {} discovered entities", entities.size());
 
@@ -526,7 +523,7 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const CharacterSpawnReq
 
 void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessage) noexcept
 {
-    auto view = m_world.view<FormIdComponent>(entt::exclude<ObjectComponent>);
+    auto view = m_world.view<FormIdComponent>();
 
     const auto itor = std::find_if(
         std::begin(view), std::end(view),
@@ -903,7 +900,7 @@ void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
     if (!m_transport.IsConnected())
         return;
 
-    auto view = m_world.view<FormIdComponent>(entt::exclude<ObjectComponent>);
+    auto view = m_world.view<FormIdComponent>();
     auto entityIt = std::find_if(view.begin(), view.end(), [view, formId = acEvent.ActorID](auto entity) { return view.get<FormIdComponent>(entity).Id == formId; });
 
     if (entityIt == view.end())
@@ -945,7 +942,7 @@ void CharacterService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
     if (!m_transport.IsConnected())
         return;
 
-    auto view = m_world.view<FormIdComponent>(entt::exclude<ObjectComponent>);
+    auto view = m_world.view<FormIdComponent>();
     auto entityIt = std::find_if(view.begin(), view.end(), [view, formId = acEvent.SpeakerID](auto entity) { return view.get<FormIdComponent>(entity).Id == formId; });
 
     if (entityIt == view.end())
@@ -1029,20 +1026,6 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
     }
 
     spdlog::error("Did not find actor to relinquish control of, server id {:X}", acMessage.ServerId);
-}
-
-void CharacterService::OnNotifyActorTeleport(const NotifyActorTeleport& acMessage) noexcept
-{
-    const uint32_t cActorId = World::Get().GetModSystem().GetGameId(acMessage.FormId);
-    if (!m_actorBridge.ActorExists(cActorId))
-    {
-        spdlog::error("{}: : failed to retrieve actor to teleport.", __FUNCTION__);
-        return;
-    }
-
-    MoveActor(cActorId, acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position);
-
-    spdlog::info("Successfully teleported actor, form id: {:X}, world space: {:X}, cell: {:X}, position: ({}, {}, {})", cActorId, acMessage.WorldSpaceId.BaseId, acMessage.CellId.BaseId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
 }
 
 void CharacterService::MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept

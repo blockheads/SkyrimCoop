@@ -32,23 +32,22 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Time (`HostClock`; set-time from any player) | done (`4e0efb0a`) |
 | Weather (`HostWeather`) | done (`50397fa0`) |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
-| Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios uncommitted); the arrival refreshes the host's record of the player (inventory, values, hands) |
+| Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
 | Arriving together: players step aside onto navmesh floor by session slot | done (`83178416`), `party-spreads-on-arrival` |
-| Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (uncommitted), `party-fast-travels` |
+| Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
 | Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
-| Objects: activation, locks, script animations | done as bridge relays (`31abfd23`, `550ece84`); object ids still from the server (`AssignObjectsRequest`) |
+| Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (uncommitted) |
 | Quests | not started; quest sync off (`cSyncQuests`) until it has a design |
-| Waypoints, chat, player dialogue, overlay health | still handled by the server's `MapService`/`OverlayService` |
-| Teleport command | still on the server, reading stale positions; host only |
+| Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (uncommitted) |
+| Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (uncommitted) |
+| Teleport command, teleport to a player | dropped: everyone is already together under the tether (uncommitted) |
 | Tether itself (pulling a player along, travel requests) | not built: a player who leaves on their own is only logged |
 
 ### Still on the embedded server (what phase 4-5 removes)
 
 - Session: `AuthenticationRequest`, connections, version and mod-list check, player list
   (`NotifyPlayerJoined`/`Left`), `StringCacheService`, `PlayerLevelRequest`.
-- `ObjectService::OnAssignObjectsRequest` (object ids).
-- `QuestService`, `MapService` (waypoints), `OverlayService` (chat, player dialogue, health,
-  teleport), `CommandService` (teleport command).
+- `QuestService`; `PlayerService` (`PlayerLevelRequest`, a relay like the overlay's health).
 - To delete outright: `ScriptService` (Lua), `AdminService`, server console commands, recording.
 
 ## Sync by system
@@ -99,7 +98,13 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
-- Travel and presence (2026-10-13, uncommitted): `party-uses-door` and `party-fast-travels` added; those two,
+- Map markers (2026-10-13, uncommitted): `map-marker-reaches-everyone` (place both ways, remove) 3 of 3 on
+  a warm duo and 2 of 2 on a fresh one, `chat-reaches-everyone` passes with `key` through the control map, `BridgeTests` 284 of 284.
+  Test games had tutorials on all along: `bShowTutorials` went to SkyrimPrefs.ini, which ignores it; it
+  is in Skyrim.ini now (the map's first-open tutorial took the next key).
+- Relays, object ids, chat (2026-10-13, uncommitted): `BridgeTests` 284 of 284; the `objects` and `session`
+  scenarios, `chat-reaches-everyone` and the input scenarios pass.
+- Travel and presence (2026-10-13, `87972601`): `party-uses-door` and `party-fast-travels` added; those two,
   the session scenarios, `teleport-keeps-copies` and `party-changes-cells` pass (8 of 8). A full run was
   stopped after 26 (25 pass; the failure, `late-join-client`, is fixed: see Tests and harness).
 - Last full run (2026-10-13, `5cdf49d2` build): **47 of 47**. Earlier the same day: 42 of 43, then
@@ -108,7 +113,9 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.
-- Bridge rules: headless `BridgeTests` (`Code/tests/bridge`), wire bytes pinned in `wire_tests.cpp`.
+- Bridge rules: headless `BridgeTests` (`Code/tests/bridge`), wire bytes pinned in `wire_tests.cpp`. Build with
+  `scripts/xmake-linux.sh` (GCC, lld; a one-file change links in ~6 s). Not clang yet: sol2 3.3.0 (the
+  server's Lua) does not build with clang 18; the server goes in phase 5.
 
 ## Loose ends
 
@@ -191,8 +198,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 ### Migration
 
 - **Tether:** pulling a player along and travel requests are not built.
-- **Teleport command** still reads the server's stale positions.
-- **Object ids** still come from the server (`AssignObjectsRequest`).
+- **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are still in the tree**, compiled out of the
+  Windows build: the RmlUi panels replace them (party, chat).
 - **Quests** need their own design before sync goes on.
 
 ### Tests and harness
@@ -205,6 +212,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - A stuck `LoadWaitSpinner` once kept the host from taking input (2026-10-13, a fresh game): the first
   `cow` to the river took over `both_go`'s 10 s fade wait on the client, and the cleanup `coc` ran while
   the host's spinner was up; it stayed through later cell changes until a restart. Not reproduced.
+- The stuck `LoadWaitSpinner` happened again (2026-10-13, host, the first `both_go` to Riverwood on a fresh
+  duo); a restart cleared it.
 - The map's fast travel UI (open the map, pick a marker, confirm) is not driven; `party-fast-travels` uses
   the console's `FastTravel`, which queues the same move (`docs/re/systems/player-travel.md`).
 - The `duo` harness process once segfaulted on exit after a pass.

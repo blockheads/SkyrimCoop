@@ -5,13 +5,11 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
-#include <Events/PlayerDialogueEvent.h>
 #include <Events/PlayerLevelEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 
 #include <Messages/PlayerRespawnRequest.h>
 #include <Messages/NotifyPlayerRespawn.h>
-#include <Messages/PlayerDialogueRequest.h>
 #include <Messages/PlayerLevelRequest.h>
 
 #include <Structs/ServerSettings.h>
@@ -48,7 +46,6 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&PlayerService::OnDisconnected>(this);
     m_settingsConnection = m_dispatcher.sink<ServerSettings>().connect<&PlayerService::OnServerSettingsReceived>(this);
     m_notifyRespawnConnection = m_dispatcher.sink<NotifyPlayerRespawn>().connect<&PlayerService::OnNotifyPlayerRespawn>(this);
-    m_playerDialogueConnection = m_dispatcher.sink<PlayerDialogueEvent>().connect<&PlayerService::OnPlayerDialogueEvent>(this);
     m_playerLevelConnection = m_dispatcher.sink<PlayerLevelEvent>().connect<&PlayerService::OnPlayerLevelEvent>(this);
 }
 
@@ -106,17 +103,6 @@ void PlayerService::OnNotifyPlayerRespawn(const NotifyPlayerRespawn& acMessage) 
     m_playerBridge.ShowHudMessage(message);
 }
 
-
-void PlayerService::OnPlayerDialogueEvent(const PlayerDialogueEvent& acEvent) const noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    PlayerDialogueRequest request{};
-    request.Text = acEvent.Text;
-
-    m_transport.Send(request);
-}
 
 void PlayerService::OnPlayerLevelEvent(const PlayerLevelEvent& acEvent) const noexcept
 {

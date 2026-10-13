@@ -11,8 +11,11 @@
 #include <array>
 #include <functional>
 
+#include <ChatMessageTypes.h>
+
 struct RequestInventoryChanges;
 struct RequestFactionsChanges;
+struct SendChatMessageRequest;
 
 namespace Server
 {
@@ -85,6 +88,8 @@ private:
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
     // Each actor's factions from its owner (one message carries many actors).
     void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    // A chat line goes to everyone, the sender too (its chat shows what it sent), under its name.
+    void OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
     void Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 

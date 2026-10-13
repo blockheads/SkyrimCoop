@@ -39,7 +39,6 @@ struct DialogueEvent;
 struct NotifyDialogue;
 struct SubtitleEvent;
 struct NotifySubtitle;
-struct NotifyActorTeleport;
 struct NotifyRelinquishControl;
 
 class IActorBridge;
@@ -88,7 +87,6 @@ struct CharacterService
     void OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept;
     void OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept;
     void OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept;
-    void OnNotifyActorTeleport(const NotifyActorTeleport& acMessage) noexcept;
     void OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept;
 
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
@@ -181,6 +179,5 @@ private:
     entt::scoped_connection m_dialogueSyncConnection;
     entt::scoped_connection m_subtitleEventConnection;
     entt::scoped_connection m_subtitleSyncConnection;
-    entt::scoped_connection m_actorTeleportConnection;
     entt::scoped_connection m_relinquishConnection;
 };

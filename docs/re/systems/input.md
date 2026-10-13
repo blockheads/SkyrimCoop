@@ -42,7 +42,13 @@ event source, so every sink sees it exactly as it would see a device event.
   `AttackBlockHandler::ProcessButton` and rewrites `userEvent` to `rightAttack` before calling the
   original.
 
-Ours: `TestHarness::EngineCalls::SendPlayerButton` (`Code/client/TestHarness/EngineCalls.cpp`; the harness's `input` command, test builds only; `scripts/coop_test.py` press/release/tap).
+Ours: `TestHarness::EngineCalls::SendKey` (the harness's `key` command) maps the key first, as the poll
+does: `ControlMap::MapUserEvents` (68542, `(ControlMap* 400863, InputEvent* chainHead)`; verified in IDA
+2026-10-13) with an empty `userEvent`, so menus get their own events (the map's P is
+`PlacePlayerMarker`). Then `SendEvent`. Its `mouse` command does the same with a mouse button or a
+`MouseMoveEvent` (vtable 236703, idCode 0xA "Cursor", deltas `mouseInputX/Y` at `+0x28/+0x2C`), which moves
+the menu cursor (`MenuCursor` 403551, `cursorPosX/Y` at `+0x4/+0x8`, window pixels).
+`TestHarness::EngineCalls::SendPlayerButton` (`Code/client/TestHarness/EngineCalls.cpp`; the harness's `input` command, test builds only; `scripts/coop_test.py` press/release/tap).
 What it took to drive a player like this (verified 2026-10-11):
 
 - **A held button is sent every frame**, value 1 with the time held so far, as devices do (`TestHarness::PlayerInput::Poll`).
@@ -71,3 +77,20 @@ Notes for us:
 - `ActorMediator::PerformAction` (with `TESActionData`) skips all of this. It starts the animation, but
   no cast (`SpellCast` never runs) and, from our client, nothing our animation sync sees (it calls the
   original past our hook on 38949).
+
+## Taking input (the chat line)
+
+We hook `BSTEventSource<InputEvent*>::SendEvent` (68655; verified in IDA 2026-10-13: `(source, InputEvent* const*
+chain)`, each sink's `ProcessEvent` is vfunc 1 with `(sink, chain, source)`; its one caller is
+`PollInputDevices`). `UiInput::Take` (`Code/client/Ui/UiInput.cpp`) sees every chain first:
+
+- Chat closed: an Enter press (scan code 0x1C, or 0x9C on the numpad) while only the HUD is up opens it;
+  nothing else is touched.
+- Chat open: it keeps the keyboard presses and the chain goes nowhere, so the game gets no input at all
+  (no walking while typing, Escape opens no menu). A menu opening or the session ending closes it.
+- Text: scan code → virtual key → `ToUnicodeEx` with the thread's keyboard layout, shift from the events
+  and Caps Lock from Windows, as skymp's `InputConverter` does (`reference/plugins/skymp`). No dead keys
+  or IME.
+
+The harness's injected keys (`SendKey`, `{"cmd": "key"}`) call the same function, so they go through the
+hook like a keyboard's: `chat-reaches-everyone` types with them.

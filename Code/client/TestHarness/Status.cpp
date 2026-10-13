@@ -270,10 +270,26 @@ static nlohmann::json GameStatus()
         for (const auto& cMember : pUi->GetPartyMembers())
             party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"health", cMember.Health}});
     }
+    // The chat: every line received, whether its line is open and what is typed in it.
+    nlohmann::json chat = nullptr;
+    if (const auto* pUi = world.ctx().find<UiService>())
+    {
+        nlohmann::json lines = nlohmann::json::array();
+        for (const auto& cLine : pUi->GetChatLines())
+            lines.push_back({{"name", cLine.Name}, {"text", cLine.Text}, {"system", cLine.System}});
+        chat = {{"open", pUi->IsChatOpen()}, {"draft", pUi->GetChatDraft()}, {"lines", lines}};
+    }
+    nlohmann::json cursor = nullptr;
+    if (const auto cCursor = EngineCalls::GetMenuCursor())
+        cursor = {cCursor->first, cCursor->second};
+    // The player's map marker.
+    nlohmann::json mapMarker = nullptr;
+    if (const auto cMarker = EngineCalls::GetPlayerMapMarker())
+        mapMarker = {{"position", {cMarker->X, cMarker->Y, cMarker->Z}}, {"world", cMarker->WorldOrCell}};
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
             {"weather", bridge.GetCurrentWeatherId()},
-            {"players", players}, {"party_panel", party},
+            {"players", players}, {"party_panel", party}, {"chat", chat}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
             {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }
 

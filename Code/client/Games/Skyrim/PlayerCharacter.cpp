@@ -23,6 +23,7 @@
 #include <Forms/TESWorldSpace.h>
 
 #include <Forms/TESObjectCELL.h>
+#include <Interface/UI.h>
 
 #include <ModCompat/BehaviorVar.h>
 
@@ -32,7 +33,7 @@ TP_THIS_FUNCTION(TPickUpObject, char, PlayerCharacter, TESObjectREFR* apObject, 
 TP_THIS_FUNCTION(TSetBeastForm, void, void, void* apUnk1, void* apUnk2, bool aEntering);
 TP_THIS_FUNCTION(TAddSkillExperience, void, PlayerCharacter, int32_t aSkill, float aExperience);
 TP_THIS_FUNCTION(TCalculateExperience, bool, int32_t, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2);
-TP_THIS_FUNCTION(TSetWaypoint, void, PlayerCharacter, NiPoint3* apPosition, TESWorldSpace* apWorldSpace);
+TP_THIS_FUNCTION(TSetWaypoint, void, PlayerCharacter, NiPoint3* apPosition, TESForm* apWorldOrCell);
 TP_THIS_FUNCTION(TRemoveWaypoint, void, PlayerCharacter);
 
 static TPickUpObject* RealPickUpObject = nullptr;
@@ -142,9 +143,9 @@ void PlayerCharacter::PayCrimeGoldToAllFactions() noexcept
     }
 }
 
-void PlayerCharacter::SetWaypoint(NiPoint3* apPosition, TESWorldSpace* apWorldSpace) noexcept
+void PlayerCharacter::SetWaypoint(NiPoint3* apPosition, TESForm* apWorldOrCell) noexcept
 {
-    return TiltedPhoques::ThisCall(RealSetWaypoint, this, apPosition, apWorldSpace);
+    return TiltedPhoques::ThisCall(RealSetWaypoint, this, apPosition, apWorldOrCell);
 }
 
 void PlayerCharacter::RemoveWaypoint() noexcept
@@ -225,21 +226,25 @@ bool TP_MAKE_THISCALL(HookCalculateExperience, int32_t, float* aFactor, float* a
     return result;
 }
 
-void TP_MAKE_THISCALL(HookSetWaypoint, PlayerCharacter, NiPoint3* apPosition, TESWorldSpace* apWorldSpace)
+// The map menu places the player's marker (MapMenu::PlaceMarker 53113, then the terrain pick 53114).
+void TP_MAKE_THISCALL(HookSetWaypoint, PlayerCharacter, NiPoint3* apPosition, TESForm* apWorldOrCell)
 {
     Vector3_NetQuantize position{};
     position.x = apPosition->x;
     position.y = apPosition->y;
     position.z = apPosition->z;
 
-    World::Get().GetRunner().Trigger(SetWaypointEvent(position, apWorldSpace ? apWorldSpace->formID : 0));
+    World::Get().GetRunner().Trigger(SetWaypointEvent(position, apWorldOrCell ? apWorldOrCell->formID : 0));
 
-    return TiltedPhoques::ThisCall(RealSetWaypoint, apThis, apPosition, apWorldSpace);
+    return TiltedPhoques::ThisCall(RealSetWaypoint, apThis, apPosition, apWorldOrCell);
 }
 
+// Only the map's "remove marker" is the player's choice; the engine also clears it outside the map.
 void TP_MAKE_THISCALL(HookRemoveWaypoint, PlayerCharacter)
 {
-    World::Get().GetRunner().Trigger(RemoveWaypointEvent());
+    static const BSFixedString s_mapMenu("MapMenu");
+    if (UI* pUI = UI::Get(); pUI && pUI->GetMenuOpen(s_mapMenu))
+        World::Get().GetRunner().Trigger(RemoveWaypointEvent());
 
     return TiltedPhoques::ThisCall(RealRemoveWaypoint, apThis);
 }

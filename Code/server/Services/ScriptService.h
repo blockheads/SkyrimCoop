@@ -33,7 +33,6 @@ struct ScriptService
     std::tuple<bool, String> HandleCharacterSpawn(const entt::entity aPlayer) noexcept;
     std::tuple<bool, String> HandleCharacterDestoy(const entt::entity aPlayer) noexcept;
 
-    std::tuple<bool, String> HandleChatMessage(const entt::entity aSender, const String& aMessage) noexcept;
 
     void HandlePlayerQuit(ConnectionId_t aConnectionId, TiltedPhoques::Server::EDisconnectReason aReason) noexcept;
 

@@ -123,7 +123,8 @@ struct PlayerCharacter : Actor
 
     void PayCrimeGoldToAllFactions() noexcept;
 
-    void SetWaypoint(NiPoint3* apPosition, TESWorldSpace* apWorldSpace) noexcept;
+    // The player's map marker (40535): apWorldOrCell is the worldspace or interior cell it is in, never null.
+    void SetWaypoint(NiPoint3* apPosition, TESForm* apWorldOrCell) noexcept;
     void RemoveWaypoint() noexcept;
 
     struct Objective
@@ -140,7 +141,9 @@ struct PlayerCharacter : Actor
 
     uint8_t pad1[0x588 - sizeof(Actor)];
     GameArray<ObjectiveInstance> objectives;
-    uint8_t pad588[0x9B0 - 0x598];
+    uint8_t pad5A0[0x92C - 0x5A0];
+    uint32_t playerMapMarker; // handle of the marker placed on the map (40535 sets it, 40536 clears it)
+    uint8_t pad930[0x9B8 - 0x930];
     Skills** pSkills;
     uint8_t pad9B8[0xAC8 - 0x9B8];
     TESForm* locationForm;
@@ -154,6 +157,7 @@ struct PlayerCharacter : Actor
 };
 
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, objectives) == 0x588);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, playerMapMarker) == 0x92C);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, pSkills) == 0x9B8);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, locationForm) == 0xAD0);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, baseTints) == 0xB18);

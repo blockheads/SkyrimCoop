@@ -57,7 +57,6 @@
       },
       "ACTIONS": {
         "KICK": "추방",
-        "TELEPORT": "순간 이동",
         "MAKE_LEADER": "리더 임명"
       },
       "LEAVE_PARTY": "파티에서 탈퇴"

@@ -22,16 +22,11 @@ struct UpdateEvent;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct TransportService;
-struct NotifyChatMessageBroadcast;
 struct NotifyPlayerList;
 struct NotifyPlayerJoined;
 struct NotifyPlayerLeft;
-struct NotifyPlayerDialogue;
 struct ConnectionErrorEvent;
 struct NotifyPlayerLevel;
-struct NotifyTeleport;
-struct NotifyPlayerHealthUpdate;
-enum ChatMessageTypes;
 
 using TiltedPhoques::OverlayApp;
 
@@ -64,10 +59,6 @@ struct OverlayService
 
     OverlayApp* GetOverlayApp() const noexcept { return m_pOverlay.get(); }
 
-    void SendSystemMessage(const std::string& acMessage);
-
-    void SetPlayerHealthPercentage(uint32_t aFormId) const noexcept;
-
 protected:
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnConnectedEvent(const ConnectedEvent&) noexcept;
@@ -75,17 +66,12 @@ protected:
     void OnWaitingFor3DRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept;
     void OnPlayerComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept;
     void OnConnectionError(const ConnectionErrorEvent& acConnectedEvent) const noexcept;
-    void OnChatMessageReceived(const NotifyChatMessageBroadcast&) noexcept;
-    void OnPlayerDialogue(const NotifyPlayerDialogue&) noexcept;
     void OnPlayerJoined(const NotifyPlayerJoined&) noexcept;
     void OnPlayerLeft(const NotifyPlayerLeft&) noexcept;
     void OnPlayerLevel(const NotifyPlayerLevel&) noexcept;
-    void OnNotifyTeleport(const NotifyTeleport& acMessage) noexcept;
-    void OnNotifyPlayerHealthUpdate(const NotifyPlayerHealthUpdate& acMessage) noexcept;
 
 private:
     void RunDebugDataUpdates() noexcept;
-    void RunPlayerHealthUpdates() noexcept;
 
     CefRefPtr<OverlayApp> m_pOverlay{nullptr};
     TiltedPhoques::UniquePtr<D3D11RenderProvider> m_pProvider;
@@ -103,15 +89,11 @@ private:
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_connectionErrorConnection;
-    entt::scoped_connection m_chatMessageConnection;
-    entt::scoped_connection m_playerDialogueConnection;
     entt::scoped_connection m_playerJoinedConnection;
     entt::scoped_connection m_playerLeftConnection;
     entt::scoped_connection m_playerAddedConnection;
     entt::scoped_connection m_playerRemovedConnection;
     entt::scoped_connection m_playerLevelConnection;
-    entt::scoped_connection m_teleportConnection;
-    entt::scoped_connection m_playerHealthConnection;
 };
 
 #else
@@ -148,8 +130,6 @@ struct OverlayService
     [[nodiscard]] bool GetInGame() const noexcept { return false; }
     void SetVersion(const std::string&) {}
     void* GetOverlayApp() const noexcept { return nullptr; }
-    void SendSystemMessage(const std::string&) {}
-    void SetPlayerHealthPercentage(uint32_t) const noexcept {}
 
 private:
     World& m_world;

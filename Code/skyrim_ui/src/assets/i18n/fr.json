@@ -58,7 +58,6 @@
       },
       "ACTIONS": {
         "KICK": "Exclure",
-        "TELEPORT": "Téléporter",
         "MAKE_LEADER": "En faire le chef de groupe"
       },
       "LEAVE_PARTY": "Quitter le groupe"

@@ -58,7 +58,6 @@
       },
       "ACTIONS": {
         "KICK": "Expulsar",
-        "TELEPORT": "Teletransportar",
         "MAKE_LEADER": "Hacer lider"
       },
       "LEAVE_PARTY": "Abandonar grupo"

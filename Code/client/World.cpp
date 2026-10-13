@@ -34,6 +34,7 @@
 #include <Services/PlayerService.h>
 #include <Services/CombatService.h>
 #include <Services/WeatherService.h>
+#include <Services/MapService.h>
 #include <Services/HostService.h>
 
 #include <Events/PreUpdateEvent.h>
@@ -107,6 +108,7 @@ World::World()
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<WeatherService>(*this, m_dispatcher);
+    ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
 
     BehaviorVar::Get()->Init();
@@ -118,6 +120,7 @@ World::~World()
     // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
     // hot reloads now and then). They go first, newest first.
     ctx().erase<HostService>();
+    ctx().erase<MapService>();
     ctx().erase<WeatherService>();
     ctx().erase<CombatService>();
     ctx().erase<StringCacheService>();

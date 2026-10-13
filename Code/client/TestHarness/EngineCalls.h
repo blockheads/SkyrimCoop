@@ -26,6 +26,17 @@ bool IsMenuOpen(const char* acpMenu) noexcept;
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 // Names of the open menus (what blocks input: popups, console, menus).
 std::vector<std::string> GetOpenMenus() noexcept;
+// The marker the player placed on the map: where, and its worldspace (an interior's cell); none without one.
+struct MapMarker
+{
+    float X, Y, Z;
+    uint32_t WorldOrCell;
+};
+std::optional<MapMarker> GetPlayerMapMarker() noexcept;
+// The map is open and takes input (its controls are ready, as MapMenu::PlaceMarker 53113 requires).
+bool IsMapReady() noexcept;
+// Removes it, as the map's "Remove It" does (40536).
+void ClearPlayerMapMarker() noexcept;
 
 // --- Staging and the player's own input ---
 
@@ -43,6 +54,14 @@ enum class Button : uint8_t
 // the button stays down, and up the release after aHeldSecs. Everything that listens to input sees it,
 // the same as a player's. False if the input system is not up.
 bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept;
+// A keyboard key by DirectInput scan code, as the keyboard sends it: given the user event the key is mapped
+// to in the open menu or gameplay (ControlMap), then through the same dispatch.
+bool SendKey(uint32_t aScanCode, bool aDown) noexcept;
+// A mouse button (0 left, 1 right) and a mouse move by a delta, the same way.
+bool SendMouseButton(uint32_t aButton, bool aDown) noexcept;
+bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept;
+// Where the menus' cursor points while it shows.
+std::optional<std::pair<float, float>> GetMenuCursor() noexcept;
 void ForcePlayerFirstPerson() noexcept;
 // Turns the player toward an actor, yaw and pitch, in first person (aimed spells fly where the camera
 // looks).

@@ -8,8 +8,6 @@
 #include <Services/OverlayClient.h>
 #include <Services/TransportService.h>
 
-#include <Messages/SendChatMessageRequest.h>
-#include <Messages/TeleportRequest.h>
 
 #include <Events/SetTimeCommandEvent.h>
 
@@ -49,8 +47,6 @@ bool OverlayClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefR
             ProcessDisconnectMessage();
         else if (eventName == "revealPlayers")
             ProcessRevealPlayersMessage();
-        else if (eventName == "sendMessage")
-            ProcessChatMessage(eventArgs);
         else if (eventName == "setTime")
             ProcessSetTimeCommand(eventArgs);
         else if (eventName == "kickPlayer")
@@ -58,8 +54,6 @@ bool OverlayClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser, CefR
             const uint32_t cPlayerId = eventArgs->GetInt(0);
             World::Get().GetRunner().Queue([cPlayerId]() { World::Get().GetHostService().KickPlayer(cPlayerId); });
         }
-        else if (eventName == "teleportToPlayer")
-            ProcessTeleportMessage(eventArgs);
         else if (eventName == "toggleDebugUI")
             ProcessToggleDebugUI();
 
@@ -96,35 +90,12 @@ void OverlayClient::ProcessRevealPlayersMessage()
     World::Get().GetMagicService().StartRevealingOtherPlayers();
 }
 
-void OverlayClient::ProcessChatMessage(CefRefPtr<CefListValue> aEventArgs)
-{
-    std::string contents = aEventArgs->GetString(1).ToString();
-    if (!contents.empty())
-    {
-        SendChatMessageRequest messageRequest;
-        messageRequest.MessageType = static_cast<ChatMessageType>(aEventArgs->GetInt(0));
-        messageRequest.ChatMessage = contents;
-
-        spdlog::info(L"Send chat message of type {}: '{}' ", messageRequest.MessageType, aEventArgs->GetString(1).ToWString());
-
-        m_transport.Send(messageRequest);
-    }
-}
-
 void OverlayClient::ProcessSetTimeCommand(CefRefPtr<CefListValue> aEventArgs)
 {
     const uint8_t hours = static_cast<uint8_t>(aEventArgs->GetInt(0));
     const uint8_t minutes = static_cast<uint8_t>(aEventArgs->GetInt(1));
     const uint32_t senderId = m_transport.GetLocalPlayerId();
     World::Get().GetDispatcher().trigger(SetTimeCommandEvent(hours, minutes, senderId));
-}
-
-void OverlayClient::ProcessTeleportMessage(CefRefPtr<CefListValue> aEventArgs)
-{
-    TeleportRequest request{};
-    request.PlayerId = aEventArgs->GetInt(0);
-
-    m_transport.Send(request);
 }
 
 void OverlayClient::ProcessToggleDebugUI()

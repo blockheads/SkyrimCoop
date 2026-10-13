@@ -57,7 +57,6 @@
       },
       "ACTIONS": {
         "KICK": "Hiv ut",
-        "TELEPORT": "Teleporter",
         "MAKE_LEADER": "Make leader"
       },
       "LEAVE_PARTY": "Leave party"

@@ -346,13 +346,6 @@ interface SkyrimTogether {
   deactivate(): void;
 
   /**
-   * Teleport to given player
-   *
-   * @param playerId Id of the player to which the requester should be teleported to
-   */
-  teleportToPlayer(playerId: number): void;
-
-  /**
    * Reconnect the client.
    */
   reconnect(): void;

@@ -3,6 +3,7 @@
 
 #include <GameServer.h>
 
+#include <regex>
 #include <type_traits>
 
 #include <Messages/ActivateRequest.h>
@@ -17,6 +18,7 @@
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyActorValueChanges.h>
 #include <Messages/NotifyAddTarget.h>
+#include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/NotifyDialogue.h>
 #include <Messages/NotifyDrawWeapon.h>
@@ -32,7 +34,9 @@
 #include <Messages/NotifyNewPackage.h>
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyRemoveSpell.h>
+#include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/NotifyScriptAnimation.h>
+#include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifySpellCast.h>
 #include <Messages/NotifySubtitle.h>
 #include <Messages/NotifySyncExperience.h>
@@ -47,7 +51,10 @@
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
 #include <Messages/RequestInventoryChanges.h>
+#include <Messages/RequestRemoveWaypoint.h>
+#include <Messages/RequestSetWaypoint.h>
 #include <Messages/ScriptAnimationRequest.h>
+#include <Messages/SendChatMessageRequest.h>
 #include <Messages/SpellCastRequest.h>
 #include <Messages/SubtitleRequest.h>
 #include <Messages/SyncExperienceRequest.h>
@@ -105,6 +112,19 @@ NotifyScriptAnimation ToNotify(const ScriptAnimationRequest& acRequest)
     notify.Animation = acRequest.Animation;
     notify.EventName = acRequest.EventName;
     return notify;
+}
+
+NotifySetWaypoint ToNotify(const RequestSetWaypoint& acRequest)
+{
+    NotifySetWaypoint notify;
+    notify.Position = acRequest.Position;
+    notify.WorldSpaceFormID = acRequest.WorldSpaceFormID;
+    return notify;
+}
+
+NotifyRemoveWaypoint ToNotify(const RequestRemoveWaypoint&)
+{
+    return {};
 }
 
 template <class TRequest, class TNotify> TNotify ToNotify(const TRequest& acRequest)
@@ -172,6 +192,11 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     Relay<LockChangeRequest, NotifyLockChange>(FromAnyone);
     Relay<ScriptAnimationRequest, NotifyScriptAnimation>(FromAnyone);
 
+    // The map and chat
+    Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
+    Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
+    On(*this, &HostBridge::OnChatMessage);
+
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     m_server.SetLeaveHandler([this](ConnectionId_t aPlayer) { m_characters.OnPlayerLeft(aPlayer); });
 }
@@ -220,6 +245,23 @@ void HostBridge::OnFactionsChanges(const RequestFactionsChanges& acRequest, Conn
             notify.Changes[cServerId] = cFactions;
     if (!notify.Changes.empty())
         m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+}
+
+void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (acRequest.MessageType == kSystemMessage || acRequest.MessageType > kLocalChat)
+    {
+        spdlog::warn("HostBridge: {:x} sent a chat message of type {}, which players cannot", aSender, uint32_t(acRequest.MessageType));
+        return;
+    }
+    // The UI shows the text as it is: no markup from players.
+    static const std::regex s_markup{"<[^>]+>\\s+(?=<)|<[^>]+>"};
+    NotifyChatMessageBroadcast notify;
+    notify.MessageType = acRequest.MessageType;
+    notify.PlayerName = std::regex_replace(m_server.PlayerNameOf(aSender), s_markup, "");
+    notify.ChatMessage = std::regex_replace(acRequest.ChatMessage, s_markup, "");
+    for (const ConnectionId_t cPlayer : m_server.PlayerConnections())
+        m_server.Send(cPlayer, notify);
 }
 
 void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
