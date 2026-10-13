@@ -80,6 +80,8 @@ public:
     virtual bool IsPlayerLoaded() const noexcept = 0;
     // Whether the engine teleported the player since the last call (experimental: coc only so far).
     virtual bool ConsumeTeleported() noexcept = 0;
+    // Arriving with others on one spot: slot 0 stays, slot N steps aside onto walkable floor (false if none).
+    virtual bool StepPlayerAside(uint32_t aSlot) noexcept = 0;
     // Stops listening for teleports (CharacterService going away: the engine must not call into a
     // DLL that is being unloaded).
     virtual void StopTeleportEvents() noexcept = 0;

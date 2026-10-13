@@ -6,12 +6,15 @@ struct TESObjectREFR;
 struct TESWorldSpace;
 struct BGSEncounterZone;
 struct LoadedCellData;
+struct NavMeshArray;
 #include <ExtraData/ExtraDataList.h>
 
 struct TESObjectCELL : TESForm
 {
     Vector<TESObjectREFR*> GetRefsByFormTypes(const Vector<FormType>& aFormTypes) const noexcept;
     void GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept;
+    // The navmesh floor under a point within aMaxGap of its height (walkable ground there), if any.
+    std::optional<float> NavmeshFloorAt(const NiPoint3& acPoint, float aMaxGap) const noexcept;
 
     bool IsValid() const { return cellFlags[4] == 7; }
 
@@ -54,7 +57,7 @@ struct TESObjectCELL : TESForm
     uint64_t cellData;
     void* pCellLand;
     float waterHeight;
-    void* pNavMeshes;
+    NavMeshArray* pNavMeshes;
     ReferenceData refData;
     void* pUnkB8;
     GameArray<TESObjectREFR*> objectList;
@@ -69,6 +72,7 @@ struct TESObjectCELL : TESForm
 };
 
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, cellFlags) == 0x40);
+SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, pNavMeshes) == 0x80);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, refData) == 0x88);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, worldspace) == 0x128);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, loadedCellData) == 0x130);

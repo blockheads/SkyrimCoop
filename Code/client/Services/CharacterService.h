@@ -123,6 +123,7 @@ private:
         String GraphState{};
     };
     ActorLiveState ReadLiveState(uint32_t aFormId) const noexcept;
+    uint32_t ArrivalSlot() const noexcept;
     // Everything a peer needs about one of our actors, read from the engine now.
     std::optional<AssignCharacterRequest> BuildAssignment(entt::entity aEntity) const noexcept;
 
@@ -147,6 +148,7 @@ private:
 
     // Teleported since the last arrival: the next frame in a cell is one.
     bool m_arriving = false;
+    uint32_t m_arrivalCellId = 0; // where the player last arrived (stepping aside is for new cells)
 
     float m_cachedExperience = 0.f;
 

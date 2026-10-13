@@ -1,6 +1,7 @@
 #include <Services/CharacterService.h>
 #include <Services/QuestService.h>
 #include <Services/TransportService.h>
+#include <Services/SessionService.h>
 
 #include <Components.h>
 
@@ -1612,6 +1613,15 @@ void CharacterService::RunArrivals() noexcept
     m_arriving = false;
     const uint32_t cWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
 
+    // The party arrives on one spot (a door's, a coc's): each player but the host steps aside, by its
+    // place in the session, so nobody stands in anybody (docs/design/host-authority-migration.md).
+    if (cCellId != m_arrivalCellId)
+    {
+        m_arrivalCellId = cCellId;
+        if (const uint32_t cSlot = ArrivalSlot())
+            m_playerBridge.StepPlayerAside(cSlot);
+    }
+
     DropCopies([&](uint32_t aFormId) {
         // Interiors: the same cell. Exteriors: the same worldspace, loaded around the player.
         const bool cHere = cWorldSpaceId ? m_actorBridge.GetActorWorldSpaceFormId(aFormId) == cWorldSpaceId
@@ -1635,6 +1645,19 @@ void CharacterService::RunArrivals() noexcept
     request.Data = cState.Data;
     m_transport.Send(request);
     spdlog::info("Arrived in cell {:X} (worldspace {:X}): copies dropped, the host sends what is here", cCellId, cWorldSpaceId);
+}
+
+// 0 for the host; the others by player id, the same on every game.
+uint32_t CharacterService::ArrivalSlot() const noexcept
+{
+    if (m_world.GetHostService().IsHosting())
+        return 0;
+    const uint32_t cMe = m_transport.GetLocalPlayerId();
+    uint32_t slot = 1;
+    for (const auto& [cId, cPlayer] : m_world.GetSessionService().GetPlayers())
+        if (!cPlayer.IsHost && cId < cMe)
+            ++slot;
+    return slot;
 }
 
 void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept
