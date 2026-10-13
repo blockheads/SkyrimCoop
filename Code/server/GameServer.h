@@ -55,11 +55,9 @@ struct GameServer final : TiltedPhoques::Server
     void Initialize();
     void Kill();
 
-    bool CheckMoPo();
     void BindMessageHandlers();
     void BindServerCommands();
 
-    void UpdateSettings();
 
     // Loopback support for P2P host mode (in-process message delivery without enet6)
     void InjectMessage(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId);
@@ -78,6 +76,13 @@ struct GameServer final : TiltedPhoques::Server
     [[nodiscard]] String PlayerNameOf(ConnectionId_t aConnectionId) const noexcept;
     // The player's character level, as the player list shows it.
     void SetPlayerLevel(ConnectionId_t aConnectionId, uint16_t aLevel) noexcept;
+    // For the bridge's join (HostSession) until the records and mod ids move to it: a new player's
+    // record and its mods' session ids (into aSessionMods); returns its player id.
+    uint32_t AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept;
+    // The newcomer learns the session's players, and they learn it.
+    void AnnouncePlayer(ConnectionId_t aConnectionId, GameId aWorldSpaceId, GameId aCellId) noexcept;
+    // Ends a connection that is not a player (a refused join).
+    void Disconnect(ConnectionId_t aConnectionId) noexcept;
     // Disconnects the player (never the host: the host is the session).
     void KickPlayer(uint32_t aPlayerId) noexcept;
     // The player's own character, for the player list and the services still here (quests).
@@ -158,9 +163,6 @@ struct GameServer final : TiltedPhoques::Server
     Player const* GetAdminByUsername(const String& acUsername) noexcept;
 
   protected:
-    bool ValidateAuthParams(ConnectionId_t aConnectionId, const UniquePtr<AuthenticationRequest>& acRequest);
-    void HandleAuthenticationRequest(ConnectionId_t aConnectionId, const UniquePtr<AuthenticationRequest>& acRequest);
-
     // Implement TiltedPhoques::Server
     void OnUpdate() override;
     void OnConsume(const void* apData, uint32_t aSize, ConnectionId_t aConnectionId) override;

@@ -72,6 +72,7 @@ xmake -y
 - `SkyrimEncoding` - Network message serialization
 - `TPTests` - Message encoding tests (Catch2-based)
 - `BridgeTests` - The host's bridge rules against a headless server
+- `coop_peer` - A game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 - `tp_process` - CEF worker process for UI overlay
 - `immersive_launcher` - Game launcher/updater
 

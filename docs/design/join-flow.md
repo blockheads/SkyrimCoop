@@ -1,39 +1,43 @@
 # Joining a session
 
-What happens from the moment a friend clicks "join" until they stand next to the host, and what is
-built now versus later. Agreed 2026-10-13. The goal is the project's core value: the friend does no
-setup at all. The guarantee behind it: **both games are identical installs**, and **the host's game is
-the only authority** (`docs/design/host-authority-migration.md`).
+What happens from the moment a friend accepts an invite until they stand next to the host, and what
+is built now versus later. Agreed 2026-10-13 (revised the same day: joining from the main menu, the
+host's world by save transfer, the error model, the join panel). The goal is the project's core value:
+the friend does no setup at all. The guarantees behind it: **both games are identical installs**, and
+**the host's game is the only authority** (`docs/design/host-authority-migration.md`).
 
-Today's code reaches only part of this. The server migration (section 3, the session) builds the gate
-in the host's bridge as the stages below, so each later feature fills in its stage instead of
-reworking the flow.
+Today's code reaches only part of this: upstream's handshake (`AuthenticationRequest`, answered by the
+bridge's `HostSession`), joined from a loaded save, and only the test harness can start a session
+(`docs/progress.md`, "Product pieces"). The server migration (section 3, the session) builds the gate
+as the stages below, so each later feature fills in its stage instead of reworking the flow.
 
 ## The flow
 
 ```
-friend clicks join (Steam invite: how is not decided)
-  1. our mod's build        same commit?            no -> refuse; later: update and restart
-  2. game version           same Skyrim runtime?    no -> refuse (hard error)
-  3. installs identical     same mods, same order?  no -> refuse with the differences;
-                                                          later: sync the mods and restart
-  4. session settings       the host's, sent to the player (and again when they change)
-  5. player record          new player -> character creation (later)
-                            known player -> their stored character (later)
-  6. arrival                the player loads in where the host is (later: the tether)
+host: loads their save, clicks Host (in game), invites a friend through Steam
+friend: accepts the invite; their game connects from the MAIN MENU (no save of their own)
+  1. our mod's build        same commit?               no -> refused (later: update and restart)
+  2. game version           same Skyrim runtime?       no -> refused (hard error)
+  3. installs identical     same mods, same order?     no -> refused, with the differences
+  4. who are you            account id (Steam id)      known -> their stored character
+                                                       new   -> character creation
+  5. the world              the host sends its save; the friend's game loads it
+  6. arrival                the friend's character, in the host's world, next to the host
+while playing: only the host saves; every player's character is saved in the host's save
+leaving (or the session ending): the friend's game goes back to the main menu, and says why
 ```
-
-A refusal always says which stage failed and what differs, in words a player can act on.
 
 ### 1. Our mod's build
 
 - **Check:** the joining game's build commit equals the host's (`AuthenticationRequest::Version`
   against `BuildCommit()`). Exact match: every game runs the same build, which is also why the wire
   format can change freely between commits.
-- **Today:** checked; refusal `kWrongVersion` with both versions.
-- **Later: auto-update.** Offer to update to the host's build and restart the game. Needs a release
-  channel (for example GitHub releases, by commit) and a launcher step: a loaded DLL cannot be
-  replaced in a player's game (hot reload is a test-build tool only).
+- **Today:** checked by the bridge (`HostSession`); refusal `kWrongVersion` with the host's version.
+- **Later: updating.** Download the host's build, restart the game, rejoin. A loaded DLL cannot replace
+  itself, but a small resident loader can load the newest staged build at start (the test-only hot
+  reload loader, `Code/hotreload/Loader.cpp`, already loads the client from a copy). The `request`
+  file (below) carries "rejoin this session" across the restart. Whether this lives in the plugin or
+  in a launcher is open until the mod sync spike (below).
 
 ### 2. Game version
 
@@ -41,36 +45,31 @@ A refusal always says which stage failed and what differs, in words a player can
 - **Today:** not sent. SKSE gives our plugin `runtimeVersion` at load (`Code/client/skse_entry.cpp`).
   The plugin declares 1.6.1170 as its only compatible runtime, so SKSE does not load it on any other
   version and two players cannot differ yet; the check is for when more versions are supported.
-- **Now:** send it in the join request and refuse on a mismatch.
+- **Now (3a.2):** send it, with SKSE's version, in the join request and refuse on a mismatch.
 
 ### 3. Identical installs
 
-The two things that must match: **the same mods**, and **the same load order**.
+The two things that must match: **the same mods**, and **the same load order**. Loading the host's
+save (stage 5) is only safe when they do.
 
-- **Layer 1, plugins (now):** the plugin list in load order, with the light (ESL) flag, read from the
-  host's game, compared entry by entry against the joining game's (it already sends its list:
-  `AuthenticationRequest::UserMods`, from `IFormBridge::GetLoadedMods`). Any difference refuses, and
-  the refusal lists it: missing on the player, extra on the player, and the first position where the
-  order differs. The comparison is one plain function (two lists in, the differences out) in shared
-  code, so the host's gate and later the launcher use the same rule and cannot disagree.
-- **Layer 2, the manifest (later):** plugins alone do not make an install identical. Loose files,
-  archive (BSA) contents, SKSE plugin DLLs and some INI settings change the game too. Each game builds
-  a manifest: game and SKSE versions, the plugin list in order, and a hash of every file under
-  `Data/` (cached by size and modification time, so only changed files are read again). The host
-  compares manifests; any difference refuses.
-- **SKSE:** its version (`SKSEInterface::skseVersion`) belongs in the manifest, and in layer 1 as a
-  plain version check. Mod Organizer 2 does not matter: it is how files get deployed, and the manifest
-  sees the result.
-- **Later: the mod syncer.** On a mismatch, offer to download and configure the host's mods and
-  restart the game. The host must not send mod files itself: Nexus permissions of most mods and
-  Bethesda's terms forbid redistributing them. The working pattern is Wabbajack's: the host sends
-  where each file comes from (Nexus mod and file ids, hashes), and the friend's launcher downloads them
-  with the friend's own Nexus account (automated downloads need Nexus Premium; otherwise a click per
-  file). Hook into Wabbajack or an equivalent rather than writing a downloader. The layer 2 manifest is
-  the first half of this.
-- **Dropped:** the old ModPolicy check (`cModCheck`, off) compared against a load order file the
-  server read from disk (`ESLoader`), not the host's game; it goes in section 3a. The SKSE/MO2
-  "allowed" flags go with it.
+- **The manifest:** a text file each game writes at start, one fact per line in load order: game and
+  SKSE versions, our build, each plugin (with its light flag); later a hash per file under `Data/`
+  (cached by size and modification time). The running game writes it because only the game knows
+  what really loaded (under MO2's virtual file system an outside tool cannot see the effective
+  install). The gate's check is a diff of two manifests; the refusal lists the differences: missing on
+  the player, extra on the player, the first position where the order differs. The comparison is one
+  plain function in shared code, so every place that checks (the gate, any later tool) agrees.
+- **Layer 1, plugins (3a.3):** the plugin list in load order against the host's game. The joining game
+  already sends its list (`AuthenticationRequest::UserMods`, from `IFormBridge::GetLoadedMods`).
+- **Layer 2, files (later):** plugins alone do not make an install identical. Loose files, archive
+  (BSA) contents, SKSE plugin DLLs and some INI settings change the game too.
+- **SKSE:** its version (`SKSEInterface::skseVersion`) is a manifest line. Mod Organizer 2 does not
+  matter: it is how files get deployed, and the manifest sees the result.
+- **Making installs match (open, see "Mod sync" below):** 1.0 at least detects and lists the
+  differences, with links where the source is known. Downloading and installing for the player is the
+  subject of a research spike.
+- **Dropped:** the old ModPolicy check compared against a load order file the server read from disk
+  (`ESLoader`), not the host's game (removed in 3a.1); the SKSE/MO2 "allowed" flags go with it.
 
 ### Mod ids (not a check, but part of joining)
 
@@ -80,104 +79,211 @@ the client maps its own load order onto it (`ModSystem`). Once installs must be 
 every game has the same table; until then it must still agree across different load orders.
 Section 3d moves this table to the bridge, with tests first.
 
-### 4. Session settings
+### 4. Who are you: characters live in the host's save
 
-- **Rule:** the host sets them, players read them. Sent in the join response
-  (`AuthenticationResponse::Settings`) and again on any change (`NotifySettingsChange`).
-- **Today:** hard-coded values (difficulty forced to Master, the death system on, greetings, PvP,
-  player homes and calendar sync off).
-- **Now:** the host's real values; difficulty from the host's game.
-- **Later:** a host settings screen for the co-op options.
-
-### 5. Player records: characters live on the host
-
-- **Decision (2026-10-13): the host stores every player's character.** A friend needs no save of
+- **Decision: the host stores every player's character, in its own save.** A friend needs no save of
   their own; the co-op game is one save on the host.
-  - A **new** player goes through character creation, then joins.
-  - A **known** player loads in as their stored character.
-- **Stored per player (later):** appearance, race, name, inventory and equipment, skills and level,
-  perks, spells and shouts, active effects worth keeping, and their own quest progress if quests
-  ever become per-player.
-- **Today:** each player brings their character from their own save. The host keeps only a session
-  record: id, name, level, character id (section 3c moves these to the bridge, shaped so the stored
-  character can be added).
-- **Depends on:** loading a player into the host's world without a save of their own, which is the
-  parked world-state work (`docs/design/world-state-sync.md`; its rule "each player's character stays
-  their own" is replaced by this decision).
+- **Identity:** an account id, not a character name (today the name is read from the loaded
+  character, which a friend at the main menu does not have). The Steam id (the Steam API runs in
+  process) is the key; a generated key is the fallback.
+- **How it is stored, the way Skyrim stores everything else:** the host's game already holds each
+  friend's character, as its copy of them, synced live. That copy plus what copies do not carry yet
+  (skills, perks, spells and shouts, level) is the record. When the host saves, our plugin writes
+  every player's record into the save's SKSE co-save (the `.skse` file SKSE writes and reads with each
+  save for its plugins). When a friend joins, the host sends what it has: their live state if they
+  were here earlier this session, else the loaded save's record, else nothing (character creation).
+  Loading an older save takes everyone's characters back with it: one world, one timeline.
+- **New player:** Skyrim's character creation in the friend's game, then stored on the host.
+
+### 5. The world: the host's save
+
+- **Decision: save transfer, from the first playable join.** The host's game saves (a save of its
+  current state, with its SKSE co-save) and sends it; the friend's game loads it. The world is the
+  host's by construction: quests, dead NPCs, emptied chests, opened doors. No intermediate that starts
+  the friend in a fresh world (`coc` from the main menu) is shipped: the worlds would visibly differ.
+- The loaded save's player is the host's character: the friend's plugin replaces it with the friend's
+  character (appearance, race and name, inventory and equipment, skills, level, perks, spells and
+  shouts, lasting effects). Copies already carry appearance, face tints, inventory and values.
+- Design details are `docs/design/world-state-sync.md` (change forms through save and load); its rule
+  "each player's character stays their own" is replaced by stage 4.
 
 ### 6. Arrival
 
-- **Rule:** a player who joins loads in where the host is.
-- **Today:** a joining player stays where their own save put them; copies appear only once they meet
-  the host (the party tether's pulling half is not built).
-- **Later:** move the newly joined player to the host on join (part of the tether).
+- The friend appears in the host's world next to the host, as their character; the live sync takes
+  over from there (copies, time, weather).
+
+### Saving: only the host
+
+- Only the host saves and manages saves. While connected, the friend's game cannot save (no manual,
+  quick or auto saves; Skyrim autosaves at load doors and on fast travel, so those are blocked too).
+- Leaving takes the friend back to the main menu; their character stays with the host.
+- Saves on the friend's side are an experimental idea (`docs/ideas.md`).
 
 ## Leaving and kick
 
 - Party and session are the same: everyone connected is in it, the host is its authority
   (`host-authority-migration.md`, Decisions).
-- **Leaving:** `NotifyPlayerLeft` to the others; their copies of the player go.
-- **Kick:** the host alone, never itself (`HostBridge::Kick`). Reachable today from the debug overlay,
-  the old CEF overlay and the test harness only; **later: a kick button in the RmlUi player list.**
+- **Leaving:** `NotifyPlayerLeft` to the others; their copies of the player go. The leaving friend's
+  game goes back to the main menu.
+- **Kick:** the host alone, never itself (`HostBridge::Kick`). The kicked game goes back to the main
+  menu and says so. Reachable today from the debug overlay and the test harness only; later a kick
+  button in the in-game player list. A kick (`Server::Kick`) is delivered after what is queued for the
+  peer, so a refusal or a reason sent first arrives.
 
-## The client (launcher)
+## Errors: data first, shown by whoever shows them
 
-A standalone desktop client beside the in-game plugin; later work, agreed 2026-10-13.
+An error is data, and showing it is a separate job: a stable code for programs and tests (an exit
+code), one sentence for people (stderr), and a log of everything.
 
-**Why one is needed:** the game reads its plugins, load order, archives and SKSE DLLs once, at start.
-Updating our mod or syncing mods means quitting, changing files and starting again, and our own DLL
-cannot replace itself while loaded. So updates and mod syncing run outside the game, in a client that
-then starts Skyrim. The co-op itself (sync, the bridge, copies) needs the engine and stays in the plugin.
+**State: where the game is, and if something failed, why.** Current and persistent (replaced by the
+next attempt, never timed out):
 
-| The client | The in-game plugin |
-|---|---|
-| Friends, invites, join links: where "join" lands | The session: sync, the bridge, copies |
-| Updates our mod to the host's build (stage 1) | The gate (stages 1-3), always: see below |
-| Checks the install and syncs mods (stage 3, Wabbajack-style) | In-game UI: party panel, chat, kick |
-| Keeps a separate co-op mod setup, so a friend's own mod list is never touched (as Wabbajack installs a self-contained MO2) | Hosting from inside the game |
-| Starts Skyrim with SKSE (Proton on Linux), passing the session to join | |
-| Shows why a join was refused and fixes it | |
+```
+state refused
+reason mods_differ
+message Your mods differ from the host's.
+detail missing Unofficial Skyrim Special Edition Patch.esp
+detail extra SkyUI_SE.esp
+detail order 12: the host loads Immersive Armors.esp, you load Lux.esp
+```
 
-**The gate stays in the game.** The client is the convenience (it finds and fixes a mismatch before
-the game starts); the host's gate is the guarantee (a mismatched game never gets in). The host cannot
-know a client ran: a game can be started through SKSE directly, a client can be out of step with the
-DLL, files can change after the client checked them. A mismatch otherwise fails silently: form ids
-point at different forms, actors spawn wrong, the game crashes far from the cause. This is correctness
-between friends, not anti-cheat. Before starting the game the client asks the host what it requires and
-runs the same comparison as the gate (stage 3).
+- `reason` is stable: `wrong_build`, `wrong_game`, `mods_differ`, `full`, `unreachable`,
+  `lost_connection`, `host_left`, `kicked`, `transfer_failed`, `host_failed` (the host's own: port in
+  use, for example). Tests and tools check it, never the wording.
+- `message` is one sentence a player can act on, worded in one place (`JoinRefusal`).
+- `detail` is one line per difference: diffable, copyable, pasteable.
+- States on the way: `idle`, `connecting`, `checking`, `receiving_world`, `creating_character`,
+  `loading`, `joined`, `hosting`, `refused`, `ended`.
 
-**Steam (researched 2026-10-10, shelved in `git stash` "steam/launcher work", with a `steam_probe`
-diagnostic, its `RESULTS.md`, and a PySide launcher prototype):**
+**Events: what happened in the session.** Timestamped lines in a stream: `Serana joined`,
+`Intruder couldn't join: they run another build`, `Serana left`.
+
+**The wire carries data, the receiver words it.** A refusal carries its code and the data behind it
+(the host's build; from 3a.3 the host's manifest); the friend's plugin computes the differences and
+words them. The host never describes the friend's install.
+
+**Who shows what:**
+
+| Who, where | State | Events |
+|---|---|---|
+| Friend at the main menu | The join panel (below) | |
+| Friend in game when the session ends | Back to the main menu; the join panel says why. Every friend-side error ends in one place | |
+| Host in game | Its co-op menu (host problems) | Chat system lines (the chat is the session's event stream) |
+| Tools, scripts, tests | The `status` file / harness status | The `events` file |
+| Always | `tp_client.log` | `tp_client.log` |
+
+## The plugin's interface: plain files
+
+The plugin runs sessions; how people find each other and what screen shows the state are front ends.
+Everything outside the game reaches it through plain files in its own folder (outside `Data/`, which
+MO2 redirects into its overwrite folder; for example `My Games/Skyrim Special Edition/SkyrimCoop/`):
+
+- `request` (in): one line, such as `host`, `join 203.0.113.5:10578`, `join steam:<lobby>`, `leave`.
+- `status` (out): the state above, rewritten when it changes.
+- `events` (out): the event stream, appended.
+- `manifest` (out): the install, written at start.
+
+Any front end drives the plugin the same way: the in-game menus, a Steam invite, a script, the test
+harness (whose `session.txt` and status JSON are the test-only version of this; the harness moves onto
+the production files when they exist). For players the files are plumbing and a debugging aid; they
+click Host and Join.
+
+## The join panel
+
+A screen in the RmlUi UI, over Skyrim's main menu: the friend's view of joining. It opens by itself
+when a Steam invite arrives, or from a co-op entry at the main menu, and follows the state:
+
+```
++-----------------------------------------------+
+|               JOIN A SESSION                  |
+|  -------------------------------------------  |
+|  Address  [ 203.0.113.5:10578        ]  Join  |   idle (until Steam invites; also for testing)
+|                                               |
+|  Connecting to Nick's game...                 |   connecting
+|  Checking your install...                     |   checking
+|  Receiving the world  ########....  62%       |   receiving_world
+|  Create your character                        |   creating_character
+|  Loading...                                   |   loading
++-----------------------------------------------+
+
++-----------------------------------------------+
+|           COULDN'T JOIN THE SESSION           |   refused, or ended
+|  -------------------------------------------  |
+|  Your mods differ from the host's.            |
+|    missing  Unofficial Skyrim SE Patch.esp    |
+|    extra    SkyUI_SE.esp                      |
+|    order 12 host: Immersive Armors.esp        |
+|             you:  Lux.esp                     |
+|                               [Copy]  [Back]  |
++-----------------------------------------------+
+```
+
+It needs input for RmlUi (today only the chat line takes keys, nothing takes the mouse): clicks and
+focus, typing (the chat's keyboard-layout typing), and keeping Skyrim's main menu from reacting to the
+same input; every later screen (player list with kick, settings) needs the same. It also needs to
+know the game is at the main menu. The panel only shows the state; the scenarios test the state.
+
+The host's side is smaller: a Host button in game (pause menu or a key) and its state (hosting on a
+port, or why hosting failed).
+
+## Mod sync: open, under investigation
+
+Factorio downloads and syncs a server's mods in game. Skyrim makes that harder: mods come mostly from
+Nexus (automated downloads need Nexus Premium; free users click per file), they are archives with
+installers whose choices matter, loose files override each other by priority, players manage them with
+MO2 or Vortex, some files are generated on each machine (Nemesis/Pandora, BodySlide, LOD, Synthesis),
+most mods forbid redistribution, and new plugins need a restart. So automatic sync works, if at all,
+for a mod set our plugin manages, not for any MO2 setup; and installing anything must never happen
+silently on accepting an invite (many mods are native code): the player sees what would be installed
+and from where, and confirms.
+
+- **Settled:** 1.0 detects and lists the differences (stage 3), with links to the source where it is
+  known, and a copy of the list.
+- **Open:** whether and how the friend's game gets the host's mods automatically, where such mods
+  live and how Skyrim loads them on the next start, and with that **whether a launcher is needed at
+  all**. Nothing built so far depends on the answer. Research brief: `docs/research/mod-sync-spike.md`;
+  findings go to `docs/research/mod-sync.md`.
+
+## Steam
+
+Researched 2026-10-10, shelved in `git stash` ("steam/launcher work": a `steam_probe` diagnostic, its
+`RESULTS.md`, and a PySide launcher prototype; and "steam lobby/session files", 2026-10-11):
 
 - Steam networking works inside Skyrim's process under Skyrim's own App ID (489830): authentication,
   Valve's relay network and a P2P listen socket reached ready, and a same-process echo passed. The
   relays matter beyond invites: they get through home routers, where plain ENet needs the host to
   forward a port.
 - Not yet tested: two accounts on two machines, which is the real test, and the next experiment.
-- Invites: accepting a Steam invite starts Skyrim with `+connect_lobby <lobby id>`. With Skyrim's Steam
-  launch options set to run the client (`client %command%`), the client receives the lobby id, checks
-  or syncs, then starts the game. The prototype already parses `+connect_lobby`. It needs that one-time
-  launch option per player.
+- Invites: accepted while the game runs, an invite reaches the plugin through the Steam API in
+  process. Accepted while the game is closed, Steam starts Skyrim with `+connect_lobby <lobby id>`
+  (a launcher prototype parses it; how the plugin alone would get it is part of the spike).
 - Open question: whether using Skyrim's App ID for our integration is allowed (it works technically; a
-  separate App ID would mean publishing on Steam). Fallbacks that do not depend on it: Discord invites,
-  or a join link (`skyrimcoop://join/...`) that the client registers and that works from any chat.
+  separate App ID would mean publishing on Steam). Fallbacks: Discord invites, a join link
+  (`skyrimcoop://join/...`), or typing an address.
 
 **Side note, for fun: make it feel like AOL.** A buddy list of who is online and in which session, a
-small global chat in the client for everyone using the mod, and each session's own little chat room
-beside it (the same room as the in-game chat). Sounds, away messages and all. Needs a small online
-service for presence and the global chat; Steam friends and lobbies could cover presence.
+small global chat for everyone using the mod, and each session's own little chat room (the same room
+as the in-game chat). Sounds, away messages and all. Needs a small online service for presence and the
+global chat; Steam friends and lobbies could cover presence.
 
 ## Build order
 
 Now, during the server migration (section 3, `host-authority-migration.md`, "Server sections"):
 
-1. **3a, the gate:** stages 1, 2 (new), 3 layer 1 (new, against the host's game), 4 with the host's
-   real settings. The Lua join hook and the old ModPolicy code go.
+1. **3a, the gate:** stages 1, 2, 3 layer 1, the host's real settings; refusals as data (the error
+   model: join state and events).
 2. **3b, player list:** joined and left notifications from the bridge (behaviour unchanged).
-3. **3c, player records:** the session record moves to the bridge.
+3. **3c, player records:** the session record moves to the bridge, keyed and shaped for stage 4.
 4. **3d, mod id table:** moves to the bridge, tests first.
 
-Later, roughly in this order: the tether's arrival (stage 6), the manifest (stage 3 layer 2), kick
-in the UI, the client (starting with the two-account Steam test), host-stored characters with character
-creation (stage 5, with world-state sync), the mod syncer and auto-update in the client, the AOL-style
-buddy list and chats. The Steam invite itself is tracked in `docs/progress.md` ("Product pieces").
+Then, roughly in this order:
+
+1. Joining from the main menu, driven through the harness (connect and gate with no save loaded).
+2. The production files (`request`, `status`, `events`, `manifest`); the harness moves onto them.
+3. The join panel and the Host button, with RmlUi input.
+4. Save transfer and the friend's character replacing the save's player (stage 5).
+5. Characters in the host's save, character creation (stage 4).
+6. Blocking saves on the friend's side; leaving and kicks back to the main menu.
+7. Steam invites (after the two-account test).
+8. Layer 2 of the manifest; updating our plugin; mod sync as the spike decides.
+9. The AOL-style buddy list and chats.

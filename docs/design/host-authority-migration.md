@@ -340,10 +340,31 @@ that needs the standalone server goes with the section that breaks it.
    shared first (`character_tests.cpp`); the action, spawn, object and session scenarios pass (39 of 39).
 3. **Session**, split in steps, each with bridge cases and the session scenarios before the server's
    piece goes (`HostSession`):
-   - **3a, auth gate:** the bridge answers `AuthenticationRequest` as the stages of
-     `docs/design/join-flow.md`: our build, the game version (new), the plugin list and load order
-     against the host's game (new), the host's real settings, the player cap; player records and mod
-     ids stay on the server behind temporary calls.
+   - **3a, auth gate**, the stages of `docs/design/join-flow.md`, one step each:
+     - **3a.1, done:** `HostSession` answers `AuthenticationRequest` (the one message the bridge takes
+       from a game that is not a player yet): our build, the player cap (8), the session's settings
+       (upstream's defaults, now `HostSession::Settings`). The record, the mod ids and the joined
+       notifications stay on the server behind temporary calls (`GameServer::AddPlayer`,
+       `AnnouncePlayer`, `Disconnect`). Deleted from the server: its join handler, the Lua join hook,
+       the settings and their console commands (`TogglePvp`, `SetDifficulty`), the ModPolicy check
+       and its settings, the SKSE/MO2 flags, `PlayerJoinEvent`'s trigger (nothing listened). The
+       server still reads a load order from disk at start (`ESLoader`) for the Lua bindings and a
+       console command; it goes with them in section 4. Bridge cases in `session_tests.cpp`.
+     - **3a.1b, done: refusals arrive, as data.** A refused game used to get nothing: the host's
+       kick (`Server::Kick`, `enet_peer_disconnect`) emptied the peer's outgoing queue, refusal
+       included. Now the kick waits for what is queued (`enet_peer_disconnect_later`). Following the
+       error model (`join-flow.md`, "Errors"): the refused game's transport keeps a `JoinStatus`
+       (state, a stable reason code such as `wrong_build` or `full`, one sentence, detail lines),
+       worded by `JoinRefusal` from the response's data; the host's chat gets a system line naming
+       who could not join and why (a session event, sent by `HostSession` to the host's connection).
+       Nothing shows the status in game yet: the join panel will (`join-flow.md`); the harness
+       reports it as `join`. Tested by bridge cases and the scenario `join-refused-shows-why`, which
+       checks reason codes and the host's chat line and uses `coop_peer` (`Code/tests/peer`): a
+       stand-in on the real network, as a host refusing every join or as a game asking to join.
+     - **3a.2:** the game and SKSE versions in the join request; a mismatch refused.
+     - **3a.3:** the plugin list and load order against the host's game, refused with the differences
+       (one shared comparison, `join-flow.md` stage 3).
+     - **3a.4:** the host's real settings (its difficulty).
    - **3b, player list:** `NotifyPlayerJoined` both ways, `NotifyPlayerLeft`, the host flag, levels.
    - **3c, player records:** ids, names, levels, characters, the host's connection and kick move from
      `PlayerManager` to `HostSession`.

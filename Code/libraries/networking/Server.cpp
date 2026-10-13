@@ -264,7 +264,8 @@ namespace TiltedPhoques
 
         spdlog::info("[SkyrimCoopNetworking] SERVER: Kicking client {}", aConnectionId);
 
-        enet_peer_disconnect(it->second, static_cast<enet_uint32>(EDisconnectReason::Kicked));
+        // Once what is queued for it is delivered (a refusal says why): enet_peer_disconnect drops it.
+        enet_peer_disconnect_later(it->second, static_cast<enet_uint32>(EDisconnectReason::Kicked));
         enet_host_flush(m_pHost);
 
         Remove(aConnectionId);

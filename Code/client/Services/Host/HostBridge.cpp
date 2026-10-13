@@ -154,6 +154,7 @@ template <class TRequest, class TNotify> void HostBridge::Relay(Delivery aDelive
 HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     : m_server(aServer)
     , m_game(std::move(aGame))
+    , m_session(*this, aServer)
     , m_characters(*this, aServer, m_game)
     , m_clock(*this, aServer, m_game)
     , m_weather(aServer, m_game)
@@ -226,10 +227,11 @@ void HostBridge::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServer
 
 bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept
 {
-    if (!m_server.IsAuthenticated(aSender))
-        return false; // the server's own handling until the player is in
-
     const auto cOpcode = acMessage.GetOpcode();
+    // A game that is not a player may only ask to join; the server drops anything else from it.
+    if (cOpcode != kAuthenticationRequest && !m_server.IsAuthenticated(aSender))
+        return false;
+
     if (cOpcode >= m_rules.size() || !m_rules[cOpcode])
         return false;
     m_rules[cOpcode](acMessage, aSender);

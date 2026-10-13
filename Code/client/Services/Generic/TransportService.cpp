@@ -2,7 +2,7 @@
 #include <Services/TransportService.h>
 
 #include <Events/ConnectedEvent.h>
-#include <Events/ConnectionErrorEvent.h>
+#include <Services/Host/JoinRefusal.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 
@@ -76,6 +76,7 @@ void TransportService::ConnectLocal(Server::GameServer& aServer) noexcept
 
     m_pLocalServer = &aServer;
     m_localInbox.clear();
+    m_joinStatus = {JoinStatus::State::kConnecting};
     // The server's replies arrive while it handles a message: queued, so none of our handlers runs
     // inside another service's.
     aServer.OpenLoopback(kLocalConnectionId, [this](const void* apData, uint32_t aSize) {
@@ -84,6 +85,12 @@ void TransportService::ConnectLocal(Server::GameServer& aServer) noexcept
     });
     spdlog::info("Connected to the embedded server in this process");
     OnConnected();
+}
+
+bool TransportService::Connect(const std::string& acEndpoint) noexcept
+{
+    m_joinStatus = {JoinStatus::State::kConnecting};
+    return Client::Connect(acEndpoint);
 }
 
 bool TransportService::IsConnected() const noexcept
@@ -222,6 +229,9 @@ void TransportService::OnConnected()
 void TransportService::OnDisconnected(EDisconnectReason aReason)
 {
     m_connected = false;
+    // A refusal stays what the attempt ended with; why a session ended comes with leaving and kicks.
+    if (m_joinStatus.Current != JoinStatus::State::kRefused)
+        m_joinStatus = {};
 
     spdlog::warn("Disconnected from server {}", aReason);
 
@@ -269,6 +279,7 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
     if (acMessage.Type == AR::kAccepted)
     {
         m_connected = true;
+        m_joinStatus = {JoinStatus::State::kJoined};
 
         m_world.SetServerSettings(acMessage.Settings);
 
@@ -278,68 +289,9 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
         return; // quit the function here.
     }
 
-    // error finding
-
-    TiltedPhoques::String ErrorInfo;
-
-    ErrorInfo = "{";
-
-    switch (acMessage.Type)
-    {
-    case AR::kWrongVersion:
-        ErrorInfo += "\"error\": \"wrong_version\", \"data\": {";
-        ErrorInfo += fmt::format("\"expectedVersion\": \"{}\", \"version\": \"{}\"", acMessage.Version, BuildCommit());
-        ErrorInfo += "}";
-        break;
-    case AR::kModsMismatch:
-    {
-        ErrorInfo += "\"error\": \"mods_mismatch\", \"data\": {\"mods\": [";
-        bool first = true;
-        for (const auto& m : acMessage.UserMods.ModList)
-        {
-            if (!first)
-                ErrorInfo += ",";
-            ErrorInfo += fmt::format("[\"{}\",\"{}\"]", m.Filename.c_str(), m.Id);
-            first = false;
-        }
-        ErrorInfo += "]}";
-        break;
-    }
-    case AR::kClientModsDisallowed:
-    {
-        ErrorInfo += "\"error\": \"client_mods_disallowed\", \"data\": { \"mods\": [";
-        if (acMessage.SKSEActive)
-            ErrorInfo += "\"SKSE\"";
-        if (acMessage.MO2Active)
-            if (acMessage.SKSEActive)
-                ErrorInfo += ",";
-        ErrorInfo += "\"MO2\"";
-        ErrorInfo += "]}";
-        break;
-    }
-    case AR::kWrongPassword:
-    {
-        ErrorInfo += "\"error\": \"wrong_password\"";
-        break;
-    }
-    case AR::kServerFull:
-    {
-        ErrorInfo += "\"error\": \"server_full\"";
-        break;
-    }
-    default: ErrorInfo += "\"error\": \"no_reason\""; break;
-    }
-
-    ErrorInfo += "}";
-
-    ConnectionErrorEvent errorEvent;
-    if (!ErrorInfo.empty())
-    {
-        spdlog::error(ErrorInfo.c_str());
-        errorEvent.ErrorDetail = std::move(ErrorInfo);
-    }
-
-    m_dispatcher.trigger(errorEvent);
+    // Refused: the join status says why.
+    m_joinStatus = JoinRefusal::ForPlayer(acMessage, BuildCommit());
+    spdlog::error("Couldn't join the session ({}): {}", m_joinStatus.Reason, m_joinStatus.Message);
 }
 
 void TransportService::HandleNotifySettingsChange(const NotifySettingsChange& acMessage) noexcept

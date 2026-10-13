@@ -70,6 +70,8 @@ LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 # The harness without SkyrimCoop (Code/vanilla_harness): `repro --vanilla` and `launch --vanilla`.
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
 BOT = ROOT / "build/linux/x86_64/release/fake_player"
+# A game stand-in on the network (Code/tests/peer): a host that refuses joins, or a game asking to join.
+PEER = ROOT / "build/linux/x86_64/debug/coop_peer"
 PLUGINS = GAME / "Data/SKSE/Plugins"
 CONTROL = PLUGINS / "SkyrimCoopHotReload"
 MY_GAMES = PREFIX / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition"
@@ -1318,6 +1320,81 @@ def scenario_host_kicks_client():
     wait_on("", "the client's character leaves the host's game", lambda actors: remote_player(actors) is None)
     rejoin_client()
 
+
+def join_status(instance):
+    """The game's last attempt to join: {"state", "reason", "message", "details"}."""
+    return game_state(instance).get("join") or {}
+
+
+def system_chat(instance):
+    """The system lines (session events) the game's chat received."""
+    return [line["text"] for line in (game_state(instance).get("chat") or {}).get("lines", []) if line["system"]]
+
+
+def free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def run_peer(*args):
+    if not PEER.exists():
+        raise TestFailure(f"{PEER} missing: scripts/xmake-linux.sh build -j16 coop_peer")
+    return [str(PEER), *map(str, args)]
+
+
+class StandInHost:
+    """A host on the network that refuses every game asking to join (coop_peer host); its port."""
+    def __init__(self, refuse, version="v0.0.0-stand-in"):
+        self.args = ("host", "--refuse", refuse, "--version", version)
+
+    def __enter__(self):
+        port = free_port()
+        self.process = subprocess.Popen(run_peer(*self.args, "--port", port), stdout=subprocess.PIPE, text=True)
+        if self.process.stdout.readline().strip() != f"listening {port}":
+            self.process.kill()
+            raise TestFailure(f"the stand-in host did not listen on {port}")
+        return port
+
+    def __exit__(self, *exc):
+        self.process.kill()
+        self.process.wait()
+
+
+def client_joins(port):
+    """The client asks the game on port to join (its answer decides what follows)."""
+    select_instance("client")
+    atomic_write(CONTROL / "session.txt", f"{uuid.uuid4().hex} join {port}\n")
+
+
+def scenario_join_refused_shows_why():
+    """A refused game's join status says why (a reason code and a sentence), and the host's chat says
+    who could not join. The client asks stand-in hosts (coop_peer) on another build, then a full one,
+    and a game on another build asks the real host. The client then joins the host again."""
+    disconnect_client()
+    for refuse, reason in (("wrong_version", "wrong_build"), ("full", "full")):
+        with StandInHost(refuse) as port:
+            client_joins(port)
+            wait_for(f"[client] refused: {reason}",
+                     lambda: (status := join_status("client"))["state"] == "refused" and status["reason"] == reason
+                     and status["message"], 15)
+        if game_state("client").get("online"):
+            raise TestFailure("[client] refused, yet online")
+
+    select_instance("")
+    port = (read_status() or {}).get("session", {}).get("port")
+    answer = subprocess.run(run_peer("join", "--port", port, "--version", "v0.0.0-stand-in", "--name", "Intruder"),
+                            capture_output=True, text=True, timeout=20).stdout.strip()
+    if answer != "refused wrong_version":
+        raise TestFailure(f"the host answered a game on another build with {answer!r}")
+    wait_for("[host] the chat says Intruder couldn't join",
+             lambda: any(line.startswith("Intruder couldn't join: they run SkyrimCoop v0.0.0-stand-in")
+                         for line in system_chat("")), 10)
+    if game_state("").get("players"):
+        raise TestFailure(f"[host] lists players after a refusal: {game_state('').get('players')}")
+
+    rejoin_client()
+    wait_for("[client] joined", lambda: join_status("client")["state"] == "joined", 5)
 
 # --- Characters: spawning, moving, removing, cells ------------------------------------------
 
@@ -2728,6 +2805,7 @@ SCENARIOS = {
     "late-join-client": scenario_late_join_client,
     "host-rejoins": scenario_host_rejoins,
     "host-kicks-client": scenario_host_kicks_client,
+    "join-refused-shows-why": scenario_join_refused_shows_why,
     # characters
     "steady-state": scenario_steady_state,
     "move-host-npc": scenario_move_host_npc,
@@ -2798,6 +2876,7 @@ TAGS = {
     "late-join-client": {'session', 'spawn', 'inventory', 'hands', 'values'},
     "host-rejoins": {'session', 'spawn'},
     "host-kicks-client": {'session', 'spawn'},
+    "join-refused-shows-why": {'session', 'ui'},
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
     "remove-host-npc": {'spawn'},

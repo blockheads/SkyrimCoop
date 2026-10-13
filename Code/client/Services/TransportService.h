@@ -2,6 +2,7 @@
 
 #include "Events/ConnectedEvent.h"
 #include "Events/DisconnectedEvent.h"
+#include "Services/JoinStatus.h"
 
 #include <atomic>
 #include <Client.hpp>
@@ -41,6 +42,8 @@ struct TransportService : Client
      * Messages go straight into the server; its replies are queued and handled on our next update.
      */
     void ConnectLocal(Server::GameServer& aServer) noexcept;
+    // Joins the session at acEndpoint (hides Client's: the join status follows it).
+    bool Connect(const std::string& acEndpoint) noexcept;
     // Both hide Client's: they cover the in-process connection too.
     [[nodiscard]] bool IsConnected() const noexcept;
     [[nodiscard]] bool IsConnectedLocally() const noexcept { return m_pLocalServer != nullptr; }
@@ -58,6 +61,8 @@ struct TransportService : Client
     [[nodiscard]] bool IsOnline() const noexcept { return m_connected; }
     void SetServerPassword(const std::string& acPassword) noexcept { m_serverPassword = acPassword; }
     const uint32_t& GetLocalPlayerId() const noexcept { return m_localPlayerId; }
+    // The last attempt to join: under way, joined, or refused and why.
+    [[nodiscard]] const JoinStatus& GetJoinStatus() const noexcept { return m_joinStatus; }
 
 protected:
     // Event handlers
@@ -80,6 +85,7 @@ private:
     Vector<Vector<uint8_t>> m_localInbox;
     String m_serverPassword{};
     uint32_t m_localPlayerId;
+    JoinStatus m_joinStatus;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_sendServerMessageConnection;

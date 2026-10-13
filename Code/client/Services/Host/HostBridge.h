@@ -6,6 +6,7 @@
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostClock.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostSession.h>
 #include <Services/Host/HostWeather.h>
 
 #include <array>
@@ -34,8 +35,9 @@ struct GameServer;
  *
  * The bridge is the front door and the plain relays: most rules pass a request on as its
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
- * receives it (Delivery). The parts that keep state register their own rules: HostCharacters
- * (ids, owners, spawns) and HostClock (the session's time); HostWeather has no rules.
+ * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
+ * gets in), HostCharacters (ids, owners, spawns) and HostClock (the session's time); HostWeather
+ * has no rules.
  */
 struct HostBridge
 {
@@ -100,6 +102,7 @@ private:
     HostGame m_game;
     std::array<Rule, kClientOpcodeMax> m_rules{};
     // The parts, after the rules they register into.
+    HostSession m_session;
     HostCharacters m_characters;
     HostClock m_clock;
     HostWeather m_weather;

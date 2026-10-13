@@ -280,6 +280,9 @@ static nlohmann::json GameStatus()
             lines.push_back({{"name", cLine.Name}, {"text", cLine.Text}, {"system", cLine.System}});
         chat = {{"open", pUi->IsChatOpen()}, {"draft", pUi->GetChatDraft()}, {"lines", lines}};
     }
+    // The last attempt to join, and if it was refused, why.
+    const auto& cJoin = world.GetTransport().GetJoinStatus();
+    const nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message}, {"details", cJoin.Details}};
     nlohmann::json cursor = nullptr;
     if (const auto cCursor = EngineCalls::GetMenuCursor())
         cursor = {cCursor->first, cCursor->second};
@@ -290,7 +293,7 @@ static nlohmann::json GameStatus()
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
             {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()},
-            {"players", players}, {"party_panel", party}, {"chat", chat}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
+            {"players", players}, {"party_panel", party}, {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
             {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }
 

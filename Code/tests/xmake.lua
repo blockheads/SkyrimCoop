@@ -10,6 +10,7 @@ target("TPTests")
     add_packages("catch2", "glm", "spdlog", "hopscotch-map", "rpmalloc")
 
 includes("bridge")
+includes("peer")
 includes("integration")
 includes("replay")
 includes("client_replay")

@@ -5,7 +5,6 @@
 
 #include <Events/AdminPacketEvent.h>
 #include <Events/PacketEvent.h>
-#include <Events/PlayerJoinEvent.h>
 #include <Events/PlayerLeaveEvent.h>
 #include <Events/UpdateEvent.h>
 
@@ -15,73 +14,20 @@
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLeft.h>
-#include <Messages/NotifySettingsChange.h>
 #include <console/ConsoleRegistry.h>
 #include <resources/ResourceCollection.h>
 
 // -- Cvars --
 ServerConsole::Setting uServerPort{"GameServer:uPort", "Which port to host the server on", 10578u};
-ServerConsole::Setting uMaxPlayerCount{
-    "GameServer:uMaxPlayerCount",
-    "Maximum number of players allowed on the server (going over the default of 8 is not recommended)", 8u};
 ServerConsole::Setting bPremiumTickrate{"GameServer:bPremiumMode", "Use premium tick rate", true};
 
 // Dedicated server settings removed (P2P host-only, per Phase 5 D-01)
-
-// Gameplay
-// TODO: to make this easier for users, use game names for difficulty instead of int
-ServerConsole::Setting uDifficulty{"Gameplay:uDifficulty", "In game difficulty (0 to 5)", 4u};
-ServerConsole::Setting bEnableGreetings{
-    "Gameplay:bEnableGreetings",
-    "Enables NPC greetings (disabled by default since they can be spammy with dialogue sync)", false};
-ServerConsole::Setting bEnablePvp{"Gameplay:bEnablePvp", "Enables pvp", false};
-ServerConsole::Setting bSyncPlayerHomes{"Gameplay:bSyncPlayerHomes",
-                                        "Sync chests and displays in player homes and other NoResetZones", false};
-ServerConsole::Setting bEnableDeathSystem{"Gameplay:bEnableDeathSystem", "Enables the custom multiplayer death system",
-                                          true};
-ServerConsole::Setting bSyncPlayerCalendar{"Gameplay:bSyncPlayerCalendar",
-                                           "Syncs up all player calendars to be the same day, month, and year. This "
-                                           "uses the date of the player with the furthest ahead date at connection.",
-                                           false};
-// ModPolicy Stuff
-ServerConsole::Setting bEnableModCheck{"ModPolicy:bEnableModCheck", "Bypass the checking of mods on the server", false,
-                                       ServerConsole::SettingsFlags::kLocked};
-ServerConsole::Setting bAllowSKSE{"ModPolicy:bAllowSKSE", "Allow clients with SKSE active to join", true,
-                                  ServerConsole::SettingsFlags::kLocked};
-ServerConsole::Setting bAllowMO2{"ModPolicy:bAllowMO2", "Allow clients running Mod Organizer 2 to join", true,
-                                 ServerConsole::SettingsFlags::kLocked};
 
 // -- Commands --
 ServerConsole::Command<> TogglePremium("TogglePremium", "Toggle Premium Tickrate on/off", [](ServerConsole::ArgStack&) {
     bPremiumTickrate = !bPremiumTickrate;
     spdlog::get("ConOut")->info("Premium Tickrate has been {}.", bPremiumTickrate == true ? "enabled" : "disabled");
 });
-
-ServerConsole::Command<> TogglePvp("TogglePvp", "Toggle PvP on/off", [](ServerConsole::ArgStack&) {
-    bEnablePvp = !bEnablePvp;
-    spdlog::get("ConOut")->info("PvP has been {}.", bEnablePvp == true ? "enabled" : "disabled");
-    ::Server::GameServer::Get()->UpdateSettings();
-});
-
-ServerConsole::Command<int64_t> SetDifficulty(
-    "SetDifficulty", "Set server difficulty (0 being Novice and 5 being Legendary; default is 4)",
-    [](ServerConsole::ArgStack& aStack) {
-        auto aDiff = aStack.Pop<int64_t>();
-
-        if (aDiff < 0 || aDiff > 5)
-        {
-            spdlog::warn("Game difficulty is invalid (should be from 0 to 5, "
-                         "current value is {}), setting difficulty to 4 (master).",
-                         aDiff);
-
-            aDiff = 4;
-        }
-
-        uDifficulty = (uint32_t)aDiff;
-
-        ::Server::GameServer::Get()->UpdateSettings();
-        spdlog::get("ConOut")->info("Difficulty has been set to {}.", aDiff);
-    });
 
 ServerConsole::Command<> ShowVersion("version", "Show the version the server was compiled with",
                                      [](ServerConsole::ArgStack&) {
@@ -93,49 +39,9 @@ ServerConsole::Command<> CrashServer("crash", "Crashes the server, don't use!", 
     *i = 42;
 });
 
-ServerConsole::Command<> ShowMoPoStatus("ShowMOPOStats", "Shows the status of ModPolicy", [](ServerConsole::ArgStack&) {
-    auto formatStatus = [](bool aToggle) { return aToggle ? "yes" : "no"; };
-
-    spdlog::get("ConOut")->info("Modcheck enabled: {}\nSKSE allowed: {}\nMO2 allowed: {}",
-                                formatStatus(bEnableModCheck), formatStatus(bAllowSKSE), formatStatus(bAllowMO2));
-});
-
-// -- Constants --
-constexpr char kBypassMoPoWarning[]{
-    "ModCheck is disabled. This can lead to desync and other oddities. Make sure you know what you are doing. We "
-    "may not be able to assist you if ModCheck was disabled."};
-
-constexpr char kMopoRecordsMissing[]{
-    "Failed to start: ModPolicy's ModCheck is enabled, but no mods are installed. Players won't be able "
-    "to join! Please create a Data/ directory, and put a \"loadorder.txt\" file in there."
-    "Check the wiki, which can be found on skyrim-together.com, for more details."};
-
-constexpr char kCalendarSyncWarning[]{
-    "Calendar sync is enabled. We generally do not recommend that you use this feature."
-    "Calendar sync can cause the calendar to jump ahead or behind, which might mess up the timing of quests."
-    "If you disable this feature again (which is the default setting), the days will still progress, but the"
-    "exact date will differ slightly between clients (which has no impact on gameplay)."};
-
 static uint16_t GetUserTickRate()
 {
     return bPremiumTickrate ? 60 : 30;
-}
-
-static bool IsMoPoActive()
-{
-    return bEnableModCheck;
-}
-
-ServerSettings GetSettings()
-{
-    ServerSettings settings{};
-    settings.Difficulty = uDifficulty.value_as<uint8_t>();
-    settings.GreetingsEnabled = bEnableGreetings;
-    settings.PvpEnabled = bEnablePvp;
-    settings.SyncPlayerHomes = bSyncPlayerHomes;
-    settings.DeathSystemEnabled = bEnableDeathSystem;
-    settings.SyncPlayerCalendar = bSyncPlayerCalendar;
-    return settings;
 }
 
 namespace Server
@@ -153,23 +59,6 @@ GameServer::GameServer(ServerConsole::ConsoleRegistry& aConsole) noexcept
     {
         spdlog::warn("Port {} is already in use, trying {}", port, port + 1);
         port++;
-    }
-
-    if (uDifficulty.value_as<uint8_t>() > 5)
-    {
-        spdlog::warn("Game difficulty is invalid (should be from 0 to 5, current value is {}), setting difficulty to 4 "
-                     "(master).",
-                     uDifficulty.value_as<uint8_t>());
-
-        uDifficulty = 4;
-    }
-
-    if (!bEnableDeathSystem)
-    {
-        spdlog::warn(
-            "The multiplayer death system is disabled on this server. We recommend that you ONLY do this if you have"
-            " a mod that replaces the vanilla death system. You should only disable our death system if you"
-            " absolutely know what you are doing!");
     }
 
     // P2P host-only: no password, simplified info
@@ -224,12 +113,6 @@ void GameServer::StopRecording()
 
 void GameServer::Initialize()
 {
-    if (!CheckMoPo())
-        return;
-
-    if (bSyncPlayerCalendar)
-        spdlog::warn(kCalendarSyncWarning);
-
     BindServerCommands();
     m_pWorld->GetScriptService().Initialize(*m_pResources);
 }
@@ -238,25 +121,6 @@ void GameServer::Kill()
 {
     spdlog::info("Server shutdown requested");
     m_requestStop = true;
-}
-
-bool GameServer::CheckMoPo()
-{
-    if (!bEnableModCheck)
-    {
-        // TODO: re-enable this warning when mopo has good ui and the line endings problem is fixed
-        // spdlog::warn(kBypassMoPoWarning);
-    }
-    // Server is not aware of any installed mods.
-    else if (!m_pWorld->GetRecordCollection())
-    {
-        spdlog::error(kMopoRecordsMissing);
-        Kill();
-        return false;
-    }
-    else
-        spdlog::info("ModPolicy is active");
-    return true;
 }
 
 void GameServer::BindMessageHandlers()
@@ -283,13 +147,6 @@ void GameServer::BindMessageHandlers()
     };
 
     ClientMessageFactory::Visit(handlerGenerator);
-
-    // Override authentication request
-    m_messageHandlers[AuthenticationRequest::Opcode] = [this](UniquePtr<ClientMessage>& apMessage,
-                                                              ConnectionId_t aConnectionId) {
-        const auto pRealMessage = CastUnique<AuthenticationRequest>(std::move(apMessage));
-        HandleAuthenticationRequest(aConnectionId, pRealMessage);
-    };
 
     auto adminHandlerGenerator = [this](auto& x) {
         using T = typename std::remove_reference_t<decltype(x)>::Type;
@@ -765,217 +622,78 @@ static String PrettyPrintModList(const Vector<Mods::Entry>& acMods)
     return text;
 }
 
-bool GameServer::ValidateAuthParams(ConnectionId_t aConnectionId, const UniquePtr<AuthenticationRequest>& acRequest)
+uint32_t GameServer::AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept
 {
-    return false;
+    char remoteAddress[48]{"unknown"};
+    if (const auto* pPeer = GetPeer(aConnectionId))
+        enet_address_get_host_ip(&pPeer->address, remoteAddress, sizeof(remoteAddress));
+
+    // Each of the player's mods by its id in the session (every GameId on the wire uses these).
+    auto& modsComponent = m_pWorld->ctx().at<ModsComponent>();
+    Vector<String> playerMods;
+    Vector<uint16_t> playerModsIds;
+    for (const auto& mod : acRequest.UserMods.ModList)
+    {
+        const uint32_t id = mod.IsLite ? modsComponent.AddLite(mod.Filename) : modsComponent.AddStandard(mod.Filename);
+
+        Mods::Entry entry;
+        entry.Filename = mod.Filename;
+        entry.Id = static_cast<uint16_t>(id);
+        entry.IsLite = mod.IsLite;
+
+        playerMods.push_back(mod.Filename);
+        playerModsIds.push_back(entry.Id);
+        aSessionMods.ModList.push_back(entry);
+    }
+
+    Player* pPlayer = m_pWorld->GetPlayerManager().Create(aConnectionId);
+    pPlayer->SetEndpoint(remoteAddress);
+    pPlayer->SetDiscordId(acRequest.DiscordId);
+    pPlayer->SetUsername(acRequest.Username);
+    pPlayer->SetMods(playerMods);
+    pPlayer->SetModIds(playerModsIds);
+    pPlayer->SetLevel(acRequest.Level);
+
+    spdlog::info("New player '{}' [{:x}] connected with {} mods\n\t: {}", pPlayer->GetUsername().c_str(), aConnectionId,
+                 acRequest.UserMods.ModList.size(), PrettyPrintModList(acRequest.UserMods.ModList).c_str());
+    return pPlayer->GetId();
 }
 
-void GameServer::HandleAuthenticationRequest(const ConnectionId_t aConnectionId,
-                                             const UniquePtr<AuthenticationRequest>& acRequest)
+void GameServer::AnnouncePlayer(ConnectionId_t aConnectionId, GameId aWorldSpaceId, GameId aCellId) noexcept
 {
-    const auto* peer = GetPeer(aConnectionId);
+    Player* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
+    if (!pPlayer)
+        return;
 
-    char remoteAddress[48]{};
-    if (peer)
+    // The session's players: the newcomer learns everyone already here, and everyone else
+    // learns the newcomer.
+    const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
+    const auto joined = [pHost](const Player& acPlayer, GameId aWorldSpaceId, GameId aCellId)
     {
-        enet_address_get_host_ip(&peer->address, remoteAddress, sizeof(remoteAddress));
-    }
-    else
-    {
-        strcpy(remoteAddress, "unknown");
-    }
-
-    AuthenticationResponse serverResponse;
-    serverResponse.Version = BuildCommit();
-
-    using RT = AuthenticationResponse::ResponseType;
-    auto sendKick = [&](const RT type) {
-        serverResponse.Type = type;
-        Send(aConnectionId, serverResponse);
-        // the previous message is a lingering kick, it still gets delivered.
-        Kick(aConnectionId);
+        NotifyPlayerJoined notify{};
+        notify.PlayerId = acPlayer.GetId();
+        notify.Username = acPlayer.GetUsername();
+        notify.WorldSpaceId = aWorldSpaceId;
+        notify.CellId = aCellId;
+        notify.Level = acPlayer.GetLevel();
+        notify.IsHost = &acPlayer == pHost;
+        return notify;
     };
-#if 1
-    // to make our testing life a bit easier.
-    if (acRequest->Version != BuildCommit())
+    for (auto* pOtherPlayer : m_pWorld->GetPlayerManager())
     {
-        spdlog::info("New player {:x} '{}' tried to connect with client {} - Version mismatch", aConnectionId,
-                     remoteAddress, acRequest->Version.c_str());
-        sendKick(RT::kWrongVersion);
-        return;
+        if (pOtherPlayer == pPlayer)
+            continue;
+
+        const auto& cellComponent = pOtherPlayer->GetCellComponent();
+        Send(pPlayer->GetConnectionId(), joined(*pOtherPlayer, cellComponent.WorldSpaceId, cellComponent.Cell));
     }
-#endif
-
-    if (m_pWorld->GetPlayerManager().Count() >= uMaxPlayerCount.value_as<uint32_t>())
-    {
-        sendKick(RT::kServerFull);
-        return;
-    }
-
-    bool skseProblem = !bAllowSKSE && acRequest->SKSEActive;
-    bool mo2Problem = !bAllowMO2 && acRequest->MO2Active;
-
-    if (skseProblem || mo2Problem)
-    {
-        TiltedPhoques::String response;
-        if (skseProblem)
-            response += "SKSE ";
-        if (mo2Problem)
-            response += "MO2 ";
-
-        spdlog::info("New player {:x} '{}' tried to connect, but {}{} disallowed - Kicked.", aConnectionId,
-                     remoteAddress, response.c_str(), skseProblem && mo2Problem ? "are" : "is");
-
-        serverResponse.SKSEActive = acRequest->SKSEActive;
-        serverResponse.MO2Active = acRequest->MO2Active;
-        sendKick(RT::kClientModsDisallowed);
-        return;
-    }
-
-    // P2P host-only: no password auth -- accept connections after version/count/mod checks
-    {
-        Mods& responseList = serverResponse.UserMods;
-        auto& modsComponent = m_pWorld->ctx().at<ModsComponent>();
-
-        if (IsMoPoActive())
-        {
-            // mods that exist on the client, but not on the server
-            // modscomponent contains a list filled in by the recordcollection
-            Mods modsToRemove;
-
-            const auto& userMods = acRequest->UserMods.ModList;
-            for (const Mods::Entry& mod : userMods)
-            {
-                // if the client has more mods than the server..
-                if (!modsComponent.IsInstalled(mod.Filename))
-                {
-                    modsToRemove.ModList.push_back(mod);
-                }
-            }
-
-            // TODO(Vince): if you have a better to do this than two for loops
-            // let me know!
-            // Also, for the future, lets think about a mode that allows more than the server installed mods
-            // but requires essential mods?
-
-            // mods that may exist on the server, but not on the client
-            for (const auto& entry : modsComponent.GetServerMods())
-            {
-                const auto it = std::find_if(userMods.begin(), userMods.end(),
-                                             [&](const Mods::Entry& it) { return it.Filename == entry.first; });
-
-                if (it == userMods.end())
-                {
-                    Mods::Entry removeEntry;
-                    removeEntry.Filename = entry.first;
-                    removeEntry.Id = 0;
-                    modsToRemove.ModList.push_back(removeEntry);
-                }
-            }
-
-            if (modsToRemove.ModList.size() > 0)
-            {
-                String text = PrettyPrintModList(modsToRemove.ModList);
-                // "ModPolicy: refusing connection {:x} because essential mods are missing: {}"
-                // for future reference ^
-                spdlog::info(
-                    "ModPolicy: refusing connection {:x} because the following mods are installed on the client: {}",
-                    aConnectionId, text.c_str());
-
-                serverResponse.UserMods.ModList = std::move(modsToRemove.ModList);
-                sendKick(RT::kModsMismatch);
-                return;
-            }
-        }
-
-        // Note: to lower traffic we only send the mod ids the user can fix in order as other ids will lead to a
-        // null form id anyway
-        Vector<String> playerMods;
-        Vector<uint16_t> playerModsIds;
-
-        size_t i = 0;
-        for (auto& mod : acRequest->UserMods.ModList)
-        {
-            const uint32_t id =
-                mod.IsLite ? modsComponent.AddLite(mod.Filename) : modsComponent.AddStandard(mod.Filename);
-
-            Mods::Entry entry;
-            entry.Filename = mod.Filename;
-            entry.Id = static_cast<uint16_t>(id);
-            entry.IsLite = mod.IsLite;
-
-            playerMods.push_back(mod.Filename);
-            playerModsIds.push_back(entry.Id);
-            responseList.ModList.push_back(entry);
-        }
-
-        Player* pPlayer = m_pWorld->GetPlayerManager().Create(aConnectionId);
-        pPlayer->SetEndpoint(remoteAddress);
-        pPlayer->SetDiscordId(acRequest->DiscordId);
-        pPlayer->SetUsername(std::move(acRequest->Username));
-        pPlayer->SetMods(playerMods);
-        pPlayer->SetModIds(playerModsIds);
-        pPlayer->SetLevel(acRequest->Level);
-
-        // this event is shit, needs to be fixed, i know
-        if (m_pWorld->HasScriptService())
-        {
-            auto [canceled, reason] = m_pWorld->GetScriptService().HandlePlayerJoin(aConnectionId);
-            if (canceled)
-            {
-                spdlog::info("New player {:x} has a been rejected because \"{}\".", aConnectionId, reason.c_str());
-                Kick(aConnectionId);
-                m_pWorld->GetPlayerManager().Remove(pPlayer);
-                return;
-            }
-        }
-
-        serverResponse.PlayerId = pPlayer->GetId();
-
-        auto modList = PrettyPrintModList(acRequest->UserMods.ModList);
-        spdlog::info("New player '{}' [{:x}] connected with {} mods\n\t: {}", pPlayer->GetUsername().c_str(),
-                     aConnectionId, acRequest->UserMods.ModList.size(), modList.c_str());
-
-        serverResponse.Settings = GetSettings();
-
-        serverResponse.Type = AuthenticationResponse::ResponseType::kAccepted;
-        Send(aConnectionId, serverResponse);
-
-        // The session's players: the newcomer learns everyone already here, and everyone else
-        // learns the newcomer.
-        const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
-        const auto joined = [pHost](const Player& acPlayer, GameId aWorldSpaceId, GameId aCellId)
-        {
-            NotifyPlayerJoined notify{};
-            notify.PlayerId = acPlayer.GetId();
-            notify.Username = acPlayer.GetUsername();
-            notify.WorldSpaceId = aWorldSpaceId;
-            notify.CellId = aCellId;
-            notify.Level = acPlayer.GetLevel();
-            notify.IsHost = &acPlayer == pHost;
-            return notify;
-        };
-        for (auto* pOtherPlayer : m_pWorld->GetPlayerManager())
-        {
-            if (pOtherPlayer == pPlayer)
-                continue;
-
-            const auto& cellComponent = pOtherPlayer->GetCellComponent();
-            Send(pPlayer->GetConnectionId(), joined(*pOtherPlayer, cellComponent.WorldSpaceId, cellComponent.Cell));
-        }
-        SendToPlayers(joined(*pPlayer, acRequest->WorldSpaceId, acRequest->CellId), pPlayer);
-
-        m_pWorld->GetDispatcher().trigger(
-            PlayerJoinEvent(pPlayer, acRequest->WorldSpaceId, acRequest->CellId, acRequest->PlayerTime));
-    }
+    SendToPlayers(joined(*pPlayer, aWorldSpaceId, aCellId), pPlayer);
 }
 
-void GameServer::UpdateSettings()
+void GameServer::Disconnect(ConnectionId_t aConnectionId) noexcept
 {
-    NotifySettingsChange notify{};
-    notify.Settings = GetSettings();
-
-    SendToPlayers(notify);
+    // What was sent before still arrives: enet disconnects after the queued reliable packets.
+    Kick(aConnectionId);
 }
 
 GameServer::Uptime GameServer::GetUptime() const noexcept

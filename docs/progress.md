@@ -51,8 +51,10 @@ Removed one section at a time, each with its bridge replacement and tests first
 
 1. Player levels: done.
 2. String cache: dropped, not moved (uncommitted).
-3. Session, in steps: 3a auth gate, 3b player list, 3c player records and kick, 3d mod id table
-   (the mod check itself is for later).
+3. Session, in steps: 3a auth gate (3a.1 build and cap: done, uncommitted; 3a.1b refusals
+   delivered as data (join status, host chat line): done, uncommitted; 3a.2 game and SKSE
+   versions; 3a.3 plugin list and order; 3a.4 the host's settings), 3b player list, 3c player records
+   and kick, 3d mod id table.
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
    server console commands, recording.
 
@@ -107,6 +109,14 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Refusals as data (3a.1b, 2026-10-13, uncommitted): new `join-refused-shows-why` (the client refused
+  by stand-in hosts on another build and full, the real host refusing a game on another build)
+  passes; it fails at the step concerned with the old kick, with no refusal status, and with no host
+  chat line. The `session` scenarios (9) pass; `BridgeTests` 349 of 349, `TPTests` pass. The scenario
+  needs `scripts/xmake-linux.sh build -j16 coop_peer`.
+- Join gate 3a.1 (2026-10-13, uncommitted): `BridgeTests` 339 of 339 (new `session_tests.cpp`), `TPTests`
+  pass; the `session` scenarios (8) and `move-host-npc`, `remove-host-npc`, `party-changes-cells`,
+  `door-opens-for-both` pass after a hot reload (which joins both games through the new gate).
 - Map markers (2026-10-13, uncommitted): `map-marker-reaches-everyone` (place both ways, remove) 3 of 3 on
   a warm duo and 2 of 2 on a fresh one, `chat-reaches-everyone` passes with `key` through the control map, `BridgeTests` 284 of 284.
   Test games had tutorials on all along: `bShowTutorials` went to SkyrimPrefs.ini, which ignores it; it
@@ -246,17 +256,24 @@ order" says what comes during the migration and what after.
   probe and launcher with tests (2026-10-10). Not built or tested in the current tree.
 - Identical installs: the plugin list and load order checked against the host's game (section 3a),
   then a manifest of every file (`join-flow.md`, stage 3).
-- The mod syncer: on a mismatch, download the host's mods through Wabbajack or similar and restart.
-- Auto-update of our mod to the host's build.
-- Host-stored characters: the host keeps every player's character; new players make one, known
-  players load in as theirs (needs the world-state sync, `docs/design/world-state-sync.md`).
-- Arrival: a joining player loads in where the host is (the tether).
+- Mod sync: making a friend's install match the host's, and with it whether a launcher is needed at
+  all. Open: research spike `docs/research/mod-sync-spike.md` (for an agent working alone), findings
+  to `docs/research/mod-sync.md`. 1.0 at least lists the differences with links.
+- Updating our mod to the host's build (download, restart, a resident loader picks the new build).
+- Joining from the main menu: connect and gate with no save loaded; the host sends its save (save
+  transfer) and the friend's game loads it, as their character (`join-flow.md`, stages 4 to 6).
+- Host-stored characters: every player's character in the host's save (its SKSE co-save); new players
+  make one. Only the host saves; a friend's game cannot save while connected.
+- The plugin's file interface (`request`, `status`, `events`, `manifest`) and the error model (state
+  with stable reason codes, events as chat system lines); the harness moves onto the files.
+- The join panel over the main menu, and a Host button in game; needs mouse and keyboard input for
+  RmlUi.
 - Session settings from the host: its real difficulty (forced to Master today), a settings screen.
-- In-game screens besides the party panel: player list with kick, connect, settings, notifications.
-- The client (launcher): invites and join links, updates, install check and mod sync, starting the
-  game; the gate stays in the game. Steam research shelved in `git stash` ("steam/launcher work");
-  next: the two-account test (`join-flow.md`, "The client"). Side note: AOL-style buddy list, global
-  chat and per-session chat rooms.
+- In-game screens besides the party panel: player list with kick, settings.
+- A launcher: not decided; the mod sync spike answers whether one is needed. Steam research and a
+  launcher prototype are shelved in `git stash` ("steam/launcher work"); next Steam step: the
+  two-account test (`join-flow.md`, "Steam"). Side note: AOL-style buddy list, global chat and
+  per-session chat rooms.
 
 ## Infrastructure (done)
 
