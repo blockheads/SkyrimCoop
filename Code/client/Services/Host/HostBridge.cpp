@@ -14,6 +14,7 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NewPackageRequest.h>
+#include <Messages/PlayerLevelRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyActorValueChanges.h>
@@ -32,6 +33,7 @@
 #include <Messages/NotifyLockChange.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NotifyNewPackage.h>
+#include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyRemoveSpell.h>
 #include <Messages/NotifyRemoveWaypoint.h>
@@ -158,6 +160,9 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
 {
     using enum Delivery;
 
+    // Players
+    On(*this, &HostBridge::OnPlayerLevel);
+
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostBridge::OnFactionsChanges);
     Relay<MountRequest, NotifyMount>(FromAnyone);
@@ -262,6 +267,20 @@ void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, Connecti
     notify.ChatMessage = std::regex_replace(acRequest.ChatMessage, s_markup, "");
     for (const ConnectionId_t cPlayer : m_server.PlayerConnections())
         m_server.Send(cPlayer, notify);
+}
+
+void HostBridge::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (acRequest.NewLevel == 0)
+    {
+        spdlog::warn("HostBridge: {:x} sent level 0", aSender);
+        return;
+    }
+    m_server.SetPlayerLevel(aSender, acRequest.NewLevel);
+    NotifyPlayerLevel notify;
+    notify.PlayerId = m_server.PlayerIdOf(aSender);
+    notify.NewLevel = acRequest.NewLevel;
+    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
 void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept

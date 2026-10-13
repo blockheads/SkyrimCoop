@@ -68,6 +68,11 @@
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Messages/ServerMessageFactory.h>
+#include <Messages/AuthenticationRequest.h>
+#include <Messages/NotifyPlayerJoined.h>
+#include <Messages/NotifyPlayerLevel.h>
+#include <Messages/PlayerLevelRequest.h>
+#include <BuildVersion.h>
 
 #include <memory>
 #include <vector>

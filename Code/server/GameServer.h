@@ -76,6 +76,8 @@ struct GameServer final : TiltedPhoques::Server
     [[nodiscard]] uint32_t PlayerIdOf(ConnectionId_t aConnectionId) const noexcept;
     // The player's name as the session shows it (empty: no such player).
     [[nodiscard]] String PlayerNameOf(ConnectionId_t aConnectionId) const noexcept;
+    // The player's character level, as the player list shows it.
+    void SetPlayerLevel(ConnectionId_t aConnectionId, uint16_t aLevel) noexcept;
     // Disconnects the player (never the host: the host is the session).
     void KickPlayer(uint32_t aPlayerId) noexcept;
     // The player's own character, for the player list and the services still here (quests).

@@ -4,6 +4,7 @@ struct World;
 struct DisconnectedEvent;
 struct NotifyPlayerJoined;
 struct NotifyPlayerLeft;
+struct NotifyPlayerLevel;
 
 /**
  * @brief The other players in the session. Everyone connected is in it (there are no parties);
@@ -15,7 +16,7 @@ struct SessionService
     {
         String Name;
         bool IsHost{};
-        // When it joined.
+        // Its character's level.
         uint16_t Level{};
     };
 
@@ -30,6 +31,7 @@ struct SessionService
 protected:
     void OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcept;
     void OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept;
+    void OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
 
 private:
@@ -37,5 +39,6 @@ private:
 
     entt::scoped_connection m_playerJoinedConnection;
     entt::scoped_connection m_playerLeftConnection;
+    entt::scoped_connection m_playerLevelConnection;
     entt::scoped_connection m_disconnectedConnection;
 };

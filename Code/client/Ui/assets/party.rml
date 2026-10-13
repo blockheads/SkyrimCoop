@@ -4,11 +4,11 @@
     <link type="text/rcss" href="skyrim.rcss"/>
     <link type="text/rcss" href="party.rcss"/>
 </head>
-<!-- The others in the session, while connected (UiService's "party" model): a name and health each. -->
+<!-- The others in the session, while connected (UiService's "party" model): name, level and health each. -->
 <body data-model="party">
     <div id="party" data-if="members.size > 0">
         <div class="member" data-for="member : members" data-class-away="member.health < 0">
-            <div class="name">{{ member.name }}</div>
+            <div class="name">{{ member.name }}<span class="level" data-if="member.level > 0">{{ member.level }}</span></div>
             <div class="health">
                 <div class="fill" data-style-width="member.health < 0 ? '0%' : (member.health * 100) + '%'"></div>
             </div>

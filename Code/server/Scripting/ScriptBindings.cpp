@@ -42,7 +42,6 @@ void CreateMathBindings(sol::state_view);
 void CreatePlayerBindings(sol::state_view);
 void CreateComponentBindings(sol::state_view);
 void CreateGameServerBindings(sol::state_view);
-void CreatePlayerServiceBindings(sol::state_view);
 void CreateQuestServiceBindings(sol::state_view);
 void CreateScriptServiceBindings(sol::state_view);
 void CreateWorldBindings(sol::state_view);
@@ -102,7 +101,6 @@ void CreateScriptBindings(sol::state& aState)
     CreateGameServerBindings(aState);
 
     // services
-    CreatePlayerServiceBindings(aState);
     CreateQuestServiceBindings(aState);
     CreateScriptServiceBindings(aState);
 

@@ -606,6 +606,12 @@ String GameServer::PlayerNameOf(ConnectionId_t aConnectionId) const noexcept
     return pPlayer ? pPlayer->GetUsername() : String{};
 }
 
+void GameServer::SetPlayerLevel(ConnectionId_t aConnectionId, uint16_t aLevel) noexcept
+{
+    if (auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId))
+        pPlayer->SetLevel(aLevel);
+}
+
 void GameServer::SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept
 {
     if (auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId))

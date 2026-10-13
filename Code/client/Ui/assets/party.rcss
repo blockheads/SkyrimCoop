@@ -1,6 +1,6 @@
 /*
  * The party panel, after SkyUI's HUD widgets: no box and no heading, out of the way at the top
- * left. Each player is a name over a thin health bar that empties toward its centre, as Skyrim's.
+ * left. Each player is a name and level over a thin health bar that empties toward its centre, as Skyrim's.
  */
 
 #party {
@@ -19,6 +19,14 @@
     font-weight: 300;
     letter-spacing: 0.4dp;
     font-effect: shadow(1dp 1dp #000000d0);
+}
+
+/* The level at the right end of the name line, smaller and dimmer than the name. */
+.member .level {
+    float: right;
+    font-size: 15dp;
+    margin-top: 3dp;
+    opacity: 0.7;
 }
 
 /* A dark sliver of a track; the red fill is centred in it and shrinks to the middle. */

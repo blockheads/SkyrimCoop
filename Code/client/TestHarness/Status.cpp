@@ -8,6 +8,7 @@
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
@@ -261,14 +262,14 @@ static nlohmann::json GameStatus()
     const auto& bridge = world.GetWorldBridge();
     nlohmann::json players = nlohmann::json::array();
     for (const auto& [cId, cPlayer] : world.GetSessionService().GetPlayers())
-        players.push_back({{"id", cId}, {"name", cPlayer.Name.c_str()}, {"host", cPlayer.IsHost}});
+        players.push_back({{"id", cId}, {"name", cPlayer.Name.c_str()}, {"host", cPlayer.IsHost}, {"level", cPlayer.Level}});
     // The party panel as drawn: null when the UI is not up (no device yet, or no document).
     nlohmann::json party = nullptr;
     if (const auto* pUi = world.ctx().find<UiService>(); pUi && pUi->IsPartyPanelShown())
     {
         party = nlohmann::json::array();
         for (const auto& cMember : pUi->GetPartyMembers())
-            party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"health", cMember.Health}});
+            party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"level", cMember.Level}, {"health", cMember.Health}});
     }
     // The chat: every line received, whether its line is open and what is typed in it.
     nlohmann::json chat = nullptr;
@@ -288,7 +289,7 @@ static nlohmann::json GameStatus()
         mapMarker = {{"position", {cMarker->X, cMarker->Y, cMarker->Z}}, {"world", cMarker->WorldOrCell}};
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
-            {"weather", bridge.GetCurrentWeatherId()},
+            {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()},
             {"players", players}, {"party_panel", party}, {"chat", chat}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
             {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
 }

@@ -16,7 +16,6 @@ World::World()
     m_spAdminService = std::make_shared<AdminService>(*this, m_dispatcher);
     spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
 
-    ctx().emplace<PlayerService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
@@ -40,7 +39,6 @@ World::World(WorldTestMode)
     m_spAdminService = std::make_shared<AdminService>(*this, m_dispatcher);
     spdlog::default_logger()->sinks().push_back(std::static_pointer_cast<spdlog::sinks::sink>(m_spAdminService));
 
-    ctx().emplace<PlayerService>(*this, m_dispatcher);
     ctx().emplace<ModsComponent>();
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<StringCacheService>(*this, m_dispatcher);
@@ -61,7 +59,6 @@ World::~World()
     // members): their connections to it go first, newest service first.
     ctx().erase<StringCacheService>();
     ctx().erase<QuestService>();
-    ctx().erase<PlayerService>();
 }
 
 } // namespace Server

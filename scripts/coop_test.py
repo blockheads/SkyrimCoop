@@ -1251,6 +1251,25 @@ def scenario_party_panel():
     party_panel_lists_the_other("after a hot reload")
 
 
+def party_panel_shows_level(instance, level, when):
+    """The game's party panel shows the other player at aLevel."""
+    wait_for(f"[{instance or 'host'}] the party panel shows the other player at level {level} {when}",
+             lambda: (rows := game_state(instance).get("party_panel")) and len(rows) == 1 and rows[0]["level"] == level, 5)
+
+
+def scenario_party_shows_levels():
+    """Each party panel shows the other player's level, and a level-up in either game (the console's
+    advlevel, as a level-up raises it) reaches the other's panel. The baseline puts the levels back."""
+    levels = {instance: game_state(instance)["level"] for instance in ("", "client")}
+    for instance, other in (("", "client"), ("client", "")):
+        party_panel_shows_level(instance, levels[other], "now")
+    for instance, other in (("client", ""), ("", "client")):
+        console_on(instance, "player.advlevel")
+        wait_for(f"[{instance or 'host'}] the player is level {levels[instance] + 1}",
+                 lambda: game_state(instance)["level"] == levels[instance] + 1, 5)
+        party_panel_shows_level(other, levels[instance] + 1, f"after the {instance or 'host'}'s level-up")
+
+
 def scenario_late_join_client():
     """The client leaves and joins again while the host's world changed: it must see the world as it
     is now (the host's player and NPC as they are), and the host must drop the client's character
@@ -2544,14 +2563,15 @@ PLAYER_VALUES = ("health", "magicka", "stamina")
 
 
 def save_home():
-    """Records each player's spot, heading and clothes as the baseline the scenarios start from."""
+    """Records each player's spot, heading, clothes and level as the baseline the scenarios start from."""
     for name in ("", "client"):
         me = player_snapshot(name)
         placement = me.get("placement") or {}
         if not placement.get("position"):
             raise TestFailure(f"{name or 'host'}: no player snapshot to record the baseline from")
         home = {"position": placement["position"], "heading": placement["rotation"][2],
-                "equipment": sorted(i for i in me.get("equipment", []) if i not in TEST_ITEMS)}
+                "equipment": sorted(i for i in me.get("equipment", []) if i not in TEST_ITEMS),
+                "level": game_state(name).get("level")}
         atomic_write(CONTROL / HOME_FILE, json.dumps(home) + "\n")
     log("Recorded both players' baseline (home.json)")
 
@@ -2597,6 +2617,8 @@ def reset_player(instance, home):
         run_console("player.unequipall")
         for item in home["equipment"]:
             run_console(f"player.equipitem {item:08X}")
+    if home.get("level") and game_state(instance).get("level") != home["level"]:
+        run_console(f"player.setlevel {home['level']}")
     values = me.get("values") or {}
     for value in PLAYER_VALUES:
         if values.get(value, 0) < values.get(f"max_{value}", 0) - 0.5:
@@ -2647,6 +2669,8 @@ def check_baseline():
                 problems.append(f"{game}: player {value} {values.get(value):.0f} of {values.get(f'max_{value}'):.0f}")
         if (me.get("ai") or {}).get("combat_target"):
             problems.append(f"{game}: player in combat with {me['ai']['combat_target']:08X}")
+        if home.get("level") and game_state(name).get("level") != home["level"]:
+            problems.append(f"{game}: player level {game_state(name).get('level')}, baseline {home['level']}")
         position = (me.get("placement") or {}).get("position")
         if not position or distance(position, home["position"]) > HOME_TOLERANCE:
             problems.append(f"{game}: player at {[round(v) for v in position or []]}, "
@@ -2700,6 +2724,7 @@ SCENARIOS = {
     # session
     "session-roster": scenario_session_roster,
     "party-panel": scenario_party_panel,
+    "party-shows-levels": scenario_party_shows_levels,
     "late-join-client": scenario_late_join_client,
     "host-rejoins": scenario_host_rejoins,
     "host-kicks-client": scenario_host_kicks_client,
@@ -2769,6 +2794,7 @@ SCENARIOS = {
 TAGS = {
     "session-roster": {'session'},
     "party-panel": {'session', 'ui', 'reload'},
+    "party-shows-levels": {'session', 'ui'},
     "late-join-client": {'session', 'spawn', 'inventory', 'hands', 'values'},
     "host-rejoins": {'session', 'spawn'},
     "host-kicks-client": {'session', 'spawn'},
