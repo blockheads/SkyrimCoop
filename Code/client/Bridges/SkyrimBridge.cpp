@@ -214,11 +214,16 @@ void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
         pActor->Kill();
 }
 
-void SkyrimBridge::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
+bool SkyrimBridge::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
 {
     Breadcrumbs::Record("DamageActorHealth", aFormId, aAttackerFormId);
-    if (Actor* pActor = GetActor(aFormId))
-        pActor->DamageHealth(aDamage, aAttackerFormId ? GetActor(aAttackerFormId) : nullptr);
+    Actor* pActor = GetActor(aFormId);
+    // The kill move decides its victim's death: a hit now would only queue a kill credited to the local player
+    // (EndDeferredKill 38618), not to the kill move's partner.
+    if (!pActor || pActor->IsHeldByKillMove())
+        return false;
+    pActor->DamageHealth(aDamage, aAttackerFormId ? GetActor(aAttackerFormId) : nullptr);
+    return true;
 }
 
 void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept

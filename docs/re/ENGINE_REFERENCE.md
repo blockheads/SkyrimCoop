@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **308** distinct engine addresses used; **119** have code in CommonLib or SKSE; **74** have no community name at all.
-- **100** hooks (these replace engine code, so check them first when the game crashes).
+- **314** distinct engine addresses used; **122** have code in CommonLib or SKSE; **74** have no community name at all.
+- **101** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -24,9 +24,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 19787 | `0x2ea790` | `TESObjectREFR::SetRotationX` | meh | hook → `HookRotateX` | `s_rotateX` | [TESObjectREFR.cpp:1143](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1143) |  |
 | 19788 | `0x2ea810` | `TESObjectREFR::SetRotationY` | meh | hook → `HookRotateY` | `s_rotateY` | [TESObjectREFR.cpp:1144](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1144) |  |
 | 19789 | `0x2ea890` | `TESObjectREFR::SetRotationZ` | meh | hook → `HookRotateZ` | `s_rotateZ` | [TESObjectREFR.cpp:1145](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1145) |  |
-| 19790 | `0x2ea960` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `s_setPosition` | [Actor.cpp:1567](../../Code/client/Games/Skyrim/Actor.cpp#L1567) |  |
+| 19790 | `0x2ea960` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `s_setPosition` | [Actor.cpp:1583](../../Code/client/Games/Skyrim/Actor.cpp#L1583) |  |
 | 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | hook → `HookActivate` | `s_activate` | [TESObjectREFR.cpp:1146](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1146) |  |
-| 20123 | `0x2f78b0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `updateAnimationGraphs` | [Animation.cpp:223](../../Code/client/Games/Animation.cpp#L223) |  |
+| 20123 | `0x2f78b0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `updateAnimationGraphs` | [Animation.cpp:250](../../Code/client/Games/Animation.cpp#L250) |  |
 | 21622 | `0x332e80` | `GameFunc::native::HasPerk` | meh | hook → `HookHasPerk` | `hasPerk` | [MagicTarget.cpp:207](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L207) |  |
 | 26231 | `0x40b490` | `Sky::UpdateWeather` | PL meh | hook → `HookUpdateWeather` | `updateWeather` | [Sky.cpp:95](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L95) |  |
 | 26241 | `0x40e0c0` | `Sky::SetWeather` | CL meh | hook → `HookSetWeather` | `setWeather` | [Sky.cpp:93](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L93) |  |
@@ -43,31 +43,31 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 34525 | `0x5c30c0` | `MagicTarget::AddTargetData::CheckAddEffect` | CL | hook → `HookCheckAddEffectTargetData` | `checkAddEffectTargetData` | [MagicTarget.cpp:204](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L204) |  |
 | 34526 | `0x5c3250` | `?` | PL | hook → `HookAddTarget` | `addTarget` | [MagicTarget.cpp:203](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L203) | **undocumented** |
 | 34989 | `0x5d44c0` | `?` | - | hook → `HookInitializeSummonCreatureEffect` | `s_start` | [SummonCreatureEffect.h:32](../../Code/client/Games/Skyrim/Effects/SummonCreatureEffect.h#L32) | **undocumented** |
-| 35086 | `0x5d8a70` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `s_applyActorEffect` | [Actor.cpp:1575](../../Code/client/Games/Skyrim/Actor.cpp#L1575) |  |
+| 35086 | `0x5d8a70` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `s_applyActorEffect` | [Actor.cpp:1591](../../Code/client/Games/Skyrim/Actor.cpp#L1591) |  |
 | 36000 | `0x624fc0` | `BGSLoadGameBuffer::ReadFormID` | meh | hook → `BGSLoadFormBuffer_LoadFormId` | `s_readFormId` | [SaveLoad.cpp:121](../../Code/client/Games/SaveLoad.cpp#L121) |  |
 | 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:123](../../Code/client/Games/SaveLoad.cpp#L123) |  |
 | 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:122](../../Code/client/Games/SaveLoad.cpp#L122) |  |
 | 36291 | `0x633250` | `?` | - | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:27](../../Code/client/Games/TimeManager.cpp#L27) | **undocumented** |
 | 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `cMainLoop` | [SkyrimVM64.cpp:66](../../Code/client/SkyrimVM64.cpp#L66) |  |
-| 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `addDeathItems` | [Actor.cpp:1585](../../Code/client/Games/Skyrim/Actor.cpp#L1585) |  |
-| 37313 | `0x664950` | `TESObjectREFR::sub_37313` | meh | hook → `HookForceState` | `s_ForceState` | [Actor.cpp:1573](../../Code/client/Games/Skyrim/Actor.cpp#L1573) |  |
-| 37335 | `0x666d20` | `Actor::DoDamage` | CL meh | hook → `HookDamageActor` | `s_damageActor` | [Actor.cpp:1574](../../Code/client/Games/Skyrim/Actor.cpp#L1574) |  |
-| 37347 | `0x6672b0` | `Character::UpdateAI` | IDA PL meh | hook → `HookUpdateAI` | `s_updateAI` | [Actor.cpp:1566](../../Code/client/Games/Skyrim/Actor.cpp#L1566) |  |
-| 37356 | `0x6698d0` | `Actor::ApplyMovement` | IDA meh | hook → `HookApplyMovement` | `s_applyMovement` | [Actor.cpp:1565](../../Code/client/Games/Skyrim/Actor.cpp#L1565) |  |
-| 37521 | `0x678600` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `s_pickUpObject` | [Actor.cpp:1578](../../Code/client/Games/Skyrim/Actor.cpp#L1578) |  |
-| 37525 | `0x678f90` | `Actor::AddObjectToContainer` | meh | hook → `HookAddInventoryItem` | `s_addInventoryItem` | [Actor.cpp:1577](../../Code/client/Games/Skyrim/Actor.cpp#L1577) |  |
-| 37534 | `0x6796b0` | `Character::sub_37534` | meh | hook → `HookShouldAttack` | `s_shouldAttack` | [Actor.cpp:1639](../../Code/client/Games/Skyrim/Actor.cpp#L1639) |  |
-| 37537 | `0x679f10` | `Actor::IsHostileToActor` | CL SKSE meh | hook → `HookIsHostileToActor` | `s_isHostileToActor` | [Actor.cpp:1631](../../Code/client/Games/Skyrim/Actor.cpp#L1631) |  |
-| 37542 | `0x67a9d0` | `Actor::SpeakSound` | IDA PL meh | hook → `HookSpeakSoundFunction` | `s_speakSoundFunction` | [Actor.cpp:1584](../../Code/client/Games/Skyrim/Actor.cpp#L1584) |  |
+| 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `addDeathItems` | [Actor.cpp:1601](../../Code/client/Games/Skyrim/Actor.cpp#L1601) |  |
+| 37313 | `0x664950` | `TESObjectREFR::sub_37313` | meh | hook → `HookForceState` | `s_ForceState` | [Actor.cpp:1589](../../Code/client/Games/Skyrim/Actor.cpp#L1589) |  |
+| 37335 | `0x666d20` | `Actor::DoDamage` | CL meh | hook → `HookDamageActor` | `s_damageActor` | [Actor.cpp:1590](../../Code/client/Games/Skyrim/Actor.cpp#L1590) |  |
+| 37347 | `0x6672b0` | `Character::UpdateAI` | IDA PL meh | hook → `HookUpdateAI` | `s_updateAI` | [Actor.cpp:1582](../../Code/client/Games/Skyrim/Actor.cpp#L1582) |  |
+| 37356 | `0x6698d0` | `Actor::ApplyMovement` | IDA meh | hook → `HookApplyMovement` | `s_applyMovement` | [Actor.cpp:1581](../../Code/client/Games/Skyrim/Actor.cpp#L1581) |  |
+| 37521 | `0x678600` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `s_pickUpObject` | [Actor.cpp:1594](../../Code/client/Games/Skyrim/Actor.cpp#L1594) |  |
+| 37525 | `0x678f90` | `Actor::AddObjectToContainer` | meh | hook → `HookAddInventoryItem` | `s_addInventoryItem` | [Actor.cpp:1593](../../Code/client/Games/Skyrim/Actor.cpp#L1593) |  |
+| 37534 | `0x6796b0` | `Character::sub_37534` | meh | hook → `HookShouldAttack` | `s_shouldAttack` | [Actor.cpp:1655](../../Code/client/Games/Skyrim/Actor.cpp#L1655) |  |
+| 37537 | `0x679f10` | `Actor::IsHostileToActor` | CL SKSE meh | hook → `HookIsHostileToActor` | `s_isHostileToActor` | [Actor.cpp:1647](../../Code/client/Games/Skyrim/Actor.cpp#L1647) |  |
+| 37542 | `0x67a9d0` | `Actor::SpeakSound` | IDA PL meh | hook → `HookSpeakSoundFunction` | `s_speakSoundFunction` | [Actor.cpp:1600](../../Code/client/Games/Skyrim/Actor.cpp#L1600) |  |
 | 37570 | `0x67ead0` | `Actor::PutCreatedPackage` | meh | hook → `HookPutCreatedPackage` | `s_putCreatedPackage` | [References.cpp:174](../../Code/client/Games/References.cpp#L174) |  |
-| 37577 | `0x67efe0` | `Character::sub_37577` | meh | hook → `HookIsFleeing` | `isFleeing` | [Actor.cpp:1586](../../Code/client/Games/Skyrim/Actor.cpp#L1586) |  |
-| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | hook → `HookGetFactionReaction` | `s_getFactionReaction` | [Actor.cpp:1635](../../Code/client/Games/Skyrim/Actor.cpp#L1635) |  |
-| 37667 | `0x689fb0` | `Character::sub_37667` | meh | hook → `HookComputeReaction` | `s_computeReaction` | [Actor.cpp:1643](../../Code/client/Games/Skyrim/Actor.cpp#L1643) |  |
+| 37577 | `0x67efe0` | `Character::sub_37577` | meh | hook → `HookIsFleeing` | `isFleeing` | [Actor.cpp:1602](../../Code/client/Games/Skyrim/Actor.cpp#L1602) |  |
+| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | hook → `HookGetFactionReaction` | `s_getFactionReaction` | [Actor.cpp:1651](../../Code/client/Games/Skyrim/Actor.cpp#L1651) |  |
+| 37667 | `0x689fb0` | `Character::sub_37667` | meh | hook → `HookComputeReaction` | `s_computeReaction` | [Actor.cpp:1659](../../Code/client/Games/Skyrim/Actor.cpp#L1659) |  |
 | 37698 | `0x68cdf0` | `Actor::HasPerk` | CL SKSE meh | hook → `HookGetPerkRank` | `getPerkRank` | [MagicTarget.cpp:208](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L208) |  |
-| 37905 | `0x6992c0` | `Actor::sub_37905` | meh | hook → `HookInitiateMountPackage` | `s_initiateMountPackage` | [Actor.cpp:1582](../../Code/client/Games/Skyrim/Actor.cpp#L1582) |  |
-| 37975 | `0x69d1b0` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `s_unequipObject` | [Actor.cpp:1583](../../Code/client/Games/Skyrim/Actor.cpp#L1583) |  |
-| 38459 | `0x6b1e30` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `s_regenerateActorValue` | [Actor.cpp:1576](../../Code/client/Games/Skyrim/Actor.cpp#L1576) |  |
-| 38717 | `0x6c14b0` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `s_removeSpell` | [Actor.cpp:1568](../../Code/client/Games/Skyrim/Actor.cpp#L1568) |  |
+| 37905 | `0x6992c0` | `Actor::sub_37905` | meh | hook → `HookInitiateMountPackage` | `s_initiateMountPackage` | [Actor.cpp:1598](../../Code/client/Games/Skyrim/Actor.cpp#L1598) |  |
+| 37975 | `0x69d1b0` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `s_unequipObject` | [Actor.cpp:1599](../../Code/client/Games/Skyrim/Actor.cpp#L1599) |  |
+| 38459 | `0x6b1e30` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `s_regenerateActorValue` | [Actor.cpp:1592](../../Code/client/Games/Skyrim/Actor.cpp#L1592) |  |
+| 38717 | `0x6c14b0` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `s_removeSpell` | [Actor.cpp:1584](../../Code/client/Games/Skyrim/Actor.cpp#L1584) |  |
 | 38894 | `0x6c9820` | `ActorEquipManager::EquipObject` | CL SKSE meh | hook → `EquipHook` | `s_equipFunc` | [EquipManager.cpp:74](../../Code/client/Games/Skyrim/EquipManager.cpp#L74) |  |
 | 38896 | `0x6c9a70` | `ActorEquipManager::EquipSpellBySlot` | IDA | hook → `EquipHook` | `s_equipFunc` | [EquipManager.cpp:98](../../Code/client/Games/Skyrim/EquipManager.cpp#L98) |  |
 | 38897 | `0x6c9ae0` | `ActorEquipManager::EquipShout` | CL meh | hook → `EquipHook` | `s_equipFunc` | [EquipManager.cpp:118](../../Code/client/Games/Skyrim/EquipManager.cpp#L118) |  |
@@ -80,19 +80,19 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38933 | `0x6cc520` | `?` | - | hook → `UnEquipSpellHook` | `s_unequipSpellFunc` | [EquipManager.cpp:318](../../Code/client/Games/Skyrim/EquipManager.cpp#L318) | **undocumented** |
 | 38934 | `0x6cc810` | `?` | - | hook → `UnEquipHook` | `s_unequipFunc` | [EquipManager.cpp:316](../../Code/client/Games/Skyrim/EquipManager.cpp#L316) | **undocumented** |
 | 38935 | `0x6cca60` | `?` | - | hook → `UnEquipShoutHook` | `s_unequipShoutFunc` | [EquipManager.cpp:320](../../Code/client/Games/Skyrim/EquipManager.cpp#L320) | **undocumented** |
-| 38949 | `0x6cd0d0` | `?` | - | hook → `HookPerformAction` | `performAction` | [Animation.cpp:221](../../Code/client/Games/Animation.cpp#L221) | **undocumented** |
+| 38949 | `0x6cd0d0` | `?` | - | hook → `HookPerformAction` | `performAction` | [Animation.cpp:248](../../Code/client/Games/Animation.cpp#L248) | **undocumented** |
 | 38959 | `0x6cd930` | `?` | - | hook → `HookInitFromPackage` | `s_initFromPackage` | [References.cpp:172](../../Code/client/Games/References.cpp#L172) | **undocumented** |
 | 39114 | `0x6d5690` | `?` | - | hook → `HookCheckForNewPackage` | `s_checkForNewPackage` | [References.cpp:171](../../Code/client/Games/References.cpp#L171) | **undocumented** |
-| 39643 | `0x6f8020` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `s_processResponse` | [Actor.cpp:1581](../../Code/client/Games/Skyrim/Actor.cpp#L1581) |  |
-| 40245 | `0x726650` | `?` | PL | hook → `HookCharacterConstructor` | `s_characterCtor` | [Actor.cpp:1569](../../Code/client/Games/Skyrim/Actor.cpp#L1569) | **undocumented** |
-| 40246 | `0x726750` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `s_characterCtor2` | [Actor.cpp:1570](../../Code/client/Games/Skyrim/Actor.cpp#L1570) |  |
+| 39643 | `0x6f8020` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `s_processResponse` | [Actor.cpp:1597](../../Code/client/Games/Skyrim/Actor.cpp#L1597) |  |
+| 40245 | `0x726650` | `?` | PL | hook → `HookCharacterConstructor` | `s_characterCtor` | [Actor.cpp:1585](../../Code/client/Games/Skyrim/Actor.cpp#L1585) | **undocumented** |
+| 40246 | `0x726750` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `s_characterCtor2` | [Actor.cpp:1586](../../Code/client/Games/Skyrim/Actor.cpp#L1586) |  |
 | 40412 | `0x72db30` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `cVMDestructor` | [SkyrimVM64.cpp:68](../../Code/client/SkyrimVM64.cpp#L68) |  |
-| 40454 | `0x734250` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `s_dropObject` | [Actor.cpp:1579](../../Code/client/Games/Skyrim/Actor.cpp#L1579) |  |
+| 40454 | `0x734250` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `s_dropObject` | [Actor.cpp:1595](../../Code/client/Games/Skyrim/Actor.cpp#L1595) |  |
 | 40488 | `0x736e20` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `s_addSkillExperience` | [PlayerCharacter.cpp:328](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L328) |  |
 | 40533 | `0x739990` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `s_pickUpObject` | [PlayerCharacter.cpp:326](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L326) |  |
 | 40535 | `0x73a060` | `PlayerCharacter::SetPlayerMapMarker` | IDA | hook → `HookSetWaypoint` | `s_setWaypoint` | [PlayerCharacter.cpp:330](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L330) |  |
 | 40536 | `0x73a1c0` | `PlayerCharacter::ClearPlayerMapMarker` | IDA meh | hook → `HookRemoveWaypoint` | `s_removeWaypoint` | [PlayerCharacter.cpp:331](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L331) |  |
-| 42704 | `0x7af4b0` | `ActorKnowledge::sub_42704` | meh | hook → `HookUpdateDetectionState` | `s_updateDetectionState` | [Actor.cpp:1580](../../Code/client/Games/Skyrim/Actor.cpp#L1580) |  |
+| 42704 | `0x7af4b0` | `ActorKnowledge::sub_42704` | meh | hook → `HookUpdateDetectionState` | `s_updateDetectionState` | [Actor.cpp:1596](../../Code/client/Games/Skyrim/Actor.cpp#L1596) |  |
 | 44108 | `0x7e46c0` | `Projectile::Launch` | CL meh | hook → `HookLaunch` | `s_launch` | [Projectile.cpp:119](../../Code/client/Games/Skyrim/Projectiles/Projectile.cpp#L119) |  |
 | 51093 | `0x8f5950` | `Console::SetSelectedRef_Impl` | CL meh | hook → `HookSetCurrentPickREFR` | `s_setCurrentPickREFR` | [References.cpp:173](../../Code/client/Games/References.cpp#L173) |  |
 | 51925 | `0x935230` | `?` | - | hook → `RequestLoadingText` | `s_requestLoadingText` | [LoadingScreen.cpp:51](../../Code/client/Games/Skyrim/LoadingScreen.cpp#L51) | **undocumented** |
@@ -102,6 +102,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `s_bindEverythingToScript` | [BSScript.cpp:105](../../Code/client/Games/Misc/BSScript.cpp#L105) |  |
 | 56205 | `0xa2e8c0` | `papyrus::ObjectReference::PlayAnimation` | meh | hook → `HookPlayAnimation` | `s_playAnimation` | [TESObjectREFR.cpp:1150](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1150) |  |
 | 56206 | `0xa2e940` | `papyrus::ObjectReference::PlayAnimationAndWait` | meh | hook → `HookPlayAnimationAndWait` | `s_playAnimationAndWait` | [TESObjectREFR.cpp:1149](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1149) |  |
+| 63050 | `0xb94260` | `BSSynchronizedClipGenerator::sub_63050` | meh | hook → `HookUpdateSynchronizedClip` | `updateSynchronizedClip` | [Animation.cpp:251](../../Code/client/Games/Animation.cpp#L251) |  |
 | 68115 | `0xcc40c0` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `s_formAllocate` | [Memory.cpp:120](../../Code/client/Games/Memory.cpp#L120) |  |
 | 68115 | `0xcc40c0` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `s_formAllocate` | [Memory.cpp:185](../../Code/client/Games/Memory.cpp#L185) |  |
 | 68116 | `0xcc4310` | `MemoryManager::Reallocate` | CL PL meh | hook → `HookFormReallocate` | `s_formReallocate` | [Memory.cpp:188](../../Code/client/Games/Memory.cpp#L188) |  |
@@ -131,12 +132,12 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 19872 | `0x2f0e20` | `TESObjectREFR::ApplyEffectShader` | CL PL | call | `s_applyEffectShader` | [SkyrimBridge.cpp:2238](../../Code/client/Bridges/SkyrimBridge.cpp#L2238) |  |
-| 22769 | `0x366b20` | `TESObjectREFR::ApplyArtObject` | CL PL | call | `s_applyArtObject` | [SkyrimBridge.cpp:2239](../../Code/client/Bridges/SkyrimBridge.cpp#L2239) |  |
-| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | call | `s_getFactionReaction` | [SkyrimBridge.cpp:597](../../Code/client/Bridges/SkyrimBridge.cpp#L597) |  |
-| 37671 | `0x68a640` | `Actor::GetAggression` | meh | call | `s_getAggression` | [SkyrimBridge.cpp:639](../../Code/client/Bridges/SkyrimBridge.cpp#L639) |  |
-| 38626 | `0x6ba1d0` | `fUnk_Attacked` | PL meh | call | `s_attacked` | [SkyrimBridge.cpp:641](../../Code/client/Bridges/SkyrimBridge.cpp#L641) |  |
-| 52844 | `0x976710` | `?` | - | call | `s_showEnemyHealth` | [SkyrimBridge.cpp:1581](../../Code/client/Bridges/SkyrimBridge.cpp#L1581) | **undocumented** |
+| 19872 | `0x2f0e20` | `TESObjectREFR::ApplyEffectShader` | CL PL | call | `s_applyEffectShader` | [SkyrimBridge.cpp:2243](../../Code/client/Bridges/SkyrimBridge.cpp#L2243) |  |
+| 22769 | `0x366b20` | `TESObjectREFR::ApplyArtObject` | CL PL | call | `s_applyArtObject` | [SkyrimBridge.cpp:2244](../../Code/client/Bridges/SkyrimBridge.cpp#L2244) |  |
+| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | call | `s_getFactionReaction` | [SkyrimBridge.cpp:602](../../Code/client/Bridges/SkyrimBridge.cpp#L602) |  |
+| 37671 | `0x68a640` | `Actor::GetAggression` | meh | call | `s_getAggression` | [SkyrimBridge.cpp:644](../../Code/client/Bridges/SkyrimBridge.cpp#L644) |  |
+| 38626 | `0x6ba1d0` | `fUnk_Attacked` | PL meh | call | `s_attacked` | [SkyrimBridge.cpp:646](../../Code/client/Bridges/SkyrimBridge.cpp#L646) |  |
+| 52844 | `0x976710` | `?` | - | call | `s_showEnemyHealth` | [SkyrimBridge.cpp:1586](../../Code/client/Bridges/SkyrimBridge.cpp#L1586) | **undocumented** |
 
 ## Games
 
@@ -145,7 +146,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 13718 | `0x1b5f30` | `?` | - | call | `getCell` | [ModManager.cpp:69](../../Code/client/Games/ModManager.cpp#L69) | **undocumented** |
 | 13723 | `0x1b6c10` | `TESDataHandler::CreateReferenceAtLocation` | CL | hook → `SpawnNewREFR` | `s_realSpawnNewREFR` | [ModManager.cpp:78](../../Code/client/Games/ModManager.cpp#L78) |  |
 | 14617 | `0x1e01a0` | `LookupFormByID` | SKSE PL meh | call | `getFormById` | [Forms.cpp:15](../../Code/client/Games/Forms.cpp#L15) |  |
-| 20123 | `0x2f78b0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `updateAnimationGraphs` | [Animation.cpp:223](../../Code/client/Games/Animation.cpp#L223) |  |
+| 20123 | `0x2f78b0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `updateAnimationGraphs` | [Animation.cpp:250](../../Code/client/Games/Animation.cpp#L250) |  |
 | 26503 | `0x41a940` | `GetDifficultyMultiplier` | meh | call | `s_getDifficultyMultiplier` | [References.cpp:57](../../Code/client/Games/References.cpp#L57) |  |
 | 32887 | `0x54b7d0` | `IAnimationGraphManagerHolder::SetGraphVariableFloat` | CL meh | call | `InternalSetFloatVariable` | [IAnimationGraphManagerHolder.cpp:10](../../Code/client/Games/IAnimationGraphManagerHolder.cpp#L10) |  |
 | 35503 | `0x600930` | `?` | - | call | `internalGetChangeFlags` | [Forms.cpp:102](../../Code/client/Games/Forms.cpp#L102) | **undocumented** |
@@ -157,15 +158,16 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36291 | `0x633250` | `?` | - | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:27](../../Code/client/Games/TimeManager.cpp#L27) | **undocumented** |
 | 37402 | `0x66d1a0` | `Actor::InitiateDoNothingPackage` | CL | call | `s_initiateDoNothingPackage` | [References.cpp:122](../../Code/client/Games/References.cpp#L122) |  |
 | 37570 | `0x67ead0` | `Actor::PutCreatedPackage` | meh | hook → `HookPutCreatedPackage` | `s_putCreatedPackage` | [References.cpp:174](../../Code/client/Games/References.cpp#L174) |  |
-| 38949 | `0x6cd0d0` | `?` | - | hook → `HookPerformAction` | `performAction` | [Animation.cpp:221](../../Code/client/Games/Animation.cpp#L221) | **undocumented** |
-| 38953 | `0x6cd4a0` | `?` | - | call | `PerformComplexAction` | [Animation.cpp:145](../../Code/client/Games/Animation.cpp#L145) | **undocumented** |
+| 38949 | `0x6cd0d0` | `?` | - | hook → `HookPerformAction` | `performAction` | [Animation.cpp:248](../../Code/client/Games/Animation.cpp#L248) | **undocumented** |
+| 38953 | `0x6cd4a0` | `?` | - | call | `PerformComplexAction` | [Animation.cpp:172](../../Code/client/Games/Animation.cpp#L172) | **undocumented** |
 | 38959 | `0x6cd930` | `?` | - | hook → `HookInitFromPackage` | `s_initFromPackage` | [References.cpp:172](../../Code/client/Games/References.cpp#L172) | **undocumented** |
-| 39004 | `0x6cf760` | `?` | - | call | `ApplyAnimationVariables` | [Animation.cpp:144](../../Code/client/Games/Animation.cpp#L144) | **undocumented** |
+| 39004 | `0x6cf760` | `?` | - | call | `ApplyAnimationVariables` | [Animation.cpp:171](../../Code/client/Games/Animation.cpp#L171) | **undocumented** |
 | 39114 | `0x6d5690` | `?` | - | hook → `HookCheckForNewPackage` | `s_checkForNewPackage` | [References.cpp:171](../../Code/client/Games/References.cpp#L171) | **undocumented** |
 | 41395 | `0x7725f0` | `?` | - | call | `s_stopEffectShader` | [TES.cpp:50](../../Code/client/Games/TES.cpp#L50) | **undocumented** |
 | 41396 | `0x772700` | `?` | - | call | `s_stopArtObject` | [TES.cpp:57](../../Code/client/Games/TES.cpp#L57) | **undocumented** |
 | 51093 | `0x8f5950` | `Console::SetSelectedRef_Impl` | CL meh | hook → `HookSetCurrentPickREFR` | `s_setCurrentPickREFR` | [References.cpp:173](../../Code/client/Games/References.cpp#L173) |  |
 | 52847 | `0x9768e0` | `?` | - | call | `fadeOutGame` | [References.cpp:78](../../Code/client/Games/References.cpp#L78) | **undocumented** |
+| 63050 | `0xb94260` | `BSSynchronizedClipGenerator::sub_63050` | meh | hook → `HookUpdateSynchronizedClip` | `updateSynchronizedClip` | [Animation.cpp:251](../../Code/client/Games/Animation.cpp#L251) |  |
 | 68115 | `0xcc40c0` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `s_formAllocate` | [Memory.cpp:120](../../Code/client/Games/Memory.cpp#L120) |  |
 | 68115 | `0xcc40c0` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `s_formAllocate` | [Memory.cpp:185](../../Code/client/Games/Memory.cpp#L185) |  |
 | 68116 | `0xcc4310` | `MemoryManager::Reallocate` | CL PL meh | hook → `HookFormReallocate` | `s_formReallocate` | [Memory.cpp:188](../../Code/client/Games/Memory.cpp#L188) |  |
@@ -174,7 +176,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68234 | `0xcc9140` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | call | `s_lockForWrite` | [Primitives.cpp:86](../../Code/client/Games/Primitives.cpp#L86) |  |
 | 68239 | `0xcc9380` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | call | `s_unlockForRead` | [Primitives.cpp:80](../../Code/client/Games/Primitives.cpp#L80) |  |
 | 68240 | `0xcc9390` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | call | `s_unlockForWrite` | [Primitives.cpp:92](../../Code/client/Games/Primitives.cpp#L92) |  |
-| 188603 | `0x178c478` | `vtbl_TESActionData` | CL | data | `s_vtbl` | [Animation.cpp:204](../../Code/client/Games/Animation.cpp#L204) |  |
+| 188603 | `0x178c478` | `vtbl_TESActionData` | CL | data | `s_vtbl` | [Animation.cpp:231](../../Code/client/Games/Animation.cpp#L231) |  |
 | 370892 | `0x1ffcbe8` | `?` | - | data | `s_greetDistance` | [References.cpp:45](../../Code/client/Games/References.cpp#L45) | **undocumented** |
 | 381472 | `0x2013e98` | `?` | - | data | `s_difficulty` | [References.cpp:39](../../Code/client/Games/References.cpp#L39) | **undocumented** |
 | 400188 | `0x35f11e0` | `g_mainHeap` | SKSE meh | data | `s_gameHeap` | [Memory.cpp:21](../../Code/client/Games/Memory.cpp#L21) |  |
@@ -185,8 +187,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 400447 | `0x20f8960` | `Calendar::singleton` | CL meh | data | `s_instance` | [TimeManager.cpp:7](../../Code/client/Games/TimeManager.cpp#L7) |  |
 | 400508 | `0x20fbb90` | `IFormFactory::formFactories` | CL SKSE meh | data | `s_factories` | [FormFactory.cpp:10](../../Code/client/Games/FormFactory.cpp#L10) |  |
 | 403330 | `0x317aba8` | `BGSSaveLoadGame::singleton` | CL | data | `s_singleton` | [Forms.cpp:104](../../Code/client/Games/Forms.cpp#L104) |  |
-| 403566 | `0x31877b0` | `gUnknownSingleton` | meh | data | `qword_142F271B8` | [Animation.cpp:146](../../Code/client/Games/Animation.cpp#L146) |  |
-| 403567 | `0x31877b8` | `?` | PL | data | `s_actorMediator` | [Animation.cpp:103](../../Code/client/Games/Animation.cpp#L103) | **undocumented** |
+| 403566 | `0x31877b0` | `gUnknownSingleton` | meh | data | `qword_142F271B8` | [Animation.cpp:173](../../Code/client/Games/Animation.cpp#L173) |  |
+| 403567 | `0x31877b8` | `?` | PL | data | `s_actorMediator` | [Animation.cpp:130](../../Code/client/Games/Animation.cpp#L130) | **undocumented** |
 | 411155 | `0x327e0e0` | `INISettingCollection::singleton` | CL SKSE meh | data | `settingCollection` | [INISettingCollection.cpp:7](../../Code/client/Games/INISettingCollection.cpp#L7) |  |
 | 411347 | `0x3286a08` | `Renderer::singleton` | CL meh | data | `s_instance` | [Renderer.cpp:26](../../Code/client/Games/Renderer.cpp#L26) |  |
 | 411348 | `0x3286a10` | `Renderer::device` | CL | data | `s_device` | [Renderer.cpp:33](../../Code/client/Games/Renderer.cpp#L33) |  |
@@ -222,10 +224,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 19787 | `0x2ea790` | `TESObjectREFR::SetRotationX` | meh | hook → `HookRotateX` | `s_rotateX` | [TESObjectREFR.cpp:1143](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1143) |  |
 | 19788 | `0x2ea810` | `TESObjectREFR::SetRotationY` | meh | hook → `HookRotateY` | `s_rotateY` | [TESObjectREFR.cpp:1144](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1144) |  |
 | 19789 | `0x2ea890` | `TESObjectREFR::SetRotationZ` | meh | hook → `HookRotateZ` | `s_rotateZ` | [TESObjectREFR.cpp:1145](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1145) |  |
-| 19790 | `0x2ea960` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `s_setPosition` | [Actor.cpp:1567](../../Code/client/Games/Skyrim/Actor.cpp#L1567) |  |
+| 19790 | `0x2ea960` | `TESObjectREFR::SetPosition` | CL meh | hook → `HookSetPosition` | `s_setPosition` | [Actor.cpp:1583](../../Code/client/Games/Skyrim/Actor.cpp#L1583) |  |
 | 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | hook → `HookActivate` | `s_activate` | [TESObjectREFR.cpp:1146](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1146) |  |
 | 19800 | `0x2ec2b0` | `TESObjectREFR::Enable` | CL meh | call | `s_enable` | [TESObjectREFR.cpp:943](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L943) |  |
-| 19812 | `0x2ed5e0` | `TESObjectREFR::GetCurrentLocation` | CL meh | call | `s_GetActorLocation` | [Actor.cpp:1572](../../Code/client/Games/Skyrim/Actor.cpp#L1572) |  |
+| 19812 | `0x2ed5e0` | `TESObjectREFR::GetCurrentLocation` | CL meh | call | `s_GetActorLocation` | [Actor.cpp:1588](../../Code/client/Games/Skyrim/Actor.cpp#L1588) |  |
 | 19846 | `0x2efac0` | `BSPointerHandleManagerInterface::GetHandleSafe` | meh | call | `s_getHandle` | [TESObjectREFR.cpp:126](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L126) |  |
 | 20221 | `0x2fab60` | `TESObjectREFR::AddLock` | CL meh | call | `realCreateLock` | [TESObjectREFR.cpp:424](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L424) |  |
 | 20223 | `0x2fad60` | `TESObjectREFR::GetLock` | CL meh | call | `realGetLock` | [TESObjectREFR.cpp:416](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L416) |  |
@@ -233,39 +235,41 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 27244 | `0x43e060` | `?` | - | hook → `HookCalculateExperience` | `s_calculateExperience` | [PlayerCharacter.cpp:329](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L329) | **undocumented** |
 | 32802 | `0x547bb0` | `?` | PL | call | `sub_1404ECF50` | [AnimationExperiments.cpp:342](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L342) | **undocumented** |
 | 32803 | `0x547cf0` | `?` | PL | call | `sub_1404ED090` | [AnimationExperiments.cpp:379](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L379) | **undocumented** |
-| 35086 | `0x5d8a70` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `s_applyActorEffect` | [Actor.cpp:1575](../../Code/client/Games/Skyrim/Actor.cpp#L1575) |  |
+| 35086 | `0x5d8a70` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `s_applyActorEffect` | [Actor.cpp:1591](../../Code/client/Games/Skyrim/Actor.cpp#L1591) |  |
 | 37147 | `0x65cd10` | `?` | PL | call | `sub_1405CCB20` | [AnimationExperiments.cpp:341](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L341) | **undocumented** |
-| 37175 | `0x65e420` | `Actor::sub_37175` | meh | data | `s_characterDtor` | [Actor.cpp:1571](../../Code/client/Games/Skyrim/Actor.cpp#L1571) |  |
-| 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `addDeathItems` | [Actor.cpp:1585](../../Code/client/Games/Skyrim/Actor.cpp#L1585) |  |
-| 37227 | `0x661510` | `Character::CalculateEssentialProtected` | IDA meh | call | `s_calculateEssentialProtected` | [Actor.cpp:1594](../../Code/client/Games/Skyrim/Actor.cpp#L1594) |  |
-| 37313 | `0x664950` | `TESObjectREFR::sub_37313` | meh | hook → `HookForceState` | `s_ForceState` | [Actor.cpp:1573](../../Code/client/Games/Skyrim/Actor.cpp#L1573) |  |
+| 37175 | `0x65e420` | `Actor::sub_37175` | meh | data | `s_characterDtor` | [Actor.cpp:1587](../../Code/client/Games/Skyrim/Actor.cpp#L1587) |  |
+| 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `addDeathItems` | [Actor.cpp:1601](../../Code/client/Games/Skyrim/Actor.cpp#L1601) |  |
+| 37227 | `0x661510` | `Character::CalculateEssentialProtected` | IDA meh | call | `s_calculateEssentialProtected` | [Actor.cpp:1610](../../Code/client/Games/Skyrim/Actor.cpp#L1610) |  |
+| 37313 | `0x664950` | `TESObjectREFR::sub_37313` | meh | hook → `HookForceState` | `s_ForceState` | [Actor.cpp:1589](../../Code/client/Games/Skyrim/Actor.cpp#L1589) |  |
 | 37334 | `0x666d00` | `Actor::GetLevel` | CL SKSE meh | call | `s_getLevel` | [Actor.cpp:153](../../Code/client/Games/Skyrim/Actor.cpp#L153) |  |
-| 37335 | `0x666d20` | `Actor::DoDamage` | CL meh | hook → `HookDamageActor` | `s_damageActor` | [Actor.cpp:1574](../../Code/client/Games/Skyrim/Actor.cpp#L1574) |  |
-| 37347 | `0x6672b0` | `Character::UpdateAI` | IDA PL meh | hook → `HookUpdateAI` | `s_updateAI` | [Actor.cpp:1566](../../Code/client/Games/Skyrim/Actor.cpp#L1566) |  |
-| 37352 | `0x6694b0` | `Character::UpdateCellAttachment` | IDA meh | call | `s_updateCellAttachment` | [Actor.cpp:1590](../../Code/client/Games/Skyrim/Actor.cpp#L1590) |  |
-| 37356 | `0x6698d0` | `Actor::ApplyMovement` | IDA meh | hook → `HookApplyMovement` | `s_applyMovement` | [Actor.cpp:1565](../../Code/client/Games/Skyrim/Actor.cpp#L1565) |  |
+| 37335 | `0x666d20` | `Actor::DoDamage` | CL meh | hook → `HookDamageActor` | `s_damageActor` | [Actor.cpp:1590](../../Code/client/Games/Skyrim/Actor.cpp#L1590) |  |
+| 37347 | `0x6672b0` | `Character::UpdateAI` | IDA PL meh | hook → `HookUpdateAI` | `s_updateAI` | [Actor.cpp:1582](../../Code/client/Games/Skyrim/Actor.cpp#L1582) |  |
+| 37352 | `0x6694b0` | `Character::UpdateCellAttachment` | IDA meh | call | `s_updateCellAttachment` | [Actor.cpp:1606](../../Code/client/Games/Skyrim/Actor.cpp#L1606) |  |
+| 37356 | `0x6698d0` | `Actor::ApplyMovement` | IDA meh | hook → `HookApplyMovement` | `s_applyMovement` | [Actor.cpp:1581](../../Code/client/Games/Skyrim/Actor.cpp#L1581) |  |
 | 37511 | `0x677e50` | `PlayerCharacter::sub_37511` | meh | call | `s_payGoldToContainer` | [TESObjectREFR.cpp:409](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L409) |  |
-| 37521 | `0x678600` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `s_pickUpObject` | [Actor.cpp:1578](../../Code/client/Games/Skyrim/Actor.cpp#L1578) |  |
-| 37525 | `0x678f90` | `Actor::AddObjectToContainer` | meh | hook → `HookAddInventoryItem` | `s_addInventoryItem` | [Actor.cpp:1577](../../Code/client/Games/Skyrim/Actor.cpp#L1577) |  |
+| 37521 | `0x678600` | `Actor::PickUpObject` | meh | hook → `HookPickUpObject` | `s_pickUpObject` | [Actor.cpp:1594](../../Code/client/Games/Skyrim/Actor.cpp#L1594) |  |
+| 37525 | `0x678f90` | `Actor::AddObjectToContainer` | meh | hook → `HookAddInventoryItem` | `s_addInventoryItem` | [Actor.cpp:1593](../../Code/client/Games/Skyrim/Actor.cpp#L1593) |  |
 | 37527 | `0x679390` | `Actor::GetGoldAmount` | meh | call | `s_getGoldAmount` | [Actor.cpp:704](../../Code/client/Games/Skyrim/Actor.cpp#L704) |  |
-| 37534 | `0x6796b0` | `Character::sub_37534` | meh | hook → `HookShouldAttack` | `s_shouldAttack` | [Actor.cpp:1639](../../Code/client/Games/Skyrim/Actor.cpp#L1639) |  |
-| 37537 | `0x679f10` | `Actor::IsHostileToActor` | CL SKSE meh | hook → `HookIsHostileToActor` | `s_isHostileToActor` | [Actor.cpp:1631](../../Code/client/Games/Skyrim/Actor.cpp#L1631) |  |
-| 37542 | `0x67a9d0` | `Actor::SpeakSound` | IDA PL meh | hook → `HookSpeakSoundFunction` | `s_speakSoundFunction` | [Actor.cpp:1584](../../Code/client/Games/Skyrim/Actor.cpp#L1584) |  |
-| 37577 | `0x67efe0` | `Character::sub_37577` | meh | hook → `HookIsFleeing` | `isFleeing` | [Actor.cpp:1586](../../Code/client/Games/Skyrim/Actor.cpp#L1586) |  |
-| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | hook → `HookGetFactionReaction` | `s_getFactionReaction` | [Actor.cpp:1635](../../Code/client/Games/Skyrim/Actor.cpp#L1635) |  |
-| 37667 | `0x689fb0` | `Character::sub_37667` | meh | hook → `HookComputeReaction` | `s_computeReaction` | [Actor.cpp:1643](../../Code/client/Games/Skyrim/Actor.cpp#L1643) |  |
+| 37534 | `0x6796b0` | `Character::sub_37534` | meh | hook → `HookShouldAttack` | `s_shouldAttack` | [Actor.cpp:1655](../../Code/client/Games/Skyrim/Actor.cpp#L1655) |  |
+| 37537 | `0x679f10` | `Actor::IsHostileToActor` | CL SKSE meh | hook → `HookIsHostileToActor` | `s_isHostileToActor` | [Actor.cpp:1647](../../Code/client/Games/Skyrim/Actor.cpp#L1647) |  |
+| 37542 | `0x67a9d0` | `Actor::SpeakSound` | IDA PL meh | hook → `HookSpeakSoundFunction` | `s_speakSoundFunction` | [Actor.cpp:1600](../../Code/client/Games/Skyrim/Actor.cpp#L1600) |  |
+| 37577 | `0x67efe0` | `Character::sub_37577` | meh | hook → `HookIsFleeing` | `isFleeing` | [Actor.cpp:1602](../../Code/client/Games/Skyrim/Actor.cpp#L1602) |  |
+| 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | hook → `HookGetFactionReaction` | `s_getFactionReaction` | [Actor.cpp:1651](../../Code/client/Games/Skyrim/Actor.cpp#L1651) |  |
+| 37667 | `0x689fb0` | `Character::sub_37667` | meh | hook → `HookComputeReaction` | `s_computeReaction` | [Actor.cpp:1659](../../Code/client/Games/Skyrim/Actor.cpp#L1659) |  |
 | 37677 | `0x68a930` | `Character::sub_37677` | meh | call | `s_setFactionRankInternal` | [Actor.cpp:793](../../Code/client/Games/Skyrim/Actor.cpp#L793) |  |
 | 37698 | `0x68cdf0` | `Actor::HasPerk` | CL SKSE meh | call | `getPerkRank` | [Actor.cpp:397](../../Code/client/Games/Skyrim/Actor.cpp#L397) |  |
 | 37717 | `0x68d690` | `?` | - | call | `setPlayerTeammate` | [Actor.cpp:801](../../Code/client/Games/Skyrim/Actor.cpp#L801) | **undocumented** |
-| 37752 | `0x68f4e0` | `Character::UpdateVoiceTimer` | IDA meh | call | `s_updateVoiceTimer` | [Actor.cpp:1592](../../Code/client/Games/Skyrim/Actor.cpp#L1592) |  |
-| 37905 | `0x6992c0` | `Actor::sub_37905` | meh | hook → `HookInitiateMountPackage` | `s_initiateMountPackage` | [Actor.cpp:1582](../../Code/client/Games/Skyrim/Actor.cpp#L1582) |  |
-| 37975 | `0x69d1b0` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `s_unequipObject` | [Actor.cpp:1583](../../Code/client/Games/Skyrim/Actor.cpp#L1583) |  |
-| 38459 | `0x6b1e30` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `s_regenerateActorValue` | [Actor.cpp:1576](../../Code/client/Games/Skyrim/Actor.cpp#L1576) |  |
+| 37752 | `0x68f4e0` | `Character::UpdateVoiceTimer` | IDA meh | call | `s_updateVoiceTimer` | [Actor.cpp:1608](../../Code/client/Games/Skyrim/Actor.cpp#L1608) |  |
+| 37905 | `0x6992c0` | `Actor::sub_37905` | meh | hook → `HookInitiateMountPackage` | `s_initiateMountPackage` | [Actor.cpp:1598](../../Code/client/Games/Skyrim/Actor.cpp#L1598) |  |
+| 37975 | `0x69d1b0` | `Actor::UnequipItem` | meh | hook → `HookUnequipObject` | `s_unequipObject` | [Actor.cpp:1599](../../Code/client/Games/Skyrim/Actor.cpp#L1599) |  |
+| 38459 | `0x6b1e30` | `Actor::RegenerateActorValue` | IDA | hook → `HookRegenerateActorValue` | `s_regenerateActorValue` | [Actor.cpp:1592](../../Code/client/Games/Skyrim/Actor.cpp#L1592) |  |
 | 38468 | `0x6b27a0` | `Actor::SetActorValueModifiers` | meh | call | `s_setActorValueModifiers` | [Actor.cpp:661](../../Code/client/Games/Skyrim/Actor.cpp#L661) |  |
 | 38533 | `0x6b51d0` | `Actor::SetNoBleedoutRecovery` | meh | call | `s_setNoBleedoutRecovery` | [Actor.cpp:324](../../Code/client/Games/Skyrim/Actor.cpp#L324) |  |
+| 38615 | `0x6b9e70` | `Actor::IsInKillMove` | meh | call | `s_isInKillMove` | [Actor.cpp:876](../../Code/client/Games/Skyrim/Actor.cpp#L876) |  |
 | 38616 | `0x6b9e90` | `Character::StartDeferredKill` | meh | call | `s_startDeferredKill` | [Actor.cpp:860](../../Code/client/Games/Skyrim/Actor.cpp#L860) |  |
 | 38618 | `0x6b9ed0` | `Actor::EndDeferredKill` | meh | call | `s_endDeferredKill` | [Actor.cpp:868](../../Code/client/Games/Skyrim/Actor.cpp#L868) |  |
-| 38717 | `0x6c14b0` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `s_removeSpell` | [Actor.cpp:1568](../../Code/client/Games/Skyrim/Actor.cpp#L1568) |  |
+| 38619 | `0x6b9ef0` | `Character::sub_38619` | meh | call | `s_isInDeferredKill` | [Actor.cpp:884](../../Code/client/Games/Skyrim/Actor.cpp#L884) |  |
+| 38717 | `0x6c14b0` | `Actor::RemoveSpell` | CL meh | hook → `HookRemoveSpell` | `s_removeSpell` | [Actor.cpp:1584](../../Code/client/Games/Skyrim/Actor.cpp#L1584) |  |
 | 38757 | `0x6c3bd0` | `Actor::InterruptCast` | CL meh | call | `s_interruptCast` | [Actor.cpp:465](../../Code/client/Games/Skyrim/Actor.cpp#L465) |  |
 | 38894 | `0x6c9820` | `ActorEquipManager::EquipObject` | CL SKSE meh | hook → `EquipHook` | `s_equipFunc` | [EquipManager.cpp:74](../../Code/client/Games/Skyrim/EquipManager.cpp#L74) |  |
 | 38896 | `0x6c9a70` | `ActorEquipManager::EquipSpellBySlot` | IDA | hook → `EquipHook` | `s_equipFunc` | [EquipManager.cpp:98](../../Code/client/Games/Skyrim/EquipManager.cpp#L98) |  |
@@ -285,18 +289,18 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 38953 | `0x6cd4a0` | `?` | - | call | `PerformComplexAction` | [AnimationExperiments.cpp:291](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L291) | **undocumented** |
 | 39002 | `0x6cf1b0` | `?` | - | call | `sub_14063CAA0` | [AnimationExperiments.cpp:339](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L339) | **undocumented** |
 | 39004 | `0x6cf760` | `?` | - | call | `ApplyAnimationVariables` | [AnimationExperiments.cpp:34](../../Code/client/Games/Skyrim/AnimationExperiments.cpp#L34) | **undocumented** |
-| 39373 | `0x6e34c0` | `AIProcess::GetLipData` | IDA | call | `s_getLipData` | [Actor.cpp:1596](../../Code/client/Games/Skyrim/Actor.cpp#L1596) |  |
-| 39377 | `0x6e3690` | `AIProcess::UpdateLipSyncGraph` | IDA | call | `s_updateLipSyncGraph` | [Actor.cpp:1598](../../Code/client/Games/Skyrim/Actor.cpp#L1598) |  |
-| 39643 | `0x6f8020` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `s_processResponse` | [Actor.cpp:1581](../../Code/client/Games/Skyrim/Actor.cpp#L1581) |  |
-| 40245 | `0x726650` | `?` | PL | hook → `HookCharacterConstructor` | `s_characterCtor` | [Actor.cpp:1569](../../Code/client/Games/Skyrim/Actor.cpp#L1569) | **undocumented** |
-| 40246 | `0x726750` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `s_characterCtor2` | [Actor.cpp:1570](../../Code/client/Games/Skyrim/Actor.cpp#L1570) |  |
+| 39373 | `0x6e34c0` | `AIProcess::GetLipData` | IDA | call | `s_getLipData` | [Actor.cpp:1612](../../Code/client/Games/Skyrim/Actor.cpp#L1612) |  |
+| 39377 | `0x6e3690` | `AIProcess::UpdateLipSyncGraph` | IDA | call | `s_updateLipSyncGraph` | [Actor.cpp:1614](../../Code/client/Games/Skyrim/Actor.cpp#L1614) |  |
+| 39643 | `0x6f8020` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `s_processResponse` | [Actor.cpp:1597](../../Code/client/Games/Skyrim/Actor.cpp#L1597) |  |
+| 40245 | `0x726650` | `?` | PL | hook → `HookCharacterConstructor` | `s_characterCtor` | [Actor.cpp:1585](../../Code/client/Games/Skyrim/Actor.cpp#L1585) | **undocumented** |
+| 40246 | `0x726750` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `s_characterCtor2` | [Actor.cpp:1586](../../Code/client/Games/Skyrim/Actor.cpp#L1586) |  |
 | 40255 | `0x726f10` | `Actor::DoReset3D` | CL SKSE meh | call | `QueueUpdate` | [Actor.cpp:172](../../Code/client/Games/Skyrim/Actor.cpp#L172) |  |
-| 40454 | `0x734250` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `s_dropObject` | [Actor.cpp:1579](../../Code/client/Games/Skyrim/Actor.cpp#L1579) |  |
+| 40454 | `0x734250` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `s_dropObject` | [Actor.cpp:1595](../../Code/client/Games/Skyrim/Actor.cpp#L1595) |  |
 | 40488 | `0x736e20` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `s_addSkillExperience` | [PlayerCharacter.cpp:328](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L328) |  |
 | 40533 | `0x739990` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `s_pickUpObject` | [PlayerCharacter.cpp:326](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L326) |  |
 | 40535 | `0x73a060` | `PlayerCharacter::SetPlayerMapMarker` | IDA | hook → `HookSetWaypoint` | `s_setWaypoint` | [PlayerCharacter.cpp:330](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L330) |  |
 | 40536 | `0x73a1c0` | `PlayerCharacter::ClearPlayerMapMarker` | IDA meh | hook → `HookRemoveWaypoint` | `s_removeWaypoint` | [PlayerCharacter.cpp:331](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L331) |  |
-| 42704 | `0x7af4b0` | `ActorKnowledge::sub_42704` | meh | hook → `HookUpdateDetectionState` | `s_updateDetectionState` | [Actor.cpp:1580](../../Code/client/Games/Skyrim/Actor.cpp#L1580) |  |
+| 42704 | `0x7af4b0` | `ActorKnowledge::sub_42704` | meh | hook → `HookUpdateDetectionState` | `s_updateDetectionState` | [Actor.cpp:1596](../../Code/client/Games/Skyrim/Actor.cpp#L1596) |  |
 | 51925 | `0x935230` | `?` | - | hook → `RequestLoadingText` | `s_requestLoadingText` | [LoadingScreen.cpp:51](../../Code/client/Games/Skyrim/LoadingScreen.cpp#L51) | **undocumented** |
 | 52849 | `0x976a80` | `SendInventoryUpdateMessage` | CL meh | call | `updateItemList` | [TESObjectREFR.cpp:928](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L928) |  |
 | 55497 | `0xa0d3e0` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `s_setBeastForm` | [PlayerCharacter.cpp:327](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L327) |  |
@@ -381,6 +385,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 |---|---|---|---|---|---|---|---|
 | 14529 | `0x1db450` | `TESContainer::GetItemCount` | meh | call | `s_getItemCount` | [TESContainer.cpp:7](../../Code/client/Games/Skyrim/Components/TESContainer.cpp#L7) |  |
 | 14953 | `0x1ed290` | `?` | - | call | `s_constructor` | [TESTexture.cpp:9](../../Code/client/Games/Skyrim/Components/TESTexture.cpp#L9) | **undocumented** |
+| 29888 | `0x49f8f0` | `TESCondition::IsTrue` | CL meh | call | `s_isTrue` | [TESCondition.cpp:15](../../Code/client/Games/Skyrim/Components/TESCondition.cpp#L15) |  |
+| 29924 | `0x4a05e0` | `TESConditionItem::IsTrue` | CL meh | call | `s_isTrue` | [TESCondition.cpp:8](../../Code/client/Games/Skyrim/Components/TESCondition.cpp#L8) |  |
 
 ## Games/Skyrim/Effects
 
@@ -572,20 +578,20 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:137](../../Code/client/TestHarness/EngineCalls.cpp#L137) |  |
-| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | call | `s_lockChange` | [EngineCalls.cpp:224](../../Code/client/TestHarness/EngineCalls.cpp#L224) |  |
-| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | call | `s_activate` | [EngineCalls.cpp:214](../../Code/client/TestHarness/EngineCalls.cpp#L214) |  |
-| 37229 | `0x661610` | `Character::sub_37229` | meh | call | `s_killable` | [EngineCalls.cpp:359](../../Code/client/TestHarness/EngineCalls.cpp#L359) |  |
-| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | call | `s_getCharacterController` | [EngineCalls.cpp:439](../../Code/client/TestHarness/EngineCalls.cpp#L439) |  |
-| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:306](../../Code/client/TestHarness/EngineCalls.cpp#L306) |  |
-| 38559 | `0x6b6780` | `Actor::sub_38559` | meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:358](../../Code/client/TestHarness/EngineCalls.cpp#L358) |  |
-| 38563 | `0x6b6df0` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [EngineCalls.cpp:360](../../Code/client/TestHarness/EngineCalls.cpp#L360) |  |
-| 38615 | `0x6b9e70` | `Actor::IsInKillMove` | meh | call | `s_isInKillMove` | [AnimationTrace.cpp:64](../../Code/client/TestHarness/AnimationTrace.cpp#L64) |  |
-| 38615 | `0x6b9e70` | `Actor::IsInKillMove` | meh | call | `s_isInKillMove` | [EngineCalls.cpp:361](../../Code/client/TestHarness/EngineCalls.cpp#L361) |  |
-| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:612](../../Code/client/TestHarness/EngineCalls.cpp#L612) |  |
-| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | call | `s_getDuration` | [EngineCalls.cpp:282](../../Code/client/TestHarness/EngineCalls.cpp#L282) |  |
-| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:547](../../Code/client/TestHarness/EngineCalls.cpp#L547) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:502](../../Code/client/TestHarness/EngineCalls.cpp#L502) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:551](../../Code/client/TestHarness/EngineCalls.cpp#L551) |  |
-| 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:163](../../Code/client/TestHarness/EngineCalls.cpp#L163) |  |
-| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:99](../../Code/client/TestHarness/EngineCalls.cpp#L99) | **undocumented** |
+| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:139](../../Code/client/TestHarness/EngineCalls.cpp#L139) |  |
+| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | call | `s_lockChange` | [EngineCalls.cpp:226](../../Code/client/TestHarness/EngineCalls.cpp#L226) |  |
+| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | call | `s_activate` | [EngineCalls.cpp:216](../../Code/client/TestHarness/EngineCalls.cpp#L216) |  |
+| 37229 | `0x661610` | `Character::sub_37229` | meh | call | `s_killable` | [EngineCalls.cpp:367](../../Code/client/TestHarness/EngineCalls.cpp#L367) |  |
+| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | call | `s_getCharacterController` | [EngineCalls.cpp:489](../../Code/client/TestHarness/EngineCalls.cpp#L489) |  |
+| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:308](../../Code/client/TestHarness/EngineCalls.cpp#L308) |  |
+| 38538 | `0x6b5630` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:371](../../Code/client/TestHarness/EngineCalls.cpp#L371) |  |
+| 38559 | `0x6b6780` | `Actor::sub_38559` | meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:366](../../Code/client/TestHarness/EngineCalls.cpp#L366) |  |
+| 38563 | `0x6b6df0` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [EngineCalls.cpp:368](../../Code/client/TestHarness/EngineCalls.cpp#L368) |  |
+| 47272 | `0x851180` | `Actor::sub_47272` | meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:372](../../Code/client/TestHarness/EngineCalls.cpp#L372) |  |
+| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:662](../../Code/client/TestHarness/EngineCalls.cpp#L662) |  |
+| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | call | `s_getDuration` | [EngineCalls.cpp:284](../../Code/client/TestHarness/EngineCalls.cpp#L284) |  |
+| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:597](../../Code/client/TestHarness/EngineCalls.cpp#L597) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:552](../../Code/client/TestHarness/EngineCalls.cpp#L552) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:601](../../Code/client/TestHarness/EngineCalls.cpp#L601) |  |
+| 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:165](../../Code/client/TestHarness/EngineCalls.cpp#L165) |  |
+| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:101](../../Code/client/TestHarness/EngineCalls.cpp#L101) | **undocumented** |

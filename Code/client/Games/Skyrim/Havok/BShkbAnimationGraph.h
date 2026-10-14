@@ -8,6 +8,7 @@ struct BSFixedString;
 struct BShkbHkxDB;
 struct hkbBehaviorGraph;
 struct bhkWorldM;
+struct Actor;
 
 struct BShkbAnimationGraph
 {
@@ -23,7 +24,8 @@ struct BShkbAnimationGraph
     void* unk1F8;
     BShkbHkxDB* hkxDB;
     hkbBehaviorGraph* behaviorGraph; // 208
-    uint8_t pad210[0x238 - 0x210];
+    Actor* holder;                   // 210 (CommonLib; Open Animation Replacer reads it from a graph's hkbCharacter)
+    uint8_t pad218[0x238 - 0x218];
     bhkWorldM* hkWorldM; // 238
 
     // Re do not use
@@ -35,3 +37,4 @@ SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, animationGraphEvents) == 0x68
 SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, character) == 0xC0);
 SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, projectName) == 0x1F0);
 SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, behaviorGraph) == 0x208);
+SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, holder) == 0x210);

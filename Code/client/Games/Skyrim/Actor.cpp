@@ -869,6 +869,22 @@ void Actor::EndDeferredKill() noexcept
     TiltedPhoques::ThisCall(s_endDeferredKill.Get(), this, true);
 }
 
+bool Actor::IsInKillMove() const noexcept
+{
+    // Actor::IsInKillMove (38615): either half of a kill move.
+    TP_THIS_FUNCTION(TIsInKillMove, bool, const Actor);
+    POINTER_SKYRIMSE(TIsInKillMove, s_isInKillMove, 38615);
+    return TiltedPhoques::ThisCall(s_isInKillMove.Get(), this);
+}
+
+bool Actor::IsHeldByKillMove() const noexcept
+{
+    // Character 38619 (in a deferred kill, as KillActorHandler tests it): a kill move holds its victim so until KillActor.
+    TP_THIS_FUNCTION(TIsInDeferredKill, bool, const Actor);
+    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
+    return IsInKillMove() && TiltedPhoques::ThisCall(s_isInDeferredKill.Get(), this);
+}
+
 void Actor::Kill() noexcept
 {
     // Never kill players

@@ -1,32 +1,34 @@
 #include <TiltedOnlinePCH.h>
 #include "EngineCalls.h"
 
-#include <Actor.h>
 #include <AI/AIProcess.h>
-#include <PlayerCharacter.h>
-#include <TESObjectREFR.h>
-#include <Forms/TESForm.h>
-#include <Games/Overrides.h>
-#include <Games/TES.h>
-#include <Interface/UI.h>
-#include <Interface/Menus/MapMenu.h>
-#include <Interface/MenuCursor.h>
-#include <Interface/CrosshairPickData.h>
-#include <Camera/VATS.h>
-#include <Games/Skyrim/BSInput/InputEvent.h>
-#include <Magic/ActorMagicCaster.h>
-#include <Misc/BSFixedString.h>
-#include <Utils.h>
-#include <Forms/TESObjectCELL.h>
-#include <Forms/TESWorldSpace.h>
-#include <Forms/TESPackage.h>
-#include <Games/Misc/SubtitleManager.h>
-#include <World.h>
-#include <Bridges/IFormBridge.h>
+#include <Actor.h>
 #include <BSAnimationGraphManager.h>
+#include <Bridges/IFormBridge.h>
+#include <Camera/VATS.h>
+#include <Forms/TESForm.h>
+#include <Forms/TESGlobal.h>
+#include <Forms/TESIdleForm.h>
+#include <Forms/TESObjectCELL.h>
+#include <Forms/TESPackage.h>
+#include <Forms/TESWorldSpace.h>
+#include <Games/Misc/SubtitleManager.h>
+#include <Games/Overrides.h>
+#include <Games/Skyrim/BSInput/InputEvent.h>
+#include <Games/TES.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/GraphVariableWriters.h>
+#include <Interface/CrosshairPickData.h>
+#include <Interface/MenuCursor.h>
+#include <Interface/Menus/MapMenu.h>
+#include <Interface/UI.h>
+#include <Magic/ActorMagicCaster.h>
+#include <Misc/BSFixedString.h>
+#include <PlayerCharacter.h>
+#include <TESObjectREFR.h>
+#include <Utils.h>
+#include <World.h>
 
 #include <algorithm>
 #include <cmath>
@@ -349,10 +351,8 @@ bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept
 
 bool IsInKillMove(uint32_t aFormId) noexcept
 {
-    using TIsInKillMove = bool(Actor*);
-    POINTER_SKYRIMSE(TIsInKillMove, s_isInKillMove, 38615);
-    Actor* pActor = GetActor(aFormId);
-    return pActor && s_isInKillMove.Get()(pActor);
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->IsInKillMove();
 }
 
 KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept
@@ -366,12 +366,55 @@ KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) no
     POINTER_SKYRIMSE(TActorCheck, s_shouldAttackKill, 38559);
     POINTER_SKYRIMSE(TActorCheck, s_killable, 37229);
     POINTER_SKYRIMSE(TOwnCheck, s_engagingInCombat, 38563);
+    using TGetAttackReach = float(Actor*);
+    using TPickAttackTarget = Actor*(Actor*, float, void*);
+    POINTER_SKYRIMSE(TGetAttackReach, s_getAttackReach, 38538);
+    POINTER_SKYRIMSE(TPickAttackTarget, s_pickAttackTarget, 47272);
     uint32_t crosshairActor = 0;
     if (const CrosshairPickData* pPick = CrosshairPickData::Get())
         if (TESObjectREFR* pRef = TESObjectREFR::GetByHandle(pPick->targetActorHandle))
             crosshairActor = pRef->formID;
-    return {s_shouldAttackKill.Get()(pAttacker, pVictim), s_killable.Get()(pVictim, pAttacker),
-            s_engagingInCombat.Get()(pAttacker), IsInKillMove(aAttackerFormId), crosshairActor};
+    const Actor* pTarget = s_pickAttackTarget.Get()(pAttacker, s_getAttackReach.Get()(pAttacker), nullptr);
+    return {s_shouldAttackKill.Get()(pAttacker, pVictim),
+            s_killable.Get()(pVictim, pAttacker),
+            s_engagingInCombat.Get()(pAttacker),
+            IsInKillMove(aAttackerFormId),
+            crosshairActor,
+            pTarget ? pTarget->formID : 0};
+}
+
+std::vector<IdleCondition> CheckIdleConditions(uint32_t aIdleFormId, uint32_t aSubjectFormId,
+                                               uint32_t aTargetFormId) noexcept
+{
+    std::vector<IdleCondition> results;
+    ConditionCheckParams params;
+    params.actionRef = Cast<TESObjectREFR>(TESForm::GetById(aSubjectFormId));
+    params.targetRef = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
+    if (!params.actionRef)
+        return results;
+    for (const TESIdleForm* pIdle = Cast<TESIdleForm>(TESForm::GetById(aIdleFormId)); pIdle; pIdle = pIdle->parentIdle)
+        for (const TESConditionItem* pItem = pIdle->conditions.pHead; pItem; pItem = pItem->next)
+        {
+            const float cComparison = !pItem->flags.global       ? pItem->comparison.value
+                                      : pItem->comparison.global ? pItem->comparison.global->f
+                                                                 : 0.f;
+            results.push_back({pIdle->formID, pItem->function, pItem->flags.opCode, pItem->flags.isOr != 0,
+                               static_cast<uint8_t>(pItem->runOn), cComparison, pItem->IsTrue(params)});
+        }
+    return results;
+}
+
+std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormId, uint32_t aTargetFormId) noexcept
+{
+    std::vector<IdleNode> idles;
+    auto* pSubject = Cast<TESObjectREFR>(TESForm::GetById(aSubjectFormId));
+    auto* pTarget = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
+    if (!pSubject)
+        return idles;
+    for (const TESIdleForm* pIdle = Cast<TESIdleForm>(TESForm::GetById(aIdleFormId)); pIdle; pIdle = pIdle->parentIdle)
+        idles.push_back({pIdle->formID, pIdle->animEventName.data ? pIdle->animEventName.data : "",
+                         pIdle->conditions.IsTrue(pSubject, pTarget)});
+    return idles;
 }
 
 std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept

@@ -245,6 +245,9 @@ struct Actor : TESObjectREFR
     // The engine keeps the actor alive whatever its health until EndDeferredKill (papyrus StartDeferredKill).
     void StartDeferredKill() noexcept;
     void EndDeferredKill() noexcept;
+    // A kill move's victim: the kill move kills it (KillActorHandler 42838, crediting its partner).
+    [[nodiscard]] bool IsHeldByKillMove() const noexcept;
+    [[nodiscard]] bool IsInKillMove() const noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;

@@ -111,8 +111,33 @@ struct KillMoveCheck
     bool EngagingInCombat; // Actor::EngagingInCombat (38563), the attacker
     bool InKillMove;       // Actor::IsInKillMove (38615), the attacker
     uint32_t CrosshairActor; // the actor under the player's crosshair (CrosshairPickData)
+    uint32_t AttackTarget;   // whom an attack starting now targets (Actor::sub_47272 in reach, as PlayerControls 42350
+                             // picks it)
 };
 KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept;
+// Each condition of an idle and its parents (TESIdleForm::parentIdle), evaluated alone as the engine does
+// for the subject on the target: which one keeps an animation (a kill move) from being picked.
+struct IdleCondition
+{
+    uint32_t Idle;
+    uint16_t Function; // the condition function (CommonLib FUNCTION_DATA::FunctionID)
+    uint8_t OpCode;    // TESConditionItem::OpCode: == != > >= < <=
+    bool Or;           // grouped with the next item
+    uint8_t RunOn;     // TESConditionItem::RunOn
+    float Comparison;  // a global's value when it compares against one
+    bool True;
+};
+std::vector<IdleCondition> CheckIdleConditions(uint32_t aIdleFormId, uint32_t aSubjectFormId,
+                                               uint32_t aTargetFormId) noexcept;
+// The idle and its parents up the idle tree: the behaviour event each sends (ENAM; empty on a branch) and
+// whether its whole condition list holds for the subject on the target, as the engine groups it.
+struct IdleNode
+{
+    uint32_t Idle;
+    std::string Event;
+    bool Passes;
+};
+std::vector<IdleNode> CheckIdleTree(uint32_t aIdleFormId, uint32_t aSubjectFormId, uint32_t aTargetFormId) noexcept;
 // Actor::soundCallBackSet: 3 queued, -1 playing (or none), 1/2 ending; -2 without the actor.
 int32_t GetVoiceLineState(uint32_t aFormId) noexcept;
 // Seconds left of the actor's voice line once it has started (Actor::fVoiceTimer), else -1.

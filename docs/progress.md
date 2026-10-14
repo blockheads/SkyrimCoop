@@ -77,6 +77,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Health | works | `health-*` |
 | NPC death and removal | works: a copy dies with its owner's death action | `remove-host-npc`, `death-host-npc` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
+| Kill moves | works, both ways, with kill credit | `host-kill-move`, `client-kill-move` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
@@ -110,6 +111,24 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Kill moves by the client (2026-10-13, uncommitted): `client-kill-move` 5 of 5 (new). The client's player
+  kills the host's wolf with a kill move: on the host the client's character and the real wolf play it as one
+  pair ~340 ms later, at the same pace (blows within 50 ms of each other, counted from each start), laid out
+  as on the client, and the host records the client's character as the killer. Three fixes
+  (`docs/re/systems/actor-ai-and-copies.md`, "Kill moves by the client"):
+  - The victim's half on the client: `HookPerformAction` takes a copy's action aimed at the local player
+    during the player's own action (never sent). On the host the paired replay carries `TargetEventName`
+    when the partner is the host's own actor and starts on the game thread.
+  - The host's pair waited ~3.1 s for the copy to reach its mark, which a copy cannot walk to: a copy's
+    half now counts as at its mark (`HookUpdateSynchronizedClip`, `BSSynchronizedClipGenerator::Update`
+    63050). Without it the scenario fails (the host's blow 4958 ms in against 1999 ms).
+  - Kill credit: the owner no longer applies a forwarded hit to an actor held by a kill move (the engine
+    gave the pending kill to its local player); the kill move credits its partner. Without it the scenario
+    fails (killer 14). `client-melee-kill-credit` now also accepts a blow that becomes a kill move: 4 of 4,
+    each ending in one.
+  `combat` tag (11), `death-host-npc`, `health-host-npc`, `host-kill-move` 3 of 3 more pass; `BridgeTests`
+  639 of 639, `TPTests`. Tools: harness `idle_conditions` (each condition of an idle and its parents,
+  `TESConditionItem::IsTrue` 29924) and `kill_move_check`'s `attack_target` (the engine's melee pick 47272).
 - Kill moves (2026-10-13, uncommitted): `host-kill-move` 10 of 10. The host's player kills a wolf with
   a kill move (`KillMoveRandom` 100); on the client the host's character and the wolf's copy play it as
   one pair (the engine's kill-move flag on both in one frame) about 330 ms after the host, laid out as on
@@ -232,10 +251,9 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
-- **Kill moves by the client** (2026-10-13): a host kill move syncs (Test suite), but a client cannot
-  start one on a host NPC: `ShouldAttackKill` (21744, `Actor::sub_38559`) needs the attacker engaging
-  in combat, and no copy is ever in combat with the client's player. The kill move should then go to the
-  host, which plays it with the real NPC.
+- **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
+  owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the
+  client's own `KillActor`. `client-kill-move` allows up to 0.95 s. Watch whether it reads as a stall.
 - **A copy's kill move skips the owner's approach** (2026-10-13): on the host `KillMoveStart` comes
   ~180 ms after the paired idle starts (the engine bringing the two together); a copy's comes at once,
   so the client's blow lands ~120 ms after the host's although the idle starts ~330 ms after. Seen in

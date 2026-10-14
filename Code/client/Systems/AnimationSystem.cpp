@@ -149,12 +149,24 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             aAnimationComponent.VariablesTick = first.Tick;
         }
 
-        // Applied in step with the copy's graph: variables, one graph update, the action, as on the owner
-        // (docs/re/systems/actor-ai-and-copies.md, "Replay in step with the graph").
         step.Action = first;
         step.Variables = aAnimationComponent.Variables;
         step.Retries = 0;
         aAnimationComponent.StagedUpdates = 0;
+
+        // A paired action (a kill move) on an actor of this game: started here, on the game thread, as its
+        // owner's game started it; in the copy's animation job the partner's graph may be updating elsewhere.
+        auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
+        if (pPartner && !pPartner->GetExtension()->IsRemote())
+        {
+            step.Phase.store(ReplayStep::kBusy, std::memory_order_release);
+            apActor->LoadAnimationVariables(step.Variables);
+            step.Phase.store(PlayReplayedAction(apActor, step) ? ReplayStep::kTaken : ReplayStep::kRefused, std::memory_order_release);
+            return;
+        }
+
+        // Applied in step with the copy's graph: variables, one graph update, the action, as on the owner
+        // (docs/re/systems/actor-ai-and-copies.md, "Replay in step with the graph").
         step.Phase.store(ReplayStep::kVariables, std::memory_order_release);
     }
 }
@@ -187,6 +199,11 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
 
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);
     actionData.eventName = BSFixedString(cAction.EventName.c_str());
+    // A paired action (a kill move) on an actor of this game plays the partner's half too; a copy partner plays
+    // its own, from its owner.
+    auto* pPartner = Cast<Actor>(pTarget);
+    if (pPartner && !pPartner->GetExtension()->IsRemote())
+        actionData.targetEventName = BSFixedString(cAction.TargetEventName.c_str());
     actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(cAction.IdleId));
     actionData.someFlag = ((cAction.Type & 0x4) != 0) ? 1 : 0;
 

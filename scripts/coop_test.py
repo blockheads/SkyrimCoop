@@ -1038,7 +1038,8 @@ def attack(instance):
              lambda: not graph_bools(instance, "IsAttacking")["IsAttacking"], 3)
     press(instance, "right")
     try:
-        wait_for(f"[{instance or 'host'}] swings", lambda: graph_bools(instance, "IsAttacking")["IsAttacking"], 2)
+        # A killing blow can start a kill move instead (a paired animation: synced, not attacking).
+        wait_for(f"[{instance or 'host'}] swings", lambda: any(graph_bools(instance, "IsAttacking", "bIsSynced").values()), 2)
     finally:
         release(instance, "right")
 
@@ -2462,16 +2463,20 @@ def kill_credit(weapon):
             give_sword("client")
             place_before("client", copy, MELEE_GAP, front)
         draw("client")
+        # A killing blow can start a kill move instead (KillMoveRandom): the kill move then kills it.
+        in_kill_move = lambda: player_command("", {"cmd": "kill_move_check", "attacker": npc, "victim": npc})["in_kill_move"]
         for hit in range(1, 16):
             before = host_npc_health(npc)
             if weapon == "spell":
                 cast_spell("client", copy, FIREBOLT)
+                hit_lands(npc, before, f"hit {hit}", 3)
             else:
                 attack("client")
-            hit_lands(npc, before, f"hit {hit}", 3)
-            if dead():
+                wait_for(f"[host] hit {hit} lands or starts a kill move",
+                         lambda: (h := host_npc_health(npc)) is not None and h < before - 0.5 or in_kill_move(), 3)
+            if dead() or in_kill_move():
                 break
-        wait_for("[host] the wolf dies", dead, 3)
+        wait_for("[host] the wolf dies", dead, 8)
     killer = wait_for("[host] killer recorded", lambda: host_world(npc).get("ai", {}).get("killer"), 5)
     if killer != client_on_host:
         raise TestFailure(f"host records killer {killer:08X}, expected the client's character {client_on_host:08X}")
@@ -2573,6 +2578,85 @@ def scenario_host_kill_move():
     if pulled := [e for e in trace.entries if e["who"] == "watcher" and e["kind"] == "state"
                   and (e["state"].get("kill_move") or e["state"].get("bIsSynced"))]:
         raise TestFailure(f"the client's own player was pulled into the pair: {pulled[0]}")
+    hold()
+
+
+def scenario_client_kill_move():
+    """The client's player kills the host's wolf with a kill move: on the host the client's character and the real
+    wolf play it as one pair, a moment later and at the same pace, and the host records the client's character as
+    the killer. The wolf's copy on the client dies with its owner. Leaves an animation trace."""
+    npc, _, copy = spawn_host_npc(WOLF, restrained=True)
+    client_on_host = remote_player(actors_on(""))
+    trace = AnimTrace("client-kill-move", {"": {npc: "wolf", client_on_host: "player", 0x14: "watcher"},
+                                           "client": {copy: "wolf", 0x14: "player"}})
+    with GodMode():
+        console_on("client", "set KillMoveRandom to 100")
+        try:
+            give_sword("client")
+            draw("client")
+            # One hit from death, the client in front of its head; the host a few steps to the side, watching.
+            console_on("", f"{npc:08X}.damageav health {host_world(npc)['values']['health'] - 3:.0f}")
+            wait_on("client", "the wolf's copy shows it one hit from death",
+                    lambda actors: (actors.get(str(copy), {}).get("health") or 100) < 5, 3)
+            front = math.degrees(actors_on("client")[str(copy)]["rotation"][2])
+            place_before("client", copy, MELEE_GAP, front)
+            place_before("", npc, 300, front + 90)
+            wait_for("[client] a blow now is a kill move", lambda: (check := player_command("client", {"cmd": "kill_move_check", "victim": copy}))
+                     ["should_attack_kill"] and check["attack_target"] == copy, 3)
+            with trace:
+                trace.mark("before the swing")
+                press("client", "right")
+                try:
+                    started = trace.wait_state("client", "player", "kill_move", True, 3)
+                finally:
+                    release("client", "right")
+                if not (killer := trace.action_before(started)):
+                    raise TestFailure("[client] the player is in a kill move with no action that started it")
+                # The host: the client's character's copy takes the paired idle, the real wolf its half (each in a
+                # kill move, together). The copy's action is recorded the frame after it plays.
+                pair = {who: trace.wait_state("", who, "kill_move", True, 3) for who in ("player", "wolf")}
+                halves = {"player": trace.wait("", "player", killer["event"], 3, kind="action", after=started["time"])}
+                if halves["player"]["idle"] != killer["idle"] or abs(pair["player"]["f"] - pair["wolf"]["f"]) > 1:
+                    raise TestFailure(f"the host's halves are not one pair: {halves['player']}, {pair}")
+                lag = halves["player"]["time"] - killer["time"]
+                trace.mark("the kill move starts", halves["player"]["time"], started["time"])
+                copy_kill = trace.wait("client", "wolf", "KillActor", 5)
+                owner_kill = trace.wait("", "wolf", "KillActor", 5)
+                host_layout = trace.layout("", "player", "wolf", owner_kill["time"] - 0.3)
+                client_layout = trace.layout("client", "player", "wolf", copy_kill["time"] - 0.3)
+                trace.mark("the blow lands", owner_kill["time"], copy_kill["time"])
+                died = trace.wait_state("", "wolf", "life", 1, 3)
+                copy_died = trace.wait_state("client", "wolf", "life", 1, 3)
+                trace.mark("the wolf dies", died["time"], copy_died["time"])
+                rest = wait_for("[host] the wolf's body comes to rest",
+                                comes_to_rest(lambda: host_world(npc)["placement"]["position"]), 10)
+                wait_on("client", "the copy's body lies with it",
+                        lambda actors: distance((actors.get(str(copy)) or {}).get("actual") or [1e9] * 3, rest) <= POSITION_TOLERANCE, 3)
+                trace.mark("after")
+        finally:
+            console_on("client", f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+    log("\n" + trace.timeline())
+    recorded = host_world(npc).get("ai", {}).get("killer")
+    client_blow, host_blow = copy_kill["time"] - killer["time"], owner_kill["time"] - halves["player"]["time"]
+    stood = copy_died["time"] - copy_kill["time"]
+    log(f"the blow {client_blow * 1000:.0f}ms into the client's kill move, {host_blow * 1000:.0f}ms into the host's; "
+        f"the wolf's copy dies {stood * 1000:.0f}ms after its blow (its owner's death a network delay later)")
+    log(f"host's pair {lag * 1000:.0f}ms after the client's; layout (distance, bearing, heading) "
+        f"client {tuple(round(v) for v in client_layout)}, host {tuple(round(v) for v in host_layout)}")
+    if recorded != client_on_host:
+        raise TestFailure(f"host records killer {recorded or 0:08X}, expected the client's character {client_on_host:08X}")
+    if abs(host_blow - client_blow) > BLOW_TOLERANCE:
+        raise TestFailure(f"the host's kill move ran at another pace: the blow {host_blow * 1000:.0f}ms in against "
+                          f"the client's {client_blow * 1000:.0f}ms")
+    if lag > KILL_MOVE_LAG:
+        raise TestFailure(f"the host's kill move started {lag * 1000:.0f}ms after the client's")
+    if stood > KILL_MOVE_LAG + BLOW_TOLERANCE:
+        raise TestFailure(f"the wolf's copy stood {stood * 1000:.0f}ms after its blow")
+    if any(abs((a - b + 180) % 360 - 180) > PAIR_TOLERANCE for a, b in zip(host_layout, client_layout)):
+        raise TestFailure(f"the host's pair is laid out {host_layout}, the client's {client_layout}")
+    if pulled := [e for e in trace.entries if e["who"] == "watcher" and e["kind"] == "state"
+                  and (e["state"].get("kill_move") or e["state"].get("bIsSynced"))]:
+        raise TestFailure(f"the host's own player was pulled into the pair: {pulled[0]}")
     hold()
 
 
@@ -3307,6 +3391,7 @@ SCENARIOS = {
     "shared-xp": scenario_shared_xp,
     "client-melee-kill-credit": scenario_client_melee_kill_credit,
     "host-kill-move": scenario_host_kill_move,
+    "client-kill-move": scenario_client_kill_move,
     "clock-slows-for-everyone": scenario_clock_slows_for_everyone,
     # magic
     "burning-shows-on-copy": scenario_burning_shows_on_copy,
@@ -3378,6 +3463,7 @@ TAGS = {
     "shared-xp": {'combat'},
     "client-melee-kill-credit": {'combat'},
     "host-kill-move": {'combat', 'values', 'animation'},
+    "client-kill-move": {'combat', 'values', 'animation'},
     "clock-slows-for-everyone": {'world', 'combat'},
     "burning-shows-on-copy": {'combat', 'magic'},
     "door-opens-for-both": {'objects'},

@@ -156,6 +156,11 @@ void ReplayBridge::SetActorRemote(uint32_t, bool) noexcept {}
 void ReplayBridge::SetActorPlayer(uint32_t, bool) noexcept {}
 uint32_t ReplayBridge::GetCommandingActor(uint32_t) const noexcept { return 0; }
 void ReplayBridge::KillActor(uint32_t) noexcept {}
+bool ReplayBridge::DamageActorHealth(uint32_t, uint32_t, float) noexcept
+{
+    // A replay cannot attest that a real engine actor took the hit.
+    return false;
+}
 void ReplayBridge::RespawnActor(uint32_t) noexcept {}
 void ReplayBridge::ResurrectActor(uint32_t) noexcept {}
 void ReplayBridge::DeleteActor(uint32_t) noexcept {}

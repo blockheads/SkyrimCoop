@@ -14,6 +14,9 @@
 #include <Misc/BSFixedString.h>
 #include <Misc/ActorState.h>
 
+#include <Havok/BShkbAnimationGraph.h>
+#include <Havok/BSSynchronizedClipGenerator.h>
+
 #include <World.h>
 #include <Systems/AnimationSystem.h>
 
@@ -21,16 +24,23 @@ TP_THIS_FUNCTION(TPerformAction, uint8_t, ActorMediator, TESActionData* apAction
 static TPerformAction* RealPerformAction;
 TP_THIS_FUNCTION(TUpdateAnimationGraphs, bool, TESObjectREFR, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
+TP_THIS_FUNCTION(TUpdateSynchronizedClip, void, BSSynchronizedClipGenerator, const hkbContext& acContext, float aTimestep);
+static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
 
 // TODO: make scoped override
 thread_local bool g_forceAnimation = false;
+// The local player's own action under way: a paired one (a kill move) starts its partner's half inside it.
+thread_local bool s_playerAction = false;
 
 uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apAction)
 {
     auto pActor = apAction->actor;
     const auto pExtension = pActor->GetExtension();
+    // A copy's half of the local player's paired action: taken as the player's game plays it, never sent
+    // (its owner's game plays it from the player's action).
+    const bool cPlayersPartner = s_playerAction && pExtension->IsRemote() && apAction->target == PlayerCharacter::Get();
 
-    if (!pExtension->IsRemote() || g_forceAnimation)
+    if (!pExtension->IsRemote() || g_forceAnimation || cPlayersPartner)
     {
         ActionEvent action;
         action.State1 = pActor->actorState.flags1;
@@ -43,7 +53,11 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
 
         pActor->SaveAnimationVariables(action.Variables);
 
+        const bool cOuterPlayerAction = pActor == PlayerCharacter::Get() && !s_playerAction;
+        s_playerAction |= cOuterPlayerAction;
         const auto res = TiltedPhoques::ThisCall(RealPerformAction, apThis, apAction);
+        if (cOuterPlayerAction)
+            s_playerAction = false;
 
         // spdlog::debug("Action event name: {}, target name: {}", apAction->eventName.AsAscii(), apAction->targetEventName.AsAscii());
 
@@ -60,7 +74,7 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
         // showing something its owner never did.
         if (!res)
         {
-            if (!g_forceAnimation)
+            if (!g_forceAnimation && !cPlayersPartner)
                 spdlog::debug("Owner {:X} action {:X} '{}' refused by the engine, not sent", pActor->formID, action.ActionId, action.EventName);
             return res;
         }
@@ -70,8 +84,8 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
         if (apAction->action->formID == 0x132AF)
             pExtension->LatestWeapEquipAnimation = action;
 
-        // Forced by us (a copy converging, a special case of ours): never the owner's own action.
-        if (g_forceAnimation)
+        // Forced by us (a copy converging, a special case of ours) or a copy's paired half: never the owner's own action.
+        if (g_forceAnimation || cPlayersPartner)
             return res;
 
         if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying)
@@ -96,6 +110,19 @@ bool TP_MAKE_THISCALL(HookUpdateAnimationGraphs, TESObjectREFR, float aDelta)
             AnimationSystem::RunReplayStep(pActor);
     }
     return TiltedPhoques::ThisCall(RealUpdateAnimationGraphs, apThis, aDelta);
+}
+
+// A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
+// a copy there, so a kill move with a copy waited out the engine's fallback (docs/re/systems/actor-ai-and-copies.md).
+void TP_MAKE_THISCALL(HookUpdateSynchronizedClip, BSSynchronizedClipGenerator, const hkbContext& acContext, float aTimestep)
+{
+    TiltedPhoques::ThisCall(RealUpdateSynchronizedClip, apThis, acContext, aTimestep);
+    if (apThis->atMark || !acContext.character)
+        return;
+    const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(acContext.character) -
+                                                                      offsetof(BShkbAnimationGraph, character));
+    if (pGraph->holder && pGraph->holder->GetExtension()->IsRemote())
+        apThis->atMark = true;
 }
 
 ActorMediator* ActorMediator::Get() noexcept
@@ -221,10 +248,13 @@ static TiltedPhoques::Initializer s_animationHook(
         POINTER_SKYRIMSE(TPerformAction, performAction, 38949);
 
         POINTER_SKYRIMSE(TUpdateAnimationGraphs, updateAnimationGraphs, 20123);
+        POINTER_SKYRIMSE(TUpdateSynchronizedClip, updateSynchronizedClip, 63050); // BSSynchronizedClipGenerator::Update (vtable 5)
 
         RealPerformAction = performAction.Get();
         RealUpdateAnimationGraphs = updateAnimationGraphs.Get();
 
         TP_HOOK(&RealPerformAction, HookPerformAction);
+        RealUpdateSynchronizedClip = updateSynchronizedClip.Get();
         TP_HOOK(&RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
+        TP_HOOK(&RealUpdateSynchronizedClip, HookUpdateSynchronizedClip);
     });

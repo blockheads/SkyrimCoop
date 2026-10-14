@@ -32,9 +32,35 @@ nlohmann::json GraphBool(Harness&, const nlohmann::json& acRequest)
 nlohmann::json KillMoveCheckCommand(Harness&, const nlohmann::json& acRequest)
 {
     const auto cCheck = EngineCalls::CheckKillMove(acRequest.value("attacker", 0x14u), acRequest.value("victim", 0u));
-    return {{"ok", true}, {"should_attack_kill", cCheck.ShouldAttackKill}, {"killable", cCheck.Killable},
-            {"engaging_in_combat", cCheck.EngagingInCombat}, {"in_kill_move", cCheck.InKillMove},
-            {"crosshair_actor", cCheck.CrosshairActor}};
+    return {{"ok", true},
+            {"should_attack_kill", cCheck.ShouldAttackKill},
+            {"killable", cCheck.Killable},
+            {"engaging_in_combat", cCheck.EngagingInCombat},
+            {"in_kill_move", cCheck.InKillMove},
+            {"crosshair_actor", cCheck.CrosshairActor},
+            {"attack_target", cCheck.AttackTarget}};
+}
+
+// {"cmd": "idle_conditions", "idle": id, "subject": id, "target": id}: the idle and its parents with their
+// events and whether each one's list holds (EngineCalls::CheckIdleTree), and each condition evaluated alone
+// (EngineCalls::CheckIdleConditions).
+nlohmann::json IdleConditions(Harness&, const nlohmann::json& acRequest)
+{
+    auto idles = nlohmann::json::array();
+    for (const auto& cNode : EngineCalls::CheckIdleTree(acRequest.value("idle", 0u), acRequest.value("subject", 0x14u),
+                                                        acRequest.value("target", 0u)))
+        idles.push_back({{"idle", cNode.Idle}, {"event", cNode.Event}, {"passes", cNode.Passes}});
+    auto conditions = nlohmann::json::array();
+    for (const auto& cCondition : EngineCalls::CheckIdleConditions(
+             acRequest.value("idle", 0u), acRequest.value("subject", 0x14u), acRequest.value("target", 0u)))
+        conditions.push_back({{"idle", cCondition.Idle},
+                              {"function", cCondition.Function},
+                              {"op", cCondition.OpCode},
+                              {"or", cCondition.Or},
+                              {"run_on", cCondition.RunOn},
+                              {"comparison", cCondition.Comparison},
+                              {"true", cCondition.True}});
+    return {{"ok", true}, {"idles", idles}, {"conditions", conditions}};
 }
 
 // {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...]}: starts recording these actors'
@@ -142,9 +168,17 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
 }
 
 constexpr Command cCommands[] = {
-    {"status", false, &GetStatus}, {"graph_bool", true, &GraphBool}, {"kill_move_check", true, &KillMoveCheckCommand}, {"anim_trace", true, &AnimTrace}, {"objects", true, &Objects},
-    {"activate", true, &Activate}, {"lock", true, &Lock}, {"graph_state", true, &GraphState},
-    {"load_graph_state", true, &LoadGraphState}, {"graph_writers", true, &GraphWriters},
+    {"status", false, &GetStatus},
+    {"graph_bool", true, &GraphBool},
+    {"kill_move_check", true, &KillMoveCheckCommand},
+    {"anim_trace", true, &AnimTrace},
+    {"idle_conditions", true, &IdleConditions},
+    {"objects", true, &Objects},
+    {"activate", true, &Activate},
+    {"lock", true, &Lock},
+    {"graph_state", true, &GraphState},
+    {"load_graph_state", true, &LoadGraphState},
+    {"graph_writers", true, &GraphWriters},
 };
 } // namespace
 

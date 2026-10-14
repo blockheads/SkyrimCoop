@@ -431,6 +431,44 @@ runs the clock at the slower of it and the other players' slowest (`NotifyTimeSc
 `sgtm` use the same call, so they slow everyone too. The engine's own per-actor multipliers
 (`playerTimeMult`, Slow Time's faster player) stay local.
 
+## Kill moves by the client (2026-10-13)
+
+A kill move is one action on the attacker (`pa_KillMove…`) that the engine also performs on the victim
+(`TESActionData::targetEventName`, the victim's half). Three things kept the client's from playing out:
+
+- **The victim's half was refused.** On the client the victim is a copy, and `HookPerformAction` refused
+  every action on a copy not replayed, so the engine fell back to a normal swing. `ShouldAttackKill`
+  (38559) passes without combat; the harness's `idle_conditions` showed every condition true. A copy's
+  action aimed at the local player during the player's own action is now taken, never sent.
+- **The host's pair waited ~3.1 s.** A paired animation starts once every half is at its mark
+  (`BGSSynchronizedAnimationInstance` 32794 tests `BSSynchronizedClipGenerator::doneReorientingSupportChar`
+  at 0x12A of each participant; the engine's debug text calls it "(At Mark)"). A generator's update
+  (63050) sets it when its `getToMarkProgress` is 1 and the actor's world transform matches the target the
+  instance laid out from the lead (0xB0; translation, rotation and scale within a small epsilon,
+  `sub_140A8E0A0`). The wolf's half leads (`quadrupedbehavior.hkx` `KillMove1HMWolfA/B`: lead 1,
+  `getToMarkTime` 0, `markErrorThreshold` 0.1); the player's half supports (`1hm_behavior.hkx`, lead 0,
+  reorient 1). A real supporting actor is moved onto its mark by its own movement (root motion); a copy
+  never moves itself and is placed where its owner stands, ~1 unit off the host's mark (positions travel
+  quantized, its owner's wolf is a copy), so it never matched and the pair waited out a fallback (~3.1 s,
+  not traced; every variant tried started then). Ruled out by measurement: the copy's forced
+  `bIsSynced` (a graph output; dropping it from the sync changed nothing), its position, z and rotation
+  sync (skipping each during the kill move changed nothing), the character controller (on the ground
+  throughout). Now a copy's half counts as at its mark (`HookUpdateSynchronizedClip` in
+  `Animation.cpp`): its owner's game placed it. The host's pair starts ~115 ms after the action (the
+  client's own ~150 ms).
+- **The kill credit went to the host's player.** The client's blows inside the kill move (`HitFrame`) are
+  forwarded hits. The kill move holds its victim in a deferred kill (not scripted), so the hit only marks a
+  pending kill; at `KillActor`, `KillActorHandler::Handle` (42838) first ends the deferral
+  (`EndDeferredKill` 38618 → `sub_140715AE0`), which queues the pending kill with `g_thePlayer` as the
+  killer, then calls `Kill_impl2(victim, partner)`, which does nothing once a kill is queued. The owner now
+  does not apply a forwarded hit to an actor held by a kill move (`Actor::IsHeldByKillMove`:
+  `IsInKillMove` 38615 and `Character` 38619, the test `KillActorHandler` makes); the kill move kills it
+  and credits its partner, the client's character.
+
+The wolf's copy on the client takes its `KillActor` (a copy's deferred kill is the scripted kind, which
+`KillActorHandler` does not end) and dies with its owner's death action ~0.6 s later: the host's pair
+starts ~0.35 s after the client's, and the death action takes the interpolation delay.
+
 ## A copy's spawn: its owner's graph state
 
 A copy used to start by replaying its owner's last action. A fresh graph refuses any action that

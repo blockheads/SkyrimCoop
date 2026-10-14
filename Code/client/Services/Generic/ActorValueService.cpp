@@ -362,7 +362,11 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     if (acMessage.DeltaHealth < 0.f)
     {
         // As the engine's own hit takes it: its death rules, death animation and kill credit.
-        m_actorBridge.DamageActorHealth(formId, cAttackerFormId, -acMessage.DeltaHealth);
+        if (!m_actorBridge.DamageActorHealth(formId, cAttackerFormId, -acMessage.DeltaHealth))
+        {
+            spdlog::debug("Forwarded hit on {:X} by {:X} not applied (gone, or held by a kill move)", formId, cAttackerFormId);
+            return;
+        }
     }
     else
     {
