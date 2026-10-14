@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **296** distinct engine addresses used; **114** have code in CommonLib or SKSE; **74** have no community name at all.
+- **297** distinct engine addresses used; **115** have code in CommonLib or SKSE; **74** have no community name at all.
 - **99** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -357,6 +357,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `forceFirstPerson` | [PlayerCamera.cpp:37](../../Code/client/Games/Skyrim/Camera/PlayerCamera.cpp#L37) |  |
 | 50796 | `0x8e3260` | `PlayerCamera::ForceThirdPerson` | CL meh | call | `forceThirdPerson` | [PlayerCamera.cpp:44](../../Code/client/Games/Skyrim/Camera/PlayerCamera.cpp#L44) |  |
 | 400802 | `0x30fd7f8` | `PlayerCamera::singleton` | CL SKSE meh | data | `s_instance` | [PlayerCamera.cpp:8](../../Code/client/Games/Skyrim/Camera/PlayerCamera.cpp#L8) |  |
+| 400883 | `0x30fdaa0` | `VATS::singleton` | CL PL | data | `s_instance` | [VATS.cpp:7](../../Code/client/Games/Skyrim/Camera/VATS.cpp#L7) |  |
 | 410506 | `0x3272f10` | `NiRTTI_NiCamera` | CL meh | data | `NiCameraRTTI` | [TESCamera.cpp:8](../../Code/client/Games/Skyrim/Camera/TESCamera.cpp#L8) |  |
 
 ## Games/Skyrim/Combat
@@ -564,14 +565,14 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:135](../../Code/client/TestHarness/EngineCalls.cpp#L135) |  |
-| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | call | `s_lockChange` | [EngineCalls.cpp:210](../../Code/client/TestHarness/EngineCalls.cpp#L210) |  |
-| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | call | `s_activate` | [EngineCalls.cpp:200](../../Code/client/TestHarness/EngineCalls.cpp#L200) |  |
-| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | call | `s_getCharacterController` | [EngineCalls.cpp:405](../../Code/client/TestHarness/EngineCalls.cpp#L405) |  |
-| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:292](../../Code/client/TestHarness/EngineCalls.cpp#L292) |  |
-| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:578](../../Code/client/TestHarness/EngineCalls.cpp#L578) |  |
-| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | call | `s_getDuration` | [EngineCalls.cpp:268](../../Code/client/TestHarness/EngineCalls.cpp#L268) |  |
-| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:513](../../Code/client/TestHarness/EngineCalls.cpp#L513) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:468](../../Code/client/TestHarness/EngineCalls.cpp#L468) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:517](../../Code/client/TestHarness/EngineCalls.cpp#L517) |  |
-| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:97](../../Code/client/TestHarness/EngineCalls.cpp#L97) | **undocumented** |
+| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:136](../../Code/client/TestHarness/EngineCalls.cpp#L136) |  |
+| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | call | `s_lockChange` | [EngineCalls.cpp:217](../../Code/client/TestHarness/EngineCalls.cpp#L217) |  |
+| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | call | `s_activate` | [EngineCalls.cpp:207](../../Code/client/TestHarness/EngineCalls.cpp#L207) |  |
+| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | call | `s_getCharacterController` | [EngineCalls.cpp:412](../../Code/client/TestHarness/EngineCalls.cpp#L412) |  |
+| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:299](../../Code/client/TestHarness/EngineCalls.cpp#L299) |  |
+| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:585](../../Code/client/TestHarness/EngineCalls.cpp#L585) |  |
+| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | call | `s_getDuration` | [EngineCalls.cpp:275](../../Code/client/TestHarness/EngineCalls.cpp#L275) |  |
+| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:520](../../Code/client/TestHarness/EngineCalls.cpp#L520) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:475](../../Code/client/TestHarness/EngineCalls.cpp#L475) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:524](../../Code/client/TestHarness/EngineCalls.cpp#L524) |  |
+| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:98](../../Code/client/TestHarness/EngineCalls.cpp#L98) | **undocumented** |

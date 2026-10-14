@@ -940,10 +940,11 @@ CASTER_CHARGED = 3
 
 
 def takes_input(instance):
-    """No menu but the HUD is open: a fade (a cell change's Fader Menu), a loading screen or the console
-    swallow a player's buttons."""
+    """No menu but the HUD is open and no kill cam plays: a fade (a cell change's Fader Menu), a loading
+    screen, the console or a kill cam (the player's killing blow, by chance) swallow a player's buttons."""
     select_instance(instance)
-    return not set((read_status() or {}).get("menus") or []) - {"HUD Menu"}
+    status = read_status() or {}
+    return not set(status.get("menus") or []) - {"HUD Menu"} and not status.get("kill_cam")
 
 
 def press(instance, button):
@@ -1042,16 +1043,18 @@ def game_frame(instance):
 
 def place_before(instance, target, gap, bearing=None):
     """The player stands `gap` units from `target`, facing it (yaw and pitch, in the same frame).
-    Returns once it stands on the ground: the move leaves its character controller in the air for
-    a moment, and a draw or a cast started then is cut short when it lands. The controller notices
-    the move a frame later, so the ground is checked from a few frames on."""
+    Returns once it stands on the ground and has landed: the move leaves its character controller in
+    the air for a moment, and a draw or a cast started then, or during the landing animation the
+    graph plays after the controller is down (bInJumpState), goes wrong. The controller notices the
+    move a frame later, so the ground is checked from a few frames on."""
     moved = game_frame(instance)
     request = {"cmd": "place", "target": target, "distance": gap}
     if bearing is not None:
         request["bearing"] = bearing  # its side of the target (0 north, 90 east): two players apart
     player_command(instance, request)
     wait_for(f"[{instance or 'host'}] stands on the ground", lambda: game_frame(instance) >= moved + 3
-             and local_player(instance).get("character_state") == ON_GROUND, 5)
+             and local_player(instance).get("character_state") == ON_GROUND
+             and not graph_bools(instance, "bInJumpState")["bInJumpState"], 5)
 
 
 def give_sword(instance):

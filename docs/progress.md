@@ -110,6 +110,12 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Kill cams (2026-10-13, uncommitted): `client-spell-kill-credit` passes 10 of 10 (a kill cam in 8):
+  the client's killing bolt sometimes plays a kill cam (game clock at 0.25x, player controls off,
+  `VATS::mode` 4, 400883), and the reset's one Ready Weapon press fell in it. `takes_input` now also
+  waits for the kill cam (status `kill_cam`), and `place_before` for the landing animation
+  (`bInJumpState`; a draw pressed in it stalled ~3 s). `combat` and `magic` tags: 12 of 13, the 13th
+  `client-melee-kill-credit` (Loose ends, copy death).
 - Mod ids (3d, 2026-10-13, uncommitted): `BridgeTests` 589 of 589 (ids are places in the load order,
   the same for every player, under each player's own names; written against the old table first,
   which failed on a name differing in case). On the real games 43 scenarios across `session`,
@@ -178,6 +184,10 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **A copy's death sometimes misses its owner's** (`client-melee-kill-credit`, 2 of ~13 runs,
+  2026-10-13): once the copy kept its 0.01 health floor (owner -1.1) through the desync window,
+  once it never replayed the owner's `RagdollInstant` (last action `combatStanceStop`), dying only
+  through the death-state fallback. Not investigated.
 - **Audits not done:** combat, detection, magic/magicka. Then one copy update in place of the
   scattered `IsRemote()` checks.
 - **Upstream AI patches to re-check** (from before copies ran no AI; delete each the cut covers):
@@ -259,12 +269,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `...-dirty` and pass the gate's stage 1. Fine for development; release builds come from commits.
 
 ### Tests and harness
-
-- **`client-spell-kill-credit` leaves the client's hands raised** (found 2026-10-13): its steps pass
-  (the client's Firebolt kills the host's wolf, the kill is credited, the copy dies), but afterwards
-  the client cannot sheathe: weapon state 3, Firebolt still in the right hand, the baseline's
-  "hands lowered" times out and every later scenario is skipped. The same on the last commit without
-  3d, so not the mod ids; not yet known since when. A hot reload clears it.
 
 - `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other
   players' copies but left their entities with a `PlayerComponent`, and player ids repeat across sessions,

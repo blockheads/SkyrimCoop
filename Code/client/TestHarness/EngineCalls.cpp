@@ -11,6 +11,7 @@
 #include <Interface/UI.h>
 #include <Interface/Menus/MapMenu.h>
 #include <Interface/MenuCursor.h>
+#include <Camera/VATS.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Magic/ActorMagicCaster.h>
 #include <Misc/BSFixedString.h>
@@ -148,6 +149,12 @@ std::vector<std::string> GetOpenMenus() noexcept
             if (const BSFixedString* pName = pUI->LookupMenuNameByInstance(pMenu))
                 names.emplace_back(pName->AsAscii());
     return names;
+}
+
+bool IsKillCamPlaying() noexcept
+{
+    const VATS* pVATS = VATS::Get();
+    return pVATS && pVATS->mode == VATS::kKillCam;
 }
 
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept

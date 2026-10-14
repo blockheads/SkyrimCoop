@@ -26,6 +26,8 @@ bool IsMenuOpen(const char* acpMenu) noexcept;
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 // Names of the open menus (what blocks input: popups, console, menus).
 std::vector<std::string> GetOpenMenus() noexcept;
+// A kill cam plays: the game ignores the player's buttons until it ends.
+bool IsKillCamPlaying() noexcept;
 // The marker the player placed on the map: where, and its worldspace (an interior's cell); none without one.
 struct MapMarker
 {
