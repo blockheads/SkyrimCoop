@@ -104,9 +104,14 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
     }
 
     response.Type = kAccepted;
-    // The server keeps a record of its own for its last services (quests, admin, Lua) until they go,
-    // and the mod ids until 3d.
-    m_server.AddPlayer(aSender, acRequest, response.UserMods);
+    // The server keeps a record of its own for its last services (quests, admin, Lua) until they go.
+    m_server.AddPlayer(aSender, acRequest);
+    // Every GameId on the wire names a plugin by its session id: its place in the load order, the
+    // same in every game since the load order was just checked against the host's. The player's own
+    // names go back, for its game to find each plugin by.
+    response.UserMods = acRequest.UserMods;
+    for (size_t i = 0; i < response.UserMods.ModList.size(); ++i)
+        response.UserMods.ModList[i].Id = static_cast<uint16_t>(i);
     response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_server.LoopbackConnection());
     response.Settings = Settings();
     m_server.Send(aSender, response);

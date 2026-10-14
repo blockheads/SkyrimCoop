@@ -562,36 +562,16 @@ static String PrettyPrintModList(const Vector<Mods::Entry>& acMods)
     return text;
 }
 
-void GameServer::AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept
+void GameServer::AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest) noexcept
 {
     char remoteAddress[48]{"unknown"};
     if (const auto* pPeer = GetPeer(aConnectionId))
         enet_address_get_host_ip(&pPeer->address, remoteAddress, sizeof(remoteAddress));
 
-    // Each of the player's mods by its id in the session (every GameId on the wire uses these).
-    auto& modsComponent = m_pWorld->ctx().at<ModsComponent>();
-    Vector<String> playerMods;
-    Vector<uint16_t> playerModsIds;
-    for (const auto& mod : acRequest.UserMods.ModList)
-    {
-        const uint32_t id = mod.IsLite ? modsComponent.AddLite(mod.Filename) : modsComponent.AddStandard(mod.Filename);
-
-        Mods::Entry entry;
-        entry.Filename = mod.Filename;
-        entry.Id = static_cast<uint16_t>(id);
-        entry.IsLite = mod.IsLite;
-
-        playerMods.push_back(mod.Filename);
-        playerModsIds.push_back(entry.Id);
-        aSessionMods.ModList.push_back(entry);
-    }
-
     Player* pPlayer = m_pWorld->GetPlayerManager().Create(aConnectionId);
     pPlayer->SetEndpoint(remoteAddress);
     pPlayer->SetDiscordId(acRequest.DiscordId);
     pPlayer->SetUsername(acRequest.Username);
-    pPlayer->SetMods(playerMods);
-    pPlayer->SetModIds(playerModsIds);
     pPlayer->SetLevel(acRequest.Level);
 
     spdlog::info("New player '{}' [{:x}] connected with {} mods\n\t: {}", pPlayer->GetUsername().c_str(), aConnectionId,

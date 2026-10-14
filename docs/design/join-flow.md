@@ -75,11 +75,11 @@ save (stage 5) is only safe when they do.
 
 ### Mod ids (not a check, but part of joining)
 
-Every `GameId` on the wire is (session mod id, form id within the mod). The host gives each mod a
-session-wide id and returns the table in the join response (`AuthenticationResponse::UserMods`);
-the client maps its own load order onto it (`ModSystem`). Once installs must be identical (stage 3),
-every game has the same table; until then it must still agree across different load orders.
-Section 3d moves this table to the bridge, with tests first.
+Every `GameId` on the wire is (session mod id, form id within the mod). Since every game loads the
+host's plugins in the host's order (stage 3), a plugin's session id is its place in the load order:
+the join response returns the player's own plugin list with those ids
+(`AuthenticationResponse::UserMods`), and each game maps them to its own plugin indices
+(`ModSystem`). No table is kept (3d).
 
 ### 4. Who are you: characters live in the host's save
 
@@ -291,7 +291,7 @@ Now, during the server migration (section 3, `host-authority-migration.md`, "Ser
    model: join state and events).
 2. **3b, player list (done):** joined and left notifications from the bridge (behaviour unchanged).
 3. **3c, player records (done):** the session record moves to the bridge, keyed and shaped for stage 4.
-4. **3d, mod id table:** moves to the bridge, tests first.
+4. **3d, mod id table (done):** a plugin's place in the load order; no table.
 
 Then, roughly in this order. Items 1 to 4 are one piece of work done back to back, so the join
 screen is built once, in its final place; nothing player-facing is built for today's join from a

@@ -408,12 +408,17 @@ that needs the standalone server goes with the section that breaks it.
      them and the shadow with them. The bridge tests now join their players through the real join
      (the host over the in-process route) instead of creating server records. The record has room
      for an account id when stored characters come (`join-flow.md`, stage 4); not added before then.
-   - **3d, mod id table:** session-wide mod ids from each player's mod list (every `GameId` on the wire
-     uses them). First a note on how the client maps them (`ModSystem`, `docs/re/systems/`), then cases:
-     same mod same id for everyone, light and regular mods apart, different load orders agree, a mod
-     only one player has shifts no one else's ids, a rejoin keeps its ids.
-   - The mod check (refusing mismatched mod lists) is a feature for later (`docs/ideas.md`); its
-     disabled code, which reads a load order file instead of the host's game, is dropped in 3a.
+   - **3d, mod id table, done:** every `GameId` on the wire is (session mod id, form id within the
+     plugin); each game maps a session id to its own plugin index (`ModSystem`, from the join
+     response's list). Since 3a.3 every game has the host's plugins in the host's order, so a
+     plugin's session id is simply its place in the load order: `HostSession` returns the player's own
+     list (its own names, for its game to find each plugin by) with those ids, and keeps no table.
+     The server's table (`ModsComponent::AddStandard`/`AddLite`, one counter in first-seen order,
+     the host's plugins first) is gone; its shadow record carries no mods. Tests first: the bridge
+     case written against the old table found that it gave a plugin whose name differs only in case
+     (`update.esm`) a new id, although the gate lets that game in; positions cannot disagree.
+   - **Section 3 is complete.** What stays on the server: the shadow player record and the services
+     that read it (quests, admin, Lua), the console, recording, the listener: section 4.
 4. **The listener (phase 5).**
 
 Quests stay on the server until they have a design.

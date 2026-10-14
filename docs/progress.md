@@ -54,7 +54,8 @@ Removed one section at a time, each with its bridge replacement and tests first
 3. Session, in steps: 3a auth gate (3a.1 build and cap: done, uncommitted; 3a.1b refusals
    delivered as data (join status, host chat line): done; 3a.2 game and SKSE versions, 3a.3 plugin
    list and order, 3a.4 the host's settings: done, uncommitted; the gate is complete), 3b player list, 3c player records (a shadow record stays on
-   the server for its last services until section 4): done, uncommitted; 3d mod id table.
+   the server for its last services until section 4): done; 3d mod ids (a plugin's place in
+   the load order): done, uncommitted. Section 3 is complete.
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
    server console commands, recording.
 
@@ -109,6 +110,11 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Mod ids (3d, 2026-10-13, uncommitted): `BridgeTests` 589 of 589 (ids are places in the load order,
+  the same for every player, under each player's own names; written against the old table first,
+  which failed on a name differing in case). On the real games 43 scenarios across `session`,
+  `restart`, `spawn`, `world`, `objects`, `cells`, `inventory`, `magic` and `combat` pass, all but
+  `client-spell-kill-credit` (Loose ends; it fails the same without 3d).
 - Player records (3c, 2026-10-13, uncommitted): `BridgeTests` 582 of 582 (every test's players now
   join through the real join; the list split out of `HostSession` as `HostPlayers`, and the 28
   passed again on freshly started games); on the real games `session`, `restart`, `spawn`, `world`, `objects`
@@ -253,6 +259,12 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `...-dirty` and pass the gate's stage 1. Fine for development; release builds come from commits.
 
 ### Tests and harness
+
+- **`client-spell-kill-credit` leaves the client's hands raised** (found 2026-10-13): its steps pass
+  (the client's Firebolt kills the host's wolf, the kill is credited, the copy dies), but afterwards
+  the client cannot sheathe: weapon state 3, Firebolt still in the right hand, the baseline's
+  "hands lowered" times out and every later scenario is skipped. The same on the last commit without
+  3d, so not the mod ids; not yet known since when. A hot reload clears it.
 
 - `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other
   players' copies but left their entities with a `PlayerComponent`, and player ids repeat across sessions,

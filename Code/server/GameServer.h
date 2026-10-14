@@ -69,9 +69,8 @@ struct GameServer final : TiltedPhoques::Server
     void SetFrontDoor(FrontDoor aFrontDoor) noexcept { m_frontDoor = std::move(aFrontDoor); }
     // The connection of the game in this process (the host's), 0 without one.
     [[nodiscard]] ConnectionId_t LoopbackConnection() const noexcept { return m_loopbackConnectionId; }
-    // The server's own record of a player, for its last services (quests, admin, Lua) until they go,
-    // and its mods' session ids (into aSessionMods) until the bridge keeps them (3d).
-    void AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept;
+    // The server's own record of a player, for its last services (quests, admin, Lua) until they go.
+    void AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest) noexcept;
     // Ends a connection that is not a player (a refused join).
     void Disconnect(ConnectionId_t aConnectionId) noexcept;
     // The player's own character, for the player list and the services still here (quests).

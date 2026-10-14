@@ -18,8 +18,7 @@ struct GameServer;
 /**
  * @brief Who gets into the session: a joining game's checks, then the session's answer (adding it to
  * HostPlayers); the session's settings, which are the host's; and the player list every game shows,
- * as players join and leave (docs/design/join-flow.md). Mod ids are still the server's until they
- * move (docs/design/host-authority-migration.md, "Server sections" 3d).
+ * as players join and leave, and the plugins' session ids (docs/design/join-flow.md).
  */
 struct HostSession
 {
