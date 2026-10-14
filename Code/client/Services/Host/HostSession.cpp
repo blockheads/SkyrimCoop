@@ -3,6 +3,7 @@
 #include <GameServer.h>
 #include <Services/Host/HostBridge.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostPlayers.h>
 #include <Services/Host/JoinRefusal.h>
 
 #include <BuildVersion.h>
@@ -14,8 +15,9 @@
 #include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
-HostSession::HostSession(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept
+HostSession::HostSession(HostBridge& aBridge, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept
     : m_server(aServer)
+    , m_players(aPlayers)
     , m_game(acGame)
 {
     aBridge.On(*this, &HostSession::OnAuthentication);
@@ -37,7 +39,7 @@ ServerSettings HostSession::Settings() const noexcept
 void HostSession::Update() noexcept
 {
     // Not before the host's own player is in: "everyone but the host" would include it.
-    const ConnectionId_t cHost = m_server.HostConnection();
+    const ConnectionId_t cHost = m_players.Host();
     const auto cSettings = Settings();
     if (!cHost || cSettings == m_sentSettings)
         return;
@@ -48,14 +50,14 @@ void HostSession::Update() noexcept
         return; // everyone who joined got these
     NotifySettingsChange notify;
     notify.Settings = cSettings;
-    m_server.SendToOthers(notify, cHost, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, cHost);
 }
 
 void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     using enum AuthenticationResponse::ResponseType;
 
-    if (m_server.IsAuthenticated(aSender))
+    if (m_players.IsPlayer(aSender))
     {
         spdlog::warn("HostSession: {:x} asked to join again", aSender);
         return;
@@ -72,7 +74,8 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
         NotifyChatMessageBroadcast line;
         line.MessageType = kSystemMessage;
         line.ChatMessage = JoinRefusal::ForHost(aReason, acRequest, {BuildCommit(), m_game.Versions, m_game.Plugins}).c_str();
-        m_server.Send(m_server.HostConnection(), line);
+        if (const ConnectionId_t cHost = m_players.Host())
+            m_server.Send(cHost, line);
     };
 
     if (acRequest.Version != BuildCommit())
@@ -94,14 +97,17 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
         response.UserMods = m_game.Plugins;
         return refuse(kModsMismatch);
     }
-    if (m_server.PlayerConnections().size() >= cMaxPlayers)
+    if (m_players.Count() >= cMaxPlayers)
     {
         spdlog::info("HostSession: {:x} '{}' found the session full: refused", aSender, acRequest.Username.c_str());
         return refuse(kServerFull);
     }
 
     response.Type = kAccepted;
-    response.PlayerId = m_server.AddPlayer(aSender, acRequest, response.UserMods);
+    // The server keeps a record of its own for its last services (quests, admin, Lua) until they go,
+    // and the mod ids until 3d.
+    m_server.AddPlayer(aSender, acRequest, response.UserMods);
+    response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_server.LoopbackConnection());
     response.Settings = Settings();
     m_server.Send(aSender, response);
     Announce(aSender);
@@ -109,29 +115,30 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
 
 void HostSession::Announce(ConnectionId_t aNewcomer) const noexcept
 {
-    const ConnectionId_t cHost = m_server.HostConnection();
-    const auto joined = [&](ConnectionId_t aPlayer) {
+    const auto joined = [](const HostPlayers::Player& acPlayer) {
         NotifyPlayerJoined notify;
-        notify.PlayerId = m_server.PlayerIdOf(aPlayer);
-        notify.Username = m_server.PlayerNameOf(aPlayer);
-        notify.Level = m_server.PlayerLevelOf(aPlayer);
-        notify.IsHost = aPlayer == cHost;
+        notify.PlayerId = acPlayer.Id;
+        notify.Username = acPlayer.Name;
+        notify.Level = acPlayer.Level;
+        notify.IsHost = acPlayer.IsHost;
         return notify;
     };
-    const auto cNewcomer = joined(aNewcomer);
-    for (const ConnectionId_t cPlayer : m_server.PlayerConnections())
-    {
-        if (cPlayer == aNewcomer)
-            continue;
-        m_server.Send(aNewcomer, joined(cPlayer));
-        m_server.Send(cPlayer, cNewcomer);
-    }
+    const auto cNewcomer = joined(*m_players.Find(aNewcomer));
+    m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
+        if (aConnection == aNewcomer)
+            return;
+        m_server.Send(aNewcomer, joined(acPlayer));
+        m_server.Send(aConnection, cNewcomer);
+    });
 }
 
 void HostSession::OnPlayerLeft(ConnectionId_t aPlayer) const noexcept
 {
+    const auto* cpPlayer = m_players.Find(aPlayer);
+    if (!cpPlayer)
+        return;
     NotifyPlayerLeft notify;
-    notify.PlayerId = m_server.PlayerIdOf(aPlayer);
-    notify.Username = m_server.PlayerNameOf(aPlayer);
-    m_server.SendToOthers(notify, aPlayer, TiltedPhoques::kReliable);
+    notify.PlayerId = cpPlayer->Id;
+    notify.Username = cpPlayer->Name;
+    m_players.SendToOthers(notify, aPlayer);
 }

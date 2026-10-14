@@ -6,6 +6,7 @@
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostClock.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostWeather.h>
 
@@ -101,7 +102,8 @@ private:
     Server::GameServer& m_server;
     HostGame m_game;
     std::array<Rule, kClientOpcodeMax> m_rules{};
-    // The parts, after the rules they register into.
+    // The parts, after the rules they register into, and the players first: the others read them.
+    HostPlayers m_players;
     HostSession m_session;
     HostCharacters m_characters;
     HostClock m_clock;

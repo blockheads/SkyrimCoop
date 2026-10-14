@@ -67,34 +67,22 @@ struct GameServer final : TiltedPhoques::Server
     // The host's bridge (client HostBridge) sees every message first; true: it handled it.
     using FrontDoor = std::function<bool(const ClientMessage&, ConnectionId_t)>;
     void SetFrontDoor(FrontDoor aFrontDoor) noexcept { m_frontDoor = std::move(aFrontDoor); }
-    // For the bridge, in connection ids (it cannot include the server's World).
-    [[nodiscard]] bool IsAuthenticated(ConnectionId_t aConnectionId) const noexcept;
-    [[nodiscard]] ConnectionId_t HostConnection() const noexcept;
-    // The player's id in the player list (0: no such player).
-    [[nodiscard]] uint32_t PlayerIdOf(ConnectionId_t aConnectionId) const noexcept;
-    // The player's name as the session shows it (empty: no such player).
-    [[nodiscard]] String PlayerNameOf(ConnectionId_t aConnectionId) const noexcept;
-    // The player's character level, as the player list shows it.
-    [[nodiscard]] uint16_t PlayerLevelOf(ConnectionId_t aConnectionId) const noexcept;
-    void SetPlayerLevel(ConnectionId_t aConnectionId, uint16_t aLevel) noexcept;
-    // For the bridge's join (HostSession) until the records and mod ids move to it: a new player's
-    // record and its mods' session ids (into aSessionMods); returns its player id.
-    uint32_t AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept;
+    // The connection of the game in this process (the host's), 0 without one.
+    [[nodiscard]] ConnectionId_t LoopbackConnection() const noexcept { return m_loopbackConnectionId; }
+    // The server's own record of a player, for its last services (quests, admin, Lua) until they go,
+    // and its mods' session ids (into aSessionMods) until the bridge keeps them (3d).
+    void AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept;
     // Ends a connection that is not a player (a refused join).
     void Disconnect(ConnectionId_t aConnectionId) noexcept;
-    // Disconnects the player (never the host: the host is the session).
-    void KickPlayer(uint32_t aPlayerId) noexcept;
     // The player's own character, for the player list and the services still here (quests).
     void SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept;
     // Character ids share the World's entity ids with objects (one id space while both exist).
     [[nodiscard]] uint32_t NewCharacterId() noexcept;
     void FreeCharacterId(uint32_t aServerId) noexcept;
-    void SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const;
-    // Every connected player's connection, the host's included.
-    [[nodiscard]] TiltedPhoques::Vector<ConnectionId_t> PlayerConnections() const noexcept;
-    // A player is leaving (before it is removed): the bridge removes its characters.
-    using LeaveHandler = std::function<void(ConnectionId_t aPlayer)>;
-    void SetLeaveHandler(LeaveHandler aHandler) noexcept { m_leaveHandler = std::move(aHandler); }
+    // A connection ended, a player's or not (the bridge decides what that means), before the
+    // server drops its own record.
+    using DisconnectionHandler = std::function<void(ConnectionId_t aConnection)>;
+    void SetDisconnectionHandler(DisconnectionHandler aHandler) noexcept { m_disconnectionHandler = std::move(aHandler); }
     // The host's own client connecting in-process (replies go to aCallback) and leaving again.
     void OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
     void CloseLoopback();
@@ -192,7 +180,7 @@ struct GameServer final : TiltedPhoques::Server
 
     // Loopback routing for P2P host mode
     ConnectionId_t m_loopbackConnectionId{0};
-    LeaveHandler m_leaveHandler;
+    DisconnectionHandler m_disconnectionHandler;
     FrontDoor m_frontDoor;
     std::function<void(const void*, uint32_t)> m_loopbackCallback;
     // Test mode: catch-all send callback for multi-peer replay

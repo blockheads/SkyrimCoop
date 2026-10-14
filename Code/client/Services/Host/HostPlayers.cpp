@@ -1,0 +1,81 @@
+#include <Services/Host/HostPlayers.h>
+
+#include <GameServer.h>
+
+HostPlayers::HostPlayers(Server::GameServer& aServer) noexcept
+    : m_server(aServer)
+{
+}
+
+uint32_t HostPlayers::Add(ConnectionId_t aConnection, const TiltedPhoques::String& acName, uint16_t aLevel, bool aIsHost) noexcept
+{
+    const uint32_t cId = ++m_lastId;
+    m_players[aConnection] = {cId, acName, aLevel, aIsHost};
+    return cId;
+}
+
+void HostPlayers::Remove(ConnectionId_t aConnection) noexcept
+{
+    m_players.erase(aConnection);
+}
+
+const HostPlayers::Player* HostPlayers::Find(ConnectionId_t aConnection) const noexcept
+{
+    const auto it = m_players.find(aConnection);
+    return it == m_players.end() ? nullptr : &it->second;
+}
+
+uint32_t HostPlayers::PlayerIdOf(ConnectionId_t aConnection) const noexcept
+{
+    const auto* cpPlayer = Find(aConnection);
+    return cpPlayer ? cpPlayer->Id : 0;
+}
+
+TiltedPhoques::String HostPlayers::PlayerNameOf(ConnectionId_t aConnection) const noexcept
+{
+    const auto* cpPlayer = Find(aConnection);
+    return cpPlayer ? cpPlayer->Name : TiltedPhoques::String{};
+}
+
+HostPlayers::ConnectionId_t HostPlayers::Host() const noexcept
+{
+    for (const auto& [cConnection, cPlayer] : m_players)
+        if (cPlayer.IsHost)
+            return cConnection;
+    return 0;
+}
+
+TiltedPhoques::Vector<HostPlayers::ConnectionId_t> HostPlayers::Connections() const noexcept
+{
+    TiltedPhoques::Vector<ConnectionId_t> connections;
+    for (const auto& [cConnection, cPlayer] : m_players)
+        connections.push_back(cConnection);
+    return connections;
+}
+
+void HostPlayers::SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept
+{
+    if (const auto it = m_players.find(aConnection); it != m_players.end())
+        it.value().Level = aLevel;
+}
+
+void HostPlayers::SendToOthers(const ServerMessage& acMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const noexcept
+{
+    for (const auto& [cConnection, cPlayer] : m_players)
+        if (cConnection != aExcluded)
+            m_server.Send(cConnection, acMessage, aFlags);
+}
+
+void HostPlayers::Kick(uint32_t aPlayerId) noexcept
+{
+    for (const auto& [cConnection, cPlayer] : m_players)
+    {
+        if (cPlayer.Id != aPlayerId)
+            continue;
+        if (cPlayer.IsHost)
+            return;
+        spdlog::info("HostPlayers: kicking '{}' [{:x}]", cPlayer.Name.c_str(), cConnection);
+        m_server.Disconnect(cConnection);
+        return;
+    }
+}

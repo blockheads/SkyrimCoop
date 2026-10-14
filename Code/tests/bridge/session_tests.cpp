@@ -57,11 +57,11 @@ TEST_CASE("Join: accepted with a player id, the session's settings and the sessi
     const auto& cResponse = OnlyResponse(session, kNewcomer);
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kAccepted);
     CHECK(cResponse.Version == BuildCommit());
-    const auto* cpPlayer = session.World().GetPlayerManager().GetByConnectionId(kNewcomer);
-    REQUIRE(cpPlayer);
-    CHECK(cResponse.PlayerId == cpPlayer->GetId());
-    CHECK(cpPlayer->GetUsername() == "Serana");
-    CHECK(cpPlayer->GetLevel() == 5);
+    // A new id in the player list; the server keeps its own record for its last services.
+    CHECK(cResponse.PlayerId != 0);
+    for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
+        CHECK(cResponse.PlayerId != session.PlayerId(cPlayer));
+    REQUIRE(session.World().GetPlayerManager().GetByConnectionId(kNewcomer));
 
     CHECK(cResponse.Settings.Difficulty == 3); // the host's
     CHECK(cResponse.Settings.DeathSystemEnabled);
@@ -167,14 +167,15 @@ TEST_CASE("Load order: what differs between the host's plugins and a player's", 
 TEST_CASE("Join: a full session refuses the next game", "[Bridge][Session]")
 {
     Session session;
-    auto& players = session.World().GetPlayerManager();
-    for (ConnectionId_t cConnection = 10; players.Count() < HostSession::cMaxPlayers; ++cConnection)
-        players.Create(cConnection);
+    // Three are in; five more fill it.
+    for (ConnectionId_t cConnection = 10; cConnection < 10 + HostSession::cMaxPlayers - 3; ++cConnection)
+        session.Join(cConnection, Join("Guard"));
+    session.Outbox.clear();
 
     session.Receive(kNewcomer, Join("Serana"));
     CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kServerFull);
-    CHECK(players.GetByConnectionId(kNewcomer) == nullptr);
-    CHECK(players.Count() == HostSession::cMaxPlayers);
+    CHECK(session.World().GetPlayerManager().GetByConnectionId(kNewcomer) == nullptr);
+    CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
     CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: the session is full."});
 }
 
@@ -267,21 +268,16 @@ TEST_CASE("Settings: the host's difficulty reaches the others when it changes", 
 TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, and they learn it", "[Bridge][Session]")
 {
     Session session;
-    auto& players = session.World().GetPlayerManager();
-    players.GetByConnectionId(kHost)->SetUsername("Dovahkiin");
-    players.GetByConnectionId(kHost)->SetLevel(20);
-    players.GetByConnectionId(kPeer)->SetUsername("Lydia");
-    players.GetByConnectionId(kPeer)->SetLevel(12);
-    session.Receive(kNewcomer, Join("Serana"));
-    const uint32_t cNewcomerId = players.GetByConnectionId(kNewcomer)->GetId();
+    const uint32_t cNewcomerId = session.Join(kNewcomer, Join("Serana"));
 
     // The newcomer: one each for the three already here.
     std::map<std::string, std::tuple<uint32_t, uint16_t, bool>> known;
     for (const auto* cpJoined : session.SentTo<NotifyPlayerJoined>(kNewcomer))
         known[cpJoined->Username.c_str()] = {cpJoined->PlayerId, cpJoined->Level, cpJoined->IsHost};
     CHECK(known.size() == 3);
-    CHECK(known["Dovahkiin"] == std::tuple<uint32_t, uint16_t, bool>{players.GetByConnectionId(kHost)->GetId(), 20, true});
-    CHECK(known["Lydia"] == std::tuple<uint32_t, uint16_t, bool>{players.GetByConnectionId(kPeer)->GetId(), 12, false});
+    CHECK(known["Dovahkiin"] == std::tuple<uint32_t, uint16_t, bool>{session.PlayerId(kHost), 20, true});
+    CHECK(known["Lydia"] == std::tuple<uint32_t, uint16_t, bool>{session.PlayerId(kPeer), 12, false});
+    CHECK(known["Aela"] == std::tuple<uint32_t, uint16_t, bool>{session.PlayerId(kOtherPeer), 8, false});
 
     // Everyone else: the newcomer, not the host.
     for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
@@ -298,8 +294,7 @@ TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, a
 TEST_CASE("Player list: the others drop a player who leaves; a refused game was never in it", "[Bridge][Session]")
 {
     Session session;
-    session.World().GetPlayerManager().GetByConnectionId(kPeer)->SetUsername("Lydia");
-    const uint32_t cPeerId = session.World().GetPlayerManager().GetByConnectionId(kPeer)->GetId();
+    const uint32_t cPeerId = session.PlayerId(kPeer);
     session.Leave(kPeer);
     for (const auto cPlayer : {kHost, kOtherPeer})
     {
@@ -316,4 +311,20 @@ TEST_CASE("Player list: the others drop a player who leaves; a refused game was 
     session.Receive(kNewcomer, join);
     session.Leave(kNewcomer);
     CHECK(session.SentTo<NotifyPlayerLeft>(kHost).empty());
+}
+
+TEST_CASE("Player list: a player who leaves and joins again gets a new id", "[Bridge][Session]")
+{
+    Session session;
+    const uint32_t cFirst = session.PlayerId(kPeer);
+    session.Leave(kPeer);
+    session.Outbox.clear();
+    const uint32_t cAgain = session.Join(kPeer, Join("Lydia"));
+    CHECK(cAgain != cFirst);
+    for (const auto cPlayer : {kHost, kOtherPeer})
+        CHECK(cAgain != session.PlayerId(cPlayer));
+    // The others learn it under its new id.
+    const auto cAnnounced = session.SentTo<NotifyPlayerJoined>(kHost);
+    REQUIRE(cAnnounced.size() == 1);
+    CHECK(cAnnounced[0]->PlayerId == cAgain);
 }

@@ -154,10 +154,11 @@ template <class TRequest, class TNotify> void HostBridge::Relay(Delivery aDelive
 HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     : m_server(aServer)
     , m_game(std::move(aGame))
-    , m_session(*this, aServer, m_game)
-    , m_characters(*this, aServer, m_game)
-    , m_clock(*this, aServer, m_game)
-    , m_weather(aServer, m_game)
+    , m_players(aServer)
+    , m_session(*this, aServer, m_players, m_game)
+    , m_characters(*this, aServer, m_players, m_game)
+    , m_clock(*this, aServer, m_players, m_game)
+    , m_weather(aServer, m_players, m_game)
 {
     using enum Delivery;
 
@@ -204,9 +205,13 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     On(*this, &HostBridge::OnChatMessage);
 
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
-    m_server.SetLeaveHandler([this](ConnectionId_t aPlayer) {
-        m_session.OnPlayerLeft(aPlayer);
-        m_characters.OnPlayerLeft(aPlayer);
+    // A player's game ended its connection: the others drop it, then its characters go.
+    m_server.SetDisconnectionHandler([this](ConnectionId_t aConnection) {
+        if (!m_players.IsPlayer(aConnection))
+            return;
+        m_session.OnPlayerLeft(aConnection);
+        m_characters.OnPlayerLeft(aConnection);
+        m_players.Remove(aConnection);
     });
 }
 
@@ -219,7 +224,7 @@ void HostBridge::Update(uint64_t aTick) noexcept
 
 void HostBridge::Kick(uint32_t aPlayerId) noexcept
 {
-    m_server.KickPlayer(aPlayerId);
+    m_players.Kick(aPlayerId);
 }
 
 void HostBridge::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) const noexcept
@@ -233,7 +238,7 @@ bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) 
 {
     const auto cOpcode = acMessage.GetOpcode();
     // A game that is not a player may only ask to join; the server drops anything else from it.
-    if (cOpcode != kAuthenticationRequest && !m_server.IsAuthenticated(aSender))
+    if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))
         return false;
 
     if (cOpcode >= m_rules.size() || !m_rules[cOpcode])
@@ -255,7 +260,7 @@ void HostBridge::OnFactionsChanges(const RequestFactionsChanges& acRequest, Conn
         if (m_characters.OwnerOf(cServerId) == aSender)
             notify.Changes[cServerId] = cFactions;
     if (!notify.Changes.empty())
-        m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+        m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
 void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -269,9 +274,9 @@ void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, Connecti
     static const std::regex s_markup{"<[^>]+>\\s+(?=<)|<[^>]+>"};
     NotifyChatMessageBroadcast notify;
     notify.MessageType = acRequest.MessageType;
-    notify.PlayerName = std::regex_replace(m_server.PlayerNameOf(aSender), s_markup, "");
+    notify.PlayerName = std::regex_replace(m_players.PlayerNameOf(aSender), s_markup, "");
     notify.ChatMessage = std::regex_replace(acRequest.ChatMessage, s_markup, "");
-    for (const ConnectionId_t cPlayer : m_server.PlayerConnections())
+    for (const ConnectionId_t cPlayer : m_players.Connections())
         m_server.Send(cPlayer, notify);
 }
 
@@ -282,11 +287,11 @@ void HostBridge::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId
         spdlog::warn("HostBridge: {:x} sent level 0", aSender);
         return;
     }
-    m_server.SetPlayerLevel(aSender, acRequest.NewLevel);
+    m_players.SetLevel(aSender, acRequest.NewLevel);
     NotifyPlayerLevel notify;
-    notify.PlayerId = m_server.PlayerIdOf(aSender);
+    notify.PlayerId = m_players.PlayerIdOf(aSender);
     notify.NewLevel = acRequest.NewLevel;
-    m_server.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
 void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
@@ -295,11 +300,11 @@ void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint
     {
     case Delivery::FromOwner:
         if (m_characters.OwnerOf(aActor) == aSender)
-            m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
+            m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
         else
             spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, uint32_t(acNotify.GetOpcode()), aActor);
         break;
-    case Delivery::FromAnyone: m_server.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
+    case Delivery::FromAnyone: m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
     case Delivery::ToOwner:
         if (const ConnectionId_t cOwner = m_characters.OwnerOf(aActor); cOwner != 0 && cOwner != aSender)
             m_server.Send(cOwner, acNotify);

@@ -53,8 +53,8 @@ Removed one section at a time, each with its bridge replacement and tests first
 2. String cache: dropped, not moved (uncommitted).
 3. Session, in steps: 3a auth gate (3a.1 build and cap: done, uncommitted; 3a.1b refusals
    delivered as data (join status, host chat line): done; 3a.2 game and SKSE versions, 3a.3 plugin
-   list and order, 3a.4 the host's settings: done, uncommitted; the gate is complete), 3b player list: done, uncommitted; 3c player records
-   and kick, 3d mod id table.
+   list and order, 3a.4 the host's settings: done, uncommitted; the gate is complete), 3b player list, 3c player records (a shadow record stays on
+   the server for its last services until section 4): done, uncommitted; 3d mod id table.
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
    server console commands, recording.
 
@@ -109,6 +109,11 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Player records (3c, 2026-10-13, uncommitted): `BridgeTests` 582 of 582 (every test's players now
+  join through the real join; the list split out of `HostSession` as `HostPlayers`, and the 28
+  passed again on freshly started games); on the real games `session`, `restart`, `spawn`, `world`, `objects`
+  and `cells` (28) pass after 3c.1, and `session` and `restart` (11) after the disconnection handler.
+  Kicking is covered by `host-kicks-client` only: the headless server has no network peer to drop.
 - Player list (3b, 2026-10-13, uncommitted): `BridgeTests` 415 of 415 (who a newcomer learns, with
   the host marked; who learns the newcomer; leaving; a refused game never listed); the `session` and
   `restart` scenarios (11) pass; without the leave notice the bridge case fails, and on the real games

@@ -26,7 +26,6 @@ TEST_CASE("Waypoints: a player's reaches everyone else", "[Bridge][Chat]")
 TEST_CASE("Chat: to everyone, the sender too, under its name and without markup", "[Bridge][Chat]")
 {
     Session session;
-    session.World().GetPlayerManager().GetByConnectionId(kPeer)->SetUsername("Lydia");
 
     SendChatMessageRequest chat;
     chat.MessageType = kGlobalChat;

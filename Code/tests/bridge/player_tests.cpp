@@ -14,7 +14,7 @@ PlayerLevelRequest LevelUp(uint16_t aLevel)
 TEST_CASE("Player level: a level-up reaches everyone else under the player's id", "[Bridge][Player]")
 {
     Session session;
-    const uint32_t cPeerId = session.World().GetPlayerManager().GetByConnectionId(kPeer)->GetId();
+    const uint32_t cPeerId = session.PlayerId(kPeer);
 
     session.Receive(kPeer, LevelUp(12));
     for (const auto cTo : {kHost, kOtherPeer})
@@ -30,7 +30,7 @@ TEST_CASE("Player level: a level-up reaches everyone else under the player's id"
 TEST_CASE("Player level: a player joining later sees each player's level as it is now", "[Bridge][Player]")
 {
     Session session;
-    const uint32_t cPeerId = session.World().GetPlayerManager().GetByConnectionId(kPeer)->GetId();
+    const uint32_t cPeerId = session.PlayerId(kPeer);
     session.Receive(kPeer, LevelUp(12));
     session.Outbox.clear();
 

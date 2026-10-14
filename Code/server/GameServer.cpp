@@ -394,6 +394,9 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
 
     m_pWorld->GetScriptService().HandlePlayerQuit(aConnectionId, aReason);
 
+    if (m_disconnectionHandler)
+        m_disconnectionHandler(aConnectionId);
+
     if (pPlayer)
     {
         if (const auto& cell = pPlayer->GetCellComponent())
@@ -403,9 +406,6 @@ void GameServer::OnDisconnection(const ConnectionId_t aConnectionId, EDisconnect
         }
 
         m_pWorld->GetDispatcher().trigger(PlayerLeaveEvent(pPlayer));
-
-        if (m_leaveHandler)
-            m_leaveHandler(aConnectionId);
 
         m_pWorld->GetPlayerManager().Remove(pPlayer);
     }
@@ -422,50 +422,6 @@ void GameServer::SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<vo
 {
     m_loopbackConnectionId = aConnectionId;
     m_loopbackCallback = std::move(aCallback);
-}
-
-bool GameServer::IsAuthenticated(ConnectionId_t aConnectionId) const noexcept
-{
-    return m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId) != nullptr;
-}
-
-void GameServer::KickPlayer(uint32_t aPlayerId) noexcept
-{
-    const auto* pPlayer = m_pWorld->GetPlayerManager().GetById(aPlayerId);
-    if (!pPlayer || pPlayer == m_pWorld->GetPlayerManager().GetHostPlayer())
-        return;
-    spdlog::info("Kicking '{}' [{:x}]", pPlayer->GetUsername().c_str(), pPlayer->GetConnectionId());
-    Kick(pPlayer->GetConnectionId());
-}
-
-ConnectionId_t GameServer::HostConnection() const noexcept
-{
-    const auto* pHost = m_pWorld->GetPlayerManager().GetHostPlayer();
-    return pHost ? pHost->GetConnectionId() : 0;
-}
-
-uint32_t GameServer::PlayerIdOf(ConnectionId_t aConnectionId) const noexcept
-{
-    const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
-    return pPlayer ? pPlayer->GetId() : 0;
-}
-
-uint16_t GameServer::PlayerLevelOf(ConnectionId_t aConnectionId) const noexcept
-{
-    const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
-    return pPlayer ? pPlayer->GetLevel() : 0;
-}
-
-String GameServer::PlayerNameOf(ConnectionId_t aConnectionId) const noexcept
-{
-    const auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId);
-    return pPlayer ? pPlayer->GetUsername() : String{};
-}
-
-void GameServer::SetPlayerLevel(ConnectionId_t aConnectionId, uint16_t aLevel) noexcept
-{
-    if (auto* pPlayer = m_pWorld->GetPlayerManager().GetByConnectionId(aConnectionId))
-        pPlayer->SetLevel(aLevel);
 }
 
 void GameServer::SetPlayerCharacter(ConnectionId_t aConnectionId, uint32_t aServerId, const QuestLog& acQuests) noexcept
@@ -486,21 +442,6 @@ void GameServer::FreeCharacterId(uint32_t aServerId) noexcept
 {
     if (const auto cEntity = static_cast<entt::entity>(aServerId); m_pWorld->valid(cEntity))
         m_pWorld->destroy(cEntity);
-}
-
-void GameServer::SendToOthers(const ServerMessage& acServerMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const
-{
-    for (Player* pPlayer : m_pWorld->GetPlayerManager())
-        if (pPlayer->GetConnectionId() != aExcluded)
-            pPlayer->Send(acServerMessage, aFlags);
-}
-
-TiltedPhoques::Vector<ConnectionId_t> GameServer::PlayerConnections() const noexcept
-{
-    TiltedPhoques::Vector<ConnectionId_t> connections;
-    for (const Player* pPlayer : m_pWorld->GetPlayerManager())
-        connections.push_back(pPlayer->GetConnectionId());
-    return connections;
 }
 
 void GameServer::OpenLoopback(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback)
@@ -621,7 +562,7 @@ static String PrettyPrintModList(const Vector<Mods::Entry>& acMods)
     return text;
 }
 
-uint32_t GameServer::AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept
+void GameServer::AddPlayer(ConnectionId_t aConnectionId, const AuthenticationRequest& acRequest, Mods& aSessionMods) noexcept
 {
     char remoteAddress[48]{"unknown"};
     if (const auto* pPeer = GetPeer(aConnectionId))
@@ -655,7 +596,6 @@ uint32_t GameServer::AddPlayer(ConnectionId_t aConnectionId, const Authenticatio
 
     spdlog::info("New player '{}' [{:x}] connected with {} mods\n\t: {}", pPlayer->GetUsername().c_str(), aConnectionId,
                  acRequest.UserMods.ModList.size(), PrettyPrintModList(acRequest.UserMods.ModList).c_str());
-    return pPlayer->GetId();
 }
 
 void GameServer::Disconnect(ConnectionId_t aConnectionId) noexcept

@@ -24,8 +24,9 @@ double MinutesBetween(const TimeModel& acFrom, const TimeModel& acTo)
 }
 } // namespace
 
-HostClock::HostClock(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept
+HostClock::HostClock(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_server(aServer)
+    , m_players(acPlayers)
     , m_game(acGame)
 {
     aBridge.On(*this, &HostClock::OnSetTimeCommand);
@@ -53,7 +54,7 @@ void HostClock::Update(uint64_t aTick) noexcept
     m_peersClockTick = aTick;
     ServerTimeSettings time;
     time.timeModel = cHostClock.m_timeModel;
-    m_server.SendToOthers(time, m_server.HostConnection(), TiltedPhoques::kReliable);
+    m_players.SendToOthers(time, m_players.Host(), TiltedPhoques::kReliable);
 }
 
 void HostClock::SendTime(ConnectionId_t aPlayer) const noexcept

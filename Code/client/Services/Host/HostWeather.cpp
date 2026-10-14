@@ -2,11 +2,13 @@
 
 #include <GameServer.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyWeatherChange.h>
 
-HostWeather::HostWeather(Server::GameServer& aServer, const HostGame& acGame) noexcept
+HostWeather::HostWeather(Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_server(aServer)
+    , m_players(acPlayers)
     , m_game(acGame)
 {
 }
@@ -14,7 +16,7 @@ HostWeather::HostWeather(Server::GameServer& aServer, const HostGame& acGame) no
 void HostWeather::Update() noexcept
 {
     // Not before the host's own player is in: "everyone but the host" would include it.
-    const ConnectionId_t cHost = m_server.HostConnection();
+    const ConnectionId_t cHost = m_players.Host();
     const auto cWeather = m_game.ReadWeather();
     if (!cHost || !cWeather || *cWeather == m_peersWeather)
         return;
@@ -22,7 +24,7 @@ void HostWeather::Update() noexcept
     m_peersWeather = *cWeather;
     NotifyWeatherChange notify;
     notify.Id = m_peersWeather;
-    m_server.SendToOthers(notify, cHost, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, cHost, TiltedPhoques::kReliable);
 }
 
 void HostWeather::SendWeather(ConnectionId_t aPlayer) const noexcept

@@ -395,8 +395,19 @@ that needs the standalone server goes with the section that breaks it.
      CEF overlay read it, for a cell name). The records stay on the server behind accessors
      (`PlayerIdOf`, `PlayerNameOf`, `PlayerLevelOf`) until 3c. Bridge cases; on the real games the
      `session` scenarios, and `host-kicks-client` fails without the leave notice.
-   - **3c, player records:** ids, names, levels, characters, the host's connection and kick move from
-     `PlayerManager` to `HostSession`.
+   - **3c, player records, done:** `HostPlayers` is the session's player list (id, name, level,
+     whether the host: the game on the server's in-process route, `GameServer::LoopbackConnection`);
+     `HostSession` adds and removes players by its join and leave rules, the other parts read the
+     list (`Find`, `IsPlayer`, `Host`, `Connections`) and send through it (`SendToOthers`); it kicks
+     (never the host). Ids are never reused within a session. The server reports every connection that
+     ends (`SetDisconnectionHandler`) and the bridge decides what that means. Deleted from the server:
+     `IsAuthenticated`, `HostConnection`, `PlayerIdOf`, `PlayerNameOf`, `PlayerLevelOf`,
+     `SetPlayerLevel`, `KickPlayer`, `SendToOthers`, `PlayerConnections`. **The server keeps a shadow
+     record** (`AddPlayer`, a `Player` in `PlayerManager`) for its last services (quests, admin, Lua),
+     which receive messages the bridge does not handle with the sender's record; section 4 deletes
+     them and the shadow with them. The bridge tests now join their players through the real join
+     (the host over the in-process route) instead of creating server records. The record has room
+     for an account id when stored characters come (`join-flow.md`, stage 4); not added before then.
    - **3d, mod id table:** session-wide mod ids from each player's mod list (every `GameId` on the wire
      uses them). First a note on how the client maps them (`ModSystem`, `docs/re/systems/`), then cases:
      same mod same id for everyone, light and regular mods apart, different load orders agree, a mod

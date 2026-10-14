@@ -7,6 +7,7 @@
 
 struct HostBridge;
 struct HostGame;
+struct HostPlayers;
 struct SetTimeCommandRequest;
 
 namespace Server
@@ -23,7 +24,7 @@ struct HostClock
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
     // Registers its rules with aBridge.
-    HostClock(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept;
+    HostClock(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostClock);
 
@@ -36,6 +37,7 @@ private:
     void OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
     Server::GameServer& m_server;
+    const HostPlayers& m_players;
     const HostGame& m_game;
     // The clock peers run on, as of m_peersClockTick.
     std::optional<DateTime> m_peersClock;

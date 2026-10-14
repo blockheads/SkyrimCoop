@@ -4,6 +4,7 @@
 #include <Structs/GameId.h>
 
 struct HostGame;
+struct HostPlayers;
 
 namespace Server
 {
@@ -18,7 +19,7 @@ struct HostWeather
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostWeather(Server::GameServer& aServer, const HostGame& acGame) noexcept;
+    HostWeather(Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostWeather);
 
@@ -28,6 +29,7 @@ struct HostWeather
 
 private:
     Server::GameServer& m_server;
+    const HostPlayers& m_players;
     const HostGame& m_game;
     // What peers hold (none yet: the host has shown no weather to share).
     GameId m_peersWeather{};

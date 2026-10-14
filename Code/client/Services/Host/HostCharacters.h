@@ -7,6 +7,7 @@
 
 struct HostBridge;
 struct HostGame;
+struct HostPlayers;
 struct ClientReferencesMoveRequest;
 struct AssignCharacterRequest;
 struct CancelAssignmentRequest;
@@ -37,7 +38,7 @@ struct HostCharacters
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
     // Registers its rules with aBridge.
-    HostCharacters(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept;
+    HostCharacters(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostCharacters);
 
@@ -84,6 +85,7 @@ private:
 
     HostBridge& m_bridge;
     Server::GameServer& m_server;
+    const HostPlayers& m_players;
     const HostGame& m_game;
     TiltedPhoques::Map<uint32_t, Character> m_characters;
 

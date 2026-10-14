@@ -8,6 +8,7 @@
 struct AuthenticationRequest;
 struct HostBridge;
 struct HostGame;
+struct HostPlayers;
 
 namespace Server
 {
@@ -15,10 +16,10 @@ struct GameServer;
 }
 
 /**
- * @brief Who gets into the session: a joining game's checks, then the session's answer; the
- * session's settings, which are the host's; and the player list every game shows, as players join
- * and leave (docs/design/join-flow.md). Player records and mod ids are still the server's until they move
- * (docs/design/host-authority-migration.md, "Server sections" 3c and 3d).
+ * @brief Who gets into the session: a joining game's checks, then the session's answer (adding it to
+ * HostPlayers); the session's settings, which are the host's; and the player list every game shows,
+ * as players join and leave (docs/design/join-flow.md). Mod ids are still the server's until they
+ * move (docs/design/host-authority-migration.md, "Server sections" 3d).
  */
 struct HostSession
 {
@@ -27,7 +28,7 @@ struct HostSession
     static constexpr uint32_t cMaxPlayers = 8;
 
     // Registers its rules with aBridge.
-    HostSession(HostBridge& aBridge, Server::GameServer& aServer, const HostGame& acGame) noexcept;
+    HostSession(HostBridge& aBridge, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostSession);
 
@@ -47,6 +48,7 @@ private:
     void Announce(ConnectionId_t aNewcomer) const noexcept;
 
     Server::GameServer& m_server;
+    HostPlayers& m_players;
     const HostGame& m_game;
     // What the others were last told (none before the first frame).
     std::optional<ServerSettings> m_sentSettings;
