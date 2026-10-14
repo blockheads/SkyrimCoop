@@ -207,6 +207,13 @@ uint32_t SkyrimBridge::GetCommandingActor(uint32_t aFormId) const noexcept
     return 0;
 }
 
+void SkyrimBridge::SetActorPersistent(uint32_t aFormId) noexcept
+{
+    Breadcrumbs::Record("SetActorPersistent", aFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->SetPersistent();
+}
+
 void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
 {
     Breadcrumbs::Record("KillActor", aFormId);

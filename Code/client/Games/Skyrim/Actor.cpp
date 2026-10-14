@@ -1314,6 +1314,17 @@ void Actor::SpeakSound(const char* pFile)
     TiltedPhoques::ThisCall(RealSpeakSoundFunction, this, pFile, handle, 0, 0x32, 0, 0, 0, 0, 0, 0, 0, 1, 1);
 }
 
+// Actor::ResetInventory (37322): back to its base's template, outfit taken off and put on again, as enabling
+// it does (TESObjectREFR::Enable 19800). A copy's inventory is its owner's: never reset (copy-contract.md).
+TP_THIS_FUNCTION(TResetInventory, void, Actor, bool aLeveledOnly);
+static TResetInventory* RealResetInventory = nullptr;
+void TP_MAKE_THISCALL(HookResetInventory, Actor, bool aLeveledOnly)
+{
+    if (apThis->GetExtension()->IsRemote())
+        return;
+    TiltedPhoques::ThisCall(RealResetInventory, apThis, aLeveledOnly);
+}
+
 // Actor::ApplyMovement (37356): the sync positions copies.
 void TP_MAKE_THISCALL(HookApplyMovement, Actor, float aDelta)
 {
@@ -1579,6 +1590,7 @@ static TiltedPhoques::Initializer s_actorHooks(
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TApplyMovement, s_applyMovement, 37356);
+        POINTER_SKYRIMSE(TResetInventory, s_resetInventory, 37322);
         POINTER_SKYRIMSE(TUpdateAI, s_updateAI, 37347);
         POINTER_SKYRIMSE(TSetPosition, s_setPosition, 19790);
         POINTER_SKYRIMSE(TRemoveSpell, s_removeSpell, 38717);
@@ -1602,6 +1614,7 @@ static TiltedPhoques::Initializer s_actorHooks(
         POINTER_SKYRIMSE(TIsFleeing, isFleeing, 37577);
 
         RealApplyMovement = s_applyMovement.Get();
+        RealResetInventory = s_resetInventory.Get();
         RealUpdateAI = s_updateAI.Get();
         POINTER_SKYRIMSE(TUpdateCellAttachment, s_updateCellAttachment, 37352);
         UpdateCellAttachment = s_updateCellAttachment.Get();
@@ -1634,6 +1647,7 @@ static TiltedPhoques::Initializer s_actorHooks(
         RealIsFleeing = isFleeing.Get();
 
         TP_HOOK(&RealApplyMovement, HookApplyMovement);
+        TP_HOOK(&RealResetInventory, HookResetInventory);
         TP_HOOK(&RealUpdateAI, HookUpdateAI);
         TP_HOOK(&RealSetPosition, HookSetPosition);
         TP_HOOK(&RealRemoveSpell, HookRemoveSpell);

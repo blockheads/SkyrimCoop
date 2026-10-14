@@ -2,6 +2,7 @@
 #include "session.h"
 
 #include <Messages/EnterCellRequest.h>
+#include <Messages/NotifyPartyTravel.h>
 
 TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it everyone else's", "[Bridge][Characters]")
 {
@@ -141,9 +142,12 @@ TEST_CASE("Respawn: a peer that lost the host's first character gets it again", 
 
 namespace
 {
-EnterCellRequest Arrival(uint32_t aCell, uint32_t aWorldSpace = 0, glm::vec3 aPosition = {})
+// An arrival from before joining (taking nobody along), the party tether's, or the player's own travel.
+EnterCellRequest Arrival(uint32_t aCell, uint32_t aWorldSpace = 0, glm::vec3 aPosition = {},
+                         EnterCellRequest::Travel aHow = EnterCellRequest::Travel::kBeforeJoining)
 {
     EnterCellRequest arrival;
+    arrival.How = aHow;
     arrival.CellId = GameId(0, aCell);
     if (aWorldSpace)
         arrival.WorldSpaceId = GameId(0, aWorldSpace);
@@ -152,7 +156,7 @@ EnterCellRequest Arrival(uint32_t aCell, uint32_t aWorldSpace = 0, glm::vec3 aPo
 }
 } // namespace
 
-TEST_CASE("Arriving: a player gets everyone with the host, and they get it", "[Bridge][Characters]")
+TEST_CASE("Arriving: a player gets the host's actors there; players' copies travel with the party", "[Bridge][Characters]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -168,19 +172,15 @@ TEST_CASE("Arriving: a player gets everyone with the host, and they get it", "[B
     session.Outbox.clear();
 
     session.Receive(kPeer, Arrival(0x102, 0x3C, {1.f, 2.f, 3.f}));
-    // It: the host's actors and the other player.
+    // It: the host's actors, not the other player (its copy came along).
     const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
-    REQUIRE(cToPeer.size() == 2);
+    REQUIRE(cToPeer.size() == 1);
     CHECK(cToPeer[0]->ServerId == cHostNpc);
-    CHECK(cToPeer[1]->ServerId == cOtherPlayer);
-    // Those there: it, where it arrived.
+    // Those there: nothing (their copy of it came along).
     for (const auto cTo : {kHost, kOtherPeer})
-    {
-        const auto cSpawns = session.SentTo<CharacterSpawnRequest>(cTo);
-        REQUIRE(cSpawns.size() == 1);
-        CHECK(cSpawns[0]->ServerId == cPeerPlayer);
-        CHECK(cSpawns[0]->Position == glm::vec3(1.f, 2.f, 3.f));
-    }
+        CHECK(session.SentTo<CharacterSpawnRequest>(cTo).empty());
+    (void)cPeerPlayer;
+    (void)cOtherPlayer;
 }
 
 TEST_CASE("Arriving: the host's actors only go to players with the host", "[Bridge][Characters]")
@@ -234,14 +234,13 @@ TEST_CASE("Arriving: the host first, then a peer still on its way", "[Bridge][Ch
     session.Receive(kHost, Arrival(0x9732, 0x3C));
     CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
     CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
-    // The peer arrives: the host gets it, once.
+    // The peer arrives: its copy on the host came along, nothing is spawned for it.
     session.Receive(kPeer, Arrival(0x9732, 0x3C));
-    const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->ServerId == cPeerPlayer);
+    CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
+    (void)cPeerPlayer;
 }
 
-TEST_CASE("Arriving: a peer ahead of the host gets everyone when the host arrives", "[Bridge][Characters]")
+TEST_CASE("Arriving: a peer ahead of the host gets the host's actors when the host arrives", "[Bridge][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = BothInQASmoke(session);
@@ -249,20 +248,91 @@ TEST_CASE("Arriving: a peer ahead of the host gets everyone when the host arrive
     // The peer reaches Riverwood first: nothing yet, either way.
     session.Receive(kPeer, Arrival(0x9732, 0x3C));
     CHECK(session.Outbox.empty());
-    // The host arrives: it gets the peer, the peer gets it.
+    // The host arrives with an NPC (a follower): the peer gets it, not the host's player (its copy came along).
+    CharacterSpawnRequest follower;
+    follower.ServerId = session.Character(kHost);
+    session.Spawns.push_back(follower);
     session.Receive(kHost, Arrival(0x9733, 0x3C));
-    const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
-    REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->ServerId == cPeerPlayer);
+    CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
     const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
     REQUIRE(cToPeer.size() == 1);
-    CHECK(cToPeer[0]->ServerId == session.Spawns[0].ServerId);
+    CHECK(cToPeer[0]->ServerId == follower.ServerId);
+    // Once: the host's next arrival with the peer there sends it nothing more.
+    session.Outbox.clear();
+    session.Receive(kHost, Arrival(0x9734, 0x3C));
+    CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
+    (void)cPeerPlayer;
 }
 
-TEST_CASE("Arriving: others spawn a player as it arrives, not as it joined", "[Bridge][Characters]")
+TEST_CASE("Party tether: a player's own travel takes everyone else along, the host too", "[Bridge][Characters]")
 {
     Session session;
     BothInQASmoke(session);
+
+    session.Receive(kPeer, Arrival(0x9732, 0x3C, {1.f, 2.f, 3.f}, EnterCellRequest::Travel::kOwn));
+    CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cTravels = session.SentTo<NotifyPartyTravel>(cTo);
+        REQUIRE(cTravels.size() == 1);
+        CHECK(cTravels[0]->CellId == GameId(0, 0x9732));
+        CHECK(cTravels[0]->WorldSpaceId == GameId(0, 0x3C));
+        CHECK(cTravels[0]->Position == glm::vec3(1.f, 2.f, 3.f));
+    }
+
+    // The host leads into an interior: the peers follow.
+    session.Outbox.clear();
+    session.Receive(kHost, Arrival(0x200, 0, {}, EnterCellRequest::Travel::kOwn));
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cTravels = session.SentTo<NotifyPartyTravel>(cTo);
+        REQUIRE(cTravels.size() == 1);
+        CHECK(cTravels[0]->CellId == GameId(0, 0x200));
+        CHECK(!cTravels[0]->WorldSpaceId);
+    }
+}
+
+TEST_CASE("Party tether: a follower's arrival takes nobody along", "[Bridge][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+
+    for (const auto cHow : {EnterCellRequest::Travel::kTether, EnterCellRequest::Travel::kBeforeJoining})
+    {
+        session.Receive(kPeer, Arrival(0x9732, 0x3C, {}, cHow));
+        for (const auto cTo : {kHost, kPeer, kOtherPeer})
+            CHECK(session.SentTo<NotifyPartyTravel>(cTo).empty());
+    }
+}
+
+TEST_CASE("Party tether: a follower that arrives where the party is not is sent on", "[Bridge][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+
+    // Two players lead at once: the peer into the inn, then the other peer to Riverwood. The peer follows
+    // the other one's travel to Riverwood; the other peer, still on its way, follows the peer into the inn.
+    session.Receive(kPeer, Arrival(0x133C6, 0, {}, EnterCellRequest::Travel::kOwn));
+    session.Receive(kOtherPeer, Arrival(0x9732, 0x3C, {5.f, 6.f, 7.f}, EnterCellRequest::Travel::kOwn));
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, Arrival(0x133C6, 0, {}, EnterCellRequest::Travel::kTether));
+    const auto cOn = session.SentTo<NotifyPartyTravel>(kOtherPeer);
+    REQUIRE(cOn.size() == 1);
+    CHECK(cOn[0]->CellId == GameId(0, 0x9732));
+    CHECK(cOn[0]->Position == glm::vec3(5.f, 6.f, 7.f));
+    CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+
+    // Where the party went (outdoors: within the loaded grid of it): nothing more.
+    session.Outbox.clear();
+    session.Receive(kPeer, Arrival(0x9733, 0x3C, {100.f, 6.f, 7.f}, EnterCellRequest::Travel::kTether));
+    CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
+}
+
+TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joined", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = BothInQASmoke(session);
 
     // The peer changed its equipment since it joined, then both go to Riverwood.
     session.Receive(kHost, Arrival(0x9732, 0x3C));
@@ -275,6 +345,10 @@ TEST_CASE("Arriving: others spawn a player as it arrives, not as it joined", "[B
     arrival.Data.IsWeaponDrawn = true;
     session.Receive(kPeer, arrival);
 
+    // The host's copy of it was lost: the host's game asks for it again (RunPresence).
+    RequestRespawn again;
+    again.ActorId = cPeerPlayer;
+    session.Receive(kHost, again);
     const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
     REQUIRE(cToHost.size() == 1);
     CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);

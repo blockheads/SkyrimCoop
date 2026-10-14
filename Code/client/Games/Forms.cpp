@@ -71,7 +71,7 @@ void TESForm::Save_Reversed(const uint32_t aChangeFlags, Buffer::Writer& aWriter
     if (aChangeFlags & 1)
     {
         aWriter.WriteBytes(reinterpret_cast<uint8_t*>(&flags), 4);
-        aWriter.WriteBytes(reinterpret_cast<uint8_t*>(&unk10), 2);
+        aWriter.WriteBytes(reinterpret_cast<uint8_t*>(&inGameFormFlags), 2);
     }
 }
 
@@ -79,7 +79,8 @@ void TESForm::SetSkipSaveFlag(bool aSet) noexcept
 {
     if (aSet)
     {
-        unk10 = 0xFFFF;
+        // Every in-game flag (upstream): keeps a copy out of the save. Which bit does it is not traced.
+        inGameFormFlags = 0xFFFF;
     }
     /*const uint32_t flag = 1 << 14;
 

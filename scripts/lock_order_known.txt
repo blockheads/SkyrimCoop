@@ -36,6 +36,12 @@ SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x165105 vs SkyrimSE.exe+0x17a479 > SkyrimS
 # GetExtraData under the bhkWorld lock. Both stacks read on 2026-10-13; ours is only HookMainLoop.
 SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682 vs SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d
 SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682
+# The same detach on the host leaving the river (dive-host-player, 2026-10-14; the client now follows by the
+# party tether, so only the host runs the coc): the read is under islandActivatedCallback (hkpRigidBody 25857 ->
+# sub_1401650B0) instead. Stacks read: ConsoleFunc CenterOnCell -> PositionPlayerEvent -> TESObjectCELL 13676 ->
+# bhkWorld; ours is only the main loop.
+SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682 vs SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x165105
+SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x165105 vs SkyrimSE.exe+0x17a479 > SkyrimSE.exe+0xe82682
 # An owned NPC's package conditions (UpdateMiddleLowActorsAI -> Character::UpdateAI -> EvaluatePackage ->
 # CheckForNewPackage -> ExtraAliasInstanceArray 12721 -> TESConditionItem -> Actor::IsInFaction -> GetExtraData)
 # against Papyrus filling a quest alias (BGSRefAlias 24012 -> TESObjectREFR 19653 -> ExtraAliasInstanceArray 12719
@@ -59,3 +65,10 @@ SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d4cb > SkyrimS
 # GetExtraData) against a cell attach on Job_IO (TES 13355 -> TESObjectREFR 19742 -> bhkRigidBody_setMotionType,
 # bhkWorld write). Ours only HookMainLoop. Both stacks read on 2026-10-13 (party-uses-door).
 SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimSE.exe+0xe92c16
+# An NPC's movement against the combat manager (party-fast-travels, 2026-10-14, the host in Riverwood):
+# Actor::UpdateMovement -> HookApplyMovement (ours, a pass-through for a real actor) -> MovementControllerAI ->
+# MovementPathManagerArbiter 90873 (path lock) -> Character 37766 -> sub_140803DF0 (combat group lock), against
+# Job_Combat_manager -> CombatGroup 46869 -> sub_140803710 (combat group lock) -> IMovementQueryPathingState 90868
+# (path lock). Both stacks read; vanilla.
+SkyrimSE.exe+0x11b7c95 > SkyrimSE.exe+0x803e23 vs SkyrimSE.exe+0x803745 > SkyrimSE.exe+0x11b7aa3
+SkyrimSE.exe+0x803745 > SkyrimSE.exe+0x11b7aa3 vs SkyrimSE.exe+0x11b7c95 > SkyrimSE.exe+0x803e23

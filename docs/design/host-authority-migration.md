@@ -245,16 +245,34 @@ Still on the server, reading positions that had been stale since phase 2: telepo
 - Cell arrivals: done. Everyone is where the host is (the party tether). A game teleported by the
   engine (its `PositionPlayerEvent`) drops its copies and sends `EnterCellRequest`; once it is with
   the host, `HostCharacters` sends it everyone with the host and them it. A player still on the way
-  gets nothing until the host is there. The tether itself (pulling a player along, travel requests)
-  is not built: a player that leaves on its own is only logged.
+  gets nothing until the host is there.
   Every kind of travel sends the event (doors, map and carriage fast travel, scripted moves, `coc`:
   all end in Address Library ID 40438, `docs/re/systems/player-travel.md`); scenarios
   `party-uses-door`, `party-fast-travels`, `party-changes-cells`, `teleport-keeps-copies`.
   Since 2026-10-13 the `EnterCellRequest` also carries the player's inventory, values and hands, so a
   copy spawned from the host's record is the player as it arrived (it carried the join-time
   inventory before: the copy held the wrong spell until the equipment reconcile).
+- Party tether (2026-10-14): whoever travels by itself takes everyone along, the host too (decided
+  2026-10-14: anyone leads, everyone follows). A game's own arrival is sent with `EnterCellRequest::Leads`;
+  the host answers it with `NotifyPartyTravel` (cell, worldspace, position) to every other game. A game
+  already there (the same interior cell; outdoors the same worldspace within its loaded grid) stays; the
+  others move their player there with `MoveTo` (`TESObjectREFR::MoveTo_Impl` 56626), the same queued
+  travel a door makes, loading screen and all. That arrival is sent with `Leads` false (it went where the
+  tether sent it), so a follower never pulls anyone and the party cannot loop; a travel from before
+  joining leads nobody either. A party that travels again before a follower got there (out of a door and
+  straight back in, a follower's game stalled or still loading): until the follower reaches the latest
+  place it was sent to, every arrival on the way is following too, and a new travel always moves it, even
+  to where it still stands (its pending move would take it away; the engine keeps only the latest queued
+  move). Scenario `party-quick-travel` stalls the host's game (SIGSTOP) while the client goes out and back
+  in: before this the host went out alone. The client's side is `TravelService` (arrival, stepping aside, following),
+  which tells `CharacterService` (`PlayerArrivedEvent`) to drop the old cell's copies and send the
+  arrival. Bridge cases in `character_tests.cpp` ("Party tether"); scenarios `party-uses-door` (the
+  host leads out, the client leads back in), `party-fast-travels` (each leads once, within one
+  worldspace), `load-door-not-replayed` (the host follows the client out); the scenarios' `both_go`
+  moves the host only and the client follows. Not covered yet: a travel request anyone can cancel
+  (`docs/ideas.md`), and the gaps in `docs/progress.md` ("Migration").
 - Arriving together (2026-10-13): a door or a `coc` puts everyone on one marker. On arrival in a new
-  cell (`CharacterService::RunArrivals`) the host stays and each other player steps aside by its
+  cell (`TravelService`) the host stays and each other player steps aside by its
   place in the session (slot by player id, the same on every game): 100 units to the right, left or
   behind, relative to its facing, else the other directions, else 70 units. The spot and the way to it
   must be on the cell's navmesh (`TESObjectCELL::NavmeshFloorAt`, a point inside a triangle within
@@ -271,6 +289,12 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   got a copy the engine deleted, and its real arrival spawn was refused. Other state that only arrives as
   events (dead or alive, inventory beyond equipment, the host's roster of characters) gets the same
   treatment when a scenario shows it drift, not before.
+- Players' copies travel with the party (2026-10-14): a copy of another player is persistent and lives as
+  long as the player is in the session; an arrival keeps it and `RunPresence` moves it to its owner at once.
+  The host no longer sends players' characters on an arrival, only its actors there (to a player that
+  arrived ahead of it, once the host arrives). A copy is the actor at its form id only while it is flagged
+  a copy; otherwise it is gone (the engine reuses a deleted reference's form id). Details and the
+  reasoning in `docs/design/copy-contract.md` ("Players' copies travel with the party").
 - Quests: the host's quest log is the authority, and stage changes are sent to peers.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter. They go by form
@@ -460,6 +484,9 @@ Built on the bridge's unreliable channel:
 2. **Set-time command:** any player can run it; it runs on the host's clock, which everyone
    follows. **Teleporting to a player:** none. Under the party tether everyone is already in the
    same cell or worldspace, so nobody needs to teleport to anyone (decided 2026-10-13).
+4. **Party tether:** anyone leads. A player's own travel (a door, fast travel, a scripted move, `coc`) takes
+   the whole party along, the host too; there is no confirmation yet (decided 2026-10-14). A countdown
+   anyone can cancel can come later (`docs/ideas.md`).
 3. **The host owns every NPC.** A peer only ever owns its own player, so peers need no ids, no
    discovery and no cell tracking for anything else. Keeping peers this simple is the point of the
    refactor.

@@ -47,6 +47,7 @@ public:
     void SetActorRemote(uint32_t aFormId, bool aRemote) noexcept override;
     bool IsActorRemote(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
+    void SetActorPersistent(uint32_t) noexcept override {}
     uint32_t GetCommandingActor(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;
     bool DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept override;

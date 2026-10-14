@@ -11,6 +11,7 @@
 #include <Services/MagicService.h>
 #include <Services/HostService.h>
 #include <Services/WeatherService.h>
+#include <Services/TravelService.h>
 
 // DebugService requires SKSE types (Actor.h, ImGui, HWND) — only include when they are available.
 #ifdef HAS_DIRECTXTK
@@ -58,6 +59,8 @@ struct World : entt::registry
     SessionService& GetSessionService() noexcept { return ctx().at<SessionService>(); }
     const SessionService& GetSessionService() const noexcept { return ctx().at<const SessionService>(); }
     WeatherService& GetWeatherService() noexcept { return ctx().at<WeatherService>(); }
+    TravelService& GetTravelService() noexcept { return ctx().at<TravelService>(); }
+    const TravelService& GetTravelService() const noexcept { return ctx().at<const TravelService>(); }
     CharacterService& GetCharacterService() noexcept { return ctx().at<CharacterService>(); }
     const CharacterService& GetCharacterService() const noexcept { return ctx().at<const CharacterService>(); }
     OverlayService& GetOverlayService() noexcept { return ctx().at<OverlayService>(); }

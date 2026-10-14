@@ -94,5 +94,6 @@ enum ServerOpcode : unsigned char
     kNotifyEquipmentSnapshot,
     kNotifyActiveEffects,
     kNotifyTimeScale,
+    kNotifyPartyTravel,
     kServerOpcodeMax
 };

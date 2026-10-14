@@ -83,6 +83,9 @@ World::World()
 #ifdef HAS_CEF
     ctx().emplace<InputService>(ctx().at<OverlayService>());
 #endif
+    // Before CharacterService: an arrival drops the copies the old cell took before they are checked.
+    ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
+                                 ctx().at<IPlayerBridge&>());
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
 #if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)

@@ -14,6 +14,8 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 - **Peer teleport requests.** Teleport is host-only today. Later a peer can ask for one as a
   Borderlands-style request that anyone can cancel, like leaving a cell under the party tether.
   Notes: `docs/design/host-authority-migration.md` (Decisions, 2).
+- **Tether countdown.** Today anyone's travel takes the party along at once (Decisions, 4). A short
+  countdown that anyone can cancel, as Borderlands does, before the party follows.
 
 ## Sync
 
@@ -70,6 +72,16 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Code cleanup
 
+- **Client services by role.** The client keeps upstream's layout, one service per message family, so each
+  service mixes our own player, copies and the host's actors, and copy checks (`IsRemote()`) are scattered
+  through all of them. `CharacterService` is ~1,600 lines with 26 subscriptions (ownership, spawns,
+  movement, presence, factions, experience, dialogue, mounts, packages, beast form, respawn);
+  `PlayerService` groups respawn, difficulty, levels and beast form. Target: services by role (our own
+  player: travel, death and respawn, levels and XP, the host's settings; copies: spawn, presence, replay,
+  one copy update in place of the `IsRemote()` checks; the host's actors), as `Services/Host/` already is.
+  `TravelService` (2026-10-14) was the first piece. After phase 5 (the listener moving into the bridge
+  changes how messages reach these services): a short survey and plan in `docs/design/`, then one piece at
+  a time with its scenarios, deleted from the old place in the same change.
 - **`SKYRIM_STRUCT_ASSERT` → `static_assert`.** clang-cl defines `_MSC_VER`, so the macro is already a
   `static_assert` in every build we make; its MinGW branch is dead. Replace the ~209 uses (79 files),
   drop the macro from `TiltedOnlinePCH.h`, and drop the `is_plat("mingw")` branches in `xmake.lua` and

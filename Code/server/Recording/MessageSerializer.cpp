@@ -113,6 +113,7 @@ DEF_MSG_NAME(WorldStateSync)
 DEF_MSG_NAME(NotifyEquipmentSnapshot)
 DEF_MSG_NAME(NotifyActiveEffects)
 DEF_MSG_NAME(NotifyTimeScale)
+DEF_MSG_NAME(NotifyPartyTravel)
 
 #undef DEF_MSG_NAME
 

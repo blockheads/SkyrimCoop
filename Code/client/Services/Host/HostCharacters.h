@@ -2,6 +2,7 @@
 
 #include <ENetInterface.hpp>
 #include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyPartyTravel.h>
 
 #include <optional>
 
@@ -68,6 +69,10 @@ private:
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
+    // The player's own character (its server id), or none.
+    [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
+    // The host's actors (not its player, whose copy travels with the party) to one player.
+    void SendHostActors(ConnectionId_t aPlayer) const noexcept;
     void SendToOthersWithHost(const CharacterSpawnRequest& acSpawn, ConnectionId_t aSender) const noexcept;
 
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
@@ -99,4 +104,9 @@ private:
     static Place PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept;
     // From each player's announcement, then its arrivals.
     TiltedPhoques::Map<ConnectionId_t, Place> m_places;
+    // Arrived where the host is not yet (it led, or the host is still loading): the host's actors there reach
+    // them once the host arrives.
+    TiltedPhoques::Set<ConnectionId_t> m_aheadOfHost;
+    // Where the party went last (the latest player to travel by itself), for followers that arrive elsewhere.
+    std::optional<NotifyPartyTravel> m_partyTravel;
 };

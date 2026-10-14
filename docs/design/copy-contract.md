@@ -53,6 +53,37 @@ Rejected by upstream and here: making every Papyrus comparison `remotePlayer == 
 true (`HookCompareVariables`, BSScript.cpp, not installed): "it messes up other things like
 beastform". Scripts are patched one by one instead.
 
+## Players' copies travel with the party (decided 2026-10-14)
+
+Under the party tether everyone is together, so a copy of another player lives as long as that player is
+in the session and travels with it, never with a cell. NPC copies (the host's actors) stay with their cell.
+
+- **Persistent:** spawned with `TESForm::kPersistent` (`0x400`, what `TESForm::IsPersistent` 19593 tests;
+  `SkyrimBridge::SetActorPersistent`), so the engine does not delete it when its cell unloads. Upstream
+  copies are created references the engine deleted with their cell, and gave their form id to the next
+  reference it made: travel used to drop every player copy and spawn it again, and a stale form id once
+  drove a Cow (`docs/re/crashes/2026-10-14-reused-copy-form-id.md`).
+- **Not saved:** every copy keeps `Actor::Create`'s skip-save in-game flags (`0xFFFF`, upstream; which bit
+  does it is not traced). Checked 2026-10-14: the host saved with a persistent copy in its cell, and the
+  save booted alone has no copy. `BGSSaveLoadGame::AddChangeFlags` (the funnel of every recorded change)
+  also skips form flag `0x4000`; copies do not have it.
+- **Moved, not respawned:** an arrival drops NPC copies left behind but keeps the players' copies;
+  `RunPresence` moves each to where its owner says it is, at once after an arrival. The host sends an
+  arriving player the host's actors there, never players' characters (`HostCharacters::OnEnterCell`); a
+  player that arrived ahead of the host gets them when the host arrives.
+- **No inventory reset:** enabling an actor (`TESObjectREFR::Enable` 19800, which a 3D reload goes through)
+  resets its inventory to its base's template (`Actor::ResetInventory` 37322 → `InitInventoryIfRequired`
+  16038 → `Actor::RemoveOutfitItems` 19690): the outfit is removed and put on again, which the equip hook
+  refuses for a copy. A player's copy has the player's base outfit, so this stripped the owner's own
+  clothes for up to 3 s (until the owner's next equipment snapshot), and the removals went to the owner
+  as inventory changes. A copy's inventory is its owner's: `HookResetInventory` (Actor.cpp) skips the reset
+  for a copy. Checked by disabling and enabling a copy (its 3D reloaded): its worn set stays its owner's.
+- **Removed** when its player leaves or the session ends (`NotifyRemoveCharacter`, a disconnect drops every
+  copy); never by discovery noticing it left the loaded area.
+- **Identity:** a copy is the actor at its form id only while that actor is flagged a copy
+  (`ActorExtension::IsRemote`, set at spawn; a new actor has a fresh extension). Otherwise it is gone: its
+  owner around, it is spawned again; elsewhere, dropped. Nothing moves, voices or deletes a stranger.
+
 ## How a copy runs no AI (decided 2026-10-11)
 
 Full map: `docs/re/systems/actor-ai-and-copies.md`. In short:

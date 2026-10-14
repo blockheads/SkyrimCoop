@@ -38,6 +38,7 @@ struct TESForm : BaseFormComponent
 
     enum FormFlags
     {
+        PERSISTENT = 1 << 0xA, // TESForm::IsPersistent (19593): a reference the engine keeps when its cell unloads
         DISABLED = 1 << 0xB,
         IGNORE_FRIENDLY_HITS = 1 << 0x14,
     };
@@ -116,15 +117,18 @@ struct TESForm : BaseFormComponent
     }
 
     bool IsDisabled() const noexcept { return (flags & DISABLED) != 0; }
+    void SetPersistent() noexcept { flags |= PERSISTENT; }
     bool IsTemporary() const noexcept { return formID >= 0xFF000000; }
     bool IsConsumable() const noexcept { return formType == FormType::Ingredient || formType == FormType::Alchemy; }
 
     uintptr_t unk4;
-    uint32_t flags;
-    uint32_t formID;
-    uint16_t unk10;
+    uint32_t flags;           // 10
+    uint32_t formID;          // 14
+    uint16_t inGameFormFlags; // 18 (CommonLibSSE-NG InGameFormFlag)
     FormType formType;
     uint8_t padForm;
 };
 
 SKYRIM_STRUCT_ASSERT(sizeof(TESForm) == 0x20);
+SKYRIM_STRUCT_ASSERT(offsetof(TESForm, flags) == 0x10);
+SKYRIM_STRUCT_ASSERT(offsetof(TESForm, inGameFormFlags) == 0x18);

@@ -9,7 +9,7 @@ ideas in `docs/ideas.md`, engine findings in `docs/re/`.
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-13.
+Last updated 2026-10-14.
 
 ## Direct authority migration
 
@@ -36,13 +36,14 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
 | Arriving together: players step aside onto navmesh floor by session slot | done (`83178416`), `party-spreads-on-arrival` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
+| Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (uncommitted), the travel scenarios |
 | Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
 | Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (uncommitted) |
 | Quests | not started; quest sync off (`cSyncQuests`) until it has a design |
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (uncommitted) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (uncommitted) |
 | Teleport command, teleport to a player | dropped: everyone is already together under the tether (uncommitted) |
-| Tether itself (pulling a player along, travel requests) | not built: a player who leaves on their own is only logged |
+| Tether itself: anyone who travels takes the party along | done (uncommitted): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
 
 ### Still on the embedded server (what phase 4-5 removes)
 
@@ -111,6 +112,40 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Players' copies travel with the party (2026-10-14, uncommitted; `docs/design/copy-contract.md`). A copy
+  of another player is persistent and moved with the party, never dropped and spawned again on travel;
+  the host sends only its actors on an arrival. Found by a host crash in `party-fast-travels`: a deleted
+  copy's form id was reused for a Cow, which the copy code then moved, voiced and would have deleted
+  (`docs/re/crashes/2026-10-14-reused-copy-form-id.md`); a copy is now the actor at its form id only while
+  flagged a copy. Each game kept one actor for the other player through about 30 arrivals (spawned again
+  only by the scenarios that disconnect). A copy's inventory is never reset to its base's template
+  (`HookResetInventory`, Actor.cpp): enabling a copy's 3D removed and re-added its default outfit, which
+  stripped the owner's clothes for up to 3 s (`load-door-not-replayed` failed once on its desync check)
+  and sent the removals to the owner. Checked by disabling and enabling a copy: its worn set stays its
+  owner's, before the hook it lost all but one item. Passed: the travel scenarios (`party-fast-travels` 3 of 3), the
+  equipment scenarios (`equip-*`, `repair-equipment-drift`, `draw-*`, `hands-survive-reload-*`),
+  `steady-state`, `late-join-client`, `host-rejoins`, `session-roster`, `host-kicks-client`,
+  `move-host-npc`, `death-host-npc`, `party-shows-levels`, `copy-ends-voice-line`, `dive-*`,
+  `map-marker-reaches-everyone`, `weather-follows-host`; `BridgeTests` 670 assertions (arrival cases
+  rewritten: no player spawns, the host's actors to a player ahead once the host arrives).
+- Party tether (2026-10-14, uncommitted): anyone who travels takes the party along. `party-uses-door`
+  (the host leads out of the inn, the client back in), `party-fast-travels` (each leads once from the
+  river to Riverwood, in one worldspace), `load-door-not-replayed` (the host follows the client out by the
+  tether, never by the door), `party-changes-cells`, `party-spreads-on-arrival`, `teleport-keeps-copies`,
+  twice each; `dive-*`, `map-marker-reaches-everyone`, `weather-follows-host` (they use `both_go`, which now
+  moves the host only). `dive-host-player` 6 of 7: once a lock-order report, a new site of the known
+  vanilla `coc` detach, read and added to `scripts/lock_order_known.txt`; once the copy's own gasp (below).
+  `BridgeTests` 664 assertions (two tether cases), `TPTests`, `ClientReplayTests`.
+  `party-quick-travel` (new): the client goes out of the inn and straight back in while the host's game is
+  stalled (SIGSTOP, `game_stalled`). It failed first (the host saw the second travel as "already there"
+  while its move out was pending, and went out alone); 3 of 3 since a follower keeps following until it
+  reaches the latest place. The travel scenarios again after the fix: `party-fast-travels` once a new
+  vanilla lock-order report (an NPC's movement against `Job_Combat_manager`, our pass-through
+  `HookApplyMovement` on the stack; read and added to `scripts/lock_order_known.txt`), then 2 of 2; the
+  others pass.
+- A harness request with a wrongly typed field (`place` with a hex string target) took the game down: the
+  command's `nlohmann::json` read threw (2026-10-13). Fixed 2026-10-14 (uncommitted): `HandleCommand`
+  refuses it (`bad request: ...`, the field's expected and actual type) and the game carries on.
 - Kill moves by the client (2026-10-13, uncommitted): `client-kill-move` 5 of 5 (new). The client's player
   kills the host's wolf with a kill move: on the host the client's character and the real wolf play it as one
   pair ~340 ms later, at the same pace (blows within 50 ms of each other, counted from each start), laid out
@@ -129,6 +164,8 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   `combat` tag (11), `death-host-npc`, `health-host-npc`, `host-kill-move` 3 of 3 more pass; `BridgeTests`
   639 of 639, `TPTests`. Tools: harness `idle_conditions` (each condition of an idle and its parents,
   `TESConditionItem::IsTrue` 29924) and `kill_move_check`'s `attack_target` (the engine's melee pick 47272).
+  Since (`437a6bb6`): `idle_conditions` also gives each idle's event and whether its whole list holds
+  (`TESCondition::IsTrue` 29888); conditions and idles in `docs/re/systems/conditions.md`.
 - Kill moves (2026-10-13, uncommitted): `host-kill-move` 10 of 10. The host's player kills a wolf with
   a kill move (`KillMoveRandom` 100); on the client the host's character and the wolf's copy play it as
   one pair (the engine's kill-move flag on both in one frame) about 330 ms after the host, laid out as on
@@ -284,7 +321,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **Shared XP** goes to the receiver's last used combat skill only; a player who has not used one since
   loading gets nothing (upstream's rule). Decide whether to keep it.
 - **Arrival spacing** needs navmesh under the marker: QASmoke's `coc` marker has none (players stay
-  stacked there). Doors and fast travel arrive through the same `RunArrivals`; no scenario asserts the
+  stacked there). Doors and fast travel arrive through the same `TravelService` arrival; no scenario asserts the
   spacing there yet.
 - **`TESObjectREFR::GetParentCell` (our virtual)** returned null in an exterior after `coc` while the
   field was set: the vtable slot may be wrong. Nothing of ours calls it any more (the harness's object
@@ -294,8 +331,24 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   lost. Add each to the same check when a scenario shows it drift
   (`docs/design/host-authority-migration.md`, "Copies converge on their owner").
 - **Outdoors the host counts a player "with" it by worldspace:** a player still far off (same worldspace)
-  gets the others' spawns there, which the engine deletes; presence recovers it once they meet (an extra
-  spawn round trip). Tighten to the loaded area if it costs anything.
+  gets the host's actors there, which the engine deletes; presence recovers them once they meet (an extra
+  spawn round trip). Players' copies are no longer affected (they travel with the party). Tighten to the
+  loaded area if it costs anything.
+- **Copies of the host's placed NPCs come back unflagged after travel** (2026-10-14): the client's copy of a
+  river wolf (`DC8DF`, a placed reference) was kept on a fast travel to Riverwood (the arrival keeps copies
+  in the same worldspace), and on the arrival frame it was no longer flagged a copy; the identity check
+  respawned it as one (correct, one request per copy). Whether the engine made a new actor or something
+  cleared the flag is not traced. Before the identity check such a copy came back as a plain actor running
+  its own AI.
+- **A copy's engine-made inventory changes reach its owner** (2026-10-14): the add and remove item hooks
+  send every change not made by us (`ScopedInventoryOverride`) as an inventory change, and the host relays
+  those from anyone (looting a host NPC's body changes a host actor). An inventory reset on a copy removed
+  the host player's own clothes that way (seen in an A/B with the reset allowed). The reset is closed
+  (`HookResetInventory`); any other change the engine makes to a copy's inventory would still go out. The
+  remove reason (`ITEM_REMOVE_REASON`) may tell engine housekeeping from a player's action.
+- **Which in-game flag keeps a copy out of the save** is not traced: `Actor::Create` sets all of
+  `TESForm::inGameFormFlags` (`0xFFFF`, upstream). It works for persistent copies too (checked by booting a
+  save made with one, `docs/design/copy-contract.md`).
 - **Graph outputs still synced in creature descriptors:** `NotCasting` in Vampire Lord (the same output
   that ended the player's casts), `currentDefaultState` in steam, falmer, troll, draugr and werewolf, and
   per creature the `IsAttacking`/`bAttached` kind. No harm traced, no scenario covers them. Fix as data
@@ -314,7 +367,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   answer: shared party bounty (`docs/ideas.md`).
 - **Voice lines, not traced:** where a copy's resting `soundCallBackSet` 3 came from in
   `move-host-npc`; why no line is queued on a copy past fade distance. A copy that surfaces before its
-  owner's gasp arrives could gasp on its own (not seen).
+  owner's gasp arrives could gasp on its own: seen once (2026-10-14, `dive-host-player`, 1 of 7 runs: the
+  host's copy had a line of its own with no length before the owner's gasp).
 - **Crash in the harness's `strip`** after 376 hot reloads (`UnequipAll` on a copy, garbage list
   node). Not reproduced on fresh games (5 of 5).
 
@@ -335,7 +389,21 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Migration
 
-- **Tether:** pulling a player along and travel requests are not built.
+- **Tether gaps** (2026-10-14, `docs/design/host-authority-migration.md`, "Party tether"):
+  - Followers start once the leader has arrived: the trip takes the leader's load and then their own.
+    Moving them as the leader leaves (40442, the queued move) would overlap the two.
+  - A client's fast travel passes time only on its own game; the host follows by `MoveTo`, so the
+    party's clock (the host's) skips the trip and the client is set back to it.
+  - Every travel of a player's own leads: a scripted move on a client (a quest teleport, jail) takes the
+    party along too. Within a cell or the loaded grid nobody moves.
+  - Two players leading at once to different places can end apart (each game follows in the host's
+    order; a leader may follow the other one afterwards). Not seen; the fix would be the host keeping the
+    party's last destination and sending a follower that arrives elsewhere on to it. One leader travelling
+    again before the others got there is handled (`party-quick-travel`).
+  - A follower whose tether move never arrives stays "following" for 60 s: a travel of its own in that
+    time does not lead.
+  - A player joining somewhere else is neither pulled nor pulls (joining goes through the join flow).
+  - Not tried: a follower in a menu, in dialogue, dead or mounted; three players.
 - **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are still in the tree**, compiled out of the
   Windows build: the RmlUi panels replace them (party, chat).
 - **Quests** need their own design before sync goes on.
@@ -362,9 +430,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - The map's fast travel UI (open the map, pick a marker, confirm) is not driven; `party-fast-travels` uses
   the console's `FastTravel`, which queues the same move (`docs/re/systems/player-travel.md`).
 - The `duo` harness process once segfaulted on exit after a pass.
-- A harness command with a wrongly typed field (`place` with a hex string target) throws in `nlohmann::json`
-  and takes the game down (`CommandsStaging.cpp` `Place`, 2026-10-13). Commands should read fields without
-  throwing.
 - Harness console lines other than cell changes run unpaused, unlike a typed line.
 - `scripts/re/ida_export.py` exported 58,317 rows (every named address) instead of the ~100 hand-set ones
   (2026-10-12); the six new rows were added to `docs/re/ida_notes.tsv` by hand.

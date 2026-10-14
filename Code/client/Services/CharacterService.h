@@ -18,6 +18,7 @@ struct ServerReferencesMoveRequest;
 struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
 struct NotifyRemoveCharacter;
+struct PlayerArrivedEvent;
 struct NotifySpawnData;
 struct SpellCastEvent;
 struct NotifySpellCast;
@@ -88,6 +89,8 @@ struct CharacterService
     void OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept;
     void OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept;
     void OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept;
+    // The player arrived somewhere new (TravelService): drops the copies the old cell took and tells the host.
+    void OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexcept;
 
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
 
@@ -120,7 +123,6 @@ private:
         String GraphState{};
     };
     ActorLiveState ReadLiveState(uint32_t aFormId) const noexcept;
-    uint32_t ArrivalSlot() const noexcept;
     // Everything a peer needs about one of our actors, read from the engine now.
     std::optional<AssignCharacterRequest> BuildAssignment(entt::entity aEntity) const noexcept;
 
@@ -129,8 +131,6 @@ private:
     void RunActorDiscovery() noexcept;
     void RunFactionsUpdates() const noexcept;
     void RunExperienceUpdates() noexcept;
-    // The player arrived somewhere new: drop the copies the old cell took and tell the host.
-    void RunArrivals() noexcept;
     // Copies whose owner is around us but which are elsewhere or without 3D go where the owner is.
     void RunPresence() noexcept;
     // A spawn for a copy we already have: its owner's latest place and spawn data.
@@ -148,9 +148,6 @@ private:
     IPlayerBridge& m_playerBridge;
     Set<uint32_t> m_discoveredActors;
 
-    // Teleported since the last arrival: the next frame in a cell is one.
-    bool m_arriving = false;
-    uint32_t m_arrivalCellId = 0; // where the player last arrived (stepping aside is for new cells)
 
     float m_cachedExperience = 0.f;
 
@@ -172,6 +169,7 @@ private:
     entt::scoped_connection m_initPackageConnection;
     entt::scoped_connection m_newPackageConnection;
     entt::scoped_connection m_notifyRespawnConnection;
+    entt::scoped_connection m_playerArrivedConnection;
     entt::scoped_connection m_beastFormChangeConnection;
     entt::scoped_connection m_addExperienceEventConnection;
     entt::scoped_connection m_syncExperienceConnection;

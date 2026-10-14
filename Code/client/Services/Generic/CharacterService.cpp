@@ -38,6 +38,8 @@
 #include <Messages/RequestRespawn.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyRespawn.h>
+#include <Events/PlayerArrivedEvent.h>
+#include <Services/TravelService.h>
 #include <Messages/SyncExperienceRequest.h>
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/DialogueRequest.h>
@@ -89,6 +91,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_newPackageConnection = m_dispatcher.sink<NotifyNewPackage>().connect<&CharacterService::OnNotifyNewPackage>(this);
 
     m_notifyRespawnConnection = m_dispatcher.sink<NotifyRespawn>().connect<&CharacterService::OnNotifyRespawn>(this);
+    m_playerArrivedConnection =
+        m_dispatcher.sink<PlayerArrivedEvent>().connect<&CharacterService::OnPlayerArrived>(this);
     m_beastFormChangeConnection = m_dispatcher.sink<BeastFormChangeEvent>().connect<&CharacterService::OnBeastFormChange>(this);
 
     m_addExperienceEventConnection = m_dispatcher.sink<AddExperienceEvent>().connect<&CharacterService::OnAddExperienceEvent>(this);
@@ -198,6 +202,9 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
     }
 
     const auto cId = *entityIt;
+    // Another player's copy left the loaded area with our travel: it travels with the party, not its cell.
+    if (m_world.all_of<RemoteComponent, PlayerComponent>(cId) && m_actorBridge.IsActorRemote(acEvent.FormId))
+        return;
 
     auto& formIdComponent = view.get<FormIdComponent>(cId);
     CancelServerAssignment(*entityIt, formIdComponent.Id);
@@ -214,7 +221,6 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
     RunActorDiscovery();
-    RunArrivals();
     RunPresence();
     RunLocalUpdates();
     RunFactionsUpdates();
@@ -466,6 +472,9 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
     m_actorBridge.SetActorPlayer(actorFormId, acMessage.IsPlayer);
     if (acMessage.IsPlayer)
     {
+        // Lives as long as the player is in the session and travels with the party, never with its cell
+        // (docs/design/copy-contract.md, "Players' copies").
+        m_actorBridge.SetActorPersistent(actorFormId);
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
         m_actorBridge.SetActorPlayerRespawnMode(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
@@ -1032,25 +1041,14 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
 
 void CharacterService::MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept
 {
-    uint32_t cellFormId = 0;
-    if (!acWorldSpaceId)
-    {
-        cellFormId = m_world.GetModSystem().GetGameId(acCellId);
-    }
-    else
-    {
-        const uint32_t cWorldSpaceId = m_world.GetModSystem().GetGameId(acWorldSpaceId);
-        const GridCellCoords coordinates = GridCellCoords::CalculateGridCellCoords(acPosition);
-        cellFormId = m_formBridge.LookupCellByCoords(cWorldSpaceId, coordinates.X, coordinates.Y);
-    }
-
-    if (!cellFormId)
+    const uint32_t cCellFormId = m_world.GetTravelService().CellAt(acWorldSpaceId, acCellId, acPosition);
+    if (!cCellFormId)
     {
         spdlog::error("{}: : failed to fetch cell to teleport, actor: {:X}, worldspace: {:X}, cell: {:X}, position: {}, {}, {}", __FUNCTION__, aFormId, acWorldSpaceId.BaseId, acCellId.BaseId, acPosition.x, acPosition.y, acPosition.z);
         return;
     }
 
-    m_actorBridge.MoveActorTo(aFormId, cellFormId, acPosition.x, acPosition.y, acPosition.z);
+    m_actorBridge.MoveActorTo(aFormId, cCellFormId, acPosition.x, acPosition.y, acPosition.z);
 }
 
 void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
@@ -1242,7 +1240,8 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
 {
     if (m_world.all_of<RemoteComponent>(aEntity))
     {
-        if (m_actorBridge.ActorExists(aFormId))
+        // Only while it is still our copy: a deleted copy's form id can belong to a new reference already.
+        if (m_actorBridge.IsActorRemote(aFormId))
         {
             if (m_actorBridge.IsActorTemporary(aFormId) || m_actorBridge.IsActorNpcTemporary(aFormId))
             {
@@ -1481,33 +1480,25 @@ void CharacterService::RunFactionsUpdates() const noexcept
         m_transport.Send(message);
 }
 
-// The player travelled (PlayerCharacter::ConsumeTeleported): drops the copies left behind and tells the host,
-// which sends what is here. Runs here, not in the engine's event, which holds cell locks (player-travel.md).
-void CharacterService::RunArrivals() noexcept
+// Tells the host, which sends what is here and, when the player led, takes the party along.
+void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexcept
 {
-    if (!m_transport.IsOnline())
-    {
-        m_arriving = false;
-        return;
-    }
-    if (m_playerBridge.ConsumeTeleported())
-        m_arriving = true;
-    const uint32_t cCellId = m_playerBridge.GetPlayerParentCellFormId();
-    if (!m_arriving || !cCellId)
-        return;
-    m_arriving = false;
-    const uint32_t cWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
+    const uint32_t cCellId = acEvent.CellId;
+    const uint32_t cWorldSpaceId = acEvent.WorldSpaceId;
 
-    // The party arrives on one spot (a door's, a coc's): each player but the host steps aside, by its
-    // place in the session, so nobody stands in anybody (docs/design/host-authority-migration.md).
-    if (cCellId != m_arrivalCellId)
+    // The other players' copies travel with the party (RunPresence moves each to its owner); the others stay with
+    // their cell.
+    Set<uint32_t> playerCopies;
+    for (const auto cEntity : m_world.view<RemoteComponent, PlayerComponent, FormIdComponent>())
     {
-        m_arrivalCellId = cCellId;
-        if (const uint32_t cSlot = ArrivalSlot())
-            m_playerBridge.StepPlayerAside(cSlot);
+        playerCopies.insert(m_world.get<FormIdComponent>(cEntity).Id);
+        // Moved at once, not after the spacing between two moves of the same copy.
+        if (auto* pPlace = m_world.try_get<OwnerPlaceComponent>(cEntity))
+            pPlace->LastMove = {};
     }
-
     DropCopies([&](uint32_t aFormId) {
+        if (playerCopies.count(aFormId) && m_actorBridge.IsActorRemote(aFormId))
+            return false;
         // Interiors: the same cell. Exteriors: the same worldspace, loaded around the player.
         const bool cHere = cWorldSpaceId ? m_actorBridge.GetActorWorldSpaceFormId(aFormId) == cWorldSpaceId
                                          : m_actorBridge.GetActorParentCellFormId(aFormId) == cCellId;
@@ -1528,8 +1519,13 @@ void CharacterService::RunArrivals() noexcept
     request.LatestAction = cState.LatestAction;
     request.GraphState = cState.GraphState;
     request.Data = cState.Data;
+    request.How = acEvent.How;
     m_transport.Send(request);
-    spdlog::info("Arrived in cell {:X} (worldspace {:X}): copies dropped, the host sends what is here", cCellId, cWorldSpaceId);
+    spdlog::info("Arrived in cell {:X} (worldspace {:X}), {}: copies dropped, the host sends what is here", cCellId,
+                 cWorldSpaceId,
+                 request.How == EnterCellRequest::Travel::kOwn      ? "leading the party"
+                 : request.How == EnterCellRequest::Travel::kTether ? "following"
+                                                                    : "from before joining");
 }
 
 // A copy belongs where its owner says it is. One whose owner is around us (our cell; outdoors our worldspace,
@@ -1542,44 +1538,34 @@ void CharacterService::RunPresence() noexcept
     if (!m_transport.IsOnline() || !cPlayerCellId)
         return;
     const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
-    float x, y, z;
-    m_playerBridge.GetPlayerPosition(x, y, z);
-    const auto cPlayerCoords = GridCellCoords::CalculateGridCellCoords(x, y);
     const auto cNow = std::chrono::steady_clock::now();
-    auto& modSystem = m_world.GetModSystem();
 
     Vector<std::pair<entt::entity, uint32_t>> gone;
+    Set<uint32_t> goneElsewhere;
     auto view = m_world.view<RemoteComponent, FormIdComponent, InterpolationComponent, OwnerPlaceComponent>();
     for (const auto entity : view)
     {
         auto& place = view.get<OwnerPlaceComponent>(entity);
         const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        if (cNow - place.LastMove < cRetry)
-            continue;
-
         const auto& cPosition = view.get<InterpolationComponent>(entity).Position;
-        bool ownerHere = false, copyHere = false;
-        if (place.WorldSpaceId)
+        const bool cOwnerAround =
+            m_world.GetTravelService().IsAroundPlayer(place.WorldSpaceId, place.CellId, cPosition);
+        // The engine deleted it (a temporary reference left in a cell it unloaded) and may already have given its
+        // form id to a new reference: an actor there that is not a copy is a stranger, never ours to drive.
+        if (!m_actorBridge.IsActorRemote(cFormId))
         {
-            const auto cOwnerCoords = GridCellCoords::CalculateGridCellCoords(cPosition.x, cPosition.y);
-            ownerHere = cPlayerWorldSpaceId && modSystem.GetGameId(place.WorldSpaceId) == cPlayerWorldSpaceId &&
-                        GridCellCoords::IsCellInGridCell(cOwnerCoords, cPlayerCoords, false);
-            copyHere = m_actorBridge.GetActorWorldSpaceFormId(cFormId) == cPlayerWorldSpaceId;
-        }
-        else
-        {
-            ownerHere = modSystem.GetGameId(place.CellId) == cPlayerCellId;
-            copyHere = m_actorBridge.GetActorParentCellFormId(cFormId) == cPlayerCellId;
-        }
-        if (!ownerHere)
-            continue;
-        if (!m_actorBridge.ActorExists(cFormId))
-        {
-            // The engine deleted it (a temporary reference left in a cell it unloaded): spawned again.
-            gone.emplace_back(entity, view.get<RemoteComponent>(entity).Id);
+            if (cOwnerAround)
+                gone.emplace_back(entity, view.get<RemoteComponent>(entity).Id);
+            else
+                goneElsewhere.insert(cFormId);
             continue;
         }
-        if (copyHere && m_actorBridge.ActorHas3D(cFormId))
+        if (!cOwnerAround || cNow - place.LastMove < cRetry)
+            continue;
+        const bool cCopyHere = place.WorldSpaceId
+                                   ? m_actorBridge.GetActorWorldSpaceFormId(cFormId) == cPlayerWorldSpaceId
+                                   : m_actorBridge.GetActorParentCellFormId(cFormId) == cPlayerCellId;
+        if (cCopyHere && m_actorBridge.ActorHas3D(cFormId))
             continue;
 
         place.LastMove = cNow;
@@ -1595,19 +1581,13 @@ void CharacterService::RunPresence() noexcept
         spdlog::info("Copy of {:X} is gone where its owner is: spawned again", cServerId);
         RespawnCopy(cEntity, cServerId);
     }
-}
-
-// 0 for the host; the others by player id, the same on every game.
-uint32_t CharacterService::ArrivalSlot() const noexcept
-{
-    if (m_world.GetHostService().IsHosting())
-        return 0;
-    const uint32_t cMe = m_transport.GetLocalPlayerId();
-    uint32_t slot = 1;
-    for (const auto& [cId, cPlayer] : m_world.GetSessionService().GetPlayers())
-        if (!cPlayer.IsHost && cId < cMe)
-            ++slot;
-    return slot;
+    // Its owner is elsewhere: the host sends it again when they meet (an arrival).
+    if (!goneElsewhere.empty())
+    {
+        for (const uint32_t cFormId : goneElsewhere)
+            spdlog::info("Copy {:X} is gone where its owner is not: dropped", cFormId);
+        DropCopies([&](uint32_t aFormId) { return goneElsewhere.count(aFormId) != 0; });
+    }
 }
 
 void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept

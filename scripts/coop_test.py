@@ -43,6 +43,7 @@ default to this machine; override with SKYRIM_GAME_DIR, SKYRIM_PROTON_DIR,
 SKYRIM_RUNTIME_DIR. Every game run keeps its logs in build/coop-test/runs/<time>/.
 """
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -159,6 +160,35 @@ def prefix_processes():
             except OSError:
                 pass
     return pids
+
+
+def game_process(instance):
+    """The instance's SkyrimSE.exe (by its wine prefix; not the launcher stubs that share the name)."""
+    select_instance(instance)
+    marker = f"WINEPREFIX={PREFIX}/pfx/".encode()
+    for entry in Path("/proc").iterdir():
+        try:
+            if entry.name.isdigit() and "SkyrimSE.exe" in (entry / "cmdline").read_bytes().decode(errors="replace") and \
+                    marker in (entry / "environ").read_bytes().split(b"\0") and \
+                    int((entry / "statm").read_text().split()[1]) * 4096 > 100 << 20:
+                return int(entry.name)
+        except (OSError, ValueError, IndexError):
+            pass
+    raise TestFailure(f"[{instance or 'host'}] no running SkyrimSE.exe")
+
+
+@contextlib.contextmanager
+def game_stalled(instance):
+    """The game's process stops (as a hitch or a slow load would hold it) and runs again afterwards: what
+    reaches it meanwhile waits on its socket."""
+    pid = game_process(instance)
+    os.kill(pid, signal.SIGSTOP)
+    log(f"[{instance or 'host'}] game stalled")
+    try:
+        yield
+    finally:
+        os.kill(pid, signal.SIGCONT)
+        log(f"[{instance or 'host'}] game runs again")
 
 
 def stop_game():
@@ -1866,12 +1896,11 @@ def player_cell(instance):
 
 
 def both_go(cell, command=None):
-    """Both players go to `cell` with coc (or `command`, e.g. "cow Tamriel 7 -8"). Each game's arrival is
-    waited for first: until then both still show the other player in the old cell, and that check alone
-    passed at once."""
+    """The party goes to `cell`: the host travels with coc (or `command`, e.g. "cow Tamriel 7 -8") and the
+    client follows it (the party tether). Each game's arrival is waited for first: until then both still
+    show the other player in the old cell, and that check alone passed at once."""
     before = {name: player_cell(name) for name in ("", "client")}
-    for name in ("", "client"):
-        console_on(name, command or f"coc {cell}")
+    console_on("", command or f"coc {cell}")
     for name in ("", "client"):
         wait_for(f"[{name or 'host'}] arrived in {cell}",
                  lambda name=name: player_cell(name) not in (None, before[name]), 60)
@@ -2031,43 +2060,85 @@ def players_together(where):
     wait_for(f"{where}: both in one cell, each game shows the other player", check, 30)
 
 
+def follows(instance, cell_before):
+    """The party tether takes this player along: its game arrives somewhere new without its own travel."""
+    wait_for(f"[{instance or 'host'}] follows the party", lambda: player_cell(instance) not in (None, cell_before), 60)
+    wait_for(f"[{instance or 'host'}] the arrival's fade is over", lambda: takes_input(instance), 15)
+
+
 def scenario_party_uses_door():
-    """The party walks out of the inn through its door, one after the other (the host first), and back in
-    (the client first, ahead of the host). Each time both games end up showing the other player, and
+    """The host walks out of the inn through its door and the client follows (the party tether); then the
+    client leads back in and the host follows. Each time both games end up showing the other player, and
     outside the client shows the host's NPCs."""
     try:
         both_go(INN)
+        client_before = player_cell("client")
         travel("", lambda: activate_on("", INN_DOOR_INSIDE), player_cell(""))
-        travel("client", lambda: activate_on("client", INN_DOOR_INSIDE), player_cell("client"))
+        follows("client", client_before)
         players_together("outside the inn")
         wait_on("client", "shows the host's NPCs outside", lambda actors: remote_npcs(actors), 30)
+        host_before = player_cell("")
         travel("client", lambda: activate_on("client", INN_DOOR_OUTSIDE), player_cell("client"))
-        travel("", lambda: activate_on("", INN_DOOR_OUTSIDE), player_cell(""))
+        follows("", host_before)
         players_together("back in the inn")
         hold()
     finally:
         both_go(HOME_CELL)
 
 
+def scenario_party_quick_travel():
+    """The client walks out of the inn and straight back in while the host's game stalls (a hitch, a slow
+    load), so the host gets both travels at once: it ends up where the party went last (the inn), and the
+    party settles there instead of bouncing between the two (a follower's stop on the way must not lead).
+    Loads here take ~0.2 s, too short for the race without the stall."""
+    try:
+        both_go(INN)
+        inn = player_cell("")
+        with game_stalled(""):
+            activate_on("client", INN_DOOR_INSIDE)
+            wait_for("[client] out of the inn", lambda: player_cell("client") not in (None, inn), 30)
+            wait_for("[client] the arrival's fade is over", lambda: takes_input("client"), 15)
+            activate_on("client", INN_DOOR_OUTSIDE)
+            wait_for("[client] back in the inn", lambda: player_cell("client") == inn, 30)
+        players_together("back in the inn")
+        wait_for("[host] the arrival's fade is over", lambda: takes_input(""), 15)
+        # Settled: for 5 s nobody travels again.
+        end = time.monotonic() + 5
+        while time.monotonic() < end:
+            cells = {name or "host": player_cell(name) for name in ("", "client")}
+            if set(cells.values()) != {inn}:
+                raise TestFailure(f"the party moved on after settling in the inn ({inn}): {cells}")
+            time.sleep(0.2)
+        hold()
+    finally:
+        both_go(HOME_CELL)
+
+
 def scenario_party_fast_travels():
-    """The party fast travels from the river to Riverwood, the host first (the client still at the river,
-    in the same worldspace), then the client. The trip passes time on the host and the client keeps the
-    host's time; once both are there, each game shows the other player. Fast travel here is the
-    console's FastTravel: it queues the same move, with the marker, as the map's."""
+    """The party fast travels from the river to Riverwood within one worldspace, twice: the host leads and
+    the client follows (the party tether), then the client leads and the host follows. The host's trip
+    passes time and the client keeps the host's time; each time both games end up showing the other
+    player in Riverwood. Fast travel here is the console's FastTravel: it queues the same move, with the
+    marker, as the map's."""
     def hour(instance):
         return game_state(instance).get("time", {}).get("hour")
     try:
         both_go("river", RIVER_CELL)
-        before = hour("")
+        before, client_before = hour(""), player_cell("client")
         travel("", lambda: console_on("", f"fasttravel {INN_DOOR_OUTSIDE:X}"), player_cell(""))
         passed = (hour("") - before) % 24
         if passed < 0.5:
             raise TestFailure(f"the host's trip passed {passed:.2f} h: fast travel passes time")
+        follows("client", client_before)
+        players_together("in Riverwood, the host leading")
         wait_for("[client] keeps the host's time", lambda: close(hour("client"), hour(""), 0.1), 10)
+
+        both_go("river", RIVER_CELL)
+        host_before = player_cell("")
         travel("client", lambda: console_on("client", f"fasttravel {INN_DOOR_OUTSIDE:X}"), player_cell("client"))
-        players_together("in Riverwood")
-        if not close(hour("client"), hour(""), 0.1):
-            raise TestFailure(f"after its own trip the client's hour is {hour('client'):.2f}, the host's {hour(''):.2f}")
+        follows("", host_before)
+        players_together("in Riverwood, the client leading")
+        wait_for("[client] keeps the host's time after its own trip", lambda: close(hour("client"), hour(""), 0.1), 10)
         hold()
     finally:
         both_go(HOME_CELL)
@@ -2816,7 +2887,7 @@ def scenario_lock_reaches_others():
 def scenario_load_door_not_replayed():
     """In the inn, the client walks out through its door: the host's game gets the activation and
     does not replay it (the door would take the client's copy, or anyone, out of the host's cell);
-    only the client's own game takes it through."""
+    only the client's own game takes it through, and the host follows by the party tether."""
     try:
         both_go(INN)
         doors = [o for o in cell_objects("").values() if o["load_door"]]
@@ -2829,8 +2900,9 @@ def scenario_load_door_not_replayed():
         wait_for(f"[host] load door {door:X} not replayed",
                  lambda: f"Load door {door:X} not replayed" in log_file.read_bytes()[start:].decode(errors="replace"), 10)
         wait_for("[client] the client went out through the door", lambda: door not in cell_objects("client"), 30)
-        if door not in cell_objects(""):
-            raise TestFailure("the host left the inn: the activation took its player through")
+        wait_for("[host] follows the client by the party tether",
+                 lambda: "Party travel: following" in log_file.read_bytes()[start:].decode(errors="replace"), 30)
+        players_together("outside the inn")
     finally:
         both_go(HOME_CELL)
 
@@ -3356,6 +3428,7 @@ SCENARIOS = {
     "party-changes-cells": scenario_party_changes_cells,
     "party-spreads-on-arrival": scenario_party_spreads_on_arrival,
     "party-uses-door": scenario_party_uses_door,
+    "party-quick-travel": scenario_party_quick_travel,
     "party-fast-travels": scenario_party_fast_travels,
     # inventory
     "equip-host-player": scenario_equip_host_player,
@@ -3432,6 +3505,7 @@ TAGS = {
     "party-changes-cells": {'spawn', 'cells'},
     "party-spreads-on-arrival": {'cells'},
     "party-uses-door": {'spawn', 'cells', 'objects'},
+    "party-quick-travel": {'spawn', 'cells', 'objects'},
     "party-fast-travels": {'spawn', 'cells', 'world'},
     "equip-host-player": {'inventory'},
     "equip-client-player": {'inventory'},

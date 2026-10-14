@@ -2,7 +2,7 @@
 
 How the player gets from one place to another: doors, fast travel, scripted moves, `coc`. They all end in
 one engine call, which sends `PositionPlayerEvent`. That event is what our arrivals hang on
-(`PlayerCharacter::ConsumeTeleported`, `CharacterService::RunArrivals`).
+(`PlayerCharacter::ConsumeTeleported`, `TravelService`).
 
 ## The path (1.6.1170, verified in IDA 2026-10-13)
 
@@ -33,11 +33,16 @@ So the arrival needs no hook per kind of travel. What differs between kinds is w
 - A door's arrival autosaves; `coc` does not (new vanilla lock patterns on that path, `scripts/lock_order_known.txt`).
 - Fast travel passes game time on the traveler's game (measured: 1.2 h for ~16,000 units, the river to
   Riverwood). Under `HostClock` the client keeps the host's time even after its own trip.
-- A `MoveTo` within the cell sends the event too; `RunArrivals` keeps the copies when the cell is the same
-  (`teleport-keeps-copies`).
+- A `MoveTo` within the cell sends the event too; the arrival keeps the copies when the cell is the same
+  (`CharacterService::OnPlayerArrived`, `teleport-keeps-copies`), and nobody follows (already there).
 
-Scenarios: `party-uses-door` (doors both ways, the client ahead of the host on the way in),
-`party-fast-travels` (the host first, the client still in the same worldspace), `party-changes-cells`
+The party tether (`TravelService`) moves the others with `MoveTo` on their player (56626, so through 40442 like
+any travel): their arrival is the same event, sent as following, not leading
+(`docs/design/host-authority-migration.md`, "Party tether"). The players' copies are persistent and moved with
+their owners, so no travel drops or respawns them (`docs/design/copy-contract.md`).
+
+Scenarios: `party-uses-door` (the host leads out, the client leads back in),
+`party-fast-travels` (each leads once, the other following within the same worldspace), `party-changes-cells`
 (`coc`), `teleport-keeps-copies` (a move within the cell). The map's own UI (open the map, pick a marker,
 confirm) is not driven: the console's `FastTravel` queues the same move with the marker.
 
@@ -53,3 +58,7 @@ Fix: presence reconciliation (`docs/design/host-authority-migration.md`, "Copies
 A spawn for a copy we have refreshes it (`CharacterService::RefreshCopy`), and each copy whose owner is
 around us but which is elsewhere, without 3D or gone is moved there or spawned again
 (`CharacterService::RunPresence`, the host answering a non-owner's `RequestRespawn` with a fresh spawn).
+
+Since 2026-10-14 players' copies are persistent and travel with the party, so this only applies to the host's
+actors (NPC copies); a copy is the actor at its form id only while flagged a copy
+(`docs/re/crashes/2026-10-14-reused-copy-form-id.md`).

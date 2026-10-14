@@ -30,6 +30,8 @@ public:
     // --- Remote / player flags (ActorExtension) ---
     virtual bool IsRemotePlayer(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorRemote(uint32_t aFormId, bool aRemote) noexcept = 0;
+    // Kept by the engine when its cell unloads: another player's copy, which travels with the party.
+    virtual void SetActorPersistent(uint32_t aFormId) noexcept = 0;
     /// True for replicas (driven by the network), false for actors this game simulates.
     virtual bool IsActorRemote(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept = 0;

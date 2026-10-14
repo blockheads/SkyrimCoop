@@ -8,12 +8,14 @@
 #include <Messages/CancelAssignmentRequest.h>
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Messages/EnterCellRequest.h>
+#include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/PlayerRespawnRequest.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/ServerReferencesMoveRequest.h>
+#include <Structs/GridCellCoords.h>
 
 #include <limits>
 
@@ -169,6 +171,7 @@ void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t
 void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     m_places.erase(aPlayer);
+    m_aheadOfHost.erase(aPlayer);
     Vector<uint32_t> owned;
     for (const auto& [cServerId, cCharacter] : m_characters)
         if (cCharacter.Owner == aPlayer)
@@ -180,6 +183,35 @@ void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
+    // The party tether: whoever travels by itself takes everyone along, the host too
+    // (docs/design/host-authority-migration.md, "Party tether").
+    if (acRequest.How == EnterCellRequest::Travel::kOwn)
+    {
+        NotifyPartyTravel travel;
+        travel.CellId = acRequest.CellId;
+        travel.WorldSpaceId = acRequest.WorldSpaceId;
+        travel.Position = acRequest.Position;
+        m_players.SendToOthers(travel, aSender, TiltedPhoques::kReliable);
+        m_partyTravel = travel;
+    }
+    // A follower that arrived where the party is not (two players led at once, and it followed the one that led
+    // first): sent on to where the party went last. Not seen or reproduced yet; a guard for that race.
+    else if (acRequest.How == EnterCellRequest::Travel::kTether && m_partyTravel)
+    {
+        const bool cThere = acRequest.WorldSpaceId
+                                ? acRequest.WorldSpaceId == m_partyTravel->WorldSpaceId &&
+                                      GridCellCoords::IsCellInGridCell(
+                                          GridCellCoords::CalculateGridCellCoords(acRequest.Position),
+                                          GridCellCoords::CalculateGridCellCoords(m_partyTravel->Position), false)
+                                : !m_partyTravel->WorldSpaceId && acRequest.CellId == m_partyTravel->CellId;
+        if (!cThere)
+        {
+            spdlog::info("HostCharacters: {:x} followed to {:x}:{:x}, the party is at {:x}:{:x}: sent on", aSender,
+                         acRequest.CellId.ModId, acRequest.CellId.BaseId, m_partyTravel->CellId.ModId,
+                         m_partyTravel->CellId.BaseId);
+            m_server.Send(aSender, *m_partyTravel, TiltedPhoques::kReliable);
+        }
+    }
     for (auto it = m_characters.begin(); it != m_characters.end(); ++it)
     {
         auto& record = it.value().PlayerRecord;
@@ -195,44 +227,51 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
             record->IsWeaponDrawn = acRequest.Data.IsWeaponDrawn;
         }
     }
-    // Ahead of the host: it gets everyone, and everyone it, when the host arrives here.
+    // Ahead of the host: the host's actors there reach it once the host arrives.
     if (!WithHost(aSender))
     {
+        m_aheadOfHost.insert(aSender);
         spdlog::info("HostCharacters: {:x} arrived in {:x}:{:x} ahead of the host", aSender, acRequest.CellId.ModId,
                      acRequest.CellId.BaseId);
         return;
     }
+    m_aheadOfHost.erase(aSender);
 
-    // It: everyone with the host. The host's game needs none of its own actors.
-    const ConnectionId_t cHost = m_players.Host();
+    // The host's actors here, to it, or once the host arrives, to those ahead of it. The players' characters they
+    // have already: their copies travel with the party (docs/design/copy-contract.md, "Players' copies").
+    if (aSender != m_players.Host())
+    {
+        SendHostActors(aSender);
+        return;
+    }
+    TiltedPhoques::Vector<ConnectionId_t> arrived;
+    for (const ConnectionId_t cPlayer : m_aheadOfHost)
+        if (WithHost(cPlayer))
+            arrived.push_back(cPlayer);
+    for (const ConnectionId_t cPlayer : arrived)
+    {
+        m_aheadOfHost.erase(cPlayer);
+        SendHostActors(cPlayer);
+    }
+}
+
+uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept
+{
+    for (const auto& [cServerId, cCharacter] : m_characters)
+        if (cCharacter.Owner == aPlayer && cCharacter.PlayerRecord)
+            return cServerId;
+    return cNoCharacter;
+}
+
+void HostCharacters::SendHostActors(ConnectionId_t aPlayer) const noexcept
+{
     uint32_t count = 0;
-    if (aSender != cHost)
+    for (const auto& cSpawn : m_game.OwnSpawns(PlayerCharacterOf(m_players.Host())))
     {
-        for (const auto& cSpawn : m_game.OwnSpawns(cNoCharacter))
-        {
-            m_server.Send(aSender, cSpawn);
-            ++count;
-        }
+        m_server.Send(aPlayer, cSpawn);
+        ++count;
     }
-    for (const auto& [cServerId, cCharacter] : m_characters)
-    {
-        if (cCharacter.Owner == aSender || cCharacter.Owner == cHost || !cCharacter.PlayerRecord || !WithHost(cCharacter.Owner))
-            continue;
-        if (const auto cSpawn = BuildSpawn(cServerId))
-        {
-            m_server.Send(aSender, *cSpawn);
-            ++count;
-        }
-    }
-
-    // Everyone with the host: its character.
-    for (const auto& [cServerId, cCharacter] : m_characters)
-        if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
-            if (const auto cSpawn = BuildSpawn(cServerId))
-                SendToOthersWithHost(*cSpawn, aSender);
-
-    spdlog::info("HostCharacters: {:x} arrived in {:x}:{:x}; sent it {} characters", aSender, acRequest.CellId.ModId,
-                 acRequest.CellId.BaseId, count);
+    spdlog::info("HostCharacters: sent {:x} the host's {} actors where it arrived", aPlayer, count);
 }
 
 HostCharacters::Place HostCharacters::PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept
