@@ -8,6 +8,7 @@
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostSession.h>
+#include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWeather.h>
 
 #include <array>
@@ -37,8 +38,8 @@ struct GameServer;
  * The bridge is the front door and the plain relays: most rules pass a request on as its
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
- * gets in), HostCharacters (ids, owners, spawns) and HostClock (the session's time); HostWeather
- * has no rules.
+ * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time) and HostTimeScale
+ * (how fast everyone's clock runs); HostWeather has no rules.
  */
 struct HostBridge
 {
@@ -70,7 +71,7 @@ struct HostBridge
     }
 
     // A player's own character is in the world: everything it must know about the session.
-    void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) const noexcept;
+    void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) noexcept;
     // The host removes a player from the session.
     void Kick(uint32_t aPlayerId) noexcept;
 
@@ -108,4 +109,5 @@ private:
     HostCharacters m_characters;
     HostClock m_clock;
     HostWeather m_weather;
+    HostTimeScale m_timeScale;
 };

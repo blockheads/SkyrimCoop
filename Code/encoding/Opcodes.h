@@ -41,6 +41,7 @@ enum ClientOpcode : unsigned char
     kRequestEquipmentSnapshot,
     kEnterCellRequest,
     kRequestActiveEffects,
+    kTimeScaleRequest,
     kClientOpcodeMax
 };
 
@@ -92,5 +93,6 @@ enum ServerOpcode : unsigned char
     kWorldStateSync,
     kNotifyEquipmentSnapshot,
     kNotifyActiveEffects,
+    kNotifyTimeScale,
     kServerOpcodeMax
 };

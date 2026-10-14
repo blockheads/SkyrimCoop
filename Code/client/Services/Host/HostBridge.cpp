@@ -159,6 +159,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     , m_characters(*this, aServer, m_players, m_game)
     , m_clock(*this, aServer, m_players, m_game)
     , m_weather(aServer, m_players, m_game)
+    , m_timeScale(*this, aServer, m_players)
 {
     using enum Delivery;
 
@@ -212,6 +213,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
         m_session.OnPlayerLeft(aConnection);
         m_characters.OnPlayerLeft(aConnection);
         m_players.Remove(aConnection);
+        m_timeScale.OnPlayerLeft(aConnection);
     });
 }
 
@@ -227,10 +229,11 @@ void HostBridge::Kick(uint32_t aPlayerId) noexcept
     m_players.Kick(aPlayerId);
 }
 
-void HostBridge::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) const noexcept
+void HostBridge::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) noexcept
 {
     m_clock.SendTime(aPlayer);
     m_weather.SendWeather(aPlayer);
+    m_timeScale.SendTimeScale(aPlayer);
     m_characters.SendExistingCharacters(aPlayer, aCharacterServerId);
 }
 

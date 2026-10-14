@@ -12,6 +12,7 @@
 #include <Games/Animation/TESActionData.h>
 
 #include <Misc/BSFixedString.h>
+#include <Misc/ActorState.h>
 
 #include <World.h>
 #include <Systems/AnimationSystem.h>
@@ -73,6 +74,8 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
         if (g_forceAnimation)
             return res;
 
+        if (ActorState::LifeStateOf(action.State1) == ActorState::kLifeDying)
+            spdlog::debug("Owner {:X} death action {:X} '{}'", pActor->formID, action.ActionId, action.EventName);
         World::Get().GetRunner().Trigger(action);
 
         return res;

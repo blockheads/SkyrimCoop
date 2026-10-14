@@ -40,7 +40,7 @@ public:
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetCommandingActor(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;
-    void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept override;
+    void DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept override;
     void RespawnActor(uint32_t aFormId) noexcept override;
     void ResurrectActor(uint32_t aFormId) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
@@ -299,6 +299,7 @@ public:
     void SetGameWeatherSystemEnabled(bool aEnable) noexcept override;
     float GetGameTimeHours() const noexcept override;
     void SetGameTimeHours(float aHours) noexcept override;
+    void SetSharedTimeScale(float aMultiplier) noexcept override;
     float GetGameTimeScale() const noexcept override;
     float GetGameYear() const noexcept override;
     float GetGameMonth() const noexcept override;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AnimationTrace.h"
 #include "CommandServer.h"
 #include "ControlFiles.h"
 #include "PlayerInput.h"
@@ -14,6 +15,7 @@ struct Harness
     ControlFiles Files;
     PlayerInput Input;
     CommandServer Commands;
+    AnimationTrace Trace;
     bool CommandsStarted = false;
 };
 } // namespace TestHarness

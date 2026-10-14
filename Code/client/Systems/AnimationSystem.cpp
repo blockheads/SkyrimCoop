@@ -15,9 +15,24 @@
 
 #include <Components.h>
 #include <World.h>
+#include <Utils.h>
 
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
+#include <DefaultObjectManager.h>
+
+namespace
+{
+// What KillImpl performs.
+bool IsDeathAction(uint32_t aActionId) noexcept
+{
+    const auto& objects = DefaultObjectManager::Get();
+    for (const BGSAction* pAction : {objects.actionDeath, objects.actionDeathWait})
+        if (pAction && pAction->formID == aActionId)
+            return true;
+    return false;
+}
+} // namespace
 
 extern thread_local const char* g_animErrorCode;
 
@@ -38,13 +53,14 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             // The state holds the spawn action's result: it is taken, not replayed.
             if (!actions.empty())
             {
-                const auto& cSpawnAction = actions.front();
+                ActionEvent spawnAction = actions.front();
+                TargetFromNetwork(spawnAction);
                 spdlog::debug("Copy {:X} starts in its owner's graph state; spawn action {:X} '{}' taken", apActor->formID,
-                              cSpawnAction.ActionId, cSpawnAction.EventName);
-                aAnimationComponent.LastRanAction = cSpawnAction;
-                aAnimationComponent.Variables = cSpawnAction.Variables;
-                aAnimationComponent.VariablesTick = cSpawnAction.Tick;
-                apActor->GetExtension()->LatestAnimation = cSpawnAction;
+                              spawnAction.ActionId, spawnAction.EventName);
+                aAnimationComponent.LastRanAction = spawnAction;
+                aAnimationComponent.Variables = spawnAction.Variables;
+                aAnimationComponent.VariablesTick = spawnAction.Tick;
+                apActor->GetExtension()->LatestAnimation = spawnAction;
                 actions.pop_front();
             }
         }
@@ -100,19 +116,29 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
             return;
         }
 
-        const auto& first = *it;
+        ActionEvent first = *it;
+        TargetFromNetwork(first);
 
         // The owner's kill performed this action: the copy dies the same way, on the owner's timeline.
         if (ActorState::LifeStateOf(first.State1) == ActorState::kLifeDying && !apActor->IsDead())
         {
             if (apActor->KillWithDeathAction(first))
             {
+                spdlog::debug("Copy {:X} died with its owner's death action {:X} '{}'", apActor->formID, first.ActionId, first.EventName);
                 aAnimationComponent.LastRanAction = first;
                 apActor->GetExtension()->LatestAnimation = first;
             }
             else
                 spdlog::debug("Copy {:X}: its kill did not play the owner's death action {:X} '{}'", apActor->formID,
                               first.ActionId, first.EventName);
+            actions.pop_front();
+            return;
+        }
+        // A death action of an owner not dying (an essential actor going down, a kill held back): the copy
+        // would stay in the death pose while its owner bleeds out or fights on.
+        if (IsDeathAction(first.ActionId))
+        {
+            spdlog::debug("Copy {:X}: skipped its living owner's death action {:X} '{}'", apActor->formID, first.ActionId, first.EventName);
             actions.pop_front();
             return;
         }
@@ -131,6 +157,20 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         aAnimationComponent.StagedUpdates = 0;
         step.Phase.store(ReplayStep::kVariables, std::memory_order_release);
     }
+}
+
+void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept
+{
+    const auto cServerId = Utils::GetServerIdByFormId(aAction.TargetId);
+    aAction.TargetActor = cServerId ? *cServerId + 1 : 0;
+    if (cServerId || (aAction.TargetId >> 24) == 0xFF)
+        aAction.TargetId = 0;
+}
+
+void AnimationSystem::TargetFromNetwork(ActionEvent& aAction) noexcept
+{
+    if (aAction.TargetActor)
+        aAction.TargetId = Utils::GetFormIdByServerId(aAction.TargetActor - 1);
 }
 
 bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept

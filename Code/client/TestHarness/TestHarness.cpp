@@ -51,6 +51,8 @@ void Poll()
 
     if (harness.Files.InWorld())
         harness.Input.Poll();
+    if (harness.Trace.Recording())
+        harness.Trace.Poll();
 
     const auto cNow = std::chrono::steady_clock::now();
     if (cNow < s_nextFilePoll)
@@ -67,6 +69,8 @@ void Poll()
 
 void Shutdown()
 {
+    // Off the graphs before this DLL goes (a hot reload): they would call into it.
+    Harness::Get().Trace.Stop();
     Harness::Get().Commands.Stop();
 }
 } // namespace TestHarness

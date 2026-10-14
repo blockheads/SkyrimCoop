@@ -1,6 +1,11 @@
 #include <Services/CalendarService.h>
 
+#include <Bridges/IWorldBridge.h>
 #include <Events/DisconnectedEvent.h>
+#include <Events/TimeScaleEvent.h>
+#include <Messages/NotifyTimeScale.h>
+#include <Messages/TimeScaleRequest.h>
+#include <Services/TransportService.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/ServerTimeSettings.h>
 #include <World.h>
@@ -24,6 +29,20 @@ CalendarService::CalendarService(World& aWorld, entt::dispatcher& aDispatcher, T
     m_timeUpdateConnection = aDispatcher.sink<ServerTimeSettings>().connect<&CalendarService::OnTimeUpdate>(this);
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&CalendarService::HandleUpdate>(this);
     m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&CalendarService::OnDisconnected>(this);
+    m_timeScaleConnection = aDispatcher.sink<TimeScaleEvent>().connect<&CalendarService::OnTimeScale>(this);
+    m_notifyTimeScaleConnection = aDispatcher.sink<NotifyTimeScale>().connect<&CalendarService::OnNotifyTimeScale>(this);
+}
+
+void CalendarService::OnTimeScale(const TimeScaleEvent& acEvent) const noexcept
+{
+    TimeScaleRequest request;
+    request.Multiplier = acEvent.Multiplier;
+    m_transport.Send(request);
+}
+
+void CalendarService::OnNotifyTimeScale(const NotifyTimeScale& acMessage) const noexcept
+{
+    m_world.ctx().at<IWorldBridge&>().SetSharedTimeScale(acMessage.Multiplier);
 }
 
 void CalendarService::OnTimeUpdate(const ServerTimeSettings& acMessage) noexcept
@@ -51,6 +70,7 @@ void CalendarService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     // signal a time transition
     m_fadeTimer = 0.f;
+    m_world.ctx().at<IWorldBridge&>().SetSharedTimeScale(1.f);
     ToggleGameClock(true);
 }
 

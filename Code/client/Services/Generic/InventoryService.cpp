@@ -303,7 +303,8 @@ void InventoryService::RunWeaponStateUpdates() noexcept
     for (auto entity : view)
     {
         const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        if (!m_actorBridge.ActorExists(cFormId))
+        // A dying actor's hands drop with its death, which its copies replay later: sent now, a copy would sheathe first.
+        if (!m_actorBridge.ActorExists(cFormId) || m_actorBridge.IsActorDead(cFormId))
             continue;
 
         const bool cHandsUp = HandsUp(m_actorBridge.GetWeaponState(cFormId));

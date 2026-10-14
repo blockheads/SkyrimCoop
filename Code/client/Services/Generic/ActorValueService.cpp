@@ -358,30 +358,26 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     if (m_actorBridge.IsActorRemote(formId))
         return;
 
-    // kHealth = 24 (ActorValueInfo::kHealth)
-    const float newHealth = m_actorBridge.GetActorValue(formId, 24) + acMessage.DeltaHealth;
-    m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, 24, newHealth);
-
-    const float health = m_actorBridge.GetActorValue(formId, 24);
     const uint32_t cAttackerFormId = acMessage.HasAttacker ? Utils::GetFormIdByServerId(acMessage.AttackerId) : 0;
-    spdlog::debug("Applied forwarded hit on {:X}: delta {:f}, health now {:f}, attacker {:X}", formId, acMessage.DeltaHealth, health, cAttackerFormId);
-    if (!m_actorBridge.IsActorDead(formId) && health <= 0.f)
+    if (acMessage.DeltaHealth < 0.f)
     {
-        // Players should never be killed
-        if (!m_actorBridge.IsRemotePlayer(formId))
-            m_actorBridge.KillActorBy(formId, cAttackerFormId);
+        // As the engine's own hit takes it: its death rules, death animation and kill credit.
+        m_actorBridge.DamageActorHealth(formId, cAttackerFormId, -acMessage.DeltaHealth);
     }
-    else if (cAttackerFormId && acMessage.DeltaHealth < 0.f)
+    else
+    {
+        // kHealth = 24 (ActorValueInfo::kHealth)
+        const float cNewHealth = m_actorBridge.GetActorValue(formId, 24) + acMessage.DeltaHealth;
+        m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, 24, cNewHealth);
+    }
+    spdlog::debug("Applied forwarded hit on {:X}: delta {:f}, health now {:f}, attacker {:X}", formId, acMessage.DeltaHealth,
+                  m_actorBridge.GetActorValue(formId, 24), cAttackerFormId);
+
+    if (cAttackerFormId && acMessage.DeltaHealth < 0.f && m_actorBridge.GetActorValue(formId, 24) > 0.f)
     {
         // The hit happened in the attacker's game: react here as if it had landed here.
         m_actorBridge.ReactToAttack(formId, cAttackerFormId);
     }
-
-}
-
-namespace
-{
-constexpr float cMinLivingHealth = 0.01f;
 }
 
 void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMessage) const noexcept
@@ -409,10 +405,8 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
 
         if (key == 26 /* kStamina */ || key == 25 /* kMagicka */ || key == 24 /* kHealth */)
         {
-            // A copy dies with its owner's replayed death action (AnimationSystem); health at 0 would make
-            // its engine kill it first, 300ms early and as an instant ragdoll.
-            const bool cKeepAlive = key == 24 && value <= 0.f && !m_actorBridge.IsActorDead(formId);
-            m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, key, cKeepAlive ? cMinLivingHealth : value);
+            // The owner's value as is: a copy is in deferred kill (HookUpdateAI), its death is its owner's.
+            m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, key, value);
             continue;
         }
         m_actorBridge.SetActorValue(formId, key, value);

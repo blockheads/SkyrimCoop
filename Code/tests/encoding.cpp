@@ -178,6 +178,7 @@ TEST_CASE("Differential structures", "[encoding.differential]")
         sendAction.State2 = 8963;
         sendAction.TargetEventName = "toast";
         sendAction.TargetId = 963741;
+        sendAction.TargetActor = 0x1200003;
         sendAction.Type = 4;
 
         {
@@ -374,6 +375,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendAction.State2 = 8963;
         sendAction.TargetEventName = "toast";
         sendAction.TargetId = 963741;
+        sendAction.TargetActor = 0x1200003;
         sendAction.Type = 4;
 
         AssignCharacterRequest sendMessage, recvMessage;

@@ -14,14 +14,16 @@ enum DifferentialFlags
     kType = 1 << 4,
     kEventName = 1 << 5,
     kTargetEventName = 1 << 6,
-    kVariables = 1 << 7
+    kVariables = 1 << 7,
+    kTargetActor = 1 << 8
 };
+constexpr uint32_t cFlagBits = 9;
 
 bool ActionEvent::operator==(const ActionEvent& acRhs) const noexcept
 {
     return Tick == acRhs.Tick &&
            // ActorId == acRhs.ActorId && // ActorId is a local field as it is filled up latter by the game client
-           ActionId == acRhs.ActionId && State1 == acRhs.State1 && State2 == acRhs.State2 && Type == acRhs.Type && TargetId == acRhs.TargetId && IdleId == acRhs.IdleId && EventName == acRhs.EventName && TargetEventName == acRhs.TargetEventName && Variables == acRhs.Variables;
+           ActionId == acRhs.ActionId && State1 == acRhs.State1 && State2 == acRhs.State2 && Type == acRhs.Type && TargetId == acRhs.TargetId && TargetActor == acRhs.TargetActor && IdleId == acRhs.IdleId && EventName == acRhs.EventName && TargetEventName == acRhs.TargetEventName && Variables == acRhs.Variables;
 }
 
 bool ActionEvent::operator!=(const ActionEvent& acRhs) const noexcept
@@ -31,7 +33,7 @@ bool ActionEvent::operator!=(const ActionEvent& acRhs) const noexcept
 
 void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    uint8_t flags = 0;
+    uint16_t flags = 0;
 
     if (ActionId != aPrevious.ActionId)
         flags |= kActionId;
@@ -57,8 +59,11 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoqu
     if (Variables != aPrevious.Variables)
         flags |= kVariables;
 
+    if (TargetActor != aPrevious.TargetActor)
+        flags |= kTargetActor;
+
     // Missing variables
-    aWriter.WriteBits(flags, 8);
+    aWriter.WriteBits(flags, cFlagBits);
 
     {
         const auto tickDiff = Tick - aPrevious.Tick;
@@ -105,13 +110,18 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoqu
     {
         Variables.GenerateDiff(aPrevious.Variables, aWriter);
     }
+
+    if (flags & kTargetActor)
+    {
+        Serialization::WriteVarInt(aWriter, TargetActor);
+    }
 }
 
 void ActionEvent::ApplyDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
     uint64_t flags = 0;
 
-    aReader.ReadBits(flags, 8);
+    aReader.ReadBits(flags, cFlagBits);
 
     {
         const auto tickDiff = Serialization::ReadVarInt(aReader);
@@ -160,5 +170,10 @@ void ActionEvent::ApplyDifferential(TiltedPhoques::Buffer::Reader& aReader) noex
     if (flags & kVariables)
     {
         Variables.ApplyDiff(aReader);
+    }
+
+    if (flags & kTargetActor)
+    {
+        TargetActor = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     }
 }

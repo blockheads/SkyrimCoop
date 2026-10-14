@@ -28,6 +28,8 @@ void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 std::vector<std::string> GetOpenMenus() noexcept;
 // A kill cam plays: the game ignores the player's buttons until it ends.
 bool IsKillCamPlaying() noexcept;
+// How fast the game's clock runs (BSTimer, 1 normal): a kill cam, Slow Time or a bow zoom slow it.
+float GetGlobalTimeMultiplier() noexcept;
 // The marker the player placed on the map: where, and its worldspace (an interior's cell); none without one.
 struct MapMarker
 {
@@ -99,6 +101,18 @@ std::pair<int32_t, float> GetCombatSkillExperience() noexcept;
 int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
 bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept;
+// The actor is in a kill move, either half (Actor::IsInKillMove 38615).
+bool IsInKillMove(uint32_t aFormId) noexcept;
+// What decides a kill move for an attack (the ShouldAttackKill condition, 21744).
+struct KillMoveCheck
+{
+    bool ShouldAttackKill; // Actor::sub_38559: a fatal hit, a killable victim, an attacker in combat
+    bool Killable;         // Character::sub_37229(victim, attacker)
+    bool EngagingInCombat; // Actor::EngagingInCombat (38563), the attacker
+    bool InKillMove;       // Actor::IsInKillMove (38615), the attacker
+    uint32_t CrosshairActor; // the actor under the player's crosshair (CrosshairPickData)
+};
+KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept;
 // Actor::soundCallBackSet: 3 queued, -1 playing (or none), 1/2 ending; -2 without the actor.
 int32_t GetVoiceLineState(uint32_t aFormId) noexcept;
 // Seconds left of the actor's voice line once it has started (Actor::fVoiceTimer), else -1.

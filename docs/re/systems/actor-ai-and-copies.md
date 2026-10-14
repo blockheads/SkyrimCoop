@@ -340,12 +340,55 @@ Now the copy dies on its owner's timeline. When the replay reaches an action its
 dying (`ActorState` life state 1 in the action's `State1`) and the copy is alive,
 `Actor::KillWithDeathAction` runs `KillImpl` with the copy's actions forced, on the same branch as
 the owner's (`ragdollInstant` when the owner's action was `RagdollInstant`), and the action counts as
-taken if `KillImpl` performed it. Health applied to a living copy stops at 0.01, and the death-state
+taken if `KillImpl` performed it. A copy is in deferred kill (below), and the death-state
 message applies 500 ms later, only to a copy still alive (an owner ragdolled to death with no action).
 Measured: `death-host-npc`, `client-spell-kill-credit`, `client-melee-kill-credit` 3 of 3 each.
 
 `client-melee-kill-credit` also had a test bug: a second `attack()` 0.5 s after the first passed on
 the first swing's `IsAttacking`; it now waits for the last swing to end.
+
+## A hit forwarded to the owner (2026-10-13)
+
+A hit on a copy is only a request: the attacker's game sends the damage (difficulty applied,
+`CalculateRealDamage`) and its `DoDamage` hook (37335) applies nothing to the copy. The owner takes it
+as the engine's own hits do:
+
+- `DoDamage` → `Actor::SetActorValueModifiers` (38468, modifier 2 = damage, health, -damage,
+  attacker) → `Actor::HandleHealthDamage` (38606, vtable 0x104) with the attacker → at health ≤ 0
+  `Character::sub_38631` (bleedout for essential/protected, else) → `Kill_impl2` (37316), which
+  stores the killer handle (Actor+0x108) and queues the kill (`TaskQueueInterface::QueueKillActor`);
+  a second call while a kill is queued (process flag, `ActorProcess::sub_40011`) does nothing.
+  `HandleHealthDamage` itself kills with `KillImpl(attacker, damage, true, ragdollInstant = false)`:
+  a death animation.
+- The owner applied it with `ForceActorValue` (`RestoreActorValue`: the same path, no attacker), so
+  the engine queued a kill without a killer, and our `KillImpl(killer, 100, true, true)` then killed
+  with an instant ragdoll: the body was thrown (~70 units up, ~120 sideways) and the copy, alive
+  until the owner's `RagdollInstant` replayed 300 ms later, was dragged along by interpolation.
+- Now `Actor::DamageHealth` calls 38468 with the attacker. Measured: the killer is recorded at the
+  death, both games play `DeathAnimation`, and the copy comes to rest within 50 units of its owner's
+  body (10 of 10 melee and spell kills).
+
+### A copy is in deferred kill
+
+A copy shows its owner's health as is, at or below 0 too, and never dies from it: `HookUpdateAI`
+puts every living copy in deferred kill each update (`Character::StartDeferredKill` 38616 with the
+papyrus wrapper's `true`; it lives on the middle/high process, so a copy that unloads gets it again).
+This is skymp's way (`skymp5-client` `formView.ts`: `startDeferredKill()` on every remote actor,
+`endDeferredKill()` then `kill()` on the server's death). In deferred kill `HandleHealthDamage`'s
+bleedout/kill check and `KillImpl` only mark a pending kill; `Actor::Kill` and `KillWithDeathAction`
+end it first (`EndDeferredKill` 38618 queues the pending kill on the task queue, so the kill made
+right after wins). A kill move's `KillActor` event (`KillActorHandler::Handle` 42838) ends only a
+deferral started with `false`, so a kill move on a copy does not kill it either. Replaced a 0.01
+health floor and a map undoing it after the death. Measured: the copy shows -2.04 while alive and
+dies with its owner's `DeathAnimation` 0.36 s later; kill-credit, `death-host-npc`, `health-host-npc`
+3 of 3 each.
+
+Checked in review (2026-10-13): `StartDeferredKill` is safe each frame (`ActorProcess::StartDeferredKill`
+40033 sets the state once, ORs the flag, resets the 15 s timer). It needs the middle/high process data,
+and `MoveToLow`/`MoveToMiddleLow` end it: a copy far enough to drop to low process can die from its own
+health (unseen at that distance). `EndDeferredKill` re-runs a held kill with the *local player* as the
+killer (`sub_140715AE0` → `Kill_impl2(actor, player)`); on a copy the immediate `KillImpl` after it wins,
+and the copy's recorded killer stayed 0 (host `kill` and a health-driven death, both checked).
 
 ## Actions before the owner has an id (2026-10-13)
 
@@ -356,6 +399,37 @@ the assignment (in the air) and never landed (`firebolt-client-hits-host-npc` fa
 having no action against her `JumpLand`). The component now comes with the assignment request, right
 after the snapshot that carries the graph state, so the actions queue in order behind it and go out
 with the first update once the id arrives (dropped if the answer gives the actor to someone else).
+
+## An action's target (2026-10-13)
+
+An action carries its target (`TESActionData::target`): the victim of a paired idle such as a kill
+move, the furniture of a sit. The owner recorded it as its own form id, which a copy's game looked up as
+its own: the host's `pa_KillMove1HMWolfB` targeted the wolf `FF001985`, nothing on the client, and the
+wolf's half targeted `14`, the client's own player. An actor target now crosses as its server id + 1
+(`ActionEvent::TargetActor`, 0 none; server ids are EnTT entity ids and use all 32 bits, so they cannot
+share `TargetId`); other references keep their form id, the same in both games, and a temporary one is
+dropped (`AnimationSystem::TargetToNetwork` / `TargetFromNetwork`, on the game thread when the step is
+staged; the replay itself runs in the copy's animation job).
+
+With the right target the copies are paired by the engine: the host's character's copy takes
+`pa_KillMove1HMWolfB` and the wolf's copy `KillMove1HMWolfB` in the same frame, both get the kill-move
+flag (`Actor::IsInKillMove` 38615) and `bIsSynced`, and the client's own player is untouched. The wolf's
+copy's half sends `KillActor` too, but a copy is in deferred kill: it dies only with its owner's death
+action, ~150 ms later. Measured with the animation trace (`scenario host-kill-move`).
+
+## Kill cams slow the clock (2026-10-13)
+
+Every kill move plays a kill cam (`VATS::mode` 4; `fKillCamBaseOdds` 0.1 and the level bias decide only
+other kills' cams, `sub_140419340`). The kill cam's update (`sub_1407F22B0`) passes its camera shot's
+`globalTimeMult` (`BGSCameraShot` data at 0x58, the multiplier at 0x70) to
+`BSTimer::SetGlobalTimeMultiplier` (68245) and ramps it back to 1; `VATS::SetMode(0)` resets it. Some
+shots slow the clock to ~0.25: the whole game, every NPC, runs slower, while the other games do not.
+On the host the kill move took 4.1 s against the copy's 2.9 s. The clock is now shared: the hook
+(`BSTimer.cpp`) keeps what this game's engine asks for, sends it to the host (`TimeScaleRequest`), and
+runs the clock at the slower of it and the other players' slowest (`NotifyTimeScale`, from
+`HostTimeScale`). Slow Time (`VATS::SetMagicTimeSlowdown`), bow zoom (`BowZoomStartHandler`) and
+`sgtm` use the same call, so they slow everyone too. The engine's own per-actor multipliers
+(`playerTimeMult`, Slow Time's faster player) stay local.
 
 ## A copy's spawn: its owner's graph state
 

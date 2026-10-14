@@ -41,6 +41,10 @@ for repo in powerof3/EssentialsBeGone NoahBoddie/death-defiance-system; do
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Kill moves: Kaputt plays paired kill-move idles (AIProcess play-paired-idle 39256) and hooks the attack action
+# where vanilla picks one (49170+0x435) and the hit (38627+0x4a8).
+fetch Pentalimbed/kaputt "$ROOT/reference/plugins/kaputt"
+
 # Behaviour graph internals: Open Animation Replacer walks every node of a behaviour with the engine's own
 # iterator (62942/62944, src/Offsets.h) and hooks project loading. hkxcmd's compat/ has the Havok 2010
 # class layouts (hkbVariableBindingSet::Binding, FLAG_OUTPUT). docs/design/graph-replication.md.

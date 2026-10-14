@@ -8,6 +8,7 @@
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AssignCharacterRequest.h>
 #include <RunningGame.h>
+#include <Systems/AnimationSystem.h>
 #include <Structs/GameVersions.h>
 #include <fstream>
 #include <algorithm>
@@ -120,6 +121,7 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         assign.Position.x += 150.f;
         assign.ChangeFlags = actors.SerializeActorNpc(0x14, assign.AppearanceBuffer);
         assign.LatestAction = actors.GetActorLatestAnimation(0x14);
+        AnimationSystem::TargetToNetwork(assign.LatestAction);
         assign.FaceTints = actors.GetActorFaceTints(0x14);
         const auto snapshot = directory / ("session-" + request);
         std::error_code ec;

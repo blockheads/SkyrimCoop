@@ -28,7 +28,6 @@ static constexpr int32_t kForceModeDamage = 2;
 static constexpr uint32_t kWerewolfRaceFormId   = 0x200283A;
 static constexpr uint32_t kVampireLordRaceFormId = 0xCDD84;
 // Skyrim TESGlobal form IDs used to control game features
-static constexpr uint32_t kKillMoveGlobalFormId          = 0x100F19;
 static constexpr uint32_t kWorldEncountersGlobalFormId   = 0xB8EC1;
 
 PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
@@ -58,8 +57,6 @@ void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
 
 void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
 {
-    // TODO: SkyrimTogether.esm
-    m_formBridge.SetGlobalValue(kKillMoveGlobalFormId, 0.f);
     // World encounters are the host's world: only its game spawns them.
     m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, m_world.GetHostService().IsHosting() ? 1.f : 0.f);
 }
@@ -73,8 +70,6 @@ void PlayerService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
     m_serverDifficulty.reset();
 
     ToggleDeathSystem(false);
-
-    m_formBridge.SetGlobalValue(kKillMoveGlobalFormId, 1.f);
 
     // Restore to the default value (150 in skyrim, 175 in fallout 4)
     m_playerBridge.SetGreetDistance(150.f);

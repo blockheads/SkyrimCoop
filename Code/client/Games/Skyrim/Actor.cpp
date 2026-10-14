@@ -654,6 +654,15 @@ void Actor::ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, floa
     EngineVirtual(actorValueOwner).ForceCurrent(aMode, aId, aValue - initialValue);
 }
 
+void Actor::DamageHealth(float aDamage, Actor* apAttacker) noexcept
+{
+    // Actor::SetActorValueModifiers (38468), as DoDamage (37335) calls it: calls HandleHealthDamage (38606).
+    TP_THIS_FUNCTION(TSetActorValueModifiers, void, Actor, int32_t aModifier, uint32_t aId, float aValue, Actor* apSource);
+    POINTER_SKYRIMSE(TSetActorValueModifiers, s_setActorValueModifiers, 38468);
+    constexpr int32_t cDamageModifier = 2;
+    TiltedPhoques::ThisCall(s_setActorValueModifiers.Get(), this, cDamageModifier, ActorValueInfo::kHealth, -aDamage, apAttacker);
+}
+
 Inventory Actor::GetActorInventory() const noexcept
 {
     Inventory inventory = GetInventory();
@@ -844,12 +853,30 @@ bool Actor::IsDragon() const noexcept
     return BehaviorVar::IsDragon(pExtension->GraphDescriptorHash);
 }
 
+void Actor::StartDeferredKill() noexcept
+{
+    // Character::StartDeferredKill (38616), with the papyrus wrapper's argument.
+    TP_THIS_FUNCTION(TStartDeferredKill, void, Actor, bool aScripted);
+    POINTER_SKYRIMSE(TStartDeferredKill, s_startDeferredKill, 38616);
+    TiltedPhoques::ThisCall(s_startDeferredKill.Get(), this, true);
+}
+
+void Actor::EndDeferredKill() noexcept
+{
+    // Actor::EndDeferredKill (38618); a kill it held back is queued (task queue), after any kill made now.
+    TP_THIS_FUNCTION(TEndDeferredKill, void, Actor, bool aScripted);
+    POINTER_SKYRIMSE(TEndDeferredKill, s_endDeferredKill, 38618);
+    TiltedPhoques::ThisCall(s_endDeferredKill.Get(), this, true);
+}
+
 void Actor::Kill() noexcept
 {
     // Never kill players
     ActorExtension* pExtension = GetExtension();
     if (pExtension->IsPlayer())
         return;
+
+    EndDeferredKill();
 
     // TODO: these args are kind of bogus of course
     KillImpl(nullptr, 100.f, true, true);
@@ -872,6 +899,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     const bool cRagdoll = acAction.EventName == "RagdollInstant";
     const ActionEvent cPrevious = pExtension->LatestAnimation;
     pExtension->LatestAnimation.ActionId = 0;
+    EndDeferredKill();
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
     g_forceAnimation = false;
@@ -1309,6 +1337,10 @@ void TP_MAKE_THISCALL(HookUpdateAI, Actor, float aDelta)
 
         TiltedPhoques::ThisCall(UpdateVoiceTimer, apThis, false);
         apThis->UpdateSoundCallback(false);
+
+        // Copies die with their owner, never from their own health (as skymp keeps its remote actors).
+        if (!apThis->IsDead())
+            apThis->StartDeferredKill();
 
         AIProcess* pProcess = apThis->currentProcess;
         if (pProcess && pProcess->processLevel == 0)

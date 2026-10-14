@@ -34,6 +34,9 @@ test builds have: `scripts/xmake-msvc.sh f -m dev` configures one (--test_harnes
 `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL` and `scripts/xmake-msvc.sh build
 SkyrimCoopLoader`. A player build has neither the harness nor the hot reload.
 
+Scenarios can record an animation trace (AnimTrace: both games' graph events, actions, life state and
+positions each frame, both screens, one timeline) into build/coop-test/traces/; see host-kill-move.
+
 Skyrim runs in its own Proton prefix under build/coop-test (never your normal saves or
 settings): no intro, windowed, low preset, and `coc <cell>` from the main menu. Paths
 default to this machine; override with SKYRIM_GAME_DIR, SKYRIM_PROTON_DIR,
@@ -905,6 +908,18 @@ def distance(a, b):
     return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
 
 
+def comes_to_rest(read, still=0.5, within=2.0):
+    """A wait_for predicate: the position `read()` returns, once it has moved less than `within`
+    units for `still` seconds."""
+    seen = {"since": time.monotonic(), "at": None}
+    def rested():
+        at = read()
+        if seen["at"] is None or distance(at, seen["at"]) > within:
+            seen.update(since=time.monotonic(), at=at)
+        return time.monotonic() - seen["since"] >= still and at
+    return rested
+
+
 def show(observer, observed):
     """With --hold, turns the observer's camera toward the actor under test."""
     if HOLD and (target := observed(actors_on(observer))) is not None:
@@ -1196,6 +1211,211 @@ class GodMode:
     def __exit__(self, *exc):
         for instance in ("", "client"):
             console_on(instance, "tgm")
+
+
+# --- Animation trace: both games' animations on one timeline ---------------------------------
+
+TRACES = TEST_HOME / "traces"
+# Left out of the timeline (still in the JSON): steps, sounds and the first-person graph's echo.
+TRACE_NOISE = re.compile(r"^(Foot|Sound|tail|HeadTracking|PitchOverride|IdleOffset|EnableBumper|DisableBumper|CastOK)")
+LOG_LINE = re.compile(r"^\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3})\] \[(\w+)\] (.*)$")
+
+
+class AnimTrace:
+    """Records what actors' animations do in both games (the harness's anim_trace: every behavior graph
+    event, action taken, life state, kill move, health and position, each frame), both screens, and the
+    plugin logs' lines naming them, onto one wall-clock timeline:
+
+        with AnimTrace("kill-move", {"": {npc: "wolf", 0x14: "host"}, "client": {copy: "wolf"}}) as trace:
+            ...
+            trace.wait("client", "wolf", "KillActor", 3)
+
+    Leaves build/coop-test/traces/<time>-<name>/: timeline.txt (host left, client right), trace.json,
+    host.mp4 / client.mp4, and strip-*.png (both screens side by side) at moments asked for with mark()."""
+
+    def __init__(self, name, actors, bools=("bIsSynced",), video=True):
+        self.name, self.actors, self.bools, self.video = name, actors, list(bools), video
+        self.entries, self.marks, self.captures = [], [], {}
+
+    def __enter__(self):
+        self.dir = TRACES / f"{time.strftime('%Y%m%d-%H%M%S')}-{self.name}"
+        self.dir.mkdir(parents=True, exist_ok=True)
+        if self.video:
+            for game in self.actors:
+                select_instance(game)
+                path = self.dir / f"{game or 'host'}.mp4"
+                capture = subprocess.Popen(
+                    ["ffmpeg", "-y", "-hide_banner", "-nostats", "-f", "x11grab", "-framerate", "30", "-video_size", "1280x720",
+                     "-i", f"{VIRTUAL_DISPLAY}+4,30", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(path)],
+                    stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                self.captures[game] = [capture, path, None]
+        self.start = time.time()
+        for game, ids in self.actors.items():
+            select_instance(game)
+            if not (rpc({"cmd": "anim_trace", "actors": list(ids), "bools": self.bools}) or {}).get("ok"):
+                self.__exit__(None, None, None)  # the captures and any game already recording
+                raise TestFailure(f"[{game or 'host'}] the animation trace did not start")
+        return self
+
+    def who(self, game, form_id):
+        return "game" if form_id == 0 else self.actors.get(game, {}).get(form_id, f"{form_id:X}")
+
+    def _add(self, game, entries):
+        for entry in entries:
+            entry.update(game=game, who=self.who(game, entry.get("actor", 0)), time=entry["t"] / 1e6)
+            self.entries.append(entry)
+
+    def take(self):
+        """Pulls what both games recorded so far."""
+        for game in self.actors:
+            select_instance(game)
+            self._add(game, (rpc({"cmd": "anim_trace"}, timeout=10) or {}).get("entries", []))
+        self.entries.sort(key=lambda entry: entry["time"])
+
+    def find(self, game, who, event=None, kind="graph", after=0.0):
+        """The first entry of that game's actor (by its name here) of that kind (graph event name, or action
+        event), after a wall-clock time."""
+        return next((e for e in self.entries if e["game"] == game and e["who"] == who and e["kind"] == kind
+                     and e["time"] >= after and (event is None or e.get("event") == event)), None)
+
+    def action_before(self, entry):
+        """The last action that entry's actor took up to it (what put it in that state)."""
+        return next((e for e in reversed(self.entries) if e["game"] == entry["game"] and e["who"] == entry["who"]
+                     and e["kind"] == "action" and e["time"] <= entry["time"]), None)
+
+    def wait(self, game, who, event, timeout, kind="graph", after=0.0):
+        """Waits for that entry (see find); returns it."""
+        def found():
+            self.take()
+            return self.find(game, who, event, kind, after)
+        return wait_for(f"[{game or 'host'}] {who}'s graph sends {event}" if kind == "graph" else
+                        f"[{game or 'host'}] {who} {kind} {event}", found, timeout)
+
+    def wait_state(self, game, who, key, value, timeout, after=0.0):
+        """Waits for that actor's state (the harness's sample: life, weapon, kill_move, health, graph
+        booleans) to read value; returns the entry."""
+        def found():
+            self.take()
+            return next((e for e in self.entries if e["game"] == game and e["who"] == who and e["kind"] == "state"
+                         and e["time"] >= after and e["state"].get(key) == value), None)
+        return wait_for(f"[{game or 'host'}] {who}'s {key} is {value}", found, timeout)
+
+    def mark(self, label, host=None, client=None):
+        """Both screens side by side into strip-<n>.png: each game's at its wall-clock time (now by default;
+        the client's at the host's unless given, e.g. at the same moment of a replayed animation)."""
+        host = host if host is not None else time.time()
+        self.marks.append((label, {"": host, "client": client if client is not None else host}))
+
+    def layout(self, game, who, other, at):
+        """Where the other actor is from this one at a wall-clock time: (distance, bearing from its heading,
+        heading difference), degrees."""
+        def nearest(name):
+            return min((e for e in self.entries if e["kind"] == "pos" and e["game"] == game and e["who"] == name),
+                       key=lambda e: abs(e["time"] - at))
+        mine, theirs = nearest(who), nearest(other)
+        dx, dy = theirs["pos"][0] - mine["pos"][0], theirs["pos"][1] - mine["pos"][1]
+        turn = lambda degrees: (degrees + 180) % 360 - 180
+        return (math.hypot(dx, dy), turn(math.degrees(math.atan2(dx, dy) - mine["yaw"])),
+                turn(math.degrees(theirs["yaw"] - mine["yaw"])))
+
+    def __exit__(self, *exc):
+        for game in self.actors:
+            select_instance(game)
+            self._add(game, (rpc({"cmd": "anim_trace", "stop": True}, timeout=10) or {}).get("entries", []))
+        self.entries.sort(key=lambda entry: entry["time"])
+        self.end = time.time()
+        for game, capture in self.captures.items():
+            process = capture[0]
+            try:
+                _, errors = process.communicate("q", timeout=15)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                _, errors = process.communicate()
+            # x11grab stamps frames with the wall clock: the first frame's time lines the video up.
+            started = re.search(r"start: (\d+\.\d+)", errors or "")
+            capture[2] = float(started.group(1)) if started else None
+        self._logs()
+        (self.dir / "trace.json").write_text(json.dumps({"start": self.start, "actors": {g or "host": {f"{i:X}": n for i, n in a.items()}
+                                                                                          for g, a in self.actors.items()},
+                                                         "videos": {g or "host": c[2] for g, c in self.captures.items()},
+                                                         "entries": self.entries}))
+        (self.dir / "timeline.txt").write_text(self.timeline())
+        for index, (label, times) in enumerate(self.marks):
+            self.strip(self.dir / f"strip-{index}-{re.sub(r'[^a-z0-9]+', '-', label.lower())}.png", times, label)
+        log(f"Animation trace: {self.dir}")
+
+    def _logs(self):
+        """The plugin logs' lines in the trace's window naming a traced actor (by its hex form id; the
+        player's 14 is too common a number to match)."""
+        for game, ids in self.actors.items():
+            names = {f"{i:X}": n for i, n in ids.items() if i != 0x14}
+            if not names:
+                continue
+            token = re.compile(r"\b(" + "|".join(names) + r")\b")
+            try:
+                lines = plugin_log(game).read_text(errors="replace").splitlines()[-20000:]
+            except OSError:
+                continue
+            for line in lines:
+                match = LOG_LINE.match(line)
+                if not match or not (named := token.search(match.group(3))):
+                    continue
+                at = time.mktime(time.strptime(match.group(1)[:19], "%Y-%m-%d %H:%M:%S")) + int(match.group(1)[20:]) / 1000
+                if self.start - 0.1 <= at <= self.end + 0.1:
+                    self.entries.append({"game": game, "who": names[named.group(1)], "time": at, "kind": "log",
+                                         "level": match.group(2), "text": match.group(3), "f": None})
+        self.entries.sort(key=lambda entry: entry["time"])
+
+    def timeline(self, everything=False):
+        """One line per entry, host's on the left and the client's on the right, at ms from the start.
+        Positions are left out; noise (steps, sounds, the first-person graph) unless everything."""
+        width = 70
+        lines = [f"{'ms':>8}  {'host':<{width}}  client"]
+        for entry in self.entries:
+            kind = entry["kind"]
+            if kind == "pos" or (not everything and kind == "graph" and (entry.get("project") == "FirstPerson"
+                                                                           or TRACE_NOISE.match(entry.get("event", "")))):
+                continue
+            if kind == "graph":
+                text = f"{entry['event']}" + (f" ({entry['payload']})" if entry.get("payload") else "")
+            elif kind == "action":
+                text = f"ACTION {entry['event']} {entry['action']:X}" + (f" idle {entry['idle']:X}" if entry.get("idle") else "") \
+                       + (f" -> {self.who(entry['game'], entry['target'])}" if entry.get("target") else "")
+            elif kind in ("state", "game"):
+                text = kind.upper() + " " + " ".join(f"{k}={v}" for k, v in entry["state"].items())
+            elif kind == "log":
+                text = f"LOG {entry['text']}"
+            else:
+                text = kind.upper() + " " + " ".join(f"{k}={v}" for k, v in entry.items()
+                                                     if k not in ("t", "f", "kind", "game", "who", "time", "actor"))
+            frame = f"f{entry['f']}" if entry.get("f") is not None else ""
+            cell = f"{frame:>6} {entry['who']}: {text}"
+            ms = (entry["time"] - self.start) * 1000
+            lines.append(f"{ms:8.1f}  {cell:<{width}}" if entry["game"] == "" else f"{ms:8.1f}  {'':<{width}}  {cell}")
+        return "\n".join(lines) + "\n"
+
+    def gap(self, first, second):
+        """Milliseconds from one entry to another."""
+        return (second["time"] - first["time"]) * 1000
+
+    def strip(self, path, times, label=""):
+        """Both games' screens side by side, each at its wall-clock time ({game: time})."""
+        frames = []
+        for game, (_, video, started) in self.captures.items():
+            if started is None:
+                continue
+            frame = self.dir / f".frame-{game or 'host'}.png"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{max(0.0, times[game] - started):.3f}", "-i", str(video),
+                            "-frames:v", "1", "-vf", "scale=640:-1", str(frame)], check=False)
+            if frame.exists():
+                frames.append(frame)
+        if frames:
+            subprocess.run(["convert", *map(str, frames), "+append", "-gravity", "north", "-background", "black",
+                            "-fill", "white", "-pointsize", "18", "-splice", "0x26",
+                            "-annotate", "+0+2", f"{label}  (host +{(times[''] - self.start) * 1000:.0f}ms | "
+                                                 f"client +{(times['client'] - self.start) * 1000:.0f}ms)", str(path)], check=False)
+            for frame in frames:
+                frame.unlink(missing_ok=True)
 
 
 # --- Session --------------------------------------------------------------------------------
@@ -2232,13 +2452,15 @@ def kill_credit(weapon):
     npc, _, copy = spawn_host_npc(WOLF, restrained=True)
     client_on_host = remote_player(actors_on(""))
     dead = lambda: host_world(npc).get("state", {}).get("dead")
+    # In front of its head, as a player would face it (its heading: 0 north, clockwise).
+    front = math.degrees(actors_on("client")[str(copy)]["rotation"][2])
     with GodMode():
         if weapon == "spell":
             give_spell("client", FIREBOLT)
-            place_before("client", copy, SPELL_GAP)
+            place_before("client", copy, SPELL_GAP, front)
         else:
             give_sword("client")
-            place_before("client", copy, MELEE_GAP)
+            place_before("client", copy, MELEE_GAP, front)
         draw("client")
         for hit in range(1, 16):
             before = host_npc_health(npc)
@@ -2255,6 +2477,102 @@ def kill_credit(weapon):
         raise TestFailure(f"host records killer {killer:08X}, expected the client's character {client_on_host:08X}")
     log(f"host's wolf killed by the client's character {killer:08X} after {hit} hits")
     wait_on("client", "the wolf's copy dies too", lambda actors: actors.get(str(copy), {}).get("dead"), 5)
+    # The death plays out: the copy's body comes to rest where its owner's lies.
+    rest = wait_for("[host] the wolf's body comes to rest",
+                    comes_to_rest(lambda: host_world(npc)["placement"]["position"]), 10)
+    wait_on("client", "the copy's body lies with it",
+            lambda actors: distance((actors.get(str(copy)) or {}).get("actual") or [1e9] * 3, rest) <= POSITION_TOLERANCE, 3)
+    hold()
+
+
+KILL_MOVE_RANDOM = 50  # the engine's default chance of a kill move on a fatal hit (global KillMoveRandom)
+
+
+KILL_MOVE_LAG = 0.6   # seconds: the client's half of a kill move may start this long after the host's
+PAIR_TOLERANCE = 15   # units / degrees: the pair's layout in a copy's game against its owner's
+BLOW_TOLERANCE = 0.35  # seconds: the blow into the kill move, on the client against the host
+
+
+def scenario_host_kill_move():
+    """The host's player kills a wolf with a kill move: on the client the host's character and the wolf's
+    copy play it as one pair (the engine pairs them, laid out as on the host), a moment later and at the
+    same pace, and the wolf dies with its owner. Leaves an animation trace (timeline, side-by-side frames)."""
+    npc, _, copy = spawn_host_npc(WOLF, restrained=True)
+    host_on_client = remote_player(actors_on("client"))
+    trace = AnimTrace("host-kill-move", {"": {npc: "wolf", 0x14: "player"},
+                                         "client": {copy: "wolf", host_on_client: "player", 0x14: "watcher"}})
+    with GodMode():
+        console_on("", f"set KillMoveRandom to 100")
+        try:
+            give_sword("")
+            draw("")
+            console_on("", f"{npc:08X}.setrestrained 0")
+            console_on("", f"{npc:08X}.startcombat player")
+            wait_for("[host] the wolf fights the host's player", lambda: host_world(npc).get("ai", {}).get("combat_target") == 0x14, 8)
+            # One hit from death, the host in front of its head; the client a few steps to the side, watching.
+            console_on("", f"{npc:08X}.damageav health {host_world(npc)['values']['health'] - 3:.0f}")
+            front = math.degrees(host_world(npc)["placement"]["rotation"][2])
+            place_before("", npc, MELEE_GAP, front)
+            place_before("client", copy, 300, front + 90)
+            with trace:
+                trace.mark("before the swing")
+                press("", "right")
+                try:
+                    started = trace.wait_state("", "player", "kill_move", True, 3)
+                finally:
+                    release("", "right")
+                if not (killer := trace.action_before(started)):
+                    raise TestFailure("[host] the player is in a kill move with no action that started it")
+                # The client: the host's character's copy takes the paired idle and the engine pairs the wolf's copy
+                # with it (each in a kill move, together).
+                pair = {who: trace.wait_state("client", who, "kill_move", True, 3) for who in ("player", "wolf")}
+                halves = {"player": trace.action_before(pair["player"])}
+                if not halves["player"] or halves["player"]["idle"] != killer["idle"] or abs(pair["player"]["f"] - pair["wolf"]["f"]) > 1:
+                    raise TestFailure(f"the client's halves are not one pair: {halves['player']}, {pair}")
+                lag = halves["player"]["time"] - killer["time"]
+                trace.mark("the kill move starts", started["time"], halves["player"]["time"])
+                owner_kill = trace.wait("", "wolf", "KillActor", 5)
+                copy_kill = trace.wait("client", "wolf", "KillActor", 5)
+                # Mid-animation, settled: the pair laid out on the client as on the host.
+                host_layout = trace.layout("", "player", "wolf", owner_kill["time"] - 0.3)
+                client_layout = trace.layout("client", "player", "wolf", copy_kill["time"] - 0.3)
+                trace.mark("the blow lands", owner_kill["time"], copy_kill["time"])
+                died = trace.wait_state("", "wolf", "life", 1, 3)
+                copy_died = trace.wait_state("client", "wolf", "life", 1, 3)
+                trace.mark("the wolf dies", died["time"], copy_died["time"])
+                over = trace.wait_state("", "player", "kill_move", False, 5, after=started["time"])
+                copy_over = trace.wait_state("client", "player", "kill_move", False, 5, after=pair["player"]["time"])
+                trace.mark("the kill move is over", over["time"], copy_over["time"])
+                rest = wait_for("[host] the wolf's body comes to rest",
+                                comes_to_rest(lambda: host_world(npc)["placement"]["position"]), 10)
+                wait_on("client", "the copy's body lies with it",
+                        lambda actors: distance((actors.get(str(copy)) or {}).get("actual") or [1e9] * 3, rest) <= POSITION_TOLERANCE, 3)
+                trace.mark("after")
+        finally:
+            console_on("", f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+    log("\n" + trace.timeline())
+    host_blow, client_blow = owner_kill["time"] - killer["time"], copy_kill["time"] - halves["player"]["time"]
+    stood = copy_died["time"] - copy_kill["time"]
+    log(f"the blow {host_blow * 1000:.0f}ms into the host's kill move, {client_blow * 1000:.0f}ms into the client's; "
+        f"the wolf's copy dies {stood * 1000:.0f}ms after its blow")
+    log(f"client's pair {lag * 1000:.0f}ms after the host's; layout (distance, bearing, heading) "
+        f"host {tuple(round(v) for v in host_layout)}, client {tuple(round(v) for v in client_layout)}")
+    # A kill cam that slows the host's clock slows the client's too (one clock for everyone).
+    slowest = {game: min((e["state"]["time"] for e in trace.entries if e["kind"] == "game" and e["game"] == game), default=1.0)
+               for game in ("", "client")}
+    log(f"slowest clock: host {slowest['']:.2f}, client {slowest['client']:.2f}")
+    if abs(slowest[""] - slowest["client"]) > 0.05:
+        raise TestFailure(f"the host's clock slowed to {slowest['']:.2f}, the client's to {slowest['client']:.2f}")
+    if abs(host_blow - client_blow) > BLOW_TOLERANCE or stood > BLOW_TOLERANCE:
+        raise TestFailure(f"the client's kill move ran ahead of the host's: the blow {client_blow * 1000:.0f}ms in against "
+                          f"{host_blow * 1000:.0f}ms, its wolf standing {stood * 1000:.0f}ms until its owner died")
+    if lag > KILL_MOVE_LAG:
+        raise TestFailure(f"the client's kill move started {lag * 1000:.0f}ms after the host's")
+    if any(abs((a - b + 180) % 360 - 180) > PAIR_TOLERANCE for a, b in zip(host_layout, client_layout)):
+        raise TestFailure(f"the client's pair is laid out {client_layout}, the host's {host_layout}")
+    if pulled := [e for e in trace.entries if e["who"] == "watcher" and e["kind"] == "state"
+                  and (e["state"].get("kill_move") or e["state"].get("bIsSynced"))]:
+        raise TestFailure(f"the client's own player was pulled into the pair: {pulled[0]}")
     hold()
 
 
@@ -2670,6 +2988,40 @@ def scenario_weather_follows_host():
         both_go(HOME_CELL)
 
 
+def clock_speed(instance):
+    """How fast the game's clock runs (1 normal; a kill cam or Slow Time slows it)."""
+    select_instance(instance)
+    return (read_status() or {}).get("clock_speed")
+
+
+def clocks_run_at(speed, why):
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] its clock runs at {speed} ({why})",
+                 lambda name=name: abs((clock_speed(name) or 0) - speed) < 0.01, 3)
+
+
+def scenario_clock_slows_for_everyone():
+    """A game slowing its clock slows every game's (a kill cam, Slow Time, a bow zoom; here the console's
+    `sgtm`, the same engine call), and back to normal, every game is."""
+    try:
+        for slower in ("client", ""):
+            console_on(slower, "sgtm 0.5")
+            clocks_run_at(0.5, f"the {slower or 'host'}'s slowed")
+            console_on(slower, "sgtm 1")
+            clocks_run_at(1.0, f"the {slower or 'host'}'s back")
+        # Two at once: the slowest holds both until it ends.
+        console_on("", "sgtm 0.5")
+        console_on("client", "sgtm 0.25")
+        clocks_run_at(0.25, "the client's slower than the host's")
+        console_on("client", "sgtm 1")
+        clocks_run_at(0.5, "the host's still slowed")
+        console_on("", "sgtm 1")
+        clocks_run_at(1.0, "both back")
+    finally:
+        for name in ("", "client"):
+            console_on(name, "sgtm 1")
+
+
 # --- Input: real keyboard and mouse (not in a default run) ----------------------------------
 
 def game_window(instance):
@@ -2954,6 +3306,8 @@ SCENARIOS = {
     "client-spell-kill-credit": scenario_client_spell_kill_credit,
     "shared-xp": scenario_shared_xp,
     "client-melee-kill-credit": scenario_client_melee_kill_credit,
+    "host-kill-move": scenario_host_kill_move,
+    "clock-slows-for-everyone": scenario_clock_slows_for_everyone,
     # magic
     "burning-shows-on-copy": scenario_burning_shows_on_copy,
     # objects
@@ -3023,6 +3377,8 @@ TAGS = {
     "client-spell-kill-credit": {'combat', 'magic'},
     "shared-xp": {'combat'},
     "client-melee-kill-credit": {'combat'},
+    "host-kill-move": {'combat', 'values', 'animation'},
+    "clock-slows-for-everyone": {'world', 'combat'},
     "burning-shows-on-copy": {'combat', 'magic'},
     "door-opens-for-both": {'objects'},
     "lock-reaches-others": {'objects'},

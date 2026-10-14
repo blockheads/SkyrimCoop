@@ -371,6 +371,7 @@ nlohmann::json BuildStatus(const Harness& acHarness)
             {"game", GameStatus()},
             {"menus", EngineCalls::GetOpenMenus()},
             {"kill_cam", EngineCalls::IsKillCamPlaying()},
+            {"clock_speed", EngineCalls::GetGlobalTimeMultiplier()},
             {"lock_order", LockOrderStatus()},
             {"reload", ReloadStatus()},
             {"frames", FrameStatus()}};

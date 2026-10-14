@@ -1,6 +1,7 @@
 #include <TiltedOnlinePCH.h>
 #include "Commands.h"
 #include "EngineCalls.h"
+#include "Harness.h"
 #include "Status.h"
 
 #include <World.h>
@@ -25,6 +26,27 @@ nlohmann::json GraphBool(Harness&, const nlohmann::json& acRequest)
     for (const auto& cName : acRequest.value("names", std::vector<std::string>{}))
         values[cName] = EngineCalls::GetGraphBool(acRequest.value("actor", 0x14u), cName.c_str());
     return {{"ok", true}, {"values", values}};
+}
+
+// {"cmd": "kill_move_check", "attacker": id, "victim": id}: what decides a kill move (EngineCalls::CheckKillMove).
+nlohmann::json KillMoveCheckCommand(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cCheck = EngineCalls::CheckKillMove(acRequest.value("attacker", 0x14u), acRequest.value("victim", 0u));
+    return {{"ok", true}, {"should_attack_kill", cCheck.ShouldAttackKill}, {"killable", cCheck.Killable},
+            {"engaging_in_combat", cCheck.EngagingInCombat}, {"in_kill_move", cCheck.InKillMove},
+            {"crosshair_actor", cCheck.CrosshairActor}};
+}
+
+// {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...]}: starts recording these actors'
+// animations (AnimationTrace), or adds them; {"cmd": "anim_trace"} alone takes what was recorded so far, and
+// {"cmd": "anim_trace", "stop": true} stops and takes the rest.
+nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    if (acRequest.value("stop", false))
+        return {{"ok", true}, {"entries", aHarness.Trace.Stop()}};
+    if (acRequest.contains("actors"))
+        aHarness.Trace.Watch(acRequest.value("actors", std::vector<uint32_t>{}), acRequest.value("bools", std::vector<std::string>{}));
+    return {{"ok", true}, {"entries", aHarness.Trace.Take()}};
 }
 
 // {"cmd": "graph_state", "actor": id}: the actor's graph state, hex, and the save's microseconds.
@@ -120,7 +142,7 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
 }
 
 constexpr Command cCommands[] = {
-    {"status", false, &GetStatus}, {"graph_bool", true, &GraphBool}, {"objects", true, &Objects},
+    {"status", false, &GetStatus}, {"graph_bool", true, &GraphBool}, {"kill_move_check", true, &KillMoveCheckCommand}, {"anim_trace", true, &AnimTrace}, {"objects", true, &Objects},
     {"activate", true, &Activate}, {"lock", true, &Lock}, {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState}, {"graph_writers", true, &GraphWriters},
 };

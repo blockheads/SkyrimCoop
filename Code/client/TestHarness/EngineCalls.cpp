@@ -11,6 +11,7 @@
 #include <Interface/UI.h>
 #include <Interface/Menus/MapMenu.h>
 #include <Interface/MenuCursor.h>
+#include <Interface/CrosshairPickData.h>
 #include <Camera/VATS.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Magic/ActorMagicCaster.h>
@@ -155,6 +156,12 @@ bool IsKillCamPlaying() noexcept
 {
     const VATS* pVATS = VATS::Get();
     return pVATS && pVATS->mode == VATS::kKillCam;
+}
+
+float GetGlobalTimeMultiplier() noexcept
+{
+    POINTER_SKYRIMSE(float, s_globalTimeMultiplier, 388442); // BSTimer's current multiplier
+    return *s_globalTimeMultiplier.Get();
 }
 
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
@@ -338,6 +345,33 @@ bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept
     bool value = false;
     EngineVirtual(pActor->animationGraphHolder).GetVariableBool(&name, &value);
     return value;
+}
+
+bool IsInKillMove(uint32_t aFormId) noexcept
+{
+    using TIsInKillMove = bool(Actor*);
+    POINTER_SKYRIMSE(TIsInKillMove, s_isInKillMove, 38615);
+    Actor* pActor = GetActor(aFormId);
+    return pActor && s_isInKillMove.Get()(pActor);
+}
+
+KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept
+{
+    Actor* pAttacker = GetActor(aAttackerFormId);
+    Actor* pVictim = GetActor(aVictimFormId);
+    if (!pAttacker || !pVictim)
+        return {};
+    using TActorCheck = bool(Actor*, Actor*);
+    using TOwnCheck = bool(Actor*);
+    POINTER_SKYRIMSE(TActorCheck, s_shouldAttackKill, 38559);
+    POINTER_SKYRIMSE(TActorCheck, s_killable, 37229);
+    POINTER_SKYRIMSE(TOwnCheck, s_engagingInCombat, 38563);
+    uint32_t crosshairActor = 0;
+    if (const CrosshairPickData* pPick = CrosshairPickData::Get())
+        if (TESObjectREFR* pRef = TESObjectREFR::GetByHandle(pPick->targetActorHandle))
+            crosshairActor = pRef->formID;
+    return {s_shouldAttackKill.Get()(pAttacker, pVictim), s_killable.Get()(pVictim, pAttacker),
+            s_engagingInCombat.Get()(pAttacker), IsInKillMove(aAttackerFormId), crosshairActor};
 }
 
 std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept

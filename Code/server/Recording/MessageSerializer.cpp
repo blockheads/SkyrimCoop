@@ -29,6 +29,7 @@ DEF_MSG_NAME(CancelAssignmentRequest)
 DEF_MSG_NAME(RequestRemoveCharacter)
 DEF_MSG_NAME(RequestEquipmentSnapshot)
 DEF_MSG_NAME(RequestActiveEffects)
+DEF_MSG_NAME(TimeScaleRequest)
 DEF_MSG_NAME(AssignCharacterRequest)
 DEF_MSG_NAME(ClientReferencesMoveRequest)
 DEF_MSG_NAME(RequestInventoryChanges)
@@ -111,6 +112,7 @@ DEF_MSG_NAME(NotifySetTimeResult)
 DEF_MSG_NAME(WorldStateSync)
 DEF_MSG_NAME(NotifyEquipmentSnapshot)
 DEF_MSG_NAME(NotifyActiveEffects)
+DEF_MSG_NAME(NotifyTimeScale)
 
 #undef DEF_MSG_NAME
 

@@ -110,12 +110,60 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Kill moves (2026-10-13, uncommitted): `host-kill-move` 10 of 10. The host's player kills a wolf with
+  a kill move (`KillMoveRandom` 100); on the client the host's character and the wolf's copy play it as
+  one pair (the engine's kill-move flag on both in one frame) about 330 ms after the host, laid out as on
+  the host (distance, bearing and heading within 15 units/degrees, both kill-move variants), at the same
+  pace (the blow within 350 ms of the host's, counted from each start), the wolf's copy dying within
+  350 ms of its blow, and the client's own player untouched. Three fixes:
+  - Action targets go as server ids (`ActionEvent::TargetActor`): the target was the owner's form id, so
+    the wolf's copy paired with the client's own player (form id 14) and the player's copy with nothing.
+  - One clock for everyone: a game slowing its clock slows every game's (`HookSetGlobalTimeMultiplier` in
+    `BSTimer.cpp`, the host's `HostTimeScale`; each game runs at the slower of its own and the others'
+    slowest). Every kill move plays a kill cam, and some of its camera shots slow the clock (`BGSCameraShot`
+    `globalTimeMult`, to 0.2 and ramping back): the host's kill move then took 4.1 s against the copy's
+    2.9 s, and the wolf's copy stood 1.4 s after its blow until its owner died (3 of 8 runs). Now both
+    clocks slow to 0.2 together (2 of 10 runs) and the blows still line up. Slow Time, a bow zoom and
+    `sgtm` go the same way. `clock-slows-for-everyone` (each game's `sgtm`, both at once) passes;
+    `BridgeTests` (5 `[TimeScale]` cases).
+  - An owner does not send its hands while dying (`RunWeaponStateUpdates`): its hands-down arrived before
+    its death action, and the copy's weapon convergence sheathed it mid-death (its death 0.5 s late).
+  `client-*-kill-credit`, `death-host-npc`, `health-host-npc`, furniture, draw, cast, sneak, quick
+  sheathe, `equip-host-npc`, `steady-state` pass; `late-join-client` failed once (Loose ends), then 3 of
+  3; `TPTests`. Notes: `docs/re/systems/actor-ai-and-copies.md` ("An action's
+  target", "Kill cams slow the clock").
+- Review of the session's changes (2026-10-13): every new engine call checked against CommonLibSSE-NG and
+  IDA (`SetActorValueModifiers` 38468 as `DoDamage` calls it, the deferred-kill pair through the papyrus
+  natives, `HandleHealthDamage` vtable 0x104, `BSTimer` 68245/410196/388442, `CrosshairPickData`, the
+  default objects at 0x20 + 8 × index). Fixed: a player joining during a slowdown stayed slowed after it
+  (`HostTimeScale` did not record what it told it; a bridge test now fails without the fix), the harness's
+  session snapshot sent its action target as a form id, a duplicated `IsInKillMove`, an animation trace
+  that failed to start left its screen captures running. `BridgeTests` 639 of 639; on the games
+  `host-kill-move` 3 of 3, `clock-slows-for-everyone`, kill credit, `death-host-npc`, `late-join-client`,
+  `steady-state` pass, `host-rejoins` 3 of 4 (Lydia's `JumpLand`, Loose ends).
+- Animation trace (2026-10-13, uncommitted): `AnimTrace` in `coop_test.py` and the harness's
+  `anim_trace` command (`Code/client/TestHarness/AnimationTrace.cpp`). For chosen actors in both games
+  it records every behaviour graph event (a sink on each graph's `BSAnimationGraphEvent` source), the
+  actions taken, life state, kill move, health, graph booleans and position each frame, with the wall
+  clock and frame; both screens; and the plugin logs' lines naming them. It writes one timeline (host
+  left, client right), `trace.json`, the videos and side-by-side frames at marked moments to
+  `build/coop-test/traces/`. Scenarios can wait on its entries (`trace.wait`, `trace.wait_state`). Each
+  game's kill cam and clock speed are entries too.
+- Kills (2026-10-13, uncommitted): `client-melee-kill-credit` and `client-spell-kill-credit` 10 of 10
+  each, and now wait for the body to come to rest, the copy's within 50 units of its owner's. The
+  host takes a forwarded hit through the engine's damage path with the attacker
+  (`SetActorValueModifiers` 38468): its death rules, a death animation, the killer recorded at once.
+  It used to force the damage without an attacker (the engine queued a killer-less kill) and then kill
+  with an instant ragdoll that threw the body and dragged the copy through the air. Copies are in
+  deferred kill (as skymp's remote actors): they show their owner's health as is and die only with
+  their owner. The client stands in front of the wolf's head.
+  `combat`, `magic`, `values` tags 18 of 18; `BridgeTests` 589 of 589. Notes:
+  `docs/re/systems/actor-ai-and-copies.md` ("A hit forwarded to the owner").
 - Kill cams (2026-10-13, uncommitted): `client-spell-kill-credit` passes 10 of 10 (a kill cam in 8):
   the client's killing bolt sometimes plays a kill cam (game clock at 0.25x, player controls off,
   `VATS::mode` 4, 400883), and the reset's one Ready Weapon press fell in it. `takes_input` now also
   waits for the kill cam (status `kill_cam`), and `place_before` for the landing animation
-  (`bInJumpState`; a draw pressed in it stalled ~3 s). `combat` and `magic` tags: 12 of 13, the 13th
-  `client-melee-kill-credit` (Loose ends, copy death).
+  (`bInJumpState`; a draw pressed in it stalled ~3 s).
 - Mod ids (3d, 2026-10-13, uncommitted): `BridgeTests` 589 of 589 (ids are places in the load order,
   the same for every player, under each player's own names; written against the old table first,
   which failed on a name differing in case). On the real games 43 scenarios across `session`,
@@ -184,10 +232,20 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
-- **A copy's death sometimes misses its owner's** (`client-melee-kill-credit`, 2 of ~13 runs,
-  2026-10-13): once the copy kept its 0.01 health floor (owner -1.1) through the desync window,
-  once it never replayed the owner's `RagdollInstant` (last action `combatStanceStop`), dying only
-  through the death-state fallback. Not investigated.
+- **Kill moves by the client** (2026-10-13): a host kill move syncs (Test suite), but a client cannot
+  start one on a host NPC: `ShouldAttackKill` (21744, `Actor::sub_38559`) needs the attacker engaging
+  in combat, and no copy is ever in combat with the client's player. The kill move should then go to the
+  host, which plays it with the real NPC.
+- **A copy's kill move skips the owner's approach** (2026-10-13): on the host `KillMoveStart` comes
+  ~180 ms after the paired idle starts (the engine bringing the two together); a copy's comes at once,
+  so the client's blow lands ~120 ms after the host's although the idle starts ~330 ms after. Seen in
+  the trace; looks fine. The copies spend the first ~250 ms sliding into place by movement sync.
+- **Far copies are not in deferred kill** (2026-10-13, review): the engine keeps it only on middle/high
+  process actors (`docs/re/systems/actor-ai-and-copies.md`, "A copy is in deferred kill"), so a copy
+  dropped to low process can die from its owner's 0 health before its owner's death action. Unseen at
+  that distance; the death action is skipped for an already dead copy.
+- **A copy slides after its owner is teleported** (2026-10-13): the scenarios' `placeatme` then move
+  of a host NPC (~900 units) shows on the client as a 0.5 s slide across the room, not a jump.
 - **Audits not done:** combat, detection, magic/magicka. Then one copy update in place of the
   scattered `IsRemote()` checks.
 - **Upstream AI patches to re-check** (from before copies ran no AI; delete each the cut covers):
@@ -275,6 +333,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   so the panel could pick the dead one (order-dependent, seen before). Fixed 2026-10-13: a disconnect drops
   every copy (`DropCopies`); the panel check passed in all 4 runs since. Its other failure, Lydia's `JumpLand` missed after the rejoin,
   is the interpolation delay entry above.
+- `late-join-client` failed once with the host's player's and Lydia's copies both facing 270° (the
+  client's home heading) against 147° (2026-10-13, after the kill-move work; then 3 of 3): the desync
+  check likely ran before the rejoined client's first rotation update.
 - A stuck `LoadWaitSpinner` once kept the host from taking input (2026-10-13, a fresh game): the first
   `cow` to the river took over `both_go`'s 10 s fade wait on the client, and the cleanup `coc` ran while
   the host's spinner was up; it stayed through later cell changes until a restart. Not reproduced.

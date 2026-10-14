@@ -31,6 +31,8 @@ public:
     /// Get/set game time as hours (0.0 – 24.0).
     virtual float GetGameTimeHours() const noexcept = 0;
     virtual void SetGameTimeHours(float aHours) noexcept = 0;
+    /// Runs this game's clock no faster than aMultiplier (the other players' slowest; 1 lets it run as it wants).
+    virtual void SetSharedTimeScale(float aMultiplier) noexcept = 0;
 
     /// Additional time data fields used by TransportService authentication.
     virtual float GetGameTimeScale() const noexcept = 0;

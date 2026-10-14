@@ -51,6 +51,10 @@ struct AnimationSystem
      * @param formIdComponent The form id component of the actor, used to fetch the actor pointer.
      */
     static void Serialize(World& aWorld, ClientReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent);
+    // An action's target between games: an actor by its server id (ActionEvent::TargetActor), any other reference
+    // by its form id (the same in both games; a temporary one names nothing there and is dropped). Game thread.
+    static void TargetToNetwork(ActionEvent& aAction) noexcept;
+    static void TargetFromNetwork(ActionEvent& aAction) noexcept;
     // At the start of a copy's graph update (its animation job): applies the staged replay step.
     static void RunReplayStep(Actor* apActor) noexcept;
     static bool PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept;

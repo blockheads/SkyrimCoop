@@ -612,7 +612,9 @@ void CharacterService::OnActionEvent(const ActionEvent& acActionEvent) const noe
     {
         auto& localComponent = view.get<LocalAnimationComponent>(*itor);
 
-        localComponent.Append(acActionEvent);
+        ActionEvent action = acActionEvent;
+        AnimationSystem::TargetToNetwork(action);
+        localComponent.Append(action);
     }
 }
 
@@ -1294,6 +1296,7 @@ CharacterService::ActorLiveState CharacterService::ReadLiveState(uint32_t aFormI
     state.Rotation.y = z;
     state.Data = BuildActorData(aFormId);
     state.LatestAction = m_actorBridge.GetActorLatestAnimation(aFormId);
+    AnimationSystem::TargetToNetwork(state.LatestAction);
     m_actorBridge.ActorSaveAnimationVariables(aFormId, state.LatestAction.Variables);
     state.GraphState = m_actorBridge.SaveActorGraphState(aFormId);
     return state;

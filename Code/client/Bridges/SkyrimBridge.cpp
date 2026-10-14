@@ -29,6 +29,7 @@
 #include <Interface/UI.h>
 #include <Magic/ActorMagicCaster.h>
 #include <TimeManager.h>
+#include <BSTimer.h>
 #include <TESObjectREFR.h>
 #include <DefaultObjectManager.h>
 #include <Projectiles/Projectile.h>
@@ -213,13 +214,11 @@ void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
         pActor->Kill();
 }
 
-void SkyrimBridge::KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept
+void SkyrimBridge::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
 {
-    Breadcrumbs::Record("KillActorBy", aFormId, aKillerFormId);
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor || pActor->GetExtension()->IsPlayer())
-        return;
-    pActor->KillImpl(aKillerFormId ? GetActor(aKillerFormId) : nullptr, 100.f, true, true);
+    Breadcrumbs::Record("DamageActorHealth", aFormId, aAttackerFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->DamageHealth(aDamage, aAttackerFormId ? GetActor(aAttackerFormId) : nullptr);
 }
 
 void SkyrimBridge::RespawnActor(uint32_t aFormId) noexcept
@@ -1711,6 +1710,11 @@ float SkyrimBridge::GetGameTimeHours() const noexcept
     if (TimeData* pTime = TimeData::Get())
         return pTime->GameHour ? pTime->GameHour->f : 0.f;
     return 0.f;
+}
+
+void SkyrimBridge::SetSharedTimeScale(float aMultiplier) noexcept
+{
+    BSTimer::SetSharedMultiplier(aMultiplier);
 }
 
 void SkyrimBridge::SetGameTimeHours(float aHours) noexcept

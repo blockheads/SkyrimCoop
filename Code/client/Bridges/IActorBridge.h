@@ -39,8 +39,9 @@ public:
 
     // --- State ---
     virtual void KillActor(uint32_t aFormId) noexcept = 0;
-    // Kill with a killer (0 = none), so death events and kill credit name them.
-    virtual void KillActorBy(uint32_t aFormId, uint32_t aKillerFormId) noexcept = 0;
+    // Health damage as the engine's hits take it (attacker 0 = none): at 0 its death rules decide, with a
+    // death animation and kill credit, or an essential actor bleeding out.
+    virtual void DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept = 0;
     virtual void RespawnActor(uint32_t aFormId) noexcept = 0;
     // Brings a dead actor back where it is (the console's `resurrect`), without a Reset.
     virtual void ResurrectActor(uint32_t aFormId) noexcept = 0;

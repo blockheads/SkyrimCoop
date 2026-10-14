@@ -57,6 +57,12 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 - **Stress tests with more players:** 3-4 games (or bots) in one session, and headless games if Skyrim
   can run without rendering.
 
+- **Animation trace, next steps.** The trace (`AnimTrace`, `docs/progress.md`) runs inside scenarios.
+  Next: a `coop_test.py trace --seconds N` for the running games without a scenario (both players and
+  everything near them); a trace kept automatically when a scenario fails; marking the first frame where
+  an owner and its copy diverge (an action or graph event one has and the other lacks); the copy's
+  replay outcomes (taken, refused, how late) as entries rather than log lines.
+
 ## UI
 
 - **The other screens in RmlUi.** The party panel is done (`Code/client/Ui/`, `skyrim.rcss`). Still to

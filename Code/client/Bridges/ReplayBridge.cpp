@@ -455,6 +455,7 @@ std::string ReplayBridge::GetModName(uint32_t) const noexcept { return {}; }
 void ReplayBridge::SetGameWeatherSystemEnabled(bool) noexcept {}
 float ReplayBridge::GetGameTimeHours() const noexcept { return 12.f; }
 void ReplayBridge::SetGameTimeHours(float) noexcept {}
+void ReplayBridge::SetSharedTimeScale(float) noexcept {}
 float ReplayBridge::GetGameTimeScale() const noexcept { return 20.f; }
 float ReplayBridge::GetGameYear() const noexcept { return 201.f; }
 float ReplayBridge::GetGameMonth() const noexcept { return 1.f; }

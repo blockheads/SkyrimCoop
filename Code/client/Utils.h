@@ -57,6 +57,18 @@ inline uint32_t GetFormIdByServerId(const uint32_t acServerId) noexcept
     return 0;
 }
 
+/// The server id of the actor with this local formId, if the mod tracks it.
+inline std::optional<uint32_t> GetServerIdByFormId(const uint32_t acFormId) noexcept
+{
+    if (!acFormId)
+        return std::nullopt;
+    auto view = World::Get().view<FormIdComponent>();
+    for (entt::entity entity : view)
+        if (view.get<FormIdComponent>(entity).Id == acFormId)
+            return GetServerId(entity);
+    return std::nullopt;
+}
+
 // GetByServerId<T> requires the full TESForm type (TESForm::GetById) and RTTI Cast<T>.
 // Only available when Games/Skyrim SKSE types are compiled in (i.e. HAS_DIRECTXTK builds).
 #ifdef HAS_DIRECTXTK

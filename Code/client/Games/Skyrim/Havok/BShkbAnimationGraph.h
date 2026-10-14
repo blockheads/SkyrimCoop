@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Havok/hkbCharacter.h>
+#include <Events/EventDispatcher.h>
+#include <Games/Animation/BSAnimationGraphEvent.h>
 
 struct BSFixedString;
 struct BShkbHkxDB;
@@ -11,8 +13,11 @@ struct BShkbAnimationGraph
 {
     virtual ~BShkbAnimationGraph(){};
 
-    uint8_t pad8[0xC0 - 0x8];
-    hkbCharacter character;
+    volatile LONG refCount; // 08, BSIntrusiveRefCounted
+    uint8_t padC[0x68 - 0xC];
+    // The graph's events (BSTEventSource<BSAnimationGraphEvent>): what the graph tells its holder.
+    EventDispatcher<BSAnimationGraphEvent> animationGraphEvents; // 68
+    hkbCharacter character; // C0
     uint8_t pad160[0x1F0 - (0xC0 + sizeof(hkbCharacter))];
     const char* projectName; // 1F0, BSFixedString: "DefaultMale", "FirstPerson" (CommonLib)
     void* unk1F8;
@@ -25,5 +30,8 @@ struct BShkbAnimationGraph
     bool ReSendEvent(BSFixedString* apEventName);
 };
 
+SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, refCount) == 0x8);
+SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, animationGraphEvents) == 0x68);
+SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, character) == 0xC0);
 SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, projectName) == 0x1F0);
 SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, behaviorGraph) == 0x208);

@@ -138,7 +138,7 @@ struct Actor : TESObjectREFR
     virtual void sub_101();
     virtual void sub_102();
     virtual void sub_103();
-    virtual void sub_104();
+    virtual void HandleHealthDamage(Actor* apAttacker, float aDamage); // 38606
     virtual void sub_105();
     virtual void sub_106();
     virtual void sub_107();
@@ -216,6 +216,8 @@ struct Actor : TESObjectREFR
     void SetLevelMod(uint32_t aLevel) noexcept;
     void SetActorValue(uint32_t aId, float aValue) noexcept;
     void ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, float aValue) noexcept;
+    // Health damage as the engine's hits take it, with the attacker for its death rules and kill credit.
+    void DamageHealth(float aDamage, Actor* apAttacker) noexcept;
     void SetActorValues(const ActorValues& acActorValues) noexcept;
     void SetCommandingActor(BSPointerHandle<TESObjectREFR> aCommandingActor) noexcept;
     void SetFactions(const Factions& acFactions) noexcept;
@@ -240,6 +242,9 @@ struct Actor : TESObjectREFR
     void DispelAllSpells(bool aNow = false) noexcept;
     void Reset() noexcept;
     void Kill() noexcept;
+    // The engine keeps the actor alive whatever its health until EndDeferredKill (papyrus StartDeferredKill).
+    void StartDeferredKill() noexcept;
+    void EndDeferredKill() noexcept;
     // A copy's kill as its owner's went: KillImpl performs the owner's death action (true if taken).
     bool KillWithDeathAction(const ActionEvent& acAction) noexcept;
     void Respawn() noexcept;
