@@ -2,8 +2,9 @@
 
 Where SkyrimCoop stands. Update it when a phase, system or known failure changes.
 Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`, joining a session
-(build, game and mod checks, host-stored characters, arrival) in `docs/design/join-flow.md`, later
-ideas in `docs/ideas.md`, engine findings in `docs/re/`.
+(build, game and mod checks, host-stored characters, arrival) in `docs/design/join-flow.md`, how the
+party shares one story (the party is the Dragonborn) in `docs/design/party-model.md`, later ideas in
+`docs/ideas.md`, engine findings in `docs/re/`.
 
 **Goal:** two to four friends play Skyrim together, the host's game is the only authority (direct
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
@@ -36,14 +37,15 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
 | Arriving together: players step aside onto navmesh floor by session slot | done (`83178416`), `party-spreads-on-arrival` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
-| Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (uncommitted), the travel scenarios |
+| Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
 | Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
-| Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (uncommitted) |
-| Quests | not started; quest sync off (`cSyncQuests`) until it has a design |
-| Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (uncommitted) |
-| Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (uncommitted) |
-| Teleport command, teleport to a player | dropped: everyone is already together under the tether (uncommitted) |
-| Tether itself: anyone who travels takes the party along | done (uncommitted): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
+| Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (`b7b83aad`) |
+| Shared dialogue: one conversation for the party, run by the host's engine; anyone moves the cursor and picks, each player's own options show | next (`docs/design/party-model.md`, "Dialogue") |
+| Quests | not started; after shared dialogue. The host runs every quest, peers mirror (`docs/design/party-model.md`); quest sync off (`cSyncQuests`) until then |
+| Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
+| Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
+| Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
+| Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
 
 ### Still on the embedded server (what phase 4-5 removes)
 
@@ -51,12 +53,12 @@ Removed one section at a time, each with its bridge replacement and tests first
 (`docs/design/host-authority-migration.md`, "Server sections"):
 
 1. Player levels: done.
-2. String cache: dropped, not moved (uncommitted).
-3. Session, in steps: 3a auth gate (3a.1 build and cap: done, uncommitted; 3a.1b refusals
-   delivered as data (join status, host chat line): done; 3a.2 game and SKSE versions, 3a.3 plugin
-   list and order, 3a.4 the host's settings: done, uncommitted; the gate is complete), 3b player list, 3c player records (a shadow record stays on
-   the server for its last services until section 4): done; 3d mod ids (a plugin's place in
-   the load order): done, uncommitted. Section 3 is complete.
+2. String cache: dropped, not moved (`281e4a3d`).
+3. Session, in steps: 3a auth gate (3a.1 build and cap, `cf0ad03b`; 3a.1b refusals delivered as data
+   (join status, host chat line), `cf0ad03b`; 3a.2 game and SKSE versions and 3a.3 plugin list and order,
+   `5bd486ca`; 3a.4 the host's settings, `755891ca`), 3b player list (`75cc39f5`), 3c player records (a
+   shadow record stays on the server for its last services until section 4; `f438ba48`), 3d mod ids (a
+   plugin's place in the load order; `da15a6be`). Section 3 is complete.
 4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
    server console commands, recording.
 
@@ -112,7 +114,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
-- Players' copies travel with the party (2026-10-14, uncommitted; `docs/design/copy-contract.md`). A copy
+- Players' copies travel with the party (2026-10-14, `df9af2ff`; `docs/design/copy-contract.md`). A copy
   of another player is persistent and moved with the party, never dropped and spawned again on travel;
   the host sends only its actors on an arrival. Found by a host crash in `party-fast-travels`: a deleted
   copy's form id was reused for a Cow, which the copy code then moved, voiced and would have deleted
@@ -128,7 +130,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   `move-host-npc`, `death-host-npc`, `party-shows-levels`, `copy-ends-voice-line`, `dive-*`,
   `map-marker-reaches-everyone`, `weather-follows-host`; `BridgeTests` 670 assertions (arrival cases
   rewritten: no player spawns, the host's actors to a player ahead once the host arrives).
-- Party tether (2026-10-14, uncommitted): anyone who travels takes the party along. `party-uses-door`
+- Party tether (2026-10-14, `df9af2ff`): anyone who travels takes the party along. `party-uses-door`
   (the host leads out of the inn, the client back in), `party-fast-travels` (each leads once from the
   river to Riverwood, in one worldspace), `load-door-not-replayed` (the host follows the client out by the
   tether, never by the door), `party-changes-cells`, `party-spreads-on-arrival`, `teleport-keeps-copies`,
@@ -144,9 +146,9 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   `HookApplyMovement` on the stack; read and added to `scripts/lock_order_known.txt`), then 2 of 2; the
   others pass.
 - A harness request with a wrongly typed field (`place` with a hex string target) took the game down: the
-  command's `nlohmann::json` read threw (2026-10-13). Fixed 2026-10-14 (uncommitted): `HandleCommand`
+  command's `nlohmann::json` read threw (2026-10-13). Fixed 2026-10-14 (`3a9c8930`): `HandleCommand`
   refuses it (`bad request: ...`, the field's expected and actual type) and the game carries on.
-- Kill moves by the client (2026-10-13, uncommitted): `client-kill-move` 5 of 5 (new). The client's player
+- Kill moves by the client (2026-10-13, `437a6bb6`): `client-kill-move` 5 of 5 (new). The client's player
   kills the host's wolf with a kill move: on the host the client's character and the real wolf play it as one
   pair ~340 ms later, at the same pace (blows within 50 ms of each other, counted from each start), laid out
   as on the client, and the host records the client's character as the killer. Three fixes
@@ -166,7 +168,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   `TESConditionItem::IsTrue` 29924) and `kill_move_check`'s `attack_target` (the engine's melee pick 47272).
   Since (`437a6bb6`): `idle_conditions` also gives each idle's event and whether its whole list holds
   (`TESCondition::IsTrue` 29888); conditions and idles in `docs/re/systems/conditions.md`.
-- Kill moves (2026-10-13, uncommitted): `host-kill-move` 10 of 10. The host's player kills a wolf with
+- Kill moves (2026-10-13, `5a58a51c`): `host-kill-move` 10 of 10. The host's player kills a wolf with
   a kill move (`KillMoveRandom` 100); on the client the host's character and the wolf's copy play it as
   one pair (the engine's kill-move flag on both in one frame) about 330 ms after the host, laid out as on
   the host (distance, bearing and heading within 15 units/degrees, both kill-move variants), at the same
@@ -197,7 +199,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   that failed to start left its screen captures running. `BridgeTests` 639 of 639; on the games
   `host-kill-move` 3 of 3, `clock-slows-for-everyone`, kill credit, `death-host-npc`, `late-join-client`,
   `steady-state` pass, `host-rejoins` 3 of 4 (Lydia's `JumpLand`, Loose ends).
-- Animation trace (2026-10-13, uncommitted): `AnimTrace` in `coop_test.py` and the harness's
+- Animation trace (2026-10-13, `5a58a51c`): `AnimTrace` in `coop_test.py` and the harness's
   `anim_trace` command (`Code/client/TestHarness/AnimationTrace.cpp`). For chosen actors in both games
   it records every behaviour graph event (a sink on each graph's `BSAnimationGraphEvent` source), the
   actions taken, life state, kill move, health, graph booleans and position each frame, with the wall
@@ -205,7 +207,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   left, client right), `trace.json`, the videos and side-by-side frames at marked moments to
   `build/coop-test/traces/`. Scenarios can wait on its entries (`trace.wait`, `trace.wait_state`). Each
   game's kill cam and clock speed are entries too.
-- Kills (2026-10-13, uncommitted): `client-melee-kill-credit` and `client-spell-kill-credit` 10 of 10
+- Kills (2026-10-13, `5a58a51c`): `client-melee-kill-credit` and `client-spell-kill-credit` 10 of 10
   each, and now wait for the body to come to rest, the copy's within 50 units of its owner's. The
   host takes a forwarded hit through the engine's damage path with the attacker
   (`SetActorValueModifiers` 38468): its death rules, a death animation, the killer recorded at once.
@@ -215,53 +217,53 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   their owner. The client stands in front of the wolf's head.
   `combat`, `magic`, `values` tags 18 of 18; `BridgeTests` 589 of 589. Notes:
   `docs/re/systems/actor-ai-and-copies.md` ("A hit forwarded to the owner").
-- Kill cams (2026-10-13, uncommitted): `client-spell-kill-credit` passes 10 of 10 (a kill cam in 8):
+- Kill cams (2026-10-13, `e4088aca`): `client-spell-kill-credit` passes 10 of 10 (a kill cam in 8):
   the client's killing bolt sometimes plays a kill cam (game clock at 0.25x, player controls off,
   `VATS::mode` 4, 400883), and the reset's one Ready Weapon press fell in it. `takes_input` now also
   waits for the kill cam (status `kill_cam`), and `place_before` for the landing animation
   (`bInJumpState`; a draw pressed in it stalled ~3 s).
-- Mod ids (3d, 2026-10-13, uncommitted): `BridgeTests` 589 of 589 (ids are places in the load order,
+- Mod ids (3d, 2026-10-13, `da15a6be`): `BridgeTests` 589 of 589 (ids are places in the load order,
   the same for every player, under each player's own names; written against the old table first,
   which failed on a name differing in case). On the real games 43 scenarios across `session`,
   `restart`, `spawn`, `world`, `objects`, `cells`, `inventory`, `magic` and `combat` pass, all but
   `client-spell-kill-credit` (Loose ends; it fails the same without 3d).
-- Player records (3c, 2026-10-13, uncommitted): `BridgeTests` 582 of 582 (every test's players now
+- Player records (3c, 2026-10-13, `f438ba48`): `BridgeTests` 582 of 582 (every test's players now
   join through the real join; the list split out of `HostSession` as `HostPlayers`, and the 28
   passed again on freshly started games); on the real games `session`, `restart`, `spawn`, `world`, `objects`
   and `cells` (28) pass after 3c.1, and `session` and `restart` (11) after the disconnection handler.
   Kicking is covered by `host-kicks-client` only: the headless server has no network peer to drop.
-- Player list (3b, 2026-10-13, uncommitted): `BridgeTests` 415 of 415 (who a newcomer learns, with
+- Player list (3b, 2026-10-13, `75cc39f5`): `BridgeTests` 415 of 415 (who a newcomer learns, with
   the host marked; who learns the newcomer; leaving; a refused game never listed); the `session` and
   `restart` scenarios (11) pass; without the leave notice the bridge case fails, and on the real games
   `host-kicks-client` fails at "[host] no longer lists the client".
-- The host's settings (3a.4, 2026-10-13, uncommitted): new `difficulty-follows-host` (the client
+- The host's settings (3a.4, 2026-10-13, `755891ca`): new `difficulty-follows-host` (the client
   takes the host's difficulty, follows its change, is held there, gets its own back on leaving; the
   host's is never changed) passes, and fails at the step concerned without the change notice and
   without keeping the client's own; the `session` scenarios (10) pass; `BridgeTests` 389 of 389.
-- Plugins and load order with real games (3a.3, 2026-10-13, uncommitted): new
+- Plugins and load order with real games (3a.3, 2026-10-13, `5bd486ca`): new
   `join-refused-plugins-differ` (tag `restart`, ~30 s: the client game restarts with an extra empty
   plugin, the real host refuses it, the client's join status lists `extra SkyrimCoopTest.esp`, the
   host's chat says why; the host must drop the killed client within enet's timeout) passes, and
   fails at that step without the timeout handling. The `session` and `restart` scenarios (10) pass;
   `BridgeTests` 378 of 378; `TPTests` pass. Seen in a screenshot: the host's chat line.
-- Game versions (3a.2, 2026-10-13, uncommitted): `BridgeTests` 365 of 365 (Skyrim and SKSE
+- Game versions (3a.2, 2026-10-13, `5bd486ca`): `BridgeTests` 365 of 365 (Skyrim and SKSE
   mismatches, the build checked first, the wording), `TPTests` pass (the new fields round-trip);
   `join-refused-shows-why` adds a stand-in host on another Skyrim and SKSE and a game on another Skyrim
   asking the real host, and fails at that step with the host's check skipped; the `session`
   scenarios (9) pass. The real games send Skyrim 1.6.1170 with SKSE 2.2.6.
-- Refusals as data (3a.1b, 2026-10-13, uncommitted): new `join-refused-shows-why` (the client refused
+- Refusals as data (3a.1b, 2026-10-13, `cf0ad03b`): new `join-refused-shows-why` (the client refused
   by stand-in hosts on another build and full, the real host refusing a game on another build)
   passes; it fails at the step concerned with the old kick, with no refusal status, and with no host
   chat line. The `session` scenarios (9) pass; `BridgeTests` 349 of 349, `TPTests` pass. The scenario
   needs `scripts/xmake-linux.sh build -j16 coop_peer`.
-- Join gate 3a.1 (2026-10-13, uncommitted): `BridgeTests` 339 of 339 (new `session_tests.cpp`), `TPTests`
+- Join gate 3a.1 (2026-10-13, `cf0ad03b`): `BridgeTests` 339 of 339 (new `session_tests.cpp`), `TPTests`
   pass; the `session` scenarios (8) and `move-host-npc`, `remove-host-npc`, `party-changes-cells`,
   `door-opens-for-both` pass after a hot reload (which joins both games through the new gate).
-- Map markers (2026-10-13, uncommitted): `map-marker-reaches-everyone` (place both ways, remove) 3 of 3 on
+- Map markers (2026-10-13, `b7b83aad`): `map-marker-reaches-everyone` (place both ways, remove) 3 of 3 on
   a warm duo and 2 of 2 on a fresh one, `chat-reaches-everyone` passes with `key` through the control map, `BridgeTests` 284 of 284.
   Test games had tutorials on all along: `bShowTutorials` went to SkyrimPrefs.ini, which ignores it; it
   is in Skyrim.ini now (the map's first-open tutorial took the next key).
-- Relays, object ids, chat (2026-10-13, uncommitted): `BridgeTests` 284 of 284; the `objects` and `session`
+- Relays, object ids, chat (2026-10-13, `b7b83aad`): `BridgeTests` 284 of 284; the `objects` and `session`
   scenarios, `chat-reaches-everyone` and the input scenarios pass.
 - Travel and presence (2026-10-13, `87972601`): `party-uses-door` and `party-fast-travels` added; those two,
   the session scenarios, `teleport-keeps-copies` and `party-changes-cells` pass (8 of 8). A full run was

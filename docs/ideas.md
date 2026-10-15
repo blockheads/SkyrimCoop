@@ -5,9 +5,8 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Gameplay
 
-- **Shared dialogue.** When a player talks to an NPC, every player sees the dialogue menu at the same
-  time and anyone can pick the option. Chaotic on purpose: a co-op game, and a bad pick is the party's.
-  Builds on the dialogue sync (voice lines and subtitles already reach copies).
+- **The party is the Dragonborn** (shared gold, XP, quest items, identity; cutscenes for everyone; shared
+  dialogue): decided, `docs/design/party-model.md`; shared dialogue in `docs/design/shared-dialogue.md`.
 - **Shared party bounty.** One player's crime counts for the whole party, judged on the host (its NPCs are
   the witnesses). Decided 2026-10-12; today a remote player cannot commit a crime on the host at all.
   Notes: `docs/design/copy-contract.md` (crime row).

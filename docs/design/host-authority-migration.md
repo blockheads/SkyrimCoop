@@ -295,7 +295,9 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   arrived ahead of it, once the host arrives). A copy is the actor at its form id only while it is flagged
   a copy; otherwise it is gone (the engine reuses a deleted reference's form id). Details and the
   reasoning in `docs/design/copy-contract.md` ("Players' copies travel with the party").
-- Quests: the host's quest log is the authority, and stage changes are sent to peers.
+- Quests: the host's game runs every quest and peers mirror it, under the party model
+  (`docs/design/party-model.md`: the party is the Dragonborn). Shared dialogue comes first: anyone
+  talking to a quest NPC is the host's player talking.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter. They go by form
   id, so objects need no server ids: `AssignObjectsRequest` had no sender since `ec7d02d1` (the cell
