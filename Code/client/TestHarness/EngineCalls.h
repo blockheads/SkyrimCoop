@@ -191,4 +191,18 @@ struct GraphWriter
 std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
+// What the player's camera shows: its mode, where it is and looks (the world camera's transform), what the
+// crosshair is on, and, given an actor, where its head is on screen and how far from the middle of the view.
+struct CameraView
+{
+    uint32_t State = 0;         // TESCameraState::Id
+    float Position[3]{};
+    float Yaw = 0.f;            // degrees clockwise from north, as an actor's heading
+    float Pitch = 0.f;          // degrees, positive looks down
+    uint32_t Crosshair = 0;     // the reference under the crosshair, 0 for none
+    bool TargetOnScreen = false;
+    float TargetScreen[2]{};    // 0..1 from the left and the bottom
+    float TargetOffCenter = 0.f; // degrees between the view and the target's head
+};
+std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept;
 } // namespace TestHarness::EngineCalls

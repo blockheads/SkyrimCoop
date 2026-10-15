@@ -14,7 +14,21 @@ struct NiAVObject : NiObjectNET
     virtual void sub_29();
     virtual NiAVObject* GetByName(BSFixedString& aName);
 
-    uint8_t pad30[0x110 - 0x30];
+    // Rotation (row-major), position and scale, relative to the parent (local) or the world (CommonLibSSE-NG).
+    struct Transform
+    {
+        float rotate[3][3]; // 00
+        NiPoint3 translate; // 24
+        float scale;        // 30
+    };
+
+    uint8_t pad30[0x48 - 0x30];
+    Transform local; // 48
+    Transform world; // 7C
+    uint8_t padB0[0x110 - 0xB0];
 };
 
+static_assert(sizeof(NiAVObject::Transform) == 0x34);
+SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, local) == 0x48);
+SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, world) == 0x7C);
 SKYRIM_STRUCT_ASSERT(sizeof(NiAVObject) == 0x110);

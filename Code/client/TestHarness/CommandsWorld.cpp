@@ -167,8 +167,29 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "camera", "target": id}: what the player's camera shows (EngineCalls::GetCameraView); with a target,
+// where its head is on screen.
+nlohmann::json Camera(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cView = EngineCalls::GetCameraView(acRequest.value("target", 0u));
+    if (!cView)
+        return Error("no camera");
+    nlohmann::json response = {{"ok", true},
+                               {"state", cView->State},
+                               {"position", {cView->Position[0], cView->Position[1], cView->Position[2]}},
+                               {"yaw", cView->Yaw},
+                               {"pitch", cView->Pitch},
+                               {"crosshair", cView->Crosshair}};
+    if (acRequest.contains("target"))
+        response["target"] = {{"on_screen", cView->TargetOnScreen},
+                              {"screen", {cView->TargetScreen[0], cView->TargetScreen[1]}},
+                              {"off_center", cView->TargetOffCenter}};
+    return response;
+}
+
 constexpr Command cCommands[] = {
     {"status", false, &GetStatus},
+    {"camera", true, &Camera},
     {"graph_bool", true, &GraphBool},
     {"kill_move_check", true, &KillMoveCheckCommand},
     {"anim_trace", true, &AnimTrace},

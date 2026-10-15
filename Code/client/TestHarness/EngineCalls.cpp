@@ -5,6 +5,7 @@
 #include <Actor.h>
 #include <BSAnimationGraphManager.h>
 #include <Bridges/IFormBridge.h>
+#include <Camera/PlayerCamera.h>
 #include <Camera/VATS.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
@@ -21,10 +22,12 @@
 #include <Havok/GraphVariableWriters.h>
 #include <Interface/CrosshairPickData.h>
 #include <Interface/MenuCursor.h>
+#include <Interface/Menus/HUDMenuUtils.h>
 #include <Interface/Menus/MapMenu.h>
 #include <Interface/UI.h>
 #include <Magic/ActorMagicCaster.h>
 #include <Misc/BSFixedString.h>
+#include <NetImmerse/NiCamera.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 #include <Utils.h>
@@ -490,6 +493,42 @@ int32_t GetCharacterState(uint32_t aFormId) noexcept
     const uint8_t* pController = TiltedPhoques::ThisCall(s_getCharacterController.Get(), pActor);
     // bhkCharacterController::context (hkpCharacterContext) at 0x1E0, its currentState at +0x20 (CommonLibSSE-NG).
     return pController ? *reinterpret_cast<const int32_t*>(pController + 0x1E0 + 0x20) : -1;
+}
+
+std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept
+{
+    PlayerCamera* pCamera = PlayerCamera::Get();
+    NiCamera* pNiCamera = NiCamera::WorldRoot();
+    if (!pCamera || !pNiCamera)
+        return std::nullopt;
+
+    CameraView view;
+    view.State = pCamera->state ? pCamera->state->id : 0;
+    const auto& cWorld = pNiCamera->world;
+    view.Position[0] = cWorld.translate.x;
+    view.Position[1] = cWorld.translate.y;
+    view.Position[2] = cWorld.translate.z;
+    // A NiCamera looks along its local x axis: the first column of its world rotation.
+    const glm::vec3 cForward(cWorld.rotate[0][0], cWorld.rotate[1][0], cWorld.rotate[2][0]);
+    view.Yaw = glm::degrees(std::atan2(cForward.x, cForward.y));
+    view.Pitch = glm::degrees(std::asin(std::clamp(-cForward.z, -1.f, 1.f)));
+    if (const CrosshairPickData* pPick = CrosshairPickData::Get())
+        if (TESObjectREFR* pRef = TESObjectREFR::GetByHandle(pPick->targetHandle))
+            view.Crosshair = pRef->formID;
+
+    if (Actor* pTarget = aTargetFormId ? GetActor(aTargetFormId) : nullptr)
+    {
+        // The head, as FacePlayerToward aims (eye height).
+        constexpr float cHeadHeight = 115.f;
+        const NiPoint3 cHead(glm::vec3(pTarget->position.x, pTarget->position.y, pTarget->position.z + cHeadHeight));
+        NiPoint3 screen;
+        view.TargetOnScreen = HUDMenuUtils::WorldPtToScreenPt3(cHead, screen) && screen.z > 0.f;
+        view.TargetScreen[0] = screen.x;
+        view.TargetScreen[1] = screen.y;
+        const glm::vec3 cToHead = glm::normalize(glm::vec3(cHead) - glm::vec3(cWorld.translate));
+        view.TargetOffCenter = glm::degrees(std::acos(std::clamp(glm::dot(glm::normalize(cForward), cToHead), -1.f, 1.f)));
+    }
+    return view;
 }
 
 bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept

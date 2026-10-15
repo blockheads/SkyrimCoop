@@ -5,12 +5,19 @@
 using TWorldPtToScreenPt3 = bool(float*, const NiRect<float>*, const NiPoint3*, float*, float*, float*, float);
 static TWorldPtToScreenPt3* s_WorldPtToScreenPt3;
 
+NiCamera* NiCamera::WorldRoot() noexcept
+{
+    using TWorldRootCamera = NiCamera*();
+    POINTER_SKYRIMSE(TWorldRootCamera, s_worldRootCamera, 36609);
+    return s_worldRootCamera.Get()();
+}
+
 bool NiCamera::WorldPtToScreenPt3(const NiPoint3& in, NiPoint3& out, float tolerance)
 {
     TP_THIS_FUNCTION(TW2S, bool, NiCamera, const NiPoint3*, float*, float*, float*, float);
     POINTER_SKYRIMSE(TW2S, s_w2s, 70639);
 
-    return TiltedPhoques::ThisCall(s_w2s, this, &in, &out.x, &out.y, &out.y, tolerance);
+    return TiltedPhoques::ThisCall(s_w2s, this, &in, &out.x, &out.y, &out.z, tolerance);
 }
 
 bool NiCamera::WorldPtToScreenPt3(float* matrix, const NiRect<float>* port, const NiPoint3* p_in, float* x_out, float* y_out, float* z_out, float zeroTolerance)

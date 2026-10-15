@@ -12,12 +12,6 @@ struct PlayerCamera : public TESCamera
 
     void ForceFirstPerson() noexcept;
     void ForceThirdPerson() noexcept;
-
-    float rotZ;
-    float rotX;
-    NiPoint3 pos;
-    float zoom;
-    NiNode* cameraNode;
-    TESCameraState* state;
-    bool unk;
 };
+// The fields are TESCamera's: a copy of them here would shadow them at the wrong offsets.
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCamera, state) == 0x28);
