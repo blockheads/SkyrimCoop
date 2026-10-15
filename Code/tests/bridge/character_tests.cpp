@@ -152,6 +152,7 @@ EnterCellRequest Arrival(uint32_t aCell, uint32_t aWorldSpace = 0, glm::vec3 aPo
     if (aWorldSpace)
         arrival.WorldSpaceId = GameId(0, aWorldSpace);
     arrival.Position = aPosition;
+    arrival.Heading = 1.5f;
     return arrival;
 }
 } // namespace
@@ -278,6 +279,7 @@ TEST_CASE("Party tether: a player's own travel takes everyone else along, the ho
         CHECK(cTravels[0]->CellId == GameId(0, 0x9732));
         CHECK(cTravels[0]->WorldSpaceId == GameId(0, 0x3C));
         CHECK(cTravels[0]->Position == glm::vec3(1.f, 2.f, 3.f));
+        CHECK(cTravels[0]->Heading == 1.5f); // followers face the way the leader arrived
     }
 
     // The host leads into an interior: the peers follow.

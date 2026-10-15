@@ -21,10 +21,11 @@ struct NotifyPartyTravel final : ServerMessage
     bool operator==(const NotifyPartyTravel& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId &&
-               Position == acRhs.Position;
+               Position == acRhs.Position && Heading == acRhs.Heading;
     }
 
     GameId CellId{};
     GameId WorldSpaceId{}; // empty: an interior
     Vector3_NetQuantize Position{};
+    float Heading{}; // the leader's on arrival
 };

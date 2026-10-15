@@ -1853,6 +1853,109 @@ def scenario_copy_ends_voice_line():
     hold()
 
 
+def on_other_player(instance, within=30):
+    """That game's player stands within `within` units of its copy of the other player."""
+    select_instance(instance)
+    status = read_status() or {}
+    actors = status.get("actors", {})
+    other = remote_player(actors)
+    me = (status.get("player") or {}).get("position")
+    return other is not None and me and distance(me[:2], actors[str(other)]["actual"][:2]) < within
+
+
+def look_apart():
+    """Each player looks its own way, as players do before anything brings them together: the host up and
+    north, the client down and south."""
+    console_on("", "player.setangle x -30")
+    console_on("", "player.setangle z 10")
+    console_on("client", "player.setangle x 40")
+    console_on("client", "player.setangle z 200")
+
+
+def camera_view(instance):
+    """That game's camera: its mode, yaw, pitch and position."""
+    v = player_command(instance, {"cmd": "camera", "target": 0})
+    return v["state"], v["yaw"], v["pitch"], v["position"]
+
+
+def same_view(what, degrees=2, units=15):
+    """Both games show the same view: the camera in the same mode, at the same spot, turned the same way. The
+    spot within 15 units: a follower goes where the leader arrived, and the leader settles a few units after."""
+    seen = {}
+    def check():
+        (state_a, yaw_a, pitch_a, at_a), (state_b, yaw_b, pitch_b, at_b) = camera_view(""), camera_view("client")
+        seen["views"] = (f"host {state_a} yaw {yaw_a:.1f} pitch {pitch_a:.1f} at {[round(a) for a in at_a]}, "
+                         f"client {state_b} yaw {yaw_b:.1f} pitch {pitch_b:.1f} at {[round(a) for a in at_b]}")
+        turn = abs((yaw_a - yaw_b + 180) % 360 - 180)
+        return state_a == state_b and turn < degrees and abs(pitch_a - pitch_b) < degrees and distance(at_a, at_b) < units
+    try:
+        wait_for(what, check, 5)
+    except TestFailure as e:
+        raise TestFailure(f"{e}: {seen.get('views')}") from None
+
+
+def stacked(what):
+    """Both games show the two players on one spot: nobody pushed anybody off it."""
+    for instance in ("client", ""):
+        wait_for(f"[{instance or 'host'}] {what}", lambda instance=instance: on_other_player(instance), 5)
+
+
+def my_position(instance):
+    select_instance(instance)
+    return ((read_status() or {}).get("player") or {}).get("position")
+
+
+def other_player_position(instance):
+    """Where that game shows the other player (its copy)."""
+    actors = actors_on(instance)
+    other = remote_player(actors)
+    return actors[str(other)]["actual"] if other is not None else None
+
+
+def walk_off(walker, toward, what):
+    """The walker turns toward `toward` (x, y) and walks there until it is 100 units from the other player: off
+    the stack (60), with a short clear way back. Nothing else follows from it: no menu opens, nobody travels."""
+    start = my_position(walker)
+    console_on(walker, f"player.setangle z {math.degrees(math.atan2(toward[0] - start[0], toward[1] - start[1])) % 360:.0f}")
+    cells = {name: player_cell(name) for name in ("", "client")}
+    press(walker, "forward")
+    try:
+        wait_for(f"[{walker or 'host'}] {what}",
+                 lambda: distance(my_position(walker)[:2], other_player_position(walker)[:2]) > 100, 10)
+    finally:
+        release(walker, "forward")
+    for name in ("", "client"):
+        if player_cell(name) != cells[name]:
+            raise TestFailure(f"[{name or 'host'}] walking off the stack took the party elsewhere")
+        if not takes_input(name):
+            raise TestFailure(f"[{name or 'host'}] walking off the stack opened {sorted(set((read_status() or {}).get('menus') or []) - {'HUD Menu'})}")
+
+
+def bumps_into_other(walker):
+    """Off the stack, the walker collides again: walking into the other player (Forward held), it slides around
+    it or is stopped by it, never through it: the two never come closer than their bodies allow."""
+    face(walker, remote_player(actors_on(walker)))
+    seen = {"closest": float("inf")}
+    rested = comes_to_rest(lambda: my_position(walker))
+    def done():
+        me, other = my_position(walker), other_player_position(walker)
+        seen["gap"] = gap = distance(me[:2], other[:2])
+        seen["closest"] = min(seen["closest"], gap)
+        return seen["closest"] < 80 and (gap > 120 or rested())
+    press(walker, "forward")
+    try:
+        try:
+            wait_for(f"[{walker or 'host'}] walks into the other player, then past it or stopped by it", done, 10)
+        except TestFailure as error:
+            raise TestFailure(f"{error} (closest {seen['closest']:.0f}, now {seen.get('gap', 0):.0f} units apart)")
+    finally:
+        release(walker, "forward")
+    if seen["closest"] < 30:
+        raise TestFailure(f"[{walker or 'host'}] came within {seen['closest']:.0f} units of the other player: it walked "
+                          "through it (collision should be back off the stack)")
+    log(f"[{walker or 'host'}] came no closer than {seen['closest']:.0f} units to the other player")
+
+
 def scenario_remove_host_npc():
     """Host disables an NPC it owns; the client's copy must disappear."""
     npc, _, copy = spawn_host_npc(CHICKEN)
@@ -2020,23 +2123,27 @@ def scenario_party_changes_cells():
         both_go(HOME_CELL)
 
 
-def scenario_party_spreads_on_arrival():
-    """The party arrives on one spot (a coc puts everyone on the cell's marker): the host stays, the
-    client steps aside onto floor, so neither stands in the other."""
+def scenario_party_stacks_on_arrival():
+    """The party arrives on one spot (a coc puts the host on the cell's marker, the tether the client where the
+    host arrived): both stand on it, passing through each other on both games, and both games
+    show the same view, though each player looked its own way before. The client walks off it (nothing
+    else happens) and then into the host, which stops it: its collision is back. And again after travelling home."""
+    home = False
     try:
-        both_go(INN)
-        def apart():
-            host, client = (player_snapshot(n).get("placement") or {} for n in ("", "client"))
-            if not host.get("position") or not client.get("position") or host.get("cell") != client.get("cell"):
-                return None
-            gap = distance(host["position"], client["position"])
-            return gap >= 70 and gap
-        gap = wait_for("the players stand apart in the inn", apart, 5)
-        log(f"players {gap:.0f} units apart")
-        hold()
+        for cell in (INN, HOME_CELL):
+            look_apart()
+            both_go(cell)
+            home = cell == HOME_CELL
+            stacked(f"in {cell}, the players stand on one spot")
+            same_view(f"In {cell}, both games show the same view")
+            # Ahead, the way the arrival faces (into the room).
+            at, heading = my_position("client"), local_player("client")["rotation"][2]
+            walk_off("client", (at[0] + 400 * math.sin(heading), at[1] + 400 * math.cos(heading)), "walks off the stack")
+            bumps_into_other("client")
+            hold()
     finally:
-        both_go(HOME_CELL)
-
+        if not home:
+            both_go(HOME_CELL)
 
 
 # Every way a player travels ends in one engine call that sends PositionPlayerEvent (docs/re/systems/player-travel.md):
@@ -2068,19 +2175,25 @@ def follows(instance, cell_before):
 
 def scenario_party_uses_door():
     """The host walks out of the inn through its door and the client follows (the party tether); then the
-    client leads back in and the host follows. Each time both games end up showing the other player, and
-    outside the client shows the host's NPCs."""
+    client leads back in and the host follows. Each time both games end up showing the other player and the
+    same view (the follower faces the way the leader arrived), and outside the client shows the host's NPCs."""
     try:
         both_go(INN)
         client_before = player_cell("client")
+        look_apart()
         travel("", lambda: activate_on("", INN_DOOR_INSIDE), player_cell(""))
         follows("client", client_before)
         players_together("outside the inn")
+        wait_for("[client] the arrival's fade is over", lambda: takes_input("client"), 15)
+        same_view("Outside the inn, both games show the same view")
         wait_on("client", "shows the host's NPCs outside", lambda actors: remote_npcs(actors), 30)
         host_before = player_cell("")
+        look_apart()
         travel("client", lambda: activate_on("client", INN_DOOR_OUTSIDE), player_cell("client"))
         follows("", host_before)
         players_together("back in the inn")
+        wait_for("[host] the arrival's fade is over", lambda: takes_input(""), 15)
+        same_view("Back in the inn, both games show the same view")
         hold()
     finally:
         both_go(HOME_CELL)
@@ -3426,7 +3539,7 @@ SCENARIOS = {
     "copy-ends-voice-line": scenario_copy_ends_voice_line,
     "teleport-keeps-copies": scenario_teleport_keeps_copies,
     "party-changes-cells": scenario_party_changes_cells,
-    "party-spreads-on-arrival": scenario_party_spreads_on_arrival,
+    "party-stacks-on-arrival": scenario_party_stacks_on_arrival,
     "party-uses-door": scenario_party_uses_door,
     "party-quick-travel": scenario_party_quick_travel,
     "party-fast-travels": scenario_party_fast_travels,
@@ -3503,7 +3616,7 @@ TAGS = {
     "copy-ends-voice-line": {'dialogue', 'ai'},
     "teleport-keeps-copies": {'spawn', 'movement', 'cells'},
     "party-changes-cells": {'spawn', 'cells'},
-    "party-spreads-on-arrival": {'cells'},
+    "party-stacks-on-arrival": {'cells'},
     "party-uses-door": {'spawn', 'cells', 'objects'},
     "party-quick-travel": {'spawn', 'cells', 'objects'},
     "party-fast-travels": {'spawn', 'cells', 'world'},

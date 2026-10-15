@@ -79,8 +79,13 @@ public:
     virtual bool IsPlayerLoaded() const noexcept = 0;
     // Whether the engine teleported the player since the last call (experimental: coc only so far).
     virtual bool ConsumeTeleported() noexcept = 0;
-    // Arriving with others on one spot: slot 0 stays, slot N steps aside onto walkable floor (false if none).
-    virtual bool StepPlayerAside(uint32_t aSlot) noexcept = 0;
+    // The way the player faces (radians clockwise from north).
+    virtual float GetPlayerHeading() const noexcept = 0;
+    // Turns the player, and with it the camera, to face this way.
+    virtual void SetPlayerHeading(float aHeading) noexcept = 0;
+    // The players stacked on one spot, who pass through each other; everyone else collides as usual. Every frame
+    // while it lasts: an actor's collision group comes from its current controller.
+    virtual void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept = 0;
     // Stops listening for teleports (CharacterService going away: the engine must not call into a
     // DLL that is being unloaded).
     virtual void StopTeleportEvents() noexcept = 0;

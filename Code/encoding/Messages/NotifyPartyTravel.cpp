@@ -5,6 +5,7 @@ void NotifyPartyTravel::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
     CellId.Serialize(aWriter);
     WorldSpaceId.Serialize(aWriter);
     Position.Serialize(aWriter);
+    Serialization::WriteFloat(aWriter, Heading);
 }
 
 void NotifyPartyTravel::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -14,4 +15,5 @@ void NotifyPartyTravel::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) n
     CellId.Deserialize(aReader);
     WorldSpaceId.Deserialize(aReader);
     Position.Deserialize(aReader);
+    Heading = Serialization::ReadFloat(aReader);
 }

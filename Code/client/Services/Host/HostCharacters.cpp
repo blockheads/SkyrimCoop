@@ -191,6 +191,7 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         travel.CellId = acRequest.CellId;
         travel.WorldSpaceId = acRequest.WorldSpaceId;
         travel.Position = acRequest.Position;
+        travel.Heading = acRequest.Heading;
         m_players.SendToOthers(travel, aSender, TiltedPhoques::kReliable);
         m_partyTravel = travel;
     }

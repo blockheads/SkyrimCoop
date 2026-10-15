@@ -24,13 +24,14 @@ struct EnterCellRequest final : ClientMessage
     bool operator==(const EnterCellRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId &&
-               Position == acRhs.Position && How == acRhs.How && LatestAction == acRhs.LatestAction &&
+               Position == acRhs.Position && Heading == acRhs.Heading && How == acRhs.How && LatestAction == acRhs.LatestAction &&
                GraphState == acRhs.GraphState && Data == acRhs.Data;
     }
 
     GameId CellId{};
     GameId WorldSpaceId{}; // empty: an interior
     Vector3_NetQuantize Position{};
+    float Heading{}; // the way it faces on arrival (radians clockwise from north): followers face it too
     // How it got here: its own travel, which everyone else follows (NotifyPartyTravel); the party tether's; or a
     // travel from before it joined, which neither leads nor follows.
     enum class Travel : uint8_t

@@ -271,13 +271,18 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   worldspace), `load-door-not-replayed` (the host follows the client out); the scenarios' `both_go`
   moves the host only and the client follows. Not covered yet: a travel request anyone can cancel
   (`docs/ideas.md`), and the gaps in `docs/progress.md` ("Migration").
-- Arriving together (2026-10-13): a door or a `coc` puts everyone on one marker. On arrival in a new
-  cell (`TravelService`) the host stays and each other player steps aside by its
-  place in the session (slot by player id, the same on every game): 100 units to the right, left or
-  behind, relative to its facing, else the other directions, else 70 units. The spot and the way to it
-  must be on the cell's navmesh (`TESObjectCELL::NavmeshFloorAt`, a point inside a triangle within
-  60 units of its height), so nobody lands in a wall; with no floor the player stays (QASmoke's test
-  navmesh does not cover its `coc` marker). Scenario `party-spreads-on-arrival` (the inn).
+- Arriving together (2026-10-14, replacing the step-aside of 2026-10-13): a door or a `coc` puts everyone on
+  one marker, and they stay stacked there. On arrival in a new cell (`TravelService::StackOn`) the players on
+  the spot pass through each other (`PlayerCollision`, the collision filter) until each walks off it (60
+  units) or is the last one there; then it collides again. Every player joins the stack, followers before
+  they get there. One that leaves the cell and comes back stays on it: a late follow can take a player that
+  was already on the spot out and back in. A copy counts as present only where its owner is. A player off
+  the spot collides at once, but leaves the stack only after half a second off it, so a one-frame jump does
+  not end it (2026-10-15). Stacked players stay drawn: hiding them was for the dialogue gather, which is
+  gone. A follower faces the way the leader arrived (`EnterCellRequest` and `NotifyPartyTravel` carry the
+  heading; the engine levels the pitch on every arrival), so every game shows the same view. Scenarios
+  `party-stacks-on-arrival` (the inn, then home: stacked, the same view, walk off, bump into the other) and
+  `party-uses-door` (the same view after each door).
 - Copies converge on their owner (2026-10-13): the owner's movement says where it is every 100 ms (cell,
   worldspace, position), and each game checks its copy against that (`CharacterService::RunPresence`).
   A copy whose owner is around this game's player (the same cell; outdoors the same worldspace, within

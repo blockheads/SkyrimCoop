@@ -264,7 +264,9 @@ public:
     std::vector<uint32_t> GetPlayerActiveQuestFormIds() const noexcept override;
     bool IsPlayerLoaded() const noexcept override;
     bool ConsumeTeleported() noexcept override;
-    bool StepPlayerAside(uint32_t aSlot) noexcept override;
+    float GetPlayerHeading() const noexcept override;
+    void SetPlayerHeading(float aHeading) noexcept override;
+    void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept override;
     void StopTeleportEvents() noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override;

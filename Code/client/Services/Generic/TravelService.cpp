@@ -9,9 +9,8 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
-#include <Services/HostService.h>
-#include <Services/SessionService.h>
 #include <Services/TransportService.h>
+#include <Components.h>
 #include <World.h>
 
 namespace
@@ -70,6 +69,7 @@ uint32_t TravelService::CellAt(const GameId& acWorldSpaceId, const GameId& acCel
 // holds cell locks (docs/re/systems/player-travel.md).
 void TravelService::OnUpdate(const UpdateEvent&) noexcept
 {
+    UpdateStack();
     if (!m_transport.IsOnline())
     {
         // A travel before joining leads nobody: the game joins where the host is.
@@ -90,13 +90,14 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
         return;
     m_arriving = false;
 
-    // The party arrives on one spot (a door's, a coc's, the leader's): each player but the host steps aside,
-    // by its place in the session, so nobody stands in anybody (docs/design/host-authority-migration.md).
+    // The party arrives on one spot (a door's, a coc's, the leader's): its players stack there, passing through
+    // each other until each walks off (docs/design/host-authority-migration.md, "Party tether").
     if (cCellId != m_arrivalCellId)
     {
         m_arrivalCellId = cCellId;
-        if (const uint32_t cSlot = ArrivalSlot())
-            m_playerBridge.StepPlayerAside(cSlot);
+        glm::vec3 spot;
+        m_playerBridge.GetPlayerPosition(spot.x, spot.y, spot.z);
+        StackOn(spot);
     }
 
     // Following: it arrived where the tether sent it, the latest place or an older one (a stop on the way; the
@@ -107,6 +108,9 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
             return IsAroundPlayer(acTarget.WorldSpaceId, acTarget.CellId, acTarget.Position);
         });
     const bool cFollowing = cReached != m_tetherTargets.rend();
+    // A follower's view is the leader's: the same spot, facing the same way.
+    if (cFollowing)
+        m_playerBridge.SetPlayerHeading(cReached->Heading);
     m_tetherTargets.erase(m_tetherTargets.begin(), cFollowing ? cReached.base() : m_tetherTargets.end());
     using Travel = EnterCellRequest::Travel;
     const Travel cHow = cFollowing ? Travel::kTether : m_leading ? Travel::kOwn : Travel::kBeforeJoining;
@@ -135,21 +139,88 @@ void TravelService::OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept
         return;
     }
     // A MoveTo of the player is a travel like a door's (TESObjectREFR::MoveTo_Impl 56626 queues it, 40442).
-    m_tetherTargets.push_back({acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position});
+    m_tetherTargets.push_back({acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position, acMessage.Heading});
     spdlog::info("Party travel: following to cell {:X} (worldspace {:X})", acMessage.CellId.BaseId,
                  acMessage.WorldSpaceId.BaseId);
     m_actorBridge.MoveActorTo(m_playerBridge.GetPlayerFormId(), cCellId, acMessage.Position.x, acMessage.Position.y,
                               acMessage.Position.z);
 }
 
-uint32_t TravelService::ArrivalSlot() const noexcept
+void TravelService::StackOn(const glm::vec3& acSpot) noexcept
 {
-    if (m_world.GetHostService().IsHosting())
-        return 0;
-    const uint32_t cMe = m_transport.GetLocalPlayerId();
-    uint32_t slot = 1;
-    for (const auto& [cId, cPlayer] : m_world.GetSessionService().GetPlayers())
-        if (!cPlayer.IsHost && cId < cMe)
-            ++slot;
-    return slot;
+    // Every player: a follower is still on its way.
+    m_stack = Stack{acSpot, std::chrono::steady_clock::now(), {{m_playerBridge.GetPlayerFormId(), false}}};
+    for (const entt::entity cEntity : m_world.view<FormIdComponent, RemoteComponent, PlayerComponent>())
+        m_stack->Players.push_back({m_world.get<FormIdComponent>(cEntity).Id, false});
+    UpdateStack();
+}
+
+void TravelService::UpdateStack() noexcept
+{
+    std::vector<uint32_t> stacked;
+    if (m_stack)
+    {
+        // Within a step of the spot is on it; a copy coming from afar has a few seconds to get there, and one
+        // off it in this cell for a moment has walked off (a stale follow takes a player out and back).
+        constexpr float cOnSpot = 60.f;
+        constexpr auto cArrival = std::chrono::seconds(5);
+        constexpr auto cWalkOff = std::chrono::milliseconds(500);
+        const auto cNow = std::chrono::steady_clock::now();
+        const bool cLate = cNow - m_stack->Since > cArrival;
+        const auto cHere = PlayersHere();
+        std::erase_if(m_stack->Players, [&](Stack::Player& aPlayer) {
+            const auto cAt = cHere.find(aPlayer.FormId);
+            const float cDistance =
+                cAt == cHere.end() ? 0.f : glm::distance(glm::vec2(cAt->second), glm::vec2(m_stack->Spot));
+            const bool cOff = cAt != cHere.end() && cDistance >= cOnSpot;
+            aPlayer.Arrived = aPlayer.Arrived || (cAt != cHere.end() && !cOff);
+            if (!aPlayer.Arrived)
+            {
+                if (cLate)
+                    spdlog::info("Stack: {:X} never came", aPlayer.FormId);
+                return cLate;
+            }
+            if (!cOff)
+            {
+                aPlayer.OffSince = {};
+                return false;
+            }
+            if (aPlayer.OffSince == std::chrono::steady_clock::time_point{})
+                aPlayer.OffSince = cNow;
+            if (cNow - aPlayer.OffSince < cWalkOff)
+                return false;
+            spdlog::info("Stack: {:X} walked off ({:.0f} from the spot)", aPlayer.FormId, cDistance);
+            return true;
+        });
+        // One off the spot collides at once; it leaves the stack only if it stays off.
+        for (const Stack::Player& cPlayer : m_stack->Players)
+            if (cPlayer.OffSince == std::chrono::steady_clock::time_point{})
+                stacked.push_back(cPlayer.FormId);
+        if (m_stack->Players.empty())
+            m_stack.reset();
+    }
+
+    // The stacked players pass through each other (every frame: a collision group is its current controller's).
+    m_playerBridge.SetPassThrough(stacked);
+}
+
+Map<uint32_t, glm::vec3> TravelService::PlayersHere() const noexcept
+{
+    Map<uint32_t, glm::vec3> players;
+    glm::vec3 position;
+    m_playerBridge.GetPlayerPosition(position.x, position.y, position.z);
+    players[m_playerBridge.GetPlayerFormId()] = position;
+    auto view = m_world.view<FormIdComponent, RemoteComponent, PlayerComponent, OwnerPlaceComponent,
+                             InterpolationComponent>();
+    for (const entt::entity cEntity : view)
+    {
+        // A copy is where its owner is: one left behind in a cell its owner has left is not here.
+        const auto& cPlace = view.get<OwnerPlaceComponent>(cEntity);
+        if (!IsAroundPlayer(cPlace.WorldSpaceId, cPlace.CellId, view.get<InterpolationComponent>(cEntity).Position))
+            continue;
+        const uint32_t cFormId = view.get<FormIdComponent>(cEntity).Id;
+        m_actorBridge.GetActorPosition(cFormId, position.x, position.y, position.z);
+        players[cFormId] = position;
+    }
+    return players;
 }

@@ -13,8 +13,6 @@ struct TESObjectCELL : TESForm
 {
     Vector<TESObjectREFR*> GetRefsByFormTypes(const Vector<FormType>& aFormTypes) const noexcept;
     void GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept;
-    // The navmesh floor under a point within aMaxGap of its height (walkable ground there), if any.
-    std::optional<float> NavmeshFloorAt(const NiPoint3& acPoint, float aMaxGap) const noexcept;
 
     bool IsValid() const { return cellFlags[4] == 7; }
 

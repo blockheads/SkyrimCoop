@@ -19,7 +19,9 @@ struct MiddleProcess
     BSPointerHandle<TESObjectREFR> commandingActor;
     uint8_t pad21C[0x220 - 0x21C];
     InventoryEntry* leftEquippedObject;
-    uint8_t pad228[0x260 - 0x228];
+    uint8_t pad228[0x250 - 0x228];
+    struct bhkCharacterController* charController; // 250, NiPointer (CommonLib MiddleHighProcessData)
+    uint8_t pad258[0x260 - 0x258];
     InventoryEntry* rightEquippedObject;
     InventoryEntry* ammoEquippedObject; // could be more than just ammo
     // 0xB8 - direction
@@ -29,4 +31,5 @@ struct MiddleProcess
 
 SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, direction) == 0xB8);
 SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
+SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, charController) == 0x250);
 SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, rightEquippedObject) == 0x260);

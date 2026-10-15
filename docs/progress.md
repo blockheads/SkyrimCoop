@@ -35,7 +35,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Weather (`HostWeather`) | done (`50397fa0`) |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
-| Arriving together: players step aside onto navmesh floor by session slot | done (`83178416`), `party-spreads-on-arrival` |
+| Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
 | Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
 | Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
@@ -133,7 +133,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - Party tether (2026-10-14, `df9af2ff`): anyone who travels takes the party along. `party-uses-door`
   (the host leads out of the inn, the client back in), `party-fast-travels` (each leads once from the
   river to Riverwood, in one worldspace), `load-door-not-replayed` (the host follows the client out by the
-  tether, never by the door), `party-changes-cells`, `party-spreads-on-arrival`, `teleport-keeps-copies`,
+  tether, never by the door), `party-changes-cells`, `party-spreads-on-arrival` (now `party-stacks-on-arrival`), `teleport-keeps-copies`,
   twice each; `dive-*`, `map-marker-reaches-everyone`, `weather-follows-host` (they use `both_go`, which now
   moves the host only). `dive-host-player` 6 of 7: once a lock-order report, a new site of the known
   vanilla `coc` detach, read and added to `scripts/lock_order_known.txt`; once the copy's own gasp (below).

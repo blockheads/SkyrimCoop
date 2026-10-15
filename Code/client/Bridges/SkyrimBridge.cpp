@@ -16,7 +16,6 @@
 #include <Forms/TESWeather.h>
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESObjectCELL.h>
-#include <Forms/NavMesh.h>
 #include <Forms/TESNPC.h>
 #include <Forms/ActorValueInfo.h>
 #include <Forms/SpellItem.h>
@@ -38,6 +37,7 @@
 #include <Misc/BSFixedString.h>
 #include <Forms/TESPackage.h>
 #include <Forms/TESTopicInfo.h>
+#include <Games/Skyrim/PlayerCollision.h>
 #include <Forms/TESRace.h>
 #include <Forms/BGSEncounterZone.h>
 #include <Services/QuestService.h>
@@ -1533,42 +1533,21 @@ bool SkyrimBridge::ConsumeTeleported() noexcept
     return PlayerCharacter::ConsumeTeleported();
 }
 
-bool SkyrimBridge::StepPlayerAside(uint32_t aSlot) noexcept
+float SkyrimBridge::GetPlayerHeading() const noexcept
 {
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    TESObjectCELL* pCell = pPlayer ? pPlayer->parentCell : nullptr;
-    if (!aSlot || !pCell)
-        return false;
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    return pPlayer ? pPlayer->rotation.z : 0.f;
+}
 
-    // Right, left, behind for the first three, relative to where the player faces; the others if those
-    // are not floor. The step and the way to it must be on the navmesh (no wall in between).
-    constexpr float cDirections[] = {90.f, -90.f, 180.f, 135.f, -135.f, 45.f, -45.f};
-    constexpr float cSteps[] = {100.f, 70.f};
-    constexpr float cMaxGap = 60.f;
-    const NiPoint3 cFrom = pPlayer->position;
-    for (const float cStep : cSteps)
-        for (size_t i = 0; i < std::size(cDirections); ++i)
-        {
-            const float cAngle = pPlayer->rotation.z + glm::radians(cDirections[(aSlot - 1 + i) % std::size(cDirections)]);
-            const NiPoint3 cTo(glm::vec3(cFrom.x + std::sin(cAngle) * cStep, cFrom.y + std::cos(cAngle) * cStep, cFrom.z));
-            std::optional<float> floor;
-            bool clear = true;
-            for (float t = 0.25f; t <= 1.f && clear; t += 0.25f)
-            {
-                const NiPoint3 cOn(glm::vec3(cFrom.x + (cTo.x - cFrom.x) * t, cFrom.y + (cTo.y - cFrom.y) * t, cFrom.z));
-                floor = pCell->NavmeshFloorAt(cOn, cMaxGap);
-                clear = floor.has_value();
-            }
-            if (!clear)
-                continue;
-            pPlayer->SetPosition(NiPoint3(glm::vec3(cTo.x, cTo.y, *floor)), true);
-            spdlog::info("Arrived with others: stepped aside {:.0f} units at {:.0f} degrees (slot {})", cStep, cDirections[(aSlot - 1 + i) % std::size(cDirections)], aSlot);
-            return true;
-        }
-    const auto cHere = pCell->NavmeshFloorAt(cFrom, cMaxGap);
-    spdlog::info("Arrived with others: no floor to step aside to (slot {}, cell {:X}, {} navmeshes, floor here {})", aSlot,
-                 pCell->formID, pCell->pNavMeshes ? pCell->pNavMeshes->navMeshes.length : 0, cHere ? *cHere - cFrom.z : 9999.f);
-    return false;
+void SkyrimBridge::SetPlayerHeading(float aHeading) noexcept
+{
+    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
+        pPlayer->SetRotation(pPlayer->rotation.x, 0.f, aHeading);
+}
+
+void SkyrimBridge::SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept
+{
+    PlayerCollision::SetPassThrough(TiltedPhoques::Vector<uint32_t>(acActorFormIds.begin(), acActorFormIds.end()));
 }
 
 void SkyrimBridge::StopTeleportEvents() noexcept

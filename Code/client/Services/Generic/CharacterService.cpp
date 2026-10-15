@@ -1515,6 +1515,7 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
     float x, y, z;
     m_playerBridge.GetPlayerPosition(x, y, z);
     request.Position = glm::vec3(x, y, z);
+    request.Heading = m_playerBridge.GetPlayerHeading();
     const auto cState = ReadLiveState(m_playerBridge.GetPlayerFormId());
     request.LatestAction = cState.LatestAction;
     request.GraphState = cState.GraphState;
