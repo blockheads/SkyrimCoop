@@ -5,6 +5,7 @@
 #include <Opcodes.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostClock.h>
+#include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostSession.h>
@@ -13,6 +14,7 @@
 
 #include <array>
 #include <functional>
+#include <string_view>
 
 #include <ChatMessageTypes.h>
 
@@ -38,8 +40,8 @@ struct GameServer;
  * The bridge is the front door and the plain relays: most rules pass a request on as its
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
- * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time) and HostTimeScale
- * (how fast everyone's clock runs); HostWeather has no rules.
+ * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
+ * (how fast everyone's clock runs) and HostDialogue (the party's conversation); HostWeather has no rules.
  */
 struct HostBridge
 {
@@ -110,4 +112,8 @@ private:
     HostClock m_clock;
     HostWeather m_weather;
     HostTimeScale m_timeScale;
+    HostDialogue m_dialogue;
 };
+
+// A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.
+[[nodiscard]] TiltedPhoques::String ChatText(std::string_view aText) noexcept;

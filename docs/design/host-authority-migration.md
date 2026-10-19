@@ -324,7 +324,9 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   `CommandService` are deleted. Waypoints (the map marker a player places) are plain relays,
   from anyone to everyone else; the client's `MapService` is registered again (it was dropped in
   `ec7d02d1`), scenario `map-marker-reaches-everyone`. A chat line goes to everyone, the sender too, under its
-  name with markup stripped; players cannot send system messages. The chat is an RmlUi box
+  name, cut to `kChatMaxLength` bytes without control characters (`ChatText`; 2026-10-19 it replaced
+  upstream's markup strip, made for its HTML chat: RmlUi's `{{ }}` binding shows text as text, so stripping
+  only ate text like `1 < 2 > 0`); players cannot send system messages. The chat is an RmlUi box
   (`Code/client/Ui/assets/chat.rml`): Enter in gameplay opens its line, the input dispatch hook (68655)
   gives it the keys and the game none while it is open, Enter sends, Escape cancels. Scenario
   `chat-reaches-everyone`, bridge cases in `chat_tests.cpp`. Dropped: the player list's health

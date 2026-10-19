@@ -42,6 +42,13 @@ enum ClientOpcode : unsigned char
     kEnterCellRequest,
     kRequestActiveEffects,
     kTimeScaleRequest,
+    kDialogueStartRequest,
+    kDialogueOpenedRequest,
+    kDialogueOptionsRequest,
+    kDialoguePickRequest,
+    kDialogueCloseRequest,
+    kDialogueJoinRequest,
+    kDialogueExperienceRequest,
     kClientOpcodeMax
 };
 
@@ -95,5 +102,11 @@ enum ServerOpcode : unsigned char
     kNotifyActiveEffects,
     kNotifyTimeScale,
     kNotifyPartyTravel,
+    kNotifyDialogueStart,
+    kNotifyDialogueOpen,
+    kNotifyDialogueList,
+    kNotifyDialoguePicked,
+    kNotifyDialogueClosed,
+    kNotifyDialogueExperience,
     kServerOpcodeMax
 };

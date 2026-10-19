@@ -23,7 +23,7 @@ TEST_CASE("Waypoints: a player's reaches everyone else", "[Bridge][Chat]")
     CHECK(session.SentTo<NotifyRemoveWaypoint>(kPeer).empty());
 }
 
-TEST_CASE("Chat: to everyone, the sender too, under its name and without markup", "[Bridge][Chat]")
+TEST_CASE("Chat: to everyone, the sender too, under its name and as typed", "[Bridge][Chat]")
 {
     Session session;
 
@@ -37,7 +37,7 @@ TEST_CASE("Chat: to everyone, the sender too, under its name and without markup"
         REQUIRE(cNotifies.size() == 1);
         CHECK(cNotifies[0]->MessageType == kGlobalChat);
         CHECK(cNotifies[0]->PlayerName == "Lydia");
-        CHECK(cNotifies[0]->ChatMessage == "hello there");
+        CHECK(cNotifies[0]->ChatMessage == "<b>hello</b> there");
     }
 }
 
@@ -50,4 +50,19 @@ TEST_CASE("Chat: players cannot send system messages", "[Bridge][Chat]")
     chat.ChatMessage = "The server is shutting down";
     session.Receive(kPeer, chat);
     CHECK(session.Outbox.empty());
+}
+
+TEST_CASE("Chat: a line is cut to the chat's length, whole characters, without control characters", "[Bridge][Chat]")
+{
+    // The chat box shows markup as text: it stays.
+    CHECK(ChatText("1 < 2 and <3 >_>") == "1 < 2 and <3 >_>");
+    CHECK(ChatText("one\ntwo\tthree\x7f") == "onetwothree");
+
+    const String cLong(kChatMaxLength + 10, 'a');
+    CHECK(ChatText(cLong).size() == kChatMaxLength);
+    // An é ("\xc3\xa9") across the limit is left out, not cut in half.
+    const String cAcross = String(kChatMaxLength - 1, 'a') + "\xc3\xa9";
+    CHECK(ChatText(cAcross) == String(kChatMaxLength - 1, 'a'));
+    const String cFits = String(kChatMaxLength - 2, 'a') + "\xc3\xa9";
+    CHECK(ChatText(cFits) == cFits);
 }

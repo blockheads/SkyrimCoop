@@ -52,7 +52,6 @@ constexpr auto cChatLineShown = std::chrono::seconds(10);
 constexpr size_t cChatLinesShown = 6;
 constexpr size_t cChatLinesOpen = 12;
 constexpr size_t cChatHistory = 50;
-constexpr size_t cChatMaxLength = 200;
 
 // The text a key types with the player's keyboard layout and shift (as skymp's InputConverter).
 Rml::String TypedText(uint32_t aScanCode, bool aShift) noexcept
@@ -322,7 +321,7 @@ void UiService::UpdateChat() noexcept
         case UiInput::cEscape: UiInput::CloseChat(); break;
         case UiInput::cBackspace: PopCharacter(m_chatDraft); break;
         default:
-            if (m_chatDraft.size() < cChatMaxLength)
+            if (m_chatDraft.size() < kChatMaxLength)
                 m_chatDraft += TypedText(cKey.ScanCode, cKey.Shift);
             break;
         }

@@ -3,7 +3,8 @@
 
 #include <GameServer.h>
 
-#include <regex>
+#include <algorithm>
+#include <string_view>
 #include <type_traits>
 
 #include <Messages/ActivateRequest.h>
@@ -160,6 +161,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     , m_clock(*this, aServer, m_players, m_game)
     , m_weather(aServer, m_players, m_game)
     , m_timeScale(*this, aServer, m_players)
+    , m_dialogue(*this, aServer, m_players, m_characters)
 {
     using enum Delivery;
 
@@ -214,6 +216,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
         m_characters.OnPlayerLeft(aConnection);
         m_players.Remove(aConnection);
         m_timeScale.OnPlayerLeft(aConnection);
+        m_dialogue.OnPlayerLeft(aConnection);
     });
 }
 
@@ -273,12 +276,11 @@ void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, Connecti
         spdlog::warn("HostBridge: {:x} sent a chat message of type {}, which players cannot", aSender, uint32_t(acRequest.MessageType));
         return;
     }
-    // The UI shows the text as it is: no markup from players.
-    static const std::regex s_markup{"<[^>]+>\\s+(?=<)|<[^>]+>"};
+    // The chat box shows text as it is (RmlUi text, no markup parsed).
     NotifyChatMessageBroadcast notify;
     notify.MessageType = acRequest.MessageType;
-    notify.PlayerName = std::regex_replace(m_players.PlayerNameOf(aSender), s_markup, "");
-    notify.ChatMessage = std::regex_replace(acRequest.ChatMessage, s_markup, "");
+    notify.PlayerName = ChatText(m_players.PlayerNameOf(aSender));
+    notify.ChatMessage = ChatText(acRequest.ChatMessage);
     for (const ConnectionId_t cPlayer : m_players.Connections())
         m_server.Send(cPlayer, notify);
 }
@@ -315,3 +317,15 @@ void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint
     }
 }
 
+TiltedPhoques::String ChatText(std::string_view aText) noexcept
+{
+    // A character the limit cuts through is left out whole (UTF-8 continuation bytes are 10xxxxxx).
+    size_t length = std::min(aText.size(), kChatMaxLength);
+    while (length && length < aText.size() && (static_cast<unsigned char>(aText[length]) & 0xC0) == 0x80)
+        --length;
+    TiltedPhoques::String text;
+    for (const char c : aText.substr(0, length))
+        if (static_cast<unsigned char>(c) >= 0x20 && c != 0x7F)
+            text += c;
+    return text;
+}
