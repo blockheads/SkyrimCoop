@@ -69,6 +69,26 @@ void MenuTopicManager::Pick(uint32_t aIndex) noexcept
     TiltedPhoques::ThisCall(s_saySelected.Get(), this, false, false);
 }
 
+void MenuTopicManager::Clear() noexcept
+{
+    TP_THIS_FUNCTION(TClear, void, MenuTopicManager);
+    POINTER_SKYRIMSE(TClear, s_clear, 35274);
+    TiltedPhoques::ThisCall(s_clear.Get(), this);
+}
+
+std::vector<TESTopic*> MenuTopicManager::Choices() noexcept
+{
+    using TChoices = GameList<TESTopic>*(TESTopicInfo* apInfo);
+    POINTER_SKYRIMSE(TChoices, s_choices, 25659);
+    std::vector<TESTopic*> topics;
+    ListLock lock(criticalSection);
+    const GameList<TESTopic>* pChoices = rootTopicInfo ? s_choices.Get()(rootTopicInfo) : nullptr;
+    for (const auto* pEntry = pChoices ? &pChoices->entry : nullptr; pEntry; pEntry = pEntry->next)
+        if (pEntry->data)
+            topics.push_back(pEntry->data);
+    return topics;
+}
+
 MenuTopicManager::Dialogue* MenuTopicManager::BuildOption(TESTopic* apTopic, TESTopicInfo* apInfo) noexcept
 {
     using TConstruct = Dialogue*(Dialogue*, TESQuest*, TESTopic*, TESTopicInfo*, TESObjectREFR*, bool);

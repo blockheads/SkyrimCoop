@@ -96,6 +96,7 @@ struct Skills
 };
 
 struct TESQuest;
+struct TESTopicInfo;
 
 struct PlayerCharacter : Actor
 {
@@ -117,6 +118,10 @@ struct PlayerCharacter : Actor
     void SetDifficulty(const int32_t aDifficulty, bool aForceUpdate = true, bool aExpectGameDataLoaded = true) noexcept;
 
     void AddSkillExperience(int32_t aSkill, float aExperience) noexcept;
+    // Whether the player heard this line within its reset hours (40694; TESTopic 25544 skips it then).
+    [[nodiscard]] bool SaidRecently(const TESTopicInfo* apInfo) const noexcept;
+    // Remembers the line as heard now, as saying it does (40692, from TESTopicInfo::Begin 25616).
+    void RememberSaid(const TESTopicInfo* apInfo) noexcept;
     float GetSkillExperience(Skills::Skill aSkill) const noexcept { return (*pSkills)->skills[aSkill].xp; }
 
     NiPoint3 RespawnPlayer() noexcept;
@@ -143,7 +148,9 @@ struct PlayerCharacter : Actor
     GameArray<ObjectiveInstance> objectives;
     uint8_t pad5A0[0x92C - 0x5A0];
     uint32_t playerMapMarker; // handle of the marker placed on the map (40535 sets it, 40536 clears it)
-    uint8_t pad930[0x9B8 - 0x930];
+    uint8_t pad930[0x938 - 0x930];
+    uint32_t skillTrainingsThisLevel; // TrainingMenu::Train counts each training here
+    uint8_t pad93C[0x9B8 - 0x93C];
     Skills** pSkills;
     uint8_t pad9B8[0xAC8 - 0x9B8];
     TESForm* locationForm;
@@ -158,6 +165,7 @@ struct PlayerCharacter : Actor
 
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, objectives) == 0x588);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, playerMapMarker) == 0x92C);
+SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, skillTrainingsThisLevel) == 0x938);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, pSkills) == 0x9B8);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, locationForm) == 0xAD0);
 SKYRIM_STRUCT_ASSERT(offsetof(PlayerCharacter, baseTints) == 0xB18);

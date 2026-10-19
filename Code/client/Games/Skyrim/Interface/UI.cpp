@@ -108,6 +108,27 @@ static void* UI_AddToActiveQueue_Hook(UI* apSelf, IMenu* apMenu, void* apFoundIt
     return UI_AddToActiveQueue(apSelf, apMenu, apFoundItem);
 }
 
+UIMessageQueue* UIMessageQueue::Get() noexcept
+{
+    POINTER_SKYRIMSE(UIMessageQueue*, s_singleton, 400445);
+    return *s_singleton.Get();
+}
+
+BSUIMessageData* UIMessageQueue::CreateData() noexcept
+{
+    using TCreate = BSUIMessageData*(const BSFixedString* apType);
+    POINTER_SKYRIMSE(TCreate, s_create, 35855);
+    const BSFixedString cType("BSUIMessageData");
+    return s_create.Get()(&cType);
+}
+
+void UIMessageQueue::AddMessage(const BSFixedString& acMenu, UIMessage::UI_MESSAGE_TYPE aType, BSUIMessageData* apData) noexcept
+{
+    TP_THIS_FUNCTION(TAddMessage, void, UIMessageQueue, const BSFixedString* apMenu, uint32_t aType, void* apData);
+    POINTER_SKYRIMSE(TAddMessage, s_addMessage, 13631);
+    TiltedPhoques::ThisCall(s_addMessage.Get(), this, &acMenu, aType, apData);
+}
+
 using TCallback = void(void*, const BSFixedString*, uint32_t, void*);
 static TCallback* UIMessageQueue__AddMessage_Real;
 

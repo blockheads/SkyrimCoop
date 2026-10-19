@@ -35,6 +35,37 @@ struct UIMessage
     uint32_t pad1C;
 };
 
+// A UI message's data holding one value (CommonLibSSE-NG BSUIMessageData), made by the engine's factory.
+struct BSUIMessageData
+{
+    void* vtable;           // 00, IUIMessageData
+    uint8_t unk08[0x8];     // 08
+    void* str;              // 10, BSString*
+    BSFixedString fixedStr; // 18
+    union
+    {
+        bool b;
+        uint32_t u;
+        float f;
+        void* p;
+    } data; // 20
+};
+
+static_assert(offsetof(BSUIMessageData, data) == 0x20);
+static_assert(sizeof(BSUIMessageData) == 0x28);
+
+// The engine's UI message queue (CommonLibSSE-NG UIMessageQueue): menus act on its messages in the UI update.
+struct UIMessageQueue
+{
+    static UIMessageQueue* Get() noexcept;
+    // A BSUIMessageData from the engine's message data factory (CreateUIMessageData 35855, SKSE's name); the queue
+    // owns it once added.
+    [[nodiscard]] static BSUIMessageData* CreateData() noexcept;
+
+    // Queues a message for the menu (AddMessage 13631).
+    void AddMessage(const BSFixedString& acMenu, UIMessage::UI_MESSAGE_TYPE aType, BSUIMessageData* apData) noexcept;
+};
+
 class UI
 {
 public:

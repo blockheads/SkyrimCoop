@@ -24,7 +24,8 @@ struct MenuTopicManager
         GameList<void>::Entry* currentResponse; // 40, the response said next (SaySelected 35283 says nothing without one)
         uint8_t unk48;                  // 48
         bool neverSaid;                 // 49
-        uint8_t unk4A[0x58 - 0x4A];     // 4A
+        bool hidden;                    // 4A, not listed by the menu's fill (51515), still counted
+        uint8_t unk4B[0x58 - 0x4B];     // 4B
     };
 
     static MenuTopicManager* Get() noexcept;
@@ -39,6 +40,11 @@ struct MenuTopicManager
 
     // Selects and says the option at this index, as the menu's TopicClicked does (51509: 35269, then 35283).
     void Pick(uint32_t aIndex) noexcept;
+    // Clears the conversation as starting and ending one do (35274): no speaker, no list, every flag down.
+    void Clear() noexcept;
+    // The topics of the said line's choices (rootTopicInfo's, 25659 as the list build 35287 reads them), in order,
+    // whether this game's player gets a line for them or not; none when the list is not a line's choices.
+    [[nodiscard]] std::vector<TESTopic*> Choices() noexcept;
 
     // Changing the list. BuildOption makes an option for the topic said with this info, as AddTopic (35303) does
     // once the info's conditions pass (Dialogue's constructor 35254, with the speaker); no conditions are tested,

@@ -28,8 +28,10 @@ the info that will be said), `parentTopic` (+0x38).
 | 35282 | 0x5e0840 | `MenuTopicManager::StartDialogue` | Called only from the two `SetDialogueWithPlayer`s. Under the critical section: ends any conversation (35294), begins the greeting's info (25616) and says it (35283), builds the list (35274, 35287), reads the speaker's name for the menu |
 | 35269 | 0x5dfa50 | `MenuTopicManager::SelectDialogue` | `(manager, index)`: walks `dialogueList` to `index` (past the head when `skipHeadResponse`), stores it in `selectedResponseNode`; for a non-actor speaker sets its topic. The pick's first half |
 | 35283 | 0x5e0f10 | `MenuTopicManager::SaySelected` | Says `selectedResponseNode`'s info: begins it (25616), refreshes the speaker (35296), appends its topic to `topicHistory`, plays the response (35285) or waits for the speaker's line to end |
-| 25616 | 0x3ebac0 | `TESTopicInfo::Begin` | `(info, stage, speakerHandle*, anySpeaker)`. **Hooked:** nothing for a copy speaker (its owner's game runs the line). Sends the info's script event (`ScriptEventSourceHolder` +0xEC8, `TopicResultCallBack`: **runs the info's fragment**), marks it said (`+0x3A`, change flag `0x80000000`), and for a Speech-weighted info (`+0x3E`) a call on the player (`sub_140749670`, likely Speech XP) |
-| 35274 | 0x5dfc90 | (list build, to confirm) | From 35282 and 35294; calls 35275 |
+| 25616 | 0x3ebac0 | `TESTopicInfo::Begin` | `(info, stage, speakerHandle*, anySpeaker)`. **Hooked:** nothing for a copy speaker (its owner's game runs the line). Sends the info's script event (`ScriptEventSourceHolder` +0xEC8, `TopicResultCallBack`: **runs the info's fragment**), marks it said (`+0x3A`, change flag `0x80000000`), and for an info with reset hours (`+0x3E`
+`timeUntilReset`) remembers it on the player with the game time (40692; corrected 2026-10-19, it is not Speech
+experience) |
+| 35274 | 0x5dfc90 | `MenuTopicManager::Clear` (ours) | From 35282 and 35294. Under the critical section: invalid speaker handle, the arrays and the list freed, every flag from +0xB0 down (`menuOpen` +0xB1 only here), `lastSelectedDialogue` freed. Safe without a speaker |
 | 35287 | 0x5e1830 | list build | From 35282, 35285, 35290, 35297; clears the list (35275), then the said info's choices or the speaker's topics (35276). See "Building options" |
 | 35294 | 0x5e1e50 | `MenuTopicManager::EndDialogue` | From `UpdateInDialogue` (both), `EndInterruptPackage`, the `PositionPlayerEvent` sink, 35282. Logs " %s  walkaway topic is running"; begins an info (25616, the goodbye or walkaway) and rebuilds the list (35274). Its conditions (distance, travel) still to read |
 | 35293 | 0x5e1dd0 | | The speaker as an `Actor` (handle +0x68, form type 62) |
@@ -58,8 +60,8 @@ the info that will be said), `parentTopic` (+0x38).
 The SWF (`DialogueMenu.as`): the engine calls `PopulateDialogueList` with `(text, isNew, topicIndex)`
 triples and the selected index last; the SWF calls `TopicClicked(topicIndex)`, `SkipText`, `CloseMenu`.
 **The highlight lives only in the SWF** (`_root.DialogueMenu_mc.TopicList.selectedIndex`,
-`SetSelectedTopic`); the engine never hears of it, so showing a pick sets it through Scaleform (a shared cursor
-did too, built and dropped 2026-10-19).
+`SetSelectedTopic`); the engine never hears of it, so only Scaleform can set it. A shared cursor and showing other
+players' picks did, both built and dropped 2026-10-19 (`docs/ideas.md`).
 CHIM reads the list as `_root.DialogueMenu_mc.TopicList.entryList` and replays a held pick by calling the
 original callback with a built `FxDelegateArgs` (`GFxValue{index}`, the menu, its movie).
 
@@ -70,7 +72,7 @@ original callback with a built `FxDelegateArgs` (`GFxValue{index}`, the menu, it
 | Start the host player's conversation with an NPC | `SetDialogueWithPlayer(npc, true, ...)` (19524). Limits (distance, the NPC's state) to measure in game |
 | Read the list | `dialogueList` after the menu's show/update (SmartTalk's hook point) |
 | Replace a peer's list | done: `MenuTopicManager::SetOptions` with options built from the host's list, then 52857 (below, "Building options") |
-| Read and set the cursor | Scaleform: `TopicList.selectedIndex` / `SetSelectedTopic` (showing a pick only) |
+| Read and set the cursor | Scaleform: `TopicList.selectedIndex` / `SetSelectedTopic` (the harness reads it; nothing sets it now) |
 | Intercept a pick | swap `TopicClicked` in `Accept` (CHIM) |
 | Pick on the host | the original `TopicClicked(index)`, or 35269 + 35283 under the critical section |
 | A peer's option the host lacks | done: built with 35254 (below, "Building options") |
@@ -139,9 +141,12 @@ Lydia placed by the host (`spawn_host_npc`), each player 110 units from her (its
   subtitles off as it opens (`DialogueMenu::ProcessMessage` 51506 → 51516: HUD message
   `kSetSubtitlesEnabled` 9) and back on in its `CloseMenu` callback (51511), which the SWF's `StartHideMenu`
   calls. A `kHide` message without data skips the SWF, so every later general subtitle stays in
-  `SubtitleManager` (its current speaker set) but never shows. `DialogueBridge::CloseMenu` calls
-  `_root.DialogueMenu_mc.StartHideMenu` on the menu's movie (`GFxMovie::Invoke`, vfunc 0x17), as a player's
-  exit does, once per menu (a second call restarts the fade-out). The scenarios' cleanup presses Tab.
+  `SubtitleManager` (its current speaker set) but never shows. With a `BSUIMessageData` whose `data` (+0x20) is
+  set, `ProcessMessage` invokes `StartHideMenu` itself (read in IDA 2026-10-19), as a player's exit does:
+  `DialogueBridge::CloseMenu` queues that (`UIMessageQueue::CreateData`, `CreateUIMessageData` 35855 by type
+  name, as CommonLibSSE-NG's `SendUIBoolMessage`; `AddMessage` 13631), so it names nothing in the SWF and a
+  replaced SWF closes as the engine closes it. Once per menu: a second one restarts the fade-out. The
+  scenarios' cleanup presses Tab.
 - **Subtitles past `fMaxSubtitleDistance`:** each `SubtitleInfo` has `forceDisplay` (+0x1C), the 4th argument
   of `ShowSubtitle` (52626); with it set the update (the HUD's, from the player's update) skips the distance.
   The engine sets it for some of its lines (`Actor::UpdateSoundCallback`); `NotifySubtitle` carries it, so a
@@ -224,7 +229,8 @@ that passes, or a random one of those passing for a random topic. A peer calls i
 no conversation needs to run there. `TESTopicInfo` (+0x20 `parentTopic`, +0x3A `saidOnce`, +0x3C flags with
 `kSayOnce` 1<<2) tells the host whether a line is the topic's and still sayable.
 
-**Showing a pick from elsewhere** (`DialogueBridge::ShowPicked`): `Invoke("_root.DialogueMenu_mc.onSelectionClick")`
+**Showing a pick from elsewhere** (`DialogueBridge::ShowPicked`, dropped 2026-10-19; no engine path exists, the
+picked state is the SWF's answer to its own click): `Invoke("_root.DialogueMenu_mc.onSelectionClick")`
 after setting the highlight plays the SWF's own click (state `TOPIC_CLICKED`, the picked text kept, the list
 hidden); its `GameDelegate.call("TopicClicked")` comes back synchronously into our `TopicClicked` hook, which skips
 it then. The engine's next list (52857) shows the list again, as after a click.
@@ -241,3 +247,48 @@ garbage (the host's gold as -140); fixed 2026-10-18. Its one caller is the harne
 
 The info being said is `MenuTopicManager::currentTopicInfo` (+0x70) while the line plays; `lastTopicInfo`
 (+0x78) is not the last line of this conversation (it still held another NPC's info).
+
+## Loose ends (2026-10-19)
+
+Checked in IDA on 1.6.1170 for the open items of `shared-dialogue.md`.
+
+| ID | RVA | Name (ours) | What |
+|---|---|---|---|
+| 55582 | 0xa127a0 | `Game.ShowTrainingMenu` (Papyrus native) | Calls 52942 with its actor argument, nothing else |
+| 52942 | 0x97ae20 | open training | `(Actor* trainer)`: queues the Training Menu's show (`InterfaceStrings`+0x170, kShow) with a `UIMessageDataPtr<Actor>`; its only caller is 55582. **Hooked:** after another player's pick the host's game sends it to that player's game, which calls the original with its copy |
+| 40694 | 0x7499c0 | `PlayerCharacter::SaidRecently` (ours) | `(player, info)`: the info's form id in the player's map at +0x5D8 (its reset not over). `TESTopic` 25544 skips an info with `timeUntilReset` and this true |
+| 40692 | 0x749670 | `PlayerCharacter::RememberSaid` (ours) | `(player, info)`: adds the info with the calendar's time to that map; from `TESTopicInfo::Begin` 25616. Peers call it for each line picked, so their menus skip it as the host's does |
+| 37266 | 0x662a90 | `Actor::IsTalking` | Voice flags (+0xE8 & 0x180) or its voice timer (+0x110) |
+
+- **What ends a conversation.** `Actor::UpdateInDialogue` (37541) calls 35294 when the speaker has no AI process
+  (unloaded), on `shutMenu`, or when a dialogue timer runs out without `waitingToAdvance`: no distance rule (the
+  host held one at 4000 units). Travel ends it through the `PositionPlayerEvent` sink. A party travelling ends
+  the host's and closes every peer's menu (`dialogue-ends-on-travel`).
+- **A speaker deleted mid-conversation** leaves the conversation stuck: 35294 does nothing without a speaker
+  (`speaker` handle invalid), so 35274 never runs and `menuOpen` stays set, and the game starts no conversation
+  again (activating an NPC does nothing). A copy is deleted that way when its NPC is removed or left behind on
+  travel. `DialogueBridge::ClearOrphaned` calls 35274 then (`dialogue-npc-removed` fails without it).
+- **`StartDialogue` (35282) returns true exactly when it asks for the menu** (52853), so a peer's start that
+  returns true always has its menu queued.
+- **A start from code has no combat check:** `SetDialogueWithPlayer` (37200) on an NPC in combat starts it
+  (activating it does not); `DialogueBridge::Start` refuses fighting or dead actors itself. The host's player in
+  a menu, in combat or on the map does not stop a hidden start (tried: inventory, map, a fight).
+- **A peer's own list after the copy's line.** The copy says the host's lines; when one ends, the peer's engine
+  advances its own conversation (35285): builds its own list (35287) and shows it (52857). Shown while the host's
+  NPC still answered a longer line, it offered the peer's root topics, pickable (Andurs, 26 s). The show is held
+  until the next step's list comes.
+- **`PlayerCharacter` +0x938 `skillTrainingsThisLevel`:** `TrainingMenu::Train` compares it with
+  `iTrainingNumAllowedPerLevel` and increments it (CommonLibSSE-NG's `INFO_RUNTIME_DATA` at 0x8D8 + 0x60).
+- **Force greets** reach 37200 with `forceGreet` set, through the same start filter: the harness's `force_greet`
+  calls it as a ForceGreet package ends. Copies run no AI, so the host's game opens the greeting for everyone.
+- **A line's choices** are kept per info in a global map: 25659 (0x3ed950) `(info)` returns its
+  `BSSimpleList<TESTopic*>`; the list build (35287) reads it for `rootTopicInfo` and `AddTopic`s each, so a choice
+  the player gets no line for is simply missing. `TESTopic` +0x48 `topicInfos`, +0x50 `numTopicInfos`.
+- **`Dialogue` +0x4A:** set, the menu's fill (51515) does not list the option but `35267(manager, false)` still
+  counts it, so a list of only such options does not end the conversation. The fill itself ends a conversation
+  whose list shows nothing (an open menu ended at once on one), so the host's game closes its menu instead of
+  filling it when it holds choices.
+- **Said lines.** `TESTopicInfo::Begin` (25616) sets +0x3A (`saidOnce`) and the change flag 0x80000000 on every
+  line but a refusal (flags 0x10), and 40692 for one with reset hours. `TESTopicInfo` 25615 (the conditions)
+  fails a say-once line (flags 0x4) with +0x3A set, so its topic offers its next line (Onmund's greetings, Hulda's
+  College lines are say-once pairs).

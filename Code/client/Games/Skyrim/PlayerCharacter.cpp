@@ -1,4 +1,6 @@
 #include <PlayerCharacter.h>
+
+#include <Forms/TESTopicInfo.h>
 #include <HookSwitch.h>
 #include <Games/ActorExtension.h>
 
@@ -86,6 +88,21 @@ void PlayerCharacter::AddSkillExperience(int32_t aSkill, float aExperience) noex
     float deltaExperience = newExperience - oldExperience;
 
     spdlog::debug("Added {} experience to skill {}", deltaExperience, aSkill);
+}
+
+bool PlayerCharacter::SaidRecently(const TESTopicInfo* apInfo) const noexcept
+{
+    TP_THIS_FUNCTION(TSaidRecently, bool, const PlayerCharacter, const TESTopicInfo* apInfo);
+    POINTER_SKYRIMSE(TSaidRecently, s_saidRecently, 40694);
+    return apInfo && apInfo->timeUntilReset && TiltedPhoques::ThisCall(s_saidRecently.Get(), this, apInfo);
+}
+
+void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
+{
+    TP_THIS_FUNCTION(TRememberSaid, void, PlayerCharacter, const TESTopicInfo* apInfo);
+    POINTER_SKYRIMSE(TRememberSaid, s_rememberSaid, 40692);
+    if (apInfo && apInfo->timeUntilReset)
+        TiltedPhoques::ThisCall(s_rememberSaid.Get(), this, apInfo);
 }
 
 NiPoint3 PlayerCharacter::RespawnPlayer() noexcept
