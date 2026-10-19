@@ -2,9 +2,10 @@
 
 struct SubtitleEvent
 {
-    SubtitleEvent(uint32_t aSpeakerID, String aText)
+    SubtitleEvent(uint32_t aSpeakerID, String aText, bool aForce)
         : SpeakerID(aSpeakerID)
         , Text(aText)
+        , Force(aForce)
     {
     }
 
@@ -19,4 +20,5 @@ struct SubtitleEvent
     String Text{};
     // This is only relevant to fallout 4
     uint32_t TopicFormID{};
+    bool Force{}; // shown at any distance
 };

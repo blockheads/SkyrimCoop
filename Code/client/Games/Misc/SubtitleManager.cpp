@@ -16,12 +16,12 @@ SubtitleManager* SubtitleManager::Get() noexcept
     return *s_singleton.Get();
 }
 
-TP_THIS_FUNCTION(TShowSubtitle, void, SubtitleManager, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aIsInDialogue);
+TP_THIS_FUNCTION(TShowSubtitle, void, SubtitleManager, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay);
 static TShowSubtitle* RealShowSubtitle = nullptr;
 
-void SubtitleManager::ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubtitleText, TESTopicInfo* apTopicInfo, bool aUnk1) noexcept
+void SubtitleManager::ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubtitleText, TESTopicInfo* apTopicInfo, bool aForceDisplay) noexcept
 {
-    TiltedPhoques::ThisCall(RealShowSubtitle, this, apSpeaker, apSubtitleText, aUnk1);
+    TiltedPhoques::ThisCall(RealShowSubtitle, this, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
 void* SubtitleManager::HideSubtitle(TESObjectREFR* apSpeaker) noexcept
@@ -31,15 +31,18 @@ void* SubtitleManager::HideSubtitle(TESObjectREFR* apSpeaker) noexcept
     return TiltedPhoques::ThisCall(s_hideSubtitle, this, apSpeaker);
 }
 
-void TP_MAKE_THISCALL(HookShowSubtitle, SubtitleManager, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aIsInDialogue)
+void TP_MAKE_THISCALL(HookShowSubtitle, SubtitleManager, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay)
 {
-    // spdlog::debug("Subtitle for actor {:X} (bool {}):\n\t{}", apSpeaker ? apSpeaker->formID : 0, aIsInDialogue, apSubtitleText);
+    // spdlog::debug("Subtitle for actor {:X} (bool {}):\n\t{}", apSpeaker ? apSpeaker->formID : 0, aForceDisplay, apSubtitleText);
 
     Actor* pActor = Cast<Actor>(apSpeaker);
     if (apSubtitleText && pActor && pActor->GetExtension()->IsLocal() && !pActor->GetExtension()->IsPlayer())
-        World::Get().GetRunner().Trigger(SubtitleEvent(apSpeaker->formID, apSubtitleText));
+        World::Get().GetRunner().Trigger(SubtitleEvent(apSpeaker->formID, apSubtitleText, aForceDisplay));
+    // A copy shows only its owner's subtitles (NotifySubtitle calls past this hook).
+    if (pActor && pActor->GetExtension()->IsRemote())
+        return;
 
-    TiltedPhoques::ThisCall(RealShowSubtitle, apThis, apSpeaker, apSubtitleText, aIsInDialogue);
+    TiltedPhoques::ThisCall(RealShowSubtitle, apThis, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
 static TiltedPhoques::Initializer s_subtitleHooks(

@@ -207,6 +207,7 @@ struct Subtitle
     uint32_t ServerId{};
     TiltedPhoques::String Text{};
     uint32_t TopicFormId{};
+    bool Force{}; // shown at any distance (the engine's forceDisplay, as for a line said to the player)
 };
 
 struct SyncExperience

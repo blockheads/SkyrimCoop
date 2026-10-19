@@ -27,8 +27,8 @@ struct SubtitleManager
     BSRecursiveLock lock;              // 20, BSSpinLock
     uint32_t currentSpeakerHandle;     // 28
 
-    // TODO(cosideci): confirm usage of bool
-    void ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubtitleText, TESTopicInfo* apTopicInfo, bool aIsInDialogue = false) noexcept;
+    // aForceDisplay: shown at any distance, not only within fMaxSubtitleDistance (SubtitleInfo::forceDisplay).
+    void ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubtitleText, TESTopicInfo* apTopicInfo, bool aForceDisplay = false) noexcept;
     void* HideSubtitle(TESObjectREFR* apSpeaker) noexcept;
 };
 

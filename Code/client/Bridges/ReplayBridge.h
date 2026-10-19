@@ -112,7 +112,7 @@ public:
     void EnableActor(uint32_t aFormId) noexcept override;
     void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override;
     void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;
-    void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId) noexcept override;
+    void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId, bool aForce) noexcept override;
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override;
     void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override;
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;

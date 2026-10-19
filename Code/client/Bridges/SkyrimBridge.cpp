@@ -1875,12 +1875,12 @@ void SkyrimBridge::ActorStopCurrentDialogue(uint32_t aFormId) noexcept
         pActor->StopCurrentDialogue(true);
 }
 
-void SkyrimBridge::ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId) noexcept
+void SkyrimBridge::ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId, bool aForce) noexcept
 {
     Breadcrumbs::Record("ActorShowSubtitle", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
-        SubtitleManager::Get()->ShowSubtitle(pActor, acText.c_str(), Cast<TESTopicInfo>(TESForm::GetById(aTopicInfoFormId)));
+        SubtitleManager::Get()->ShowSubtitle(pActor, acText.c_str(), Cast<TESTopicInfo>(TESForm::GetById(aTopicInfoFormId)), aForce);
 }
 
 void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept

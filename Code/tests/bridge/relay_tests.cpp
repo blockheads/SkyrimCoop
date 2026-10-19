@@ -278,11 +278,13 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     subtitle.ServerId = cHostNpc;
     subtitle.Text = "Let me guess...";
     subtitle.TopicFormId = 0x1234;
+    subtitle.Force = true;
     session.Receive(kHost, subtitle);
     const auto cSubtitles = session.SentTo<NotifySubtitle>(kPeer);
     REQUIRE(cSubtitles.size() == 1);
     CHECK(cSubtitles[0]->Text == "Let me guess...");
     CHECK(cSubtitles[0]->TopicFormId == 0x1234);
+    CHECK(cSubtitles[0]->Force);
 
     SyncExperienceRequest experience;
     experience.Experience = 12.5f;

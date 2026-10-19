@@ -215,6 +215,7 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.ServerId = 0x3456;
         m.Text = "Let me guess...";
         m.TopicFormId = 0x4567;
+        m.Force = true;
         add("Subtitle", m, (NotifySubtitle*)nullptr);
     }
     {
@@ -246,7 +247,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
         {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
         {"SpellCast", {"ab9302cddf040102796b0500", "ab9302cddf040102796b0500"}},
-        {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a01", "d6680f4c6574206d652067756573732e2e2ee78a01"}},
+        {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a0101", "d6680f4c6574206d652067756573732e2e2ee78a0101"}},
         {"SyncExperience", {"00004841", "00004841"}},
     };
 

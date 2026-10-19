@@ -970,6 +970,7 @@ void CharacterService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
     request.ServerId = serverIdRes.value();
     request.Text = acEvent.Text;
     request.TopicFormId = acEvent.TopicFormID;
+    request.Force = acEvent.Force;
 
     m_transport.Send(request);
 }
@@ -988,7 +989,7 @@ void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcep
     auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
 
     // The owner's subtitle text over the copy (its voice comes through NotifyDialogue).
-    m_actorBridge.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId);
+    m_actorBridge.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId, acMessage.Force);
 }
 
 void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept
