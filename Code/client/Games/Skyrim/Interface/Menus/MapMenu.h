@@ -3,7 +3,7 @@
 #include <Games/Events.h>
 #include <Interface/IMenu.h>
 
-class MenuOpenCloseEvent;
+struct MenuOpenCloseEvent;
 
 struct IMapCameraCallbacks
 {

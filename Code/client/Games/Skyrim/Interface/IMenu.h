@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Interface/GFxMovie.h>
+
 struct GRefCountImplCore
 {
     virtual ~GRefCountImplCore() = default;
@@ -161,7 +163,7 @@ struct IMenu : FxDelegateHandler
 
     bool FreezesFramePause() const { return uiMenuFlags & kFreezeFramePause; }
 
-    void* uiMovie{nullptr};
+    GFxMovie* uiMovie{nullptr}; // 10
     int8_t depthPriority{3};
     uint8_t pad19{0};
     uint16_t pad20{0};
@@ -172,5 +174,6 @@ struct IMenu : FxDelegateHandler
 };
 
 constexpr auto x = offsetof(IMenu, uiMenuFlags);
+SKYRIM_STRUCT_ASSERT(offsetof(IMenu, uiMovie) == 0x10);
 
 SKYRIM_STRUCT_ASSERT(offsetof(IMenu, uiMenuFlags) == 0x1C);

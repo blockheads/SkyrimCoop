@@ -10,7 +10,7 @@ struct BSString
     }
     ~BSString();
 
-    [[nodiscard]] const char* AsAscii() { return data; }
+    [[nodiscard]] const char* AsAscii() const { return data; }
 
 private:
     const char* data;

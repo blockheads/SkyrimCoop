@@ -51,6 +51,17 @@ fetch Pentalimbed/kaputt "$ROOT/reference/plugins/kaputt"
 fetch ersh1/OpenAnimationReplacer "$ROOT/reference/plugins/OpenAnimationReplacer"
 fetch figment/hkxcmd "$ROOT/reference/plugins/hkxcmd"
 
+# Dialogue (shared dialogue, docs/re/systems/dialogue.md): the vanilla DialogueMenu ActionScript (its list
+# and TopicClicked callbacks), a plugin that hooks DialogueMenu::Accept and swaps TopicClicked, and plugins
+# that drive MenuTopicManager (skipping lines, the topic list); moving during a conversation (its input
+# remap, the skipped turn to the speaker) and unpaused menus; a plugin that hides, replaces and adds topics
+# while the engine builds the list (MenuTopicManager::AddTopic).
+for repo in Mardoxx/skyrimui DCCStudios/CHIM-Dialogue-TTS-Bridge JonathanFeenstra/InstantlySkipDialogueNG \
+            Seb263/SkyrimSE_SmartTalk Vermunds/DialogueMovementEnabler-SE Vermunds/SkyrimSoulsRE \
+            KrisV-777/Dynamic-Dialogue-Replacer; do
+    fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
+done
+
 curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"
