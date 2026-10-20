@@ -14,49 +14,98 @@
 using TiltedPhoques::Serialization;
 using TiltedPhoques::ViewBuffer;
 
-BGSSaveFormBuffer::BGSSaveFormBuffer()
+BGSSaveFormBuffer::BGSSaveFormBuffer() noexcept
 {
-    TP_THIS_FUNCTION(CtorT, BGSSaveFormBuffer*, BGSSaveFormBuffer);
-
-    POINTER_SKYRIMSE(CtorT, ctor, 36035);
-
-    TiltedPhoques::ThisCall(ctor, this);
-
+    TP_THIS_FUNCTION(TCtor, BGSSaveFormBuffer*, BGSSaveFormBuffer);
+    POINTER_SKYRIMSE(TCtor, s_ctor, 36035);
+    buffer = nullptr;
+    capacity = 0;
     position = 0;
+    TiltedPhoques::ThisCall(s_ctor, this);
+}
+
+BGSSaveFormBuffer::~BGSSaveFormBuffer() noexcept
+{
+    TP_THIS_FUNCTION(TDtor, void, BGSSaveFormBuffer);
+    POINTER_SKYRIMSE(TDtor, s_dtor, 36044);
+    TiltedPhoques::ThisCall(s_dtor, this);
+}
+
+void BGSSaveFormBuffer::SetHeader(uint32_t aFormId, uint32_t aChangeFlags, uint8_t aFormType, uint8_t aVersion) noexcept
+{
+    TP_THIS_FUNCTION(TSetHeader, void, BGSSaveFormBuffer, uint64_t, uint32_t, uint32_t, uint8_t);
+    POINTER_SKYRIMSE(TSetHeader, s_setHeader, 36037);
+    TiltedPhoques::ThisCall(s_setHeader, this, aFormId, aChangeFlags, aFormType, aVersion);
+}
+
+void BGSSaveFormBuffer::Reserve(uint32_t aSize) noexcept
+{
+    TP_THIS_FUNCTION(TReserve, void, BGSSaveFormBuffer, uint32_t);
+    POINTER_SKYRIMSE(TReserve, s_reserve, 36056);
+    TiltedPhoques::ThisCall(s_reserve, this, aSize);
 }
 
 void BGSSaveFormBuffer::WriteId(uint32_t aId) noexcept
 {
     uint32_t modId = 0;
     uint32_t baseId = 0;
-
     World::Get().GetModSystem().GetServerModId(aId, modId, baseId);
 
-    auto pWriteLocation = reinterpret_cast<uint8_t*>(buffer + position);
-
-    ViewBuffer view(pWriteLocation, capacity - position);
+    constexpr uint32_t cMaxVarInts = 20; // two var ints of up to 10 bytes
+    Reserve(position + cMaxVarInts);
+    ViewBuffer view(reinterpret_cast<uint8_t*>(buffer + position), capacity - position);
     Buffer::Writer writer(&view);
-
     Serialization::WriteVarInt(writer, modId);
     Serialization::WriteVarInt(writer, baseId);
-
     position += writer.Size() & 0xFFFFFFFF;
 }
 
-BGSLoadFormBuffer::BGSLoadFormBuffer(const uint32_t aChangeFlags)
+BGSLoadFormBuffer::BGSLoadFormBuffer() noexcept
 {
-    TP_THIS_FUNCTION(CtorT, BGSLoadFormBuffer*, BGSLoadFormBuffer);
-
-    POINTER_SKYRIMSE(CtorT, ctor, 35993);
-
-    TiltedPhoques::ThisCall(ctor, this);
-
-    changeFlags = aChangeFlags;
-    loadFlag = 0x40;
-    position = 0;
-    maybeMoreFlags = 0;
-
+    TP_THIS_FUNCTION(TCtor, BGSLoadFormBuffer*, BGSLoadFormBuffer);
+    TP_THIS_FUNCTION(TDataCtor, void*, uint32_t);
+    POINTER_SKYRIMSE(TCtor, s_ctor, 35993);          // BGSLoadGameBuffer's
+    POINTER_SKYRIMSE(TDataCtor, s_dataCtor, 35984); // BGSLoadFormData's
+    POINTER_SKYRIMSE(uint8_t, s_vtable, 187480);      // BGSLoadFormBuffer's
+    std::memset(this, 0, sizeof(*this));
+    TiltedPhoques::ThisCall(s_ctor, this);
+    TiltedPhoques::ThisCall(s_dataCtor, &formId);
+    vtable = s_vtable.Get();
     unk1C = -1;
+}
+
+void BGSLoadFormBuffer::SetData(const char* apData, uint32_t aSize) noexcept
+{
+    buffer = apData;
+    capacity = size = dataSize = aSize;
+    position = 0;
+}
+
+BGSSaveLoadGame* BGSSaveLoadGame::Get() noexcept
+{
+    POINTER_SKYRIMSE(BGSSaveLoadGame*, s_singleton, 403330);
+    return *s_singleton.Get();
+}
+
+uint8_t BGSSaveLoadGame::CurrentVersion() noexcept
+{
+    using TCurrentVersion = uint8_t(void*);
+    POINTER_SKYRIMSE(TCurrentVersion, s_currentVersion, 35740);
+    return s_currentVersion.Get()(nullptr);
+}
+
+bool BGSSaveLoadGame::BeginLoading() noexcept
+{
+    TP_THIS_FUNCTION(TSetLoading, bool, BGSSaveLoadGame, bool);
+    POINTER_SKYRIMSE(TSetLoading, s_setLoading, 19378);
+    return TiltedPhoques::ThisCall(s_setLoading, this, false);
+}
+
+void BGSSaveLoadGame::EndLoading(bool aWasClear) noexcept
+{
+    TP_THIS_FUNCTION(TSetLoading, bool, BGSSaveLoadGame, bool);
+    POINTER_SKYRIMSE(TSetLoading, s_setLoading, 19378);
+    TiltedPhoques::ThisCall(s_setLoading, this, aWasClear);
 }
 
 TP_THIS_FUNCTION(TBGSLoadFormBuffer_ReadFormId, bool, BGSLoadFormBuffer, uint32_t&);
@@ -98,7 +147,7 @@ bool TP_MAKE_THISCALL(BGSLoadFormBuffer_LoadFormId, BGSLoadFormBuffer, uint32_t&
 
     uint8_t* pReadLocation = (uint8_t*)(apThis->buffer + apThis->position);
 
-    ViewBuffer buffer(pReadLocation, apThis->capacity - apThis->position);
+    ViewBuffer buffer(pReadLocation, apThis->size - apThis->position);
     ViewBuffer::Reader reader(&buffer);
 
     const uint32_t modId = Serialization::ReadVarInt(reader) & 0xFFFFFFFF;
@@ -111,7 +160,8 @@ bool TP_MAKE_THISCALL(BGSLoadFormBuffer_LoadFormId, BGSLoadFormBuffer, uint32_t&
 
     apThis->position += reader.Size() & 0xFFFFFFFF;
 
-    return true;
+    // As the engine's: true for a reference whose form is gone.
+    return (modId != 0 || baseId != 0) && aFormId == 0;
 }
 
 static TiltedPhoques::Initializer s_saveLoadHooks(

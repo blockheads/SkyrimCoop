@@ -426,6 +426,7 @@ def prepare_prefix():
                        env=game_env(), cwd=GAME, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                        timeout=300)
     MY_GAMES.mkdir(parents=True, exist_ok=True)
+    (MY_GAMES / "Logs/Script").mkdir(parents=True, exist_ok=True)  # Papyrus writes its log only into an existing folder
     skyrim_ini, prefs_ini = MY_GAMES / "Skyrim.ini", MY_GAMES / "SkyrimPrefs.ini"
     if not skyrim_ini.exists():
         shutil.copy(GAME / "Skyrim_Default.ini", skyrim_ini)
@@ -438,7 +439,9 @@ def prepare_prefix():
     }, "Camera": {"fAutoVanityModeDelay": "1000000"},  # no idle camera orbiting the player
         # Tutorial popups (the map's, "Magicka Low") swallow all input until closed. A Skyrim.ini
         # setting (gIni_bShowTutorials_Interface): SkyrimPrefs.ini ignores it.
-        "Interface": {"bShowTutorials": "0"}})
+        "Interface": {"bShowTutorials": "0"},
+        # Papyrus's own log (papyrus_log): what a script did, where its errors went.
+        "Papyrus": {"bEnableLogging": "1", "bEnableTrace": "1", "bLoadDebugInformation": "1"}})
     set_ini(prefs_ini, {"Display": {"bFull Screen": "0", "bBorderless": "0",
                                     "iSize W": "1280", "iSize H": "720",
                                     "iLocation X": "0", "iLocation Y": "0"},
@@ -915,6 +918,11 @@ def wait_on(instance, description, predicate, timeout=15):
 def console_on(instance, command):
     select_instance(instance)
     run_console(command)
+
+
+def papyrus_log(instance):
+    """That game's Papyrus log (Logs/Script/Papyrus.0.log in its prefix), where a script's trace and errors go."""
+    return TEST_HOME / f"prefix-{instance or 'host'}" / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/Logs/Script/Papyrus.0.log"
 
 
 def local_player(instance):
@@ -3310,6 +3318,100 @@ def scenario_lock_reaches_others():
                 lock_on(name, door, False)
 
 
+REFR_LOCK = 1 << 12  # REFR change flag LockExtra
+
+
+def form_save(instance, form, **fields):
+    """The form's save data in that game (FormState::Save), as the harness's form_save gives it."""
+    return player_command(instance, {"cmd": "form_save", "form": form, **fields})
+
+
+def scenario_form_state_round_trips():
+    """World-state sync step 3: a form's save data through our own buffers. The client's character base
+    and the host's copy of it save the same bytes (the appearance went through FormState on spawn, form ids
+    as network ids); a door's lock saved on the host, unlocked, and loaded back is locked again."""
+    mine = form_save("client", 0x14, base=True)
+    select_instance("")
+    copy = next(iter(other_players()), None)
+    if copy is None:
+        raise TestFailure("[host] no copy of the client's character")
+    theirs = form_save("", copy, base=True, flags=mine["flags"])
+    if theirs["data"] != mine["data"]:
+        raise TestFailure(f"[host] the copy's base {theirs['form']:X} saves other bytes than the client's "
+                          f"own ({len(theirs['data']) // 2} / {len(mine['data']) // 2})")
+    log(f"[host] the copy's base saves the client's {len(mine['data']) // 2} bytes")
+    door = inner_door()
+    try:
+        lock_on("", door, True, 50)
+        wait_for(f"[host] door {door:X} is locked at 50", lambda: door_lock("", door) == (True, 50), 10)
+        saved = form_save("", door, flags=REFR_LOCK)
+        lock_on("", door, False)
+        wait_for(f"[host] door {door:X} is unlocked", lambda: not door_lock("", door)[0], 10)
+        player_command("", {"cmd": "form_load", "form": door, "flags": REFR_LOCK, "data": saved["data"]})
+        wait_for(f"[host] door {door:X} is locked at 50 again", lambda: door_lock("", door) == (True, 50), 10)
+        if form_save("", door, flags=REFR_LOCK)["data"] != saved["data"]:
+            raise TestFailure(f"[host] door {door:X} saves other bytes after the load")
+    finally:
+        for name in ("", "client"):
+            if door_lock(name, door)[0]:
+                lock_on(name, door, False)
+
+
+BEAST_FORM, WEREWOLF_CHANGE_EFFECT, WEREWOLF_BEAST_RACE, PLAYER_WEREWOLF_QUEST = 0x92C48, 0x92C45, 0xCDD84, 0x2BA16
+
+
+def engine_events(instance, since=0):
+    """That game's engine script events from number `since` on (harness EngineEvents), and the next number."""
+    response = player_command(instance, {"cmd": "engine_events", "since": since})
+    return response["events"], response["next"]
+
+
+def race_of(instance, actor):
+    return ((((read_status() if select_instance(instance) is None else None) or {}).get("world") or {})
+            .get(str(actor), {}).get("identity", {}).get("race"))
+
+
+def copy_race_on_host():
+    """The race the host shows for the client's character (its copy is respawned on a change of form)."""
+    select_instance("")
+    copy = next(iter(other_players()), None)
+    return race_of("", copy) if copy else None
+
+
+def scenario_client_beast_form_stays_client():
+    """The client turns into a werewolf with Beast Form (the Shout key): its own character changes, the host
+    shows it changed, and the host's own player does not (upstream's bug: the change effect's
+    `Target == Game.GetPlayer()` passed for the client and the transformation went to the host's player).
+    The change effect's script runs on the client's game only (the target's owner applies effects), so the
+    host's PlayerWerewolfQuest stays stopped. Then the client changes back."""
+    host_race = race_of("", 0x14)
+    # The Companions' setup marks the first change as the rampage's (C00's PlayerIsWerewolfVirgin): the
+    # power would only clear the mark.
+    console_on("client", "setpqv C00 PlayerIsWerewolfVirgin 0")
+    console_on("client", f"player.addspell {BEAST_FORM:X}")
+    console_on("client", f"player.equipspell {BEAST_FORM:X} voice")
+    try:
+        wait_for("[client] Beast Form is the selected power", lambda: local_player("client").get("selected_power") == BEAST_FORM, 5)
+        _, since = engine_events("client")
+        tap("client", "shout")  # a power goes out on the release
+        wait_for("[client] the change effect starts on the client's character",
+                 lambda: any(e["kind"] == "magic_effect_apply" and e["effect"] == WEREWOLF_CHANGE_EFFECT and e["target"] == 0x14
+                             for e in engine_events("client", since)[0]), 5)
+        wait_for("[client] the client is a werewolf", lambda: race_of("client", 0x14) == WEREWOLF_BEAST_RACE, 20)
+        wait_for("[host] shows the client as a werewolf", lambda: copy_race_on_host() == WEREWOLF_BEAST_RACE, 20)
+        if race_of("", 0x14) != host_race:
+            raise TestFailure(f"[host] the host's player changed race ({race_of('', 0x14):X}): the client's change went to it")
+        select_instance("")
+        if (rpc({"cmd": "quest", "quest": PLAYER_WEREWOLF_QUEST}) or {}).get("flags", 0) & 1:
+            raise TestFailure("[host] PlayerWerewolfQuest runs on the host: the client's change reached the host's scripts")
+    finally:
+        if race_of("client", 0x14) == WEREWOLF_BEAST_RACE:
+            console_on("client", f"setstage {PLAYER_WEREWOLF_QUEST:X} 100")  # the quest's change back
+            wait_for("[client] human again", lambda: race_of("client", 0x14) != WEREWOLF_BEAST_RACE, 30)
+            wait_for("[host] shows the client human again", lambda: copy_race_on_host() != WEREWOLF_BEAST_RACE, 30)
+        console_on("client", f"player.removespell {BEAST_FORM:X}")
+
+
 def scenario_load_door_not_replayed():
     """In the inn, the client walks out through its door: the host's game gets the activation and
     does not replay it (the door would take the client's copy, or anyone, out of the host's cell);
@@ -3905,12 +4007,14 @@ SCENARIOS = {
     "keyhole-asks-client": scenario_keyhole_asks_client,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
+    "client-beast-form-stays-client": scenario_client_beast_form_stays_client,
     # chat
     "chat-reaches-everyone": scenario_chat_reaches_everyone,
     "map-marker-reaches-everyone": scenario_map_marker_reaches_everyone,
     # world
     "host-time-reaches-client": scenario_host_time_reaches_client,
     "weather-follows-host": scenario_weather_follows_host,
+    "form-state-round-trips": scenario_form_state_round_trips,
     # input (real keyboard and mouse; only when named or tagged)
     "input-keyboard-draw": scenario_input_keyboard_draw,
     "input-mouse-cast": scenario_input_mouse_cast,
@@ -3983,10 +4087,12 @@ TAGS = {
     "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
+    "client-beast-form-stays-client": {'scripts', 'magic', 'spawn', 'quests'},
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},
     "host-time-reaches-client": {'world'},
     "weather-follows-host": {'world', 'cells'},
+    "form-state-round-trips": {'world', 'objects', 'spawn'},
     "input-keyboard-draw": {'input', 'hands'},
     "input-mouse-cast": {'input', 'hands', 'magic'},
 }

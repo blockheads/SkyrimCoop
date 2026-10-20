@@ -29,9 +29,9 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   leader has arrived, so the trip costs the leader's load and then its own (`docs/progress.md`, "Tether
   gaps"). Start every game's load when the leader's starts (`coc`, a load door, fast travel), from the
   queued move (40442) rather than the arrival (40438), so the loads overlap.
-- **World state through the save system.** The host's world (every mod's quests, globals, containers,
-  objects) synced from the engine's own save/load code: a full sync at join, and the changed forms over
-  time. Design: `docs/design/world-state-sync.md`.
+- **Mods' world state through the save system.** A mod's forms changed on the host sent as their save data
+  (`FormState`), for what no message covers. Vanilla state goes as messages and the join as save transfer;
+  design: `docs/design/world-state-sync.md`.
 - **Mod patches.** Maybe one Papyrus function that forwards a mod event to the other games, so a patch can
   sync its own state. Notes: `docs/design/world-state-sync.md`. (Player checks need no patch: the party
   model's rules, `docs/design/party-model.md`.)

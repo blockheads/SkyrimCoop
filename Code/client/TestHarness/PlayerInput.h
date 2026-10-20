@@ -30,7 +30,7 @@ private:
         bool Down = false;
         std::chrono::steady_clock::time_point Pressed{};
     };
-    HeldButton m_buttons[5]{};
+    HeldButton m_buttons[6]{}; // one per EngineCalls::Button
     bool m_equipping = false;
     uint32_t m_equipAnimations = 0;
 };

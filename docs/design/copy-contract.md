@@ -29,7 +29,8 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Graph variables | inputs only, latest by owner tick | the variables the graph writes itself are not synced (`currentDefaultState`, `NotCasting`; see actor-ai-and-copies.md) |
 | AI packages (picked or engine-created) | no | `HookCheckForNewPackage` and `HookPutCreatedPackage` (References.cpp) |
 | Package sync from the owner | no | `AI_SYNC` stays 0 (References.cpp) |
-| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's, planned | decided 2026-10-19, not built: below, "AI state" |
+| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's, planned | decided 2026-10-19, revised 2026-10-20 (fields and getters, not condition functions), not built: below, "AI state" |
+| Combat controller, combat group membership | no | never given to a copy: `CombatUpdateJob` (46902) would run its combat AI (below, "AI state") |
 | Applying spell effects locally | no | the owner applies them (MagicTarget.cpp) |
 | Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects with visuals; the copy plays just their hit shader and art while listed (EffectVisualsService) |
 | Hit feedback for the attacker (enemy health bar) | in the attacker's game | our player's hit on a copy shows its health bar at once, from the owner's health (CombatService::OnHitEvent) |
@@ -117,17 +118,57 @@ Full map: `docs/re/systems/actor-ai-and-copies.md`. In short:
 - Prior art does not cut the AI: SkyMP keeps it on and overrides `DrawWeaponMagicHands`' argument
   (a symptom filter like the reverted one); upstream Tilted Online skipped only `ApplyMovement`.
 
-## AI state: the owner's, for anything that asks (decided 2026-10-19, not built)
+## AI state: the owner's, for anything that asks (decided 2026-10-19, revised 2026-10-20, not built)
 
-A copy runs no AI, but what asks about the actor must get the owner's answer: a dialogue line's conditions on
-its speaker, a greeting, a scene's. **No game but the owner's simulates the actor; every game knows its AI state.**
-The owner sends the few facts conditions read when they change (current package, sitting or sleeping, in a
-scene, alarmed, combat state), and on a copy those condition functions answer from them: one hook each in the
-condition function table, "a copy: the owner's state". Nothing runs the package on the copy.
+A copy runs no AI, but whatever asks about the actor must get the owner's answer, the same as on the owner's
+game: a dialogue line's conditions on its speaker, a quest script, the engine itself, and later mods (Open
+Animation Replacer picks clips from these on every game). **No game but the owner's simulates the actor; every
+game reads its AI state 1:1.**
+
+```
+owner, when it changes:   send(actor, {package, package target, combat: none/fighting/searching,
+                                        combat target, sit/sleep state and furniture, scene,
+                                        talking/greeting, follow target})
+
+copy, on receiving it:    a field readers read directly   -> write the owner's value into it
+                          an answer an engine object gives -> hook the getter, answer from the record
+```
+
+Revised 2026-10-20: the first plan hooked the condition functions. That answers vanilla conditions only;
+Papyrus natives, the engine and CommonLibSSE-NG plugins read the fields and getters directly and would still
+get the copy's own answer.
+
+- **Fields** (package, sit/sleep state, combat target, the searching bit, greeting, scene): read inline by
+  their readers. Writing them is safe only while nothing a copy runs acts on them; `UpdateAI`, which acts on
+  them, is cut. To check field by field before writing it.
+- **Combat state is an object.** `Actor::IsInCombat` (38562) is "has a combat controller that has not
+  stopped", `GetCombatState` (38556) adds the combat group's search state. Combat controllers are updated
+  by `CombatUpdateJob` (46902) for every combat group member, outside `UpdateAI`: a copy given a real
+  controller or group would run combat AI. So a copy never gets one; `IsInCombat` and `GetCombatState` are
+  hooked for copies. Before the hook: 22 of the 100 engine functions calling `IsInCombat` also touch the
+  controller field, and each must be checked not to use it after a "yes" (actor-ai-and-copies.md,
+  "Combat state and its readers").
+- **The host's AI aimed at a guest's player.** A guest's own player counts as in combat from the combat groups
+  targeting it (41238, from 41261). On a guest those are copies with no groups, so the guest's player is never
+  in combat. The host sends each guest how many of its combatants target that guest's character, and the
+  guest's count uses it.
+- **Forms go by id** (packages, furniture, scenes), so a mod's package travels as a vanilla one does.
 
 First user: shared dialogue syncing the step (`shared-dialogue.md`, "Next"), where each game judges its menu's
 topics against the NPC's copy. Measured on Skyrim and its DLC: about 200 of 15,449 menu lines test it,
 `GetIsCurrentPackage` the most (`scripts/re/dialogue_conditions.py`, which also counts a mod list's).
+
+**Vanilla first, mods later (2026-10-20).** Built for vanilla now, without choices a mod would undo. Not built
+until mods are taken on, measured on a modded setup first:
+- **Graph events and graph inputs from outside the actions.** AI and combat mods decide where the AI or the hit
+  runs (the host) and act through `NotifyAnimationGraph` and `SetGraphVariable*` (Valhalla Combat's stagger,
+  TDM, Papyrus `SendAnimationEvent`); a copy replays only `PerformAction`. Every event sent to a graph goes
+  through `IAnimationGraphManagerHolder::NotifyAnimationGraph` (32901), so one hook on the owner can send the
+  ones no action sent, beside the action replay (`graph-replication.md`).
+- **Open Animation Replacer's random picks** and time-based conditions; OAR's API reads the owner's pick
+  (`GetCurrentReplacementAnimationInfo`), forcing it on a copy needs a hook into OAR.
+- **Mods' private per-actor state** (poise, custom stamina): its effects arrive as actions, values and events;
+  a query of it on a guest gets the guest's answer.
 
 ## When the owner's actor goes away (open, found 2026-10-20)
 

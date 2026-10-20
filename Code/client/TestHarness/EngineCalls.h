@@ -63,6 +63,29 @@ struct QuestState
 };
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
 
+// --- Magic ---
+
+// What the actor has selected (Actor::magicItems, equippedShout): the spell per casting slot (left, right,
+// other, voice) and its power or shout.
+struct SelectedMagic
+{
+    uint32_t Spells[4];
+    uint32_t Power;
+};
+SelectedMagic GetSelectedMagic(uint32_t aFormId) noexcept;
+
+// --- Form state (world-state sync) ---
+
+// What a form would write to a save (FormState::Save): for aChangeFlags, or its recorded changes.
+struct SavedForm
+{
+    uint32_t FormId;
+    uint32_t ChangeFlags;
+    std::string Data;
+};
+std::optional<SavedForm> SaveFormState(uint32_t aFormId, bool aBaseForm, std::optional<uint32_t> aChangeFlags) noexcept;
+bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& acData) noexcept;
+
 // --- Scripts ---
 
 // The state a script on that form is in (Object::currentState; "" is the empty state), as the VM binds it
@@ -83,7 +106,8 @@ enum class Button : uint8_t
     LeftHand,   // "Left Attack/Block"
     ReadyWeapon, // "Ready Weapon": draw or sheathe
     Sneak,       // "Sneak": toggles sneaking (the default mapping)
-    Forward      // "Forward": walks or swims where the camera looks
+    Forward,     // "Forward": walks or swims where the camera looks
+    Shout        // "Shout": the equipped shout or power
 };
 // Sends the button through the game's input dispatch, as its device would (docs/re/systems/input.md):
 // down with aHeldSecs 0 is the press, down with aHeldSecs > 0 the event a device sends every frame while

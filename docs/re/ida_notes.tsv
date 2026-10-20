@@ -111,3 +111,20 @@ id	rva	name	comment
 40536	0x73a1c0	PlayerCharacter::ClearPlayerMapMarker	sets the marker handle (+0x92C) invalid; callers: the map's Remove It (53128), the player dtor, an engine reset. Hooked as HookRemoveWaypoint
 53113	0x987090	MapMenu::PlaceMarker	CommonLibSSE name; no marker: pick (53109), a marker: the move/remove message box
 53119	0x9878a0	MapMenu::OnCameraArrived	IMapCameraCallbacks: opens the Cursor Menu, shows the map tutorial (default object 250) once
+19378	0x2cfe60	BGSSaveLoadGame::SetThreadLoading	TLS +0x670 bit 0: while set the change funnel records nothing. a2 false sets it and returns whether it was clear; a2 true clears it (FormState::Load)
+35740	0x610980	BGSSaveLoadManager::GetCurrentChangeFormVersion	returns 78: the change form version this build's saves write (the save header's per-form version)
+35984	0x624880	BGSLoadFormData::Ctor	zeroes the BGSLoadFormData part (+0x28 of a BGSLoadFormBuffer)
+35993	0x624d30	BGSLoadGameBuffer::Ctor	sets BGSLoadGameBuffer's vtable: a BGSLoadFormBuffer's builder sets that vtable (187480) after it
+36035	0x626a90	BGSSaveFormBuffer::Ctor	zeroes the header (+0x18..+0x21) and form (+0x28); data null, grown by Reserve (36056)
+36037	0x626ce0	BGSSaveFormBuffer::SetHeader	(buffer, form id, change flags, form type, version): numeric id +0x18, flags +0x1B, type +0x1F, version +0x20
+36044	0x626e20	BGSSaveGameBuffer::Dtor	frees the data with the game heap
+36056	0x627570	BGSSaveGameBuffer::Reserve	grows the data on the game heap and frees the old buffer with it (a stack buffer must never reach it); no write while BGSSaveLoadManager+0x120 (a size-only pass) is set
+35569	0x6037a0	BGSSaveLoadGame::LoadStoredChanges	a reference's stored changes loaded into the live game when its cell attaches: TLS loading bit, form flag 0x200000, LoadRefLocation (35716), LoadGame, then queued for InitLoadGame/FinishLoadGame (35567)
+35570	0x603a70	BGSSaveLoadGame::StoreChangesOnUnload	a reference's changes kept in a buffer as its cell unloads: SetHeader with the current version, CheckSaveGame, SaveRefLocation (35715), SaveGame
+35567	0x603140	BGSSaveLoadGame::InitAndFinishLoadedForms	the pass over loadFormData (+0x318): InitLoadGame on each, then FinishLoadGame, clearing form flag 0x200000
+35715	0x60e1c0	BGSSaveFormBuffer::SaveRefLocation	writes a reference's location before SaveGame by the kind 35708 gives; cells and worldspaces as save-local indices (worldspaceFormIDMap)
+35716	0x60e5e0	BGSLoadFormBuffer::LoadRefLocation	reads what SaveRefLocation wrote
+35708	0x60dac0	TESObjectREFR::GetLocationKind	0 none; 4 moved (flags 0x6); 6 cell changed or promoted (0x2000008); 5 a created (0xFF) reference; 1-3 cells
+41238	0x763c60	PlayerCharacter::UpdateInCombat	our name. Sets the player's in-combat bit (+0xBE3 0x20, read by PlayerCharacter::IsInCombat 41024) when 41261 counts a combat group targeting the player; clears it otherwise with a regen delay
+41261	0x7663a0	CombatManager::CountGroupsTargetingPlayer	our name. Per combat group targeting the player: members (+0x30) into the result's high dword, recent attackers into the low; adds enemies the player detects to the player's combat group (+0x9D8)
+46903	0x83f650	CombatManager::QueueCombatUpdates	our name. Queues CombatUpdateJob (46902) for every member (+0x20, count +0x30) of every combat group: combat AI runs outside Character::UpdateAI

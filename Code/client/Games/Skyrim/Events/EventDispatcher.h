@@ -36,13 +36,15 @@ struct TESActivateEvent
     TESObjectREFR* object;
 };
 
+// The event behind Papyrus OnEffectStart / OnEffectFinish (CommonLibSSE-NG TESActiveEffectApplyRemoveEvent).
 struct TESActiveEffectApplyRemove
 {
-    TESObjectREFR* hCaster;
-    TESObjectREFR* hTarget;
-    uint16_t usActiveEffectUniqueID;
-    bool bIsApplied;
+    TESObjectREFR* hCaster;          // 00
+    TESObjectREFR* hTarget;          // 08
+    uint16_t usActiveEffectUniqueID; // 10
+    bool bIsApplied;                 // 12
 };
+static_assert(offsetof(TESActiveEffectApplyRemove, usActiveEffectUniqueID) == 0x10 && offsetof(TESActiveEffectApplyRemove, bIsApplied) == 0x12);
 
 struct TESActorLocationChangeEvent
 {
@@ -86,9 +88,16 @@ struct TESEnterBleedoutEvent
 {
 };
 
+// CommonLibSSE-NG TESEquipEvent.
 struct TESEquipEvent
 {
+    TESObjectREFR* actor;  // 00
+    uint32_t baseObject;   // 08
+    uint32_t originalRefr; // 0C
+    uint16_t uniqueId;     // 10
+    bool equipped;         // 12
 };
+static_assert(offsetof(TESEquipEvent, baseObject) == 0x8 && offsetof(TESEquipEvent, equipped) == 0x12);
 
 struct TESFormDeleteEvent
 {
@@ -116,12 +125,14 @@ struct TESLockChangedEvent
 {
 };
 
+// CommonLibSSE-NG TESMagicEffectApplyEvent.
 struct TESMagicEffectApplyEvent
 {
-    TESObjectREFR* hTarget;
-    TESObjectREFR* hCaster;
-    uint32_t uiMagicEffectFormID;
+    TESObjectREFR* hTarget;       // 00
+    TESObjectREFR* hCaster;       // 08
+    uint32_t uiMagicEffectFormID; // 10
 };
+static_assert(offsetof(TESMagicEffectApplyEvent, uiMagicEffectFormID) == 0x10);
 
 struct TESMagicWardHitEvent
 {
@@ -168,10 +179,14 @@ struct TESQuestStageEvent
     bool bUnk;
 };
 
+// CommonLibSSE-NG TESQuestStartStopEvent.
 struct TESQuestStartStopEvent
 {
-    uint32_t formId;
+    uint32_t formId; // 00
+    bool started;    // 04
+    bool failed;     // 05
 };
+static_assert(offsetof(TESQuestStartStopEvent, started) == 0x4);
 
 struct TESQuestStageItemDoneEvent
 {
@@ -212,9 +227,13 @@ struct TESSleepStopEvent
 {
 };
 
+// CommonLibSSE-NG TESSpellCastEvent.
 struct TESSpellCastEvent
 {
+    TESObjectREFR* object; // 00
+    uint32_t spell;        // 08
 };
+static_assert(offsetof(TESSpellCastEvent, spell) == 0x8);
 
 struct TESPlayerBowShotEvent
 {

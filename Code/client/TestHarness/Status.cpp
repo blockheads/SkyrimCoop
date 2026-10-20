@@ -308,6 +308,7 @@ static nlohmann::json PlayerStatus(const Harness& acHarness)
     return {{"position", {position[0], position[1], position[2]}}, {"rotation", {rotation[0], rotation[1], rotation[2]}},
             {"loaded_actors", actors.GetLoadedActorFormIds()}, {"equipped", EquippedItems(0x14)},
             {"weapon_drawn", actors.IsWeaponDrawn(0x14)}, {"casting", CastingSpells(0x14)},
+            {"selected_spells", EngineCalls::GetSelectedMagic(0x14).Spells}, {"selected_power", EngineCalls::GetSelectedMagic(0x14).Power},
             // MagicCaster::State per casting source: 3 once a spell is charged (a release casts it).
             {"caster_states", {EngineCalls::GetCasterState(0x14, 0), EngineCalls::GetCasterState(0x14, 1), EngineCalls::GetCasterState(0x14, 2),
                                EngineCalls::GetCasterState(0x14, 3)}},

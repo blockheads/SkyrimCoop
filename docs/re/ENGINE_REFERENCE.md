@@ -8,7 +8,7 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **347** distinct engine addresses used; **133** have code in CommonLib or SKSE; **83** have no community name at all.
+- **354** distinct engine addresses used; **134** have code in CommonLib or SKSE; **81** have no community name at all.
 - **111** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
@@ -48,9 +48,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 34526 | `0x5c3250` | `?` | PL | hook → `HookAddTarget` | `addTarget` | [MagicTarget.cpp:203](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L203) | **undocumented** |
 | 34989 | `0x5d44c0` | `?` | - | hook → `HookInitializeSummonCreatureEffect` | `s_start` | [SummonCreatureEffect.h:32](../../Code/client/Games/Skyrim/Effects/SummonCreatureEffect.h#L32) | **undocumented** |
 | 35086 | `0x5d8a70` | `ValueModifierEffect::Func32_35086` | meh | hook → `HookApplyActorEffect` | `s_applyActorEffect` | [Actor.cpp:1608](../../Code/client/Games/Skyrim/Actor.cpp#L1608) |  |
-| 36000 | `0x624fc0` | `BGSLoadGameBuffer::ReadFormID` | meh | hook → `BGSLoadFormBuffer_LoadFormId` | `s_readFormId` | [SaveLoad.cpp:121](../../Code/client/Games/SaveLoad.cpp#L121) |  |
-| 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:123](../../Code/client/Games/SaveLoad.cpp#L123) |  |
-| 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:122](../../Code/client/Games/SaveLoad.cpp#L122) |  |
+| 36000 | `0x624fc0` | `BGSLoadGameBuffer::ReadFormID` | meh | hook → `BGSLoadFormBuffer_LoadFormId` | `s_readFormId` | [SaveLoad.cpp:171](../../Code/client/Games/SaveLoad.cpp#L171) |  |
+| 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:173](../../Code/client/Games/SaveLoad.cpp#L173) |  |
+| 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:172](../../Code/client/Games/SaveLoad.cpp#L172) |  |
 | 36291 | `0x633250` | `?` | - | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:27](../../Code/client/Games/TimeManager.cpp#L27) | **undocumented** |
 | 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `cMainLoop` | [SkyrimVM64.cpp:66](../../Code/client/SkyrimVM64.cpp#L66) |  |
 | 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `addDeathItems` | [Actor.cpp:1618](../../Code/client/Games/Skyrim/Actor.cpp#L1618) |  |
@@ -155,16 +155,23 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 |---|---|---|---|---|---|---|---|
 | 13718 | `0x1b5f30` | `?` | - | call | `getCell` | [ModManager.cpp:69](../../Code/client/Games/ModManager.cpp#L69) | **undocumented** |
 | 13723 | `0x1b6c10` | `TESDataHandler::CreateReferenceAtLocation` | CL | hook → `SpawnNewREFR` | `s_realSpawnNewREFR` | [ModManager.cpp:78](../../Code/client/Games/ModManager.cpp#L78) |  |
-| 14617 | `0x1e01a0` | `LookupFormByID` | SKSE PL meh | call | `getFormById` | [Forms.cpp:15](../../Code/client/Games/Forms.cpp#L15) |  |
+| 14617 | `0x1e01a0` | `LookupFormByID` | SKSE PL meh | call | `getFormById` | [Forms.cpp:16](../../Code/client/Games/Forms.cpp#L16) |  |
+| 19378 | `0x2cfe60` | `BGSSaveLoadGame::SetThreadLoading` | IDA | call | `s_setLoading` | [SaveLoad.cpp:100](../../Code/client/Games/SaveLoad.cpp#L100) |  |
+| 19378 | `0x2cfe60` | `BGSSaveLoadGame::SetThreadLoading` | IDA | call | `s_setLoading` | [SaveLoad.cpp:107](../../Code/client/Games/SaveLoad.cpp#L107) |  |
 | 20123 | `0x2f78b0` | `TESObjectREFR::sub_20123` | meh | hook → `HookUpdateAnimationGraphs` | `updateAnimationGraphs` | [Animation.cpp:250](../../Code/client/Games/Animation.cpp#L250) |  |
 | 26503 | `0x41a940` | `GetDifficultyMultiplier` | meh | call | `s_getDifficultyMultiplier` | [References.cpp:57](../../Code/client/Games/References.cpp#L57) |  |
 | 32887 | `0x54b7d0` | `IAnimationGraphManagerHolder::SetGraphVariableFloat` | CL meh | call | `InternalSetFloatVariable` | [IAnimationGraphManagerHolder.cpp:10](../../Code/client/Games/IAnimationGraphManagerHolder.cpp#L10) |  |
-| 35503 | `0x600930` | `?` | - | call | `internalGetChangeFlags` | [Forms.cpp:103](../../Code/client/Games/Forms.cpp#L103) | **undocumented** |
-| 35993 | `0x624d30` | `?` | - | call | `ctor` | [SaveLoad.cpp:50](../../Code/client/Games/SaveLoad.cpp#L50) | **undocumented** |
-| 36000 | `0x624fc0` | `BGSLoadGameBuffer::ReadFormID` | meh | hook → `BGSLoadFormBuffer_LoadFormId` | `s_readFormId` | [SaveLoad.cpp:121](../../Code/client/Games/SaveLoad.cpp#L121) |  |
-| 36035 | `0x626a90` | `?` | - | call | `ctor` | [SaveLoad.cpp:21](../../Code/client/Games/SaveLoad.cpp#L21) | **undocumented** |
-| 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:123](../../Code/client/Games/SaveLoad.cpp#L123) |  |
-| 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:122](../../Code/client/Games/SaveLoad.cpp#L122) |  |
+| 35503 | `0x600930` | `?` | - | call | `internalGetChangeFlags` | [Forms.cpp:81](../../Code/client/Games/Forms.cpp#L81) | **undocumented** |
+| 35740 | `0x610980` | `BGSSaveLoadManager::GetCurrentChangeFormVersion` | IDA | call | `s_currentVersion` | [SaveLoad.cpp:93](../../Code/client/Games/SaveLoad.cpp#L93) |  |
+| 35984 | `0x624880` | `BGSLoadFormData::Ctor` | IDA | call | `s_dataCtor` | [SaveLoad.cpp:68](../../Code/client/Games/SaveLoad.cpp#L68) |  |
+| 35993 | `0x624d30` | `BGSLoadGameBuffer::Ctor` | IDA | call | `s_ctor` | [SaveLoad.cpp:67](../../Code/client/Games/SaveLoad.cpp#L67) |  |
+| 36000 | `0x624fc0` | `BGSLoadGameBuffer::ReadFormID` | meh | hook → `BGSLoadFormBuffer_LoadFormId` | `s_readFormId` | [SaveLoad.cpp:171](../../Code/client/Games/SaveLoad.cpp#L171) |  |
+| 36035 | `0x626a90` | `BGSSaveFormBuffer::Ctor` | IDA | call | `s_ctor` | [SaveLoad.cpp:20](../../Code/client/Games/SaveLoad.cpp#L20) |  |
+| 36037 | `0x626ce0` | `BGSSaveFormBuffer::SetHeader` | IDA meh | call | `s_setHeader` | [SaveLoad.cpp:37](../../Code/client/Games/SaveLoad.cpp#L37) |  |
+| 36044 | `0x626e20` | `BGSSaveGameBuffer::Dtor` | IDA meh | call | `s_dtor` | [SaveLoad.cpp:30](../../Code/client/Games/SaveLoad.cpp#L30) |  |
+| 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:173](../../Code/client/Games/SaveLoad.cpp#L173) |  |
+| 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:172](../../Code/client/Games/SaveLoad.cpp#L172) |  |
+| 36056 | `0x627570` | `BGSSaveGameBuffer::Reserve` | IDA meh | call | `s_reserve` | [SaveLoad.cpp:44](../../Code/client/Games/SaveLoad.cpp#L44) |  |
 | 36291 | `0x633250` | `?` | - | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:27](../../Code/client/Games/TimeManager.cpp#L27) | **undocumented** |
 | 37402 | `0x66d1a0` | `Actor::InitiateDoNothingPackage` | CL | call | `s_initiateDoNothingPackage` | [References.cpp:122](../../Code/client/Games/References.cpp#L122) |  |
 | 37570 | `0x67ead0` | `Actor::PutCreatedPackage` | meh | hook → `HookPutCreatedPackage` | `s_putCreatedPackage` | [References.cpp:174](../../Code/client/Games/References.cpp#L174) |  |
@@ -186,6 +193,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68234 | `0xcc9140` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | call | `s_lockForWrite` | [Primitives.cpp:86](../../Code/client/Games/Primitives.cpp#L86) |  |
 | 68239 | `0xcc9380` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | call | `s_unlockForRead` | [Primitives.cpp:80](../../Code/client/Games/Primitives.cpp#L80) |  |
 | 68240 | `0xcc9390` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | call | `s_unlockForWrite` | [Primitives.cpp:92](../../Code/client/Games/Primitives.cpp#L92) |  |
+| 187480 | `0x177cf38` | `vtbl_BGSLoadFormBuffer` | CL | data | `s_vtable` | [SaveLoad.cpp:69](../../Code/client/Games/SaveLoad.cpp#L69) |  |
 | 188603 | `0x178c478` | `vtbl_TESActionData` | CL | data | `s_vtbl` | [Animation.cpp:231](../../Code/client/Games/Animation.cpp#L231) |  |
 | 370892 | `0x1ffcbe8` | `?` | - | data | `s_greetDistance` | [References.cpp:45](../../Code/client/Games/References.cpp#L45) | **undocumented** |
 | 381472 | `0x2013e98` | `?` | - | data | `s_difficulty` | [References.cpp:39](../../Code/client/Games/References.cpp#L39) | **undocumented** |
@@ -196,7 +204,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 400441 | `0x20f8930` | `?` | - | data | `tes` | [TES.cpp:11](../../Code/client/Games/TES.cpp#L11) | **undocumented** |
 | 400447 | `0x20f8960` | `Calendar::singleton` | CL meh | data | `s_instance` | [TimeManager.cpp:7](../../Code/client/Games/TimeManager.cpp#L7) |  |
 | 400508 | `0x20fbb90` | `IFormFactory::formFactories` | CL SKSE meh | data | `s_factories` | [FormFactory.cpp:10](../../Code/client/Games/FormFactory.cpp#L10) |  |
-| 403330 | `0x317aba8` | `BGSSaveLoadGame::singleton` | CL | data | `s_singleton` | [Forms.cpp:105](../../Code/client/Games/Forms.cpp#L105) |  |
+| 403330 | `0x317aba8` | `BGSSaveLoadGame::singleton` | CL | data | `s_singleton` | [Forms.cpp:83](../../Code/client/Games/Forms.cpp#L83) |  |
+| 403330 | `0x317aba8` | `BGSSaveLoadGame::singleton` | CL | data | `s_singleton` | [SaveLoad.cpp:86](../../Code/client/Games/SaveLoad.cpp#L86) |  |
 | 403566 | `0x31877b0` | `gUnknownSingleton` | meh | data | `qword_142F271B8` | [Animation.cpp:173](../../Code/client/Games/Animation.cpp#L173) |  |
 | 403567 | `0x31877b8` | `?` | PL | data | `s_actorMediator` | [Animation.cpp:130](../../Code/client/Games/Animation.cpp#L130) | **undocumented** |
 | 411155 | `0x327e0e0` | `INISettingCollection::singleton` | CL SKSE meh | data | `settingCollection` | [INISettingCollection.cpp:7](../../Code/client/Games/INISettingCollection.cpp#L7) |  |
@@ -616,32 +625,32 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:147](../../Code/client/TestHarness/EngineCalls.cpp#L147) |  |
-| 14287 | `0x1d47f0` | `BGSOpenCloseForm::SetOpenState` | CL meh | call | `s_setOpenState` | [EngineCalls.cpp:341](../../Code/client/TestHarness/EngineCalls.cpp#L341) |  |
+| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:148](../../Code/client/TestHarness/EngineCalls.cpp#L148) |  |
+| 14287 | `0x1d47f0` | `BGSOpenCloseForm::SetOpenState` | CL meh | call | `s_setOpenState` | [EngineCalls.cpp:342](../../Code/client/TestHarness/EngineCalls.cpp#L342) |  |
 | 14607 | `0x1dff90` | `TESForm::AddChange` | meh | hook → `HookAddChange` | `s_addChange` | [ChangeLog.cpp:130](../../Code/client/TestHarness/ChangeLog.cpp#L130) |  |
 | 14608 | `0x1dffc0` | `Character::sub_14608` | meh | hook → `HookAddChangeForced` | `s_addChangeForced` | [ChangeLog.cpp:131](../../Code/client/TestHarness/ChangeLog.cpp#L131) |  |
-| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | call | `s_lockChange` | [EngineCalls.cpp:234](../../Code/client/TestHarness/EngineCalls.cpp#L234) |  |
-| 19516 | `0x2d9670` | `Character::sub_19516` | meh | call | `s_moveToMyEditorLocation` | [EngineCalls.cpp:276](../../Code/client/TestHarness/EngineCalls.cpp#L276) |  |
-| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | call | `s_activate` | [EngineCalls.cpp:224](../../Code/client/TestHarness/EngineCalls.cpp#L224) |  |
+| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | call | `s_lockChange` | [EngineCalls.cpp:235](../../Code/client/TestHarness/EngineCalls.cpp#L235) |  |
+| 19516 | `0x2d9670` | `Character::sub_19516` | meh | call | `s_moveToMyEditorLocation` | [EngineCalls.cpp:277](../../Code/client/TestHarness/EngineCalls.cpp#L277) |  |
+| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | call | `s_activate` | [EngineCalls.cpp:225](../../Code/client/TestHarness/EngineCalls.cpp#L225) |  |
 | 22790 | `0x367620` | `BGSStoryEventManager::GetSingleton` | CL | call | `s_getManager` | [PlayerEvents.cpp:110](../../Code/client/TestHarness/PlayerEvents.cpp#L110) |  |
 | 32288 | `0x528620` | `?` | - | call | `s_build` | [PlayerEvents.cpp:109](../../Code/client/TestHarness/PlayerEvents.cpp#L109) | **undocumented** |
 | 32359 | `0x52bc80` | `BGSStoryEventManager::AddEvent_Impl` | CL | hook → `HookAddEvent` | `s_addEvent` | [PlayerEvents.cpp:59](../../Code/client/TestHarness/PlayerEvents.cpp#L59) |  |
 | 32374 | `0x52c990` | `BGSStoryManager::sub_32374` | meh | hook → `HookStoryLog` | `s_storyLog` | [PlayerEvents.cpp:83](../../Code/client/TestHarness/PlayerEvents.cpp#L83) |  |
-| 37229 | `0x661610` | `Character::sub_37229` | meh | call | `s_killable` | [EngineCalls.cpp:529](../../Code/client/TestHarness/EngineCalls.cpp#L529) |  |
-| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | call | `s_getCharacterController` | [EngineCalls.cpp:651](../../Code/client/TestHarness/EngineCalls.cpp#L651) |  |
-| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:470](../../Code/client/TestHarness/EngineCalls.cpp#L470) |  |
-| 37488 | `0x675070` | `Actor::SetRestrained` | meh | call | `s_setRestrained` | [EngineCalls.cpp:294](../../Code/client/TestHarness/EngineCalls.cpp#L294) |  |
-| 37818 | `0x693680` | `Actor::StopMovement` | PL meh | call | `s_stopMovement` | [EngineCalls.cpp:295](../../Code/client/TestHarness/EngineCalls.cpp#L295) |  |
-| 38538 | `0x6b5630` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:533](../../Code/client/TestHarness/EngineCalls.cpp#L533) |  |
-| 38559 | `0x6b6780` | `Actor::sub_38559` | meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:528](../../Code/client/TestHarness/EngineCalls.cpp#L528) |  |
-| 38563 | `0x6b6df0` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [EngineCalls.cpp:530](../../Code/client/TestHarness/EngineCalls.cpp#L530) |  |
-| 38697 | `0x6bff90` | `Actor::StopInteractingQuick` | CL | call | `s_stopInteractingQuick` | [EngineCalls.cpp:248](../../Code/client/TestHarness/EngineCalls.cpp#L248) |  |
-| 47272 | `0x851180` | `Actor::sub_47272` | meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:534](../../Code/client/TestHarness/EngineCalls.cpp#L534) |  |
-| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:860](../../Code/client/TestHarness/EngineCalls.cpp#L860) |  |
-| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | call | `s_getDuration` | [EngineCalls.cpp:398](../../Code/client/TestHarness/EngineCalls.cpp#L398) |  |
-| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:795](../../Code/client/TestHarness/EngineCalls.cpp#L795) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:750](../../Code/client/TestHarness/EngineCalls.cpp#L750) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:799](../../Code/client/TestHarness/EngineCalls.cpp#L799) |  |
+| 37229 | `0x661610` | `Character::sub_37229` | meh | call | `s_killable` | [EngineCalls.cpp:553](../../Code/client/TestHarness/EngineCalls.cpp#L553) |  |
+| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | call | `s_getCharacterController` | [EngineCalls.cpp:675](../../Code/client/TestHarness/EngineCalls.cpp#L675) |  |
+| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:494](../../Code/client/TestHarness/EngineCalls.cpp#L494) |  |
+| 37488 | `0x675070` | `Actor::SetRestrained` | meh | call | `s_setRestrained` | [EngineCalls.cpp:295](../../Code/client/TestHarness/EngineCalls.cpp#L295) |  |
+| 37818 | `0x693680` | `Actor::StopMovement` | PL meh | call | `s_stopMovement` | [EngineCalls.cpp:296](../../Code/client/TestHarness/EngineCalls.cpp#L296) |  |
+| 38538 | `0x6b5630` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:557](../../Code/client/TestHarness/EngineCalls.cpp#L557) |  |
+| 38559 | `0x6b6780` | `Actor::sub_38559` | meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:552](../../Code/client/TestHarness/EngineCalls.cpp#L552) |  |
+| 38563 | `0x6b6df0` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [EngineCalls.cpp:554](../../Code/client/TestHarness/EngineCalls.cpp#L554) |  |
+| 38697 | `0x6bff90` | `Actor::StopInteractingQuick` | CL | call | `s_stopInteractingQuick` | [EngineCalls.cpp:249](../../Code/client/TestHarness/EngineCalls.cpp#L249) |  |
+| 47272 | `0x851180` | `Actor::sub_47272` | meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:558](../../Code/client/TestHarness/EngineCalls.cpp#L558) |  |
+| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:884](../../Code/client/TestHarness/EngineCalls.cpp#L884) |  |
+| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | call | `s_getDuration` | [EngineCalls.cpp:399](../../Code/client/TestHarness/EngineCalls.cpp#L399) |  |
+| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:819](../../Code/client/TestHarness/EngineCalls.cpp#L819) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:774](../../Code/client/TestHarness/EngineCalls.cpp#L774) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:823](../../Code/client/TestHarness/EngineCalls.cpp#L823) |  |
 | 380069 | `0x2010688` | `?` | - | data | `s_index` | [PlayerEvents.cpp:37](../../Code/client/TestHarness/PlayerEvents.cpp#L37) | **undocumented** |
-| 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:173](../../Code/client/TestHarness/EngineCalls.cpp#L173) |  |
-| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:109](../../Code/client/TestHarness/EngineCalls.cpp#L109) | **undocumented** |
+| 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:174](../../Code/client/TestHarness/EngineCalls.cpp#L174) |  |
+| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:110](../../Code/client/TestHarness/EngineCalls.cpp#L110) | **undocumented** |

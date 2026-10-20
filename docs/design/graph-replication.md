@@ -155,7 +155,11 @@ not what a modded copy misses first:
 - **Animation events.** A copy replays only actions its owner's engine accepted through `PerformAction`.
   Mods drive their behaviours with events from Papyrus (`SendAnimationEvent`), SKSE plugins (MCO, TDM,
   Precision send graph events directly) and clip annotations; none reach the copy (object script animations
-  are off too, `OBJECT_ANIM_SYNC 0`).
+  are off too, `OBJECT_ANIM_SYNC 0`). Every event sent to a graph from outside goes through
+  `IAnimationGraphManagerHolder::NotifyAnimationGraph` (32901): one hook on the owner can send the ones no
+  action sent (Valhalla Combat's stagger is `SetGraphVariableFloat` then `NotifyAnimationGraph`; 2026-10-20,
+  `docs/re/systems/actor-ai-and-copies.md`, "Combat state and its readers"). Planned for when mods are taken
+  on, beside the action replay (`copy-contract.md`, "AI state").
 - **Open Animation Replacer** picks its replacement clip on each game from its own conditions; no graph
   variable carries the choice (AnimSync Together, Nexus 189136, syncs "OAR condition state" for that).
 - **SKSE plugins run on copies too** and may write the same variables (TDM's directional movement).

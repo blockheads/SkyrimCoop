@@ -542,6 +542,47 @@ reported no last action while its copies had one), and `OnNotifySubtitle` played
 sound (above). `both_go` in the scenarios waited only for "each game shows the other player", which
 holds before the `coc` takes effect; it now waits for each game to arrive first.
 
+## Combat state and its readers (2026-10-20)
+
+Read in IDA for AI state on copies (`docs/design/copy-contract.md`, "AI state"). Names: CommonLibSSE-NG and
+meh321 where they have one, ours otherwise.
+
+- **`Actor::IsInCombat` (38562, vfunc 0xE3 in IDA's SE numbering, CommonLib's AE 0xE5):** true when
+  `combatController` (`+0x160`) is set and its stopped byte (`+0x43`) is clear. Nothing else.
+- **`Actor::GetCombatState` (38556):** 0 when not in combat; otherwise 2 if the combat group (vfunc 0xD4) has
+  a search state (`+0xD8`), else 1. Open Animation Replacer calls it for its `IsCombatState` condition.
+- **Combat controllers run outside `UpdateAI`.** `CombatUpdateJob` (46902) calls `Actor::UpdateCombat`
+  (38565, vfunc 0xE4) for one actor; 46903 queues it for every member of every combat group (members at
+  group `+0x20`, count `+0x30`). `UpdateCombat` updates the controller, its target and the behaviour tree.
+  So an actor with a controller in a group gets combat AI whatever `HookUpdateAI` does: a copy must never be
+  given either.
+- **`IsInCombat`'s callers:** 127 virtual call sites in 100 functions (a scan for `call [reg+718h]`). 22 of
+  them also touch a `+0x160` field (the combat controller when the object is an actor): `Actor::Update`,
+  `Actor::StartCombat`, `Actor::StopCombat`, `Actor::UpdateCombat`, `Actor::CalculateDetection`,
+  `Actor::CheckValidTarget`, `Actor::PickUpObject`, `Actor::RemoveItem`, `TESObjectREFR::RemoveItem`,
+  `TESNPC::Activate`, `Projectile` construction, the `GetShouldAttack` condition, 41261 and 9 unnamed. A hook
+  answering "in combat" for a copy with no controller must not reach one that then uses the controller.
+  Not checked one by one yet.
+- **A player's own combat flag:** `PlayerCharacter::IsInCombat` (41024) reads `+0xBE3` bit 0x20.
+  `PlayerCharacter::UpdateInCombat` (41238, ours) sets it each update when 41261 (ours,
+  `CombatManager::CountGroupsTargetingPlayer`) counts a combat group targeting the player (the members in
+  the high dword), and clears it otherwise, with a regen delay. 41261 also adds every enemy the player
+  detects to the player's own combat group (`+0x9D8`). On a guest the host's NPCs are copies with no combat
+  groups, so the count is 0 and the guest's player is never in combat.
+- **Every event sent to a graph:** `IAnimationGraphManagerHolder::NotifyAnimationGraph` (32901), called only
+  through vtables (25 holder vtables, one implementation), hands it to `BSAnimationGraphManager` 63362. Actions,
+  Papyrus `SendAnimationEvent` and SKSE plugins (`NotifyAnimationGraph`) all pass there; a graph's own
+  transitions and clip annotations do not.
+
+How mods read and drive AI state, from their source (2026-10-20): Open Animation Replacer's conditions read
+`IsInCombat`, `GetCombatState`, `GetCurrentPackage` (inline, `AIProcess` running package),
+`currentCombatTarget`, `kSearchingInCombat`, `high->greetingPlayer`, `GetCurrentScene` and `IsTalking`
+(37266) on the actor whose clip activates, on every game. SCAR hooks the combat behaviour tree
+(`CombatBehaviorAttackBase` 48147, the controller's behaviour threads); PapyrusUtil's package overrides act
+at package evaluation; Valhalla Combat and DeadlyCombat react in the hit path and drive the graph with
+`SetGraphVariable*` and `NotifyAnimationGraph`. SkyMP runs an NPC's AI on its hosting player and puppets it
+elsewhere (`keepOffsetFromActor`), with no AI state synced.
+
 ### Still open
 
 - `Actor::Update` on copies: the trespass rule (only the real player trespasses, so a remote player is

@@ -48,6 +48,7 @@ void Poll()
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
     harness.Commands.Poll();
+    harness.Events.Poll();
 
     if (harness.Files.InWorld())
         harness.Input.Poll();
@@ -71,6 +72,7 @@ void Shutdown()
 {
     // Off the graphs before this DLL goes (a hot reload): they would call into it.
     Harness::Get().Trace.Stop();
+    Harness::Get().Events.Stop();
     Harness::Get().Commands.Stop();
 }
 } // namespace TestHarness

@@ -6,6 +6,7 @@
 
 #include <Games/IFormFactory.h>
 
+#include <Games/FormState.h>
 #include <SaveLoad.h>
 #include <Games/Overrides.h>
 
@@ -19,35 +20,12 @@ TESForm* TESForm::GetById(const uint32_t aId)
 
 void TESNPC::Serialize(String* apSaveBuffer) const noexcept
 {
-    ScopedSaveLoadOverride saveLoadOverride;
-
-    char buffer[1 << 15];
-
-    BGSSaveFormBuffer saveBuffer;
-    saveBuffer.buffer = buffer;
-    saveBuffer.capacity = 1 << 15;
-    saveBuffer.changeFlags = GetChangeFlags();
-
-    Save(&saveBuffer);
-
-    apSaveBuffer->assign(saveBuffer.buffer, saveBuffer.position);
-
-    saveBuffer.buffer = nullptr;
+    FormState::Save(*this, GetChangeFlags(), *apSaveBuffer);
 }
 
 void TESNPC::Deserialize(const String& acBuffer, uint32_t aChangeFlags) noexcept
 {
-    ScopedSaveLoadOverride saveLoadOverride;
-
-    BGSLoadFormBuffer loadBuffer(aChangeFlags);
-    loadBuffer.SetSize(acBuffer.size() & 0xFFFFFFFF);
-    loadBuffer.buffer = acBuffer.data();
-    loadBuffer.formId = formID;
-    loadBuffer.form = this;
-
-    Load(&loadBuffer);
-
-    loadBuffer.buffer = nullptr;
+    FormState::Load(*this, aChangeFlags, acBuffer);
 }
 
 void TESNPC::Initialize() noexcept

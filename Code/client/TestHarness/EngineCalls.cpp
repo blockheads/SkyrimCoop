@@ -14,6 +14,7 @@
 #include <Forms/TESPackage.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWorldSpace.h>
+#include <Games/FormState.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <Games/Overrides.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
@@ -447,6 +448,41 @@ std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
     return state;
 }
 
+SelectedMagic GetSelectedMagic(uint32_t aFormId) noexcept
+{
+    SelectedMagic selected{};
+    if (auto* pActor = Cast<Actor>(TESForm::GetById(aFormId)))
+    {
+        for (size_t i = 0; i < 4; ++i)
+            selected.Spells[i] = pActor->magicItems[i] ? pActor->magicItems[i]->formID : 0;
+        selected.Power = pActor->equippedShout ? pActor->equippedShout->formID : 0;
+    }
+    return selected;
+}
+
+std::optional<SavedForm> SaveFormState(uint32_t aFormId, bool aBaseForm, std::optional<uint32_t> aChangeFlags) noexcept
+{
+    TESForm* pForm = TESForm::GetById(aFormId);
+    if (aBaseForm)
+    {
+        auto* pReference = Cast<TESObjectREFR>(pForm);
+        pForm = pReference ? pReference->baseForm : nullptr;
+    }
+    if (!pForm)
+        return std::nullopt;
+    const uint32_t cFlags = aChangeFlags.value_or(pForm->GetChangeFlags());
+    String data;
+    if (!FormState::Save(*pForm, cFlags, data))
+        return std::nullopt;
+    return SavedForm{pForm->formID, cFlags, std::string(data.data(), data.size())};
+}
+
+bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& acData) noexcept
+{
+    TESForm* pForm = TESForm::GetById(aFormId);
+    return pForm && FormState::Load(*pForm, aChangeFlags, String(acData.data(), acData.size()));
+}
+
 bool IsProcessMe(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
@@ -710,15 +746,15 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     static_assert(offsetof(RawButtonEvent, UserEvent) == 0x18 && offsetof(RawButtonEvent, IdCode) == 0x20 &&
                   offsetof(RawButtonEvent, Value) == 0x28 && sizeof(RawButtonEvent) == 0x30);
     // The default mapping: the left mouse button is the right hand's, the right one the left hand's, R readies,
-    // left Ctrl sneaks, W moves forward.
+    // left Ctrl sneaks, W moves forward, Z shouts.
     struct Mapping
     {
         uint32_t UserEventOffset; // in UserEvents (singleton 402638): leftAttack 0x40, rightAttack 0x48, readyWeapon 0x68,
-                                  // sneak 0x90, forward 0x08
+                                  // sneak 0x90, forward 0x08, shout 0x98
         uint32_t Device;
         uint32_t IdCode;
     };
-    constexpr Mapping cMappings[] = {{0x48, 1, 0}, {0x40, 1, 1}, {0x68, 0, 0x13}, {0x90, 0, 0x1D}, {0x08, 0, 0x11}};
+    constexpr Mapping cMappings[] = {{0x48, 1, 0}, {0x40, 1, 1}, {0x68, 0, 0x13}, {0x90, 0, 0x1D}, {0x08, 0, 0x11}, {0x98, 0, 0x2C}};
     static RawButtonEvent s_events[std::size(cMappings)]{};
 
     VersionDbPtr<uint8_t*> userEvents(402638);

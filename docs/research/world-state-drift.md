@@ -2,7 +2,9 @@
 
 Findings of steps 1 and 2 of `docs/design/world-state-sync.md` (2026-10-19, branch
 `clang-cl-port-e2e-tests` after `731e49d3`). No sync code: these measure what a world-state sync has
-to carry, so step 3 onwards builds for the real list.
+to carry, so step 3 onwards builds for the real list. The design has changed since (2026-10-20): save data
+only at join (save transfer), messages while playing, so "dynamic sync" and "compare sweep" below read as the
+live messages and the scenarios' world desync check.
 
 ## Short answer
 

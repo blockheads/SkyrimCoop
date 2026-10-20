@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-19.
+Last updated 2026-10-20.
 
 ## Direct authority migration
 
@@ -84,8 +84,10 @@ with its scenarios.
 
 1. **Spike:** on the client, set the conversation's line to the host's step and call the engine's build and show
    (35287, 52857); compare with the host's list, list what else 35287 reads.
-2. **AI state on copies:** the owner sends current package, sitting, sleeping, scene, alarmed, combat state; the
-   matching condition functions answer from it for a copy. `GetIsCurrentPackage` first (87 menu lines).
+2. **AI state on copies** (revised 2026-10-20, `copy-contract.md`, "AI state"): the owner sends current package,
+   sitting, sleeping, scene, combat state and targets when they change; the copy writes the fields readers read
+   and answers `IsInCombat`/`GetCombatState` from it, never with a combat controller of its own. The package
+   first (`GetIsCurrentPackage`, 87 menu lines).
 3. **Step sync:** the host sends its step at each list it shows (the greeting first, the current one to a
    joiner); peers mark said lines and build their own list. Deletes `OwnLines`, `ShowOptions`, the record of
    options put in the list, `SendOptions`, the host-options message and the `List` filter. The dialogue scenarios
@@ -139,7 +141,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
-| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); step 3 (form buffers) next | `docs/design/world-state-sync.md` |
+| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); step 4 next. Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
 | A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. Needs the client's world scripts to stop changing the world (world-state sync step 5) | `docs/research/player-events.md`, `scripts/spikes/` |
 
 ## Copies (how other players' and the host's actors appear)
@@ -159,9 +161,11 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   - An owner's actions before its id arrives are kept (NPCs falling after `placeatme`).
 - Next audits: combat, detection, magic/magicka; then one copy update in place of scattered
   `IsCopy()` checks.
-- Planned (2026-10-19): copies carry their owner's AI state for conditions (current package, sitting, sleeping,
-  scene, alarmed, combat state), simulated only by the owner (`copy-contract.md`, "AI state"); first for
-  shared dialogue's step sync (above).
+- Planned (2026-10-19, revised 2026-10-20): copies carry their owner's AI state (current package, sitting,
+  sleeping, scene, combat state and targets), simulated only by the owner, read 1:1 by anything that asks:
+  written into the fields readers read, `IsInCombat`/`GetCombatState` hooked (`copy-contract.md`, "AI state";
+  IDA notes in `actor-ai-and-copies.md`, "Combat state and its readers"). First for shared dialogue's step
+  sync (above). Built for vanilla; graph events from outside the actions wait for mods.
 
 ## Test suite
 
@@ -342,6 +346,10 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
 - **A host NPC leaving the cell leaves the client's copy behind as the client's own actor** (2026-10-20): a copy of a placed NPC is the client's own reference; when the host's NPC goes, the client keeps it where it stood and treats it as its own (a ghost, and a client running a host NPC). Cause, cases, repro and options: `docs/design/copy-contract.md`, "When the owner's actor goes away". Only the test works around it (`release_host_npc`).
+- **A guest's player is never in combat** (2026-10-20, read in IDA, not seen in a game yet): the engine counts it
+  in combat from the combat groups targeting it (41238, 41261), and the host's NPCs on a guest are copies with
+  none. Expected in play: no combat music on a guest and nothing stopping a wait or save mid-fight (the
+  checks reading the flag not traced). Fix planned with AI state on copies (`copy-contract.md`, "AI state").
 - **A copy's spawn writes its NPC base's factions** (2026-10-19): `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`) changes the shared `TESNPC`, so the client records `NPC_ Factions` change forms the host never did (168 in one fast travel). Harmless while the values match the host's; it is client-made world state in its save (`docs/research/world-state-drift.md`).
 - **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
   owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the
@@ -469,6 +477,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- `party-fast-travels` fails at the client-led trip (2026-10-20): the client's console `fasttravel` runs and nothing happens, and the step "[client] arrived somewhere new" times out. The same on HEAD `30cd815f` without the step-3 changes; not followed up.
 - A release-mode client build (`-m release --test_harness=n`) fails to link: `/opt:ref: no such file or directory` (2026-10-19, seen while checking a player build; `-m dev --test_harness=n` links).
 - `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other
   players' copies but left their entities with a `PlayerComponent`, and player ids repeat across sessions,

@@ -75,6 +75,26 @@ nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
     return {{"ok", true}, {"entries", aHarness.Trace.Take()}};
 }
 
+std::string ToHex(const std::string& acBytes)
+{
+    static constexpr char cDigits[] = "0123456789abcdef";
+    std::string hex(acBytes.size() * 2, '0');
+    for (size_t i = 0; i < acBytes.size(); ++i)
+    {
+        hex[2 * i] = cDigits[uint8_t(acBytes[i]) >> 4];
+        hex[2 * i + 1] = cDigits[uint8_t(acBytes[i]) & 0xF];
+    }
+    return hex;
+}
+
+std::string FromHex(const std::string& acHex)
+{
+    std::string bytes(acHex.size() / 2, '\0');
+    for (size_t i = 0; i < bytes.size(); ++i)
+        bytes[i] = char(std::stoi(acHex.substr(2 * i, 2), nullptr, 16));
+    return bytes;
+}
+
 // {"cmd": "graph_state", "actor": id}: the actor's graph state, hex, and the save's microseconds.
 nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
 {
@@ -82,26 +102,43 @@ nlohmann::json GraphState(Harness&, const nlohmann::json& acRequest)
     const std::string cState = EngineCalls::SaveGraphState(acRequest.value("actor", 0x14u), micros);
     if (cState.empty())
         return Error("no graph state");
-    static constexpr char cDigits[] = "0123456789abcdef";
-    std::string hex(cState.size() * 2, '0');
-    for (size_t i = 0; i < cState.size(); ++i)
-    {
-        hex[2 * i] = cDigits[uint8_t(cState[i]) >> 4];
-        hex[2 * i + 1] = cDigits[uint8_t(cState[i]) & 0xF];
-    }
-    return {{"ok", true}, {"state", hex}, {"micros", micros}};
+    return {{"ok", true}, {"state", ToHex(cState)}, {"micros", micros}};
 }
 
 // {"cmd": "load_graph_state", "actor": id, "state": hex}: loads it into the actor now.
 nlohmann::json LoadGraphState(Harness&, const nlohmann::json& acRequest)
 {
-    const std::string cHex = acRequest.value("state", std::string{});
-    std::string state(cHex.size() / 2, '\0');
-    for (size_t i = 0; i < state.size(); ++i)
-        state[i] = char(std::stoi(cHex.substr(2 * i, 2), nullptr, 16));
     int64_t micros = 0;
-    const bool cLoaded = EngineCalls::LoadGraphState(acRequest.value("actor", 0u), state, micros);
+    const bool cLoaded = EngineCalls::LoadGraphState(acRequest.value("actor", 0u), FromHex(acRequest.value("state", std::string{})), micros);
     return {{"ok", cLoaded}, {"micros", micros}};
+}
+
+// {"cmd": "form_save", "form": id, "flags": n, "base": false}: what the form (with "base", the reference's base
+// form) would write to a save for those change flags (default: its recorded changes), hex (FormState::Save).
+nlohmann::json FormSave(Harness&, const nlohmann::json& acRequest)
+{
+    const std::optional<uint32_t> cFlags =
+        acRequest.contains("flags") ? std::optional<uint32_t>(acRequest["flags"].get<uint32_t>()) : std::nullopt;
+    const auto cSaved = EngineCalls::SaveFormState(acRequest.value("form", 0u), acRequest.value("base", false), cFlags);
+    if (!cSaved)
+        return Error("no such form, or a save or load runs");
+    return {{"ok", true}, {"form", cSaved->FormId}, {"flags", cSaved->ChangeFlags}, {"data", ToHex(cSaved->Data)}};
+}
+
+// {"cmd": "form_load", "form": id, "flags": n, "data": hex}: loads it into the form now (FormState::Load).
+nlohmann::json FormLoad(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::LoadFormState(acRequest.value("form", 0u), acRequest.value("flags", 0u),
+                                    FromHex(acRequest.value("data", std::string{}))))
+        return Error("no such form, or a save or load runs");
+    spdlog::info("Form state loaded (rpc): {:X}", acRequest.value("form", 0u));
+    return Ok();
+}
+
+// {"cmd": "engine_events", "since": n}: the engine's script events numbered n and later (EngineEvents).
+nlohmann::json GetEngineEvents(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    return aHarness.Events.Since(acRequest.value("since", uint64_t(0)));
 }
 
 // {"cmd": "graph_writers", "actor": id}: the variables the actor's graphs write themselves, by node.
@@ -243,6 +280,9 @@ constexpr Command cCommands[] = {
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
     {"quest", true, &Quest},
+    {"form_save", true, &FormSave},
+    {"engine_events", false, &GetEngineEvents},
+    {"form_load", true, &FormLoad},
     {"script_state", true, &ScriptState},
     {"item_count", true, &ItemCount},
     {"activate", true, &Activate},

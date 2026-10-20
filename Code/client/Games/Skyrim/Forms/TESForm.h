@@ -57,8 +57,8 @@ struct TESForm : BaseFormComponent
     virtual void sub_D();
     virtual void Save(BGSSaveFormBuffer* apBuffer) const noexcept;
     virtual void Load(BGSLoadFormBuffer* apBuffer);
-    virtual void sub_10();
-    virtual void sub_11();
+    virtual void InitLoadGame(BGSLoadFormBuffer* apBuffer);   // 0x10 (CommonLibSSE-NG)
+    virtual void FinishLoadGame(BGSLoadFormBuffer* apBuffer); // 0x11
     virtual void sub_12();
     virtual void InitializeComponents(); // Called after Load
     virtual void sub_14();
