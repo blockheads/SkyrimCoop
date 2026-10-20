@@ -28,6 +28,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Graph variables | inputs only, latest by owner tick | the variables the graph writes itself are not synced (`currentDefaultState`, `NotCasting`; see actor-ai-and-copies.md) |
 | AI packages (picked or engine-created) | no | `HookCheckForNewPackage` and `HookPutCreatedPackage` (References.cpp) |
 | Package sync from the owner | no | `AI_SYNC` stays 0 (References.cpp) |
+| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's, planned | decided 2026-10-19, not built: below, "AI state" |
 | Applying spell effects locally | no | the owner applies them (MagicTarget.cpp) |
 | Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects with visuals; the copy plays just their hit shader and art while listed (EffectVisualsService) |
 | Hit feedback for the attacker (enemy health bar) | in the attacker's game | our player's hit on a copy shows its health bar at once, from the owner's health (CombatService::OnHitEvent) |
@@ -111,6 +112,18 @@ Full map: `docs/re/systems/actor-ai-and-copies.md`. In short:
   freeze, and local input would drive the copy. Not usable.
 - Prior art does not cut the AI: SkyMP keeps it on and overrides `DrawWeaponMagicHands`' argument
   (a symptom filter like the reverted one); upstream Tilted Online skipped only `ApplyMovement`.
+
+## AI state: the owner's, for anything that asks (decided 2026-10-19, not built)
+
+A copy runs no AI, but what asks about the actor must get the owner's answer: a dialogue line's conditions on
+its speaker, a greeting, a scene's. **No game but the owner's simulates the actor; every game knows its AI state.**
+The owner sends the few facts conditions read when they change (current package, sitting or sleeping, in a
+scene, alarmed, combat state), and on a copy those condition functions answer from them: one hook each in the
+condition function table, "a copy: the owner's state". Nothing runs the package on the copy.
+
+First user: shared dialogue syncing the step (`shared-dialogue.md`, "Next"), where each game judges its menu's
+topics against the NPC's copy. Measured on Skyrim and its DLC: about 200 of 15,449 menu lines test it,
+`GetIsCurrentPackage` the most (`scripts/re/dialogue_conditions.py`, which also counts a mod list's).
 
 ## When syncing a new system
 

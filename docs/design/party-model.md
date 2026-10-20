@@ -21,7 +21,8 @@ rejected as an outlier (it breaks at the first timer or deferred script).
 Shared by the party:
 
 - Gold: one purse, the host's.
-- Experience.
+- Rewards: a quest's skill raise or a mod's quest experience reaches every player (experience itself
+  is personal, see Experience).
 - Quest items: every player holds them.
 - Words of power (dragon souls likely too, since they unlock words).
 - Identity changes: beast blood, vampirism, titles (Thane, Harbinger, Arch-Mage), marriage.
@@ -51,12 +52,46 @@ and the skills and perks earned by using them.
 ## Dialogue
 
 One shared conversation, run by the host's engine whoever started it. Everyone sees it in the engine's
-dialogue menu; anyone moves the cursor and anyone picks; each player's own options (their factions, items,
-perks, race, Speech) show alongside the host's. Barter picked from it is shared: everyone trades at once.
+dialogue menu, each with their own options: the host's topics with that player's own lines (their factions,
+items, perks, race, Speech), and their own topics. Anyone picks and speaks for the party with their own line;
+the chat names who said what (2026-10-19). Barter picked from it is shared: everyone trades at once (later).
 Details: `shared-dialogue.md`.
 
 Decided 2026-10-14. It replaces the 2026-10-13 suggestion (whoever started the conversation picks, the
 others suggest; checks on the host's stats).
+
+## Experience
+
+Decided 2026-10-19. **Experience is earned, not shared.** Players level different skills and keep their
+own builds; nobody gains a skill they did not use.
+
+In vanilla all experience comes from the player's own actions: using a skill (hits, casts, blocking,
+armour, sneaking, crafting, locks, pickpockets, persuasion, trade), direct raises (skill books,
+trainers, some quest rewards) and the character level, which only grows from skill raises. There is no
+experience for kills, quests or discoveries, so there is no pool to share.
+
+| What happened | Who gets it |
+|---|---|
+| A player used a skill (hit, cast, sneaked, crafted, picked a lock) | that player, on their own game (already so) |
+| A player picked a persuade, intimidate or bribe line, or made a trade | that player's Speech |
+| A player paid a trainer or read a skill book | that player |
+| The party finished a quest (a skill raise, a mod's quest experience) | everyone, each on their own skills |
+
+- **Where the host's engine acts for a peer** (a picked line's script, barter, training), the host sends
+  that peer the engine's input (skill and base amount), and the peer's game adds it through its own
+  `AddSkillExperience`. Never a measured result: the receiver's perks and mods then apply once.
+- **Mods are not adapted.** Each game runs its own copy of every experience mod (Skill Uncapper,
+  Experience, perk overhauls, Custom Skills Framework) against its own player, and reacts to events in that
+  game: a quest completed, the player killed an actor, a location discovered. We make each game see what
+  really happened to its own player (quest sync completes the quest on every game; the killer's game
+  records its kill) and the mod does the rest. A mod breaks only where its event happens on the host's
+  game alone. We never fake events for a mod (a kill credited to everyone would also raise bounties and
+  satisfy quest conditions).
+- **Upstream's shared combat experience is dropped** (everyone's combat gains added to the receiver's last
+  used combat skill): it mixes builds, and a measured gain carries the sender's perks and mod multipliers,
+  which the receiver's game applies again.
+
+Engine path and how the mods hook it: `docs/re/systems/experience.md`.
 
 ## Cutscenes
 
@@ -76,5 +111,5 @@ Cutscenes play for everyone as in single player, for any mod, whoever triggered 
 - **Diseases cross the line:** Sanguinare Vampiris lands on a body (a peer's), but turning is a quest that
   watches the host's player, so a peer's infection never progresses. Either the host's infection turns the
   party, or a body effect on any member counts as the party's.
-- **Experience's rule:** today only combat-skill XP is shared, added to the receiver's last used combat
-  skill (upstream's rule, `shared-xp`). Quest XP and the rule itself are to decide.
+- **Catch-up for a player who rarely lands hits** (a healer, a talker): none by default. A later option
+  if play shows the party drifting apart in level.

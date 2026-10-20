@@ -4,7 +4,8 @@ One conversation for the whole party (`party-model.md`, "Dialogue"). Engine find
 experiments it rests on: `docs/re/systems/dialogue.md`. Agreed 2026-10-14, the join rules changed 2026-10-18,
 each player's own options and lines 2026-10-19; built so far: the messages and `HostDialogue`, the host's
 background conversation, joining by talking, leaving, picks from anyone with the picker's own line, picks shown
-on every menu and in the chat, the picker's Speech experience (Build order).
+on every menu and in the chat, the picker's Speech experience, training on the picker's game, refused starts,
+three players (Build order).
 
 ## What players see
 
@@ -25,20 +26,37 @@ on every menu and in the chat, the picker's Speech experience (Build order).
   checks). A topic their player gets no line for is not on their menu; their own topics the host lacks are
   (Brenuin's "Here. Have a gold piece." for the one carrying gold), except among a question's answers, where the
   host's are all there is. Menus can differ in options and order; each player moves their own highlight.
-- **Anyone picks, and speaks for the party with their own line:** the host's game says the picker's line. Every
-  other menu shows the pick (the picked text stays, the list goes) when it has that topic, and everyone's chat
-  names it: `Lydia: Here. Have a gold piece.` Then every menu shows the host's next topics.
+- **Anyone picks, and speaks for the party with their own line:** the host's game says the picker's line. The
+  other menus keep their list until the next one, and everyone's chat names the pick: `Lydia: Here. Have a gold
+  piece.` Then every menu shows the host's next topics.
 - **One conversation at a time.** Talking to another NPC while one is open does nothing (a chat line says
-  someone is talking).
+  someone is talking). An NPC's force greet waits too.
+- **An NPC that starts a conversation greets the party** (decided 2026-10-19): NPCs run their AI on the host's
+  game, so its force greet reaches the host's player, and every player's menu opens on it (the peers' on their
+  copies), as for the peer who asks.
+- **Each player answers a question with their own answers** (2026-10-19): the host's game sends every choice of
+  the line, those its player gets no line for too, and each game shows the ones its player gets. When the host's
+  player has none, its game holds the choices (the conversation stays on) and its menu closes; a player with no
+  answer leaves, as the game ends it alone, so when nobody can answer it ends.
+- **A start the host's game cannot make is refused** with a chat line: the NPC fighting or dead (as talking
+  to them is in the game), the host's player talking to someone else. The host in a menu, in combat or far
+  away does not stop it (its world paused pauses the lines).
 - **Anyone leaves on their own** (Tab, Esc). The conversation ends only when the last player in it leaves,
   or when the host's engine ends it (a goodbye line, the NPC walking off, combat, travel): then every menu
-  in it closes.
+  in it closes. Walking off does not end it (the engine has no distance rule); the party travelling does, and
+  an NPC that goes away (deleted, or left behind) ends it on every game.
 - **Speech experience is the picker's** (decided 2026-10-19, replacing it going to everyone the same day): a
   persuade's script runs on the host's game, for its player, and the Speech experience it gives goes to whoever
   picked the line. So a party can have its talker.
-- **Barter, training, gifts** open on the host's game, where the line is said (untested). Later: say those
-  topics on the picker's own game (training then costs the picker's gold and raises the picker's skill); barter
-  and a follower's inventory also need the other side's items synced (shared barter, after the shared purse).
+- **Training opens on the picker's game** (built 2026-10-19): the host's game says the trainer's line and runs
+  its script, whose training menu opens on the picker's game instead, with its copy of the trainer; the picker
+  leaves the conversation for it. The cost, the skill raised and the trainings left this level are the
+  picker's.
+- **Barter, gifts, a follower's inventory** still open on the host's game, where the line is said. They need the
+  other side's items synced (shared barter, after the shared purse).
+- **A line said is said on every game:** each game marks a picked line as the host's saying it does, so a
+  say-once line (Onmund's greeting, Hulda on the College) is not offered again, and one with reset hours (a
+  beggar's coin: 4 hours) not until they pass.
 
 ## The rule
 
@@ -63,11 +81,16 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
 
 1. **Start.** A peer activates a copy. The start reaches `Actor::SetDialogueWithPlayer` (37200), which
    `DialogueService` stops and sends instead: `DialogueStartRequest` (the NPC's server id). `HostDialogue`
-   refuses it for an actor the host does not own; a start for the NPC already in conversation returns
-   silently (the peer joins locally, step 7). Otherwise it tells the host's game to start
-   (`NotifyDialogueStart`). That game, unless it talks to someone already (one conversation at a time),
-   starts it hidden: `DialogueBridge::Start(npc, false)` skips the menu (52853) and the turn (40496).
-2. **Open.** The host's game has a conversation with an NPC with a server id (whoever started it, a
+   refuses it for an actor the host does not own, or while another conversation runs; a start for the NPC
+   already in conversation returns silently (the peer joins locally, step 7). Otherwise it tells the host's
+   game to start (`NotifyDialogueStart`). That game, unless it talks to someone already (one conversation at a
+   time), starts it hidden: `DialogueBridge::Start(npc, false)` skips the menu (52853) and the turn (40496),
+   and refuses an NPC fighting or dead (a start from code would run all the same). A start it cannot make goes
+   back as `DialogueStartFailedRequest`. Every refusal reaches the asker as `NotifyDialogueRefused` (it
+   forgets its ask; kept, the host's next conversation with that NPC opened its menu) and a chat line.
+2. **Open.** A force greet reaches the start filter with its flag (37200's `forceGreet`); the host's game marks
+   the open `Everyone`, `HostDialogue` puts every player in it and every peer opens its menu on its copy.
+   The host's game has a conversation with an NPC with a server id (whoever started it, a
    force-greet too; tracked by `MenuTopicManager`'s speaker, not the menu): its `DialogueService` sends
    `DialogueOpenedRequest` (the NPC). `HostDialogue` opens the conversation (a new id, step 1; the host
    turning to another NPC ends the old one first) and sends `NotifyDialogueOpen` to everyone. The peer that
@@ -81,7 +104,14 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    left out when it gets none; a topic whose quest does not run in that game is the host's world, so it keeps
    the host's line (until quest sync); then, unless the list is a line's choices, its own topics the host lacks
    (its engine's list from its menu opening on the copy). Its menu shows them in place of its engine's own
-   (`DialogueBridge::ShowOptions`).
+   (`DialogueBridge::ShowOptions`). For a line's choices the host's game sends them all in order (25659, the
+   choices of `rootTopicInfo`), with no line where its player gets none; a peer shows those its player gets a
+   line for, and leaves when there is none. The host's game, its player with no choice, holds them as unlisted
+   options (`Dialogue` +0x4A) with their topic's first line, so the engine does not end the conversation, and
+   closes its menu instead of filling it (the fill ends it on a list with nothing to show); a peer's pick says
+   its own line in the held one's place. The menu is drawn again for each new step's list even when its engine built the
+   same one. Its engine's own list show (52857, after the copy's line) waits while the next step's list has
+   not come: shown, it offered the peer's own topics, pickable, while the host's NPC still answered.
 4. **Pick.** `TopicClicked` (51509) is hooked on every game. A pick sends `DialoguePickRequest`
    (conversation, step, the topic, its menu's line for it, the option's text); a peer's own menu does not say
    it. `HostDialogue` takes the first pick of a step and sends `NotifyDialoguePicked` (the next step, topic,
@@ -89,9 +119,14 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    picker's name, the option's text, through `ChatText` as chat). The host's game says it unless its own menu did
    (`DialogueBridge::PickTopic`, with its menu or without): a line it can say for the topic
    (`TESTopicInfo::CanSayFor`: the topic's, not a say-once line said already) takes the place of the topic's
-   option, or is built for a topic it lacks; any other, the topic's own option. Every other game in the
-   conversation with that topic on its menu shows the pick (`DialogueBridge::ShowPicked`: the SWF's own
-   `onSelectionClick`, its `TopicClicked` call skipped) until the next step's list. A stale step is dropped.
+   option, or is built for a topic it lacks; any other, the topic's own option. The other menus keep their list
+   until the next step's (showing the pick on them, through the SWF, was dropped 2026-10-19: `docs/ideas.md`).
+   A stale step is dropped: the picker gets the step's list back (`HostDialogue::SendList`), as does a pick on a
+   click that was never sent (`Redraw`), so no menu stays in the picked state. A line said within its reset hours
+   on the host's game (`PlayerCharacter::SaidRecently`, 40694) falls back to the list's own; a topic with nothing
+   left to say leaves the host's list as it stands as the next step's. Every peer remembers the line as heard
+   (`MarkSaid`: the line's said flag and change flag, and 40692 for reset hours, as `TESTopicInfo::Begin` does on
+   the host's game), so its menu skips a say-once line, and one with reset hours as long.
 5. **Speech experience.** On the host's game, Speech experience its player is about to gain
    (`PlayerCharacter::AddSkillExperience`, from any thread; a persuade's script, barter) after another
    player's pick in the latest conversation is not added (`DialogueBridge::SetSpeechExperienceFilter`): it goes
@@ -105,10 +140,18 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    it ends the conversation and sends `NotifyDialogueClosed` to every game, the host's too, whose conversation
    then ends without its menu. While players remain, the host's menu closing does not end its conversation
    (the hook on 35272). The host's engine ending it (a goodbye, the NPC walking off, combat) sends
-   `DialogueCloseRequest` with `Ended`, which closes every menu.
+   `DialogueCloseRequest` with `Ended`, which closes every menu. A conversation whose speaker was deleted (a
+   copy left behind on travel, a removed NPC) is cleared on that game (`DialogueBridge::ClearOrphaned`): the
+   engine's end does nothing without a speaker and left `menuOpen` set, after which that game started no
+   conversation at all. The asker whose menu never opens leaves after 60 frames.
 7. **Join.** Talking to the NPC of the conversation under way (`TESNPC::Activate` 24715, where activating
    the current speaker would otherwise do nothing) opens the menu on it: a peer starts its own on its copy,
    the host shows its menu on the background conversation (`DialogueBridge::ShowMenu`).
+8. **Training.** On the host's game, a training menu about to open (52942, `Game.ShowTrainingMenu`'s only
+   call) after another player's pick does not open there: `DialogueTrainingRequest` (the trainer) goes to
+   `HostDialogue`, which sends `NotifyDialogueTraining` to the last picker (the host's game when the picker
+   left). The picker's dialogue menu closes and the training menu opens with its copy of the trainer
+   (`DialogueBridge::OpenTraining`). A trainer outside the conversation opens on the host's game as usual.
 
 ### A peer's game
 
@@ -151,6 +194,9 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueExperienceRequest` / `NotifyDialogueExperience` | host's game → host → the last picker | Speech experience from the lines said |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
+| `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals) |
+| `DialogueOpenedRequest` / `NotifyDialogueOpen` `Everyone` | host's game → host → all | the NPC started it (a force greet): every peer opens its menu |
+| `DialogueTrainingRequest` / `NotifyDialogueTraining` | host's game → host → the last picker | the trainer whose menu opens there |
 
 All in `Messages/SharedDialogue.h`, the option in `Structs/DialogueOption.h`. They are not relays, so
 `wire_tests.cpp` does not pin them; the bridge cases send and read each one through the server.
@@ -161,13 +207,12 @@ A refused start goes back as a session event (a chat system line), like a refuse
 
 Typed structs in `Code/client/Games/` with `static_assert`ed offsets (CommonLibSSE-NG, IDA):
 
-- `MenuTopicManager` (`Games/Misc/MenuTopicManager.h`), `TESTopic`, `TESTopicInfo`, `UIMessageQueue`
-  (`Interface/UIMessageQueue.h`).
+- `MenuTopicManager` (`Games/Misc/MenuTopicManager.h`), `TESTopic`, `TESTopicInfo`, `UIMessageQueue` and
+  `BSUIMessageData` (`Interface/UI.h`).
 - `IDialogueBridge` / `DialogueBridge` (`Bridges/`): what `DialogueService` needs from the engine, and
   the hooks.
-- `DialogueMenu` (`IMenu`) and enough of Scaleform: `GFxMovieView` (`GetVariable`, `SetVariable`,
-  `Invoke`), `GFxValue`, `FxDelegateArgs`. Only showing a pick reaches into the vanilla SWF by name
-  (`TopicList`, `onSelectionClick`); a menu mod that renames them leaves the pick unshown, nothing else.
+- `FxDelegateArgs` and `GFxValue` for the SWF's `TopicClicked` callback. The bridge names nothing inside the
+  SWF: the menu closes through the engine's own `kHide` message (only the harness reads the SWF's state).
 
 Hooks, each checked against its community name and IDA:
 
@@ -181,18 +226,64 @@ Hooks, each checked against its community name and IDA:
 - `SpeakSound` (37542) and `ShowSubtitle` (52626), both hooked already: copies refuse the engine's lines.
 - `PlayerCharacter::AddSkillExperience` (hooked already): the host's Speech experience from another's pick
   goes to the picker.
+- Open the training menu (52942, built): another player's training opens on its game.
 
-## Open, to settle while building (experiments first)
+## Open
 
-1. **Distance:** the host talks from anywhere (held at 4000 units). Still to see: what ends a conversation
-   under way (35294) when a player walks off.
-2. **The host busy** (in a menu, in combat) when a peer starts one.
-3. **A peer who asks and whose menu never opens** though its start ran: it stays in until its engine's
-   conversation with the copy ends. A failed start leaves at once (2026-10-19).
-4. **Topics that open a menu** (barter, training, gifts, a follower's inventory): on the picker's game, later.
-   Bribes wait for the shared purse (their cost depends on Speech, their gold on the purse).
-5. **A click as the list changes:** a peer's pick that is not sent leaves its menu in the picked state until
-   the next list (rare).
+1. **Barter, gifts, a follower's inventory** open on the host's game: they need the other side's items synced
+   (shared barter, after the shared purse). Bribes wait for the shared purse too (their cost depends on
+   Speech, their gold on the purse).
+2. **Quest scenes** where the player answers inside a scene: with quest sync (until then a peer's quest state
+   is its own, and quest topics the host's game has moved past can stay on its menu).
+3. **Settled 2026-10-19:** each player's own answers, say-once lines on every game, force greets for everyone;
+   walking off (no distance rule: travel, the NPC unloading or a goodbye end it), the
+   host busy (a menu or combat does not stop a start; a fighting or dead NPC does), a menu that never opens
+   (left after 60 frames), a click as the list changes (the list comes back), lines said recently (above).
+
+## Next: sync the step, not the list (decided 2026-10-19)
+
+**Today a peer's list is rebuilt by hand.** A peer's engine never says a line (the host's game does), so it
+stays at the conversation's first step: when the NPC asks a question, its list still has the opening topics.
+So the host sends its options each step and each peer replaces its engine's list with them, judged for its own
+player (`DialogueService::OwnLines`, `DialogueBridge::ShowOptions` building options, the record of options put
+in the list, `SendOptions`, the `List` filter holding back the peer's own list), checked every update.
+
+**Instead, sync the step and let each engine build its own list.** The engine builds the list from one piece of
+state, the line just said (`rootTopicInfo`): its choices, or else the speaker's topics, each judged for the
+player (conditions, say-once, reset hours, random lines, and any mod hooking `AddTopic`).
+
+- The host's game sends the step when its engine shows a list (`HookShowList`, after 35287), not on each line:
+  lines that continue on their own ("invisible continue") are not steps. The first step is the greeting the
+  host's NPC said; a player joining later gets the current step with the open.
+- Each peer marks the said lines said (say-once, reset hours, topic history), sets the step as its
+  conversation's line and calls its engine's own build and show (35287, 52857), as after a line.
+- Picks stay as they are: a peer picks from its own engine's list and sends its topic and line; the host's game
+  says it (`PickTopic`). `HoldChoices` stays on the host; a peer with no line for any choice leaves, as now.
+- It deletes the list sync above, and dialogue mods that edit the list work on every game, not only the host's.
+
+**What it needs from the world.** Each game judges topics against its own state, so that state must be the
+host's:
+
+- Quest stages, aliases and globals: quest and world sync (`docs/design/party-model.md`,
+  `docs/design/world-state-sync.md`). Until then, quest topics at stages a peer's game lacks are missing from
+  its menu (the conversation still works; the host's topics are no longer forced on it).
+- The NPC's AI state, read through its copy: copies run no AI but must carry their owner's AI state
+  (`docs/design/copy-contract.md`, "AI state"). In Skyrim and its DLC, about 200 of the 15,449 lines under menu
+  topics test it on the speaker: `GetIsCurrentPackage` 87, `GetSitting` 32, `GetAlarmed` 27, `IsScenePlaying` and
+  `IsInScene` 30, `GetSleeping` 14, `IsInCombat` 9 (`scripts/re/dialogue_conditions.py`; 226 more test
+  `IsInDialogueWithPlayer`, which a copy in a peer's conversation already passes).
+- Ordering: a line's script can change state the next list reads (a quest stage). A peer applies the synced
+  state before building the step's list: the step follows that state on the same ordered channel, or the peer
+  builds again when it changes during the step.
+
+**First, a spike:** on the client, a menu open on a copy, set its conversation's line to the host's and call
+35287 and 52857; check the list against the host's and what else 35287 reads (the speaker, the greeting head,
+`lastTopicInfo`, `topicHistory`).
+
+**Until then, event-driven, not polled:** `DialogueService::ShowOwnLines` runs every update while the menu is
+open and relies on `ShowOptions` finding nothing changed. It only needs to run when the host's list arrives,
+the peer's engine builds its own list (`HookShowList`) or the step changes. Worth doing only if step sync is not
+next, as step sync deletes it.
 
 ## Build order
 
@@ -218,9 +309,23 @@ Each step ends with its scenarios passing, and works on its own:
    the pick, both show the same next topics), `dialogue-picker-gets-speech-experience` (after the client's pick,
    Speech experience on the host's player goes to the client's Speech, not the host's; after the host's own,
    it stays the host's).
-6. Shared barter, with the shared purse (its own design).
+6. **Done.** Loose ends (2026-10-19): `dialogue-picker-trains` (Amren's training opens on the client's game, the
+   client trains once, the host's One-handed and gold unchanged), `dialogue-refused-start` (an NPC in combat:
+   refused with a chat line, the ask forgotten), `dialogue-said-line-waits` (the coin not offered again within
+   its 4 hours), `dialogue-ends-on-travel` (the party travelling ends it for both; the client talks again
+   after), `dialogue-npc-removed` (the NPC deleted mid-conversation; the client talks to the next one),
+   `dialogue-npc-starts` (a force greet; one during a peer's conversation waits),
+   `dialogue-several-questions-deep` (Andurs, three questions by turns; no menu offers another list while he
+   answers), `dialogue-three-players` (`duo --players 3`: a pick from the second client, one client leaves,
+   the last one out ends it). Bridge cases for refusals, the list given back, training.
+7. **Done.** Answers, said lines, greetings (2026-10-19): `dialogue-answer-only-a-peer-has` (Onmund's question
+   only a non-Nord can answer: the Nord host's menu closes, the Breton client answers; alone, nobody can and it
+   ends), `dialogue-said-once-line` (Hulda's College line not offered again on any game),
+   `dialogue-npc-starts` (a force greet opens every game's menu).
+8. Shared barter, with the shared purse (its own design).
 
 The harness reads each game's conversation (`dialogue`: open, speaker, options; the SWF's pick state and
-highlight), its player's skills (`skill`) and what its camera shows (`camera`), and drives it with real keys (E,
+highlight), its player's skills (`skill`), trainings this level (`trainings`, set back after a scenario) and
+what its camera shows (`camera`), makes an NPC force-greet (`force_greet`), and drives it with real keys (E,
 W and S, Tab). A scenario waits for the SWF to take a pick (`bAllowProgress`, `eMenuState`) before pressing E, as
 a player waits for the line.

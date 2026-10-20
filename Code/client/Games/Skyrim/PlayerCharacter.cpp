@@ -31,6 +31,8 @@
 
 int32_t PlayerCharacter::LastUsedCombatSkill = -1;
 
+static std::function<bool(float)> s_speechExperienceFilter;
+
 TP_THIS_FUNCTION(TPickUpObject, char, PlayerCharacter, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2);
 TP_THIS_FUNCTION(TSetBeastForm, void, void, void* apUnk1, void* apUnk2, bool aEntering);
 TP_THIS_FUNCTION(TAddSkillExperience, void, PlayerCharacter, int32_t aSkill, float aExperience);
@@ -90,6 +92,15 @@ void PlayerCharacter::AddSkillExperience(int32_t aSkill, float aExperience) noex
     spdlog::debug("Added {} experience to skill {}", deltaExperience, aSkill);
 }
 
+void PlayerCharacter::GainSkillExperience(int32_t aSkill, float aExperience) noexcept
+{
+    // 40488 takes the advance object and action too (docs/re/systems/experience.md): none here.
+    TP_THIS_FUNCTION(TAddSkillExperienceFrom, void, PlayerCharacter, int32_t aSkill, float aExperience, TESForm* apObject,
+                     int32_t aAction);
+    TiltedPhoques::ThisCall(reinterpret_cast<TAddSkillExperienceFrom*>(RealAddSkillExperience), this, aSkill, aExperience,
+                            nullptr, 0);
+}
+
 bool PlayerCharacter::SaidRecently(const TESTopicInfo* apInfo) const noexcept
 {
     TP_THIS_FUNCTION(TSaidRecently, bool, const PlayerCharacter, const TESTopicInfo* apInfo);
@@ -103,6 +114,11 @@ void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
     POINTER_SKYRIMSE(TRememberSaid, s_rememberSaid, 40692);
     if (apInfo && apInfo->timeUntilReset)
         TiltedPhoques::ThisCall(s_rememberSaid.Get(), this, apInfo);
+}
+
+void PlayerCharacter::SetSpeechExperienceFilter(std::function<bool(float aExperience)> aFilter) noexcept
+{
+    s_speechExperienceFilter = std::move(aFilter);
 }
 
 NiPoint3 PlayerCharacter::RespawnPlayer() noexcept
@@ -208,6 +224,10 @@ void TP_MAKE_THISCALL(HookSetBeastForm, void, void* apUnk1, void* apUnk2, bool a
 
 void TP_MAKE_THISCALL(HookAddSkillExperience, PlayerCharacter, int32_t aSkill, float aExperience)
 {
+    // Speech from a line another player picked is theirs (the host's game says every line; DialogueService).
+    if (aSkill == ActorValueInfo::kSpeechcraft && s_speechExperienceFilter && s_speechExperienceFilter(aExperience))
+        return;
+
     // TODO: armor skills? sneak?
     static const Set<int32_t> combatSkills{ActorValueInfo::kAlteration, ActorValueInfo::kConjuration, ActorValueInfo::kDestruction, ActorValueInfo::kIllusion, ActorValueInfo::kRestoration, ActorValueInfo::kOneHanded, ActorValueInfo::kTwoHanded, ActorValueInfo::kMarksman, ActorValueInfo::kBlock};
 

@@ -172,6 +172,8 @@ struct Water
 Water GetWater(uint32_t aFormId) noexcept;
 // The subtitle on screen over the actor (SubtitleManager), empty if none.
 std::string GetSubtitle(uint32_t aFormId) noexcept;
+// Whose subtitle the HUD shows now (SubtitleManager's current speaker), 0 for none.
+uint32_t GetSubtitleOnScreen() noexcept;
 // The actor's behaviour graph state as a spawn sends it (TESObjectREFR::SaveAnimationGraphState), and the
 // microseconds the save took; empty without the actor or its graphs. Measuring graph replication.
 std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept;
@@ -191,6 +193,45 @@ struct GraphWriter
 std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
+// The player's conversation (MenuTopicManager): the speaker and the options in menu order.
+struct DialogueOption
+{
+    std::string Text;
+    uint32_t Topic = 0;
+    uint32_t Info = 0;
+    uint32_t Quest = 0;
+};
+struct DialogueState
+{
+    bool MenuOpen = false; // the manager's flag
+    uint32_t Speaker = 0;  // form id, 0 without one
+    bool SkipHead = false; // the list's first node is not an option
+    std::vector<DialogueOption> Options;
+    // The menu's SWF (DialogueMenu.as), -1 without the menu: whether a pick is taken, its eMenuState, the selection.
+    int32_t AllowProgress = -1;
+    int32_t SwfState = -1;
+    int32_t Selected = -1;
+    uint32_t CursorTopic = 0; // the highlighted option's topic (its entry's topicIndex in the list)
+    uint32_t CurrentInfo = 0; // MenuTopicManager's currentTopicInfo and lastTopicInfo, form ids
+    uint32_t LastInfo = 0;
+};
+DialogueState GetDialogue() noexcept;
+// Says the option at this index as the menu's click does, with the menu open or not (MenuTopicManager::Pick).
+bool PickDialogue(uint32_t aIndex) noexcept;
+// The actor starts a conversation with the player, as a ForceGreet package ends (Actor::SetDialogueWithPlayer
+// 37200 with force greet, through its hook).
+bool ForceGreet(uint32_t aActorFormId) noexcept;
+// Whether the line is marked said (TESTopicInfo +0x3A), and setting it back (none: no such line).
+std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept;
+// How many of the item the player carries (none: no such form).
+std::optional<int64_t> GetPlayerItemCount(uint32_t aFormId) noexcept;
+// The player's actor value (a skill's level) and that skill's experience toward its next level.
+float GetPlayerActorValue(uint32_t aIndex) noexcept;
+float GetPlayerSkillExperience(uint32_t aIndex) noexcept;
+// How many times the player trained this level (PlayerCharacter +0x938), and setting it back.
+uint32_t GetPlayerTrainings() noexcept;
+void SetPlayerTrainings(uint32_t aCount) noexcept;
+
 // What the player's camera shows: its mode, where it is and looks (the world camera's transform), what the
 // crosshair is on, and, given an actor, where its head is on screen and how far from the middle of the view.
 struct CameraView

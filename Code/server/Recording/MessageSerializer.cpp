@@ -37,6 +37,8 @@ DEF_MSG_NAME(DialoguePickRequest)
 DEF_MSG_NAME(DialogueCloseRequest)
 DEF_MSG_NAME(DialogueJoinRequest)
 DEF_MSG_NAME(DialogueExperienceRequest)
+DEF_MSG_NAME(DialogueStartFailedRequest)
+DEF_MSG_NAME(DialogueTrainingRequest)
 DEF_MSG_NAME(AssignCharacterRequest)
 DEF_MSG_NAME(ClientReferencesMoveRequest)
 DEF_MSG_NAME(RequestInventoryChanges)
@@ -127,6 +129,8 @@ DEF_MSG_NAME(NotifyDialogueList)
 DEF_MSG_NAME(NotifyDialoguePicked)
 DEF_MSG_NAME(NotifyDialogueClosed)
 DEF_MSG_NAME(NotifyDialogueExperience)
+DEF_MSG_NAME(NotifyDialogueRefused)
+DEF_MSG_NAME(NotifyDialogueTraining)
 
 #undef DEF_MSG_NAME
 

@@ -163,7 +163,7 @@ on 1.6.1170:
 | ID | RVA | Name (ours) | What |
 |---|---|---|---|
 | 52853 | 0x976d60 | show menu | `(speakerName)`: queues the Dialogue Menu's show with the name; from `StartDialogue` 35282, which reads it with `TESObjectREFR::GetDisplayFullName` (19781). **Hooked:** skipped for a hidden start. `DialogueBridge::ShowMenu` calls it, then 52857 and 40496, to open the menu on a conversation already under way |
-| 52857 | 0x9770c0 | show list | `(newList)`: asks the menu to show the list. **Hooked:** without the menu, sets `shutMenu` on `forceGoodbye` or when no option is left (35267), which the menu's fill does otherwise |
+| 52857 | 0x9770c0 | show list | `(newList)`: asks the menu to show the list. Its three engine callers (35282, 35285, 35290) each build the list first (35287), which frees the last one with any option put in it (read in IDA 2026-10-19): `DialogueBridge` starts its record of added options over here. **Hooked:** without the menu, sets `shutMenu` on `forceGoodbye` or when no option is left (35267), which the menu's fill does otherwise |
 | 52858 | 0x977180 | voice ready | Queues a message to the Dialogue Menu that becomes the SWF's `NotifyVoiceReady`. From `Actor::UpdateInDialogue` (37541, 0x67a140) once the speaker's line has its voice, and from the menu's own close sink (51512) |
 | 51509 | 0x914880 | `DialogueMenu` TopicClicked | The SWF's `TopicClicked(topicIndex)` (`FxDelegateArgs`, `Interface/FxDelegateArgs.h`). **Hooked:** a peer's pick goes to the host instead |
 | 51511 | 0x914980 | `DialogueMenu` CloseMenu | The SWF's exit; gives the HUD its subtitles back |
@@ -206,7 +206,7 @@ Replacer (`reference/plugins/Dynamic-Dialogue-Replacer`, `src/Hooks/Hooks.cpp`),
 | 35287 | 0x5e1830 | list build | The picked option (`selectedResponseNode`, else `lastSelectedDialogue` +0x38) with choices (its byte +0x10, unless +0x48): `rootTopicInfo` (+0x30) becomes its info and the list its choices (`sub_1403ED950`); otherwise `rootTopicInfo` is null and the list the speaker's topics (35276). `AddTopic` for each. Runs again after a line, so options added from outside are gone after it |
 | 35285 | 0x5e1310 | advance | Plays the picked info's next response; with none left, builds the list (35287), shows it (52857 with `rootTopicInfo != null`, so a choice list slides in) and sends voice ready (52858). So the engine's next list comes once the NPC has answered. Keeps its own copy of the picked option in `lastSelectedDialogue` (+0x38) |
 | 35254 | 0x5debb0 | `Dialogue` constructor | `(dialogue, quest, topic, info, speaker, flag)`: the topic's text (or the info's override), `parentQuest`, `parentTopic` (+0x38, and +0x50), `parentTopicInfo` (+0x30), and a `DialogueResponse` (35249) for each of the info's responses with the speaker's voice. Leaves `currentResponse` null. No conditions |
-| 35319 | 0x5e37a0 | `Dialogue` deleting destructor | `(dialogue, free)`: its responses, then the 0x58 bytes when `free` |
+| 35319 | 0x5e37a0 | `Dialogue` deleting destructor | `(dialogue, free)`: its responses, then the 0x58 bytes when `free`. Not every option dies here: the list clear (35275) frees them inline |
 | 35318 | 0x5e3710 | list node delete | Deletes a node and every node after it: unlink first |
 
 **`SaySelected` (35283) says only an option's `currentResponse`:** an option built with the constructor alone

@@ -12,6 +12,7 @@
 #include <Services/HostService.h>
 #include <Services/WeatherService.h>
 #include <Services/TravelService.h>
+#include <Services/DialogueService.h>
 
 // DebugService requires SKSE types (Actor.h, ImGui, HWND) — only include when they are available.
 #ifdef HAS_DIRECTXTK
@@ -95,6 +96,7 @@ private:
     entt::dispatcher m_dispatcher;
     // Must exist before TransportService looks up its bridge references.
     std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
+    std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
     RunnerService m_runner;
     TransportService m_transport;
     ModSystem m_modSystem;

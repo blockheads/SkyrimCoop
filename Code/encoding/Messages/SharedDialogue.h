@@ -19,7 +19,7 @@ struct DialogueStartRequest final : ClientMessage
     uint32_t NpcId{}; // server id
 };
 
-// The host's game: its player's dialogue menu opened with this NPC.
+// The host's game: its player's dialogue menu opened with this NPC (Everyone: the NPC started it, a force greet).
 struct DialogueOpenedRequest final : ClientMessage
 {
     static constexpr ClientOpcode Opcode = kDialogueOpenedRequest;
@@ -29,6 +29,7 @@ struct DialogueOpenedRequest final : ClientMessage
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
+    bool Everyone{};
 };
 
 // The host's game's options for a step, after every change (Choices: the last line's choices, not the speaker's
@@ -104,6 +105,30 @@ struct DialogueExperienceRequest final : ClientMessage
     float Experience{};
 };
 
+// The host's game could not start the conversation a peer asked for (its player busy, the engine refused).
+struct DialogueStartFailedRequest final : ClientMessage
+{
+    static constexpr ClientOpcode Opcode = kDialogueStartFailedRequest;
+    DialogueStartFailedRequest() : ClientMessage(Opcode) {}
+
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+
+    uint32_t NpcId{};
+};
+
+// The host's game: a line another player picked opened this NPC's training menu; it opens on that player's game.
+struct DialogueTrainingRequest final : ClientMessage
+{
+    static constexpr ClientOpcode Opcode = kDialogueTrainingRequest;
+    DialogueTrainingRequest() : ClientMessage(Opcode) {}
+
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+
+    uint32_t NpcId{};
+};
+
 // To the host's game: start its player's conversation with this NPC.
 struct NotifyDialogueStart final : ServerMessage
 {
@@ -116,8 +141,8 @@ struct NotifyDialogueStart final : ServerMessage
     uint32_t NpcId{};
 };
 
-// A conversation opened: the player who asked opens its menu on its copy (others join by talking to it); the
-// host's game learns its id.
+// A conversation opened: the player who asked opens its menu on its copy, every player when the NPC started it
+// (Everyone); others join by talking to it. The host's game learns its id.
 struct NotifyDialogueOpen final : ServerMessage
 {
     static constexpr ServerOpcode Opcode = kNotifyDialogueOpen;
@@ -128,6 +153,7 @@ struct NotifyDialogueOpen final : ServerMessage
 
     uint32_t Conversation{};
     uint32_t NpcId{};
+    bool Everyone{};
 };
 
 // The host's options for a step: each game's menu shows their topics with its own player's lines (Choices: a
@@ -185,4 +211,28 @@ struct NotifyDialogueExperience final : ServerMessage
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
     float Experience{};
+};
+
+// The conversation this game asked for will not start.
+struct NotifyDialogueRefused final : ServerMessage
+{
+    static constexpr ServerOpcode Opcode = kNotifyDialogueRefused;
+    NotifyDialogueRefused() : ServerMessage(Opcode) {}
+
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+
+    uint32_t NpcId{};
+};
+
+// This player picked a line that opens the NPC's training menu: it opens on this game, with its copy.
+struct NotifyDialogueTraining final : ServerMessage
+{
+    static constexpr ServerOpcode Opcode = kNotifyDialogueTraining;
+    NotifyDialogueTraining() : ServerMessage(Opcode) {}
+
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+
+    uint32_t NpcId{};
 };

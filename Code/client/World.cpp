@@ -10,6 +10,7 @@
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IEventBridge.h>
 #include <Bridges/IWorldBridge.h>
+#include <Bridges/DialogueBridge.h>
 
 #ifdef HAS_CEF
 #include <Services/InputService.h>
@@ -68,6 +69,7 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
 
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this))
+    , m_pDialogueBridge(std::make_unique<DialogueBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_modSystem(m_dispatcher)
@@ -111,6 +113,7 @@ World::World()
     ctx().emplace<WeatherService>(*this, m_dispatcher);
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
+    ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
 
     BehaviorVar::Get()->Init();
 }
@@ -120,6 +123,7 @@ World::~World()
     // The services live in the registry's context, which is destroyed after our own members: their
     // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
     // hot reloads now and then). They go first, newest first.
+    ctx().erase<DialogueService>();
     ctx().erase<HostService>();
     ctx().erase<MapService>();
     ctx().erase<WeatherService>();

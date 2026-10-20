@@ -24,12 +24,14 @@ void DialogueStartRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader
 void DialogueOpenedRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteBool(aWriter, Everyone);
 }
 
 void DialogueOpenedRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
     ClientMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
+    Everyone = Serialization::ReadBool(aReader);
 }
 
 void DialogueOptionsRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
@@ -107,6 +109,7 @@ void NotifyDialogueOpen::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteBool(aWriter, Everyone);
 }
 
 void NotifyDialogueOpen::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -114,6 +117,7 @@ void NotifyDialogueOpen::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) 
     ServerMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     NpcId = ReadId(aReader);
+    Everyone = Serialization::ReadBool(aReader);
 }
 
 void NotifyDialogueList::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
@@ -183,4 +187,48 @@ void NotifyDialogueExperience::DeserializeRaw(TiltedPhoques::Buffer::Reader& aRe
 {
     ServerMessage::DeserializeRaw(aReader);
     Experience = Serialization::ReadFloat(aReader);
+}
+
+void DialogueStartFailedRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, NpcId);
+}
+
+void DialogueStartFailedRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ClientMessage::DeserializeRaw(aReader);
+    NpcId = ReadId(aReader);
+}
+
+void DialogueTrainingRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, NpcId);
+}
+
+void DialogueTrainingRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ClientMessage::DeserializeRaw(aReader);
+    NpcId = ReadId(aReader);
+}
+
+void NotifyDialogueRefused::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, NpcId);
+}
+
+void NotifyDialogueRefused::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerMessage::DeserializeRaw(aReader);
+    NpcId = ReadId(aReader);
+}
+
+void NotifyDialogueTraining::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, NpcId);
+}
+
+void NotifyDialogueTraining::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerMessage::DeserializeRaw(aReader);
+    NpcId = ReadId(aReader);
 }

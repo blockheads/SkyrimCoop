@@ -38,14 +38,61 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
 | Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
-| Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
+| Experience: personal, earned by whoever did it; party rewards to everyone (`docs/design/party-model.md`, "Experience") | rule decided 2026-10-19; wiring below. Upstream's shared combat XP still on (`shared-xp`) until step 1 |
 | Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (`b7b83aad`) |
-| Shared dialogue: one conversation for the party, run by the host's engine; anyone moves the cursor and picks, each player's own options show | next (`docs/design/party-model.md`, "Dialogue") |
-| Quests | not started; after shared dialogue. The host runs every quest, peers mirror (`docs/design/party-model.md`); quest sync off (`cSyncQuests`) until then |
+| Shared dialogue: one conversation for the party, run by the host's engine; each player sees their own options, anyone picks with their own line | in progress (`docs/design/shared-dialogue.md`, Build order). Done: the messages and `HostDialogue` (`dialogue_tests.cpp`); a peer talking to a copy starts the host's conversation in the background (no menu, the host plays on and reads the lines on its HUD) and opens its own menu on the copy (`dialogue-peer-starts`, `dialogue-nobody-moves`); joining only by talking to the NPC, the host too (`dialogue-join-by-talking`, `dialogue-host-in-background`); each player leaves on their own, the last one out or the host's engine ends it (`dialogue-last-one-out-ends-it`); the peer who asks is in it from the open, and leaves if its start fails; each menu shows the host's topics with its own player's lines (judged by its own game: Speech, perks, amulet, race, mods' conditions), plus its own topics the host lacks (`dialogue-peer-only-option`, `dialogue-picker-says-its-line`; 2026-10-19, replacing one shared list with named `[Name]` extras and a shared cursor, and before that the host's player's line and a best-Speech override, all tried the same day); a pick is said by the host's game with the picker's line and named in everyone's chat (`Lydia: Here. Have a gold piece.`), then everyone gets the host's next topics (`dialogue-pick-reaches-host`); the Speech experience a line's script gives goes to its picker, so a party can have its talker (`dialogue-picker-gets-speech-experience`; Experience step 3); copies say, show and run no line of their own (`copy-ends-voice-line`); a menu closed from code goes through the engine's own close (a `kHide` with data, which plays the SWF's fade-out and gives the HUD its subtitles back); showing other players' picks on each menu was dropped (`docs/ideas.md`). Caveats until quest sync: a peer's lines are judged with its game's quest state, and its stale quest topics show on its menu (a topic whose quest does not run there keeps the host's line). Loose ends done 2026-10-19: training opens on the picker's game with its copy of the trainer (`dialogue-picker-trains`); refused starts reach the asker with a chat line and are forgotten (`dialogue-refused-start`; an NPC fighting or dead is refused, the host in a menu or combat is not); lines with reset hours wait on every game (`dialogue-said-line-waits`); travel ends it for everyone and a deleted speaker no longer leaves a game unable to talk (`dialogue-ends-on-travel`, `dialogue-npc-removed`); force greets (`dialogue-npc-starts`); three questions deep, with a peer's own list held while the NPC answers (`dialogue-several-questions-deep`); three players (`dialogue-three-players`, `duo --players 3`); a dropped pick gets its list back. Also 2026-10-19: each player answers a question with their own answers, even one the host's player has none for (`dialogue-answer-only-a-peer-has`); said lines, say-once ones too, are said on every game (`dialogue-said-once-line`); an NPC's force greet opens every player's menu (`dialogue-npc-starts`). Open: barter, gifts and a follower's inventory open on the host's game; bribes wait for the shared purse. `dive-client-player` and `dive-host-player` are intermittent (on 2026-10-19: 3 failures in 8 runs and 2 in 5, alone or in the tag: the host player's copy on the client ends on another swim animation event than the host's, once the copy played an extra 0.37 s sound before the owner's gasp), not looked into. Next: step sync in place of list sync (below), then shared barter (with the shared purse), or quests. Engine notes `docs/re/systems/dialogue.md`; harness `dialogue` (with the SWF's pick state), `dialogue_pick`, `skill` |
+| Quests | not started; after shared dialogue. The host runs every quest, peers mirror (`docs/design/party-model.md`); quest sync off (`cSyncQuests`) until then. With it: answering inside a quest scene (shared dialogue, Open 3), and a peer's menu dropping quest topics the host's game has moved past (a rumor picked once stays on the other games' menus today) |
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
 | Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
 | Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
+
+### Experience: wiring up
+
+The rule and why: `docs/design/party-model.md` ("Experience"); engine path and the mods:
+`docs/re/systems/experience.md`. Each step with its scenario.
+
+1. **Drop upstream's shared combat XP**: the `SyncExperienceRequest` relay, `AddExperienceEvent`,
+   `LastUsedCombatSkill`, `RunExperienceUpdates`, and `ScopedExperienceOverride` with its 27244 hook if
+   nothing else needs them. `shared-xp` becomes `xp-stays-personal`: the client's hit raises its One-Handed
+   experience, the host's stays.
+2. **Fix `HookAddSkillExperience`'s signature** (40488 takes the advance object and action too;
+   CommonLibSSE-NG, IDA); check it in the disassembly.
+3. **Speech from a picked line to the picker**: done 2026-10-19 with shared dialogue. The host's game holds
+   back its player's Speech gain after another player's pick (a filter in `HookAddSkillExperience`) and sends
+   its input amount (`DialogueExperienceRequest` → `NotifyDialogueExperience`, `dialogue_tests.cpp`); the
+   picker's game adds it through 40488 with no advance object or action (`PlayerCharacter::GainSkillExperience`,
+   its full signature). `dialogue-picker-gets-speech-experience` (replacing `party-speech-experience`). A
+   script's skill gain outside a picked line (a quest's reward) is the party's (step 6).
+4. **Barter Speech to the trader**, with shared barter.
+5. **Training to whoever pays**: done 2026-10-19 with shared dialogue (Flow, 8): the training menu opens on the
+   picker's game with its copy of the trainer, so the cost, the skill and the trainings this level are the
+   picker's (`dialogue-picker-trains`).
+6. **Quest rewards to everyone**, with quest sync: a script's `Game.AdvanceSkill` / `IncrementSkill` on the
+   host's player is replayed on each game as its own player's (input, not the measured gain). Mods' quest
+   experience follows from the quest completing on every game.
+7. **Kills**: the killer's game records its own player's kill. Scenario with Experience (17751) installed:
+   a peer's kill of a host NPC, who gets its kill experience.
+8. **Mods once**: Skill Uncapper AE and Experience installed, a routed gain (step 3) gets the receiver's
+   multiplier once.
+
+### Shared dialogue: sync the step, not the list
+
+Decided 2026-10-19 (`docs/design/shared-dialogue.md`, "Next"; `docs/design/copy-contract.md`, "AI state"): each
+game's engine builds its own list from the host's step, against world and AI state that is the host's. Each step
+with its scenarios.
+
+1. **Spike:** on the client, set the conversation's line to the host's step and call the engine's build and show
+   (35287, 52857); compare with the host's list, list what else 35287 reads.
+2. **AI state on copies:** the owner sends current package, sitting, sleeping, scene, alarmed, combat state; the
+   matching condition functions answer from it for a copy. `GetIsCurrentPackage` first (87 menu lines).
+3. **Step sync:** the host sends its step at each list it shows (the greeting first, the current one to a
+   joiner); peers mark said lines and build their own list. Deletes `OwnLines`, `ShowOptions`, the record of
+   options put in the list, `SendOptions`, the host-options message and the `List` filter. The dialogue scenarios
+   keep passing; `dialogue-peer-only-option` and `dialogue-picker-says-its-line` check each player's own lines.
+4. **Quest topics on peers:** follow from quest sync (missing on a peer's menu until then).
+5. **If step sync waits:** list updates event-driven, not checked every update (`DialogueService::ShowOwnLines`
+   on the host's list arriving, the peer's engine building its list, a new step).
 
 ### Still on the embedded server (what phase 4-5 removes)
 
@@ -111,6 +158,9 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   - An owner's actions before its id arrives are kept (NPCs falling after `placeatme`).
 - Next audits: combat, detection, magic/magicka; then one copy update in place of scattered
   `IsRemote()` checks.
+- Planned (2026-10-19): copies carry their owner's AI state for conditions (current package, sitting, sleeping,
+  scene, alarmed, combat state), simulated only by the owner (`copy-contract.md`, "AI state"); first for
+  shared dialogue's step sync (above).
 
 ## Test suite
 
@@ -320,8 +370,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   untested. The host's record of a player is refreshed on each arrival (graph state, action, inventory,
   values); between arrivals it is the arrival's.
 - **Copies refuse `turnStop`** now and then (NPC copies). Not traced.
-- **Shared XP** goes to the receiver's last used combat skill only; a player who has not used one since
-  loading gets nothing (upstream's rule). Decide whether to keep it.
 - **Arrival spacing** needs navmesh under the marker: QASmoke's `coc` marker has none (players stay
   stacked there). Doors and fast travel arrive through the same `TravelService` arrival; no scenario asserts the
   spacing there yet.

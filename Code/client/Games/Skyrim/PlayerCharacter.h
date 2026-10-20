@@ -118,10 +118,14 @@ struct PlayerCharacter : Actor
     void SetDifficulty(const int32_t aDifficulty, bool aForceUpdate = true, bool aExpectGameDataLoaded = true) noexcept;
 
     void AddSkillExperience(int32_t aSkill, float aExperience) noexcept;
+    // Adds experience as earning it does: this game's bonuses apply (no ScopedExperienceOverride).
+    void GainSkillExperience(int32_t aSkill, float aExperience) noexcept;
     // Whether the player heard this line within its reset hours (40694; TESTopic 25544 skips it then).
     [[nodiscard]] bool SaidRecently(const TESTopicInfo* apInfo) const noexcept;
     // Remembers the line as heard now, as saying it does (40692, from TESTopicInfo::Begin 25616).
     void RememberSaid(const TESTopicInfo* apInfo) noexcept;
+    // Asked before the player gains Speech experience (any thread); true: it is someone else's, not added.
+    static void SetSpeechExperienceFilter(std::function<bool(float aExperience)> aFilter) noexcept;
     float GetSkillExperience(Skills::Skill aSkill) const noexcept { return (*pSkills)->skills[aSkill].xp; }
 
     NiPoint3 RespawnPlayer() noexcept;

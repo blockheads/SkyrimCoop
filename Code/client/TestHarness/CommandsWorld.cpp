@@ -167,6 +167,77 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "dialogue"}: the player's conversation: whether the menu is open, the speaker, the options in order.
+nlohmann::json Dialogue(Harness&, const nlohmann::json&)
+{
+    const EngineCalls::DialogueState cState = EngineCalls::GetDialogue();
+    nlohmann::json options = nlohmann::json::array();
+    for (const auto& cOption : cState.Options)
+        options.push_back({{"text", cOption.Text}, {"topic", cOption.Topic}, {"info", cOption.Info}, {"quest", cOption.Quest}});
+    return {{"ok", true},
+            {"menu", EngineCalls::IsMenuOpen("Dialogue Menu")},
+            {"open", cState.MenuOpen},
+            {"speaker", cState.Speaker},
+            {"skip_head", cState.SkipHead},
+            {"current_info", cState.CurrentInfo},
+            {"last_info", cState.LastInfo},
+            {"options", options},
+            {"swf", {{"allow_progress", cState.AllowProgress}, {"state", cState.SwfState}, {"selected", cState.Selected},
+                     {"cursor", cState.CursorTopic}}}};
+}
+
+// {"cmd": "force_greet", "actor": id}: the actor starts a conversation with the player (its ForceGreet package).
+nlohmann::json ForceGreet(Harness&, const nlohmann::json& acRequest)
+{
+    const uint32_t cActor = acRequest.value("actor", 0u);
+    spdlog::info("Force greet (rpc): {:X}", cActor);
+    return {{"ok", true}, {"started", EngineCalls::ForceGreet(cActor)}};
+}
+
+// {"cmd": "info_said", "info": id, "said": false}: whether the line is marked said; with said, set first.
+nlohmann::json InfoSaid(Harness&, const nlohmann::json& acRequest)
+{
+    std::optional<bool> said;
+    if (acRequest.contains("said"))
+        said = acRequest.value("said", false);
+    const auto cSaid = EngineCalls::SetInfoSaid(acRequest.value("info", 0u), said);
+    if (!cSaid)
+        return Error("no such line");
+    return {{"ok", true}, {"said", *cSaid}};
+}
+
+// {"cmd": "dialogue_pick", "index": n}: says the conversation's option n, as clicking it does (no menu needed).
+nlohmann::json DialoguePick(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::PickDialogue(acRequest.value("index", 0u)))
+        return Error("no conversation");
+    return Ok();
+}
+
+// {"cmd": "item_count", "form": id}: how many of the item the player carries.
+nlohmann::json ItemCount(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cCount = EngineCalls::GetPlayerItemCount(acRequest.value("form", 0u));
+    if (!cCount)
+        return Error("no such form");
+    return {{"ok", true}, {"count", *cCount}};
+}
+
+// {"cmd": "skill", "index": actor value}: the player's skill level and its experience toward the next one.
+nlohmann::json Skill(Harness&, const nlohmann::json& acRequest)
+{
+    const uint32_t cIndex = acRequest.value("index", 0u);
+    return {{"ok", true}, {"level", EngineCalls::GetPlayerActorValue(cIndex)}, {"experience", EngineCalls::GetPlayerSkillExperience(cIndex)}};
+}
+
+// {"cmd": "trainings", "set": n}: how many times the player trained this level; with set, that count first.
+nlohmann::json Trainings(Harness&, const nlohmann::json& acRequest)
+{
+    if (acRequest.contains("set"))
+        EngineCalls::SetPlayerTrainings(acRequest.value("set", 0u));
+    return {{"ok", true}, {"count", EngineCalls::GetPlayerTrainings()}};
+}
+
 // {"cmd": "camera", "target": id}: what the player's camera shows (EngineCalls::GetCameraView); with a target,
 // where its head is on screen.
 nlohmann::json Camera(Harness&, const nlohmann::json& acRequest)
@@ -190,6 +261,13 @@ nlohmann::json Camera(Harness&, const nlohmann::json& acRequest)
 constexpr Command cCommands[] = {
     {"status", false, &GetStatus},
     {"camera", true, &Camera},
+    {"dialogue", true, &Dialogue},
+    {"dialogue_pick", true, &DialoguePick},
+    {"item_count", true, &ItemCount},
+    {"skill", true, &Skill},
+    {"force_greet", true, &ForceGreet},
+    {"info_said", true, &InfoSaid},
+    {"trainings", true, &Trainings},
     {"graph_bool", true, &GraphBool},
     {"kill_move_check", true, &KillMoveCheckCommand},
     {"anim_trace", true, &AnimTrace},

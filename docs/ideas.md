@@ -5,8 +5,15 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Gameplay
 
-- **The party is the Dragonborn** (shared gold, XP, quest items, identity; cutscenes for everyone; shared
+- **The party is the Dragonborn** (shared gold, quest rewards, quest items, identity; cutscenes for everyone; shared
   dialogue): decided, `docs/design/party-model.md`; shared dialogue in `docs/design/shared-dialogue.md`.
+- **Shared dialogue: others' cursors, picks and names on each menu.** Each menu shows only its own player's
+  highlight; another player's pick shows in chat, and the menu waits for the next list. Built and dropped
+  2026-10-19: a shared cursor, other players' options marked `[Name]`, and showing a pick on every menu with
+  that topic. All three live only in the vanilla SWF (`TopicList`, `SetSelectedTopic`, `onSelectionClick`), so
+  a replaced dialogue menu breaks them, and a pick of a topic a menu lacks never showed anyway. Bring back
+  together, as a menu feature with a fallback for replaced SWFs. Notes: `docs/re/systems/dialogue.md` (the
+  SWF, "Showing a pick from elsewhere").
 - **Shared party bounty.** One player's crime counts for the whole party, judged on the host (its NPCs are
   the witnesses). Decided 2026-10-12; today a remote player cannot commit a crime on the host at all.
   Notes: `docs/design/copy-contract.md` (crime row).
@@ -81,6 +88,19 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   `TravelService` (2026-10-14) was the first piece. After phase 5 (the listener moving into the bridge
   changes how messages reach these services): a short survey and plan in `docs/design/`, then one piece at
   a time with its scenarios, deleted from the old place in the same change.
+- **Engine bridge interfaces: finish them or drop them.** Services reach the engine through `I*Bridge`
+  interfaces (`IActorBridge`, `IFormBridge`, `IPlayerBridge`, `IEventBridge`, `IWorldBridge`, and
+  `IDialogueBridge` since 2026-10-19) so they could run headless against `ReplayBridge`, which answers with
+  a recording's canned values. That plan stopped half way: `ClientReplayTests` (5 cases) tests `ReplayBridge`
+  itself and runs no service's logic, `SkyrimTogetherClientServices` (the target proving services build
+  without engine headers) does not compile and nothing links it (`Code/client/xmake.lua`), and
+  `IDialogueBridge` has no second implementation at all. Today each interface is a second copy of every
+  declaration for a substitution nobody makes. Decide for all of them at once:
+  - Finish: a scripted fake per bridge where a service has logic worth testing headless, then tests in the
+    style of `BridgeTests`. `DialogueService` first (who is in, a start that never opens, picks racing a new
+    list; covered only by two-game scenarios today), then the boundary target building.
+  - Or drop: services hold the concrete bridges (their headers are already free of engine types), and
+    `ReplayBridge`, `ClientReplayTests` and the boundary target go.
 - **`SKYRIM_STRUCT_ASSERT` → `static_assert`.** clang-cl defines `_MSC_VER`, so the macro is already a
   `static_assert` in every build we make; its MinGW branch is dead. Replace the ~209 uses (79 files),
   drop the macro from `TiltedOnlinePCH.h`, and drop the `is_plat("mingw")` branches in `xmake.lua` and

@@ -16,6 +16,8 @@ struct DialoguePickRequest;
 struct DialogueCloseRequest;
 struct DialogueJoinRequest;
 struct DialogueExperienceRequest;
+struct DialogueStartFailedRequest;
+struct DialogueTrainingRequest;
 
 namespace Server
 {
@@ -45,6 +47,8 @@ struct HostDialogue
     void OnClose(const DialogueCloseRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnExperience(const DialogueExperienceRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnTraining(const DialogueTrainingRequest& acRequest, ConnectionId_t aSender) noexcept;
     // After the player is off the list: it leaves the conversation.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
@@ -58,6 +62,8 @@ private:
         TiltedPhoques::Vector<ConnectionId_t> Players;
         // The host's game's options for this step (none yet after a pick).
         std::optional<DialogueOptions> HostOptions;
+        // The step's list is a question's answers.
+        bool Choices{};
 
         [[nodiscard]] bool Has(ConnectionId_t aPlayer) const noexcept
         {
@@ -75,6 +81,12 @@ private:
     // The conversation that request is for (null: none open, or another one or step).
     [[nodiscard]] Conversation* Current(uint32_t aId) noexcept;
     [[nodiscard]] Conversation* Current(uint32_t aId, uint32_t aStep) noexcept;
+    // The start that player asked for will not happen; a chat line says why, when given.
+    void Refuse(ConnectionId_t aPlayer, uint32_t aNpcId, const char* acpWhy) noexcept;
+    // The step's list to that game, once the host's game has sent it.
+    void SendList(ConnectionId_t aPlayer) noexcept;
+    // The game the last picker's lines go to: that player, or the host's when it left.
+    [[nodiscard]] ConnectionId_t Talker() const noexcept;
     // Ends it, telling every game but aExcept (0: all of them).
     void End(ConnectionId_t aExcept = 0) noexcept;
     // The player is out of it: the conversation ends when it was the last one in it.

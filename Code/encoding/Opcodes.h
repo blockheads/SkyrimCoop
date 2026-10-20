@@ -49,6 +49,8 @@ enum ClientOpcode : unsigned char
     kDialogueCloseRequest,
     kDialogueJoinRequest,
     kDialogueExperienceRequest,
+    kDialogueStartFailedRequest,
+    kDialogueTrainingRequest,
     kClientOpcodeMax
 };
 
@@ -108,5 +110,7 @@ enum ServerOpcode : unsigned char
     kNotifyDialoguePicked,
     kNotifyDialogueClosed,
     kNotifyDialogueExperience,
+    kNotifyDialogueRefused,
+    kNotifyDialogueTraining,
     kServerOpcodeMax
 };
