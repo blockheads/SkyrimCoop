@@ -27,7 +27,7 @@ std::span<const Command> WorldCommands();
 std::span<const Command> SessionCommands();
 // The engine's change records (ChangeLog.h).
 std::span<const Command> ChangeLogCommands();
-// Spike: what reaches world scripts and the story manager (PlayerEvents.cpp).
+// Spikes kept for measuring: story events, engine probes (PlayerEvents.cpp).
 std::span<const Command> PlayerEventsCommands();
 
 nlohmann::json Ok();

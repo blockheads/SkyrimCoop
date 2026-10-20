@@ -51,11 +51,13 @@ skills and perks earned by using them.
 ## A guest's actions on the host (decided 2026-10-19)
 
 Generic: rules in the host's script engine and story manager, never per script or per mod. Evidence and
-numbers: `docs/research/player-events.md` (spikes, "Script scan").
+numbers: `docs/research/player-events.md` (spikes, "Script scan"). Built: rules 1 and 2
+(`Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp`, `docs/re/systems/papyrus-guest-scripts.md`; scenarios
+`plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`).
 
 1. **Every party member is the player.** On the host, any script comparison with the player
    (`== Game.GetPlayer()`, `== PlayerRef`, a player stored in a variable) is true for a remote player's
-   copy. Host only, player copies only. 75% of vanilla player checks after a player's action need nothing
+   copy. Host only, guest players only. 75% of vanilla player checks after a player's action need nothing
    more.
 2. **"The player" is the member whose action started the script.** In a script the host runs because of a
    member's action (an event with their copy as its actor: activate, trigger, hit, spell, death),

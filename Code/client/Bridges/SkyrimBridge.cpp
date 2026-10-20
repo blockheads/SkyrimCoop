@@ -51,6 +51,7 @@
 #include <Systems/CacheSystem.h>
 #include <Systems/InterpolationSystem.h>
 #include <Systems/AnimationSystem.h>
+#include <Papyrus/GuestScripts.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
@@ -70,6 +71,12 @@ namespace
 static Actor* GetActor(uint32_t aFormId) noexcept
 {
     return Cast<Actor>(TESForm::GetById(aFormId));
+}
+
+static ActorExtension* GetExtension(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->GetExtension() : nullptr;
 }
 } // namespace
 
@@ -175,26 +182,28 @@ bool SkyrimBridge::IsTemporaryActor(uint32_t aFormId) const noexcept
 
 bool SkyrimBridge::IsOtherPlayer(uint32_t aFormId) const noexcept
 {
-    if (Actor* pActor = GetActor(aFormId))
-        if (ActorExtension* pExt = pActor->GetExtension())
-            return pExt->IsOtherPlayer();
-    return false;
+    const ActorExtension* pExt = GetExtension(aFormId);
+    return pExt && pExt->IsOtherPlayer();
 }
 
 void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
 {
     Breadcrumbs::Record("SetActorCopy", aFormId, static_cast<uint32_t>(aCopy));
-    if (Actor* pActor = GetActor(aFormId))
-        if (ActorExtension* pExt = pActor->GetExtension())
-            pExt->SetCopy(aCopy);
+    if (ActorExtension* pExt = GetExtension(aFormId))
+    {
+        pExt->SetCopy(aCopy);
+        GuestScripts::SetGuest(aFormId, pExt->IsOtherPlayer()); // GuestScripts' list follows the flags
+    }
 }
 
 void SkyrimBridge::SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept
 {
     Breadcrumbs::Record("SetActorPlayer", aFormId, static_cast<uint32_t>(aPlayer));
-    if (Actor* pActor = GetActor(aFormId))
-        if (ActorExtension* pExt = pActor->GetExtension())
-            pExt->SetPlayer(aPlayer);
+    if (ActorExtension* pExt = GetExtension(aFormId))
+    {
+        pExt->SetPlayer(aPlayer);
+        GuestScripts::SetGuest(aFormId, pExt->IsOtherPlayer()); // GuestScripts' list follows the flags
+    }
 }
 
 uint32_t SkyrimBridge::GetCommandingActor(uint32_t aFormId) const noexcept
@@ -253,6 +262,7 @@ void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
     // Engine Delete is for dynamically-created references only. Never delete
     // the local player or an NPC reference that belongs to the save/plugin.
     if ((aFormId & 0xFF000000u) != 0xFF000000u) return;
+    GuestScripts::SetGuest(aFormId, false);
     if (auto* actor = GetActor(aFormId))
         actor->Delete();
 }

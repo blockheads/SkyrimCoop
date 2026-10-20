@@ -32,9 +32,9 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 - **World state through the save system.** The host's world (every mod's quests, globals, containers,
   objects) synced from the engine's own save/load code: a full sync at join, and the changed forms over
   time. Design: `docs/design/world-state-sync.md`.
-- **Mod patches.** Scripts that check `== Game.GetPlayer()` patched to `SkyrimTogetherUtils.IsPlayer`;
-  maybe one Papyrus function that forwards a mod event to the other games, so a patch can sync its own
-  state. Notes: `docs/design/world-state-sync.md`, `docs/design/copy-contract.md` (deliberate exceptions).
+- **Mod patches.** Maybe one Papyrus function that forwards a mod event to the other games, so a patch can
+  sync its own state. Notes: `docs/design/world-state-sync.md`. (Player checks need no patch: the party
+  model's rules, `docs/design/party-model.md`.)
 - **Joining (identical installs, mod sync, updating, host-stored characters, save transfer, the join
   panel):** the agreed flow is `docs/design/join-flow.md`; mod sync (and with it whether a launcher is
   needed) is a research spike, `docs/research/mod-sync-spike.md`.

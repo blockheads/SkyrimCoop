@@ -53,6 +53,11 @@ SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241 vs SkyrimSE.exe+0x1823d0 > SkyrimS
 # (UpdateLowActorsAI -> HookUpdateAI -> ... -> HookCheckForNewPackage -> 12721 -> GetIsID -> GetExtraData). Ours:
 # only the pass-throughs and HookMainLoop. Both stacks read on 2026-10-13.
 SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d
+# A spell landing on an NPC held in quest aliases (MagicCaster::FindTargets -> MagicTarget::AddTarget -> the engine
+# relaying it to the reference's aliases, ExtraAliasInstanceArray read at +0x182315, then GetExtraData) against the
+# coc above writing the alias array. Ours: only the pass-throughs HookFindTargets and HookAddTarget (the host's own
+# actor, the caster no copy). Also reported with none of our frames (vilkas-counts-client-hits). Read on 2026-10-20.
+SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
 # A door's arrival autosaves: 40438 -> Actor 40445 -> BGSSaveLoadManager::Save_Impl -> TESObjectREFR::SaveGame
 # reads ExtraAliasInstanceArray (12729) while a quest alias fill on Job_IO (BGSRefAlias 24011 -> 39114
 # CheckForNewPackage -> package conditions -> Actor::IsInFaction) reads extra-data; and Papyrus

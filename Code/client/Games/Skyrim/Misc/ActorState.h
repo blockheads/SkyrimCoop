@@ -26,6 +26,7 @@ struct ActorState : IMovementState
 
     // ActorState1::lifeState (CommonLibSSE-NG ACTOR_LIFE_STATE): 0 alive, 1 dying, 2 dead, ...
     static constexpr uint8_t kLifeDying = 1;
+    static constexpr uint8_t kLifeRestrained = 6;
     static uint8_t LifeStateOf(uint32_t aFlags1) noexcept { return aFlags1 >> 21 & 0xF; }
 
     bool IsBleedingOut() const noexcept { return (flags1 & 0x1E00000) == 0x1000000 || (flags1 & 0x1E00000) == 0xE00000; }

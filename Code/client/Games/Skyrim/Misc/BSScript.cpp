@@ -9,6 +9,13 @@ uint64_t BSScript::Object::GetHandle()
     return TiltedPhoques::ThisCall(s_getHandle, this);
 }
 
+uint32_t BSScript::Object::DecRef() noexcept
+{
+    TP_THIS_FUNCTION(TDecRef, uint32_t, BSScript::Object);
+    POINTER_SKYRIMSE(TDecRef, s_decRef, 104253);
+    return TiltedPhoques::ThisCall(s_decRef, this);
+}
+
 BSScript::Variable::Variable()
 {
 }
@@ -32,6 +39,20 @@ void BSScript::Variable::Clear() noexcept
     Reset();
 
     type = kEmpty;
+}
+
+void BSScript::Variable::SetActor(Actor* apActor, IVirtualMachine* apVm) noexcept
+{
+    // Game.GetPlayer's packer (55510) into a fresh value, then Variable's assignment (104297).
+    TP_THIS_FUNCTION(TPack, void, Variable, Actor*, IVirtualMachine*);
+    TP_THIS_FUNCTION(TAssign, void, Variable, const Variable*);
+    POINTER_SKYRIMSE(TPack, s_pack, 55510);
+    POINTER_SKYRIMSE(TAssign, s_assign, 104297);
+    Variable packed;
+    packed.type = kEmpty;
+    packed.data.pObj = nullptr;
+    TiltedPhoques::ThisCall(s_pack, &packed, apActor, apVm);
+    TiltedPhoques::ThisCall(s_assign, this, &packed);
 }
 
 template <> void BSScript::Variable::Set(int32_t aValue) noexcept
@@ -190,11 +211,11 @@ void BSScript::NativeFunctionBase::InsertLocals(StackFrame*)
     return;
 }
 
-BSScript::CallResult BSScript::NativeFunctionBase::Call(Stack* apStack, void* apLogger, IVirtualMachine* apVm, bool aArg4)
+BSScript::CallResult BSScript::NativeFunctionBase::Call(Stack** appStack, void* apLogger, IVirtualMachine* apVm, bool aArg4)
 {
-    TP_THIS_FUNCTION(TCall, CallResult, NativeFunctionBase, Stack*, void*, IVirtualMachine*, bool);
+    TP_THIS_FUNCTION(TCall, CallResult, NativeFunctionBase, Stack**, void*, IVirtualMachine*, bool);
     POINTER_SKYRIMSE(TCall, s_call, 104651);
-    return TiltedPhoques::ThisCall(s_call, this, apStack, apLogger, apVm, aArg4);
+    return TiltedPhoques::ThisCall(s_call, this, appStack, apLogger, apVm, aArg4);
 }
 
 BSFixedString& BSScript::NativeFunctionBase::GetSourceFilename()
@@ -231,64 +252,6 @@ bool BSScript::NativeFunctionBase::CanBeCalledFromTasklets()
 void BSScript::NativeFunctionBase::SetCallableFromTasklets(bool aCallable)
 {
     isCallableFromTask = aCallable;
-}
-
-BSScript::IsRemotePlayerFunc::IsRemotePlayerFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType)
-    : NativeFunction(apFunctionName, apClassName, true, 1)
-{
-    pFunction = reinterpret_cast<void*>(aFunction);
-
-    returnType = aType;
-
-    BSFixedString arg1Name("Actor");
-    void* ptr = nullptr;
-    GameVM::Get()->virtualMachine->GetScriptObjectType1(&arg1Name, &ptr);
-    parameters.data[0].pType = ptr;
-}
-
-bool BSScript::IsRemotePlayerFunc::MarshallAndDispatch(Variable* apBaseVar, IVirtualMachine* apVm, uint32_t aStackID, Variable* apResult, StackFrame* apStackFrame)
-{
-    uint32_t page = apStackFrame->GetPageForFrame();
-
-    BSScript::Variable* pArg1 = apStackFrame->GetStackFrameVariable(0, page);
-    Actor* pActor = pArg1->ExtractComplexType<Actor>();
-    if (!pActor)
-        return false;
-
-    bool result = ((FunctionType*)pFunction)(pActor);
-
-    apResult->Set<bool>(result);
-
-    return true;
-}
-
-BSScript::IsPlayerFunc::IsPlayerFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType)
-    : NativeFunction(apFunctionName, apClassName, true, 1)
-{
-    pFunction = reinterpret_cast<void*>(aFunction);
-
-    returnType = aType;
-
-    BSFixedString arg1Name("Actor");
-    void* ptr = nullptr;
-    GameVM::Get()->virtualMachine->GetScriptObjectType1(&arg1Name, &ptr);
-    parameters.data[0].pType = ptr;
-}
-
-bool BSScript::IsPlayerFunc::MarshallAndDispatch(Variable* apBaseVar, IVirtualMachine* apVm, uint32_t aStackID, Variable* apResult, StackFrame* apStackFrame)
-{
-    uint32_t page = apStackFrame->GetPageForFrame();
-
-    BSScript::Variable* pArg1 = apStackFrame->GetStackFrameVariable(0, page);
-    Actor* pActor = pArg1->ExtractComplexType<Actor>();
-    if (!pActor)
-        return false;
-
-    bool result = ((FunctionType*)pFunction)(pActor);
-
-    apResult->Set<bool>(result);
-
-    return true;
 }
 
 BSScript::DidLaunchSkyrimTogetherFunc::DidLaunchSkyrimTogetherFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType)

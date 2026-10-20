@@ -49,11 +49,14 @@ inherited from upstream Tilted Online and listed here so they stay choices:
 | Member of PlayerFaction (0xDB1, rank 1) | NPCs friendly to the player treat it as a friend; faction conditions in quests and mods count it as "on the player's side" (not as the player) | `Actor::SetPlayerRespawnMode` |
 | A healer's Restoration perks carried to it | the target's owner applies the heal, so the caster's Regeneration (0x581F8) and Respite (0x581F9) go along with the request | `HookAddTarget`, `HookAdjustForPerks`, `HookHasPerk` (MagicTarget.cpp) |
 | Fleeing always false; it speaks no AI dialogue responses | AI patches from before copies ran no AI: re-check whether they still do anything (actor-ai-and-copies.md, "Still open") | `HookIsFleeing`, `HookProcessResponse` (Actor.cpp) |
-| Scripts that must accept any player | vanilla scripts that test `== Game.GetPlayer()` exclude the other player (puzzle doors, temple blessings, trainers); `SkyrimTogether.esp` overrides them with `SkyrimTogetherUtils.IsPlayer` / `IsRemotePlayer` (natives in BSScript.cpp) | `GameFiles/Skyrim/scripts/source` |
 
-Rejected by upstream and here: making every Papyrus comparison `remotePlayer == Game.GetPlayer()`
-true (`HookCompareVariables`, BSScript.cpp, not installed): "it messes up other things like
-beastform". Scripts are patched one by one instead.
+On the host every guest player is the player in scripts, and `Game.GetPlayer()` is the player
+whose action started the script (2026-10-19, `docs/design/party-model.md`, "A guest's actions on the
+host"; `Games/Skyrim/Papyrus/GuestScripts.cpp`). Upstream made only the comparison true, globally, and dropped it:
+"it messes up other things like beastform" (`GetPlayer()` still named the host, so the effect after the
+check landed on the wrong body). Upstream's patched vanilla scripts (claw doors, temple shrines, Vilkas's trial)
+and their `SkyrimTogetherUtils` natives were removed for it (2026-10-20); each has a scenario
+(`docs/re/systems/papyrus-guest-scripts.md`, "Tests").
 
 ## Players' copies travel with the party (decided 2026-10-14)
 
@@ -63,7 +66,7 @@ in the session and travels with it, never with a cell. NPC copies (the host's ac
 - **Persistent:** spawned with `TESForm::kPersistent` (`0x400`, what `TESForm::IsPersistent` 19593 tests;
   `SkyrimBridge::SetActorPersistent`), so the engine does not delete it when its cell unloads. Upstream
   copies are created references the engine deleted with their cell, and gave their form id to the next
-  reference it made: travel used to drop every player copy and spawn it again, and a stale form id once
+  reference it made: travel used to drop every other player's copy and spawn it again, and a stale form id once
   drove a Cow (`docs/re/crashes/2026-10-14-reused-copy-form-id.md`).
 - **Not saved:** every copy keeps `Actor::Create`'s skip-save in-game flags (`0xFFFF`, upstream; which bit
   does it is not traced). Checked 2026-10-14: the host saved with a persistent copy in its cell, and the
@@ -125,6 +128,32 @@ condition function table, "a copy: the owner's state". Nothing runs the package 
 First user: shared dialogue syncing the step (`shared-dialogue.md`, "Next"), where each game judges its menu's
 topics against the NPC's copy. Measured on Skyrim and its DLC: about 200 of 15,449 menu lines test it,
 `GetIsCurrentPackage` the most (`scripts/re/dialogue_conditions.py`, which also counts a mod list's).
+
+## When the owner's actor goes away (open, found 2026-10-20)
+
+A copy of one of the game's own NPCs outlives its owner's actor.
+
+- **What happens.** The host's NPC leaves the host's game (walks out of the loaded area, is moved away, is
+  disabled): the server removes it, and each client's `CharacterService::OnRemoveCharacter` deletes the copy
+  only if the client spawned it (a temporary reference: `IsActorTemporary`, `IsActorNpcTemporary`). A copy of a
+  placed NPC (Vilkas, `0x1A695`) is the client's own reference from the game data: it only loses its copy
+  components (`DeleteRemoteEntityComponents`) and stays where the copy last stood.
+- **What the client then has.** Its game treats that NPC as its own actor: the status lists it under the
+  client's own actors, the baseline check reports "client still owns NPCs ['0001A695']", and a later run saw
+  "copy in client with no owner in the other game". In play: a ghost the host no longer has, standing (and
+  possibly acting) on the client where the host's NPC was last, and a client simulating a host NPC, which
+  the direct authority model rules out.
+- **When it happens in play.** Any placed NPC leaving the party's cells on the host: through a load door, by a
+  quest's `MoveTo` (Vilkas sent for the player), by `Disable`, by its schedule taking it out of the loaded
+  area.
+- **Repro.** `vilkas-counts-client-hits` without the client's half of `release_host_npc` (coop_test.py): stage
+  Vilkas, then send only the host's Vilkas home (`move_actor` with `home`); the client's Vilkas stays on the
+  stage as its own.
+- **Not decided.** A placed NPC's copy could follow its owner on removal (to where the host's went, or out of
+  the client's world until the host has it again), or stay a copy until the client's own cell unloads.
+  World state sync (`docs/design/world-state-sync.md`: placed references' positions travel as change forms)
+  may cover where it ends up; what must not happen is the client running it.
+- **Today.** Only the test works around it: `release_host_npc` sends the client's reference home too.
 
 ## When syncing a new system
 

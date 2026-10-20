@@ -19,6 +19,7 @@
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Games/TES.h>
 #include <Havok/BShkbAnimationGraph.h>
+#include <Havok/bhkCharacterController.h>
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/GraphVariableWriters.h>
 #include <Interface/CrosshairPickData.h>
@@ -28,6 +29,9 @@
 #include <Interface/UI.h>
 #include <Magic/ActorMagicCaster.h>
 #include <Misc/BSFixedString.h>
+#include <Misc/BSScript.h>
+#include <Misc/MiddleProcess.h>
+#include <Misc/GameVM.h>
 #include <NetImmerse/NiCamera.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
@@ -233,6 +237,112 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
     return true;
 }
 
+namespace
+{
+// Actor::StopInteractingQuick (38697): out of its furniture (bed, chair, workbench) at once, no exit animation.
+void StopInteractingQuick(Actor* apActor) noexcept
+{
+    if (!apActor->currentProcess)
+        return;
+    TP_THIS_FUNCTION(TStopInteractingQuick, void, Actor, bool);
+    POINTER_SKYRIMSE(TStopInteractingQuick, s_stopInteractingQuick, 38697);
+    TiltedPhoques::ThisCall(s_stopInteractingQuick.Get(), apActor, true);
+}
+} // namespace
+
+bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    TESObjectCELL* pCell = pPlayer ? pPlayer->GetParentCellEx() : nullptr;
+    if (!pActor || aFormId == 0x14 || !pCell)
+        return false;
+    StopInteractingQuick(pActor);
+    NiPoint3 spot;
+    spot.x = acPosition[0];
+    spot.y = acPosition[1];
+    spot.z = acPosition[2];
+    pActor->MoveTo(pCell, spot);
+    return true;
+}
+
+bool MoveActorHome(uint32_t aFormId) noexcept
+{
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || aFormId == 0x14)
+        return false;
+    StopInteractingQuick(pActor);
+    TP_THIS_FUNCTION(TMoveToMyEditorLocation, bool, TESObjectREFR, TESObjectCELL*, bool);
+    POINTER_SKYRIMSE(TMoveToMyEditorLocation, s_moveToMyEditorLocation, 19516); // what Papyrus MoveToMyEditorLocation runs
+    return TiltedPhoques::ThisCall(s_moveToMyEditorLocation.Get(), pActor, nullptr, false);
+}
+
+bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
+{
+    // What freezing changed, to put back on thawing. Freezing again (once the actor has its 3D) adds the
+    // controller it did not have yet.
+    struct Before
+    {
+        bool Restrained;
+        std::optional<uint32_t> ControllerFlags;
+    };
+    static std::unordered_map<uint32_t, Before> s_frozen;
+    constexpr uint32_t cFrozen = bhkCharacterController::kNotPushable | bhkCharacterController::kNoCharacterCollisions;
+    constexpr uint32_t cHits = bhkCharacterController::kRecordHits | bhkCharacterController::kHitDamage;
+    TP_THIS_FUNCTION(TActorCall, void, Actor);
+    TP_THIS_FUNCTION(TSetRestrained, void, Actor, bool);
+    POINTER_SKYRIMSE(TSetRestrained, s_setRestrained, 37488); // Actor::SetRestrained: life state 6, movement stopped
+    POINTER_SKYRIMSE(TActorCall, s_stopMovement, 37818);     // Actor::StopMovement: the mover's path
+
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || aFormId == 0x14)
+        return false;
+    AIProcess* pProcess = pActor->currentProcess;
+    bhkCharacterController* pController = pProcess && pProcess->middleProcess ? pProcess->middleProcess->charController : nullptr;
+    if (!aFrozen)
+    {
+        pActor->flags1 |= Actor::kProcessMe;
+        const auto it = s_frozen.find(aFormId);
+        if (it == s_frozen.end())
+            return true;
+        if (pController && it->second.ControllerFlags)
+            pController->flags = (pController->flags & ~(cFrozen | cHits)) | (*it->second.ControllerFlags & (cFrozen | cHits));
+        if (!it->second.Restrained)
+            TiltedPhoques::ThisCall(s_setRestrained.Get(), pActor, false);
+        s_frozen.erase(it);
+        return true;
+    }
+    const bool cRestrained = ActorState::LifeStateOf(pActor->actorState.flags1) == ActorState::kLifeRestrained;
+    auto [it, cFirst] = s_frozen.try_emplace(aFormId, Before{cRestrained, std::nullopt});
+    // Out of any furniture first: its entry or exit animation moves the actor whatever its AI does.
+    StopInteractingQuick(pActor);
+    pActor->flags1 &= ~Actor::kProcessMe;
+    if (pProcess)
+        TiltedPhoques::ThisCall(s_stopMovement.Get(), pActor);
+    if (!cRestrained)
+        TiltedPhoques::ThisCall(s_setRestrained.Get(), pActor, true);
+    if (pController)
+    {
+        if (!it->second.ControllerFlags)
+            it->second.ControllerFlags = pController->flags;
+        pController->flags = (pController->flags | cFrozen) & ~cHits;
+        alignas(16) const float cStill[4]{};
+        pController->SetLinearVelocityImpl(cStill);
+    }
+    return true;
+}
+
+bool SetDoorOpen(uint32_t aObjectFormId, bool aOpen, bool aSnap) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    if (!pObject || !pObject->baseForm || pObject->baseForm->formType != FormType::Door)
+        return false;
+    using TSetOpenState = bool(TESObjectREFR*, bool, bool);
+    POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287); // BGSOpenCloseForm::SetOpenState
+    s_setOpenState.Get()(pObject, aOpen, aSnap);
+    return true;
+}
+
 std::vector<CellObject> GetCellObjects() noexcept
 {
     std::vector<CellObject> objects;
@@ -287,6 +397,31 @@ VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
     TP_THIS_FUNCTION(TGetDuration, uint64_t, BSSoundHandle);
     POINTER_SKYRIMSE(TGetDuration, s_getDuration, 67630); // BSSoundHandle::GetDuration (CommonLib)
     return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : TiltedPhoques::ThisCall(s_getDuration.Get(), pHandle)};
+}
+
+std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept
+{
+    auto* pForm = TESForm::GetById(aFormId);
+    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
+    auto* pPolicy = pVm ? pVm->GetObjectHandlePolicy() : nullptr;
+    if (!pForm || !pPolicy)
+        return std::nullopt;
+    const uint64_t cHandle = pPolicy->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
+    BSScript::Object* pObject = nullptr;
+    if (!pVm->FindBoundObject(cHandle, acpScript, &pObject) || !pObject)
+        return std::nullopt;
+    std::string state = pObject->currentState.AsAscii() ? pObject->currentState.AsAscii() : "";
+    pObject->DecRef();
+    return state;
+}
+
+std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    auto* pItem = TESForm::GetById(aItemFormId);
+    if (!pObject || !pItem || !pObject->GetContainer() || !pObject->GetContainerChanges())
+        return std::nullopt;
+    return pObject->GetItemCountInInventory(pItem);
 }
 
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
@@ -730,7 +865,7 @@ void ForcePlayerFirstPerson() noexcept
 bool FacePlayerToward(uint32_t aTargetFormId) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    Actor* pTarget = GetActor(aTargetFormId);
+    auto* pTarget = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
     if (!pPlayer || !pTarget || pTarget == pPlayer)
         return false;
     // Skyrim angles: z is the heading clockwise from north (+y), x the pitch (positive looks down).
@@ -752,7 +887,7 @@ bool FacePlayerToward(uint32_t aTargetFormId) noexcept
 bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    Actor* pTarget = GetActor(aTargetFormId);
+    auto* pTarget = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
     if (!pPlayer || !pTarget || pTarget == pPlayer)
         return false;
     float dx = pPlayer->position.x - pTarget->position.x;

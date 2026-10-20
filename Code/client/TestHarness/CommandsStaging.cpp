@@ -41,13 +41,32 @@ nlohmann::json Strip(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "freeze", "actor": id, "frozen": true}: freezes the actor in this game (EngineCalls::FreezeActor): a
+// scenario's target stands still, does not fight back and lets players pass through; false thaws it.
+nlohmann::json Freeze(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::FreezeActor(acRequest.value("actor", 0u), acRequest.value("frozen", true)) ? Ok() : Error("no such actor");
+}
+
+// {"cmd": "move_actor", "actor": id, "position": [x, y, z]}: brings the actor (loaded or not) to that spot in the
+// player's cell; {"cmd": "move_actor", "actor": id, "home": true} sends it back where the game placed it. This game only.
+nlohmann::json MoveActor(Harness&, const nlohmann::json& acRequest)
+{
+    const uint32_t cActor = acRequest.value("actor", 0u);
+    if (acRequest.value("home", false))
+        return EngineCalls::MoveActorHome(cActor) ? Ok() : Error("no such actor, or no editor location");
+    const auto& cPosition = acRequest.at("position");
+    const float cSpot[3]{cPosition[0].get<float>(), cPosition[1].get<float>(), cPosition[2].get<float>()};
+    return EngineCalls::MoveActorToPlayer(cActor, cSpot) ? Ok() : Error("no such actor");
+}
+
 // {"cmd": "face", "target": id}: the player turns toward the actor (yaw and pitch).
 nlohmann::json Face(Harness&, const nlohmann::json& acRequest)
 {
     return EngineCalls::FacePlayerToward(acRequest.value("target", 0u)) ? Ok() : Error("no such target");
 }
 
-// {"cmd": "place", "target": id, "distance": 120, "bearing": 90}: the player stands that far from the actor (on the
+// {"cmd": "place", "target": id, "distance": 120, "bearing": 90}: the player stands that far from the reference (on the
 // bearing's side if given), facing it
 // (a move, not a teleport).
 nlohmann::json Place(Harness&, const nlohmann::json& acRequest)
@@ -66,7 +85,7 @@ nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"menu", false, &Menu}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
-    {"clear_map_marker", true, &ClearMapMarker},
+    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"clear_map_marker", true, &ClearMapMarker},
 };
 } // namespace
 

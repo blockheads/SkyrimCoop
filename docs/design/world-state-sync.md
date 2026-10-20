@@ -114,7 +114,7 @@ client's player does that the world reacts to, and where each stands:
 | A client's player... | On the host today | Still needed |
 |---|---|---|
 | kills an NPC (the host owns every NPC) | the host applies the damage; the NPC dies there, with kill credit (`death-host-npc`, `client-*-kill-credit`) | the killer is the client's copy: scripts and story-manager conditions asking "killed by the player" (`OnDeath`, kill events) see an NPC |
-| activates something: lever, button, door, chest, shrine | relayed: the host's copy of the client activates it (`ActivateRequest` / `NotifyActivate`, `ObjectService`); scenarios for doors only | `OnActivate` scripts testing `akActionRef == Game.GetPlayer()` reject the copy (patched one by one, copy-contract.md "deliberate exceptions"); the client's own run of the script must change nothing |
+| activates something: lever, button, door, chest, shrine | relayed: the host's copy of the client activates it (`ActivateRequest` / `NotifyActivate`, `ObjectService`); scenarios for doors only | `OnActivate` scripts testing `akActionRef == Game.GetPlayer()`: the party model's rules 1-2 on the host; the client's own run of the script must change nothing |
 | walks into a trigger volume (`OnTriggerEnter`: traps, ambushes, scene starts) | not checked: whether the copy, placed by movement sync, fires the host's trigger | the same player checks; the client's local trigger must change nothing |
 | enters a location (world encounters, "location cleared", story manager change-location events) | nothing: the engine raises these for the host's own player only | the client's arrivals raised on the host, for the client's character (the party tether makes it rare, not impossible) |
 | picks up, drops or uses a quest item (`OnContainerChanged`, `OnItemAdded`, alias inventories) | nothing: each player's inventory is their own | the host learns of it, so its quest scripts see it |
@@ -171,5 +171,4 @@ client's action in the world can happen twice.
 - `docs/design/copy-contract.md`: actors (copies) are handled by the copy contract, not by this.
 - `Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp`: the same technique for animation graphs.
 - Scripts checking `== Game.GetPlayer()`: handled on the host by the party model's rules
-  (`docs/design/party-model.md`, "A guest's actions on the host"); the `SkyrimTogetherUtils.IsPlayer`
-  patches in `SkyrimTogether.esp` (copy-contract.md, "deliberate exceptions") predate them.
+  (`docs/design/party-model.md`, "A guest's actions on the host"); upstream's per-script patches are gone.

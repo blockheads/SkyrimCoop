@@ -21,6 +21,7 @@ clients; some of its words are still in the code until the migration removes the
 | **local** | Owned by this game | `ActorExtension::IsLocal`, `LocalComponent` |
 | **copy** | What every other game shows for an actor: an NPC body that runs no AI and does what its owner says (`copy-contract.md`) | `ActorExtension::IsCopy`, `IActorBridge::IsActorCopy` |
 | **other player** | Another player's character, shown on this game as a copy: on the host, the guests' characters; on a guest, the host player's and the other guests' | `ActorExtension::IsOtherPlayer`, `IActorBridge::IsOtherPlayer` |
+| **guest scripts** | On the host, the script rules for guests' actions: a guest's character is the player in scripts, and `Game.GetPlayer()` is the guest whose action started the script (`party-model.md`) | `Games/Skyrim/Papyrus/GuestScripts.cpp` |
 
 A host NPC is local on the host and a copy on each guest. A guest player's character is local on their
 game and a copy (an other player) on the host and the other guests.

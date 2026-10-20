@@ -160,6 +160,24 @@ nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
             {"aliases", aliases}};
 }
 
+// {"cmd": "script_state", "object": id, "script": name}: the state that script on the object is in.
+nlohmann::json ScriptState(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cState = EngineCalls::GetScriptState(acRequest.value("object", 0u), acRequest.value("script", std::string()).c_str());
+    if (!cState)
+        return Error("no such script on that object");
+    return {{"ok", true}, {"state", *cState}};
+}
+
+// {"cmd": "item_count", "object": id, "item": id}: how many of that item the reference holds.
+nlohmann::json ItemCount(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cCount = EngineCalls::GetItemCount(acRequest.value("object", 0u), acRequest.value("item", 0u));
+    if (!cCount)
+        return Error("no such object or item, or it holds no inventory");
+    return {{"ok", true}, {"count", *cCount}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -182,6 +200,17 @@ nlohmann::json Lock(Harness&, const nlohmann::json& acRequest)
         return Error("no such object");
     spdlog::info("Lock (rpc): {:X} {}", cObject, acRequest.value("locked", true));
     EngineCalls::ChangeLockAsGame(cObject, acRequest.value("locked", true), uint8_t(acRequest.value("level", 0u)));
+    return Ok();
+}
+
+// {"cmd": "door_open", "object": id, "open": false, "snap": true}: sets the door's state in this game only
+// (staging: puts a door back the way a scenario found it).
+nlohmann::json DoorOpen(Harness&, const nlohmann::json& acRequest)
+{
+    const uint32_t cObject = acRequest.value("object", 0u);
+    if (!EngineCalls::SetDoorOpen(cObject, acRequest.value("open", false), acRequest.value("snap", true)))
+        return Error("no such door");
+    spdlog::info("Door (rpc): {:X} open {}", cObject, acRequest.value("open", false));
     return Ok();
 }
 
@@ -214,8 +243,11 @@ constexpr Command cCommands[] = {
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
     {"quest", true, &Quest},
+    {"script_state", true, &ScriptState},
+    {"item_count", true, &ItemCount},
     {"activate", true, &Activate},
     {"lock", true, &Lock},
+    {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},
     {"load_graph_state", true, &LoadGraphState},
     {"graph_writers", true, &GraphWriters},

@@ -579,3 +579,31 @@ holds before the `coc` takes effect; it now waits for each game to arrive first.
 - `TESObjectREFR::GetParentCell` (our virtual) returned null for the player in an exterior right after
   a `coc` while the `parentCell` field was set: the vtable slot may be wrong. Arrival spacing reads the
   field. The harness's `GetCellObjectIds` still calls the virtual.
+
+## Holding an NPC still (test harness, 2026-10-20)
+
+A scenario that hits or talks to one of the game's own NPCs needs it in a known spot, standing still, whatever
+its schedule was doing. Harness commands `move_actor` and `freeze` (`TestHarness/EngineCalls`: `MoveActorToPlayer`,
+`MoveActorHome`, `FreezeActor`); `coop_test.py` `stage_host_npc` / `release_host_npc`.
+
+| Step | Engine function | Why |
+|---|---|---|
+| Out of furniture | `Actor::StopInteractingQuick(true)` (38697) | A bed or chair's entry and exit animations move the actor whatever its AI does (Vilkas walking into bed with the AI off). `true`: no exit animation, sit/sleep state 0, furniture cleared. `MoveTo_Impl` calls it for actors too |
+| Move, loaded or not | `TESObjectREFR::MoveTo_Impl` (56626) into the player's cell | For actors it ends in 37313 (our `HookForceState`, a pass-through) |
+| AI off | `kProcessMe` cleared, controller velocity zeroed: what `Actor::EnableAI(false)` (37504) does | No packages, no combat reactions (blocking) |
+| No path | `Actor::StopMovement` (37818) | The mover walks a path on otherwise (po3 Tweaks' ToggleGlobalAI fix) |
+| Held | `Actor::SetRestrained(true)` (37488): life state 6 and `StopMoving` | Undone on thawing only if freezing set it |
+| Not pushed, passed through | controller flags `kNotPushable`, `kNoCharacterCollisions` set, `kRecordHits`, `kHitDamage` cleared (`bhkCharacterController::flags`, `+0x218`) | As PapyrusExtender's `FreezeActor`; restored on thawing |
+| Back home | `TESObjectREFR::MoveToMyEditorLocation` (19516), what Papyrus `MoveToMyEditorLocation` queues | |
+
+Order matters. An unloaded actor's `MoveTo` completes in its own update, so freezing it before it has arrived
+keeps it where it was. And its own package can bring it into the cell first, elsewhere: Vilkas, sent for the
+player by the Companions' quest, arrives at the cell's door, after our move. `stage_host_npc` therefore moves
+it, waits for it in the cell wherever it lands, freezes it, moves it again within the cell, and freezes once
+more for the controller it has by then.
+
+Seen while building it: a frozen actor still takes a melee hit's knockback (about 8 units), and an NPC heals
+between hits, so a scenario steps up before each swing and judges each hit against full health. A host NPC
+that leaves the cell turns the client's copy of it (the client's own persistent reference) back into the
+client's own actor, still where the copy stood: `release_host_npc` sends that one home too. In play that is
+a sync gap: `docs/design/copy-contract.md`, "When the owner's actor goes away".

@@ -163,9 +163,9 @@ player's context. Plain physical consequences travel as change forms.
 
 ## Spike results (2026-10-19)
 
-Harness-only code: `Code/client/TestHarness/PlayerEvents.cpp` (commands `player_events`,
-`player_events_reset`, `player_context`, `player_probe`, `player_probe_read`, `story_trace`,
-`story_raise_location_change`).
+Harness-only code: `Code/client/TestHarness/PlayerEvents.cpp`. Its script-engine spike (commands
+`player_events`, `player_context`, as committed in `6f1a5ff9`) became `Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp`;
+what stays is `player_probe`, `player_probe_read`, `story_trace`, `story_raise_location_change`.
 
 ### Spike 1: traffic (done)
 
@@ -329,8 +329,8 @@ Trigger scripts checking the player: 432, placed 4,797 times.
 
 Decision from it: `docs/design/party-model.md`, "A guest's actions on the host: the simple version".
 
-Drivers: `scripts/spikes/player_events.py` (`activator`, `trigger`, `tile`, `probe`, `story`), against a
-running duo with a test build.
+Drivers: `scripts/spikes/player_events.py` (`probe`, `story`), against a running duo with a test build; the
+`activator`, `trigger` and `tile` drivers ran against the spike's `player_context` (`6f1a5ff9`).
 
 ## Sources
 

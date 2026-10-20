@@ -3,12 +3,24 @@
 #include <Misc/BSFixedString.h>
 #include <tuple>
 
+struct Actor;
+
 struct BSScript
 {
+    struct IVirtualMachine;
+
     struct Object
     {
         uint64_t GetHandle();
+        uint32_t DecRef() noexcept;
+
+        // CommonLibSSE-NG Object.h
+        uint8_t unk00[0x10];
+        BSFixedString currentState; // 10
     };
+
+    // The form a handle names (a handle's low 32 bits; CommonLibSSE-NG IObjectHandlePolicy).
+    static uint32_t FormIdOfHandle(uint64_t aHandle) noexcept { return static_cast<uint32_t>(aHandle); }
 
     struct Variable
     {
@@ -18,6 +30,8 @@ struct BSScript
         void Reset() noexcept;
         void Clear() noexcept;
         Object* GetObject() const noexcept;
+        // The actor as a script value, as Game.GetPlayer returns it.
+        void SetActor(Actor* apActor, IVirtualMachine* apVm) noexcept;
 
         template <class T> void Set(T aValue) noexcept
         {
@@ -51,6 +65,16 @@ struct BSScript
         Data data;
     };
 
+    // A queued call's arguments (CommonLibSSE-NG BSTArray.h: BSScrapArray<Variable>).
+    struct Arguments
+    {
+        void* pAllocator;
+        Variable* pData; // 08
+        uint32_t capacity;
+        uint32_t pad14;
+        uint32_t size; // 18
+    };
+
     // https://github.com/Ryan-rsm-McKenzie/CommonLibSSE/blob/master/include/RE/I/IFunction.h
 
     enum class FunctionType
@@ -71,7 +95,6 @@ struct BSScript
 
     struct StackFrame;
     struct Stack;
-    struct IVirtualMachine;
 
     struct IFunction : BSIntrusiveRefCounted
     {
@@ -90,8 +113,8 @@ struct BSScript
         virtual uint32_t GetUserFlags() = 0;
         virtual BSFixedString& GetDocString() = 0;
         virtual void InsertLocals(StackFrame* apFrame) = 0;
-        // TODO: is actually GameVM
-        virtual CallResult Call(Stack* apStack, void* apLogger, IVirtualMachine* apVm, bool aArg4) = 0;
+        // appStack: BSTSmartPointer<Stack>&. TODO: apVm is actually GameVM
+        virtual CallResult Call(Stack** appStack, void* apLogger, IVirtualMachine* apVm, bool aArg4) = 0;
         virtual BSFixedString& GetSourceFilename() = 0;
         virtual bool TranslateIPToLineNumber(uint32_t aIndexPtr, uint32_t& aLineNumberOut) = 0;
         virtual bool GetVarNameForStackIndex(uint32_t aIndex, BSFixedString& aNameOut) = 0;
@@ -129,6 +152,12 @@ struct BSScript
             POINTER_SKYRIMSE(TGetStackFrameVariable, getStackFrameVariable, 104484);
             return TiltedPhoques::ThisCall(getStackFrameVariable, this, apFrame, aIndex, aPageHint);
         }
+
+        // CommonLibSSE-NG Stack.h
+        uint8_t unk00[0x60];
+        StackFrame* pTop;    // 60
+        uint8_t unk68[0x18];
+        uint32_t stackId;    // 80
     };
 
     struct StackFrame
@@ -137,7 +166,21 @@ struct BSScript
 
         Variable* GetStackFrameVariable(uint32_t aIndex, uint32_t aPageHint) { return pParent->GetStackFrameVariable(this, aIndex, aPageHint); }
 
-        Stack* pParent;
+        // CommonLibSSE-NG StackFrame.h
+        Stack* pParent;              // 00
+        StackFrame* pPrevious;       // 08
+        IFunction* pFunction;        // 10 BSTSmartPointer
+        void* pObjectType;           // 18
+        uint32_t instructionPointer; // 20
+        uint32_t pad24;
+        Variable self;               // 28
+    };
+
+    // Internal::CodeTasklet (CommonLibSSE-NG CodeTasklet.h): runs a stack's compiled code.
+    struct CodeTasklet
+    {
+        uint8_t unk00[0x10];
+        Stack* pStack; // 10
     };
 
     struct IObjectHandlePolicy
@@ -147,8 +190,8 @@ struct BSScript
         virtual ~IObjectHandlePolicy();
         virtual bool HandleIsType(uint32_t aType, uint64_t aHandle);
         virtual bool IsHandleObjectAvailable(uint64_t aHandle);
-        virtual void sub_03();
-        virtual void sub_04();
+        virtual uint64_t EmptyHandle();
+        virtual uint64_t GetHandleForObject(uint32_t aType, const void* apObject);
         virtual void sub_05();
         virtual void sub_06();
         virtual void sub_07();
@@ -188,7 +231,8 @@ struct BSScript
         virtual void sub_19();
         virtual void sub_1A();
         virtual void sub_1B();
-        virtual void sub_1C();
+        // appResult: BSTSmartPointer<Object>&, so a found object comes with a reference to release.
+        virtual bool FindBoundObject(uint64_t aHandle, const char* acpClassName, Object** appResult) const;
         virtual void sub_1D();
         virtual void sub_1E();
         virtual void sub_1F();
@@ -224,7 +268,7 @@ struct BSScript
         std::uint32_t GetUserFlags() override;
         BSFixedString& GetDocString() override;
         void InsertLocals(StackFrame* apFrame) override;
-        CallResult Call(Stack* apStack, void* apLogger, IVirtualMachine* apVm, bool aArg4) override;
+        CallResult Call(Stack** appStack, void* apLogger, IVirtualMachine* apVm, bool aArg4) override;
         BSFixedString& GetSourceFilename() override;
         bool TranslateIPToLineNumber(uint32_t aTaskletExecutionOffset, uint32_t& aLineNumberOut) override;
         bool GetVarNameForStackIndex(uint32_t aIndex, BSFixedString& aNameOut) override;
@@ -290,24 +334,6 @@ struct BSScript
     // TODO: template stuff for a cleaner implementation
     // https://github.com/Ryan-rsm-McKenzie/CommonLibSSE/blob/master/include/RE/N/NativeFunction.h
 
-    struct IsRemotePlayerFunc : NativeFunction
-    {
-        using FunctionType = bool(Actor* pBase);
-
-        IsRemotePlayerFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType);
-
-        bool MarshallAndDispatch(Variable* apBaseVar, IVirtualMachine* apVm, uint32_t aStackID, Variable* apResult, StackFrame* apStackFrame) override;
-    };
-
-    struct IsPlayerFunc : NativeFunction
-    {
-        using FunctionType = bool(Actor* pBase);
-
-        IsPlayerFunc(const char* apFunctionName, const char* apClassName, FunctionType aFunction, Variable::Type aType);
-
-        bool MarshallAndDispatch(Variable* apBaseVar, IVirtualMachine* apVm, uint32_t aStackID, Variable* apResult, StackFrame* apStackFrame) override;
-    };
-
     struct DidLaunchSkyrimTogetherFunc : NativeFunction
     {
         using FunctionType = bool();
@@ -349,3 +375,11 @@ template <> void BSScript::Variable::Set(int32_t aValue) noexcept;
 template <> void BSScript::Variable::Set(float aValue) noexcept;
 template <> void BSScript::Variable::Set(bool aValue) noexcept;
 template <> void BSScript::Variable::Set(const char* acpValue) noexcept;
+
+static_assert(sizeof(BSScript::Variable) == 0x10);
+static_assert(offsetof(BSScript::Arguments, pData) == 0x8 && offsetof(BSScript::Arguments, size) == 0x18);
+static_assert(offsetof(BSScript::Object, currentState) == 0x10);
+static_assert(offsetof(BSScript::Stack, pTop) == 0x60 && offsetof(BSScript::Stack, stackId) == 0x80);
+static_assert(offsetof(BSScript::StackFrame, pPrevious) == 0x8 && offsetof(BSScript::StackFrame, pFunction) == 0x10 &&
+              offsetof(BSScript::StackFrame, self) == 0x28);
+static_assert(offsetof(BSScript::CodeTasklet, pStack) == 0x10);

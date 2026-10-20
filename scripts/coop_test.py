@@ -1205,6 +1205,44 @@ def spawn_host_npc(base, restrained=False):
     return npc, server_id, copy
 
 
+def freeze(instance, actor, frozen=True):
+    """Freezes (or thaws) the actor in that game: no AI, not pushed, players pass through it; it still takes hits."""
+    player_command(instance, {"cmd": "freeze", "actor": actor, "frozen": frozen})
+
+
+def stage_host_npc(npc):
+    """Brings one of the host's placed NPCs (wherever it is, in furniture or not) onto the stage and freezes it there;
+    returns the client's copy. release_host_npc sends it back."""
+    goal = stage_spot()
+    # Its own package can bring it into the cell elsewhere (an unloaded actor travelling to the player arrives at
+    # the door): it is frozen once here, then moved within the cell.
+    player_command("", {"cmd": "move_actor", "actor": npc, "position": goal})
+    wait_for(f"[host] {npc:X} is in the home cell", lambda: host_npc_state(npc).get("server_id", -1) >= 0, 10)
+    freeze("", npc)
+    player_command("", {"cmd": "move_actor", "actor": npc, "position": goal})
+    try:
+        wait_for(f"[host] {npc:X} stands on the stage", lambda: distance(host_npc_state(npc)["position"][:2], goal[:2]) < 40, 5)
+    except TestFailure:
+        raise TestFailure(f"[host] {npc:X} is not on the stage {[round(x) for x in goal]}: {host_world(npc).get('placement')}")
+    freeze("", npc)  # again: its character controller exists now
+    copy = copy_of("client", host_npc_state(npc)["server_id"])
+    wait_on("client", f"its copy of {npc:X} on the stage",
+            lambda actors: distance((actors.get(str(copy), {}).get("actual") or [1e9, 1e9])[:2], goal[:2]) < 60, 10)
+    return copy
+
+
+def release_host_npc(npc):
+    """Thaws a staged NPC and sends it back where the game placed it, on both games: the client's copy is the
+    client's own reference, which stays on the stage otherwise (and the baseline clears the home cell)."""
+    freeze("", npc, False)
+    player_command("", {"cmd": "move_actor", "actor": npc, "home": True})
+    wait_for(f"[host] {npc:X} has gone home", lambda: not host_npc_state(npc), 10)
+    # The host's NPC leaving turns the client's copy back into the client's own reference, still on the stage.
+    wait_for(f"[client] {npc:X} is no copy any more", lambda: str(npc) not in actors_on("client"), 10)
+    player_command("client", {"cmd": "move_actor", "actor": npc, "home": True})
+    wait_for(f"[client] {npc:X} has gone home", lambda: str(npc) not in local_player("client").get("local_actors", {}), 10)
+
+
 def remove_host_npc(npc):
     """Takes a spawned NPC out of the scene for good."""
     console_on("", f"{npc:08X}.disable")
@@ -2987,6 +3025,276 @@ def scenario_door_opens_for_both():
                 activate_on(name, door)
 
 
+# Kolbjorn Barrow's pressure plates (DLC2dunKolbjornPressureTileScript): `akActivator == playerRef`, the
+# player stored in a script variable at OnInit; the plate's state is Waiting, inTrigger while the player stands on it.
+KOLBJORN_CELL, KOLBJORN_PLATE, PLATE_SCRIPT = "DLC2KolbjornBarrow01", 0x0401DC12, "DLC2dunKolbjornPressureTileScript"
+
+
+def plate_state(instance):
+    select_instance(instance)
+    return ((rpc({"cmd": "script_state", "object": KOLBJORN_PLATE, "script": PLATE_SCRIPT}) or {}).get("state") or "").lower()
+
+
+def scenario_plate_counts_client():
+    """The client walks across a pressure plate whose unpatched vanilla script only reacts to the player:
+    on the host its character counts as the player (docs/design/party-model.md, "A client's actions on
+    the host", rule 1), so the host's plate goes down under it and comes up again behind it."""
+    try:
+        both_go(KOLBJORN_CELL)
+        for name in ("", "client"):
+            if plate_state(name) != "waiting":
+                raise TestFailure(f"[{name or 'host'}] plate {KOLBJORN_PLATE:X} is '{plate_state(name)}', not Waiting, to begin with")
+        place_before("client", KOLBJORN_PLATE, 150)
+        press("client", "forward")
+        try:
+            wait_for("[host] the plate is down under the client's character", lambda: plate_state("") == "intrigger", 10)
+            wait_for("[host] the plate is up again behind it", lambda: plate_state("") == "waiting", 10)
+        finally:
+            release("client", "forward")
+    finally:
+        both_go(HOME_CELL)
+
+
+def item_count(instance, holder, item):
+    select_instance(instance)
+    return (rpc({"cmd": "item_count", "object": holder, "item": item}) or {}).get("count")
+
+
+def client_on_host():
+    return wait_on("", "shows the client's character", other_player)
+
+
+# Rebel's Cairn's sword in the stone: the box (dunRebelsCairnActivator: `obj == Game.GetPlayer()`) activates
+# the manager (dunRebelsCairnSwordInStoneManager), which asks Game.GetPlayer() for Red Eagle's sword, takes it
+# and opens the secret door; the sword in the stone gives it back and closes the door. The door's Open and
+# Close sequences take seconds and only play while a camera sees the door: the players watch it.
+REBELS_CAIRN_CELL, SWORD_BOX, SWORD_IN_STONE, SECRET_DOOR, RED_EAGLE_SWORD = "RebelsCairn01", 0xA05C0, 0xA05AC, 0xC149D, 0x9FD50
+
+
+def scenario_sword_box_asks_client():
+    """The client puts Red Eagle's sword in the stone and takes it back. On the host the box's check
+    counts its character as the player (rule 1), and the script the box starts asks that character for
+    the sword and hands it back to it (rule 2, docs/design/party-model.md): the host's player, who has
+    none, opens the door all the same and never gets the sword."""
+    try:
+        both_go(REBELS_CAIRN_CELL)
+        copy = client_on_host()
+        for name in ("", "client"):
+            if door_state(name, SECRET_DOOR) != DOOR_CLOSED:
+                raise TestFailure(f"[{name or 'host'}] secret door {SECRET_DOOR:X} is not closed to begin with")
+        if item_count("", 0x14, RED_EAGLE_SWORD):
+            raise TestFailure("[host] the host's player holds Red Eagle's sword to begin with")
+        for name in ("", "client"):
+            place_before(name, SECRET_DOOR, 400)
+        # Two: the client's own game runs the box's script too and takes one there.
+        console_on("client", f"player.additem {RED_EAGLE_SWORD:08X} 2")
+        wait_for("[host] the client's character holds the swords", lambda: item_count("", copy, RED_EAGLE_SWORD) == 2, 5)
+        activate_on("client", SWORD_BOX)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] secret door {SECRET_DOOR:X} opens", lambda name=name: door_state(name, SECRET_DOOR) == DOOR_OPEN, 15)
+        if item_count("", 0x14, RED_EAGLE_SWORD):
+            raise TestFailure("[host] the host's player holds a sword it never had")
+        activate_on("client", SWORD_IN_STONE)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] secret door {SECRET_DOOR:X} closes", lambda name=name: door_state(name, SECRET_DOOR) == DOOR_CLOSED, 15)
+        if item_count("", 0x14, RED_EAGLE_SWORD):
+            raise TestFailure("[host] the sword went to the host's player, not the client's character")
+    finally:
+        if swords := item_count("client", 0x14, RED_EAGLE_SWORD):
+            console_on("client", f"player.removeitem {RED_EAGLE_SWORD:08X} {swords}")
+        both_go(HOME_CELL)
+
+
+# Soljund's Sinkhole: the boss trigger (dunSoljundsBossSCRIPT: `obj == game.getPlayer()`, once per cell attach)
+# goes to `polling`, where it stays, and registers for an update; every seventh update the fire statue casts
+# Firebolt at game.getPlayer() (only while that game's statue is enabled).
+SOLJUND_CELL, SOLJUND_TRIGGER, SOLJUND_SCRIPT, SOLJUND_FIRE_STATUE = "SoljundsSinkhole01", 0x6AEBE, "dunSoljundsBossSCRIPT", 0x6AE8C
+FIRE_SHADER = 0x1B212  # FireFXShader: what a Firebolt hit plays on its target
+
+
+def boss_trigger_state(instance):
+    select_instance(instance)
+    return ((rpc({"cmd": "script_state", "object": SOLJUND_TRIGGER, "script": SOLJUND_SCRIPT}) or {}).get("state") or "").lower()
+
+
+def scenario_statue_fires_at_client():
+    """The client walks into Soljund's boss trigger: on the host its character counts as the player
+    (rule 1), and the updates the trigger registers for run for it (rule 2), so the host's fire statue
+    shoots at the client's character, not at the host's player. The client's own statue is disabled
+    for the test (its game runs the same script): any fire on the client's character is the host's.
+    No god mode: it keeps the hit from landing at all."""
+    try:
+        both_go(SOLJUND_CELL)
+        copy = client_on_host()
+        console_on("client", f"{SOLJUND_FIRE_STATUE:X}.disable")
+        place_before("client", SOLJUND_TRIGGER, 200)
+        press("client", "forward")
+        try:
+            wait_for("[host] the trigger is polling", lambda: boss_trigger_state("") == "polling", 10)
+        finally:
+            release("client", "forward")
+        wait_for("[host] the statue's fire lands on the client's character", lambda: FIRE_SHADER in visuals("", copy), 15)
+        if FIRE_SHADER in visuals("", 0x14):
+            raise TestFailure("[host] the statue's fire landed on the host's player too")
+    finally:
+        console_on("client", f"{SOLJUND_FIRE_STATUE:X}.enable")
+        console_on("client", "player.restoreav health 1000")
+        both_go(HOME_CELL)
+
+
+# The claw door of the E3 demo's Bleak Falls Barrow (no quest, no traps): three rings
+# (HallofStoriesDiskScript: `actorRef == game.GetPlayer()`, state positionN, three turns go round) and the
+# keyhole (HallofStoriesKeyholeScript: `actorRef == game.GetPlayer()`, then
+# `game.GetPlayer().GetItemCount(claw)`; busy for three seconds, back to mainState if a ring is wrong).
+# Rings only finish turning while a camera sees them: the players stand before the door (east of it).
+CLAW_DOOR_CELL, CLAW_KEYHOLE, CLAW = "E3demoBleakFallsBarrow", 0x847D6, 0x999E7
+CLAW_RINGS = {0x847D3: "position01", 0x847D4: "position03", 0x847D5: "position02"}  # ring: its solved state
+
+
+def claw_door_state(instance, ref):
+    select_instance(instance)
+    script = "HallofStoriesKeyholeScript" if ref == CLAW_KEYHOLE else "HallofStoriesDiskScript"
+    return ((rpc({"cmd": "script_state", "object": ref, "script": script}) or {}).get("state") or "").lower()
+
+
+def before_claw_door():
+    both_go(CLAW_DOOR_CELL)
+    place_before("", CLAW_KEYHOLE, 450, bearing=90)
+    place_before("client", CLAW_KEYHOLE, 300, bearing=90)
+
+
+def scenario_ring_turns_for_client():
+    """The client turns a ring of a claw door three times round. On the host the ring's check counts
+    its character as the player (rule 1, docs/design/party-model.md), so the host's ring turns with it."""
+    ring = next(iter(CLAW_RINGS))
+    try:
+        before_claw_door()
+        start = claw_door_state("", ring)
+        if not start.startswith("position") or claw_door_state("client", ring) != start:
+            raise TestFailure(f"ring {ring:X} is '{start}' on the host and '{claw_door_state('client', ring)}' on the client to begin with")
+        position = int(start[-1])
+        for _ in range(3):
+            position = position % 3 + 1
+            activate_on("client", ring)
+            for name in ("", "client"):
+                wait_for(f"[{name or 'host'}] ring {ring:X} turns to position {position}",
+                         lambda name=name: claw_door_state(name, ring) == f"position0{position}", 10)
+    finally:
+        both_go(HOME_CELL)
+
+
+def scenario_keyhole_asks_client():
+    """The client, holding the claw, puts it in a claw door whose rings are wrong. On the host the
+    keyhole counts its character as the player (rule 1) and asks it for the claw (rule 2): the host's
+    player has none, yet the keyhole takes the try (busy, then back) and the door stays shut."""
+    try:
+        before_claw_door()
+        for name in ("", "client"):
+            states = {ring: claw_door_state(name, ring) for ring in CLAW_RINGS}
+            if all(states[ring] == solved for ring, solved in CLAW_RINGS.items()):
+                raise TestFailure(f"[{name or 'host'}] every ring is solved to begin with: the door would open for good")
+            if claw_door_state(name, CLAW_KEYHOLE) != "mainstate":
+                raise TestFailure(f"[{name or 'host'}] keyhole {CLAW_KEYHOLE:X} is '{claw_door_state(name, CLAW_KEYHOLE)}' to begin with")
+        if item_count("", 0x14, CLAW):
+            raise TestFailure("[host] the host's player holds the claw to begin with")
+        copy = client_on_host()
+        console_on("client", f"player.additem {CLAW:08X} 1")
+        wait_for("[host] the client's character holds the claw", lambda: item_count("", copy, CLAW) == 1, 5)
+        activate_on("client", CLAW_KEYHOLE)
+        wait_for("[host] the keyhole takes the claw", lambda: claw_door_state("", CLAW_KEYHOLE) == "busy", 5)
+        wait_for("[host] the keyhole gives up: a ring is wrong", lambda: claw_door_state("", CLAW_KEYHOLE) == "mainstate", 10)
+    finally:
+        if claws := item_count("client", 0x14, CLAW):
+            console_on("client", f"player.removeitem {CLAW:08X} {claws}")
+        both_go(HOME_CELL)
+
+
+# Solitude's temple shrines (TempleBlessingScript): each casts its god's blessing on whoever activates it, and
+# shows the blessing messages when that is the player.
+SHRINE_CELL = "SolitudeTempleoftheDivines"
+SHRINES = {"": (0xD9880, 0xFB995), "client": (0xD9882, 0xFB988)}  # who prays: (shrine, its blessing)
+
+
+def blessings(instance):
+    """The shrine blessings on that game's player."""
+    select_instance(instance)
+    effects = (((read_status() or {}).get("world") or {}).get("20") or {}).get("effects") or []
+    return {e.get("spell") for e in effects} & {blessing for _, blessing in SHRINES.values()}
+
+
+def scenario_shrine_blesses_client():
+    """The host and the client each pray at a different temple shrine: each player gets only their own
+    shrine's blessing, though each game sees the other's character pray too (the host's script casts at
+    the client's character, which its owner's game applies; upstream's patch skipped other players)."""
+    try:
+        both_go(SHRINE_CELL)
+        for name in ("", "client"):
+            if blessings(name):
+                raise TestFailure(f"[{name or 'host'}] the player is blessed to begin with")
+        for name, (shrine, blessing) in SHRINES.items():
+            place_before(name, shrine, 150)
+            activate_on(name, shrine)
+            wait_for(f"[{name or 'host'}] the player is blessed by shrine {shrine:X}", lambda name=name, blessing=blessing: blessing in blessings(name), 5)
+        for name, (_, blessing) in SHRINES.items():
+            if blessings(name) != {blessing}:
+                raise TestFailure(f"[{name or 'host'}] the player holds blessings {sorted(hex(b) for b in blessings(name))}, not only its own {blessing:X}")
+    finally:
+        for name in ("", "client"):
+            if blessings(name):
+                console_on(name, "player.dispelallspells")
+        both_go(HOME_CELL)
+
+
+# The Companions' first trial (C00VilkasTrainingQuest): Vilkas's alias (C00TrainerScript) counts the hits whose
+# `akAggressor` is `Game.GetPlayer()`; three pass the trial (stage 150, whose fragment gives Vilkas's sword to
+# `Game.GetPlayer()`), a hit by anyone else ends it (110). Stage 10 starts the fight while C00 is at 20.
+VILKAS, C00_QUEST, VILKAS_TRAINING, VILKAS_HATE, VILKAS_SWORD = 0x1A695, 0x4B2D9, 0xA3EBC, 0x10F5A0, 0x9F25C
+
+
+def host_quest(quest):
+    select_instance("")
+    response = rpc({"cmd": "quest", "quest": quest}) or {}
+    return response.get("current_stage"), {stage for stage, done in response.get("stages", []) if done}
+
+
+def scenario_vilkas_counts_client_hits():
+    """The client spars with Vilkas for the Companions' trial. On the host his trial script counts the
+    client's character as the player (rule 1): three hits pass the trial instead of ending it ("someone
+    else hit him"), and the stage that follows hands his sword to the client's character, not to the
+    host's player (rule 2)."""
+    try:
+        console_on("", "resetquest C00VilkasTrainingQuest")
+        console_on("", "setstage C00 20")
+        wait_for("[host] C00 is at stage 20", lambda: host_quest(C00_QUEST)[0] == 20, 5)
+        if item_count("", 0x14, VILKAS_SWORD):
+            raise TestFailure("[host] the host's player holds Vilkas's sword to begin with")
+        vilkas = stage_host_npc(VILKAS)
+        console_on("", "setstage C00VilkasTrainingQuest 10")
+        wait_for("[host] the trial fight starts", lambda: host_quest(VILKAS_TRAINING)[0] == 10, 5)
+        full = host_npc_health(VILKAS)
+        give_sword("client")
+        draw("client")
+        for hit in range(1, 4):
+            place_before("client", vilkas, MELEE_GAP)  # each hit knocks him back out of reach
+            # He heals between hits: a hit is only seen against his full health.
+            wait_for("[host] Vilkas's health is full", lambda: host_npc_health(VILKAS) >= full, 5)
+            attack("client")
+            hit_lands(VILKAS, full, f"the client's hit {hit}")
+            if 110 in host_quest(VILKAS_TRAINING)[1]:
+                raise TestFailure("[host] the trial ended: the client's hit counted as someone else's")
+        wait_for("[host] the trial is passed", lambda: 150 in host_quest(VILKAS_TRAINING)[1], 5)
+        if item_count("", 0x14, VILKAS_SWORD):
+            raise TestFailure("[host] Vilkas's sword went to the host's player, not the client's character")
+    finally:
+        release_host_npc(VILKAS)
+        for command in (f"{VILKAS:X}.removefromfaction {VILKAS_HATE:X}", f"{VILKAS:X}.stopcombat",
+                        f"{VILKAS:X}.restoreav health 1000", "resetquest C00VilkasTrainingQuest"):
+            console_on("", command)
+        for name in ("", "client"):
+            if swords := item_count(name, 0x14, VILKAS_SWORD):
+                console_on(name, f"player.removeitem {VILKAS_SWORD:08X} {swords}")
+
+
 def scenario_lock_reaches_others():
     """The host locks a door: the client's door is locked too, at the same level. The client
     unlocks it: the host's is unlocked."""
@@ -3590,6 +3898,13 @@ SCENARIOS = {
     "door-opens-for-both": scenario_door_opens_for_both,
     "lock-reaches-others": scenario_lock_reaches_others,
     "load-door-not-replayed": scenario_load_door_not_replayed,
+    "plate-counts-client": scenario_plate_counts_client,
+    "sword-box-asks-client": scenario_sword_box_asks_client,
+    "statue-fires-at-client": scenario_statue_fires_at_client,
+    "ring-turns-for-client": scenario_ring_turns_for_client,
+    "keyhole-asks-client": scenario_keyhole_asks_client,
+    "shrine-blesses-client": scenario_shrine_blesses_client,
+    "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
     # chat
     "chat-reaches-everyone": scenario_chat_reaches_everyone,
     "map-marker-reaches-everyone": scenario_map_marker_reaches_everyone,
@@ -3661,6 +3976,13 @@ TAGS = {
     "door-opens-for-both": {'objects'},
     "lock-reaches-others": {'objects'},
     "load-door-not-replayed": {'objects', 'cells'},
+    "plate-counts-client": {'objects', 'scripts', 'cells'},
+    "sword-box-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
+    "statue-fires-at-client": {'scripts', 'cells', 'magic'},
+    "ring-turns-for-client": {'objects', 'scripts', 'cells'},
+    "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
+    "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
+    "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},
     "host-time-reaches-client": {'world'},

@@ -63,6 +63,17 @@ struct QuestState
 };
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
 
+// --- Scripts ---
+
+// The state a script on that form is in (Object::currentState; "" is the empty state), as the VM binds it
+// (FindBoundObject, its vfunc 0x1C).
+std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept;
+
+// --- Inventories ---
+
+// How many of that item the reference holds (its container plus its changes), as GetItemCount reads it.
+std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
+
 // --- Staging and the player's own input ---
 
 // The player's buttons, by the user event they are mapped to.
@@ -91,7 +102,8 @@ void ForcePlayerFirstPerson() noexcept;
 // Turns the player toward an actor, yaw and pitch, in first person (aimed spells fly where the camera
 // looks).
 bool FacePlayerToward(uint32_t aTargetFormId) noexcept;
-// Moves the player aDistance from an actor, on the line toward where the player stands, and faces it.
+// Moves the player aDistance from a reference (an actor, a trigger), on the line toward where the player
+// stands, and faces it.
 // A move, not a teleport: no cell arrival.
 bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
 // Unequips everything in this game only, nothing sent (a copy that drifted).
@@ -101,6 +113,17 @@ void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // (pressing E on it), and the object's lock changes.
 void PlayerActivates(uint32_t aObjectFormId) noexcept;
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept;
+// Freezes the actor in this game, as PapyrusExtender's FreezeActor does: out of furniture, no AI (kProcessMe), restrained (no
+// movement), no velocity, and its controller neither pushed nor colliding with characters, so it stands still and
+// players pass through it; it still takes hits. Thawing puts back what freezing changed.
+bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept;
+// Takes the actor out of any furniture and moves it to that spot in the player's cell, wherever it was (loaded or
+// not), as MoveTo does (56626).
+bool MoveActorToPlayer(uint32_t aFormId, const float acPosition[3]) noexcept;
+// Takes the actor out of any furniture and back to where the game placed it (its editor location, 19516).
+bool MoveActorHome(uint32_t aFormId) noexcept;
+// Opens or closes the door in this game only, as ObjectReference.SetOpen does (snapped: no animation).
+bool SetDoorOpen(uint32_t aObjectFormId, bool aOpen, bool aSnap) noexcept;
 
 // --- Engine state the scenarios check ---
 

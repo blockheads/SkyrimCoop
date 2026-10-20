@@ -140,7 +140,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
 | World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); step 3 (form buffers) next | `docs/design/world-state-sync.md` |
-| A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Needs the client's world scripts to stop changing the world (world-state sync step 5). Not built yet | `docs/research/player-events.md`, `scripts/spikes/` |
+| A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. Needs the client's world scripts to stop changing the world (world-state sync step 5) | `docs/research/player-events.md`, `scripts/spikes/` |
 
 ## Copies (how other players' and the host's actors appear)
 
@@ -341,6 +341,7 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **A host NPC leaving the cell leaves the client's copy behind as the client's own actor** (2026-10-20): a copy of a placed NPC is the client's own reference; when the host's NPC goes, the client keeps it where it stood and treats it as its own (a ghost, and a client running a host NPC). Cause, cases, repro and options: `docs/design/copy-contract.md`, "When the owner's actor goes away". Only the test works around it (`release_host_npc`).
 - **A copy's spawn writes its NPC base's factions** (2026-10-19): `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`) changes the shared `TESNPC`, so the client records `NPC_ Factions` change forms the host never did (168 in one fast travel). Harmless while the values match the host's; it is client-made world state in its save (`docs/research/world-state-drift.md`).
 - **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
   owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the
