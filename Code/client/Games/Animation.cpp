@@ -38,9 +38,9 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
     const auto pExtension = pActor->GetExtension();
     // A copy's half of the local player's paired action: taken as the player's game plays it, never sent
     // (its owner's game plays it from the player's action).
-    const bool cPlayersPartner = s_playerAction && pExtension->IsRemote() && apAction->target == PlayerCharacter::Get();
+    const bool cPlayersPartner = s_playerAction && pExtension->IsCopy() && apAction->target == PlayerCharacter::Get();
 
-    if (!pExtension->IsRemote() || g_forceAnimation || cPlayersPartner)
+    if (!pExtension->IsCopy() || g_forceAnimation || cPlayersPartner)
     {
         ActionEvent action;
         action.State1 = pActor->actorState.flags1;
@@ -106,7 +106,7 @@ bool TP_MAKE_THISCALL(HookUpdateAnimationGraphs, TESObjectREFR, float aDelta)
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
     {
         Actor* pActor = static_cast<Actor*>(apThis);
-        if (pActor->GetExtension()->IsRemote())
+        if (pActor->GetExtension()->IsCopy())
             AnimationSystem::RunReplayStep(pActor);
     }
     return TiltedPhoques::ThisCall(RealUpdateAnimationGraphs, apThis, aDelta);
@@ -121,7 +121,7 @@ void TP_MAKE_THISCALL(HookUpdateSynchronizedClip, BSSynchronizedClipGenerator, c
         return;
     const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(acContext.character) -
                                                                       offsetof(BShkbAnimationGraph, character));
-    if (pGraph->holder && pGraph->holder->GetExtension()->IsRemote())
+    if (pGraph->holder && pGraph->holder->GetExtension()->IsCopy())
         apThis->atMark = true;
 }
 

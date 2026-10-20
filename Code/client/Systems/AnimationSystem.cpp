@@ -157,7 +157,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         // A paired action (a kill move) on an actor of this game: started here, on the game thread, as its
         // owner's game started it; in the copy's animation job the partner's graph may be updating elsewhere.
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
-        if (pPartner && !pPartner->GetExtension()->IsRemote())
+        if (pPartner && !pPartner->GetExtension()->IsCopy())
         {
             step.Phase.store(ReplayStep::kBusy, std::memory_order_release);
             apActor->LoadAnimationVariables(step.Variables);
@@ -202,7 +202,7 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     // A paired action (a kill move) on an actor of this game plays the partner's half too; a copy partner plays
     // its own, from its owner.
     auto* pPartner = Cast<Actor>(pTarget);
-    if (pPartner && !pPartner->GetExtension()->IsRemote())
+    if (pPartner && !pPartner->GetExtension()->IsCopy())
         actionData.targetEventName = BSFixedString(cAction.TargetEventName.c_str());
     actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(cAction.IdleId));
     actionData.someFlag = ((cAction.Type & 0x4) != 0) ? 1 : 0;

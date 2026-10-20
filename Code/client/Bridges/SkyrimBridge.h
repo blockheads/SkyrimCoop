@@ -34,10 +34,10 @@ public:
     bool IsActorDead(uint32_t aFormId) const noexcept override;
     bool IsPlayerSummon(uint32_t aFormId) const noexcept override;
     bool IsTemporaryActor(uint32_t aFormId) const noexcept override;
-    bool IsRemotePlayer(uint32_t aFormId) const noexcept override;
-    void SetActorRemote(uint32_t aFormId, bool aRemote) noexcept override;
+    bool IsOtherPlayer(uint32_t aFormId) const noexcept override;
+    void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
     void SetActorPersistent(uint32_t aFormId) noexcept override;
-    bool IsActorRemote(uint32_t aFormId) const noexcept override;
+    bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetCommandingActor(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;

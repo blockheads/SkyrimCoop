@@ -914,7 +914,7 @@ void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSet
         if (!pPlayer->IsItemInInventory(objectId))
         {
             Actor* pActor = Cast<Actor>(this);
-            if (pActor && pActor->GetExtension()->IsRemotePlayer())
+            if (pActor && pActor->GetExtension()->IsOtherPlayer())
                 pPlayer->AddOrRemoveItem(arEntry);
         }
     }
@@ -1092,7 +1092,7 @@ void TP_MAKE_THISCALL(HookRotateX, TESObjectREFR, float aAngle)
     {
         const auto pActor = static_cast<Actor*>(apThis);
         // We don't allow remotes to move
-        if (pActor->GetExtension()->IsRemote())
+        if (pActor->GetExtension()->IsCopy())
             return;
     }
 
@@ -1105,7 +1105,7 @@ void TP_MAKE_THISCALL(HookRotateY, TESObjectREFR, float aAngle)
     {
         const auto pActor = static_cast<Actor*>(apThis);
         // We don't allow remotes to move
-        if (pActor->GetExtension()->IsRemote())
+        if (pActor->GetExtension()->IsCopy())
             return;
     }
 
@@ -1118,7 +1118,7 @@ void TP_MAKE_THISCALL(HookRotateZ, TESObjectREFR, float aAngle)
     {
         const auto pActor = static_cast<Actor*>(apThis);
         // We don't allow remotes to move
-        if (pActor->GetExtension()->IsRemote())
+        if (pActor->GetExtension()->IsCopy())
             return;
     }
 

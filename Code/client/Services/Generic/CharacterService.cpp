@@ -122,7 +122,7 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
         return false;
     }
 
-    if (m_actorBridge.IsRemotePlayer(acFormId))
+    if (m_actorBridge.IsOtherPlayer(acFormId))
     {
         spdlog::error("Cannot take control over remote player actor, form id: {:X}, server id: {:X}", acFormId, acServerId);
         return false;
@@ -134,7 +134,7 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
         return false;
     }
 
-    m_actorBridge.SetActorRemote(acFormId, false);
+    m_actorBridge.SetActorCopy(acFormId, false);
 
     // TODO(cosideci): this should be done differently.
     // Send an ownership claim request, and have the server broadcast the result.
@@ -179,7 +179,7 @@ void CharacterService::OnActorAdded(const ActorAddedEvent& acEvent) noexcept
 
     if (it != std::end(view))
     {
-        m_actorBridge.SetActorRemote(acEvent.FormId, true);
+        m_actorBridge.SetActorCopy(acEvent.FormId, true);
         entity = *it;
     }
     else
@@ -203,7 +203,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 
     const auto cId = *entityIt;
     // Another player's copy left the loaded area with our travel: it travels with the party, not its cell.
-    if (m_world.all_of<RemoteComponent, PlayerComponent>(cId) && m_actorBridge.IsActorRemote(acEvent.FormId))
+    if (m_world.all_of<RemoteComponent, PlayerComponent>(cId) && m_actorBridge.IsActorCopy(acEvent.FormId))
         return;
 
     auto& formIdComponent = view.get<FormIdComponent>(cId);
@@ -335,7 +335,7 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
         // Its actions since the request are queued already (RequestServerAssignment).
         m_world.get_or_emplace<LocalAnimationComponent>(cEntity);
 
-        m_actorBridge.SetActorRemote(formIdComponent->Id, false);
+        m_actorBridge.SetActorCopy(formIdComponent->Id, false);
 
         // Nothing is re-sent: copies start in this actor's graph state (CharacterSpawnRequest::GraphState).
     }
@@ -346,7 +346,7 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
         m_world.remove<LocalAnimationComponent>(cEntity);
         m_world.emplace_or_replace<RemoteComponent>(cEntity, acMessage.ServerId, formIdComponent->Id);
 
-        m_actorBridge.SetActorRemote(formIdComponent->Id, true);
+        m_actorBridge.SetActorCopy(formIdComponent->Id, true);
 
         InterpolationSystem::Setup(m_world, cEntity);
         AnimationSystem::Setup(m_world, cEntity);
@@ -454,7 +454,7 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
         m_actorBridge.EnableActor(actorFormId);
     }
 
-    m_actorBridge.SetActorRemote(actorFormId, true);
+    m_actorBridge.SetActorCopy(actorFormId, true);
 
     // Where the copy goes: an NPC from the game's data (FormId set) to the cell its owner reported, even if
     // the player has left it since; a created actor (a player's copy) to the player's cell.
@@ -827,7 +827,7 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
                 m_world.emplace_or_replace<RemoteComponent>(entity, acMessage.MountId, mountFormId);
             }
 
-            m_actorBridge.SetActorRemote(mountFormId, true);
+            m_actorBridge.SetActorCopy(mountFormId, true);
 
             InterpolationSystem::Setup(m_world, entity);
             AnimationSystem::Setup(m_world, entity);
@@ -1026,7 +1026,7 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
                 continue;
             }
 
-            m_actorBridge.SetActorRemote(formIdComponent.Id, true);
+            m_actorBridge.SetActorCopy(formIdComponent.Id, true);
 
             InterpolationSystem::Setup(m_world, entity);
             AnimationSystem::Setup(m_world, entity);
@@ -1242,7 +1242,7 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
     if (m_world.all_of<RemoteComponent>(aEntity))
     {
         // Only while it is still our copy: a deleted copy's form id can belong to a new reference already.
-        if (m_actorBridge.IsActorRemote(aFormId))
+        if (m_actorBridge.IsActorCopy(aFormId))
         {
             if (m_actorBridge.IsActorTemporary(aFormId) || m_actorBridge.IsActorNpcTemporary(aFormId))
             {
@@ -1251,7 +1251,7 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
             }
             else
             {
-                m_actorBridge.SetActorRemote(aFormId, false);
+                m_actorBridge.SetActorCopy(aFormId, false);
             }
         }
 
@@ -1498,7 +1498,7 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
             pPlace->LastMove = {};
     }
     DropCopies([&](uint32_t aFormId) {
-        if (playerCopies.count(aFormId) && m_actorBridge.IsActorRemote(aFormId))
+        if (playerCopies.count(aFormId) && m_actorBridge.IsActorCopy(aFormId))
             return false;
         // Interiors: the same cell. Exteriors: the same worldspace, loaded around the player.
         const bool cHere = cWorldSpaceId ? m_actorBridge.GetActorWorldSpaceFormId(aFormId) == cWorldSpaceId
@@ -1554,7 +1554,7 @@ void CharacterService::RunPresence() noexcept
             m_world.GetTravelService().IsAroundPlayer(place.WorldSpaceId, place.CellId, cPosition);
         // The engine deleted it (a temporary reference left in a cell it unloaded) and may already have given its
         // form id to a new reference: an actor there that is not a copy is a stranger, never ours to drive.
-        if (!m_actorBridge.IsActorRemote(cFormId))
+        if (!m_actorBridge.IsActorCopy(cFormId))
         {
             if (cOwnerAround)
                 gone.emplace_back(entity, view.get<RemoteComponent>(entity).Id);

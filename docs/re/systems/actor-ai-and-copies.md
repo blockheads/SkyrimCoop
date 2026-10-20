@@ -1,7 +1,7 @@
 # Actor AI, the per-frame update, and copies
 
 How the engine updates an NPC every frame, what SkyrimCoop cuts for **copies** (actors another game
-owns, `ActorExtension::IsRemote()`), and how a replayed action reaches a copy's behaviour graph. IDs
+owns, `ActorExtension::IsCopy()`), and how a replayed action reaches a copy's behaviour graph. IDs
 are Address Library IDs for 1.6.1170; names marked "our name" have no community name (CommonLib,
 meh321, the reference plugins and a web search had only `sub_`). Every name below is in IDA and in
 `docs/re/ida_notes.tsv`. Decision and contract: `docs/design/copy-contract.md`.

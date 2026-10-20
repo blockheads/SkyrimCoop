@@ -27,13 +27,15 @@ public:
     virtual bool IsPlayerSummon(uint32_t aFormId) const noexcept = 0;
     virtual bool IsTemporaryActor(uint32_t aFormId) const noexcept = 0;
 
-    // --- Remote / player flags (ActorExtension) ---
-    virtual bool IsRemotePlayer(uint32_t aFormId) const noexcept = 0;
-    virtual void SetActorRemote(uint32_t aFormId, bool aRemote) noexcept = 0;
+    // --- Copy / player flags (ActorExtension; words in docs/design/glossary.md) ---
+    // Another player's character, shown here.
+    virtual bool IsOtherPlayer(uint32_t aFormId) const noexcept = 0;
+    virtual void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept = 0;
     // Kept by the engine when its cell unloads: another player's copy, which travels with the party.
     virtual void SetActorPersistent(uint32_t aFormId) noexcept = 0;
-    /// True for replicas (driven by the network), false for actors this game simulates.
-    virtual bool IsActorRemote(uint32_t aFormId) const noexcept = 0;
+    /// True for copies (another game owns them), false for actors this game simulates.
+    virtual bool IsActorCopy(uint32_t aFormId) const noexcept = 0;
+    // A player's character, here or a copy.
     virtual void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept = 0;
 
     // --- Ownership / command ---

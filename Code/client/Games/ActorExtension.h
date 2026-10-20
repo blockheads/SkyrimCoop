@@ -2,20 +2,21 @@
 
 #include <Structs/ActionEvent.h>
 
+// Words: docs/design/glossary.md.
 struct ActorExtension
 {
     enum
     {
-        kRemote = 1 << 0,
-        kPlayer = 1 << 1,
+        kCopy = 1 << 0,   // another game owns the actor; this one shows it
+        kPlayer = 1 << 1, // a player's character: this game's player, or another player's copy
     };
 
-    bool IsRemote() const noexcept;
+    bool IsCopy() const noexcept;
     bool IsLocal() const noexcept;
     bool IsPlayer() const noexcept;
-    bool IsRemotePlayer() const noexcept;
+    bool IsOtherPlayer() const noexcept;
     bool IsLocalPlayer() const noexcept;
-    void SetRemote(bool aSet) noexcept;
+    void SetCopy(bool aSet) noexcept;
     void SetPlayer(bool aSet) noexcept;
 
     ActionEvent LatestAnimation{};

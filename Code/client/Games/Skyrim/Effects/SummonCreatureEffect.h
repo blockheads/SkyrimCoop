@@ -18,7 +18,7 @@ void* TP_MAKE_THISCALL(HookInitializeSummonCreatureEffect, Actor, MagicItem* apS
     if (apThis)
     {
         auto pExtension = apThis->GetExtension();
-        if (pExtension && pExtension->IsRemote())
+        if (pExtension && pExtension->IsCopy())
             return nullptr;
     }
 

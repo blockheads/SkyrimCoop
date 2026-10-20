@@ -181,7 +181,7 @@ GamePtr<Actor> Actor::Create(TESNPC* apBaseForm) noexcept
     auto pActor = New();
     // Prevent saving
     pActor->SetSkipSaveFlag(true);
-    pActor->GetExtension()->SetRemote(true);
+    pActor->GetExtension()->SetCopy(true);
 
     const auto pPlayer = static_cast<Actor*>(GetById(0x14));
     auto pCell = pPlayer->parentCell;
@@ -989,9 +989,9 @@ void Actor::FixVampireLordModel() noexcept
 char TP_MAKE_THISCALL(HookSetPosition, Actor, NiPoint3& aPosition)
 {
     const auto pExtension = apThis ? apThis->GetExtension() : nullptr;
-    const auto bIsRemote = pExtension && pExtension->IsRemote();
+    const auto bIsCopy = pExtension && pExtension->IsCopy();
 
-    if (bIsRemote && !ScopedReferencesOverride::IsOverriden())
+    if (bIsCopy && !ScopedReferencesOverride::IsOverriden())
         return 1;
 
     // Don't interfere with non actor references, or the player, or if we are calling our self
@@ -1047,14 +1047,14 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
     {
         if (!World::Get().GetServerSettings().PvpEnabled)
         {
-            if (apHitter && apHitter->GetExtension()->IsRemotePlayer())
+            if (apHitter && apHitter->GetExtension()->IsOtherPlayer())
                 return false;
         }
 
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
         return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
     }
-    else if (pExHittee->IsRemotePlayer())
+    else if (pExHittee->IsOtherPlayer())
     {
         return wouldKill;
     }
@@ -1067,11 +1067,11 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
             World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter->formID));
             // Direct authority: a hit on an actor someone else owns (e.g. a host NPC) is only a
             // request to that owner. Our copy mirrors the owner's health instead of applying it.
-            if (pExHittee->IsRemote())
+            if (pExHittee->IsCopy())
                 return wouldKill;
             return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
         }
-        if (pExHitter->IsRemotePlayer())
+        if (pExHitter->IsOtherPlayer())
         {
             // Our actor, damaged by an effect we applied at that player's request (see HookAddTarget):
             // apply it with them as the attacker, so the game handles aggro and kill credit.
@@ -1138,7 +1138,7 @@ static TRegenerateActorValue* RealRegenerateActorValue = nullptr;
 
 void TP_MAKE_THISCALL(HookRegenerateActorValue, Actor, int32_t aActorValue, float aDelta)
 {
-    if (apThis->GetExtension()->IsRemote())
+    if (apThis->GetExtension()->IsCopy())
         return;
 
     TiltedPhoques::ThisCall(RealRegenerateActorValue, apThis, aActorValue, aDelta);
@@ -1249,7 +1249,7 @@ void TP_MAKE_THISCALL(HookUpdateDetectionState, ActorKnowledge, void* apState)
         auto pTargetActor = Cast<Actor>(pTarget);
         if (pOwnerActor && pTargetActor)
         {
-            if (pOwnerActor->GetExtension()->IsRemotePlayer() && pTargetActor->GetExtension()->IsLocalPlayer())
+            if (pOwnerActor->GetExtension()->IsOtherPlayer() && pTargetActor->GetExtension()->IsLocalPlayer())
             {
                 spdlog::debug("Cancelling detection from remote player to local player, owner: {:X}, target: {:X}", pOwner->formID, pTarget->formID);
                 return;
@@ -1272,7 +1272,7 @@ uint64_t TP_MAKE_THISCALL(HookProcessResponse, void, DialogueItem* apVoice, Acto
 {
     if (apTalkingActor)
     {
-        if (apTalkingActor->GetExtension()->IsRemotePlayer())
+        if (apTalkingActor->GetExtension()->IsOtherPlayer())
             return 0;
     }
     return TiltedPhoques::ThisCall(RealProcessResponse, apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
@@ -1306,7 +1306,7 @@ float TP_MAKE_THISCALL(HookSpeakSoundFunction, Actor, const char* apName, uint32
     if (apThis->GetExtension()->IsLocal())
         World::Get().GetRunner().Trigger(DialogueEvent(apThis->formID, apName));
     // A copy says only its owner's lines (NotifyDialogue calls past this hook), none its game picks: no voice.
-    else if (apThis->GetExtension()->IsRemote())
+    else if (apThis->GetExtension()->IsCopy())
         return -1.f;
 
     return TiltedPhoques::ThisCall(RealSpeakSoundFunction, apThis, apName, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
@@ -1325,7 +1325,7 @@ TP_THIS_FUNCTION(TResetInventory, void, Actor, bool aLeveledOnly);
 static TResetInventory* RealResetInventory = nullptr;
 void TP_MAKE_THISCALL(HookResetInventory, Actor, bool aLeveledOnly)
 {
-    if (apThis->GetExtension()->IsRemote())
+    if (apThis->GetExtension()->IsCopy())
         return;
     TiltedPhoques::ThisCall(RealResetInventory, apThis, aLeveledOnly);
 }
@@ -1333,7 +1333,7 @@ void TP_MAKE_THISCALL(HookResetInventory, Actor, bool aLeveledOnly)
 // Actor::ApplyMovement (37356): the sync positions copies.
 void TP_MAKE_THISCALL(HookApplyMovement, Actor, float aDelta)
 {
-    if (apThis->GetExtension()->IsRemote())
+    if (apThis->GetExtension()->IsCopy())
         return;
 
     TiltedPhoques::ThisCall(RealApplyMovement, apThis, aDelta);
@@ -1361,7 +1361,7 @@ static TUpdateLipSyncGraph* UpdateLipSyncGraph = nullptr;
 
 void TP_MAKE_THISCALL(HookUpdateAI, Actor, float aDelta)
 {
-    if (apThis->GetExtension()->IsRemote())
+    if (apThis->GetExtension()->IsCopy())
     {
         // UpdateAI's own early return.
         if (!(apThis->flags1 & Actor::kProcessMe) || apThis->IsDisabled())
@@ -1396,7 +1396,7 @@ static TAddDeathItems* RealAddDeathItems = nullptr;
 
 void TP_MAKE_THISCALL(HookAddDeathItems, Actor)
 {
-    if (apThis->GetExtension()->IsRemote())
+    if (apThis->GetExtension()->IsCopy())
         return;
 
     TiltedPhoques::ThisCall(RealAddDeathItems, apThis);

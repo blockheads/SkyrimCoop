@@ -1,7 +1,8 @@
 # Copy contract
 
-A **copy** is the stand-in a game shows for an actor another game owns. That covers a remote
-player's character and the client's replica of a host NPC (`ActorExtension::IsRemote()`).
+A **copy** is the stand-in a game shows for an actor another game owns. That covers another player's
+character (an other player) and a guest's copy of a host NPC (`ActorExtension::IsCopy()`). Words:
+`glossary.md`.
 
 Skyrim has exactly one player: `g_thePlayer` is read in 2843 places across 1286 engine functions.
 So remote players can only be NPC-bodied actors. The engine then treats copies like any NPC and
@@ -82,7 +83,7 @@ in the session and travels with it, never with a cell. NPC copies (the host's ac
 - **Removed** when its player leaves or the session ends (`NotifyRemoveCharacter`, a disconnect drops every
   copy); never by discovery noticing it left the loaded area.
 - **Identity:** a copy is the actor at its form id only while that actor is flagged a copy
-  (`ActorExtension::IsRemote`, set at spawn; a new actor has a fresh extension). Otherwise it is gone: its
+  (`ActorExtension::IsCopy`, set at spawn; a new actor has a fresh extension). Otherwise it is gone: its
   owner around, it is spawned again; elsewhere, dropped. Nothing moves, voices or deletes a stranger.
 
 ## How a copy runs no AI (decided 2026-10-11)

@@ -110,7 +110,7 @@ TEST_CASE("ReplayBridge returns canned responses from NDJSON", "[ReplayBridge][r
         REQUIRE(exists == true);
     }
 
-    SECTION("IsRemotePlayer returns false from fixture")
+    SECTION("IsOtherPlayer returns false from fixture")
     {
         ClientReplayHarness harness3;
         harness3.LoadFixture(ACTOR_SPAWN_FIXTURE);
@@ -120,8 +120,8 @@ TEST_CASE("ReplayBridge returns canned responses from NDJSON", "[ReplayBridge][r
         b3.ActorExists(0xFF001234); // consume ActorExists return (first)
         b3.ActorExists(0xFF001234); // consume ActorExists return (second)
 
-        bool isRemote = b3.IsRemotePlayer(0xFF001234);
-        REQUIRE(isRemote == false);
+        bool isCopy = b3.IsOtherPlayer(0xFF001234);
+        REQUIRE(isCopy == false);
     }
 
     SECTION("Default fallbacks when no recording loaded")

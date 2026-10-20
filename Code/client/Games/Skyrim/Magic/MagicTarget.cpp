@@ -111,16 +111,16 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
     // applies it (effects requested by others arrive through MagicTarget::AddTarget, which skips
     // this hook). Copies never apply effects themselves; they show the owner's resulting state.
     ActorExtension* pCasterExtension = arData.pCaster ? arData.pCaster->GetExtension() : nullptr;
-    const bool cCasterIsCopy = pCasterExtension && pCasterExtension->IsRemote();
+    const bool cCasterIsCopy = pCasterExtension && pCasterExtension->IsCopy();
 
-    if (pTargetActorEx->IsRemote())
+    if (pTargetActorEx->IsCopy())
     {
         // Someone else's actor hit by someone else's spell, or by nothing of ours: their games
         // handle it.
         if (!arData.pCaster || cCasterIsCopy)
             return false;
 
-        if (pTargetActorEx->IsRemotePlayer())
+        if (pTargetActorEx->IsOtherPlayer())
         {
             const bool cFriendly = arData.pSpell->IsHealingSpell() || arData.pSpell->IsBuffSpell();
             if (!cFriendly && !World::Get().GetServerSettings().PvpEnabled)
@@ -177,7 +177,7 @@ void TP_MAKE_THISCALL(HookAdjustForPerks, ActiveEffect, Actor* apCaster, MagicTa
 
 bool TP_MAKE_THISCALL(HookHasPerk, Actor, TESForm* apPerk, void* apUnk1, double* afReturnValue)
 {
-    if (apThis && apThis->GetExtension()->IsRemotePlayer())
+    if (apThis && apThis->GetExtension()->IsOtherPlayer())
     {
         if (apPerk && apPerk->formID == 0x581f9)
         {

@@ -89,7 +89,7 @@ static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 // like any NPC with a package; HookUpdateAI keeps it from running.
 bool TP_MAKE_THISCALL(HookCheckForNewPackage, void, Actor* apActor, uint64_t aUnk1)
 {
-    if (apActor && apActor->GetExtension()->IsRemote())
+    if (apActor && apActor->GetExtension()->IsCopy())
     {
         const AIProcess* pProcess = apActor->currentProcess;
         if (pProcess && !(pProcess->package && pProcess->package->packType == TESPackage::kDoNothing))
@@ -109,7 +109,7 @@ static thread_local bool s_copyPackage = false;
 
 void TP_MAKE_THISCALL(HookPutCreatedPackage, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk)
 {
-    if (apThis->GetExtension()->IsRemote() && !s_copyPackage)
+    if (apThis->GetExtension()->IsCopy() && !s_copyPackage)
         return;
 
     TiltedPhoques::ThisCall(RealPutCreatedPackage, apThis, apPackage, aRunOnce, aUnk);
@@ -136,7 +136,7 @@ void TP_MAKE_THISCALL(HookInitFromPackage, void, TESPackage* apPackage, TESObjec
     if (s_execInitPackage)
         return TiltedPhoques::ThisCall(RealInitFromPackage, apThis, apPackage, apTarget, arActor);
 
-    if (arActor && arActor->GetExtension()->IsRemote())
+    if (arActor && arActor->GetExtension()->IsCopy())
         return;
 
     if (arActor && apPackage)

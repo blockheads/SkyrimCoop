@@ -2,9 +2,9 @@
 {"op":"GetPlayerFormId","dir":"return","result":20,"ts":0.001}
 {"op":"ActorExists","formId":"0xFF001234","dir":"call","ts":0.002}
 {"op":"ActorExists","formId":"0xFF001234","dir":"return","result":true,"ts":0.002}
-{"op":"IsRemotePlayer","formId":"0xFF001234","dir":"call","ts":0.003}
-{"op":"IsRemotePlayer","formId":"0xFF001234","dir":"return","result":false,"ts":0.003}
-{"op":"SetActorRemote","formId":"0xFF001234","remote":true,"dir":"call","ts":0.004}
+{"op":"IsOtherPlayer","formId":"0xFF001234","dir":"call","ts":0.003}
+{"op":"IsOtherPlayer","formId":"0xFF001234","dir":"return","result":false,"ts":0.003}
+{"op":"SetActorCopy","formId":"0xFF001234","remote":true,"dir":"call","ts":0.004}
 {"op":"ActorExists","formId":"0xFF001234","dir":"call","ts":0.005}
 {"op":"ActorExists","formId":"0xFF001234","dir":"return","result":true,"ts":0.005}
 {"op":"MoveActorTo","formId":"0xFF001234","cellId":"0x00000D74","x":0.0,"y":0.0,"z":0.0,"dir":"call","ts":0.006}

@@ -47,10 +47,10 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
             const uint32_t cFormId = world.get<FormIdComponent>(cEntity).Id;
             if (!actors.ActorExists(cFormId))
                 continue;
-            if (actors.IsRemotePlayer(cFormId) || actors.IsActorTemporary(cFormId))
+            if (actors.IsOtherPlayer(cFormId) || actors.IsActorTemporary(cFormId))
                 actors.DeleteActor(cFormId);
             else
-                actors.SetActorRemote(cFormId, false);
+                actors.SetActorCopy(cFormId, false);
         }
         world.ctx().at<PapyrusService>().HandOffFunctions();
         world.GetTransport().Close();

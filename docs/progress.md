@@ -4,7 +4,8 @@ Where SkyrimCoop stands. Update it when a phase, system or known failure changes
 Plans live elsewhere: the migration in `docs/design/host-authority-migration.md`, joining a session
 (build, game and mod checks, host-stored characters, arrival) in `docs/design/join-flow.md`, how the
 party shares one story (the party is the Dragonborn) in `docs/design/party-model.md`, later ideas in
-`docs/ideas.md`, engine findings in `docs/re/`.
+`docs/ideas.md`, engine findings in `docs/re/`, the words (host, guest, owner, copy, player) in
+`docs/design/glossary.md`.
 
 **Goal:** two to four friends play Skyrim together, the host's game is the only authority (direct
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
@@ -157,7 +158,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   - A copy dies with its owner's death action (`KillWithDeathAction`), never from health alone.
   - An owner's actions before its id arrives are kept (NPCs falling after `placeatme`).
 - Next audits: combat, detection, magic/magicka; then one copy update in place of scattered
-  `IsRemote()` checks.
+  `IsCopy()` checks.
 - Planned (2026-10-19): copies carry their owner's AI state for conditions (current package, sitting, sleeping,
   scene, alarmed, combat state), simulated only by the owner (`copy-contract.md`, "AI state"); first for
   shared dialogue's step sync (above).
@@ -355,7 +356,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **A copy slides after its owner is teleported** (2026-10-13): the scenarios' `placeatme` then move
   of a host NPC (~900 units) shows on the client as a 0.5 s slide across the room, not a jump.
 - **Audits not done:** combat, detection, magic/magicka. Then one copy update in place of the
-  scattered `IsRemote()` checks.
+  scattered `IsCopy()` checks.
 - **Upstream AI patches to re-check** (from before copies ran no AI; delete each the cut covers):
   `HookIsFleeing`, `HookProcessResponse`, `HookUpdateDetectionState`, `HookIsHostileToActor`.
 - **Cast right after a jump landing** (first person, within ~250 ms): the copy's graph is still

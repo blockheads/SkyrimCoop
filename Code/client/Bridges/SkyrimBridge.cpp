@@ -173,20 +173,20 @@ bool SkyrimBridge::IsTemporaryActor(uint32_t aFormId) const noexcept
     return pActor && pActor->IsTemporary();
 }
 
-bool SkyrimBridge::IsRemotePlayer(uint32_t aFormId) const noexcept
+bool SkyrimBridge::IsOtherPlayer(uint32_t aFormId) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
         if (ActorExtension* pExt = pActor->GetExtension())
-            return pExt->IsRemotePlayer();
+            return pExt->IsOtherPlayer();
     return false;
 }
 
-void SkyrimBridge::SetActorRemote(uint32_t aFormId, bool aRemote) noexcept
+void SkyrimBridge::SetActorCopy(uint32_t aFormId, bool aCopy) noexcept
 {
-    Breadcrumbs::Record("SetActorRemote", aFormId, static_cast<uint32_t>(aRemote));
+    Breadcrumbs::Record("SetActorCopy", aFormId, static_cast<uint32_t>(aCopy));
     if (Actor* pActor = GetActor(aFormId))
         if (ActorExtension* pExt = pActor->GetExtension())
-            pExt->SetRemote(aRemote);
+            pExt->SetCopy(aCopy);
 }
 
 void SkyrimBridge::SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept
@@ -603,7 +603,7 @@ void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormI
     // of the player see it as one of their own and the engine's reaction below ignores its hits.
     // The engine only tolerates-then-retaliates for its own player, with these settings; apply the
     // same rule to remote players: after too many hits the victim fights them.
-    if (pAttacker->GetExtension()->IsRemotePlayer())
+    if (pAttacker->GetExtension()->IsOtherPlayer())
     {
         TP_THIS_FUNCTION(TGetFactionReaction, int32_t, Actor, Actor*);
         POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
@@ -670,10 +670,10 @@ bool SkyrimBridge::ActorHas3D(uint32_t aFormId) const noexcept
     return false;
 }
 
-bool SkyrimBridge::IsActorRemote(uint32_t aFormId) const noexcept
+bool SkyrimBridge::IsActorCopy(uint32_t aFormId) const noexcept
 {
     Actor* pActor = GetActor(aFormId);
-    return pActor && pActor->GetExtension()->IsRemote();
+    return pActor && pActor->GetExtension()->IsCopy();
 }
 
 std::vector<uint32_t> SkyrimBridge::GetLoadedActorFormIds() const noexcept

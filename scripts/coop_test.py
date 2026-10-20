@@ -714,7 +714,7 @@ def start_session(command, timeout=60):
     return wait_for(f"{INSTANCE or 'host'}: {'joining' if command else 'hosting'}", ready, timeout)
 
 
-def remote_players():
+def other_players():
     """Remote actors this instance shows in the engine with 3D: {form id: position}."""
     status = read_status() or {}
     return {int(actor): sample["actual"] for actor, sample in status.get("actors", {}).items() if sample.get("has_3d")}
@@ -725,7 +725,7 @@ def both_see_each_other():
     seen = {}
     for name in ("", "client"):
         select_instance(name)
-        players = remote_players()
+        players = other_players()
         if not players:
             return None
         seen[name or "host"] = players
@@ -848,12 +848,12 @@ def command_duo(args):
         if args.npc:
             # Host-owned NPC: spawned in the host's game, must be replicated to the client.
             select_instance("client")
-            before = set(remote_players())
+            before = set(other_players())
             select_instance("")
             run_console(f"player.placeatme {args.npc} 1")
             select_instance("client")
             new_actors = wait_for(f"Client shows the host's new NPC (base {args.npc})",
-                                  lambda: set(remote_players()) - before, args.seconds)
+                                  lambda: set(other_players()) - before, args.seconds)
             for actor in new_actors:
                 log(f"client shows host NPC {actor:08X}")
         passed = True
@@ -927,12 +927,12 @@ def player_snapshot(instance):
     return ((read_status() or {}).get("world") or {}).get("20") or {}
 
 
-def remote_player(actors):
-    return next((int(a) for a, s in actors.items() if s.get("remote_player") and s.get("has_3d")), None)
+def other_player(actors):
+    return next((int(a) for a, s in actors.items() if s.get("other_player") and s.get("has_3d")), None)
 
 
 def remote_npcs(actors):
-    return {int(a) for a, s in actors.items() if not s.get("remote_player") and s.get("has_3d")}
+    return {int(a) for a, s in actors.items() if not s.get("other_player") and s.get("has_3d")}
 
 
 def close(a, b, tolerance=1.0):
@@ -1540,7 +1540,7 @@ def scenario_late_join_client():
     console_on("", f"{npc:08X}.equipitem {IRON_SWORD:08X}")
     give_sword("")
     disconnect_client()
-    wait_on("", "the client's character leaves the host's game", lambda actors: remote_player(actors) is None)
+    wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
     # While the client is away.
     draw("")
     console_on("", f"{npc:08X}.damageav health 50")
@@ -1550,7 +1550,7 @@ def scenario_late_join_client():
     wait_on("client", "the NPC's copy holds the sword", lambda actors: IRON_SWORD in actors.get(str(copy), {}).get("equipped", []))
     copy_health_matches(npc, copy)
     wait_on("client", "the host's character has the sword drawn",
-            lambda actors: remote_player(actors) is not None and actors[str(remote_player(actors))].get("weapon_drawn"))
+            lambda actors: other_player(actors) is not None and actors[str(other_player(actors))].get("weapon_drawn"))
     hold()
 
 
@@ -1576,7 +1576,7 @@ def scenario_host_kicks_client():
     player_command("", {"cmd": "kick", "player": players[0]["id"]})
     wait_for("[client] disconnected", lambda: game_state("client").get("online") is False, 10)
     wait_for("[host] no longer lists the client", lambda: not game_state("").get("players"), 10)
-    wait_on("", "the client's character leaves the host's game", lambda actors: remote_player(actors) is None)
+    wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
     rejoin_client()
 
 
@@ -1778,7 +1778,7 @@ def scenario_move_host_npc():
     show("client", lambda actors: copy)
     host_actors = actors_on("")
     players = {"player": local_player("")["position"]}
-    if client_on_host := remote_player(host_actors):
+    if client_on_host := other_player(host_actors):
         players[f"{client_on_host:08X}"] = host_actors[str(client_on_host)]["actual"]
     start = host_npc_state(npc)["position"]
     target = max(players, key=lambda ref: distance(players[ref], start))  # the farther player
@@ -1863,7 +1863,7 @@ def on_other_player(instance, within=30):
     select_instance(instance)
     status = read_status() or {}
     actors = status.get("actors", {})
-    other = remote_player(actors)
+    other = other_player(actors)
     me = (status.get("player") or {}).get("position")
     return other is not None and me and distance(me[:2], actors[str(other)]["actual"][:2]) < within
 
@@ -1913,7 +1913,7 @@ def my_position(instance):
 def other_player_position(instance):
     """Where that game shows the other player (its copy)."""
     actors = actors_on(instance)
-    other = remote_player(actors)
+    other = other_player(actors)
     return actors[str(other)]["actual"] if other is not None else None
 
 
@@ -1939,7 +1939,7 @@ def walk_off(walker, toward, what):
 def bumps_into_other(walker):
     """Off the stack, the walker collides again: walking into the other player (Forward held), it slides around
     it or is stopped by it, never through it: the two never come closer than their bodies allow."""
-    face(walker, remote_player(actors_on(walker)))
+    face(walker, other_player(actors_on(walker)))
     seen = {"closest": float("inf")}
     rested = comes_to_rest(lambda: my_position(walker))
     def done():
@@ -1974,7 +1974,7 @@ def scenario_teleport_keeps_copies():
     """The client teleports within the cell (moveto): its game keeps the copies it shows (the host's
     character and NPC stay the same actors). A respawned copy loses its state and id."""
     _, server_id, copy = spawn_host_npc(LYDIA, restrained=True)
-    host_copy = remote_player(actors_on("client"))
+    host_copy = other_player(actors_on("client"))
     log_file = plugin_log("client")
     start = log_file.stat().st_size
     console_on("client", f"player.moveto {copy:08X}")
@@ -1983,8 +1983,8 @@ def scenario_teleport_keeps_copies():
     end = time.monotonic() + 1.5
     while time.monotonic() < end:
         actors = actors_on("client")
-        if remote_player(actors) != host_copy:
-            raise TestFailure(f"the host's character was respawned: copy {host_copy:08X} is now {remote_player(actors)}")
+        if other_player(actors) != host_copy:
+            raise TestFailure(f"the host's character was respawned: copy {host_copy:08X} is now {other_player(actors)}")
         now = next((int(a) for a, s in actors.items() if s.get("server_id") == server_id), None)
         if now != copy:
             raise TestFailure(f"the host's NPC was respawned: copy {copy:08X} is now {now}")
@@ -2048,9 +2048,9 @@ def dive_roundtrip(diver, observer, label):
             for axis, value in zip("xyz", spot):
                 console_on(name, f"player.setpos {axis} {value}")
         wait_for(f"[{diver or 'host'}] swims", lambda: water(diver).get("swimming"), 10)
-        show(observer, remote_player)
+        show(observer, other_player)
         select_instance(observer)
-        copy = remote_player((read_status() or {}).get("actors", {}))
+        copy = other_player((read_status() or {}).get("actors", {}))
         lines = {"owner": [], "copy": []}
         packages, healths = set(), set()
         def watch():
@@ -2168,7 +2168,7 @@ def players_together(where):
     """Both games show the other player, with 3D, in the same cell (a copy left behind would not count)."""
     def check():
         cells = {player_cell(n) for n in ("", "client")}
-        return len(cells) == 1 and all(remote_player(actors_on(n)) for n in ("", "client"))
+        return len(cells) == 1 and all(other_player(actors_on(n)) for n in ("", "client"))
     wait_for(f"{where}: both in one cell, each game shows the other player", check, 30)
 
 
@@ -2283,12 +2283,12 @@ def equip_roundtrip(actor_instance, ref, observer, observed, label):
 
 def scenario_equip_host_player():
     """Host equips/unequips a sword; the client's copy of the host must follow."""
-    equip_roundtrip("", "player", "client", remote_player, "host's character")
+    equip_roundtrip("", "player", "client", other_player, "host's character")
 
 
 def scenario_equip_client_player():
     """Client equips/unequips a sword; the host's copy of the client must follow."""
-    equip_roundtrip("client", "player", "", remote_player, "client's character")
+    equip_roundtrip("client", "player", "", other_player, "client's character")
 
 
 def scenario_equip_host_npc():
@@ -2316,13 +2316,13 @@ def scenario_repair_equipment_drift():
 # --- Hands: draw, cast, sheathe -------------------------------------------------------------
 
 def copy_drawn(expected):
-    return lambda actors: remote_player(actors) is not None and actors[str(remote_player(actors))].get("weapon_drawn") == expected
+    return lambda actors: other_player(actors) is not None and actors[str(other_player(actors))].get("weapon_drawn") == expected
 
 
 def draw_roundtrip(actor_instance, observer, label):
     """Player readies then sheathes a sword; the other game's copy must follow."""
     give_sword(actor_instance)
-    show(observer, remote_player)
+    show(observer, other_player)
     draw(actor_instance)
     wait_on(observer, f"{label} draws the sword", copy_drawn(True), 5)
     hold()
@@ -2343,7 +2343,7 @@ def copy_sneaking(observer):
     """The observer's copy of the other player: its sneaking flag (what detection reads), or None."""
     select_instance(observer)
     status = read_status() or {}
-    target = remote_player(status.get("actors", {}))
+    target = other_player(status.get("actors", {}))
     if target is None:
         return None
     return bool((((status.get("world") or {}).get(str(target)) or {}).get("state") or {}).get("sneaking"))
@@ -2361,7 +2361,7 @@ def sneak_roundtrip(actor_instance, observer, label):
     Actor::Update, which decides whether its actor should sneak (package, combat, teammate rules) and
     toggles it if not: on a copy that toggle is an action our PerformAction hook refuses, so it keeps
     its owner's state (docs/re/systems/actor-ai-and-copies.md, "Actor::Update")."""
-    show(observer, remote_player)
+    show(observer, other_player)
     sneak(actor_instance, True)
     wait_for(f"[{observer or 'host'}] {label} sneaks", lambda: copy_sneaking(observer) is True, 5)
     # Held for a while: Actor::Update runs every frame on the copy.
@@ -2387,8 +2387,8 @@ def sit_state(instance, form_id):
 def furniture_roundtrip(actor_instance, observer, label):
     """The player gets into furniture and out again; the other game's copy must follow both ways by
     replay, while loaded (a copy spawned later starts in its owner's graph state instead)."""
-    show(observer, remote_player)
-    copy = remote_player(actors_on(observer))
+    show(observer, other_player)
+    copy = other_player(actors_on(observer))
     console_on(actor_instance, f"player.moveto {COOKING_SPIT:08X}")
     wait_for(f"[{actor_instance or 'host'}] player is at the cooking spit", lambda: sit_state(actor_instance, 0x14) == IN_FURNITURE, 5)
     wait_for(f"[{observer or 'host'}] {label} is at the cooking spit", lambda: sit_state(observer, copy) == IN_FURNITURE, 5)
@@ -2396,7 +2396,7 @@ def furniture_roundtrip(actor_instance, observer, label):
     activate_on(actor_instance, COOKING_SPIT)
     wait_for(f"[{actor_instance or 'host'}] player leaves it", lambda: sit_state(actor_instance, 0x14) == 0, 5)
     wait_for(f"[{observer or 'host'}] {label} leaves it", lambda: sit_state(observer, copy) == 0, 5)
-    if remote_player(actors_on(observer)) != copy:
+    if other_player(actors_on(observer)) != copy:
         raise TestFailure(f"{label} was respawned on the way: the state was not replayed")
 
 
@@ -2427,7 +2427,7 @@ def scenario_draw_client_player():
 
 def copy_casting(spell, expected):
     def check(actors):
-        target = remote_player(actors)
+        target = other_player(actors)
         return target is not None and (actors[str(target)]["casting"][RIGHT_HAND] == spell) == expected
     return check
 
@@ -2436,7 +2436,7 @@ def cast_roundtrip(actor_instance, observer, label):
     """Player casts Flames (a held stream) by holding the attack button, and lets go; the other
     game's copy must cast, then stop."""
     give_spell(actor_instance, FLAMES)
-    show(observer, remote_player)
+    show(observer, other_player)
     draw(actor_instance)
     cast_spell(actor_instance, None, FLAMES)
     try:
@@ -2531,12 +2531,12 @@ def health_roundtrip(actor_instance, ref, real_health, observer, observed, label
 
 def scenario_health_host_player():
     """Host player loses/regains health; the client's copy of the host must match."""
-    health_roundtrip("", "player", lambda: local_player("").get("health"), "client", remote_player, "host's character")
+    health_roundtrip("", "player", lambda: local_player("").get("health"), "client", other_player, "host's character")
 
 
 def scenario_health_client_player():
     """Client player loses/regains health; the host's copy of the client must match."""
-    health_roundtrip("client", "player", lambda: local_player("client").get("health"), "", remote_player,
+    health_roundtrip("client", "player", lambda: local_player("client").get("health"), "", other_player,
                      "client's character")
 
 
@@ -2620,7 +2620,7 @@ def scenario_client_angers_host_ally():
     """Client keeps hitting an ally NPC of the host with Firebolts: after the friendly-hit tolerance
     it fights the client."""
     npc, _, copy = spawn_host_npc(LYDIA)
-    client_on_host = remote_player(actors_on(""))
+    client_on_host = other_player(actors_on(""))
     with GodMode():
         console_on("", f"{npc:08X}.setav health 3000")
         give_spell("client", FIREBOLT)
@@ -2640,7 +2640,7 @@ def scenario_client_angers_host_ally():
 
 def kill_credit(weapon):
     npc, _, copy = spawn_host_npc(WOLF, restrained=True)
-    client_on_host = remote_player(actors_on(""))
+    client_on_host = other_player(actors_on(""))
     dead = lambda: host_world(npc).get("state", {}).get("dead")
     # In front of its head, as a player would face it (its heading: 0 north, clockwise).
     front = math.degrees(actors_on("client")[str(copy)]["rotation"][2])
@@ -2692,7 +2692,7 @@ def scenario_host_kill_move():
     copy play it as one pair (the engine pairs them, laid out as on the host), a moment later and at the
     same pace, and the wolf dies with its owner. Leaves an animation trace (timeline, side-by-side frames)."""
     npc, _, copy = spawn_host_npc(WOLF, restrained=True)
-    host_on_client = remote_player(actors_on("client"))
+    host_on_client = other_player(actors_on("client"))
     trace = AnimTrace("host-kill-move", {"": {npc: "wolf", 0x14: "player"},
                                          "client": {copy: "wolf", host_on_client: "player", 0x14: "watcher"}})
     with GodMode():
@@ -2775,7 +2775,7 @@ def scenario_client_kill_move():
     wolf play it as one pair, a moment later and at the same pace, and the host records the client's character as
     the killer. The wolf's copy on the client dies with its owner. Leaves an animation trace."""
     npc, _, copy = spawn_host_npc(WOLF, restrained=True)
-    client_on_host = remote_player(actors_on(""))
+    client_on_host = other_player(actors_on(""))
     trace = AnimTrace("client-kill-move", {"": {npc: "wolf", client_on_host: "player", 0x14: "watcher"},
                                            "client": {copy: "wolf", 0x14: "player"}})
     with GodMode():
@@ -3484,7 +3484,7 @@ def check_baseline():
         if npcs := owned_npcs(name):
             problems.append(f"{game}: still owns NPCs {[f'{n:08X}' for n in npcs]}")
         actors = actors_on(name)
-        if remote_player(actors) is None:
+        if other_player(actors) is None:
             problems.append(f"{game}: does not show the other player")
         if copies := remote_npcs(actors):
             problems.append(f"{game}: still shows NPC copies {[f'{n:08X}' for n in copies]}")
@@ -3694,13 +3694,13 @@ def status_table():
 
     host_player = host.get("player") or {}
     client_player = client.get("player") or {}
-    host_on_client = (client.get("actors") or {}).get(str(remote_player(client.get("actors") or {})))
-    client_on_host = (host.get("actors") or {}).get(str(remote_player(host.get("actors") or {})))
+    host_on_client = (client.get("actors") or {}).get(str(other_player(client.get("actors") or {})))
+    client_on_host = (host.get("actors") or {}).get(str(other_player(host.get("actors") or {})))
     rows.append(("host's character", describe(host_player), describe(host_on_client)))
     rows.append(("client's character", describe(client_on_host), describe(client_player)))
     # Pair each host NPC with the client copy linked to the same server actor; anything left
     # unpaired on either side is a desync (a copy the host no longer has, or a missing copy).
-    copies = {v.get("server_id"): v for v in (client.get("actors") or {}).values() if not v.get("remote_player")}
+    copies = {v.get("server_id"): v for v in (client.get("actors") or {}).values() if not v.get("other_player")}
     for npc, owned in sorted((host_player.get("local_actors") or {}).items()):
         copy = copies.pop(owned.get("server_id"), None)
         gap = f"  {distance(owned['position'], copy['actual']):.0f} apart" if copy and owned.get("position") else ""

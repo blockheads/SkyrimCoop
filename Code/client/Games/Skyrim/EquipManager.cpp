@@ -150,7 +150,7 @@ void* TP_MAKE_THISCALL(EquipHook, EquipManager, Actor* apActor, TESForm* apItem,
         return nullptr;
 
     const auto pExtension = apActor->GetExtension();
-    if (pExtension->IsRemote())
+    if (pExtension->IsCopy())
     {
         spdlog::debug("Actor[{:X}]::Equip(), item form id: {:X}", apActor->formID, apItem->formID);
         if (!ScopedEquipOverride::IsOverriden())
@@ -183,7 +183,7 @@ void* TP_MAKE_THISCALL(UnEquipHook, EquipManager, Actor* apActor, TESForm* apIte
         return nullptr;
 
     const auto pExtension = apActor->GetExtension();
-    if (pExtension->IsRemote())
+    if (pExtension->IsCopy())
     {
         spdlog::debug("Actor[{:X}]::Unequip(), item form id: {:X}, IsOverridden, equip: {}, inventory: {}", apActor->formID, apItem->formID, ScopedEquipOverride::IsOverriden(), ScopedInventoryOverride::IsOverriden());
         // The ScopedInventoryOverride check is here to allow the item to be unequipped if it is removed
@@ -216,7 +216,7 @@ void* TP_MAKE_THISCALL(EquipSpellHook, EquipManager, Actor* apActor, TESForm* ap
         return nullptr;
 
     const auto pExtension = apActor->GetExtension();
-    if (pExtension->IsRemote() && !ScopedEquipOverride::IsOverriden())
+    if (pExtension->IsCopy() && !ScopedEquipOverride::IsOverriden())
         return nullptr;
 
     if (pExtension->IsLocal() && !apData->bQueueEquip)
@@ -241,7 +241,7 @@ void* TP_MAKE_THISCALL(UnEquipSpellHook, EquipManager, Actor* apActor, TESForm* 
         return nullptr;
 
     const auto pExtension = apActor->GetExtension();
-    if (pExtension->IsRemote() && !ScopedEquipOverride::IsOverriden())
+    if (pExtension->IsCopy() && !ScopedEquipOverride::IsOverriden())
         return nullptr;
 
     if (pExtension->IsLocal() && !ScopedUnequipOverride::IsOverriden() && !apData->bQueueEquip)
@@ -265,7 +265,7 @@ void* TP_MAKE_THISCALL(EquipShoutHook, EquipManager, Actor* apActor, TESForm* ap
         return nullptr;
 
     const auto pExtension = apActor->GetExtension();
-    if (pExtension->IsRemote() && !ScopedEquipOverride::IsOverriden())
+    if (pExtension->IsCopy() && !ScopedEquipOverride::IsOverriden())
         return nullptr;
 
     // TODO: queue check?
@@ -290,7 +290,7 @@ void* TP_MAKE_THISCALL(UnEquipShoutHook, EquipManager, Actor* apActor, TESForm* 
         return nullptr;
 
     const auto pExtension = apActor->GetExtension();
-    if (pExtension->IsRemote() && !ScopedEquipOverride::IsOverriden())
+    if (pExtension->IsCopy() && !ScopedEquipOverride::IsOverriden())
         return nullptr;
 
     // TODO: queue check?

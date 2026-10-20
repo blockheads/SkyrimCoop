@@ -27,7 +27,7 @@ void TP_MAKE_THISCALL(HookSpellCast, ActorMagicCaster, bool abSuccess, int32_t a
     if (!abSuccess)
         return;
 
-    if (apThis->pCasterActor->GetExtension()->IsRemote())
+    if (apThis->pCasterActor->GetExtension()->IsCopy())
         return;
 
     uint32_t targetFormId = 0;
@@ -68,7 +68,7 @@ void TP_MAKE_THISCALL(HookInterruptCast, ActorMagicCaster, bool abRefund)
 // (docs/re/systems/actor-ai-and-copies.md, "A copy's casts").
 static void MarkCopyCastFree(ActorMagicCaster* apCaster) noexcept
 {
-    if (apCaster->pCasterActor && apCaster->pCasterActor->GetExtension()->IsRemote())
+    if (apCaster->pCasterActor && apCaster->pCasterActor->GetExtension()->IsCopy())
         apCaster->uiFlags |= ActorMagicCaster::kSkipCheckCast;
 }
 

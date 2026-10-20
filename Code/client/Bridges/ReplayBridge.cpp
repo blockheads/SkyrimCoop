@@ -146,13 +146,13 @@ bool ReplayBridge::IsActorDead(uint32_t aFormId) const noexcept
 }
 bool ReplayBridge::IsPlayerSummon(uint32_t aFormId) const noexcept { return false; }
 bool ReplayBridge::IsTemporaryActor(uint32_t aFormId) const noexcept { return false; }
-bool ReplayBridge::IsRemotePlayer(uint32_t aFormId) const noexcept
+bool ReplayBridge::IsOtherPlayer(uint32_t aFormId) const noexcept
 {
-    auto r = NextResponse("IsRemotePlayer");
+    auto r = NextResponse("IsOtherPlayer");
     if (r.contains("result")) return r["result"].get<bool>();
     return false;
 }
-void ReplayBridge::SetActorRemote(uint32_t, bool) noexcept {}
+void ReplayBridge::SetActorCopy(uint32_t, bool) noexcept {}
 void ReplayBridge::SetActorPlayer(uint32_t, bool) noexcept {}
 uint32_t ReplayBridge::GetCommandingActor(uint32_t) const noexcept { return 0; }
 void ReplayBridge::KillActor(uint32_t) noexcept {}
@@ -204,7 +204,7 @@ std::string ReplayBridge::GetActorBaseName(uint32_t) const noexcept { return {};
 uint32_t ReplayBridge::GetActorRaceFormId(uint32_t) const noexcept { return 0; }
 bool ReplayBridge::ActorHas3D(uint32_t) const noexcept { return false; }
 std::vector<uint32_t> ReplayBridge::GetLoadedActorFormIds() const noexcept { return {}; }
-bool ReplayBridge::IsActorRemote(uint32_t) const noexcept { return false; }
+bool ReplayBridge::IsActorCopy(uint32_t) const noexcept { return false; }
 // --- IActorBridge extended (Plan 03) ---
 ActorValues ReplayBridge::GetActorEssentialValues(uint32_t) const noexcept { return {}; }
 void ReplayBridge::SetActorValues(uint32_t, const ActorValues&) noexcept {}

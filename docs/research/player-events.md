@@ -327,7 +327,7 @@ Trigger scripts checking the player: 432, placed 4,797 times.
   `FXCameraAttachScript` (830), a camera effect while the player stands in a volume.
 - Fire once: 192 scripts, 1,895 placements.
 
-Decision from it: `docs/design/party-model.md`, "A client's actions on the host: the simple version".
+Decision from it: `docs/design/party-model.md`, "A guest's actions on the host: the simple version".
 
 Drivers: `scripts/spikes/player_events.py` (`activator`, `trigger`, `tile`, `probe`, `story`), against a
 running duo with a test build.

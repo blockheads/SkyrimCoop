@@ -39,7 +39,7 @@ void TP_MAKE_THISCALL(HookShowSubtitle, SubtitleManager, TESObjectREFR* apSpeake
     if (apSubtitleText && pActor && pActor->GetExtension()->IsLocal() && !pActor->GetExtension()->IsPlayer())
         World::Get().GetRunner().Trigger(SubtitleEvent(apSpeaker->formID, apSubtitleText, aForceDisplay));
     // A copy shows only its owner's subtitles (NotifySubtitle calls past this hook).
-    if (pActor && pActor->GetExtension()->IsRemote())
+    if (pActor && pActor->GetExtension()->IsCopy())
         return;
 
     TiltedPhoques::ThisCall(RealShowSubtitle, apThis, apSpeaker, apSubtitleText, aForceDisplay);

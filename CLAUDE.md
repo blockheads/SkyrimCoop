@@ -376,6 +376,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 - **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
+- **Use the glossary's words** (`docs/design/glossary.md`): host and guest for the games, owner, local and copy for actors, player for a person in the party. New code and docs never say client, peer or remote player for a guest or a copy.
 
 ## Technology Stack
 

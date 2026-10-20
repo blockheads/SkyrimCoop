@@ -33,7 +33,7 @@ def elapsed(seconds):
 
 def copy_on_host():
     c.select_instance("")
-    return next(iter(c.remote_players()))
+    return next(iter(c.other_players()))
 
 
 def context(on):

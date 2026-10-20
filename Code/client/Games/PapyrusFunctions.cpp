@@ -14,7 +14,7 @@ bool IsRemotePlayer(Actor* apActor)
     if (!pExtension)
         return false;
 
-    return pExtension->IsRemotePlayer();
+    return pExtension->IsOtherPlayer();
 }
 
 bool IsPlayer(Actor* apActor)

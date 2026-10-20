@@ -86,7 +86,7 @@ void EffectVisualsService::SendOwnedEffects() noexcept
 void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept
 {
     const uint32_t cFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
-    if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorRemote(cFormId))
+    if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
         return;
 
     auto& modSystem = m_world.GetModSystem();

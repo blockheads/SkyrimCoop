@@ -347,7 +347,7 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
     }
 
     // Only the owner applies effects; a copy shows the owner's result.
-    if (m_actorBridge.IsActorRemote(cTargetFormId))
+    if (m_actorBridge.IsActorCopy(cTargetFormId))
     {
         spdlog::warn("{}: effect for a copy ({:X}) ignored", __FUNCTION__, cTargetFormId);
         return;

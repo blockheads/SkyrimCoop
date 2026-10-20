@@ -5,7 +5,7 @@ build on it (shared dialogue, quests, the shared purse, cutscenes) refer here.
 
 Skyrim and every mod are written for one player: scripts hold a bound `PlayerRef` and compare against it,
 conditions test "the player". Patching scripts one by one never scales to mods. Instead the host's script
-engine is taught, once, that every party member is the player (below: "A client's actions on the host");
+engine is taught, once, that every party member is the player (below: "A guest's actions on the host");
 no script or mod is patched.
 
 **The party is the Dragonborn.** The host's player is the party's one avatar in the engine. In the user's
@@ -48,7 +48,7 @@ skills and perks earned by using them.
   (location changes, crafting) are raised on the host for the copy.
 - **Characters live on the host** (`join-flow.md`, host-stored characters). Leaving is disconnecting.
 
-## A client's actions on the host (decided 2026-10-19)
+## A guest's actions on the host (decided 2026-10-19)
 
 Generic: rules in the host's script engine and story manager, never per script or per mod. Evidence and
 numbers: `docs/research/player-events.md` (spikes, "Script scan").

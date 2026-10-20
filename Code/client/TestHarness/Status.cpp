@@ -229,8 +229,8 @@ static nlohmann::json WorldSnapshot()
     for (const uint32_t cFormId : ids)
     {
         auto snapshot = Snapshot(cFormId);
-        snapshot["role"] = actors.IsActorRemote(cFormId) ? "copy" : "own";
-        snapshot["player"] = cFormId == 0x14 || actors.IsRemotePlayer(cFormId);
+        snapshot["role"] = actors.IsActorCopy(cFormId) ? "copy" : "own";
+        snapshot["player"] = cFormId == 0x14 || actors.IsOtherPlayer(cFormId);
         result[std::to_string(cFormId)] = std::move(snapshot);
     }
     return result;
@@ -242,7 +242,7 @@ static nlohmann::json LocalActors()
     auto& actors = World::Get().GetActorBridge();
     auto result = nlohmann::json::object();
     for (const uint32_t cFormId : actors.GetLoadedActorFormIds())
-        if (!actors.IsActorRemote(cFormId))
+        if (!actors.IsActorCopy(cFormId))
         {
             float position[3]{};
             actors.GetActorPosition(cFormId, position[0], position[1], position[2]);
@@ -344,7 +344,7 @@ static nlohmann::json Copies()
             {"actual", {position[0], position[1], position[2]}},
             {"equipped", EquippedItems(cFormId)},
             {"rotation", ActorRotation(cFormId)},
-            {"remote_player", actors.IsRemotePlayer(cFormId)},
+            {"other_player", actors.IsOtherPlayer(cFormId)},
             {"weapon_drawn", actors.IsWeaponDrawn(cFormId)},
             {"casting", CastingSpells(cFormId)},
             {"health", actors.GetActorValue(cFormId, 24 /* kHealth */)},

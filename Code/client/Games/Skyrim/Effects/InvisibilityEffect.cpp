@@ -15,7 +15,7 @@ void TP_MAKE_THISCALL(HookFinish, InvisibilityEffect)
     {
         if (Actor* pActor = apThis->pTarget->GetTargetAsActor())
         {
-            if (pActor->GetExtension()->IsRemote())
+            if (pActor->GetExtension()->IsCopy())
                 pActor->SetActorValue(ActorValueInfo::kInvisibility, 0.f);
         }
     }

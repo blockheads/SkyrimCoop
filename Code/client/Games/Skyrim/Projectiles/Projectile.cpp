@@ -59,7 +59,7 @@ BSPointerHandle<Projectile>* TP_MAKE_THISCALL(HookLaunch, BSPointerHandle<Projec
         if (pActor)
         {
             ActorExtension* pExtendedActor = pActor->GetExtension();
-            if (pExtendedActor->IsRemote())
+            if (pExtendedActor->IsCopy())
             {
                 apThis->handle.iBits = 0;
                 return apThis;

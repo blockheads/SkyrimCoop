@@ -244,7 +244,7 @@ uint32_t ArgumentCopy(Frame* apBottom)
         auto* pVariable = apBottom->pParent->GetStackFrameVariable(pFrame, i, cPage);
         auto* pObject = pVariable ? pVariable->GetObject() : nullptr;
         auto* pActor = pObject ? Cast<Actor>(TESForm::GetById(FormIdOf(pObject->GetHandle()))) : nullptr;
-        if (pActor && pActor->GetExtension() && pActor->GetExtension()->IsRemotePlayer())
+        if (pActor && pActor->GetExtension() && pActor->GetExtension()->IsOtherPlayer())
             return pActor->formID;
     }
     return 0;

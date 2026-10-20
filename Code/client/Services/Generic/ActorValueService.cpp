@@ -130,7 +130,7 @@ void ActorValueService::BroadcastActorValues() noexcept
         RequestActorMaxValueChanges requestMaxValueChanges;
         requestMaxValueChanges.Id = localComponent.Id;
 
-        const bool isPlayer = m_actorBridge.IsRemotePlayer(formId);
+        const bool isPlayer = m_actorBridge.IsOtherPlayer(formId);
 
         const int32_t cCount = m_actorBridge.GetActorValueCount();
         for (int i = 0; i < cCount; i++)
@@ -355,7 +355,7 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     }
 
     // The server only forwards hits to the actor's owner; never apply one to a copy.
-    if (m_actorBridge.IsActorRemote(formId))
+    if (m_actorBridge.IsActorCopy(formId))
         return;
 
     const uint32_t cAttackerFormId = acMessage.HasAttacker ? Utils::GetFormIdByServerId(acMessage.AttackerId) : 0;
@@ -458,8 +458,8 @@ void ActorValueService::ApplyPendingDeathStates() noexcept
     {
         const uint32_t cFormId = Utils::GetFormIdByServerId(cServerId);
         // Gone, not a copy, or a player (players are never killed): nothing to apply.
-        if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorRemote(cFormId) ||
-            m_actorBridge.IsRemotePlayer(cFormId) || m_actorBridge.IsActorDead(cFormId) == cIsDead)
+        if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId) ||
+            m_actorBridge.IsOtherPlayer(cFormId) || m_actorBridge.IsActorDead(cFormId) == cIsDead)
         {
             done.push_back(cServerId);
             continue;

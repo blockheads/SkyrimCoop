@@ -2,14 +2,14 @@
 
 #include <Games/ActorExtension.h>
 
-bool ActorExtension::IsRemote() const noexcept
+bool ActorExtension::IsCopy() const noexcept
 {
-    return onlineFlags & kRemote;
+    return onlineFlags & kCopy;
 }
 
 bool ActorExtension::IsLocal() const noexcept
 {
-    return !IsRemote();
+    return !IsCopy();
 }
 
 bool ActorExtension::IsPlayer() const noexcept
@@ -17,9 +17,9 @@ bool ActorExtension::IsPlayer() const noexcept
     return onlineFlags & kPlayer;
 }
 
-bool ActorExtension::IsRemotePlayer() const noexcept
+bool ActorExtension::IsOtherPlayer() const noexcept
 {
-    return IsRemote() && IsPlayer();
+    return IsCopy() && IsPlayer();
 }
 
 bool ActorExtension::IsLocalPlayer() const noexcept
@@ -27,12 +27,12 @@ bool ActorExtension::IsLocalPlayer() const noexcept
     return IsLocal() && IsPlayer();
 }
 
-void ActorExtension::SetRemote(bool aSet) noexcept
+void ActorExtension::SetCopy(bool aSet) noexcept
 {
     if (aSet)
-        onlineFlags |= kRemote;
+        onlineFlags |= kCopy;
     else
-        onlineFlags &= ~kRemote;
+        onlineFlags &= ~kCopy;
 }
 
 void ActorExtension::SetPlayer(bool aSet) noexcept

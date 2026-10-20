@@ -254,7 +254,7 @@ void InventoryService::RunEquipmentSnapshots() noexcept
 void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept
 {
     const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
-    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId) || !m_actorBridge.IsActorRemote(cActorFormId))
+    if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId) || !m_actorBridge.IsActorCopy(cActorFormId))
         return;
 
     constexpr uint32_t cRightHandSlot = 0x13F42;
@@ -392,7 +392,7 @@ void InventoryService::RunNakedNPCBugChecks() noexcept
         if (!m_actorBridge.ActorExists(formId))
             continue;
 
-        if (m_actorBridge.IsRemotePlayer(formId))
+        if (m_actorBridge.IsOtherPlayer(formId))
             continue;
 
         if (m_actorBridge.IsActorDead(formId))

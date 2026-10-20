@@ -125,8 +125,8 @@ void DebugService::DisplayFormComponent(FormIdComponent& aFormComponent) const n
     ImGui::InputFloat3("Rotation", pActor->rotation.AsArray(), "%.3f", ImGuiInputTextFlags_ReadOnly);
     int isDead = int(pActor->IsDead());
     ImGui::InputScalar("Is dead?", ImGuiDataType_U8, &isDead, 0, 0, "%" PRIx8, ImGuiInputTextFlags_ReadOnly);
-    int isRemote = int(pActor->GetExtension()->IsRemote());
-    ImGui::InputScalar("Is remote?", ImGuiDataType_U8, &isRemote, 0, 0, "%" PRIx8, ImGuiInputTextFlags_ReadOnly);
+    int isCopy = int(pActor->GetExtension()->IsCopy());
+    ImGui::InputScalar("Is copy?", ImGuiDataType_U8, &isCopy, 0, 0, "%" PRIx8, ImGuiInputTextFlags_ReadOnly);
     auto handle = pActor->GetHandle();
     ImGui::InputInt("Handle", (int*)&handle.handle.iBits, 0, 0, ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_CharsHexadecimal);
     auto owner = pActor->GetCommandingActor();

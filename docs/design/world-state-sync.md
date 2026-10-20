@@ -124,7 +124,7 @@ client's player does that the world reacts to, and where each stands:
 Each row gets a scenario: the client does it, and the host's quest, script or world state reacts, then
 the client's from the host.
 
-How (decided 2026-10-19, `docs/design/party-model.md`, "A client's actions on the host"): the client's
+How (decided 2026-10-19, `docs/design/party-model.md`, "A guest's actions on the host"): the client's
 copy acts on the host, and the host's script engine treats every party member's copy as the player, with
 "the player" being the member whose action started the script. No per-script or per-mod patches.
 
@@ -171,5 +171,5 @@ client's action in the world can happen twice.
 - `docs/design/copy-contract.md`: actors (copies) are handled by the copy contract, not by this.
 - `Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp`: the same technique for animation graphs.
 - Scripts checking `== Game.GetPlayer()`: handled on the host by the party model's rules
-  (`docs/design/party-model.md`, "A client's actions on the host"); the `SkyrimTogetherUtils.IsPlayer`
+  (`docs/design/party-model.md`, "A guest's actions on the host"); the `SkyrimTogetherUtils.IsPlayer`
   patches in `SkyrimTogether.esp` (copy-contract.md, "deliberate exceptions") predate them.

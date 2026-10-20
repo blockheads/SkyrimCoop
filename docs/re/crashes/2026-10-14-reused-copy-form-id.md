@@ -19,7 +19,7 @@ line on its copy of the client's character, whose form id the engine had given t
 
 ## Fix
 
-- A copy is the actor at its form id only while it is flagged a copy (`IsActorRemote`): `RunPresence`
+- A copy is the actor at its form id only while it is flagged a copy (`IsActorCopy`): `RunPresence`
   checks every frame and drops or respawns a copy that is gone; `CancelServerAssignment` deletes or
   un-flags only a copy. The form allocation hook (`HookFormAllocate`, Memory.cpp) gives every new actor a fresh extension, so a
   reused form id never reads as a copy.
