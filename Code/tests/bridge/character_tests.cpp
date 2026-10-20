@@ -122,6 +122,40 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     CHECK(cSpawns[0]->Position == movement.Updates[cPeerPlayer].UpdatedMovement.Position);
 }
 
+TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn, else the host's copy's", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Copies[cPeerPlayer] = glm::vec3(1.f, 2.f, 3.f);
+    // The host drops its copy before it asks (CharacterService::RespawnCopy).
+    const auto cRespawnAgain = [&] {
+        session.Copies.erase(cPeerPlayer);
+        session.Outbox.clear();
+        RequestRespawn again;
+        again.ActorId = cPeerPlayer;
+        session.Receive(kHost, again);
+        const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kHost);
+        REQUIRE(cSpawns.size() == 1);
+        return *cSpawns[0];
+    };
+
+    RequestRespawn respawn;
+    respawn.ActorId = cPeerPlayer;
+    session.Receive(kPeer, respawn);
+    CHECK(cRespawnAgain().Position == glm::vec3(1.f, 2.f, 3.f));
+
+    // A beast form: the owner's new graph and its values come along.
+    respawn.HasState = true;
+    respawn.GraphState = "werewolf graph";
+    respawn.LatestAction.EventName = "IdleWerewolfTransformation";
+    respawn.Data.InitialActorValues.ActorMaxValuesList[24] = 5000.f;
+    session.Receive(kPeer, respawn);
+    const auto cSpawn = cRespawnAgain();
+    CHECK(cSpawn.GraphState == "werewolf graph");
+    CHECK(cSpawn.LatestAction.EventName == "IdleWerewolfTransformation");
+    CHECK(cSpawn.InitialActorValues.ActorMaxValuesList.at(24) == 5000.f);
+}
+
 TEST_CASE("Respawn: a peer that lost the host's first character gets it again", "[Bridge][Characters]")
 {
     Session session;

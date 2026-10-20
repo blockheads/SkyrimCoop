@@ -10,7 +10,10 @@ Engine side of `docs/design/party-model.md`, "A guest's actions on the host", ru
 | 105220 | `Internal::CodeTasklet` value comparison (CMP_EQ and the others call it) | `HookCompare` | `this` is the running tasklet (`+0x10` its stack). Objects compare by handle: two `Object`s with one handle are equal. On the host, the player (0x14) against a remote player's copy returns 0 (equal), whatever names the player: `Game.GetPlayer()`, a `PlayerREF` property, a variable that stored it. |
 
 Upstream had this hook (`b87e5820`, `HookCompareVariables`) and dropped it for beast form: the check passed
-for the copy, then `Game.GetPlayer()` handed the effect to the host's player. Rule 2 is what fixes that.
+for the copy, then `Game.GetPlayer()` handed the effect to the host's player. That path no longer exists:
+the target's owner applies spell effects (`docs/design/copy-contract.md`), so the change effect's script runs
+on the guest's game only and the host never sees `Target == Game.GetPlayer()` for a copy
+(`client-beast-form-stays-client`, 2026-10-20; below).
 
 ## Rule 2: Game.GetPlayer() is the guest whose action started the script
 
@@ -52,6 +55,7 @@ Unpatched vanilla scripts, the client acting on its own game; checked on the hos
 | `shrine-blesses-client` | Solitude temple shrines (`TempleBlessingScript`: casts on the activator, messages when it is the player) | 1 | each player gets only their own shrine's blessing on every game, though each game sees the other's character pray |
 | `vilkas-counts-client-hits` | The Companions' trial (`C00TrainerScript` on Vilkas's alias: hits by `Game.GetPlayer()` count, anyone else's end the trial; stage 150 gives his sword to `Game.GetPlayer()`) | 1, and 2 through `SetStage` | three hits pass the trial (stage 150, not 110), and the sword does not go to the host's player |
 | `statue-fires-at-client` | Soljund's Sinkhole boss trigger (`dunSoljundsBossSCRIPT`): `RegisterForSingleUpdate`, every seventh `OnUpdate` the statue casts Firebolt at `game.getPlayer()` | 1, and 2 through `RegisterForSingleUpdate` | the statue's fire (`FireFXShader`) lands on the client's character; the client's own statue is disabled for the test, so the fire is the host's |
+| `client-beast-form-stays-client` | Beast Form (`WerewolfChangeEffectScript`: `Target == Game.GetPlayer()` starts `PlayerWerewolfQuest`, whose `SetRace` changes `Game.GetPlayer()`), upstream's reason for dropping rule 1 | none: the effect is the guest's | the guest changes and changes back, the host shows its copy do the same (respawned for each race), the host's player keeps its race and the host's `PlayerWerewolfQuest` never runs |
 
 The ring, keyhole, shrine and trial scripts are the ones upstream shipped patched copies of (`SkyrimTogetherUtils.IsPlayer`,
 `IsRemotePlayer`, the trial's player checks commented out); the patches and the natives are gone, and these
@@ -76,3 +80,42 @@ Found while writing them:
   (`BGSOpenCloseForm::SetOpenState`, 14287) puts a door back in one game.
 - The copy took Red Eagle's sword into its hand when it got one on the host, while its player held another
   sword: the next baseline check found the copy's hands differing from its player's (not followed up).
+
+### Beast form (2026-10-20)
+
+The chain on the guest's game, as `client-beast-form-stays-client` waits on it (harness `engine_events`):
+
+```
+Shout key (a power fires on release) → spell_cast 92C48 Beast Form
+  → magic_effect_apply 92C45 → WerewolfChangeEffectScript.OnEffectStart
+       Target == Game.GetPlayer() → PlayerWerewolfQuest.Start()   (2BA16; stage 0 PrepShift: controls, UI)
+       VFXSpell.Cast(Target)      → magic_effect_apply F8209 → WerewolfTransformVisual.OnEffectStart
+            PlayIdle IdleWerewolfTransformation (2A59D), then on its "SetRace" graph event
+            or after Utility.Wait(10): SetStage(1) → InitialShift → SetRace(WerewolfBeastRace CDD84)
+  setstage 100 → ShiftBack: SetRace(C00's PlayerOriginalRace), Wait(5), Shutdown → SetBeastForm(false)
+```
+
+- The first change of a Companions member is the rampage's: `CompanionsHousekeepingScript.PlayerIsWerewolfVirgin`
+  (C00, 0x4B2D9) makes the effect only clear the flag. It is false unless the Companions setup ran; the
+  scenario sets it with harness `script_var` (console `setpqv` is not needed, and `player.cast` casts nothing
+  in this setup: no engine event at all).
+- `WerewolfTransformVisual` waits out its 10 seconds whatever happens: changed back before that, it calls
+  `SetStage(1)`, which starts the quest again and changes the player again. The scenario changes back only
+  once no stack runs that script (harness `script_stacks`).
+- The guest respawns its copies on each race (`CharacterService::OnBeastFormChange`: entering by the race
+  poll, leaving by the `SetBeastForm(false)` hook). The respawn carries the owner's state now
+  (`RequestRespawn::HasState`: latest action, graph state, values, inventory): the host rebuilt the new copy
+  from the record of its last cell entry before (its magicka from before the harness's `setav`), and the
+  host's copy, read for it, is already gone when the host asks (`CharacterService::RespawnCopy`).
+
+### Harness readouts for scripts
+
+| Command | What it reads | Engine |
+|---|---|---|
+| `script_state` | a script's state on a form | `FindBoundObject` (VM vfunc 0x1C), `Object::currentState` `+0x10` |
+| `script_var` | a script variable, or an auto property's `::<Name>_var`; sets an int, float or bool | `Object::type` `+0x08`, variables after the object (`+0x30`), the type's `VariableInfo` list after its user flags in `data` (`+0x30`), a parent's variables first (CommonLibSSE-NG `Object::GetVariable`) |
+| `script_stacks` | every running stack (running, in a latent wait, queued) as its frames' `Script.Function` | `Internal::VirtualMachine::allRunningStacks` `+0x9320` under `runningStacksLock` `+0x9318`; `Stack::top` `+0x60`, `StackFrame::previous` `+0x08`, `owningFunction` `+0x10` |
+| `engine_events` | the script events (spell cast, magic effect apply, effect start/finish, quest start/stop, equip), numbered | `EventDispatcherManager` sinks (14298) |
+
+`script_stacks` reads frames another thread may be changing; it runs where harness commands run (the game
+thread, outside the VM's update), where the VM leaves its stacks alone.

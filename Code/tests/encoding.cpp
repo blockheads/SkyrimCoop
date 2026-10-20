@@ -361,6 +361,39 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
+    SECTION("RequestRespawn")
+    {
+        for (const bool cHasState : {false, true})
+        {
+            Buffer buff(1000);
+
+            RequestRespawn sendMessage, recvMessage;
+            sendMessage.ActorId = 7;
+            sendMessage.AppearanceBuffer = "werewolf";
+            sendMessage.ChangeFlags = 0x2000840;
+            sendMessage.HasState = cHasState;
+            if (cHasState)
+            {
+                sendMessage.LatestAction.ActionId = 0x13002;
+                sendMessage.LatestAction.EventName = "IdleWerewolfTransformation";
+                sendMessage.GraphState = "graph";
+                sendMessage.Data.InitialActorValues.ActorMaxValuesList[24] = 5000.f;
+                sendMessage.Data.IsWeaponDrawn = true;
+            }
+            Buffer::Writer writer(&buff);
+            sendMessage.Serialize(writer);
+
+            Buffer::Reader reader(&buff);
+
+            uint64_t trash;
+            reader.ReadBits(trash, 8); // pop opcode
+
+            recvMessage.DeserializeRaw(reader);
+
+            REQUIRE(sendMessage == recvMessage);
+        }
+    }
+
     SECTION("AssignCharacterRequest")
     {
         Buffer buff(1000);

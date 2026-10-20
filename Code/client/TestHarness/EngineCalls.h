@@ -65,14 +65,8 @@ std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
 
 // --- Magic ---
 
-// What the actor has selected (Actor::magicItems, equippedShout): the spell per casting slot (left, right,
-// other, voice) and its power or shout.
-struct SelectedMagic
-{
-    uint32_t Spells[4];
-    uint32_t Power;
-};
-SelectedMagic GetSelectedMagic(uint32_t aFormId) noexcept;
+// The power or shout the actor has selected (Actor::equippedShout), 0 for none.
+uint32_t GetSelectedPower(uint32_t aFormId) noexcept;
 
 // --- Form state (world-state sync) ---
 
@@ -91,6 +85,30 @@ bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& a
 // The state a script on that form is in (Object::currentState; "" is the empty state), as the VM binds it
 // (FindBoundObject, its vfunc 0x1C).
 std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept;
+
+// A script variable's value (an auto property's is "::<Name>_var"). Type is the VM's Variable::Type:
+// 0 none, 1-5 object/string/int/float/bool; an object's is its form (0 for None or an object type's raw value).
+struct ScriptValue
+{
+    uint64_t Type{};
+    int32_t Int{};
+    float Float{};
+    bool Bool{};
+    std::string String;
+    uint32_t Form{};
+};
+std::optional<ScriptValue> GetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable) noexcept;
+// Sets an int, float or bool variable, keeping its type (a scenario's control of a script's flag).
+bool SetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable, double aValue) noexcept;
+
+// The VM's running stacks (allRunningStacks: running, waiting in a latent call like Utility.Wait, or queued),
+// each as its frames' "Script.Function", innermost first. Read on the game thread outside the VM's update.
+struct ScriptStack
+{
+    uint32_t Id{};
+    std::vector<std::string> Frames;
+};
+std::vector<ScriptStack> GetRunningScripts() noexcept;
 
 // --- Inventories ---
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Games/Skyrim/BSCore/BSSpinLock.h>
+#include <Games/Skyrim/BSCore/BSTHashMap.h>
 #include <Misc/BSFixedString.h>
 #include <tuple>
 
@@ -8,15 +10,48 @@ struct Actor;
 struct BSScript
 {
     struct IVirtualMachine;
+    struct Variable;
+
+    // A script's compiled type (CommonLibSSE-NG ObjectTypeInfo.h).
+    struct ObjectTypeInfo
+    {
+        struct VariableInfo
+        {
+            BSFixedString name; // 00
+            uintptr_t type;     // 08
+        };
+
+        // The type's own variables: after its user flags (8 bytes each) in data.
+        const VariableInfo* GetVariables() const noexcept
+        {
+            return reinterpret_cast<const VariableInfo*>(static_cast<const uint8_t*>(data) + userFlagCount * 8);
+        }
+
+        uint8_t unk00[0x8];
+        BSFixedString name;          // 08
+        ObjectTypeInfo* pParent;     // 10 BSTSmartPointer
+        BSFixedString docString;     // 18
+        uint32_t linkedValid : 2;    // 20
+        uint32_t userFlagCount : 6;
+        uint32_t variableCount : 10;
+        uint32_t variableUserFlagCount : 6;
+        uint32_t pad20 : 8;
+        uint8_t unk24[0x30 - 0x24];
+        void* data; // 30
+    };
 
     struct Object
     {
         uint64_t GetHandle();
         uint32_t DecRef() noexcept;
+        // A script variable by name, a parent script's included (CommonLibSSE-NG Object::GetVariable).
+        Variable* GetVariable(const char* acpName) noexcept;
 
         // CommonLibSSE-NG Object.h
-        uint8_t unk00[0x10];
+        uint8_t unk00[0x8];
+        ObjectTypeInfo* pType;      // 08 BSTSmartPointer
         BSFixedString currentState; // 10
+        uint8_t unk18[0x30 - 0x18];
     };
 
     // The form a handle names (a handle's low 32 bits; CommonLibSSE-NG IObjectHandlePolicy).
@@ -252,6 +287,14 @@ struct BSScript
         virtual IObjectHandlePolicy* GetObjectHandlePolicy();
     };
 
+    // Internal::VirtualMachine, the IVirtualMachine behind GameVM (CommonLibSSE-NG VirtualMachine.h): its running stacks.
+    struct VirtualMachine
+    {
+        uint8_t unk0[0x9318];
+        BSSpinLock runningStacksLock;                            // 9318
+        creation::BSTHashMap<uint32_t, Stack*> allRunningStacks; // 9320, BSTSmartPointer values
+    };
+
     struct NativeFunctionBase : IFunction
     {
         BSFixedString& GetName() override;
@@ -378,8 +421,12 @@ template <> void BSScript::Variable::Set(const char* acpValue) noexcept;
 
 static_assert(sizeof(BSScript::Variable) == 0x10);
 static_assert(offsetof(BSScript::Arguments, pData) == 0x8 && offsetof(BSScript::Arguments, size) == 0x18);
-static_assert(offsetof(BSScript::Object, currentState) == 0x10);
+static_assert(offsetof(BSScript::Object, currentState) == 0x10 && offsetof(BSScript::Object, pType) == 0x8 && sizeof(BSScript::Object) == 0x30);
+static_assert(offsetof(BSScript::ObjectTypeInfo, pParent) == 0x10 && offsetof(BSScript::ObjectTypeInfo, data) == 0x30 &&
+              sizeof(BSScript::ObjectTypeInfo) == 0x38 && sizeof(BSScript::ObjectTypeInfo::VariableInfo) == 0x10);
 static_assert(offsetof(BSScript::Stack, pTop) == 0x60 && offsetof(BSScript::Stack, stackId) == 0x80);
 static_assert(offsetof(BSScript::StackFrame, pPrevious) == 0x8 && offsetof(BSScript::StackFrame, pFunction) == 0x10 &&
               offsetof(BSScript::StackFrame, self) == 0x28);
 static_assert(offsetof(BSScript::CodeTasklet, pStack) == 0x10);
+static_assert(offsetof(BSScript::VirtualMachine, runningStacksLock) == 0x9318 && offsetof(BSScript::VirtualMachine, allRunningStacks) == 0x9320 &&
+              sizeof(creation::BSTHashMap<uint32_t, BSScript::Stack*>) == 0x30);

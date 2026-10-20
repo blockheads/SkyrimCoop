@@ -144,11 +144,27 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
         return;
     }
 
-    if (auto& record = it.value().PlayerRecord; record && !acRequest.AppearanceBuffer.empty())
+    if (auto& record = it.value().PlayerRecord)
     {
-        record->AppearanceBuffer = acRequest.AppearanceBuffer;
-        record->ChangeFlags = acRequest.ChangeFlags;
+        // The respawned copies start from the record: the owner's state now, else the host's copy's while it exists.
+        if (acRequest.HasState)
+        {
+            record->LatestAction = acRequest.LatestAction;
+            record->GraphState = acRequest.GraphState;
+            record->InventoryContent = acRequest.Data.InitialInventory;
+            record->InitialActorValues = acRequest.Data.InitialActorValues;
+            record->IsDead = acRequest.Data.IsDead;
+            record->IsWeaponDrawn = acRequest.Data.IsWeaponDrawn;
+        }
+        else
+            m_game.ReadCopy(acRequest.ActorId, *record);
+        if (!acRequest.AppearanceBuffer.empty())
+        {
+            record->AppearanceBuffer = acRequest.AppearanceBuffer;
+            record->ChangeFlags = acRequest.ChangeFlags;
+        }
     }
+    spdlog::info("HostCharacters: {:x} respawns its {}", aSender, acRequest.ActorId);
     NotifyRespawn notify;
     notify.ActorId = acRequest.ActorId;
     m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);

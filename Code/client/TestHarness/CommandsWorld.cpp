@@ -206,6 +206,41 @@ nlohmann::json ScriptState(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"state", *cState}};
 }
 
+// {"cmd": "script_stacks"}: the VM's running stacks, each its frames innermost first ("Script.Function").
+nlohmann::json ScriptStacks(Harness&, const nlohmann::json&)
+{
+    auto stacks = nlohmann::json::array();
+    for (const auto& cStack : EngineCalls::GetRunningScripts())
+        stacks.push_back({{"id", cStack.Id}, {"frames", cStack.Frames}});
+    return {{"ok", true}, {"stacks", stacks}};
+}
+
+// {"cmd": "script_var", "object": id, "script": name, "var": name, "value"?: number}: a script variable or
+// auto property (its "::<Name>_var"), set first when a value is given.
+nlohmann::json ScriptVar(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cObject = acRequest.value("object", 0u);
+    const auto cScript = acRequest.value("script", std::string());
+    auto name = acRequest.value("var", std::string());
+    if (!EngineCalls::GetScriptVariable(cObject, cScript.c_str(), name.c_str()))
+        name = "::" + name + "_var";
+    if (acRequest.contains("value") && !EngineCalls::SetScriptVariable(cObject, cScript.c_str(), name.c_str(), acRequest["value"].get<double>()))
+        return Error("no such int, float or bool variable");
+    const auto cValue = EngineCalls::GetScriptVariable(cObject, cScript.c_str(), name.c_str());
+    if (!cValue)
+        return Error("no such script on that object, or no such variable");
+    nlohmann::json value = nullptr;
+    switch (cValue->Type)
+    {
+    case 2: value = cValue->String; break;
+    case 3: value = cValue->Int; break;
+    case 4: value = cValue->Float; break;
+    case 5: value = cValue->Bool; break;
+    default: value = cValue->Form;
+    }
+    return {{"ok", true}, {"name", name}, {"type", cValue->Type}, {"value", value}};
+}
+
 // {"cmd": "item_count", "object": id, "item": id}: how many of that item the reference holds.
 nlohmann::json ItemCount(Harness&, const nlohmann::json& acRequest)
 {
@@ -284,6 +319,8 @@ constexpr Command cCommands[] = {
     {"engine_events", false, &GetEngineEvents},
     {"form_load", true, &FormLoad},
     {"script_state", true, &ScriptState},
+    {"script_var", true, &ScriptVar},
+    {"script_stacks", true, &ScriptStacks},
     {"item_count", true, &ItemCount},
     {"activate", true, &Activate},
     {"lock", true, &Lock},

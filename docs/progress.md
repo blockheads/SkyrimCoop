@@ -132,6 +132,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Kill moves | works, both ways, with kill credit | `host-kill-move`, `client-kill-move` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
+| Beast form (a guest's werewolf change) | works: the guest's game runs it (owner-applied effect), its copies respawn for each race from the owner's state; upstream's host-player bug does not occur (2026-10-20) | `client-beast-form-stays-client` |
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
@@ -169,6 +170,14 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Beast form (2026-10-20, `docs/re/systems/papyrus-guest-scripts.md`, "Beast form"): `client-beast-form-stays-client`
+  (3 of 3) shows upstream's beast form bug gone: the change runs on the guest's game only. Fixed on the way:
+  a copy respawned for a race change started from the host's record of its owner's last cell entry (stale
+  values, graph state and action); the owner's respawn now carries its state (`RequestRespawn::HasState`,
+  bridge and encoding tests). Harness: `script_var`, `script_stacks`; `stop` finds games launched from
+  another worktree (resolved prefix paths). Passed with it: `death-host-npc`, `late-join-client`,
+  `hands-survive-reload-client-player`, `steady-state`, `form-state-round-trips`, the `scripts` tag but the
+  two loose ends.
 - Players' copies travel with the party (2026-10-14, `df9af2ff`; `docs/design/copy-contract.md`). A copy
   of another player is persistent and moved with the party, never dropped and spawned again on travel;
   the host sends only its actors on an arrival. Found by a host crash in `party-fast-travels`: a deleted
@@ -477,6 +486,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- `sword-box-asks-client` ("[host] secret door C149D opens") and `keyhole-asks-client` ("[host] the keyhole takes the claw") fail on a fresh duo (2026-10-20), the same with HEAD `4c6b1ac2`'s DLL: broken before the beast form work, not followed up. A failed run leaves the secret door open on the client, so the next run fails at "not closed to begin with" until a fresh duo.
+- The lock-order checker reported two inversions on the guest during a beast form change (2026-10-20, `tp_client-client.log`: the guest's character's reference lock, `SkyrimSE.exe+0x16d4cb > +0x182241` against `+0x182315 > +0x17928d`, one marked ours). Not followed up.
 - `party-fast-travels` fails at the client-led trip (2026-10-20): the client's console `fasttravel` runs and nothing happens, and the step "[client] arrived somewhere new" times out. The same on HEAD `30cd815f` without the step-3 changes; not followed up.
 - A release-mode client build (`-m release --test_harness=n`) fails to link: `/opt:ref: no such file or directory` (2026-10-19, seen while checking a player build; `-m dev --test_harness=n` links).
 - `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other

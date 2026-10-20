@@ -16,6 +16,26 @@ uint32_t BSScript::Object::DecRef() noexcept
     return TiltedPhoques::ThisCall(s_decRef, this);
 }
 
+BSScript::Variable* BSScript::Object::GetVariable(const char* acpName) noexcept
+{
+    // The variables follow the object, the base script's first: a type's index is past its parents' counts.
+    auto* pVariables = reinterpret_cast<Variable*>(this + 1);
+    for (const ObjectTypeInfo* pType = this->pType; pType; pType = pType->pParent)
+    {
+        const ObjectTypeInfo::VariableInfo* pInfo = pType->data ? pType->GetVariables() : nullptr;
+        for (uint32_t i = 0; pInfo && i < pType->variableCount; ++i)
+        {
+            if (!pInfo[i].name.AsAscii() || _stricmp(pInfo[i].name.AsAscii(), acpName) != 0)
+                continue;
+            uint32_t offset = 0;
+            for (const ObjectTypeInfo* pParent = pType->pParent; pParent; pParent = pParent->pParent)
+                offset += pParent->variableCount;
+            return &pVariables[offset + i];
+        }
+    }
+    return nullptr;
+}
+
 BSScript::Variable::Variable()
 {
 }

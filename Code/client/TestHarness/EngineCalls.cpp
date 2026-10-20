@@ -400,20 +400,94 @@ VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
     return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : TiltedPhoques::ThisCall(s_getDuration.Get(), pHandle)};
 }
 
-std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept
+namespace
+{
+// The script object the VM binds to that form, with a reference to release (DecRef).
+BSScript::Object* FindScript(uint32_t aFormId, const char* acpScript) noexcept
 {
     auto* pForm = TESForm::GetById(aFormId);
     auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
     auto* pPolicy = pVm ? pVm->GetObjectHandlePolicy() : nullptr;
     if (!pForm || !pPolicy)
-        return std::nullopt;
+        return nullptr;
     const uint64_t cHandle = pPolicy->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
     BSScript::Object* pObject = nullptr;
-    if (!pVm->FindBoundObject(cHandle, acpScript, &pObject) || !pObject)
+    return pVm->FindBoundObject(cHandle, acpScript, &pObject) ? pObject : nullptr;
+}
+} // namespace
+
+std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept
+{
+    BSScript::Object* pObject = FindScript(aFormId, acpScript);
+    if (!pObject)
         return std::nullopt;
     std::string state = pObject->currentState.AsAscii() ? pObject->currentState.AsAscii() : "";
     pObject->DecRef();
     return state;
+}
+
+std::optional<ScriptValue> GetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable) noexcept
+{
+    BSScript::Object* pObject = FindScript(aFormId, acpScript);
+    if (!pObject)
+        return std::nullopt;
+    std::optional<ScriptValue> value;
+    if (const BSScript::Variable* pVariable = pObject->GetVariable(acpVariable))
+    {
+        value.emplace();
+        value->Type = pVariable->type;
+        switch (pVariable->type)
+        {
+        case BSScript::Variable::kString: value->String = pVariable->data.s ? pVariable->data.s : ""; break;
+        case BSScript::Variable::kInteger: value->Int = pVariable->data.i; break;
+        case BSScript::Variable::kFloat: value->Float = pVariable->data.f; break;
+        case BSScript::Variable::kBoolean: value->Bool = pVariable->data.b; break;
+        default:
+            // An object variable's type is its script's type info (not 1-15, low bit clear for a single object).
+            if (pVariable->type >= BSScript::Variable::kMax && !(pVariable->type & 1) && pVariable->data.pObj)
+                value->Form = BSScript::FormIdOfHandle(pVariable->data.pObj->GetHandle());
+        }
+    }
+    pObject->DecRef();
+    return value;
+}
+
+bool SetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable, double aValue) noexcept
+{
+    BSScript::Object* pObject = FindScript(aFormId, acpScript);
+    if (!pObject)
+        return false;
+    BSScript::Variable* pVariable = pObject->GetVariable(acpVariable);
+    const auto cType = pVariable ? pVariable->type : BSScript::Variable::kEmpty;
+    if (cType == BSScript::Variable::kInteger)
+        pVariable->data.i = static_cast<int32_t>(aValue);
+    else if (cType == BSScript::Variable::kFloat)
+        pVariable->data.f = static_cast<float>(aValue);
+    else if (cType == BSScript::Variable::kBoolean)
+        pVariable->data.b = aValue != 0;
+    pObject->DecRef();
+    return cType == BSScript::Variable::kInteger || cType == BSScript::Variable::kFloat || cType == BSScript::Variable::kBoolean;
+}
+
+std::vector<ScriptStack> GetRunningScripts() noexcept
+{
+    std::vector<ScriptStack> stacks;
+    auto* pVm = GameVM::Get() ? reinterpret_cast<BSScript::VirtualMachine*>(GameVM::Get()->virtualMachine) : nullptr;
+    if (!pVm)
+        return stacks;
+    const auto cName = [](BSFixedString& aName) { return std::string(aName.AsAscii() ? aName.AsAscii() : ""); };
+    pVm->runningStacksLock.Lock();
+    for (auto& entry : pVm->allRunningStacks)
+    {
+        ScriptStack& stack = stacks.emplace_back();
+        stack.Id = entry.key;
+        for (BSScript::StackFrame* pFrame = entry.value ? entry.value->pTop : nullptr; pFrame && stack.Frames.size() < 32;
+             pFrame = pFrame->pPrevious)
+            if (pFrame->pFunction)
+                stack.Frames.push_back(cName(pFrame->pFunction->GetObjectTypeName()) + "." + cName(pFrame->pFunction->GetName()));
+    }
+    pVm->runningStacksLock.Unlock();
+    return stacks;
 }
 
 std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
@@ -448,16 +522,10 @@ std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
     return state;
 }
 
-SelectedMagic GetSelectedMagic(uint32_t aFormId) noexcept
+uint32_t GetSelectedPower(uint32_t aFormId) noexcept
 {
-    SelectedMagic selected{};
-    if (auto* pActor = Cast<Actor>(TESForm::GetById(aFormId)))
-    {
-        for (size_t i = 0; i < 4; ++i)
-            selected.Spells[i] = pActor->magicItems[i] ? pActor->magicItems[i]->formID : 0;
-        selected.Power = pActor->equippedShout ? pActor->equippedShout->formID : 0;
-    }
-    return selected;
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    return pActor && pActor->equippedShout ? pActor->equippedShout->formID : 0;
 }
 
 std::optional<SavedForm> SaveFormState(uint32_t aFormId, bool aBaseForm, std::optional<uint32_t> aChangeFlags) noexcept

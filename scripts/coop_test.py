@@ -150,17 +150,30 @@ def game_env():
     return env
 
 
+def uses_prefix(environ, keys=("STEAM_COMPAT_DATA_PATH", "WINEPREFIX")):
+    """That process environment names our test prefix, in any path spelling (another worktree's build/
+    link, or Steam's rewrite of STEAM_COMPAT_DATA_PATH while WINEPREFIX keeps ours)."""
+    prefix = PREFIX.resolve()
+    for line in environ.split(b"\0"):
+        key, _, value = line.partition(b"=")
+        if key.decode(errors="replace") in keys and value:
+            path = Path(value.decode(errors="replace").rstrip("/"))
+            path = path.parent if path.name == "pfx" else path
+            try:
+                if path.resolve() == prefix:
+                    return True
+            except OSError:
+                pass
+    return False
+
+
 def prefix_processes():
-    """PIDs started for our test prefix (matched by environment, so nothing else is touched). Either
-    path spelling: a game launched from another worktree sees build/ resolved, and Steam can rewrite
-    STEAM_COMPAT_DATA_PATH while WINEPREFIX keeps ours."""
-    markers = {f"{key}={path}{tail}".encode() for path in (PREFIX, PREFIX.resolve())
-               for key, tail in (("STEAM_COMPAT_DATA_PATH", ""), ("WINEPREFIX", "/pfx/"))}
+    """PIDs started for our test prefix (matched by environment, so nothing else is touched)."""
     pids = []
     for entry in Path("/proc").iterdir():
         if entry.name.isdigit() and int(entry.name) != os.getpid():
             try:
-                if markers & set((entry / "environ").read_bytes().split(b"\0")):
+                if uses_prefix((entry / "environ").read_bytes()):
                     pids.append(int(entry.name))
             except OSError:
                 pass
@@ -170,11 +183,10 @@ def prefix_processes():
 def game_process(instance):
     """The instance's SkyrimSE.exe (by its wine prefix; not the launcher stubs that share the name)."""
     select_instance(instance)
-    markers = {f"WINEPREFIX={path}/pfx/".encode() for path in (PREFIX, PREFIX.resolve())}
     for entry in Path("/proc").iterdir():
         try:
             if entry.name.isdigit() and "SkyrimSE.exe" in (entry / "cmdline").read_bytes().decode(errors="replace") and \
-                    markers & set((entry / "environ").read_bytes().split(b"\0")) and \
+                    uses_prefix((entry / "environ").read_bytes(), ("WINEPREFIX",)) and \
                     int((entry / "statm").read_text().split()[1]) * 4096 > 100 << 20:
                 return int(entry.name)
         except (OSError, ValueError, IndexError):
@@ -426,7 +438,6 @@ def prepare_prefix():
                        env=game_env(), cwd=GAME, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                        timeout=300)
     MY_GAMES.mkdir(parents=True, exist_ok=True)
-    (MY_GAMES / "Logs/Script").mkdir(parents=True, exist_ok=True)  # Papyrus writes its log only into an existing folder
     skyrim_ini, prefs_ini = MY_GAMES / "Skyrim.ini", MY_GAMES / "SkyrimPrefs.ini"
     if not skyrim_ini.exists():
         shutil.copy(GAME / "Skyrim_Default.ini", skyrim_ini)
@@ -439,9 +450,7 @@ def prepare_prefix():
     }, "Camera": {"fAutoVanityModeDelay": "1000000"},  # no idle camera orbiting the player
         # Tutorial popups (the map's, "Magicka Low") swallow all input until closed. A Skyrim.ini
         # setting (gIni_bShowTutorials_Interface): SkyrimPrefs.ini ignores it.
-        "Interface": {"bShowTutorials": "0"},
-        # Papyrus's own log (papyrus_log): what a script did, where its errors went.
-        "Papyrus": {"bEnableLogging": "1", "bEnableTrace": "1", "bLoadDebugInformation": "1"}})
+        "Interface": {"bShowTutorials": "0"}})
     set_ini(prefs_ini, {"Display": {"bFull Screen": "0", "bBorderless": "0",
                                     "iSize W": "1280", "iSize H": "720",
                                     "iLocation X": "0", "iLocation Y": "0"},
@@ -918,11 +927,6 @@ def wait_on(instance, description, predicate, timeout=15):
 def console_on(instance, command):
     select_instance(instance)
     run_console(command)
-
-
-def papyrus_log(instance):
-    """That game's Papyrus log (Logs/Script/Papyrus.0.log in its prefix), where a script's trace and errors go."""
-    return TEST_HOME / f"prefix-{instance or 'host'}" / "pfx/drive_c/users/steamuser/Documents/My Games/Skyrim Special Edition/Logs/Script/Papyrus.0.log"
 
 
 def local_player(instance):
@@ -3358,6 +3362,29 @@ def scenario_form_state_round_trips():
 
 
 BEAST_FORM, WEREWOLF_CHANGE_EFFECT, WEREWOLF_BEAST_RACE, PLAYER_WEREWOLF_QUEST = 0x92C48, 0x92C45, 0xCDD84, 0x2BA16
+COMPANIONS_HOUSEKEEPING = 0x4B2D9  # C00
+WEREWOLF_TRANSFORM_VISUAL = 0xF8209  # the change effect's VFXSpell effect (WerewolfTransformVisual): sets stage 1
+
+
+def script_running(instance, script):
+    """A stack in that game's VM runs a function of that script (harness script_stacks), waiting ones too."""
+    prefix = script.lower() + "."
+    return any(frame.lower().startswith(prefix) for stack in player_command(instance, {"cmd": "script_stacks"})["stacks"]
+               for frame in stack["frames"])
+
+
+def werewolf_running(instance):
+    select_instance(instance)
+    return bool((rpc({"cmd": "quest", "quest": PLAYER_WEREWOLF_QUEST}) or {}).get("flags", 0) & 1)
+
+
+def script_var(instance, form, script, name, value=None):
+    """A script variable or auto property on that form (harness script_var), set first when a value is given."""
+    request = {"cmd": "script_var", "object": form, "script": script, "var": name}
+    if value is not None:
+        request["value"] = value
+    response = player_command(instance, request)
+    return response["value"]
 
 
 def engine_events(instance, since=0):
@@ -3385,29 +3412,55 @@ def scenario_client_beast_form_stays_client():
     The change effect's script runs on the client's game only (the target's owner applies effects), so the
     host's PlayerWerewolfQuest stays stopped. Then the client changes back."""
     host_race = race_of("", 0x14)
-    # The Companions' setup marks the first change as the rampage's (C00's PlayerIsWerewolfVirgin): the
-    # power would only clear the mark.
-    console_on("client", "setpqv C00 PlayerIsWerewolfVirgin 0")
+    if werewolf_running("client"):
+        raise TestFailure("[client] PlayerWerewolfQuest already runs: an earlier change never ended")
+    # The Companions' setup marks the first change as the rampage's: the power would only clear the mark.
+    if script_var("client", COMPANIONS_HOUSEKEEPING, "CompanionsHousekeepingScript", "PlayerIsWerewolfVirgin", 0):
+        raise TestFailure("[client] C00's PlayerIsWerewolfVirgin stays set")
     console_on("client", f"player.addspell {BEAST_FORM:X}")
     console_on("client", f"player.equipspell {BEAST_FORM:X} voice")
+    since = 0
+
+    def seen(kind, **fields):
+        return lambda: any(e["kind"] == kind and all(e.get(k) == v for k, v in fields.items())
+                           for e in engine_events("client", since)[0])
+
+    def werewolf_stage():
+        select_instance("client")
+        return (rpc({"cmd": "quest", "quest": PLAYER_WEREWOLF_QUEST}) or {}).get("current_stage")
+
     try:
         wait_for("[client] Beast Form is the selected power", lambda: local_player("client").get("selected_power") == BEAST_FORM, 5)
         _, since = engine_events("client")
         tap("client", "shout")  # a power goes out on the release
+        # The chain: the change effect starts PlayerWerewolfQuest (stage 0 preps the shift) and casts the
+        # transform visual, which plays the change and sets stage 1 (SetRace) on its SetRace event or after 10s.
         wait_for("[client] the change effect starts on the client's character",
-                 lambda: any(e["kind"] == "magic_effect_apply" and e["effect"] == WEREWOLF_CHANGE_EFFECT and e["target"] == 0x14
-                             for e in engine_events("client", since)[0]), 5)
-        wait_for("[client] the client is a werewolf", lambda: race_of("client", 0x14) == WEREWOLF_BEAST_RACE, 20)
+                 seen("magic_effect_apply", effect=WEREWOLF_CHANGE_EFFECT, target=0x14), 5)
+        wait_for("[client] PlayerWerewolfQuest starts", seen("quest_start", quest=PLAYER_WEREWOLF_QUEST), 5)
+        wait_for("[client] the transform visual starts", seen("magic_effect_apply", effect=WEREWOLF_TRANSFORM_VISUAL, target=0x14), 5)
+        wait_for("[client] PlayerWerewolfQuest reaches the shift (stage 1)", lambda: (werewolf_stage() or 0) >= 1, 15)
+        wait_for("[client] the client is a werewolf", lambda: race_of("client", 0x14) == WEREWOLF_BEAST_RACE, 10)
         wait_for("[host] shows the client as a werewolf", lambda: copy_race_on_host() == WEREWOLF_BEAST_RACE, 20)
         if race_of("", 0x14) != host_race:
             raise TestFailure(f"[host] the host's player changed race ({race_of('', 0x14):X}): the client's change went to it")
-        select_instance("")
-        if (rpc({"cmd": "quest", "quest": PLAYER_WEREWOLF_QUEST}) or {}).get("flags", 0) & 1:
+        if werewolf_running(""):
             raise TestFailure("[host] PlayerWerewolfQuest runs on the host: the client's change reached the host's scripts")
+    except TestFailure:
+        if since:
+            log("[client] engine events since the press: " + "; ".join(
+                " ".join(f"{k}={v:X}" if isinstance(v, int) and k != "seq" else f"{k}={v}" for k, v in e.items())
+                for e in engine_events("client", since)[0]))
+        raise
     finally:
-        if race_of("client", 0x14) == WEREWOLF_BEAST_RACE:
+        if werewolf_running("client"):
+            # The transform visual's OnEffectStart ends after its Utility.Wait(10) with SetStage(1) when the
+            # player is not a werewolf: changed back before that, the client would change again.
+            wait_for("[client] the transform visual's script is done",
+                     lambda: not script_running("client", "WerewolfTransformVisual"), 20)
             console_on("client", f"setstage {PLAYER_WEREWOLF_QUEST:X} 100")  # the quest's change back
             wait_for("[client] human again", lambda: race_of("client", 0x14) != WEREWOLF_BEAST_RACE, 30)
+            wait_for("[client] PlayerWerewolfQuest shuts down", lambda: not werewolf_running("client"), 30)
             wait_for("[host] shows the client human again", lambda: copy_race_on_host() != WEREWOLF_BEAST_RACE, 30)
         console_on("client", f"player.removespell {BEAST_FORM:X}")
 

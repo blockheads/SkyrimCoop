@@ -718,7 +718,7 @@ void CharacterService::OnBeastFormChange(const BeastFormChangeEvent& acEvent) co
 
     const auto it = std::find_if(view.begin(), view.end(), [view](auto entity) { return view.get<FormIdComponent>(entity).Id == 0x14; });
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*it);
+    std::optional<uint32_t> serverIdRes = it != view.end() ? Utils::GetServerId(*it) : std::nullopt;
     if (!serverIdRes.has_value())
     {
         spdlog::error("{}: failed to find server id", __FUNCTION__);
@@ -732,7 +732,13 @@ void CharacterService::OnBeastFormChange(const BeastFormChangeEvent& acEvent) co
 
     // SerializeActorNpc returns the change flags bitmask
     request.ChangeFlags = m_actorBridge.SerializeActorNpc(0x14, request.AppearanceBuffer);
+    const auto cState = ReadLiveState(0x14);
+    request.HasState = true;
+    request.LatestAction = cState.LatestAction;
+    request.GraphState = cState.GraphState;
+    request.Data = cState.Data;
 
+    spdlog::info("Beast form change: our copies respawn as race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
     m_transport.Send(request);
 }
 
