@@ -110,7 +110,8 @@ enabled state and containers' inventory in unloaded cells. At load screens only:
   connected; how the client's own player is carried across (save its player form to a buffer before,
   load it after); time and file size of a modded save.
 - **The client's own quest machinery.** Every game runs its story manager and start-game quests and
-  rolls its own aliases, so quests differ from the first second (13 to 62 at a duo's start), and the
+  rolls its own alias fills, so quests differ before anyone plays (9 to 13 on a settled duo, all alias
+  fills: `docs/re/systems/quest-change-form.md` has the decoded change form), and the
   client keeps starting its own (radiant quests, world encounters) after a full sync. Keep the client's
   quest starts off, as copies run no AI, or let them run and overwrite them? Same for leveled
   containers, which re-roll per game on cell load.

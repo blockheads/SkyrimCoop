@@ -6,8 +6,8 @@
 Change forms are matched by their real form id (each save's RefIDs resolved through its own form id
 array). Forms created during play (0xFF......) differ per game by design and are listed apart. The
 player's own character, camera, menus and controls differ per player by design: they are marked
-"expected", not hidden. With --noise, what differs between two saves of one game (A and B, seconds
-apart) is marked "noise". Format: UESP "Skyrim Mod:Save File Format"; flag names from CommonLibSSE-NG.
+"expected", not hidden. Quests are compared field by field (docs/re/systems/quest-change-form.md).
+With --noise, what differs between two saves of one game (A and B, seconds apart) is marked "noise". Format: UESP "Skyrim Mod:Save File Format"; flag names from CommonLibSSE-NG.
 Findings: docs/research/world-state-drift.md.
 """
 import argparse
@@ -91,13 +91,16 @@ EXPECTED_GLOBALS = {0: "the player's own stats", 1: "the player's own location",
 
 DATA = Path(os.environ.get("SKYRIM_GAME_DIR", "/media/bighass/1f640250-798d-4f2f-87f2-c442109fc5d0/"
                            "SteamLibrary/steamapps/common/Skyrim Special Edition")) / "Data"
-# Records whose editor ids name a difference; exterior cells (WRLD) and references are left out.
+# Records whose editor ids name a difference. References without one are named by their base form.
 NAMED_RECORDS = {b"QUST", b"GLOB", b"FACT", b"NPC_", b"SMQN", b"SMBN", b"SMEN", b"LCTN", b"SCEN", b"CELL",
-                 b"DOOR", b"CONT", b"PACK", b"FLST", b"RELA", b"ECZN", b"BOOK", b"MISC", b"KEYM"}
+                 b"DOOR", b"CONT", b"PACK", b"FLST", b"RELA", b"ECZN", b"BOOK", b"MISC", b"KEYM", b"STAT",
+                 b"ACTI", b"FURN", b"WEAP", b"ARMO", b"ALCH", b"LIGH", b"FLOR", b"TACT", b"INGR", b"AMMO",
+                 b"SCRL", b"SLGM", b"NOTE", b"WRLD", b"MSTT", b"LVLN", b"REFR", b"ACHR", b"PGRE", b"PHZD"}
+REFERENCES = {b"REFR", b"ACHR", b"PGRE", b"PHZD"}
 
 
 def plugin_editor_ids(path):
-    """(masters, {form id as the plugin writes it: editor id}) of one plugin's named records."""
+    """(masters, {form id as the plugin writes it: editor id}, {reference: its base}) of one plugin."""
     data = path.read_bytes()
     size = struct.unpack_from("<I", data, 4)[0]
     masters, o = [], 24
@@ -106,14 +109,14 @@ def plugin_editor_ids(path):
         if kind == b"MAST":
             masters.append(data[o + 6:o + 5 + length].decode("cp1252"))
         o += 6 + length
-    names = {}
+    names, bases = {}, {}
 
     def walk(o, end):
         while o < end:
             kind, size = data[o:o + 4], struct.unpack_from("<I", data, o + 4)[0]
             if kind == b"GRUP":
                 label, group_type = data[o + 8:o + 12], struct.unpack_from("<i", data, o + 12)[0]
-                if group_type != 0 or (label in NAMED_RECORDS):
+                if group_type != 0 or label in NAMED_RECORDS:
                     walk(o + 24, o + size)
                 o += size
                 continue
@@ -122,31 +125,53 @@ def plugin_editor_ids(path):
                 body = data[o + 24:o + 24 + size]
                 if flags & 0x40000:
                     body = zlib.decompress(body[4:])
-                if body[:4] == b"EDID":
-                    names[form_id] = body[6:5 + struct.unpack_from("<H", body, 4)[0]].decode("cp1252")
+                p = 0
+                while p + 6 <= len(body):
+                    sub, length = body[p:p + 4], struct.unpack_from("<H", body, p + 4)[0]
+                    if sub == b"EDID":
+                        names[form_id] = body[p + 6:p + 5 + length].decode("cp1252")
+                    elif sub == b"NAME" and kind in REFERENCES:
+                        bases[form_id] = struct.unpack_from("<I", body, p + 6)[0]
+                        break
+                    elif kind not in REFERENCES:
+                        break
+                    p += 6 + length
             o += 24 + size
 
     walk(24 + size, len(data))
-    return masters, names
+    return masters, names, bases
 
 
 def editor_ids(save, data_dir=DATA):
-    """{load-order form id: editor id} over the save's plugins found in data_dir."""
+    """{load-order form id: editor id, or "[base's editor id]" for a reference without one} over the
+    save's plugins found in data_dir."""
     order = {name.lower(): index for index, name in enumerate(save.plugins)}
     light = {name.lower(): index for index, name in enumerate(save.light_plugins)}
-    names = {}
+    names, references = {}, {}
     for plugin in save.plugins + save.light_plugins:
         path = data_dir / plugin
         if not path.exists():
             continue
-        masters, local = plugin_editor_ids(path)
-        for form_id, name in local.items():
+        masters, local, bases = plugin_editor_ids(path)
+
+        def load_order(form_id):
             index = form_id >> 24
-            owner = masters[index] if index < len(masters) else plugin
-            if owner.lower() in order:
-                names[order[owner.lower()] << 24 | form_id & 0xFFFFFF] = name
-            elif owner.lower() in light:
-                names[0xFE000000 | light[owner.lower()] << 12 | form_id & 0xFFF] = name
+            owner = (masters[index] if index < len(masters) else plugin).lower()
+            if owner in order:
+                return order[owner] << 24 | form_id & 0xFFFFFF
+            if owner in light:
+                return 0xFE000000 | light[owner] << 12 | form_id & 0xFFF
+            return None
+
+        for form_id, name in local.items():
+            if (resolved := load_order(form_id)) is not None:
+                names[resolved] = name
+        for form_id, base in bases.items():
+            if (resolved := load_order(form_id)) is not None:
+                references[resolved] = load_order(base)
+    for reference, base in references.items():
+        if reference not in names and base in names:
+            names[reference] = f"[{names[base]}]"
     return names
 
 
@@ -284,6 +309,105 @@ class Save:
         return values
 
 
+def parse_quest(save, entry):
+    """A QUST change form's fields, in the order TESQuest::WriteToSaveGame (25029) writes them. Forms are
+    real form ids (through the save's form id array). "rest" counts bytes left over (0: parsed whole)."""
+    r, flags, quest = Reader(entry["data"]), entry["flags"], {}
+
+    def form():
+        return save.resolve(r.refid())
+
+    if flags & 1:
+        quest["form_flags"] = r.unpack("IH")
+    if flags & 1 << 1:
+        quest["quest_flags"] = r.unpack("H")
+    if flags & 1 << 2:
+        quest["script_delay"] = r.unpack("f")
+    if flags & 1 << 31:
+        quest["stages"] = {}
+        for _ in range(r.vsval()):
+            stage, done = r.unpack("hB")
+            quest["stages"][stage] = done
+    if flags & 1 << 29:
+        quest["objectives"] = dict(r.unpack("II") for _ in range(r.vsval()))
+    if flags & 1 << 28:
+        quest["promoting"] = r.unpack("B")
+        quest["ref_aliases"] = {}
+        for _ in range(r.unpack("I")):
+            alias, temporary = r.unpack("IB")
+            fill = {"ref": form()}
+            if fill["ref"] and temporary:
+                # A temporary reference (created for the quest): its base, two extra-data forms, its cell.
+                fill.update(base=form(), extra1=form(), extra2=form(), cell=form())
+            quest["ref_aliases"][alias] = fill
+        quest["location_aliases"] = {r.unpack("I"): form() for _ in range(r.unpack("I"))}
+        if r.unpack("B"):
+            # The story manager event that started the quest (BGSStoryEventManager): its data by kind.
+            event = {"header": r.unpack("I"), "type": r.unpack("I").to_bytes(4, "little").decode("latin1"),
+                     "data": []}
+            for _ in range(r.unpack("I")):
+                kind = r.unpack("I")
+                event["data"].append(r.unpack("I") if kind == 3 else form())
+            quest["start_event"] = event
+    if flags & 1 << 27:
+        quest["instance_id"] = r.unpack("I")
+        quest["instances"] = []
+        for _ in range(r.vsval()):
+            instance = {"id": r.unpack("I")}
+            instance["a"] = [(r.unpack("I"), form()) for _ in range(r.vsval())]
+            instance["b"] = [(form(), r.unpack("I")) for _ in range(r.vsval())]
+            instance["tail"] = r.unpack("HB")
+            quest["instances"].append(instance)
+    if flags & 1 << 26:
+        quest["already_run"] = r.unpack("B")
+    quest["rest"] = len(entry["data"]) - r.offset
+    return quest
+
+
+def quest_differences(host, client, a, b, names):
+    """What differs between two parsed QUST change forms, field by field, readable."""
+    def name(form_id):
+        return form_label(host, form_id, names) if form_id else "none"
+
+    def fill(f):
+        if not f:
+            return "unfilled"
+        if f.get("base") is not None:  # temporary: its id is the game's own, its base says what it is
+            return f"temporary {name(f['base'])} in {name(f.get('cell'))}"
+        return name(f["ref"])
+
+    out = []
+    for key in ("form_flags", "quest_flags", "script_delay", "promoting", "instance_id", "already_run"):
+        if a.get(key) != b.get(key):
+            value = (lambda v: f"{v:#06x}") if key == "quest_flags" else repr
+            out.append(f"{key} {value(a.get(key)) if a.get(key) is not None else '-'} / "
+                       f"{value(b.get(key)) if b.get(key) is not None else '-'}")
+    for key, label in (("stages", "stage"), ("objectives", "objective")):
+        for index in sorted(set(a.get(key, {})) | set(b.get(key, {}))):
+            va, vb = a.get(key, {}).get(index), b.get(key, {}).get(index)
+            if va != vb:
+                out.append(f"{label} {index}: {va if va is not None else '-'} / {vb if vb is not None else '-'}")
+    for index in sorted(set(a.get("ref_aliases", {})) | set(b.get("ref_aliases", {}))):
+        fa, fb = a.get("ref_aliases", {}).get(index), b.get("ref_aliases", {}).get(index)
+        if fill(fa) != fill(fb):
+            out.append(f"alias {index}: {fill(fa)} / {fill(fb)}")
+    for index in sorted(set(a.get("location_aliases", {})) | set(b.get("location_aliases", {}))):
+        la, lb = a.get("location_aliases", {}).get(index), b.get("location_aliases", {}).get(index)
+        if la != lb:
+            out.append(f"location alias {index}: {name(la)} / {name(lb)}")
+    ea, eb = a.get("start_event"), b.get("start_event")
+    if (ea and (ea["type"], ea["data"])) != (eb and (eb["type"], eb["data"])):
+        def event(e):
+            return f"{e['type']}({', '.join(name(d) if d > 0xFFFF else str(d) for d in e['data'])})" if e else "-"
+        out.append(f"start event {event(ea)} / {event(eb)}")
+    if a.get("instances") != b.get("instances"):
+        out.append(f"instances {len(a.get('instances', []))} / {len(b.get('instances', []))} (differ)")
+    for side, parsed in (("host", a), ("client", b)):
+        if parsed["rest"]:
+            out.append(f"{side}: {parsed['rest']} bytes not parsed")
+    return out
+
+
 def remapped_id(a, b, start, save_a, save_b):
     """The 3 bytes at `start` are RefIDs naming the same form in each save (the two form id arrays order
     forms differently)."""
@@ -411,10 +535,14 @@ def compare(host, client, noise=None, names=None):
             entry.update(kind="flags", host_only_flags=flag_names(entry["type"], a["flags"] & ~b["flags"]),
                          client_only_flags=flag_names(entry["type"], b["flags"] & ~a["flags"]),
                          flags=flag_names(entry["type"], a["flags"] | b["flags"]))
+            if entry["type"] == "QUST":
+                entry["fields"] = quest_differences(host, client, parse_quest(host, a), parse_quest(client, b), names)
         elif not equivalent(a["data"], b["data"], host, client, stamps) or a["version"] != b["version"]:
             entry.update(kind="data", flags=flag_names(entry["type"], a["flags"]),
                          host_size=len(a["data"]), client_size=len(b["data"]),
                          first_difference=first_difference(a["data"], b["data"]))
+            if entry["type"] == "QUST":
+                entry["fields"] = quest_differences(host, client, parse_quest(host, a), parse_quest(client, b), names)
         else:
             continue
         if form_id in EXPECTED_FORMS:
@@ -484,6 +612,8 @@ def print_report(report, details):
                                  f"bytes, from byte {f.get('first_difference')}"}[f["kind"]]
                 print(f"  {klass:8s} {f['type']} {f['label']:44s} {extra}"
                       + (f"  ({f['why']})" if f.get("why") else ""))
+                for field in f.get("fields", []):
+                    print(f"             {field}")
 
 
 def main():

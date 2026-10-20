@@ -12,6 +12,7 @@
 #include <Forms/TESIdleForm.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESPackage.h>
+#include <Forms/TESQuest.h>
 #include <Forms/TESWorldSpace.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <Games/Overrides.h>
@@ -286,6 +287,29 @@ VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
     TP_THIS_FUNCTION(TGetDuration, uint64_t, BSSoundHandle);
     POINTER_SKYRIMSE(TGetDuration, s_getDuration, 67630); // BSSoundHandle::GetDuration (CommonLib)
     return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : TiltedPhoques::ThisCall(s_getDuration.Get(), pHandle)};
+}
+
+std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
+{
+    auto* pQuest = Cast<TESQuest>(TESForm::GetById(aQuestId));
+    if (!pQuest)
+        return std::nullopt;
+    QuestState state{pQuest->flags, pQuest->currentStage, pQuest->alreadyRun};
+    for (TESQuest::Stage* pStage : pQuest->stages)
+        if (pStage)
+            state.Stages.emplace_back(pStage->stageIndex, pStage->IsDone());
+    for (TESQuest::Objective* pObjective : pQuest->objectives)
+        if (pObjective)
+            state.Objectives.emplace_back(pObjective->stageId, pObjective->state);
+    for (BGSBaseAlias* pAlias : pQuest->aliases)
+    {
+        if (!pAlias)
+            continue;
+        auto* pRef = pQuest->GetAliasedRef(pAlias->aliasId);
+        state.Aliases.push_back({pAlias->aliasId, pAlias->name.AsAscii() ? pAlias->name.AsAscii() : "",
+                                 pRef ? pRef->formID : 0, pRef && pRef->baseForm ? pRef->baseForm->formID : 0});
+    }
+    return state;
 }
 
 bool IsProcessMe(uint32_t aFormId) noexcept

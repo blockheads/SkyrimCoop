@@ -4,6 +4,7 @@
 #include <Misc/BSString.h>
 #include <Components/TESFullName.h>
 #include <Forms/BGSStoryManagerTree.h>
+#include <Forms/BGSBaseAlias.h>
 
 struct BGSScene : TESForm
 {
@@ -82,7 +83,7 @@ struct TESQuest : BGSStoryManagerTreeForm
     TESFullName fullName;
     GameArray<void*> instanceData;
     uint32_t currentInstanceID;
-    GameArray<void*> aliases; // 0x0058
+    GameArray<BGSBaseAlias*> aliases; // 0x0058
     char pad70[0xD8 - 0x70];
     float questDelay;     // 0x00D8
     uint16_t flags;       // 0x00DC default init: 256
@@ -135,6 +136,7 @@ struct TESQuest : BGSStoryManagerTreeForm
 
 SKYRIM_STRUCT_ASSERT(sizeof(TESQuest) == 0x268);
 SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, fullName) == 0x28);
+SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, aliases) == 0x58);
 SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, flags) == 0xDC);
 SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, stages) == 0xE8);
 SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, objectives) == 0xF8);

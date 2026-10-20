@@ -142,6 +142,24 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
+// {"cmd": "quest", "quest": id}: the quest's live state (EngineCalls::GetQuestState), to check what a save holds.
+nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cState = EngineCalls::GetQuestState(acRequest.value("quest", 0u));
+    if (!cState)
+        return Error("no such quest");
+    auto aliases = nlohmann::json::array();
+    for (const auto& cAlias : cState->Aliases)
+        aliases.push_back({{"id", cAlias.Id}, {"name", cAlias.Name}, {"ref", cAlias.Ref}, {"base", cAlias.Base}});
+    return {{"ok", true},
+            {"flags", cState->Flags},
+            {"current_stage", cState->CurrentStage},
+            {"already_run", cState->AlreadyRun},
+            {"stages", cState->Stages},
+            {"objectives", cState->Objectives},
+            {"aliases", aliases}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -195,6 +213,7 @@ constexpr Command cCommands[] = {
     {"anim_trace", true, &AnimTrace},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
+    {"quest", true, &Quest},
     {"activate", true, &Activate},
     {"lock", true, &Lock},
     {"graph_state", true, &GraphState},

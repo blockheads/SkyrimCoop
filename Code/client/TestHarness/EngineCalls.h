@@ -42,6 +42,27 @@ bool IsMapReady() noexcept;
 // Removes it, as the map's "Remove It" does (40536).
 void ClearPlayerMapMarker() noexcept;
 
+// --- Quests ---
+
+// A quest as the engine holds it now (TESQuest): what its change form in a save carries, read live.
+struct QuestState
+{
+    uint16_t Flags;
+    uint16_t CurrentStage;
+    bool AlreadyRun;
+    std::vector<std::pair<uint16_t, bool>> Stages;      // executed stages: index, done
+    std::vector<std::pair<uint16_t, uint8_t>> Objectives; // index, state
+    struct Alias
+    {
+        uint32_t Id;
+        std::string Name;
+        uint32_t Ref;  // the reference filling it (GetAliasedRef 25066), 0 for none or a location alias
+        uint32_t Base; // that reference's base form
+    };
+    std::vector<Alias> Aliases;
+};
+std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
+
 // --- Staging and the player's own input ---
 
 // The player's buttons, by the user event they are mapped to.

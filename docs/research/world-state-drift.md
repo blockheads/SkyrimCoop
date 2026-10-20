@@ -6,12 +6,16 @@ to carry, so step 3 onwards builds for the real list.
 
 ## Short answer
 
-- **Quests drift from the first second.** Each game runs its own start-game and story-manager quests
-  and fills their aliases with its own random picks: 13 to 62 quests differ at the duo baseline (two
-  boots), plus the story-manager nodes' `TimeLastRun`. The client's own story manager also starts
-  quests the host never ran (`WE09`, a world encounter, ran only on the host after fast travel). A
-  join's full sync fixes the start; the client starting its own quests afterwards is a new open
-  question (below).
+- **Quests differ only in their random picks, until someone plays.** Field by field (the QUST change
+  form decoded, `docs/re/systems/quest-change-form.md`), a settled duo's 9 to 13 differing quests differ
+  in nothing but alias fills: which bandit camp a Companions job sends you to (`CR05`: Silent Moon Camp /
+  Valtheim Keep), which Riverwood guard holds which `MQ103` alias, which chest a College quest names.
+  Stages, objectives and flags are equal. Each game runs the start-game and radiant quests itself and
+  rolls its own fills. A save taken right after boot shows more (35 in run 3, and most likely run 1's 62), because the
+  later game's start-up quests are still starting (quest flag `StageWait`); a minute later those agree. The client's
+  story manager also starts quests on its own: `WE09`, a world encounter, ran on the host only after
+  fast travel. A join's full sync fixes the start; the client starting and filling its own quests
+  afterwards is a new open question (below).
 - **Global variables never go through the change funnel.** They are saved whole, as one table (1121
   globals here). `set` on a global records no change at all; pushing globals needs a diff of that
   table, not the funnel. Two differ at baseline (`WEEnabled` 1 / 0, `WINextUseMagic`).
@@ -36,6 +40,9 @@ to carry, so step 3 onwards builds for the real list.
 - `coop_test.py save-diff [--label X] [--noise S]`: saves both running games (`save coopdiff-X`), waits
   until both files are written, then compares; `--noise S` saves the host again S seconds later and marks
   what differs between those two as noise.
+- Quests are compared field by field (`parse_quest`): stages, objectives, flags, each alias with what
+  fills it (references named by their base form: `[LvlBanditBoss]`), location aliases, the story event
+  that started the quest. The harness `quest` command reads the same state live from the engine.
 - `coop_test.py change-rate [scenarios] [--seconds S]`: counts the engine's change records on both games
   over a window (idle, or the named scenarios), per form type and flag, with the distinct forms
   recorded and example ids. The hook is `Code/client/TestHarness/ChangeLog.cpp` (test builds only).
@@ -79,7 +86,7 @@ vanilla plus the Creation Club plugins of the test install, no other mods.
 
 | Kind | Run 1 | Run 2 | What |
 |---|---|---|---|
-| QUST | 62 | 13 | start-game and radiant quests (`MS01`, `T03`, `DarkBrotherhood`, `CR04`-`CR08`, `MGR*`, `DA*`, `Freeform*`, `C00`, `MS06Start`, `SolitudeOpening`...): same size, data differs in the runtime and instance data (alias fills); 3 exist on one game only |
+| QUST | 62 | 13 | start-game and radiant quests (`CR04`-`CR08`, `MGR*`, `DA16`, `CW`, `MQ103`, `FreeformCaravansA`...): run 2 field by field, alias fills only ("Quests, field by field"); run 1's saves were overwritten before the parser existed, and its count fits a save during start-up |
 | REFR | 55 | 48 | containers whose inventory rolled differently (`Inventory`, `LeveledInventory`); references promoted (made persistent) on one game only (`Promoted`, `GameOnlyExtra`) |
 | SMQN | 8 | 8 | story-manager nodes' `TimeLastRun` (`MGR*Node`, `Companions*Node`) |
 | CELL | 5 | 7 | cell `Flags` of a few interiors, QASmoke's `SeenData` |
@@ -87,6 +94,22 @@ vanilla plus the Creation Club plugins of the test install, no other mods.
 | ACHR | 1422 | 1420 | actors (class "actors") |
 | Global variables | 2 | 2 | `WEEnabled` (1 / 0), `WINextUseMagic` |
 | Global data | | | SkyCells, Detection Manager, Location MetaData, Quest Static Data |
+
+### Quests, field by field
+
+Run 3, a fresh duo: saved seconds after the duo came up, then again a minute later.
+
+| Save | Differing quests | What differs |
+|---|---|---|
+| right after boot | 35 | 22 in quest flags only, `0x0011` on the host and `0x0091` on the client (`StageWait`: the client's start-up quests, `Dialogue*`, `BYOH*`, `DLC1Init`, `Patch1_*`..., still waiting for their first stage); 4 College quests (`MGR*`) on the host only; bard songs' alias unfilled on the client; the rest alias fills |
+| a minute later | 9 | alias fills only: `CW`, `DA16` (Vereth, Karita and Irine in other roles), `MGR01`, `MGR02`, `MGR10`, `MGR20`, `MGR21`, `MQ103` (the three Riverwood guards in other aliases), `FreeformCaravansA` (Faldar's Tooth / Stony Creek Cave) |
+
+The same holds for run 2 (13 quests, all alias and location alias fills) and after its fast travel
+(`FreeformRiverwood01`'s created items; `WE09` on the host only, started by a `SCPT` story event).
+
+Some fills are created objects (`created:FF000826`): quest items or containers the quest made. Their ids
+are each game's own, so the tool cannot say whether they are the same object; their bases are in the
+created forms' own change forms, which the tool does not parse yet.
 
 ### After scenarios
 
@@ -156,10 +179,12 @@ design's "at the load screen" path.
    host's global table (about 1100 floats, 8 KB) a few times a second and send what changed, minus the
    clock globals the calendar sync covers. Cheap, and safe to apply live.
 2. **The client's own quest machinery is a drift source**, not only a receiver. The story manager and
-   start-game quests run on every game: a full sync at join gives the client the host's quests, but the
-   client then keeps starting its own (radiant, world encounters) and rolling its own aliases. New open
-   question for the design: keep the client's story manager and quest starts off (as copies run no AI),
-   or let them run and overwrite them.
+   start-game quests run on every game and pick their own alias fills; that is the whole quest drift of
+   an unplayed game. A full sync at join gives the client the host's quests, but the client then keeps
+   starting its own (radiant quests, world encounters) and rolling its own fills. New open question for
+   the design: keep the client's story manager and quest starts off (as copies run no AI), or let them
+   run and overwrite them. Syncing a quest means its alias fills as much as its stages: a dialogue or
+   objective that names the alias points at a different NPC on each game otherwise.
 3. **Leveled containers re-roll on every game** when their cell loads or resets. Containers in cells the
    party has loaded need the host's inventory at the client's load screen, not just a push of live
    changes.
