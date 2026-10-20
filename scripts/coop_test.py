@@ -13,6 +13,7 @@
   coop_test.py screenshot [out.png]                   capture the off-screen game display
   coop_test.py console <command...>                   run a console command in the test game
   coop_test.py status [-f]                            both games side by side: health, death, weapon, casting
+  coop_test.py save-diff [--label X --noise S]       save both games at once, compare the two worlds block by block
   coop_test.py crash [--instance client]             newest crash per game: engine state (CrashLoggerSSE) + our last engine changes
   coop_test.py repro NAME [--heap-history] [--follow] cause a known crash (REPROS) and print its report;
                                                       --vanilla: the same recipe without our plugin (is it us?);
@@ -149,13 +150,16 @@ def game_env():
 
 
 def prefix_processes():
-    """PIDs started for our test prefix (matched by environment, so nothing else is touched)."""
-    marker = f"STEAM_COMPAT_DATA_PATH={PREFIX}".encode()
+    """PIDs started for our test prefix (matched by environment, so nothing else is touched). Either
+    path spelling: a game launched from another worktree sees build/ resolved, and Steam can rewrite
+    STEAM_COMPAT_DATA_PATH while WINEPREFIX keeps ours."""
+    markers = {f"{key}={path}{tail}".encode() for path in (PREFIX, PREFIX.resolve())
+               for key, tail in (("STEAM_COMPAT_DATA_PATH", ""), ("WINEPREFIX", "/pfx/"))}
     pids = []
     for entry in Path("/proc").iterdir():
         if entry.name.isdigit() and int(entry.name) != os.getpid():
             try:
-                if marker in (entry / "environ").read_bytes().split(b"\0"):
+                if markers & set((entry / "environ").read_bytes().split(b"\0")):
                     pids.append(int(entry.name))
             except OSError:
                 pass
@@ -165,11 +169,11 @@ def prefix_processes():
 def game_process(instance):
     """The instance's SkyrimSE.exe (by its wine prefix; not the launcher stubs that share the name)."""
     select_instance(instance)
-    marker = f"WINEPREFIX={PREFIX}/pfx/".encode()
+    markers = {f"WINEPREFIX={path}/pfx/".encode() for path in (PREFIX, PREFIX.resolve())}
     for entry in Path("/proc").iterdir():
         try:
             if entry.name.isdigit() and "SkyrimSE.exe" in (entry / "cmdline").read_bytes().decode(errors="replace") and \
-                    marker in (entry / "environ").read_bytes().split(b"\0") and \
+                    markers & set((entry / "environ").read_bytes().split(b"\0")) and \
                     int((entry / "statm").read_text().split()[1]) * 4096 > 100 << 20:
                 return int(entry.name)
         except (OSError, ValueError, IndexError):
@@ -3903,6 +3907,62 @@ def lock_order_reports():
     return found
 
 
+def save_file(instance, name):
+    select_instance(instance)
+    return MY_GAMES / "Saves" / f"{name}.ess"
+
+
+def save_game(instance, name):
+    """`save <name>` in that game; returns where its .ess lands (wait for it with saves_written)."""
+    path = save_file(instance, name)
+    for stale in (path, path.with_suffix(".skse")):
+        stale.unlink(missing_ok=True)
+    console_on(instance, f"save {name}")
+    return path
+
+
+def saves_written(*paths):
+    """A wait_for predicate: every save exists, with its co-save, and is the same size twice 0.5s apart."""
+    seen = {}
+    def written():
+        sizes = tuple(p.stat().st_size if p.exists() and p.with_suffix(".skse").exists() else -1 for p in paths)
+        if -1 in sizes or seen.get("sizes") != sizes:
+            seen.update(sizes=sizes, since=time.monotonic())
+            return False
+        return time.monotonic() - seen["since"] >= 0.5
+    return written
+
+
+def command_save_diff(args):
+    """Saves both games at once and compares the two worlds (scripts/re/save_diff.py)."""
+    sys.path.insert(0, str(ROOT / "scripts/re"))
+    import save_diff
+    name = f"coopdiff-{args.label}"
+    with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):  # --json: stdout is the report
+        host, client, noise = save_both(name, args.noise, save_diff)
+    host = save_diff.Save(host)
+    report = save_diff.compare(host, save_diff.Save(client), noise, save_diff.editor_ids(host, GAME / "Data"))
+    if args.json:
+        print(json.dumps(report, indent=1, default=lambda o: sorted(o) if isinstance(o, set) else str(o)))
+    else:
+        save_diff.print_report(report, args.details)
+
+
+def save_both(name, noise_seconds, save_diff):
+    """Both games saved as `name`, and with `noise_seconds` the host's noise (save_diff.noise_from)."""
+    host, client = save_game("", name), save_game("client", name)
+    wait_for("both saves written", saves_written(host, client), 60)
+    noise = None
+    if noise_seconds:
+        # The same game again: what changes on its own in that time is noise, not drift.
+        started = time.monotonic()
+        wait_for(f"{noise_seconds:.0f}s of play", lambda: time.monotonic() - started >= noise_seconds, noise_seconds + 5)
+        again = save_game("", name + "-again")
+        wait_for("the second host save written", saves_written(again), 60)
+        noise = save_diff.noise_from(host, again)
+    return host, client, noise
+
+
 def command_locks(args):
     for name in ("", "client"):
         select_instance(name)
@@ -4182,6 +4242,12 @@ def main():
     status = commands.add_parser("status", help="both games side by side: health, death, weapon, casting")
     status.add_argument("--follow", "-f", action="store_true", help="keep refreshing")
     commands.add_parser("locks", help="both games' lock-order checker reports (deadlock patterns)")
+    save_diff = commands.add_parser("save-diff", help="save both games at once and compare the two worlds block by block")
+    save_diff.add_argument("--label", default="now", help="names the saves coopdiff-<label> (default now)")
+    save_diff.add_argument("--noise", type=float, default=0, metavar="SECONDS",
+                           help="save the host again after this long: what differs between those two is marked noise")
+    save_diff.add_argument("--details", type=int, default=25, help="forms listed per class (0: summary only)")
+    save_diff.add_argument("--json", action="store_true", help="the whole report as JSON")
     crash = commands.add_parser("crash", help="the newest crash of each game: engine state (CrashLoggerSSE) and our last engine changes")
     crash.add_argument("--instance", choices=["client"], help="only this game (default: both)")
     desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
@@ -4217,6 +4283,8 @@ def main():
             log("Done")
         elif args.command == "locks":
             command_locks(args)
+        elif args.command == "save-diff":
+            command_save_diff(args)
         elif args.command == "crash":
             command_crash(args)
         elif args.command == "repro":
