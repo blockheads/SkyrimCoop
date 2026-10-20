@@ -38,7 +38,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door` |
 | Copies converge on their owner (presence): a copy whose owner is around but which is elsewhere, without 3D or deleted is moved or spawned again; a spawn for a known copy refreshes it | done (`87972601`), `party-fast-travels` |
 | Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
-| Shared XP (upstream's party XP, to everyone) | works, `shared-xp` |
+| Experience: personal, earned by whoever did it; party rewards to everyone (`docs/design/party-model.md`, "Experience") | rule decided 2026-10-19; wiring below. Upstream's shared combat XP still on (`shared-xp`) until step 1 |
 | Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (`b7b83aad`) |
 | Shared dialogue: one conversation for the party, run by the host's engine; anyone moves the cursor and picks, each player's own options show | next (`docs/design/party-model.md`, "Dialogue") |
 | Quests | not started; after shared dialogue. The host runs every quest, peers mirror (`docs/design/party-model.md`); quest sync off (`cSyncQuests`) until then |
@@ -46,6 +46,34 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
 | Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
 | Tether itself: anyone who travels takes the party along | done (`df9af2ff`): the leader's arrival moves everyone else there, the host too; `party-uses-door`, `party-fast-travels`, `party-quick-travel`, `load-door-not-replayed` |
+
+### Experience: wiring up
+
+The rule and why: `docs/design/party-model.md` ("Experience"); engine path and the mods:
+`docs/re/systems/experience.md`. Each step with its scenario.
+
+1. **Drop upstream's shared combat XP**: the `SyncExperienceRequest` relay, `AddExperienceEvent`,
+   `LastUsedCombatSkill`, `RunExperienceUpdates`, and `ScopedExperienceOverride` with its 27244 hook if
+   nothing else needs them. `shared-xp` becomes `xp-stays-personal`: the client's hit raises its One-Handed
+   experience, the host's stays.
+2. **Fix `HookAddSkillExperience`'s signature** (40488 takes the advance object and action too;
+   CommonLibSSE-NG, IDA); check it in the disassembly.
+3. **Speech from a picked line to the picker**: built 2026-10-19 with shared dialogue's client, parked on
+   branch `shared-dialogue-client` (the host's game holds back its player's Speech gain after another player's
+   pick and sends its input amount; the picker's game adds it through 40488, `GainSkillExperience`). The host's
+   side (`DialogueExperienceRequest` → `NotifyDialogueExperience`, `dialogue_tests.cpp`) is in. A script's
+   skill gain outside a picked line (a quest's reward) is the party's (step 6).
+4. **Barter Speech to the trader**, with shared barter.
+5. **Training to whoever pays**: done 2026-10-19 with shared dialogue (Flow, 8): the training menu opens on the
+   picker's game with its copy of the trainer, so the cost, the skill and the trainings this level are the
+   picker's (`dialogue-picker-trains`).
+6. **Quest rewards to everyone**, with quest sync: a script's `Game.AdvanceSkill` / `IncrementSkill` on the
+   host's player is replayed on each game as its own player's (input, not the measured gain). Mods' quest
+   experience follows from the quest completing on every game.
+7. **Kills**: the killer's game records its own player's kill. Scenario with Experience (17751) installed:
+   a peer's kill of a host NPC, who gets its kill experience.
+8. **Mods once**: Skill Uncapper AE and Experience installed, a routed gain (step 3) gets the receiver's
+   multiplier once.
 
 ### Still on the embedded server (what phase 4-5 removes)
 
@@ -320,8 +348,6 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   untested. The host's record of a player is refreshed on each arrival (graph state, action, inventory,
   values); between arrivals it is the arrival's.
 - **Copies refuse `turnStop`** now and then (NPC copies). Not traced.
-- **Shared XP** goes to the receiver's last used combat skill only; a player who has not used one since
-  loading gets nothing (upstream's rule). Decide whether to keep it.
 - **Arrival spacing** needs navmesh under the marker: QASmoke's `coc` marker has none (players stay
   stacked there). Doors and fast travel arrive through the same `TravelService` arrival; no scenario asserts the
   spacing there yet.

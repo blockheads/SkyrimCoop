@@ -5,7 +5,7 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Gameplay
 
-- **The party is the Dragonborn** (shared gold, XP, quest items, identity; cutscenes for everyone; shared
+- **The party is the Dragonborn** (shared gold, quest rewards, quest items, identity; cutscenes for everyone; shared
   dialogue): decided, `docs/design/party-model.md`; shared dialogue in `docs/design/shared-dialogue.md`.
 - **Shared party bounty.** One player's crime counts for the whole party, judged on the host (its NPCs are
   the witnesses). Decided 2026-10-12; today a remote player cannot commit a crime on the host at all.
