@@ -40,7 +40,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Players' copies travel with the party: persistent, moved with their owner, never respawned on travel | done (`df9af2ff`), the travel scenarios |
 | Experience: personal, earned by whoever did it; party rewards to everyone (`docs/design/party-model.md`, "Experience") | rule decided 2026-10-19; wiring below. Upstream's shared combat XP still on (`shared-xp`) until step 1 |
 | Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (`b7b83aad`) |
-| Shared dialogue: one conversation for the party, run by the host's engine; anyone moves the cursor and picks, each player's own options show | next (`docs/design/party-model.md`, "Dialogue") |
+| Shared dialogue: one conversation for the party, run by the host's engine; each player sees their own options, anyone picks with their own line | parked 2026-10-19 until quest/world sync and AI state on copies. In: the host's rule and messages (`HostDialogue`, `dialogue_tests.cpp`), copies' own lines and subtitles, the engine structs (`MenuTopicManager`, `UIMessageQueue`). The client (`DialogueService`, `DialogueBridge`, harness `dialogue`, `dialogue_pick`, `skill`, 22 scenarios passing on 2026-10-19) is on branch `shared-dialogue-client`: it syncs the host's list to each peer, to be redone as step sync (below; `docs/design/shared-dialogue.md`, "Next"). Engine notes `docs/re/systems/dialogue.md` |
 | Quests | not started; after shared dialogue. The host runs every quest, peers mirror (`docs/design/party-model.md`); quest sync off (`cSyncQuests`) until then |
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
@@ -74,6 +74,24 @@ The rule and why: `docs/design/party-model.md` ("Experience"); engine path and t
    a peer's kill of a host NPC, who gets its kill experience.
 8. **Mods once**: Skill Uncapper AE and Experience installed, a routed gain (step 3) gets the receiver's
    multiplier once.
+
+### Shared dialogue: sync the step, not the list
+
+Decided 2026-10-19 (`docs/design/shared-dialogue.md`, "Next"; `docs/design/copy-contract.md`, "AI state"): each
+game's engine builds its own list from the host's step, against world and AI state that is the host's. Each step
+with its scenarios.
+
+1. **Spike:** on the client, set the conversation's line to the host's step and call the engine's build and show
+   (35287, 52857); compare with the host's list, list what else 35287 reads.
+2. **AI state on copies:** the owner sends current package, sitting, sleeping, scene, alarmed, combat state; the
+   matching condition functions answer from it for a copy. `GetIsCurrentPackage` first (87 menu lines).
+3. **Step sync:** the host sends its step at each list it shows (the greeting first, the current one to a
+   joiner); peers mark said lines and build their own list. Deletes `OwnLines`, `ShowOptions`, the record of
+   options put in the list, `SendOptions`, the host-options message and the `List` filter. The dialogue scenarios
+   keep passing; `dialogue-peer-only-option` and `dialogue-picker-says-its-line` check each player's own lines.
+4. **Quest topics on peers:** follow from quest sync (missing on a peer's menu until then).
+5. **If step sync waits:** list updates event-driven, not checked every update (`DialogueService::ShowOwnLines`
+   on the host's list arriving, the peer's engine building its list, a new step).
 
 ### Still on the embedded server (what phase 4-5 removes)
 
@@ -139,6 +157,9 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   - An owner's actions before its id arrives are kept (NPCs falling after `placeatme`).
 - Next audits: combat, detection, magic/magicka; then one copy update in place of scattered
   `IsRemote()` checks.
+- Planned (2026-10-19): copies carry their owner's AI state for conditions (current package, sitting, sleeping,
+  scene, alarmed, combat state), simulated only by the owner (`copy-contract.md`, "AI state"); first for
+  shared dialogue's step sync (above).
 
 ## Test suite
 

@@ -52,8 +52,9 @@ and the skills and perks earned by using them.
 ## Dialogue
 
 One shared conversation, run by the host's engine whoever started it. Everyone sees it in the engine's
-dialogue menu; anyone moves the cursor and anyone picks; each player's own options (their factions, items,
-perks, race, Speech) show alongside the host's. Barter picked from it is shared: everyone trades at once.
+dialogue menu, each with their own options: the host's topics with that player's own lines (their factions,
+items, perks, race, Speech), and their own topics. Anyone picks and speaks for the party with their own line;
+the chat names who said what (2026-10-19). Barter picked from it is shared: everyone trades at once (later).
 Details: `shared-dialogue.md`.
 
 Decided 2026-10-14. It replaces the 2026-10-13 suggestion (whoever started the conversation picks, the
