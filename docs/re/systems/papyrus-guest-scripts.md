@@ -12,24 +12,24 @@ Engine side of `docs/design/party-model.md`, "A guest's actions on the host", ru
 Upstream had this hook (`b87e5820`, `HookCompareVariables`) and dropped it for beast form: the check passed
 for the copy, then `Game.GetPlayer()` handed the effect to the host's player. Rule 2 is what fixes that.
 
-## Rule 2: Game.GetPlayer() is the member whose action started the script
+## Rule 2: Game.GetPlayer() is the guest whose action started the script
 
-A script stack runs for a member when:
+A script stack runs for a guest when:
 
-- its call was queued with that member's copy as an argument (the engine's event for the copy's action:
+- its call was queued with that guest's character as an argument (the engine's event for the copy's action:
   `OnActivate`, `OnTriggerEnter`, `OnHit`...), or
-- it was queued while a native ran for that member (an `Activate` raising `OnActivate`, a `SetStage`
+- it was queued while a native ran for that guest (an `Activate` raising `OnActivate`, a `SetStage`
   running a fragment), or
-- it answers a registration made for that member (`RegisterForSingleUpdate` → `OnUpdate`; the repeating
+- it answers a registration made for that guest (`RegisterForSingleUpdate` → `OnUpdate`; the repeating
   `RegisterForUpdate` until `UnregisterForUpdate`).
 
 | ID | Engine function | Our hook | What it does here |
 |---|---|---|---|
-| 104943 | `Internal::RawFuncCallQuery` constructor `(callType, objectType, name, self, args)` | `HookQuery` | Decides the member a queued call runs for (above); arguments already built, read without engine calls. |
-| 104848 | `VirtualMachine`: queue a call message `(stack, query)` | `HookQueue` | The stack is allocated with the query: the query's member becomes the stack's (`Stack::stackId`, `+0x80`). Seven dispatch paths call it. |
-| 104480 | `Stack::Dtor` | `HookStackDtor` | Forgets the stack. |
-| 104651 | `NativeFunctionBase::Call(BSTSmartPointer<Stack>&, logger, vm, bool)` | `HookCall` | Every native: while it runs for a member, a thread-local carries the member to what it queues. Registers and unregisters for updates. |
-| 55618 | `NativeFunction0<StaticFunctionTag, Actor*>::MarshallAndDispatch` | `HookMarshall` | `Game.GetPlayer` (and other no-argument natives returning an Actor, filtered by name): in a stack run for a member, the result is repacked (55510, then `Variable` assignment 104297) as that member's copy. |
+| 104943 | `Internal::RawFuncCallQuery` constructor `(callType, objectType, name, self, args)` | `HookCallQueued` | Decides the guest a queued call runs for (above); arguments already built, read without engine calls. |
+| 104848 | `VirtualMachine`: queue a call message `(stack, query)` | `HookStackCreated` | The stack is allocated with the query: the call's guest becomes the stack's (`Stack::stackId`, `+0x80`). Seven dispatch paths call it. |
+| 104480 | `Stack::Dtor` | `HookStackEnded` | Forgets the stack. |
+| 104651 | `NativeFunctionBase::Call(BSTSmartPointer<Stack>&, logger, vm, bool)` | `HookNativeCalled` | Every native: while it runs for a guest, a thread-local carries the guest to what it queues. Registers and unregisters for updates. |
+| 55618 | `NativeFunction0<StaticFunctionTag, Actor*>::MarshallAndDispatch` | `HookGetPlayer` | `Game.GetPlayer` (and other no-argument natives returning an Actor, filtered by name): in a stack run for a guest, the result is repacked (55510, then `Variable` assignment 104297) as that guest's character. |
 
 - Guests' characters are known by form id (`SkyrimBridge::SetActorCopy` / `SetActorPlayer` / `DeleteActor`
   keep the list through `GuestScripts::SetGuest`, filled only while hosting), so the constructor never

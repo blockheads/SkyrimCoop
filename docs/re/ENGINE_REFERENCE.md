@@ -104,7 +104,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 52626 | `0x96cb00` | `?` | - | hook → `HookShowSubtitle` | `s_showSubtitle` | [SubtitleManager.cpp:52](../../Code/client/Games/Misc/SubtitleManager.cpp#L52) | **undocumented** |
 | 53926 | `0x9bfb00` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `cVMUpdate` | [SkyrimVM64.cpp:67](../../Code/client/SkyrimVM64.cpp#L67) |  |
 | 55497 | `0xa0d3e0` | `papyrus::Game::SetBeastForm` | meh | hook → `HookSetBeastForm` | `s_setBeastForm` | [PlayerCharacter.cpp:344](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L344) |  |
-| 55618 | `0xa12bf0` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookMarshall` | `s_marshall` | [GuestScripts.cpp:238](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L238) |  |
+| 55618 | `0xa12bf0` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `s_getPlayer` | [GuestScripts.cpp:70](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L70) |  |
 | 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `s_bindEverythingToScript` | [VirtualMachine.cpp:59](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L59) |  |
 | 56205 | `0xa2e8c0` | `papyrus::ObjectReference::PlayAnimation` | meh | hook → `HookPlayAnimation` | `s_playAnimation` | [TESObjectREFR.cpp:1150](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1150) |  |
 | 56206 | `0xa2e940` | `papyrus::ObjectReference::PlayAnimationAndWait` | meh | hook → `HookPlayAnimationAndWait` | `s_playAnimationAndWait` | [TESObjectREFR.cpp:1149](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1149) |  |
@@ -120,12 +120,12 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68245 | `0xcc97e0` | `BSTimer::SetGlobalTimeMultiplier` | CL meh | hook → `HookSetGlobalTimeMultiplier` | `s_setGlobalTimeMultiplier` | [BSTimer.cpp:45](../../Code/client/Games/Skyrim/BSTimer.cpp#L45) |  |
 | 78553 | `0xeb6c50` | `bhkCollisionFilter::sub_78553` | meh | hook → `HookCompareFilterInfo` | `s_compareFilterInfo` | [PlayerCollision.cpp:61](../../Code/client/Games/Skyrim/PlayerCollision.cpp#L61) |  |
 | 104359 | `0x142aba0` | `BSScript::NF_util::NativeFunctionBase::sub_104359` | meh | hook → `HookSignaturesMatch` | `s_signaturesMatch` | [VirtualMachine.cpp:60](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L60) |  |
-| 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackDtor` | `s_stackDtor` | [GuestScripts.cpp:236](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L236) |  |
-| 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookCall` | `s_call` | [GuestScripts.cpp:235](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L235) |  |
+| 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackEnded` | `s_stackEnded` | [GuestScripts.cpp:74](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L74) |  |
+| 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookNativeCalled` | `s_nativeCalled` | [GuestScripts.cpp:73](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L73) |  |
 | 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `s_registerPapyrusFunction` | [VirtualMachine.cpp:58](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L58) |  |
-| 104848 | `0x144d8e0` | `BSScript::Internal::VirtualMachine::sub_104848` | meh | hook → `HookQueue` | `s_queue` | [GuestScripts.cpp:234](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L234) |  |
-| 104943 | `0x145a590` | `?` | - | hook → `HookQuery` | `s_query` | [GuestScripts.cpp:233](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L233) | **undocumented** |
-| 105220 | `0x1469f00` | `?` | - | hook → `HookCompare` | `s_compare` | [GuestScripts.cpp:237](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L237) | **undocumented** |
+| 104848 | `0x144d8e0` | `BSScript::Internal::VirtualMachine::sub_104848` | meh | hook → `HookStackCreated` | `s_stackCreated` | [GuestScripts.cpp:72](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L72) |  |
+| 104943 | `0x145a590` | `?` | - | hook → `HookCallQueued` | `s_callQueued` | [GuestScripts.cpp:71](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L71) | **undocumented** |
+| 105220 | `0x1469f00` | `?` | - | hook → `HookCompare` | `s_compare` | [GuestScripts.cpp:69](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L69) | **undocumented** |
 | 106385 | `0x14a5840` | `ShadowSceneNode::SetPortalGraph` | CL meh | hook → `HookSetPortalGraph` | `s_setPortalGraph` | [PortalGraphFix.cpp:101](../../Code/client/Games/Skyrim/Fixes/PortalGraphFix.cpp#L101) |  |
 
 ## .
@@ -553,15 +553,15 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 55618 | `0xa12bf0` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookMarshall` | `s_marshall` | [GuestScripts.cpp:238](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L238) |  |
+| 55618 | `0xa12bf0` | `BSScript::NativeFunction0_BSScript::StaticFunctionTag_Actor__::MarshallAndDispatch` | meh | hook → `HookGetPlayer` | `s_getPlayer` | [GuestScripts.cpp:70](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L70) |  |
 | 55739 | `0xa19b20` | `RegisterPapyrusFunctions` | SKSE | hook → `HookBindEverythingToScript` | `s_bindEverythingToScript` | [VirtualMachine.cpp:59](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L59) |  |
 | 104359 | `0x142aba0` | `BSScript::NF_util::NativeFunctionBase::sub_104359` | meh | hook → `HookSignaturesMatch` | `s_signaturesMatch` | [VirtualMachine.cpp:60](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L60) |  |
-| 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackDtor` | `s_stackDtor` | [GuestScripts.cpp:236](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L236) |  |
-| 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookCall` | `s_call` | [GuestScripts.cpp:235](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L235) |  |
+| 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackEnded` | `s_stackEnded` | [GuestScripts.cpp:74](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L74) |  |
+| 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookNativeCalled` | `s_nativeCalled` | [GuestScripts.cpp:73](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L73) |  |
 | 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `s_registerPapyrusFunction` | [VirtualMachine.cpp:58](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L58) |  |
-| 104848 | `0x144d8e0` | `BSScript::Internal::VirtualMachine::sub_104848` | meh | hook → `HookQueue` | `s_queue` | [GuestScripts.cpp:234](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L234) |  |
-| 104943 | `0x145a590` | `?` | - | hook → `HookQuery` | `s_query` | [GuestScripts.cpp:233](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L233) | **undocumented** |
-| 105220 | `0x1469f00` | `?` | - | hook → `HookCompare` | `s_compare` | [GuestScripts.cpp:237](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L237) | **undocumented** |
+| 104848 | `0x144d8e0` | `BSScript::Internal::VirtualMachine::sub_104848` | meh | hook → `HookStackCreated` | `s_stackCreated` | [GuestScripts.cpp:72](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L72) |  |
+| 104943 | `0x145a590` | `?` | - | hook → `HookCallQueued` | `s_callQueued` | [GuestScripts.cpp:71](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L71) | **undocumented** |
+| 105220 | `0x1469f00` | `?` | - | hook → `HookCompare` | `s_compare` | [GuestScripts.cpp:69](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L69) | **undocumented** |
 
 ## Games/Skyrim/Projectiles
 
