@@ -4,26 +4,28 @@ How a single-player game's story becomes a co-op one. Agreed 2026-10-13 and 2026
 build on it (shared dialogue, quests, the shared purse, cutscenes) refer here.
 
 Skyrim and every mod are written for one player: scripts hold a bound `PlayerRef` and compare against it,
-conditions test "the player". Patching scripts one by one never scales to mods, and making a copy count as
-the player inside comparisons cannot work (the script already holds the handle). So we do not try to make
-the engine see several players.
+conditions test "the player". Patching scripts one by one never scales to mods. Instead the host's script
+engine is taught, once, that every party member is the player (below: "A client's actions on the host");
+no script or mod is patched.
 
 **The party is the Dragonborn.** The host's player is the party's one avatar in the engine. In the user's
 words: "It matters not who interacts with things because it simply just triggers as if the host does it."
 
 ## One rule
 
-**Whatever the world does to "the player", it does to the party.** Quests, scripts and mods act on the
-host's `PlayerRef`; the host's engine applies it to the host's player, and it is mirrored to every party
-member. Nobody records who triggered what: a per-player list of "identity" effects that would need it was
-rejected as an outlier (it breaks at the first timer or deferred script).
+**Whatever the world does to "the player", it does to the party.** What the party shares (below) is
+mirrored to every member whoever triggered it. What only a body can take (being aimed at, moved, transformed,
+a camera effect) goes to the member whose action started the script. Knowing who that is was once rejected
+as breaking at the first timer; the 2026-10-19 spikes showed it follows timers and follow-up scripts
+(`docs/research/player-events.md`).
 
 Shared by the party:
 
 - Gold: one purse, the host's.
 - Rewards: a quest's skill raise or a mod's quest experience reaches every player (experience itself
   is personal, see Experience).
-- Quest items: every player holds them.
+- Inventory: one, shared by every player (decided 2026-10-19), quest items included. Item questions and
+  item changes from scripts ("does the player have the sword", `RemoveItem`) are right whoever acted.
 - Words of power (dragon souls likely too, since they unlock words).
 - Identity changes: beast blood, vampirism, titles (Thane, Harbinger, Arch-Mage), marriage.
 
@@ -31,23 +33,55 @@ Shared by the party:
 
 | Who acts | Applies to | How |
 |---|---|---|
-| The world (quests, scripts, mods → `PlayerRef`) | the party | run on the host's player, mirrored to everyone |
+| The world (quests, scripts, mods → "the player") | the party, for what it shares; the member whose action started it, for their body | run on the host; shared results mirrored to everyone |
 | The engine on a body (hits, spell effects, diseases, equipping, using a skill) | that actor | goes to the actor's owner (`copy-contract.md`), as today |
 
-A player owns only their body and kit: appearance, equipment, regular loot, health, magicka and stamina,
-and the skills and perks earned by using them.
+A player owns only their body: appearance, what they wear and wield, health, magicka and stamina, and the
+skills and perks earned by using them.
 
 ## Who runs what
 
 - **The host's game runs the story**: every quest, its stages and fragments, the Story Manager, NPC AI.
 - **Peers' games run no quest logic.** They show the host's journal, quest popups and map markers.
-- **A peer's interactions reach the host's engine as the player's**: an activation as
-  `ref.Activate(PlayerRef)`, a kill as the player's Story Manager kill event, a trigger entry as
-  `OnTriggerEnter(PlayerRef)`, a picked-up quest item into the purse's inventory. That is a few engine
-  sites (Papyrus event dispatch, Story Manager event sends, the activate and dialogue paths), not one patch
-  per mod. First step before engine work: a scanner over Papyrus sources and plugin conditions (vanilla and
-  a few popular quest mods) counting the player checks, to measure how much this covers.
+- **A peer's interactions reach the host's engine through its copy**, which the host's scripts treat as the
+  player (next section): the copy activates, enters triggers and kills on the host; the peer's story events
+  (location changes, crafting) are raised on the host for the copy.
 - **Characters live on the host** (`join-flow.md`, host-stored characters). Leaving is disconnecting.
+
+## A client's actions on the host (decided 2026-10-19)
+
+Generic: rules in the host's script engine and story manager, never per script or per mod. Evidence and
+numbers: `docs/research/player-events.md` (spikes, "Script scan").
+
+1. **Every party member is the player.** On the host, any script comparison with the player
+   (`== Game.GetPlayer()`, `== PlayerRef`, a player stored in a variable) is true for a remote player's
+   copy. Host only, player copies only. 75% of vanilla player checks after a player's action need nothing
+   more.
+2. **"The player" is the member whose action started the script.** In a script the host runs because of a
+   member's action (an event with their copy as its actor: activate, trigger, hit, spell, death),
+   `Game.GetPlayer()` returns that member's copy. So does every script it starts in turn: an `Activate` it
+   calls, a quest fragment from its `SetStage`, the `OnUpdate` it registers. Aimed traps hit whoever walked
+   in; a transformation, a camera effect, a `MoveTo` reach that member's body (and through the copy, its
+   owner).
+3. **With no member's action behind it, position questions ask about the party.** Timers and loads that ask
+   where the player is (`GetDistance`, `IsInLocation`, `GetCurrentLocation`, about 15 engine functions):
+   true if any member is, the nearest member for a distance. Anything else without a cause is the host's
+   player, mirrored to the party for what it shares.
+4. **A member's story events are judged for that member.** A peer's location change (or craft, or kill) is
+   raised on the host for its copy, and the story manager tests its conditions against that copy, not the
+   host's player (its node and quest visitors, 32429 and 32430).
+5. **Messages go to everyone:** `Debug.Notification`, `Debug.MessageBox`, `Message.Show` on the host are
+   shown on every game.
+
+**Required for it to work fully: a peer's own world scripts stop changing the world.** A peer's game also
+runs the world's scripts for its own player today, so a lever or trigger fires on both games and the
+effects happen twice. Only the host decides (`docs/design/world-state-sync.md`): a peer's game still raises
+its player's events, for the host, but its world scripts must not commit world changes. Its own piece of
+work, in world-state sync.
+
+Measured, not yet ruled: engine code (not scripts) that checks the player while a copy acts on the host
+(55 functions in melee, spells, kills and a trigger: kill credit, crime, faction reaction, detection).
+Default: treat the copy as the player; each checked for player-only code paths.
 
 ## Dialogue
 
@@ -105,6 +139,11 @@ Cutscenes play for everyone as in single player, for any mod, whoever triggered 
 - A scene with room for one player only (Helgen's cart seat) gets its rule with the cutscene design.
 
 ## Still open
+
+- **Shared inventory and what each player wears:** how a player's equipped items relate to the one
+  inventory (two players wearing the same armor piece, one copy each or one each from the stack).
+- **Engine checks for a copy:** the 55 measured functions (previous section), and crime, dialogue and item
+  paths not measured yet.
 
 - **Race changes are translated, not copied:** vampirism turns the host's Nord into `NordRaceVampire`; a
   Khajiit peer gets the vampire version of their own race.

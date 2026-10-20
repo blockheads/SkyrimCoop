@@ -98,6 +98,44 @@ quest stages/objectives/flags with the story-manager nodes, then references' loc
 enabled state and containers' inventory in unloaded cells. At load screens only: cells, references with
 3D, the destination's leveled inventories, created forms.
 
+## Only the host's game decides (decided 2026-10-19)
+
+Every game runs its own story manager and start-game quests and rolls its own alias fills, so quests
+differ before anyone plays (9 to 13 on a settled duo, all alias fills; the decoded change form is in
+`docs/re/systems/quest-change-form.md`), and a client keeps starting its own radiant quests and world
+encounters after a full sync. Decided: **only the host's game starts quests, fills aliases and changes
+world state.** The client's story manager and quest starts are off, as copies run no AI; its quests,
+with their stages, objectives and alias fills, come from the host's QUST change forms.
+
+The rule that follows: **a client never decides world state; it reports what its player did, and the
+host's game reacts as if it happened there.** Everyone else then gets the result from the host. What a
+client's player does that the world reacts to, and where each stands:
+
+| A client's player... | On the host today | Still needed |
+|---|---|---|
+| kills an NPC (the host owns every NPC) | the host applies the damage; the NPC dies there, with kill credit (`death-host-npc`, `client-*-kill-credit`) | the killer is the client's copy: scripts and story-manager conditions asking "killed by the player" (`OnDeath`, kill events) see an NPC |
+| activates something: lever, button, door, chest, shrine | relayed: the host's copy of the client activates it (`ActivateRequest` / `NotifyActivate`, `ObjectService`); scenarios for doors only | `OnActivate` scripts testing `akActionRef == Game.GetPlayer()` reject the copy (patched one by one, copy-contract.md "deliberate exceptions"); the client's own run of the script must change nothing |
+| walks into a trigger volume (`OnTriggerEnter`: traps, ambushes, scene starts) | not checked: whether the copy, placed by movement sync, fires the host's trigger | the same player checks; the client's local trigger must change nothing |
+| enters a location (world encounters, "location cleared", story manager change-location events) | nothing: the engine raises these for the host's own player only | the client's arrivals raised on the host, for the client's character (the party tether makes it rare, not impossible) |
+| picks up, drops or uses a quest item (`OnContainerChanged`, `OnItemAdded`, alias inventories) | nothing: each player's inventory is their own | the host learns of it, so its quest scripts see it |
+| reads a book or note that starts a quest, crafts, raises a skill, commits a crime, picks a lock or a pocket | not checked (lock state is synced) | each one an event the host must see |
+| chooses a dialogue line | shared dialogue, parked: `docs/progress.md`, "Shared dialogue: sync the step, not the list" | the step sync |
+
+Each row gets a scenario: the client does it, and the host's quest, script or world state reacts, then
+the client's from the host.
+
+How (decided 2026-10-19, `docs/design/party-model.md`, "A client's actions on the host"): the client's
+copy acts on the host, and the host's script engine treats every party member's copy as the player, with
+"the player" being the member whose action started the script. No per-script or per-mod patches.
+
+**Required: the client's world scripts stop changing the world.** Today the client's game runs the world's
+scripts for its own player too, so a lever, a trigger or a quest script fires on both games and its effects
+happen twice (spike 1 counted 80 to 540 world-script events per scenario window on the client). Under "only
+the host decides", the client's game keeps raising its player's events (the host needs them) but its world
+scripts must not commit world changes; the host's results reach it as change forms. How (not run them, run
+them and discard their changes, or something between) is open; it is a step below. Until it is done, a
+client's action in the world can happen twice.
+
 ## Unknowns
 
 - **Loading into a live game.** `LoadGame` normally runs during a save load. Each form type has to be
@@ -109,12 +147,8 @@ enabled state and containers' inventory in unloaded cells. At load screens only:
 - **Full sync specifics:** does our session and world survive the client loading a save while
   connected; how the client's own player is carried across (save its player form to a buffer before,
   load it after); time and file size of a modded save.
-- **The client's own quest machinery.** Every game runs its story manager and start-game quests and
-  rolls its own alias fills, so quests differ before anyone plays (9 to 13 on a settled duo, all alias
-  fills: `docs/re/systems/quest-change-form.md` has the decoded change form), and the
-  client keeps starting its own (radiant quests, world encounters) after a full sync. Keep the client's
-  quest starts off, as copies run no AI, or let them run and overwrite them? Same for leveled
-  containers, which re-roll per game on cell load.
+- **Leveled containers** re-roll per game on cell load: the destination's inventories come from the
+  host at the load screen.
 - **Prior art:** none known for Skyrim. SkyMP runs mod scripts on its server in its own Papyrus VM
   (`reference/plugins/skymp/papyrus-vm`); our host is a real Skyrim and runs them natively.
 
@@ -127,12 +161,15 @@ enabled state and containers' inventory in unloaded cells. At load screens only:
    `docs/research/world-state-drift.md`.
 3. **Buffers.** Our own save/load form buffers; round-trip one form on one game.
 4. **First live types** (globals, quest stages), each with a scenario; the rest at load screens.
-5. **Compare sweep** (hash per block, resend mismatches).
-6. **Full sync** for join and manual sync.
+5. **The client's world scripts stop changing the world** (above, "Only the host's game decides"): a
+   scenario where the client pulls a lever and its effect happens once, from the host.
+6. **Compare sweep** (hash per block, resend mismatches).
+7. **Full sync** for join and manual sync.
 
 ## Related
 
 - `docs/design/copy-contract.md`: actors (copies) are handled by the copy contract, not by this.
 - `Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp`: the same technique for animation graphs.
-- Mod patches that this does not cover (scripts checking `== Game.GetPlayer()`) use
-  `SkyrimTogetherUtils.IsPlayer` in `SkyrimTogether.esp` (copy-contract.md, "deliberate exceptions").
+- Scripts checking `== Game.GetPlayer()`: handled on the host by the party model's rules
+  (`docs/design/party-model.md`, "A client's actions on the host"); the `SkyrimTogetherUtils.IsPlayer`
+  patches in `SkyrimTogether.esp` (copy-contract.md, "deliberate exceptions") predate them.

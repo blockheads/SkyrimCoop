@@ -15,7 +15,7 @@ to carry, so step 3 onwards builds for the real list.
   later game's start-up quests are still starting (quest flag `StageWait`); a minute later those agree. The client's
   story manager also starts quests on its own: `WE09`, a world encounter, ran on the host only after
   fast travel. A join's full sync fixes the start; the client starting and filling its own quests
-  afterwards is a new open question (below).
+  afterwards is ruled out: only the host's game decides (world-state-sync.md).
 - **Global variables never go through the change funnel.** They are saved whole, as one table (1121
   globals here). `set` on a global records no change at all; pushing globals needs a diff of that
   table, not the funnel. Two differ at baseline (`WEEnabled` 1 / 0, `WINextUseMagic`).
@@ -181,9 +181,9 @@ design's "at the load screen" path.
 2. **The client's own quest machinery is a drift source**, not only a receiver. The story manager and
    start-game quests run on every game and pick their own alias fills; that is the whole quest drift of
    an unplayed game. A full sync at join gives the client the host's quests, but the client then keeps
-   starting its own (radiant quests, world encounters) and rolling its own fills. New open question for
-   the design: keep the client's story manager and quest starts off (as copies run no AI), or let them
-   run and overwrite them. Syncing a quest means its alias fills as much as its stages: a dialogue or
+   starting its own (radiant quests, world encounters) and rolling its own fills. Decided since: only the
+   host starts quests and fills aliases, and a client's events (kills, activations, triggers, items)
+   reach the host (world-state-sync.md, "Only the host's game decides"). Syncing a quest means its alias fills as much as its stages: a dialogue or
    objective that names the alias points at a different NPC on each game otherwise.
 3. **Leveled containers re-roll on every game** when their cell loads or resets. Containers in cells the
    party has loaded need the host's inventory at the client's load screen, not just a push of live

@@ -25,6 +25,10 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Sync
 
+- **Everyone's load starts with the leader's** (2026-10-19): today a follower starts travelling once the
+  leader has arrived, so the trip costs the leader's load and then its own (`docs/progress.md`, "Tether
+  gaps"). Start every game's load when the leader's starts (`coc`, a load door, fast travel), from the
+  queued move (40442) rather than the arrival (40438), so the loads overlap.
 - **World state through the save system.** The host's world (every mod's quests, globals, containers,
   objects) synced from the engine's own save/load code: a full sync at join, and the changed forms over
   time. Design: `docs/design/world-state-sync.md`.

@@ -139,6 +139,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
 | World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); step 3 (form buffers) next | `docs/design/world-state-sync.md` |
+| A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Needs the client's world scripts to stop changing the world (world-state sync step 5). Not built yet | `docs/research/player-events.md`, `scripts/spikes/` |
 
 ## Copies (how other players' and the host's actors appear)
 
