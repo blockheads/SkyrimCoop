@@ -14,6 +14,7 @@
   coop_test.py console <command...>                   run a console command in the test game
   coop_test.py status [-f]                            both games side by side: health, death, weapon, casting
   coop_test.py save-diff [--label X --noise S]       save both games at once, compare the two worlds block by block
+  coop_test.py change-rate [names] [--seconds S]     the engine's change records per form type and flag (idle or scenarios)
   coop_test.py crash [--instance client]             newest crash per game: engine state (CrashLoggerSSE) + our last engine changes
   coop_test.py repro NAME [--heap-history] [--follow] cause a known crash (REPROS) and print its report;
                                                       --vanilla: the same recipe without our plugin (is it us?);
@@ -3963,6 +3964,70 @@ def save_both(name, noise_seconds, save_diff):
     return host, client, noise
 
 
+# The engine's FormType (CommonLibSSE-NG FormTypes.h) -> record name, for change-rate.
+FORM_TYPE_NAMES = dict(enumerate(
+    "NONE TES4 GRUP GMST KYWD LCRT AACT TXST MICN GLOB CLAS FACT HDPT EYES RACE SOUN ASPC SKIL MGEF SCPT LTEX ENCH "
+    "SPEL SCRL ACTI TACT ARMO BOOK CONT DOOR INGR LIGH MISC APPA STAT SCOL MSTT GRAS TREE FLOR FURN WEAP AMMO NPC_ "
+    "LVLN KEYM ALCH IDLM NOTE COBJ PROJ HAZD SLGM LVLI WTHR CLMT SPGD RFCT REGN NAVI CELL REFR ACHR PMIS PARW PGRE "
+    "PBEA PFLA PCON PBAR PHZD WRLD LAND NAVM TLOD DIAL INFO QUST IDLE PACK CSTY LSCR LVSP ANIO WATR EFSH TOFT EXPL "
+    "DEBR IMGS IMAD FLST PERK BPTD ADDN AVIF CAMS CPTH VTYP MATT IPCT IPDS ARMA ECZN LCTN MESG RGDL DOBJ LGTM MUSC "
+    "FSTP FSTS SMBN SMQN SMEN DLBR MUST DLVW WOOP SHOU EQUP RELA SCEN ASTP OTFT ARTO MATO MOVT SNDR DUAL SNCT SOPM "
+    "COLL CLFM REVB LENS LSPR VOLI".split()))
+
+
+def change_log(instance):
+    select_instance(instance)
+    response = rpc({"cmd": "change_log"}, timeout=10) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] change_log: {response.get('error', 'no answer (a test build?)')}")
+    return response
+
+
+def print_change_rates(game, log_):
+    """One game's change records per form type and flag, per second of the window."""
+    sys.path.insert(0, str(ROOT / "scripts/re"))
+    import save_diff
+    seconds = max(log_["seconds"], 0.001)
+    by_type = {}
+    for bucket in log_["buckets"]:
+        by_type.setdefault(FORM_TYPE_NAMES.get(bucket["type"], str(bucket["type"])), []).append(bucket)
+    total = sum(b["calls"] for b in log_["buckets"])
+    print(f"\n{game}: {total} change calls in {seconds:.1f}s ({total / seconds:.1f}/s)"
+          + ("  [tables full: counts are partial]" if log_.get("full") else ""))
+    for name, buckets in sorted(by_type.items(), key=lambda kv: -sum(b["calls"] for b in kv[1])):
+        calls = sum(b["calls"] for b in buckets)
+        distinct = log_["forms"].get(str(buckets[0]["type"]), 0)
+        print(f"  {name}  {calls} calls ({calls / seconds:.2f}/s), {distinct} distinct forms recorded")
+        for b in sorted(buckets, key=lambda b: -b["calls"])[:10]:
+            flags = "+".join(save_diff.flag_names(name, b["flags"])) or "0"
+            samples = " ".join(f"{s:08X}" for s in b["samples"])
+            print(f"      {b['calls']:7d} {b['calls'] / seconds:8.2f}/s  recorded {b['recorded']:7d}  "
+                  f"{'forced ' if b['forced'] else ''}{flags}  e.g. {samples}")
+
+
+def command_change_rate(args):
+    """Counts the engine's change records (Code/client/TestHarness/ChangeLog.cpp) over a window: idle for
+    --seconds, or while the named scenarios run."""
+    games = ("", "client") if args.instance in (None, "both") else ("client" if args.instance == "client" else "",)
+    for name in games:
+        select_instance(name)
+        if not (rpc({"cmd": "change_log_reset"}) or {}).get("ok"):
+            raise TestFailure(f"[{name or 'host'}] change_log_reset refused (a test build with ChangeLog?)")
+    if args.scenarios:
+        with contextlib.redirect_stdout(sys.stderr if args.json else sys.stdout):
+            command_scenario(argparse.Namespace(names=args.scenarios, tag=None, hold=0, repeat=1, shuffle=False,
+                                                seed=None, fail_fast=False))
+    else:
+        started = time.monotonic()
+        wait_for(f"{args.seconds:.0f}s of play", lambda: time.monotonic() - started >= args.seconds, args.seconds + 5)
+    logs = {name or "host": change_log(name) for name in games}
+    if args.json:
+        print(json.dumps(logs, indent=1))
+        return
+    for game, log_ in logs.items():
+        print_change_rates(game, log_)
+
+
 def command_locks(args):
     for name in ("", "client"):
         select_instance(name)
@@ -4242,6 +4307,11 @@ def main():
     status = commands.add_parser("status", help="both games side by side: health, death, weapon, casting")
     status.add_argument("--follow", "-f", action="store_true", help="keep refreshing")
     commands.add_parser("locks", help="both games' lock-order checker reports (deadlock patterns)")
+    rate = commands.add_parser("change-rate", help="the engine's change records per form type and flag, idle or during scenarios")
+    rate.add_argument("scenarios", nargs="*", help="run these scenarios as the window (default: --seconds idle)")
+    rate.add_argument("--seconds", type=float, default=30, help="idle window without scenarios (default 30)")
+    rate.add_argument("--instance", choices=("host", "client", "both"), help="which game (default: both)")
+    rate.add_argument("--json", action="store_true", help="both games' raw counts as JSON")
     save_diff = commands.add_parser("save-diff", help="save both games at once and compare the two worlds block by block")
     save_diff.add_argument("--label", default="now", help="names the saves coopdiff-<label> (default now)")
     save_diff.add_argument("--noise", type=float, default=0, metavar="SECONDS",
@@ -4285,6 +4355,8 @@ def main():
             command_locks(args)
         elif args.command == "save-diff":
             command_save_diff(args)
+        elif args.command == "change-rate":
+            command_change_rate(args)
         elif args.command == "crash":
             command_crash(args)
         elif args.command == "repro":

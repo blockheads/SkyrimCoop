@@ -25,6 +25,8 @@ std::span<const Command> StagingCommands();
 std::span<const Command> InputCommands();
 std::span<const Command> WorldCommands();
 std::span<const Command> SessionCommands();
+// The engine's change records (ChangeLog.h).
+std::span<const Command> ChangeLogCommands();
 
 nlohmann::json Ok();
 nlohmann::json Error(std::string_view aMessage);

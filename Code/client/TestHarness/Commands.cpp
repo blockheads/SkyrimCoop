@@ -23,7 +23,7 @@ std::string HandleCommand(Harness& aHarness, const std::string& acRequest)
     try
     {
         const std::string cName = cRequest.value("cmd", "");
-        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), SessionCommands()})
+        for (const auto cCommands : {StagingCommands(), InputCommands(), WorldCommands(), SessionCommands(), ChangeLogCommands()})
             for (const Command& cCommand : cCommands)
             {
                 if (cCommand.Name != cName)

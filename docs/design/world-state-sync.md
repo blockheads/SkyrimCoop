@@ -1,6 +1,8 @@
-# World state sync through the save system (parked)
+# World state sync through the save system
 
-Status: **design idea, parked 2026-10-12.** Nothing is built. To be picked up as its own project.
+Status: **steps 1 and 2 done 2026-10-19** (research tooling, no sync code): what drifts between two
+games and how often the engine records changes are in `docs/research/world-state-drift.md`. Step 3 is
+next. Designed 2026-10-12.
 
 ## The problem
 
@@ -63,11 +65,16 @@ bytes, loads Papyrus, then SKSE plugins load their co-save parts.
    SKSE plugins alike. It records (form id, change flags) for the next save.
    - It ignores changes while a load runs (TLS +0x670 bit 0, or the manager's +0x340 bit 0), so a
      client applying the host's data through `LoadGame` records nothing and nothing echoes back.
-   - It skips ignored forms (form flags 0x4000) and forms without an id. Its 4th argument forces it.
+   - It skips ignored forms (form flags 0x4000) and forms without an id. Its 4th argument forces it:
+     14608 is `AddChange` with force set, called during loads (`PromoteReference`, `FinishLoadGame`,
+     `Revert`), so a forced change is recorded even while a load runs.
+   - **Global variables never reach it**: they are saved whole as one table. They need a diff of that
+     table instead (step 1-2 findings).
    - The flags say *what* changed, per form type ([UESP: change flags](https://en.uesp.net/wiki/Skyrim_Mod:ChangeFlags)).
    - Host: hook the funnel, add (form, flags) to a dirty set (it runs on worker threads: lock-free),
      a few times a second serialize each dirty form with its own `SaveGame` and send form, flags, bytes.
-2. **Compare (thorough).** Every so often both games serialize their blocks, hash them, and compare;
+2. **Compare (thorough).** Every so often both games serialize their blocks, hash them (per parsed
+   field: raw bytes carry clock stamps and save-local form id indices), and compare;
    the host resends what differs. That catches what the push missed, including drift the client made
    itself. It doubles as a desync detector.
 
@@ -82,8 +89,14 @@ Candidates for the first live types: global variables, quest stages and objectiv
 reference's enabled/locked/owner state, containers in unloaded cells. Deferred at first: anything with
 3D or a running script attached.
 
-Excluded: what is already synced live (actor positions, actor values, equipment), and noise the
-calendar sync covers (the clock's globals).
+Excluded: what is already synced live (actor positions, actor values, equipment), actors (`ACHR`:
+the copy contract's when loaded, irrelevant while unloaded), and noise the calendar sync covers (the
+clock's globals).
+
+Order from the measurements (`docs/research/world-state-drift.md`): global variables (table diff),
+quest stages/objectives/flags with the story-manager nodes, then references' lock, open, ownership,
+enabled state and containers' inventory in unloaded cells. At load screens only: cells, references with
+3D, the destination's leveled inventories, created forms.
 
 ## Unknowns
 
@@ -96,16 +109,21 @@ calendar sync covers (the clock's globals).
 - **Full sync specifics:** does our session and world survive the client loading a save while
   connected; how the client's own player is carried across (save its player form to a buffer before,
   load it after); time and file size of a modded save.
+- **The client's own quest machinery.** Every game runs its story manager and start-game quests and
+  rolls its own aliases, so quests differ from the first second (13 to 62 at a duo's start), and the
+  client keeps starting its own (radiant quests, world encounters) after a full sync. Keep the client's
+  quest starts off, as copies run no AI, or let them run and overwrite them? Same for leveled
+  containers, which re-roll per game on cell load.
 - **Prior art:** none known for Skyrim. SkyMP runs mod scripts on its server in its own Papyrus VM
   (`reference/plugins/skymp/papyrus-vm`); our host is a real Skyrim and runs them natively.
 
 ## Steps when this is picked up
 
-1. **Save diff tool (no sync code, low risk).** In a scenario, save on host and client at the same
-   moment; a Python tool parses both `.ess` files and compares them block by block. Gives the real list
-   of what differs today, with and without mods, in priority order.
-2. **Observe the funnel.** A harness-only hook on `AddChangeFlags` logs (form type, flags, rate) during
-   scenarios and normal play with a few popular mods: what the 90% is.
+1. **Save diff tool (no sync code, low risk).** Done 2026-10-19: `scripts/re/save_diff.py`,
+   `coop_test.py save-diff`. Not yet run with mods installed.
+2. **Observe the funnel.** Done 2026-10-19: a harness-only hook on 14607/14608
+   (`Code/client/TestHarness/ChangeLog.cpp`), `coop_test.py change-rate`. Findings:
+   `docs/research/world-state-drift.md`.
 3. **Buffers.** Our own save/load form buffers; round-trip one form on one game.
 4. **First live types** (globals, quest stages), each with a scenario; the rest at load screens.
 5. **Compare sweep** (hash per block, resend mismatches).

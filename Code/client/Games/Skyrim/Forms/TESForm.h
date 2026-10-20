@@ -131,4 +131,6 @@ struct TESForm : BaseFormComponent
 
 SKYRIM_STRUCT_ASSERT(sizeof(TESForm) == 0x20);
 SKYRIM_STRUCT_ASSERT(offsetof(TESForm, flags) == 0x10);
+SKYRIM_STRUCT_ASSERT(offsetof(TESForm, formID) == 0x14);
 SKYRIM_STRUCT_ASSERT(offsetof(TESForm, inGameFormFlags) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(TESForm, formType) == 0x1A);

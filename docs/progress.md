@@ -10,7 +10,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-14.
+Last updated 2026-10-19.
 
 ## Direct authority migration
 
@@ -138,7 +138,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
-| Mods | host's mod list is meant to be authoritative; world state of mods not synced | `docs/design/world-state-sync.md` (parked) |
+| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); step 3 (form buffers) next | `docs/design/world-state-sync.md` |
 
 ## Copies (how other players' and the host's actors appear)
 
@@ -339,6 +339,7 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **A copy's spawn writes its NPC base's factions** (2026-10-19): `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`) changes the shared `TESNPC`, so the client records `NPC_ Factions` change forms the host never did (168 in one fast travel). Harmless while the values match the host's; it is client-made world state in its save (`docs/research/world-state-drift.md`).
 - **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
   owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the
   client's own `KillActor`. `client-kill-move` allows up to 0.95 s. Watch whether it reads as a stall.
@@ -423,6 +424,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
+- **Host crash in `TaskQueue::Drain`, 2 s after a save** (2026-10-19): the Runner queue looked overwritten; not reproduced in six more saves (`docs/re/crashes/2026-10-19-runner-queue-after-save.md`).
 - **Our client update runs on a job thread** inside `HookVMUpdate`. Which AI stage jobs run beside it,
   and are our engine changes (spawn, delete, `MoveTo`, packages) safe there?
   (`docs/re/crashes/2026-10-12-wolf-combat-coc.md`, open questions.) Not verified in IDA either: which
@@ -438,6 +440,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Migration
 
+- **The client's `GameDaysPassed` misses host time jumps** (2026-10-19): `CalendarService` only adds each tick's delta, so after `party-fast-travels` the host had 0.4376 days passed, the client 0.3866 (`GameHour` equal). No scenario checks days passed; `host-time-reaches-client` checks the hour (`docs/research/world-state-drift.md`).
 - **Tether gaps** (2026-10-14, `docs/design/host-authority-migration.md`, "Party tether"):
   - Followers start once the leader has arrived: the trip takes the leader's load and then their own.
     Moving them as the leader leaves (40442, the queued move) would overlap the two.
@@ -463,6 +466,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- A release-mode client build (`-m release --test_harness=n`) fails to link: `/opt:ref: no such file or directory` (2026-10-19, seen while checking a player build; `-m dev --test_harness=n` links).
 - `late-join-client`'s party panel after a rejoin (health -1 for the host): a disconnect deleted the other
   players' copies but left their entities with a `PlayerComponent`, and player ids repeat across sessions,
   so the panel could pick the dead one (order-dependent, seen before). Fixed 2026-10-13: a disconnect drops
