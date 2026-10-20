@@ -8,11 +8,9 @@
 
 TP_THIS_FUNCTION(TRegisterPapyrusFunction, void, BSScript::IVirtualMachine, NativeFunction*);
 TP_THIS_FUNCTION(TBindEverythingToScript, void, BSScript::IVirtualMachine*);
-TP_THIS_FUNCTION(TSignaturesMatch, bool, BSScript::NativeFunction, BSScript::NativeFunction*);
 
 TRegisterPapyrusFunction* RealRegisterPapyrusFunction = nullptr;
 TBindEverythingToScript* RealBindEverythingToScript = nullptr;
-TSignaturesMatch* RealSignaturesMatch = nullptr;
 
 // SkyrimTogetherVerifyLaunchScript.DidLaunchSkyrimTogether: the plugin is loaded.
 static bool DidLaunchSkyrimTogether()
@@ -41,29 +39,16 @@ void TP_MAKE_THISCALL(HookBindEverythingToScript, BSScript::IVirtualMachine*)
     TiltedPhoques::ThisCall(RealBindEverythingToScript, apThis);
 }
 
-bool TP_MAKE_THISCALL(HookSignaturesMatch, BSScript::NativeFunction, BSScript::NativeFunction* apOther)
-{
-    /*
-    if (!strcmp(apThis->GetName().AsAscii(), "IsRemotePlayer"))
-        DebugBreak();
-    */
-
-    return TiltedPhoques::ThisCall(RealSignaturesMatch, apThis, apOther);
-}
-
 static TiltedPhoques::Initializer s_vmHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TRegisterPapyrusFunction, s_registerPapyrusFunction, 104788);
         POINTER_SKYRIMSE(TBindEverythingToScript, s_bindEverythingToScript, 55739);
-        POINTER_SKYRIMSE(TSignaturesMatch, s_signaturesMatch, 104359);
 
         RealRegisterPapyrusFunction = s_registerPapyrusFunction.Get();
         RealBindEverythingToScript = s_bindEverythingToScript.Get();
-        RealSignaturesMatch = s_signaturesMatch.Get();
 
         TP_HOOK(&RealRegisterPapyrusFunction, HookRegisterPapyrusFunction);
         TP_HOOK(&RealBindEverythingToScript, HookBindEverythingToScript);
-        TP_HOOK(&RealSignaturesMatch, HookSignaturesMatch);
     });

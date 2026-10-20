@@ -38,7 +38,7 @@ game and a copy (an other player) on the host and the other guests.
 
 | In code | Now means | Goes |
 |---|---|---|
-| `RemoteComponent` | a copy | renamed to `CopyComponent` next |
+| `RemoteComponent` | a copy (the ECS component; kept, alongside `LocalComponent`) | stays |
 | `ClientMessage` / `ServerMessage` | request / notify | with migration phase 5 |
 | `ServerId` | server id (above) | with migration phase 5 |
 | `Code/server/`, `GameServer` | the upstream server, still embedded in the host | deleted in migration phase 5 |

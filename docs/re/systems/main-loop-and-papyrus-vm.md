@@ -24,7 +24,6 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 |---|---|---|---|
 | 55739 | (unnamed) bind-all-natives | `HookBindEverythingToScript` | **SKSE hooks this too** (`Hooks_Papyrus.cpp: RegisterPapyrusFunctions`). We bind `DidLaunchSkyrimTogether` (upstream's `IsRemotePlayer` / `IsPlayer` went with its patched scripts, 2026-10-20). |
 | 104788 | (unnamed) register native | `HookRegisterPapyrusFunction` | Fires `PapyrusFunctionRegisterEvent`. |
-| 104359 | `NativeFunctionBase::sub` (signatures match) | `HookSignaturesMatch` | Pass-through. |
 
 - The host's script engine also treats every party member as the player: comparisons, `Game.GetPlayer()`,
   queued calls and stacks ([papyrus-guest-scripts.md](papyrus-guest-scripts.md)).
