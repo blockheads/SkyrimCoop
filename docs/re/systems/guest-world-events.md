@@ -10,11 +10,12 @@ guest: player activates / walks in
   VM SendEvent(world ref, "OnActivate" | "OnTrigger*") → dropped      WorldEvents.cpp
 host: the copy's event runs the script (GuestScripts rules 1-2)
   door it opens (Activate by a reference)  ┐ ActivateEvent / ScriptAnimationEvent /
-  animation it plays (PlayAnimation)        │ ReferenceEnabledEvent → HostService
-  reference it enables or disables          ┘ → HostEngine (queued) → HostWorldState: NotifyObjectChanges
+  animation it plays (PlayAnimation)        ┘ → HostService → HostEngine (queued)
+  reference it enables, disables, locks     → change funnel (FormChanges) → HostEngine ┐
+  container items in or out                 → ContainerEvents → HostEngine            ┴ HostWorldState: NotifyObjectChanges
   spell it casts on the copy                → AddTargetRequest to the owner    MagicTarget.cpp
   items it takes or gives the copy          → inventory changes (as before)
-guest: GuestWorldState → GuestEngine::ApplyObjectChange (the door, the animation, enabled state)
+guest: GuestWorldState → GuestEngine::ApplyObjectChange (the door, the animation, enabled state, lock, items)
 ```
 
 ## Dropping the guest's events
@@ -58,24 +59,6 @@ back would have looped between the games (the guest's proposal, the host's chang
   the engine's `TESObjectREFR::Enable` (19800, `(this, bool resetInventory)`) or `Disable` (19801, vtable slot
   0x89; `Actor` overrides it, 37267). Papyrus `Enable`/`Disable` (56158, 56155, and the `NoWait` forms) queue an
   `EnableFunctor` / `DisableFunctor` (56492 / 56491) for after render, which fade and then call those two
-  (functors 56110, 56113). Our hooks raise `ReferenceEnabledEvent` when the disabled flag (`0x800`) flips, not for
-  actors (their owner's) or references the game created (`0xFF` ids); a guest enables or disables its
-  reference at once (`EnableImpl`, `DisableImpl`), the host's fade already played.
-- **Locks** (step 6): every lock change ends in `TESObjectREFR::AddLockChange` (19512, CommonLibSSE-NG), whose
-  hook raises `LockChangeEvent`. On the host it goes out as a `kLock` object change; on a guest it is a proposal
-  (`GuestWorldState` sends `LockChangeRequest`), which `HostAuthority::OnLockChange` gives the host's game
-  (`HostGame::SetLock`, `HostEngine::SetLock`): the host's object takes it and every game gets it as the host's
-  change. Applying calls `TESObjectREFR::SetLockState`, which records the change past our hook (no echo). The
-  old relay (`NotifyLockChange`, `ObjectService`'s lock handlers) is deleted.
-  A guest proposes only its player's own: `AddLockChange` is also called by Papyrus `Lock`/`SetLockLevel` (scripts'
-  `OnLoad`) and the engine's cell jobs (through 20226/20227: 39105, 39106, 19809, the cell code at `0x2CC7F0`), so
-  every cell load recorded dozens on both games and the guest's would set the host's locks. The player's lock
-  changes happen inside `ScopedPlayerLockOverride`: `LockpickingMenu::Unlock` (51968, `void (LockpickingMenu*)`,
-  hooked; it records the unlock through 20226 before it opens the door) and the player's own `Activate` (a key,
-  inside `TESObjectDOOR/CONT::Activate`); `LockChangeEvent::ByPlayer` carries it. The host still sends every one of
-  its own (its world decides). `guest-loads-propose-no-locks` (control 2026-10-21: without the check the host took
-  25 from the guest's loads).
-- **Containers' items** (step 6, slice 1): below.
   (functors 56110, 56113). Both flip the disabled flag (`0x800`) through `TESForm::SetDisabled` (14646), which
   records `CHANGE_FORM_FLAGS` (`AddChange(1)`): the host reads the state from the change funnel
   (`Forms/FormChanges`, `HostEngine`), not for actors (their owner's) or references the game created (`0xFF`
@@ -88,6 +71,15 @@ back would have looped between the games (the guest's proposal, the host's chang
   (`HostGame::SetLock`, `HostEngine::SetLock`): the host's object takes it and every game gets it as the host's
   change. Applying calls `TESObjectREFR::SetLockState`, which records the change past our hook; on the host the funnel sees it. The
   old relay (`NotifyLockChange`, `ObjectService`'s lock handlers) is deleted.
+  A guest proposes only its player's own: `AddLockChange` is also called by Papyrus `Lock`/`SetLockLevel` (scripts'
+  `OnLoad`) and the engine's cell jobs (through 20226/20227: 39105, 39106, 19809, the cell code at `0x2CC7F0`), so
+  every cell load recorded dozens on both games and the guest's would set the host's locks. The player's lock
+  changes happen inside `ScopedPlayerLockOverride`: `LockpickingMenu::Unlock` (51968, `void (LockpickingMenu*)`,
+  hooked; it records the unlock through 20226 before it opens the door) and the player's own `Activate` (a key,
+  inside `TESObjectDOOR/CONT::Activate`); `LockChangeEvent::ByPlayer` carries it. The host still sends every one of
+  its own (its world decides). `guest-loads-propose-no-locks` (control 2026-10-21: without the check the host took
+  25 from the guest's loads).
+- **Containers' items** (step 6, slice 1): below.
 - **Spells the host's world casts on a guest's character**: `MagicTarget::AddTarget` dropped every effect on
   a copy whose caster was a copy or nothing, and every hostile one between players with PvP off. On the host,
   an effect on a guest's character goes to its owner when the caster is not an actor (a statue, a trap) or

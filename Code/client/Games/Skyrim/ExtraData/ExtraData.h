@@ -12,6 +12,7 @@ enum class ExtraDataType : uint32_t
     Worn = 0x16,
     WornLeft = 0x17,
     ReferenceHandle = 0x1C,
+    Ownership = 0x21,
     Count = 0x24,
     Health = 0x25,
     Charge = 0x28,

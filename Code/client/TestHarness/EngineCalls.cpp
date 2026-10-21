@@ -8,6 +8,7 @@
 #include <Camera/PlayerCamera.h>
 #include <Camera/VATS.h>
 #include <Components/TESContainer.h>
+#include <ExtraData/ExtraOwnership.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESIdleForm.h>
@@ -36,6 +37,7 @@
 #include <Misc/MiddleProcess.h>
 #include <Misc/GameVM.h>
 #include <NetImmerse/NiCamera.h>
+#include <NetImmerse/NiNode.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
@@ -357,6 +359,63 @@ std::vector<CellObject> GetCellObjects() noexcept
         for (TESObjectREFR* pRef : pCell->GetRefsByFormTypes({FormType::Door, FormType::Container, FormType::Furniture}))
             objects.push_back({pRef->formID, {pRef->position.x, pRef->position.y, pRef->position.z}});
     return objects;
+}
+
+std::vector<ReferenceState> GetLoadedReferences() noexcept
+{
+    std::vector<TESObjectCELL*> cells;
+    if (TES* pTes = TES::Get())
+    {
+        if (pTes->interiorCell)
+            cells.push_back(pTes->interiorCell);
+        else if (const GridCellArray* pGrid = pTes->cells; pGrid && pGrid->arr)
+            for (uint32_t i = 0; i < pGrid->dimension * pGrid->dimension; ++i)
+                if (TESObjectCELL* pCell = pGrid->arr[i]; pCell && pCell->IsValid())
+                    cells.push_back(pCell);
+    }
+    std::vector<ReferenceState> references;
+    for (TESObjectCELL* pCell : cells)
+    {
+        if (!pCell->refData.refArray)
+            continue;
+        for (uint32_t i = 0; i < pCell->refData.capacity; ++i)
+        {
+            TESObjectREFR* pRef = pCell->refData.refArray[i].Get();
+            if (!pRef || !pRef->baseForm)
+                continue;
+            ReferenceState state{};
+            state.Id = pRef->formID;
+            state.Base = pRef->baseForm->formID;
+            state.BaseType = static_cast<uint8_t>(pRef->baseForm->formType);
+            state.Actor = Cast<Actor>(pRef) != nullptr;
+            state.Cell = pCell->formID;
+            state.Flags = pRef->flags;
+            state.Position[0] = pRef->position.x, state.Position[1] = pRef->position.y, state.Position[2] = pRef->position.z;
+            state.Rotation[0] = pRef->rotation.x, state.Rotation[1] = pRef->rotation.y, state.Rotation[2] = pRef->rotation.z;
+            state.Scale = pRef->scale / 100.f;
+            if (const NiAVObject* p3D = pRef->GetNiNode())
+            {
+                state.Has3D = true;
+                state.Hidden = (p3D->flags & 1) != 0;
+                for (int axis = 0; axis < 3; ++axis)
+                    state.Position3D[axis] = p3D->world.translate[axis];
+            }
+            if (Lock* pLock = pRef->GetLock())
+            {
+                state.HasLock = true;
+                state.Locked = pLock->IsLocked();
+                state.LockLevel = pLock->lockLevel;
+            }
+            if (pRef->baseForm->formType == FormType::Door)
+                state.OpenState = static_cast<uint8_t>(pRef->GetOpenState());
+            if (const auto* pOwnership = static_cast<ExtraOwnership*>(pRef->extraData.GetByType(ExtraDataType::Ownership)); pOwnership && pOwnership->owner)
+                state.Owner = pOwnership->owner->formID;
+            if (!state.Actor)
+                state.Items = GetContainerItems(pRef->formID);
+            references.push_back(std::move(state));
+        }
+    }
+    return references;
 }
 
 void UnequipAllUnsynced(uint32_t aFormId) noexcept

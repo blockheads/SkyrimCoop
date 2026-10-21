@@ -187,6 +187,51 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
+// {"cmd": "world_state", "ids"?: [id, ...]}: every reference in the loaded cells (or only those) as this game
+// holds and shows it (EngineCalls::GetLoadedReferences); fields at their defaults are left out.
+nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
+    auto references = nlohmann::json::array();
+    for (const auto& cRef : EngineCalls::GetLoadedReferences())
+    {
+        if (!cIds.empty() && std::ranges::find(cIds, cRef.Id) == cIds.end())
+            continue;
+        nlohmann::json ref = {{"id", cRef.Id},
+                              {"base", cRef.Base},
+                              {"type", cRef.BaseType},
+                              {"cell", cRef.Cell},
+                              {"flags", cRef.Flags},
+                              {"position", {cRef.Position[0], cRef.Position[1], cRef.Position[2]}},
+                              {"rotation", {cRef.Rotation[0], cRef.Rotation[1], cRef.Rotation[2]}},
+                              {"scale", cRef.Scale},
+                              {"has_3d", cRef.Has3D}};
+        if (cRef.Actor)
+            ref["actor"] = true;
+        if (cRef.Has3D)
+        {
+            ref["hidden"] = cRef.Hidden;
+            ref["position_3d"] = {cRef.Position3D[0], cRef.Position3D[1], cRef.Position3D[2]};
+        }
+        if (cRef.HasLock)
+            ref["lock"] = {{"locked", cRef.Locked}, {"level", cRef.LockLevel}};
+        if (cRef.OpenState)
+            ref["open_state"] = cRef.OpenState;
+        if (cRef.Owner)
+            ref["owner"] = cRef.Owner;
+        if (cRef.Items)
+        {
+            auto items = nlohmann::json::object();
+            for (const auto& [cItem, cCount] : *cRef.Items)
+                if (cCount)
+                    items[fmt::format("{:X}", cItem)] = cCount;
+            ref["items"] = items;
+        }
+        references.push_back(std::move(ref));
+    }
+    return {{"ok", true}, {"references", references}};
+}
+
 // {"cmd": "quest", "quest": id}: the quest's live state (EngineCalls::GetQuestState), to check what a save holds.
 nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
 {
@@ -374,6 +419,7 @@ constexpr Command cCommands[] = {
     {"anim_trace", true, &AnimTrace},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
+    {"world_state", true, &WorldState},
     {"quest", true, &Quest},
     {"global", true, &Global},
     {"form_save", true, &FormSave},

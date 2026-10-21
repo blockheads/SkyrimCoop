@@ -190,6 +190,32 @@ struct CellObject
 };
 std::vector<CellObject> GetCellObjects() noexcept;
 
+// A reference in a loaded cell as this game holds and shows it: everything world-state sync could carry
+// (scripts/coop_test.py's world diff compares the two games').
+struct ReferenceState
+{
+    uint32_t Id;
+    uint32_t Base;
+    uint8_t BaseType; // FormType
+    bool Actor;
+    uint32_t Cell;
+    uint32_t Flags; // TESForm::flags: disabled 0x800, deleted 0x20, harvested 0x2000
+    float Position[3];
+    float Rotation[3];
+    float Scale;
+    bool Has3D;
+    bool Hidden;            // its 3D's kHidden
+    float Position3D[3];    // its 3D's world position (what the player sees)
+    bool HasLock;
+    bool Locked;
+    uint8_t LockLevel;
+    uint8_t OpenState;      // doors only (TESObjectREFR::OpenState)
+    uint32_t Owner;         // ExtraOwnership, 0 none
+    std::optional<std::vector<std::pair<uint32_t, int32_t>>> Items; // not actors' (GetContainerItems)
+};
+// Every reference in the loaded cells: the interior, or the attached exterior grid (TES).
+std::vector<ReferenceState> GetLoadedReferences() noexcept;
+
 // The effect shaders and art objects the engine is playing on the actor.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
 // The actor whose health bar the HUD shows, or 0.

@@ -278,18 +278,25 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    then the guest's timers and loads.
 6. **References and containers as messages:** lock, open, enabled and owner state (doors, locks and activation
    are bridge relays already, phase 4), containers' contents, leveled containers as a guest's cell loads.
-   Enabled state built 2026-10-21: the host's engine `Enable`/`Disable`, whatever called them, go out with the
-   host's object changes (`NotifyObjectChanges`); `sword-box-asks-client` checks the guest's box and sword in
-   the stone swap. Locks built 2026-10-21: the host's lock changes are object changes, a guest's (its lockpick,
-   a key) a proposal the host's game takes (`lock-reaches-others`). Containers slice 1 built 2026-10-21: a
-   container's change travels as its count of the item now (`kItems`), the host's to everyone, a guest's as a
-   proposal the host's game takes (`ContainerChangeRequest`); every add and remove is seen through the engine's
-   `TESContainerChangedEvent` (`chest-take-reaches-others`, `docs/re/systems/guest-world-events.md`). Per base
-   item (extra data, such as enchantments, does not travel). Next: slice 2, a container's contents from the host
-   when a guest's cell loads (leveled lists roll per game).
-   a key) a proposal the host's game takes (`lock-reaches-others`). Next: containers.
-7. **World desync check:** after each scenario, compare quest stages, globals, locks and containers between
-   the games, as `coop_test.py desync` does for actors.
+   Enabled state and locks built 2026-10-21: the host reads each reference's state from the change funnel
+   (`FormChanges`, one row per state in `ReferenceStates`, "As built") and sends it with its object changes
+   (`NotifyObjectChanges`); `sword-box-asks-client` checks the box and the sword in the stone swap. A guest's own
+   lock change (its lockpick, a key: never its loads or scripts) is a proposal the host's game takes
+   (`lock-reaches-others`, `guest-loads-propose-no-locks`). Containers slice 1 built 2026-10-21: a container's change
+   travels as its count of the item now (`kItems`, an event kind: item and count), the host's to everyone, a guest's
+   as a proposal the host's game takes (`ContainerChangeRequest`); every add and remove is seen through the engine's
+   `TESContainerChangedEvent` (`chest-take-reaches-others`, `docs/re/systems/guest-world-events.md`). Per base item
+   (extra data, such as enchantments, does not travel). Next: slice 2, a container's contents from the host when a
+   guest's cell loads (leveled lists roll per game).
+7. **World desync check:** compare what each game shows of the world, as `coop_test.py desync` does for actors.
+   References built 2026-10-21: the harness's `world_state` reads every reference in the loaded cells
+   (base, cell, form flags, position and rotation, scale, its 3D shown or hidden and where, lock, open state,
+   owner, items), and `coop_test.py world-diff` compares the two games (created references pair up by base
+   and position; actors are `desync`'s). Scenario `world-changes-reach-guest` makes one change of each kind
+   on the host with the console, puts it back, and lists every kind the guest's world does not follow.
+   First run: disable, enable, lock and items follow; move, rotate, scale, open (a script's `SetOpen`), owner
+   and created references do not. Not covered yet: havok moves, harvesting, destruction (QASmoke has no
+   flora or destructibles). Next: the same compare after every scenario; quest stages and globals.
 
 Join and host reload: save transfer, built with the join flow (`join-flow.md`, stages 4 to 6). Mods: save
 data for the forms no message covers, once mods are taken on.

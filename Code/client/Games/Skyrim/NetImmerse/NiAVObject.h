@@ -25,10 +25,13 @@ struct NiAVObject : NiObjectNET
     uint8_t pad30[0x48 - 0x30];
     Transform local; // 48
     Transform world; // 7C
-    uint8_t padB0[0x110 - 0xB0];
+    uint8_t padB0[0xF4 - 0xB0];
+    uint32_t flags; // F4, kHidden 1 (CommonLibSSE-NG NiAVObject::Flag)
+    uint8_t padF8[0x110 - 0xF8];
 };
 
 static_assert(sizeof(NiAVObject::Transform) == 0x34);
 SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, local) == 0x48);
 SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, world) == 0x7C);
+SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, flags) == 0xF4);
 SKYRIM_STRUCT_ASSERT(sizeof(NiAVObject) == 0x110);
