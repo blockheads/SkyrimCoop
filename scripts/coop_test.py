@@ -3307,7 +3307,8 @@ def scenario_sword_box_asks_client():
     """The client puts Red Eagle's sword in the stone and takes it back. On the host the box's check
     counts its character as the player (rule 1), and the script the box starts asks that character for
     the sword and hands it back to it (rule 2, docs/design/party-model.md): the host's player, who has
-    none, opens the door all the same and never gets the sword."""
+    none, opens the door all the same and never gets the sword. The client's own box runs nothing
+    (world-state sync step 5): its sword goes once and comes back once, and its door opens from the host's."""
     try:
         both_go(REBELS_CAIRN_CELL)
         copy = client_on_host()
@@ -3318,19 +3319,22 @@ def scenario_sword_box_asks_client():
             raise TestFailure("[host] the host's player holds Red Eagle's sword to begin with")
         for name in ("", "client"):
             place_before(name, SECRET_DOOR, 400)
-        # Two: the client's own game runs the box's script too and takes one there.
-        console_on("client", f"player.additem {RED_EAGLE_SWORD:08X} 2")
-        wait_for("[host] the client's character holds the swords", lambda: item_count("", copy, RED_EAGLE_SWORD) == 2, 5)
+        console_on("client", f"player.additem {RED_EAGLE_SWORD:08X} 1")
+        wait_for("[host] the client's character holds the sword", lambda: item_count("", copy, RED_EAGLE_SWORD) == 1, 5)
         activate_on("client", SWORD_BOX)
         for name in ("", "client"):
             wait_for(f"[{name or 'host'}] secret door {SECRET_DOOR:X} opens", lambda name=name: door_state(name, SECRET_DOOR) == DOOR_OPEN, 15)
+        wait_for("[client] the player gave up the sword", lambda: item_count("client", 0x14, RED_EAGLE_SWORD) == 0, 5)
         if item_count("", 0x14, RED_EAGLE_SWORD):
             raise TestFailure("[host] the host's player holds a sword it never had")
         activate_on("client", SWORD_IN_STONE)
         for name in ("", "client"):
             wait_for(f"[{name or 'host'}] secret door {SECRET_DOOR:X} closes", lambda name=name: door_state(name, SECRET_DOOR) == DOOR_CLOSED, 15)
+        wait_for("[client] the player has the sword back", lambda: item_count("client", 0x14, RED_EAGLE_SWORD) == 1, 5)
         if item_count("", 0x14, RED_EAGLE_SWORD):
             raise TestFailure("[host] the sword went to the host's player, not the client's character")
+        if (swords := item_count("client", 0x14, RED_EAGLE_SWORD)) != 1:
+            raise TestFailure(f"[client] the player holds {swords} swords: the box's script ran more than once")
     finally:
         if swords := item_count("client", 0x14, RED_EAGLE_SWORD):
             console_on("client", f"player.removeitem {RED_EAGLE_SWORD:08X} {swords}")
@@ -3341,7 +3345,7 @@ def scenario_sword_box_asks_client():
 # goes to `polling`, where it stays, and registers for an update; every seventh update the fire statue casts
 # Firebolt at game.getPlayer().
 SOLJUND_CELL, SOLJUND_TRIGGER, SOLJUND_SCRIPT = "SoljundsSinkhole01", 0x6AEBE, "dunSoljundsBossSCRIPT"
-SOLJUND_FIRE = 0x12FD0  # the statue's fireSpell (Firebolt)
+SOLJUND_FIRE, SOLJUND_FIRE_DAMAGE = 0x12FD0, 0x12F03  # the statue's fireSpell (Firebolt) and its fire damage effect
 
 
 def boss_trigger_state(instance):
@@ -3359,12 +3363,13 @@ def scenario_statue_fires_at_client():
     """The client walks into Soljund's boss trigger: on the host its character counts as the player
     (rule 1), and the updates the trigger registers for run for it (rule 2), so the host's fire statue
     shoots at the client's character, not at the host's player, who stands out of the way. Checked by the
-    host's own hits: the client's game runs the trigger too (world-state sync step 5) and its statue shoots
-    its own player, which the copy on the host mirrors. No god mode: it keeps the hit from landing at all."""
+    host's own hits; the client's own trigger runs nothing (world-state sync step 5), and the host's hit
+    burns the client's player through its game. No god mode: it keeps the hit from landing at all."""
     try:
         both_go(SOLJUND_CELL)
         copy = client_on_host()
         _, since = engine_events("")
+        _, client_since = engine_events("client")
         place_before("client", SOLJUND_TRIGGER, 200)
         press("client", "forward")
         try:
@@ -3374,6 +3379,12 @@ def scenario_statue_fires_at_client():
         wait_for("[host] the statue's fire hits the client's character", lambda: copy in fire_hits(since), 15)
         if 0x14 in fire_hits(since):
             raise TestFailure("[host] the statue's fire hit the host's player too")
+        if boss_trigger_state("client") == "polling":
+            raise TestFailure("[client] its own trigger ran (world-state sync step 5): its statue would fire too")
+        # Its owner's game applies the host's hit (MagicTarget: the host's world on a guest's character).
+        wait_for("[client] the host's fire burns the player", lambda: any(
+            e.get("kind") == "magic_effect_apply" and e.get("target") == 0x14 and e.get("effect") == SOLJUND_FIRE_DAMAGE
+            for e in engine_events("client", client_since)[0]), 5)
     finally:
         for name in ("", "client"):
             console_on(name, "player.restoreav health 1000")
@@ -3403,7 +3414,9 @@ def before_claw_door():
 
 def scenario_ring_turns_for_client():
     """The client turns a ring of a claw door three times round. On the host the ring's check counts
-    its character as the player (rule 1, docs/design/party-model.md), so the host's ring turns with it."""
+    its character as the player (rule 1, docs/design/party-model.md), so the host's ring turns with it.
+    The client's own ring script runs nothing (world-state sync step 5): it stays where it was, and the
+    client sees the turn played by the host's script."""
     ring = next(iter(CLAW_RINGS))
     try:
         before_claw_door()
@@ -3414,9 +3427,10 @@ def scenario_ring_turns_for_client():
         for _ in range(3):
             position = position % 3 + 1
             activate_on("client", ring)
-            for name in ("", "client"):
-                wait_for(f"[{name or 'host'}] ring {ring:X} turns to position {position}",
-                         lambda name=name: claw_door_state(name, ring) == f"position0{position}", 10)
+            wait_for(f"[host] ring {ring:X} turns to position {position}",
+                     lambda: claw_door_state("", ring) == f"position0{position}", 10)
+            if claw_door_state("client", ring) != start:
+                raise TestFailure(f"[client] ring {ring:X}'s own script ran: '{claw_door_state('client', ring)}', not '{start}'")
     finally:
         both_go(HOME_CELL)
 

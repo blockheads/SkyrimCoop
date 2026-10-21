@@ -31,7 +31,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Package sync from the owner | no | `AI_SYNC` stays 0 (References.cpp) |
 | AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's, planned | decided 2026-10-19, revised 2026-10-20 (fields and getters, not condition functions), not built: below, "AI state" |
 | Combat controller, combat group membership | no | never given to a copy: `CombatUpdateJob` (46902) would run its combat AI (below, "AI state") |
-| Applying spell effects locally | no | the owner applies them (MagicTarget.cpp) |
+| Applying spell effects locally | no | the owner applies them (MagicTarget.cpp); on the host, the world's spells on a guest's character (a statue, a trap, a script making the copy cast) are sent to its owner too (`docs/re/systems/guest-world-events.md`) |
 | Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects with visuals; the copy plays just their hit shader and art while listed (EffectVisualsService) |
 | Hit feedback for the attacker (enemy health bar) | in the attacker's game | our player's hit on a copy shows its health bar at once, from the owner's health (CombatService::OnHitEvent) |
 | Combat decisions, dialogue, reservations | no (audit when touched) | to check when syncing combat or dialogue |

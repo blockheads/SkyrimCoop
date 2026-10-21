@@ -158,8 +158,19 @@ scripts for its own player too, so a lever, a trigger or a quest script fires on
 happen twice (spike 1 counted 80 to 540 world-script events per scenario window on the guest). Under "only
 the host decides", the guest's game keeps raising its player's events (the host needs them) but its world
 scripts must not commit world changes; the host's results reach it as messages. How (not run them, run
-them and discard their changes, or something between) is open; it is step 5. Until it is done, a guest's
-action in the world can happen twice.
+them and discard their changes, or something between) is step 5. Its first slice (2026-10-21): a guest's
+game does not deliver activation and trigger events to the world's scripts; the host's copy of the guest
+raises them there, and the results come back (below, step 5). Other events (hits, deaths, container changes,
+timers, loads) still run on both games.
+
+```
+guest pulls a lever  → ActivateRequest (exists) ─────► host: the copy activates it
+guest's VM: OnActivate on the lever → dropped          host's script runs (rules 1-2)
+                                                         ├ door it opens   → relayed (by reference)
+                                                         ├ its animations  → relayed
+                                                         ├ spell on the copy → to its owner
+                                                         └ items on the copy → inventory changes
+```
 
 ## Unknowns
 
@@ -221,7 +232,14 @@ action in the world can happen twice.
    memory, location aliases, created references, quests a guest's scripts start (step 5), deleting upstream's
    `QuestService`.
 5. **The guest's world scripts stop changing the world** (above, "Only the host's game decides"): a scenario
-   where the guest pulls a lever and its effect happens once, from the host.
+   where the guest pulls a lever and its effect happens once, from the host. Slice 1 built 2026-10-21:
+   activation and trigger events (`Papyrus/WorldEvents.cpp`); a script's doors and animations come from the
+   host only (`HostAuthority::OnActivate`, `OnScriptAnimation`); the host's world's spells on a guest's
+   character go to its owner (`MagicTarget.cpp`, `GuestScripts`' `CastFunctor` tag). Scenarios
+   `sword-box-asks-client` (the sword goes once, comes back once), `statue-fires-at-client`,
+   `ring-turns-for-client`, `shrine-blesses-client`. Engine notes `docs/re/systems/guest-world-events.md`.
+   Next: the other events a player's action raises on the world (hits, deaths, containers, reading),
+   then the guest's timers and loads.
 6. **References and containers as messages:** lock, open, enabled and owner state (doors, locks and activation
    are bridge relays already, phase 4), containers' contents, leveled containers as a guest's cell loads.
 7. **World desync check:** after each scenario, compare quest stages, globals, locks and containers between

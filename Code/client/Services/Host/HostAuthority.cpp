@@ -95,6 +95,7 @@ NotifyActivate ToNotify(const ActivateRequest& acRequest)
     NotifyActivate notify;
     notify.Id = acRequest.Id;
     notify.ActivatorId = acRequest.ActivatorId;
+    notify.ActivatorRef = acRequest.ActivatorRef;
     notify.PreActivationOpenState = acRequest.PreActivationOpenState;
     return notify;
 }
@@ -199,9 +200,9 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
     Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::ServerId);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
-    Relay<ActivateRequest, NotifyActivate>(FromAnyone);
+    On(*this, &HostAuthority::OnActivate);
     Relay<LockChangeRequest, NotifyLockChange>(FromAnyone);
-    Relay<ScriptAnimationRequest, NotifyScriptAnimation>(FromAnyone);
+    On(*this, &HostAuthority::OnScriptAnimation);
 
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
@@ -260,6 +261,23 @@ void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest,
 {
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+}
+
+void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (acRequest.ActivatorRef != GameId{} && aSender != m_players.Host())
+    {
+        spdlog::warn("HostAuthority: {:x} sent an activation by a reference, which only the host's world makes", aSender);
+        return;
+    }
+    Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+}
+
+void HostAuthority::OnScriptAnimation(const ScriptAnimationRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (aSender != m_players.Host())
+        return; // a guest's world scripts play nothing for the others
+    Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
 }
 
 void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept

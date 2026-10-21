@@ -3,6 +3,7 @@
 #include <Games/Magic/MagicSystem.h>
 
 struct Actor;
+struct TESObjectREFR;
 struct MagicItem;
 struct EffectItem;
 struct TESBoundObject;
@@ -47,7 +48,7 @@ struct MagicTarget
         bool ShouldSync();
         bool IsForbiddenEffect(Actor* apTarget);
 
-        Actor* pCaster;
+        TESObjectREFR* pCaster; // any reference: a statue or a trap casts too (CommonLibSSE-NG)
         MagicItem* pSpell;
         EffectItem* pEffectItem;
         TESBoundObject* pSource;
@@ -60,6 +61,8 @@ struct MagicTarget
         bool bAreaTarget;
         bool bDualCast;
     };
+    SKYRIM_STRUCT_ASSERT(sizeof(AddTargetData) == 0x50);
+    SKYRIM_STRUCT_ASSERT(offsetof(AddTargetData, eCastingSource) == 0x44);
 
     virtual ~MagicTarget();
 

@@ -33,6 +33,7 @@ A script stack runs for a guest when:
 | 104480 | `Stack::Dtor` | `HookStackEnded` | Forgets the stack. |
 | 104651 | `NativeFunctionBase::Call(BSTSmartPointer<Stack>&, logger, vm, bool)` | `HookNativeCalled` | Every native: while it runs for a guest, a thread-local carries the guest to what it queues. Registers and unregisters for updates. |
 | 55618 | `NativeFunction0<StaticFunctionTag, Actor*>::MarshallAndDispatch` | `HookGetPlayer` | `Game.GetPlayer` (55469, bound in 55503; other no-argument natives returning an Actor share it, filtered by name, case-insensitively: below): in a stack run for a guest, the result is repacked (55510, then `Variable` assignment 104297) as that guest's character. |
+| 53954, 55744 | `SkyrimVM` queuing a delayed functor; `CastFunctor::operator()` | `HookFunctorQueued`, `HookCastRun` | `Spell.Cast` casts later from a functor, maybe after the script ended: the functor is tagged with the native's guest when queued, and the cast runs for it (`docs/re/systems/guest-world-events.md`). |
 
 - Guests' characters are known by form id (`SkyrimBridge::SetActorCopy` / `SetActorPlayer` / `DeleteActor`
   keep the list through `GuestScripts::SetGuest`, filled only while hosting), so the constructor never
@@ -52,9 +53,9 @@ Unpatched vanilla scripts, the client acting on its own game; checked on the hos
 |---|---|---|---|
 | `plate-counts-client` | Kolbjorn Barrow pressure plate (`DLC2dunKolbjornPressureTileScript`, a player stored at `OnInit`) | 1: a stored player | the plate goes `inTrigger` under the client's character and back to `Waiting` behind it (harness `script_state`: `FindBoundObject`, VM vfunc 0x1C, then `Object::currentState`, `+0x10`) |
 | `sword-box-asks-client` | Rebel's Cairn sword in the stone: the box (`dunRebelsCairnActivator`, `obj == Game.GetPlayer()`) activates the manager (`dunRebelsCairnSwordInStoneManager`), whose new stack asks `Game.GetPlayer()` for the sword, takes it, opens the door; the sword in the stone gives it back | 1, and 2 through a call queued by `Activate` | the secret door opens though the host's player has no sword, closes again, and the host's player never gets the sword (harness `item_count`) |
-| `ring-turns-for-client` | A claw door's ring (`HallofStoriesDiskScript`, `actorRef == game.GetPlayer()`, state `positionN`), the E3 demo's Bleak Falls Barrow | 1 | the host's ring turns with the client's three times round (rings only finish turning in view: the players stand before the door) |
+| `ring-turns-for-client` | A claw door's ring (`HallofStoriesDiskScript`, `actorRef == game.GetPlayer()`, state `positionN`), the E3 demo's Bleak Falls Barrow | 1 | the host's ring turns three times round as the client turns it; the client's own ring script stays (step 5) (rings only finish turning in view: the players stand before the door) |
 | `keyhole-asks-client` | The same door's keyhole (`HallofStoriesKeyholeScript`: `actorRef == game.GetPlayer()`, then `game.GetPlayer().GetItemCount(claw)`), a ring wrong | 1, and 2 in the handler | the keyhole takes the try (`busy`, then back to `mainState`) though the host's player holds no claw; the door stays shut |
-| `shrine-blesses-client` | Solitude temple shrines (`TempleBlessingScript`: casts on the activator, messages when it is the player) | 1 | each player gets only their own shrine's blessing on every game, though each game sees the other's character pray |
+| `shrine-blesses-client` | Solitude temple shrines (`TempleBlessingScript`: casts on the activator, messages when it is the player) | 1, and 2 through `Spell.Cast` | each player gets only their own shrine's blessing on every game, though each game sees the other's character pray; the client's comes from the host's script (step 5), cast by its copy and applied by its game |
 | `vilkas-counts-client-hits` | The Companions' trial (`C00TrainerScript` on Vilkas's alias: hits by `Game.GetPlayer()` count, anyone else's end the trial) | 1 | three hits pass the trial (stage 150, not 110). Nothing the hits start asks for the player: stage 150's fragment only stops the fight, and `PassTheSword` (`Game.GetPlayer().AddItem`) is stage 200's, set from his dialogue (`QF_C00VilkasTrainingQuest`: 150 → `Fragment_3`, 200 → `Fragment_1`) |
 | `statue-fires-at-client` | Soljund's Sinkhole boss trigger (`dunSoljundsBossSCRIPT`): `RegisterForSingleUpdate`, every seventh `OnUpdate` the statue casts Firebolt at `game.getPlayer()` | 1, and 2 through `RegisterForSingleUpdate` | the host's own hit events (harness `engine_events`, `hit`): the statue's Firebolt (`0x12FD0`) hits the client's character and never the host's player, who stands 3,500 units away |
 | `client-beast-form-stays-client` | Beast Form (`WerewolfChangeEffectScript`: `Target == Game.GetPlayer()` starts `PlayerWerewolfQuest`, whose `SetRace` changes `Game.GetPlayer()`), upstream's reason for dropping rule 1 | none: the effect is the guest's | the guest changes and changes back, the host shows its copy do the same (respawned for each race), the host's player keeps its race and the host's `PlayerWerewolfQuest` never runs |
@@ -73,9 +74,10 @@ character can pass: the host's player has no sword, and the client's statue is d
 
 Found while writing them:
 
-- Both games still run the client's world scripts (world-state sync step 5): the client's own box takes a
-  sword on its game, and the host's `AddItem` to the copy reaches the client's player too, so the client ends
-  with two swords where one went back. The sword scenario gives the client two for that.
+- Both games ran the client's world scripts until world-state sync step 5 (2026-10-21): the client's own box
+  took a sword on its game, and the host's `AddItem` to the copy reached the client's player too, so the
+  client ended with two swords where one went back. Now the client's box runs nothing: one sword goes and
+  comes back once, and the scenario checks it.
 - A NiController door (the secret door) only plays its `Open` / `Close` sequence while a camera sees it, and
   `GetOpenState` reports `opening` (2) until then (`BGSOpenCloseForm::GetOpenState`, 14288: the sequence's
   state). A scenario that waits on such a door stands the players where they see it. Harness `door_open`

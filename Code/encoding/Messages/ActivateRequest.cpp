@@ -5,6 +5,7 @@ void ActivateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const
     Id.Serialize(aWriter);
     CellId.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, ActivatorId);
+    ActivatorRef.Serialize(aWriter);
     aWriter.WriteBits(PreActivationOpenState, 8);
 }
 
@@ -15,6 +16,7 @@ void ActivateRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noe
     Id.Deserialize(aReader);
     CellId.Deserialize(aReader);
     ActivatorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    ActivatorRef.Deserialize(aReader);
     uint64_t preActivationOpenState = 0;
     aReader.ReadBits(preActivationOpenState, 8);
     PreActivationOpenState = preActivationOpenState & 0xFF;

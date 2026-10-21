@@ -968,16 +968,13 @@ bool TESObjectREFR::PlayAnimationAndWait(BSFixedString* apAnimation, BSFixedStri
     return result;
 }
 
-#define OBJECT_ANIM_SYNC 0
-
 bool TP_MAKE_THISCALL(HookPlayAnimationAndWait, void, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName)
 {
     spdlog::debug("Animation: {}, EventName: {}", apAnimation->AsAscii(), apEventName->AsAscii());
 
-#if OBJECT_ANIM_SYNC
+    // Sent by every game, passed on from the host's only (HostAuthority::OnScriptAnimation).
     if (!s_cancelAnimationWaitEvent && (apSelf->formID < 0xFF000000))
         World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, apAnimation->AsAscii(), apEventName->AsAscii()));
-#endif
 
     return TiltedPhoques::ThisCall(RealPlayAnimationAndWait, apThis, auiStackID, apSelf, apAnimation, apEventName);
 }
@@ -1005,10 +1002,8 @@ bool TP_MAKE_THISCALL(HookPlayAnimation, void, uint32_t auiStackID, TESObjectREF
 {
     spdlog::debug("EventName: {}", apEventName->AsAscii());
 
-#if OBJECT_ANIM_SYNC
     if (!s_cancelAnimationEvent && (apSelf->formID < 0xFF000000))
         World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, String{}, apEventName->AsAscii()));
-#endif
 
     return TiltedPhoques::ThisCall(RealPlayAnimation, apThis, auiStackID, apSelf, apEventName);
 }
@@ -1016,21 +1011,20 @@ bool TP_MAKE_THISCALL(HookPlayAnimation, void, uint32_t auiStackID, TESObjectREF
 bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing)
 {
     Actor* pActivator = Cast<Actor>(apActivator);
+    const bool cIsDoor = apThis->baseForm->formType == FormType::Door;
 
-    // Exclude books from activation since only reading them removes them from the cell
-    // Note: Books are now unsynced 
-    if (pActivator && apThis->baseForm->formType != FormType::Book)
+    // An actor's activation (not a book's: only reading one removes it from the cell), or a script's on a door
+    // (by a reference: only the host's are passed on, HostAuthority::OnActivate).
+    if (apActivator && (pActivator ? apThis->baseForm->formType != FormType::Book : cIsDoor))
     {
-        auto openState = TESObjectREFR::kNone;
-        if (apThis->baseForm->formType == FormType::Door)
-            openState = apThis->GetOpenState();
-
-        ActivateEvent evt(apThis, pActivator, apObjectToGet, aCount, aDefaultProcessing, aUnk1, openState);
-        evt.ObjectFormId   = apThis->formID;
-        evt.ActivatorFormId = pActivator->formID;
+        const auto cOpenState = cIsDoor ? apThis->GetOpenState() : TESObjectREFR::kNone;
+        ActivateEvent evt(apThis, pActivator, apObjectToGet, aCount, aDefaultProcessing, aUnk1, cOpenState);
+        evt.ObjectFormId = apThis->formID;
+        evt.ActivatorFormId = apActivator->formID;
+        evt.ByReference = !pActivator;
         TESObjectCELL* pCell = apThis->GetParentCellEx();
         evt.ObjectParentCellFormId = pCell ? pCell->formID : 0;
-        evt.PreActivationOpenStateValue = static_cast<uint8_t>(openState);
+        evt.PreActivationOpenStateValue = static_cast<uint8_t>(cOpenState);
         World::Get().GetRunner().Trigger(evt);
     }
 

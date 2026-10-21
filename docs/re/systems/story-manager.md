@@ -30,7 +30,7 @@ BGSStoryTeller::Update 32483, per frame, each queued event in order:
 ## A guest's story manager starts no quest
 
 `BGSStoryManager::ProcessEvent` (32372) is hooked (`Games/Skyrim/Misc/BGSStoryManager.cpp`). While the game
-is a guest (`GuestWorldState` switches it through `GuestEngine::SetOwnQuestStarts`), the hook leaves the
+is a guest (`GuestWorldState` switches it through `GuestEngine::SetDecidesWorld`), the hook leaves the
 tree unwalked and reports "not timed out". `Update` then starts nothing and ends the event with `started
 a quest` false, the same path as an event no node takes. The events are still raised, so forwarding them
 to the host (Spike 4) can capture them at `AddEvent_Impl`.

@@ -55,6 +55,8 @@ struct ActivateEvent
     // Services must use these fields; the SKSE pointer fields above are hook-only.
     uint32_t ObjectFormId{0};
     uint32_t ActivatorFormId{0};
+    // The activator is a reference, not an actor: a script opened a door (Activate(Self)).
+    bool ByReference{false};
     uint32_t ObjectParentCellFormId{0};
     // TESObjectREFR::OpenState cast to uint8_t for SKSE-free service access.
     uint8_t PreActivationOpenStateValue{0};

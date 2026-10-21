@@ -17,6 +17,8 @@
 #include <PlayerCharacter.h>
 
 #include <Effects/ActiveEffect.h>
+#include <Papyrus/GuestScripts.h>
+#include <Services/HostService.h>
 
 TP_THIS_FUNCTION(TAddTarget, bool, MagicTarget, MagicTarget::AddTargetData& arData);
 TP_THIS_FUNCTION(TCheckAddEffectTargetData, bool, MagicTarget::AddTargetData, void* arArgs, float afResistance);
@@ -80,6 +82,45 @@ Actor* MagicTarget::GetTargetAsActor()
     return TiltedPhoques::ThisCall(getTargetAsActor, this);
 }
 
+namespace
+{
+bool IsCopy(Actor* apActor) noexcept
+{
+    return apActor && apActor->GetExtension()->IsCopy();
+}
+
+// Our player, or another player's copy.
+bool IsPlayer(Actor* apActor) noexcept
+{
+    return apActor && (apActor == PlayerCharacter::Get() || apActor->GetExtension()->IsPlayer());
+}
+
+// Cast by one of our actors (or our player): ours to send to the target's owner.
+bool IsOurCast(Actor* apCaster) noexcept
+{
+    return apCaster && !IsCopy(apCaster);
+}
+
+bool IsFriendly(const MagicItem* apSpell) noexcept
+{
+    return apSpell->IsHealingSpell() || apSpell->IsBuffSpell();
+}
+
+// The host's world on a guest's character: a statue or trap (no actor), or a script making the copy cast.
+bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
+{
+    if (!apTarget->GetExtension()->IsOtherPlayer() || !World::Get().GetHostService().IsHosting())
+        return false;
+    return !apCaster || (IsCopy(apCaster) && GuestScripts::NativeGuest());
+}
+
+// A player's hostile spell on another player while PvP is off.
+bool IsBlockedPvp(Actor* apCaster, const MagicItem* apSpell) noexcept
+{
+    return IsPlayer(apCaster) && !IsFriendly(apSpell) && !World::Get().GetServerSettings().PvpEnabled;
+}
+} // namespace
+
 bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& arData)
 {
     Actor* pTargetActor = apThis->GetTargetAsActor();
@@ -101,7 +142,8 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
 
     AddTargetEvent addTargetEvent{};
     addTargetEvent.TargetID = pTargetActor->formID;
-    addTargetEvent.CasterID = arData.pCaster ? arData.pCaster->formID : 0;
+    Actor* pCasterActor = Cast<Actor>(arData.pCaster);
+    addTargetEvent.CasterID = pCasterActor ? pCasterActor->formID : 0;
     addTargetEvent.SpellID = arData.pSpell->formID;
     addTargetEvent.EffectID = arData.pEffectItem->pEffectSetting->formID;
     addTargetEvent.Magnitude = arData.fMagnitude;
@@ -110,26 +152,25 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
     // Direct authority: the caster's game decides that a spell hit, and only the target's owner
     // applies it (effects requested by others arrive through MagicTarget::AddTarget, which skips
     // this hook). Copies never apply effects themselves; they show the owner's resulting state.
-    ActorExtension* pCasterExtension = arData.pCaster ? arData.pCaster->GetExtension() : nullptr;
-    const bool cCasterIsCopy = pCasterExtension && pCasterExtension->IsCopy();
-
     if (pTargetActorEx->IsCopy())
     {
+        const bool cWorldCast = IsWorldCast(pTargetActor, pCasterActor);
+
         // Someone else's actor hit by someone else's spell, or by nothing of ours: their games
         // handle it.
-        if (!arData.pCaster || cCasterIsCopy)
+        if (!IsOurCast(pCasterActor) && !cWorldCast)
             return false;
 
         if (pTargetActorEx->IsOtherPlayer())
         {
-            const bool cFriendly = arData.pSpell->IsHealingSpell() || arData.pSpell->IsBuffSpell();
-            if (!cFriendly && !World::Get().GetServerSettings().PvpEnabled)
+            // PvP is a player's own cast; the world's (a script making the copy cast) is not.
+            if (!cWorldCast && IsBlockedPvp(pCasterActor, arData.pSpell))
                 return false;
 
-            if (arData.pSpell->IsHealingSpell())
+            if (arData.pSpell->IsHealingSpell() && pCasterActor)
             {
-                addTargetEvent.ApplyHealPerkBonus = arData.pCaster->HasPerk(0x581f8);
-                addTargetEvent.ApplyStaminaPerkBonus = arData.pCaster->HasPerk(0x581f9);
+                addTargetEvent.ApplyHealPerkBonus = pCasterActor->HasPerk(0x581f8);
+                addTargetEvent.ApplyStaminaPerkBonus = pCasterActor->HasPerk(0x581f9);
             }
         }
 
@@ -137,17 +178,17 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
         // attacker's feedback (CombatService shows the target's health bar).
         if (arData.ShouldSync())
             World::Get().GetRunner().Trigger(addTargetEvent);
-        if (!arData.pSpell->IsHealingSpell() && !arData.pSpell->IsBuffSpell())
-            World::Get().GetRunner().Trigger(HitEvent(arData.pCaster->formID, pTargetActor->formID));
+        if (pCasterActor && !IsFriendly(arData.pSpell))
+            World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
         return false;
     }
 
     // Our actor. A replayed spell from someone else's character also lands here, but its caster's
     // game already sent us the request for this hit: applying it too would double it.
-    if (cCasterIsCopy)
+    if (IsCopy(pCasterActor))
     {
         // Send out a HitEvent because TakeDamage is never triggered (combat targeting).
-        World::Get().GetRunner().Trigger(HitEvent(arData.pCaster->formID, pTargetActor->formID));
+        World::Get().GetRunner().Trigger(HitEvent(pCasterActor->formID, pTargetActor->formID));
         return false;
     }
 

@@ -65,6 +65,26 @@ TP_THIS_FUNCTION(TStackEnded, void*, BSScript::Stack);
 TStackEnded* RealStackEnded = nullptr;
 void* TP_MAKE_THISCALL(HookStackEnded, BSScript::Stack);
 
+// A delayed native's work, queued for later (SkyrimScript::DelayFunctor, CommonLibSSE-NG).
+struct DelayFunctor
+{
+    void* pVtable;     // 00
+    uint32_t refCount; // 08
+    uint32_t stackId;  // 0C: the stack that called the native
+};
+static_assert(offsetof(DelayFunctor, stackId) == 0x0C);
+
+// Rule 2 for Spell.Cast (55747): it queues a CastFunctor (SkyrimVM, 53954), whose call (55744,
+// `Variable operator()()`, its vtable slot 1) casts later, maybe after the script ended.
+TP_THIS_FUNCTION(TFunctorQueued, bool, void, DelayFunctor**);
+TFunctorQueued* RealFunctorQueued = nullptr;
+bool TP_MAKE_THISCALL(HookFunctorQueued, void, DelayFunctor** appFunctor);
+
+TP_THIS_FUNCTION(TCastRun, BSScript::Variable*, DelayFunctor, BSScript::Variable*);
+TCastRun* RealCastRun = nullptr;
+void* s_castRun = nullptr; // the original, as CastFunctor's vtable names it
+BSScript::Variable* TP_MAKE_THISCALL(HookCastRun, DelayFunctor, BSScript::Variable* apResult);
+
 TiltedPhoques::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
     POINTER_SKYRIMSE(TCompare, s_compare, 105220);
@@ -73,18 +93,25 @@ TiltedPhoques::Initializer s_hooks([]() {
     POINTER_SKYRIMSE(TStackCreated, s_stackCreated, 104848);
     POINTER_SKYRIMSE(TNativeCalled, s_nativeCalled, 104651);
     POINTER_SKYRIMSE(TStackEnded, s_stackEnded, 104480);
+    POINTER_SKYRIMSE(TFunctorQueued, s_functorQueued, 53954);
+    POINTER_SKYRIMSE(TCastRun, s_castRunPointer, 55744);
     RealCompare = s_compare.Get();
     RealGetPlayer = s_getPlayer.Get();
     RealCallQueued = s_callQueued.Get();
     RealStackCreated = s_stackCreated.Get();
     RealNativeCalled = s_nativeCalled.Get();
     RealStackEnded = s_stackEnded.Get();
+    RealFunctorQueued = s_functorQueued.Get();
+    RealCastRun = s_castRunPointer.Get();
+    s_castRun = reinterpret_cast<void*>(RealCastRun);
     TP_HOOK(&RealCompare, HookCompare);
     TP_HOOK(&RealGetPlayer, HookGetPlayer);
     TP_HOOK(&RealCallQueued, HookCallQueued);
     TP_HOOK(&RealStackCreated, HookStackCreated);
     TP_HOOK(&RealNativeCalled, HookNativeCalled);
     TP_HOOK(&RealStackEnded, HookStackEnded);
+    TP_HOOK(&RealFunctorQueued, HookFunctorQueued);
+    TP_HOOK(&RealCastRun, HookCastRun);
 });
 
 constexpr uint32_t cPlayerFormId = 0x14;
@@ -241,6 +268,20 @@ class Tags
         return cGuest;
     }
 
+    // A delayed native queued by a guest's script, then run: the guest it runs for.
+    void TagFunctor(const void* apFunctor, uint32_t aGuest) noexcept
+    {
+        std::scoped_lock _{m_lock};
+        m_functors[apFunctor] = aGuest;
+    }
+
+    uint32_t TakeFunctor(const void* apFunctor) noexcept
+    {
+        std::scoped_lock _{m_lock};
+        auto functor = m_functors.extract(apFunctor);
+        return functor ? functor.mapped() : 0;
+    }
+
   private:
     struct TimerGuest
     {
@@ -253,6 +294,7 @@ class Tags
     std::map<const void*, uint32_t> m_calls;                         // queued call -> guest
     std::map<uint32_t, uint32_t> m_stacks;                            // stack id -> guest
     std::map<std::pair<uint64_t, std::string>, TimerGuest> m_timers; // (script object, event) -> guest
+    std::map<const void*, uint32_t> m_functors;                      // queued delayed native -> guest
 };
 
 Tags s_tags;
@@ -338,6 +380,28 @@ BSScript::CallResult TP_MAKE_THISCALL(HookNativeCalled, BSScript::IFunction, BSS
     return cResult;
 }
 
+bool TP_MAKE_THISCALL(HookFunctorQueued, void, DelayFunctor** appFunctor)
+{
+    DelayFunctor* pFunctor = appFunctor ? *appFunctor : nullptr;
+    const bool cTagged = t_nativeGuest && pFunctor && static_cast<void**>(pFunctor->pVtable)[1] == s_castRun;
+    if (cTagged)
+        s_tags.TagFunctor(pFunctor, t_nativeGuest); // before: the game thread may run it at once
+    const bool cQueued = TiltedPhoques::ThisCall(RealFunctorQueued, apThis, appFunctor);
+    if (cTagged && !cQueued)
+        s_tags.TakeFunctor(pFunctor);
+    return cQueued;
+}
+
+// The cast runs for the guest whose script called Spell.Cast: its effect on that guest is the host's world's.
+BSScript::Variable* TP_MAKE_THISCALL(HookCastRun, DelayFunctor, BSScript::Variable* apResult)
+{
+    const uint32_t cOuter = t_nativeGuest;
+    t_nativeGuest = s_tags.Any() ? s_tags.TakeFunctor(apThis) : 0;
+    BSScript::Variable* pResult = TiltedPhoques::ThisCall(RealCastRun, apThis, apResult);
+    t_nativeGuest = cOuter;
+    return pResult;
+}
+
 void* TP_MAKE_THISCALL(HookStackEnded, BSScript::Stack)
 {
     if (s_tags.Any())
@@ -345,6 +409,11 @@ void* TP_MAKE_THISCALL(HookStackEnded, BSScript::Stack)
     return TiltedPhoques::ThisCall(RealStackEnded, apThis);
 }
 } // namespace
+
+uint32_t NativeGuest() noexcept
+{
+    return t_nativeGuest;
+}
 
 void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept
 {

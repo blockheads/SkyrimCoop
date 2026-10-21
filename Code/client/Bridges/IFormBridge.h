@@ -102,7 +102,7 @@ public:
     virtual void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept = 0;
     /// Returns the form ID of the object's parent cell.
     virtual uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept = 0;
-    /// Activate an object as if the given actor activated it.
+    /// Activate an object as if the given actor (or reference: a host script's door) activated it.
     virtual void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept = 0;
     /// Play an animation on an object (for ScriptAnimationEvent).
     virtual void PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation, const std::string& aEventName) noexcept = 0;

@@ -8,13 +8,14 @@ GuestWorldState::GuestWorldState(entt::dispatcher& aDispatcher, GuestEngine& aEn
 {
     m_globalsConnection = aDispatcher.sink<NotifyGlobals>().connect<&GuestWorldState::OnGlobals>(this);
     m_questsConnection = aDispatcher.sink<NotifyQuests>().connect<&GuestWorldState::OnQuests>(this);
-    // this is what disables guests (so clients connected to the host) from starting their own quest
-    m_engine.SetOwnQuestStarts(false);
+    // this is what stops guests (clients connected to the host) from starting their own quests or running
+    // their own world scripts: the host's game decides
+    m_engine.SetDecidesWorld(false);
 }
 
 GuestWorldState::~GuestWorldState() noexcept
 {
-    m_engine.SetOwnQuestStarts(true);
+    m_engine.SetDecidesWorld(true);
 }
 
 void GuestWorldState::OnGlobals(const NotifyGlobals& acMessage) noexcept

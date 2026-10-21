@@ -294,6 +294,39 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }
 
+TEST_CASE("Objects: a script's door and animations come only from the host's world", "[Bridge][Objects]")
+{
+    Session session;
+
+    // The host's script opened a door (Activate(Self) on the sword-in-the-stone manager).
+    ActivateRequest activate;
+    activate.Id = GameId(0, 0xC149D);
+    activate.CellId = GameId(0, 0x9732);
+    activate.ActivatorId = 0;
+    activate.ActivatorRef = GameId(0, 0xA05C4);
+    activate.PreActivationOpenState = 3;
+    session.Receive(kHost, activate);
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cActivations = session.SentTo<NotifyActivate>(cTo);
+        REQUIRE(cActivations.size() == 1);
+        CHECK(cActivations[0]->ActivatorRef == GameId(0, 0xA05C4));
+        CHECK(cActivations[0]->ActivatorId == 0);
+    }
+
+    // A guest's world scripts decide nothing: the same from a guest reaches no one.
+    session.Receive(kPeer, activate);
+    CHECK(session.SentTo<NotifyActivate>(kHost).empty());
+    CHECK(session.SentTo<NotifyActivate>(kOtherPeer).size() == 1);
+
+    ScriptAnimationRequest animation;
+    animation.FormID = 0x847D3;
+    animation.EventName = "Turn01";
+    session.Receive(kPeer, animation);
+    CHECK(session.SentTo<NotifyScriptAnimation>(kHost).empty());
+    CHECK(session.SentTo<NotifyScriptAnimation>(kOtherPeer).empty());
+}
+
 TEST_CASE("Objects: an activation, a lock and a script animation reach everyone else", "[Bridge][Objects]")
 {
     Session session;

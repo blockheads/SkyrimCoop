@@ -7,6 +7,7 @@
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
+#include <Papyrus/WorldEvents.h>
 #include <Sky/Sky.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
@@ -183,7 +184,8 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
 }
 
-void GuestEngine::SetOwnQuestStarts(bool aOn) noexcept
+void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
     BGSStoryManager::SetPicksQuests(aOn);
+    WorldEvents::SetDelivered(aOn);
 }

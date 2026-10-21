@@ -8,4 +8,6 @@ namespace GuestScripts
 {
 // An actor became a guest's character (aIsGuest) or stopped being one; kept by SkyrimBridge.
 void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept;
+// The guest a native running on this thread runs for (a script they started), or 0.
+uint32_t NativeGuest() noexcept;
 } // namespace GuestScripts

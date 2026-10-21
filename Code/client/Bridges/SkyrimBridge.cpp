@@ -955,10 +955,10 @@ void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aAct
 {
     Breadcrumbs::Record("ActivateObjectFromActor", aObjectFormId, aActivatorFormId);
     TESObjectREFR* pObject = GetRefr(aObjectFormId);
-    Actor* pActor = GetActor(aActivatorFormId);
+    TESObjectREFR* pActor = GetRefr(aActivatorFormId); // an actor, or the host script's reference
     if (!pObject || !pActor)
     {
-        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or actor {:X} not found",
+        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or activator {:X} not found",
                       aObjectFormId, aActivatorFormId);
         return;
     }

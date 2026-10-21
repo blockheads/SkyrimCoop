@@ -76,6 +76,16 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
         return;
     }
 
+    request.PreActivationOpenState = acEvent.PreActivationOpenStateValue;
+    if (acEvent.ByReference)
+    {
+        // A script's door: sent by every game, passed on from the host's only.
+        request.ActivatorId = 0;
+        if (m_world.GetModSystem().GetServerModId(acEvent.ActivatorFormId, request.ActivatorRef))
+            m_transport.Send(request);
+        return;
+    }
+
     auto view = m_world.view<FormIdComponent>();
     const auto pEntity = std::find_if(std::begin(view), std::end(view), [id = acEvent.ActivatorFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
 
@@ -96,6 +106,15 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
 
 void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
 {
+    if (acMessage.ActivatorRef)
+    {
+        const uint32_t cObjectId = World::Get().GetModSystem().GetGameId(acMessage.Id);
+        const uint32_t cActivatorId = World::Get().GetModSystem().GetGameId(acMessage.ActivatorRef);
+        if (m_formBridge.FormExists(cObjectId) && m_formBridge.FormExists(cActivatorId))
+            m_formBridge.ActivateObjectFromActor(cObjectId, cActivatorId, acMessage.PreActivationOpenState);
+        return;
+    }
+
     const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ActivatorId);
     if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
     {
