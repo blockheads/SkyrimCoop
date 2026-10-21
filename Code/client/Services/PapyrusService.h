@@ -24,7 +24,7 @@ struct PapyrusService
     void HandOffFunctions() const noexcept;
 
 private:
-    Map<String, void*> m_functions;
+    Map<String, void*> m_functions; // by NameKey("Namespace::Name")
 
     entt::scoped_connection m_papyrusFunctionRegisterConnection;
 };

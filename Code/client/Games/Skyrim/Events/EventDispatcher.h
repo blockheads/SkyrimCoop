@@ -116,11 +116,16 @@ struct TESGrabReleaseEvent
 {
 };
 
+// CommonLibSSE-NG TESHitEvent.
 struct TESHitEvent
 {
-    TESObjectREFR* hit;
-    TESObjectREFR* hitter;
+    TESObjectREFR* hit;    // 00 target
+    TESObjectREFR* hitter; // 08 cause
+    uint32_t source;       // 10 weapon or spell
+    uint32_t projectile;   // 14
+    uint8_t flags;         // 18
 };
+static_assert(offsetof(TESHitEvent, projectile) == 0x14);
 
 struct TESLoadGameEvent
 {

@@ -1,6 +1,7 @@
 #include <CrashHandler.h>
 #include <HookSwitch.h>
 #include <BSCore/LockOrder.h>
+#include <Games/EngineNames.h>
 #include <Games/References.h>
 #include <Games/Skyrim/EquipManager.h>
 #include <AI/AIProcess.h>
@@ -912,7 +913,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
 
     // KillImpl (37896) performs the death animation, or RagdollInstant when told to ragdoll at once; a
     // copy's own actions are refused unless forced.
-    const bool cRagdoll = acAction.EventName == "RagdollInstant";
+    const bool cRagdoll = SameName(acAction.EventName, "RagdollInstant");
     const ActionEvent cPrevious = pExtension->LatestAnimation;
     pExtension->LatestAnimation.ActionId = 0;
     EndDeferredKill();

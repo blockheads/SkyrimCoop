@@ -20,6 +20,7 @@
 #include <Forms/ActorValueInfo.h>
 #include <Forms/SpellItem.h>
 #include <Games/ActorExtension.h>
+#include <Games/EngineNames.h>
 #include <Games/Overrides.h>
 #include <Games/References.h>
 #include <Games/TES.h>
@@ -774,7 +775,7 @@ uint32_t SkyrimBridge::FindQuestByNameId(const std::string& aNameId) const noexc
     auto& questRegistry = ModManager::Get()->quests;
     for (auto* pQ : questRegistry)
     {
-        if (pQ && std::strcmp(pQ->idName.AsAscii(), aNameId.c_str()) == 0)
+        if (pQ && pQ->idName.AsAscii() && SameName(pQ->idName.AsAscii(), aNameId))
             return pQ->formID;
     }
     return 0;

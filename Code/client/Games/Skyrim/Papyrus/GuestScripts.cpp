@@ -2,6 +2,7 @@
 
 #include <Actor.h>
 #include <Forms/TESForm.h>
+#include <Games/EngineNames.h>
 #include <Games/ActorExtension.h>
 #include <HookSwitch.h>
 #include <Misc/BSScript.h>
@@ -158,8 +159,15 @@ constexpr TimerNative cTimerNatives[] = {
 
 const TimerNative* FindTimerNative(std::string_view aName) noexcept
 {
-    const auto it = std::ranges::find(cTimerNatives, aName, &TimerNative::Name);
+    const auto it = std::ranges::find_if(cTimerNatives, [aName](const auto& acTimer) { return SameName(acTimer.Name, aName); });
     return it != std::end(cTimerNatives) ? it : nullptr;
+}
+
+// The timer event aEvent names, spelled as cTimerNatives spells it ("" if none).
+std::string_view TimerEvent(std::string_view aEvent) noexcept
+{
+    const auto it = std::ranges::find_if(cTimerNatives, [aEvent](const auto& acTimer) { return SameName(acTimer.Event, aEvent); });
+    return it != std::end(cTimerNatives) ? it->Event : std::string_view{};
 }
 
 // Its lock is a leaf: no engine call while it is held.
@@ -277,7 +285,7 @@ bool TP_MAKE_THISCALL(HookGetPlayer, BSScript::IFunction, BSScript::Variable* ap
 {
     const bool cResult = TiltedPhoques::ThisCall(RealGetPlayer, apThis, apBase, apVm, aStackId, apResult, apFrame);
     const char* cpName = apThis->GetName().AsAscii();
-    if (cResult && apFrame && apResult && cpName && std::strcmp(cpName, "GetPlayer") == 0 && IsHosting())
+    if (cResult && apFrame && apResult && cpName && SameName(cpName, "GetPlayer") && IsHosting())
         if (Actor* pGuest = GuestCharacter(GuestOf(apFrame->pParent)))
             apResult->SetActor(pGuest, apVm);
     return cResult;
@@ -295,7 +303,8 @@ void* TP_MAKE_THISCALL(HookCallQueued, void, int32_t aCallType, void* apObjectTy
     uint32_t guest = t_nativeGuest ? t_nativeGuest : GuestArgument(apArguments);
     auto* pSelf = apSelf ? apSelf->GetObject() : nullptr;
     if (!guest && pSelf && apEvent && apEvent->AsAscii() && s_tags.HasTimers())
-        guest = s_tags.TakeTimer(pSelf->GetHandle(), apEvent->AsAscii());
+        if (const auto cEvent = TimerEvent(apEvent->AsAscii()); !cEvent.empty())
+            guest = s_tags.TakeTimer(pSelf->GetHandle(), cEvent);
     if (guest || s_tags.Any())
         s_tags.TagCall(apThis, guest);
     return pResult;

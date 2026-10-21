@@ -3339,9 +3339,9 @@ def scenario_sword_box_asks_client():
 
 # Soljund's Sinkhole: the boss trigger (dunSoljundsBossSCRIPT: `obj == game.getPlayer()`, once per cell attach)
 # goes to `polling`, where it stays, and registers for an update; every seventh update the fire statue casts
-# Firebolt at game.getPlayer() (only while that game's statue is enabled).
-SOLJUND_CELL, SOLJUND_TRIGGER, SOLJUND_SCRIPT, SOLJUND_FIRE_STATUE = "SoljundsSinkhole01", 0x6AEBE, "dunSoljundsBossSCRIPT", 0x6AE8C
-FIRE_SHADER = 0x1B212  # FireFXShader: what a Firebolt hit plays on its target
+# Firebolt at game.getPlayer().
+SOLJUND_CELL, SOLJUND_TRIGGER, SOLJUND_SCRIPT = "SoljundsSinkhole01", 0x6AEBE, "dunSoljundsBossSCRIPT"
+SOLJUND_FIRE = 0x12FD0  # the statue's fireSpell (Firebolt)
 
 
 def boss_trigger_state(instance):
@@ -3349,28 +3349,34 @@ def boss_trigger_state(instance):
     return ((rpc({"cmd": "script_state", "object": SOLJUND_TRIGGER, "script": SOLJUND_SCRIPT}) or {}).get("state") or "").lower()
 
 
+def fire_hits(since):
+    """Whom the host's game saw the statue's fire hit (harness engine_events), from event `since` on."""
+    events, _ = engine_events("", since)
+    return {e["target"] for e in events if e.get("kind") == "hit" and e.get("source") == SOLJUND_FIRE}
+
+
 def scenario_statue_fires_at_client():
     """The client walks into Soljund's boss trigger: on the host its character counts as the player
     (rule 1), and the updates the trigger registers for run for it (rule 2), so the host's fire statue
-    shoots at the client's character, not at the host's player. The client's own statue is disabled
-    for the test (its game runs the same script): any fire on the client's character is the host's.
-    No god mode: it keeps the hit from landing at all."""
+    shoots at the client's character, not at the host's player, who stands out of the way. Checked by the
+    host's own hits: the client's game runs the trigger too (world-state sync step 5) and its statue shoots
+    its own player, which the copy on the host mirrors. No god mode: it keeps the hit from landing at all."""
     try:
         both_go(SOLJUND_CELL)
         copy = client_on_host()
-        console_on("client", f"{SOLJUND_FIRE_STATUE:X}.disable")
+        _, since = engine_events("")
         place_before("client", SOLJUND_TRIGGER, 200)
         press("client", "forward")
         try:
             wait_for("[host] the trigger is polling", lambda: boss_trigger_state("") == "polling", 10)
         finally:
             release("client", "forward")
-        wait_for("[host] the statue's fire lands on the client's character", lambda: FIRE_SHADER in visuals("", copy), 15)
-        if FIRE_SHADER in visuals("", 0x14):
-            raise TestFailure("[host] the statue's fire landed on the host's player too")
+        wait_for("[host] the statue's fire hits the client's character", lambda: copy in fire_hits(since), 15)
+        if 0x14 in fire_hits(since):
+            raise TestFailure("[host] the statue's fire hit the host's player too")
     finally:
-        console_on("client", f"{SOLJUND_FIRE_STATUE:X}.enable")
-        console_on("client", "player.restoreav health 1000")
+        for name in ("", "client"):
+            console_on(name, "player.restoreav health 1000")
         both_go(HOME_CELL)
 
 
@@ -3478,9 +3484,9 @@ def scenario_shrine_blesses_client():
 
 
 # The Companions' first trial (C00VilkasTrainingQuest): Vilkas's alias (C00TrainerScript) counts the hits whose
-# `akAggressor` is `Game.GetPlayer()`; three pass the trial (stage 150, whose fragment gives Vilkas's sword to
-# `Game.GetPlayer()`), a hit by anyone else ends it (110). Stage 10 starts the fight while C00 is at 20.
-VILKAS, C00_QUEST, VILKAS_TRAINING, VILKAS_HATE, VILKAS_SWORD = 0x1A695, 0x4B2D9, 0xA3EBC, 0x10F5A0, 0x9F25C
+# `akAggressor` is `Game.GetPlayer()`; three pass the trial (stage 150), a hit by anyone else ends it (110).
+# Stage 10 starts the fight while C00 is at 20. His sword is given at 200, from his dialogue after the trial.
+VILKAS, C00_QUEST, VILKAS_TRAINING, VILKAS_HATE = 0x1A695, 0x4B2D9, 0xA3EBC, 0x10F5A0
 
 
 def host_quest(quest):
@@ -3492,14 +3498,11 @@ def host_quest(quest):
 def scenario_vilkas_counts_client_hits():
     """The client spars with Vilkas for the Companions' trial. On the host his trial script counts the
     client's character as the player (rule 1): three hits pass the trial instead of ending it ("someone
-    else hit him"), and the stage that follows hands his sword to the client's character, not to the
-    host's player (rule 2)."""
+    else hit him"). Rule 1 only: nothing the hits start asks for the player."""
     try:
         console_on("", "resetquest C00VilkasTrainingQuest")
         console_on("", "setstage C00 20")
         wait_for("[host] C00 is at stage 20", lambda: host_quest(C00_QUEST)[0] == 20, 5)
-        if item_count("", 0x14, VILKAS_SWORD):
-            raise TestFailure("[host] the host's player holds Vilkas's sword to begin with")
         vilkas = stage_host_npc(VILKAS)
         console_on("", "setstage C00VilkasTrainingQuest 10")
         wait_for("[host] the trial fight starts", lambda: host_quest(VILKAS_TRAINING)[0] == 10, 5)
@@ -3515,16 +3518,11 @@ def scenario_vilkas_counts_client_hits():
             if 110 in host_quest(VILKAS_TRAINING)[1]:
                 raise TestFailure("[host] the trial ended: the client's hit counted as someone else's")
         wait_for("[host] the trial is passed", lambda: 150 in host_quest(VILKAS_TRAINING)[1], 5)
-        if item_count("", 0x14, VILKAS_SWORD):
-            raise TestFailure("[host] Vilkas's sword went to the host's player, not the client's character")
     finally:
         release_host_npc(VILKAS)
         for command in (f"{VILKAS:X}.removefromfaction {VILKAS_HATE:X}", f"{VILKAS:X}.stopcombat",
                         f"{VILKAS:X}.restoreav health 1000", "resetquest C00VilkasTrainingQuest"):
             console_on("", command)
-        for name in ("", "client"):
-            if swords := item_count(name, 0x14, VILKAS_SWORD):
-                console_on(name, f"player.removeitem {VILKAS_SWORD:08X} {swords}")
 
 
 def scenario_lock_reaches_others():

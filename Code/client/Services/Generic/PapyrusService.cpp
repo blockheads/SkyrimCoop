@@ -3,6 +3,7 @@
 #include <Events/PapyrusFunctionRegisterEvent.h>
 
 #include <Services/PapyrusService.h>
+#include <Games/EngineNames.h>
 #include <HotReload/Handoff.h>
 
 #include <sstream>
@@ -20,7 +21,7 @@ PapyrusService::PapyrusService(entt::dispatcher& aDispatcher) noexcept
         std::string key;
         uintptr_t address;
         while (lines >> key >> std::hex >> address)
-            m_functions[key.c_str()] = reinterpret_cast<void*>(address);
+            m_functions[NameKey(key)] = reinterpret_cast<void*>(address);
         spdlog::info("Papyrus natives from the previous load: {}", m_functions.size());
     }
 }
@@ -35,7 +36,7 @@ void PapyrusService::HandOffFunctions() const noexcept
 
 const void* PapyrusService::Get(const String& acNamespace, const String& acFunction) const noexcept
 {
-    const auto itor = m_functions.find(acNamespace + "::" + acFunction);
+    const auto itor = m_functions.find(NameKey(acNamespace + "::" + acFunction));
     if (itor != std::end(m_functions))
         return itor->second;
 
@@ -44,5 +45,5 @@ const void* PapyrusService::Get(const String& acNamespace, const String& acFunct
 
 void PapyrusService::HandlePapyrusFunctionEvent(const PapyrusFunctionRegisterEvent& acEvent) noexcept
 {
-    m_functions[acEvent.Namespace + "::" + acEvent.Name] = acEvent.Function;
+    m_functions[NameKey(acEvent.Namespace + "::" + acEvent.Name)] = acEvent.Function;
 }

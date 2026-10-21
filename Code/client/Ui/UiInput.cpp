@@ -24,7 +24,7 @@ bool OnlyHudOpen() noexcept
     for (IMenu* pMenu : pUI->menuStack)
     {
         const BSFixedString* pName = pUI->LookupMenuNameByInstance(pMenu);
-        if (!pName || std::strcmp(pName->AsAscii(), "HUD Menu") != 0)
+        if (!pName || !pName->Is("HUD Menu"))
             return false;
     }
     return true;

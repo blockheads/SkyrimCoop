@@ -25,7 +25,7 @@ BSScript::Variable* BSScript::Object::GetVariable(const char* acpName) noexcept
         const ObjectTypeInfo::VariableInfo* pInfo = pType->data ? pType->GetVariables() : nullptr;
         for (uint32_t i = 0; pInfo && i < pType->variableCount; ++i)
         {
-            if (!pInfo[i].name.AsAscii() || _stricmp(pInfo[i].name.AsAscii(), acpName) != 0)
+            if (!pInfo[i].name.Is(acpName))
                 continue;
             uint32_t offset = 0;
             for (const ObjectTypeInfo* pParent = pType->pParent; pParent; pParent = pParent->pParent)

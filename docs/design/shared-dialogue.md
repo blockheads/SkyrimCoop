@@ -2,7 +2,7 @@
 
 **Status (2026-10-19):** the host's rule and messages (`HostDialogue`), copies' own lines and the engine structs
 are in. The client side described below (`DialogueService`, `DialogueBridge`, the harness and scenarios) is
-parked on branch `shared-dialogue-client` until quest/world sync and AI state on copies, then redone as step
+parked on tag `archive/shared-dialogue-client` until quest/world sync and AI state on copies, then redone as step
 sync ("Next").
 
 One conversation for the whole party (`party-model.md`, "Dialogue"). Engine findings and the in-game
