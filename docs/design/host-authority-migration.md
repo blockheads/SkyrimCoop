@@ -467,6 +467,10 @@ Quests stay on the server until they have a design.
 
 ### After: physics sync (own plan)
 
+Before it, world sync sends a physics object's rest position (`docs/progress.md`, "World sync: finishing it",
+step 5): the same final layout on every game, each simulating the flight its own way. Live physics replaces the
+flight, not the rest positions, and adds ragdolls (dead actors) and a guest's pushes, arrows and shouts as impulses.
+
 Built on the bridge's unreliable channel:
 - The host reads rigid body transforms and velocities after the Havok step for bodies near the party.
 - Peers keyframe those bodies and blend between updates.

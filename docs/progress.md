@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-20.
+Last updated 2026-10-21.
 
 ## Direct authority migration
 
@@ -26,7 +26,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | 3b | Character ids, owners, spawns, removal, respawn on the bridge | done (`5e99eae7`) |
 | 4 | Host-decided state | partly, see below |
 | 5 | Delete `Code/server/`; the enet6 listener moves into the bridge | not started |
-| after | Physics sync on the bridge's unreliable channel | not started (own plan) |
+| after | Physics sync on the bridge's unreliable channel | not started (own plan); rest positions come first with world sync (below) |
 
 ### Phase 4 parts
 
@@ -76,6 +76,33 @@ The rule and why: `docs/design/party-model.md` ("Experience"); engine path and t
    a peer's kill of a host NPC, who gets its kill experience.
 8. **Mods once**: Skill Uncapper AE and Experience installed, a routed gain (step 3) gets the receiver's
    multiplier once.
+
+### World sync: finishing it (plan 2026-10-21)
+
+Before AI state and dialogue (below), world sync is finished while its pieces are fresh (`docs/design/world-state-sync.md`,
+"As built" and step 7). Each step ends with its scenarios and the oracle (`world-diff`, `world-changes-reach-guest`) passing.
+
+1. **The world diff after every scenario.** `scenario` compares the two games' loaded worlds after each scenario
+   (`world_differences`, idle animation skipped) and fails one that leaves them different; `coop_test.py unsynced`
+   collects the flags with no row from the whole suite. Expect failures at first (the travelling scenarios);
+   each is a sync gap, a row or a scenario that leaves the world changed.
+2. **State at cell load.** A guest's cell loading gets the host's current state of every changed reference there,
+   with the same rows (`ReferenceStates`): the changes a guest missed while away (dropped today, "its object is
+   not in this game") and leveled containers (containers slice 2: the host's roll, not the guest's). A scoreboard
+   kind: the guest leaves, the host changes something, the guest comes back.
+3. **Created objects** (`0xFF` ids, each game's own): dropped items, placed objects, loot. A mapping between the
+   host's and each guest's ids, made when the host creates one; also what quest fills of created objects need
+   (loose ends, "Created objects in quest alias fills").
+4. **The rest of `unsynced`:** animation `0x10000000` (or covered by the animation events), activating children
+   `0x4000000`; each a row or noted as covered.
+5. **Physics objects' rest positions.** Havok moved `0x4`: when the host's body comes to rest (deactivated), its
+   position and angle go out through the move row; a guest's own push (its player bumping it) is a proposal of
+   the rest position the host's game takes. Each game simulates the flight its own way, then the host's resting
+   spot wins. Comes after 3 (a dropped item is created and physics both).
+
+World sync is then done: every object ends where the host's is. Live physics (the flight itself, ragdolls, a guest's
+push as an impulse) is its own plan after phase 5 (`docs/design/host-authority-migration.md`, "After: physics sync").
+Then AI state on copies and dialogue's step sync (next section).
 
 ### Shared dialogue: sync the step, not the list
 
