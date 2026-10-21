@@ -60,24 +60,38 @@ struct TESQuest : BGSStoryManagerTreeForm
         DLC02_Dragonborn = 11
     };
 
+    // BGSQuestObjective (CommonLibSSE-NG).
     struct Objective
     {
         BSFixedString nameRef; // 0x0000
         TESQuest* parent;      // 0x0008
         char pad10[12];        // 0x0010
-        uint16_t stageId;
-        uint8_t pad30;
-        uint8_t state;
+        uint16_t index;        // 0x001C
+        uint8_t pad1E;
+        uint8_t state; // 0x001F: 0 hidden, 1 displayed, 2/3 completed, 4/5 failed
+
+        // As Papyrus' SetObjectiveDisplayed/Completed/Failed (56681-56683) set it (23933): the change, the HUD's messages.
+        void SetState(uint8_t aState) noexcept;
     };
 
-    SKYRIM_STRUCT_ASSERT(offsetof(Objective, state) == 31);
+    SKYRIM_STRUCT_ASSERT(offsetof(Objective, index) == 0x1C);
+    SKYRIM_STRUCT_ASSERT(offsetof(Objective, state) == 0x1F);
 
     struct Stage
     {
         uint16_t stageIndex;
-        uint8_t flags;
+        uint8_t flags; // 1: done (TESQuest::LoadGame 25030 sets only this)
 
-        inline bool IsDone() { return flags & 1; }
+        bool IsDone() const noexcept { return flags & 1; }
+        void SetDone(bool aDone) noexcept { flags = aDone ? (flags | 1) : (flags & ~1); }
+    };
+
+    // TESForm change flags of a quest (CommonLibSSE-NG TESQuest::ChangeFlags).
+    enum ChangeFlags : uint32_t
+    {
+        kChangeQuestFlags = 1 << 1,
+        kChangeObjectives = 1 << 29,
+        kChangeStages = 1u << 31,
     };
 
     TESFullName fullName;
@@ -109,9 +123,21 @@ struct TESQuest : BGSStoryManagerTreeForm
     char pad250[24];
 
     TESObjectREFR* GetAliasedRef(uint32_t aiAliasID) noexcept;
+    // The reference alias with that id (25042); none for a location alias.
+    BGSBaseAlias* GetRefAlias(uint32_t aAliasId) noexcept;
+    // ReferenceAlias.ForceRefTo (25052, CommonLibSSE-NG ForceRefIntoAlias): fills it, gives the reference the alias's data.
+    void ForceRefIntoAlias(uint32_t aAliasId, TESObjectREFR* apRef) noexcept;
+    // ReferenceAlias.Clear (25051).
+    void ClearRefAlias(BGSBaseAlias* apAlias) noexcept;
+
+    Stage* GetStage(uint16_t aIndex) noexcept;
+    Objective* GetObjective(uint16_t aIndex) noexcept;
 
     bool IsStageDone(uint16_t stageIndex);
-    void SetCompleted(bool force);
+    // Sets or clears Completed (24991): the change, the QuestStatus event, the HUD's message.
+    void SetCompleted(bool aCompleted);
+    // Sets or clears Failed (24988): the change, the HUD's message.
+    void SetFailed(bool aFailed) noexcept;
 
     void CompleteAllObjectives(); // completes all objectives + stages
     void SetActive(bool toggle);  // < is the quest selected in journal and followed?
@@ -130,6 +156,9 @@ struct TESQuest : BGSStoryManagerTreeForm
     bool EnsureQuestStarted(bool& succeded, bool force);
 
     bool SetStage(uint16_t stage);
+    // SetStage with each stage item's fragment skipped, as the VM skips an item without one (a guest
+    // applying the host's stage: the host's game ran it). docs/re/systems/quest-apply.md.
+    bool SetStageWithoutFragments(uint16_t aStage) noexcept;
     void ScriptSetStage(uint16_t stage);
     void SetStopped();
 };

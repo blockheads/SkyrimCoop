@@ -17,7 +17,9 @@ void DateTime::Update(uint64_t aDeltaTick)
 {
     m_timeModel.Time += GetDeltaTime(aDeltaTick);
 
-    m_timeModel.Day += static_cast<uint32_t>(m_timeModel.Time / 24.f);
+    const auto cMidnights = static_cast<uint32_t>(m_timeModel.Time / 24.f);
+    m_timeModel.Day += cMidnights;
+    m_timeModel.DaysPassed += cMidnights;
     m_timeModel.Time = std::fmod(m_timeModel.Time, 24.f);
 
     while (m_timeModel.Day > GetNumberOfDaysByMonthIndex(m_timeModel.Month))

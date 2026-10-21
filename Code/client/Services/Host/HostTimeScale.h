@@ -2,7 +2,7 @@
 
 #include <ENetInterface.hpp>
 
-struct HostBridge;
+struct HostAuthority;
 struct HostPlayers;
 struct TimeScaleRequest;
 
@@ -20,7 +20,7 @@ struct HostTimeScale
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostTimeScale(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers) noexcept;
+    HostTimeScale(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers) noexcept;
 
     TP_NOCOPYMOVE(HostTimeScale);
 

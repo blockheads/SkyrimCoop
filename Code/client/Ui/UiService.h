@@ -74,6 +74,9 @@ private:
     // The keys typed into the chat line, and which lines show.
     void UpdateChat() noexcept;
     void SendChat() noexcept;
+    // A line starting with '/': /settime <hours> <minutes> sets the host's clock (everyone's).
+    void RunChatCommand(const Rml::String& acLine) noexcept;
+    void ShowSystemLine(const Rml::String& acText) noexcept;
     void LoadDocuments() noexcept;
     // The newest change to any file in the UI folder.
     [[nodiscard]] std::filesystem::file_time_type LastChange() const noexcept;

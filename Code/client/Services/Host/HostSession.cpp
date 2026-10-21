@@ -1,7 +1,7 @@
 #include <Services/Host/HostSession.h>
 
 #include <GameServer.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/JoinRefusal.h>
@@ -15,12 +15,12 @@
 #include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
-HostSession::HostSession(HostBridge& aBridge, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept
+HostSession::HostSession(HostAuthority& aAuthority, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept
     : m_server(aServer)
     , m_players(aPlayers)
     , m_game(acGame)
 {
-    aBridge.On(*this, &HostSession::OnAuthentication);
+    aAuthority.On(*this, &HostSession::OnAuthentication);
 }
 
 ServerSettings HostSession::Settings() const noexcept

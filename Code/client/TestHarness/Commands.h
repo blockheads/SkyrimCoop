@@ -27,6 +27,7 @@ std::span<const Command> WorldCommands();
 std::span<const Command> SessionCommands();
 // The engine's change records (ChangeLog.h).
 std::span<const Command> ChangeLogCommands();
+std::span<const Command> QuestFragmentsCommands();
 // Spikes kept for measuring: story events, engine probes (PlayerEvents.cpp).
 std::span<const Command> PlayerEventsCommands();
 

@@ -4,9 +4,7 @@
 #include <functional>
 
 /// EventDispatcherManager::Get() sink registration abstractions.
-/// Wraps RegisterSink / UnregisterSink calls so implementations (SkyrimBridge)
-/// can forward to the real Skyrim EventDispatcherManager, and ReplayBridge can
-/// synthesise events by calling the registered callbacks directly.
+/// Wraps RegisterSink / UnregisterSink calls; SkyrimBridge forwards to the real Skyrim EventDispatcherManager.
 class IEventBridge
 {
 public:
@@ -32,14 +30,4 @@ public:
 
     // --- Unregister everything ---
     virtual void UnregisterAllSinks() noexcept = 0;
-
-    // --- Replay / test injection ---
-    /// Synthesise a quest start/stop event (used by ReplayBridge to replay recorded events).
-    virtual void InjectQuestStartStopEvent(uint32_t aQuestFormId, bool aStarted) noexcept = 0;
-
-    /// Synthesise a quest stage event.
-    virtual void InjectQuestStageEvent(uint32_t aQuestFormId, uint32_t aNewStage) noexcept = 0;
-
-    /// Synthesise an activate event.
-    virtual void InjectActivateEvent(uint32_t aActivatorFormId, uint32_t aActivatedFormId) noexcept = 0;
 };

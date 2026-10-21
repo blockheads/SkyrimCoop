@@ -64,7 +64,7 @@ struct GameServer final : TiltedPhoques::Server
     // A connection ending without the network (tests).
     void InjectDisconnection(ConnectionId_t aConnectionId) { OnDisconnection(aConnectionId, EDisconnectReason::Quit); }
     void SetLoopbackRoute(ConnectionId_t aConnectionId, std::function<void(const void*, uint32_t)> aCallback);
-    // The host's bridge (client HostBridge) sees every message first; true: it handled it.
+    // The host's authority (client HostAuthority) sees every message first; true: it handled it.
     using FrontDoor = std::function<bool(const ClientMessage&, ConnectionId_t)>;
     void SetFrontDoor(FrontDoor aFrontDoor) noexcept { m_frontDoor = std::move(aFrontDoor); }
     // The connection of the game in this process (the host's), 0 without one.
@@ -78,7 +78,7 @@ struct GameServer final : TiltedPhoques::Server
     // Character ids share the World's entity ids with objects (one id space while both exist).
     [[nodiscard]] uint32_t NewCharacterId() noexcept;
     void FreeCharacterId(uint32_t aServerId) noexcept;
-    // A connection ended, a player's or not (the bridge decides what that means), before the
+    // A connection ended, a player's or not (HostAuthority decides what that means), before the
     // server drops its own record.
     using DisconnectionHandler = std::function<void(ConnectionId_t aConnection)>;
     void SetDisconnectionHandler(DisconnectionHandler aHandler) noexcept { m_disconnectionHandler = std::move(aHandler); }

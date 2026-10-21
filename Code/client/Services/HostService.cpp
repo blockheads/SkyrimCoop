@@ -5,9 +5,9 @@
 #include <GameServer.h>
 #include <World.h>
 #include <Services/TransportService.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 #include <Services/CharacterService.h>
-#include <Services/WeatherService.h>
+#include <Bridges/HostEngine.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
 #include <RunningGame.h>
@@ -65,25 +65,19 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
         return false;
     }
 
+    m_pEngine = std::make_unique<HostEngine>(m_world.GetModSystem());
     HostGame game;
     game.OwnSpawns = [this](uint32_t aExcludedServerId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedServerId); };
     game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) { return m_world.GetCharacterService().ReadCopy(aServerId, aSpawn); };
-    game.ReadTime = [this] {
-        const auto& cClock = m_world.ctx().at<IWorldBridge&>();
-        TimeModel time;
-        time.TimeScale = cClock.GetGameTimeScale();
-        time.Time = cClock.GetGameTimeHours();
-        time.Day = static_cast<uint32_t>(cClock.GetGameDay());
-        time.Month = static_cast<uint32_t>(cClock.GetGameMonth());
-        time.Year = static_cast<uint32_t>(cClock.GetGameYear());
-        return time;
-    };
-    game.SetHour = [this](float aHours) { m_world.ctx().at<IWorldBridge&>().SetGameTimeHours(aHours); };
-    game.ReadWeather = [this] { return m_world.GetWeatherService().ReadSharedWeather(); };
+    game.ReadTime = [this] { return m_world.ctx().at<IWorldBridge&>().GetGameTime(); };
+    game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
+    game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
+    game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
+    game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
-    m_pBridge = std::make_unique<HostBridge>(*m_pGameServer, std::move(game));
+    m_pAuthority = std::make_unique<HostAuthority>(*m_pGameServer, std::move(game));
 
     m_isHosting = true;
 
@@ -115,8 +109,8 @@ void HostService::StopHosting() noexcept
 
 void HostService::KickPlayer(uint32_t aPlayerId) noexcept
 {
-    if (m_pBridge)
-        m_pBridge->Kick(aPlayerId);
+    if (m_pAuthority)
+        m_pAuthority->Kick(aPlayerId);
 }
 
 void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
@@ -135,7 +129,8 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
             // Server has closed all connections and sockets
             // Safe to destroy and clear singleton
             m_pGameServer.reset();
-            m_pBridge.reset();
+            m_pAuthority.reset();
+            m_pEngine.reset();
             m_pConsole.reset();
 
             m_isHosting = false;
@@ -154,8 +149,8 @@ void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
                              sUpdateCounter, m_pGameServer->GetClientCount());
             }
             m_pGameServer->Update();
-            if (m_pBridge)
-                m_pBridge->Update(m_pGameServer->GetTick());
+            if (m_pAuthority)
+                m_pAuthority->Update(m_pGameServer->GetTick());
         }
     }
 }

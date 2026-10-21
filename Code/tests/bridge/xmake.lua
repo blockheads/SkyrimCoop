@@ -1,4 +1,4 @@
--- The host's bridge (Code/client/Services/Host/) against a headless server: each relay
+-- The host's authority (HostAuthority, Code/client/Services/Host/) against a headless server: each relay
 -- rule without Skyrim. Run: build/linux/x86_64/<mode>/BridgeTests
 target("BridgeTests")
     set_kind("binary")

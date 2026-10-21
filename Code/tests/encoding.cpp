@@ -13,6 +13,8 @@
 
 #include <Messages/ClientMessageFactory.h>
 #include <Messages/ServerMessageFactory.h>
+#include <Messages/ServerTimeSettings.h>
+#include <Messages/WorldState.h>
 #include <Structs/Vector2_NetQuantize.h>
 
 #include <TiltedCore/Math.hpp>
@@ -433,6 +435,71 @@ TEST_CASE("Packets", "[encoding.packets]")
         uint64_t trash;
         reader.ReadBits(trash, 8); // pop opcode
 
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+    }
+
+    SECTION("ServerTimeSettings")
+    {
+        ServerTimeSettings sendMessage, recvMessage;
+        sendMessage.timeModel.TimeScale = 6.f;
+        sendMessage.timeModel.Time = 23.75f;
+        sendMessage.timeModel.Day = 31;
+        sendMessage.timeModel.Month = 11;
+        sendMessage.timeModel.Year = 201;
+        sendMessage.timeModel.DaysPassed = 300;
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+    }
+
+    SECTION("NotifyGlobals")
+    {
+        NotifyGlobals sendMessage, recvMessage;
+        sendMessage.Values.push_back({GameId(0, 0x87E1C), 1.f});
+        sendMessage.Values.push_back({GameId(3, 0x801), -0.5f});
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+    }
+
+    SECTION("NotifyQuests")
+    {
+        NotifyQuests sendMessage, recvMessage;
+        sendMessage.Join = true;
+        auto& quest = sendMessage.Quests.emplace_back();
+        quest.Id = GameId(0, 0x36191);
+        quest.Flags = 0x1;
+        quest.CurrentStage = 150;
+        quest.DoneStages = {10, 20, 140, 150};
+        quest.Objectives = {{10, 3}, {20, 1}};
+        quest.Aliases = {{4, GameId(0, 0x1A677), false}, {9, GameId(), true}, {11, GameId(), false}};
+        sendMessage.Quests.emplace_back().Id = GameId(2, 0x801);
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
         recvMessage.DeserializeRaw(reader);
 
         REQUIRE(sendMessage == recvMessage);

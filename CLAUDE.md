@@ -71,7 +71,7 @@ xmake -y
 - `SkyrimTogetherServer` - Game server executable + library
 - `SkyrimEncoding` - Network message serialization
 - `TPTests` - Message encoding tests (Catch2-based)
-- `BridgeTests` - The host's bridge rules against a headless server
+- `BridgeTests` - The host's rules (`HostAuthority`, `Services/Host/`) against a headless server
 - `coop_peer` - A game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 - `tp_process` - CEF worker process for UI overlay
 - `immersive_launcher` - Game launcher/updater
@@ -80,9 +80,10 @@ xmake -y
 
 ```bash
 # Native Linux build (first time: scripts/xmake-linux.sh f)
-scripts/xmake-linux.sh build -j16 TPTests BridgeTests
+scripts/xmake-linux.sh build -j8 TPTests       # one target per build; -j16 has hit a GCC internal error
+scripts/xmake-linux.sh build -j8 BridgeTests
 build/linux/x86_64/debug/TPTests       # message encoding, quantization, differentials
-build/linux/x86_64/debug/BridgeTests   # the host's bridge rules against a headless server
+build/linux/x86_64/debug/BridgeTests   # the host's rules against a headless server
 
 # Run specific test
 build/linux/x86_64/debug/TPTests "Vector3_NetQuantize"
@@ -376,6 +377,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 - **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
+- **Host, guest, every game.** Code only the host runs lives in `Services/Host/` (rules, `HostAuthority`) and `Bridges/HostEngine`; code only a guest runs in `Services/Guest/` and `Bridges/GuestEngine`, made by `GuestService` on joining. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
 - **Use the glossary's words** (`docs/design/glossary.md`): host and guest for the games, owner, local and copy for actors, player for a person in the party. New code and docs never say client, peer or remote player for a guest or a copy.
 
 ## Technology Stack

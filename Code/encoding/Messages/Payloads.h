@@ -1,7 +1,7 @@
 #pragma once
 
 // What a request and its notification carry when a relay passes the request on unchanged (the
-// host's bridge, Code/client/Services/Host/HostBridge.cpp). Both messages inherit the payload, so its
+// host's authority, Code/client/Services/Host/HostAuthority.cpp). Both messages inherit the payload, so its
 // fields and their bytes are written once.
 
 #include <Structs/GameId.h>

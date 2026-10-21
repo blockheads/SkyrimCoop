@@ -1,6 +1,6 @@
 /// SkyrimBridge.cpp — Real SKSE-backed implementation.
 ///
-/// This file is the ONLY place in the bridge layer that includes SKSE headers.
+/// With HostEngine.cpp and GuestEngine.cpp, the only places in the bridge layer that include SKSE headers.
 /// It is compiled as part of SkyrimTogetherClient only, never into headless
 /// test targets.
 
@@ -79,76 +79,6 @@ static ActorExtension* GetExtension(uint32_t aFormId) noexcept
     return pActor ? pActor->GetExtension() : nullptr;
 }
 } // namespace
-
-// ---------------------------------------------------------------------------
-// Destructor
-// ---------------------------------------------------------------------------
-
-SkyrimBridge::~SkyrimBridge()
-{
-    StopRecording();
-}
-
-// ---------------------------------------------------------------------------
-// NDJSON recording infrastructure
-// ---------------------------------------------------------------------------
-
-void SkyrimBridge::StartRecording(const std::string& aPath) noexcept
-{
-    std::lock_guard<std::mutex> lock(m_recordMutex);
-    if (m_recording)
-        return;
-
-    m_recordFile.open(aPath, std::ios::out | std::ios::trunc);
-    if (!m_recordFile.is_open())
-    {
-        spdlog::error("SkyrimBridge::StartRecording — failed to open '{}'", aPath);
-        return;
-    }
-
-    m_startTime = std::chrono::steady_clock::now();
-    m_recording = true;
-    spdlog::info("SkyrimBridge: recording started → {}", aPath);
-}
-
-void SkyrimBridge::StopRecording() noexcept
-{
-    std::lock_guard<std::mutex> lock(m_recordMutex);
-    if (!m_recording)
-        return;
-
-    m_recordFile.flush();
-    m_recordFile.close();
-    m_recording = false;
-    spdlog::info("SkyrimBridge: recording stopped");
-}
-
-void SkyrimBridge::RecordCall(const char* apOp, const char* apPayloadJson) noexcept
-{
-    std::lock_guard<std::mutex> lock(m_recordMutex);
-    if (!m_recording || !m_recordFile.is_open())
-        return;
-
-    const auto elapsed = std::chrono::duration<double>(
-        std::chrono::steady_clock::now() - m_startTime).count();
-
-    // Write NDJSON line: {"op":"<op>","dir":"call","ts":<seconds>,...}
-    m_recordFile << "{\"op\":\"" << apOp << "\",\"dir\":\"call\",\"ts\":"
-                 << elapsed << "," << (apPayloadJson ? apPayloadJson : "\"args\":{}") << "}\n";
-}
-
-void SkyrimBridge::RecordReturn(const char* apOp, const char* apResultJson) noexcept
-{
-    std::lock_guard<std::mutex> lock(m_recordMutex);
-    if (!m_recording || !m_recordFile.is_open())
-        return;
-
-    const auto elapsed = std::chrono::duration<double>(
-        std::chrono::steady_clock::now() - m_startTime).count();
-
-    m_recordFile << "{\"op\":\"" << apOp << "\",\"dir\":\"return\",\"ts\":"
-                 << elapsed << "," << (apResultJson ? apResultJson : "\"result\":null") << "}\n";
-}
 
 // ---------------------------------------------------------------------------
 // IActorBridge
@@ -1639,21 +1569,6 @@ void SkyrimBridge::UnregisterAllSinks() noexcept
     // TODO(02.5-02): unregister all sinks
 }
 
-void SkyrimBridge::InjectQuestStartStopEvent(uint32_t aQuestFormId, bool aStarted) noexcept
-{
-    // No-op in real SKSE bridge — events arrive via game, not injected
-}
-
-void SkyrimBridge::InjectQuestStageEvent(uint32_t aQuestFormId, uint32_t aNewStage) noexcept
-{
-    // No-op in real SKSE bridge
-}
-
-void SkyrimBridge::InjectActivateEvent(uint32_t aActivatorFormId, uint32_t aActivatedFormId) noexcept
-{
-    // No-op in real SKSE bridge
-}
-
 // ---------------------------------------------------------------------------
 // IWorldBridge
 // ---------------------------------------------------------------------------
@@ -1673,25 +1588,7 @@ uint32_t SkyrimBridge::GetLastWeatherId() const noexcept
     return 0;
 }
 
-void SkyrimBridge::ForceWeather(uint32_t aWeatherFormId, bool aOverride) noexcept
-{
-    Breadcrumbs::Record("ForceWeather", aWeatherFormId, static_cast<uint32_t>(aOverride));
-    TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(aWeatherFormId));
-    if (!pWeather)
-    {
-        spdlog::warn("SkyrimBridge::ForceWeather — weather {:X} not found", aWeatherFormId);
-        return;
-    }
-    if (Sky* pSky = Sky::Get())
-        pSky->ForceWeather(pWeather);
-}
 
-void SkyrimBridge::ReleaseWeatherOverride() noexcept
-{
-    Breadcrumbs::Record("ReleaseWeatherOverride", 0);
-    if (Sky* pSky = Sky::Get())
-        pSky->ReleaseWeatherOverride();
-}
 
 std::string SkyrimBridge::GetModName(uint32_t aIndex) const noexcept
 {
@@ -1718,12 +1615,6 @@ void SkyrimBridge::SetSharedTimeScale(float aMultiplier) noexcept
     BSTimer::SetSharedMultiplier(aMultiplier);
 }
 
-void SkyrimBridge::SetGameTimeHours(float aHours) noexcept
-{
-    Breadcrumbs::Record("SetGameTimeHours", 0);
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::SetGameTimeHours({}) not yet implemented", aHours);
-}
 
 float SkyrimBridge::GetGameTimeScale() const noexcept
 {
@@ -1752,6 +1643,23 @@ float SkyrimBridge::GetGameDay() const noexcept
         return pTime->GameDay ? pTime->GameDay->f : 0.f;
     return 0.f;
 }
+
+TimeModel SkyrimBridge::GetGameTime() const noexcept
+{
+    TimeModel time;
+    const TimeData* pTime = TimeData::Get();
+    if (!pTime || !pTime->GameYear || !pTime->GameMonth || !pTime->GameDay || !pTime->GameHour || !pTime->TimeScale)
+        return time;
+    time.TimeScale = pTime->TimeScale->f;
+    time.Time = pTime->GameHour->f;
+    time.Day = static_cast<uint32_t>(pTime->GameDay->f);
+    time.Month = static_cast<uint32_t>(pTime->GameMonth->f);
+    time.Year = static_cast<uint32_t>(pTime->GameYear->f);
+    time.DaysPassed = static_cast<uint32_t>(pTime->rawDaysPassed);
+    return time;
+}
+
+
 
 // ---------------------------------------------------------------------------
 // IActorBridge — extended (Plan 03)

@@ -1,7 +1,7 @@
 #include <Services/Host/HostCharacters.h>
 
 #include <GameServer.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 
 #include <Messages/AssignCharacterRequest.h>
 #include <Messages/AssignCharacterResponse.h>
@@ -25,19 +25,19 @@ namespace
 constexpr uint32_t cNoCharacter = std::numeric_limits<uint32_t>::max();
 } // namespace
 
-HostCharacters::HostCharacters(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
-    : m_bridge(aBridge)
+HostCharacters::HostCharacters(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+    : m_authority(aAuthority)
     , m_server(aServer)
     , m_players(acPlayers)
     , m_game(acGame)
 {
-    aBridge.On(*this, &HostCharacters::OnAssignCharacter);
-    aBridge.On(*this, &HostCharacters::OnCancelAssignment);
-    aBridge.On(*this, &HostCharacters::OnRemoveCharacter);
-    aBridge.On(*this, &HostCharacters::OnRespawn);
-    aBridge.On(*this, &HostCharacters::OnPlayerRespawn);
-    aBridge.On(*this, &HostCharacters::OnMovement);
-    aBridge.On(*this, &HostCharacters::OnEnterCell);
+    aAuthority.On(*this, &HostCharacters::OnAssignCharacter);
+    aAuthority.On(*this, &HostCharacters::OnCancelAssignment);
+    aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);
+    aAuthority.On(*this, &HostCharacters::OnRespawn);
+    aAuthority.On(*this, &HostCharacters::OnPlayerRespawn);
+    aAuthority.On(*this, &HostCharacters::OnMovement);
+    aAuthority.On(*this, &HostCharacters::OnEnterCell);
 }
 
 void HostCharacters::OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -99,7 +99,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
         character.PlayerRecord = cSpawn;
         m_server.SetPlayerCharacter(aSender, cServerId, acRequest.QuestContent);
         if (aSender != m_players.Host())
-            m_bridge.PlayerEntered(aSender, cServerId);
+            m_authority.PlayerEntered(aSender, cServerId);
     }
 
     AssignCharacterResponse response;

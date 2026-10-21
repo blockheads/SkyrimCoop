@@ -30,7 +30,7 @@ Host Skyrim.exe                                   Peer Skyrim.exe
   engine (the authority)                            engine (replica, own player only)
     | hooks                                           ^ apply
   client World (one per process)                    client World
-  services ── Send(request) ──> HostBridge ──────>  TransportService (unchanged)
+  services ── Send(request) ──> HostAuthority ──────>  TransportService (unchanged)
                                   |  rules per message:
                                   |   apply a peer's request to the host's copy
                                   |   forward the result to the other peers
@@ -117,7 +117,7 @@ migration):
 - Found on the way: the server took "the player with the lowest id" as the host. A host that left
   and hosted again after a peer joined lost its NPCs to the peer. The host is now the player on the
   in-process connection (`PlayerManager::SetHostConnection`). Scenario `host-rejoins` guards it.
-- The `HostBridge` front door moves to phase 2, together with its first rules (an empty one would
+- The `HostAuthority` front door moves to phase 2, together with its first rules (an empty one would
   only be scaffolding).
 - Checked: the suite (same results as before the phase), hot reload 30/30, and the host leaving and
   hosting again (`host-rejoins`).
@@ -129,7 +129,7 @@ values, magic…) find actors in the server `World` by those ids and check owner
 the id source first would break all of them at once, so ids move last (phase 3b), when only one
 lookup is left to change.
 
-- **2a. `HostBridge`.** Owned by `HostService`, installed as the front door of
+- **2a. `HostAuthority`.** Owned by `HostService`, installed as the front door of
   `GameServer::OnConsume`: a message the bridge has a rule for is handled there, everything else by
   the old services. A relay rule is "forward as a notification to everyone but the sender". The
   host is one of the recipients: its copy gets the change through the in-process route like any
@@ -148,7 +148,7 @@ lookup is left to change.
   while peers stay: stopping hosting disconnects everyone (the harness's `disconnect` on the host
   does that). `host-rejoins` checks that a host who hosts again still owns its NPCs.
 
-Done (2a-2c): `HostBridge` with the movement rule and the late-join handler. The server's movement
+Done (2a-2c): `HostAuthority` with the movement rule and the late-join handler. The server's movement
 handler, its 50Hz batching and `WorldStateSync` are deleted.
 
 Found on the way: both `World`s keep their services in the registry's context, which outlives the
@@ -193,12 +193,12 @@ Done:
   moves to the host's `World` with assignment. Player level stays on the server with the player
   list (session, phase 5).
 
-The bridge lives in `Code/client/Services/Host/`. `HostBridge` is the front door, the deliveries
+The bridge lives in `Code/client/Services/Host/`. `HostAuthority` (named `HostBridge` until 2026-10-20) is the front door, the deliveries
 and the plain relays; the parts that keep state register their own rules with it: `HostCharacters`
 (ids, owners, spawns, removal, respawn, movement) and `HostClock` (the session's time);
 `HostWeather` (the session's weather) only sends. What the
 bridge reads and changes in the host's game comes in as `HostGame` callbacks. What a joining
-player is sent is listed in one place, `HostBridge::PlayerEntered`. A plain relay is one line in
+player is sent is listed in one place, `HostAuthority::PlayerEntered`. A plain relay is one line in
 the bridge's constructor, naming the request and who
 gets it (`Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId)`). A
 request and its notification inherit one payload struct (`Code/encoding/Messages/Payloads.h`):
@@ -318,7 +318,7 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   `shared-xp`. The session's
   players stay `NotifyPlayerJoined`/`NotifyPlayerLeft` from `GameServer` (it marks the host) until
   phase 5; the client keeps them in `SessionService`. The host alone can kick, through
-  `HostBridge::Kick` (overlay player list, debug view, `kick` test command). Quest sync stays off
+  `HostAuthority::Kick` (overlay player list, debug view, `kick` test command). Quest sync stays off
   (`cSyncQuests` in the client's `QuestService`) until quests have their own design.
 - Waypoints and chat: done 2026-10-13 as bridge rules; the server's `MapService`, `OverlayService` and
   `CommandService` are deleted. Waypoints (the map marker a player places) are plain relays,
@@ -520,5 +520,5 @@ Built on the bridge's unreliable channel:
 | PartyService | `PartyCreateRequest`, `PartyInviteRequest`, `PartyAcceptInviteRequest`, `PartyLeaveRequest`, `PartyKickRequest`, `PartyChangeLeaderRequest` | Dropped (no parties; the host kicks through the bridge) |
 | MapService | `RequestSetWaypoint`, `RequestRemoveWaypoint` | Relay (done, service deleted) |
 | OverlayService | `SendChatMessageRequest`, `PlayerDialogueRequest`, `RequestPlayerHealthUpdate`, `TeleportRequest` | Relay (done, service deleted; teleport dropped) |
-| CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host-decided (set time: any player, on the host's clock; teleport dropped; done, service deleted) |
+| CommandService | `TeleportCommandRequest`, `SetTimeCommandRequest` | Host-decided (set time: any player, on the host's clock; teleport dropped; done, service deleted; `/settime` in the chat, the hour reached as a wait does, 2026-10-20) |
 | ScriptService, AdminService | (Lua events, admin protocol) | Dropped |

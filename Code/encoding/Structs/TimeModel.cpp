@@ -10,6 +10,7 @@ void TimeModel::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, Day);
     Serialization::WriteVarInt(aWriter, Month);
     Serialization::WriteVarInt(aWriter, Year);
+    Serialization::WriteVarInt(aWriter, DaysPassed);
 }
 
 void TimeModel::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
@@ -19,4 +20,5 @@ void TimeModel::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
     Day = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Month = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Year = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    DaysPassed = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

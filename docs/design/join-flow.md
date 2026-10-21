@@ -136,7 +136,7 @@ the join response returns the player's own plugin list with those ids
   (`host-authority-migration.md`, Decisions).
 - **Leaving:** `NotifyPlayerLeft` to the others; their copies of the player go. The leaving friend's
   game goes back to the main menu.
-- **Kick:** the host alone, never itself (`HostBridge::Kick`). The kicked game goes back to the main
+- **Kick:** the host alone, never itself (`HostAuthority::Kick`). The kicked game goes back to the main
   menu and says so. Reachable today from the debug overlay and the test harness only; later a kick
   button in the in-game player list. A kick (`Server::Kick`) is delivered after what is queued for the
   peer, so a refusal or a reason sent first arrives.

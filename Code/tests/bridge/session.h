@@ -1,13 +1,13 @@
 #pragma once
 
-// A session for the host's bridge against a headless server: three players (the host "Dovahkiin",
+// A session for the host's authority (HostAuthority) against a headless server: three players (the host "Dovahkiin",
 // level 20, on the in-process route; the peers "Lydia", 12, and "Aela", 8), joined as their games do, a fake host game, messages in as the transport sends them, and what goes out captured
-// per connection. Characters are announced through the bridge, as the games do.
+// per connection. Characters are announced through it, as the games do.
 #include <catch2/catch.hpp>
 
 #include <GameServer.h>
 #include <Game/Player.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 
 #include <Messages/AddTargetRequest.h>
 #include <Messages/ActivateRequest.h>
@@ -18,6 +18,7 @@
 #include <Messages/ScriptAnimationRequest.h>
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWeatherChange.h>
+#include <Messages/WorldState.h>
 #include <Messages/ServerTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
 #include <Messages/AssignCharacterRequest.h>
@@ -120,7 +121,7 @@ struct Session
 {
     Session()
         : m_pServer(std::make_unique<Server::GameServer>(Console(), GameServerTestMode{}))
-        , m_bridge(*m_pServer, Game())
+        , m_authority(*m_pServer, Game())
     {
         m_pServer->SetTestSendCallback([this](ConnectionId_t aTo, const void* apData, uint32_t aSize) { Capture(aTo, apData, aSize); });
         // The host's game is the one in the server's process.
@@ -143,7 +144,7 @@ struct Session
     // The player id a player got when it joined.
     uint32_t PlayerId(ConnectionId_t aPlayer) const { return m_playerIds.at(aPlayer); }
 
-    ~Session() { m_pServer.reset(); } // The server calls into the bridge until it is gone.
+    ~Session() { m_pServer.reset(); } // The server calls into HostAuthority until it is gone.
 
     Server::World& World() { return m_pServer->GetWorld(); }
 
@@ -163,7 +164,7 @@ struct Session
     }
 
     void Leave(ConnectionId_t aPlayer) { m_pServer->InjectDisconnection(aPlayer); }
-    void Frame(uint64_t aTick) { m_bridge.Update(aTick); }
+    void Frame(uint64_t aTick) { m_authority.Update(aTick); }
 
     void Receive(ConnectionId_t aFrom, const ClientMessage& acMessage)
     {
@@ -186,6 +187,8 @@ struct Session
     TiltedPhoques::Map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    Vector<HostGlobal> Globals;                              // the host's global variables
+    Vector<QuestState> Quests;                               // the host's quests
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::vector<Sent> Outbox;
 
@@ -212,6 +215,8 @@ private:
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.ReadWeather = [this] { return Weather; };
+        game.ReadGlobals = [this] { return Globals; };
+        game.ReadQuests = [this] { return Quests; };
         game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();
@@ -235,7 +240,7 @@ private:
     }
 
     std::unique_ptr<Server::GameServer> m_pServer;
-    HostBridge m_bridge;
+    HostAuthority m_authority;
 };
 } // namespace BridgeTest
 

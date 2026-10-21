@@ -6,6 +6,7 @@ TEST_CASE("Time: a joining player gets the host's clock", "[Bridge][Time]")
     Session session;
     session.HostClock.Time = 15.5f;
     session.HostClock.Day = 17;
+    session.HostClock.DaysPassed = 300;
 
     AssignCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
@@ -36,11 +37,13 @@ TEST_CASE("Time: peers follow the host's clock when it jumps, not while it runs"
     REQUIRE(session.SentTo<ServerTimeSettings>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<ServerTimeSettings>(kOtherPeer)[0]->timeModel.Time == session.HostClock.Time);
 
-    // Sleeping a whole day lands on the same hour: still a jump.
+    // Sleeping a whole day lands on the same hour: still a jump, days passed with it.
     session.Outbox.clear();
     session.HostClock.Day += 1;
+    session.HostClock.DaysPassed += 1;
     session.Frame(62000);
-    CHECK(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
+    REQUIRE(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
+    CHECK(session.SentTo<ServerTimeSettings>(kPeer)[0]->timeModel.DaysPassed == session.HostClock.DaysPassed);
 
     // The clock's speed changing.
     session.Outbox.clear();
@@ -70,4 +73,34 @@ TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
     session.Receive(kHost, command);
     CHECK(session.SentTo<NotifySetTimeResult>(kHost)[0]->Result == NotifySetTimeResult::SetTimeResult::kNoPermission);
     CHECK(session.HostClock.Time == Approx(21.5f));
+}
+
+TEST_CASE("Time: peers' clocks count the days passed at midnight themselves", "[Bridge][Time]")
+{
+    Session session;
+    session.HostClock.TimeScale = 20.f;
+    session.HostClock.Time = 23.9f;
+    session.HostClock.Day = 31;
+    session.HostClock.Month = 11;
+    session.HostClock.Year = 201;
+    session.HostClock.DaysPassed = 300;
+    session.Frame(1000);
+    session.Outbox.clear();
+
+    // A real minute at 20x crosses midnight and the new year, as the engine's clock rolls them.
+    session.HostClock.Time = 23.9f + 20.f / 60.f - 24.f;
+    session.HostClock.Day = 1;
+    session.HostClock.Month = 0;
+    session.HostClock.Year = 202;
+    session.HostClock.DaysPassed = 301;
+    session.Frame(61000);
+    CHECK(session.Outbox.empty());
+
+    // Sleeping 30 hours.
+    session.HostClock.Time += 6.f;
+    session.HostClock.Day = 2;
+    session.HostClock.DaysPassed = 302;
+    session.Frame(61500);
+    REQUIRE(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
+    CHECK(session.SentTo<ServerTimeSettings>(kPeer)[0]->timeModel.DaysPassed == 302);
 }

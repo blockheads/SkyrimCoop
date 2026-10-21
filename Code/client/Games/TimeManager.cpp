@@ -1,4 +1,4 @@
-#include <Services/CalendarService.h>
+#include <Services/Guest/GuestClock.h>
 #include <HookSwitch.h>
 #include <TimeManager.h>
 
@@ -11,10 +11,16 @@ TimeData* TimeData::Get() noexcept
 using TSimulateTime = void(TimeData*, float);
 static TSimulateTime* RealSimulateTime;
 
+void TimeData::Advance(float aGameHours) noexcept
+{
+    if (TimeScale && TimeScale->f > 0.f)
+        RealSimulateTime(this, aGameHours * 3600.f / TimeScale->f);
+}
+
 // in SP mode we let the client handle its own time simulation
 void HookSimulateTime(TimeData* apData, float aMultiplier)
 {
-    if (CalendarService::AllowGameTick())
+    if (GuestClock::GameClockRuns())
     {
         RealSimulateTime(apData, aMultiplier);
     }

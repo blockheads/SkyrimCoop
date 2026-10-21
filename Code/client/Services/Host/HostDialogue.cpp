@@ -1,7 +1,7 @@
 #include <Services/Host/HostDialogue.h>
 
 #include <GameServer.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -10,19 +10,19 @@
 
 #include <algorithm>
 
-HostDialogue::HostDialogue(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers,
+HostDialogue::HostDialogue(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers,
                            const HostCharacters& acCharacters) noexcept
     : m_server(aServer)
     , m_players(acPlayers)
     , m_characters(acCharacters)
 {
-    aBridge.On(*this, &HostDialogue::OnStart);
-    aBridge.On(*this, &HostDialogue::OnOpened);
-    aBridge.On(*this, &HostDialogue::OnOptions);
-    aBridge.On(*this, &HostDialogue::OnPick);
-    aBridge.On(*this, &HostDialogue::OnClose);
-    aBridge.On(*this, &HostDialogue::OnJoin);
-    aBridge.On(*this, &HostDialogue::OnExperience);
+    aAuthority.On(*this, &HostDialogue::OnStart);
+    aAuthority.On(*this, &HostDialogue::OnOpened);
+    aAuthority.On(*this, &HostDialogue::OnOptions);
+    aAuthority.On(*this, &HostDialogue::OnPick);
+    aAuthority.On(*this, &HostDialogue::OnClose);
+    aAuthority.On(*this, &HostDialogue::OnJoin);
+    aAuthority.On(*this, &HostDialogue::OnExperience);
 }
 
 void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t aSender) noexcept

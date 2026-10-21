@@ -10,6 +10,7 @@
 #include <Components/PlayerComponent.h>
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
+#include <Events/SetTimeCommandEvent.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/SendChatMessageRequest.h>
 
@@ -352,10 +353,40 @@ void UiService::UpdateChat() noexcept
     }
 }
 
+void UiService::RunChatCommand(const Rml::String& acLine) noexcept
+{
+    char command[16]{};
+    int hours = -1, minutes = -1;
+    const int cRead = std::sscanf(acLine.c_str(), "/%15s %d %d", command, &hours, &minutes);
+    if (cRead >= 1 && std::strcmp(command, "settime") == 0)
+    {
+        if (cRead == 3 && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60)
+            m_world.GetDispatcher().trigger(SetTimeCommandEvent(static_cast<uint8_t>(hours), static_cast<uint8_t>(minutes),
+                                                                m_world.GetTransport().GetLocalPlayerId()));
+        else
+            ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
+        return;
+    }
+    ShowSystemLine("Commands: /settime <hours> <minutes>");
+}
+
+void UiService::ShowSystemLine(const Rml::String& acText) noexcept
+{
+    m_chatHistory.push_back({{"", acText, true}, std::chrono::steady_clock::now()});
+    if (m_chatHistory.size() > cChatHistory)
+        m_chatHistory.erase(m_chatHistory.begin());
+}
+
 void UiService::SendChat() noexcept
 {
     if (m_chatDraft.empty())
         return;
+    if (m_chatDraft[0] == '/')
+    {
+        RunChatCommand(m_chatDraft);
+        m_chatDraft.clear();
+        return;
+    }
     // Everyone gets it from the host, us too: what shows is what was sent.
     SendChatMessageRequest request;
     request.MessageType = kGlobalChat;

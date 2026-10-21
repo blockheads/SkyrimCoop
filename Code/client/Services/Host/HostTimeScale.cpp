@@ -1,7 +1,7 @@
 #include <Services/Host/HostTimeScale.h>
 
 #include <GameServer.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyTimeScale.h>
@@ -9,11 +9,11 @@
 
 #include <algorithm>
 
-HostTimeScale::HostTimeScale(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers) noexcept
+HostTimeScale::HostTimeScale(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers) noexcept
     : m_server(aServer)
     , m_players(acPlayers)
 {
-    aBridge.On(*this, &HostTimeScale::OnTimeScale);
+    aAuthority.On(*this, &HostTimeScale::OnTimeScale);
 }
 
 void HostTimeScale::OnTimeScale(const TimeScaleRequest& acRequest, ConnectionId_t aSender) noexcept

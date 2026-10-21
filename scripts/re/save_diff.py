@@ -142,6 +142,43 @@ def plugin_editor_ids(path):
     return masters, names, bases
 
 
+def plugin_quest(path, editor_id):
+    """(form id as the plugin writes it, [stage index...] in record order) of the plugin's quest, or None."""
+    data = path.read_bytes()
+    o = 24 + struct.unpack_from("<I", data, 4)[0]
+    while o < len(data):
+        label, size = data[o + 8:o + 12], struct.unpack_from("<I", data, o + 4)[0]
+        if data[o:o + 4] == b"GRUP" and label == b"QUST":
+            break
+        o += size
+    else:
+        return None
+    end, o = o + size, o + 24
+    while o < end:
+        kind, size = data[o:o + 4], struct.unpack_from("<I", data, o + 4)[0]
+        if kind == b"GRUP":  # a quest's own group (dialogue, scenes) follows its record
+            o += size
+            continue
+        flags, form_id = struct.unpack_from("<II", data, o + 8)
+        body = data[o + 24:o + 24 + size]
+        if flags & 0x40000:
+            body = zlib.decompress(body[4:])
+        o += 24 + size
+        p, name, stages = 0, None, []
+        while p + 6 <= len(body):
+            sub, length = body[p:p + 4], struct.unpack_from("<H", body, p + 4)[0]
+            if sub == b"EDID":
+                name = body[p + 6:p + 5 + length].decode("cp1252")
+                if name != editor_id:
+                    break
+            elif sub == b"INDX":  # a stage: u16 index, u8 flags, u8
+                stages.append(struct.unpack_from("<H", body, p + 6)[0])
+            p += 6 + length
+        if name == editor_id:
+            return form_id, stages
+    return None
+
+
 def editor_ids(save, data_dir=DATA):
     """{load-order form id: editor id, or "[base's editor id]" for a reference without one} over the
     save's plugins found in data_dir."""

@@ -29,10 +29,10 @@
 #include <Services/EffectVisualsService.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
-#include <Services/CalendarService.h>
+#include <Services/TimeScaleService.h>
 #include <Services/PlayerService.h>
 #include <Services/CombatService.h>
-#include <Services/WeatherService.h>
+#include <Services/GuestService.h>
 #include <Services/MapService.h>
 #include <Services/HostService.h>
 
@@ -50,7 +50,7 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
     //
     // IMPORTANT: With multiple inheritance, entt 3.10.0 ctx().emplace<T&>(obj) stores
     // the raw pointer reinterpreted as T. To get correct virtual dispatch, we must
-    // explicitly cast to each interface type before storing (discovered via ReplayBridge tests).
+    // explicitly cast to each interface type before storing.
     auto bridge = std::make_unique<SkyrimBridge>();
     IActorBridge&  actorRef  = *bridge;
     IFormBridge&   formRef   = *bridge;
@@ -95,7 +95,7 @@ World::World()
     ctx().emplace<DiscordService>(m_dispatcher, ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(), ctx().at<IEventBridge&>());
-    ctx().emplace<CalendarService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
     ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
@@ -108,9 +108,9 @@ World::World()
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
-    ctx().emplace<WeatherService>(*this, m_dispatcher);
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
+    ctx().emplace<GuestService>(*this, m_dispatcher);
 
     BehaviorVar::Get()->Init();
 }
@@ -120,9 +120,9 @@ World::~World()
     // The services live in the registry's context, which is destroyed after our own members: their
     // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
     // hot reloads now and then). They go first, newest first.
+    ctx().erase<GuestService>();
     ctx().erase<HostService>();
     ctx().erase<MapService>();
-    ctx().erase<WeatherService>();
     ctx().erase<CombatService>();
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
@@ -132,7 +132,7 @@ World::~World()
     ctx().erase<ActorValueService>();
     ctx().erase<SessionService>();
     ctx().erase<QuestService>();
-    ctx().erase<CalendarService>();
+    ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<DiscordService>();
     ctx().erase<PapyrusService>();

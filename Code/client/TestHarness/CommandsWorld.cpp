@@ -197,6 +197,15 @@ nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
             {"aliases", aliases}};
 }
 
+// {"cmd": "global", "global": id}: a global variable's value.
+nlohmann::json Global(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cValue = EngineCalls::GetGlobalValue(acRequest.value("global", 0u));
+    if (!cValue)
+        return Error("no such global");
+    return {{"ok", true}, {"value", *cValue}};
+}
+
 // {"cmd": "script_state", "object": id, "script": name}: the state that script on the object is in.
 nlohmann::json ScriptState(Harness&, const nlohmann::json& acRequest)
 {
@@ -315,6 +324,7 @@ constexpr Command cCommands[] = {
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
     {"quest", true, &Quest},
+    {"global", true, &Global},
     {"form_save", true, &FormSave},
     {"engine_events", false, &GetEngineEvents},
     {"form_load", true, &FormLoad},

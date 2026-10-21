@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <optional>
 
-struct HostBridge;
+struct HostAuthority;
 struct HostCharacters;
 struct HostPlayers;
 struct DialogueStartRequest;
@@ -33,7 +33,7 @@ struct HostDialogue
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostDialogue(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers,
+    HostDialogue(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers,
                  const HostCharacters& acCharacters) noexcept;
 
     TP_NOCOPYMOVE(HostDialogue);

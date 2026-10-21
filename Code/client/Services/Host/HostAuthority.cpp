@@ -1,5 +1,5 @@
 // No game or client World here: tests build it against a headless server (Code/tests/bridge).
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 
 #include <GameServer.h>
 
@@ -144,7 +144,7 @@ template <class TRequest, class TNotify> TNotify ToNotify(const TRequest& acRequ
 }
 } // namespace
 
-template <class TRequest, class TNotify> void HostBridge::Relay(Delivery aDelivery, uint32_t TRequest::*apActor) noexcept
+template <class TRequest, class TNotify> void HostAuthority::Relay(Delivery aDelivery, uint32_t TRequest::*apActor) noexcept
 {
     m_rules[TRequest::Opcode] = [this, aDelivery, apActor](const ClientMessage& acMessage, ConnectionId_t aSender) {
         const auto& cRequest = static_cast<const TRequest&>(acMessage);
@@ -152,7 +152,7 @@ template <class TRequest, class TNotify> void HostBridge::Relay(Delivery aDelive
     };
 }
 
-HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
+HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexcept
     : m_server(aServer)
     , m_game(std::move(aGame))
     , m_players(aServer)
@@ -160,16 +160,17 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     , m_characters(*this, aServer, m_players, m_game)
     , m_clock(*this, aServer, m_players, m_game)
     , m_weather(aServer, m_players, m_game)
+    , m_worldState(aServer, m_players, m_game)
     , m_timeScale(*this, aServer, m_players)
     , m_dialogue(*this, aServer, m_players, m_characters)
 {
     using enum Delivery;
 
     // Players
-    On(*this, &HostBridge::OnPlayerLevel);
+    On(*this, &HostAuthority::OnPlayerLevel);
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
-    On(*this, &HostBridge::OnFactionsChanges);
+    On(*this, &HostAuthority::OnFactionsChanges);
     Relay<MountRequest, NotifyMount>(FromAnyone);
     Relay<NewPackageRequest, NotifyNewPackage>(FromAnyone);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
@@ -177,7 +178,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     Relay<SyncExperienceRequest, NotifySyncExperience>(FromAnyone); // everyone is in the host's party
 
     // Inventory and hands
-    On(*this, &HostBridge::OnInventoryChanges);
+    On(*this, &HostAuthority::OnInventoryChanges);
     Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
     Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::ServerId);
     Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
@@ -205,7 +206,7 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
     Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
-    On(*this, &HostBridge::OnChatMessage);
+    On(*this, &HostAuthority::OnChatMessage);
 
     m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
@@ -220,27 +221,29 @@ HostBridge::HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept
     });
 }
 
-void HostBridge::Update(uint64_t aTick) noexcept
+void HostAuthority::Update(uint64_t aTick) noexcept
 {
     m_session.Update();
     m_clock.Update(aTick);
     m_weather.Update();
+    m_worldState.Update(aTick);
 }
 
-void HostBridge::Kick(uint32_t aPlayerId) noexcept
+void HostAuthority::Kick(uint32_t aPlayerId) noexcept
 {
     m_players.Kick(aPlayerId);
 }
 
-void HostBridge::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) noexcept
+void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) noexcept
 {
     m_clock.SendTime(aPlayer);
     m_weather.SendWeather(aPlayer);
+    m_worldState.SendWorldState(aPlayer);
     m_timeScale.SendTimeScale(aPlayer);
     m_characters.SendExistingCharacters(aPlayer, aCharacterServerId);
 }
 
-bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept
+bool HostAuthority::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
     // A game that is not a player may only ask to join; the server drops anything else from it.
@@ -253,13 +256,13 @@ bool HostBridge::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) 
     return true;
 }
 
-void HostBridge::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
+void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
 }
 
-void HostBridge::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept
+void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
     NotifyFactionsChanges notify;
     for (const auto& [cServerId, cFactions] : acRequest.Changes)
@@ -269,11 +272,11 @@ void HostBridge::OnFactionsChanges(const RequestFactionsChanges& acRequest, Conn
         m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
-void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
+void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
     if (acRequest.MessageType == kSystemMessage || acRequest.MessageType > kLocalChat)
     {
-        spdlog::warn("HostBridge: {:x} sent a chat message of type {}, which players cannot", aSender, uint32_t(acRequest.MessageType));
+        spdlog::warn("HostAuthority: {:x} sent a chat message of type {}, which players cannot", aSender, uint32_t(acRequest.MessageType));
         return;
     }
     // The chat box shows text as it is (RmlUi text, no markup parsed).
@@ -285,11 +288,11 @@ void HostBridge::OnChatMessage(const SendChatMessageRequest& acRequest, Connecti
         m_server.Send(cPlayer, notify);
 }
 
-void HostBridge::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     if (acRequest.NewLevel == 0)
     {
-        spdlog::warn("HostBridge: {:x} sent level 0", aSender);
+        spdlog::warn("HostAuthority: {:x} sent level 0", aSender);
         return;
     }
     m_players.SetLevel(aSender, acRequest.NewLevel);
@@ -299,7 +302,7 @@ void HostBridge::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId
     m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
-void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
+void HostAuthority::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
 {
     switch (aDelivery)
     {
@@ -307,7 +310,7 @@ void HostBridge::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint
         if (m_characters.OwnerOf(aActor) == aSender)
             m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
         else
-            spdlog::debug("HostBridge: {:x} sent opcode {} for {:x}, which it does not own", aSender, uint32_t(acNotify.GetOpcode()), aActor);
+            spdlog::debug("HostAuthority: {:x} sent opcode {} for {:x}, which it does not own", aSender, uint32_t(acNotify.GetOpcode()), aActor);
         break;
     case Delivery::FromAnyone: m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
     case Delivery::ToOwner:

@@ -1,4 +1,4 @@
-// The bytes of every message the bridge relays, request and notification: peers built from other
+// The bytes of every message HostAuthority relays, request and notification: peers built from other
 // commits must keep reading them. A request and its notification carry the same payload, so the
 // notification here is read back from the request's own bytes.
 #include <catch2/catch.hpp>

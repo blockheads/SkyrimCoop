@@ -24,6 +24,7 @@
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/GraphVariableWriters.h>
 #include <Interface/CrosshairPickData.h>
+#include <Interface/FxDelegateArgs.h>
 #include <Interface/MenuCursor.h>
 #include <Interface/Menus/HUDMenuUtils.h>
 #include <Interface/Menus/MapMenu.h>
@@ -36,6 +37,7 @@
 #include <NetImmerse/NiCamera.h>
 #include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
+#include <TimeManager.h>
 #include <Utils.h>
 #include <World.h>
 
@@ -499,6 +501,20 @@ std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId
     return pObject->GetItemCountInInventory(pItem);
 }
 
+std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept
+{
+    const auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(aGlobalId));
+    if (!pGlobal)
+        return std::nullopt;
+    return pGlobal->f;
+}
+
+float GetRawDaysPassed() noexcept
+{
+    const TimeData* pTime = TimeData::Get();
+    return pTime ? pTime->rawDaysPassed : 0.f;
+}
+
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
 {
     auto* pQuest = Cast<TESQuest>(TESForm::GetById(aQuestId));
@@ -510,7 +526,7 @@ std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
             state.Stages.emplace_back(pStage->stageIndex, pStage->IsDone());
     for (TESQuest::Objective* pObjective : pQuest->objectives)
         if (pObjective)
-            state.Objectives.emplace_back(pObjective->stageId, pObjective->state);
+            state.Objectives.emplace_back(pObjective->index, pObjective->state);
     for (BGSBaseAlias* pAlias : pQuest->aliases)
     {
         if (!pAlias)
@@ -875,6 +891,18 @@ bool IsMapReady() noexcept
     UI* pUI = UI::Get();
     const auto* pMap = pUI && pUI->GetMenuOpen(s_mapMenu) ? static_cast<const MapMenu*>(pUI->FindMenuByName(s_mapMenu)) : nullptr;
     return pMap && pMap->controlsReady;
+}
+
+std::optional<double> GetWaitMenuHours() noexcept
+{
+    static const BSFixedString s_sleepWaitMenu("Sleep/Wait Menu");
+    UI* pUI = UI::Get();
+    IMenu* pMenu = pUI && pUI->GetMenuOpen(s_sleepWaitMenu) ? pUI->FindMenuByName(s_sleepWaitMenu) : nullptr;
+    GFxValue value{};
+    if (!pMenu || !pMenu->uiMovie || !pMenu->uiMovie->GetVariable(&value, "_root.SleepWaitMenu_mc.HoursSlider.value") ||
+        (value.type & GFxValue::kTypeMask) != GFxValue::kNumber)
+        return std::nullopt;
+    return value.value.number;
 }
 
 void ClearPlayerMapMarker() noexcept

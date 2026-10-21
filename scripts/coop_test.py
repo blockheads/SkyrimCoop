@@ -6,6 +6,7 @@
   coop_test.py game   [--cell CELL --seconds S]       fast-boot, host, connect a bot, verify the bot's
                                                       actor exists in the engine and moves; then quit
   coop_test.py duo    [--keep-running --visible]      two real games: host + client, each must show the other
+                      [--save NAME --level N]         (from a save; raise both players' level after loading)
   coop_test.py scenario [names] [--tag a,b] [--shuffle --repeat N] sync scenarios against a running duo; each
                                                       starts from the same baseline and is cleaned up after
   coop_test.py reload                                 swap the current build into a running duo and reconnect
@@ -15,6 +16,8 @@
   coop_test.py status [-f]                            both games side by side: health, death, weapon, casting
   coop_test.py save-diff [--label X --noise S]       save both games at once, compare the two worlds block by block
   coop_test.py change-rate [names] [--seconds S]     the engine's change records per form type and flag (idle or scenarios)
+  coop_test.py quest-walk QUEST --names-from SAVE    walk the host through a quest (duo booted with --save SAVE),
+                                                      the client leaving and rejoining; how its quest compares each step
   coop_test.py crash [--instance client]             newest crash per game: engine state (CrashLoggerSSE) + our last engine changes
   coop_test.py repro NAME [--heap-history] [--follow] cause a known crash (REPROS) and print its report;
                                                       --vanilla: the same recipe without our plugin (is it us?);
@@ -845,6 +848,8 @@ def command_duo(args):
         for name in ("", "client"):
             select_instance(name)
             run_console("player.setav magicka 5000")
+            if args.level:  # level-gated story manager starts (DA07: 20) need it
+                run_console(f"player.setlevel {args.level}")
         # Both players spawn on the same spot: step the client aside so each can see the other.
         select_instance("")
         host_position = ((read_status() or {}).get("player") or {}).get("position")
@@ -1805,6 +1810,171 @@ def scenario_difficulty_follows_host():
             rejoin_client()
         wait_for(f"[client] back at the host's {start}", lambda: difficulty("client") == start, 5)
 
+# --- World state: the host's globals and quests on every game (world-state-sync.md, step 4) ----
+
+# FriendsCountRift: Riften's favor count, a plain global a quest fragment raises (MQ202's walk).
+FRIENDS_COUNT_RIFT = 0x87E1C
+
+
+def global_value(instance, global_id):
+    select_instance(instance)
+    response = rpc({"cmd": "global", "global": global_id}) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] global {global_id:08X}: {response.get('error', 'no answer')}")
+    return response["value"]
+
+
+def scenario_global_reaches_guest():
+    """A global the host's game changes (the console's `set`, as a fragment's SetValue does) takes the
+    host's value on the client; the client's own change does not reach the host."""
+    start = global_value("", FRIENDS_COUNT_RIFT)
+    try:
+        console_on("", f"set FriendsCountRift to {start + 3:g}")
+        wait_for(f"[host] FriendsCountRift is {start + 3:g}", lambda: global_value("", FRIENDS_COUNT_RIFT) == start + 3, 5)
+        wait_for(f"[client] FriendsCountRift follows the host to {start + 3:g}",
+                 lambda: global_value("client", FRIENDS_COUNT_RIFT) == start + 3, 5)
+        console_on("client", f"set FriendsCountRift to {start + 7:g}")
+        wait_for("[client] FriendsCountRift is its own 7 more", lambda: global_value("client", FRIENDS_COUNT_RIFT) == start + 7, 5)
+        if global_value("", FRIENDS_COUNT_RIFT) != start + 3:
+            raise TestFailure("[host] FriendsCountRift took the client's value: a guest decided world state")
+    finally:
+        console_on("", f"set FriendsCountRift to {start:g}")
+        wait_for(f"[client] FriendsCountRift back at the host's {start:g}",
+                 lambda: global_value("client", FRIENDS_COUNT_RIFT) == start, 5)
+
+
+def scenario_late_join_gets_globals():
+    """A client that joins after the host changed a global starts with the host's value."""
+    start = global_value("", FRIENDS_COUNT_RIFT)
+    disconnect_client()
+    try:
+        console_on("", f"set FriendsCountRift to {start + 5:g}")
+        wait_for(f"[host] FriendsCountRift is {start + 5:g}", lambda: global_value("", FRIENDS_COUNT_RIFT) == start + 5, 5)
+        if global_value("client", FRIENDS_COUNT_RIFT) == start + 5:
+            raise TestFailure("[client] has the host's value while away: the test shows nothing")
+        rejoin_client()
+        wait_for(f"[client] joins with the host's FriendsCountRift {start + 5:g}",
+                 lambda: global_value("client", FRIENDS_COUNT_RIFT) == start + 5, 5)
+    finally:
+        if game_state("client").get("online") is False:
+            rejoin_client()
+        console_on("", f"set FriendsCountRift to {start:g}")
+        wait_for(f"[client] FriendsCountRift back at the host's {start:g}",
+                 lambda: global_value("client", FRIENDS_COUNT_RIFT) == start, 5)
+
+# Finn's Lute (BardsCollegeLute): runs from the start; stages 0, 15, 20, 40, 200 with fragments, objective 20
+# shown at 20, 200 completes it. CR03, a Companions radiant job: its start picks the quest giver among them.
+LUTE_QUEST, CR03_QUEST = 0xD93FA, 0x25230
+SYNCED_QUEST_FLAGS = 0xC3  # running, starting, completed, failed (the HUD's tracking is each player's own)
+
+
+def synced_quest(instance, quest, skip_aliases=()):
+    """What quest sync carries of a quest on that game: flags, stage, done stages, objectives, fills by id
+    but skip_aliases'."""
+    state = quest_snapshot(instance, quest)
+    return {"flags": state["flags"] & SYNCED_QUEST_FLAGS, "stage": state["stage"], "done": state["done"],
+            "objectives": state["objectives"],
+            "aliases": {alias: ref for alias, (ref, _) in state["aliases"].items() if alias not in skip_aliases}}
+
+
+def created_aliases(instance, quest):
+    """Aliases filled with a reference that game created: its id is the game's own, not synced (yet)."""
+    return {alias for alias, (ref, _) in quest_snapshot(instance, quest)["aliases"].items() if ref >= 0xFF000000}
+
+
+def quest_fragments(instance, quest):
+    select_instance(instance)
+    return (rpc({"cmd": "quest_fragments", "quest": quest}) or {}).get("runs")
+
+
+def reset_quest_fragments():
+    for instance in ("", "client"):
+        select_instance(instance)
+        rpc({"cmd": "quest_fragments_reset"})
+
+
+def client_quest_matches(quest, label):
+    def matches():
+        skipped = created_aliases("", quest) | created_aliases("client", quest)
+        return synced_quest("client", quest, skipped) == synced_quest("", quest, skipped)
+    wait_for(f"[client] {label} as on the host", matches, 5)
+
+
+def scenario_quest_stage_reaches_guest():
+    """A stage the host's game sets is done on the client too, with its objective, through the client's
+    own SetStage; the stage's fragment (a world script) runs on the host only."""
+    console_on("", "resetquest BardsCollegeLute")
+    client_quest_matches(LUTE_QUEST, "Finn's Lute is reset")
+    reset_quest_fragments()
+    try:
+        for stage in (15, 20):
+            console_on("", f"setstage BardsCollegeLute {stage}")
+            wait_for(f"[host] stage {stage} is done", lambda: stage in quest_snapshot("", LUTE_QUEST)["done"], 5)
+            client_quest_matches(LUTE_QUEST, f"stage {stage} is done")
+        if synced_quest("client", LUTE_QUEST)["objectives"].get(20) != 1:
+            raise TestFailure("[client] objective 20 is not shown")
+        if not quest_fragments("", LUTE_QUEST):
+            raise TestFailure("[host] ran no fragment for its stages: the test shows nothing")
+        if quest_fragments("client", LUTE_QUEST):
+            raise TestFailure(f"[client] ran {quest_fragments('client', LUTE_QUEST)} of the stages' fragments")
+    finally:
+        console_on("", "resetquest BardsCollegeLute")
+        client_quest_matches(LUTE_QUEST, "Finn's Lute is reset again")
+
+
+def scenario_quest_completes_for_guest():
+    """The host's game completes a quest: completed on the client, its objectives as the host's."""
+    console_on("", "resetquest BardsCollegeLute")
+    client_quest_matches(LUTE_QUEST, "Finn's Lute is reset")
+    try:
+        console_on("", "setstage BardsCollegeLute 200")
+        wait_for("[host] Finn's Lute is completed", lambda: quest_snapshot("", LUTE_QUEST)["flags"] & 0x2, 5)
+        client_quest_matches(LUTE_QUEST, "Finn's Lute is completed")
+    finally:
+        console_on("", "resetquest BardsCollegeLute")
+        client_quest_matches(LUTE_QUEST, "Finn's Lute is reset again")
+
+
+def scenario_quest_roles_match_host():
+    """A radiant quest the host's game starts runs on the client with the host's picks for its roles
+    (who gives the job), not rolled by the client, and the client runs none of its start's fragments."""
+    console_on("", "stopquest CR03")
+    client_quest_matches(CR03_QUEST, "CR03 is stopped")
+    reset_quest_fragments()
+    try:
+        console_on("", "startquest CR03")
+        wait_for("[host] CR03 runs with a quest giver",
+                 lambda: synced_quest("", CR03_QUEST)["flags"] & 1 and synced_quest("", CR03_QUEST)["aliases"], 5)
+        client_quest_matches(CR03_QUEST, "CR03 runs with the host's roles")
+        if quest_fragments("client", CR03_QUEST):
+            raise TestFailure("[client] ran CR03's start fragments itself")
+    finally:
+        console_on("", "stopquest CR03")
+        client_quest_matches(CR03_QUEST, "CR03 is stopped again")
+
+
+def scenario_late_join_gets_quests():
+    """A client that joins after the host's game moved a quest on starts with the host's quest, taken as a
+    load takes it: no fragment runs on the client."""
+    console_on("", "resetquest BardsCollegeLute")
+    client_quest_matches(LUTE_QUEST, "Finn's Lute is reset")
+    disconnect_client()
+    try:
+        console_on("", "setstage BardsCollegeLute 20")
+        wait_for("[host] stage 20 is done", lambda: 20 in quest_snapshot("", LUTE_QUEST)["done"], 5)
+        if 20 in quest_snapshot("client", LUTE_QUEST)["done"]:
+            raise TestFailure("[client] has stage 20 while away: the test shows nothing")
+        reset_quest_fragments()
+        rejoin_client()
+        client_quest_matches(LUTE_QUEST, "joins with stage 20 done")
+        if quest_fragments("client", LUTE_QUEST):
+            raise TestFailure("[client] ran the quest's fragments taking the host's quest at join")
+    finally:
+        if game_state("client").get("online") is False:
+            rejoin_client()
+        console_on("", "resetquest BardsCollegeLute")
+        client_quest_matches(LUTE_QUEST, "Finn's Lute is reset again")
+
 # --- Characters: spawning, moving, removing, cells ------------------------------------------
 
 def scenario_steady_state():
@@ -2300,6 +2470,10 @@ def scenario_party_fast_travels():
         follows("client", client_before)
         players_together("in Riverwood, the host leading")
         wait_for("[client] keeps the host's time", lambda: close(hour("client"), hour(""), 0.1), 10)
+        try:
+            wait_for("[client] keeps the host's days passed and date", same_calendar, 10)
+        except TestFailure:
+            raise TestFailure(calendars("[client] off the host's calendar after its trip"))
 
         both_go("river", RIVER_CELL)
         host_before = player_cell("")
@@ -3498,7 +3672,7 @@ TYPED_KEYS = {**{c: (code, False) for c, code in zip("qwertyuiop", range(0x10, 0
               **{c: (code, False) for c, code in zip("zxcvbnm", range(0x2C, 0x33))},
               **{c: (code, False) for c, code in zip("1234567890", range(0x02, 0x0C))},
               " ": (0x39, False), ",": (0x33, False), ".": (0x34, False), "'": (0x28, False),
-              "!": (0x02, True), "?": (0x35, True)}
+              "!": (0x02, True), "?": (0x35, True), "/": (0x35, False)}
 
 
 def key(instance, code, down):
@@ -3703,6 +3877,103 @@ def scenario_host_time_reaches_client():
             if not near(game_state(name).get("time", {}).get("hour"), hour, 0.3):
                 raise TestFailure(f"[{name or 'host'}] the hour moved off {hour:.2f}: something else drives the clock")
         time.sleep(0.2)
+
+
+WAIT_KEY, MENU_RIGHT_KEY, MENU_ACCEPT_KEY = 0x14, 0x20, 0x12   # T, D, E (the game's controlmap.txt)
+
+
+def calendar(instance):
+    return game_state(instance).get("time", {})
+
+
+def wait_hours(instance, hours):
+    """The player opens the Wait menu (T), moves its slider to `hours` (D) and waits (E); returns once
+    the wait is over and the menu closed."""
+    who = f"[{instance or 'host'}]"
+    wait_for(f"{who} the game takes input", lambda: takes_input(instance), 10)
+    tap_key(instance, WAIT_KEY)
+    wait_for(f"{who} the Wait menu shows its hours", lambda: game_state(instance).get("wait_hours") is not None, 5)
+    while (shown := game_state(instance).get("wait_hours")) < hours:
+        tap_key(instance, MENU_RIGHT_KEY)
+        wait_for(f"{who} the slider moves past {shown:g} h",
+                 lambda: (game_state(instance).get("wait_hours") or 0) > shown, 3)
+    if shown != hours:
+        raise TestFailure(f"{who} the slider shows {shown:g} h, not {hours}")
+    tap_key(instance, MENU_ACCEPT_KEY)
+    wait_for(f"{who} has waited and the menu closed", lambda: takes_input(instance), 10 + 2 * hours)  # about an hour a second
+
+
+def same_calendar(tolerance=1 / 1440):
+    """Both games show the same date, whole days passed and GameDaysPassed (within a game minute)."""
+    host, guest = calendar(""), calendar("client")
+    return all(host.get(k) == guest.get(k) for k in ("day", "month", "year", "raw_days")) \
+        and abs(host.get("days_passed", 0) - guest.get("days_passed", -1)) < tolerance
+
+
+def calendars(why):
+    host, guest = calendar(""), calendar("client")
+    fields = ("days_passed", "raw_days", "day", "month", "year", "hour")
+    return f"{why}: host " + ", ".join(f"{k} {host.get(k)}" for k in fields) + \
+        "; client " + ", ".join(f"{k} {guest.get(k)}" for k in fields)
+
+
+def scenario_host_wait_reaches_guest():
+    """The host waits 3 hours across midnight in the Wait menu, as a player does: the client's calendar takes
+    the jump, days passed (GameDaysPassed and the whole days the engine counts on from) and the date."""
+    console_on("", "set gamehour to 22.5")
+    wait_for("[client] at the host's 22:30", lambda: close(calendar("client").get("hour"), 22.5, 0.2), 10)
+    before = calendar("")
+    wait_hours("", 3)
+    after = calendar("")
+    if after.get("raw_days") != before.get("raw_days") + 1:
+        raise TestFailure(f"[host] 3 hours from 22:30 passed {after.get('raw_days') - before.get('raw_days')} midnights")
+    try:
+        wait_for("[client] days passed and the date follow the host's", same_calendar, 10)
+    except TestFailure:
+        raise TestFailure(calendars("[client] days passed and the date are not the host's"))
+
+
+def scenario_guest_sets_time():
+    """At 22:30 the client types `/settime 6 0` in the chat: the host's clock runs on to 06:00 the next day, as
+    a wait does, and both games show it, days passed and date included. The command is no chat line."""
+    console_on("", "set gamehour to 22.5")
+    wait_for("[client] at the host's 22:30", lambda: close(calendar("client").get("hour"), 22.5, 0.2), 10)
+    before = calendar("")
+    say("client", "/settime 6 0")
+    wait_for("[host] its clock is at 06:00", lambda: close(calendar("").get("hour"), 6.0, 0.1), 5)
+    if calendar("").get("raw_days") != before.get("raw_days") + 1:
+        raise TestFailure(f"[host] 22:30 to 06:00 passed {calendar('').get('raw_days') - before.get('raw_days')} midnights")
+    try:
+        wait_for("[client] at the host's 06:00, days passed and date", lambda: same_calendar()
+                 and close(calendar("client").get("hour"), calendar("").get("hour"), 0.05), 10)
+    except TestFailure:
+        raise TestFailure(calendars("[client] not on the host's calendar after the set time"))
+    for name in ("", "client"):
+        if any("settime" in l["text"] for l in chat(name).get("lines", [])):
+            raise TestFailure(f"[{name or 'host'}] shows the command as a chat line")
+
+
+def scenario_late_join_gets_calendar():
+    """The host waits a day: leaving, the client's own clock counts on from the host's days passed, not those of
+    the save it loaded. The host waits again while the client is away: it joins with the host's days passed and date."""
+    wait_hours("", 24)
+    try:
+        wait_for("[client] days passed and the date follow the host's", same_calendar, 10)
+    except TestFailure:
+        raise TestFailure(calendars("[client] not on the host's calendar after its wait"))
+    joined = calendar("client").get("days_passed")
+    disconnect_client()
+    wait_hours("", 12)
+    left = calendar("client").get("days_passed")  # its own clock ran on for the host's wait
+    if abs(left - joined) > 0.05:
+        raise TestFailure(f"[client] days passed went from {joined} to {left} after leaving")
+    if same_calendar():
+        raise TestFailure("[client] has the host's days passed while away: the test shows nothing")
+    rejoin_client()
+    try:
+        wait_for("[client] joins with the host's days passed and date", same_calendar, 10)
+    except TestFailure:
+        raise TestFailure(calendars("[client] joined off the host's calendar"))
 
 
 def scenario_weather_follows_host():
@@ -4000,6 +4271,12 @@ SCENARIOS = {
     "join-refused-shows-why": scenario_join_refused_shows_why,
     "join-refused-plugins-differ": scenario_join_refused_plugins_differ,
     "difficulty-follows-host": scenario_difficulty_follows_host,
+    "global-reaches-guest": scenario_global_reaches_guest,
+    "late-join-gets-globals": scenario_late_join_gets_globals,
+    "quest-stage-reaches-guest": scenario_quest_stage_reaches_guest,
+    "quest-completes-for-guest": scenario_quest_completes_for_guest,
+    "quest-roles-match-host": scenario_quest_roles_match_host,
+    "late-join-gets-quests": scenario_late_join_gets_quests,
     # characters
     "steady-state": scenario_steady_state,
     "move-host-npc": scenario_move_host_npc,
@@ -4066,6 +4343,9 @@ SCENARIOS = {
     "map-marker-reaches-everyone": scenario_map_marker_reaches_everyone,
     # world
     "host-time-reaches-client": scenario_host_time_reaches_client,
+    "host-wait-reaches-guest": scenario_host_wait_reaches_guest,
+    "late-join-gets-calendar": scenario_late_join_gets_calendar,
+    "guest-sets-time": scenario_guest_sets_time,
     "weather-follows-host": scenario_weather_follows_host,
     "form-state-round-trips": scenario_form_state_round_trips,
     # input (real keyboard and mouse; only when named or tagged)
@@ -4087,6 +4367,12 @@ TAGS = {
     "join-refused-shows-why": {'session'},
     "join-refused-plugins-differ": {'session', 'restart'},
     "difficulty-follows-host": {'session'},
+    "global-reaches-guest": {'world'},
+    "late-join-gets-globals": {'world', 'session'},
+    "quest-stage-reaches-guest": {'world', 'quest'},
+    "quest-completes-for-guest": {'world', 'quest'},
+    "quest-roles-match-host": {'world', 'quest'},
+    "late-join-gets-quests": {'world', 'quest', 'session'},
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
     "remove-host-npc": {'spawn'},
@@ -4144,6 +4430,9 @@ TAGS = {
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},
     "host-time-reaches-client": {'world'},
+    "host-wait-reaches-guest": {'world'},
+    "late-join-gets-calendar": {'world', 'session'},
+    "guest-sets-time": {'world', 'ui'},
     "weather-follows-host": {'world', 'cells'},
     "form-state-round-trips": {'world', 'objects', 'spawn'},
     "input-keyboard-draw": {'input', 'hands'},
@@ -4443,6 +4732,163 @@ def save_both(name, noise_seconds, save_diff):
         wait_for("the second host save written", saves_written(again), 60)
         noise = save_diff.noise_from(host, again)
     return host, client, noise
+
+
+def quest_snapshot(instance, quest):
+    """One quest as that game holds it now (harness `quest`): flags, stage, done stages, objectives, fills."""
+    select_instance(instance)
+    response = rpc({"cmd": "quest", "quest": quest}) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] quest {quest:08X}: {response.get('error', 'no answer')}")
+    return {"flags": response["flags"], "stage": response["current_stage"],
+            "done": sorted(stage for stage, done in response["stages"] if done),
+            "objectives": {index: state for index, state in response["objectives"] if state},
+            "aliases": {a["id"]: (a["ref"], a["name"]) for a in response["aliases"]}}
+
+
+def snapshot_differences(host, client, names):
+    """What differs between the host's and the client's snapshot of one quest, readable."""
+    def ref(form_id):
+        return names.get(form_id, f"{form_id:08X}") if form_id else "unfilled"
+
+    out = []
+    if host["flags"] & SYNCED_QUEST_FLAGS != client["flags"] & SYNCED_QUEST_FLAGS:
+        out.append(f"flags {host['flags'] & SYNCED_QUEST_FLAGS:#06x} / {client['flags'] & SYNCED_QUEST_FLAGS:#06x}")
+    if host["stage"] != client["stage"]:
+        out.append(f"stage {host['stage']} / {client['stage']}")
+    for label, a, b in (("done only on host", host["done"], client["done"]),
+                        ("done only on client", client["done"], host["done"])):
+        if missing := sorted(set(a) - set(b)):
+            out.append(f"{label}: {missing}")
+    for index in sorted(set(host["objectives"]) | set(client["objectives"])):
+        a, b = host["objectives"].get(index, 0), client["objectives"].get(index, 0)
+        if a != b:
+            out.append(f"objective {index}: {a} / {b}")
+    for alias in sorted(set(host["aliases"]) | set(client["aliases"])):
+        (a, name), (b, _) = host["aliases"].get(alias, (0, "?")), client["aliases"].get(alias, (0, "?"))
+        # A reference a game created has an id of its own: not synced yet (docs/progress.md, loose ends).
+        if a != b and not (a >= 0xFF000000 or b >= 0xFF000000):
+            out.append(f"alias {name}: {ref(a)} / {ref(b)}")
+    return out
+
+
+def travel_on_host(command):
+    """A console command that moves the host far (coc): the host arrives elsewhere, the client next to it."""
+    def where(instance):
+        return local_player(instance).get("position")
+    before = where("")
+    console_on("", command)
+    wait_for(f"[host] arrives after '{command}'",
+             lambda: (here := where("")) and math.dist(here, before) > 2000, 90)
+    wait_for("[client] arrives with the host (the party tether)",
+             lambda: (a := where("")) and (b := where("client")) and math.dist(a, b) < 1000, 90)
+
+
+def command_quest_walk(args):
+    """Walks the host through a quest's stages on a running duo (boot it with `duo --save`), the client
+    leaving and rejoining on the way, and reports at each step how the client's quest compares."""
+    sys.path.insert(0, str(ROOT / "scripts/re"))
+    import save_diff
+    found = save_diff.plugin_quest(GAME / "Data" / args.plugin, args.quest)
+    if not found:
+        raise TestFailure(f"no quest {args.quest} in {args.plugin}")
+    local_id, plugin_stages = found
+    select_instance("")
+    order = [p.lower() for p in save_diff.Save(save_file("", args.names_from)).plugins]
+    quest = order.index(args.plugin.lower()) << 24 | local_id & 0xFFFFFF
+    names = save_diff.editor_ids(save_diff.Save(save_file("", args.names_from)), GAME / "Data")
+    done_now = set(quest_snapshot("", quest)["done"])
+    if args.stages:
+        route = [int(s) for s in args.stages.split(",")]
+    elif args.route_from:
+        # The stages a later save of the same playthrough has done: the route its player took.
+        later = save_diff.Save(save_file("", args.route_from))
+        parsed = save_diff.parse_quest(later, later.forms[quest])
+        route = sorted(stage for stage, done in parsed.get("stages", {}).items() if done and stage not in done_now)
+    else:
+        start = quest_snapshot("", quest)["stage"]
+        route = [stage for stage in plugin_stages if stage > start and stage not in done_now]
+    log(f"{args.quest} ({quest:08X}): route {route}")
+
+    steps = []
+
+    def compare(label, guest_here=True):
+        host = quest_snapshot("", quest)
+        if not guest_here:
+            steps.append({"step": label, "host_stage": host["stage"], "guest": "away"})
+            return
+        # The client gets the time a sync would need; a report, so a miss is recorded, not raised.
+        deadline, differences = time.monotonic() + args.settle, None
+        while True:
+            differences = snapshot_differences(host, quest_snapshot("client", quest), names)
+            if not differences or time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+            host = quest_snapshot("", quest)
+        steps.append({"step": label, "host_stage": host["stage"], "differences": differences})
+        log(f"{label}: " + ("matches" if not differences else "; ".join(differences)))
+
+    compare("start (both loaded the save)")
+    if not quest_snapshot("", quest)["flags"] & 1:  # not running: `setstage` needs it started (aliases filled)
+        # --start-by: the trip that makes the game start it (a story manager event); else `startquest`.
+        if args.start_by:
+            for command in (c.strip() for c in args.start_by.split(";")):
+                if command.startswith("wait "):  # a start condition the host's game reaches itself
+                    needed, needed_stage = command[5:].split(":")
+                    needed_id = next(form for form, name in names.items() if name == needed)
+                    wait_for(f"[host] {needed} reaches stage {needed_stage}",
+                             lambda: int(needed_stage) in quest_snapshot("", needed_id)["done"], 180)
+                else:
+                    travel_on_host(command)
+        else:
+            console_on("", f"startquest {args.quest}")
+        wait_for(f"[host] {args.quest} runs", lambda: quest_snapshot("", quest)["flags"] & 1, 60)
+        compare("host's game starts the quest")
+    away = False
+    for index, stage in enumerate(route):
+        if args.leave_after is not None and index == args.leave_after:
+            disconnect_client()
+            away = True
+            steps.append({"step": "guest leaves", "host_stage": quest_snapshot("", quest)["stage"], "guest": "away"})
+        if away and index == args.leave_after + args.away:
+            rejoin_client()
+            away = False
+            compare("guest rejoins")
+        console_on("", f"setstage {args.quest} {stage}")
+        wait_for(f"[host] {args.quest} stage {stage} done", lambda: stage in quest_snapshot("", quest)["done"], 15)
+        compare(f"host sets stage {stage}", guest_here=not away)
+        if not quest_snapshot("", quest)["flags"] & 1:  # the stage's script ended the quest (a branch)
+            log(f"{args.quest} ended at stage {quest_snapshot('', quest)['stage']}: the walk stops")
+            break
+    if away:
+        rejoin_client()
+        compare("guest rejoins")
+
+    # The whole world at the end: every quest and global that differs, from both games' saves.
+    host_path, client_path, _ = save_both(f"questwalk-{args.quest}", 0, save_diff)
+    host_save, client_save = save_diff.Save(host_path), save_diff.Save(client_path)
+    report = save_diff.compare(host_save, client_save, None, names)
+    quests = [f for f in report["forms"] if f["type"] == "QUST"]
+    globals_ = report["global_variables"]
+
+    out_dir = TEST_HOME / "quest-walks"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-{args.quest}.json"
+    out.write_text(json.dumps({"quest": args.quest, "route": route, "steps": steps,
+                               "quests": quests, "global_variables": globals_}, indent=1, default=str))
+
+    print(f"\n{args.quest}: {sum(1 for s in steps if s.get('differences') == [])} of "
+          f"{sum(1 for s in steps if 'differences' in s)} checked steps match")
+    for s in steps:
+        state = "guest away" if s.get("guest") == "away" else "matches" if not s["differences"] else \
+            "; ".join(s["differences"])
+        print(f"  {s['step']:<32} host at {s['host_stage']:<4} {state}")
+    print(f"\nAt the end, {len(quests)} quests and {len(globals_)} globals differ between the games:")
+    for f in quests[:args.details]:
+        print(f"  {f['label']}: " + ("; ".join(f.get("fields", [])) or f.get("kind", "")))
+    for g in globals_[:args.details]:
+        print(f"  global {g['label']}: {g['host']} / {g['client']}")
+    print(f"\nReport: {out}")
 
 
 # The engine's FormType (CommonLibSSE-NG FormTypes.h) -> record name, for change-rate.
@@ -4771,6 +5217,8 @@ def main():
         if name == "duo":
             sub.add_argument("--npc", default="000A2C8E",
                              help="NPC base form (8 hex digits) the host spawns; the client must show it (default Lydia, '' to skip)")
+            sub.add_argument("--level", type=int,
+                             help="raise both players to this level after loading (late saves are level 1)")
     reload = commands.add_parser("reload", help="swap the current build into a running duo and reconnect")
     reload.add_argument("--seconds", type=float, default=30, help="how long to wait for the players to reappear")
     scenario = commands.add_parser("scenario", help="sync scenarios against a running `duo --keep-running`")
@@ -4799,6 +5247,20 @@ def main():
                            help="save the host again after this long: what differs between those two is marked noise")
     save_diff.add_argument("--details", type=int, default=25, help="forms listed per class (0: summary only)")
     save_diff.add_argument("--json", action="store_true", help="the whole report as JSON")
+    walk = commands.add_parser("quest-walk", help="walk the host through a quest on a running duo; compare the client's at each step")
+    walk.add_argument("quest", help="the quest's editor id (MQ202)")
+    walk.add_argument("--plugin", default="Skyrim.esm", help="the plugin defining it (default Skyrim.esm)")
+    walk.add_argument("--names-from", required=True, metavar="SAVE",
+                      help="the save the duo booted from: its plugin order and names")
+    walk.add_argument("--route-from", metavar="SAVE", help="a later save of the playthrough: walk the stages it has done")
+    walk.add_argument("--stages", help="walk these stages (comma-separated) instead")
+    walk.add_argument("--start-by", metavar="COMMANDS",
+                      help="the trip that makes the game start it, ;-separated: travel commands (coc X) and "
+                           "`wait QUEST:STAGE` for a condition the host's game reaches itself (default startquest)")
+    walk.add_argument("--leave-after", type=int, metavar="N", help="the client leaves after N stages")
+    walk.add_argument("--away", type=int, default=2, help="stages the host sets while the client is away (default 2)")
+    walk.add_argument("--settle", type=float, default=3, help="seconds the client gets to match each step (default 3)")
+    walk.add_argument("--details", type=int, default=30, help="end-of-walk differences listed (default 30)")
     crash = commands.add_parser("crash", help="the newest crash of each game: engine state (CrashLoggerSSE) and our last engine changes")
     crash.add_argument("--instance", choices=["client"], help="only this game (default: both)")
     desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
@@ -4838,6 +5300,8 @@ def main():
             command_save_diff(args)
         elif args.command == "change-rate":
             command_change_rate(args)
+        elif args.command == "quest-walk":
+            command_quest_walk(args)
         elif args.command == "crash":
             command_crash(args)
         elif args.command == "repro":

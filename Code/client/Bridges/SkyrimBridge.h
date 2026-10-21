@@ -7,9 +7,6 @@
 #include <Bridges/IWorldBridge.h>
 
 #include <atomic>
-#include <chrono>
-#include <fstream>
-#include <mutex>
 #include <string>
 
 /// Real SKSE implementation of all five bridge interfaces.
@@ -25,7 +22,7 @@ class SkyrimBridge
 {
 public:
     SkyrimBridge() = default;
-    ~SkyrimBridge() override;
+    ~SkyrimBridge() override = default;
 
     // -----------------------------------------------------------------
     // IActorBridge
@@ -285,9 +282,6 @@ public:
     void RegisterActivateSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept override;
     void RegisterLockChangeSink(std::function<void(uint32_t, bool)> aCallback) noexcept override;
     void UnregisterAllSinks() noexcept override;
-    void InjectQuestStartStopEvent(uint32_t aQuestFormId, bool aStarted) noexcept override;
-    void InjectQuestStageEvent(uint32_t aQuestFormId, uint32_t aNewStage) noexcept override;
-    void InjectActivateEvent(uint32_t aActivatorFormId, uint32_t aActivatedFormId) noexcept override;
 
     // -----------------------------------------------------------------
     // IWorldBridge
@@ -296,30 +290,14 @@ public:
     // -----------------------------------------------------------------
     uint32_t GetCurrentWeatherId() const noexcept override;
     uint32_t GetLastWeatherId() const noexcept override;
-    void ForceWeather(uint32_t aWeatherFormId, bool aOverride) noexcept override;
-    void ReleaseWeatherOverride() noexcept override;
     std::string GetModName(uint32_t aIndex) const noexcept override;
     void SetGameWeatherSystemEnabled(bool aEnable) noexcept override;
     float GetGameTimeHours() const noexcept override;
-    void SetGameTimeHours(float aHours) noexcept override;
     void SetSharedTimeScale(float aMultiplier) noexcept override;
     float GetGameTimeScale() const noexcept override;
+    TimeModel GetGameTime() const noexcept override;
     float GetGameYear() const noexcept override;
     float GetGameMonth() const noexcept override;
     float GetGameDay() const noexcept override;
 
-    // -----------------------------------------------------------------
-    // NDJSON recording infrastructure
-    // -----------------------------------------------------------------
-    void StartRecording(const std::string& aPath) noexcept;
-    void StopRecording() noexcept;
-
-private:
-    void RecordCall(const char* apOp, const char* apPayloadJson) noexcept;
-    void RecordReturn(const char* apOp, const char* apResultJson) noexcept;
-
-    std::ofstream m_recordFile;
-    std::mutex    m_recordMutex;
-    std::chrono::steady_clock::time_point m_startTime{};
-    bool m_recording = false;
 };

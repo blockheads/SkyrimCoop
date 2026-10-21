@@ -4,6 +4,9 @@ struct TESWeather;
 
 struct Sky
 {
+    // The world map's own weather while it is open (0xA6858).
+    static constexpr uint32_t kWorldMapWeather = 0xA6858;
+
     static Sky* Get() noexcept;
 
     static bool s_shouldUpdateWeather;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Messages/CharacterSpawnRequest.h>
+#include <Messages/WorldState.h>
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
 #include <Structs/TimeModel.h>
@@ -9,7 +10,7 @@
 #include <optional>
 
 /**
- * @brief The host's game as the bridge sees it: what it reads and changes in the engine. The
+ * @brief The host's game as HostAuthority sees it: what it reads and changes in the engine. The
  * host's services provide it (HostService); the headless tests a fake.
  */
 struct HostGame
@@ -24,6 +25,10 @@ struct HostGame
     std::function<void(float aHours)> SetHour;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
+    // The host's global variables but the constants.
+    std::function<TiltedPhoques::Vector<HostGlobal>()> ReadGlobals;
+    // Every quest of the host's game as it holds it now.
+    std::function<TiltedPhoques::Vector<QuestState>()> ReadQuests;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.

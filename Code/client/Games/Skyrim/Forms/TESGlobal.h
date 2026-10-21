@@ -5,6 +5,11 @@
 
 struct TESGlobal : TESForm
 {
+    // Record flag: Papyrus refuses to set it (GlobalVariable.SetValue, 55923).
+    static constexpr uint32_t kConstant = 0x40;
+
+    bool IsConstant() const noexcept { return flags & kConstant; }
+
     BSString unk14;
     uint8_t unk1C;
     uint8_t pad[3];

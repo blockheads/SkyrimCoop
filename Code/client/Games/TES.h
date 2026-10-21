@@ -8,6 +8,8 @@ struct TESForm;
 struct Actor;
 struct BSTempEffect;
 struct TESObjectREFR;
+struct TESGlobal;
+struct TESQuest;
 
 struct GridCellArray
 {
@@ -116,12 +118,17 @@ struct ModManager
     Mod* GetByName(const char* acpName) const noexcept;
     TESObjectCELL* GetCellFromCoordinates(int32_t aX, int32_t aY, TESWorldSpace* aWorldSpace, bool aSpawnCell) noexcept;
 
-    uint8_t pad0[0x748];
+    // formArrays (CommonLibSSE-NG TESDataHandler, 0x10 + 0x18 * form type): GLOB 0x09, QUST 0x4D.
+    uint8_t pad0[0xE8];
+    GameArray<TESGlobal*> globals;
+    uint8_t pad100[0x748 - 0x100];
     GameArray<TESQuest*> quests;
     uint8_t pad760[0xD60 - 0x760];
     GameList<Mod> mods;
 };
 
+static_assert(offsetof(ModManager, globals) == 0xE8);
+static_assert(offsetof(ModManager, quests) == 0x748);
 static_assert(offsetof(ModManager, mods) == 0xD60);
 
 struct Setting

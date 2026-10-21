@@ -213,12 +213,46 @@ At the client's load screen only: `CELL` (detach time, seen data, exterior data)
 
 Never: the players' own forms (`0x14`, `0x7`), `ACHR`.
 
+## Quest walks: real quests from a late save (2026-10-20)
+
+Before step 4 (`world-state-sync.md`): what a real quest does to the two games without quest sync.
+`coop_test.py quest-walk` drives the host through a quest's stages on a duo booted from a save and compares
+the client's quest after each step (harness `quest`), with the client leaving and rejoining on the way; at
+the end it diffs both saves. `setstage` runs each stage's fragment, journal and objectives on the host as a
+player reaching that point would; what leads up to a stage (travel, fights, dialogue) is skipped, except a
+quest's start, which a trip makes the story manager do (`--start-by`). The saves: userb1's vanilla main-quest
+collection (Nexus 45425, `scripts/fetch_late_saves.py`), from 2021; they load on 1.6.1170, the Creation
+Club plugins are added on load.
+
+| Walk | Save | How it starts | Result |
+|---|---|---|---|
+| Main quest: *A Cornered Rat* (`MQ202`), the route the save's player took (`--route-from` the next save) | `LateAfterDiplomaticImmunity` | running | the client stays at stage 10 while the host reaches 200; rejoining changes nothing; 49 quests differ at the end |
+| Side quest: *House of Horrors* (`DA10`), stages in record order to the first branch | `LateAfterDragonslayerBackinSkyrim` | arrive in Markarth, its stabbing scene (`MS01IntroWorldScene`) reaches 300, leave and arrive again (the `CLOC` node `DA10StartNode`) | started by the host's story manager only; the client never has it |
+| Radiant: the Jarl's bounty (`BQ01`), then the next one | the same | running from the save; finishing it and arriving in Whiterun Hold starts a new one (`BQ*NodeSHARES`, `CLOC`) | each game starts its own new bounty: same Jarl, steward and innkeeper, a different target (`LvlBanditMeleeBerserker` / `LvlBanditBoss`) |
+
+What the walks show besides the stages themselves:
+
+- **Stage fragments change other forms on the host only:** `MQ202`'s end starts `MQ203`; a fragment raises
+  the global `FriendsCountRift`; stage 140's fragment sets 150 itself; `DA10` stage 65 is a branch whose
+  fragment fails the quest (500). A quest's sync is more than its own stages.
+- **Each game's story manager starts its own scenes and radiant quests on every arrival:** the Markarth
+  stabbing scene runs on both games and ends at different stages with different fills; `Favor204` picked
+  White River Watch on the host, Valtheim Towers on the client; ambient quests (`WICrowd`,
+  `MQSovngardeConv2`, `WIChangeLocation01`) run on one game only.
+- **Created objects in alias fills** (the bounty letter, Creation Club quests' items) carry each game's own
+  `0xFF` id, so a fill cannot be compared or sent by id. Here the Creation Club quests also initialised on
+  each game separately, since the 2021 save predates them; a real host's save carries them.
+- **A start needs what its conditions ask for:** `startquest` does not start `CLOC`-scoped quests (it
+  queued `DA10`, which then started on the host's next arrival). The save's character is level 1 throughout,
+  so level-gated starts (`DA07`: level 20) need `duo --level N` (`player.setlevel` on both games after loading).
+
 ## Side findings
 
 - **`GameDaysPassed` misses host time jumps.** `CalendarService::HandleUpdate` adds each tick's delta to
   the client's `GameDaysPassed`, so a jump on the host (fast travel, wait, sleep) never arrives:
   0.4376 on the host, 0.3866 on the client after `party-fast-travels` (1.2 game hours), with `GameHour`
-  equal. Quest timers, cell resets and anything else keyed on days passed drift with it.
+  equal. Quest timers, cell resets and anything else keyed on days passed drift with it. Fixed 2026-10-20:
+  the guest writes the host's calendar as the engine's clock does (`docs/re/systems/calendar.md`).
 - **Copy spawns write the NPC base.** `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`
   per faction) changes the shared `TESNPC`'s factions, so the client records `NPC_ Factions` the host
   never did (168 times in one fast travel, 13 in one melee scenario).
@@ -226,6 +260,8 @@ Never: the players' own forms (`0x14`, `0x7`), `ACHR`.
   `docs/re/crashes/2026-10-19-runner-queue-after-save.md`.
 - **`coop_test.py stop` missed games launched from another worktree** (their environment spells the
   prefix through the resolved `build/` symlink, and Steam rewrote `STEAM_COMPAT_DATA_PATH`): fixed, it
-  matches either spelling of either variable.
+  matches either spelling of either variable. Still missed (2026-10-20): games from a worktree that was
+  since deleted (`.claude/worktrees/beast-form-test`), whose prefix is in neither spelling; they hold the
+  shared game install, so the next `duo` waits behind them.
 - Not run: popular quest or world mods. The test install has none; worth a run once one is installed,
   with `save-diff` and `change-rate` as they are.

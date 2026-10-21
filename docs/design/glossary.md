@@ -7,8 +7,8 @@ clients; some of its words are still in the code until the migration removes the
 
 | Word | Means | In code |
 |---|---|---|
-| **host** | The game everyone joins. Its Skyrim is the only authority: it owns every NPC and the world, and decides quests | `HostService`, `HostBridge`, `Services/Host/` |
-| **guest** | A game that joined the host. It owns only its own player's character | (was "client" or "peer") |
+| **host** | The game everyone joins. Its Skyrim is the only authority: it owns every NPC and the world, and decides quests | `HostService`, `HostAuthority` (was `HostBridge`), `HostEngine`, `Services/Host/` |
+| **guest** | A game that joined the host. It owns only its own player's character | `GuestService`, `GuestEngine`, `Services/Guest/` (was "client" or "peer") |
 | **party** | Everyone in the session; party and session are one thing | `HostPlayers`, `SessionService` |
 | **player** | A person in the party: the host player, a guest player | `PlayerComponent`, `PlayerId` |
 | **this game's player** | The engine's player, form 0x14. Every game has exactly one, and "the player" in engine and script terms means only it | `PlayerCharacter::Get()` |
@@ -22,6 +22,10 @@ clients; some of its words are still in the code until the migration removes the
 | **copy** | What every other game shows for an actor: an NPC body that runs no AI and does what its owner says (`copy-contract.md`) | `ActorExtension::IsCopy`, `IActorBridge::IsActorCopy` |
 | **other player** | Another player's character, shown on this game as a copy: on the host, the guests' characters; on a guest, the host player's and the other guests' | `ActorExtension::IsOtherPlayer`, `IActorBridge::IsOtherPlayer` |
 | **guest scripts** | On the host, the script rules for guests' actions: a guest's character is the player in scripts, and `Game.GetPlayer()` is the guest whose action started the script (`party-model.md`) | `Games/Skyrim/Papyrus/GuestScripts.cpp` |
+
+Where code runs: `Services/Host/` and `Bridges/HostEngine` only while hosting; `Services/Guest/` and
+`Bridges/GuestEngine` only while a guest (`GuestService` makes them on joining); everything else on every game.
+Actors split by owner and copy instead: every game owns its own player and shows the others' as copies.
 
 A host NPC is local on the host and a copy on each guest. A guest player's character is local on their
 game and a copy (an other player) on the host and the other guests.

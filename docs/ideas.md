@@ -22,8 +22,33 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   Notes: `docs/design/host-authority-migration.md` (Decisions, 2).
 - **Tether countdown.** Today anyone's travel takes the party along at once (Decisions, 4). A short
   countdown that anyone can cancel, as Borderlands does, before the party follows.
+- **Shared wait and sleep** (user, 2026-10-20). Whoever starts a wait asks the host; every game shows the
+  Wait menu and pauses, and the host's countdown (`PlayerCharacter::WaitStep`, 40485) drives them all, so
+  nobody plays through the jump. Today the host's wait jumps everyone's clock while the others play on, and
+  a guest's wait passes no time (`docs/re/systems/calendar.md`).
 
 ## Sync
+
+- **Switch a guest's own weather choice off** (2026-10-20). Today a guest's game keeps picking its own weather
+  (the region's climate, cell changes, scripts), and `GuestWeather` checks every frame and forces the
+  host's back (`GuestEngine::HoldWeather`). Cleaner: while a guest, stop the game choosing at all, so the
+  host's weather is set once per change and nothing needs checking each frame.
+  - First: find where `Sky::Update` picks the next weather and the lever to stop it, checking existing SKSE
+    mods before IDA.
+  - Then: implement the `IWorldBridge::SetGameWeatherSystemEnabled` stub (or a `GuestEngine` call) and
+    turn it back on when the guest leaves.
+  - Keep: the world map's own weather, and `weather-follows-host`.
+
+- **Quest sync: compare only the quests marked dirty** (2026-10-20). `HostWorldState` compares a snapshot
+  of every quest (about 1500) twice a second, and every global every 250 ms. The comparison catches every
+  writer, but costs a full scan each time and up to 500 ms of delay. Not measured yet. If a measurement
+  shows the scan costs too much, let the engine mark a quest dirty and compare only those:
+  - the events it has: `TESQuestStageEvent`, `TESQuestStartStopEvent`;
+  - hooks where it has no event: `ForceRefIntoAlias` 25052, `ClearRefAlias` 25051,
+    `BGSQuestObjective::SetState` 23933, `SetCompleted` 24991 and `SetFailed` 24988.
+
+  Keep a slow full scan as the backstop for writers no hook sees, such as a plugin writing the fields
+  directly. Globals have no event at all (`docs/re/systems/quest-apply.md`, `world-state-sync.md`).
 
 - **Everyone's load starts with the leader's** (2026-10-19): today a follower starts travelling once the
   leader has arrived, so the trip costs the leader's load and then its own (`docs/progress.md`, "Tether
@@ -82,6 +107,10 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Code cleanup
 
+- **Rename `BridgeTests` to `HostAuthorityTests`** (2026-10-20). `HostBridge` became `HostAuthority`, but
+  its tests are still the `BridgeTests` target in `Code/tests/bridge/` (`[Bridge]` tags, `BridgeTest`
+  namespace). Rename the target, folder and tags together with every doc and script that names them
+  (`CLAUDE.md`, `progress.md`, the design docs).
 - **Client services by role.** The client keeps upstream's layout, one service per message family, so each
   service mixes our own player, copies and the host's actors, and copy checks (`IsCopy()`) are scattered
   through all of them. `CharacterService` is ~1,600 lines with 26 subscriptions (ownership, spawns,
@@ -89,22 +118,27 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   `PlayerService` groups respawn, difficulty, levels and beast form. Target: services by role (our own
   player: travel, death and respawn, levels and XP, the host's settings; copies: spawn, presence, replay,
   one copy update in place of the `IsCopy()` checks; the host's actors), as `Services/Host/` already is.
-  `TravelService` (2026-10-14) was the first piece. After phase 5 (the listener moving into the bridge
+  `TravelService` (2026-10-14) was the first piece. The world went host/guest on 2026-10-20: `GuestService`
+  makes `Services/Guest/` (clock, weather, globals, quests) on joining, `HostEngine`/`GuestEngine` hold each
+  side's engine calls, `HostBridge` became `HostAuthority`. After phase 5 (the listener moving into the bridge
   changes how messages reach these services): a short survey and plan in `docs/design/`, then one piece at
   a time with its scenarios, deleted from the old place in the same change.
-- **Engine bridge interfaces: finish them or drop them.** Services reach the engine through `I*Bridge`
-  interfaces (`IActorBridge`, `IFormBridge`, `IPlayerBridge`, `IEventBridge`, `IWorldBridge`, and
-  `IDialogueBridge` on the parked dialogue branch) so they could run headless against `ReplayBridge`, which answers with
-  a recording's canned values. That plan stopped half way: `ClientReplayTests` (5 cases) tests `ReplayBridge`
-  itself and runs no service's logic, `SkyrimTogetherClientServices` (the target proving services build
-  without engine headers) does not compile and nothing links it (`Code/client/xmake.lua`), and
-  `IDialogueBridge` has no second implementation at all. Today each interface is a second copy of every
-  declaration for a substitution nobody makes. Decide for all of them at once:
-  - Finish: a scripted fake per bridge where a service has logic worth testing headless, then tests in the
-    style of `BridgeTests`. `DialogueService` first (who is in, a start that never opens, picks racing a new
-    list; covered only by two-game scenarios today), then the boundary target building.
-  - Or drop: services hold the concrete bridges (their headers are already free of engine types), and
-    `ReplayBridge`, `ClientReplayTests` and the boundary target go.
+- **Drop the engine bridge interfaces (later refactor, leaning drop, 2026-10-20).** Services reach the engine
+  through `I*Bridge` interfaces (`IActorBridge`, `IFormBridge`, `IPlayerBridge`, `IEventBridge`, `IWorldBridge`,
+  and `IDialogueBridge` on the parked dialogue branch), meant for running services headless against a fake.
+  The fake never got there: `ReplayBridge` (canned answers from a recording), its `ClientReplayTests`, the
+  services-only target that never compiled and `SkyrimBridge`'s recording were deleted 2026-10-20. Today
+  each interface is a second copy of every declaration with one implementation.
+  - The plan: services hold the concrete bridge; a service with logic worth testing headless gets a narrow
+    seam of its own where it needs one (callbacks, as `HostGame` gives the bridge's rules to `BridgeTests`),
+    not a fake of the whole engine. If `SkyrimBridge` (~1700 lines, every area) is too big to hold whole, split
+    it into concrete per-area classes (`ActorBridge`, `WorldBridge`...) without the virtual layer.
+  - What it costs: a fake engine for services is no longer an option (nobody uses one); an edit to the bridge's
+    header rebuilds every service, not only the bridge; the interfaces' grouping by area goes unless the
+    bridge is split. Services stay free of engine types as long as the bridge's header is.
+  - What it gains: one declaration per method instead of two, no virtual calls, no guessing which interface a
+    method belongs on (`GetModCount` is on both `IFormBridge` and `IWorldBridge`).
+  - Not a reason to keep them: a second game or platform (Skyrim only; the Linux tools use no client service).
 - **`SKYRIM_STRUCT_ASSERT` → `static_assert`.** clang-cl defines `_MSC_VER`, so the macro is already a
   `static_assert` in every build we make; its MinGW branch is dead. Replace the ~209 uses (79 files),
   drop the macro from `TiltedOnlinePCH.h`, and drop the `is_plat("mingw")` branches in `xmake.lua` and

@@ -41,6 +41,8 @@ std::optional<MapMarker> GetPlayerMapMarker() noexcept;
 bool IsMapReady() noexcept;
 // Removes it, as the map's "Remove It" does (40536).
 void ClearPlayerMapMarker() noexcept;
+// The hours the open Sleep/Wait Menu's slider shows (its SWF's HoursSlider), none while it is closed or loading.
+std::optional<double> GetWaitMenuHours() noexcept;
 
 // --- Quests ---
 
@@ -62,6 +64,10 @@ struct QuestState
     std::vector<Alias> Aliases;
 };
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
+// A global variable's value (TESGlobal 0x34), none for no such global.
+std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept;
+// The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.
+float GetRawDaysPassed() noexcept;
 
 // --- Magic ---
 

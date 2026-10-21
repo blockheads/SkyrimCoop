@@ -127,6 +127,8 @@ DEF_MSG_NAME(NotifyDialogueList)
 DEF_MSG_NAME(NotifyDialoguePicked)
 DEF_MSG_NAME(NotifyDialogueClosed)
 DEF_MSG_NAME(NotifyDialogueExperience)
+DEF_MSG_NAME(NotifyGlobals)
+DEF_MSG_NAME(NotifyQuests)
 
 #undef DEF_MSG_NAME
 

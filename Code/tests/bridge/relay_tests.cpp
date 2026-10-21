@@ -1,4 +1,4 @@
-// The bridge's relays: who receives each request's notification.
+// HostAuthority's relays: who receives each request's notification.
 #include "session.h"
 
 TEST_CASE("Hands: the owner's change reaches everyone else", "[Bridge][Inventory]")

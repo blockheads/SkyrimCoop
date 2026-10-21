@@ -290,8 +290,15 @@ static nlohmann::json GameStatus()
     nlohmann::json mapMarker = nullptr;
     if (const auto cMarker = EngineCalls::GetPlayerMapMarker())
         mapMarker = {{"position", {cMarker->X, cMarker->Y, cMarker->Z}}, {"world", cMarker->WorldOrCell}};
+    // The Sleep/Wait Menu's hours, while it is open.
+    nlohmann::json waitHours = nullptr;
+    if (const auto cHours = EngineCalls::GetWaitMenuHours())
+        waitHours = *cHours;
+    constexpr uint32_t cGameDaysPassed = 0x39;
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
-                      {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()}}},
+                      {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()},
+                      {"days_passed", EngineCalls::GetGlobalValue(cGameDaysPassed).value_or(0.f)}, {"raw_days", EngineCalls::GetRawDaysPassed()}}},
+            {"wait_hours", waitHours},
             {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()}, {"difficulty", world.GetPlayerBridge().GetDifficulty()},
             {"players", players}, {"party_panel", party}, {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
             {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};

@@ -6,7 +6,7 @@
 #include <optional>
 
 struct AuthenticationRequest;
-struct HostBridge;
+struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 
@@ -26,8 +26,8 @@ struct HostSession
 
     static constexpr uint32_t cMaxPlayers = 8;
 
-    // Registers its rules with aBridge.
-    HostSession(HostBridge& aBridge, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
+    // Registers its rules with aAuthority.
+    HostSession(HostAuthority& aAuthority, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostSession);
 

@@ -11,6 +11,7 @@
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWeather.h>
+#include <Services/Host/HostWorldState.h>
 
 #include <array>
 #include <functional>
@@ -37,21 +38,22 @@ struct GameServer;
  * like the others: what it sends comes through here in-process, and what is forwarded to it
  * reaches its copies through the in-process route.
  *
- * The bridge is the front door and the plain relays: most rules pass a request on as its
+ * HostAuthority is the front door and the plain relays: most rules pass a request on as its
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
  * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
- * (how fast everyone's clock runs) and HostDialogue (the party's conversation); HostWeather has no rules.
+ * (how fast everyone's clock runs) and HostDialogue (the party's conversation); HostWeather and
+ * HostWorldState (globals, quests) have no rules.
  */
-struct HostBridge
+struct HostAuthority
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
     // Installs itself on aServer (front door, leaving players), which calls into it from then on:
-    // the bridge must outlive the server.
-    HostBridge(Server::GameServer& aServer, HostGame aGame) noexcept;
+    // it must outlive the server.
+    HostAuthority(Server::GameServer& aServer, HostGame aGame) noexcept;
 
-    TP_NOCOPYMOVE(HostBridge);
+    TP_NOCOPYMOVE(HostAuthority);
 
     // True when the message was handled here.
     bool Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept;
@@ -111,6 +113,7 @@ private:
     HostCharacters m_characters;
     HostClock m_clock;
     HostWeather m_weather;
+    HostWorldState m_worldState;
     HostTimeScale m_timeScale;
     HostDialogue m_dialogue;
 };

@@ -21,7 +21,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 |---|---|---|
 | 0 | Ground truth: message table, backbone scenarios, harness `disconnect`/`game` status | done (`ab302206`) |
 | 1 | The host talks to the embedded server in-process, no socket | done (`a76aeddd`) |
-| 2 | `HostBridge`, movement relay, late join from live state | done (`e49e7aea`) |
+| 2 | `HostBridge` (now `HostAuthority`), movement relay, late join from live state | done (`e49e7aea`) |
 | 3a | Relay families as bridge rules: inventory, actor values, magic and combat, character extras | done (`84fb7465`, `c5936751`, `cd3dfd0a`) |
 | 3b | Character ids, owners, spawns, removal, respawn on the bridge | done (`5e99eae7`) |
 | 4 | Host-decided state | partly, see below |
@@ -32,8 +32,9 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 
 | Part | Status |
 |---|---|
-| Time (`HostClock`; set-time from any player) | done (`4e0efb0a`) |
+| Time (`HostClock`; set-time from any player) | done (`4e0efb0a`); set-time works in the game since 2026-10-20 (`/settime` in the chat, `guest-sets-time`); the whole calendar 2026-10-20: a guest takes the host's date and days passed too, written as `Calendar::Update` leaves them (`docs/re/systems/calendar.md`) |
 | Weather (`HostWeather`) | done (`50397fa0`) |
+| Host/guest code split, the world (2026-10-20) | done: `Services/Guest/` (`GuestClock`, `GuestWeather`, `GuestWorldState`) exist only while joined (`GuestService`); `Bridges/HostEngine` (the host's reads, set hour) and `Bridges/GuestEngine` (applying the host's calendar, weather, globals, quests) replace those `IWorldBridge` calls; `CalendarService` is `TimeScaleService`; `WeatherService`, `WorldStateService` deleted; `HostBridge` renamed `HostAuthority`. Actors next, by owner/copy (`docs/ideas.md`, "Client services by role") |
 | Session = party: roster, host kicks, no party messages | done (`50397fa0`) |
 | Cell arrivals (party tether: copies dropped and resent on teleport) | done for every travel: `coc`, doors, fast travel, moves all end in ID 40438 (`docs/re/systems/player-travel.md`; door and fast-travel scenarios `87972601`); the arrival refreshes the host's record of the player (inventory, values, hands) |
 | Arriving together: the party stacks on the arrival spot, passing through each other until each walks off; followers face the leader's way, so every game shows the same view | done (replaces the step-aside of `83178416`), `party-stacks-on-arrival`, `party-uses-door` |
@@ -136,13 +137,13 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
-| Time, weather | works | `host-time-reaches-client`, `weather-follows-host` |
+| Time, weather | works | `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Player levels (party panel) | works | `party-shows-levels` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Quests, crime, containers, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
-| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); step 4 next. Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
+| World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); quest walks 2026-10-20: `coop_test.py quest-walk` drives real quests (main, side, radiant) from a late save (`scripts/fetch_late_saves.py`) and shows the client never follows (`docs/research/world-state-drift.md`, "Quest walks"); step 4 built: globals and quests from the host (`HostWorldState`, `NotifyGlobals`, `NotifyQuests`; a guest applies with the engine's own calls, stage fragments skipped; scenarios `global-reaches-guest`, `late-join-gets-globals`, `quest-stage-reaches-guest`, `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`), the main-quest walk matches 14 of 14; loose ends below. Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
 | A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. Needs the client's world scripts to stop changing the world (world-state sync step 5) | `docs/research/player-events.md`, `scripts/spikes/` |
 
 ## Copies (how other players' and the host's actors appear)
@@ -350,6 +351,21 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 Everything known to be unfinished, unverified or unexplained. Close an entry by fixing it, proving it
 harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details are in the doc named.
 
+### World state
+
+- **A quest fill whose reference is not in the guest's memory stays unfilled** (2026-10-20): the host's `ForceRefIntoAlias` promoted it (an NPC or a bounty target in an unloaded cell: Gadnor in the Gray Cowl quest, the bounty's bandit, Logrolf for a moment); the guest has no such form loaded. Needs a pending fill made when the reference appears (`docs/re/systems/quest-apply.md`, "Alias fills").
+- **Location aliases are not synced** (2026-10-20): only reference aliases; a radiant quest's place (`BQ*`'s `BountyLocation`, `Favor204`'s camp) comes from each game.
+- **The guest's own quest starts are not off yet** (2026-10-20): its story manager still starts quests on arrival; quest sync only corrects a quest when the host's changes. The gate (story-teller start-up on a guest) is next.
+- **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
+- **Upstream's `QuestService` is still in** (client and `Code/server/`, `RequestQuestUpdate`/`NotifyQuestUpdate`, the Lua bindings, `QuestLog` in `AssignCharacterRequest`): never wired (`cSyncQuests` off); to delete now that quests have their sync.
+- **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
+- **Created objects in quest alias fills** (2026-10-20): the bounty letter and Creation Club quests' items carry each game's own `0xFF` id, so quest sync cannot send such a fill by id; actors have the bridge's ids, objects nothing yet (`docs/research/world-state-drift.md`, "Quest walks").
+- **Quest walks skip what leads up to a stage** (2026-10-20): travel, fights and dialogue between stages are not played; a guest's actions moving a quest come with step 5, inside the same walks. Without a later save the walk takes stages in record order and stops at the first branch that ends the quest (`DA10` at 65).
+- **`coop_test.py stop` misses games from a deleted worktree** (2026-10-20): their prefix is under `.claude/worktrees/<name>/build/coop-test`, which `uses_prefix` does not match; they hold the shared game install and the next `duo` waits behind them. Killed by hand this time. Matching any checkout's test prefix would also stop another live session's games.
+
+- **A guest's wait or sleep passes no time** (2026-10-20): its `Calendar::Update` is off, so the menu counts down and nothing changes. Meanwhile the host's wait jumps everyone's clock while the others play on. A shared wait is in `docs/ideas.md`.
+- **A guest's Days Passed stat stays its own** (2026-10-20): the DaysPassed event fires only from `Calendar::Update` (`docs/re/systems/calendar.md`).
+
 ### Copies and actor sync
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
@@ -442,6 +458,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **Crash in the harness's `strip`** after 376 hot reloads (`UnequipAll` on a copy, garbage list
   node). Not reproduced on fresh games (5 of 5).
 
+- **An NPC on the guest only** (2026-10-20): after play in Whiterun the guest showed an NPC at a door that the host's game did not; `desync` listed `Ulfberth War-Bear [client 000D15B0, sid -1]: copy in client with no owner in the other game`. Not looked into; the guest's own actors are the copy contract's.
+
 ### Engine threading and crashes
 
 - **Host crash in `TaskQueue::Drain`, 2 s after a save** (2026-10-19): the Runner queue looked overwritten; not reproduced in six more saves (`docs/re/crashes/2026-10-19-runner-queue-after-save.md`).
@@ -460,7 +478,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Migration
 
-- **The client's `GameDaysPassed` misses host time jumps** (2026-10-19): `CalendarService` only adds each tick's delta, so after `party-fast-travels` the host had 0.4376 days passed, the client 0.3866 (`GameHour` equal). No scenario checks days passed; `host-time-reaches-client` checks the hour (`docs/research/world-state-drift.md`).
+- **Fixed 2026-10-20: the client's `GameDaysPassed` missed host time jumps** (measured 2026-10-19 after `party-fast-travels`: 0.4376 / 0.3866). `TimeModel` carries the whole days passed; a guest writes the host's calendar as `Calendar::Update` does, `rawDaysPassed` included (`docs/re/systems/calendar.md`). Its date is the host's too: `SyncPlayerCalendar` is no longer read. Scenarios `host-wait-reaches-guest` (the Wait menu across midnight), `late-join-gets-calendar`, `party-fast-travels`. Also fixed: a guest rejoining ran ahead by the time it was away (`CalendarService` counted the gap).
+- **Fixed 2026-10-20: set-time set nothing.** `SetGameTimeHours` was a stub, and only the compiled-out CEF overlay sent the command. Now `/settime <hours> <minutes>` in the RmlUi chat sends it; the host runs its clock on to that hour (the next day's if earlier) with `Calendar::Update`, as a wait does (`HostEngine::SetHour`). Scenario `guest-sets-time`.
 - **Tether gaps** (2026-10-14, `docs/design/host-authority-migration.md`, "Party tether"):
   - Followers start once the leader has arrived: the trip takes the leader's load and then their own.
     Moving them as the leader leaves (40442, the queued move) would overlap the two.

@@ -5,7 +5,7 @@
 
 #include <optional>
 
-struct HostBridge;
+struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 struct SetTimeCommandRequest;
@@ -23,8 +23,8 @@ struct HostClock
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    // Registers its rules with aBridge.
-    HostClock(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    // Registers its rules with aAuthority.
+    HostClock(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostClock);
 

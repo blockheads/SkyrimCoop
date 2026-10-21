@@ -5,6 +5,8 @@
 #include <Services/PapyrusService.h>
 
 #include <Games/Overrides.h>
+#include <Events/EventDispatcher.h>
+#include <Forms/BGSBaseAlias.h>
 
 TESObjectREFR* TESQuest::GetAliasedRef(uint32_t aAliasID) noexcept
 {
@@ -32,11 +34,62 @@ TESQuest::State TESQuest::getState()
     return State::WaitingForStage;
 }
 
-void TESQuest::SetCompleted(bool force)
+void TESQuest::SetCompleted(bool aCompleted)
 {
     TP_THIS_FUNCTION(TSetCompleted, void, TESQuest, bool);
     POINTER_SKYRIMSE(TSetCompleted, SetCompleted, 24991);
-    SetCompleted(this, force);
+    SetCompleted(this, aCompleted);
+}
+
+BGSBaseAlias* TESQuest::GetRefAlias(uint32_t aAliasId) noexcept
+{
+    TP_THIS_FUNCTION(TGetRefAlias, BGSBaseAlias*, TESQuest, uint32_t);
+    POINTER_SKYRIMSE(TGetRefAlias, getRefAlias, 25042);
+    return TiltedPhoques::ThisCall(getRefAlias, this, aAliasId);
+}
+
+void TESQuest::ForceRefIntoAlias(uint32_t aAliasId, TESObjectREFR* apRef) noexcept
+{
+    TP_THIS_FUNCTION(TForceRefIntoAlias, void, TESQuest, uint32_t, TESObjectREFR*);
+    POINTER_SKYRIMSE(TForceRefIntoAlias, forceRefIntoAlias, 25052);
+    TiltedPhoques::ThisCall(forceRefIntoAlias, this, aAliasId, apRef);
+}
+
+void TESQuest::ClearRefAlias(BGSBaseAlias* apAlias) noexcept
+{
+    TP_THIS_FUNCTION(TClearRefAlias, void, TESQuest, BGSBaseAlias*);
+    POINTER_SKYRIMSE(TClearRefAlias, clearRefAlias, 25051);
+    TiltedPhoques::ThisCall(clearRefAlias, this, apAlias);
+}
+
+TESQuest::Stage* TESQuest::GetStage(uint16_t aIndex) noexcept
+{
+    for (Stage* pStage : stages)
+        if (pStage && pStage->stageIndex == aIndex)
+            return pStage;
+    return nullptr;
+}
+
+TESQuest::Objective* TESQuest::GetObjective(uint16_t aIndex) noexcept
+{
+    for (Objective* pObjective : objectives)
+        if (pObjective && pObjective->index == aIndex)
+            return pObjective;
+    return nullptr;
+}
+
+void TESQuest::SetFailed(bool aFailed) noexcept
+{
+    TP_THIS_FUNCTION(TSetFailed, void, TESQuest, bool);
+    POINTER_SKYRIMSE(TSetFailed, setFailed, 24988);
+    TiltedPhoques::ThisCall(setFailed, this, aFailed);
+}
+
+void TESQuest::Objective::SetState(uint8_t aState) noexcept
+{
+    TP_THIS_FUNCTION(TSetState, void, Objective, uint32_t);
+    POINTER_SKYRIMSE(TSetState, setState, 23933);
+    TiltedPhoques::ThisCall(setState, this, aState);
 }
 
 void TESQuest::CompleteAllObjectives()
@@ -115,10 +168,48 @@ void TESQuest::SetStopped()
     MarkChanged(2);
 }
 
+namespace
+{
+// A stage item's callback (StageItemFinishedCallback): slot 1 sends TESQuestStageItemDoneEvent (25234).
+struct StageItemCallback
+{
+    virtual void Destroy(bool aFree);
+    virtual void Run();
+};
+
+// The Papyrus VM's TESQuestStageEvent sink (53987): runs the item's fragment, then its callback; an item
+// without a fragment gets the callback at once.
+TP_THIS_FUNCTION(TQuestStageEventSink, uint32_t, void, const TESQuestStageEvent*, void*);
+TQuestStageEventSink* RealQuestStageEventSink = nullptr;
+
+// Set while SetStageWithoutFragments runs: the stage's events are sent on this thread (25260).
+thread_local bool s_skipFragments = false;
+
+uint32_t TP_MAKE_THISCALL(HookQuestStageEventSink, void, const TESQuestStageEvent* apEvent, void* apSource)
+{
+    if (s_skipFragments && apEvent)
+    {
+        if (apEvent->callback)
+            static_cast<StageItemCallback*>(apEvent->callback)->Run();
+        return 0; // BSEventNotifyControl::kContinue
+    }
+    return TiltedPhoques::ThisCall(RealQuestStageEventSink, apThis, apEvent, apSource);
+}
+} // namespace
+
+bool TESQuest::SetStageWithoutFragments(uint16_t aStage) noexcept
+{
+    s_skipFragments = true;
+    const bool cSet = SetStage(aStage);
+    s_skipFragments = false;
+    return cSet;
+}
+
 static TiltedPhoques::Initializer s_questInitHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        // kill quest init in cold blood
-        // TiltedPhoques::Write<uint8_t>(25003, 0xC3);
+        POINTER_SKYRIMSE(TQuestStageEventSink, s_questStageEventSink, 53987);
+        RealQuestStageEventSink = s_questStageEventSink.Get();
+        TP_HOOK(&RealQuestStageEventSink, HookQuestStageEventSink);
     });

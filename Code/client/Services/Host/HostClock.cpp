@@ -1,7 +1,7 @@
 #include <Services/Host/HostClock.h>
 
 #include <GameServer.h>
-#include <Services/Host/HostBridge.h>
+#include <Services/Host/HostAuthority.h>
 
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/ServerTimeSettings.h>
@@ -14,22 +14,22 @@ namespace
 // Game minutes from acFrom to acTo (whole days as integers: a float day count is too coarse).
 double MinutesBetween(const TimeModel& acFrom, const TimeModel& acTo)
 {
-    auto days = [](const TimeModel& acTime) {
-        int64_t count = static_cast<int64_t>(acTime.Year) * 365 + acTime.Day;
-        for (uint32_t month = 0; month < acTime.Month; ++month)
-            count += DateTime::GetNumberOfDaysByMonthIndex(month);
-        return count;
-    };
-    return (static_cast<double>(days(acTo) - days(acFrom)) * 24.0 + (acTo.Time - acFrom.Time)) * 60.0;
+    const auto cDays = static_cast<int64_t>(acTo.DaysPassed) - static_cast<int64_t>(acFrom.DaysPassed);
+    return (static_cast<double>(cDays) * 24.0 + (acTo.Time - acFrom.Time)) * 60.0;
+}
+
+bool SameDate(const TimeModel& acLeft, const TimeModel& acRight)
+{
+    return acLeft.Day == acRight.Day && acLeft.Month == acRight.Month && acLeft.Year == acRight.Year;
 }
 } // namespace
 
-HostClock::HostClock(HostBridge& aBridge, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostClock::HostClock(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_server(aServer)
     , m_players(acPlayers)
     , m_game(acGame)
 {
-    aBridge.On(*this, &HostClock::OnSetTimeCommand);
+    aAuthority.On(*this, &HostClock::OnSetTimeCommand);
 }
 
 void HostClock::Update(uint64_t aTick) noexcept
@@ -42,7 +42,7 @@ void HostClock::Update(uint64_t aTick) noexcept
         projected.Update(aTick - m_peersClockTick);
         constexpr double cTolerance = 1.0; // game minutes
         if (std::abs(MinutesBetween(projected.m_timeModel, cHostClock.m_timeModel)) < cTolerance &&
-            projected.m_timeModel.TimeScale == cHostClock.m_timeModel.TimeScale)
+            SameDate(projected.m_timeModel, cHostClock.m_timeModel) && projected.m_timeModel.TimeScale == cHostClock.m_timeModel.TimeScale)
         {
             m_peersClock = projected;
             m_peersClockTick = aTick;

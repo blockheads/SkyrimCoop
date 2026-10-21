@@ -12,7 +12,8 @@ namespace Server
 }
 
 namespace ServerConsole { class ConsoleRegistry; }
-struct HostBridge;
+struct HostAuthority;
+class HostEngine;
 
 
 
@@ -75,8 +76,9 @@ private:
 
     bool m_isHosting{false};
     bool m_isShuttingDown{false};
-    // Declared first so it outlives the server, which calls into it.
-    std::unique_ptr<HostBridge> m_pBridge;
+    // Declared first so they outlive the server, which calls into the authority, which reads the engine.
+    std::unique_ptr<HostEngine> m_pEngine;
+    std::unique_ptr<HostAuthority> m_pAuthority;
     std::unique_ptr<Server::GameServer> m_pGameServer;
     std::unique_ptr<ServerConsole::ConsoleRegistry> m_pConsole;
 

@@ -108,5 +108,7 @@ enum ServerOpcode : unsigned char
     kNotifyDialoguePicked,
     kNotifyDialogueClosed,
     kNotifyDialogueExperience,
+    kNotifyGlobals,
+    kNotifyQuests,
     kServerOpcodeMax
 };

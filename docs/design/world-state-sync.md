@@ -110,7 +110,7 @@ No periodic compare-and-resend: a guest's world drifting from the host's is a bu
 The world desync check (step 7) compares the two games in the scenarios.
 
 Excluded: what is already synced live (actor positions, actor values, equipment), actors (`ACHR`), and the
-clock's globals (the calendar sync).
+clock's globals (`HostClock`: hour, date, days passed).
 
 Order from the measurements (`docs/research/world-state-drift.md`): global variables, quest
 stages/objectives/flags with their alias fills and the story-manager nodes, then references' lock, open,
@@ -183,7 +183,7 @@ action in the world can happen twice.
  1  save diff tool                                    done
  2  watch the change funnel                           done
  3  FormState (copies' appearance now; mods later)    done
- 4  globals + quest stages as messages                next
+ 4  globals + quest stages as messages                built, loose ends open
  5  guests stop changing the world  (the double sword)
  6  locks, doors, containers as messages
  7  world desync check in the scenarios
@@ -200,7 +200,25 @@ action in the world can happen twice.
    `form-state-round-trips` (a door's lock; the copies' appearance, now on `FormState`, which fixed upstream's
    guessed buffer layouts).
 4. **Globals and quests as messages:** the global table diffed, quest stages, objectives, flags and alias
-   fills from the host, each with a scenario.
+   fills from the host, each with a scenario. Before it, 2026-10-20: `coop_test.py quest-walk` walks real
+   quests from a late save (main, side, radiant) and shows what each game does without sync
+   (`docs/research/world-state-drift.md`, "Quest walks"); the same walks, every step matching, are step 4's
+   check. Globals done 2026-10-20: `HostWorldState` compares the host's table every 250 ms (the bridge leaves out
+   constants and marks the calendar's globals, which `HostWorldState` leaves to `HostClock`) and sends what changed (`NotifyGlobals`), a joining
+   player gets all of it; a guest sets each as Papyrus' `SetValue` does (55923: the value, no change record,
+   never a constant). Bridge cases `world_state_tests.cpp`, scenarios `global-reaches-guest`,
+   `late-join-gets-globals`. Quests built 2026-10-20: `HostWorldState` compares a snapshot of every quest
+   twice a second (flags running/starting/completed/failed, stage, done stages, objectives, reference alias
+   fills) and sends the changed ones whole (`NotifyQuests`); the first look and a joining player get all of
+   them as a load (`Join`). Snapshots rather than the change funnel: a script's alias fill records no change
+   (`docs/re/systems/quest-apply.md`). A guest applies with the engine's calls: the running flag directly
+   (no start of its own, no rolls), `ForceRefIntoAlias`, `SetStage` with each stage's fragment skipped,
+   `BGSQuestObjective::SetState`, `SetCompleted`/`SetFailed`; at join the fields only, as a load does.
+   Scenarios `quest-stage-reaches-guest` (the harness counts fragments: none on the guest),
+   `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`; the main-quest walk
+   matches at every step (14 of 14, before: 1). Still open, in `docs/progress.md`: fills of references not in
+   the guest's memory, location aliases, created references, the guest's own quest starts, deleting
+   upstream's `QuestService`.
 5. **The guest's world scripts stop changing the world** (above, "Only the host's game decides"): a scenario
    where the guest pulls a lever and its effect happens once, from the host.
 6. **References and containers as messages:** lock, open, enabled and owner state (doors, locks and activation
