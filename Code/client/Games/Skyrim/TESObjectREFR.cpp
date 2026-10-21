@@ -397,6 +397,34 @@ void TESObjectREFR::MoveTo(TESObjectCELL* apCell, const NiPoint3& acPosition) co
     TiltedPhoques::ThisCall(s_internalMoveTo, this, GetNullHandle(), apCell, apCell->worldspace, acPosition, rotation);
 }
 
+void TESObjectREFR::SetPositionOnAxis(char aAxis, float aValue) noexcept
+{
+    TP_THIS_FUNCTION(TSetOnAxis, void, TESObjectREFR, char, float);
+    POINTER_SKYRIMSE(TSetOnAxis, s_setPositionOnAxis, 22053);
+    TiltedPhoques::ThisCall(s_setPositionOnAxis, this, aAxis, aValue);
+}
+
+void TESObjectREFR::SetAngleOnAxis(char aAxis, float aDegrees) noexcept
+{
+    TP_THIS_FUNCTION(TSetOnAxis, void, TESObjectREFR, char, float);
+    POINTER_SKYRIMSE(TSetOnAxis, s_setAngleOnAxis, 22054);
+    TiltedPhoques::ThisCall(s_setAngleOnAxis, this, aAxis, aDegrees);
+    // It sets the 3D's local rotation only: its world transforms follow, as MoveTo does (NiAVObject::Update, 70251).
+    if (NiAVObject* p3D = GetNiNode())
+    {
+        using TUpdate = void(NiAVObject*, uint64_t*);
+        POINTER_SKYRIMSE(TUpdate, s_update, 70251);
+        uint64_t updateData = 0; // NiUpdateData: time 0, no flags
+        s_update.Get()(p3D, &updateData);
+    }
+}
+
+void TESObjectREFR::RecordMove(bool aMoved) noexcept
+{
+    if (aMoved && formType != FormType::Character)
+        MarkChanged(CHANGE_REFR_MOVE);
+}
+
 void TESObjectREFR::PayGold(int32_t aAmount) noexcept
 {
     ScopedInventoryOverride _;
@@ -1144,7 +1172,9 @@ void TP_MAKE_THISCALL(HookRotateX, TESObjectREFR, float aAngle)
             return;
     }
 
-    return TiltedPhoques::ThisCall(RealRotateX, apThis, aAngle);
+    const float cBefore = apThis->rotation.x;
+    TiltedPhoques::ThisCall(RealRotateX, apThis, aAngle);
+    apThis->RecordMove(apThis->rotation.x != cBefore);
 }
 
 void TP_MAKE_THISCALL(HookRotateY, TESObjectREFR, float aAngle)
@@ -1157,7 +1187,9 @@ void TP_MAKE_THISCALL(HookRotateY, TESObjectREFR, float aAngle)
             return;
     }
 
-    return TiltedPhoques::ThisCall(RealRotateY, apThis, aAngle);
+    const float cBefore = apThis->rotation.y;
+    TiltedPhoques::ThisCall(RealRotateY, apThis, aAngle);
+    apThis->RecordMove(apThis->rotation.y != cBefore);
 }
 
 void TP_MAKE_THISCALL(HookRotateZ, TESObjectREFR, float aAngle)
@@ -1170,7 +1202,9 @@ void TP_MAKE_THISCALL(HookRotateZ, TESObjectREFR, float aAngle)
             return;
     }
 
-    return TiltedPhoques::ThisCall(RealRotateZ, apThis, aAngle);
+    const float cBefore = apThis->rotation.z;
+    TiltedPhoques::ThisCall(RealRotateZ, apThis, aAngle);
+    apThis->RecordMove(apThis->rotation.z != cBefore);
 }
 
 void TP_MAKE_THISCALL(HookLockChange, TESObjectREFR)
@@ -1196,6 +1230,17 @@ void TP_MAKE_THISCALL(HookLockpickUnlock, void)
     TiltedPhoques::ThisCall(RealLockpickUnlock, apThis);
 }
 
+// TESObjectREFR::SetAngle (19786, `void (TESObjectREFR*, const NiPoint3&)`): its move reaches the funnel (RecordMove).
+TP_THIS_FUNCTION(TSetAngle, void, TESObjectREFR, const NiPoint3&);
+static TSetAngle* RealSetAngle = nullptr;
+
+void TP_MAKE_THISCALL(HookSetAngle, TESObjectREFR, const NiPoint3& acAngle)
+{
+    const NiPoint3 cBefore = apThis->rotation;
+    TiltedPhoques::ThisCall(RealSetAngle, apThis, acAngle);
+    apThis->RecordMove(apThis->rotation != cBefore);
+}
+
 static TiltedPhoques::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1210,6 +1255,7 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         POINTER_SKYRIMSE(TPlayAnimationAndWait, s_playAnimationAndWait, 56206);
         POINTER_SKYRIMSE(TPlayAnimation, s_playAnimation, 56205);
         POINTER_SKYRIMSE(TLockpickUnlock, s_lockpickUnlock, 51968);
+        POINTER_SKYRIMSE(TSetAngle, s_setAngle, 19786);
 
         RealLockChange = s_lockChange.Get();
         RealRotateX = s_rotateX.Get();
@@ -1232,4 +1278,6 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         TP_HOOK(&RealPlayAnimation, HookPlayAnimation);
         RealLockpickUnlock = s_lockpickUnlock.Get();
         TP_HOOK(&RealLockpickUnlock, HookLockpickUnlock);
+        RealSetAngle = s_setAngle.Get();
+        TP_HOOK(&RealSetAngle, HookSetAngle);
     });

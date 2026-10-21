@@ -23,6 +23,9 @@
 #include <Games/TES.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/bhkCharacterController.h>
+#include <Havok/bhkCollision.h>
+#include <Havok/hkbBehaviorGraph.h>
+#include <Havok/hkbVariableValueSet.h>
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/GraphVariableWriters.h>
 #include <Interface/CrosshairPickData.h>
@@ -39,6 +42,7 @@
 #include <NetImmerse/NiCamera.h>
 #include <NetImmerse/NiNode.h>
 #include <PlayerCharacter.h>
+#include <SaveLoad.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 #include <Utils.h>
@@ -361,7 +365,64 @@ std::vector<CellObject> GetCellObjects() noexcept
     return objects;
 }
 
-std::vector<ReferenceState> GetLoadedReferences() noexcept
+namespace
+{
+constexpr size_t cMaxPoseNodes = 64;
+
+// The named nodes under the reference's 3D, breadth first, and the physics bodies on any of them.
+void ReadPose(const NiAVObject& acRoot, ReferenceState& aState) noexcept
+{
+    std::vector<const NiAVObject*> queue{&acRoot};
+    for (size_t i = 0; i < queue.size() && aState.Pose.size() < cMaxPoseNodes; ++i)
+    {
+        const NiAVObject* pObject = queue[i];
+        // A billboard turns to this player's camera: not the world's state.
+        if (Cast<NiBillboardNode>(pObject))
+            continue;
+        const std::string cName = pObject->name ? pObject->name : "";
+        if (!cName.empty())
+        {
+            auto& node = aState.Pose.emplace_back(ReferenceState::Node{cName});
+            for (int axis = 0; axis < 3; ++axis)
+                node.Position[axis] = pObject->world.translate[axis];
+            for (int row = 0; row < 3; ++row)
+                for (int column = 0; column < 3; ++column)
+                    node.Rotate[row * 3 + column] = pObject->world.rotate[row][column];
+        }
+        if (const bhkNiCollisionObject* pCollision = pObject->collisionObject; pCollision && pCollision->body)
+            if (const auto* pBody = Cast<bhkRigidBody>(pCollision->body) ? pCollision->body->referencedObject : nullptr)
+                aState.Collision.push_back({cName, pBody->world != nullptr,
+                                            {pBody->translation[0] * cHavokToGame, pBody->translation[1] * cHavokToGame,
+                                             pBody->translation[2] * cHavokToGame}});
+        if (const auto* pNode = Cast<NiNode>(pObject))
+            for (uint16_t child = 0; child < pNode->children.length; ++child)
+                if (const NiAVObject* pChild = pNode->children.data[child])
+                    queue.push_back(pChild);
+    }
+}
+
+// The active behavior graph's variables by name, each as its raw 4 bytes (a bool, int or float).
+void ReadGraph(TESObjectREFR& aRef, ReferenceState& aState) noexcept
+{
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!EngineVirtual(aRef.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return;
+    {
+        BSScopedLock<BSRecursiveLock> _{pManager->lock};
+        BShkbAnimationGraph* pGraph = pManager->animationGraphIndex < pManager->animationGraphs.size
+                                          ? pManager->animationGraphs.Get(pManager->animationGraphIndex)
+                                          : nullptr;
+        const auto* pValues = pGraph && pGraph->behaviorGraph ? pGraph->behaviorGraph->animationVariables : nullptr;
+        if (pValues && pValues->data)
+            for (const auto& [cIndex, cName] : pManager->DumpAnimationVariables(false))
+                if (cIndex < pValues->size)
+                    aState.Graph.emplace_back(cName.c_str(), pValues->data[cIndex]);
+    }
+    pManager->Release();
+}
+} // namespace
+
+std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
 {
     std::vector<TESObjectCELL*> cells;
     if (TES* pTes = TES::Get())
@@ -412,6 +473,18 @@ std::vector<ReferenceState> GetLoadedReferences() noexcept
                 state.Owner = pOwnership->owner->formID;
             if (!state.Actor)
                 state.Items = GetContainerItems(pRef->formID);
+            if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
+                for (uint32_t bit = 0; bit < 32; ++bit)
+                    if (pSaveLoad->HasChange(*pRef, 1u << bit))
+                        state.Changes |= 1u << bit;
+            if (aDetails)
+            {
+                if (const NiAVObject* p3D = pRef->GetNiNode())
+                    ReadPose(*p3D, state);
+                ReadGraph(*pRef, state);
+                if (ProcessLists* pProcessLists = ProcessLists::Get())
+                    state.Effects = pProcessLists->GetPlayingVisualFormIds(pRef->GetHandle().handle.iBits);
+            }
             references.push_back(std::move(state));
         }
     }

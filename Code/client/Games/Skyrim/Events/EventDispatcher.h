@@ -36,9 +36,11 @@ struct BGSEventProcessedEvent
 };
 static_assert(offsetof(BGSEventProcessedEvent, startedQuest) == 0x4);
 
+// CommonLibSSE-NG TESActivateEvent.
 struct TESActivateEvent
 {
-    TESObjectREFR* object;
+    TESObjectREFR* object;    // 00, the one activated (NiPointer)
+    TESObjectREFR* actionRef; // 08, who activated it (NiPointer)
 };
 
 // The event behind Papyrus OnEffectStart / OnEffectFinish (CommonLibSSE-NG TESActiveEffectApplyRemoveEvent).
@@ -136,8 +138,10 @@ struct TESLoadGameEvent
 {
 };
 
+// CommonLibSSE-NG TESLockChangedEvent.
 struct TESLockChangedEvent
 {
+    TESObjectREFR* lockedObject; // 00 (NiPointer)
 };
 
 // CommonLibSSE-NG TESMagicEffectApplyEvent.
@@ -153,21 +157,34 @@ struct TESMagicWardHitEvent
 {
 };
 
+// CommonLibSSE-NG TESMoveAttachDetachEvent.
 struct TESMoveAttachDetachEvent
 {
+    TESObjectREFR* movedRef; // 00 (NiPointer)
+    bool isCellAttached;     // 08
 };
+static_assert(offsetof(TESMoveAttachDetachEvent, isCellAttached) == 0x8);
 
+// CommonLibSSE-NG TESObjectLoadedEvent.
 struct TESObjectLoadedEvent
 {
+    uint32_t formID; // 00
+    bool loaded;     // 04
 };
+static_assert(offsetof(TESObjectLoadedEvent, loaded) == 0x4);
 
 struct TESObjectREFRTranslationEvent
 {
 };
 
+// CommonLibSSE-NG TESOpenCloseEvent.
 struct TESOpenCloseEvent
 {
+    TESObjectREFR* ref;       // 00 (NiPointer)
+    TESObjectREFR* activeRef; // 08 (NiPointer)
+    bool opened;              // 10
 };
+static_assert(offsetof(TESOpenCloseEvent, opened) == 0x10);
 
 struct TESPackageEvent
 {

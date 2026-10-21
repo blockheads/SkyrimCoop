@@ -41,6 +41,7 @@ struct TESObjectREFR : TESForm
         CHANGE_REFR_EXTRA_OWNERSHIP = 1 << 6,
         CHANGE_REFR_BASEOBJECT = 1 << 7,
         CHANGE_OBJECT_EXTRA_LOCK = 1 << 12, // AddLockChange (19512)
+        CHANGE_OBJECT_OPEN_STATE = 1 << 23, // BGSOpenCloseForm::SetOpenState (14287)
         CHANGE_REFR_PROMOTED = 1 << 25,
         CHANGE_REFR_EXTRA_ACTIVATING_CHILDREN = 1 << 26,
         CHANGE_REFR_LEVELED_INVENTORY = 1 << 27,
@@ -194,6 +195,13 @@ struct TESObjectREFR : TESForm
     void Disable() const noexcept;
     void Enable() const noexcept;
     void MoveTo(TESObjectCELL* apCell, const NiPoint3& acPosition) const noexcept;
+    // Places it on one axis ('X', 'Y', 'Z') with its 3D and collision, as the console's SetPos and Papyrus'
+    // SetPosition do (22053); SetAngleOnAxis the same for its angle, in degrees as the console's SetAngle (22054).
+    void SetPositionOnAxis(char aAxis, float aValue) noexcept;
+    void SetAngleOnAxis(char aAxis, float aDegrees) noexcept;
+    // A non-actor moved (aMoved): marks it moved again, as the engine records a loaded reference's move only
+    // once (its 3D's moved bit), so the change funnel sees every one.
+    void RecordMove(bool aMoved) noexcept;
     void PayGold(int32_t aAmount) noexcept;
     void PayGoldToContainer(TESObjectREFR* pContainer, int32_t aAmount) noexcept;
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;

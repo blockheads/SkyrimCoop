@@ -2,6 +2,7 @@
 
 #include <Forms/TESForm.h>
 #include <HookSwitch.h>
+#include <SaveLoad.h>
 
 #include <array>
 #include <atomic>
@@ -41,16 +42,34 @@ uint64_t TP_MAKE_THISCALL(HookAddChangeForced, TESForm, uint32_t aFlags)
     return cResult;
 }
 
+// Its return is not a result. Recorded: the change record held a flag before and not after (none drop while a
+// load runs).
+TP_THIS_FUNCTION(TRemoveChange, uint64_t, TESForm, uint32_t);
+TRemoveChange* RealRemoveChange = nullptr;
+
+uint64_t TP_MAKE_THISCALL(HookRemoveChange, TESForm, uint32_t aFlags)
+{
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    const bool cHeld = apThis && pSaveLoad && pSaveLoad->HasChange(*apThis, aFlags);
+    const uint64_t cResult = TiltedPhoques::ThisCall(RealRemoveChange, apThis, aFlags);
+    if (cHeld)
+        Notify(apThis, aFlags, false, !pSaveLoad->HasChange(*apThis, aFlags));
+    return cResult;
+}
+
 TiltedPhoques::Initializer s_formChangesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TAddChange, s_addChange, 14607);
         POINTER_SKYRIMSE(TAddChangeForced, s_addChangeForced, 14608);
+        POINTER_SKYRIMSE(TRemoveChange, s_removeChange, 14609);
         RealAddChange = s_addChange.Get();
         RealAddChangeForced = s_addChangeForced.Get();
+        RealRemoveChange = s_removeChange.Get();
         TP_HOOK(&RealAddChange, HookAddChange);
         TP_HOOK(&RealAddChangeForced, HookAddChangeForced);
+        TP_HOOK(&RealRemoveChange, HookRemoveChange);
     });
 } // namespace
 

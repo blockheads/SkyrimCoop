@@ -256,6 +256,5 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange) noexcept
         auto* pItem = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));
         return !Cast<Actor>(pObject) && pObject->SetContainerCount(pItem, static_cast<int32_t>(acChange.Value));
     }
-    const ReferenceState* pState = ReferenceStates::Find(acChange.Type);
-    return pState && pState->Apply(*pObject, acChange.Value);
+    return ReferenceStates::Apply(*pObject, acChange);
 }

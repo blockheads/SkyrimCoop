@@ -5,7 +5,8 @@
 struct TESForm;
 
 // Every change the save system is told of: TESForm::AddChange (14607, vfunc 0x0A; overrides tail-call it) and its
-// forced form (14608), the only callers of the change funnel. docs/design/world-state-sync.md, "As built".
+// forced form (14608), the only callers of the change funnel, and RemoveChange (14609, vfunc 0x0B), a state back to
+// its default dropping its flag (a door closed again). docs/design/world-state-sync.md, "As built".
 namespace FormChanges
 {
 // Runs on the engine's threads, after the change: aRecorded is false while a load runs (unless forced). Must not block.

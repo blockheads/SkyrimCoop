@@ -187,13 +187,14 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"objects", objects}};
 }
 
-// {"cmd": "world_state", "ids"?: [id, ...]}: every reference in the loaded cells (or only those) as this game
-// holds and shows it (EngineCalls::GetLoadedReferences); fields at their defaults are left out.
+// {"cmd": "world_state", "ids"?: [id, ...], "details"?: true}: every reference in the loaded cells (or only those)
+// as this game holds and shows it, with details its pose, physics, graph and effects too
+// (EngineCalls::GetLoadedReferences); fields at their defaults are left out.
 nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
 {
     const auto cIds = acRequest.value("ids", std::vector<uint32_t>{});
     auto references = nlohmann::json::array();
-    for (const auto& cRef : EngineCalls::GetLoadedReferences())
+    for (const auto& cRef : EngineCalls::GetLoadedReferences(acRequest.value("details", false)))
     {
         if (!cIds.empty() && std::ranges::find(cIds, cRef.Id) == cIds.end())
             continue;
@@ -219,6 +220,8 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
             ref["open_state"] = cRef.OpenState;
         if (cRef.Owner)
             ref["owner"] = cRef.Owner;
+        if (cRef.Changes)
+            ref["changes"] = cRef.Changes;
         if (cRef.Items)
         {
             auto items = nlohmann::json::object();
@@ -227,6 +230,35 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
                     items[fmt::format("{:X}", cItem)] = cCount;
             ref["items"] = items;
         }
+        if (!cRef.Pose.empty())
+        {
+            auto pose = nlohmann::json::object();
+            for (const auto& cNode : cRef.Pose)
+            {
+                // A name met again gets its number: "Door", "Door#2".
+                std::string key = cNode.Name;
+                for (int n = 2; pose.contains(key); ++n)
+                    key = fmt::format("{}#{}", cNode.Name, n);
+                pose[key] = {{"position", cNode.Position}, {"rotate", cNode.Rotate}};
+            }
+            ref["pose"] = pose;
+        }
+        if (!cRef.Collision.empty())
+        {
+            auto bodies = nlohmann::json::array();
+            for (const auto& cBody : cRef.Collision)
+                bodies.push_back({{"node", cBody.Node}, {"in_world", cBody.InWorld}, {"position", cBody.Position}});
+            ref["collision"] = bodies;
+        }
+        if (!cRef.Graph.empty())
+        {
+            auto graph = nlohmann::json::object();
+            for (const auto& [cName, cValue] : cRef.Graph)
+                graph[cName] = cValue;
+            ref["graph"] = graph;
+        }
+        if (!cRef.Effects.empty())
+            ref["effects"] = cRef.Effects;
         references.push_back(std::move(ref));
     }
     return {{"ok", true}, {"references", references}};

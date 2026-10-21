@@ -6,5 +6,8 @@ struct NiObjectNET : NiObject
 {
     virtual ~NiObjectNET();
 
-    uint8_t unk10[0x20];
+    const char* name; // 10, a BSFixedString's data (CommonLibSSE-NG)
+    uint8_t unk18[0x18];
 };
+
+SKYRIM_STRUCT_ASSERT(offsetof(NiObjectNET, name) == 0x10);

@@ -22,6 +22,16 @@ inline std::string Describe(const ObjectChange& acChange)
     // ReferenceStates' packing: the level in the low byte, locked at 0x100.
     case ObjectChange::Kind::kLock:
         return fmt::format("lock {:X} {} at {}", cObject, (acChange.Value & 0x100) ? "locked" : "unlocked", acChange.Value & 0xFF);
+    case ObjectChange::Kind::kOpenState: return fmt::format("{} {:X}", acChange.Value ? "open" : "close", cObject);
+    case ObjectChange::Kind::kMove:
+        if (acChange.Data.size() == 6 * sizeof(float))
+        {
+            float values[6];
+            std::memcpy(values, acChange.Data.data(), sizeof(values));
+            return fmt::format("move {:X} to ({:.0f}, {:.0f}, {:.0f}) angle ({:.2f}, {:.2f}, {:.2f})", cObject, values[0], values[1], values[2], values[3], values[4], values[5]);
+        }
+        return fmt::format("move {:X}", cObject);
+    case ObjectChange::Kind::kSaveData: return fmt::format("save data {:X} flags {:X} ({} bytes)", cObject, acChange.Value, acChange.Data.size());
     }
     return fmt::format("kind {} {:X}", static_cast<int>(acChange.Type), cObject);
 }

@@ -109,6 +109,8 @@ struct BGSSaveLoadGame
     // While set on this thread the engine records no changes (19378, TLS +0x670 bit 0): returns whether it was clear.
     bool BeginLoading() noexcept;
     void EndLoading(bool aWasClear) noexcept;
+    // Which of aFlags the form's change record holds (35577): what a save, or its cell's unload, keeps of it.
+    bool HasChange(const TESForm& acForm, uint32_t aFlags) const noexcept;
 
     enum : uint32_t
     {

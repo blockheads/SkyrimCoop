@@ -518,6 +518,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         items.Item = GameId(0, 0x64B3D);
         items.Value = 300;
         sendMessage.Changes.push_back(items);
+        ObjectChange saveData{ObjectChange::Kind::kSaveData, GameId(0, 0x32AEC)};
+        saveData.Value = 0x11; // form flags, scale
+        saveData.Data = TiltedPhoques::String("\x00\x08\x00\x00\xC8\x00", 6);
+        sendMessage.Changes.push_back(saveData);
+        ObjectChange open{ObjectChange::Kind::kOpenState, GameId(0, 0x200CAAC)};
+        open.Value = 1;
+        sendMessage.Changes.push_back(open);
+        ObjectChange move{ObjectChange::Kind::kMove, GameId(0, 0x40248BF)};
+        const float cMove[6] = {-736.f, 1664.f, 7031.f, 0.f, 0.f, 4.71f};
+        move.Data.assign(reinterpret_cast<const char*>(cMove), sizeof(cMove));
+        sendMessage.Changes.push_back(move);
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

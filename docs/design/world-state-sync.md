@@ -113,17 +113,36 @@ The world desync check (step 7) compares the two games in the scenarios.
 
 ```
 host game
-  TESForm::AddChange (14607), forced (14608)      one hook: Games/FormChanges
+  TESForm::AddChange (14607), forced (14608),      hooks: Games/FormChanges
+  RemoveChange (14609: a state back to its default)
+  + a non-actor's repeat moves, marked again       (TESObjectREFR::RecordMove)
     -> watchers, on the engine's threads (fixed slots)
-       HostEngine's: a REFR (not created, not forced), recorded,
-                     flags & (FORM_FLAGS 0x1 | EXTRA_LOCK 0x1000)
+       HostEngine's: a REFR (not created, not forced), recorded, every flag
          -> changed refs (a leaf lock: nothing taken under it)
        the harness's ChangeLog: counts for `change-rate`
   HostWorldState, each update: HostEngine::TakeObjectChanges
-    1. state, read now, per changed ref: enabled or not, its lock
+    1. state, read now, per changed ref:
+         a row's flag    -> its value, applied with the engine's call
+         any other flag  -> its save data (kSaveData, FormState)
+         not sent        -> game-only extras, promoted, cell changed
     2. then the events in order: doors a script activated, script animations
-guest: GuestEngine::ApplyObjectChange, as for every object change
+guest: GuestEngine::ApplyObjectChange; save data loaded, then its flags marked
 ```
+
+Rows (2026-10-21, `Games/ReferenceStates.cpp`):
+
+| Flag | Kind | Apply (the engine's call) |
+|---|---|---|
+| form flags `0x1` | `kEnabled` | `EnableImpl` / `DisableImpl` (19800, 19801) |
+| lock `0x1000` | `kLock` | `SetLockState`: the lock, `AddLockChange` (19512) |
+| open state `0x800000` | `kOpenState` | `BGSOpenCloseForm::SetOpenState` (14287): the swing, its events |
+| move `0x2` | `kMove` | `SetPositionOnAxis` (22053), `SetRotation` (22054) per axis, then the 3D's update |
+
+| every other flag | `kSaveData` | the last row: `FormState::Load`, then the flags marked |
+
+Containers' items go as `kItems` events (the container event). Not sent: game-only extras, promoted, cell changed
+(`cNotSent`, below). `ReferenceStates::Read` walks the rows in order, each taking its flags, the last what is left;
+`Apply` finds the row by kind. Both engines only call these two.
 
 - Enable and Disable (19800, 19801) both flip the disabled flag through `TESForm::SetDisabled` (14646), which
   calls `AddChange(1)`; `AddLockChange` (19512) calls `AddChange(0x1000)`. The funnel returns 1 whenever it
@@ -132,9 +151,19 @@ guest: GuestEngine::ApplyObjectChange, as for every object change
   guest. Two changes in one update send the state as it is then.
 - Events (a door a script opens, a script's animation) have no change flag worth reading: they keep their
   hooks. So does a guest's lock change: a guest's own action, proposed to the host (`LockChangeEvent`).
-- Adding a state: a row in `Games/ReferenceStates.cpp` (kind, change flag, read, apply). The watcher's mask,
-  the host's read and the guest's apply all come from the table, and each state travels as one value its row
-  packs (`ObjectChange::Value`), so the message and its encoding do not change. Containers next.
+- Adding a state: a row in `Games/ReferenceStates.cpp` above the save-data row (kind, change flags, read, apply).
+  A row fills `ObjectChange::Value`, or `Data` for a kind listed in `ObjectChange::HasData` (a move's six floats);
+  its read returns false when there is nothing to send.
+- **Rows where the oracle shows a side effect, save data for the rest (2026-10-21).** Tried both ways with
+  `world-changes-reach-guest` (step 7). Save data alone gets the live state right for most flags and the 3D for
+  enable and disable (`FinishLoadGame` redoes them), but a door set open does not swing, the guest's scripts
+  get no events, and a load records no change, so the guest's cell unloading lost it (now marked after the
+  load). Each kind with a missing side effect got a row; scale and owner stay save data and match.
+- **What the funnel alone misses**, each found by the oracle (`docs/re/systems/form-state.md`, "Change records"):
+  a loaded reference's move is recorded once (its 3D's moved bit), so later moves are marked again in the
+  position and angle hooks; a state back to its default removes its flag (`RemoveChange`), so that is watched
+  too; promoted and cell changed are the location header's, which `FormState` does not carry (loaded alone they
+  left a half-promoted shrine on the guest); game-only extras re-run alias data under the quests' locks.
 - **Engine calls for vanilla, save data for the rest (decided 2026-10-21).** A state is applied with the
   engine's own call because nearly every vanilla one needs its side effects: Enable/Disable load or remove the
   3D, a door plays its swing, a container updates its inventory. Sending save data for every flag
@@ -297,6 +326,15 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    First run: disable, enable, lock and items follow; move, rotate, scale, open (a script's `SetOpen`), owner
    and created references do not. Not covered yet: havok moves, harvesting, destruction (QASmoke has no
    flora or destructibles). Next: the same compare after every scenario; quest stages and globals.
+   Side effects, the same day: `world_state` with `details` also reads each reference's change record
+   (`BGSSaveLoadGame::GetChange` 35577: what survives its cell unloading), its 3D's named nodes (any animation's
+   result), its physics bodies (in the world, where), its active behavior graph's variables and the effects on
+   it; the scenario compares the object events each game raised (EngineEvents: activate, lock, open/close,
+   attach/detach, load/unload, container). Nodes the host moves between two samples (idle loops) are skipped.
+   Save data for everything (the rows off, 2026-10-21): disable and enable match in every side effect. Lock,
+   scale, owner and items match live, but the guest records no change (a load's changes are not recorded), so
+   its cell unloading loses them, and raises no `OnLockStateChanged` or `OnItemAdded`. A script's `SetOpen`
+   sets the guest's open state but its door does not swing (nodes and physics closed) and no `OnOpen`.
 
 Join and host reload: save transfer, built with the join flow (`join-flow.md`, stages 4 to 6). Mods: save
 data for the forms no message covers, once mods are taken on.

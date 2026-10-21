@@ -22,7 +22,10 @@ struct NiAVObject : NiObjectNET
         float scale;        // 30
     };
 
-    uint8_t pad30[0x48 - 0x30];
+    struct NiNode* parent;                      // 30
+    uint32_t parentIndex;                       // 38
+    uint32_t unk3C;
+    struct bhkNiCollisionObject* collisionObject; // 40, its physics (NiPointer)
     Transform local; // 48
     Transform world; // 7C
     uint8_t padB0[0xF4 - 0xB0];
@@ -31,6 +34,7 @@ struct NiAVObject : NiObjectNET
 };
 
 static_assert(sizeof(NiAVObject::Transform) == 0x34);
+SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, collisionObject) == 0x40);
 SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, local) == 0x48);
 SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, world) == 0x7C);
 SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, flags) == 0xF4);

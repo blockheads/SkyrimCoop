@@ -211,10 +211,30 @@ struct ReferenceState
     uint8_t LockLevel;
     uint8_t OpenState;      // doors only (TESObjectREFR::OpenState)
     uint32_t Owner;         // ExtraOwnership, 0 none
+    uint32_t Changes;       // its change record's flags: what this game keeps when its cell unloads
     std::optional<std::vector<std::pair<uint32_t, int32_t>>> Items; // not actors' (GetContainerItems)
+
+    // With details: the side effects a change has on what the player sees and touches.
+    struct Node
+    {
+        std::string Name;
+        float Position[3];
+        float Rotate[9]; // world rotation, row-major
+    };
+    std::vector<Node> Pose; // its 3D's named nodes: where any animation left them
+    struct Body
+    {
+        std::string Node;
+        bool InWorld; // added to the physics world
+        float Position[3];
+    };
+    std::vector<Body> Collision;                      // its 3D's physics bodies
+    std::vector<std::pair<std::string, uint32_t>> Graph; // its active behavior graph's variables, raw
+    std::vector<uint32_t> Effects;                    // effect shaders and art objects playing on it
 };
-// Every reference in the loaded cells: the interior, or the attached exterior grid (TES).
-std::vector<ReferenceState> GetLoadedReferences() noexcept;
+// Every reference in the loaded cells: the interior, or the attached exterior grid (TES). With aDetails, each
+// one's pose, physics, graph and effects too (larger).
+std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
 
 // The effect shaders and art objects the engine is playing on the actor.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;

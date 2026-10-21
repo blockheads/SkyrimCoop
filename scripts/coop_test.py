@@ -3251,7 +3251,7 @@ def inner_door():
     return min(doors, key=lambda o: o["id"])["id"]
 
 
-DOOR_OPEN, DOOR_CLOSED = 1, 3  # TESObjectREFR::OpenState
+DOOR_OPEN, DOOR_OPENING, DOOR_CLOSED, DOOR_CLOSING = 1, 2, 3, 4  # TESObjectREFR::OpenState
 
 
 def object_command(instance, request):
@@ -3776,19 +3776,25 @@ def scenario_form_state_round_trips():
 BEAST_FORM, WEREWOLF_CHANGE_EFFECT, WEREWOLF_BEAST_RACE, PLAYER_WEREWOLF_QUEST = 0x92C48, 0x92C45, 0xCDD84, 0x2BA16
 # --- The world as each game shows it: world-state sync's check (docs/design/world-state-sync.md step 7) ---
 
-# What `world_state` reads of a reference, compared with these tolerances (rotation in radians).
+# What `world_state` reads of a reference, compared with these tolerances (rotation in radians). "changes" is its
+# change record's flags (what a game keeps when the cell unloads); the last four are the side effects a change has:
+# where its 3D's nodes are (any animation), its physics bodies, its behavior graph's variables and its effects.
 WORLD_FIELDS = ("base", "cell", "flags", "position", "rotation", "scale", "has_3d", "hidden", "position_3d",
-                "lock", "open_state", "owner", "items")
+                "lock", "open_state", "owner", "items", "changes", "pose", "collision", "graph", "effects")
 WORLD_TOLERANCES = {"position": 1.0, "position_3d": 1.0, "rotation": 0.01, "scale": 0.001}
+POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE = 1.0, 0.01, 2.0
 CREATED_ID = 0xFF000000  # references a game made itself, numbered per game
 FORM_DISABLED = 0x800
 FORM_ALTERED = 0x2  # TESForm kAltered: the engine's "has changes" bookkeeping, not the world's state
+# Change record bits each game keeps for itself: ANIMATION (a graph's state, e.g. furniture someone used) and
+# PROMOTED (a reference its player touched made persistent).
+CHANGES_OWN = 0x10000000 | 0x2000000
 
 
 def world_state(instance, ids=None):
     """The references in that game's loaded cells (or only `ids`), actors aside (copies: `desync`): {id: fields}."""
     select_instance(instance)
-    response = rpc({"cmd": "world_state", **({"ids": ids} if ids else {})}, timeout=10) or {}
+    response = rpc({"cmd": "world_state", "details": True, **({"ids": ids} if ids else {})}, timeout=20) or {}
     if not response.get("ok"):
         raise TestFailure(f"[{instance or 'host'}] world_state refused: {response.get('error', 'no answer')}")
     return {r["id"]: r for r in response["references"] if not r.get("actor")}
@@ -3807,7 +3813,7 @@ def show_value(field, value):
         return "-"
     if field in ("base", "cell", "owner"):
         return f"{value:X}"
-    if field == "flags":
+    if field in ("flags", "changes"):
         return f"{value:#x}"
     if isinstance(value, list):
         return "(" + ", ".join(f"{v:.2f}" if field == "rotation" else f"{v:.0f}" for v in value) + ")"
@@ -3816,27 +3822,73 @@ def show_value(field, value):
     return str(value)
 
 
-def reference_differences(host, guest):
-    """Where the guest's reference differs from the host's: {field: 'host value vs guest value'}."""
+def pose_moved(a, b, name):
+    return not near(a[name]["position"], b[name]["position"], POSE_TOLERANCE) or not near(a[name]["rotate"], b[name]["rotate"], ROTATE_TOLERANCE)
+
+
+def pose_difference(a, b, a_again=(), b_again=()):
+    """The nodes of two poses ({name: {position, rotate}}) that are not where the other game's are. With each pose
+    sampled again, a node that moved between one game's samples animates on its own (an idle loop, which the engine
+    also stops off-camera) and is skipped."""
+    a, b = a or {}, b or {}
+    moved = []
+    for name in sorted(set(a) | set(b)):
+        if any(name in a and name in again and pose_moved(a, again, name) for again in a_again) or \
+                any(name in b and name in again and pose_moved(b, again, name) for again in b_again):
+            continue
+        if name not in a or name not in b:
+            moved.append(f"{name} {'host only' if name in a else 'client only'}")
+        elif not near(a[name]["position"], b[name]["position"], POSE_TOLERANCE):
+            moved.append(f"{name} at {show_value('position', a[name]['position'])} vs {show_value('position', b[name]['position'])}")
+        elif not near(a[name]["rotate"], b[name]["rotate"], ROTATE_TOLERANCE):
+            moved.append(f"{name} turned differently")
+    return "; ".join(moved[:6]) + (f" (+{len(moved) - 6} more)" if len(moved) > 6 else "")
+
+
+def collision_difference(a, b):
+    """Two lists of physics bodies ({node, in_world, position}) that differ, in order."""
+    a, b = a or [], b or []
+    if len(a) != len(b):
+        return f"{len(a)} bodies vs {len(b)}"
+    different = [f"{x['node']}: {'in' if x['in_world'] else 'out of'} world at {show_value('position', x['position'])} vs "
+                 f"{'in' if y['in_world'] else 'out of'} at {show_value('position', y['position'])}"
+                 for x, y in zip(a, b) if x["in_world"] != y["in_world"] or not near(x["position"], y["position"], BODY_TOLERANCE)]
+    return "; ".join(different[:4])
+
+
+def reference_differences(host, guest, host_again=(), guest_again=()):
+    """Where the guest's reference differs from the host's: {field: 'host value vs guest value'}. host_again,
+    guest_again: the reference sampled again in each game, to skip what animates on its own."""
     differences = {}
     for field in WORLD_FIELDS:
         a, b = host.get(field), guest.get(field)
+        if field == "pose":
+            if text := pose_difference(a, b, [again.get("pose") or {} for again in host_again or ()],
+                                       [again.get("pose") or {} for again in guest_again or ()]):
+                differences[field] = text
+            continue
+        if field == "collision":
+            if text := collision_difference(a, b):
+                differences[field] = text
+            continue
         if field == "flags" and a is not None and b is not None:
             a, b = a & ~FORM_ALTERED, b & ~FORM_ALTERED
+        if field == "changes":
+            a, b = (a or 0) & ~CHANGES_OWN or None, (b or 0) & ~CHANGES_OWN or None
         if field in WORLD_TOLERANCES and a is not None and b is not None:
             same = near(a, b, WORLD_TOLERANCES[field], angle=field == "rotation")
         else:
             same = a == b
         if same:
             continue
-        if field == "items":
+        if field in ("items", "graph"):
             a, b = a or {}, b or {}
-            differences[field] = ", ".join(f"{item}: {a.get(item, 0)} vs {b.get(item, 0)}"
-                                           for item in sorted(set(a) | set(b)) if a.get(item, 0) != b.get(item, 0))
+            differences[field] = ", ".join(f"{key}: {a.get(key, 0)} vs {b.get(key, 0)}"
+                                           for key in sorted(set(a) | set(b)) if a.get(key, 0) != b.get(key, 0))
         else:
             differences[field] = f"{show_value(field, a)} vs {show_value(field, b)}"
-            if field == "flags":
-                differences[field] += f" (bits {a ^ b:#x})"
+            if field in ("flags", "changes"):
+                differences[field] += f" (bits {(a or 0) ^ (b or 0):#x})"
     return differences
 
 
@@ -3847,15 +3899,17 @@ def reference_label(ref, game=None):
     return f"created {kind} {ref['base']:X} at {show_value('position', ref['position'])} ({ref['id']:X} on {game})"
 
 
-def world_differences(host, guest):
+def world_differences(host, guest, host_again=(), guest_again=()):
     """Where the guest's world differs from the host's: {reference: {field: 'host vs guest'}}. A reference one game
-    lacks differs in "present"; created references pair up by base and position (their ids differ per game)."""
+    lacks differs in "present"; created references pair up by base and position (their ids differ per game).
+    host_again, guest_again: each game sampled again, so what animates on its own is skipped."""
     differences = {}
     for ref_id, ref in host.items():
         if ref_id < CREATED_ID:
             if ref_id not in guest:
                 differences[reference_label(ref)] = {"present": "host only"}
-            elif fields := reference_differences(ref, guest[ref_id]):
+            elif fields := reference_differences(ref, guest[ref_id], [again[ref_id] for again in host_again if ref_id in again],
+                                                 [again[ref_id] for again in guest_again if ref_id in again]):
                 differences[reference_label(ref)] = fields
     for ref_id, ref in guest.items():
         if ref_id < CREATED_ID and ref_id not in host:
@@ -3874,6 +3928,20 @@ def world_differences(host, guest):
     return differences
 
 
+IDLE_SAMPLES, IDLE_INTERVAL = 3, 0.3  # host samples a second apart: what moved between them animates on its own
+
+
+def sample_worlds():
+    """Both games' worlds, and each again over a second: (host, guest, [host again], [guest again])."""
+    host, guest = world_state(""), world_state("client")
+    host_again, guest_again = [], []
+    for _ in range(IDLE_SAMPLES):
+        time.sleep(IDLE_INTERVAL)
+        host_again.append(world_state(""))
+        guest_again.append(world_state("client"))
+    return host, guest, host_again, guest_again
+
+
 def describe_world_differences(differences, limit=None):
     """One line per reference: 'label: field host vs guest; ...'."""
     return [f"{label}: " + "; ".join(f"{field} {text}" for field, text in fields.items())
@@ -3881,7 +3949,7 @@ def describe_world_differences(differences, limit=None):
 
 
 def command_world_diff(args):
-    differences = world_differences(world_state(""), world_state("client"))
+    differences = world_differences(*sample_worlds())
     if not differences:
         print("in sync: every reference in the loaded cells matches the host's")
         return
@@ -3914,13 +3982,14 @@ WORLD_CHANGES = [
     ("enable", ("STAT", 1), ["{r}.disable"], "{r}.enable", []),
     # Statics cannot be moved (the console's SetPos and SetAngle leave them).
     ("move", ("ACTI", 0), [], "{r}.setpos z {z_up}", ["{r}.setpos z {z}"]),
-    ("rotate", ("ACTI", 1), [], "{r}.setangle z {turned}", ["{r}.setangle z {angle}"]),
+    # The console's SetAngle leaves the 3D's world transform until something updates it: a SetPos in place does.
+    ("rotate", ("ACTI", 1), [], ["{r}.setangle z {turned}", "{r}.setpos z {z}"], ["{r}.setangle z {angle}", "{r}.setpos z {z}"]),
     ("scale", ("STAT", 2), [], "{r}.setscale 2", ["{r}.setscale {scale}"]),
     ("lock", ("DOOR", 0, lambda r: not r.get("lock", {}).get("locked")), [], "{r}.lock 50", ["{r}.unlock"]),
     ("open", ("DOOR", 0), [], "{r}.setopenstate 1", ["{r}.setopenstate 0"]),
     ("add items", ("CONT", 0), [], f"{{r}}.additem {GOLD:X} 7", [f"{{r}}.removeitem {GOLD:X} 7"]),
-    # No console line clears an owner: each run takes the next unowned container, owned by the player in both after.
-    ("own", ("CONT", 1, lambda r: not r.get("owner")), [], "{r}.setownership", ["{r}.setownership"]),
+    # No console line clears an owner: left owned (the client follows), each run takes the next unowned container.
+    ("own", ("CONT", 1, lambda r: not r.get("owner")), [], "{r}.setownership", []),
 ]
 
 
@@ -3928,6 +3997,20 @@ def change_values(ref):
     z, angle = ref["position"][2], math.degrees(ref["rotation"][2]) % 360
     return {"z": f"{z:.2f}", "z_up": f"{z + 64:.2f}", "angle": f"{angle:.2f}", "turned": f"{(angle + 45) % 360:.2f}",
             "scale": f"{ref['scale']:.3f}"}
+
+
+def at_rest(instance, ref, timeout=5):
+    """Waits until the reference stops changing in that game (a door done swinging), as a player would before
+    acting on it again."""
+    last = {}
+    time.sleep(0.1)  # a console line's engine call can run a frame later
+    def still():
+        now = world_state(instance, [ref]).get(ref) or {}
+        settled = last and not reference_differences(last, now) and now.get("open_state") not in (DOOR_OPENING, DOOR_CLOSING)
+        last.clear()
+        last.update(now)
+        return settled
+    wait_for(f"[{instance or 'host'}] {ref:X} at rest", still, timeout)
 
 
 def guest_matches(ref, timeout=3):
@@ -3943,26 +4026,59 @@ def guest_matches(ref, timeout=3):
     return differences
 
 
+# What the engine raised on a reference (harness EngineEvents): Papyrus's OnActivate, OnLockStateChanged, OnOpen and
+# OnClose, OnCellAttach and OnCellDetach, OnLoad and OnUnload, OnItemAdded and OnItemRemoved come from them.
+OBJECT_EVENTS = {"activate", "lock_changed", "open", "close", "cell_attach", "cell_detach", "loaded", "unloaded"}
+
+
+def object_events(instance, since, ref):
+    """The object events that game raised on the reference since that number, by kind in order."""
+    events, _ = engine_events(instance, since)
+    return [e["kind"] for e in events if (e["kind"] in OBJECT_EVENTS and e.get("object") == ref)
+            or (e["kind"] == "container_changed" and ref in (e.get("from"), e.get("to")))]
+
+
 def world_change_reaches_guest(name, pick, stage, change, undo, refs):
-    """Makes one change on the host and puts it back in both games: what the client got wrong, or none."""
+    """Makes one change on the host and puts it back in both games: what the client got wrong, or none. The
+    events each game raised on the reference must match too: they are the change's side effects on scripts."""
     ref = pick_reference(refs, *pick)
     values = {"r": f"{ref:X}", **change_values(refs[ref])}
     for line in stage:
         for game in ("", "client"):
             console_on(game, line.format(**values))
     before = world_state("", [ref])[ref]
+    since = {game: engine_events(game)[1] for game in ("", "client")}
+    differences = {}
     try:
-        console_on("", change.format(**values))
+        changes = [change] if isinstance(change, str) else change
+        for line in changes:
+            console_on("", line.format(**values))
         try:
             wait_for(f"[host] {name}: {ref:X} changed", lambda: reference_differences(before, world_state("", [ref])[ref]), 3)
         except TestFailure:
-            return {"test": f"the host's `{change.format(**values)}` changed nothing it reads"}
-        return guest_matches(ref)
+            return {"test": f"the host's `{'; '.join(changes).format(**values)}` changed nothing it reads"}
+        differences = guest_matches(ref)
+        host_events, guest_events = (object_events(game, since[game], ref) for game in ("", "client"))
+        if host_events != guest_events:
+            differences["events"] = f"{host_events} vs {guest_events}"
+        return differences
     finally:
-        # Put back on the host; the client too only where it did not follow (its own change would be proposed).
-        for line in undo:
-            console_on("", line.format(**values))
-        if undo and guest_matches(ref):
+        # Put back on the host: the client must follow that too (a state back to its default is a change as well).
+        # Repaired in the client only where it did not (its own change would be proposed).
+        # A door ignores a SetOpenState while it swings: the host is put back at rest, and checked against how it was.
+        for attempt in range(2 if undo else 0):
+            at_rest("", ref)
+            for line in undo:
+                console_on("", line.format(**values))
+            with contextlib.suppress(TestFailure):
+                wait_for(f"[host] {ref:X} as before", lambda: not reference_differences(before, world_state("", [ref])[ref]), 5)
+                break
+        else:
+            if undo:
+                differences["test"] = "the host's put-back left " + "; ".join(
+                    f"{f} {t}" for f, t in reference_differences(before, world_state("", [ref])[ref]).items())
+        if undo and (left := guest_matches(ref)):
+            differences["put back"] = "; ".join(f"{f} {t}" for f, t in left.items())
             for line in undo:
                 console_on("client", line.format(**values))
 
@@ -3995,7 +4111,7 @@ def scenario_world_changes_reach_guest():
     loaded world, rather than stopping at the first."""
     refs = world_state("")
     problems = []
-    if before := world_differences(refs, world_state("client")):
+    if before := world_differences(*sample_worlds()):
         problems += ["before any change:"] + ["  " + line for line in describe_world_differences(before, 20)]
     for name, pick, stage, change, undo in WORLD_CHANGES:
         if differences := world_change_reaches_guest(name, pick, stage, change, undo, refs):
@@ -4009,7 +4125,7 @@ def scenario_world_changes_reach_guest():
         log(f"NOT SYNCED {problems[-1]}")
     else:
         log("synced: create")
-    if after := world_differences(world_state(""), world_state("client")):
+    if after := world_differences(*sample_worlds()):
         problems += ["after putting everything back:"] + ["  " + line for line in describe_world_differences(after, 20)]
     if problems:
         raise TestFailure("the client's world does not follow the host's:\n  " + "\n  ".join(problems))

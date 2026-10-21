@@ -139,6 +139,8 @@ void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
             if (cChange.Type == ObjectChange::Kind::kItems)
                 cChange.Item.Serialize(aWriter);
             Serialization::WriteVarInt(aWriter, cChange.Value);
+            if (ObjectChange::HasData(cChange.Type))
+                Serialization::WriteString(aWriter, cChange.Data);
         }
     }
 }
@@ -172,6 +174,8 @@ void NotifyObjectChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader)
             if (change.Type == ObjectChange::Kind::kItems)
                 change.Item.Deserialize(aReader);
             change.Value = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
+            if (ObjectChange::HasData(change.Type))
+                change.Data = Serialization::ReadString(aReader);
         }
     }
 }

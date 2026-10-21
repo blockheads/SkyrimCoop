@@ -995,8 +995,17 @@ char TP_MAKE_THISCALL(HookSetPosition, Actor, NiPoint3& aPosition)
     if (bIsCopy && !ScopedReferencesOverride::IsOverriden())
         return 1;
 
-    // Don't interfere with non actor references, or the player, or if we are calling our self
-    if (apThis->formType != Actor::Type || apThis == PlayerCharacter::Get() || ScopedReferencesOverride::IsOverriden())
+    // A non-actor's move reaches the change funnel (RecordMove).
+    if (apThis->formType != Actor::Type)
+    {
+        const NiPoint3 cBefore = apThis->position;
+        const char cResult = TiltedPhoques::ThisCall(RealSetPosition, apThis, aPosition);
+        apThis->RecordMove(apThis->position != cBefore);
+        return cResult;
+    }
+
+    // Don't interfere with the player, or if we are calling our self
+    if (apThis == PlayerCharacter::Get() || ScopedReferencesOverride::IsOverriden())
         return TiltedPhoques::ThisCall(RealSetPosition, apThis, aPosition);
 
     ScopedReferencesOverride recursionGuard;

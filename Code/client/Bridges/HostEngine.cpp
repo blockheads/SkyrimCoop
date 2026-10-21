@@ -78,24 +78,12 @@ private:
 ChangedReferences s_changed;
 
 // A world reference changed live: not an actor (its owner's), not one the game created (an id of its own), not
-// by a load.
+// by a load. Its flags worth sending (ReferenceStates).
 void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRecorded) noexcept
 {
-    const uint32_t cFlags = aFlags & ReferenceStates::ChangeFlags();
+    const uint32_t cFlags = aFlags & ReferenceStates::SentFlags();
     if (cFlags && aRecorded && !aForced && acForm.formType == FormType::Reference && acForm.formID < 0xFF000000)
         s_changed.Add(acForm.formID, cFlags);
-}
-
-// The reference's state now, one change for each state whose flag is in aFlags.
-void ReadStates(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept
-{
-    for (const ReferenceState& cState : ReferenceStates::All())
-    {
-        if (!(aFlags & cState.ChangeFlag))
-            continue;
-        ObjectChange& change = aChanges.emplace_back(ObjectChange{cState.Kind, acId});
-        change.Value = cState.Read(acObject);
-    }
 }
 } // namespace
 
@@ -221,7 +209,7 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
         GameId id;
         if (pObject && m_mods.GetServerModId(cFormId, id))
-            ReadStates(*pObject, id, cFlags, changes);
+            ReferenceStates::Read(*pObject, id, cFlags, changes);
     }
     changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
     m_events.clear();

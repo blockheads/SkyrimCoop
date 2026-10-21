@@ -111,7 +111,13 @@ struct ObjectChange
         // States, from here on: Value.
         kEnabled,
         kLock,
+        kSaveData, // Value: the change flags, Data: what the reference's save holds for them (FormState)
+        kOpenState, // Value: 1 open
+        kMove,      // Data: position and angle, 6 floats
     };
+
+    // The kinds that carry Data.
+    static bool HasData(Kind aKind) noexcept { return aKind == Kind::kSaveData || aKind == Kind::kMove; }
 
     Kind Type{};
     GameId Object{};
@@ -121,11 +127,12 @@ struct ObjectChange
     TiltedPhoques::String Event;     // kAnimation
     GameId Item{};                   // kItems: the base item
     uint32_t Value{};                // a state's; kItems: the count
+    TiltedPhoques::String Data;      // kSaveData
 
     bool operator==(const ObjectChange& acRhs) const noexcept
     {
         return Type == acRhs.Type && Object == acRhs.Object && Activator == acRhs.Activator && OpenState == acRhs.OpenState &&
-               Animation == acRhs.Animation && Event == acRhs.Event && Item == acRhs.Item && Value == acRhs.Value;
+               Animation == acRhs.Animation && Event == acRhs.Event && Item == acRhs.Item && Value == acRhs.Value && Data == acRhs.Data;
     }
 };
 

@@ -94,6 +94,13 @@ uint8_t BGSSaveLoadGame::CurrentVersion() noexcept
     return s_currentVersion.Get()(nullptr);
 }
 
+bool BGSSaveLoadGame::HasChange(const TESForm& acForm, uint32_t aFlags) const noexcept
+{
+    TP_THIS_FUNCTION(TGetChange, bool, const BGSSaveLoadGame, const TESForm*, uint32_t);
+    POINTER_SKYRIMSE(TGetChange, s_getChange, 35577);
+    return TiltedPhoques::ThisCall(s_getChange, this, &acForm, aFlags);
+}
+
 bool BGSSaveLoadGame::BeginLoading() noexcept
 {
     TP_THIS_FUNCTION(TSetLoading, bool, BGSSaveLoadGame, bool);

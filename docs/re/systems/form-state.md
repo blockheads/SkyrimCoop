@@ -74,3 +74,34 @@ They now go through `FormState`.
   flags leave it unlocked.
 - A load goes around the lock-change hook: the other game's door does not follow (what a client applying the
   host's data needs).
+
+## Change records
+
+What the change funnel (`AddChangeFlags`) does and does not see of a reference, found with the world desync check
+(`world-changes-reach-guest`, `docs/design/world-state-sync.md` step 7). IDA 1.6.1170, 2026-10-21.
+
+- **A loaded reference's move is recorded once.** `SetPosition` (19790), `SetAngle` (19786) and
+  `SetRotationX/Y/Z` (19787-19789) call `AddChange(2)` only while bit `0x10` of the loaded state's word at +0x28
+  is clear, then set it: a save reads the position itself. Later moves never reach the funnel.
+- **A state back to its default removes its flag.** `FinishLoadGame` (19531) and the open state's code call
+  `RemoveChange` (14609, vfunc 0x0B, `TESActorBase`'s override tail-calls it) when a door is closed again. It
+  checks the same loading bits as `AddChange` (TLS +0x670 bit 0, the manager's +0x340 bit 0).
+- **`BGSSaveLoadGame::GetChange` (35577)** `(manager, form, mask)`: whether the form's record holds any of mask,
+  under the record map's read lock.
+- **Loading save data records nothing** (the loading bit): a guest marks the flags itself after `FormState::Load`,
+  or its cell unloading (`StoreChangesOnUnload`, 35570) drops the change.
+- **`TESObjectREFR::FinishLoadGame` (19531)** after a load: the extra data's finish (12097, for flags in
+  `0xA6021C40`, among them the alias array 12728, which reads the quests' locks), the open state against its
+  default (`0x800000`, 0x400000), a navmesh obstacle for doors, then 3D attach or the disabled 3D's removal
+  (`0x820` form flags).
+- **Moving a non-actor, three ways.** `MoveTo_Impl` (56626) disables it, sets position and angle, its 3D and
+  collision, `MoveRefToNewSpace`, and enables it: on a placeable water (QASmoke's `40248BF`) that crashed the
+  cell animations job (`bhkPlaceableWater::IsActive`, 32101). `SetPositionOnAxis` (22053, `(ref, 'X'..'Z',
+  value)`) sets the position, the 3D's local translation, `BSFadeNode::UpdateCollisionObject` (78383) and
+  `NiAVObject::Update` (70251). `SetRotation` (22054, `(ref, axis, degrees)`) the same for the angle but without
+  the update: the 3D's world transform stays until something updates it (the console's `setangle` looks unturned
+  until then). Papyrus' `SetPosition` and `SetAngle` reach 22053 and 22054 through the task pool.
+- **`BGSOpenCloseForm::SetOpenState` (14287)** `(ref, open, snap)`: plays `Open`/`Close` (a `NiControllerManager`
+  sequence, else the graph event), the open state's flags, and with snap the navmesh obstacle. Closing a door
+  mid-swing (0.1 s after opening) left the host's own record open: its cell reloaded with the door open.
+

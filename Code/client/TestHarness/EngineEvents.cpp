@@ -38,7 +38,13 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
                      BSTEventSink<TESQuestStartStopEvent>,
                      BSTEventSink<TESEquipEvent>,
                      BSTEventSink<TESHitEvent>,
-                     BSTEventSink<BGSEventProcessedEvent>
+                     BSTEventSink<BGSEventProcessedEvent>,
+                     BSTEventSink<TESActivateEvent>,
+                     BSTEventSink<TESLockChangedEvent>,
+                     BSTEventSink<TESOpenCloseEvent>,
+                     BSTEventSink<TESMoveAttachDetachEvent>,
+                     BSTEventSink<TESObjectLoadedEvent>,
+                     BSTEventSink<TESContainerChangedEvent>
 {
     BSTEventResult OnEvent(const TESSpellCastEvent* apEvent, const EventDispatcher<TESSpellCastEvent>*) override
     {
@@ -79,6 +85,51 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
                     {"projectile", apEvent->projectile}});
         return BSTEventResult::kOk;
     }
+    // The world's objects' events (Papyrus OnActivate, OnLockStateChanged, OnOpen/OnClose, OnCellAttach/Detach,
+    // OnLoad/OnUnload, OnItemAdded/Removed): what applying a change raised in this game.
+    BSTEventResult OnEvent(const TESActivateEvent* apEvent, const EventDispatcher<TESActivateEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", "activate"}, {"object", IdOf(apEvent->object)}, {"by", IdOf(apEvent->actionRef)}});
+        return BSTEventResult::kOk;
+    }
+
+    BSTEventResult OnEvent(const TESLockChangedEvent* apEvent, const EventDispatcher<TESLockChangedEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", "lock_changed"}, {"object", IdOf(apEvent->lockedObject)}});
+        return BSTEventResult::kOk;
+    }
+
+    BSTEventResult OnEvent(const TESOpenCloseEvent* apEvent, const EventDispatcher<TESOpenCloseEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", apEvent->opened ? "open" : "close"}, {"object", IdOf(apEvent->ref)}, {"by", IdOf(apEvent->activeRef)}});
+        return BSTEventResult::kOk;
+    }
+
+    BSTEventResult OnEvent(const TESMoveAttachDetachEvent* apEvent, const EventDispatcher<TESMoveAttachDetachEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", apEvent->isCellAttached ? "cell_attach" : "cell_detach"}, {"object", IdOf(apEvent->movedRef)}});
+        return BSTEventResult::kOk;
+    }
+
+    BSTEventResult OnEvent(const TESObjectLoadedEvent* apEvent, const EventDispatcher<TESObjectLoadedEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", apEvent->loaded ? "loaded" : "unloaded"}, {"object", apEvent->formID}});
+        return BSTEventResult::kOk;
+    }
+
+    BSTEventResult OnEvent(const TESContainerChangedEvent* apEvent, const EventDispatcher<TESContainerChangedEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", "container_changed"}, {"from", apEvent->oldContainerID}, {"to", apEvent->newContainerID},
+                    {"item", apEvent->baseObjectID}, {"count", apEvent->itemCount}});
+        return BSTEventResult::kOk;
+    }
+
     BSTEventResult OnEvent(const TESEquipEvent* apEvent, const EventDispatcher<TESEquipEvent>*) override
     {
         if (apEvent)
@@ -105,6 +156,12 @@ void ListenAll(EventDispatcherManager& aManager, bool aOn) noexcept
     Listen(aManager.equipEvent, aOn);
     Listen(aManager.hitEvent, aOn);
     Listen(aManager.eventProcessedEvent, aOn);
+    Listen(aManager.activateEvent, aOn);
+    Listen(aManager.lockChangedEvent, aOn);
+    Listen(aManager.openCloseEvent, aOn);
+    Listen(aManager.moveAttachDetachEvent, aOn);
+    Listen(aManager.objectLoadedEvent, aOn);
+    Listen(aManager.containerChangedEvent, aOn);
 }
 } // namespace
 

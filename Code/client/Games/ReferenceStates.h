@@ -2,26 +2,17 @@
 
 #include <Messages/WorldState.h>
 
-#include <span>
-
 struct TESObjectREFR;
 
-// A world reference's state the host sends when the change funnel reports its flag: read on the host as one value,
-// set on a guest from it with the engine's own call, which runs the change's side effects. One row per state; a flag
-// with no row is not sent (a mod's forms: their save data, later). docs/design/world-state-sync.md, "As built".
-struct ReferenceState
-{
-    ObjectChange::Kind Kind;
-    uint32_t ChangeFlag; // TESObjectREFR::ChangeFlags
-    uint32_t (*Read)(const TESObjectREFR& acObject) noexcept;
-    bool (*Apply)(TESObjectREFR& aObject, uint32_t aValue) noexcept;
-};
-
+// A world reference's change flags as a guest gets them: a row per state, read on the host now and applied on a guest
+// with the engine's own call (its side effects and events); the last row takes every other flag as its save data
+// (FormState). docs/design/world-state-sync.md, "As built".
 namespace ReferenceStates
 {
-std::span<const ReferenceState> All() noexcept;
-// Every row's change flag.
-uint32_t ChangeFlags() noexcept;
-// Null for a kind that is an event, not a state.
-const ReferenceState* Find(ObjectChange::Kind aKind) noexcept;
+// The change flags worth sending: not the engine's bookkeeping, not the location header's.
+uint32_t SentFlags() noexcept;
+// The reference's state now for aFlags: a change for each row that takes any of them.
+void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept;
+// False for a kind that is an event, not a state, or a change the engine refused.
+bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept;
 } // namespace ReferenceStates
