@@ -10,8 +10,6 @@ struct TransportService;
 struct NotifyActivate;
 struct LockChangeEvent;
 struct NotifyLockChange;
-struct ScriptAnimationEvent;
-struct NotifyScriptAnimation;
 
 /**
  * @brief Handles objects in the environment.
@@ -25,8 +23,6 @@ private:
     void OnActivateNotify(const NotifyActivate&) noexcept;
     void OnLockChange(const LockChangeEvent&) noexcept;
     void OnLockChangeNotify(const NotifyLockChange&) noexcept;
-    void OnScriptAnimationEvent(const ScriptAnimationEvent&) noexcept;
-    void OnNotifyScriptAnimation(const NotifyScriptAnimation&) noexcept;
 
 
     World& m_world;
@@ -39,6 +35,4 @@ private:
     entt::scoped_connection m_activateConnection;
     entt::scoped_connection m_lockChangeConnection;
     entt::scoped_connection m_lockChangeNotifyConnection;
-    entt::scoped_connection m_scriptAnimationConnection;
-    entt::scoped_connection m_scriptAnimationNotifyConnection;
 };

@@ -12,6 +12,7 @@
 #include <TimeManager.h>
 
 #include <cmath>
+#include <utility>
 
 static_assert(QuestState::kFlags == (TESQuest::Enabled | TESQuest::Completed | TESQuest::Failed | TESQuest::StageWait));
 
@@ -99,4 +100,26 @@ void HostEngine::SetHour(float aHours) noexcept
     if (!pTime || !pTime->GameHour)
         return;
     pTime->Advance(std::fmod(aHours - pTime->GameHour->f + 24.f, 24.f));
+}
+
+void HostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept
+{
+    ScriptResult result{ScriptResult::Kind::kActivate};
+    result.OpenState = aOpenState;
+    if (m_mods.GetServerModId(aObjectFormId, result.Object) && m_mods.GetServerModId(aActivatorFormId, result.Activator))
+        m_scriptResults.push_back(std::move(result));
+}
+
+void HostEngine::RecordAnimation(uint32_t aObjectFormId, const TiltedPhoques::String& acAnimation, const TiltedPhoques::String& acEvent) noexcept
+{
+    ScriptResult result{ScriptResult::Kind::kAnimation};
+    result.Animation = acAnimation;
+    result.Event = acEvent;
+    if (m_mods.GetServerModId(aObjectFormId, result.Object))
+        m_scriptResults.push_back(std::move(result));
+}
+
+TiltedPhoques::Vector<ScriptResult> HostEngine::TakeScriptResults() noexcept
+{
+    return std::exchange(m_scriptResults, {});
 }

@@ -4,13 +4,10 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Events/LockChangeEvent.h>
-#include <Events/ScriptAnimationEvent.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/LockChangeRequest.h>
 #include <Messages/NotifyLockChange.h>
-#include <Messages/ScriptAnimationRequest.h>
-#include <Messages/NotifyScriptAnimation.h>
 
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IActorBridge.h>
@@ -30,8 +27,6 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     m_activateConnection = aDispatcher.sink<NotifyActivate>().connect<&ObjectService::OnActivateNotify>(this);
     m_lockChangeConnection = aDispatcher.sink<LockChangeEvent>().connect<&ObjectService::OnLockChange>(this);
     m_lockChangeNotifyConnection = aDispatcher.sink<NotifyLockChange>().connect<&ObjectService::OnLockChangeNotify>(this);
-    m_scriptAnimationConnection = aDispatcher.sink<ScriptAnimationEvent>().connect<&ObjectService::OnScriptAnimationEvent>(this);
-    m_scriptAnimationNotifyConnection = aDispatcher.sink<NotifyScriptAnimation>().connect<&ObjectService::OnNotifyScriptAnimation>(this);
 
     // Note: TESActivateEvent sink registration replaced with IEventBridge — ObjectService no longer
     // inherits BSTEventSink<TESActivateEvent>. The debug object component tracking was inside
@@ -48,7 +43,8 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
                                               acEvent.PreActivationOpenStateValue);
     }
 
-    if (!m_transport.IsConnected())
+    // A world script's door is the host's world: HostWorldState sends the host's (step 5).
+    if (!m_transport.IsConnected() || acEvent.ByReference)
         return;
 
     // A locked object's activation is a lockpick attempt, not an opening. Its lock level stays set
@@ -76,16 +72,6 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
         return;
     }
 
-    request.PreActivationOpenState = acEvent.PreActivationOpenStateValue;
-    if (acEvent.ByReference)
-    {
-        // A script's door: sent by every game, passed on from the host's only.
-        request.ActivatorId = 0;
-        if (m_world.GetModSystem().GetServerModId(acEvent.ActivatorFormId, request.ActivatorRef))
-            m_transport.Send(request);
-        return;
-    }
-
     auto view = m_world.view<FormIdComponent>();
     const auto pEntity = std::find_if(std::begin(view), std::end(view), [id = acEvent.ActivatorFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
 
@@ -106,15 +92,6 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
 
 void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
 {
-    if (acMessage.ActivatorRef)
-    {
-        const uint32_t cObjectId = World::Get().GetModSystem().GetGameId(acMessage.Id);
-        const uint32_t cActivatorId = World::Get().GetModSystem().GetGameId(acMessage.ActivatorRef);
-        if (m_formBridge.FormExists(cObjectId) && m_formBridge.FormExists(cActivatorId))
-            m_formBridge.ActivateObjectFromActor(cObjectId, cActivatorId, acMessage.PreActivationOpenState);
-        return;
-    }
-
     const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ActivatorId);
     if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
     {
@@ -200,30 +177,4 @@ void ObjectService::OnLockChangeNotify(const NotifyLockChange& acMessage) noexce
     }
 
     m_formBridge.NotifyObjectLockChange(cObjectId);
-}
-
-void ObjectService::OnScriptAnimationEvent(const ScriptAnimationEvent& acEvent) noexcept
-{
-    ScriptAnimationRequest request{};
-    request.FormID = acEvent.FormID;
-    request.Animation = acEvent.Animation;
-    request.EventName = acEvent.EventName;
-
-    m_transport.Send(request);
-}
-
-void ObjectService::OnNotifyScriptAnimation(const NotifyScriptAnimation& acMessage) noexcept
-{
-    if (acMessage.FormID == 0)
-        return;
-
-    if (!m_formBridge.FormExists(acMessage.FormID))
-    {
-        spdlog::error("Failed to fetch notify script animation object, form id: {:X}", acMessage.FormID);
-        return;
-    }
-
-    m_formBridge.PlayObjectAnimation(acMessage.FormID,
-                                      std::string(acMessage.Animation.c_str()),
-                                      std::string(acMessage.EventName.c_str()));
 }

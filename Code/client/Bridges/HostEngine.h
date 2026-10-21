@@ -24,7 +24,13 @@ public:
     [[nodiscard]] TiltedPhoques::Vector<QuestState> ReadQuests() const noexcept;
     // Runs the clock on to that hour, the next day's if it is earlier, as a wait does.
     void SetHour(float aHours) noexcept;
+    // A world script activated a door (by a reference) or played an animation on an object, kept for the others.
+    void RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept;
+    void RecordAnimation(uint32_t aObjectFormId, const TiltedPhoques::String& acAnimation, const TiltedPhoques::String& acEvent) noexcept;
+    // What was recorded since the last call, in order.
+    [[nodiscard]] TiltedPhoques::Vector<ScriptResult> TakeScriptResults() noexcept;
 
 private:
     const ModSystem& m_mods;
+    TiltedPhoques::Vector<ScriptResult> m_scriptResults;
 };

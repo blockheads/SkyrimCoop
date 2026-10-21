@@ -8,6 +8,7 @@ namespace
 constexpr uint64_t kMaxGlobals = 0x10000;
 constexpr uint64_t kMaxQuests = 0x10000;
 constexpr uint64_t kMaxPerQuest = 0x1000;
+constexpr uint64_t kMaxScriptResults = 0x1000;
 
 void Write(TiltedPhoques::Buffer::Writer& aWriter, const QuestState& acQuest) noexcept
 {
@@ -114,4 +115,51 @@ void NotifyQuests::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexce
             Quests.clear();
             return;
         }
+}
+
+void NotifyScriptResults::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Results.size());
+    for (const auto& cResult : Results)
+    {
+        Serialization::WriteVarInt(aWriter, static_cast<uint8_t>(cResult.Type));
+        cResult.Object.Serialize(aWriter);
+        if (cResult.Type == ScriptResult::Kind::kActivate)
+        {
+            cResult.Activator.Serialize(aWriter);
+            aWriter.WriteBits(cResult.OpenState, 8);
+        }
+        else
+        {
+            Serialization::WriteString(aWriter, cResult.Animation);
+            Serialization::WriteString(aWriter, cResult.Event);
+        }
+    }
+}
+
+void NotifyScriptResults::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+{
+    ServerMessage::DeserializeRaw(aReader);
+
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    if (cCount > kMaxScriptResults)
+        return;
+    Results.resize(cCount);
+    for (auto& result : Results)
+    {
+        result.Type = static_cast<ScriptResult::Kind>(Serialization::ReadVarInt(aReader));
+        result.Object.Deserialize(aReader);
+        if (result.Type == ScriptResult::Kind::kActivate)
+        {
+            result.Activator.Deserialize(aReader);
+            uint64_t openState = 0;
+            aReader.ReadBits(openState, 8);
+            result.OpenState = static_cast<uint8_t>(openState);
+        }
+        else
+        {
+            result.Animation = Serialization::ReadString(aReader);
+            result.Event = Serialization::ReadString(aReader);
+        }
+    }
 }

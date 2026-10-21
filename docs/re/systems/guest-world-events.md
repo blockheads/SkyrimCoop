@@ -9,11 +9,11 @@ guest: player activates / walks in
   engine → Activate relay (ActivateRequest) / copy moves into the host's trigger
   VM SendEvent(world ref, "OnActivate" | "OnTrigger*") → dropped      WorldEvents.cpp
 host: the copy's event runs the script (GuestScripts rules 1-2)
-  door it opens (Activate by a reference)  → ActivateRequest, ActivatorRef   TESObjectREFR.cpp, ObjectService
-  animation it plays (PlayAnimation)        → ScriptAnimationRequest          TESObjectREFR.cpp
+  door it opens (Activate by a reference)  ┐ ActivateEvent / ScriptAnimationEvent → HostService
+  animation it plays (PlayAnimation)        ┘ → HostEngine (queued) → HostWorldState: NotifyScriptResults
   spell it casts on the copy                → AddTargetRequest to the owner    MagicTarget.cpp
   items it takes or gives the copy          → inventory changes (as before)
-HostAuthority: reference activations and script animations only from the host
+guest: GuestWorldState → GuestEngine::ApplyScriptResult (the door, the animation)
 ```
 
 ## Dropping the guest's events
@@ -25,19 +25,23 @@ HostAuthority: reference activations and script animations only from the host
 
 The rule: a guest drops `OnActivate`, `OnTriggerEnter`, `OnTriggerLeave` and `OnTrigger` unless the
 handle's form (its low 32 bits) is the player, 0x14. Read without engine calls: `SendEvent` runs on the
-threads raising events. Off by `GuestWorldState` on joining, back on leaving (`GuestEngine::SetDecidesWorld`, with the story-manager gate),
-as the story-manager gate.
+threads raising events. Off by `GuestWorldState` on joining, back on leaving (`GuestEngine::SetDecidesWorld`, with the
+story-manager gate).
 
 ## Results back to the guest
 
+Doors and animations are world state like step 4's globals and quests: only the host's game sends them
+(`HostWorldState`, `NotifyScriptResults`, one ordered list a frame), only a guest applies them
+(`GuestWorldState`, `GuestEngine::ApplyScriptResult`). `ObjectService` keeps the relays every game makes
+(players' activations, locks).
+
 - **Doors a script opens** (`secretDoor.Activate(Self)`): `HookActivate` passed on actors' activations only.
-  A door activated by a reference raises `ActivateEvent::ByReference`; `ObjectService` sends it with
-  `ActivatorRef` (the reference's session id) and `ActivatorId` 0; `HostAuthority::OnActivate` passes it on
-  from the host only; a guest replays it with that reference as the activator
-  (`SkyrimBridge::ActivateObjectFromActor`, any reference now).
+  A door activated by a reference raises `ActivateEvent::ByReference`, which `ObjectService` leaves alone; on
+  the host `HostService` queues it in `HostEngine` (door, activator reference, open state before). A guest
+  activates its door with the same reference, if the door is as the host's was.
 - **Script animations**: upstream turned them off in 2022 (`a312f9d9`, `OBJECT_ANIM_SYNC 0`, no reason
-  given; both games played every script's animation then). On again; `HostAuthority::OnScriptAnimation` passes
-  on the host's only. The hooks' signatures checked in IDA: `papyrus::ObjectReference::PlayAnimation` (56205)
+  given; both games played every script's animation then). On again as host results, the
+  `ScriptAnimationRequest` / `NotifyScriptAnimation` relay deleted. The hooks' signatures checked in IDA: `papyrus::ObjectReference::PlayAnimation` (56205)
   and `PlayAnimationAndWait` (56206) take `(vm, stackId, self, BSFixedString*)` (the native copies its event
   from the pointer).
 - **Spells the host's world casts on a guest's character**: `MagicTarget::AddTarget` dropped every effect on

@@ -234,7 +234,7 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
 5. **The guest's world scripts stop changing the world** (above, "Only the host's game decides"): a scenario
    where the guest pulls a lever and its effect happens once, from the host. Slice 1 built 2026-10-21:
    activation and trigger events (`Papyrus/WorldEvents.cpp`); a script's doors and animations come from the
-   host only (`HostAuthority::OnActivate`, `OnScriptAnimation`); the host's world's spells on a guest's
+   host (`HostWorldState`, `NotifyScriptResults`); the host's world's spells on a guest's
    character go to its owner (`MagicTarget.cpp`, `GuestScripts`' `CastFunctor` tag). Scenarios
    `sword-box-asks-client` (the sword goes once, comes back once), `statue-fires-at-client`,
    `ring-turns-for-client`, `shrine-blesses-client`. Engine notes `docs/re/systems/guest-world-events.md`.

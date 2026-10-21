@@ -38,7 +38,6 @@
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyRemoveSpell.h>
 #include <Messages/NotifyRemoveWaypoint.h>
-#include <Messages/NotifyScriptAnimation.h>
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifySpellCast.h>
 #include <Messages/NotifySubtitle.h>
@@ -56,7 +55,6 @@
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
-#include <Messages/ScriptAnimationRequest.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Messages/SpellCastRequest.h>
 #include <Messages/SubtitleRequest.h>
@@ -95,7 +93,6 @@ NotifyActivate ToNotify(const ActivateRequest& acRequest)
     NotifyActivate notify;
     notify.Id = acRequest.Id;
     notify.ActivatorId = acRequest.ActivatorId;
-    notify.ActivatorRef = acRequest.ActivatorRef;
     notify.PreActivationOpenState = acRequest.PreActivationOpenState;
     return notify;
 }
@@ -106,15 +103,6 @@ NotifyLockChange ToNotify(const LockChangeRequest& acRequest)
     notify.Id = acRequest.Id;
     notify.IsLocked = acRequest.IsLocked;
     notify.LockLevel = acRequest.LockLevel;
-    return notify;
-}
-
-NotifyScriptAnimation ToNotify(const ScriptAnimationRequest& acRequest)
-{
-    NotifyScriptAnimation notify;
-    notify.FormID = acRequest.FormID;
-    notify.Animation = acRequest.Animation;
-    notify.EventName = acRequest.EventName;
     return notify;
 }
 
@@ -200,9 +188,8 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
     Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::ServerId);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
-    On(*this, &HostAuthority::OnActivate);
+    Relay<ActivateRequest, NotifyActivate>(FromAnyone);
     Relay<LockChangeRequest, NotifyLockChange>(FromAnyone);
-    On(*this, &HostAuthority::OnScriptAnimation);
 
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
@@ -261,23 +248,6 @@ void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest,
 {
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
-}
-
-void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    if (acRequest.ActivatorRef != GameId{} && aSender != m_players.Host())
-    {
-        spdlog::warn("HostAuthority: {:x} sent an activation by a reference, which only the host's world makes", aSender);
-        return;
-    }
-    Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
-}
-
-void HostAuthority::OnScriptAnimation(const ScriptAnimationRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    if (aSender != m_players.Host())
-        return; // a guest's world scripts play nothing for the others
-    Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
 }
 
 void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept

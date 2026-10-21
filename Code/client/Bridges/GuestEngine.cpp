@@ -189,3 +189,29 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     BGSStoryManager::SetPicksQuests(aOn);
     WorldEvents::SetDelivered(aOn);
 }
+
+bool GuestEngine::ApplyScriptResult(const ScriptResult& acResult) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acResult.Object)));
+    if (!pObject)
+        return false;
+    if (acResult.Type == ScriptResult::Kind::kAnimation)
+    {
+        BSFixedString event(acResult.Event.c_str());
+        if (acResult.Animation.empty())
+            pObject->PlayAnimation(&event);
+        else
+        {
+            BSFixedString animation(acResult.Animation.c_str());
+            pObject->PlayAnimationAndWait(&animation, &event);
+        }
+        return true;
+    }
+    auto* pActivator = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acResult.Activator)));
+    if (!pActivator)
+        return false;
+    // A door already where the host's went (opened here another way) is not toggled back.
+    if (pObject->GetOpenState() == static_cast<TESObjectREFR::OpenState>(acResult.OpenState))
+        pObject->Activate(pActivator, 0, nullptr, 1, 0);
+    return true;
+}

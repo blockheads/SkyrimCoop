@@ -190,3 +190,27 @@ TEST_CASE("World state: a joining player gets every quest, as a load", "[Bridge]
     CHECK(cAll.Quests[1] == session.Quests[1]);
     CHECK(session.SentTo<NotifyQuests>(kOtherPeer).empty());
 }
+
+TEST_CASE("World state: the host's world scripts' doors and animations reach the others in order, once", "[Bridge][WorldState]")
+{
+    Session session;
+    // The sword in the stone: its manager opens the secret door and the box plays its animation.
+    session.ScriptResults = {{ScriptResult::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}},
+                             {ScriptResult::Kind::kAnimation, GameId(0, 0xA05C0), {}, 0, {}, "Open"}};
+    session.Frame(1000);
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cSent = session.SentTo<NotifyScriptResults>(cTo);
+        REQUIRE(cSent.size() == 1);
+        REQUIRE(cSent[0]->Results.size() == 2);
+        CHECK(cSent[0]->Results[0].Type == ScriptResult::Kind::kActivate);
+        CHECK(cSent[0]->Results[0].Activator == GameId(0, 0xA05C4));
+        CHECK(cSent[0]->Results[1].Event == "Open");
+    }
+    CHECK(session.SentTo<NotifyScriptResults>(kHost).empty());
+
+    // Taken once: nothing new, nothing sent.
+    session.Outbox.clear();
+    session.Frame(1016);
+    CHECK(session.SentTo<NotifyScriptResults>(kPeer).empty());
+}

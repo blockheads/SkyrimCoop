@@ -22,7 +22,6 @@ enum ClientOpcode : unsigned char
     kAddTargetRequest,
     kRequestRemoveSpell,
     kProjectileLaunchRequest,
-    kScriptAnimationRequest,
     kDrawWeaponRequest,
     kMountRequest,
     kNewPackageRequest,
@@ -77,7 +76,6 @@ enum ServerOpcode : unsigned char
     kNotifyAddTarget,
     kNotifyRemoveSpell,
     kNotifyProjectileLaunch,
-    kNotifyScriptAnimation,
     kNotifyDrawWeapon,
     kNotifyMount,
     kNotifyNewPackage,
@@ -110,5 +108,6 @@ enum ServerOpcode : unsigned char
     kNotifyDialogueExperience,
     kNotifyGlobals,
     kNotifyQuests,
+    kNotifyScriptResults,
     kServerOpcodeMax
 };

@@ -1,6 +1,8 @@
 #include <Services/HostService.h>
 
 #include <console/ConsoleRegistry.h>
+#include <Events/ActivateEvent.h>
+#include <Events/ScriptAnimationEvent.h>
 #include <Events/UpdateEvent.h>
 #include <GameServer.h>
 #include <World.h>
@@ -19,6 +21,20 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
 {
     m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&HostService::OnUpdate>(this);
+    m_activateConnection = m_dispatcher.sink<ActivateEvent>().connect<&HostService::OnActivate>(this);
+    m_scriptAnimationConnection = m_dispatcher.sink<ScriptAnimationEvent>().connect<&HostService::OnScriptAnimation>(this);
+}
+
+void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
+{
+    if (m_isHosting && m_pEngine && acEvent.ByReference)
+        m_pEngine->RecordActivation(acEvent.ObjectFormId, acEvent.ActivatorFormId, acEvent.PreActivationOpenStateValue);
+}
+
+void HostService::OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept
+{
+    if (m_isHosting && m_pEngine)
+        m_pEngine->RecordAnimation(acEvent.FormID, acEvent.Animation, acEvent.EventName);
 }
 
 HostService::~HostService() noexcept
@@ -74,6 +90,7 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
+    game.TakeScriptResults = [this] { return m_pEngine->TakeScriptResults(); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());

@@ -17,7 +17,8 @@ struct GameServer;
  * @brief The world is the host's (docs/design/world-state-sync.md, step 4): what changes in its
  * game reaches the others, who apply it with their engine's own call and decide nothing themselves.
  * Global variables and quests are compared with what the others hold a few times a second: globals never
- * reach the engine's change funnel, nor does a script's alias fill.
+ * reach the engine's change funnel, nor does a script's alias fill. What the host's world scripts did to objects
+ * (doors, animations) goes out each frame (step 5).
  */
 struct HostWorldState
 {
@@ -35,6 +36,7 @@ struct HostWorldState
 private:
     void UpdateGlobals() noexcept;
     void UpdateQuests() noexcept;
+    void UpdateScriptResults() noexcept;
 
     Server::GameServer& m_server;
     const HostPlayers& m_players;

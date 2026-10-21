@@ -97,3 +97,41 @@ struct NotifyQuests final : ServerMessage
     TiltedPhoques::Vector<QuestState> Quests;
     bool Join{};
 };
+
+// What a world script on the host's game did to an object that no other message carries (step 5): a door it
+// activated (by a reference: `Activate(Self)`), or an animation it played on the object.
+struct ScriptResult
+{
+    enum class Kind : uint8_t
+    {
+        kActivate,
+        kAnimation,
+    };
+
+    Kind Type{};
+    GameId Object{};
+    GameId Activator{};              // kActivate: the reference that activated it
+    uint8_t OpenState{};             // kActivate: the door's open state before
+    TiltedPhoques::String Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
+    TiltedPhoques::String Event;     // kAnimation
+
+    bool operator==(const ScriptResult& acRhs) const noexcept
+    {
+        return Type == acRhs.Type && Object == acRhs.Object && Activator == acRhs.Activator && OpenState == acRhs.OpenState &&
+               Animation == acRhs.Animation && Event == acRhs.Event;
+    }
+};
+
+// The host's world scripts' results since the last, in the order its game had them.
+struct NotifyScriptResults final : ServerMessage
+{
+    static constexpr ServerOpcode Opcode = kNotifyScriptResults;
+    NotifyScriptResults() : ServerMessage(Opcode) {}
+
+    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+
+    bool operator==(const NotifyScriptResults& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Results == acRhs.Results; }
+
+    TiltedPhoques::Vector<ScriptResult> Results;
+};

@@ -955,10 +955,10 @@ void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aAct
 {
     Breadcrumbs::Record("ActivateObjectFromActor", aObjectFormId, aActivatorFormId);
     TESObjectREFR* pObject = GetRefr(aObjectFormId);
-    TESObjectREFR* pActor = GetRefr(aActivatorFormId); // an actor, or the host script's reference
+    Actor* pActor = GetActor(aActivatorFormId);
     if (!pObject || !pActor)
     {
-        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or activator {:X} not found",
+        spdlog::error("SkyrimBridge::ActivateObjectFromActor — object {:X} or actor {:X} not found",
                       aObjectFormId, aActivatorFormId);
         return;
     }
@@ -980,29 +980,6 @@ void SkyrimBridge::ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aAct
     }
 
     pObject->Activate(pActor, 0, nullptr, 1, 0);
-}
-
-void SkyrimBridge::PlayObjectAnimation(uint32_t aObjectFormId, const std::string& aAnimation,
-                                         const std::string& aEventName) noexcept
-{
-    Breadcrumbs::Record("PlayObjectAnimation", aObjectFormId);
-    TESObjectREFR* pObject = GetRefr(aObjectFormId);
-    if (!pObject)
-    {
-        spdlog::error("SkyrimBridge::PlayObjectAnimation — object {:X} not found", aObjectFormId);
-        return;
-    }
-
-    BSFixedString eventName(aEventName.c_str());
-    if (aAnimation.empty())
-    {
-        pObject->PlayAnimation(&eventName);
-    }
-    else
-    {
-        BSFixedString animation(aAnimation.c_str());
-        pObject->PlayAnimationAndWait(&animation, &eventName);
-    }
 }
 
 uint8_t SkyrimBridge::GetObjectOpenState(uint32_t aObjectFormId) const noexcept

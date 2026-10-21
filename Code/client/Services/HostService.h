@@ -5,6 +5,8 @@
 
 struct World;
 struct UpdateEvent;
+struct ActivateEvent;
+struct ScriptAnimationEvent;
 
 namespace Server
 {
@@ -69,6 +71,9 @@ protected:
      * @param acEvent Update event with delta time
      */
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
+    // The host's world scripts' doors and animations, for HostWorldState (docs/design/world-state-sync.md step 5).
+    void OnActivate(const ActivateEvent& acEvent) noexcept;
+    void OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept;
 
 private:
     World& m_world;
@@ -83,4 +88,6 @@ private:
     std::unique_ptr<ServerConsole::ConsoleRegistry> m_pConsole;
 
     entt::scoped_connection m_updateConnection;
+    entt::scoped_connection m_activateConnection;
+    entt::scoped_connection m_scriptAnimationConnection;
 };

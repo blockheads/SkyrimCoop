@@ -14,8 +14,6 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyLockChange.h>
-#include <Messages/NotifyScriptAnimation.h>
-#include <Messages/ScriptAnimationRequest.h>
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WorldState.h>
@@ -189,6 +187,7 @@ struct Session
     std::optional<GameId> Weather;                           // the host's weather to share
     Vector<HostGlobal> Globals;                              // the host's global variables
     Vector<QuestState> Quests;                               // the host's quests
+    Vector<ScriptResult> ScriptResults;                      // what the host's world scripts did, not yet taken
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::vector<Sent> Outbox;
 
@@ -217,6 +216,7 @@ private:
         game.ReadWeather = [this] { return Weather; };
         game.ReadGlobals = [this] { return Globals; };
         game.ReadQuests = [this] { return Quests; };
+        game.TakeScriptResults = [this] { return std::exchange(ScriptResults, {}); };
         game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();

@@ -29,6 +29,9 @@ public:
     // Off while a guest, the host's game deciding instead: its story manager starts no quest, and its world's
     // scripts do not react to its player (activations, triggers).
     void SetDecidesWorld(bool aOn) noexcept;
+    // Does what the host's world script did: activates the door (if it is as the host's was) or plays the
+    // animation. False: the object or the activator is not in this game.
+    bool ApplyScriptResult(const ScriptResult& acResult) noexcept;
 
 private:
     const ModSystem& m_mods;

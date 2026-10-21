@@ -480,6 +480,25 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
+    SECTION("NotifyScriptResults")
+    {
+        NotifyScriptResults sendMessage, recvMessage;
+        sendMessage.Results.push_back({ScriptResult::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
+        sendMessage.Results.push_back({ScriptResult::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
+        sendMessage.Results.push_back({ScriptResult::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});
+
+        Buffer buff(1000);
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+    }
+
     SECTION("NotifyQuests")
     {
         NotifyQuests sendMessage, recvMessage;

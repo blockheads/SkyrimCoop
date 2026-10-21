@@ -8,6 +8,7 @@ GuestWorldState::GuestWorldState(entt::dispatcher& aDispatcher, GuestEngine& aEn
 {
     m_globalsConnection = aDispatcher.sink<NotifyGlobals>().connect<&GuestWorldState::OnGlobals>(this);
     m_questsConnection = aDispatcher.sink<NotifyQuests>().connect<&GuestWorldState::OnQuests>(this);
+    m_scriptResultsConnection = aDispatcher.sink<NotifyScriptResults>().connect<&GuestWorldState::OnScriptResults>(this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);
@@ -33,4 +34,11 @@ void GuestWorldState::OnQuests(const NotifyQuests& acMessage) noexcept
 {
     for (const auto& cQuest : acMessage.Quests)
         m_engine.ApplyQuest(cQuest, acMessage.Join);
+}
+
+void GuestWorldState::OnScriptResults(const NotifyScriptResults& acMessage) noexcept
+{
+    for (const auto& cResult : acMessage.Results)
+        if (!m_engine.ApplyScriptResult(cResult))
+            spdlog::debug("{}: object {:X} of a host script's result is not in this game", __FUNCTION__, cResult.Object.LogFormat());
 }
