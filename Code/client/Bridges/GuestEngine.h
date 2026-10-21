@@ -4,6 +4,8 @@
 #include <Structs/GameId.h>
 #include <Structs/TimeModel.h>
 
+#include <optional>
+
 struct ModSystem;
 
 /**
@@ -14,6 +16,9 @@ class GuestEngine
 {
 public:
     explicit GuestEngine(const ModSystem& acMods) noexcept;
+    ~GuestEngine() noexcept;
+
+    TP_NOCOPYMOVE(GuestEngine);
 
     // The calendar as the engine's clock leaves it (Calendar::Update 36291), date and days passed included.
     void SetCalendar(const TimeModel& acTime) noexcept;
@@ -30,9 +35,11 @@ public:
     // scripts do not react to its player (activations, triggers).
     void SetDecidesWorld(bool aOn) noexcept;
     // Makes the host's world object change here: activates the door (if it is as the host's was), plays the
-    // animation, enables or disables the reference, sets its lock. False: the object or the activator is not in
-    // this game.
+    // animation, enables or disables the reference, sets its lock, makes the container hold that many. False: the
+    // object, the activator or the item is not in this game.
     bool ApplyObjectChange(const ObjectChange& acChange) noexcept;
+    // This game's container's count of the item now (Bridges/ContainerItems.h), for a proposal to the host.
+    [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept;
 
 private:
     const ModSystem& m_mods;

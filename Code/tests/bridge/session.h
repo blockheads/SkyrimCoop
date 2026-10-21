@@ -12,6 +12,7 @@
 #include <Messages/AddTargetRequest.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/ContainerChangeRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWeatherChange.h>
@@ -187,6 +188,7 @@ struct Session
     Vector<HostGlobal> Globals;                              // the host's global variables
     Vector<QuestState> Quests;                               // the host's quests
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
+    std::vector<std::tuple<GameId, GameId, uint32_t>> ItemsSet; // guests' container changes the host's game took
     Vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::vector<Sent> Outbox;
@@ -218,6 +220,7 @@ private:
         game.ReadQuests = [this] { return Quests; };
         game.TakeObjectChanges = [this] { return std::exchange(ObjectChanges, {}); };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
+        game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { ItemsSet.emplace_back(acObject, acItem, aCount); };
         game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();

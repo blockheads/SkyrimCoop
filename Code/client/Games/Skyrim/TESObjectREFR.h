@@ -169,10 +169,16 @@ struct TESObjectREFR : TESForm
     uint32_t GetCellId() const noexcept;
     TESWorldSpace* GetWorldSpace() const noexcept;
     ExtraContainerChanges::Data* GetContainerChanges() const noexcept;
+    // Its inventory changes, none made if it has none yet (TESObjectREFR::GetInventoryChanges 16039).
+    ExtraContainerChanges::Data* FindContainerChanges() const noexcept;
     ExtraDataList* GetExtraDataList() noexcept;
     Lock* GetLock() const noexcept;
     TESContainer* GetContainer() const noexcept;
     int64_t GetItemCountInInventory(TESForm* apItem) const noexcept;
+    // How many of the item it holds (InventoryChanges::GetItemCount 16108); none for no container or item.
+    std::optional<int32_t> GetContainerCount(TESBoundObject* apItem) const noexcept;
+    // Adds or removes the difference to hold that many, past our inventory hooks; false for no container or item.
+    bool SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept;
     TESObjectCELL* GetParentCellEx() const noexcept;
 
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;

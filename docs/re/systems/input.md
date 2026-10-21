@@ -94,3 +94,24 @@ chain)`, each sink's `ProcessEvent` is vfunc 1 with `(sink, chain, source)`; its
 
 The harness's injected keys (`SendKey`, `{"cmd": "key"}`) call the same function, so they go through the
 hook like a keyboard's: `chat-reaches-everyone` types with them.
+
+## The input trace (test builds)
+
+`TestHarness/InputTrace.cpp` logs each key or button press and release as the game dispatched it, one line each
+into the log trail, so a failed scenario's digest shows what happened to its presses:
+
+```
+Input: keyboard 0x13 'XButton' press; menus ContainerMenu (ContainerMenu lists 5); ConsoleHotkeyManager continue,
+       MenuControls continue, PlayerControls continue, a sink of skse64_1_6_1170.dll continue, BGSMoviePlayer continue
+```
+
+- It reads `BSInputDeviceManager`'s sinks (`InputEventSource`, `Games/Skyrim/BSInput/InputEvent.h`: the sinks array
+  at `+0x00`, count at `+0x10`, lock `+0x48`, `notifying` `+0x50`; IDA 2026-10-21) once a second and wraps each sink
+  class's `ProcessEvent` (vtable slot 1). `SendEvent` stops at the first sink returning 1. The production hook on
+  `SendEvent` (the chat) is left alone; `Stop` puts the slots back before a hot reload.
+- The sinks on 1.6.1170, in order: `ConsoleHotkeyManager`, `MenuControls`, `PlayerControls`, one of SKSE's,
+  `BGSMoviePlayer`. Names from RTTI (`Games/Rtti.h`); another module's sink by its module.
+- An item menu (container, inventory, barter, gift) drops keys while its lists slide in:
+  `InventoryLists_mc.currentState` (`InventoryLists.as`) 1 or 2 shown, 3-5 sliding. Every sink passes the key on
+  either way: the drop is in the menu's Flash. Seen 2026-10-21: R (Take All) at state 5 took nothing.
+

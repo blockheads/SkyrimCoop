@@ -281,6 +281,12 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    Enabled state built 2026-10-21: the host's engine `Enable`/`Disable`, whatever called them, go out with the
    host's object changes (`NotifyObjectChanges`); `sword-box-asks-client` checks the guest's box and sword in
    the stone swap. Locks built 2026-10-21: the host's lock changes are object changes, a guest's (its lockpick,
+   a key) a proposal the host's game takes (`lock-reaches-others`). Containers slice 1 built 2026-10-21: a
+   container's change travels as its count of the item now (`kItems`), the host's to everyone, a guest's as a
+   proposal the host's game takes (`ContainerChangeRequest`); every add and remove is seen through the engine's
+   `TESContainerChangedEvent` (`chest-take-reaches-others`, `docs/re/systems/guest-world-events.md`). Per base
+   item (extra data, such as enchantments, does not travel). Next: slice 2, a container's contents from the host
+   when a guest's cell loads (leveled lists roll per game).
    a key) a proposal the host's game takes (`lock-reaches-others`). Next: containers.
 7. **World desync check:** after each scenario, compare quest stages, globals, locks and containers between
    the games, as `coop_test.py desync` does for actors.

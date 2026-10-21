@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/Primitives.h>
 #include <Misc/BSFixedString.h>
 
 // The engine's input events, as BSTEventSource<InputEvent*>::SendEvent (68655) passes them as a chain
@@ -58,3 +59,17 @@ struct MouseMoveEvent
 SKYRIM_STRUCT_ASSERT(offsetof(MouseMoveEvent, idCode) == 0x20);
 SKYRIM_STRUCT_ASSERT(offsetof(MouseMoveEvent, mouseInputX) == 0x28);
 SKYRIM_STRUCT_ASSERT(sizeof(MouseMoveEvent) == 0x30);
+
+// BSTEventSource<InputEvent*> (BSInputDeviceManager 402776 at offset 0): SendEvent (68655) calls each sink's
+// ProcessEvent, vtable slot 1 `(sink, InputEvent* const* chain, source)`, until one returns 1 (stop). IDA 2026-10-21.
+struct InputEventSource
+{
+    GameArray<void*> sinks;              // 00
+    GameArray<void*> pendingRegisters;   // 18
+    GameArray<void*> pendingUnregisters; // 30
+    uint64_t lock;                       // 48
+    bool notifying;                      // 50
+};
+SKYRIM_STRUCT_ASSERT(offsetof(InputEventSource, pendingRegisters) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(InputEventSource, lock) == 0x48);
+SKYRIM_STRUCT_ASSERT(offsetof(InputEventSource, notifying) == 0x50);

@@ -5,6 +5,7 @@
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/WorldState.h>
+#include <Services/WorldStateLog.h>
 
 #include <bit>
 
@@ -63,8 +64,12 @@ void HostWorldState::UpdateGlobals() noexcept
         it.value() = cBits;
         changed.Values.push_back({cGlobal.Id, cGlobal.Value});
     }
-    if (!changed.Values.empty())
-        m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
+    if (changed.Values.empty())
+        return;
+    spdlog::info("HostWorldState: sent {} globals: {}", changed.Values.size(), WorldStateLog::List(changed.Values, [](const GlobalValue& acValue) {
+                     return fmt::format("{:X}={}", acValue.Id.LogFormat(), acValue.Value);
+                 }));
+    m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
 }
 
 void HostWorldState::UpdateQuests() noexcept
@@ -87,8 +92,13 @@ void HostWorldState::UpdateQuests() noexcept
             m_quests[it->second] = quest;
         changed.Quests.push_back(std::move(quest));
     }
-    if (!changed.Quests.empty())
-        m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
+    if (changed.Quests.empty())
+        return;
+    spdlog::info("HostWorldState: sent {} quests{}: {}", changed.Quests.size(), changed.Join ? " (as a load)" : "",
+                 WorldStateLog::List(changed.Quests, [](const QuestState& acQuest) {
+                     return fmt::format("{:X} stage {} flags {:X}", acQuest.Id.LogFormat(), acQuest.CurrentStage, acQuest.Flags);
+                 }));
+    m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
 }
 
 void HostWorldState::UpdateObjectChanges() noexcept
@@ -98,8 +108,10 @@ void HostWorldState::UpdateObjectChanges() noexcept
     NotifyObjectChanges changes;
     changes.Changes = m_game.TakeObjectChanges();
     const ConnectionId_t cHost = m_players.Host();
-    if (cHost && !changes.Changes.empty())
-        m_players.SendToOthers(changes, cHost, TiltedPhoques::kReliable);
+    if (!cHost || changes.Changes.empty())
+        return;
+    spdlog::info("HostWorldState: sent {} object changes: {}", changes.Changes.size(), WorldStateLog::List(changes.Changes, &WorldStateLog::Describe, 16));
+    m_players.SendToOthers(changes, cHost, TiltedPhoques::kReliable);
 }
 
 void HostWorldState::SendWorldState(ConnectionId_t aPlayer) const noexcept

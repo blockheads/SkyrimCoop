@@ -1,5 +1,8 @@
 #include <Bridges/GuestEngine.h>
 
+#include <Bridges/ContainerItems.h>
+#include <ContainerEvents.h>
+
 #include <Breadcrumbs.h>
 #include <Games/Overrides.h>
 #include <Games/ReferenceStates.h>
@@ -11,6 +14,7 @@
 #include <Misc/BGSStoryManager.h>
 #include <Papyrus/WorldEvents.h>
 #include <Sky/Sky.h>
+#include <Actor.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 
@@ -139,6 +143,12 @@ void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcep
 GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
     : m_mods(acMods)
 {
+    ContainerEvents::Start();
+}
+
+GuestEngine::~GuestEngine() noexcept
+{
+    ContainerEvents::Stop();
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
@@ -222,6 +232,11 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     WorldEvents::SetDelivered(aOn);
 }
 
+std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
+{
+    return ::ReadContainerItems(m_mods, aObjectFormId, aItemFormId);
+}
+
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange) noexcept
 {
     auto* pObject = FindReference(acChange.Object, m_mods);
@@ -235,6 +250,11 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange) noexcept
     {
         PlayAnimation(*pObject, acChange);
         return true;
+    }
+    if (acChange.Type == ObjectChange::Kind::kItems)
+    {
+        auto* pItem = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));
+        return !Cast<Actor>(pObject) && pObject->SetContainerCount(pItem, static_cast<int32_t>(acChange.Value));
     }
     const ReferenceState* pState = ReferenceStates::Find(acChange.Type);
     return pState && pState->Apply(*pObject, acChange.Value);

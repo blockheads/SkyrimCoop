@@ -542,6 +542,18 @@ reported no last action while its copies had one), and `OnNotifySubtitle` played
 sound (above). `both_go` in the scenarios waited only for "each game shows the other player", which
 holds before the `coc` takes effect; it now waits for each game to arrive first.
 
+## A copy's equipment: its owner's only (2026-10-21)
+
+`EquipHook` refuses any equip on a copy outside `ScopedEquipOverride` (ours: an owner's equipment message, the
+snapshot reconcile, a spawn's inventory), and `UnEquipHook` any unequip outside it but an item leaving the copy. An
+item leaving an NPC makes the engine pick a weapon for it (inside `RemoveItem` 19689: seen as an equip of the best
+weapon it carries and an unequip of the one in hand). Our `HookRemoveInventoryItem` used to hold `ScopedEquipOverride`
+for the unequip, which let that pick through: a script taking the sword from the guest's copy put Halldir's Staff in
+its hand, its owner holding an axe, and the worn-set reconcile (every 3 s) only sometimes ran before the scenario's
+desync check. It now holds `ScopedItemRemovalOverride`, which `UnEquipHook` accepts and `EquipHook` does not.
+`sword-box-asks-client` carries the staff and checks the copy never equips it (control 2026-10-21: with the old
+override it fails at that step). Copies' equips log one line each ("Copy X equip Y: ours" or "the engine's, refused").
+
 ## Combat state and its readers (2026-10-20)
 
 Read in IDA for AI state on copies (`docs/design/copy-contract.md`, "AI state"). Names: CommonLibSSE-NG and

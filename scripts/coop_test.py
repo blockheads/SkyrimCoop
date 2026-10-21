@@ -39,6 +39,13 @@ test builds have: `scripts/xmake-msvc.sh f -m dev` configures one (--test_harnes
 `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL` and `scripts/xmake-msvc.sh build
 SkyrimCoopLoader`. A player build has neither the harness nor the hot reload.
 
+A failed scenario explains itself: under the FAIL line, what each game saw (its open menus and its plugin log
+lines, info and up, from the harness's log trail: the failing step's marked '>', backtraces symbolized), cut at
+the moment of failure. World-state messages log one line each where they are sent, applied or proposed
+(Services/WorldStateLog.h), so a missing step shows as a missing line; each key press and release logs as the
+game dispatched it (TestHarness/InputTrace.cpp: its user event, each input sink's answer, the menus open). A
+console line waits until the console ran it and fails on the console's own error (docs/re/systems/console.md).
+
 Scenarios can record an animation trace (AnimTrace: both games' graph events, actions, life state and
 positions each frame, both screens, one timeline) into build/coop-test/traces/; see host-kill-move.
 
@@ -102,7 +109,9 @@ def select_instance(name):
 
 
 class TestFailure(RuntimeError):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.time = time.time()  # wall clock, as the games' log lines: the failure digest cuts here
 
 
 def log(message):
@@ -512,8 +521,14 @@ def read_status():
     return status
 
 
+# The step a scenario waits on now, and when it began (wall clock, as the games' log lines): the failure digest
+# marks what each game logged from then on.
+CURRENT_STEP = {"description": None, "time": 0.0}
+
+
 def wait_for(description, predicate, timeout, launcher=None):
     log(description + "...")
+    CURRENT_STEP.update(description=description, time=time.time())
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         result = predicate()
@@ -637,12 +652,37 @@ def command_launch(args):
     log(f"Ready. Skyrim keeps running; stop it with: {sys.argv[0]} stop  (logs: {run_dir})")
 
 
+# What the console prints for a line it could not run (its compiler's errors): the line did nothing.
+CONSOLE_ERRORS = re.compile(r"not found|Syntax error|Missing parameter|Compiled script not saved|not run", re.IGNORECASE)
+
+
+# "<reference id>.<command>": the console takes no such line for an id starting with a digit ("1A695.getav"), so the
+# harness runs the command on the reference itself, as the console's selected one (docs/re/systems/console.md).
+CONSOLE_ON_REFERENCE = re.compile(r"^([0-9A-Fa-f]{1,8})\.(\S.*)$")
+
+
 def run_console(command, timeout=10):
-    """Runs a console command in the test game (after the boot command) and waits for it."""
-    response = rpc({"cmd": "console", "line": command}, timeout=timeout)
+    """Runs a console command in the test game (after the boot command) and waits until the console ran it; returns
+    what it printed. A line the console could not run fails the scenario with the console's own error."""
+    request = {"cmd": "console", "line": command}
+    if on_reference := CONSOLE_ON_REFERENCE.match(command):
+        request.update(line=on_reference.group(2), target=int(on_reference.group(1), 16))
+    response = rpc(request, timeout=timeout)
     if response and response.get("ok"):
+        ticket, deadline = response.get("ticket"), time.monotonic() + timeout
+        while ticket is not None:
+            result = rpc({"cmd": "console_result", "ticket": ticket}) or {}
+            if result.get("ran"):
+                output = result.get("output") or []
+                log(f"Console: {command}" + (f"  -> {' | '.join(output)}" if output else ""))
+                if errors := [line for line in output if CONSOLE_ERRORS.search(line)]:
+                    raise TestFailure(f"console could not run `{command}`: {' | '.join(errors)}")
+                return output
+            if time.monotonic() > deadline:
+                raise TestFailure(f"console line `{command}` never ran (still queued after {timeout}s)")
+            time.sleep(0.01)
         log(f"Console: {command}")
-        return
+        return []
     request_id = uuid.uuid4().hex[:12]
     atomic_write(CONTROL / "console.txt", f"{request_id} {command}\n")
     wait_for(f"Console: {command}", lambda: (read_status() or {}).get("console_id") == request_id, timeout)
@@ -931,7 +971,7 @@ def wait_on(instance, description, predicate, timeout=15):
 
 def console_on(instance, command):
     select_instance(instance)
-    run_console(command)
+    return run_console(command)
 
 
 def local_player(instance):
@@ -3306,6 +3346,15 @@ def client_on_host():
 # and opens the secret door; the sword in the stone gives it back and closes the door. The door's Open and
 # Close sequences take seconds and only play while a camera sees the door: the players watch it.
 REBELS_CAIRN_CELL, SWORD_BOX, SWORD_IN_STONE, SECRET_DOOR, RED_EAGLE_SWORD = "RebelsCairn01", 0xA05C0, 0xA05AC, 0xC149D, 0x9FD50
+HALLDIR_STAFF = 0xAB704  # worth more than the baseline's axe: the engine's pick when it chooses a weapon for an NPC
+
+
+def copy_equips(instance, copy, since):
+    """The items that game equipped on the copy itself since that trail number (EquipManager's "Copy X equip Y: ours")."""
+    lines, _ = log_trail(instance, since)
+    prefix = f"Copy {copy:X} equip "
+    return {int(line["text"][len(prefix):].split(":")[0], 16) for line in lines
+            if line["text"].startswith(prefix) and line["text"].endswith(": ours")}
 
 
 def scenario_sword_box_asks_client():
@@ -3314,10 +3363,14 @@ def scenario_sword_box_asks_client():
     the sword and hands it back to it (rule 2, docs/design/party-model.md): the host's player, who has
     none, opens the door all the same and never gets the sword. The client's own box runs nothing
     (world-state sync step 5): its sword goes once and comes back once, its door opens from the host's, and
-    it sees the host's script swap the box and the sword in the stone (step 6, enabled state)."""
+    it sees the host's script swap the box and the sword in the stone (step 6, enabled state). The client carries
+    a staff worth more than its axe: when the script takes the sword from the host's copy, the engine picks a
+    weapon for the copy (an NPC losing an item), which a copy refuses: it keeps its owner's hands."""
+    console_on("client", f"player.additem {HALLDIR_STAFF:X} 1")
     try:
         both_go(REBELS_CAIRN_CELL)
         copy = client_on_host()
+        _, since = log_trail("")
         for name in ("", "client"):
             if door_state(name, SECRET_DOOR) != DOOR_CLOSED:
                 raise TestFailure(f"[{name or 'host'}] secret door {SECRET_DOOR:X} is not closed to begin with")
@@ -3333,6 +3386,9 @@ def scenario_sword_box_asks_client():
         wait_for("[client] the player gave up the sword", lambda: item_count("client", 0x14, RED_EAGLE_SWORD) == 0, 5)
         if item_count("", 0x14, RED_EAGLE_SWORD):
             raise TestFailure("[host] the host's player holds a sword it never had")
+        wait_for("[host] the copy gave up the sword", lambda: item_count("", copy, RED_EAGLE_SWORD) == 0, 5)
+        if HALLDIR_STAFF in copy_equips("", copy, since):
+            raise TestFailure(f"[host] the copy equipped the staff its owner never held when the sword was taken from it")
         # The host's script swaps the box for the sword in the stone; the client sees it from the host (step 6).
         for name in ("", "client"):
             wait_for(f"[{name or 'host'}] the sword stands in the stone, the box is gone",
@@ -3351,6 +3407,7 @@ def scenario_sword_box_asks_client():
     finally:
         if swords := item_count("client", 0x14, RED_EAGLE_SWORD):
             console_on("client", f"player.removeitem {RED_EAGLE_SWORD:08X} {swords}")
+        console_on("client", f"player.removeitem {HALLDIR_STAFF:X} 1")
         both_go(HOME_CELL)
 
 
@@ -3547,7 +3604,7 @@ def scenario_vilkas_counts_client_hits():
         wait_for("[host] the trial is passed", lambda: 150 in host_quest(VILKAS_TRAINING)[1], 5)
     finally:
         release_host_npc(VILKAS)
-        for command in (f"{VILKAS:X}.removefromfaction {VILKAS_HATE:X}", f"{VILKAS:X}.stopcombat",
+        for command in (f"{VILKAS:X}.setfactionrank {VILKAS_HATE:X} -1", f"{VILKAS:X}.stopcombat",
                         f"{VILKAS:X}.restoreav health 1000", "resetquest C00VilkasTrainingQuest"):
             console_on("", command)
 
@@ -3565,6 +3622,116 @@ def scenario_lock_reaches_others():
         for name in ("", "client"):
             if door_lock(name, door)[0]:
                 lock_on(name, door, False)
+
+
+# A QASmoke chest of 17 stacks; the container menu's Take All (R, the game's controlmap.txt) takes them all and closes it.
+SMALL_CHEST, SWEETROLL, TAKE_ALL_KEY = 0xC2CE8, 0x64B3D, 0x13
+# The menu's lists (InventoryLists.as): 1 one panel, 2 two panels; the others are transitions, which drop input.
+ITEM_LISTS = "_root.Menu_mc.InventoryLists_mc"
+LISTS_SHOWN = (1, 2)
+
+
+def container_items(instance, chest):
+    """What the chest holds in that game: {item: count}, none of 0."""
+    return {i["item"]: i["count"] for i in player_command(instance, {"cmd": "container_items", "object": chest})["items"] if i["count"]}
+
+
+def menu_var(instance, menu, path):
+    select_instance(instance)
+    return (rpc({"cmd": "menu_var", "menu": menu, "path": path}) or {}).get("value")
+
+
+def item_differences(a, b, a_name, b_name):
+    """Where two {item: count} differ, as 'item: 2 (host) vs 0 (client)'."""
+    return "; ".join(f"{item:X}: {a.get(item, 0)} ({a_name}) vs {b.get(item, 0)} ({b_name})"
+                     for item in sorted(set(a) | set(b)) if a.get(item, 0) != b.get(item, 0))
+
+
+def take_all(instance, chest):
+    """The player opens the chest (activates it) and takes everything (R), which closes it."""
+    who = f"[{instance or 'host'}]"
+    place_before(instance, chest, 100)
+    activate_on(instance, chest)
+    wait_for(f"{who} the chest's menu shows its lists",
+             lambda: menu_var(instance, "ContainerMenu", ITEM_LISTS + ".currentState") in LISTS_SHOWN, 5)
+    tap_key(instance, TAKE_ALL_KEY)
+    wait_for(f"{who} the menu closed", lambda: takes_input(instance), 5)
+
+
+def scenario_chest_take_reaches_others():
+    """A chest's items are the host's world (world-state sync step 6). The host puts two sweetrolls in a
+    chest: the client's chest holds them too. The client takes everything: the host's chest is as the
+    client's, without sweetrolls, and the client's player holds them once. The host puts one back and
+    takes everything: the client's chest follows."""
+    chest = SMALL_CHEST
+    before = container_items("", chest)
+    held = {name: {item: item_count(name, 0x14, item) or 0 for item in [*before, SWEETROLL]} for name in ("", "client")}
+    try:
+        if (theirs := container_items("client", chest)) != before:
+            raise TestFailure(f"[client] chest {chest:X} holds other items than the host's to begin with: "
+                              + item_differences(before, theirs, "host", "client"))
+        if SWEETROLL in before:
+            raise TestFailure(f"[host] chest {chest:X} holds sweetrolls to begin with")
+        console_on("", f"{chest:X}.additem {SWEETROLL:X} 2")
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] chest {chest:X} holds 2 sweetrolls",
+                     lambda name=name: item_count(name, chest, SWEETROLL) == 2, 5)
+        take_all("client", chest)
+        if "ContainerMenu" in menus(""):
+            raise TestFailure("[host] the client's opening of the chest opened the host's menu")
+        left = container_items("client", chest)
+        if SWEETROLL in left:
+            raise TestFailure(f"[client] Take All left {left[SWEETROLL]} sweetrolls in the chest")
+        try:
+            wait_for(f"[host] chest {chest:X} holds what the client's does ({len(left)} kinds)",
+                     lambda: container_items("", chest) == left, 5)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: {item_differences(container_items('', chest), left, 'host', 'client')}") from None
+        copy = client_on_host()
+        wait_for("[host] the client's character holds the sweetrolls", lambda: item_count("", copy, SWEETROLL) == 2, 5)
+        if (rolls := item_count("client", 0x14, SWEETROLL)) != held["client"][SWEETROLL] + 2:
+            raise TestFailure(f"[client] the player holds {rolls} sweetrolls, not {held['client'][SWEETROLL] + 2}")
+        # The other way: the host's own take empties the client's chest of it.
+        console_on("", f"{chest:X}.additem {SWEETROLL:X} 1")
+        wait_for("[client] the sweetroll is in its chest", lambda: item_count("client", chest, SWEETROLL) == 1, 5)
+        take_all("", chest)
+        wait_for(f"[client] chest {chest:X} holds no sweetroll", lambda: item_count("client", chest, SWEETROLL) == 0, 5)
+        if container_items("client", chest) != container_items("", chest):
+            raise TestFailure(f"[client] chest {chest:X} holds other items than the host's")
+        if (rolls := item_count("client", 0x14, SWEETROLL)) != held["client"][SWEETROLL] + 2:
+            raise TestFailure(f"[client] the player holds {rolls} sweetrolls: the host's take reached it")
+    finally:
+        passed = sys.exc_info()[0] is None  # a failed step's name is the failure, not the clean-up's
+        for name in ("", "client"):
+            for item, count in held[name].items():
+                if (taken := (item_count(name, 0x14, item) or 0) - count) > 0:
+                    console_on(name, f"player.removeitem {item:X} {taken}")
+        for item, count in before.items():
+            if (missing := count - (item_count("", chest, item) or 0)) > 0:
+                console_on("", f"{chest:X}.additem {item:X} {missing}")
+        if extra := item_count("", chest, SWEETROLL):
+            console_on("", f"{chest:X}.removeitem {SWEETROLL:X} {extra}")
+        if passed:
+            wait_for("[client] the chest is as it was", lambda: container_items("client", chest) == before, 5)
+
+
+def guest_locks_taken(since):
+    """The guests' lock proposals the host's game took since that trail number (its log trail)."""
+    lines, _ = log_trail("", since)
+    return [line["text"] for line in lines if line["text"].startswith("HostEngine: took a guest's lock")]
+
+
+def scenario_guest_loads_propose_no_locks():
+    """A guest's own world changes no lock on the host's: its cell loads and its world scripts record lock changes
+    (AddLockChange from scripts' OnLoad and the engine's cell jobs), which only a player's lockpick or key may
+    propose. The party goes to Riverwood and back: the host takes none of the guest's."""
+    _, since = log_trail("")
+    try:
+        both_go(OUTDOOR_CELL)
+        both_go(HOME_CELL)
+    finally:
+        if taken := guest_locks_taken(since):
+            raise TestFailure(f"[host] took {len(taken)} lock changes from the guest's loads: " + "; ".join(t[len("HostEngine: took a guest's "):] for t in taken[:5]))
 
 
 REFR_LOCK = 1 << 12  # REFR change flag LockExtra
@@ -3630,6 +3797,86 @@ def script_var(instance, form, script, name, value=None):
         request["value"] = value
     response = player_command(instance, request)
     return response["value"]
+
+
+def log_trail(instance, since=0):
+    """That game's plugin log lines (info and up) numbered `since` and later, and the next number (harness log_trail)."""
+    response = player_command(instance, {"cmd": "log_trail", "since": since})
+    return response["lines"], response["next"]
+
+
+def trail_marks():
+    """Where each game's log trail is now, to read from on a failure."""
+    marks = {}
+    for name in ("", "client"):
+        try:
+            marks[name] = log_trail(name, 1 << 62)[1]
+        except (TestFailure, OSError, KeyError):
+            marks[name] = None
+    return marks
+
+
+SYMBOLIZE = {}
+
+
+def symbolized(text):
+    """A log line's backtrace frames ("backtrace #NN module+0xOFF") with names (scripts/re/symbolize_crash.py); the
+    lock-order checker's own frames left out."""
+    if "backtrace #" not in text:
+        return text
+    if not SYMBOLIZE:
+        sys.path.insert(0, str(ROOT / "scripts/re"))
+        import symbolize_crash
+        SYMBOLIZE.update(module=symbolize_crash, engine=symbolize_crash.engine_resolver())
+    module = SYMBOLIZE["module"]
+    out = []
+    for line in text.split("\n"):
+        match = module.FRAME.search(line)
+        if not match:
+            out.append(line)
+            continue
+        number, where, offset = match.group(1), match.group(2), int(match.group(3), 16)
+        if where.lower() == "skyrimse.exe":
+            name = SYMBOLIZE["engine"](offset)
+        elif where.lower().startswith(DLL.stem.lower()):
+            name = module.symbolize_ours(DLL, offset)
+            if "LockOrder.cpp" in name:
+                continue
+        else:
+            name = ""
+        out.append(f"      #{number} {where}+{offset:#x}  {name}")
+    return "\n".join(out)
+
+
+def failure_digest(marks, started, failed_at, keep=60, context=10):
+    """What each game saw during a failed scenario, up to the failure: its open menus, its log lines from the failing
+    step on (marked '>', the last `keep`), the `context` before them and every warning and error of the scenario.
+    Printed under the failure, so it explains itself."""
+    step = CURRENT_STEP
+    out = [f"  failing step: {step['description']}" if step["description"] else "  failing step: none waited on"]
+    for name in ("", "client"):
+        who = name or "host"
+        try:
+            lines, _ = log_trail(name, marks.get(name) or 0) if marks.get(name) is not None else ([], 0)
+            open_menus = sorted(menus(name) - {"HUD Menu"})
+        except (TestFailure, OSError, KeyError) as error:
+            out.append(f"  [{who}] no trail: {error}")
+            continue
+        # A line logged within a moment of the failure is still its own; later ones are the clean-up's.
+        before = [line for line in lines if line["time_ms"] / 1000 <= failed_at + 0.25]
+        in_step = [line for line in before if line["time_ms"] / 1000 >= step["time"]][-keep:]
+        earlier = [line for line in before if line["time_ms"] / 1000 < step["time"]]
+        shown = {line["seq"] for line in earlier[-context:]}
+        earlier = [line for line in earlier if line["seq"] in shown or line["level"] != "info"]
+        left_out = len(lines) - len(in_step) - len(earlier)
+        out.append(f"  [{who}] menus open: {', '.join(open_menus) or 'none'}; log lines: {len(in_step)} in the failing step, "
+                   f"{len(earlier)} before it" + (f" ({left_out} more left out)" if left_out else "") + ":")
+        for line in earlier + in_step:
+            at = line["time_ms"] / 1000
+            mark = ">" if at >= step["time"] else " "
+            level = "" if line["level"] == "info" else f"{line['level']}: "
+            out.append(f"  {mark} {at - started:6.2f}s {level}{symbolized(line['text'])}")
+    return "\n".join(out)
 
 
 def engine_events(instance, since=0):
@@ -4401,6 +4648,8 @@ SCENARIOS = {
     # objects
     "door-opens-for-both": scenario_door_opens_for_both,
     "lock-reaches-others": scenario_lock_reaches_others,
+    "chest-take-reaches-others": scenario_chest_take_reaches_others,
+    "guest-loads-propose-no-locks": scenario_guest_loads_propose_no_locks,
     "load-door-not-replayed": scenario_load_door_not_replayed,
     "plate-counts-client": scenario_plate_counts_client,
     "sword-box-asks-client": scenario_sword_box_asks_client,
@@ -4491,6 +4740,8 @@ TAGS = {
     "burning-shows-on-copy": {'combat', 'magic'},
     "door-opens-for-both": {'objects'},
     "lock-reaches-others": {'objects'},
+    "chest-take-reaches-others": {'objects', 'inventory'},
+    "guest-loads-propose-no-locks": {'objects', 'cells'},
     "load-door-not-replayed": {'objects', 'cells'},
     "plate-counts-client": {'objects', 'scripts', 'cells'},
     "sword-box-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
@@ -5200,6 +5451,8 @@ def command_scenario(args):
     for index, name in enumerate(order):
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
         scenario_start = time.monotonic()
+        marks, wall_start = trail_marks(), time.time()
+        CURRENT_STEP.update(description=None, time=wall_start)
         try:
             known_locks = lock_order_reports()
             SCENARIOS[name]()
@@ -5216,6 +5469,7 @@ def command_scenario(args):
             result = "PASS"
         except TestFailure as error:
             result = f"FAIL ({error})"
+            log(f"=== {name}: what each game saw\n" + failure_digest(marks, wall_start, error.time))
         # Back to the baseline for the next one; what the reset cannot undo is this scenario's.
         leftovers = settle_baseline()
         if leftovers:

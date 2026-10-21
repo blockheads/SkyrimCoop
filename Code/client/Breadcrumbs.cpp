@@ -1,4 +1,5 @@
 #include "Breadcrumbs.h"
+#include <Games/Rtti.h>
 
 #include <windows.h>
 
@@ -58,63 +59,14 @@ Channel* ChannelOf(const char* acpWhat) noexcept
 
 std::atomic_flag s_lock = ATOMIC_FLAG_INIT;
 
-// The object a hook ran on, from its MSVC RTTI: "Actor FF00081E" for a form, "NiNode" otherwise,
-// "" when it is not (yet) an object of the game's: a hook's first argument may be a number, or an
-// object still being constructed. Never faults: our crash handler takes any access violation for a
-// crash, so every address is checked before it is read.
+// The object a hook ran on: "Actor FF00081E" for a form, "NiNode" otherwise, "" when it is not (yet) an object of the
+// game's: a hook's first argument may be a number, or an object still being constructed.
 void Describe(const void* apObject, char* apOut, size_t aSize) noexcept
 {
-    apOut[0] = '\0';
-    static const uintptr_t s_base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-    static const uintptr_t s_end = s_base + reinterpret_cast<const IMAGE_NT_HEADERS*>(
-                                                s_base + reinterpret_cast<const IMAGE_DOS_HEADER*>(s_base)->e_lfanew)
-                                                ->OptionalHeader.SizeOfImage;
-    // Written so that no sum can wrap around (a null vtable minus 8 is near the top of memory).
-    const auto inImage = [](uintptr_t aAddress, size_t aSize) { return aAddress >= s_base && aAddress < s_end && aSize <= s_end - aAddress; };
-    const auto rva = [](uint32_t aOffset) { return s_base + aOffset; };
-
-    MEMORY_BASIC_INFORMATION info{};
-    if (VirtualQuery(apObject, &info, sizeof(info)) == 0 || info.State != MEM_COMMIT ||
-        (info.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0 ||
-        reinterpret_cast<uintptr_t>(apObject) + 0x18 > reinterpret_cast<uintptr_t>(info.BaseAddress) + info.RegionSize)
+    if (!Rtti::ClassName(apObject, apOut, aSize - 12) || !Rtti::IsForm(apObject))
         return;
-
-    const auto cVTable = *static_cast<const uintptr_t*>(apObject);
-    if (!inImage(cVTable - 8, 8))
-        return;
-    const auto cLocator = *reinterpret_cast<const uintptr_t*>(cVTable - 8); // CompleteObjectLocator
-    if (!inImage(cLocator, 24))
-        return;
-    const auto* pLocator = reinterpret_cast<const uint32_t*>(cLocator);
-    if (pLocator[0] != 1 || !inImage(rva(pLocator[3]) + 16, 64) || !inImage(rva(pLocator[4]), 16))
-        return;
-
-    // ".?AVActor@@" -> "Actor"
-    const char* pStart = reinterpret_cast<const char*>(rva(pLocator[3]) + 16 + 4);
-    size_t length = 0;
-    while (length < 40 && pStart[length] && pStart[length] != '@')
-        ++length;
-
-    // A form (TESForm among its bases) shows its form id.
-    bool isForm = false;
-    const auto* pHierarchy = reinterpret_cast<const uint32_t*>(rva(pLocator[4]));
-    if (inImage(rva(pHierarchy[3]), pHierarchy[2] * 4))
-    {
-        const auto* pBases = reinterpret_cast<const uint32_t*>(rva(pHierarchy[3]));
-        for (uint32_t i = 0; i < pHierarchy[2] && i < 64; ++i)
-        {
-            if (!inImage(rva(pBases[i]), 4) || !inImage(rva(*reinterpret_cast<const uint32_t*>(rva(pBases[i]))) + 16, 14))
-                continue;
-            if (memcmp(reinterpret_cast<const char*>(rva(*reinterpret_cast<const uint32_t*>(rva(pBases[i]))) + 16), ".?AVTESForm@@", 14) == 0)
-                isForm = true;
-        }
-    }
-
-    const size_t cCopied = length < aSize - 12 ? length : aSize - 12;
-    memcpy(apOut, pStart, cCopied);
-    apOut[cCopied] = '\0';
-    if (isForm)
-        snprintf(apOut + cCopied, aSize - cCopied, " %08X", *reinterpret_cast<const uint32_t*>(static_cast<const uint8_t*>(apObject) + 0x14));
+    const size_t cLength = strlen(apOut);
+    snprintf(apOut + cLength, aSize - cLength, " %08X", *reinterpret_cast<const uint32_t*>(static_cast<const uint8_t*>(apObject) + 0x14));
 }
 
 void Add(const char* acpWhat, const void* apObject, uint32_t aFormId, uint32_t aDetail) noexcept

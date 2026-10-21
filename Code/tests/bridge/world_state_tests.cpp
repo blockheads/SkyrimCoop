@@ -194,21 +194,27 @@ TEST_CASE("World state: a joining player gets every quest, as a load", "[Bridge]
 TEST_CASE("World state: the host's world objects' changes reach the others in order, once", "[Bridge][WorldState]")
 {
     Session session;
-    // The sword in the stone: the box goes, its manager opens the secret door, an animation plays.
+    // The sword in the stone: the box goes, its manager opens the secret door, an animation plays; a chest
+    // holds two sweetrolls.
+    ObjectChange items{ObjectChange::Kind::kItems, GameId(0, 0xA05B5)};
+    items.Item = GameId(0, 0x64B3D);
+    items.Value = 2;
     session.ObjectChanges = {{ObjectChange::Kind::kEnabled, GameId(0, 0xA05C0)},
                              {ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}},
-                             {ObjectChange::Kind::kAnimation, GameId(0, 0xA05C0), {}, 0, {}, "Open"}};
+                             {ObjectChange::Kind::kAnimation, GameId(0, 0xA05C0), {}, 0, {}, "Open"},
+                             items};
     session.Frame(1000);
     for (const auto cTo : {kPeer, kOtherPeer})
     {
         const auto cSent = session.SentTo<NotifyObjectChanges>(cTo);
         REQUIRE(cSent.size() == 1);
-        REQUIRE(cSent[0]->Changes.size() == 3);
+        REQUIRE(cSent[0]->Changes.size() == 4);
         CHECK(cSent[0]->Changes[0].Type == ObjectChange::Kind::kEnabled);
         CHECK(cSent[0]->Changes[0].Value == 0);
         CHECK(cSent[0]->Changes[1].Type == ObjectChange::Kind::kActivate);
         CHECK(cSent[0]->Changes[1].Activator == GameId(0, 0xA05C4));
         CHECK(cSent[0]->Changes[2].Event == "Open");
+        CHECK(cSent[0]->Changes[3] == items);
     }
     CHECK(session.SentTo<NotifyObjectChanges>(kHost).empty());
 

@@ -7,7 +7,6 @@ struct World;
 struct TransportService;
 
 struct UpdateEvent;
-struct NotifyObjectInventoryChanges;
 struct NotifyInventoryChanges;
 struct InventoryChangeEvent;
 struct EquipmentChangeEvent;
@@ -16,12 +15,12 @@ struct NotifyEquipmentSnapshot;
 struct NotifyDrawWeapon;
 
 /**
- * @brief Manages inventories of actors and containers.
+ * @brief Manages actors' inventories.
  *
  * The initial contents of actor inventories are synced through spawn messages through CharacterService
  * @see CharacterService
- * The InventoryService manages changes to actors' equipment and to actor and container inventories
- * (containers' contents are not synced on entering a cell).
+ * The InventoryService manages changes to actors' equipment and inventories. Containers' items are world
+ * state: the host's (HostWorldState, GuestWorldState).
  */
 struct InventoryService
 {

@@ -363,6 +363,27 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
+    SECTION("ContainerChangeRequest")
+    {
+        Buffer buff(1000);
+
+        ContainerChangeRequest sendMessage, recvMessage;
+        sendMessage.Container = GameId(0, 0xA05B5);
+        sendMessage.Item = GameId(2, 0x64B3D);
+        sendMessage.Count = 70000;
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+    }
+
     SECTION("RequestRespawn")
     {
         for (const bool cHasState : {false, true})
@@ -493,6 +514,10 @@ TEST_CASE("Packets", "[encoding.packets]")
         ObjectChange lock{ObjectChange::Kind::kLock, GameId(0, 0x1A2B)};
         lock.Value = 0x132; // locked, level 50
         sendMessage.Changes.push_back(lock);
+        ObjectChange items{ObjectChange::Kind::kItems, GameId(0, 0xA05B5)};
+        items.Item = GameId(0, 0x64B3D);
+        items.Value = 300;
+        sendMessage.Changes.push_back(items);
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

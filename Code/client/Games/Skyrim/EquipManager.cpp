@@ -152,8 +152,10 @@ void* TP_MAKE_THISCALL(EquipHook, EquipManager, Actor* apActor, TESForm* apItem,
     const auto pExtension = apActor->GetExtension();
     if (pExtension->IsCopy())
     {
-        spdlog::debug("Actor[{:X}]::Equip(), item form id: {:X}", apActor->formID, apItem->formID);
-        if (!ScopedEquipOverride::IsOverriden())
+        // A copy takes only its owner's equipment (ours, under ScopedEquipOverride); the engine's own is refused.
+        const bool cOurs = ScopedEquipOverride::IsOverriden();
+        spdlog::info("Copy {:X} equip {:X}: {}", apActor->formID, apItem->formID, cOurs ? "ours" : "the engine's, refused");
+        if (!cOurs)
             return nullptr;
     }
 
@@ -185,10 +187,11 @@ void* TP_MAKE_THISCALL(UnEquipHook, EquipManager, Actor* apActor, TESForm* apIte
     const auto pExtension = apActor->GetExtension();
     if (pExtension->IsCopy())
     {
-        spdlog::debug("Actor[{:X}]::Unequip(), item form id: {:X}, IsOverridden, equip: {}, inventory: {}", apActor->formID, apItem->formID, ScopedEquipOverride::IsOverriden(), ScopedInventoryOverride::IsOverriden());
-        // The ScopedInventoryOverride check is here to allow the item to be unequipped if it is removed
-        // Without this check, the game will not accept null as a return, and it'll keep trying to unequip infinitely
-        if (!ScopedEquipOverride::IsOverriden() && !ScopedInventoryOverride::IsOverriden())
+        // An item leaving the copy is unequipped: refused, the game would keep trying to unequip it.
+        const bool cRemoved = ScopedInventoryOverride::IsOverriden() || ScopedItemRemovalOverride::IsOverriden();
+        spdlog::info("Copy {:X} unequip {:X}: {}", apActor->formID, apItem->formID,
+                     ScopedEquipOverride::IsOverriden() ? "ours" : cRemoved ? "ours (item removed)" : "the engine's, refused");
+        if (!ScopedEquipOverride::IsOverriden() && !cRemoved)
             return nullptr;
     }
 

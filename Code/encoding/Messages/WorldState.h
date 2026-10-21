@@ -99,14 +99,15 @@ struct NotifyQuests final : ServerMessage
 };
 
 // A world object changing on the host's game in a way no other message carries (steps 5 and 6): a script's event (a
-// door it activated by a reference, `Activate(Self)`, or an animation it played), or a reference's state, as one
-// value its row packs (client `Games/ReferenceStates.cpp`).
+// door it activated by a reference, `Activate(Self)`, or an animation it played), a container's count of an item, or a
+// reference's state, as one value its row packs (client `Games/ReferenceStates.cpp`).
 struct ObjectChange
 {
     enum class Kind : uint8_t
     {
         kActivate,
         kAnimation,
+        kItems, // a container holds Value of Item now
         // States, from here on: Value.
         kEnabled,
         kLock,
@@ -118,12 +119,13 @@ struct ObjectChange
     uint8_t OpenState{};             // kActivate: the door's open state before
     TiltedPhoques::String Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
     TiltedPhoques::String Event;     // kAnimation
-    uint32_t Value{};                // a state's
+    GameId Item{};                   // kItems: the base item
+    uint32_t Value{};                // a state's; kItems: the count
 
     bool operator==(const ObjectChange& acRhs) const noexcept
     {
         return Type == acRhs.Type && Object == acRhs.Object && Activator == acRhs.Activator && OpenState == acRhs.OpenState &&
-               Animation == acRhs.Animation && Event == acRhs.Event && Value == acRhs.Value;
+               Animation == acRhs.Animation && Event == acRhs.Event && Item == acRhs.Item && Value == acRhs.Value;
     }
 };
 

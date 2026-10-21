@@ -294,7 +294,7 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }
 
-TEST_CASE("Objects: an activation reaches everyone else; a guest's lock is the host's to take", "[Bridge][Objects]")
+TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and container change are the host's to take", "[Bridge][Objects]")
 {
     Session session;
     const uint32_t cPlayer = session.Character(kPeer);
@@ -331,4 +331,18 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock is the h
     // The host's own lock goes out with its object changes, not this way.
     session.Receive(kHost, lock);
     CHECK(session.LocksSet.size() == 1);
+
+    // A guest took from a chest: the host's game takes its count now; nothing is relayed.
+    ContainerChangeRequest items;
+    items.Container = GameId(0, 0xA05B5);
+    items.Item = GameId(0, 0x64B3D);
+    items.Count = 1;
+    session.Receive(kPeer, items);
+    REQUIRE(session.ItemsSet.size() == 1);
+    CHECK(session.ItemsSet[0] == std::tuple{GameId(0, 0xA05B5), GameId(0, 0x64B3D), 1u});
+    CHECK(session.Outbox.empty());
+
+    // The host's own containers go out with its object changes.
+    session.Receive(kHost, items);
+    CHECK(session.ItemsSet.size() == 1);
 }

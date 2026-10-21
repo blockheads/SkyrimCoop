@@ -20,7 +20,7 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/AssignObjectsRequest.h>
 #include <Messages/RequestDeathStateChange.h>
-#include <Messages/RequestObjectInventoryChanges.h>
+#include <Messages/ContainerChangeRequest.h>
 #include <Messages/SpellCastRequest.h>
 #include <Messages/InterruptCastRequest.h>
 #include <Messages/AddTargetRequest.h>
@@ -55,11 +55,11 @@ struct ClientMessageFactory
         auto s_visitor = CreateMessageVisitor<
             AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges, RequestQuestUpdate,
             RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, 
-            RequestObjectInventoryChanges, SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
+            SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
             RequestEquipmentChanges, SendChatMessageRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerLevelRequest, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot, EnterCellRequest, RequestActiveEffects, TimeScaleRequest,
             DialogueStartRequest, DialogueOpenedRequest, DialogueOptionsRequest, DialoguePickRequest, DialogueCloseRequest,
-            DialogueJoinRequest, DialogueExperienceRequest>;
+            DialogueJoinRequest, DialogueExperienceRequest, ContainerChangeRequest>;
 
         return s_visitor(std::forward<T>(func));
     }

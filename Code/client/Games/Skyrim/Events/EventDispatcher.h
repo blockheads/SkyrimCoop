@@ -71,11 +71,16 @@ struct TESCombatEvent
 {
 };
 
+// Sent by InventoryChanges::SendContainerChangedEvent (16149) on every add and remove but a leveled roll.
 struct TESContainerChangedEvent
 {
-    uint32_t oldContainerID;
-    uint32_t newContainerID;
-    uint8_t pad8[0xC];
+    uint32_t oldContainerID; // 00, 0 when the item came from nowhere
+    uint32_t newContainerID; // 04, 0 when it went nowhere
+    uint32_t baseObjectID;   // 08
+    int32_t itemCount;       // 0C
+    uint32_t referenceHandle; // 10
+    uint16_t uniqueID;       // 14
+    uint16_t pad16;
 };
 
 struct TESDeathEvent
@@ -363,6 +368,9 @@ SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, activateEvent) == 88);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, deathEvent) == 880);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, lockChangedEvent) == 1760);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, furnitureEvent) == 1320);
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, containerChangedEvent) == 792); // 16149 sends to +0x318
+SKYRIM_STRUCT_ASSERT(sizeof(TESContainerChangedEvent) == 0x18);
+SKYRIM_STRUCT_ASSERT(offsetof(TESContainerChangedEvent, itemCount) == 0x0C);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, resetEvent) == 2904);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, trackedStatsEvent) == 3872);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, triggerEvent) == 4048);

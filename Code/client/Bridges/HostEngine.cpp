@@ -1,5 +1,8 @@
 #include <Bridges/HostEngine.h>
 
+#include <Bridges/ContainerItems.h>
+#include <ContainerEvents.h>
+
 #include <Breadcrumbs.h>
 #include <Systems/ModSystem.h>
 
@@ -10,6 +13,7 @@
 #include <Games/ReferenceStates.h>
 #include <Games/TES.h>
 #include <Sky/Sky.h>
+#include <Actor.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 
@@ -100,12 +104,14 @@ HostEngine::HostEngine(const ModSystem& acMods) noexcept
 {
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
+    ContainerEvents::Start();
 }
 
 HostEngine::~HostEngine() noexcept
 {
     FormChanges::Unwatch(&OnFormChange);
     s_changed.Take();
+    ContainerEvents::Stop();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept
@@ -176,11 +182,34 @@ void HostEngine::RecordAnimation(uint32_t aObjectFormId, const TiltedPhoques::St
         m_events.push_back(std::move(event));
 }
 
+void HostEngine::RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
+{
+    if (auto change = ReadContainerItems(m_mods, aObjectFormId, aItemFormId))
+        m_events.push_back(std::move(*change));
+}
+
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept
 {
     // Goes out from the funnel, as any of the host's lock changes.
-    if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acObject))))
-        pObject->SetLockState(aLocked, aLockLevel);
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acObject)));
+    if (pObject && pObject->SetLockState(aLocked, aLockLevel))
+        spdlog::info("HostEngine: took a guest's lock {:X} {} at {}", acObject.LogFormat(), aLocked ? "locked" : "unlocked", aLockLevel);
+    else
+        spdlog::warn("HostEngine: a guest's lock {:X}: no such object here", acObject.LogFormat());
+}
+
+void HostEngine::SetItems(const GameId& acObject, const GameId& acItem, uint32_t aCount) noexcept
+{
+    const uint32_t cObjectId = m_mods.GetGameId(acObject);
+    const uint32_t cItemId = m_mods.GetGameId(acItem);
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cObjectId));
+    if (pObject && !Cast<Actor>(pObject) && pObject->SetContainerCount(Cast<TESBoundObject>(TESForm::GetById(cItemId)), static_cast<int32_t>(aCount)))
+    {
+        spdlog::info("HostEngine: took a guest's items {:X} holds {} of {:X}", acObject.LogFormat(), aCount, acItem.LogFormat());
+        RecordItems(cObjectId, cItemId);
+    }
+    else
+        spdlog::warn("HostEngine: a guest's items {:X} holds {} of {:X}: no such container or item here", acObject.LogFormat(), aCount, acItem.LogFormat());
 }
 
 TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept

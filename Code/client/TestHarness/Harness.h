@@ -4,6 +4,8 @@
 #include "CommandServer.h"
 #include "ControlFiles.h"
 #include "EngineEvents.h"
+#include "InputTrace.h"
+#include "LogTrail.h"
 #include "PlayerInput.h"
 
 namespace TestHarness
@@ -18,6 +20,8 @@ struct Harness
     CommandServer Commands;
     AnimationTrace Trace;
     EngineEvents Events;
+    LogTrail Logs;
+    InputTrace Inputs;
     bool CommandsStarted = false;
 };
 } // namespace TestHarness

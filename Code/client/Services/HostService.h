@@ -7,6 +7,7 @@ struct World;
 struct UpdateEvent;
 struct ActivateEvent;
 struct ScriptAnimationEvent;
+struct ContainerChangeEvent;
 
 namespace Server
 {
@@ -71,10 +72,11 @@ protected:
      * @param acEvent Update event with delta time
      */
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
-    // The host's world scripts' events for HostWorldState: doors and animations (docs/design/world-state-sync.md
-    // step 5). State (enabled, locks) HostEngine reads from the change funnel itself.
+    // The host's world scripts' events and containers' items for HostWorldState: doors, animations, item counts
+    // (docs/design/world-state-sync.md steps 5-6). State (enabled, locks) HostEngine reads from the change funnel itself.
     void OnActivate(const ActivateEvent& acEvent) noexcept;
     void OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept;
+    void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
 
 private:
     World& m_world;
@@ -91,4 +93,5 @@ private:
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_activateConnection;
     entt::scoped_connection m_scriptAnimationConnection;
+    entt::scoped_connection m_containerChangeConnection;
 };

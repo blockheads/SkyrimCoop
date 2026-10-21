@@ -50,6 +50,12 @@ struct Quest
 struct SpellCast
 {
 };
+struct PlayerLock
+{
+};
+struct ItemRemoval
+{
+};
 struct HostChange
 {
 };
@@ -65,5 +71,9 @@ using ScopedInventoryOverride = ScopedOverride<details::Inventory>;
 using ScopedExtraDataOverride = ScopedOverride<details::ExtraData>;
 using ScopedQuestOverride = ScopedOverride<details::Quest>;
 using ScopedSpellCastOverride = ScopedOverride<details::SpellCast>;
+// The player's own lock change happens inside (a lockpick, a key): the lock sync tells it from the world's.
+using ScopedPlayerLockOverride = ScopedOverride<details::PlayerLock>;
+// An item leaves an actor: a copy may unequip it, but not equip another (the engine picks one for an NPC).
+using ScopedItemRemovalOverride = ScopedOverride<details::ItemRemoval>;
 // A guest applying the host's object change: our object hooks raise no events for it.
 using ScopedHostChangeOverride = ScopedOverride<details::HostChange>;

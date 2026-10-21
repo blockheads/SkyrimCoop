@@ -1,5 +1,6 @@
 #include <TiltedOnlinePCH.h>
 #include "Commands.h"
+#include "ConsoleOutput.h"
 #include "EngineCalls.h"
 
 // Setting up a scenario: console lines, menus, the camera, where the player stands, a copy's drift.
@@ -7,13 +8,26 @@ namespace TestHarness
 {
 namespace
 {
-// {"cmd": "console", "line": "..."}: runs the line as the console does.
+// {"cmd": "console", "line": "...", "target"?: id}: queues the line as the console does, on the target reference if
+// given (as the console's selected one); "ticket" reads its result (console_result).
 nlohmann::json Console(Harness&, const nlohmann::json& acRequest)
 {
     const std::string cLine = acRequest.value("line", "");
-    spdlog::info("Console command (rpc): {}", cLine);
+    const uint32_t cTarget = acRequest.value("target", 0u);
+    if (cTarget)
+        spdlog::info("Console command (rpc): {:X}: {}", cTarget, cLine);
+    else
+        spdlog::info("Console command (rpc): {}", cLine);
+    const uint64_t cTicket = ConsoleOutput::Expect(cLine, cTarget);
     EngineCalls::RunConsoleCommand(cLine);
-    return Ok();
+    return {{"ok", true}, {"ticket", cTicket}};
+}
+
+// {"cmd": "console_result", "ticket": n}: whether the line ran yet and, once it has, what the console printed for it.
+nlohmann::json ConsoleResult(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cOutput = ConsoleOutput::Take(acRequest.value("ticket", uint64_t(0)));
+    return {{"ok", true}, {"ran", cOutput.has_value()}, {"output", cOutput ? nlohmann::json(*cOutput) : nlohmann::json::array()}};
 }
 
 // {"cmd": "menu", "name": "Console", "show": true}: opens or closes a menu like the game.
@@ -83,7 +97,7 @@ nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 }
 
 constexpr Command cCommands[] = {
-    {"console", true, &Console}, {"menu", false, &Menu}, {"first_person", true, &FirstPerson},
+    {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"clear_map_marker", true, &ClearMapMarker},
 };

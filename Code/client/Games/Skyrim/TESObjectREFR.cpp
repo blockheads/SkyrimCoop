@@ -495,6 +495,41 @@ int64_t TESObjectREFR::GetItemCountInInventory(TESForm* apItem) const noexcept
     return count;
 }
 
+ExtraContainerChanges::Data* TESObjectREFR::FindContainerChanges() const noexcept
+{
+    TP_THIS_FUNCTION(TGetInventoryChanges, ExtraContainerChanges::Data*, const TESObjectREFR);
+    POINTER_SKYRIMSE(TGetInventoryChanges, s_getInventoryChanges, 16039);
+    return TiltedPhoques::ThisCall(s_getInventoryChanges, this);
+}
+
+std::optional<int32_t> TESObjectREFR::GetContainerCount(TESBoundObject* apItem) const noexcept
+{
+    TP_THIS_FUNCTION(TGetItemCount, int32_t, ExtraContainerChanges::Data, TESBoundObject*);
+    POINTER_SKYRIMSE(TGetItemCount, s_getItemCount, 16108); // InventoryChanges::GetItemCount
+
+    const TESContainer* pContainer = GetContainer();
+    if (!apItem || !pContainer)
+        return std::nullopt;
+    // No changes yet (nothing touched it): its base container's, leveled entries not rolled (14529 returns an int).
+    auto* pChanges = FindContainerChanges();
+    if (!pChanges)
+        return std::abs(static_cast<int32_t>(pContainer->GetItemCount(apItem)));
+    return std::abs(TiltedPhoques::ThisCall(s_getItemCount, pChanges, apItem));
+}
+
+bool TESObjectREFR::SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept
+{
+    const auto cHeld = GetContainerCount(apItem);
+    if (!cHeld)
+        return false;
+    ScopedInventoryOverride _;
+    if (aCount > *cHeld)
+        AddObjectToContainer(apItem, nullptr, aCount - *cHeld, nullptr);
+    else if (aCount < *cHeld)
+        RemoveItem(apItem, *cHeld - aCount, ITEM_REMOVE_REASON::kRemove, nullptr, nullptr);
+    return true;
+}
+
 TESObjectCELL* TESObjectREFR::GetParentCellEx() const noexcept
 {
     return parentCell ? parentCell : GetParentCell();
@@ -1041,6 +1076,12 @@ bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, u
         World::Get().GetRunner().Trigger(evt);
     }
 
+    // A door or container the player opens with its key unlocks inside (TESObjectDOOR/CONT::Activate).
+    if (apActivator && apActivator == PlayerCharacter::Get())
+    {
+        ScopedPlayerLockOverride _;
+        return TiltedPhoques::ThisCall(RealActivate, apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);
+    }
     return TiltedPhoques::ThisCall(RealActivate, apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);
 }
 
@@ -1088,7 +1129,7 @@ TP_MAKE_THISCALL(HookRemoveInventoryItem, TESObjectREFR, BSPointerHandle<TESObje
 
     spdlog::debug("Removing inventory item {:X} from {:X}", apItem->formID, apThis->formID);
 
-    ScopedEquipOverride _;
+    ScopedItemRemovalOverride _;
 
     return TiltedPhoques::ThisCall(RealRemoveInventoryItem, apThis, apResult, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apRotate);
 }
@@ -1138,10 +1179,21 @@ void TP_MAKE_THISCALL(HookLockChange, TESObjectREFR)
     if (ScopedHostChangeOverride::IsOverriden())
         return;
     const auto* pLock = apThis->GetLock();
+    const bool cByPlayer = ScopedPlayerLockOverride::IsOverriden();
     if(pLock)
-        World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, pLock->IsLocked(), pLock->lockLevel));
+        World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, pLock->IsLocked(), pLock->lockLevel, cByPlayer));
     else
-        World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, false, 0));
+        World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, false, 0, cByPlayer));
+}
+
+// LockpickingMenu::Unlock (51968, `void (LockpickingMenu*)`): the player's lockpick opened it.
+TP_THIS_FUNCTION(TLockpickUnlock, void, void);
+static TLockpickUnlock* RealLockpickUnlock = nullptr;
+
+void TP_MAKE_THISCALL(HookLockpickUnlock, void)
+{
+    ScopedPlayerLockOverride _;
+    TiltedPhoques::ThisCall(RealLockpickUnlock, apThis);
 }
 
 static TiltedPhoques::Initializer s_objectReferencesHooks(
@@ -1157,6 +1209,7 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         POINTER_SKYRIMSE(TRemoveInventoryItem, s_removeInventoryItem, 19689);
         POINTER_SKYRIMSE(TPlayAnimationAndWait, s_playAnimationAndWait, 56206);
         POINTER_SKYRIMSE(TPlayAnimation, s_playAnimation, 56205);
+        POINTER_SKYRIMSE(TLockpickUnlock, s_lockpickUnlock, 51968);
 
         RealLockChange = s_lockChange.Get();
         RealRotateX = s_rotateX.Get();
@@ -1177,4 +1230,6 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         TP_HOOK(&RealRemoveInventoryItem, HookRemoveInventoryItem);
         TP_HOOK(&RealPlayAnimationAndWait, HookPlayAnimationAndWait);
         TP_HOOK(&RealPlayAnimation, HookPlayAnimation);
+        RealLockpickUnlock = s_lockpickUnlock.Get();
+        TP_HOOK(&RealLockpickUnlock, HookLockpickUnlock);
     });

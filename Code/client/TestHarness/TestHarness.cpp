@@ -47,6 +47,8 @@ void Poll()
         if (!harness.Commands.Start(harness.Files.Directory().string(), [&harness](const std::string& acRequest) { return HandleCommand(harness, acRequest); }))
             spdlog::warn("Command server did not start; the test harness falls back to control files");
     }
+    harness.Logs.Poll();
+    harness.Inputs.Poll();
     harness.Commands.Poll();
     harness.Events.Poll();
 
@@ -72,6 +74,7 @@ void Shutdown()
 {
     // Off the graphs before this DLL goes (a hot reload): they would call into it.
     Harness::Get().Trace.Stop();
+    Harness::Get().Inputs.Stop();
     Harness::Get().Events.Stop();
     Harness::Get().Commands.Stop();
 }

@@ -13,6 +13,7 @@
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/InterruptCastRequest.h>
 #include <Messages/LockChangeRequest.h>
+#include <Messages/ContainerChangeRequest.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NewPackageRequest.h>
 #include <Messages/PlayerLevelRequest.h>
@@ -180,6 +181,7 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);
     On(*this, &HostAuthority::OnLockChange);
+    On(*this, &HostAuthority::OnContainerChange);
 
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
@@ -245,6 +247,13 @@ void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionI
     // The host's own locks go out as its object changes (HostWorldState).
     if (aSender != m_players.Host() && m_game.SetLock)
         m_game.SetLock(acRequest.Id, acRequest.IsLocked, acRequest.LockLevel);
+}
+
+void HostAuthority::OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    // The host's own containers go out as its object changes (HostWorldState).
+    if (aSender != m_players.Host() && m_game.SetItems)
+        m_game.SetItems(acRequest.Container, acRequest.Item, acRequest.Count);
 }
 
 void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept

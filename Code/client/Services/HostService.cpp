@@ -2,6 +2,7 @@
 
 #include <console/ConsoleRegistry.h>
 #include <Events/ActivateEvent.h>
+#include <Events/ContainerChangeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/UpdateEvent.h>
 #include <GameServer.h>
@@ -23,6 +24,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&HostService::OnUpdate>(this);
     m_activateConnection = m_dispatcher.sink<ActivateEvent>().connect<&HostService::OnActivate>(this);
     m_scriptAnimationConnection = m_dispatcher.sink<ScriptAnimationEvent>().connect<&HostService::OnScriptAnimation>(this);
+    m_containerChangeConnection = m_dispatcher.sink<ContainerChangeEvent>().connect<&HostService::OnContainerChange>(this);
 }
 
 void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
@@ -35,6 +37,13 @@ void HostService::OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcep
 {
     if (m_isHosting && m_pEngine)
         m_pEngine->RecordAnimation(acEvent.FormID, acEvent.Animation, acEvent.EventName);
+}
+
+void HostService::OnContainerChange(const ContainerChangeEvent& acEvent) noexcept
+{
+    // Actors' items are their owner's (InventoryService); the engine keeps containers' only.
+    if (m_isHosting && m_pEngine)
+        m_pEngine->RecordItems(acEvent.ContainerId, acEvent.ItemId);
 }
 
 HostService::~HostService() noexcept
@@ -92,6 +101,7 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
+    game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { m_pEngine->SetItems(acObject, acItem, aCount); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());

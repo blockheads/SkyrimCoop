@@ -7,6 +7,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Camera/PlayerCamera.h>
 #include <Camera/VATS.h>
+#include <Components/TESContainer.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESIdleForm.h>
@@ -231,6 +232,8 @@ void PlayerActivates(uint32_t aObjectFormId) noexcept
 
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
 {
+    // As the player's lockpick or key does: its own change (ScopedPlayerLockOverride).
+    ScopedPlayerLockOverride playerLock;
     if (!World::Get().GetFormBridge().SetObjectLock(aObjectFormId, aLocked, aLockLevel))
         return false;
     TP_THIS_FUNCTION(TLockChange, void, TESObjectREFR);
@@ -501,10 +504,36 @@ std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept
 std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
-    auto* pItem = TESForm::GetById(aItemFormId);
-    if (!pObject || !pItem || !pObject->GetContainer() || !pObject->GetContainerChanges())
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItemFormId));
+    if (!pObject)
         return std::nullopt;
-    return pObject->GetItemCountInInventory(pItem);
+    return pObject->GetContainerCount(pItem);
+}
+
+std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint32_t aObjectFormId) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    const TESContainer* pContainer = pObject ? pObject->GetContainer() : nullptr;
+    if (!pContainer)
+        return std::nullopt;
+    std::vector<TESForm*> forms;
+    // Leveled lists are rolled into the changes, not items themselves.
+    for (uint32_t i = 0; i < pContainer->count; ++i)
+        if (pContainer->entries[i] && pContainer->entries[i]->form && pContainer->entries[i]->form->formType != FormType::LeveledItem)
+            forms.push_back(pContainer->entries[i]->form);
+    if (const auto* pChanges = pObject->FindContainerChanges(); pChanges && pChanges->entries)
+        for (const auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form)
+                forms.push_back(pEntry->form);
+    std::vector<std::pair<uint32_t, int32_t>> items;
+    for (TESForm* pForm : forms)
+    {
+        if (std::ranges::any_of(items, [pForm](const auto& acItem) { return acItem.first == pForm->formID; }))
+            continue;
+        if (const auto cCount = pObject->GetContainerCount(Cast<TESBoundObject>(pForm)))
+            items.emplace_back(pForm->formID, *cCount);
+    }
+    return items;
 }
 
 std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept
@@ -909,6 +938,22 @@ std::optional<double> GetWaitMenuHours() noexcept
         (value.type & GFxValue::kTypeMask) != GFxValue::kNumber)
         return std::nullopt;
     return value.value.number;
+}
+
+std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) noexcept
+{
+    const BSFixedString cName(acpMenu);
+    UI* pUI = UI::Get();
+    IMenu* pMenu = pUI && pUI->GetMenuOpen(cName) ? pUI->FindMenuByName(cName) : nullptr;
+    GFxValue value{};
+    if (!pMenu || !pMenu->uiMovie || !pMenu->uiMovie->GetVariable(&value, acpPath))
+        return std::nullopt;
+    switch (value.type & GFxValue::kTypeMask)
+    {
+    case GFxValue::kBoolean: return value.value.boolean ? 1.0 : 0.0;
+    case GFxValue::kNumber: return value.value.number;
+    default: return std::nullopt;
+    }
 }
 
 void ClearPlayerMapMarker() noexcept

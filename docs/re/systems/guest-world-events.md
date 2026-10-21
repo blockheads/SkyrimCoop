@@ -31,6 +31,8 @@ story-manager gate).
 
 ## Results back to the guest
 
+Doors, animations and enabled state are world state like step 4's globals and quests: only the host's game sends them
+(`HostWorldState`, `NotifyObjectChanges`, one ordered list a frame), only a guest applies them
 Doors, animations, enabled state and locks are world state like step 4's globals and quests: only the host's game
 sends them (`HostWorldState`, `NotifyObjectChanges`, one list a frame: the state the change funnel saw change, then
 the scripts' events in order; `docs/design/world-state-sync.md`, "As built"), only a guest applies them
@@ -56,6 +58,24 @@ back would have looped between the games (the guest's proposal, the host's chang
   the engine's `TESObjectREFR::Enable` (19800, `(this, bool resetInventory)`) or `Disable` (19801, vtable slot
   0x89; `Actor` overrides it, 37267). Papyrus `Enable`/`Disable` (56158, 56155, and the `NoWait` forms) queue an
   `EnableFunctor` / `DisableFunctor` (56492 / 56491) for after render, which fade and then call those two
+  (functors 56110, 56113). Our hooks raise `ReferenceEnabledEvent` when the disabled flag (`0x800`) flips, not for
+  actors (their owner's) or references the game created (`0xFF` ids); a guest enables or disables its
+  reference at once (`EnableImpl`, `DisableImpl`), the host's fade already played.
+- **Locks** (step 6): every lock change ends in `TESObjectREFR::AddLockChange` (19512, CommonLibSSE-NG), whose
+  hook raises `LockChangeEvent`. On the host it goes out as a `kLock` object change; on a guest it is a proposal
+  (`GuestWorldState` sends `LockChangeRequest`), which `HostAuthority::OnLockChange` gives the host's game
+  (`HostGame::SetLock`, `HostEngine::SetLock`): the host's object takes it and every game gets it as the host's
+  change. Applying calls `TESObjectREFR::SetLockState`, which records the change past our hook (no echo). The
+  old relay (`NotifyLockChange`, `ObjectService`'s lock handlers) is deleted.
+  A guest proposes only its player's own: `AddLockChange` is also called by Papyrus `Lock`/`SetLockLevel` (scripts'
+  `OnLoad`) and the engine's cell jobs (through 20226/20227: 39105, 39106, 19809, the cell code at `0x2CC7F0`), so
+  every cell load recorded dozens on both games and the guest's would set the host's locks. The player's lock
+  changes happen inside `ScopedPlayerLockOverride`: `LockpickingMenu::Unlock` (51968, `void (LockpickingMenu*)`,
+  hooked; it records the unlock through 20226 before it opens the door) and the player's own `Activate` (a key,
+  inside `TESObjectDOOR/CONT::Activate`); `LockChangeEvent::ByPlayer` carries it. The host still sends every one of
+  its own (its world decides). `guest-loads-propose-no-locks` (control 2026-10-21: without the check the host took
+  25 from the guest's loads).
+- **Containers' items** (step 6, slice 1): below.
   (functors 56110, 56113). Both flip the disabled flag (`0x800`) through `TESForm::SetDisabled` (14646), which
   records `CHANGE_FORM_FLAGS` (`AddChange(1)`): the host reads the state from the change funnel
   (`Forms/FormChanges`, `HostEngine`), not for actors (their owner's) or references the game created (`0xFF`
@@ -72,6 +92,38 @@ back would have looped between the games (the guest's proposal, the host's chang
   a copy whose caster was a copy or nothing, and every hostile one between players with PvP off. On the host,
   an effect on a guest's character goes to its owner when the caster is not an actor (a statue, a trap) or
   is the copy cast by a script running for a guest; PvP only covers a player's own casts.
+
+## Containers: changes as counts
+
+A container's items are world state like a lock: the host's change goes out as a `kItems` object change
+{container, base item, count now}, a guest's own change (its player took or stored something) is a
+`ContainerChangeRequest` with the same three, which `HostAuthority::OnContainerChange` gives the host's game
+(`HostEngine::SetItems`): the host's container is set to that count and the change goes to every game as the
+host's. Counts, not deltas: the guest's container changed before it proposed, so replaying a delta would
+count it twice. Applying adds or removes the difference (`TESObjectREFR::SetContainerCount`) under
+`ScopedInventoryOverride`, so it raises nothing (no echo). The player's own inventory stays theirs (actor
+inventory sync, as before). Actors and references the game created (`0xFF`) are left out.
+
+```
+host or guest: an item into or out of a container (menu, console, script, Take All)
+  engine add / remove → TESContainerChangedEvent (16149) → ContainerEvents sink → ContainerChangeEvent (queued)
+  host:  HostEngine::RecordItems → kItems {container, item, count now} → NotifyObjectChanges → guests
+  guest: GuestEngine::ReadContainerItems → ContainerChangeRequest → host: SetItems → kItems → every guest
+  guest applying kItems: SetContainerCount (count now − count here; 0: nothing)
+```
+
+| ID | Engine function | Notes |
+|---|---|---|
+| 16149 | `InventoryChanges::SendContainerChangedEvent` (CommonLibSSE-NG) | Sends `TESContainerChangedEvent` {old container, new container, base item, count, reference handle, unique id} to `ScriptEventSourceHolder+0x318` (`EventDispatcherManager::containerChangedEvent`). Called from the add (`sub_140226A20`) and the remove (`sub_1402260A0`), skipped while `InventoryChanges+0x19` is set (`InitLeveledItems` 16129 sets it while rolling). Synchronous: the sink runs inside the change, on its thread. |
+| 19708 | `TESObjectREFR::AddObjectToContainer` | Hooked (`HookAddInventoryItem`): `(this, TESBoundObject*, ExtraDataList*, int32 count, TESObjectREFR* from)`, checked. Inlines the same add as 19688. |
+| 19688 | `TESObjectREFR::sub_*` (no community name): the add itself | `MakeInventoryChanges` then the add (`sub_140226A20`). The console's `AddItem` (22000) on a non-actor and `Actor::AddObjectToContainer` call it, past our 19708 hook: why containers are seen through 16149, not the inventory hooks. |
+| 16039 | `TESObjectREFR::GetInventoryChanges` (our name) | The reference's `ExtraContainerChanges` data, none made. Papyrus `GetItemCount` (56173) reads with it. |
+| 16040 | `TESObjectREFR::MakeInventoryChanges` | The same, made empty when missing (no leveled roll). `GetContainerChanges` calls it: our count reads use 16039. |
+| 16108 | `InventoryChanges::GetItemCount` (CommonLibSSE-NG; IDA had `GetCountDelta`) | The base container's count (14529) plus the changes' entry count (`TESBoundObject` 16214). |
+| 16038 | `TESObjectREFR::InitInventoryIfRequired` | Rolls a container's leveled entries (`InitLeveledItems` 16129) into its changes when first needed; each entry rolls once (the changes' extra lists mark it), so changes made earlier (a script's `AddItem` into an unopened chest) do not stop it. |
+
+A container nothing touched yet has no changes: its count is its base container's (14529, an `int`), leveled
+entries not rolled. The guest applies to it the way the engine's own `AddItem` into an unopened chest would.
 
 ## Script casts: Spell.Cast is delayed
 
@@ -94,6 +146,16 @@ needed it so far).
   `0x12F03`, caster 0 on the guest); a host NPC's arrow (`0x335F3`) hit it in the same run.
 
 ## Tests
+
+`chest-take-reaches-others`: the host puts two sweetrolls in a QASmoke chest (`C2CE8`), the guest's chest holds
+them; the guest takes everything through the container menu (R, Take All): the host's chest holds what the
+guest's does and the guest's player has the sweetrolls once; the host puts one back and takes everything: the
+guest's chest follows. Controls 2026-10-21: with the host's `RecordItems` off it fails at "[client] chest C2CE8
+holds 2 sweetrolls"; with the guest's proposal off at "[host] chest C2CE8 holds what the client's does". The menu
+drops input while its lists slide in (`InventoryLists.currentState` 3-5, harness `menu_var`); the scenario waits
+for 1 or 2. Harness `container_items` lists a container's items (base entries but leveled lists, and changes). The
+console does not reach QASmoke's `04xxxxxx` references (`04026B71.disable` does nothing).
+
 
 `sword-box-asks-client` (the guest's sword goes once and comes back once; its secret door opens from the host's
 change; it sees the box and the sword in the stone swap both ways: with the host's recording off, the guest's

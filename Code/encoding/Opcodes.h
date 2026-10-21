@@ -15,7 +15,6 @@ enum ClientOpcode : unsigned char
     kLockChangeRequest,
     kAssignObjectsRequest,
     kRequestDeathStateChange,
-    kRequestObjectInventoryChanges,
     kRequestInventoryChanges,
     kSpellCastRequest,
     kInterruptCastRequest,
@@ -48,6 +47,7 @@ enum ClientOpcode : unsigned char
     kDialogueCloseRequest,
     kDialogueJoinRequest,
     kDialogueExperienceRequest,
+    kContainerChangeRequest,
     kClientOpcodeMax
 };
 
@@ -68,7 +68,6 @@ enum ServerOpcode : unsigned char
     kNotifyActivate,
     kAssignObjectsResponse,
     kNotifyDeathStateChange,
-    kNotifyObjectInventoryChanges,
     kNotifyInventoryChanges,
     kNotifySpellCast,
     kNotifyInterruptCast,

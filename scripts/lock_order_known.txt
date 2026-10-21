@@ -77,3 +77,22 @@ SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimS
 # (path lock). Both stacks read; vanilla.
 SkyrimSE.exe+0x11b7c95 > SkyrimSE.exe+0x803e23 vs SkyrimSE.exe+0x803745 > SkyrimSE.exe+0x11b7aa3
 SkyrimSE.exe+0x803745 > SkyrimSE.exe+0x11b7aa3 vs SkyrimSE.exe+0x11b7c95 > SkyrimSE.exe+0x803e23
+# A trap listener's OnTriggerEnter against a cell load (party-uses-door, 2026-10-21, the host): Job_Cell_animations ->
+# bhkWorld 77851 (world lock) -> bhkTrapListener 26053 -> TESTriggerEnterEvent sink 54001 -> HookSendEvent (ours, a
+# pass-through on the host) -> VirtualMachine::SendEvent 104800 -> ExtraDataList::GetUniqueIDs 12030 (extra-data lock),
+# against Job_IO -> TESObjectREFR 19742 (extra-data lock) -> bhkRigidBody_setMotionType 78077 (world lock). Both
+# stacks read; vanilla (seen engine-only the same morning).
+SkyrimSE.exe+0xe85437 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimSE.exe+0xe92c16
+# Travel against a reference loading (party-uses-door, 2026-10-21, the guest): the main thread's
+# PlayerCharacter::ProcessQueuedTravel 40438 -> TESObjectCELL 13676 -> bhkWorld 77921 (world lock) ->
+# FOIslandActivationListener::islandDeactivated 25850 -> ExtraDataList 11968/12329 (extra-data lock), against
+# Job_IO -> TESObjectREFR 19742 (extra-data lock) -> bhkRigidBody 78081 (world lock). Ours only by HookMainLoop at
+# the bottom of the main thread's stack; the same pair as the 78077 line above. Both stacks read; vanilla.
+SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimSE.exe+0xe92e70
+# An actor's permanent effects relayed to its aliases against a quest clearing them (vilkas-counts-client-hits,
+# 2026-10-21, the host): BackgroundProcessThread -> Actor::Load3D 37177 -> CastPermanentMagic -> FindTargets/AddTarget
+# (HookFindTargets, HookAddTarget: pass-throughs here) -> SkyrimVM::RelayEvent 54033 -> ExtraAliasInstanceArray 12720
+# (alias lock, read) -> HookSendEvent (pass-through on the host) -> VM SendEvent -> ExtraDataList 12030 (extra-data
+# lock), against Job_Quest_for_events -> TESQuest 25049 -> BGSRefAlias 24012 -> ExtraAliasInstanceArray 12719. The
+# sibling of the 1823d0 load lines above. Both stacks read; vanilla.
+SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241

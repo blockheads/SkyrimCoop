@@ -141,6 +141,12 @@ nlohmann::json GetEngineEvents(Harness& aHarness, const nlohmann::json& acReques
     return aHarness.Events.Since(acRequest.value("since", uint64_t(0)));
 }
 
+// {"cmd": "log_trail", "since": n}: the plugin's log lines (info and up) numbered n and later (LogTrail).
+nlohmann::json GetLogTrail(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    return aHarness.Logs.Since(acRequest.value("since", uint64_t(0)));
+}
+
 // {"cmd": "graph_writers", "actor": id}: the variables the actor's graphs write themselves, by node.
 nlohmann::json GraphWriters(Harness&, const nlohmann::json& acRequest)
 {
@@ -156,6 +162,7 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
 {
     constexpr uint8_t cDoor = 29;      // FormType::Door
     constexpr uint8_t cFurniture = 40; // FormType::Furniture
+    constexpr uint8_t cContainer = 28; // FormType::Container
     auto& forms = World::Get().GetFormBridge();
     auto objects = nlohmann::json::array();
     for (const auto& cObject : EngineCalls::GetCellObjects())
@@ -168,6 +175,7 @@ nlohmann::json Objects(Harness&, const nlohmann::json&)
             {{"id", cId},
              {"door", cIsDoor},
              {"furniture", forms.IsObjectBaseFormType(cId, cFurniture)},
+             {"container", forms.IsObjectBaseFormType(cId, cContainer)},
              {"name", forms.GetFormName(cId)},
              {"load_door", forms.IsLoadDoor(cId)},
              {"position", {cObject.Position[0], cObject.Position[1], cObject.Position[2]}},
@@ -250,6 +258,16 @@ nlohmann::json ScriptVar(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"name", name}, {"type", cValue->Type}, {"value", value}};
 }
 
+// {"cmd": "form", "form": id}: the form's type (TESForm::formType) and name.
+nlohmann::json Form(Harness&, const nlohmann::json& acRequest)
+{
+    auto& forms = World::Get().GetFormBridge();
+    const uint32_t cForm = acRequest.value("form", 0u);
+    if (!forms.FormExists(cForm))
+        return Error("no such form");
+    return {{"ok", true}, {"type", forms.GetFormType(cForm)}, {"name", forms.GetFormName(cForm)}};
+}
+
 // {"cmd": "item_count", "object": id, "item": id}: how many of that item the reference holds.
 nlohmann::json ItemCount(Harness&, const nlohmann::json& acRequest)
 {
@@ -257,6 +275,30 @@ nlohmann::json ItemCount(Harness&, const nlohmann::json& acRequest)
     if (!cCount)
         return Error("no such object or item, or it holds no inventory");
     return {{"ok", true}, {"count", *cCount}};
+}
+
+// {"cmd": "container_items", "object": id}: every item its container lists or holds, with its count.
+nlohmann::json ContainerItems(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cItems = EngineCalls::GetContainerItems(acRequest.value("object", 0u));
+    if (!cItems)
+        return Error("no such object, or it has no container");
+    auto items = nlohmann::json::array();
+    for (const auto& [cItem, cCount] : *cItems)
+        items.push_back({{"item", cItem}, {"count", cCount}});
+    return {{"ok", true}, {"items", items}};
+}
+
+// {"cmd": "menu_var", "menu": "ContainerMenu", "path": "_root.Menu_mc.bFadedIn"}: a number or boolean in an open
+// menu's movie.
+nlohmann::json MenuVar(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cMenu = acRequest.value("menu", std::string());
+    const auto cPath = acRequest.value("path", std::string());
+    const auto cValue = EngineCalls::GetMenuVariable(cMenu.c_str(), cPath.c_str());
+    if (!cValue)
+        return Error("no such menu open, or no number or boolean there");
+    return {{"ok", true}, {"value", *cValue}};
 }
 
 // {"cmd": "ref_enabled", "object": id}: whether the reference is enabled in this game.
@@ -336,11 +378,15 @@ constexpr Command cCommands[] = {
     {"global", true, &Global},
     {"form_save", true, &FormSave},
     {"engine_events", false, &GetEngineEvents},
+    {"log_trail", false, &GetLogTrail},
     {"form_load", true, &FormLoad},
     {"script_state", true, &ScriptState},
     {"script_var", true, &ScriptVar},
     {"script_stacks", true, &ScriptStacks},
     {"item_count", true, &ItemCount},
+    {"form", true, &Form},
+    {"container_items", true, &ContainerItems},
+    {"menu_var", true, &MenuVar},
     {"ref_enabled", true, &RefEnabled},
     {"activate", true, &Activate},
     {"lock", true, &Lock},

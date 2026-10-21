@@ -30,11 +30,14 @@ public:
     // Runs the clock on to that hour, the next day's if it is earlier, as a wait does.
     void SetHour(float aHours) noexcept;
     // A world script's event on an object, kept for the others: it activated a door (by a reference) or played an
-    // animation on it.
+    // animation on it; or a container's items changed (not an actor's).
     void RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept;
     void RecordAnimation(uint32_t aObjectFormId, const TiltedPhoques::String& acAnimation, const TiltedPhoques::String& acEvent) noexcept;
+    void RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
     // A guest's lock change, accepted: the host's object takes it, and the others get it as the host's change.
     void SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept;
+    // A guest's container change, accepted: the host's container holds that many, and the others get it.
+    void SetItems(const GameId& acObject, const GameId& acItem, uint32_t aCount) noexcept;
     // Since the last call: the state of each reference the funnel saw change (enabled, lock), then the events
     // in order.
     [[nodiscard]] TiltedPhoques::Vector<ObjectChange> TakeObjectChanges() noexcept;

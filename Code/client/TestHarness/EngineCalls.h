@@ -43,6 +43,8 @@ bool IsMapReady() noexcept;
 void ClearPlayerMapMarker() noexcept;
 // The hours the open Sleep/Wait Menu's slider shows (its SWF's HoursSlider), none while it is closed or loading.
 std::optional<double> GetWaitMenuHours() noexcept;
+// A number or boolean (1/0) in an open menu's movie ("_root.Menu_mc.bFadedIn"); none: no such menu or value.
+std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) noexcept;
 
 // --- Quests ---
 
@@ -118,8 +120,11 @@ std::vector<ScriptStack> GetRunningScripts() noexcept;
 
 // --- Inventories ---
 
-// How many of that item the reference holds (its container plus its changes), as GetItemCount reads it.
+// How many of that item the reference holds (TESObjectREFR::GetContainerCount); none for no container or item.
 std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
+// Every item the reference's container lists or its changes hold, with its count (a leveled list's not rolled);
+// none for no container.
+std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint32_t aObjectFormId) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
 
