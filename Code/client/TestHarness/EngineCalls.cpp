@@ -472,7 +472,10 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
             if (const auto* pOwnership = static_cast<ExtraOwnership*>(pRef->extraData.GetByType(ExtraDataType::Ownership)); pOwnership && pOwnership->owner)
                 state.Owner = pOwnership->owner->formID;
             if (!state.Actor)
+            {
                 state.Items = GetContainerItems(pRef->formID);
+                state.Leveled = pRef->CountLeveledEntries();
+            }
             if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
                 for (uint32_t bit = 0; bit < 32; ++bit)
                     if (pSaveLoad->HasChange(*pRef, 1u << bit))
@@ -645,26 +648,11 @@ std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId
 std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint32_t aObjectFormId) noexcept
 {
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
-    const TESContainer* pContainer = pObject ? pObject->GetContainer() : nullptr;
-    if (!pContainer)
+    if (!pObject || !pObject->GetContainer())
         return std::nullopt;
-    std::vector<TESForm*> forms;
-    // Leveled lists are rolled into the changes, not items themselves.
-    for (uint32_t i = 0; i < pContainer->count; ++i)
-        if (pContainer->entries[i] && pContainer->entries[i]->form && pContainer->entries[i]->form->formType != FormType::LeveledItem)
-            forms.push_back(pContainer->entries[i]->form);
-    if (const auto* pChanges = pObject->FindContainerChanges(); pChanges && pChanges->entries)
-        for (const auto* pEntry : *pChanges->entries)
-            if (pEntry && pEntry->form)
-                forms.push_back(pEntry->form);
     std::vector<std::pair<uint32_t, int32_t>> items;
-    for (TESForm* pForm : forms)
-    {
-        if (std::ranges::any_of(items, [pForm](const auto& acItem) { return acItem.first == pForm->formID; }))
-            continue;
-        if (const auto cCount = pObject->GetContainerCount(Cast<TESBoundObject>(pForm)))
-            items.emplace_back(pForm->formID, *cCount);
-    }
+    for (const auto& [pItem, cCount] : pObject->GetContainerItems())
+        items.emplace_back(pItem->formID, cCount);
     return items;
 }
 

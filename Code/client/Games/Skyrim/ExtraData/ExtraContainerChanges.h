@@ -24,6 +24,10 @@ struct ExtraContainerChanges : BSExtraData
 
     struct Data
     {
+        // Off: a world container's leveled entries are not rolled here (InitLeveledItems 16129 skipped for a
+        // non-actor's changes), its contents coming from the host's roll; an actor's still roll.
+        static void SetRollsWorldContainers(bool aRolls) noexcept;
+
         void Save(BGSSaveFormBuffer* apBuffer);
         void Load(BGSLoadFormBuffer* apBuffer);
         TESObjectARMO* GetArmor(uint32_t aSlotId) noexcept;

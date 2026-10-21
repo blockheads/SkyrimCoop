@@ -32,8 +32,8 @@ public:
     // Makes the quest so, each stage without its fragment (docs/re/systems/quest-apply.md); aAsLoad: as a save
     // load does, the fields only. Fills of references the host's game created are left as they are.
     void ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept;
-    // Off while a guest, the host's game deciding instead: its story manager starts no quest, and its world's
-    // scripts do not react to its player (activations, triggers).
+    // Off while a guest, the host's game deciding instead: its story manager starts no quest, its world's
+    // scripts do not react to its player (activations, triggers), and its containers roll no leveled entries.
     void SetDecidesWorld(bool aOn) noexcept;
     // Makes the host's world object change here: activates the door (if it is as the host's was), plays the
     // animation, enables or disables the reference, sets its lock, makes the container hold that many. False: the

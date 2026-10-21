@@ -132,7 +132,9 @@ guest: a cell loads (TESCellFullyLoadedEvent; each loaded cell on joining)
   -> CellStateRequest {cell, [ref, row flags its record holds]}
 host HostWorldState: cell attached here? no -> kept, retried each update
   HostEngine::ReadCellState: each ref with row changes in either game ->
-    every row it holds -> NotifyObjectChanges {Cell} to that guest
+    every row it holds; then each container: rolled here (16038), kContents
+    -> NotifyObjectChanges {Cell} to that guest
+guest: rolls no world container's leveled entries (16129 skipped)
 guest: a state already as the host's is skipped (a load raises no events)
 ```
 
@@ -340,8 +342,13 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    travels as its count of the item now (`kItems`, an event kind: item and count), the host's to everyone, a guest's
    as a proposal the host's game takes (`ContainerChangeRequest`); every add and remove is seen through the engine's
    `TESContainerChangedEvent` (`chest-take-reaches-others`, `docs/re/systems/guest-world-events.md`). Per base item
-   (extra data, such as enchantments, does not travel). Next: slice 2, a container's contents from the host when a
-   guest's cell loads (leveled lists roll per game).
+   (extra data, such as enchantments, does not travel). Slice 2 (2026-10-21): a container's contents are the host's
+   roll. Answering a guest's cell state, the host's game rolls each container there as opening it would
+   (`InitInventoryIfRequired` 16038) and sends all it holds (`kContents`: item and count each); the guest makes its
+   container hold exactly that, raising nothing. While a guest, a game rolls no leveled entries of a world
+   container (`InitLeveledItems` 16129 skipped for a non-actor's changes, with the story manager's switch); an
+   actor's inventory still rolls. Scenario `guest-opens-hosts-roll` (the client opens the inn's richest leveled
+   container: its own roll without this).
 7. **World desync check:** compare what each game shows of the world, as `coop_test.py desync` does for actors.
    References built 2026-10-21: the harness's `world_state` reads every reference in the loaded cells
    (base, cell, form flags, position and rotation, scale, its 3D shown or hidden and where, lock, open state,

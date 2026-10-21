@@ -117,6 +117,14 @@ host or guest: an item into or out of a container (menu, console, script, Take A
 A container nothing touched yet has no changes: its count is its base container's (14529, an `int`), leveled
 entries not rolled. The guest applies to it the way the engine's own `AddItem` into an unopened chest would.
 
+**The roll (2026-10-21, IDA 1.6.1170).** `InitInventoryIfRequired` (16038, `(ref, ignoreContainerExtra)`) does
+anything only for a container with a leveled entry (form type 53) or an actor: makes the changes if missing,
+`InitLeveledItems` (16129), `InitFromContainerExtra` unless told not to, `InitScripts`. `InitLeveledItems` sets
+the changes' +0x19 (no container events meanwhile), and for each leveled entry whose index no extra list in the
+changes marks yet, rolls `TESLeveledList::CalculateCurrentFormList` at the owner's level: an actor base's level,
+else `TESObjectREFR::GetCalcLevel` (the encounter zone's). The owner is the changes' +0x8. Two games rolling the
+same chest get different items (the inn's merchant chest `78C0F`: 27 items, most counts differing).
+
 ## Script casts: Spell.Cast is delayed
 
 | ID | Engine function | Notes |

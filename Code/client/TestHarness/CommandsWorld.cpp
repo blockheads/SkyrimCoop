@@ -222,6 +222,8 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
             ref["owner"] = cRef.Owner;
         if (cRef.Changes)
             ref["changes"] = cRef.Changes;
+        if (cRef.Leveled)
+            ref["leveled"] = cRef.Leveled;
         if (cRef.Items)
         {
             auto items = nlohmann::json::object();

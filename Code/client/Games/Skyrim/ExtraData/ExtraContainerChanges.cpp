@@ -2,6 +2,42 @@
 
 #include <ExtraData/ExtraContainerChanges.h>
 
+#include <HookSwitch.h>
+#include <TESObjectREFR.h>
+
+#include <atomic>
+
+namespace
+{
+std::atomic<bool> s_rollsWorldContainers{true};
+
+// InventoryChanges::InitLeveledItems (16129): rolls each leveled entry of the owner's base container not rolled yet.
+TP_THIS_FUNCTION(TInitLeveledItems, void*, ExtraContainerChanges::Data);
+TInitLeveledItems* RealInitLeveledItems = nullptr;
+
+void* TP_MAKE_THISCALL(HookInitLeveledItems, ExtraContainerChanges::Data)
+{
+    if (!s_rollsWorldContainers.load(std::memory_order_relaxed) && apThis && apThis->parent &&
+        apThis->parent->formType == FormType::Reference)
+        return nullptr;
+    return TiltedPhoques::ThisCall(RealInitLeveledItems, apThis);
+}
+
+TiltedPhoques::Initializer s_leveledItemsHooks(
+    []()
+    {
+        const HookGate cGate(__FILE__);
+        POINTER_SKYRIMSE(TInitLeveledItems, s_initLeveledItems, 16129);
+        RealInitLeveledItems = s_initLeveledItems.Get();
+        TP_HOOK(&RealInitLeveledItems, HookInitLeveledItems);
+    });
+} // namespace
+
+void ExtraContainerChanges::Data::SetRollsWorldContainers(bool aRolls) noexcept
+{
+    s_rollsWorldContainers.store(aRolls, std::memory_order_relaxed);
+}
+
 void ExtraContainerChanges::Data::Save(BGSSaveFormBuffer* apBuffer)
 {
     TP_THIS_FUNCTION(TSaveFunc, void*, ExtraContainerChanges::Data, BGSSaveFormBuffer*);

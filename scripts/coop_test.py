@@ -4210,6 +4210,30 @@ def scenario_late_join_gets_cell_state():
         if left := guest_matches(ref, 5):
             raise TestFailure(f"[client] {ref:X} not put back as the host's: {left}")
 
+
+def scenario_guest_opens_hosts_roll():
+    """A container's leveled entries are the host's roll (world sync step 2b): in the inn, the client opens the
+    container with the most leveled entries as its player would (an open is what rolls them), and it holds what the
+    host's does, which the host's game rolled when the client's inn loaded."""
+    try:
+        both_go(INN)
+        refs = world_state("")
+        found = [r for r in refs.values() if r.get("leveled") and r["has_3d"] and not r["flags"] & FORM_DISABLED and r.get("items")]
+        if not found:
+            raise TestFailure("[host] no container in the inn holds a leveled roll: the test shows nothing")
+        chest = max(found, key=lambda r: (r["leveled"], -r["id"]))["id"]
+        host = container_items("", chest)
+        place_before("client", chest, 100)
+        activate_on("client", chest)
+        wait_for(f"[client] {chest:X}'s menu shows its lists",
+                 lambda: menu_var("client", "ContainerMenu", ITEM_LISTS + ".currentState") in LISTS_SHOWN, 5)
+        if (theirs := container_items("client", chest)) != host:
+            raise TestFailure(f"[client] opened {chest:X} holding its own roll: " + item_differences(host, theirs, "host", "client"))
+        rpc({"cmd": "menu", "name": "ContainerMenu", "show": False})
+        wait_for("[client] the menu closed", lambda: takes_input("client"), 5)
+    finally:
+        both_go(HOME_CELL)
+
 COMPANIONS_HOUSEKEEPING = 0x4B2D9  # C00
 WEREWOLF_TRANSFORM_VISUAL = 0xF8209  # the change effect's VFXSpell effect (WerewolfTransformVisual): sets stage 1
 
@@ -5107,6 +5131,7 @@ SCENARIOS = {
     "form-state-round-trips": scenario_form_state_round_trips,
     "world-changes-reach-guest": scenario_world_changes_reach_guest,
     "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
+    "guest-opens-hosts-roll": scenario_guest_opens_hosts_roll,
     # input (real keyboard and mouse; only when named or tagged)
     "input-keyboard-draw": scenario_input_keyboard_draw,
     "input-mouse-cast": scenario_input_mouse_cast,
@@ -5199,6 +5224,7 @@ TAGS = {
     "form-state-round-trips": {'world', 'objects', 'spawn'},
     "world-changes-reach-guest": {'world', 'objects', 'inventory'},
     "late-join-gets-cell-state": {'world', 'objects', 'session'},
+    "guest-opens-hosts-roll": {'world', 'objects', 'inventory', 'cells'},
     "input-keyboard-draw": {'input', 'hands'},
     "input-mouse-cast": {'input', 'hands', 'magic'},
 }

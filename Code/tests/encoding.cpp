@@ -525,6 +525,11 @@ TEST_CASE("Packets", "[encoding.packets]")
     {
         NotifyObjectChanges sendMessage, recvMessage;
         sendMessage.Cell = GameId(0, 0x133C6);
+        ObjectChange contents{ObjectChange::Kind::kContents, GameId(0, 0xA05B5)};
+        const Vector<ObjectChange::ItemCount> cItems = {{GameId(0, 0xF), 120}, {GameId(2, 0x64B3D), 2}};
+        contents.Data = ObjectChange::PackContents(cItems);
+        REQUIRE(ObjectChange::UnpackContents(contents.Data) == cItems);
+        sendMessage.Changes.push_back(contents);
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});

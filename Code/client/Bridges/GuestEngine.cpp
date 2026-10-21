@@ -9,6 +9,7 @@
 #include <Games/ReferenceStates.h>
 #include <Systems/ModSystem.h>
 
+#include <ExtraData/ExtraContainerChanges.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESQuest.h>
@@ -235,6 +236,7 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
     BGSStoryManager::SetPicksQuests(aOn);
     WorldEvents::SetDelivered(aOn);
+    ExtraContainerChanges::Data::SetRollsWorldContainers(aOn);
 }
 
 std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
@@ -258,6 +260,8 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         PlayAnimation(*pObject, acChange);
         return true;
     }
+    if (acChange.Type == ObjectChange::Kind::kContents)
+        return ApplyContainerContents(m_mods, *pObject, acChange);
     if (acChange.Type == ObjectChange::Kind::kItems)
     {
         auto* pItem = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));

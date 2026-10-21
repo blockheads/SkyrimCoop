@@ -4,6 +4,8 @@
 
 #include <Structs/GameId.h>
 
+#include <cstring>
+
 // World state from the host's game (docs/design/world-state-sync.md, step 4).
 
 struct GlobalValue
@@ -116,10 +118,46 @@ struct ObjectChange
         kMove,      // Data: position and angle, 6 floats
         kScale,     // Value: percent
         kOwner,     // Item: the owner, none for no owner
+        kContents,  // Data: every item a container holds (ItemCount each, PackContents), the host's leveled roll
     };
 
+    // A container's item and how many it holds.
+    struct ItemCount
+    {
+        GameId Item{};
+        int32_t Count{};
+
+        bool operator==(const ItemCount& acRhs) const noexcept { return Item == acRhs.Item && Count == acRhs.Count; }
+    };
+
+    // kContents' Data: mod id, base id and count, 32 bits each.
+    static TiltedPhoques::String PackContents(const TiltedPhoques::Vector<ItemCount>& acItems) noexcept
+    {
+        TiltedPhoques::String data(acItems.size() * 3 * sizeof(uint32_t), '\0');
+        auto* pOut = data.data();
+        for (const auto& cItem : acItems)
+        {
+            const uint32_t cValues[3] = {cItem.Item.ModId, cItem.Item.BaseId, static_cast<uint32_t>(cItem.Count)};
+            std::memcpy(pOut, cValues, sizeof(cValues));
+            pOut += sizeof(cValues);
+        }
+        return data;
+    }
+
+    static TiltedPhoques::Vector<ItemCount> UnpackContents(const TiltedPhoques::String& acData) noexcept
+    {
+        TiltedPhoques::Vector<ItemCount> items(acData.size() / (3 * sizeof(uint32_t)));
+        for (size_t i = 0; i < items.size(); ++i)
+        {
+            uint32_t values[3];
+            std::memcpy(values, acData.data() + i * sizeof(values), sizeof(values));
+            items[i] = {GameId(values[0], values[1]), static_cast<int32_t>(values[2])};
+        }
+        return items;
+    }
+
     // The kinds that carry Data, and those that carry Item.
-    static bool HasData(Kind aKind) noexcept { return aKind == Kind::kSaveData || aKind == Kind::kMove; }
+    static bool HasData(Kind aKind) noexcept { return aKind == Kind::kSaveData || aKind == Kind::kMove || aKind == Kind::kContents; }
     static bool HasItem(Kind aKind) noexcept { return aKind == Kind::kItems || aKind == Kind::kOwner; }
 
     Kind Type{};
@@ -130,7 +168,7 @@ struct ObjectChange
     TiltedPhoques::String Event;     // kAnimation
     GameId Item{};                   // kItems: the base item; kOwner: the owner
     uint32_t Value{};                // a state's; kItems: the count
-    TiltedPhoques::String Data;      // kSaveData
+    TiltedPhoques::String Data;      // kSaveData, kMove, kContents
 
     bool operator==(const ObjectChange& acRhs) const noexcept
     {

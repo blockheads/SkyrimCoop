@@ -213,6 +213,7 @@ struct ReferenceState
     uint32_t Owner;         // ExtraOwnership, 0 none
     uint32_t Changes;       // its change record's flags: what this game keeps when its cell unloads
     std::optional<std::vector<std::pair<uint32_t, int32_t>>> Items; // not actors' (GetContainerItems)
+    uint32_t Leveled{};                                              // its base container's leveled entries
 
     // With details: the side effects a change has on what the player sees and touches.
     struct Node

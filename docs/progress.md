@@ -105,8 +105,16 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
    still apply as the host's game did. Scenario `late-join-gets-cell-state` (fails on the old build, passes
    now); bridge cases in `world_state_tests.cpp`. Found: a cell's references stay in memory after it unloads, so
    live changes already reached cells a guest had loaded once; the gap was cells it never loaded and changes made
-   while it was away. Next, 2b: leveled containers (the host's roll), and base object `0x80` / encounter zone
-   `0x20000000` (from step 1).
+   while it was away. 2b, leveled containers, built 2026-10-21: the host rolls each container of a guest's
+   loaded cell (16038) and sends all it holds (`kContents`); a guest's game rolls no world container's leveled
+   entries (16129 skipped). Scenario `guest-opens-hosts-roll` (fails with the two lines off: the client's own
+   roll). Left for 2c: base object `0x80` is a reference picking its own base at its cell's first load, per game
+   (Soljund's Sinkhole's book `E95D1`: `ED5F7` on the host, `E2FC5` on the client). In Skyrim.esm it is placed as
+   `DummyBook` (`D7866`) with `XLIB` (leveled item base) `LItemBookClutter` (`D9F89`, 124 books, chance none 0):
+   each game rolls the list once and swaps the base. Setting it on the guest is
+   `SetObjectReference` (19785, vfunc 0x84: the base only) and its 3D again. The engine's pick was not found
+   (not a `SetObjectReference` caller). Encounter zone `0x20000000` (`664DE`) not identified: not in memory
+   since. The world check after each scenario sees only where the scenario ends, so the book was not flagged.
 3. **Created objects** (`0xFF` ids, each game's own): dropped items, placed objects, loot. A mapping between the
    host's and each guest's ids, made when the host creates one; also what quest fills of created objects need
    (loose ends, "Created objects in quest alias fills").

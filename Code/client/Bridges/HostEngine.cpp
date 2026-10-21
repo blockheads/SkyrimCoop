@@ -228,7 +228,8 @@ std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(con
         if (const uint32_t cFormId = m_mods.GetGameId(cRef.Id))
             guestRows[cFormId] |= cRef.Flags;
     TiltedPhoques::Vector<ObjectChange> changes;
-    for (const TESObjectREFR* pRef : pCell->GetReferences())
+    const auto cReferences = pCell->GetReferences();
+    for (const TESObjectREFR* pRef : cReferences)
     {
         uint32_t rows = ReferenceStates::ChangedRows(*pRef);
         if (const auto it = guestRows.find(pRef->formID); it != guestRows.end() && pRef->formType == FormType::Reference)
@@ -236,6 +237,15 @@ std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(con
         GameId id;
         if (rows && m_mods.GetServerModId(pRef->formID, id))
             ReferenceStates::Read(*pRef, id, rows, m_mods, changes);
+    }
+    // Containers last: the host's roll of their leveled entries, then all they hold.
+    for (TESObjectREFR* pRef : cReferences)
+    {
+        if (pRef->formType != FormType::Reference || pRef->formID >= 0xFF000000 || !pRef->GetContainer())
+            continue;
+        pRef->InitInventoryIfRequired();
+        if (auto contents = ReadContainerContents(m_mods, *pRef))
+            changes.push_back(std::move(*contents));
     }
     return changes;
 }

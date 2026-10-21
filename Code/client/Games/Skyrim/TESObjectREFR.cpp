@@ -579,6 +579,49 @@ bool TESObjectREFR::SetContainerCount(TESBoundObject* apItem, int32_t aCount) no
     return true;
 }
 
+Vector<std::pair<TESBoundObject*, int32_t>> TESObjectREFR::GetContainerItems() const noexcept
+{
+    Vector<std::pair<TESBoundObject*, int32_t>> items;
+    const TESContainer* pContainer = GetContainer();
+    if (!pContainer)
+        return items;
+    Vector<TESBoundObject*> forms;
+    for (uint32_t i = 0; i < pContainer->count; ++i)
+        if (pContainer->entries[i] && pContainer->entries[i]->form && pContainer->entries[i]->form->formType != FormType::LeveledItem)
+            if (auto* pItem = Cast<TESBoundObject>(pContainer->entries[i]->form))
+                forms.push_back(pItem);
+    if (const auto* pChanges = FindContainerChanges(); pChanges && pChanges->entries)
+        for (const auto* pEntry : *pChanges->entries)
+            if (pEntry && pEntry->form)
+                if (auto* pItem = Cast<TESBoundObject>(pEntry->form))
+                    forms.push_back(pItem);
+    for (TESBoundObject* pItem : forms)
+    {
+        if (std::ranges::any_of(items, [pItem](const auto& acItem) { return acItem.first == pItem; }))
+            continue;
+        if (const auto cCount = GetContainerCount(pItem))
+            items.emplace_back(pItem, *cCount);
+    }
+    return items;
+}
+
+uint32_t TESObjectREFR::CountLeveledEntries() const noexcept
+{
+    const TESContainer* pContainer = GetContainer();
+    uint32_t count = 0;
+    for (uint32_t i = 0; pContainer && i < pContainer->count; ++i)
+        if (pContainer->entries[i] && pContainer->entries[i]->form && pContainer->entries[i]->form->formType == FormType::LeveledItem)
+            ++count;
+    return count;
+}
+
+bool TESObjectREFR::InitInventoryIfRequired() noexcept
+{
+    TP_THIS_FUNCTION(TInitInventoryIfRequired, bool, TESObjectREFR, bool);
+    POINTER_SKYRIMSE(TInitInventoryIfRequired, s_initInventoryIfRequired, 16038);
+    return TiltedPhoques::ThisCall(s_initInventoryIfRequired, this, false);
+}
+
 TESObjectCELL* TESObjectREFR::GetParentCellEx() const noexcept
 {
     return parentCell ? parentCell : GetParentCell();

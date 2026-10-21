@@ -180,6 +180,13 @@ struct TESObjectREFR : TESForm
     std::optional<int32_t> GetContainerCount(TESBoundObject* apItem) const noexcept;
     // Adds or removes the difference to hold that many, past our inventory hooks; false for no container or item.
     bool SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept;
+    // Every item it holds and how many: its base container's (leveled lists aside: rolled into the changes) and its
+    // changes'. Rolls nothing.
+    [[nodiscard]] Vector<std::pair<TESBoundObject*, int32_t>> GetContainerItems() const noexcept;
+    // Its base container's leveled entries (rolled when first needed).
+    [[nodiscard]] uint32_t CountLeveledEntries() const noexcept;
+    // Rolls its leveled entries as opening it does (InitInventoryIfRequired 16038); false for none to roll.
+    bool InitInventoryIfRequired() noexcept;
     TESObjectCELL* GetParentCellEx() const noexcept;
 
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;
