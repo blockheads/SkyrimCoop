@@ -202,6 +202,11 @@ struct TESObjectREFR : TESForm
     // A non-actor moved (aMoved): marks it moved again, as the engine records a loaded reference's move only
     // once (its 3D's moved bit), so the change funnel sees every one.
     void RecordMove(bool aMoved) noexcept;
+    // As Papyrus' SetScale (19665): clamped to 0.01..10, the 3D and collision follow.
+    void SetScale(float aScale) noexcept;
+    // As Papyrus' SetActorOwner/SetFactionOwner (20198): an NPC, a faction or none, a load door's other side too.
+    void SetOwner(TESForm* apOwner) noexcept;
+    TESForm* GetOwner() const noexcept;
     void PayGold(int32_t aAmount) noexcept;
     void PayGoldToContainer(TESObjectREFR* pContainer, int32_t aAmount) noexcept;
     bool SendAnimationEvent(BSFixedString* apEventName) noexcept;

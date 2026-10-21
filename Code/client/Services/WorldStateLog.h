@@ -31,6 +31,8 @@ inline std::string Describe(const ObjectChange& acChange)
             return fmt::format("move {:X} to ({:.0f}, {:.0f}, {:.0f}) angle ({:.2f}, {:.2f}, {:.2f})", cObject, values[0], values[1], values[2], values[3], values[4], values[5]);
         }
         return fmt::format("move {:X}", cObject);
+    case ObjectChange::Kind::kScale: return fmt::format("scale {:X} {}%", cObject, acChange.Value);
+    case ObjectChange::Kind::kOwner: return fmt::format("owner {:X} {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kSaveData: return fmt::format("save data {:X} flags {:X} ({} bytes)", cObject, acChange.Value, acChange.Data.size());
     }
     return fmt::format("kind {} {:X}", static_cast<int>(acChange.Type), cObject);

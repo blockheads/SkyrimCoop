@@ -529,6 +529,12 @@ TEST_CASE("Packets", "[encoding.packets]")
         const float cMove[6] = {-736.f, 1664.f, 7031.f, 0.f, 0.f, 4.71f};
         move.Data.assign(reinterpret_cast<const char*>(cMove), sizeof(cMove));
         sendMessage.Changes.push_back(move);
+        ObjectChange scale{ObjectChange::Kind::kScale, GameId(0, 0x32AEC)};
+        scale.Value = 200;
+        sendMessage.Changes.push_back(scale);
+        ObjectChange owner{ObjectChange::Kind::kOwner, GameId(0, 0xC2CE5)};
+        owner.Item = GameId(0, 0x7);
+        sendMessage.Changes.push_back(owner);
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

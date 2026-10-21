@@ -114,10 +114,13 @@ struct ObjectChange
         kSaveData, // Value: the change flags, Data: what the reference's save holds for them (FormState)
         kOpenState, // Value: 1 open
         kMove,      // Data: position and angle, 6 floats
+        kScale,     // Value: percent
+        kOwner,     // Item: the owner, none for no owner
     };
 
-    // The kinds that carry Data.
+    // The kinds that carry Data, and those that carry Item.
     static bool HasData(Kind aKind) noexcept { return aKind == Kind::kSaveData || aKind == Kind::kMove; }
+    static bool HasItem(Kind aKind) noexcept { return aKind == Kind::kItems || aKind == Kind::kOwner; }
 
     Kind Type{};
     GameId Object{};
@@ -125,7 +128,7 @@ struct ObjectChange
     uint8_t OpenState{};             // kActivate: the door's open state before
     TiltedPhoques::String Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
     TiltedPhoques::String Event;     // kAnimation
-    GameId Item{};                   // kItems: the base item
+    GameId Item{};                   // kItems: the base item; kOwner: the owner
     uint32_t Value{};                // a state's; kItems: the count
     TiltedPhoques::String Data;      // kSaveData
 

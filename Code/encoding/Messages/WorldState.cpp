@@ -136,7 +136,7 @@ void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
         }
         else
         {
-            if (cChange.Type == ObjectChange::Kind::kItems)
+            if (ObjectChange::HasItem(cChange.Type))
                 cChange.Item.Serialize(aWriter);
             Serialization::WriteVarInt(aWriter, cChange.Value);
             if (ObjectChange::HasData(cChange.Type))
@@ -171,7 +171,7 @@ void NotifyObjectChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader)
         }
         else
         {
-            if (change.Type == ObjectChange::Kind::kItems)
+            if (ObjectChange::HasItem(change.Type))
                 change.Item.Deserialize(aReader);
             change.Value = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
             if (ObjectChange::HasData(change.Type))

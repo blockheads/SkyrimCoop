@@ -209,7 +209,7 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
         GameId id;
         if (pObject && m_mods.GetServerModId(cFormId, id))
-            ReferenceStates::Read(*pObject, id, cFlags, changes);
+            ReferenceStates::Read(*pObject, id, cFlags, m_mods, changes);
     }
     changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
     m_events.clear();

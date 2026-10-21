@@ -5,6 +5,7 @@
 
 #include <Games/References.h>
 #include <Games/Overrides.h>
+#include <ExtraData/ExtraOwnership.h>
 
 #include <World.h>
 #include <Services/PapyrusService.h>
@@ -417,6 +418,26 @@ void TESObjectREFR::SetAngleOnAxis(char aAxis, float aDegrees) noexcept
         uint64_t updateData = 0; // NiUpdateData: time 0, no flags
         s_update.Get()(p3D, &updateData);
     }
+}
+
+void TESObjectREFR::SetScale(float aScale) noexcept
+{
+    TP_THIS_FUNCTION(TSetScale, void, TESObjectREFR, float);
+    POINTER_SKYRIMSE(TSetScale, s_setScale, 19665);
+    TiltedPhoques::ThisCall(s_setScale, this, aScale);
+}
+
+void TESObjectREFR::SetOwner(TESForm* apOwner) noexcept
+{
+    TP_THIS_FUNCTION(TSetOwner, void, TESObjectREFR, TESForm*);
+    POINTER_SKYRIMSE(TSetOwner, s_setOwner, 20198);
+    TiltedPhoques::ThisCall(s_setOwner, this, apOwner);
+}
+
+TESForm* TESObjectREFR::GetOwner() const noexcept
+{
+    const auto* pOwnership = static_cast<ExtraOwnership*>(extraData.GetByType(ExtraDataType::Ownership));
+    return pOwnership ? pOwnership->owner : nullptr;
 }
 
 void TESObjectREFR::RecordMove(bool aMoved) noexcept

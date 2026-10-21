@@ -3985,7 +3985,8 @@ WORLD_CHANGES = [
     # The console's SetAngle leaves the 3D's world transform until something updates it: a SetPos in place does.
     ("rotate", ("ACTI", 1), [], ["{r}.setangle z {turned}", "{r}.setpos z {z}"], ["{r}.setangle z {angle}", "{r}.setpos z {z}"]),
     ("scale", ("STAT", 2), [], "{r}.setscale 2", ["{r}.setscale {scale}"]),
-    ("lock", ("DOOR", 0, lambda r: not r.get("lock", {}).get("locked")), [], "{r}.lock 50", ["{r}.unlock"]),
+    # Unlock keeps the level: the lock is put back at its level first.
+    ("lock", ("DOOR", 0, lambda r: not r.get("lock", {}).get("locked")), [], "{r}.lock 50", ["{r}.lock {level}", "{r}.unlock"]),
     ("open", ("DOOR", 0), [], "{r}.setopenstate 1", ["{r}.setopenstate 0"]),
     ("add items", ("CONT", 0), [], f"{{r}}.additem {GOLD:X} 7", [f"{{r}}.removeitem {GOLD:X} 7"]),
     # No console line clears an owner: left owned (the client follows), each run takes the next unowned container.
@@ -3996,7 +3997,7 @@ WORLD_CHANGES = [
 def change_values(ref):
     z, angle = ref["position"][2], math.degrees(ref["rotation"][2]) % 360
     return {"z": f"{z:.2f}", "z_up": f"{z + 64:.2f}", "angle": f"{angle:.2f}", "turned": f"{(angle + 45) % 360:.2f}",
-            "scale": f"{ref['scale']:.3f}"}
+            "scale": f"{ref['scale']:.3f}", "level": (ref.get("lock") or {}).get("level", 0)}
 
 
 def at_rest(instance, ref, timeout=5):
@@ -5638,6 +5639,31 @@ def command_change_rate(args):
         print_change_rates(game, log_)
 
 
+PLUGIN_LOADED = re.compile(r"\] Loaded \d+ resources$")  # the plugin's start (and each hot reload's)
+UNSYNCED_LINE = re.compile(r"^\[([^\]]+)\].*Reference sync: change flags ([0-9A-F]+) of ([0-9A-F]+) have no row")
+
+
+def command_unsynced(args):
+    """The reference change flags the host's game had with no row to send them (ReferenceStates, logged the first
+    time each since the plugin loaded): what vanilla still needs a row for."""
+    sys.path.insert(0, str(ROOT / "scripts/re"))
+    import save_diff
+    lines = plugin_log("").read_text(errors="replace").splitlines()
+    loads = [i for i, line in enumerate(lines) if PLUGIN_LOADED.search(line)]
+    found = {}
+    for line in lines[loads[-1] if loads else 0:]:
+        if match := UNSYNCED_LINE.match(line):
+            stamp, flags, ref = match.group(1), int(match.group(2), 16), int(match.group(3), 16)
+            for bit in range(32):
+                if flags >> bit & 1:
+                    found.setdefault(bit, (stamp, ref))
+    if not found:
+        print("every reference change the host had went out with a row")
+        return
+    for bit, (stamp, ref) in sorted(found.items()):
+        print(f"  {1 << bit:#010x}  {save_diff.flag_names('REFR', 1 << bit)[0]:24s} first on {ref:X}  ({stamp})")
+
+
 def command_locks(args):
     for name in ("", "client"):
         select_instance(name)
@@ -5949,6 +5975,7 @@ def main():
     walk.add_argument("--details", type=int, default=30, help="end-of-walk differences listed (default 30)")
     crash = commands.add_parser("crash", help="the newest crash of each game: engine state (CrashLoggerSSE) and our last engine changes")
     crash.add_argument("--instance", choices=["client"], help="only this game (default: both)")
+    commands.add_parser("unsynced", help="the reference change flags the host had with no row to send them")
     world_diff = commands.add_parser("world-diff", help="compare every reference in the loaded cells between the two games")
     world_diff.add_argument("--details", type=int, default=40, help="references listed (0: all)")
     desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
@@ -5994,6 +6021,8 @@ def main():
             command_crash(args)
         elif args.command == "repro":
             command_repro(args)
+        elif args.command == "unsynced":
+            command_unsynced(args)
         elif args.command == "world-diff":
             command_world_diff(args)
         elif args.command == "desync":

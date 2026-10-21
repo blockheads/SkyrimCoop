@@ -138,10 +138,19 @@ Rows (2026-10-21, `Games/ReferenceStates.cpp`):
 | open state `0x800000` | `kOpenState` | `BGSOpenCloseForm::SetOpenState` (14287): the swing, its events |
 | move `0x2` | `kMove` | `SetPositionOnAxis` (22053), `SetRotation` (22054) per axis, then the 3D's update |
 
-| every other flag | `kSaveData` | the last row: `FormState::Load`, then the flags marked |
+| scale `0x10` | `kScale` | `SetScale` (19665): the 3D and collision follow |
+| owner `0x40` | `kOwner` | `SetOwner` (20198), the owner as a `GameId` |
+| every other flag | `kSaveData` | the last row: `FormState::Load`, then the flags marked. **Off** (`cSaveDataFallback`) |
 
-Containers' items go as `kItems` events (the container event). Not sent: game-only extras, promoted, cell changed
-(`cNotSent`, below). `ReferenceStates::Read` walks the rows in order, each taking its flags, the last what is left;
+Containers' items go as `kItems` events (the container event), so inventory `0x20` is not a row. Not sent:
+game-only extras, promoted, cell changed (`cNotSent`, below).
+
+**The save-data row is off while vanilla's states get rows (decided 2026-10-21).** With it on, a state with no row
+still matched as data, so a missing side effect showed only where a scenario looked: the container event never
+fired on the guest because the inventory's save data had already set the count. Off, a flag with no row is not
+sent and logged once (`Reference sync: change flags ... have no row`); `coop_test.py unsynced` lists them, the
+rows still to write. After the object scenarios: havok moved `0x4`, activating children `0x4000000`, animation
+`0x10000000`. It is switched on for mods' states. `ReferenceStates::Read` walks the rows in order, each taking its flags, the last what is left;
 `Apply` finds the row by kind. Both engines only call these two.
 
 - Enable and Disable (19800, 19801) both flip the disabled flag through `TESForm::SetDisabled` (14646), which
@@ -331,7 +340,7 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    result), its physics bodies (in the world, where), its active behavior graph's variables and the effects on
    it; the scenario compares the object events each game raised (EngineEvents: activate, lock, open/close,
    attach/detach, load/unload, container). Nodes the host moves between two samples (idle loops) are skipped.
-   Save data for everything (the rows off, 2026-10-21): disable and enable match in every side effect. Lock,
+   Save data for everything (the rows off, 2026-10-21, before the rows below were written): disable and enable match in every side effect. Lock,
    scale, owner and items match live, but the guest records no change (a load's changes are not recorded), so
    its cell unloading loses them, and raises no `OnLockStateChanged` or `OnItemAdded`. A script's `SetOpen`
    sets the guest's open state but its door does not swing (nodes and physics closed) and no `OnOpen`.
