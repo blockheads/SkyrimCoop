@@ -3287,6 +3287,11 @@ def scenario_plate_counts_client():
         both_go(HOME_CELL)
 
 
+def ref_enabled(instance, ref):
+    select_instance(instance)
+    return (rpc({"cmd": "ref_enabled", "object": ref}) or {}).get("enabled")
+
+
 def item_count(instance, holder, item):
     select_instance(instance)
     return (rpc({"cmd": "item_count", "object": holder, "item": item}) or {}).get("count")
@@ -3308,7 +3313,8 @@ def scenario_sword_box_asks_client():
     counts its character as the player (rule 1), and the script the box starts asks that character for
     the sword and hands it back to it (rule 2, docs/design/party-model.md): the host's player, who has
     none, opens the door all the same and never gets the sword. The client's own box runs nothing
-    (world-state sync step 5): its sword goes once and comes back once, and its door opens from the host's."""
+    (world-state sync step 5): its sword goes once and comes back once, its door opens from the host's, and
+    it sees the host's script swap the box and the sword in the stone (step 6, enabled state)."""
     try:
         both_go(REBELS_CAIRN_CELL)
         copy = client_on_host()
@@ -3327,10 +3333,17 @@ def scenario_sword_box_asks_client():
         wait_for("[client] the player gave up the sword", lambda: item_count("client", 0x14, RED_EAGLE_SWORD) == 0, 5)
         if item_count("", 0x14, RED_EAGLE_SWORD):
             raise TestFailure("[host] the host's player holds a sword it never had")
+        # The host's script swaps the box for the sword in the stone; the client sees it from the host (step 6).
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the sword stands in the stone, the box is gone",
+                     lambda name=name: ref_enabled(name, SWORD_IN_STONE) and ref_enabled(name, SWORD_BOX) is False, 5)
         activate_on("client", SWORD_IN_STONE)
         for name in ("", "client"):
             wait_for(f"[{name or 'host'}] secret door {SECRET_DOOR:X} closes", lambda name=name: door_state(name, SECRET_DOOR) == DOOR_CLOSED, 15)
         wait_for("[client] the player has the sword back", lambda: item_count("client", 0x14, RED_EAGLE_SWORD) == 1, 5)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the box is back, the stone empty",
+                     lambda name=name: ref_enabled(name, SWORD_BOX) and ref_enabled(name, SWORD_IN_STONE) is False, 5)
         if item_count("", 0x14, RED_EAGLE_SWORD):
             raise TestFailure("[host] the sword went to the host's player, not the client's character")
         if (swords := item_count("client", 0x14, RED_EAGLE_SWORD)) != 1:

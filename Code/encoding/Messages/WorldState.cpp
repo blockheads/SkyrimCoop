@@ -8,7 +8,7 @@ namespace
 constexpr uint64_t kMaxGlobals = 0x10000;
 constexpr uint64_t kMaxQuests = 0x10000;
 constexpr uint64_t kMaxPerQuest = 0x1000;
-constexpr uint64_t kMaxScriptResults = 0x1000;
+constexpr uint64_t kMaxObjectChanges = 0x1000;
 
 void Write(TiltedPhoques::Buffer::Writer& aWriter, const QuestState& acQuest) noexcept
 {
@@ -117,49 +117,53 @@ void NotifyQuests::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexce
         }
 }
 
-void NotifyScriptResults::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, Results.size());
-    for (const auto& cResult : Results)
+    Serialization::WriteVarInt(aWriter, Changes.size());
+    for (const auto& cChange : Changes)
     {
-        Serialization::WriteVarInt(aWriter, static_cast<uint8_t>(cResult.Type));
-        cResult.Object.Serialize(aWriter);
-        if (cResult.Type == ScriptResult::Kind::kActivate)
+        Serialization::WriteVarInt(aWriter, static_cast<uint8_t>(cChange.Type));
+        cChange.Object.Serialize(aWriter);
+        if (cChange.Type == ObjectChange::Kind::kActivate)
         {
-            cResult.Activator.Serialize(aWriter);
-            aWriter.WriteBits(cResult.OpenState, 8);
+            cChange.Activator.Serialize(aWriter);
+            aWriter.WriteBits(cChange.OpenState, 8);
+        }
+        else if (cChange.Type == ObjectChange::Kind::kAnimation)
+        {
+            Serialization::WriteString(aWriter, cChange.Animation);
+            Serialization::WriteString(aWriter, cChange.Event);
         }
         else
-        {
-            Serialization::WriteString(aWriter, cResult.Animation);
-            Serialization::WriteString(aWriter, cResult.Event);
-        }
+            Serialization::WriteVarInt(aWriter, cChange.Value);
     }
 }
 
-void NotifyScriptResults::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyObjectChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
     ServerMessage::DeserializeRaw(aReader);
 
     const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    if (cCount > kMaxScriptResults)
+    if (cCount > kMaxObjectChanges)
         return;
-    Results.resize(cCount);
-    for (auto& result : Results)
+    Changes.resize(cCount);
+    for (auto& change : Changes)
     {
-        result.Type = static_cast<ScriptResult::Kind>(Serialization::ReadVarInt(aReader));
-        result.Object.Deserialize(aReader);
-        if (result.Type == ScriptResult::Kind::kActivate)
+        change.Type = static_cast<ObjectChange::Kind>(Serialization::ReadVarInt(aReader));
+        change.Object.Deserialize(aReader);
+        if (change.Type == ObjectChange::Kind::kActivate)
         {
-            result.Activator.Deserialize(aReader);
+            change.Activator.Deserialize(aReader);
             uint64_t openState = 0;
             aReader.ReadBits(openState, 8);
-            result.OpenState = static_cast<uint8_t>(openState);
+            change.OpenState = static_cast<uint8_t>(openState);
+        }
+        else if (change.Type == ObjectChange::Kind::kAnimation)
+        {
+            change.Animation = Serialization::ReadString(aReader);
+            change.Event = Serialization::ReadString(aReader);
         }
         else
-        {
-            result.Animation = Serialization::ReadString(aReader);
-            result.Event = Serialization::ReadString(aReader);
-        }
+            change.Value = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     }
 }

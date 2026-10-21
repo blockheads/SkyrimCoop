@@ -191,26 +191,29 @@ TEST_CASE("World state: a joining player gets every quest, as a load", "[Bridge]
     CHECK(session.SentTo<NotifyQuests>(kOtherPeer).empty());
 }
 
-TEST_CASE("World state: the host's world scripts' doors and animations reach the others in order, once", "[Bridge][WorldState]")
+TEST_CASE("World state: the host's world objects' changes reach the others in order, once", "[Bridge][WorldState]")
 {
     Session session;
-    // The sword in the stone: its manager opens the secret door and the box plays its animation.
-    session.ScriptResults = {{ScriptResult::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}},
-                             {ScriptResult::Kind::kAnimation, GameId(0, 0xA05C0), {}, 0, {}, "Open"}};
+    // The sword in the stone: the box goes, its manager opens the secret door, an animation plays.
+    session.ObjectChanges = {{ObjectChange::Kind::kEnabled, GameId(0, 0xA05C0)},
+                             {ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}},
+                             {ObjectChange::Kind::kAnimation, GameId(0, 0xA05C0), {}, 0, {}, "Open"}};
     session.Frame(1000);
     for (const auto cTo : {kPeer, kOtherPeer})
     {
-        const auto cSent = session.SentTo<NotifyScriptResults>(cTo);
+        const auto cSent = session.SentTo<NotifyObjectChanges>(cTo);
         REQUIRE(cSent.size() == 1);
-        REQUIRE(cSent[0]->Results.size() == 2);
-        CHECK(cSent[0]->Results[0].Type == ScriptResult::Kind::kActivate);
-        CHECK(cSent[0]->Results[0].Activator == GameId(0, 0xA05C4));
-        CHECK(cSent[0]->Results[1].Event == "Open");
+        REQUIRE(cSent[0]->Changes.size() == 3);
+        CHECK(cSent[0]->Changes[0].Type == ObjectChange::Kind::kEnabled);
+        CHECK(cSent[0]->Changes[0].Value == 0);
+        CHECK(cSent[0]->Changes[1].Type == ObjectChange::Kind::kActivate);
+        CHECK(cSent[0]->Changes[1].Activator == GameId(0, 0xA05C4));
+        CHECK(cSent[0]->Changes[2].Event == "Open");
     }
-    CHECK(session.SentTo<NotifyScriptResults>(kHost).empty());
+    CHECK(session.SentTo<NotifyObjectChanges>(kHost).empty());
 
     // Taken once: nothing new, nothing sent.
     session.Outbox.clear();
     session.Frame(1016);
-    CHECK(session.SentTo<NotifyScriptResults>(kPeer).empty());
+    CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
 }

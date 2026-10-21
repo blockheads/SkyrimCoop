@@ -16,7 +16,7 @@ struct GuestService::Guest
         : Engine(aWorld.GetModSystem())
         , Clock(aWorld, aDispatcher, Engine)
         , Weather(aDispatcher, Engine)
-        , WorldState(aDispatcher, Engine)
+        , WorldState(aWorld, aDispatcher, Engine)
     {
     }
 

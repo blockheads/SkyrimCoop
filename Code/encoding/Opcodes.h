@@ -66,7 +66,6 @@ enum ServerOpcode : unsigned char
     kNotifyHealthChangeBroadcast,
     kNotifySpawnData,
     kNotifyActivate,
-    kNotifyLockChange,
     kAssignObjectsResponse,
     kNotifyDeathStateChange,
     kNotifyObjectInventoryChanges,
@@ -108,6 +107,6 @@ enum ServerOpcode : unsigned char
     kNotifyDialogueExperience,
     kNotifyGlobals,
     kNotifyQuests,
-    kNotifyScriptResults,
+    kNotifyObjectChanges,
     kServerOpcodeMax
 };

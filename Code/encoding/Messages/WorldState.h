@@ -98,14 +98,18 @@ struct NotifyQuests final : ServerMessage
     bool Join{};
 };
 
-// What a world script on the host's game did to an object that no other message carries (step 5): a door it
-// activated (by a reference: `Activate(Self)`), or an animation it played on the object.
-struct ScriptResult
+// A world object changing on the host's game in a way no other message carries (steps 5 and 6): a script's event (a
+// door it activated by a reference, `Activate(Self)`, or an animation it played), or a reference's state, as one
+// value its row packs (client `Games/ReferenceStates.cpp`).
+struct ObjectChange
 {
     enum class Kind : uint8_t
     {
         kActivate,
         kAnimation,
+        // States, from here on: Value.
+        kEnabled,
+        kLock,
     };
 
     Kind Type{};
@@ -114,24 +118,25 @@ struct ScriptResult
     uint8_t OpenState{};             // kActivate: the door's open state before
     TiltedPhoques::String Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
     TiltedPhoques::String Event;     // kAnimation
+    uint32_t Value{};                // a state's
 
-    bool operator==(const ScriptResult& acRhs) const noexcept
+    bool operator==(const ObjectChange& acRhs) const noexcept
     {
         return Type == acRhs.Type && Object == acRhs.Object && Activator == acRhs.Activator && OpenState == acRhs.OpenState &&
-               Animation == acRhs.Animation && Event == acRhs.Event;
+               Animation == acRhs.Animation && Event == acRhs.Event && Value == acRhs.Value;
     }
 };
 
-// The host's world scripts' results since the last, in the order its game had them.
-struct NotifyScriptResults final : ServerMessage
+// The host's world objects' changes since the last, in the order its game had them.
+struct NotifyObjectChanges final : ServerMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyScriptResults;
-    NotifyScriptResults() : ServerMessage(Opcode) {}
+    static constexpr ServerOpcode Opcode = kNotifyObjectChanges;
+    NotifyObjectChanges() : ServerMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyScriptResults& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Results == acRhs.Results; }
+    bool operator==(const NotifyObjectChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Changes == acRhs.Changes; }
 
-    TiltedPhoques::Vector<ScriptResult> Results;
+    TiltedPhoques::Vector<ObjectChange> Changes;
 };

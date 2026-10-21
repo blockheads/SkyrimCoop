@@ -186,7 +186,6 @@ public:
     bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override;
     uint8_t GetObjectLockLevel(uint32_t aObjectFormId) const noexcept override;
     bool SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept override;
-    void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept override;
     uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept override;
     void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aPreActivationState) noexcept override;
     uint8_t GetObjectOpenState(uint32_t aObjectFormId) const noexcept override;

@@ -936,6 +936,19 @@ bool TESObjectREFR::Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBound
     return TiltedPhoques::ThisCall(RealActivate, this, apActivator, aUnk1, aObjectToGet, aCount, aDefaultProcessing);
 }
 
+bool TESObjectREFR::SetLockState(bool aLocked, uint8_t aLockLevel) noexcept
+{
+    Lock* pLock = GetLock();
+    if (!pLock && aLocked)
+        pLock = CreateLock();
+    if (!pLock)
+        return !aLocked;
+    pLock->lockLevel = aLockLevel;
+    pLock->SetLock(aLocked);
+    LockChange(); // AddLockChange (19512) past our hook
+    return true;
+}
+
 void TESObjectREFR::EnableImpl() noexcept
 {
     TP_THIS_FUNCTION(TEnableImpl, void, TESObjectREFR, bool aResetInventory);
@@ -973,7 +986,7 @@ bool TP_MAKE_THISCALL(HookPlayAnimationAndWait, void, uint32_t auiStackID, TESOb
     spdlog::debug("Animation: {}, EventName: {}", apAnimation->AsAscii(), apEventName->AsAscii());
 
     // Sent by every game, passed on from the host's only (HostAuthority::OnScriptAnimation).
-    if (!s_cancelAnimationWaitEvent && (apSelf->formID < 0xFF000000))
+    if (!s_cancelAnimationWaitEvent && !ScopedHostChangeOverride::IsOverriden() && (apSelf->formID < 0xFF000000))
         World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, apAnimation->AsAscii(), apEventName->AsAscii()));
 
     return TiltedPhoques::ThisCall(RealPlayAnimationAndWait, apThis, auiStackID, apSelf, apAnimation, apEventName);
@@ -1002,7 +1015,7 @@ bool TP_MAKE_THISCALL(HookPlayAnimation, void, uint32_t auiStackID, TESObjectREF
 {
     spdlog::debug("EventName: {}", apEventName->AsAscii());
 
-    if (!s_cancelAnimationEvent && (apSelf->formID < 0xFF000000))
+    if (!s_cancelAnimationEvent && !ScopedHostChangeOverride::IsOverriden() && (apSelf->formID < 0xFF000000))
         World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, String{}, apEventName->AsAscii()));
 
     return TiltedPhoques::ThisCall(RealPlayAnimation, apThis, auiStackID, apSelf, apEventName);
@@ -1015,7 +1028,7 @@ bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, u
 
     // An actor's activation (not a book's: only reading one removes it from the cell), or a script's on a door
     // (by a reference: only the host's are passed on, HostAuthority::OnActivate).
-    if (apActivator && (pActivator ? apThis->baseForm->formType != FormType::Book : cIsDoor))
+    if (apActivator && !ScopedHostChangeOverride::IsOverriden() && (pActivator ? apThis->baseForm->formType != FormType::Book : cIsDoor))
     {
         const auto cOpenState = cIsDoor ? apThis->GetOpenState() : TESObjectREFR::kNone;
         ActivateEvent evt(apThis, pActivator, apObjectToGet, aCount, aDefaultProcessing, aUnk1, cOpenState);
@@ -1122,6 +1135,8 @@ void TP_MAKE_THISCALL(HookRotateZ, TESObjectREFR, float aAngle)
 void TP_MAKE_THISCALL(HookLockChange, TESObjectREFR)
 {
     TiltedPhoques::ThisCall(RealLockChange, apThis);
+    if (ScopedHostChangeOverride::IsOverriden())
+        return;
     const auto* pLock = apThis->GetLock();
     if(pLock)
         World::Get().GetRunner().Trigger(LockChangeEvent(apThis->formID, pLock->IsLocked(), pLock->lockLevel));

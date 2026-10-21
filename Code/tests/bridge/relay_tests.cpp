@@ -294,7 +294,7 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }
 
-TEST_CASE("Objects: an activation and a lock reach everyone else", "[Bridge][Objects]")
+TEST_CASE("Objects: an activation reaches everyone else; a guest's lock is the host's to take", "[Bridge][Objects]")
 {
     Session session;
     const uint32_t cPlayer = session.Character(kPeer);
@@ -305,14 +305,6 @@ TEST_CASE("Objects: an activation and a lock reach everyone else", "[Bridge][Obj
     activate.ActivatorId = cPlayer;
     activate.PreActivationOpenState = 2;
     session.Receive(kPeer, activate);
-
-    LockChangeRequest lock;
-    lock.Id = GameId(0, 0x1A2B);
-    lock.CellId = GameId(0, 0x9732);
-    lock.IsLocked = false;
-    lock.LockLevel = 25;
-    session.Receive(kPeer, lock);
-
     for (const auto cTo : {kHost, kOtherPeer})
     {
         const auto cActivations = session.SentTo<NotifyActivate>(cTo);
@@ -320,12 +312,23 @@ TEST_CASE("Objects: an activation and a lock reach everyone else", "[Bridge][Obj
         CHECK(cActivations[0]->Id == GameId(0, 0x1A2B));
         CHECK(cActivations[0]->ActivatorId == cPlayer);
         CHECK(cActivations[0]->PreActivationOpenState == 2);
-
-        const auto cLocks = session.SentTo<NotifyLockChange>(cTo);
-        REQUIRE(cLocks.size() == 1);
-        CHECK_FALSE(cLocks[0]->IsLocked);
-        CHECK(cLocks[0]->LockLevel == 25);
     }
     CHECK(session.SentTo<NotifyActivate>(kPeer).empty());
-    CHECK(session.SentTo<NotifyLockChange>(kPeer).empty());
+
+    // A guest picked a lock: the host's game takes it (and sends it as its own change); nothing is relayed.
+    LockChangeRequest lock;
+    lock.Id = GameId(0, 0x1A2B);
+    lock.IsLocked = false;
+    lock.LockLevel = 25;
+    session.Outbox.clear();
+    session.Receive(kPeer, lock);
+    REQUIRE(session.LocksSet.size() == 1);
+    CHECK(std::get<0>(session.LocksSet[0]) == GameId(0, 0x1A2B));
+    CHECK_FALSE(std::get<1>(session.LocksSet[0]));
+    CHECK(std::get<2>(session.LocksSet[0]) == 25);
+    CHECK(session.Outbox.empty());
+
+    // The host's own lock goes out with its object changes, not this way.
+    session.Receive(kHost, lock);
+    CHECK(session.LocksSet.size() == 1);
 }

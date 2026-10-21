@@ -29,7 +29,7 @@ HostWorldState::HostWorldState(Server::GameServer& aServer, const HostPlayers& a
 
 void HostWorldState::Update(uint64_t aTick) noexcept
 {
-    UpdateScriptResults();
+    UpdateObjectChanges();
     if (aTick - m_globalsTick >= kGlobalsIntervalMs)
     {
         m_globalsTick = aTick;
@@ -91,15 +91,15 @@ void HostWorldState::UpdateQuests() noexcept
         m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
 }
 
-void HostWorldState::UpdateScriptResults() noexcept
+void HostWorldState::UpdateObjectChanges() noexcept
 {
-    if (!m_game.TakeScriptResults)
+    if (!m_game.TakeObjectChanges)
         return;
-    NotifyScriptResults results;
-    results.Results = m_game.TakeScriptResults();
+    NotifyObjectChanges changes;
+    changes.Changes = m_game.TakeObjectChanges();
     const ConnectionId_t cHost = m_players.Host();
-    if (cHost && !results.Results.empty())
-        m_players.SendToOthers(results, cHost, TiltedPhoques::kReliable);
+    if (cHost && !changes.Changes.empty())
+        m_players.SendToOthers(changes, cHost, TiltedPhoques::kReliable);
 }
 
 void HostWorldState::SendWorldState(ConnectionId_t aPlayer) const noexcept

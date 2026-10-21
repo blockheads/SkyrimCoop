@@ -3,15 +3,19 @@
 #include <Breadcrumbs.h>
 #include <Systems/ModSystem.h>
 
+#include <Forms/FormChanges.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
+#include <Games/ReferenceStates.h>
 #include <Games/TES.h>
 #include <Sky/Sky.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 
 #include <cmath>
+#include <iterator>
+#include <mutex>
 #include <utility>
 
 static_assert(QuestState::kFlags == (TESQuest::Enabled | TESQuest::Completed | TESQuest::Failed | TESQuest::StageWait));
@@ -44,11 +48,64 @@ QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMo
     }
     return quest;
 }
+
+// The references the funnel saw change, each once with its flags merged (each state goes as it is when taken, so
+// their order does not matter). Filled on the engine's threads; the lock is a leaf (nothing is taken under it).
+struct ChangedReferences
+{
+    void Add(uint32_t aFormId, uint32_t aFlags) noexcept
+    {
+        std::scoped_lock _(m_lock);
+        m_changed[aFormId] |= aFlags;
+    }
+
+    TiltedPhoques::Map<uint32_t, uint32_t> Take() noexcept
+    {
+        std::scoped_lock _(m_lock);
+        return std::exchange(m_changed, {});
+    }
+
+private:
+    std::mutex m_lock;
+    TiltedPhoques::Map<uint32_t, uint32_t> m_changed; // form id: change flags
+};
+
+// One for the funnel's watcher, a plain function: only one HostEngine lives at a time.
+ChangedReferences s_changed;
+
+// A world reference changed live: not an actor (its owner's), not one the game created (an id of its own), not
+// by a load.
+void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRecorded) noexcept
+{
+    const uint32_t cFlags = aFlags & ReferenceStates::ChangeFlags();
+    if (cFlags && aRecorded && !aForced && acForm.formType == FormType::Reference && acForm.formID < 0xFF000000)
+        s_changed.Add(acForm.formID, cFlags);
+}
+
+// The reference's state now, one change for each state whose flag is in aFlags.
+void ReadStates(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept
+{
+    for (const ReferenceState& cState : ReferenceStates::All())
+    {
+        if (!(aFlags & cState.ChangeFlag))
+            continue;
+        ObjectChange& change = aChanges.emplace_back(ObjectChange{cState.Kind, acId});
+        change.Value = cState.Read(acObject);
+    }
+}
 } // namespace
 
 HostEngine::HostEngine(const ModSystem& acMods) noexcept
     : m_mods(acMods)
 {
+    if (!FormChanges::Watch(&OnFormChange))
+        spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
+}
+
+HostEngine::~HostEngine() noexcept
+{
+    FormChanges::Unwatch(&OnFormChange);
+    s_changed.Take();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept
@@ -104,22 +161,40 @@ void HostEngine::SetHour(float aHours) noexcept
 
 void HostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept
 {
-    ScriptResult result{ScriptResult::Kind::kActivate};
-    result.OpenState = aOpenState;
-    if (m_mods.GetServerModId(aObjectFormId, result.Object) && m_mods.GetServerModId(aActivatorFormId, result.Activator))
-        m_scriptResults.push_back(std::move(result));
+    ObjectChange event{ObjectChange::Kind::kActivate};
+    event.OpenState = aOpenState;
+    if (m_mods.GetServerModId(aObjectFormId, event.Object) && m_mods.GetServerModId(aActivatorFormId, event.Activator))
+        m_events.push_back(std::move(event));
 }
 
 void HostEngine::RecordAnimation(uint32_t aObjectFormId, const TiltedPhoques::String& acAnimation, const TiltedPhoques::String& acEvent) noexcept
 {
-    ScriptResult result{ScriptResult::Kind::kAnimation};
-    result.Animation = acAnimation;
-    result.Event = acEvent;
-    if (m_mods.GetServerModId(aObjectFormId, result.Object))
-        m_scriptResults.push_back(std::move(result));
+    ObjectChange event{ObjectChange::Kind::kAnimation};
+    event.Animation = acAnimation;
+    event.Event = acEvent;
+    if (m_mods.GetServerModId(aObjectFormId, event.Object))
+        m_events.push_back(std::move(event));
 }
 
-TiltedPhoques::Vector<ScriptResult> HostEngine::TakeScriptResults() noexcept
+void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept
 {
-    return std::exchange(m_scriptResults, {});
+    // Goes out from the funnel, as any of the host's lock changes.
+    if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acObject))))
+        pObject->SetLockState(aLocked, aLockLevel);
+}
+
+TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
+{
+    // State first, then the events: an object a script enabled and then animated is enabled for the animation.
+    TiltedPhoques::Vector<ObjectChange> changes;
+    for (const auto& [cFormId, cFlags] : s_changed.Take())
+    {
+        const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
+        GameId id;
+        if (pObject && m_mods.GetServerModId(cFormId, id))
+            ReadStates(*pObject, id, cFlags, changes);
+    }
+    changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
+    m_events.clear();
+    return changes;
 }

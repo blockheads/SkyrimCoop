@@ -120,6 +120,8 @@ std::vector<ScriptStack> GetRunningScripts() noexcept;
 
 // How many of that item the reference holds (its container plus its changes), as GetItemCount reads it.
 std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
+// Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
+std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
 
 // --- Staging and the player's own input ---
 

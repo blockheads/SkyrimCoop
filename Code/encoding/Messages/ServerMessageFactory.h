@@ -20,7 +20,6 @@
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifySpawnData.h>
 #include <Messages/NotifyActivate.h>
-#include <Messages/NotifyLockChange.h>
 #include <Messages/AssignObjectsResponse.h>
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/NotifyObjectInventoryChanges.h>
@@ -64,11 +63,11 @@ struct ServerMessageFactory
     {
         auto s_visitor = CreateMessageVisitor<
             AuthenticationResponse, AssignCharacterResponse, ServerReferencesMoveRequest, ServerTimeSettings, CharacterSpawnRequest, NotifyInventoryChanges, NotifyFactionsChanges, NotifyRemoveCharacter, NotifyQuestUpdate,
-            NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, NotifyLockChange, AssignObjectsResponse, NotifyDeathStateChange, NotifyObjectInventoryChanges, NotifySpellCast,
+            NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, AssignObjectsResponse, NotifyDeathStateChange, NotifyObjectInventoryChanges, NotifySpellCast,
             NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyPlayerRespawn, NotifyDialogue,
             NotifySubtitle, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerLevel, NotifySettingsChange,
             NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifySetTimeResult, NotifyRemoveSpell, WorldStateSync, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
-            NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyDialogueExperience, NotifyGlobals, NotifyQuests, NotifyScriptResults>;
+            NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyDialogueExperience, NotifyGlobals, NotifyQuests, NotifyObjectChanges>;
 
         return s_visitor(std::forward<T>(func));
     }

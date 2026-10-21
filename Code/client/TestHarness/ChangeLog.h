@@ -2,9 +2,9 @@
 
 #include <nlohmann/json.hpp>
 
-// Counts the engine's change records (TESForm::AddChange, 14607, and its forced variant 14608, the
-// only callers of the save system's change funnel) by form type and change flags, for
-// `coop_test.py change-rate`. Lock-free: the engine records changes from worker threads.
+// Counts the engine's change records (a FormChanges watcher: TESForm::AddChange, 14607, and its forced variant
+// 14608) by form type and change flags, for `coop_test.py change-rate`. Lock-free: the engine records changes
+// from worker threads.
 // Findings: docs/research/world-state-drift.md.
 namespace TestHarness::ChangeLog
 {

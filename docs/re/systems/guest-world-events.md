@@ -9,11 +9,12 @@ guest: player activates / walks in
   engine → Activate relay (ActivateRequest) / copy moves into the host's trigger
   VM SendEvent(world ref, "OnActivate" | "OnTrigger*") → dropped      WorldEvents.cpp
 host: the copy's event runs the script (GuestScripts rules 1-2)
-  door it opens (Activate by a reference)  ┐ ActivateEvent / ScriptAnimationEvent → HostService
-  animation it plays (PlayAnimation)        ┘ → HostEngine (queued) → HostWorldState: NotifyScriptResults
+  door it opens (Activate by a reference)  ┐ ActivateEvent / ScriptAnimationEvent /
+  animation it plays (PlayAnimation)        │ ReferenceEnabledEvent → HostService
+  reference it enables or disables          ┘ → HostEngine (queued) → HostWorldState: NotifyObjectChanges
   spell it casts on the copy                → AddTargetRequest to the owner    MagicTarget.cpp
   items it takes or gives the copy          → inventory changes (as before)
-guest: GuestWorldState → GuestEngine::ApplyScriptResult (the door, the animation)
+guest: GuestWorldState → GuestEngine::ApplyObjectChange (the door, the animation, enabled state)
 ```
 
 ## Dropping the guest's events
@@ -30,10 +31,17 @@ story-manager gate).
 
 ## Results back to the guest
 
-Doors and animations are world state like step 4's globals and quests: only the host's game sends them
-(`HostWorldState`, `NotifyScriptResults`, one ordered list a frame), only a guest applies them
-(`GuestWorldState`, `GuestEngine::ApplyScriptResult`). `ObjectService` keeps the relays every game makes
+Doors, animations, enabled state and locks are world state like step 4's globals and quests: only the host's game
+sends them (`HostWorldState`, `NotifyObjectChanges`, one list a frame: the state the change funnel saw change, then
+the scripts' events in order; `docs/design/world-state-sync.md`, "As built"), only a guest applies them
+(`GuestWorldState`, `GuestEngine::ApplyObjectChange`). `ObjectService` keeps the relays every game makes
 (players' activations, locks).
+
+A guest applies each change under `ScopedHostChangeOverride` (`Games/Overrides.h`): the object hooks it goes
+through (`HookActivate`, `HookLockChange`, the two animation hooks) raise no event
+for it, so nothing the host sent goes back as a guest's change. Before, each kind avoided the echo its own
+way (a call past the hook, a thread-local flag in the wrapper, a flag on the event), and a lock sent
+back would have looped between the games (the guest's proposal, the host's change, applied again).
 
 - **Doors a script opens** (`secretDoor.Activate(Self)`): `HookActivate` passed on actors' activations only.
   A door activated by a reference raises `ActivateEvent::ByReference`, which `ObjectService` leaves alone; on
@@ -44,6 +52,22 @@ Doors and animations are world state like step 4's globals and quests: only the 
   `ScriptAnimationRequest` / `NotifyScriptAnimation` relay deleted. The hooks' signatures checked in IDA: `papyrus::ObjectReference::PlayAnimation` (56205)
   and `PlayAnimationAndWait` (56206) take `(vm, stackId, self, BSFixedString*)` (the native copies its event
   from the pointer).
+- **Enabled state** (step 6's first piece): any cause on the host (a script, a quest stage, the console) ends in
+  the engine's `TESObjectREFR::Enable` (19800, `(this, bool resetInventory)`) or `Disable` (19801, vtable slot
+  0x89; `Actor` overrides it, 37267). Papyrus `Enable`/`Disable` (56158, 56155, and the `NoWait` forms) queue an
+  `EnableFunctor` / `DisableFunctor` (56492 / 56491) for after render, which fade and then call those two
+  (functors 56110, 56113). Both flip the disabled flag (`0x800`) through `TESForm::SetDisabled` (14646), which
+  records `CHANGE_FORM_FLAGS` (`AddChange(1)`): the host reads the state from the change funnel
+  (`Forms/FormChanges`, `HostEngine`), not for actors (their owner's) or references the game created (`0xFF`
+  ids). A guest enables or disables its reference at once (`EnableImpl`, `DisableImpl`), the host's fade
+  already played. The `Enable`/`Disable` hooks (and `ReferenceEnabledEvent`) were deleted for the funnel.
+- **Locks** (step 6): every lock change ends in `TESObjectREFR::AddLockChange` (19512, CommonLibSSE-NG), which
+  records `CHANGE_OBJECT_EXTRA_LOCK` (`AddChange(0x1000)`; for a load door, on the door it leads to). On the host
+  the funnel's change goes out as a `kLock` object change; on a guest its hook's `LockChangeEvent` is a proposal
+  (`GuestWorldState` sends `LockChangeRequest`), which `HostAuthority::OnLockChange` gives the host's game
+  (`HostGame::SetLock`, `HostEngine::SetLock`): the host's object takes it and every game gets it as the host's
+  change. Applying calls `TESObjectREFR::SetLockState`, which records the change past our hook; on the host the funnel sees it. The
+  old relay (`NotifyLockChange`, `ObjectService`'s lock handlers) is deleted.
 - **Spells the host's world casts on a guest's character**: `MagicTarget::AddTarget` dropped every effect on
   a copy whose caster was a copy or nothing, and every hostile one between players with PvP off. On the host,
   an effect on a guest's character goes to its owner when the caster is not an actor (a statue, a trap) or
@@ -72,6 +96,8 @@ needed it so far).
 ## Tests
 
 `sword-box-asks-client` (the guest's sword goes once and comes back once; its secret door opens from the host's
-relay), `statue-fires-at-client` (the guest's trigger never polls; the host's fire burns its player),
-`ring-turns-for-client` (the guest's ring script state stays), `shrine-blesses-client` (the guest's blessing
-comes from the host's script), BridgeTests "a script's door and animations come only from the host's world".
+change; it sees the box and the sword in the stone swap both ways: with the host's recording off, the guest's
+sword never appears, control 2026-10-21), `statue-fires-at-client` (the guest's trigger never polls; the host's
+fire burns its player), `ring-turns-for-client` (the guest's ring script state stays), `shrine-blesses-client`
+(the guest's blessing comes from the host's script), BridgeTests "the host's world objects' changes reach the
+others in order, once". Harness `ref_enabled` reads a reference's enabled state.

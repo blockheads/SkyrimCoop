@@ -109,6 +109,42 @@ mod's form, the save data).
 No periodic compare-and-resend: a guest's world drifting from the host's is a bug a scenario should catch.
 The world desync check (step 7) compares the two games in the scenarios.
 
+### As built (2026-10-21)
+
+```
+host game
+  TESForm::AddChange (14607), forced (14608)      one hook: Games/FormChanges
+    -> watchers, on the engine's threads (fixed slots)
+       HostEngine's: a REFR (not created, not forced), recorded,
+                     flags & (FORM_FLAGS 0x1 | EXTRA_LOCK 0x1000)
+         -> changed refs (a leaf lock: nothing taken under it)
+       the harness's ChangeLog: counts for `change-rate`
+  HostWorldState, each update: HostEngine::TakeObjectChanges
+    1. state, read now, per changed ref: enabled or not, its lock
+    2. then the events in order: doors a script activated, script animations
+guest: GuestEngine::ApplyObjectChange, as for every object change
+```
+
+- Enable and Disable (19800, 19801) both flip the disabled flag through `TESForm::SetDisabled` (14646), which
+  calls `AddChange(1)`; `AddLockChange` (19512) calls `AddChange(0x1000)`. The funnel returns 1 whenever it
+  records, the flag already set or not, and 0 while a load runs, so a cell loading sends nothing.
+- State before events: a script enabling an object and then playing its animation finds it enabled on the
+  guest. Two changes in one update send the state as it is then.
+- Events (a door a script opens, a script's animation) have no change flag worth reading: they keep their
+  hooks. So does a guest's lock change: a guest's own action, proposed to the host (`LockChangeEvent`).
+- Adding a state: a row in `Games/ReferenceStates.cpp` (kind, change flag, read, apply). The watcher's mask,
+  the host's read and the guest's apply all come from the table, and each state travels as one value its row
+  packs (`ObjectChange::Value`), so the message and its encoding do not change. Containers next.
+- **Engine calls for vanilla, save data for the rest (decided 2026-10-21).** A state is applied with the
+  engine's own call because nearly every vanilla one needs its side effects: Enable/Disable load or remove the
+  3D, a door plays its swing, a container updates its inventory. Sending save data for every flag
+  (`FormState::Save`/`Load`, what the 2026-10-12 design did) would make most vanilla states exceptions, and
+  `Load` refuses while a save or load runs, so changes would need a retry queue. Later, for mods, the same
+  loop gains a second branch: a changed form or flag with no row goes as its save data. Revisit the default if
+  rows start appearing whose engine call does nothing `Load` would not (locks are the one so far: their save
+  data round-trips, `form-state-round-trips`). Entry: `docs/ideas.md`, "Mods' world state through the save
+  system".
+
 Excluded: what is already synced live (actor positions, actor values, equipment), actors (`ACHR`), and the
 clock's globals (`HostClock`: hour, date, days passed).
 
@@ -234,7 +270,7 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
 5. **The guest's world scripts stop changing the world** (above, "Only the host's game decides"): a scenario
    where the guest pulls a lever and its effect happens once, from the host. Slice 1 built 2026-10-21:
    activation and trigger events (`Papyrus/WorldEvents.cpp`); a script's doors and animations come from the
-   host (`HostWorldState`, `NotifyScriptResults`); the host's world's spells on a guest's
+   host (`HostWorldState`, `NotifyObjectChanges`); the host's world's spells on a guest's
    character go to its owner (`MagicTarget.cpp`, `GuestScripts`' `CastFunctor` tag). Scenarios
    `sword-box-asks-client` (the sword goes once, comes back once), `statue-fires-at-client`,
    `ring-turns-for-client`, `shrine-blesses-client`. Engine notes `docs/re/systems/guest-world-events.md`.
@@ -242,6 +278,10 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    then the guest's timers and loads.
 6. **References and containers as messages:** lock, open, enabled and owner state (doors, locks and activation
    are bridge relays already, phase 4), containers' contents, leveled containers as a guest's cell loads.
+   Enabled state built 2026-10-21: the host's engine `Enable`/`Disable`, whatever called them, go out with the
+   host's object changes (`NotifyObjectChanges`); `sword-box-asks-client` checks the guest's box and sword in
+   the stone swap. Locks built 2026-10-21: the host's lock changes are object changes, a guest's (its lockpick,
+   a key) a proposal the host's game takes (`lock-reaches-others`). Next: containers.
 7. **World desync check:** after each scenario, compare quest stages, globals, locks and containers between
    the games, as `coop_test.py desync` does for actors.
 

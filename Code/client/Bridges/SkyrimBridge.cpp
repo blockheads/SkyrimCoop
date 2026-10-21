@@ -935,13 +935,6 @@ bool SkyrimBridge::SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t a
     return true;
 }
 
-void SkyrimBridge::NotifyObjectLockChange(uint32_t aObjectFormId) noexcept
-{
-    Breadcrumbs::Record("NotifyObjectLockChange", aObjectFormId);
-    if (TESObjectREFR* pObj = GetRefr(aObjectFormId))
-        pObj->LockChange();
-}
-
 uint32_t SkyrimBridge::GetObjectParentCellId(uint32_t aObjectFormId) const noexcept
 {
     if (TESObjectREFR* pObj = GetRefr(aObjectFormId))

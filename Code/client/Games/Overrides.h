@@ -50,6 +50,9 @@ struct Quest
 struct SpellCast
 {
 };
+struct HostChange
+{
+};
 } // namespace details
 
 using ScopedReferencesOverride = ScopedOverride<TESObjectREFR>;
@@ -62,3 +65,5 @@ using ScopedInventoryOverride = ScopedOverride<details::Inventory>;
 using ScopedExtraDataOverride = ScopedOverride<details::ExtraData>;
 using ScopedQuestOverride = ScopedOverride<details::Quest>;
 using ScopedSpellCastOverride = ScopedOverride<details::SpellCast>;
+// A guest applying the host's object change: our object hooks raise no events for it.
+using ScopedHostChangeOverride = ScopedOverride<details::HostChange>;

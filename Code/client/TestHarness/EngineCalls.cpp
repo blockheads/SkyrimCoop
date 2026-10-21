@@ -492,6 +492,12 @@ std::vector<ScriptStack> GetRunningScripts() noexcept
     return stacks;
 }
 
+std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept
+{
+    const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    return pObject ? std::optional<bool>(!pObject->IsDisabled()) : std::nullopt;
+}
+
 std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));

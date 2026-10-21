@@ -1,8 +1,8 @@
 #include <TiltedOnlinePCH.h>
-#include <HookSwitch.h>
 #include "ChangeLog.h"
 #include "Commands.h"
 
+#include <Forms/FormChanges.h>
 #include <Forms/TESForm.h>
 
 #include <array>
@@ -78,11 +78,9 @@ bool FirstSight(uint32_t aFormId)
     return false;
 }
 
-void Count(const TESForm* apForm, uint32_t aFlags, bool aForced, bool aRecorded)
+void Count(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRecorded) noexcept
 {
-    if (!apForm)
-        return;
-    const auto cType = static_cast<uint8_t>(apForm->formType);
+    const auto cType = static_cast<uint8_t>(acForm.formType);
     const uint64_t cKey = uint64_t(cType) | uint64_t(aFlags) << 8 | uint64_t(aForced) << 40;
     if (auto* pBucket = FindBucket(cKey))
     {
@@ -92,47 +90,20 @@ void Count(const TESForm* apForm, uint32_t aFlags, bool aForced, bool aRecorded)
         for (auto& sample : pBucket->Samples)
         {
             uint32_t current = sample.load(std::memory_order_relaxed);
-            if (current == apForm->formID)
+            if (current == acForm.formID)
                 break;
-            if (current == 0 && sample.compare_exchange_strong(current, apForm->formID, std::memory_order_relaxed))
+            if (current == 0 && sample.compare_exchange_strong(current, acForm.formID, std::memory_order_relaxed))
                 break;
         }
     }
-    if (aRecorded && apForm->formID && FirstSight(apForm->formID))
+    if (aRecorded && acForm.formID && FirstSight(acForm.formID))
         s_distinct[cType].fetch_add(1, std::memory_order_relaxed);
 }
 
-// TESForm::AddChange (14607, vfunc 0x0A; overrides tail-call it) and the forced variant (14608): both
-// call BGSSaveLoadGame's change funnel and return whether it recorded the change.
-TP_THIS_FUNCTION(TAddChange, bool, TESForm, uint32_t);
-TP_THIS_FUNCTION(TAddChangeForced, uint64_t, TESForm, uint32_t);
-TAddChange* RealAddChange = nullptr;
-TAddChangeForced* RealAddChangeForced = nullptr;
-
-bool TP_MAKE_THISCALL(HookAddChange, TESForm, uint32_t aFlags)
-{
-    const bool cRecorded = TiltedPhoques::ThisCall(RealAddChange, apThis, aFlags);
-    Count(apThis, aFlags, false, cRecorded);
-    return cRecorded;
-}
-
-uint64_t TP_MAKE_THISCALL(HookAddChangeForced, TESForm, uint32_t aFlags)
-{
-    const uint64_t cResult = TiltedPhoques::ThisCall(RealAddChangeForced, apThis, aFlags);
-    Count(apThis, aFlags, true, (cResult & 0xFF) != 0);
-    return cResult;
-}
-
-TiltedPhoques::Initializer s_changeLogHooks(
+TiltedPhoques::Initializer s_changeLogWatcher(
     []()
     {
-        const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TAddChange, s_addChange, 14607);
-        POINTER_SKYRIMSE(TAddChangeForced, s_addChangeForced, 14608);
-        RealAddChange = s_addChange.Get();
-        RealAddChangeForced = s_addChangeForced.Get();
-        TP_HOOK(&RealAddChange, HookAddChange);
-        TP_HOOK(&RealAddChangeForced, HookAddChangeForced);
+        FormChanges::Watch(&Count);
         s_windowStart.store(NowMs());
     });
 

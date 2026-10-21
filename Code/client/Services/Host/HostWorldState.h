@@ -36,7 +36,7 @@ struct HostWorldState
 private:
     void UpdateGlobals() noexcept;
     void UpdateQuests() noexcept;
-    void UpdateScriptResults() noexcept;
+    void UpdateObjectChanges() noexcept;
 
     Server::GameServer& m_server;
     const HostPlayers& m_players;

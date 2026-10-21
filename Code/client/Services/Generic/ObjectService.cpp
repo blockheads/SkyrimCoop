@@ -3,11 +3,8 @@
 #include <World.h>
 #include <Events/UpdateEvent.h>
 #include <Events/ActivateEvent.h>
-#include <Events/LockChangeEvent.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/NotifyActivate.h>
-#include <Messages/LockChangeRequest.h>
-#include <Messages/NotifyLockChange.h>
 
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IActorBridge.h>
@@ -25,8 +22,6 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
 {
     m_onActivateConnection = aDispatcher.sink<ActivateEvent>().connect<&ObjectService::OnActivate>(this);
     m_activateConnection = aDispatcher.sink<NotifyActivate>().connect<&ObjectService::OnActivateNotify>(this);
-    m_lockChangeConnection = aDispatcher.sink<LockChangeEvent>().connect<&ObjectService::OnLockChange>(this);
-    m_lockChangeNotifyConnection = aDispatcher.sink<NotifyLockChange>().connect<&ObjectService::OnLockChangeNotify>(this);
 
     // Note: TESActivateEvent sink registration replaced with IEventBridge — ObjectService no longer
     // inherits BSTEventSink<TESActivateEvent>. The debug object component tracking was inside
@@ -108,73 +103,4 @@ void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
 
     m_formBridge.ActivateObjectFromActor(cObjectId, cActorFormId,
                                           acMessage.PreActivationOpenState);
-}
-
-void ObjectService::OnLockChange(const LockChangeEvent& acEvent) noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    LockChangeRequest request;
-
-    if (!m_world.GetModSystem().GetServerModId(acEvent.FormId, request.Id))
-    {
-        spdlog::error("Server form id for lock object not found, form id: {:X}", acEvent.FormId);
-        return;
-    }
-
-    const uint32_t cParentCellId = m_formBridge.GetObjectParentCellId(acEvent.FormId);
-    if (cParentCellId == 0)
-    {
-        spdlog::error("Activated object has no parent cell: {:X}", acEvent.FormId);
-        return;
-    }
-
-    if (!m_world.GetModSystem().GetServerModId(cParentCellId, request.CellId))
-    {
-        spdlog::error("Server cell id for cell not found, cell form id: {:X}", cParentCellId);
-        return;
-    }
-
-    request.IsLocked = acEvent.IsLocked;
-    request.LockLevel = acEvent.LockLevel;
-
-    m_transport.Send(request);
-}
-
-void ObjectService::OnLockChangeNotify(const NotifyLockChange& acMessage) noexcept
-{
-    const auto cObjectId = World::Get().GetModSystem().GetGameId(acMessage.Id);
-    if (cObjectId == 0)
-    {
-        spdlog::error("Failed to retrieve object id to (un)lock.");
-        return;
-    }
-
-    if (!m_formBridge.FormExists(cObjectId))
-    {
-        spdlog::error("Failed to retrieve object to (un)lock.");
-        return;
-    }
-
-    if (!acMessage.IsLocked)
-    {
-        if (!m_formBridge.ObjectHasLock(cObjectId) || !m_formBridge.ObjectIsLocked(cObjectId))
-            return;
-    }
-
-    if (!m_formBridge.ObjectHasLock(cObjectId) && acMessage.IsLocked)
-    {
-        if (!m_formBridge.SetObjectLock(cObjectId, true, acMessage.LockLevel))
-        {
-            spdlog::error("Failed to create lock for object form id {:X}", cObjectId);
-            return;
-        }
-    }
-    else
-    {
-        m_formBridge.SetObjectLock(cObjectId, acMessage.IsLocked, acMessage.LockLevel);
-    }
-
-    m_formBridge.NotifyObjectLockChange(cObjectId);
 }

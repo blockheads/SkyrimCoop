@@ -18,6 +18,7 @@ enum class FormType : uint8_t
     Alchemy = 46,
     LeveledItem = 53,
     Cell = 60,
+    Reference = 61,
     Character = 62,
     WorldSpace = 71,
     QuestItem = 77,

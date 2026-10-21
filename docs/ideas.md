@@ -57,6 +57,16 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 - **Mods' world state through the save system.** A mod's forms changed on the host sent as their save data
   (`FormState`), for what no message covers. Vanilla state goes as messages and the join as save transfer;
   design: `docs/design/world-state-sync.md`.
+  - Where it goes (2026-10-21): the change funnel already reports every change on the host (`Forms/FormChanges`,
+    `HostEngine`'s watcher). Today the watcher keeps only the flags of `Games/ReferenceStates.cpp`'s rows and
+    the host reads each with its row. The mods' branch: a changed form or flag with no row is sent as
+    `FormState::Save(form, flags)`, a guest applies it with `FormState::Load`.
+  - Needs: a queue that retries when `Save`/`Load` refuse (a save or load running); the reference location
+    header and created (`0xFF`) forms inside the data (`docs/re/systems/form-state.md`, "Not covered yet");
+    a filter for the funnel's volume (ACHR moves alone are ~100/s idle, `docs/research/world-state-drift.md`);
+    each form type tried live.
+  - Why vanilla stays on engine calls: "Engine calls for vanilla, save data for the rest" in the design's
+    "As built".
 - **Mod patches.** Maybe one Papyrus function that forwards a mod event to the other games, so a patch can
   sync its own state. Notes: `docs/design/world-state-sync.md`. (Player checks need no patch: the party
   model's rules, `docs/design/party-model.md`.)
@@ -111,6 +121,14 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   its tests are still the `BridgeTests` target in `Code/tests/bridge/` (`[Bridge]` tags, `BridgeTest`
   namespace). Rename the target, folder and tags together with every doc and script that names them
   (`CLAUDE.md`, `progress.md`, the design docs).
+- **One call for a form's session id** (2026-10-21). ~60 call sites repeat
+  `if (m_mods.GetServerModId(formId, id))` to turn a game form id into the wire's `GameId`, and on the host it
+  almost never fails: every standard plugin's form passes, one from a plugin missing from the session list
+  silently gets session id 0 (the first plugin, normally `Skyrim.esm`, so the guest finds the wrong form),
+  and a created `0xFF` reference gets `0xFFFFFFFF`, which no guest finds. Only a light plugin missing from the
+  list fails. Replace it with one call returning an optional `GameId` (`ModSystem::ToSession`), which fails for
+  `0xFF` ids and unknown plugins of both kinds and logs once; then drop the repeated checks. Code:
+  `Systems/ModSystem.cpp`, session ids from `HostSession.cpp`.
 - **Client services by role.** The client keeps upstream's layout, one service per message family, so each
   service mixes our own player, copies and the host's actors, and copy checks (`IsCopy()`) are scattered
   through all of them. `CharacterService` is ~1,600 lines with 26 subscriptions (ownership, spawns,

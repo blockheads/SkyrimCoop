@@ -98,8 +98,6 @@ public:
     virtual uint8_t GetObjectLockLevel(uint32_t aObjectFormId) const noexcept = 0;
     /// Set the lock state on an object (creates lock if needed).
     virtual bool SetObjectLock(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept = 0;
-    /// Notify the game engine that the object's lock state changed (plays sounds, updates 3D).
-    virtual void NotifyObjectLockChange(uint32_t aObjectFormId) noexcept = 0;
     /// Returns the form ID of the object's parent cell.
     virtual uint32_t GetObjectParentCellId(uint32_t aObjectFormId) const noexcept = 0;
     /// Activate an object as if the given actor activated it.

@@ -2,7 +2,9 @@
 
 struct NotifyGlobals;
 struct NotifyQuests;
-struct NotifyScriptResults;
+struct NotifyObjectChanges;
+struct LockChangeEvent;
+struct World;
 class GuestEngine;
 
 /**
@@ -12,7 +14,7 @@ class GuestEngine;
  */
 struct GuestWorldState
 {
-    GuestWorldState(entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
     ~GuestWorldState() noexcept;
 
     TP_NOCOPYMOVE(GuestWorldState);
@@ -20,11 +22,15 @@ struct GuestWorldState
 private:
     void OnGlobals(const NotifyGlobals& acMessage) noexcept;
     void OnQuests(const NotifyQuests& acMessage) noexcept;
-    void OnScriptResults(const NotifyScriptResults& acMessage) noexcept;
+    void OnObjectChanges(const NotifyObjectChanges& acMessage) noexcept;
+    // This game's lock change (its player picked it, or a key): proposed to the host, whose world decides.
+    void OnLockChange(const LockChangeEvent& acEvent) noexcept;
 
+    World& m_world;
     GuestEngine& m_engine;
 
     entt::scoped_connection m_globalsConnection;
     entt::scoped_connection m_questsConnection;
-    entt::scoped_connection m_scriptResultsConnection;
+    entt::scoped_connection m_objectChangesConnection;
+    entt::scoped_connection m_lockChangeConnection;
 };

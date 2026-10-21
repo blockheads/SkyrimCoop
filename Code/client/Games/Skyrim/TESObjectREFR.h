@@ -32,6 +32,7 @@ struct TESObjectREFR : TESForm
 {
     enum ChangeFlags : uint32_t
     {
+        CHANGE_FORM_FLAGS = 1 << 0, // the disabled flag among them (TESForm::SetDisabled 14646)
         CHANGE_REFR_MOVE = 1 << 1,
         CHANGE_REFR_HAVOK_MOVE = 1 << 2,
         CHANGE_REFR_CELL_CHANGED = 1 << 3,
@@ -39,6 +40,7 @@ struct TESObjectREFR : TESForm
         CHANGE_REFR_INVENTORY = 1 << 5,
         CHANGE_REFR_EXTRA_OWNERSHIP = 1 << 6,
         CHANGE_REFR_BASEOBJECT = 1 << 7,
+        CHANGE_OBJECT_EXTRA_LOCK = 1 << 12, // AddLockChange (19512)
         CHANGE_REFR_PROMOTED = 1 << 25,
         CHANGE_REFR_EXTRA_ACTIVATING_CHILDREN = 1 << 26,
         CHANGE_REFR_LEVELED_INVENTORY = 1 << 27,
@@ -197,6 +199,8 @@ struct TESObjectREFR : TESForm
 
     Lock* CreateLock() noexcept;
     void LockChange() noexcept;
+    // Locks (at that level) or unlocks it and records the change, without raising LockChangeEvent.
+    bool SetLockState(bool aLocked, uint8_t aLockLevel) noexcept;
 
     const float GetHeight() noexcept;
     void EnableImpl() noexcept;

@@ -90,7 +90,8 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
-    game.TakeScriptResults = [this] { return m_pEngine->TakeScriptResults(); };
+    game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
+    game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());

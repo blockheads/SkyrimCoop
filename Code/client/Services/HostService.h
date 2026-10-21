@@ -71,7 +71,8 @@ protected:
      * @param acEvent Update event with delta time
      */
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
-    // The host's world scripts' doors and animations, for HostWorldState (docs/design/world-state-sync.md step 5).
+    // The host's world scripts' events for HostWorldState: doors and animations (docs/design/world-state-sync.md
+    // step 5). State (enabled, locks) HostEngine reads from the change funnel itself.
     void OnActivate(const ActivateEvent& acEvent) noexcept;
     void OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept;
 

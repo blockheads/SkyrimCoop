@@ -480,12 +480,19 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
-    SECTION("NotifyScriptResults")
+    SECTION("NotifyObjectChanges")
     {
-        NotifyScriptResults sendMessage, recvMessage;
-        sendMessage.Results.push_back({ScriptResult::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
-        sendMessage.Results.push_back({ScriptResult::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
-        sendMessage.Results.push_back({ScriptResult::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});
+        NotifyObjectChanges sendMessage, recvMessage;
+        sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
+        sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
+        sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});
+        sendMessage.Changes.push_back({ObjectChange::Kind::kEnabled, GameId(0, 0xA05C0)});
+        ObjectChange enabled{ObjectChange::Kind::kEnabled, GameId(0, 0xA05AC)};
+        enabled.Value = 1;
+        sendMessage.Changes.push_back(enabled);
+        ObjectChange lock{ObjectChange::Kind::kLock, GameId(0, 0x1A2B)};
+        lock.Value = 0x132; // locked, level 50
+        sendMessage.Changes.push_back(lock);
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

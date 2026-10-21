@@ -30,7 +30,9 @@ struct HostGame
     // Every quest of the host's game as it holds it now.
     std::function<TiltedPhoques::Vector<QuestState>()> ReadQuests;
     // What the host's world scripts did since the last call (doors they activated, animations they played), in order.
-    std::function<TiltedPhoques::Vector<ScriptResult>()> TakeScriptResults;
+    std::function<TiltedPhoques::Vector<ObjectChange>()> TakeObjectChanges;
+    // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
+    std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.

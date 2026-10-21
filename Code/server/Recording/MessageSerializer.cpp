@@ -86,7 +86,6 @@ DEF_MSG_NAME(NotifyActorMaxValueChanges)
 DEF_MSG_NAME(NotifyHealthChangeBroadcast)
 DEF_MSG_NAME(NotifySpawnData)
 DEF_MSG_NAME(NotifyActivate)
-DEF_MSG_NAME(NotifyLockChange)
 DEF_MSG_NAME(AssignObjectsResponse)
 DEF_MSG_NAME(NotifyDeathStateChange)
 DEF_MSG_NAME(NotifyObjectInventoryChanges)
@@ -127,7 +126,7 @@ DEF_MSG_NAME(NotifyDialogueClosed)
 DEF_MSG_NAME(NotifyDialogueExperience)
 DEF_MSG_NAME(NotifyGlobals)
 DEF_MSG_NAME(NotifyQuests)
-DEF_MSG_NAME(NotifyScriptResults)
+DEF_MSG_NAME(NotifyObjectChanges)
 
 #undef DEF_MSG_NAME
 

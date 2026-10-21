@@ -31,7 +31,6 @@
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyInterruptCast.h>
 #include <Messages/NotifyInventoryChanges.h>
-#include <Messages/NotifyLockChange.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NotifyNewPackage.h>
 #include <Messages/NotifyPlayerLevel.h>
@@ -94,15 +93,6 @@ NotifyActivate ToNotify(const ActivateRequest& acRequest)
     notify.Id = acRequest.Id;
     notify.ActivatorId = acRequest.ActivatorId;
     notify.PreActivationOpenState = acRequest.PreActivationOpenState;
-    return notify;
-}
-
-NotifyLockChange ToNotify(const LockChangeRequest& acRequest)
-{
-    NotifyLockChange notify;
-    notify.Id = acRequest.Id;
-    notify.IsLocked = acRequest.IsLocked;
-    notify.LockLevel = acRequest.LockLevel;
     return notify;
 }
 
@@ -189,7 +179,7 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);
-    Relay<LockChangeRequest, NotifyLockChange>(FromAnyone);
+    On(*this, &HostAuthority::OnLockChange);
 
     // The map and chat
     Relay<RequestSetWaypoint, NotifySetWaypoint>(FromAnyone);
@@ -248,6 +238,13 @@ void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest,
 {
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+}
+
+void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    // The host's own locks go out as its object changes (HostWorldState).
+    if (aSender != m_players.Host() && m_game.SetLock)
+        m_game.SetLock(acRequest.Id, acRequest.IsLocked, acRequest.LockLevel);
 }
 
 void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept

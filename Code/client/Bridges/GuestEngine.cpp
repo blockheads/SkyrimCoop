@@ -1,6 +1,8 @@
 #include <Bridges/GuestEngine.h>
 
 #include <Breadcrumbs.h>
+#include <Games/Overrides.h>
+#include <Games/ReferenceStates.h>
 #include <Systems/ModSystem.h>
 
 #include <Forms/TESGlobal.h>
@@ -102,6 +104,36 @@ void ApplyObjectives(TESQuest& aQuest, const QuestState& acQuest, bool aAsLoad) 
     if (changed)
         aQuest.MarkChanged(TESQuest::kChangeObjectives);
 }
+
+TESObjectREFR* FindReference(const GameId& acId, const ModSystem& acMods) noexcept
+{
+    return Cast<TESObjectREFR>(TESForm::GetById(acMods.GetGameId(acId)));
+}
+
+// Toggled only from the state the host's door was in before: one already where it went is left.
+bool ActivateDoor(TESObjectREFR& aDoor, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+{
+    auto* pActivator = FindReference(acChange.Activator, acMods);
+    if (!pActivator)
+        return false;
+    if (aDoor.GetOpenState() == static_cast<TESObjectREFR::OpenState>(acChange.OpenState))
+        aDoor.Activate(pActivator, 0, nullptr, 1, 0);
+    return true;
+}
+
+// As the host's script played it: PlayAnimationAndWait (56206) when it named an animation, else PlayAnimation (56205).
+void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
+{
+    BSFixedString event(acChange.Event.c_str());
+    if (acChange.Animation.empty())
+        aObject.PlayAnimation(&event);
+    else
+    {
+        BSFixedString animation(acChange.Animation.c_str());
+        aObject.PlayAnimationAndWait(&animation, &event);
+    }
+}
+
 } // namespace
 
 GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
@@ -190,28 +222,20 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     WorldEvents::SetDelivered(aOn);
 }
 
-bool GuestEngine::ApplyScriptResult(const ScriptResult& acResult) noexcept
+bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange) noexcept
 {
-    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acResult.Object)));
+    auto* pObject = FindReference(acChange.Object, m_mods);
     if (!pObject)
         return false;
-    if (acResult.Type == ScriptResult::Kind::kAnimation)
+    // The host's change, already sent: our hooks raise no events for it, so nothing goes back.
+    ScopedHostChangeOverride _;
+    if (acChange.Type == ObjectChange::Kind::kActivate)
+        return ActivateDoor(*pObject, acChange, m_mods);
+    if (acChange.Type == ObjectChange::Kind::kAnimation)
     {
-        BSFixedString event(acResult.Event.c_str());
-        if (acResult.Animation.empty())
-            pObject->PlayAnimation(&event);
-        else
-        {
-            BSFixedString animation(acResult.Animation.c_str());
-            pObject->PlayAnimationAndWait(&animation, &event);
-        }
+        PlayAnimation(*pObject, acChange);
         return true;
     }
-    auto* pActivator = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acResult.Activator)));
-    if (!pActivator)
-        return false;
-    // A door already where the host's went (opened here another way) is not toggled back.
-    if (pObject->GetOpenState() == static_cast<TESObjectREFR::OpenState>(acResult.OpenState))
-        pObject->Activate(pActivator, 0, nullptr, 1, 0);
-    return true;
+    const ReferenceState* pState = ReferenceStates::Find(acChange.Type);
+    return pState && pState->Apply(*pObject, acChange.Value);
 }

@@ -516,7 +516,7 @@ Built on the bridge's unreliable channel:
 | CalendarService | (time on join and on change) | Host-decided |
 | WeatherService | `RequestCurrentWeather`, `RequestWeatherChange` | Host-decided (done: deleted, `HostWeather` sends the host's) |
 | QuestService | `RequestQuestUpdate` | Host-decided |
-| ObjectService | `AssignObjectsRequest`, `ActivateRequest`, `LockChangeRequest`, `ScriptAnimationRequest` | Relays by form id (done; ids dropped, service deleted). `ScriptAnimationRequest` deleted 2026-10-21: a script's animations are the host's world results (`NotifyScriptResults`) |
+| ObjectService | `AssignObjectsRequest`, `ActivateRequest`, `LockChangeRequest`, `ScriptAnimationRequest` | Relays by form id (done; ids dropped, service deleted). `ScriptAnimationRequest` deleted 2026-10-21: a script's animations are the host's world results (`NotifyObjectChanges`) |
 | PartyService | `PartyCreateRequest`, `PartyInviteRequest`, `PartyAcceptInviteRequest`, `PartyLeaveRequest`, `PartyKickRequest`, `PartyChangeLeaderRequest` | Dropped (no parties; the host kicks through the bridge) |
 | MapService | `RequestSetWaypoint`, `RequestRemoveWaypoint` | Relay (done, service deleted) |
 | OverlayService | `SendChatMessageRequest`, `PlayerDialogueRequest`, `RequestPlayerHealthUpdate`, `TeleportRequest` | Relay (done, service deleted; teleport dropped) |

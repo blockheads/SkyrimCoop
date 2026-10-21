@@ -259,6 +259,15 @@ nlohmann::json ItemCount(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"count", *cCount}};
 }
 
+// {"cmd": "ref_enabled", "object": id}: whether the reference is enabled in this game.
+nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cEnabled = EngineCalls::IsReferenceEnabled(acRequest.value("object", 0u));
+    if (!cEnabled)
+        return Error("no such reference");
+    return {{"ok", true}, {"enabled", *cEnabled}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -332,6 +341,7 @@ constexpr Command cCommands[] = {
     {"script_var", true, &ScriptVar},
     {"script_stacks", true, &ScriptStacks},
     {"item_count", true, &ItemCount},
+    {"ref_enabled", true, &RefEnabled},
     {"activate", true, &Activate},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},

@@ -8,8 +8,6 @@ struct World;
 struct ActivateEvent;
 struct TransportService;
 struct NotifyActivate;
-struct LockChangeEvent;
-struct NotifyLockChange;
 
 /**
  * @brief Handles objects in the environment.
@@ -21,8 +19,6 @@ struct ObjectService
 private:
     void OnActivate(const ActivateEvent&) noexcept;
     void OnActivateNotify(const NotifyActivate&) noexcept;
-    void OnLockChange(const LockChangeEvent&) noexcept;
-    void OnLockChangeNotify(const NotifyLockChange&) noexcept;
 
 
     World& m_world;
@@ -33,6 +29,4 @@ private:
 
     entt::scoped_connection m_onActivateConnection;
     entt::scoped_connection m_activateConnection;
-    entt::scoped_connection m_lockChangeConnection;
-    entt::scoped_connection m_lockChangeNotifyConnection;
 };
