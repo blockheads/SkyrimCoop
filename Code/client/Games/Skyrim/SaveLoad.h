@@ -111,6 +111,8 @@ struct BGSSaveLoadGame
     void EndLoading(bool aWasClear) noexcept;
     // Which of aFlags the form's change record holds (35577): what a save, or its cell's unload, keeps of it.
     bool HasChange(const TESForm& acForm, uint32_t aFlags) const noexcept;
+    // The flags of aMask its record holds, one GetChange each.
+    uint32_t ChangeFlags(const TESForm& acForm, uint32_t aMask) const noexcept;
 
     enum : uint32_t
     {

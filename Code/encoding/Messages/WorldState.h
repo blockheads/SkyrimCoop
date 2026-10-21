@@ -139,7 +139,8 @@ struct ObjectChange
     }
 };
 
-// The host's world objects' changes since the last, in the order its game had them.
+// The host's world objects' changes since the last, in the order its game had them; or, with Cell, the state of that
+// cell's references a guest asked for when it loaded (CellStateRequest).
 struct NotifyObjectChanges final : ServerMessage
 {
     static constexpr ServerOpcode Opcode = kNotifyObjectChanges;
@@ -148,7 +149,12 @@ struct NotifyObjectChanges final : ServerMessage
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyObjectChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Changes == acRhs.Changes; }
+    bool operator==(const NotifyObjectChanges& acRhs) const noexcept
+    {
+        return GetOpcode() == acRhs.GetOpcode() && Cell == acRhs.Cell && Changes == acRhs.Changes;
+    }
 
+    // Set: that cell's state, for a guest that has it loaded.
+    GameId Cell{};
     TiltedPhoques::Vector<ObjectChange> Changes;
 };

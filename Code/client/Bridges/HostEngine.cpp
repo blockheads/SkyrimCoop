@@ -8,6 +8,7 @@
 
 #include <Forms/FormChanges.h>
 #include <Forms/TESGlobal.h>
+#include <Forms/TESObjectCELL.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
 #include <Games/ReferenceStates.h>
@@ -213,5 +214,28 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
     }
     changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
     m_events.clear();
+    return changes;
+}
+
+std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(const GameId& acCell,
+                                                                             const TiltedPhoques::Vector<ChangedReference>& acChanged) const noexcept
+{
+    auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(acCell)));
+    if (!pCell || !pCell->IsValid())
+        return std::nullopt;
+    TiltedPhoques::Map<uint32_t, uint32_t> guestRows;
+    for (const auto& cRef : acChanged)
+        if (const uint32_t cFormId = m_mods.GetGameId(cRef.Id))
+            guestRows[cFormId] |= cRef.Flags;
+    TiltedPhoques::Vector<ObjectChange> changes;
+    for (const TESObjectREFR* pRef : pCell->GetReferences())
+    {
+        uint32_t rows = ReferenceStates::ChangedRows(*pRef);
+        if (const auto it = guestRows.find(pRef->formID); it != guestRows.end() && pRef->formType == FormType::Reference)
+            rows |= it->second & ReferenceStates::RowFlags();
+        GameId id;
+        if (rows && m_mods.GetServerModId(pRef->formID, id))
+            ReferenceStates::Read(*pRef, id, rows, m_mods, changes);
+    }
     return changes;
 }

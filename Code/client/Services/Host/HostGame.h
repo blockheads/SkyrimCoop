@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Messages/CellStateRequest.h>
 #include <Messages/CharacterSpawnRequest.h>
 #include <Messages/WorldState.h>
 #include <Structs/GameVersions.h>
@@ -31,6 +32,10 @@ struct HostGame
     std::function<TiltedPhoques::Vector<QuestState>()> ReadQuests;
     // The host's world objects' changes since the last call (references' state, scripts' events, containers' items), in order.
     std::function<TiltedPhoques::Vector<ObjectChange>()> TakeObjectChanges;
+    // The state of a cell's references the host's game changed, or aChanged names (a guest's own changes); none
+    // while that cell is not loaded here.
+    std::function<std::optional<TiltedPhoques::Vector<ObjectChange>>(const GameId& acCell, const TiltedPhoques::Vector<ChangedReference>& acChanged)>
+        ReadCellState;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // A guest's container change, accepted: the host's container holds that many (and it goes out as the host's change).

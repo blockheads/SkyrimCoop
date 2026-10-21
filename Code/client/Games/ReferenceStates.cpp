@@ -3,6 +3,7 @@
 #include <Games/ReferenceStates.h>
 
 #include <Games/FormState.h>
+#include <SaveLoad.h>
 #include <Systems/ModSystem.h>
 
 #include <TESObjectREFR.h>
@@ -180,6 +181,23 @@ uint32_t SentFlags() noexcept
     return ~cNotSent;
 }
 
+uint32_t RowFlags() noexcept
+{
+    uint32_t flags = 0;
+    for (const auto& cState : cStates)
+        if (cState.Kind != ObjectChange::Kind::kSaveData)
+            flags |= cState.Flags;
+    return flags;
+}
+
+uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept
+{
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    if (!pSaveLoad || acObject.formType != FormType::Reference || acObject.formID >= 0xFF000000)
+        return 0;
+    return pSaveLoad->ChangeFlags(acObject, RowFlags());
+}
+
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
           TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept
 {
@@ -203,6 +221,18 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, co
         s_logged |= cNew;
         spdlog::info("Reference sync: change flags {:X} of {:X} have no row, not sent", cNew, acObject.formID);
     }
+}
+
+bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+{
+    for (const auto& cState : cStates)
+        if (cState.Kind == acChange.Type)
+        {
+            ObjectChange here{acChange.Type, acChange.Object};
+            return cState.Read(acObject, cState.Flags, acMods, here) && here.Value == acChange.Value && here.Item == acChange.Item &&
+                   here.Data == acChange.Data;
+        }
+    return false;
 }
 
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept

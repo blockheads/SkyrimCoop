@@ -13,9 +13,16 @@ namespace ReferenceStates
 {
 // The change flags worth sending: not the engine's bookkeeping, not the location header's.
 uint32_t SentFlags() noexcept;
+// The change flags a row takes (not the save-data row): what a cell's state is read for.
+uint32_t RowFlags() noexcept;
+// The row flags the reference's change record holds in this game; none for an actor (its owner's) or a reference
+// the game created (an id of its own).
+uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept;
 // The reference's state now for aFlags: a change for each row that takes any of them.
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
           TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept;
+// Whether the reference here already reads as the change (a row's kind only).
+bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept;
 // False for a kind that is an event, not a state, or a change the engine refused.
 bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept;
 } // namespace ReferenceStates

@@ -104,4 +104,11 @@ What the change funnel (`AddChangeFlags`) does and does not see of a reference, 
 - **`BGSOpenCloseForm::SetOpenState` (14287)** `(ref, open, snap)`: plays `Open`/`Close` (a `NiControllerManager`
   sequence, else the graph event), the open state's flags, and with snap the navmesh obstacle. Closing a door
   mid-swing (0.1 s after opening) left the host's own record open: its cell reloaded with the door open.
-
+- **`TESCellFullyLoadedEvent` {cell}** (`ScriptEventSourceHolder+0x210`) is sent once per cell load, interior or
+  exterior, by `sub_1402C3830` (no Address Library ID found): when the cell's loaded data (+0x130) counts no
+  references still loading (+0x16C, +0x170), it sends the event unless +0x17C says it was sent. The VM's sink
+  (53964) walks the cell's references under the cell's lock (+0x120) for `OnCellLoad`.
+- **A cell's references stay in memory after it unloads**, `pcb` too (2026-10-21, QASmoke and the Sleeping Giant
+  Inn): `TESForm::GetById` finds them, and a change applied while unloaded is there when the cell loads again.
+- **Opening a door with lock data re-sets its lock** (the console's `SetOpenState`): an `AddLockChange` and a
+  `TESLockChangedEvent` with the lock unchanged.

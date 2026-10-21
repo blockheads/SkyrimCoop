@@ -119,6 +119,7 @@ void NotifyQuests::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexce
 
 void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
+    Cell.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Changes.size());
     for (const auto& cChange : Changes)
     {
@@ -149,6 +150,7 @@ void NotifyObjectChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader)
 {
     ServerMessage::DeserializeRaw(aReader);
 
+    Cell.Deserialize(aReader);
     const uint64_t cCount = Serialization::ReadVarInt(aReader);
     if (cCount > kMaxObjectChanges)
         return;

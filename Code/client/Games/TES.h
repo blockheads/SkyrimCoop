@@ -36,6 +36,9 @@ struct TES
 {
     static TES* Get() noexcept;
 
+    // The cells loaded around the player: the interior, or the attached cells of the exterior grid.
+    [[nodiscard]] TiltedPhoques::Vector<TESObjectCELL*> AttachedCells() const noexcept;
+
     uint8_t pad[0x78];
     GridCellArray* cells;
 

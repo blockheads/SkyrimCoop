@@ -2,6 +2,7 @@
 
 #include <Games/TES.h>
 #include <Forms/TESForm.h>
+#include <Forms/TESObjectCELL.h>
 #include <Effects/ReferenceEffect.h>
 
 #include <algorithm>
@@ -11,6 +12,18 @@ TES* TES::Get() noexcept
     POINTER_SKYRIMSE(TES*, tes, 400441);
 
     return *tes.Get();
+}
+
+TiltedPhoques::Vector<TESObjectCELL*> TES::AttachedCells() const noexcept
+{
+    TiltedPhoques::Vector<TESObjectCELL*> attached;
+    if (interiorCell)
+        attached.push_back(interiorCell);
+    else if (cells && cells->arr)
+        for (uint32_t i = 0; i < cells->dimension * cells->dimension; ++i)
+            if (TESObjectCELL* pCell = cells->arr[i]; pCell && pCell->IsValid())
+                attached.push_back(pCell);
+    return attached;
 }
 
 ProcessLists* ProcessLists::Get() noexcept

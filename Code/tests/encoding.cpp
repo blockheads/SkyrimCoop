@@ -363,6 +363,26 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
+    SECTION("CellStateRequest")
+    {
+        Buffer buff(1000);
+
+        CellStateRequest sendMessage, recvMessage;
+        sendMessage.Cell = GameId(0, 0x133C6);
+        sendMessage.Changed = {{GameId(0, 0x1A6F6), 0x1000}, {GameId(2, 0x803), 0x800001}};
+        Buffer::Writer writer(&buff);
+        sendMessage.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+
+        recvMessage.DeserializeRaw(reader);
+
+        REQUIRE(sendMessage == recvMessage);
+    }
+
     SECTION("ContainerChangeRequest")
     {
         Buffer buff(1000);
@@ -504,6 +524,7 @@ TEST_CASE("Packets", "[encoding.packets]")
     SECTION("NotifyObjectChanges")
     {
         NotifyObjectChanges sendMessage, recvMessage;
+        sendMessage.Cell = GameId(0, 0x133C6);
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});

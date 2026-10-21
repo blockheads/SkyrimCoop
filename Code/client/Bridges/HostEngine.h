@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <Structs/GameId.h>
 
@@ -41,6 +42,10 @@ public:
     // Since the last call: the state of each reference the funnel saw change (enabled, lock), then the events
     // in order.
     [[nodiscard]] TiltedPhoques::Vector<ObjectChange> TakeObjectChanges() noexcept;
+    // Every row of each reference in the cell that this game, or a guest's (acChanged), holds changes for; none while
+    // the cell is not attached here.
+    [[nodiscard]] std::optional<TiltedPhoques::Vector<ObjectChange>> ReadCellState(const GameId& acCell,
+                                                                                  const TiltedPhoques::Vector<ChangedReference>& acChanged) const noexcept;
 
 private:
     const ModSystem& m_mods;

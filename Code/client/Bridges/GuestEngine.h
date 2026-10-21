@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <Structs/GameId.h>
 #include <Structs/TimeModel.h>
@@ -37,9 +38,16 @@ public:
     // Makes the host's world object change here: activates the door (if it is as the host's was), plays the
     // animation, enables or disables the reference, sets its lock, makes the container hold that many. False: the
     // object, the activator or the item is not in this game.
-    bool ApplyObjectChange(const ObjectChange& acChange) noexcept;
+    // aLoad: a cell's state, not a change; a state already as the host's is left alone (no events for it).
+    bool ApplyObjectChange(const ObjectChange& acChange, bool aLoad = false) noexcept;
     // This game's container's count of the item now (Bridges/ContainerItems.h), for a proposal to the host.
     [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept;
+    // The cells loaded here now (the interior, or the exterior grid's attached ones), by form id.
+    [[nodiscard]] TiltedPhoques::Vector<uint32_t> AttachedCells() const noexcept;
+    // Asks for the host's state of that loaded cell, naming the references this game holds changes for; none for a
+    // cell no longer loaded or not in the session's mods.
+    [[nodiscard]] std::optional<CellStateRequest> ReadCellChanges(uint32_t aCellFormId) const noexcept;
+    [[nodiscard]] bool IsCellAttached(const GameId& acCell) const noexcept;
 
 private:
     const ModSystem& m_mods;

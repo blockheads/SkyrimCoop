@@ -5,6 +5,7 @@ struct NotifyQuests;
 struct NotifyObjectChanges;
 struct LockChangeEvent;
 struct ContainerChangeEvent;
+struct CellLoadedEvent;
 struct World;
 class GuestEngine;
 
@@ -12,7 +13,8 @@ class GuestEngine;
  * @brief A guest takes the host's globals and quests (HostWorldState) with its engine's own calls
  * (docs/design/world-state-sync.md step 4). Its own story manager starts no quest meanwhile, and its world
  * scripts do not react to its player: the host's world scripts' doors and animations come from the host (step 5).
- * Its own lock and container changes are proposals the host's game takes (step 6).
+ * Its own lock and container changes are proposals the host's game takes (step 6). Each cell it loads asks for the
+ * host's state there, what it missed while away included.
  */
 struct GuestWorldState
 {
@@ -29,6 +31,9 @@ private:
     void OnLockChange(const LockChangeEvent& acEvent) noexcept;
     // This game's container changed (its player took or stored an item): its count now proposed to the host.
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
+    // A cell loaded here: the host's state of its references asked for.
+    void OnCellLoaded(const CellLoadedEvent& acEvent) noexcept;
+    void AskCellState(uint32_t aCellFormId) noexcept;
 
     World& m_world;
     GuestEngine& m_engine;
@@ -38,4 +43,5 @@ private:
     entt::scoped_connection m_objectChangesConnection;
     entt::scoped_connection m_lockChangeConnection;
     entt::scoped_connection m_containerChangeConnection;
+    entt::scoped_connection m_cellLoadedConnection;
 };

@@ -140,7 +140,7 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
     , m_characters(*this, aServer, m_players, m_game)
     , m_clock(*this, aServer, m_players, m_game)
     , m_weather(aServer, m_players, m_game)
-    , m_worldState(aServer, m_players, m_game)
+    , m_worldState(*this, aServer, m_players, m_game)
     , m_timeScale(*this, aServer, m_players)
     , m_dialogue(*this, aServer, m_players, m_characters)
 {
@@ -198,6 +198,7 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
         m_players.Remove(aConnection);
         m_timeScale.OnPlayerLeft(aConnection);
         m_dialogue.OnPlayerLeft(aConnection);
+        m_worldState.OnPlayerLeft(aConnection);
     });
 }
 

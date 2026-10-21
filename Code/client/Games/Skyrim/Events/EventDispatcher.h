@@ -65,8 +65,12 @@ struct TESCellAttachDetachEvent
 {
 };
 
+struct TESObjectCELL;
+
+// Sent once per cell load, interior or exterior, when its references are loaded (sub_1402C3830 in 1.6.1170).
 struct TESCellFullyLoadedEvent
 {
+    TESObjectCELL* cell;
 };
 
 struct TESCombatEvent
@@ -386,6 +390,7 @@ SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, deathEvent) == 880);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, lockChangedEvent) == 1760);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, furnitureEvent) == 1320);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, containerChangedEvent) == 792); // 16149 sends to +0x318
+SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, cellFullyLoadedEvent) == 0x210);
 SKYRIM_STRUCT_ASSERT(sizeof(TESContainerChangedEvent) == 0x18);
 SKYRIM_STRUCT_ASSERT(offsetof(TESContainerChangedEvent, itemCount) == 0x0C);
 SKYRIM_STRUCT_ASSERT(offsetof(EventDispatcherManager, resetEvent) == 2904);

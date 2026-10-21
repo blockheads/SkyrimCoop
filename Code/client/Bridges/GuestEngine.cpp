@@ -1,6 +1,7 @@
 #include <Bridges/GuestEngine.h>
 
 #include <Bridges/ContainerItems.h>
+#include <CellEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -9,10 +10,12 @@
 #include <Systems/ModSystem.h>
 
 #include <Forms/TESGlobal.h>
+#include <Forms/TESObjectCELL.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
 #include <Papyrus/WorldEvents.h>
+#include <Games/TES.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
 #include <TESObjectREFR.h>
@@ -144,11 +147,13 @@ GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
     : m_mods(acMods)
 {
     ContainerEvents::Start();
+    CellEvents::Start();
 }
 
 GuestEngine::~GuestEngine() noexcept
 {
     ContainerEvents::Stop();
+    CellEvents::Stop();
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
@@ -237,11 +242,13 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
     return ::ReadContainerItems(m_mods, aObjectFormId, aItemFormId);
 }
 
-bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange) noexcept
+bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
 {
     auto* pObject = FindReference(acChange.Object, m_mods);
     if (!pObject)
         return false;
+    if (aLoad && ReferenceStates::Matches(*pObject, acChange, m_mods))
+        return true;
     // The host's change, already sent: our hooks raise no events for it, so nothing goes back.
     ScopedHostChangeOverride _;
     if (acChange.Type == ObjectChange::Kind::kActivate)
@@ -257,4 +264,35 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange) noexcept
         return !Cast<Actor>(pObject) && pObject->SetContainerCount(pItem, static_cast<int32_t>(acChange.Value));
     }
     return ReferenceStates::Apply(*pObject, acChange, m_mods);
+}
+
+TiltedPhoques::Vector<uint32_t> GuestEngine::AttachedCells() const noexcept
+{
+    TiltedPhoques::Vector<uint32_t> cells;
+    if (const TES* pTes = TES::Get())
+        for (const TESObjectCELL* pCell : pTes->AttachedCells())
+            cells.push_back(pCell->formID);
+    return cells;
+}
+
+std::optional<CellStateRequest> GuestEngine::ReadCellChanges(uint32_t aCellFormId) const noexcept
+{
+    auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellFormId));
+    CellStateRequest request;
+    if (!pCell || !pCell->IsValid() || !m_mods.GetServerModId(aCellFormId, request.Cell))
+        return std::nullopt;
+    for (const TESObjectREFR* pRef : pCell->GetReferences())
+    {
+        ChangedReference changed;
+        changed.Flags = ReferenceStates::ChangedRows(*pRef);
+        if (changed.Flags && m_mods.GetServerModId(pRef->formID, changed.Id))
+            request.Changed.push_back(changed);
+    }
+    return request;
+}
+
+bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
+{
+    const auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(acCell)));
+    return pCell && pCell->IsValid();
 }

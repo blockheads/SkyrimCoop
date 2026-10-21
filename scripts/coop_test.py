@@ -3786,9 +3786,9 @@ POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE = 1.0, 0.01, 2.0
 CREATED_ID = 0xFF000000  # references a game made itself, numbered per game
 FORM_DISABLED = 0x800
 FORM_ALTERED = 0x2  # TESForm kAltered: the engine's "has changes" bookkeeping, not the world's state
-# Change record bits each game keeps for itself: ANIMATION (a graph's state, e.g. furniture someone used) and
-# PROMOTED (a reference its player touched made persistent).
-CHANGES_OWN = 0x10000000 | 0x2000000
+# Change record bits each game keeps for itself: ANIMATION (a graph's state, e.g. furniture someone used),
+# PROMOTED (a reference its player touched made persistent) and GAME_ONLY_EXTRA (runtime bookkeeping, never sent).
+CHANGES_OWN = 0x10000000 | 0x2000000 | 0x80000000
 
 
 def world_state(instance, ids=None):
@@ -3863,6 +3863,10 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
     for field in WORLD_FIELDS:
         a, b = host.get(field), guest.get(field)
         if field == "pose":
+            # Untouched in both and without a graph: only its model's own loops, on each game's clock (frozen
+            # off-camera at different phases).
+            if not any(r.get(k) for r in (host, guest) for k in ("changes", "graph")):
+                continue
             if text := pose_difference(a, b, [again.get("pose") or {} for again in host_again or ()],
                                        [again.get("pose") or {} for again in guest_again or ()]):
                 differences[field] = text
@@ -3871,6 +3875,8 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
             if text := collision_difference(a, b):
                 differences[field] = text
             continue
+        if field == "lock":  # no lock reads as unlocked at level 0, as the lock row does
+            a, b = (v or {"level": 0, "locked": False} for v in (a, b))
         if field == "flags" and a is not None and b is not None:
             a, b = a & ~FORM_ALTERED, b & ~FORM_ALTERED
         if field == "changes":
@@ -3942,6 +3948,38 @@ def sample_worlds():
     return host, guest, host_again, guest_again
 
 
+WORLD_WINDOW = 3.0  # seconds a world difference must last to count: the guest applies a change a frame or more later
+
+
+def shared_world_differences():
+    """world_differences over the cells both games have loaded (the exterior grids around two players differ)."""
+    worlds = sample_worlds()
+    cells = {r["cell"] for r in worlds[0].values()} & {r["cell"] for r in worlds[1].values()}
+    def cut(world):
+        return {i: r for i, r in world.items() if r["cell"] in cells}
+    return world_differences(cut(worlds[0]), cut(worlds[1]), [cut(w) for w in worlds[2]], [cut(w) for w in worlds[3]])
+
+
+def check_world(known=frozenset(), window=WORLD_WINDOW):
+    """The world differences that last the whole window, without the (reference, field) pairs in `known` (already
+    different before): {reference: {field: 'host vs guest'}}."""
+    deadline = time.monotonic() + window
+    persistent = None
+    while True:
+        current = {label: {f: t for f, t in fields.items() if (label, f) not in known}
+                   for label, fields in shared_world_differences().items()}
+        if persistent is not None:
+            current = {label: {f: t for f, t in fields.items() if f in persistent.get(label, {})}
+                       for label, fields in current.items()}
+        persistent = {label: fields for label, fields in current.items() if fields}
+        if not persistent or time.monotonic() > deadline:
+            return persistent
+
+
+def world_pairs(differences):
+    return {(label, field) for label, fields in differences.items() for field in fields}
+
+
 def describe_world_differences(differences, limit=None):
     """One line per reference: 'label: field host vs guest; ...'."""
     return [f"{label}: " + "; ".join(f"{field} {text}" for field, text in fields.items())
@@ -3985,8 +4023,8 @@ WORLD_CHANGES = [
     # The console's SetAngle leaves the 3D's world transform until something updates it: a SetPos in place does.
     ("rotate", ("ACTI", 1), [], ["{r}.setangle z {turned}", "{r}.setpos z {z}"], ["{r}.setangle z {angle}", "{r}.setpos z {z}"]),
     ("scale", ("STAT", 2), [], "{r}.setscale 2", ["{r}.setscale {scale}"]),
-    # Unlock keeps the level: the lock is put back at its level first.
-    ("lock", ("DOOR", 0, lambda r: not r.get("lock", {}).get("locked")), [], "{r}.lock 50", ["{r}.lock {level}", "{r}.unlock"]),
+    # At its own level: the console's Lock reads level 0 as none given, so no level could be put back.
+    ("lock", ("DOOR", 0, lambda r: not r.get("lock", {}).get("locked")), [], "{r}.lock {level}", ["{r}.unlock"]),
     ("open", ("DOOR", 0), [], "{r}.setopenstate 1", ["{r}.setopenstate 0"]),
     ("add items", ("CONT", 0), [], f"{{r}}.additem {GOLD:X} 7", [f"{{r}}.removeitem {GOLD:X} 7"]),
     # No console line clears an owner: left owned (the client follows), each run takes the next unowned container.
@@ -4039,6 +4077,12 @@ def object_events(instance, since, ref):
             or (e["kind"] == "container_changed" and ref in (e.get("from"), e.get("to")))]
 
 
+def put_back_left(before, ref):
+    """What still differs from `before` in the host's reference, but its change record: a state put back can leave
+    its flag (the engine's bookkeeping; the client must still match it)."""
+    return {f: t for f, t in reference_differences(before, world_state("", [ref])[ref]).items() if f != "changes"}
+
+
 def world_change_reaches_guest(name, pick, stage, change, undo, refs):
     """Makes one change on the host and puts it back in both games: what the client got wrong, or none. The
     events each game raised on the reference must match too: they are the change's side effects on scripts."""
@@ -4072,16 +4116,18 @@ def world_change_reaches_guest(name, pick, stage, change, undo, refs):
             for line in undo:
                 console_on("", line.format(**values))
             with contextlib.suppress(TestFailure):
-                wait_for(f"[host] {ref:X} as before", lambda: not reference_differences(before, world_state("", [ref])[ref]), 5)
+                wait_for(f"[host] {ref:X} as before", lambda: not put_back_left(before, ref), 5)
                 break
         else:
             if undo:
-                differences["test"] = "the host's put-back left " + "; ".join(
-                    f"{f} {t}" for f, t in reference_differences(before, world_state("", [ref])[ref]).items())
+                differences["test"] = "the host's put-back left " + "; ".join(f"{f} {t}" for f, t in put_back_left(before, ref).items())
         if undo and (left := guest_matches(ref)):
             differences["put back"] = "; ".join(f"{f} {t}" for f, t in left.items())
             for line in undo:
                 console_on("client", line.format(**values))
+        # The put-back's events, raised a frame apart in each game, stay in this kind's window, not the next's.
+        with contextlib.suppress(TestFailure):
+            wait_for(f"[both] {ref:X}'s events alike", lambda: object_events("", since[""], ref) == object_events("client", since["client"], ref), 3)
 
 
 def created_reaches_guest(refs, base):
@@ -4131,6 +4177,38 @@ def scenario_world_changes_reach_guest():
     if problems:
         raise TestFailure("the client's world does not follow the host's:\n  " + "\n  ".join(problems))
 
+
+
+def scenario_late_join_gets_cell_state():
+    """World sync's state at a cell load, for a game that missed changes: the host locks a door and disables a
+    static while the client is away. The client rejoins standing in the same cell (no load to ask with: it asks
+    for the cells it has loaded on joining), and its cell is the host's."""
+    refs = world_state("")
+    door = pick_reference(refs, "DOOR", 0, lambda r: not (r.get("lock") or {}).get("locked"))
+    static = pick_reference(refs, "STAT", 3)
+    level = (refs[door].get("lock") or {}).get("level", 0)
+    def host_changed():
+        return (world_state("", [door])[door].get("lock") or {}).get("locked") and world_state("", [static])[static]["flags"] & FORM_DISABLED
+    disconnect_client()
+    try:
+        console_on("", f"{door:X}.lock 50")
+        console_on("", f"{static:X}.disable")
+        wait_for("[host] the door locked and the static gone", host_changed, 5)
+        if not guest_matches(door, 1) or not guest_matches(static, 1):
+            raise TestFailure("[client] has the host's changes while away: the test shows nothing")
+        rejoin_client()
+        differences = {f"{ref:X}": text for ref in (door, static) if (text := guest_matches(ref, 10))}
+        if differences:
+            raise TestFailure("[client] rejoined with its own cell, not the host's: " +
+                              "; ".join(f"{ref} {fields}" for ref, fields in differences.items()))
+    finally:
+        if game_state("client").get("online") is False:
+            rejoin_client()
+        lock_on("", door, False, level)
+        console_on("", f"{static:X}.enable")
+    for ref in (door, static):
+        if left := guest_matches(ref, 5):
+            raise TestFailure(f"[client] {ref:X} not put back as the host's: {left}")
 
 COMPANIONS_HOUSEKEEPING = 0x4B2D9  # C00
 WEREWOLF_TRANSFORM_VISUAL = 0xF8209  # the change effect's VFXSpell effect (WerewolfTransformVisual): sets stage 1
@@ -5028,6 +5106,7 @@ SCENARIOS = {
     "weather-follows-host": scenario_weather_follows_host,
     "form-state-round-trips": scenario_form_state_round_trips,
     "world-changes-reach-guest": scenario_world_changes_reach_guest,
+    "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
     # input (real keyboard and mouse; only when named or tagged)
     "input-keyboard-draw": scenario_input_keyboard_draw,
     "input-mouse-cast": scenario_input_mouse_cast,
@@ -5119,6 +5198,7 @@ TAGS = {
     "weather-follows-host": {'world', 'cells'},
     "form-state-round-trips": {'world', 'objects', 'spawn'},
     "world-changes-reach-guest": {'world', 'objects', 'inventory'},
+    "late-join-gets-cell-state": {'world', 'objects', 'session'},
     "input-keyboard-draw": {'input', 'hands'},
     "input-mouse-cast": {'input', 'hands', 'magic'},
 }
@@ -5832,6 +5912,10 @@ def command_scenario(args):
     log("=== baseline: resetting both games")
     if problems := settle_baseline():
         raise TestFailure("cannot reach the baseline before the first scenario: " + " | ".join(problems))
+    # (reference, field) pairs the two worlds already differ in: a scenario is checked for new ones only.
+    if baseline_world := check_world():
+        log("warning: the worlds differ at the baseline: " + " | ".join(describe_world_differences(baseline_world, 20)))
+    known_world = world_pairs(baseline_world)
     runs = []  # (name, seconds, result)
     for index, name in enumerate(order):
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
@@ -5845,6 +5929,9 @@ def command_scenario(args):
             problems = check_desync()
             if problems:
                 raise TestFailure("desync afterwards: " + " | ".join(problems))
+            if world := check_world(known_world):
+                raise TestFailure(f"world differs afterwards ({len(world)} references): " +
+                                  " | ".join(describe_world_differences(world, 20)))
             new_locks = [v for k, v in lock_order_reports().items() if k not in known_locks]
             for game, report, ours in new_locks:
                 if not ours:
@@ -5860,6 +5947,11 @@ def command_scenario(args):
         if leftovers:
             left = "left behind: " + " | ".join(leftovers)
             result = f"FAIL ({left})" if result == "PASS" else f"{result} [{left}]"
+        elif world := check_world(known_world):
+            # Left different at home: this scenario's, not the next one's.
+            left = f"world left different ({len(world)} references): " + " | ".join(describe_world_differences(world, 20))
+            result = f"FAIL ({left})" if result == "PASS" else f"{result} [{left}]"
+            known_world |= world_pairs(world)
         runs.append((name, time.monotonic() - scenario_start, result))
         log(f"=== {name}: {result}")
         if args.fail_fast and result != "PASS":

@@ -1,6 +1,7 @@
 #include <Services/Host/HostWorldState.h>
 
 #include <GameServer.h>
+#include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -14,6 +15,10 @@ namespace
 // About 1100 globals and 1500 quests: compared a few times a second, not every frame.
 constexpr uint64_t kGlobalsIntervalMs = 250;
 constexpr uint64_t kQuestsIntervalMs = 500;
+// A cell's state goes in messages of at most this many changes (NotifyObjectChanges takes 4096).
+constexpr size_t kCellChangesPerMessage = 1024;
+// Cells a guest loaded that the host's game has not: past this many, the oldest is forgotten.
+constexpr size_t kMaxPendingCells = 64;
 
 uint64_t Key(const GameId& acId) noexcept
 {
@@ -21,16 +26,18 @@ uint64_t Key(const GameId& acId) noexcept
 }
 } // namespace
 
-HostWorldState::HostWorldState(Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostWorldState::HostWorldState(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_server(aServer)
     , m_players(acPlayers)
     , m_game(acGame)
 {
+    aAuthority.On(*this, &HostWorldState::OnCellState);
 }
 
 void HostWorldState::Update(uint64_t aTick) noexcept
 {
     UpdateObjectChanges();
+    UpdatePendingCells();
     if (aTick - m_globalsTick >= kGlobalsIntervalMs)
     {
         m_globalsTick = aTick;
@@ -112,6 +119,54 @@ void HostWorldState::UpdateObjectChanges() noexcept
         return;
     spdlog::info("HostWorldState: sent {} object changes: {}", changes.Changes.size(), WorldStateLog::List(changes.Changes, &WorldStateLog::Describe, 16));
     m_players.SendToOthers(changes, cHost, TiltedPhoques::kReliable);
+}
+
+void HostWorldState::OnCellState(const CellStateRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    // The host's own cells are its world already.
+    if (aSender == m_players.Host() || !m_game.ReadCellState)
+        return;
+    // A newer load of the same cell replaces one still waiting.
+    std::erase_if(m_pendingCells, [&](const PendingCell& acPending) { return acPending.Player == aSender && acPending.Request.Cell == acRequest.Cell; });
+    if (SendCellState(aSender, acRequest))
+        return;
+    spdlog::info("HostWorldState: {:x}'s cell {:X} is not loaded here, its state goes once it is", aSender, acRequest.Cell.LogFormat());
+    if (m_pendingCells.size() >= kMaxPendingCells)
+    {
+        spdlog::warn("HostWorldState: {} cells waiting for the host's game to load them, forgetting {:X}", m_pendingCells.size(),
+                     m_pendingCells.front().Request.Cell.LogFormat());
+        m_pendingCells.erase(m_pendingCells.begin());
+    }
+    m_pendingCells.push_back({aSender, acRequest});
+}
+
+bool HostWorldState::SendCellState(ConnectionId_t aPlayer, const CellStateRequest& acRequest) const noexcept
+{
+    auto changes = m_game.ReadCellState(acRequest.Cell, acRequest.Changed);
+    if (!changes)
+        return false;
+    spdlog::info("HostWorldState: sent {:x} cell {:X}'s state, {} changes: {}", aPlayer, acRequest.Cell.LogFormat(), changes->size(),
+                 WorldStateLog::List(*changes, &WorldStateLog::Describe, 16));
+    // An empty answer too: the guest's changes there were the host's already.
+    for (size_t first = 0; first == 0 || first < changes->size(); first += kCellChangesPerMessage)
+    {
+        NotifyObjectChanges notify;
+        notify.Cell = acRequest.Cell;
+        const size_t cLast = std::min(changes->size(), first + kCellChangesPerMessage);
+        notify.Changes.assign(changes->begin() + first, changes->begin() + cLast);
+        m_server.Send(aPlayer, notify);
+    }
+    return true;
+}
+
+void HostWorldState::UpdatePendingCells() noexcept
+{
+    std::erase_if(m_pendingCells, [this](const PendingCell& acPending) { return SendCellState(acPending.Player, acPending.Request); });
+}
+
+void HostWorldState::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
+{
+    std::erase_if(m_pendingCells, [aPlayer](const PendingCell& acPending) { return acPending.Player == aPlayer; });
 }
 
 void HostWorldState::SendWorldState(ConnectionId_t aPlayer) const noexcept

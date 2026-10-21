@@ -223,3 +223,103 @@ TEST_CASE("World state: the host's world objects' changes reach the others in or
     session.Frame(1016);
     CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
 }
+
+namespace
+{
+const GameId kInn(0, 0x133C6);
+const GameId kInnDoor(0, 0x1A6F6);
+
+CellStateRequest InnLoaded()
+{
+    CellStateRequest request;
+    request.Cell = kInn;
+    request.Changed = {{GameId(0, 0x1A6F7), 0x1000}};
+    return request;
+}
+
+ObjectChange InnDoorLocked()
+{
+    ObjectChange lock{ObjectChange::Kind::kLock, kInnDoor};
+    lock.Value = 0x100 | 50;
+    return lock;
+}
+} // namespace
+
+TEST_CASE("World state: a guest's loaded cell gets the host's state there, that guest alone", "[Bridge][WorldState]")
+{
+    Session session;
+    session.LoadedCells[kInn.BaseId] = {InnDoorLocked()};
+    session.Receive(kPeer, InnLoaded());
+
+    const auto cSent = session.SentTo<NotifyObjectChanges>(kPeer);
+    REQUIRE(cSent.size() == 1);
+    CHECK(cSent[0]->Cell == kInn);
+    REQUIRE(cSent[0]->Changes.size() == 1);
+    CHECK(cSent[0]->Changes[0] == InnDoorLocked());
+    // The guest's own changes there are read too.
+    CHECK(session.GuestChanged == InnLoaded().Changed);
+    CHECK(session.SentTo<NotifyObjectChanges>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyObjectChanges>(kHost).empty());
+}
+
+TEST_CASE("World state: a cell with nothing changed is still answered", "[Bridge][WorldState]")
+{
+    Session session;
+    session.LoadedCells[kInn.BaseId] = {};
+    session.Receive(kPeer, InnLoaded());
+
+    const auto cSent = session.SentTo<NotifyObjectChanges>(kPeer);
+    REQUIRE(cSent.size() == 1);
+    CHECK(cSent[0]->Cell == kInn);
+    CHECK(cSent[0]->Changes.empty());
+}
+
+TEST_CASE("World state: a guest's cell the host's game has not loaded is answered once it is", "[Bridge][WorldState]")
+{
+    Session session;
+    session.Receive(kPeer, InnLoaded());
+    session.Frame(1000);
+    CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
+
+    session.LoadedCells[kInn.BaseId] = {InnDoorLocked()};
+    session.Frame(1016);
+    REQUIRE(session.SentTo<NotifyObjectChanges>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyObjectChanges>(kPeer)[0]->Cell == kInn);
+
+    // Answered once.
+    session.Outbox.clear();
+    session.Frame(1032);
+    CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
+}
+
+TEST_CASE("World state: a guest that leaves is not answered for the cells it waited for", "[Bridge][WorldState]")
+{
+    Session session;
+    session.Receive(kPeer, InnLoaded());
+    session.Leave(kPeer);
+    session.LoadedCells[kInn.BaseId] = {InnDoorLocked()};
+    session.Outbox.clear();
+    session.Frame(1000);
+    CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
+}
+
+TEST_CASE("World state: the host's own cells are not asked for", "[Bridge][WorldState]")
+{
+    Session session;
+    session.LoadedCells[kInn.BaseId] = {InnDoorLocked()};
+    session.Receive(kHost, InnLoaded());
+    CHECK(session.SentTo<NotifyObjectChanges>(kHost).empty());
+}
+
+TEST_CASE("World state: a large cell's state goes in several messages", "[Bridge][WorldState]")
+{
+    Session session;
+    Vector<ObjectChange> state(1500, InnDoorLocked());
+    session.LoadedCells[kInn.BaseId] = state;
+    session.Receive(kPeer, InnLoaded());
+
+    const auto cSent = session.SentTo<NotifyObjectChanges>(kPeer);
+    REQUIRE(cSent.size() == 2);
+    CHECK(cSent[0]->Changes.size() + cSent[1]->Changes.size() == 1500);
+    CHECK(cSent[1]->Cell == kInn);
+}

@@ -127,6 +127,13 @@ host game
          not sent        -> game-only extras, promoted, cell changed
     2. then the events in order: doors a script activated, script animations
 guest: GuestEngine::ApplyObjectChange; save data loaded, then its flags marked
+
+guest: a cell loads (TESCellFullyLoadedEvent; each loaded cell on joining)
+  -> CellStateRequest {cell, [ref, row flags its record holds]}
+host HostWorldState: cell attached here? no -> kept, retried each update
+  HostEngine::ReadCellState: each ref with row changes in either game ->
+    every row it holds -> NotifyObjectChanges {Cell} to that guest
+guest: a state already as the host's is skipped (a load raises no events)
 ```
 
 Rows (2026-10-21, `Games/ReferenceStates.cpp`):
@@ -150,8 +157,17 @@ still matched as data, so a missing side effect showed only where a scenario loo
 fired on the guest because the inventory's save data had already set the count. Off, a flag with no row is not
 sent and logged once (`Reference sync: change flags ... have no row`); `coop_test.py unsynced` lists them, the
 rows still to write. After the object scenarios: havok moved `0x4`, activating children `0x4000000`, animation
-`0x10000000`. It is switched on for mods' states. `ReferenceStates::Read` walks the rows in order, each taking its flags, the last what is left;
+`0x10000000`; after the travelling ones also base object `0x80` and encounter zone `0x20000000` (a cell's first
+load). It is switched on for mods' states. `ReferenceStates::Read` walks the rows in order, each taking its flags, the last what is left;
 `Apply` finds the row by kind. Both engines only call these two.
+
+**State at a cell load (2026-10-21).** A cell's references stay in the engine's memory once loaded, so live
+changes reach a guest's references in cells it loaded before, unloaded or not; what it missed is a cell it never
+loaded and changes made while it was away. Each cell it loads asks the host (`CellStateRequest`, with the
+references its own game changed, so its own stale changes go back too), and every loaded cell on joining (no
+load event comes for those). The host answers once its game has that cell attached. The answer is applied as a
+load: a state already as the host's is left alone, so no events. Live changes are always applied, raising what
+the host's game raised (opening a door re-sets its lock: `lock_changed` on both).
 
 - Enable and Disable (19800, 19801) both flip the disabled flag through `TESForm::SetDisabled` (14646), which
   calls `AddChange(1)`; `AddLockChange` (19512) calls `AddChange(0x1000)`. The funnel returns 1 whenever it
@@ -334,7 +350,10 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    on the host with the console, puts it back, and lists every kind the guest's world does not follow.
    First run: disable, enable, lock and items follow; move, rotate, scale, open (a script's `SetOpen`), owner
    and created references do not. Not covered yet: havok moves, harvesting, destruction (QASmoke has no
-   flora or destructibles). Next: the same compare after every scenario; quest stages and globals.
+   flora or destructibles). Since 2026-10-21 `scenario` runs the compare after every scenario (`check_world`:
+   the cells both games have loaded, differences lasting 3s, again at home after the reset); a node's pose counts
+   only on references a game changed or with a behavior graph (a model's own loops stop off-camera, each game at
+   its own phase). Next: quest stages and globals.
    Side effects, the same day: `world_state` with `details` also reads each reference's change record
    (`BGSSaveLoadGame::GetChange` 35577: what survives its cell unloading), its 3D's named nodes (any animation's
    result), its physics bodies (in the world, where), its active behavior graph's variables and the effects on

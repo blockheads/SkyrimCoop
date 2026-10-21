@@ -24,6 +24,18 @@ Vector<TESObjectREFR*> TESObjectCELL::GetRefsByFormTypes(const Vector<FormType>&
     return references;
 }
 
+Vector<TESObjectREFR*> TESObjectCELL::GetReferences() noexcept
+{
+    Vector<TESObjectREFR*> references;
+    lock.Lock();
+    if (refData.refArray)
+        for (uint32_t i = 0; i < refData.capacity; ++i)
+            if (TESObjectREFR* pRef = refData.refArray[i].Get())
+                references.push_back(pRef);
+    lock.Unlock();
+    return references;
+}
+
 void TESObjectCELL::GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept
 {
     TP_THIS_FUNCTION(TGetCOCPlacementInfo, void, TESObjectCELL, NiPoint3*, NiPoint3*, bool);

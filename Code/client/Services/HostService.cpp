@@ -100,6 +100,9 @@ bool HostService::StartHosting(uint16_t aPort, uint8_t aMaxPlayers) noexcept
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
+    game.ReadCellState = [this](const GameId& acCell, const TiltedPhoques::Vector<ChangedReference>& acChanged) {
+        return m_pEngine->ReadCellState(acCell, acChanged);
+    };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { m_pEngine->SetItems(acObject, acItem, aCount); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };

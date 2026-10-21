@@ -12,6 +12,8 @@ struct NavMeshArray;
 struct TESObjectCELL : TESForm
 {
     Vector<TESObjectREFR*> GetRefsByFormTypes(const Vector<FormType>& aFormTypes) const noexcept;
+    // Every reference in the cell, taken under its lock (as the engine's own walks do, e.g. OnCellLoad's 53964).
+    [[nodiscard]] Vector<TESObjectREFR*> GetReferences() noexcept;
     void GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept;
 
     bool IsValid() const { return cellFlags[4] == 7; }
@@ -72,6 +74,7 @@ struct TESObjectCELL : TESForm
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, cellFlags) == 0x40);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, pNavMeshes) == 0x80);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, refData) == 0x88);
+SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, lock) == 0x120);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, worldspace) == 0x128);
 SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, loadedCellData) == 0x130);
 SKYRIM_STRUCT_ASSERT(sizeof(TESObjectCELL) == 0x148);

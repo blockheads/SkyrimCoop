@@ -48,6 +48,7 @@ enum ClientOpcode : unsigned char
     kDialogueJoinRequest,
     kDialogueExperienceRequest,
     kContainerChangeRequest,
+    kCellStateRequest,
     kClientOpcodeMax
 };
 

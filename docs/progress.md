@@ -86,10 +86,27 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
    (`world_differences`, idle animation skipped) and fails one that leaves them different; `coop_test.py unsynced`
    collects the flags with no row from the whole suite. Expect failures at first (the travelling scenarios);
    each is a sync gap, a row or a scenario that leaves the world changed.
+   Built 2026-10-21 (`check_world`): after each scenario, the cells both games have loaded, a difference counted
+   when it lasts 3s; again at home after the reset (charged to the scenario that left it, not the next). `objects`
+   and `cells` pass but `create` (step 3); `party-stacks-on-arrival` fails on its own check (the client walks
+   through the host's player), unrelated. Found on the way: a model's own loops (QASmoke's spinning arms) frozen
+   off-camera at different phases (pose not compared on references neither game changed and with no graph); the
+   lock kind's put-back could not reach level 0 with the console (harness `lock` now). `unsynced` adds base
+   object `0x80` (E95D1, arriving in SoljundsSinkhole01) and encounter zone `0x20000000` (664DE, through door
+   13419): both on a cell's first load, likely leveled rolls, step 2's.
 2. **State at cell load.** A guest's cell loading gets the host's current state of every changed reference there,
    with the same rows (`ReferenceStates`): the changes a guest missed while away (dropped today, "its object is
    not in this game") and leveled containers (containers slice 2: the host's roll, not the guest's). A scoreboard
    kind: the guest leaves, the host changes something, the guest comes back.
+   2a, the references, built 2026-10-21: each cell a guest loads (`TESCellFullyLoadedEvent`, and every loaded
+   cell on joining) sends `CellStateRequest` with the references its own game holds row changes for; the host
+   answers with every row of the references either game changed there (`NotifyObjectChanges` with `Cell`), or
+   once its game has that cell loaded. A cell's state skips what already matches (no events); live changes
+   still apply as the host's game did. Scenario `late-join-gets-cell-state` (fails on the old build, passes
+   now); bridge cases in `world_state_tests.cpp`. Found: a cell's references stay in memory after it unloads, so
+   live changes already reached cells a guest had loaded once; the gap was cells it never loaded and changes made
+   while it was away. Next, 2b: leveled containers (the host's roll), and base object `0x80` / encounter zone
+   `0x20000000` (from step 1).
 3. **Created objects** (`0xFF` ids, each game's own): dropped items, placed objects, loot. A mapping between the
    host's and each guest's ids, made when the host creates one; also what quest fills of created objects need
    (loose ends, "Created objects in quest alias fills").
@@ -500,6 +517,13 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
+- **Hot reload and log rotation** (2026-10-21): twice today a guest went wrong right after its log reached
+  5 MB in a game that had been hot-reloaded: a crash in `GuestWeather::OnUpdate` → `GuestEngine::HoldWeather`
+  → `ModSystem::GetGameId` with a bad map (`crash-2026-10-21-15-50-41.log`, client prefix), and a deadlock (every
+  thread asleep, the harness silent) as `host-rejoins` ended the session. Both games' rotated `.1` logs are
+  missing and the current one was cut to 0 bytes: rotation fails. Guess, not checked: an earlier reload's
+  logger still holds the file (Windows refuses the rename). Never on a fresh duo (18 of 18 join scenarios).
+
 - **Host crash in `TaskQueue::Drain`, 2 s after a save** (2026-10-19): the Runner queue looked overwritten; not reproduced in six more saves (`docs/re/crashes/2026-10-19-runner-queue-after-save.md`).
 - **Our client update runs on a job thread** inside `HookVMUpdate`. Which AI stage jobs run beside it,
   and are our engine changes (spawn, delete, `MoveTo`, packages) safe there?
@@ -542,6 +566,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `...-dirty` and pass the gate's stage 1. Fine for development; release builds come from commits.
 
 ### Tests and harness
+
+- `late-join-client` failed once on a fresh duo (2026-10-21): the client's copy of the host's player kept the
+  baseline heading (4.71 vs the host's 2.55); passed 3 of 3 after.
+- `party-stacks-on-arrival` fails every run (2026-10-21): "[client] came within 9 units of the other player: it
+  walked through it". Not followed up.
 
 - Rule 2 through `SetStage` has no scenario (2026-10-20): `vilkas-counts-client-hits` now claims rule 1 only (the trial's sword is given at stage 200, from dialogue). Candidate: Northwatch Keep's `MS09NonCombatTrigger1Script` (`OnTriggerEnter`: `Game.GetPlayer().SetFactionRank`, then MS09 stage 55, whose fragment ranks `Game.GetPlayer()` too); needs a faction readout and MS09 staged at 40. `statue-fires-at-client` checks the host's own hits now and fails with rule 2 off (`docs/re/systems/papyrus-guest-scripts.md`, "Rule 2 never ran").
 - The client's fire statue in Soljund's Sinkhole fired though `6AE8C.disable` ran on the client (2026-10-20): its script checks `FPStatueA.isEnabled()`. Not followed up; the scenario no longer disables it (step 5 stops the client's trigger).

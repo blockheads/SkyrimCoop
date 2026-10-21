@@ -44,8 +44,8 @@ struct GameServer;
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
  * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
- * (how fast everyone's clock runs) and HostDialogue (the party's conversation); HostWeather and
- * HostWorldState (globals, quests) have no rules.
+ * (how fast everyone's clock runs), HostDialogue (the party's conversation) and HostWorldState (a guest's cell
+ * loading); HostWeather has no rules.
  */
 struct HostAuthority
 {

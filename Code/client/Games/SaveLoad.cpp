@@ -101,6 +101,15 @@ bool BGSSaveLoadGame::HasChange(const TESForm& acForm, uint32_t aFlags) const no
     return TiltedPhoques::ThisCall(s_getChange, this, &acForm, aFlags);
 }
 
+uint32_t BGSSaveLoadGame::ChangeFlags(const TESForm& acForm, uint32_t aMask) const noexcept
+{
+    uint32_t flags = 0;
+    for (uint32_t left = aMask; left; left &= left - 1)
+        if (const uint32_t cBit = left & ~(left - 1); HasChange(acForm, cBit))
+            flags |= cBit;
+    return flags;
+}
+
 bool BGSSaveLoadGame::BeginLoading() noexcept
 {
     TP_THIS_FUNCTION(TSetLoading, bool, BGSSaveLoadGame, bool);
