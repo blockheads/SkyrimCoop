@@ -6,6 +6,7 @@
 #include <Forms/TESGlobal.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
+#include <Misc/BGSStoryManager.h>
 #include <Sky/Sky.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
@@ -180,4 +181,9 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     if (cDiffers(TESQuest::Failed))
         quest.SetFailed(acQuest.Flags & TESQuest::Failed);
     SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
+}
+
+void GuestEngine::SetOwnQuestStarts(bool aOn) noexcept
+{
+    BGSStoryManager::SetPicksQuests(aOn);
 }

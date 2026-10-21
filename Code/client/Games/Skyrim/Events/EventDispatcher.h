@@ -27,9 +27,14 @@ struct UnknownEvent
 {
 };
 
+// The story manager finished a story event (BGSStoryTeller::Update 32483): its id (AddEvent_Impl's) and
+// whether it started a quest.
 struct BGSEventProcessedEvent
 {
+    uint32_t eventId;  // 00
+    bool startedQuest; // 04
 };
+static_assert(offsetof(BGSEventProcessedEvent, startedQuest) == 0x4);
 
 struct TESActivateEvent
 {

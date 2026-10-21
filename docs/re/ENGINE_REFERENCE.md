@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **361** distinct engine addresses used; **135** have code in CommonLib or SKSE; **80** have no community name at all.
-- **113** hooks (these replace engine code, so check them first when the game crashes).
+- **362** distinct engine addresses used; **135** have code in CommonLib or SKSE; **80** have no community name at all.
+- **114** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -35,6 +35,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 26243 | `0x40e1c0` | `Sky::ForceWeather` | CL meh | hook → `HookForceWeather` | `forceWeather` | [Sky.cpp:94](../../Code/client/Games/Skyrim/Sky/Sky.cpp#L94) |  |
 | 27244 | `0x43e060` | `?` | - | hook → `HookCalculateExperience` | `s_calculateExperience` | [PlayerCharacter.cpp:346](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L346) | **undocumented** |
 | 32359 | `0x52bc80` | `BGSStoryEventManager::AddEvent_Impl` | CL | hook → `HookAddEvent` | `s_addEvent` | [PlayerEvents.cpp:59](../../Code/client/TestHarness/PlayerEvents.cpp#L59) |  |
+| 32372 | `0x52c420` | `BGSStoryManager::ProcessEvent` | IDA meh | hook → `HookProcessEvent` | `s_processEvent` | [BGSStoryManager.cpp:28](../../Code/client/Games/Skyrim/Misc/BGSStoryManager.cpp#L28) |  |
 | 32374 | `0x52c990` | `BGSStoryManager::sub_32374` | meh | hook → `HookStoryLog` | `s_storyLog` | [PlayerEvents.cpp:83](../../Code/client/TestHarness/PlayerEvents.cpp#L83) |  |
 | 33236 | `0x559930` | `?` | - | hook → `HookUpdateTarget` | `s_updateTarget` | [CombatController.cpp:85](../../Code/client/Games/Skyrim/Combat/CombatController.cpp#L85) | **undocumented** |
 | 34053 | `0x5ac3a0` | `ActiveEffect::CalculateDurationAndMagnitude` | meh | hook → `HookAdjustForPerks` | `adjustForPerks` | [MagicTarget.cpp:206](../../Code/client/Games/Skyrim/Magic/MagicTarget.cpp#L206) |  |
@@ -51,7 +52,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36000 | `0x624fc0` | `BGSLoadGameBuffer::ReadFormID` | meh | hook → `BGSLoadFormBuffer_LoadFormId` | `s_readFormId` | [SaveLoad.cpp:171](../../Code/client/Games/SaveLoad.cpp#L171) |  |
 | 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:173](../../Code/client/Games/SaveLoad.cpp#L173) |  |
 | 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:172](../../Code/client/Games/SaveLoad.cpp#L172) |  |
-| 36291 | `0x633250` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:27](../../Code/client/Games/TimeManager.cpp#L27) |  |
+| 36291 | `0x633250` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:33](../../Code/client/Games/TimeManager.cpp#L33) |  |
 | 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `cMainLoop` | [SkyrimVM64.cpp:66](../../Code/client/SkyrimVM64.cpp#L66) |  |
 | 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `addDeathItems` | [Actor.cpp:1618](../../Code/client/Games/Skyrim/Actor.cpp#L1618) |  |
 | 37313 | `0x664950` | `TESObjectREFR::sub_37313` | meh | hook → `HookForceState` | `s_ForceState` | [Actor.cpp:1606](../../Code/client/Games/Skyrim/Actor.cpp#L1606) |  |
@@ -144,8 +145,8 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 19872 | `0x2f0e20` | `TESObjectREFR::ApplyEffectShader` | CL PL | call | `s_applyEffectShader` | [SkyrimBridge.cpp:2360](../../Code/client/Bridges/SkyrimBridge.cpp#L2360) |  |
-| 22769 | `0x366b20` | `TESObjectREFR::ApplyArtObject` | CL PL | call | `s_applyArtObject` | [SkyrimBridge.cpp:2361](../../Code/client/Bridges/SkyrimBridge.cpp#L2361) |  |
+| 19872 | `0x2f0e20` | `TESObjectREFR::ApplyEffectShader` | CL PL | call | `s_applyEffectShader` | [SkyrimBridge.cpp:2147](../../Code/client/Bridges/SkyrimBridge.cpp#L2147) |  |
+| 22769 | `0x366b20` | `TESObjectREFR::ApplyArtObject` | CL PL | call | `s_applyArtObject` | [SkyrimBridge.cpp:2148](../../Code/client/Bridges/SkyrimBridge.cpp#L2148) |  |
 | 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | call | `s_getFactionReaction` | [SkyrimBridge.cpp:549](../../Code/client/Bridges/SkyrimBridge.cpp#L549) |  |
 | 37671 | `0x68a640` | `Actor::GetAggression` | meh | call | `s_getAggression` | [SkyrimBridge.cpp:591](../../Code/client/Bridges/SkyrimBridge.cpp#L591) |  |
 | 38626 | `0x6ba1d0` | `fUnk_Attacked` | PL meh | call | `s_attacked` | [SkyrimBridge.cpp:593](../../Code/client/Bridges/SkyrimBridge.cpp#L593) |  |
@@ -174,7 +175,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `s_writeId` | [SaveLoad.cpp:173](../../Code/client/Games/SaveLoad.cpp#L173) |  |
 | 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `s_writeFormId` | [SaveLoad.cpp:172](../../Code/client/Games/SaveLoad.cpp#L172) |  |
 | 36056 | `0x627570` | `BGSSaveGameBuffer::Reserve` | IDA meh | call | `s_reserve` | [SaveLoad.cpp:44](../../Code/client/Games/SaveLoad.cpp#L44) |  |
-| 36291 | `0x633250` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:27](../../Code/client/Games/TimeManager.cpp#L27) |  |
+| 36291 | `0x633250` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `s_SimulateTime` | [TimeManager.cpp:33](../../Code/client/Games/TimeManager.cpp#L33) |  |
 | 37402 | `0x66d1a0` | `Actor::InitiateDoNothingPackage` | CL | call | `s_initiateDoNothingPackage` | [References.cpp:122](../../Code/client/Games/References.cpp#L122) |  |
 | 37570 | `0x67ead0` | `Actor::PutCreatedPackage` | meh | hook → `HookPutCreatedPackage` | `s_putCreatedPackage` | [References.cpp:174](../../Code/client/Games/References.cpp#L174) |  |
 | 38949 | `0x6cd0d0` | `?` | - | hook → `HookPerformAction` | `performAction` | [Animation.cpp:248](../../Code/client/Games/Animation.cpp#L248) | **undocumented** |
@@ -538,6 +539,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
+| 32372 | `0x52c420` | `BGSStoryManager::ProcessEvent` | IDA meh | hook → `HookProcessEvent` | `s_processEvent` | [BGSStoryManager.cpp:28](../../Code/client/Games/Skyrim/Misc/BGSStoryManager.cpp#L28) |  |
 | 38979 | `0x6ce8d0` | `ActorState::Func21_38979` | meh | call | `setWeaponState` | [ActorState.cpp:6](../../Code/client/Games/Skyrim/Misc/ActorState.cpp#L6) |  |
 | 53915 | `0x9bdd60` | `Output::Resize` | SKSE | call | `s_setSize` | [BSScript.cpp:144](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L144) |  |
 | 55510 | `0xa10970` | `?` | - | call | `s_pack` | [BSScript.cpp:69](../../Code/client/Games/Skyrim/Misc/BSScript.cpp#L69) | **undocumented** |
@@ -660,6 +662,6 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | call | `s_mapUserEvents` | [EngineCalls.cpp:927](../../Code/client/TestHarness/EngineCalls.cpp#L927) |  |
 | 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:870](../../Code/client/TestHarness/EngineCalls.cpp#L870) |  |
 | 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | call | `s_sendEvent` | [EngineCalls.cpp:931](../../Code/client/TestHarness/EngineCalls.cpp#L931) |  |
-| 380069 | `0x2010688` | `?` | - | data | `s_index` | [PlayerEvents.cpp:37](../../Code/client/TestHarness/PlayerEvents.cpp#L37) | **undocumented** |
+| 380069 | `0x2010688` | `?` | - | data | `s_index` | [PlayerEvents.cpp:38](../../Code/client/TestHarness/PlayerEvents.cpp#L38) | **undocumented** |
 | 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:176](../../Code/client/TestHarness/EngineCalls.cpp#L176) |  |
 | 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:112](../../Code/client/TestHarness/EngineCalls.cpp#L112) | **undocumented** |

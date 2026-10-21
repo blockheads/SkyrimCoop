@@ -81,7 +81,7 @@ def story(cell):
         captured = c.rpc({"cmd": "story_trace"})["captured"]
         copy = copy_on_host()
         raised = [c.rpc({"cmd": "story_raise_location_change", "actor": copy, "old": old, "new": new})["event"]
-                  for old, new in captured]
+                  for old, new, _ in captured]
         elapsed(3)
         for game in GAMES:
             c.select_instance(game)

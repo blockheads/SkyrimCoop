@@ -36,7 +36,8 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
                      BSTEventSink<TESMagicEffectApplyEvent>,
                      BSTEventSink<TESActiveEffectApplyRemove>,
                      BSTEventSink<TESQuestStartStopEvent>,
-                     BSTEventSink<TESEquipEvent>
+                     BSTEventSink<TESEquipEvent>,
+                     BSTEventSink<BGSEventProcessedEvent>
 {
     BSTEventResult OnEvent(const TESSpellCastEvent* apEvent, const EventDispatcher<TESSpellCastEvent>*) override
     {
@@ -64,6 +65,12 @@ struct Sinks final : BSTEventSink<TESSpellCastEvent>,
             Record({{"kind", apEvent->started ? "quest_start" : "quest_stop"}, {"quest", apEvent->formId}, {"failed", apEvent->failed}});
         return BSTEventResult::kOk;
     }
+    BSTEventResult OnEvent(const BGSEventProcessedEvent* apEvent, const EventDispatcher<BGSEventProcessedEvent>*) override
+    {
+        if (apEvent)
+            Record({{"kind", "story_event_processed"}, {"event", apEvent->eventId}, {"started_quest", apEvent->startedQuest}});
+        return BSTEventResult::kOk;
+    }
     BSTEventResult OnEvent(const TESEquipEvent* apEvent, const EventDispatcher<TESEquipEvent>*) override
     {
         if (apEvent)
@@ -88,6 +95,7 @@ void ListenAll(EventDispatcherManager& aManager, bool aOn) noexcept
     Listen(aManager.activeEffectApplyRemove, aOn);
     Listen(aManager.questStartStopEvent, aOn);
     Listen(aManager.equipEvent, aOn);
+    Listen(aManager.eventProcessedEvent, aOn);
 }
 } // namespace
 

@@ -26,6 +26,8 @@ public:
     // Makes the quest so, each stage without its fragment (docs/re/systems/quest-apply.md); aAsLoad: as a save
     // load does, the fields only. Fills of references the host's game created are left as they are.
     void ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept;
+    // On or off: the game's own story manager starting quests for story events (arrivals, kills, scripts' events).
+    void SetOwnQuestStarts(bool aOn) noexcept;
 
 private:
     const ModSystem& m_mods;

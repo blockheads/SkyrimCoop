@@ -6,11 +6,12 @@ class GuestEngine;
 
 /**
  * @brief A guest takes the host's globals and quests (HostWorldState) with its engine's own calls
- * (docs/design/world-state-sync.md step 4).
+ * (docs/design/world-state-sync.md step 4). Its own story manager starts no quest meanwhile.
  */
 struct GuestWorldState
 {
     GuestWorldState(entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
+    ~GuestWorldState() noexcept;
 
     TP_NOCOPYMOVE(GuestWorldState);
 

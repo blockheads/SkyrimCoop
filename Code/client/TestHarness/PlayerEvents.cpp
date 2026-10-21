@@ -5,6 +5,7 @@
 #include <Forms/TESForm.h>
 #include <MinHook.h>
 
+#include <array>
 #include <mutex>
 #include <vector>
 
@@ -30,7 +31,7 @@ struct LocationChangeEvent
 };
 static_assert(sizeof(LocationChangeEvent) == 0x18);
 bool s_traceStory = false;
-std::vector<std::pair<uint32_t, uint32_t>> s_capturedLocationChanges; // (old, new) the player raised
+std::vector<std::array<uint32_t, 3>> s_capturedLocationChanges; // (old, new, event id) the player raised
 
 uint32_t LocationChangeIndex()
 {
@@ -40,16 +41,15 @@ uint32_t LocationChangeIndex()
 
 uint32_t TP_MAKE_THISCALL(HookAddEvent, void, uint32_t aIndex, const void* apEvent)
 {
+    const uint32_t cId = TiltedPhoques::ThisCall(RealAddEvent, apThis, aIndex, apEvent);
+    std::scoped_lock _{s_lock};
+    if (s_traceStory && apEvent && aIndex == LocationChangeIndex())
     {
-        std::scoped_lock _{s_lock};
-        if (s_traceStory && apEvent && aIndex == LocationChangeIndex())
-        {
-            auto* pEvent = static_cast<const LocationChangeEvent*>(apEvent);
-            s_capturedLocationChanges.emplace_back(pEvent->pOldLocation ? pEvent->pOldLocation->formID : 0,
-                                                   pEvent->pNewLocation ? pEvent->pNewLocation->formID : 0);
-        }
+        auto* pEvent = static_cast<const LocationChangeEvent*>(apEvent);
+        s_capturedLocationChanges.push_back({pEvent->pOldLocation ? pEvent->pOldLocation->formID : 0,
+                                             pEvent->pNewLocation ? pEvent->pNewLocation->formID : 0, cId});
     }
-    return TiltedPhoques::ThisCall(RealAddEvent, apThis, aIndex, apEvent);
+    return cId;
 }
 
 TiltedPhoques::Initializer s_storyEventHooks(
@@ -86,14 +86,14 @@ TiltedPhoques::Initializer s_storyHooks(
     });
 
 // {"cmd": "story_trace", "on": true}: log the story manager's outcomes and capture the player's CLOC events;
-// returns those captured since the last call.
+// returns those captured since the last call as (old location, new location, event id).
 nlohmann::json StoryTrace(Harness&, const nlohmann::json& acRequest)
 {
     std::scoped_lock _{s_lock};
     s_traceStory = acRequest.value("on", s_traceStory);
     auto captured = nlohmann::json::array();
-    for (const auto& [cOld, cNew] : s_capturedLocationChanges)
-        captured.push_back({cOld, cNew});
+    for (const auto& [cOld, cNew, cId] : s_capturedLocationChanges)
+        captured.push_back({cOld, cNew, cId});
     s_capturedLocationChanges.clear();
     return {{"ok", true}, {"captured", captured}};
 }

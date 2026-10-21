@@ -8,6 +8,13 @@ GuestWorldState::GuestWorldState(entt::dispatcher& aDispatcher, GuestEngine& aEn
 {
     m_globalsConnection = aDispatcher.sink<NotifyGlobals>().connect<&GuestWorldState::OnGlobals>(this);
     m_questsConnection = aDispatcher.sink<NotifyQuests>().connect<&GuestWorldState::OnQuests>(this);
+    // this is what disables guests (so clients connected to the host) from starting their own quest
+    m_engine.SetOwnQuestStarts(false);
+}
+
+GuestWorldState::~GuestWorldState() noexcept
+{
+    m_engine.SetOwnQuestStarts(true);
 }
 
 void GuestWorldState::OnGlobals(const NotifyGlobals& acMessage) noexcept

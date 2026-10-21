@@ -1900,6 +1900,52 @@ def client_quest_matches(quest, label):
     wait_for(f"[client] {label} as on the host", matches, 5)
 
 
+BANNERED_MARE = "WhiterunBanneredMare"
+
+
+def arrival_story_events(instance):
+    """The location change story events this game's player raised since the last call (harness story_trace),
+    as (old location, new location, event id)."""
+    select_instance(instance)
+    return (rpc({"cmd": "story_trace"}) or {}).get("captured", [])
+
+
+def story_event_outcome(instance, event_id, since):
+    """Whether this game's story manager started a quest for that event; None until it has handled it."""
+    for event in engine_events(instance, since)[0]:
+        if event["kind"] == "story_event_processed" and event["event"] == event_id:
+            return event["started_quest"]
+    return None
+
+
+def scenario_guest_story_starts_no_quest():
+    """Both players walk into the Bannered Mare: each game raises its own arrival story event (a location
+    change). The host's story manager starts quests for it (the bard's song, the hold's radiant quests); the
+    client's decides nothing, its event handled with no quest started: quests come from the host."""
+    since = {}
+    for name in ("", "client"):
+        player_command(name, {"cmd": "story_trace", "on": True})
+        arrival_story_events(name)
+        since[name] = engine_events(name)[1]
+    try:
+        both_go(BANNERED_MARE)
+        for name, wanted in (("", True), ("client", False)):
+            who = f"[{name or 'host'}]"
+            events = arrival_story_events(name)
+            if not events:
+                raise TestFailure(f"{who} raised no location change story event on arriving")
+            event_id = events[-1][2]
+            wait_for(f"{who} its story manager handled the arrival (event {event_id})",
+                     lambda name=name, event_id=event_id: story_event_outcome(name, event_id, since[name]) is not None, 15)
+            if story_event_outcome(name, event_id, since[name]) != wanted:
+                raise TestFailure(f"{who} its story manager {'started no quest' if wanted else 'started quests'} for the "
+                                  f"arrival: {'the test shows nothing' if wanted else 'a guest decided quests'}")
+    finally:
+        for name in ("", "client"):
+            player_command(name, {"cmd": "story_trace", "on": False})
+        both_go(HOME_CELL)
+
+
 def scenario_quest_stage_reaches_guest():
     """A stage the host's game sets is done on the client too, with its objective, through the client's
     own SetStage; the stage's fragment (a world script) runs on the host only."""
@@ -4274,6 +4320,7 @@ SCENARIOS = {
     "global-reaches-guest": scenario_global_reaches_guest,
     "late-join-gets-globals": scenario_late_join_gets_globals,
     "quest-stage-reaches-guest": scenario_quest_stage_reaches_guest,
+    "guest-story-starts-no-quest": scenario_guest_story_starts_no_quest,
     "quest-completes-for-guest": scenario_quest_completes_for_guest,
     "quest-roles-match-host": scenario_quest_roles_match_host,
     "late-join-gets-quests": scenario_late_join_gets_quests,
@@ -4370,6 +4417,7 @@ TAGS = {
     "global-reaches-guest": {'world'},
     "late-join-gets-globals": {'world', 'session'},
     "quest-stage-reaches-guest": {'world', 'quest'},
+    "guest-story-starts-no-quest": {'world', 'quest', 'cells'},
     "quest-completes-for-guest": {'world', 'quest'},
     "quest-roles-match-host": {'world', 'quest'},
     "late-join-gets-quests": {'world', 'quest', 'session'},

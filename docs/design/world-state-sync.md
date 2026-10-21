@@ -216,9 +216,10 @@ action in the world can happen twice.
    `BGSQuestObjective::SetState`, `SetCompleted`/`SetFailed`; at join the fields only, as a load does.
    Scenarios `quest-stage-reaches-guest` (the harness counts fragments: none on the guest),
    `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`; the main-quest walk
-   matches at every step (14 of 14, before: 1). Still open, in `docs/progress.md`: fills of references not in
-   the guest's memory, location aliases, created references, the guest's own quest starts, deleting
-   upstream's `QuestService`.
+   matches at every step (14 of 14, before: 1). A guest's story manager starts no quest (2026-10-20, `docs/re/systems/story-manager.md`,
+   `guest-story-starts-no-quest`). Still open, in `docs/progress.md`: fills of references not in the guest's
+   memory, location aliases, created references, quests a guest's scripts start (step 5), deleting upstream's
+   `QuestService`.
 5. **The guest's world scripts stop changing the world** (above, "Only the host's game decides"): a scenario
    where the guest pulls a lever and its effect happens once, from the host.
 6. **References and containers as messages:** lock, open, enabled and owner state (doors, locks and activation
