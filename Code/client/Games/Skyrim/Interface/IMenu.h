@@ -19,7 +19,7 @@ struct GRefCountImpl : GRefCountImplCore
 {
     virtual ~GRefCountImpl() = default; // 00
 };
-SKYRIM_STRUCT_ASSERT(sizeof(GRefCountImpl) == 0x10);
+static_assert(sizeof(GRefCountImpl) == 0x10);
 
 template <class Base, std::uint32_t StatType> struct GRefCountBaseStatImpl : Base
 {
@@ -88,7 +88,7 @@ struct FxDelegateHandler : GRefCountBase<FxDelegateHandler, GStatGroups::kGStat_
         virtual ~CallbackProcessor() = default;
         virtual void Process(const void* apMethodName, CallbackFn* apMethod) = 0;
     };
-    SKYRIM_STRUCT_ASSERT(sizeof(CallbackProcessor) == 0x8);
+    static_assert(sizeof(CallbackProcessor) == 0x8);
 
     ~FxDelegateHandler() override = default; // 00
 
@@ -174,6 +174,6 @@ struct IMenu : FxDelegateHandler
 };
 
 constexpr auto x = offsetof(IMenu, uiMenuFlags);
-SKYRIM_STRUCT_ASSERT(offsetof(IMenu, uiMovie) == 0x10);
+static_assert(offsetof(IMenu, uiMovie) == 0x10);
 
-SKYRIM_STRUCT_ASSERT(offsetof(IMenu, uiMenuFlags) == 0x1C);
+static_assert(offsetof(IMenu, uiMenuFlags) == 0x1C);

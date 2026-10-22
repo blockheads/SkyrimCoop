@@ -37,7 +37,6 @@ void CombatService::OnUpdate(const UpdateEvent& acEvent) noexcept
     RunHitFeedback();
     UpdateRemotePlayerAnger();
     RefreshHangLockWatch();
-    RunTargetUpdates(static_cast<float>(acEvent.Delta));
 }
 
 void CombatService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) const noexcept
@@ -181,54 +180,4 @@ void CombatService::RunHitFeedback() noexcept
         hit.Health = cHealth;
         ++it;
     }
-}
-
-void CombatService::RunTargetUpdates(const float acDelta) const noexcept
-{
-#if 0
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenUpdates = 200ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
-        return;
-
-    lastSendTimePoint = now;
-
-    const auto view = m_world.view<FormIdComponent, CombatComponent>();
-
-    Vector<entt::entity> toRemove{};
-
-    for (const auto entity : view)
-    {
-        auto& combatComponent = view.get<CombatComponent>(entity);
-        combatComponent.Timer = combatComponent.Timer - acDelta;
-
-        if (combatComponent.Timer <= 0.f)
-        {
-            toRemove.push_back(entity);
-            continue;
-        }
-
-        auto* pTarget = Cast<Actor>(TESForm::GetById(combatComponent.TargetFormId));
-        if (!pTarget)
-        {
-            spdlog::warn("{}: : combat target not found, form id {:X}", __FUNCTION__, combatComponent.TargetFormId);
-            toRemove.push_back(entity);
-            continue;
-        }
-
-        const auto& formIdComponent = view.get<FormIdComponent>(entity);
-        auto* pActor = Cast<Actor>(TESForm::GetById(formIdComponent.Id));
-        if (!pActor)
-        {
-            spdlog::error("{}: : actor not found, form id {:X}", __FUNCTION__, formIdComponent.Id);
-            toRemove.push_back(entity);
-            continue;
-        }
-    }
-
-    for (const auto entity : toRemove)
-        m_world.remove<CombatComponent>(entity);
-#endif
 }

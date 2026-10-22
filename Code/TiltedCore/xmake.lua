@@ -2,7 +2,7 @@
 -- Merged into main repo for better control and debugging
 
 target("TiltedCore")
-    devbuild_shared()
+    set_kind("static")
     set_group("Libraries")
 
     add_files("*.cpp")

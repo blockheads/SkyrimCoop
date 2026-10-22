@@ -14,4 +14,4 @@ struct PlayerCamera : public TESCamera
     void ForceThirdPerson() noexcept;
 };
 // The fields are TESCamera's: a copy of them here would shadow them at the wrong offsets.
-SKYRIM_STRUCT_ASSERT(offsetof(PlayerCamera, state) == 0x28);
+static_assert(offsetof(PlayerCamera, state) == 0x28);

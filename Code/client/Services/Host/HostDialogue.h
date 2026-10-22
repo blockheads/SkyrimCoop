@@ -17,10 +17,7 @@ struct DialogueCloseRequest;
 struct DialogueJoinRequest;
 struct DialogueExperienceRequest;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief One conversation for the party, run by the host's game: whoever starts it, the host's game says its
@@ -33,7 +30,7 @@ struct HostDialogue
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostDialogue(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers,
+    HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                  const HostCharacters& acCharacters) noexcept;
 
     TP_NOCOPYMOVE(HostDialogue);
@@ -80,7 +77,7 @@ private:
     // The player is out of it: the conversation ends when it was the last one in it.
     void Leave(ConnectionId_t aPlayer) noexcept;
 
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
     std::optional<Conversation> m_conversation;

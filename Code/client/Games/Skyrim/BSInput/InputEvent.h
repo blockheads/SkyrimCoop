@@ -26,7 +26,7 @@ struct InputEvent
     Type eventType;
     InputEvent* pNext;
 };
-SKYRIM_STRUCT_ASSERT(sizeof(InputEvent) == 0x18);
+static_assert(sizeof(InputEvent) == 0x18);
 
 // A key or button: idCode is the DirectInput scan code on the keyboard.
 struct ButtonEvent
@@ -41,10 +41,10 @@ struct ButtonEvent
     [[nodiscard]] bool IsPress() const noexcept { return value > 0.f && heldDownSecs == 0.f; }
     [[nodiscard]] bool IsRelease() const noexcept { return value == 0.f; }
 };
-SKYRIM_STRUCT_ASSERT(offsetof(ButtonEvent, userEvent) == 0x18);
-SKYRIM_STRUCT_ASSERT(offsetof(ButtonEvent, idCode) == 0x20);
-SKYRIM_STRUCT_ASSERT(offsetof(ButtonEvent, value) == 0x28);
-SKYRIM_STRUCT_ASSERT(sizeof(ButtonEvent) == 0x30);
+static_assert(offsetof(ButtonEvent, userEvent) == 0x18);
+static_assert(offsetof(ButtonEvent, idCode) == 0x20);
+static_assert(offsetof(ButtonEvent, value) == 0x28);
+static_assert(sizeof(ButtonEvent) == 0x30);
 
 // The mouse moved by (mouseInputX, mouseInputY) since the last poll; idCode 0xA ("Cursor" in menus).
 struct MouseMoveEvent
@@ -56,9 +56,9 @@ struct MouseMoveEvent
     int32_t mouseInputX;
     int32_t mouseInputY;
 };
-SKYRIM_STRUCT_ASSERT(offsetof(MouseMoveEvent, idCode) == 0x20);
-SKYRIM_STRUCT_ASSERT(offsetof(MouseMoveEvent, mouseInputX) == 0x28);
-SKYRIM_STRUCT_ASSERT(sizeof(MouseMoveEvent) == 0x30);
+static_assert(offsetof(MouseMoveEvent, idCode) == 0x20);
+static_assert(offsetof(MouseMoveEvent, mouseInputX) == 0x28);
+static_assert(sizeof(MouseMoveEvent) == 0x30);
 
 // BSTEventSource<InputEvent*> (BSInputDeviceManager 402776 at offset 0): SendEvent (68655) calls each sink's
 // ProcessEvent, vtable slot 1 `(sink, InputEvent* const* chain, source)`, until one returns 1 (stop). IDA 2026-10-21.
@@ -70,6 +70,6 @@ struct InputEventSource
     uint64_t lock;                       // 48
     bool notifying;                      // 50
 };
-SKYRIM_STRUCT_ASSERT(offsetof(InputEventSource, pendingRegisters) == 0x18);
-SKYRIM_STRUCT_ASSERT(offsetof(InputEventSource, lock) == 0x48);
-SKYRIM_STRUCT_ASSERT(offsetof(InputEventSource, notifying) == 0x50);
+static_assert(offsetof(InputEventSource, pendingRegisters) == 0x18);
+static_assert(offsetof(InputEventSource, lock) == 0x48);
+static_assert(offsetof(InputEventSource, notifying) == 0x50);

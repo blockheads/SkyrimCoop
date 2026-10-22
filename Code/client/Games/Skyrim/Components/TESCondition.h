@@ -18,7 +18,7 @@ struct ConditionCheckParams
     bool unk28 = false;                            // 28, set by the list's evaluation (sub_14049FA70)
     BGSPackageDataList* packageDataList = nullptr; // 30
 };
-SKYRIM_STRUCT_ASSERT(sizeof(ConditionCheckParams) == 0x38);
+static_assert(sizeof(ConditionCheckParams) == 0x38);
 
 // One condition (CTDA, CommonLibSSE-NG TESConditionItem / CONDITION_ITEM_DATA).
 struct TESConditionItem
@@ -75,12 +75,12 @@ struct TESConditionItem
     RunOn runOn;     // 31
     uint8_t pad32[6];
 };
-SKYRIM_STRUCT_ASSERT(sizeof(TESConditionItem::Flags) == 1);
-SKYRIM_STRUCT_ASSERT(offsetof(TESConditionItem, comparison) == 0x08);
-SKYRIM_STRUCT_ASSERT(offsetof(TESConditionItem, function) == 0x18);
-SKYRIM_STRUCT_ASSERT(offsetof(TESConditionItem, flags) == 0x30);
-SKYRIM_STRUCT_ASSERT(offsetof(TESConditionItem, runOn) == 0x31);
-SKYRIM_STRUCT_ASSERT(sizeof(TESConditionItem) == 0x38);
+static_assert(sizeof(TESConditionItem::Flags) == 1);
+static_assert(offsetof(TESConditionItem, comparison) == 0x08);
+static_assert(offsetof(TESConditionItem, function) == 0x18);
+static_assert(offsetof(TESConditionItem, flags) == 0x30);
+static_assert(offsetof(TESConditionItem, runOn) == 0x31);
+static_assert(sizeof(TESConditionItem) == 0x38);
 
 // A form's condition list (CommonLibSSE-NG TESCondition).
 struct TESCondition

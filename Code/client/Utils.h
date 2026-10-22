@@ -71,7 +71,6 @@ inline std::optional<uint32_t> GetServerIdByFormId(const uint32_t acFormId) noex
 
 // GetByServerId<T> requires the full TESForm type (TESForm::GetById) and RTTI Cast<T>.
 // Only available when Games/Skyrim SKSE types are compiled in (i.e. HAS_DIRECTXTK builds).
-#ifdef HAS_DIRECTXTK
 template <class T> T* GetByServerId(const uint32_t acServerId) noexcept
 {
     auto view = World::Get().view<FormIdComponent>();
@@ -99,7 +98,6 @@ template <class T> T* GetByServerId(const uint32_t acServerId) noexcept
     spdlog::debug("{}: form not found for server id {:X}", __FUNCTION__, acServerId);
     return nullptr;
 }
-#endif  // HAS_DIRECTXTK
 
 void ShowHudMessage(const TiltedPhoques::String& acMessage);
 } // namespace Utils

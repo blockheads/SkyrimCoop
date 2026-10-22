@@ -12,4 +12,4 @@ struct TESTexture : BaseFormComponent
     BSFixedString name;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(TESTexture, name) == 8);
+static_assert(offsetof(TESTexture, name) == 8);

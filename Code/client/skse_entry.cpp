@@ -1,4 +1,4 @@
-// skse_entry.cpp — Thin DLL entry point for SKSE plugin loading under MinGW
+// skse_entry.cpp — the DLL entry points SKSE loads the plugin through
 // Bridges SKSE's plugin interface to the client's RunTiltedInit/RunTiltedApp
 #include <windows.h>
 #include <cstdint>

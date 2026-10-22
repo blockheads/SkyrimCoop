@@ -10,4 +10,4 @@ struct BSMaskedShaderMaterial
     NiPointer<NiTexture> renderedTexture;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(BSMaskedShaderMaterial, renderedTexture) == 0xA0);
+static_assert(offsetof(BSMaskedShaderMaterial, renderedTexture) == 0xA0);

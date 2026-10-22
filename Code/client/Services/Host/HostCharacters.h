@@ -17,10 +17,7 @@ struct RequestRespawn;
 struct PlayerRespawnRequest;
 struct EnterCellRequest;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief The session's characters on the host: hands out their server ids, knows who owns each,
@@ -39,7 +36,7 @@ struct HostCharacters
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
     // Registers its rules with aAuthority.
-    HostCharacters(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostCharacters);
 
@@ -89,10 +86,12 @@ private:
     };
 
     HostAuthority& m_authority;
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;
     TiltedPhoques::Map<uint32_t, Character> m_characters;
+    // Never reused in a session: a late message for a removed character finds nothing.
+    uint32_t m_lastServerId = 0;
 
     // Where a player's game is: a worldspace (outdoors) or an interior cell.
     struct Place

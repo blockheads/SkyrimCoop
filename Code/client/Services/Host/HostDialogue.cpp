@@ -1,6 +1,6 @@
 #include <Services/Host/HostDialogue.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostPlayers.h>
@@ -10,9 +10,9 @@
 
 #include <algorithm>
 
-HostDialogue::HostDialogue(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers,
+HostDialogue::HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                            const HostCharacters& acCharacters) noexcept
-    : m_server(aServer)
+    : m_network(aNetwork)
     , m_players(acPlayers)
     , m_characters(acCharacters)
 {
@@ -41,7 +41,7 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
             NotifyChatMessageBroadcast line;
             line.MessageType = kSystemMessage;
             line.ChatMessage = "Someone else is in a conversation already.";
-            m_server.Send(aSender, line);
+            m_network.Send(aSender, line);
         }
         return;
     }
@@ -50,7 +50,7 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
     m_asked = Asked{aSender, acRequest.NpcId};
     NotifyDialogueStart start;
     start.NpcId = acRequest.NpcId;
-    m_server.Send(cHost, start);
+    m_network.Send(cHost, start);
 }
 
 void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -64,7 +64,7 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
     if (m_conversation)
         End(aSender);
 
-    m_conversation.emplace();
+    m_conversation = Conversation{};
     m_conversation->Id = ++m_lastId;
     m_conversation->NpcId = acRequest.NpcId;
     m_talker = 0;
@@ -163,7 +163,7 @@ void HostDialogue::OnExperience(const DialogueExperienceRequest& acRequest, Conn
     // The last picker's; the host's own when it picked or that player left.
     NotifyDialogueExperience experience;
     experience.Experience = acRequest.Experience;
-    m_server.Send(m_talker && m_players.IsPlayer(m_talker) ? m_talker : cHost, experience);
+    m_network.Send(m_talker && m_players.IsPlayer(m_talker) ? m_talker : cHost, experience);
 }
 
 void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept

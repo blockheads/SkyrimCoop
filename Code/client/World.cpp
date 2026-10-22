@@ -8,22 +8,14 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
-#include <Bridges/IEventBridge.h>
 #include <Bridges/IWorldBridge.h>
 
-#ifdef HAS_CEF
-#include <Services/InputService.h>
-#endif
 #include <Services/TransportService.h>
 #include <Services/RunnerService.h>
 #include <Services/ImguiService.h>
-#ifdef HAS_RMLUI
 #include <Ui/UiService.h>
-#endif
 #include <Services/PapyrusService.h>
-#include <Services/DiscordService.h>
 #include <Services/ObjectService.h>
-#include <Services/QuestService.h>
 #include <Services/ActorValueService.h>
 #include <Services/InventoryService.h>
 #include <Services/EffectVisualsService.h>
@@ -55,12 +47,10 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
     IActorBridge&  actorRef  = *bridge;
     IFormBridge&   formRef   = *bridge;
     IPlayerBridge& playerRef = *bridge;
-    IEventBridge&  eventRef  = *bridge;
     IWorldBridge&  worldRef  = *bridge;
     world.ctx().emplace<IActorBridge&>(actorRef);
     world.ctx().emplace<IFormBridge&>(formRef);
     world.ctx().emplace<IPlayerBridge&>(playerRef);
-    world.ctx().emplace<IEventBridge&>(eventRef);
     world.ctx().emplace<IWorldBridge&>(worldRef);
     return bridge;
 }
@@ -75,28 +65,17 @@ World::World()
 {
 
     ctx().emplace<ImguiService>();
-#ifdef HAS_RMLUI
     ctx().emplace<UiService>(*this, ctx().at<IActorBridge&>());
-#endif
-    ctx().emplace<OverlayService>(*this, m_transport, m_dispatcher,
-                                  ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
-#ifdef HAS_CEF
-    ctx().emplace<InputService>(ctx().at<OverlayService>());
-#endif
     // Before CharacterService: an arrival drops the copies the old cell took before they are checked.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport,
                                    ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IPlayerBridge&>());
-#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
     ctx().emplace<DebugService>(m_dispatcher, *this, m_transport, ctx().at<ImguiService>());
-#endif
     ctx().emplace<PapyrusService>(m_dispatcher);
-    ctx().emplace<DiscordService>(m_dispatcher, ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport,
-                                  ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(), ctx().at<IEventBridge&>());
+                                  ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
-    ctx().emplace<QuestService>(*this, m_dispatcher);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -131,22 +110,12 @@ World::~World()
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
     ctx().erase<SessionService>();
-    ctx().erase<QuestService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
-    ctx().erase<DiscordService>();
     ctx().erase<PapyrusService>();
-#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
     ctx().erase<DebugService>();
-#endif
     ctx().erase<CharacterService>();
-#ifdef HAS_CEF
-    ctx().erase<InputService>();
-#endif
-    ctx().erase<OverlayService>();
-#ifdef HAS_RMLUI
     ctx().erase<UiService>();
-#endif
     ctx().erase<ImguiService>();
 }
 
@@ -207,11 +176,6 @@ IFormBridge& World::GetFormBridge() noexcept
 IPlayerBridge& World::GetPlayerBridge() noexcept
 {
     return ctx().at<IPlayerBridge&>();
-}
-
-IEventBridge& World::GetEventBridge() noexcept
-{
-    return ctx().at<IEventBridge&>();
 }
 
 IWorldBridge& World::GetWorldBridge() noexcept

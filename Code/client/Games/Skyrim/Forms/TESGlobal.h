@@ -20,4 +20,4 @@ struct TESGlobal : TESForm
     };
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(TESGlobal, f) == 0x34);
+static_assert(offsetof(TESGlobal, f) == 0x34);

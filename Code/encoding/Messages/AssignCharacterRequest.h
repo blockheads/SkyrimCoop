@@ -8,7 +8,6 @@
 #include <Structs/Rotator2_NetQuantize.h>
 #include <Structs/Tints.h>
 #include <Structs/Factions.h>
-#include <Structs/QuestLog.h>
 #include <Structs/ActorData.h>
 
 using TiltedPhoques::String;
@@ -30,7 +29,7 @@ struct AssignCharacterRequest final : ClientMessage
     bool operator==(const AssignCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && Cookie == acRhs.Cookie && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && FaceTints == acRhs.FaceTints && QuestContent == acRhs.QuestContent && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
+               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && FaceTints == acRhs.FaceTints && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
     }
 
     uint32_t Cookie{};
@@ -46,7 +45,6 @@ struct AssignCharacterRequest final : ClientMessage
     ActionEvent LatestAction{};
     // The behaviour graphs' state, as a savegame keeps it: what a copy's fresh graph loads.
     String GraphState{};
-    QuestLog QuestContent{};
     Tints FaceTints{};
     bool IsDragon{};
     bool IsMount{};

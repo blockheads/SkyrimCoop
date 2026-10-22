@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """One-command co-op tests.
 
-  coop_test.py net    [--bots N --seconds S --hz R]   no Skyrim, ~5s: N bots must see each other
   coop_test.py launch [--cell CELL | --save NAME]     fast-boot Skyrim straight into a cell, leave it running
-  coop_test.py game   [--cell CELL --seconds S]       fast-boot, host, connect a bot, verify the bot's
-                                                      actor exists in the engine and moves; then quit
   coop_test.py duo    [--keep-running --visible]      two real games: host + client, each must show the other
                       [--save NAME --level N]         (from a save; raise both players' level after loading)
   coop_test.py scenario [names] [--tag a,b] [--shuffle --repeat N] sync scenarios against a running duo; each
@@ -86,7 +83,6 @@ DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogeth
 LOADER = DLL.with_name("SkyrimCoopLoader.dll")
 # The harness without SkyrimCoop (Code/vanilla_harness): `repro --vanilla` and `launch --vanilla`.
 VANILLA_HARNESS = DLL.with_name("SkyrimCoopVanillaHarness.dll")
-BOT = ROOT / "build/linux/x86_64/release/fake_player"
 # A game stand-in on the network (Code/tests/peer): a host that refuses joins, or a game asking to join.
 PEER = ROOT / "build/linux/x86_64/debug/coop_peer"
 PLUGINS = GAME / "Data/SKSE/Plugins"
@@ -222,7 +218,6 @@ def game_stalled(instance):
 
 
 def stop_game():
-    subprocess.run(["pkill", "-x", BOT.name[:15]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # a --keep-running bot
     pids = prefix_processes()
     for sig in (signal.SIGTERM, signal.SIGKILL):
         for pid in pids:
@@ -238,14 +233,11 @@ def stop_game():
     return not prefix_processes()
 
 
-def check_prerequisites(need_bot):
+def check_prerequisites():
     required = [GAME / "SkyrimSE.exe", GAME / "skse64_loader.exe", PROTON / "proton", RUNTIME / "run", DLL]
-    if need_bot:
-        required.append(BOT)
     missing = [str(path) for path in required if not path.exists()]
     if missing:
-        hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL && scripts/xmake-msvc.sh build SkyrimCoopLoader"
-                "\nBuild the bot: XMAKE_CONFIGDIR=build/hotreload-native-config xmake build -j16 fake_player")
+        hint = ("\nBuild the DLL: scripts/xmake-msvc.sh f -m dev && scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL && scripts/xmake-msvc.sh build SkyrimCoopLoader")
         raise TestFailure("Missing:\n  " + "\n  ".join(missing) + hint)
     if subprocess.run(["pgrep", "-x", "steam"], capture_output=True).returncode != 0:
         raise TestFailure("Steam must be running (Skyrim's DRM needs it).")
@@ -594,49 +586,6 @@ def collect_logs(run_dir):
             shutil.copy(path, run_dir / (f"{INSTANCE}-{name}" if INSTANCE else name))
 
 
-def verify_bot_movement(bot_started_ms, seconds, tolerance):
-    """Some remote actor must show fresh engine samples with real displacement."""
-    deadline = time.monotonic() + seconds
-    tracks = {}
-    while time.monotonic() < deadline:
-        status = read_status()
-        if not status:
-            raise TestFailure("Game heartbeat stopped while the bot was moving (crash or hang?).")
-        for actor_id, sample in status.get("actors", {}).items():
-            if sample.get("observed_ms", 0) < bot_started_ms or not sample.get("has_3d"):
-                continue
-            requested, actual = sample.get("requested", []), sample.get("actual", [])
-            if len(actual) != 3 or not all(math.isfinite(v) for v in actual):
-                continue
-            track = tracks.setdefault(actor_id, {"first": actual, "samples": 0, "max_move": 0.0, "max_error": 0.0})
-            track["samples"] += 1
-            track["max_move"] = max(track["max_move"], math.dist(track["first"], actual))
-            if len(requested) == 3:
-                track["max_error"] = max(track["max_error"], math.dist(requested, actual))
-        for actor_id, track in tracks.items():
-            if track["samples"] >= 5 and track["max_move"] > 20 and track["max_error"] <= tolerance:
-                return int(actor_id), track
-        time.sleep(0.25)
-    if not tracks:
-        raise TestFailure("No remote actor with loaded 3D appeared in the engine. The bot connected but its "
-                          "character was not spawned in-game (see tp_client.log).")
-    detail = ", ".join(f"{int(k):08X}: {v['samples']} samples, moved {v['max_move']:.0f}u, "
-                       f"engine error {v['max_error']:.1f}u" for k, v in tracks.items())
-    raise TestFailure(f"Remote actor spawned but did not move as sent ({detail}).")
-
-
-def command_net(args):
-    if not BOT.exists():
-        raise TestFailure(f"Bot not built: {BOT}")
-    result = subprocess.run([str(BOT), "--net-test", "--bots", str(args.bots), "--duration", str(args.seconds),
-                             "--tick-rate", str(args.hz)], capture_output=True, text=True)
-    for line in (result.stdout + result.stderr).splitlines():
-        if "net-test" in line or "[error]" in line:
-            print(line)
-    if result.returncode != 0:
-        raise TestFailure("Network test failed (see above).")
-
-
 def new_run_dir(kind):
     run_dir = TEST_HOME / "runs" / (time.strftime("%Y%m%d-%H%M%S") + "-" + kind)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -644,7 +593,7 @@ def new_run_dir(kind):
 
 
 def command_launch(args):
-    check_prerequisites(need_bot=False)
+    check_prerequisites()
     run_dir = new_run_dir("launch")
     try:
         launch(args, run_dir)
@@ -706,54 +655,6 @@ def face_actor(actor_id):
     # Level, not looking down after walking: aimed spells fly where the player looks.
     run_console("player.setangle x 0")
 
-
-def command_game(args):
-    check_prerequisites(need_bot=True)
-    run_dir = new_run_dir("game")
-    bot = None
-    try:
-        launch(args, run_dir)
-        request = uuid.uuid4().hex
-        atomic_write(CONTROL / "session.txt", request + "\n")
-
-        def host_ready():
-            session = (read_status() or {}).get("session", {})
-            if session.get("request") != request:
-                return None
-            if session.get("state") == "failed":
-                raise TestFailure(f"Hosting failed: {session.get('error')}")
-            return session if session.get("state") == "ready" else None
-        session = wait_for("Hosting (embedded server + host authentication)", host_ready, 60)
-        log(f"Hosting on port {session['port']}")
-
-        bot_started_ms = time.time() * 1000
-        bot_log = open(run_dir / "bot.log", "w")
-        bot = subprocess.Popen([str(BOT), "--fixture-dir", str(CONTROL / session["snapshot"]),
-                                "--port", str(session["port"]), "--duration", str(3600 if args.keep_running else args.seconds + 10)],
-                               cwd=ROOT, stdout=bot_log, stderr=subprocess.STDOUT)
-        log("Bot connected; checking its actor spawns and moves in the engine...")
-        actor_id, track = verify_bot_movement(bot_started_ms, args.seconds, args.tolerance)
-        log(f"Remote actor {actor_id:08X}: {track['samples']} engine samples, moved {track['max_move']:.0f} units, "
-            f"engine/requested error {track['max_error']:.1f} units")
-        print(f"\nPASS: the bot joined the host, its character spawned in Skyrim and moved. Logs: {run_dir}")
-        if args.keep_running:
-            face_actor(actor_id)
-    except TestFailure as error:
-        print(f"\nFAIL: {error}\nLogs: {run_dir}", file=sys.stderr)
-        if bot and bot.poll() is not None:
-            print("Bot output (tail):\n" + "".join((run_dir / "bot.log").read_text().splitlines(True)[-15:]),
-                  file=sys.stderr)
-        raise SystemExit(1)
-    finally:
-        if bot and bot.poll() is None and not args.keep_running:
-            bot.terminate()
-        collect_logs(run_dir)
-        if args.keep_running:
-            log(f"Skyrim and the bot keep running (bot PID {bot.pid if bot else '-'}); "
-                f"watch with `{sys.argv[0]} watch`, end with `{sys.argv[0]} stop`")
-        else:
-            stop_game()
-            log("Skyrim stopped")
 
 def start_session(command, timeout=60):
     """Writes a session request (`<id>` hosts, `<id> join <port>` joins) and waits until ready."""
@@ -870,7 +771,7 @@ def reload_games(seconds=60):
 
 def command_duo(args):
     """Two real Skyrim instances: host + client on one machine, each must show the other."""
-    check_prerequisites(need_bot=False)
+    check_prerequisites()
     run_dir = new_run_dir("duo")
     passed = False
     try:
@@ -6228,11 +6129,7 @@ def command_scenario(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
-    net = commands.add_parser("net", help="headless multi-bot network test")
-    net.add_argument("--bots", type=int, default=4)
-    net.add_argument("--seconds", type=int, default=3)
-    net.add_argument("--hz", type=int, default=5)
-    for name in ("launch", "game", "duo", "repro"):
+    for name in ("launch", "duo", "repro"):
         sub = commands.add_parser(name)
         sub.add_argument("--cell", default="QASmoke", help="cell for `coc` from the main menu (default QASmoke)")
         sub.add_argument("--save", help="load this save instead of coc")
@@ -6244,9 +6141,8 @@ def main():
             sub.add_argument("--vanilla", action="store_true",
                              help="without our plugin (A/B baseline): the stand-in harness plugin "
                                   "(Code/vanilla_harness) runs the commands; the next normal launch redeploys ours")
-        if name in ("game", "duo"):
-            sub.add_argument("--seconds", type=float, default=30, help="how long to wait for bot movement")
-            sub.add_argument("--tolerance", type=float, default=5, help="max engine vs requested distance")
+        if name == "duo":
+            sub.add_argument("--seconds", type=float, default=30, help="how long to wait for the games to show each other")
             sub.add_argument("--keep-running", action="store_true", help="leave Skyrim open afterwards")
         if name == "repro":
             sub.add_argument("name", nargs="?", help=f"a known crash: {', '.join(REPROS)}")
@@ -6336,12 +6232,8 @@ def main():
     VISIBLE = getattr(args, "visible", False)
     select_instance("client" if getattr(args, "instance", None) == "client" else "")
     try:
-        if args.command == "net":
-            command_net(args)
-        elif args.command == "launch":
+        if args.command == "launch":
             command_launch(args)
-        elif args.command == "game":
-            command_game(args)
         elif args.command == "duo":
             command_duo(args)
         elif args.command == "scenario":

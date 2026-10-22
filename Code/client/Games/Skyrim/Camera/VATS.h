@@ -15,4 +15,4 @@ struct VATS
     uint8_t pad0[0x20];
     Mode mode;
 };
-SKYRIM_STRUCT_ASSERT(offsetof(VATS, mode) == 0x20);
+static_assert(offsetof(VATS, mode) == 0x20);

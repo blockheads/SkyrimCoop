@@ -8,7 +8,7 @@ namespace
 void EnsureThreadHeap() noexcept
 {
 #ifdef _WIN32
-    // The SKSE DLL (MinGW or clang-cl) has no executable main() to initialize rpmalloc. Server
+    // The SKSE DLL has no executable main() to initialize rpmalloc. Static
     // globals allocate before SKSEPlugin_Load/DllMain, and engine-created
     // threads can later enter the allocator without our thread startup code.
     // Initialize lazily before the first allocation, including static ctors.

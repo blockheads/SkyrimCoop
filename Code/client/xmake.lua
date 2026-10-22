@@ -6,75 +6,22 @@ end
 
 local function build_client(name)
 target(name)
-    if is_plat("mingw", "windows") then
-        -- Objects, not a static archive: every .obj is linked into the DLL. From an
-        -- archive the linker dropped the ~38 files only referenced through
-        -- self-registering TiltedPhoques::Initializer hooks (ActorMagicCaster,
-        -- SkyrimVM64, UI, ...), so their hooks never installed. This matches the
-        -- MSVC build's /WHOLEARCHIVE and also skips re-archiving ~350MB per build.
-        set_kind("object")
-    else
-        set_kind("static")
-    end
+    -- Objects, not a static archive: every .obj is linked into the DLL. From an archive the linker
+    -- dropped the ~38 files only referenced through self-registering TiltedPhoques::Initializer hooks
+    -- (ActorMagicCaster, SkyrimVM64, UI, ...), so their hooks never installed.
+    set_kind("object")
     set_group("Client")
     add_includedirs(".","../external/")
-    -- Add server include directory for embedded GameServer (P2P hosting)
-    add_includedirs("../server", {public = false})
-    if is_plat("mingw") and not is_mode("dev") then
-        -- On MinGW, GCC precompiled headers don't preserve #undef state for calling
-        -- convention macros. Use textual force-include instead of .gch precompilation.
-        add_cxflags("-include TiltedOnlinePCH.h", {force = true})
-    else
-        -- dev mode on MinGW: MinGWCompat.h is force-included after the PCH below,
-        -- which restores the calling convention macros (verified: identical symbols).
-        set_pcxxheader("TiltedOnlinePCH.h")
-    end
+    set_pcxxheader("TiltedOnlinePCH.h")
 
-    -- exclude game specific stuff and Vivox
-    if is_plat("mingw") then
-        -- MinGW: also exclude Debug views (DebugService is gated off for __MINGW32__)
-        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**|TestHarness/**|HotReload/**")
-        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|Services/Debug/**|TestHarness/**|HotReload/**|link_stubs.cpp|skse_entry.cpp")
-    else
-        add_headerfiles("**.h|Games/Skyrim/**|Services/Vivox/**|TestHarness/**|HotReload/**")
-        add_files("**.cpp|Games/Skyrim/**|Services/Vivox/**|TestHarness/**|HotReload/**|link_stubs.cpp|skse_entry.cpp")
-    end
+    add_headerfiles("**.h|Games/Skyrim/**|TestHarness/**|HotReload/**")
+    add_files("**.cpp|Games/Skyrim/**|TestHarness/**|HotReload/**|skse_entry.cpp")
     -- HotReload/Handoff.h is used by production code either way: without the harness it is no-ops.
     add_headerfiles("HotReload/Handoff.h")
     add_test_harness_define()
     if has_config("test_harness") then
         add_files("TestHarness/**.cpp", "HotReload/**.cpp")
         add_headerfiles("TestHarness/**.h", "HotReload/**.h")
-    end
-
-    -- Feature-gated packages and targets (per D-01: per-feature guards)
-    if not is_plat("mingw", "windows") then
-        add_defines("HAS_CEF=1", "HAS_DISCORD=1", "HAS_DIRECTXTK=1")
-        add_packages("discord", "cef")
-        add_deps("SkyrimCoopUIProcess", "SkyrimCoopUI")
-
-        after_install(function(target)
-            -- copy dlls
-            for _, pkg_with_dlls in ipairs({"cef", "discord"}) do
-                local linkdir = target:pkg(pkg_with_dlls):get("linkdirs")
-                local bindir = path.join(linkdir, "..", "bin")
-                os.cp(bindir, target:installdir())
-            end
-            -- copy ui
-            local uidir = path.join(target:scriptdir(), "..", "skyrim_ui", "src")
-            os.cp(path.join(uidir, "assets", "images", "cursor.dds"), path.join(target:installdir(), "bin", "assets", "images", "cursor.dds"))
-            os.cp(path.join(uidir, "assets", "images", "cursor.png"), path.join(target:installdir(), "bin", "assets", "images", "cursor.png"))
-            os.rm(path.join(target:installdir(), "bin", "**Tests.exe"))
-        end)
-    else
-        -- SKSE builds: no CEF, no Discord, no DirectXTK library
-        -- But HAS_DIRECTXTK is needed to gate SKSE-typed struct fields (ActivateEvent, etc.)
-        add_defines("HAS_DIRECTXTK=1")
-        -- ImGui stays for Phase 6 readiness (D-04)
-        if is_plat("mingw") then
-            -- Force-include MinGW compatibility header after PCH to fix calling convention macros
-            add_cxflags("-include MinGWCompat.h", {force = true})
-        end
     end
 
     add_files("Bridges/SkyrimBridge.cpp")
@@ -84,8 +31,6 @@ target(name)
     -- rather hacky:
     add_includedirs("Games/Skyrim")
     add_deps("SkyrimEncoding")
-    -- Add server dependency for embedded GameServer (P2P hosting)
-    add_deps("SkyrimTogetherServer")
 
     -- Core dependencies (always needed)
     add_deps(
@@ -113,94 +58,24 @@ target(name)
     -- mem is header-only; vendored copy
     add_includedirs("../external/mem", {public = false})
 
-    -- ImGui unconditional for Phase 6 readiness (D-04)
-    add_packages("imgui")
-    if is_plat("windows") then
-        add_packages("rmlui")
-        add_defines("HAS_RMLUI=1")
-        add_syslinks("d3dcompiler", "windowscodecs", "ole32")
-    else
-        remove_files("Ui/**.cpp")
-    end
-
-    if has_config("vivox") then
-        add_files("Services/Vivox/**.cpp")
-        add_headerfiles("Services/Vivox/**.h")
-        add_includedirs("Services/Vivox")
-        add_deps("Vivox")
-        add_defines("TP_VIVOX=1")
-    else
-        add_defines("TP_VIVOX=0")
-    end
-
-    add_syslinks(
-        "version",
-        "dbghelp",
-        "kernel32")
+    -- ImGui (debug views), RmlUi (the in-game UI, Code/client/Ui)
+    add_packages("imgui", "rmlui")
+    add_syslinks("d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32")
 end
 
 
 build_client("SkyrimTogetherClient")
 
 -- SKSE plugin DLL: links every client object and exports the SKSE entry points
--- (SKSEPlugin_Version, SKSEPlugin_Load, DllMain). MinGW, or clang-cl ("windows").
-if is_plat("mingw", "windows") then
-    target("SkyrimTogetherClientDLL")
-        set_kind("shared")
-        set_group("Client")
-        set_basename("SkyrimTogetherClient")  -- output: SkyrimTogetherClient.dll
-        set_prefixname("")                    -- no "lib" prefix on MinGW
-
-        add_files("skse_entry.cpp")
-        add_test_harness_define()
-        if is_plat("mingw") then
-            add_files("link_stubs.cpp")
-        end
-        add_deps("SkyrimTogetherClient")
-        -- Remove stale import libraries before linking. Without this, the linker
-        -- picks up a tiny .dll.a import lib instead of the 1.5GB static archive.
-        before_link(function (target)
-            local builddir = target:targetdir()
-            for _, f in ipairs({
-                "libSkyrimTogetherClient.dll.a",
-                "SkyrimTogetherClient.dll.a"
-            }) do
-                local p = path.join(builddir, f)
-                if os.isfile(p) then
-                    os.rm(p)
-                end
-            end
-        end)
-
-        -- Statically link MinGW runtime (no libgcc/libstdc++/libwinpthread DLL deps)
-        -- xmake strips add_ldflags for shared targets, so use add_shflags
-        if is_plat("mingw") then add_shflags(
-            "-static-libgcc",
-            "-static-libstdc++",
-            "-Wl,-Bstatic", "-lstdc++", "-lpthread",
-            "-Wl,-Bdynamic",
-            "-Wl,--allow-multiple-definition",
-            "-Wl,-Map,SkyrimTogetherClient.map",
-            {force = true}) end
-
-        -- Devbuild: internal deps are shared DLLs, so linking is fast
-        -- No need for full static archive chain -- just link against import libs
-        -- NOTE: Do NOT use --export-all-symbols here -- the final DLL has >65535 symbols
-        -- which exceeds PE/COFF ordinal limits. Only SKSE entry points need exporting
-        -- (handled by the existing .def file / __declspec(dllexport) attributes).
-
-        -- Extra system libraries needed at final link (beyond what deps inherit)
-        add_syslinks(
-            "comctl32",
-            "gdi32",
-            "dwmapi")
-        if is_plat("mingw") then
-            add_syslinks("stdc++fs")
-        end
-
-        -- Include paths needed for skse_entry.cpp, link_stubs.cpp, and TiltedCore headers
-        add_includedirs(".", "../external/", "..", "Games/Skyrim")
-        add_includedirs("../external/mem", {public = false})
-    target_end()
-end
-
+-- (SKSEPlugin_Version, SKSEPlugin_Load, DllMain).
+target("SkyrimTogetherClientDLL")
+    set_kind("shared")
+    set_group("Client")
+    set_basename("SkyrimTogetherClient")
+    add_files("skse_entry.cpp")
+    add_test_harness_define()
+    add_deps("SkyrimTogetherClient")
+    add_syslinks("comctl32", "gdi32", "dwmapi")
+    add_includedirs(".", "../external/", "..", "Games/Skyrim")
+    add_includedirs("../external/mem", {public = false})
+target_end()

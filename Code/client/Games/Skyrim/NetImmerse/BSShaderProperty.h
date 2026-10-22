@@ -11,4 +11,4 @@ struct BSShaderProperty : NiShadeProperty
     void* material;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(BSShaderProperty, material) == 0x78);
+static_assert(offsetof(BSShaderProperty, material) == 0x78);

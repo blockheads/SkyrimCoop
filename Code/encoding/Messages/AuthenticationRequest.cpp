@@ -2,7 +2,6 @@
 
 void AuthenticationRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, DiscordId);
     Game.Serialize(aWriter);
     Serialization::WriteString(aWriter, Token);
     Serialization::WriteString(aWriter, Version);
@@ -18,7 +17,6 @@ void AuthenticationRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReade
 {
     ClientMessage::DeserializeRaw(aReader);
 
-    DiscordId = Serialization::ReadVarInt(aReader);
     Game.Deserialize(aReader);
     Token = Serialization::ReadString(aReader);
     Version = Serialization::ReadString(aReader);

@@ -1,5 +1,4 @@
 #include <Services/DebugService.h>
-#include <Services/QuestService.h>
 #include <Bridges/IFormBridge.h>
 #include <Services/PapyrusService.h>
 
@@ -33,9 +32,6 @@ void DebugService::DrawQuestDebugView()
         {
             TESQuest* pQuest = objective.instance->quest;
             if (!pQuest)
-                continue;
-
-            if (QuestService::IsNonSyncableQuest(pQuest->formID, m_world.ctx().at<IFormBridge&>()))
                 continue;
 
             if (foundQuests.contains(pQuest->formID))

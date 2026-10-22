@@ -8,25 +8,18 @@
 
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IActorBridge.h>
-#include <Bridges/IEventBridge.h>
 
 #include <inttypes.h>
 
 ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
-                              IFormBridge& aFormBridge, IActorBridge& aActorBridge, IEventBridge& aEventBridge)
+                              IFormBridge& aFormBridge, IActorBridge& aActorBridge)
     : m_world(aWorld)
     , m_transport(aTransport)
     , m_formBridge(aFormBridge)
     , m_actorBridge(aActorBridge)
-    , m_eventBridge(aEventBridge)
 {
     m_onActivateConnection = aDispatcher.sink<ActivateEvent>().connect<&ObjectService::OnActivate>(this);
     m_activateConnection = aDispatcher.sink<NotifyActivate>().connect<&ObjectService::OnActivateNotify>(this);
-
-    // Note: TESActivateEvent sink registration replaced with IEventBridge — ObjectService no longer
-    // inherits BSTEventSink<TESActivateEvent>. The debug object component tracking was inside
-    // #if ENVIRONMENT_DEBUG which is not compiled in release builds.
-    // m_eventBridge.RegisterActivateSink(...) is available for future debug tracking if needed.
 }
 
 void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept

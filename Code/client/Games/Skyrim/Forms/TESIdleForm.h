@@ -32,8 +32,8 @@ struct TESIdleForm : TESForm
     BSFixedString animEventName; // 50 (ENAM)
     BSString formEditorID;       // 58 (EDID)
 };
-SKYRIM_STRUCT_ASSERT(offsetof(TESIdleForm, conditions) == 0x20);
-SKYRIM_STRUCT_ASSERT(offsetof(TESIdleForm, replayDelay) == 0x2C);
-SKYRIM_STRUCT_ASSERT(offsetof(TESIdleForm, parentIdle) == 0x38);
-SKYRIM_STRUCT_ASSERT(offsetof(TESIdleForm, animEventName) == 0x50);
-SKYRIM_STRUCT_ASSERT(sizeof(TESIdleForm) == 0x68);
+static_assert(offsetof(TESIdleForm, conditions) == 0x20);
+static_assert(offsetof(TESIdleForm, replayDelay) == 0x2C);
+static_assert(offsetof(TESIdleForm, parentIdle) == 0x38);
+static_assert(offsetof(TESIdleForm, animEventName) == 0x50);
+static_assert(sizeof(TESIdleForm) == 0x68);

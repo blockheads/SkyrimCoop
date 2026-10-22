@@ -3,7 +3,6 @@
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
-#include <Bridges/IEventBridge.h>
 #include <Bridges/IWorldBridge.h>
 
 #include <atomic>
@@ -17,7 +16,6 @@ class SkyrimBridge
     : public IActorBridge
     , public IFormBridge
     , public IPlayerBridge
-    , public IEventBridge
     , public IWorldBridge
 {
 public:
@@ -158,7 +156,6 @@ public:
     void ScriptSetQuestStage(uint32_t aFormId, uint32_t aStage) noexcept override;
     void SetQuestStopped(uint32_t aFormId) noexcept override;
     bool IsQuestStagesEmpty(uint32_t aFormId) const noexcept override;
-    bool IsQuestOverrideActive() const noexcept override;
     uint32_t GetModCount() const noexcept override;
     std::string GetModNameByIndex(uint32_t aIndex) const noexcept override;
     uint32_t GetModStandardId(const std::string& aModName) const noexcept override;
@@ -265,21 +262,11 @@ public:
     void StopTeleportEvents() noexcept override;
     void ShowHudMessage(const std::string& aMessage) noexcept override;
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override;
-    QuestLog GetPlayerQuestLog() const noexcept override;
     Tints GetPlayerFaceTints() const noexcept override;
     void AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept override;
     int32_t GetPlayerLastUsedCombatSkill() const noexcept override;
     uint32_t GetPlayerParentCellFormId() const noexcept override;
     bool IsActorBleedingOut(uint32_t aFormId) const noexcept override;
-
-    // -----------------------------------------------------------------
-    // IEventBridge
-    // -----------------------------------------------------------------
-    void RegisterQuestStartStopSink(std::function<void(uint32_t, bool)> aCallback) noexcept override;
-    void RegisterQuestStageSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept override;
-    void RegisterActivateSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept override;
-    void RegisterLockChangeSink(std::function<void(uint32_t, bool)> aCallback) noexcept override;
-    void UnregisterAllSinks() noexcept override;
 
     // -----------------------------------------------------------------
     // IWorldBridge

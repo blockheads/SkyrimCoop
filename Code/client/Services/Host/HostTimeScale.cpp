@@ -1,6 +1,6 @@
 #include <Services/Host/HostTimeScale.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostPlayers.h>
 
@@ -9,8 +9,8 @@
 
 #include <algorithm>
 
-HostTimeScale::HostTimeScale(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers) noexcept
-    : m_server(aServer)
+HostTimeScale::HostTimeScale(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept
+    : m_network(aNetwork)
     , m_players(acPlayers)
 {
     aAuthority.On(*this, &HostTimeScale::OnTimeScale);
@@ -60,5 +60,5 @@ void HostTimeScale::Tell(ConnectionId_t aPlayer, float aMultiplier) noexcept
     m_told[aPlayer] = aMultiplier;
     NotifyTimeScale notify;
     notify.Multiplier = aMultiplier;
-    m_server.Send(aPlayer, notify);
+    m_network.Send(aPlayer, notify);
 }

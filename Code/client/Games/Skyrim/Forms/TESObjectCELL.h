@@ -44,7 +44,7 @@ struct TESObjectCELL : TESForm
 
         uint32_t Count() { return capacity - available; }
     };
-    SKYRIM_STRUCT_ASSERT(sizeof(ReferenceData) == 0x30);
+    static_assert(sizeof(ReferenceData) == 0x30);
 
     struct LoadedCellData
     {
@@ -53,8 +53,8 @@ struct TESObjectCELL : TESForm
         uint8_t pad168[0x17C - 0x168];
         bool fullyLoaded; // 17C: TESCellFullyLoadedEvent sent (19146), its references all in
     };
-    SKYRIM_STRUCT_ASSERT(offsetof(LoadedCellData, encounterZone) == 0x160);
-    SKYRIM_STRUCT_ASSERT(offsetof(LoadedCellData, fullyLoaded) == 0x17C);
+    static_assert(offsetof(LoadedCellData, encounterZone) == 0x160);
+    static_assert(offsetof(LoadedCellData, fullyLoaded) == 0x17C);
 
     uint8_t pad20[0x40 - 0x20];
     uint8_t cellFlags[5];
@@ -79,10 +79,10 @@ struct TESObjectCELL : TESForm
     uint64_t unk140;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, cellFlags) == 0x40);
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, pNavMeshes) == 0x80);
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, refData) == 0x88);
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, lock) == 0x120);
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, worldspace) == 0x128);
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectCELL, loadedCellData) == 0x130);
-SKYRIM_STRUCT_ASSERT(sizeof(TESObjectCELL) == 0x148);
+static_assert(offsetof(TESObjectCELL, cellFlags) == 0x40);
+static_assert(offsetof(TESObjectCELL, pNavMeshes) == 0x80);
+static_assert(offsetof(TESObjectCELL, refData) == 0x88);
+static_assert(offsetof(TESObjectCELL, lock) == 0x120);
+static_assert(offsetof(TESObjectCELL, worldspace) == 0x128);
+static_assert(offsetof(TESObjectCELL, loadedCellData) == 0x130);
+static_assert(sizeof(TESObjectCELL) == 0x148);

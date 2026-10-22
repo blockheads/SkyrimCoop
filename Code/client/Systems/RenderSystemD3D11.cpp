@@ -1,23 +1,18 @@
-#ifdef HAS_DIRECTXTK
 
 #include <TiltedOnlinePCH.h>
 
 #include <Systems/RenderSystemD3D11.h>
 
 #include <Services/DebugService.h>
-#include <Services/OverlayService.h>
 #include <Services/ImguiService.h>
-#ifdef HAS_RMLUI
 #include <Ui/UiService.h>
 #include <World.h>
-#endif
 
 #include <D3D11Hook.hpp>
 #include <d3d11.h>
 
-RenderSystemD3D11::RenderSystemD3D11(OverlayService& aOverlay, ImguiService& aImguiService)
+RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService)
     : m_pSwapChain(nullptr)
-    , m_overlay(aOverlay)
     , m_imguiService(aImguiService)
 {
     auto& d3d11 = TiltedPhoques::D3D11Hook::Get();
@@ -58,36 +53,26 @@ void RenderSystemD3D11::OnDeviceCreation(IDXGISwapChain* apSwapChain, bool aArra
     m_pSwapChain = apSwapChain;
 
     m_imguiService.Create(this, GetWindow());
-    m_overlay.Create(this);
-#ifdef HAS_RMLUI
     if (auto* pUi = World::Get().ctx().find<UiService>())
         pUi->Create(apSwapChain);
-#endif
-#ifndef __MINGW32__
     // Not again after a hot reload: its "another game is open" mutex is our own process's by then,
     // and it would move this window to the second game's place.
     if (aArrangeWindows)
         DebugService::ArrangeGameWindows(GetWindow());
-#endif
 }
 
 void RenderSystemD3D11::OnRender()
 {
-#ifdef HAS_RMLUI
     // Under ImGui: the debug views stay on top.
     if (auto* pUi = World::Get().ctx().find<UiService>())
         pUi->Render();
-#endif
     m_imguiService.Render();
-    m_overlay.Render();
 }
 
 void RenderSystemD3D11::OnReset(IDXGISwapChain* apSwapChain)
 {
     m_pSwapChain = apSwapChain;
 
-    m_overlay.Reset();
     m_imguiService.Reset();
 }
 
-#endif

@@ -52,7 +52,6 @@ static void SetupMainHook()
 
 static std::once_flag s_mainHookCallFlag;
 
-#ifdef _MSC_VER
 #if TP_PLATFORM_64
 
 using TGetWinmain = char* (*)();
@@ -88,7 +87,6 @@ void __stdcall HookedGetStartupInfoA(LPSTARTUPINFO lpStartupInfo)
 }
 
 #endif
-#endif // _MSC_VER
 
 namespace TiltedPhoques
 {
@@ -102,16 +100,11 @@ namespace TiltedPhoques
         case DLL_PROCESS_ATTACH:
         {
             g_pApp = aAppFactory();
-#ifdef _MSC_VER
 #if TP_PLATFORM_64
             OriginalGetWinmain = reinterpret_cast<TGetWinmain>(TP_HOOK_SYSTEM("api-ms-win-crt-runtime-l1-1-0.dll", "_get_narrow_winmain_command_line", HookGetWinmain));
             Original_initterm = reinterpret_cast<T_initterm>(TP_HOOK_SYSTEM("msvcr110.dll", "_initterm", Hookinitterm));
 #else
             OriginalGetStartupInfoA = reinterpret_cast<TGetStartupInfoA>(TP_HOOK_SYSTEM("kernel32.dll", "GetStartupInfoA", HookedGetStartupInfoA));
-#endif
-#else
-            // MinGW: CRT hook approach not available, use direct main hook setup
-            SetupMainHook();
 #endif
 
             App::GetInstance().Attach();

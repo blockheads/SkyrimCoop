@@ -6,10 +6,7 @@ struct HostAuthority;
 struct HostPlayers;
 struct TimeScaleRequest;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief One clock for everyone: a game slowing its own (a kill cam, Slow Time, a bow zoom) slows the
@@ -20,7 +17,7 @@ struct HostTimeScale
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostTimeScale(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers) noexcept;
+    HostTimeScale(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept;
 
     TP_NOCOPYMOVE(HostTimeScale);
 
@@ -36,7 +33,7 @@ private:
     void Tell() noexcept;
     void Tell(ConnectionId_t aPlayer, float aMultiplier) noexcept;
 
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     TiltedPhoques::Map<ConnectionId_t, float> m_wanted; // each game's own clock
     TiltedPhoques::Map<ConnectionId_t, float> m_told;   // what each game was last told

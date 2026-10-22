@@ -1,3 +1,0 @@
-{"dir":"c2s","opcode":0,"payload":"AEUAdGVzdF90b2tlbl9hYmMxMjMEbm9uZQBAAVRlc3RQbGF5ZXIAAAAAAAAAoEEAAEBBAQEB","peer":1,"ts":0.0,"type":"AuthenticationRequest"}
-{"dir":"c2s","opcode":2,"payload":"KhQAAAA8ADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","peer":1,"ts":0.1,"type":"AssignCharacterRequest"}
-{"dir":"c2s","opcode":3,"payload":"ZAEBAAAAACADAGQAYAkAAAAAAAAAAAAAAAAAAA==","peer":1,"ts":0.2,"type":"ClientReferencesMoveRequest"}

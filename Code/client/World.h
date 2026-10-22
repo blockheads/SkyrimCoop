@@ -6,18 +6,13 @@
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
 #include <Services/CharacterService.h>
-#include <Services/OverlayService.h>
 #include <Services/CharacterService.h>
 #include <Services/MagicService.h>
 #include <Services/HostService.h>
 #include <Services/TravelService.h>
 
 // DebugService requires SKSE types (Actor.h, ImGui, HWND) — only include when they are available.
-#ifdef HAS_DIRECTXTK
 #include <Services/DebugService.h>
-#else
-struct DebugService;  // forward declaration only
-#endif
 
 #include <Systems/ModSystem.h>
 
@@ -28,7 +23,6 @@ struct DebugService;  // forward declaration only
 class IActorBridge;
 class IFormBridge;
 class IPlayerBridge;
-class IEventBridge;
 class IWorldBridge;
 class SkyrimBridge;
 
@@ -61,12 +55,8 @@ struct World : entt::registry
     const TravelService& GetTravelService() const noexcept { return ctx().at<const TravelService>(); }
     CharacterService& GetCharacterService() noexcept { return ctx().at<CharacterService>(); }
     const CharacterService& GetCharacterService() const noexcept { return ctx().at<const CharacterService>(); }
-    OverlayService& GetOverlayService() noexcept { return ctx().at<OverlayService>(); }
-    const OverlayService& GetOverlayService() const noexcept { return ctx().at<const OverlayService>(); }
-#if defined(HAS_DIRECTXTK) && !defined(__MINGW32__)
     DebugService& GetDebugService() noexcept { return ctx().at<DebugService>(); }
     const DebugService& GetDebugService() const noexcept { return ctx().at<const DebugService>(); }
-#endif
     MagicService& GetMagicService() noexcept { return ctx().at<MagicService>(); }
     const MagicService& GetMagicService() const noexcept { return ctx().at<const MagicService>(); }
     HostService& GetHostService() noexcept { return ctx().at<HostService>(); }
@@ -76,7 +66,6 @@ struct World : entt::registry
     IActorBridge& GetActorBridge() noexcept;
     IFormBridge& GetFormBridge() noexcept;
     IPlayerBridge& GetPlayerBridge() noexcept;
-    IEventBridge& GetEventBridge() noexcept;
     IWorldBridge& GetWorldBridge() noexcept;
 
     auto& GetDispatcher() noexcept { return m_dispatcher; }

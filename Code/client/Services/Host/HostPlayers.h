@@ -4,10 +4,7 @@
 
 struct ServerMessage;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief The session's players, by their game's connection: who is in, who hosts, and sending to
@@ -27,7 +24,7 @@ struct HostPlayers
         bool IsHost{};
     };
 
-    explicit HostPlayers(Server::GameServer& aServer) noexcept;
+    explicit HostPlayers(HostNetwork& aNetwork) noexcept;
 
     TP_NOCOPYMOVE(HostPlayers);
 
@@ -61,7 +58,7 @@ struct HostPlayers
     void Kick(uint32_t aPlayerId) noexcept;
 
 private:
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     TiltedPhoques::Map<ConnectionId_t, Player> m_players;
     uint32_t m_lastId = 0;
 };

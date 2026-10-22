@@ -159,9 +159,10 @@ TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn
 TEST_CASE("Respawn: a peer that lost the host's first character gets it again", "[Bridge][Characters]")
 {
     Session session;
-    // The first id handed out: the host's player, whose copy a peer drops when it changes cells.
+    // The first id handed out (never 0, which means no character): the host's player, whose copy a peer drops
+    // when it changes cells.
     const uint32_t cHostPlayer = session.Character(kHost);
-    REQUIRE(cHostPlayer == 0);
+    REQUIRE(cHostPlayer != 0);
     CharacterSpawnRequest spawn;
     spawn.ServerId = cHostPlayer;
     session.Spawns.push_back(spawn);

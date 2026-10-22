@@ -9,5 +9,5 @@ struct MenuCursor
     float cursorPosX;
     float cursorPosY;
 };
-SKYRIM_STRUCT_ASSERT(offsetof(MenuCursor, cursorPosX) == 0x4);
-SKYRIM_STRUCT_ASSERT(offsetof(MenuCursor, cursorPosY) == 0x8);
+static_assert(offsetof(MenuCursor, cursorPosX) == 0x4);
+static_assert(offsetof(MenuCursor, cursorPosY) == 0x8);

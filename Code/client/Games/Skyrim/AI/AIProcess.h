@@ -45,7 +45,7 @@ struct HighProcessData
 };
 
 static_assert(sizeof(BSSoundHandle) == 0xC);
-SKYRIM_STRUCT_ASSERT(offsetof(HighProcessData, soundHandles) == 0x2FC);
-SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, highProcess) == 0x10);
+static_assert(offsetof(HighProcessData, soundHandles) == 0x2FC);
+static_assert(offsetof(AIProcess, highProcess) == 0x10);
 
-SKYRIM_STRUCT_ASSERT(offsetof(AIProcess, processLevel) == 0x137);
+static_assert(offsetof(AIProcess, processLevel) == 0x137);

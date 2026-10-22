@@ -17,6 +17,6 @@ struct BGSBaseAlias
     uint32_t pad24;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(BGSBaseAlias, name) == 0x8);
-SKYRIM_STRUCT_ASSERT(offsetof(BGSBaseAlias, aliasId) == 0x18);
-SKYRIM_STRUCT_ASSERT(sizeof(BGSBaseAlias) == 0x28);
+static_assert(offsetof(BGSBaseAlias, name) == 0x8);
+static_assert(offsetof(BGSBaseAlias, aliasId) == 0x18);
+static_assert(sizeof(BGSBaseAlias) == 0x28);

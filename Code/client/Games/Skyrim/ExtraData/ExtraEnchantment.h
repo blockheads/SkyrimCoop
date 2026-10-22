@@ -13,4 +13,4 @@ struct ExtraEnchantment : BSExtraData
     bool bRemoveOnUnequip;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(ExtraEnchantment) == 0x20);
+static_assert(sizeof(ExtraEnchantment) == 0x20);

@@ -57,7 +57,7 @@ struct ActiveEffect
     uint16_t usUniqueID;
     MagicSystem::CastingSource eCastingSource;
 };
-SKYRIM_STRUCT_ASSERT(sizeof(ActiveEffect) == 0x90);
+static_assert(sizeof(ActiveEffect) == 0x90);
 
 namespace ActiveEffectFactory
 {

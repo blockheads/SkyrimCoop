@@ -14,7 +14,7 @@ template <class T> struct hkArrayView
     int32_t size;     // 8
     int32_t capacity; // C
 };
-SKYRIM_STRUCT_ASSERT(sizeof(hkArrayView<int>) == 0x10);
+static_assert(sizeof(hkArrayView<int>) == 0x10);
 
 struct hkbVariableBindingSet
 {
@@ -55,12 +55,12 @@ struct hkbVariableBindingSet
     bool hasOutputBinding; // 24
     uint8_t pad25[3];
 };
-SKYRIM_STRUCT_ASSERT(sizeof(hkbVariableBindingSet::Binding) == 0x28);
-SKYRIM_STRUCT_ASSERT(offsetof(hkbVariableBindingSet::Binding, variableIndex) == 0x1C);
-SKYRIM_STRUCT_ASSERT(offsetof(hkbVariableBindingSet::Binding, flags) == 0x24);
-SKYRIM_STRUCT_ASSERT(offsetof(hkbVariableBindingSet, bindings) == 0x10);
-SKYRIM_STRUCT_ASSERT(offsetof(hkbVariableBindingSet, hasOutputBinding) == 0x24);
-SKYRIM_STRUCT_ASSERT(sizeof(hkbVariableBindingSet) == 0x28);
+static_assert(sizeof(hkbVariableBindingSet::Binding) == 0x28);
+static_assert(offsetof(hkbVariableBindingSet::Binding, variableIndex) == 0x1C);
+static_assert(offsetof(hkbVariableBindingSet::Binding, flags) == 0x24);
+static_assert(offsetof(hkbVariableBindingSet, bindings) == 0x10);
+static_assert(offsetof(hkbVariableBindingSet, hasOutputBinding) == 0x24);
+static_assert(sizeof(hkbVariableBindingSet) == 0x28);
 
 // hkbNode : hkbBindable : hkReferencedObject.
 struct hkbNode
@@ -76,9 +76,9 @@ struct hkbNode
     uint8_t cloneState;
     uint8_t pad43[0x48 - 0x43];
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbNode, bindings) == 0x10);
-SKYRIM_STRUCT_ASSERT(offsetof(hkbNode, name) == 0x38);
-SKYRIM_STRUCT_ASSERT(sizeof(hkbNode) == 0x48);
+static_assert(offsetof(hkbNode, bindings) == 0x10);
+static_assert(offsetof(hkbNode, name) == 0x38);
+static_assert(sizeof(hkbNode) == 0x48);
 
 struct hkbBehaviorGraphStringData
 {
@@ -88,7 +88,7 @@ struct hkbBehaviorGraphStringData
     hkArrayView<const char*> attributeNames; // 20
     hkArrayView<const char*> variableNames;  // 30
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraphStringData, variableNames) == 0x30);
+static_assert(offsetof(hkbBehaviorGraphStringData, variableNames) == 0x30);
 
 struct hkbBehaviorGraphData
 {
@@ -97,7 +97,7 @@ struct hkbBehaviorGraphData
     uint8_t pad10[0x78 - 0x10];
     hkbBehaviorGraphStringData* stringData; // 78
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraphData, stringData) == 0x78);
+static_assert(offsetof(hkbBehaviorGraphData, stringData) == 0x78);
 
 // Behaviour graph as a node: its root generator and its own variable names (sub-behaviours index
 // variables locally).
@@ -107,22 +107,22 @@ struct hkbBehaviorGraphNode : hkbNode
     hkbNode* rootGenerator;     // 80
     hkbBehaviorGraphData* data; // 88
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraphNode, rootGenerator) == 0x80);
-SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorGraphNode, data) == 0x88);
+static_assert(offsetof(hkbBehaviorGraphNode, rootGenerator) == 0x80);
+static_assert(offsetof(hkbBehaviorGraphNode, data) == 0x88);
 
 struct hkbBehaviorReferenceGenerator : hkbNode
 {
     const char* behaviorName;       // 48
     hkbBehaviorGraphNode* behavior; // 50, linked at load (63948)
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbBehaviorReferenceGenerator, behavior) == 0x50);
+static_assert(offsetof(hkbBehaviorReferenceGenerator, behavior) == 0x50);
 
 struct hkbStateMachineNode : hkbNode
 {
     uint8_t pad48[0x7C - 0x48];
     int32_t syncVariableIndex; // 7C, written with the current state's id
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbStateMachineNode, syncVariableIndex) == 0x7C);
+static_assert(offsetof(hkbStateMachineNode, syncVariableIndex) == 0x7C);
 
 struct hkbExpressionData
 {
@@ -134,7 +134,7 @@ struct hkbExpressionData
     bool wasTrueInPreviousFrame;
     uint8_t pad13[0x18 - 0x13];
 };
-SKYRIM_STRUCT_ASSERT(sizeof(hkbExpressionData) == 0x18);
+static_assert(sizeof(hkbExpressionData) == 0x18);
 
 struct hkbExpressionDataArray
 {
@@ -148,7 +148,7 @@ struct hkbEvaluateExpressionModifier : hkbNode
     uint8_t pad48[0x50 - 0x48];
     hkbExpressionDataArray* expressions; // 50
 };
-SKYRIM_STRUCT_ASSERT(offsetof(hkbEvaluateExpressionModifier, expressions) == 0x50);
+static_assert(offsetof(hkbEvaluateExpressionModifier, expressions) == 0x50);
 
 // The engine's breadth-first walk of every node under a root, each once (63865/63867; Open Animation
 // Replacer uses it). Flags: hkbNode::GetChildrenFlagBits.
@@ -170,4 +170,4 @@ struct hkbNodeIterator
 
     uint8_t storage[0x60];
 };
-SKYRIM_STRUCT_ASSERT(sizeof(hkbNodeIterator) == 0x60);
+static_assert(sizeof(hkbNodeIterator) == 0x60);

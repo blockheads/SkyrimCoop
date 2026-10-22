@@ -8,11 +8,7 @@
 #include <TiltedCore/RpmallocAllocator.hpp>
 #include <rpmalloc.h>
 
-#ifdef _MSC_VER
 #pragma optimize("", off)
-#else
-#pragma GCC optimize("O0")
-#endif
 
 struct GameHeap
 {
@@ -227,7 +223,6 @@ static TiltedPhoques::Initializer s_memoryHooks(
         }
     });
 
-#ifdef _MSC_VER
 using T_initterm_e = decltype(&_initterm_e);
 T_initterm_e Real_initterm_e = nullptr;
 
@@ -250,13 +245,5 @@ void HookFormAllocateSentinelInit()
 {
     TP_HOOK_IAT(_initterm_e, "api-ms-win-crt-runtime-l1-1-0.dll");
 }
-#else
-void HookFormAllocateSentinelInit()
-{
-    // EngineFixes compatibility not needed on MinGW builds
-}
-#endif
 
-#ifdef _MSC_VER
 #pragma optimize("", on)
-#endif

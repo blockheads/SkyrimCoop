@@ -4,11 +4,9 @@
 
 // Raw SKSE pointer fields are only accessible in code compiled with SKSE headers (HAS_DIRECTXTK).
 // Services must use the pre-extracted FormId fields below instead.
-#ifdef HAS_DIRECTXTK
 struct TESObjectREFR;
 struct Actor;
 struct TESBoundObject;
-#endif
 
 /**
  * @brief In-game activation (i.e. interacting with an object).
@@ -19,7 +17,6 @@ struct TESBoundObject;
  */
 struct ActivateEvent
 {
-#ifdef HAS_DIRECTXTK
     ActivateEvent(TESObjectREFR* apObject, Actor* apActivator, TESBoundObject* apObjectToGet,
                   int32_t aCount, bool aDefaultProcessing, uint8_t aUnk1,
                   TESObjectREFR::OpenState aPreActivationOpenState, bool aActivateFlag = false)
@@ -42,14 +39,6 @@ struct ActivateEvent
     uint8_t Unk1{0};
     TESObjectREFR::OpenState PreActivationOpenState{};
     bool ActivateFlag{false};
-#else
-    ActivateEvent(int32_t aCount, bool aDefaultProcessing, bool aActivateFlag = false)
-        : Count(aCount), DefaultProcessing(aDefaultProcessing), ActivateFlag(aActivateFlag) {}
-
-    int32_t Count{0};
-    bool DefaultProcessing{false};
-    bool ActivateFlag{false};
-#endif
 
     // Pre-extracted primitives: set by the dispatch site (Games/Skyrim hook layer).
     // Services must use these fields; the SKSE pointer fields above are hook-only.

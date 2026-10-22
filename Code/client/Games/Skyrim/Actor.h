@@ -384,22 +384,22 @@ public:
     // void Save_Reversed(uint32_t aChangeFlags, Buffer::Writer& aWriter);
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, currentProcess) == 0xF8);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, flags1) == 0xE8);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorValueOwner) == 0xB8);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorState) == 0xC0);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, flags2) == 0x204);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, soundCallBackSet) == 0x278);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, fVoiceTimer) == 0x110);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, fUnderWaterTimer) == 0x114);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk84) == 0xF0);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, unk17C) == 0x184);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, pCombatController) == 0x160);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, magicItems) == 0x1C8);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, equippedShout) == 0x1E8);
-SKYRIM_STRUCT_ASSERT(offsetof(Actor, actorLock) == 0x284);
-SKYRIM_STRUCT_ASSERT(sizeof(Actor) == 0x2B8);
-SKYRIM_STRUCT_ASSERT(sizeof(Actor::SpellItemEntry) == 0x18);
+static_assert(offsetof(Actor, currentProcess) == 0xF8);
+static_assert(offsetof(Actor, flags1) == 0xE8);
+static_assert(offsetof(Actor, actorValueOwner) == 0xB8);
+static_assert(offsetof(Actor, actorState) == 0xC0);
+static_assert(offsetof(Actor, flags2) == 0x204);
+static_assert(offsetof(Actor, soundCallBackSet) == 0x278);
+static_assert(offsetof(Actor, fVoiceTimer) == 0x110);
+static_assert(offsetof(Actor, fUnderWaterTimer) == 0x114);
+static_assert(offsetof(Actor, unk84) == 0xF0);
+static_assert(offsetof(Actor, unk17C) == 0x184);
+static_assert(offsetof(Actor, pCombatController) == 0x160);
+static_assert(offsetof(Actor, magicItems) == 0x1C8);
+static_assert(offsetof(Actor, equippedShout) == 0x1E8);
+static_assert(offsetof(Actor, actorLock) == 0x284);
+static_assert(sizeof(Actor) == 0x2B8);
+static_assert(sizeof(Actor::SpellItemEntry) == 0x18);
 
 // The engine's "angry with the player" exists only for its own player. For a remote player, an
 // actor pushed past its friendly-hit tolerance is marked angry with that player's character here,

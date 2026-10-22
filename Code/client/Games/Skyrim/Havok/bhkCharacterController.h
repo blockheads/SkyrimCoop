@@ -25,4 +25,4 @@ struct bhkCharacterController
     uint8_t pad08[0x218 - 0x8];
     uint32_t flags; // 218
 };
-SKYRIM_STRUCT_ASSERT(offsetof(bhkCharacterController, flags) == 0x218);
+static_assert(offsetof(bhkCharacterController, flags) == 0x218);

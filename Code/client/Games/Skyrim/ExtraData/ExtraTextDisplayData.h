@@ -13,7 +13,7 @@ struct BGSMessage : TESForm, TESFullName, TESDescription
     uint32_t uiDisplayTime;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(BGSMessage) == 0x68);
+static_assert(sizeof(BGSMessage) == 0x68);
 
 struct ExtraTextDisplayData : BSExtraData
 {
@@ -36,4 +36,4 @@ struct ExtraTextDisplayData : BSExtraData
     */
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(ExtraTextDisplayData) == 0x38);
+static_assert(sizeof(ExtraTextDisplayData) == 0x38);

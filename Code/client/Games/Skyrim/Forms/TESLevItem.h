@@ -6,4 +6,4 @@ struct TESLevItem : TESBoundObject, TESLeveledList
 {
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(TESLevItem) == 0x58);
+static_assert(sizeof(TESLevItem) == 0x58);

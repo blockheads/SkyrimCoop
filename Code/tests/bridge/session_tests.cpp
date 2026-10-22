@@ -41,6 +41,19 @@ std::vector<std::string> HostChat(const Session& acSession)
     return lines;
 }
 
+// Whether the session counts aGame as a player: only a player's chat goes out.
+bool IsPlayer(Session& aSession, ConnectionId_t aGame)
+{
+    const size_t cSent = aSession.Outbox.size();
+    SendChatMessageRequest line;
+    line.MessageType = kGlobalChat;
+    line.ChatMessage = "hello";
+    aSession.Receive(aGame, line);
+    const bool cIsPlayer = aSession.Outbox.size() > cSent;
+    aSession.Outbox.resize(cSent);
+    return cIsPlayer;
+}
+
 const AuthenticationResponse& OnlyResponse(const Session& acSession, ConnectionId_t aTo)
 {
     const auto cResponses = acSession.SentTo<AuthenticationResponse>(aTo);
@@ -57,11 +70,11 @@ TEST_CASE("Join: accepted with a player id, the session's settings and the sessi
     const auto& cResponse = OnlyResponse(session, kNewcomer);
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kAccepted);
     CHECK(cResponse.Version == BuildCommit());
-    // A new id in the player list; the server keeps its own record for its last services.
+    // A new id in the player list.
     CHECK(cResponse.PlayerId != 0);
     for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
         CHECK(cResponse.PlayerId != session.PlayerId(cPlayer));
-    REQUIRE(session.World().GetPlayerManager().GetByConnectionId(kNewcomer));
+    CHECK(IsPlayer(session, kNewcomer));
 
     CHECK(cResponse.Settings.Difficulty == 3); // the host's
     CHECK(cResponse.Settings.DeathSystemEnabled);
@@ -90,7 +103,7 @@ TEST_CASE("Join: a game on another build is refused, told the host's build, and 
     const auto& cResponse = OnlyResponse(session, kNewcomer);
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kWrongVersion);
     CHECK(cResponse.Version == BuildCommit());
-    CHECK(session.World().GetPlayerManager().GetByConnectionId(kNewcomer) == nullptr);
+    CHECK_FALSE(IsPlayer(session, kNewcomer));
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
 
     // The host's chat says who could not join and why; nobody else hears of it.
@@ -109,7 +122,7 @@ TEST_CASE("Join: a game on another Skyrim or SKSE version is refused and told th
     const auto& cResponse = OnlyResponse(session, kNewcomer);
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kWrongGame);
     CHECK(cResponse.Game == kHostGame);
-    CHECK(session.World().GetPlayerManager().GetByConnectionId(kNewcomer) == nullptr);
+    CHECK_FALSE(IsPlayer(session, kNewcomer));
     REQUIRE(HostChat(session).size() == 1);
     CHECK(HostChat(session)[0].starts_with("Serana couldn't join: they run Skyrim 1.6."));
 }
@@ -134,7 +147,7 @@ TEST_CASE("Join: a game with other plugins is refused and sent the host's", "[Br
     const auto& cResponse = OnlyResponse(session, kNewcomer);
     CHECK(cResponse.Type == AuthenticationResponse::ResponseType::kModsMismatch);
     CHECK(cResponse.UserMods == HostPlugins());
-    CHECK(session.World().GetPlayerManager().GetByConnectionId(kNewcomer) == nullptr);
+    CHECK_FALSE(IsPlayer(session, kNewcomer));
     CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: their plugins differ from yours (1 difference)."});
 }
 
@@ -174,7 +187,7 @@ TEST_CASE("Join: a full session refuses the next game", "[Bridge][Session]")
 
     session.Receive(kNewcomer, Join("Serana"));
     CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kServerFull);
-    CHECK(session.World().GetPlayerManager().GetByConnectionId(kNewcomer) == nullptr);
+    CHECK_FALSE(IsPlayer(session, kNewcomer));
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
     CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: the session is full."});
 }
@@ -182,10 +195,8 @@ TEST_CASE("Join: a full session refuses the next game", "[Bridge][Session]")
 TEST_CASE("Join: a player cannot join again", "[Bridge][Session]")
 {
     Session session;
-    const uint32_t cCount = session.World().GetPlayerManager().Count();
     session.Receive(kPeer, Join("Lydia"));
     CHECK(session.Outbox.empty());
-    CHECK(session.World().GetPlayerManager().Count() == cCount);
 }
 
 TEST_CASE("Join: a game that is not a player can only ask to join", "[Bridge][Session]")

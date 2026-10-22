@@ -52,9 +52,6 @@ public:
     virtual void SetQuestStopped(uint32_t aFormId) noexcept = 0;
     /// Returns true if the quest has no stage entries (non-syncable quest check).
     virtual bool IsQuestStagesEmpty(uint32_t aFormId) const noexcept = 0;
-    /// Returns true if a ScopedQuestOverride is currently active.
-    /// Used by QuestService to suppress duplicate quest events during remote updates.
-    virtual bool IsQuestOverrideActive() const noexcept = 0;
 
     // --- Mod registry ---
     virtual uint32_t GetModCount() const noexcept = 0;

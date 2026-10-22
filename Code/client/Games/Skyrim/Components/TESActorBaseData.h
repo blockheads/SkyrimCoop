@@ -46,5 +46,5 @@ struct TESActorBaseData : BaseFormComponent
     GameArray<FactionInfo> factions;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(TESActorBaseData, owner) == 0x30);
-SKYRIM_STRUCT_ASSERT(offsetof(TESActorBaseData, factions) == 0x40);
+static_assert(offsetof(TESActorBaseData, owner) == 0x30);
+static_assert(offsetof(TESActorBaseData, factions) == 0x40);

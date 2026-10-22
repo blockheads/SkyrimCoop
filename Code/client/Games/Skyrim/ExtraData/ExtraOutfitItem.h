@@ -9,4 +9,4 @@ struct ExtraOutfitItem : BSExtraData
     TESForm* pOutfit;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(ExtraOutfitItem) == 0x18);
+static_assert(sizeof(ExtraOutfitItem) == 0x18);

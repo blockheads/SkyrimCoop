@@ -34,7 +34,7 @@ void HoldBodies(NiAVObject& aRoot) noexcept;
 // Havok's units to the game's (bhkWorld's scale, 0.0142875).
 constexpr float cHavokToGame = 1.f / 0.0142875f;
 
-SKYRIM_STRUCT_ASSERT(offsetof(hkpRigidBody, world) == 0x10);
-SKYRIM_STRUCT_ASSERT(offsetof(hkpRigidBody, translation) == 0x1A0);
-SKYRIM_STRUCT_ASSERT(offsetof(bhkWorldObject, referencedObject) == 0x10);
-SKYRIM_STRUCT_ASSERT(offsetof(bhkNiCollisionObject, body) == 0x20);
+static_assert(offsetof(hkpRigidBody, world) == 0x10);
+static_assert(offsetof(hkpRigidBody, translation) == 0x1A0);
+static_assert(offsetof(bhkWorldObject, referencedObject) == 0x10);
+static_assert(offsetof(bhkNiCollisionObject, body) == 0x20);

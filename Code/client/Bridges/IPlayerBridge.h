@@ -5,7 +5,6 @@
 #include <vector>
 #include <Structs/Tints.h>
 #include <Structs/Inventory.h>
-#include <Structs/QuestLog.h>
 #include <Structs/ActionEvent.h>
 
 /// PlayerCharacter::Get() and all pPlayer->* operations.
@@ -95,8 +94,6 @@ public:
     // Shows that actor's health bar on the HUD, as when the player's hit lowers its health.
     virtual void ShowEnemyHealth(uint32_t aActorFormId) noexcept = 0;
 
-    // --- Quest / objectives ---
-    virtual QuestLog GetPlayerQuestLog() const noexcept = 0;
     virtual Tints GetPlayerFaceTints() const noexcept = 0;
 
     // --- Experience ---

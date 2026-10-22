@@ -73,4 +73,4 @@ struct MagicCaster
     float fProjectileTimer;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(MagicCaster) == 0x48);
+static_assert(sizeof(MagicCaster) == 0x48);

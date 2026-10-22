@@ -11,7 +11,6 @@
 #include <Services/DebugService.h>
 #include <Services/TransportService.h>
 #include <Services/PapyrusService.h>
-#include <Services/QuestService.h>
 
 #include <Events/UpdateEvent.h>
 #include <Events/DialogueEvent.h>
@@ -47,9 +46,6 @@
 
 #include <Games/Misc/SubtitleManager.h>
 #include <Games/Overrides.h>
-#ifdef HAS_CEF
-#include <OverlayApp.hpp>
-#endif
 
 #include <EquipManager.h>
 #include <Forms/TESAmmo.h>

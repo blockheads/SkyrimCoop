@@ -1,6 +1,6 @@
 #include <Services/Host/HostSession.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
@@ -15,8 +15,8 @@
 #include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
-HostSession::HostSession(HostAuthority& aAuthority, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept
-    : m_server(aServer)
+HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, const HostGame& acGame) noexcept
+    : m_network(aNetwork)
     , m_players(aPlayers)
     , m_game(acGame)
 {
@@ -68,14 +68,14 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
     response.Game = m_game.Versions;
     const auto refuse = [&](AuthenticationResponse::ResponseType aReason) {
         response.Type = aReason;
-        m_server.Send(aSender, response);
-        m_server.Disconnect(aSender);
+        m_network.Send(aSender, response);
+        m_network.Kick(aSender);
         // A session event, for the host's chat.
         NotifyChatMessageBroadcast line;
         line.MessageType = kSystemMessage;
         line.ChatMessage = JoinRefusal::ForHost(aReason, acRequest, {BuildCommit(), m_game.Versions, m_game.Plugins}).c_str();
         if (const ConnectionId_t cHost = m_players.Host())
-            m_server.Send(cHost, line);
+            m_network.Send(cHost, line);
     };
 
     if (acRequest.Version != BuildCommit())
@@ -104,17 +104,15 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
     }
 
     response.Type = kAccepted;
-    // The server keeps a record of its own for its last services (quests, admin, Lua) until they go.
-    m_server.AddPlayer(aSender, acRequest);
     // Every GameId on the wire names a plugin by its session id: its place in the load order, the
     // same in every game since the load order was just checked against the host's. The player's own
     // names go back, for its game to find each plugin by.
     response.UserMods = acRequest.UserMods;
     for (size_t i = 0; i < response.UserMods.ModList.size(); ++i)
         response.UserMods.ModList[i].Id = static_cast<uint16_t>(i);
-    response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_server.LoopbackConnection());
+    response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_network.HostConnection());
     response.Settings = Settings();
-    m_server.Send(aSender, response);
+    m_network.Send(aSender, response);
     Announce(aSender);
 }
 
@@ -132,8 +130,8 @@ void HostSession::Announce(ConnectionId_t aNewcomer) const noexcept
     m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
         if (aConnection == aNewcomer)
             return;
-        m_server.Send(aNewcomer, joined(acPlayer));
-        m_server.Send(aConnection, cNewcomer);
+        m_network.Send(aNewcomer, joined(acPlayer));
+        m_network.Send(aConnection, cNewcomer);
     });
 }
 

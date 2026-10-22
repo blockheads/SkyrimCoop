@@ -23,4 +23,4 @@ struct TESSpellList : BaseFormComponent
     void Initialize();
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(TESSpellList::Lists) == 0x28);
+static_assert(sizeof(TESSpellList::Lists) == 0x28);

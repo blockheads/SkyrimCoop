@@ -14,6 +14,6 @@ struct TESPackage : TESForm
     uint32_t uiRefCount;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(TESPackage, packType) == 0x24);
-SKYRIM_STRUCT_ASSERT(offsetof(TESPackage, ePROCEDURE_TYPE) == 0xD8);
-SKYRIM_STRUCT_ASSERT(sizeof(TESPackage) == 0xE0);
+static_assert(offsetof(TESPackage, packType) == 0x24);
+static_assert(offsetof(TESPackage, ePROCEDURE_TYPE) == 0xD8);
+static_assert(sizeof(TESPackage) == 0xE0);

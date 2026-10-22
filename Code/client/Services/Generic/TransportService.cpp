@@ -15,12 +15,11 @@
 
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/ServerMessageFactory.h>
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Packet.hpp>
 
 #include <RunningGame.h>
-#include <Services/DiscordService.h>
 #include <Structs/GameVersions.h>
 
 // #include <imgui_internal.h>
@@ -64,25 +63,25 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     };
 }
 
-// The host's in-process connection to its embedded server. Real connection ids are enet peer
+// The host's game's in-process connection to its own network. Real connection ids are enet peer
 // addresses, so this one cannot collide.
-static constexpr ConnectionId_t kLocalConnectionId = 1;
+static constexpr TiltedPhoques::ConnectionId_t kLocalConnectionId = 1;
 
-void TransportService::ConnectLocal(Server::GameServer& aServer) noexcept
+void TransportService::ConnectLocal(HostNetwork& aNetwork) noexcept
 {
-    if (m_pLocalServer || Client::IsConnected())
+    if (m_pHostNetwork || Client::IsConnected())
         return;
 
-    m_pLocalServer = &aServer;
+    m_pHostNetwork = &aNetwork;
     m_localInbox.clear();
     m_joinStatus = {JoinStatus::State::kConnecting};
-    // The server's replies arrive while it handles a message: queued, so none of our handlers runs
+    // Replies arrive while the host's rules handle a message: queued, so none of our handlers runs
     // inside another service's.
-    aServer.OpenLoopback(kLocalConnectionId, [this](const void* apData, uint32_t aSize) {
+    aNetwork.OpenRoute(kLocalConnectionId, [this](const void* apData, uint32_t aSize) {
         const auto* pData = static_cast<const uint8_t*>(apData);
         m_localInbox.emplace_back(pData, pData + aSize);
     });
-    spdlog::info("Connected to the embedded server in this process");
+    spdlog::info("Connected to the host's network in this process");
     OnConnected();
 }
 
@@ -94,27 +93,27 @@ bool TransportService::Connect(const std::string& acEndpoint) noexcept
 
 bool TransportService::IsConnected() const noexcept
 {
-    return m_pLocalServer != nullptr || Client::IsConnected();
+    return m_pHostNetwork != nullptr || Client::IsConnected();
 }
 
 void TransportService::Close() noexcept
 {
-    if (!m_pLocalServer)
+    if (!m_pHostNetwork)
     {
         Client::Close();
         return;
     }
 
-    auto* pServer = m_pLocalServer;
-    m_pLocalServer = nullptr;
+    auto* pNetwork = m_pHostNetwork;
+    m_pHostNetwork = nullptr;
     m_localInbox.clear();
-    pServer->CloseLoopback();
+    pNetwork->CloseRoute(kLocalConnectionId);
     OnDisconnected(kNormal);
 }
 
 uint64_t TransportService::GetTick() const noexcept
 {
-    return m_pLocalServer ? m_pLocalServer->GetTick() : GetClock().GetCurrentTick();
+    return m_pHostNetwork ? m_pHostNetwork->GetTick() : GetClock().GetCurrentTick();
 }
 
 bool TransportService::Send(const ClientMessage& acMessage) const noexcept
@@ -126,9 +125,9 @@ bool TransportService::Send(const ClientMessage& acMessage) const noexcept
         ~ScopedReset() { s_allocator.Reset(); }
     } allocatorGuard;
 
-    if (m_pLocalServer)
+    if (m_pHostNetwork)
     {
-        // The server handles it right away, and must not allocate from our scratch allocator: the
+        // The host's rules handle it right away, and must not allocate from our scratch allocator: the
         // bytes are copied out (into room reserved beforehand) and handed over after its scope.
         Vector<uint8_t> payload;
         payload.reserve(1 << 16);
@@ -139,7 +138,7 @@ bool TransportService::Send(const ClientMessage& acMessage) const noexcept
             acMessage.Serialize(writer);
             payload.assign(buffer.GetWriteData(), buffer.GetWriteData() + writer.Size());
         }
-        m_pLocalServer->InjectMessage(payload.data(), static_cast<uint32_t>(payload.size()), kLocalConnectionId);
+        m_pHostNetwork->Receive(payload.data(), static_cast<uint32_t>(payload.size()), kLocalConnectionId);
         return true;
     }
 
@@ -190,7 +189,6 @@ void TransportService::OnConnected()
 
     // null if discord is not active
     // TODO: think about user opt out
-    request.DiscordId = m_world.ctx().at<DiscordService>().GetUser().id;
 
     // Player identity — use bridge instead of direct SKSE calls
     const std::string formName = m_formBridge.GetFormName(m_playerBridge.GetPlayerBaseNpcFormId());
@@ -235,7 +233,7 @@ void TransportService::OnUpdate()
 
 void TransportService::HandleUpdate(const UpdateEvent& acEvent) noexcept
 {
-    if (!m_pLocalServer)
+    if (!m_pHostNetwork)
     {
         Update();
         return;
@@ -246,11 +244,10 @@ void TransportService::HandleUpdate(const UpdateEvent& acEvent) noexcept
     m_localInbox.clear();
     for (const auto& cPacket : cInbox)
     {
-        if (!m_pLocalServer)
+        if (!m_pHostNetwork)
             break;
-        // The server's packet type byte first: the loopback only carries plain payloads.
-        if (cPacket.size() > 1)
-            OnConsume(cPacket.data() + 1, static_cast<uint32_t>(cPacket.size() - 1));
+        if (!cPacket.empty())
+            OnConsume(cPacket.data(), static_cast<uint32_t>(cPacket.size()));
     }
 }
 

@@ -1,13 +1,13 @@
 #include <Services/Host/HostWeather.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/NotifyWeatherChange.h>
 
-HostWeather::HostWeather(Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
-    : m_server(aServer)
+HostWeather::HostWeather(HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+    : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
 {
@@ -34,5 +34,5 @@ void HostWeather::SendWeather(ConnectionId_t aPlayer) const noexcept
 
     NotifyWeatherChange notify;
     notify.Id = m_peersWeather;
-    m_server.Send(aPlayer, notify);
+    m_network.Send(aPlayer, notify);
 }

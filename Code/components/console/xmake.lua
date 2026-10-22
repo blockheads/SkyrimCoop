@@ -1,2 +1,0 @@
-component("Console")
-unittest("Console")

@@ -1,15 +1,13 @@
--- The host's authority (HostAuthority, Code/client/Services/Host/) against a headless server: each relay
--- rule without Skyrim. Run: build/linux/x86_64/<mode>/BridgeTests
+-- The host's authority (HostAuthority, Code/client/Services/Host/) with no game: each rule against in-process
+-- games on the host's network. Run: build/linux/x86_64/<mode>/BridgeTests
 target("BridgeTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx20")
-    set_pcxxheader("../../server/Pch.h")
+    set_pcxxheader("Pch.h")
     add_files("*.cpp", "../../client/Services/Host/*.cpp")
-    -- The server first: both have Components.h and World.h; the bridge needs only the server's.
-    add_includedirs("../../server", "../../external", "../../external/cpp-httplib/include", "../../client")
-    add_deps("SkyrimEncoding", "SkyrimTogetherServer")
-    add_packages("catch2", "glm", "spdlog", "hopscotch-map", "rpmalloc", "enet6", "entt",
-                 "nlohmann_json", "sqlite3", "lua", "sol2")
+    add_includedirs(".", "../../client")
+    add_deps("SkyrimEncoding", "SkyrimCoopNetworking", "CommonLib")
+    add_packages("catch2", "glm", "spdlog", "hopscotch-map", "rpmalloc", "enet6", "entt", "snappy", "libuv")
     add_syslinks("pthread")
 target_end()

@@ -1,6 +1,6 @@
 #include <Services/Host/HostClock.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 
 #include <Messages/NotifySetTimeResult.h>
@@ -24,8 +24,8 @@ bool SameDate(const TimeModel& acLeft, const TimeModel& acRight)
 }
 } // namespace
 
-HostClock::HostClock(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
-    : m_server(aServer)
+HostClock::HostClock(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+    : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
 {
@@ -61,7 +61,7 @@ void HostClock::SendTime(ConnectionId_t aPlayer) const noexcept
 {
     ServerTimeSettings time;
     time.timeModel = m_game.ReadTime();
-    m_server.Send(aPlayer, time);
+    m_network.Send(aPlayer, time);
 }
 
 void HostClock::OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -74,5 +74,5 @@ void HostClock::OnSetTimeCommand(const SetTimeCommandRequest& acRequest, Connect
     }
     else
         result.Result = NotifySetTimeResult::SetTimeResult::kNoPermission;
-    m_server.Send(aSender, result);
+    m_network.Send(aSender, result);
 }

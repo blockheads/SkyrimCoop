@@ -6,4 +6,4 @@ struct Script
     uint8_t pad0[0x38];
     const char* text; // 38
 };
-SKYRIM_STRUCT_ASSERT(offsetof(Script, text) == 0x38);
+static_assert(offsetof(Script, text) == 0x38);

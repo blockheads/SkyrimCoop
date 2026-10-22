@@ -1,13 +1,13 @@
 #pragma once
 
-// A session for the host's authority (HostAuthority) against a headless server: three players (the host "Dovahkiin",
-// level 20, on the in-process route; the peers "Lydia", 12, and "Aela", 8), joined as their games do, a fake host game, messages in as the transport sends them, and what goes out captured
-// per connection. Characters are announced through it, as the games do.
+// A session for the host's authority (HostAuthority) with no game: three players (the host "Dovahkiin", level 20;
+// the peers "Lydia", 12, and "Aela", 8), each an in-process route of the host's network, joined as their games do,
+// a fake host game, messages in as the transport sends them, and what goes out captured per connection.
+// Characters are announced through it, as the games do.
 #include <catch2/catch.hpp>
 
-#include <GameServer.h>
-#include <Game/Player.h>
 #include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostNetwork.h>
 
 #include <Messages/AddTargetRequest.h>
 #include <Messages/ActivateRequest.h>
@@ -77,6 +77,7 @@
 #include <BuildVersion.h>
 
 #include <map>
+#include <set>
 #include <memory>
 #include <vector>
 
@@ -119,12 +120,8 @@ struct Sent
 struct Session
 {
     Session()
-        : m_pServer(std::make_unique<Server::GameServer>(Console(), GameServerTestMode{}))
-        , m_authority(*m_pServer, Game())
+        : m_authority(m_network, Game())
     {
-        m_pServer->SetTestSendCallback([this](ConnectionId_t aTo, const void* apData, uint32_t aSize) { Capture(aTo, apData, aSize); });
-        // The host's game is the one in the server's process.
-        m_pServer->SetLoopbackRoute(kHost, [this](const void* apData, uint32_t aSize) { Capture(kHost, apData, aSize); });
         Join(kHost, JoinRequest("Dovahkiin", 20));
         Join(kPeer, JoinRequest("Lydia", 12));
         Join(kOtherPeer, JoinRequest("Aela", 8));
@@ -143,10 +140,6 @@ struct Session
     // The player id a player got when it joined.
     uint32_t PlayerId(ConnectionId_t aPlayer) const { return m_playerIds.at(aPlayer); }
 
-    ~Session() { m_pServer.reset(); } // The server calls into HostAuthority until it is gone.
-
-    Server::World& World() { return m_pServer->GetWorld(); }
-
     // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player.
     // Returns its server id; what the announcement sent is cleared.
     uint32_t Character(ConnectionId_t aOwner)
@@ -162,15 +155,22 @@ struct Session
         return cServerId;
     }
 
-    void Leave(ConnectionId_t aPlayer) { m_pServer->InjectDisconnection(aPlayer); }
+    void Leave(ConnectionId_t aPlayer)
+    {
+        m_games.erase(aPlayer);
+        m_network.CloseRoute(aPlayer);
+    }
     void Frame(uint64_t aTick) { m_authority.Update(aTick); }
 
     void Receive(ConnectionId_t aFrom, const ClientMessage& acMessage)
     {
+        // A game's first message connects it; the first game is the host's own.
+        if (m_games.insert(aFrom).second)
+            m_network.OpenRoute(aFrom, [this, aFrom](const void* apData, uint32_t aSize) { Capture(aFrom, apData, aSize); });
         Buffer buffer(1 << 16);
         Buffer::Writer writer(&buffer);
         acMessage.Serialize(writer);
-        m_pServer->InjectMessage(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()), aFrom);
+        m_network.Receive(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()), aFrom);
     }
 
     template <class T> std::vector<const T*> SentTo(ConnectionId_t aTo) const
@@ -197,10 +197,9 @@ struct Session
     std::vector<Sent> Outbox;
 
 private:
-    // Sends arrive as [packet type byte][opcode][payload].
     void Capture(ConnectionId_t aTo, const void* apData, uint32_t aSize)
     {
-        ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)) + 1, aSize - 1);
+        ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
         Buffer::Reader reader(&buffer);
         if (auto pMessage = ServerMessageFactory{}.Extract(reader))
             Outbox.push_back({aTo, std::move(pMessage)});
@@ -246,14 +245,8 @@ private:
 
     uint32_t m_cookie = 0;
     std::map<ConnectionId_t, uint32_t> m_playerIds;
-    // One per process: it takes over the static setting and command lists when created.
-    static ServerConsole::ConsoleRegistry& Console()
-    {
-        static ServerConsole::ConsoleRegistry s_console("BridgeTest");
-        return s_console;
-    }
-
-    std::unique_ptr<Server::GameServer> m_pServer;
+    std::set<ConnectionId_t> m_games;
+    HostNetwork m_network;
     HostAuthority m_authority;
 };
 } // namespace BridgeTest

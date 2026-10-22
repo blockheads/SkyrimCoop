@@ -21,4 +21,4 @@ struct EnchantmentItem : MagicItem
     BGSListForm* pWornRestrictions;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(EnchantmentItem) == 0xC0);
+static_assert(sizeof(EnchantmentItem) == 0xC0);

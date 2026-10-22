@@ -3,7 +3,7 @@
 #ifdef _WIN32
 #include <windows.h>
 
-// SetThreadDescription may not be available in MinGW headers.
+// SetThreadDescription is missing from older Windows SDK headers.
 // Dynamically load it from kernel32 at runtime.
 namespace
 {

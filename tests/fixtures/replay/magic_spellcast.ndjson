@@ -1,5 +1,0 @@
-{"op":"character_ctor","form_id":20,"ptr":140737488355328}
-{"op":"spell_cast","caster_form_id":20,"spell_form_id":76258,"spell_ptr":0}
-{"op":"interrupt_cast","caster_form_id":20,"refund":false}
-{"op":"spell_cast","caster_form_id":20,"spell_form_id":76258,"spell_ptr":0}
-{"op":"apply_effect","actor_form_id":256,"caster_form_id":20,"effect_ptr":0}

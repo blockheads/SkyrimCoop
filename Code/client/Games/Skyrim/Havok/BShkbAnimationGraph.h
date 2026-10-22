@@ -32,9 +32,9 @@ struct BShkbAnimationGraph
     bool ReSendEvent(BSFixedString* apEventName);
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, refCount) == 0x8);
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, animationGraphEvents) == 0x68);
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, character) == 0xC0);
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, projectName) == 0x1F0);
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, behaviorGraph) == 0x208);
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbAnimationGraph, holder) == 0x210);
+static_assert(offsetof(BShkbAnimationGraph, refCount) == 0x8);
+static_assert(offsetof(BShkbAnimationGraph, animationGraphEvents) == 0x68);
+static_assert(offsetof(BShkbAnimationGraph, character) == 0xC0);
+static_assert(offsetof(BShkbAnimationGraph, projectName) == 0x1F0);
+static_assert(offsetof(BShkbAnimationGraph, behaviorGraph) == 0x208);
+static_assert(offsetof(BShkbAnimationGraph, holder) == 0x210);

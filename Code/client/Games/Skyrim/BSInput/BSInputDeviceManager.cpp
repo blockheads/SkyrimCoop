@@ -2,9 +2,7 @@
 #include <HookSwitch.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 
-#ifdef HAS_RMLUI
 #include <Ui/UiInput.h>
-#endif
 
 struct BSInputDeviceManager;
 
@@ -24,10 +22,8 @@ void Hook_BSInputDeviceManager_PollInputDevices(BSInputDeviceManager* inputDevic
 // While the chat line is open it takes the keys, and the game gets no input.
 void Hook_InputEventSource_SendEvent(void* apSource, InputEvent* const* appChain)
 {
-#ifdef HAS_RMLUI
     if (appChain && UiInput::Take(*appChain))
         return;
-#endif
     InputEventSource_SendEvent(apSource, appChain);
 }
 

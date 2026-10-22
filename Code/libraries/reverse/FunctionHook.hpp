@@ -136,7 +136,6 @@ namespace TiltedPhoques
 #define TP_HOOK_COMMIT TiltedPhoques::FunctionHookManager::GetInstance().InstallDelayedHooks();
 
 
-#ifdef _MSC_VER
 #define TP_EMPTY_HOOK_PLACEHOLDER \
 __nop(); \
 __nop(); \
@@ -154,22 +153,3 @@ __nop(); \
 __nop(); \
 __nop(); \
 __nop();
-#else
-#define TP_EMPTY_HOOK_PLACEHOLDER \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop"); \
-__asm__ volatile("nop");
-#endif

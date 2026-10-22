@@ -1,5 +1,5 @@
 // skse_globals.cpp — globals the original immersive launcher provided.
-// The SKSE route (MinGW or clang-cl) has no launcher, so the DLL defines them.
+// SKSE loads the plugin with no launcher, so the DLL defines them.
 #include <windows.h>
 #include <cstdlib>
 

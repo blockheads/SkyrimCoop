@@ -29,7 +29,7 @@ struct MiddleProcess
     // 0x326 - bool lookat
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, direction) == 0xB8);
-SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
-SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, charController) == 0x250);
-SKYRIM_STRUCT_ASSERT(offsetof(MiddleProcess, rightEquippedObject) == 0x260);
+static_assert(offsetof(MiddleProcess, direction) == 0xB8);
+static_assert(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
+static_assert(offsetof(MiddleProcess, charController) == 0x250);
+static_assert(offsetof(MiddleProcess, rightEquippedObject) == 0x260);

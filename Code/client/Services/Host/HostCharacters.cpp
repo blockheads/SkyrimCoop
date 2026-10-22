@@ -1,6 +1,6 @@
 #include <Services/Host/HostCharacters.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 
 #include <Messages/AssignCharacterRequest.h>
@@ -17,17 +17,16 @@
 #include <Messages/ServerReferencesMoveRequest.h>
 #include <Structs/GridCellCoords.h>
 
-#include <limits>
 
 namespace
 {
-// For OwnSpawns: exclude no one (0 is a real id, usually the host's player).
-constexpr uint32_t cNoCharacter = std::numeric_limits<uint32_t>::max();
+// For OwnSpawns: exclude no one (ids start at 1).
+constexpr uint32_t cNoCharacter = 0;
 } // namespace
 
-HostCharacters::HostCharacters(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
     : m_authority(aAuthority)
-    , m_server(aServer)
+    , m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
 {
@@ -44,7 +43,7 @@ void HostCharacters::OnMovement(const ClientReferencesMoveRequest& acRequest, Co
 {
     ServerReferencesMoveRequest notify;
     // The owner's time, as its actions carry: copies replay both on one timeline (never in the future).
-    notify.Tick = std::min(acRequest.Tick, m_server.GetTick());
+    notify.Tick = std::min(acRequest.Tick, m_network.GetTick());
     for (const auto& [cServerId, cUpdate] : acRequest.Updates)
     {
         auto it = m_characters.find(cServerId);
@@ -86,7 +85,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
             RemoveCharacter(cServerId);
     }
 
-    const uint32_t cServerId = m_server.NewCharacterId();
+    const uint32_t cServerId = ++m_lastServerId;
     const uint32_t cPlayerId = cIsPlayer ? m_players.PlayerIdOf(aSender) : 0;
     const auto cSpawn = CharacterSpawnRequest::FromAssignment(acRequest, cServerId, cPlayerId);
 
@@ -97,7 +96,6 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
     {
         m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
         character.PlayerRecord = cSpawn;
-        m_server.SetPlayerCharacter(aSender, cServerId, acRequest.QuestContent);
         if (aSender != m_players.Host())
             m_authority.PlayerEntered(aSender, cServerId);
     }
@@ -107,7 +105,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
     response.ServerId = cServerId;
     response.PlayerId = cPlayerId;
     response.Owner = true;
-    m_server.Send(aSender, response);
+    m_network.Send(aSender, response);
 
     SendToOthersWithHost(cSpawn, aSender);
     spdlog::info("HostCharacters: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cServerId);
@@ -140,7 +138,7 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
     if (it->second.Owner != aSender)
     {
         if (const auto cSpawn = BuildSpawn(acRequest.ActorId))
-            m_server.Send(aSender, *cSpawn);
+            m_network.Send(aSender, *cSpawn);
         return;
     }
 
@@ -226,7 +224,7 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
             spdlog::info("HostCharacters: {:x} followed to {:x}:{:x}, the party is at {:x}:{:x}: sent on", aSender,
                          acRequest.CellId.ModId, acRequest.CellId.BaseId, m_partyTravel->CellId.ModId,
                          m_partyTravel->CellId.BaseId);
-            m_server.Send(aSender, *m_partyTravel, TiltedPhoques::kReliable);
+            m_network.Send(aSender, *m_partyTravel, TiltedPhoques::kReliable);
         }
     }
     for (auto it = m_characters.begin(); it != m_characters.end(); ++it)
@@ -285,7 +283,7 @@ void HostCharacters::SendHostActors(ConnectionId_t aPlayer) const noexcept
     uint32_t count = 0;
     for (const auto& cSpawn : m_game.OwnSpawns(PlayerCharacterOf(m_players.Host())))
     {
-        m_server.Send(aPlayer, cSpawn);
+        m_network.Send(aPlayer, cSpawn);
         ++count;
     }
     spdlog::info("HostCharacters: sent {:x} the host's {} actors where it arrived", aPlayer, count);
@@ -311,10 +309,10 @@ void HostCharacters::SendToOthersWithHost(const CharacterSpawnRequest& acSpawn, 
 {
     for (const ConnectionId_t cPlayer : m_players.Connections())
         if (cPlayer != aSender && WithHost(cPlayer))
-            m_server.Send(cPlayer, acSpawn, TiltedPhoques::kReliable);
+            m_network.Send(cPlayer, acSpawn, TiltedPhoques::kReliable);
 }
 
-ConnectionId_t HostCharacters::OwnerOf(uint32_t aServerId) const noexcept
+HostCharacters::ConnectionId_t HostCharacters::OwnerOf(uint32_t aServerId) const noexcept
 {
     const auto it = m_characters.find(aServerId);
     return it != m_characters.end() ? it->second.Owner : 0;
@@ -345,7 +343,7 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
     uint32_t count = 0;
     for (const auto& cSpawn : m_game.OwnSpawns(aOwnServerId))
     {
-        m_server.Send(aPlayer, cSpawn);
+        m_network.Send(aPlayer, cSpawn);
         ++count;
     }
     for (const auto& [cServerId, cCharacter] : m_characters)
@@ -354,7 +352,7 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
             continue;
         if (const auto cSpawn = BuildSpawn(cServerId))
         {
-            m_server.Send(aPlayer, *cSpawn);
+            m_network.Send(aPlayer, *cSpawn);
             ++count;
         }
     }
@@ -372,5 +370,4 @@ void HostCharacters::RemoveCharacter(uint32_t aServerId) noexcept
     m_players.SendToOthers(notify, it->second.Owner, TiltedPhoques::kReliable);
 
     m_characters.erase(it);
-    m_server.FreeCharacterId(aServerId);
 }

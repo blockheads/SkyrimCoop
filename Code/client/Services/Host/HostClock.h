@@ -10,10 +10,7 @@ struct HostGame;
 struct HostPlayers;
 struct SetTimeCommandRequest;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief The session's time is the host's game clock. Peers run their own clock at its speed and
@@ -24,7 +21,7 @@ struct HostClock
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
     // Registers its rules with aAuthority.
-    HostClock(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostClock(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostClock);
 
@@ -36,7 +33,7 @@ private:
     // Any player's: sets the host's clock, which everyone else then follows.
     void OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;
     // The clock peers run on, as of m_peersClockTick.

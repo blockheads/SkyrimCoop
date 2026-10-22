@@ -1,7 +1,7 @@
-// No game or client World here: tests build it against a headless server (Code/tests/bridge).
+// No game or client World here: tests build it with in-process games (Code/tests/bridge).
 #include <Services/Host/HostAuthority.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 
 #include <algorithm>
 #include <string_view>
@@ -69,7 +69,7 @@ NotifyInventoryChanges ToNotify(const RequestInventoryChanges& acRequest)
     NotifyInventoryChanges notify;
     notify.ServerId = acRequest.ServerId;
     notify.Item = acRequest.Item;
-    notify.Drop = false; // Dropped items are not synced (the server's experimental bEnableItemDrops, off).
+    notify.Drop = false; // Dropped items are not synced this way (upstream's experimental item drops).
     return notify;
 }
 
@@ -132,17 +132,17 @@ template <class TRequest, class TNotify> void HostAuthority::Relay(Delivery aDel
     };
 }
 
-HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexcept
-    : m_server(aServer)
+HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
+    : m_network(aNetwork)
     , m_game(std::move(aGame))
-    , m_players(aServer)
-    , m_session(*this, aServer, m_players, m_game)
-    , m_characters(*this, aServer, m_players, m_game)
-    , m_clock(*this, aServer, m_players, m_game)
-    , m_weather(aServer, m_players, m_game)
-    , m_worldState(*this, aServer, m_players, m_game)
-    , m_timeScale(*this, aServer, m_players)
-    , m_dialogue(*this, aServer, m_players, m_characters)
+    , m_players(aNetwork)
+    , m_session(*this, aNetwork, m_players, m_game)
+    , m_characters(*this, aNetwork, m_players, m_game)
+    , m_clock(*this, aNetwork, m_players, m_game)
+    , m_weather(aNetwork, m_players, m_game)
+    , m_worldState(*this, aNetwork, m_players, m_game)
+    , m_timeScale(*this, aNetwork, m_players)
+    , m_dialogue(*this, aNetwork, m_players, m_characters)
 {
     using enum Delivery;
 
@@ -188,9 +188,9 @@ HostAuthority::HostAuthority(Server::GameServer& aServer, HostGame aGame) noexce
     Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
     On(*this, &HostAuthority::OnChatMessage);
 
-    m_server.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
+    m_network.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
-    m_server.SetDisconnectionHandler([this](ConnectionId_t aConnection) {
+    m_network.SetDisconnectionHandler([this](ConnectionId_t aConnection) {
         if (!m_players.IsPlayer(aConnection))
             return;
         m_session.OnPlayerLeft(aConnection);
@@ -227,7 +227,7 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSer
 bool HostAuthority::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
-    // A game that is not a player may only ask to join; the server drops anything else from it.
+    // A game that is not a player may only ask to join; anything else from it is dropped.
     if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))
         return false;
 
@@ -280,7 +280,7 @@ void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, Conne
     notify.PlayerName = ChatText(m_players.PlayerNameOf(aSender));
     notify.ChatMessage = ChatText(acRequest.ChatMessage);
     for (const ConnectionId_t cPlayer : m_players.Connections())
-        m_server.Send(cPlayer, notify);
+        m_network.Send(cPlayer, notify);
 }
 
 void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -310,7 +310,7 @@ void HostAuthority::Deliver(const ServerMessage& acNotify, Delivery aDelivery, u
     case Delivery::FromAnyone: m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
     case Delivery::ToOwner:
         if (const ConnectionId_t cOwner = m_characters.OwnerOf(aActor); cOwner != 0 && cOwner != aSender)
-            m_server.Send(cOwner, acNotify);
+            m_network.Send(cOwner, acNotify);
         break;
     }
 }

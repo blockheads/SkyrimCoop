@@ -97,7 +97,7 @@ struct RendererInitReturn
     HWND hwnd;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(RendererData, pDevice) == 56);
+static_assert(offsetof(RendererData, pDevice) == 56);
 
 // former ViewportConfig
 struct RendererInitOSData

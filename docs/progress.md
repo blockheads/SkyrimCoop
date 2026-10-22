@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-21.
+Last updated 2026-10-21 (phase 5).
 
 ## Direct authority migration
 
@@ -25,7 +25,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | 3a | Relay families as bridge rules: inventory, actor values, magic and combat, character extras | done (`84fb7465`, `c5936751`, `cd3dfd0a`) |
 | 3b | Character ids, owners, spawns, removal, respawn on the bridge | done (`5e99eae7`) |
 | 4 | Host-decided state | partly, see below |
-| 5 | Delete `Code/server/`; the enet6 listener moves into the bridge | not started |
+| 5 | Delete `Code/server/`; the enet6 listener moves into the bridge | done 2026-10-21 (uncommitted): `HostNetwork` (below) |
 | after | Physics sync on the bridge's unreliable channel | not started (own plan); rest positions come first with world sync (below) |
 
 ### Phase 4 parts
@@ -43,7 +43,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | Experience: personal, earned by whoever did it; party rewards to everyone (`docs/design/party-model.md`, "Experience") | rule decided 2026-10-19; wiring below. Upstream's shared combat XP still on (`shared-xp`) until step 1 |
 | Objects: activation, locks, script animations | done as bridge relays by form id (`31abfd23`, `550ece84`); the unused object ids deleted (`b7b83aad`) |
 | Shared dialogue: one conversation for the party, run by the host's engine; each player sees their own options, anyone picks with their own line | parked 2026-10-19 until quest/world sync and AI state on copies. In: the host's rule and messages (`HostDialogue`, `dialogue_tests.cpp`), copies' own lines and subtitles, the engine structs (`MenuTopicManager`, `UIMessageQueue`). The client (`DialogueService`, `DialogueBridge`, harness `dialogue`, `dialogue_pick`, `skill`, 22 scenarios passing on 2026-10-19) is on tag `archive/shared-dialogue-client` (was a branch): it syncs the host's list to each peer, to be redone as step sync (below; `docs/design/shared-dialogue.md`, "Next"). Engine notes `docs/re/systems/dialogue.md` |
-| Quests | not started; after shared dialogue. The host runs every quest, peers mirror (`docs/design/party-model.md`); quest sync off (`cSyncQuests`) until then |
+| Quests | done 2026-10-20 as world state: the host runs every quest, guests take its stages (fragments skipped), objectives and alias fills (`docs/design/world-state-sync.md`, `docs/re/systems/quest-apply.md`); upstream's quest relay deleted with phase 5 |
 | Waypoints, chat | done as bridge rules, server services deleted; chat is an RmlUi box (Enter), `chat-reaches-everyone`; player list health % and dialogue lines in chat dropped (`b7b83aad`) |
 | Shared map markers: a marker placed on the map (P) shows on everyone's map | on again; placing and removing (the map's "Remove It", by mouse), `map-marker-reaches-everyone` (`b7b83aad`) |
 | Teleport command, teleport to a player | dropped: everyone is already together under the tether (`b7b83aad`) |
@@ -153,22 +153,27 @@ with its scenarios.
 5. **If step sync waits:** list updates event-driven, not checked every update (`DialogueService::ShowOwnLines`
    on the host's list arriving, the peer's engine building its list, a new step).
 
-### Still on the embedded server (what phase 4-5 removes)
+### Phase 5: the server is gone (2026-10-21, uncommitted)
 
-Removed one section at a time, each with its bridge replacement and tests first
-(`docs/design/host-authority-migration.md`, "Server sections"):
+Every message a game sends had a host rule; the two without one were dead (upstream's `RequestQuestUpdate`,
+never sent, and `AssignObjectsRequest`). What the host still took from `GameServer` moved:
 
-1. Player levels: done.
-2. String cache: dropped, not moved (`281e4a3d`).
-3. Session, in steps: 3a auth gate (3a.1 build and cap, `cf0ad03b`; 3a.1b refusals delivered as data
-   (join status, host chat line), `cf0ad03b`; 3a.2 game and SKSE versions and 3a.3 plugin list and order,
-   `5bd486ca`; 3a.4 the host's settings, `755891ca`), 3b player list (`75cc39f5`), 3c player records (a
-   shadow record stays on the server for its last services until section 4; `f438ba48`), 3d mod ids (a
-   plugin's place in the load order; `da15a6be`). Section 3 is complete.
-4. The listener (phase 5), and with it what nothing replaces: `ScriptService` (Lua), `AdminService`,
-   server console commands, recording.
+- **`HostNetwork`** (`Services/Host/`): the enet listener (`TiltedPhoques::Server`), each message to the front door
+  (`HostAuthority::Handle`), and in-process routes: the host's own game (the transport's local connection) and, in
+  `BridgeTests`, every test game. A route carries plain messages (no packet type byte). Ports from 10578 upward.
+- **Character ids**: `HostCharacters` counts them from 1, never reused in a session; 0 is no character (the server
+  handed out entity ids from 0, and `AnimationSystem` already took 0 as none).
+- **Player records**: only `HostPlayers` (the server's shadow records, quest logs and `DiscordId` went).
+- `HostService` starts and stops hosting at once (the server stopped on its next update).
 
-`QuestService` stays until quests have a design.
+Deleted with it: `Code/server` (Lua, admin, console commands, recording), `admin`, `admin_protocol`, the server-only
+components (console, es_loader, crash_handler, resources), `native_client`, the replay and `fake_player` tests (and
+`coop_test.py net` and `game`, which ran them), upstream's quest relay (`QuestService`, `QuestLog`, `CharacterData`),
+the never-implemented `IEventBridge`, upstream's CEF UI and launcher (`skyrim_ui`, `tp_process`, `libraries/ui*`,
+`one_ui`, `immersive_launcher`, `immersive_elf`, the overlay and Discord stubs), the MinGW build (its branches,
+`devbuild` mode, `SKYRIM_STRUCT_ASSERT`, `MinGWCompat.h`, `link_stubs.cpp`), the Docker files and the old relay-era
+scripts (`tests/`, `deploy_and_test.sh`, `fix_ptrace.sh`, `scripts/smoke_test.sh`). The Linux build is clang 18 now
+(sol2 had kept it on GCC), and `scripts/compile_commands.sh` gives clangd both builds.
 
 ## Sync by system
 
@@ -396,12 +401,9 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.
-- Bridge rules: headless `BridgeTests` (`Code/tests/bridge`), wire bytes pinned in `wire_tests.cpp`. Build with
-  `scripts/xmake-linux.sh` (GCC, lld; a one-file change links in ~6 s). Not clang yet: sol2 3.3.0 (the
-  server's Lua) does not build with clang 18; the server goes in phase 5.
-- Encoding: `TPTests` (`Code/tests/encoding.cpp`), same build. Encoding only since 2026-10-13: it had not
-  built since `a94b0002` deleted `line_buffer.h`, which the `native_client` files it compiled include.
-  The server and `native_client` test files beside it stay unbuilt until their server section deletes them.
+- Bridge rules: `BridgeTests` (`Code/tests/bridge`), the host's rules with in-process games on `HostNetwork`, wire
+  bytes pinned in `wire_tests.cpp`. Build with `scripts/xmake-linux.sh` (clang 18, lld; since phase 5).
+- Encoding: `TPTests` (`Code/tests/encoding.cpp`), same build.
 
 ## Loose ends
 
@@ -410,13 +412,10 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 ### World state
 
-- **A quest fill whose reference is not in the guest's memory stays unfilled** (2026-10-20): the host's `ForceRefIntoAlias` promoted it (an NPC or a bounty target in an unloaded cell: Gadnor in the Gray Cowl quest, the bounty's bandit, Logrolf for a moment); the guest has no such form loaded. Needs a pending fill made when the reference appears (`docs/re/systems/quest-apply.md`, "Alias fills").
-- **Location aliases are not synced** (2026-10-20): only reference aliases; a radiant quest's place (`BQ*`'s `BountyLocation`, `Favor204`'s camp) comes from each game.
 - **Done 2026-10-20: a guest's story manager starts no quest.** `BGSStoryManager::ProcessEvent` (32372) is skipped while a guest, so its story events (arrivals, kills, script events) are handled with none started (`docs/re/systems/story-manager.md`, scenario `guest-story-starts-no-quest`). Still open: quests a guest's own scripts or console start (`EnsureQuestStarted`), with step 5; forwarding a guest's story events to the host (`docs/research/player-events.md`, spike 4).
 - **A guest's quest fills are not in its own save** (2026-10-20): `ForceRefIntoAlias` records no change; harmless while a guest never saves in a session (`join-flow.md`).
-- **Upstream's `QuestService` is still in** (client and `Code/server/`, `RequestQuestUpdate`/`NotifyQuestUpdate`, the Lua bindings, `QuestLog` in `AssignCharacterRequest`): never wired (`cSyncQuests` off); to delete now that quests have their sync.
 - **The save's running bounty was not running on one boot** (2026-10-20, `LateAfterDragonslayerBackinSkyrim`): `quest-walk BQ01` found it stopped where earlier boots had it at stage 0; not looked into.
-- **Step 5 after slice 1** (2026-10-21): only activation and trigger events are dropped on a guest; hits, deaths, container changes, reading, timers (`OnUpdate`) and loads still run its world scripts. Of delayed natives only `Spell.Cast` carries the guest whose script called it (`GuestScripts`, `CastFunctor`); the others do not. Not measured: an engine-only hazard (no script) hitting a guest on both games now hurts it twice (the host's goes to its owner), and a host NPC's hostile spell on a guest now reaches it (the PvP rule covers players' casts only; an NPC's arrow hit the guest in `statue-fires-at-client`), no scenario of its own. The host's messages for a guest's action (`BlessingMessage.Show()` for the guest's prayer) show on the host's game: rule 5, not built. Enabled state (2026-10-21): a guest's own timers and loads can still enable or disable references on its game until step 5 covers them; a guest joining later gets no enabled states (save transfer at join will carry them); actors are left to their owner. Locks (2026-10-21): a guest's own world scripts (timers, loads) locking something are proposals too until step 5 covers them; a guest's lockpicking is not checked against the host's lock (it is taken as is).
+- **Step 5 after slice 1** (2026-10-21; superseded the same day by option 1, under "Tests and harness": a guest runs only its own player's and UI's scripts, so the world-script cases below are closed except what bypasses the gate). Of delayed natives only `Spell.Cast` carries the guest whose script called it (`GuestScripts`, `CastFunctor`); the others do not. Not measured: an engine-only hazard (no script) hitting a guest on both games now hurts it twice (the host's goes to its owner), and a host NPC's hostile spell on a guest now reaches it (the PvP rule covers players' casts only; an NPC's arrow hit the guest in `statue-fires-at-client`), no scenario of its own. The host's messages for a guest's action (`BlessingMessage.Show()` for the guest's prayer) show on the host's game: rule 5, not built. Enabled state (2026-10-21): a guest's own timers and loads can still enable or disable references on its game until step 5 covers them; a guest joining later gets no enabled states (save transfer at join will carry them); actors are left to their owner. Locks (2026-10-21): a guest's own world scripts (timers, loads) locking something are proposals too until step 5 covers them; a guest's lockpicking is not checked against the host's lock (it is taken as is).
 - **Done 2026-10-21: a guest's loads no longer set the host's locks.** `AddLockChange` runs on cell loads and from scripts, not only for a player's lockpick or key; a guest now proposes only its player's own (`ScopedPlayerLockOverride`: the lockpick menu's unlock 51968, the player's activations), `guest-loads-propose-no-locks`. The host still sends all of its own on each load (dozens, mostly the same state): the change funnel's per-form "last sent" cache would drop those.
 - **Done 2026-10-21: console lines on a reference run.** Found when the harness began failing on the console's errors (`docs/re/systems/console.md`): `ID.command` never ran for an id starting with a digit (`Script command "1A695.getav" not found.`), so `vilkas-counts-client-hits`' clean-up (`1A695.removefromfaction`, not a console command either: `setfactionrank … -1`) had never run. The harness now runs a `<hex id>.<command>` line with the reference as its target. The full suite was not run with the stricter console: other scenarios' silent no-ops may show.
 - **Done 2026-10-21: a copy no longer takes the engine's weapon pick when it loses an item.** An item leaving an NPC makes the engine equip the best weapon it carries; our removal hook let that through on copies (`ScopedEquipOverride`), so the guest's copy held a staff its owner only carried (`sword-box-asks-client`, 2 of 7). Now `ScopedItemRemovalOverride` allows the copy's unequip only (`docs/re/systems/actor-ai-and-copies.md`, "A copy's equipment"). The scenario carries the staff and fails at once without the fix.
@@ -426,7 +425,6 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
   - A container's leveled contents roll per game (`InitLeveledItems` at first open, which sends no event): a rolled item the other games lack is taken there as a count of 0, and items only the guest rolled are not in the host's container until the guest takes them. Slice 2: the host's contents when a guest's cell loads.
   - A guest's quick second change to the same item can be undone for a moment: its first proposal's echo (the host's count) comes back after the second, then the second's. Converges; not seen in play.
   - A guest's own world scripts (timers, loads) changing containers are proposals too until step 5 covers them. Merchants' chests go the same way (shared stock), not tested.
-- **Created objects in quest alias fills** (2026-10-20): the bounty letter and Creation Club quests' items carry each game's own `0xFF` id, so quest sync cannot send such a fill by id; actors have the bridge's ids, objects nothing yet (`docs/research/world-state-drift.md`, "Quest walks").
 - **Quest walks skip what leads up to a stage** (2026-10-20): travel, fights and dialogue between stages are not played; a guest's actions moving a quest come with step 5, inside the same walks. Without a later save the walk takes stages in record order and stops at the first branch that ends the quest (`DA10` at 65).
 - **`coop_test.py stop` misses games from a deleted worktree** (2026-10-20): their prefix is under `.claude/worktrees/<name>/build/coop-test`, which `uses_prefix` does not match; they hold the shared game install and the next `duo` waits behind them. Killed by hand this time. Matching any checkout's test prefix would also stop another live session's games.
 
@@ -618,6 +616,16 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `form-state-round-trips` (the fresh-duo loose end above) and `late-join-gets-ring-pose` on a guest lock report,
   `+0x15584d > +0x155859` against `+0x154dce > +0x154de0`: the engine's inventory functions 11594/11591 again
   (see `lock_order_known.txt`), at other sites; its stacks were not in the log, so not added to the known list.
+- **A guest whose game restarts keeps some of its own state at join** (2026-10-21, found in the phase 5 runs):
+  `join-refused-plugins-differ` restarts the client's game, and after it rejoins (a) put-back states the host's
+  cell answer leaves out (containers changed and refilled, `changes 0x20`; a door unlocked at level 50) and (b) a
+  quest its own game started before joining that the host has stopped (`CR03`: the host sends no stopped quest) stay
+  as the client's. Later scenarios then fail on the leftovers (`world-changes-reach-guest`, `quest-roles-match-host`).
+  Save transfer at join would cover both.
+- `difficulty-follows-host` failed 2 of 8 on the phase 5 build (2026-10-21), always after other scenarios: the
+  client's copy of the host's player kept the baseline heading after the two quick rejoins (the late-join facing
+  entries above). `HEAD` before phase 5 passed 6 of 6, the same orders included; not settled whether phase 5 makes
+  it likelier.
 - `party-stacks-on-arrival` fails every run (2026-10-21): "[client] came within 9 units of the other player: it
   walked through it". Not followed up.
 

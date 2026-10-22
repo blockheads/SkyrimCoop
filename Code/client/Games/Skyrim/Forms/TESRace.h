@@ -13,4 +13,4 @@ struct TESRace : TESForm, TESFullName
     uint32_t raceFlags; // RACE_DATA::flags
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(TESRace, raceFlags) == 0x108);
+static_assert(offsetof(TESRace, raceFlags) == 0x108);

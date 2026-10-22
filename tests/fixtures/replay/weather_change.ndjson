@@ -1,4 +1,0 @@
-{"op":"character_ctor","form_id":20,"ptr":140737488355328}
-{"op":"set_weather","weather_form_id":983905,"override":false,"accel":false}
-{"op":"force_weather","weather_form_id":983905,"override":true}
-{"op":"weather_change","sky_ptr":140737488400000}

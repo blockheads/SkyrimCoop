@@ -26,4 +26,4 @@ struct MagicItem : TESBoundObject
     void* pPreloadItem;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(MagicItem) == 0x90);
+static_assert(sizeof(MagicItem) == 0x90);

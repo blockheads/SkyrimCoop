@@ -9,5 +9,5 @@ struct CrosshairPickData
     uint32_t targetHandle;      // any reference
     uint32_t targetActorHandle; // an actor (what a player's attack aims at)
 };
-SKYRIM_STRUCT_ASSERT(offsetof(CrosshairPickData, targetHandle) == 0x4);
-SKYRIM_STRUCT_ASSERT(offsetof(CrosshairPickData, targetActorHandle) == 0x8);
+static_assert(offsetof(CrosshairPickData, targetHandle) == 0x4);
+static_assert(offsetof(CrosshairPickData, targetActorHandle) == 0x8);

@@ -10,10 +10,7 @@ struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief The world is the host's (docs/design/world-state-sync.md, step 4): what changes in its
@@ -27,7 +24,7 @@ struct HostWorldState
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostWorldState(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostWorldState);
 
@@ -53,7 +50,7 @@ private:
         CellStateRequest Request;
     };
 
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;
     // The globals' values the others hold, by session id ((mod id << 32) | base id), as float bits.

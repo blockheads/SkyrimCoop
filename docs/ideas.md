@@ -166,12 +166,9 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   - What it gains: one declaration per method instead of two, no virtual calls, no guessing which interface a
     method belongs on (`GetModCount` is on both `IFormBridge` and `IWorldBridge`).
   - Not a reason to keep them: a second game or platform (Skyrim only; the Linux tools use no client service).
-- **`SKYRIM_STRUCT_ASSERT` → `static_assert`.** clang-cl defines `_MSC_VER`, so the macro is already a
-  `static_assert` in every build we make; its MinGW branch is dead. Replace the ~209 uses (79 files),
-  drop the macro from `TiltedOnlinePCH.h`, and drop the `is_plat("mingw")` branches in `xmake.lua` and
-  `Code/client/xmake.lua`.
-- **Modern C++ over `TiltedPhoques`.** A track of its own after the server is gone (phase 5 deletes
-  `Code/server` and replaces `libraries/networking`, a large share of the `TiltedPhoques` code).
+- **Modern C++ over `TiltedPhoques`.** A track of its own now the server is gone (phase 5, 2026-10-21). What is
+  left of `TiltedPhoques`: `TiltedCore`, `libraries/networking` (the enet transport under `HostNetwork` and a
+  guest's `TransportService`), `libraries/hooks` and `libraries/reverse`.
   - Containers: `Vector`, `String`, `List`, `Deque`, `UniquePtr` are std types with TiltedCore's
     allocator (`Code/TiltedCore/Stl.hpp`); `Map`/`Set` are `tsl::hopscotch` (iterators need
     `it.value()` to assign). Plain std types would end the copies between `String` and `std::string`

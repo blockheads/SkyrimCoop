@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ExtraData.h>
+#include "ExtraData.h"
 
 struct TESFaction;
 
@@ -19,5 +19,5 @@ struct ExtraFactionChanges : BSExtraData
     GameArray<Entry> entries;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(ExtraFactionChanges::Entry) == 0x10);
-SKYRIM_STRUCT_ASSERT(offsetof(ExtraFactionChanges, entries) == 0x10);
+static_assert(sizeof(ExtraFactionChanges::Entry) == 0x10);
+static_assert(offsetof(ExtraFactionChanges, entries) == 0x10);

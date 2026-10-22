@@ -1,7 +1,6 @@
 #pragma once
 
 class IFormBridge;
-class IEventBridge;
 class IActorBridge;
 
 struct World;
@@ -14,7 +13,7 @@ struct NotifyActivate;
  */
 struct ObjectService
 {
-    ObjectService(World&, entt::dispatcher&, TransportService&, IFormBridge&, IActorBridge&, IEventBridge&);
+    ObjectService(World&, entt::dispatcher&, TransportService&, IFormBridge&, IActorBridge&);
 
 private:
     void OnActivate(const ActivateEvent&) noexcept;
@@ -25,7 +24,6 @@ private:
     TransportService& m_transport;
     IFormBridge& m_formBridge;
     IActorBridge& m_actorBridge;
-    IEventBridge& m_eventBridge;
 
     entt::scoped_connection m_onActivateConnection;
     entt::scoped_connection m_activateConnection;

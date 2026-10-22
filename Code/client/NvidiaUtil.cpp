@@ -1,4 +1,3 @@
-#ifdef HAS_DIRECTXTK
 
 #include "NvidiaUtil.h"
 #include <d3d11.h>
@@ -26,4 +25,3 @@ HRESULT CreateEarlyDxDevice(ID3D11Device** appOutDevice, D3D_FEATURE_LEVEL* apOu
                                 appOutDevice, apOutFeatureLevel, nullptr);
 }
 
-#endif

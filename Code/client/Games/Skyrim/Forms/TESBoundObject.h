@@ -15,4 +15,4 @@ struct TESBoundObject : TESObject
     Bound lower;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(TESBoundObject) == 0x30);
+static_assert(sizeof(TESBoundObject) == 0x30);

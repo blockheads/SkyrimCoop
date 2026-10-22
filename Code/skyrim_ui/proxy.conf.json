@@ -1,8 +1,0 @@
-{
-  "/list/*": {
-      "target": "https://skyrim-reborn-list.skyrim-together.com",
-      "secure": false,
-      "changeOrigin": true,
-      "logLevel": "debug"
-  }
-}

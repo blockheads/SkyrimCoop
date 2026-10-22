@@ -1,5 +1,5 @@
 target("CommonLib")
-    devbuild_shared()
+    set_kind("static")
     set_group("common")
     add_includedirs(".", "../", "../../build", {public = true})
     add_headerfiles("**.h")

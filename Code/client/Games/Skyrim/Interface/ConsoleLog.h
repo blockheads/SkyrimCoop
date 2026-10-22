@@ -7,4 +7,4 @@ struct ConsoleLog
     uint8_t pad0;
     char lastMessage[0x400]; // 001
 };
-SKYRIM_STRUCT_ASSERT(offsetof(ConsoleLog, lastMessage) == 0x1);
+static_assert(offsetof(ConsoleLog, lastMessage) == 0x1);

@@ -21,9 +21,9 @@ struct DefaultObjectManager
     bool isSomeActionReady; // BC0
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(DefaultObjectManager, leftEquipSlot) == 0xB8);
-SKYRIM_STRUCT_ASSERT(offsetof(DefaultObjectManager, rightEquipSlot) == 0xC0);
-SKYRIM_STRUCT_ASSERT(offsetof(DefaultObjectManager, potionEquipSlot) == 0xD8);
-SKYRIM_STRUCT_ASSERT(offsetof(DefaultObjectManager, someAction) == 0x220);
-SKYRIM_STRUCT_ASSERT(offsetof(DefaultObjectManager, actionDeath) == 0x310);
-SKYRIM_STRUCT_ASSERT(offsetof(DefaultObjectManager, isSomeActionReady) == 0xBC0);
+static_assert(offsetof(DefaultObjectManager, leftEquipSlot) == 0xB8);
+static_assert(offsetof(DefaultObjectManager, rightEquipSlot) == 0xC0);
+static_assert(offsetof(DefaultObjectManager, potionEquipSlot) == 0xD8);
+static_assert(offsetof(DefaultObjectManager, someAction) == 0x220);
+static_assert(offsetof(DefaultObjectManager, actionDeath) == 0x310);
+static_assert(offsetof(DefaultObjectManager, isSomeActionReady) == 0xBC0);

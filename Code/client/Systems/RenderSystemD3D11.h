@@ -1,17 +1,15 @@
 #pragma once
 
-#ifdef HAS_DIRECTXTK
 
 struct ImguiService;
 struct IDXGISwapChain;
-struct OverlayService;
 
 /**
  * @brief Runs the renderer for D3D11.
  */
 struct RenderSystemD3D11
 {
-    RenderSystemD3D11(OverlayService& aOverlay, ImguiService& aImguiService);
+    explicit RenderSystemD3D11(ImguiService& aImguiService);
     ~RenderSystemD3D11();
 
     TP_NOCOPYMOVE(RenderSystemD3D11);
@@ -28,11 +26,9 @@ struct RenderSystemD3D11
 
 private:
     IDXGISwapChain* m_pSwapChain;
-    OverlayService& m_overlay;
     ImguiService& m_imguiService;
     size_t m_createConnection;
     size_t m_renderConnection;
     size_t m_resetConnection;
 };
 
-#endif

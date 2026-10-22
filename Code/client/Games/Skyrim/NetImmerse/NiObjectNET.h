@@ -10,4 +10,4 @@ struct NiObjectNET : NiObject
     uint8_t unk18[0x18];
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(NiObjectNET, name) == 0x10);
+static_assert(offsetof(NiObjectNET, name) == 0x10);

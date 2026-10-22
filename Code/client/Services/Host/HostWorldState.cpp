@@ -1,6 +1,6 @@
 #include <Services/Host/HostWorldState.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
@@ -26,8 +26,8 @@ uint64_t Key(const GameId& acId) noexcept
 }
 } // namespace
 
-HostWorldState::HostWorldState(HostAuthority& aAuthority, Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
-    : m_server(aServer)
+HostWorldState::HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
+    : m_network(aNetwork)
     , m_players(acPlayers)
     , m_game(acGame)
 {
@@ -154,7 +154,7 @@ bool HostWorldState::SendCellState(ConnectionId_t aPlayer, const CellStateReques
         notify.Cell = acRequest.Cell;
         const size_t cLast = std::min(changes->size(), first + kCellChangesPerMessage);
         notify.Changes.assign(changes->begin() + first, changes->begin() + cLast);
-        m_server.Send(aPlayer, notify);
+        m_network.Send(aPlayer, notify);
     }
     return true;
 }
@@ -176,7 +176,7 @@ void HostWorldState::SendWorldState(ConnectionId_t aPlayer) const noexcept
         NotifyQuests all;
         all.Join = true;
         all.Quests = m_quests;
-        m_server.Send(aPlayer, all);
+        m_network.Send(aPlayer, all);
     }
     if (m_globals.empty())
         return;
@@ -185,5 +185,5 @@ void HostWorldState::SendWorldState(ConnectionId_t aPlayer) const noexcept
     all.Values.reserve(m_globals.size());
     for (const auto& [cKey, cBits] : m_globals)
         all.Values.push_back({GameId(static_cast<uint32_t>(cKey >> 32), static_cast<uint32_t>(cKey)), std::bit_cast<float>(cBits)});
-    m_server.Send(aPlayer, all);
+    m_network.Send(aPlayer, all);
 }

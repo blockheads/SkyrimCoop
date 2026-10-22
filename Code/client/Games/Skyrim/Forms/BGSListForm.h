@@ -9,4 +9,4 @@ struct BGSListForm : TESForm
     uint32_t iScriptAddedFormCount{};
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(BGSListForm) == 0x48);
+static_assert(sizeof(BGSListForm) == 0x48);

@@ -8,7 +8,6 @@
 
 extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
 
-#include <GameVM.h>
 
 struct Main;
 struct VMContext; // SkyrimVM; isFrozen is at 0x680 (CommonLibSSE), unused here

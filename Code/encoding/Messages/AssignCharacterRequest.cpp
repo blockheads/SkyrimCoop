@@ -13,7 +13,6 @@ void AssignCharacterRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
     Serialization::WriteString(aWriter, AppearanceBuffer);
     FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
-    QuestContent.Serialize(aWriter);
     FaceTints.Serialize(aWriter);
     Serialization::WriteBool(aWriter, IsDragon);
     Serialization::WriteBool(aWriter, IsMount);
@@ -46,7 +45,6 @@ void AssignCharacterRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aRead
     LatestAction = ActionEvent{};
     LatestAction.ApplyDifferential(aReader);
 
-    QuestContent.Deserialize(aReader);
     FaceTints.Deserialize(aReader);
 
     IsDragon = Serialization::ReadBool(aReader);

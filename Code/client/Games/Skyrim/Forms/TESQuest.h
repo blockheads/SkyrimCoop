@@ -76,8 +76,8 @@ struct TESQuest : BGSStoryManagerTreeForm
         void SetState(uint8_t aState) noexcept;
     };
 
-    SKYRIM_STRUCT_ASSERT(offsetof(Objective, index) == 0x1C);
-    SKYRIM_STRUCT_ASSERT(offsetof(Objective, state) == 0x1F);
+    static_assert(offsetof(Objective, index) == 0x1C);
+    static_assert(offsetof(Objective, state) == 0x1F);
 
     struct Stage
     {
@@ -173,11 +173,11 @@ struct TESQuest : BGSStoryManagerTreeForm
     void SetStopped();
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(TESQuest) == 0x268);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, fullName) == 0x28);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, aliases) == 0x58);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, flags) == 0xDC);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, stages) == 0xE8);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, objectives) == 0xF8);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, currentStage) == 0x228);
-SKYRIM_STRUCT_ASSERT(offsetof(TESQuest, unkFlags) == 0x248);
+static_assert(sizeof(TESQuest) == 0x268);
+static_assert(offsetof(TESQuest, fullName) == 0x28);
+static_assert(offsetof(TESQuest, aliases) == 0x58);
+static_assert(offsetof(TESQuest, flags) == 0xDC);
+static_assert(offsetof(TESQuest, stages) == 0xE8);
+static_assert(offsetof(TESQuest, objectives) == 0xF8);
+static_assert(offsetof(TESQuest, currentStage) == 0x228);
+static_assert(offsetof(TESQuest, unkFlags) == 0x248);

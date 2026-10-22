@@ -1,5 +1,4 @@
 #include <Services/CharacterService.h>
-#include <Services/QuestService.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
 
@@ -1147,7 +1146,6 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
     if (isPlayer)
     {
         message.FaceTints = m_playerBridge.GetPlayerFaceTints();
-        message.QuestContent = m_playerBridge.GetPlayerQuestLog();
     }
 
     message.FactionsContent = m_actorBridge.GetActorFactions(formIdComponent.Id);

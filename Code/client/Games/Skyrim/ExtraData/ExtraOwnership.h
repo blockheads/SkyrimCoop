@@ -10,4 +10,4 @@ struct ExtraOwnership : BSExtraData
     TESForm* owner{};
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(ExtraOwnership) == 0x18);
+static_assert(sizeof(ExtraOwnership) == 0x18);

@@ -26,19 +26,14 @@ struct RequestFactionsChanges;
 struct SendChatMessageRequest;
 struct PlayerLevelRequest;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
- * @brief The host's side of the session: handles what players send, in place of the embedded
- * server's services (docs/design/host-authority-migration.md).
+ * @brief The host's side of the session: handles what players send (docs/design/host-authority-migration.md).
  *
- * It sees every message first. A message it has a rule for is handled here; anything else still
- * goes to the embedded server's services while the migration is under way. The host is a player
- * like the others: what it sends comes through here in-process, and what is forwarded to it
- * reaches its copies through the in-process route.
+ * Every message the host's network (HostNetwork) receives comes here; one with no rule is dropped. The host is a
+ * player like the others: what it sends comes through here in-process, and what is forwarded to it reaches its
+ * copies through the in-process route.
  *
  * HostAuthority is the front door and the plain relays: most rules pass a request on as its
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
@@ -51,9 +46,9 @@ struct HostAuthority
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    // Installs itself on aServer (front door, leaving players), which calls into it from then on:
-    // it must outlive the server.
-    HostAuthority(Server::GameServer& aServer, HostGame aGame) noexcept;
+    // Installs itself on aNetwork (front door, leaving players), which calls into it from then on:
+    // the network goes first.
+    HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept;
 
     TP_NOCOPYMOVE(HostAuthority);
 
@@ -110,7 +105,7 @@ private:
 
     void Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     HostGame m_game;
     std::array<Rule, kClientOpcodeMax> m_rules{};
     // The parts, after the rules they register into, and the players first: the others read them.

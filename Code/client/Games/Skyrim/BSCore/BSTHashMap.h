@@ -22,5 +22,5 @@ template <class Key, class Value, template <class, class> class Table = BSTDefau
 {
 };
 
-// SKYRIM_STRUCT_ASSERT(sizeof(BSTHashMap<uint32_t, void*>) == 0x30);
+// static_assert(sizeof(BSTHashMap<uint32_t, void*>) == 0x30);
 } // namespace creation

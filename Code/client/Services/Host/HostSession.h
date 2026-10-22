@@ -10,10 +10,7 @@ struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief Who gets into the session: a joining game's checks, then the session's answer (adding it to
@@ -27,7 +24,7 @@ struct HostSession
     static constexpr uint32_t cMaxPlayers = 8;
 
     // Registers its rules with aAuthority.
-    HostSession(HostAuthority& aAuthority, Server::GameServer& aServer, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
+    HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostSession);
 
@@ -46,7 +43,7 @@ private:
     // The newcomer learns everyone already here, and they learn the newcomer.
     void Announce(ConnectionId_t aNewcomer) const noexcept;
 
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     HostPlayers& m_players;
     const HostGame& m_game;
     // What the others were last told (none before the first frame).

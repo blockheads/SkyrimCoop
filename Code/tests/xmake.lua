@@ -1,5 +1,4 @@
--- Message encoding: serialization, quantization, differentials (no server, no game).
--- The server and native_client tests beside it are not built; they go with the server.
+-- Message encoding: serialization, quantization, differentials (no game).
 target("TPTests")
     set_kind("binary")
     set_group("Tests")
@@ -11,5 +10,3 @@ target("TPTests")
 
 includes("bridge")
 includes("peer")
-includes("integration")
-includes("replay")

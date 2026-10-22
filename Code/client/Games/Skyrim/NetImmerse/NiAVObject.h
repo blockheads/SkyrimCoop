@@ -34,8 +34,8 @@ struct NiAVObject : NiObjectNET
 };
 
 static_assert(sizeof(NiAVObject::Transform) == 0x34);
-SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, collisionObject) == 0x40);
-SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, local) == 0x48);
-SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, world) == 0x7C);
-SKYRIM_STRUCT_ASSERT(offsetof(NiAVObject, flags) == 0xF4);
-SKYRIM_STRUCT_ASSERT(sizeof(NiAVObject) == 0x110);
+static_assert(offsetof(NiAVObject, collisionObject) == 0x40);
+static_assert(offsetof(NiAVObject, local) == 0x48);
+static_assert(offsetof(NiAVObject, world) == 0x7C);
+static_assert(offsetof(NiAVObject, flags) == 0xF4);
+static_assert(sizeof(NiAVObject) == 0x110);

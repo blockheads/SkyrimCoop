@@ -32,4 +32,4 @@ struct EffectSetting : TESForm
     // more stuff
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(EffectSetting, eArchetype) == 0xC0);
+static_assert(offsetof(EffectSetting, eArchetype) == 0xC0);

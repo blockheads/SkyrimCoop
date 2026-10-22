@@ -38,12 +38,12 @@ struct BSAnimationGraphManager
 };
 
 #if TP_PLATFORM_64
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, boundChannels) == 0x10);
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, animationGraphs) == 0x40);
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, lock) == 0xA0);
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0xB0);
+static_assert(offsetof(BSAnimationGraphManager, boundChannels) == 0x10);
+static_assert(offsetof(BSAnimationGraphManager, animationGraphs) == 0x40);
+static_assert(offsetof(BSAnimationGraphManager, lock) == 0xA0);
+static_assert(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0xB0);
 #else
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, animationGraphs) == 0x20);
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, lock) == 0x4C);
-SKYRIM_STRUCT_ASSERT(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0x5C);
+static_assert(offsetof(BSAnimationGraphManager, animationGraphs) == 0x20);
+static_assert(offsetof(BSAnimationGraphManager, lock) == 0x4C);
+static_assert(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0x5C);
 #endif

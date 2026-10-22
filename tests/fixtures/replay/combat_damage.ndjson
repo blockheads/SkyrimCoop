@@ -1,5 +1,0 @@
-{"op":"character_ctor","form_id":20,"ptr":140737488355328}
-{"op":"character_ctor","form_id":256,"ptr":140737488360000}
-{"op":"damage_actor","form_id":256,"damage":25.5}
-{"op":"projectile","data_ptr":140737488370000}
-{"op":"add_target","target_form_id":256,"hit_data_ptr":140737488380000}

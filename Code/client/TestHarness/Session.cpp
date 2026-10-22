@@ -1,7 +1,7 @@
 #include <TiltedOnlinePCH.h>
 #include "Session.h"
 #include <World.h>
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
@@ -87,13 +87,13 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         if (!host.StartHosting())
         {
             state = "failed";
-            error = "embedded server failed to listen";
+            error = "the host could not listen";
         }
         else
         {
-            port = host.GetServer()->GetPort();
+            port = host.GetNetwork()->GetPort();
             if (!world.GetTransport().IsOnline())
-                world.GetTransport().ConnectLocal(*host.GetServer());
+                world.GetTransport().ConnectLocal(*host.GetNetwork());
             state = "authenticating_host";
         }
     }
@@ -103,7 +103,6 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         auth.Version = BuildCommit();
         auth.Game = RunningGame::GetVersions();
         auth.Username = "CoopTestBot";
-        auth.DiscordId = 99999;
         auth.Level = player.GetPlayerLevel();
         auth.UserMods = RunningGame::Plugins(world.GetFormBridge());
 

@@ -19,6 +19,6 @@ struct BSSynchronizedClipGenerator : hkbNode
     bool atMark; // 12A, doneReorientingSupportChar: the pair starts once every half is at its mark (32794)
     uint8_t pad12B[0x130 - 0x12B];
 };
-SKYRIM_STRUCT_ASSERT(offsetof(BSSynchronizedClipGenerator, leadCharacter) == 0x6C);
-SKYRIM_STRUCT_ASSERT(offsetof(BSSynchronizedClipGenerator, atMark) == 0x12A);
-SKYRIM_STRUCT_ASSERT(sizeof(BSSynchronizedClipGenerator) == 0x130);
+static_assert(offsetof(BSSynchronizedClipGenerator, leadCharacter) == 0x6C);
+static_assert(offsetof(BSSynchronizedClipGenerator, atMark) == 0x12A);
+static_assert(sizeof(BSSynchronizedClipGenerator) == 0x130);

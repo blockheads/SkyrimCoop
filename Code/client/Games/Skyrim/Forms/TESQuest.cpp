@@ -174,8 +174,6 @@ bool TESQuest::EnsureQuestStarted(bool& success, bool force)
 
 bool TESQuest::SetStage(uint16_t newStage)
 {
-    ScopedQuestOverride _;
-
     TP_THIS_FUNCTION(TSetStage, bool, TESQuest, uint16_t);
     POINTER_SKYRIMSE(TSetStage, SetStage, 25004);
     return SetStage(this, newStage);

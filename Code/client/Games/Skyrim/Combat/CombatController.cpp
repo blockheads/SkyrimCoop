@@ -62,14 +62,6 @@ void CombatController::UpdateTarget()
     SetTarget(pNewTarget);
 }
 
-TP_THIS_FUNCTION(TUpdateTarget, void, CombatController);
-static TUpdateTarget* RealUpdateTarget = nullptr;
-
-void TP_MAKE_THISCALL(HookUpdateTarget, CombatController)
-{
-    apThis->UpdateTarget();
-}
-
 void CombatController::SetTarget(Actor* apTarget)
 {
     TP_THIS_FUNCTION(TSetTarget, void, CombatController, Actor*);
@@ -77,16 +69,4 @@ void CombatController::SetTarget(Actor* apTarget)
     TiltedPhoques::ThisCall(setTarget, this, apTarget);
 }
 
-static TiltedPhoques::Initializer s_combatControllerHooks(
-    []()
-    {
-        const HookGate cGate(__FILE__);
-#if 0
-        POINTER_SKYRIMSE(TUpdateTarget, s_updateTarget, 33236);
-
-        RealUpdateTarget = s_updateTarget.Get();
-
-        TP_HOOK(&RealUpdateTarget, HookUpdateTarget);
-#endif
-    });
 

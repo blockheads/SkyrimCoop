@@ -24,11 +24,7 @@ thread_local const char* g_animErrorCode = "";
 #include <Havok/hkbGenerator.h>
 #include <Havok/BShkbHkxDB.h>
 
-#ifdef _MSC_VER
 #pragma optimize("", off)
-#else
-#pragma GCC optimize("O0")
-#endif
 
 using TApplyAnimationVariables = void*(void*, TESActionData*);
 POINTER_SKYRIMSE(TApplyAnimationVariables, ApplyAnimationVariables, 39004);
@@ -430,6 +426,4 @@ bool TESActionData::ComputeResult()
     return result > 0;
 }
 
-#ifdef _MSC_VER
 #pragma optimize("", on)
-#endif

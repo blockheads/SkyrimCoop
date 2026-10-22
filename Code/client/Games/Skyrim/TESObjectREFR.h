@@ -3,7 +3,6 @@
 #include <Games/Primitives.h>
 #include <Forms/TESForm.h>
 #include <NetImmerse/BSFaceGenNiNode.h>
-#include "ExtraData.h"
 #include <ExtraData/ExtraContainerChanges.h>
 #include <Games/Animation/IAnimationGraphManagerHolder.h>
 #include <Games/Misc/Lock.h>
@@ -270,5 +269,5 @@ struct TESObjectREFR : TESForm
     uint16_t referenceFlags;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(TESObjectREFR) == 0xA0);
-SKYRIM_STRUCT_ASSERT(offsetof(TESObjectREFR, loadedState) == 0x68);
+static_assert(sizeof(TESObjectREFR) == 0xA0);
+static_assert(offsetof(TESObjectREFR, loadedState) == 0x68);

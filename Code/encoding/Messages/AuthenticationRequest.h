@@ -23,12 +23,11 @@ struct AuthenticationRequest final : ClientMessage
 
     bool operator==(const AuthenticationRequest& achRhs) const noexcept
     {
-        return GetOpcode() == achRhs.GetOpcode() && DiscordId == achRhs.DiscordId && Game == achRhs.Game && Token == achRhs.Token && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
+        return GetOpcode() == achRhs.GetOpcode() && Game == achRhs.Game && Token == achRhs.Token && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
                WorldSpaceId == achRhs.WorldSpaceId && CellId == achRhs.CellId && Level == achRhs.Level
             && PlayerTime == achRhs.PlayerTime;
     }
 
-    uint64_t DiscordId{};
     GameVersions Game{};
     String Token{};
     String Version{};

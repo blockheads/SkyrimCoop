@@ -14,4 +14,4 @@ private:
     bool canBeOpened;   // 0x0083
     char pad_0084[12];  // 0x0084
 };                      // Size: 0x0090
-SKYRIM_STRUCT_ASSERT(sizeof(MenuControls) == 0x90);
+static_assert(sizeof(MenuControls) == 0x90);

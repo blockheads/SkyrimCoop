@@ -18,15 +18,12 @@ class IPlayerBridge;
 class IFormBridge;
 class IWorldBridge;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 using TiltedPhoques::Client;
 
 /**
- * @brief Handles communication with the server.
+ * @brief Handles communication with the host.
  */
 struct TransportService : Client
 {
@@ -38,18 +35,18 @@ struct TransportService : Client
     bool Send(const ClientMessage& acMessage) const noexcept;
 
     /**
-     * @brief Hosting: talks to the embedded server in this process instead of over a socket.
-     * Messages go straight into the server; its replies are queued and handled on our next update.
+     * @brief Hosting: talks to the host's network in this process instead of over a socket.
+     * Messages go straight to the host's rules; their replies are queued and handled on our next update.
      */
-    void ConnectLocal(Server::GameServer& aServer) noexcept;
+    void ConnectLocal(HostNetwork& aNetwork) noexcept;
     // Joins the session at acEndpoint (hides Client's: the join status follows it).
     bool Connect(const std::string& acEndpoint) noexcept;
     // Both hide Client's: they cover the in-process connection too.
     [[nodiscard]] bool IsConnected() const noexcept;
-    [[nodiscard]] bool IsConnectedLocally() const noexcept { return m_pLocalServer != nullptr; }
+    [[nodiscard]] bool IsConnectedLocally() const noexcept { return m_pHostNetwork != nullptr; }
     void Close() noexcept;
     /**
-     * @brief The session's tick: the server's own when hosting, else our clock synchronized to it.
+     * @brief The session's tick: the host's network's own when hosting, else our clock synchronized to it.
      */
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
@@ -81,7 +78,7 @@ private:
     IFormBridge& m_formBridge;
     IWorldBridge& m_worldBridge;
     bool m_connected;
-    Server::GameServer* m_pLocalServer{nullptr};
+    HostNetwork* m_pHostNetwork{nullptr};
     Vector<Vector<uint8_t>> m_localInbox;
     String m_serverPassword{};
     uint32_t m_localPlayerId;

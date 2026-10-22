@@ -15,4 +15,4 @@ struct TESLeveledList : BaseFormComponent
     uint8_t unk10[0x28 - 0x10];
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(TESLeveledList) == 0x28);
+static_assert(sizeof(TESLeveledList) == 0x28);

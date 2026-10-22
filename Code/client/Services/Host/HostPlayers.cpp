@@ -1,9 +1,9 @@
 #include <Services/Host/HostPlayers.h>
 
-#include <GameServer.h>
+#include <Services/Host/HostNetwork.h>
 
-HostPlayers::HostPlayers(Server::GameServer& aServer) noexcept
-    : m_server(aServer)
+HostPlayers::HostPlayers(HostNetwork& aNetwork) noexcept
+    : m_network(aNetwork)
 {
 }
 
@@ -63,7 +63,7 @@ void HostPlayers::SendToOthers(const ServerMessage& acMessage, ConnectionId_t aE
 {
     for (const auto& [cConnection, cPlayer] : m_players)
         if (cConnection != aExcluded)
-            m_server.Send(cConnection, acMessage, aFlags);
+            m_network.Send(cConnection, acMessage, aFlags);
 }
 
 void HostPlayers::Kick(uint32_t aPlayerId) noexcept
@@ -75,7 +75,7 @@ void HostPlayers::Kick(uint32_t aPlayerId) noexcept
         if (cPlayer.IsHost)
             return;
         spdlog::info("HostPlayers: kicking '{}' [{:x}]", cPlayer.Name.c_str(), cConnection);
-        m_server.Disconnect(cConnection);
+        m_network.Kick(cConnection);
         return;
     }
 }

@@ -52,5 +52,5 @@ struct TESCamera
     TESCameraState* state;  // 28, CommonLib currentState
     bool unk;
 };
-SKYRIM_STRUCT_ASSERT(offsetof(TESCamera, cameraNode) == 0x20);
-SKYRIM_STRUCT_ASSERT(offsetof(TESCamera, state) == 0x28);
+static_assert(offsetof(TESCamera, cameraNode) == 0x20);
+static_assert(offsetof(TESCamera, state) == 0x28);

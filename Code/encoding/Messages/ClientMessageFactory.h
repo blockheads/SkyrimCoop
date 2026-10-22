@@ -12,13 +12,11 @@
 #include <Messages/ClientReferencesMoveRequest.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestFactionsChanges.h>
-#include <Messages/RequestQuestUpdate.h>
 #include <Messages/RequestActorValueChanges.h>
 #include <Messages/RequestActorMaxValueChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/LockChangeRequest.h>
-#include <Messages/AssignObjectsRequest.h>
 #include <Messages/RequestDeathStateChange.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
@@ -54,8 +52,8 @@ struct ClientMessageFactory
     template <class T> static auto Visit(T&& func)
     {
         auto s_visitor = CreateMessageVisitor<
-            AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges, RequestQuestUpdate,
-            RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, AssignObjectsRequest, RequestDeathStateChange, 
+            AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ClientReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges,
+            RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, RequestDeathStateChange, 
             SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
             RequestEquipmentChanges, SendChatMessageRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerLevelRequest, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot, EnterCellRequest, RequestActiveEffects, TimeScaleRequest,

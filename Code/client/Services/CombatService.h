@@ -29,8 +29,6 @@ protected:
     void OnHitEvent(const HitEvent& acEvent) noexcept;
     void RunHitFeedback() noexcept;
 
-    void RunTargetUpdates(const float acDelta) const noexcept;
-
 private:
     World& m_world;
     TransportService& m_transport;

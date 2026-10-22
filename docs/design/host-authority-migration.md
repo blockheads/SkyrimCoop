@@ -458,6 +458,8 @@ Quests stay on the server until they have a design.
 
 ### Phase 5: Delete the server
 
+Done 2026-10-21 (`docs/progress.md`, "Phase 5: the server is gone"): `HostNetwork` is the listener.
+
 - Nothing falls through to `GameServer` any more. Move the enet6 listener into the bridge.
 - Delete `Code/server/` (including Lua scripting, the admin service and recording), `admin_protocol`
   if nothing else uses it, the server tests in `Code/tests` that need a standalone server, the

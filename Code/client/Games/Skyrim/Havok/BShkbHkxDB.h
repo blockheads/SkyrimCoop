@@ -14,5 +14,5 @@ struct BShkbHkxDB
     void* ptr160;
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbHkxDB, animationVariables) == 0x7C);
-SKYRIM_STRUCT_ASSERT(offsetof(BShkbHkxDB, hashTable) == 0xAC);
+static_assert(offsetof(BShkbHkxDB, animationVariables) == 0x7C);
+static_assert(offsetof(BShkbHkxDB, hashTable) == 0xAC);

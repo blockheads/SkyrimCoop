@@ -33,7 +33,7 @@ struct BGSSaveLoadManager
     Struct330* struct330; // 330
 };
 
-SKYRIM_STRUCT_ASSERT(offsetof(BGSSaveLoadManager::SaveData, someFunction) == 0x18);
+static_assert(offsetof(BGSSaveLoadManager::SaveData, someFunction) == 0x18);
 
 #pragma pack(pop)
 

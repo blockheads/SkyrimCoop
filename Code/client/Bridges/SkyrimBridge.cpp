@@ -41,7 +41,6 @@
 #include <Games/Skyrim/PlayerCollision.h>
 #include <Forms/TESRace.h>
 #include <Forms/BGSEncounterZone.h>
-#include <Services/QuestService.h>
 #include <Forms/MagicItem.h>
 #include <Magic/MagicTarget.h>
 #include <Effects/ActiveEffect.h>
@@ -763,11 +762,6 @@ bool SkyrimBridge::IsQuestStagesEmpty(uint32_t aFormId) const noexcept
     if (TESQuest* pQ = Cast<TESQuest>(TESForm::GetById(aFormId)))
         return pQ->stages.Empty();
     return true;
-}
-
-bool SkyrimBridge::IsQuestOverrideActive() const noexcept
-{
-    return ScopedQuestOverride::IsOverriden();
 }
 
 uint32_t SkyrimBridge::FindQuestByNameId(const std::string& aNameId) const noexcept
@@ -1511,36 +1505,6 @@ std::string SkyrimBridge::GetPlayerWorldSpaceName() const noexcept
 }
 
 // ---------------------------------------------------------------------------
-// IEventBridge
-// ---------------------------------------------------------------------------
-
-void SkyrimBridge::RegisterQuestStartStopSink(std::function<void(uint32_t, bool)> aCallback) noexcept
-{
-    // TODO(02.5-02): store callback and register with EventDispatcherManager
-    spdlog::warn("SkyrimBridge::RegisterQuestStartStopSink: implement in plan 02/03");
-}
-
-void SkyrimBridge::RegisterQuestStageSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept
-{
-    spdlog::warn("SkyrimBridge::RegisterQuestStageSink: implement in plan 02/03");
-}
-
-void SkyrimBridge::RegisterActivateSink(std::function<void(uint32_t, uint32_t)> aCallback) noexcept
-{
-    spdlog::warn("SkyrimBridge::RegisterActivateSink: implement in plan 02/03");
-}
-
-void SkyrimBridge::RegisterLockChangeSink(std::function<void(uint32_t, bool)> aCallback) noexcept
-{
-    spdlog::warn("SkyrimBridge::RegisterLockChangeSink: implement in plan 02/03");
-}
-
-void SkyrimBridge::UnregisterAllSinks() noexcept
-{
-    // TODO(02.5-02): unregister all sinks
-}
-
-// ---------------------------------------------------------------------------
 // IWorldBridge
 // ---------------------------------------------------------------------------
 
@@ -2253,37 +2217,6 @@ void SkyrimBridge::AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCaster
 // ---------------------------------------------------------------------------
 // IPlayerBridge — extended (Plan 03)
 // ---------------------------------------------------------------------------
-
-QuestLog SkyrimBridge::GetPlayerQuestLog() const noexcept
-{
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer)
-        return {};
-
-    QuestLog result;
-    auto& modSystem = World::Get().GetModSystem();
-
-    for (const auto& objective : pPlayer->objectives)
-    {
-        auto* pQuest = objective.instance->quest;
-        if (!pQuest)
-            continue;
-        if (!QuestService::IsNonSyncableQuest(pQuest->formID, *this))
-        {
-            GameId id{};
-            if (modSystem.GetServerModId(pQuest->formID, id))
-            {
-                auto& entry = result.Entries.emplace_back();
-                entry.Stage = pQuest->currentStage;
-                entry.Id = id;
-            }
-        }
-    }
-    // remove duplicates
-    const auto ip = std::unique(result.Entries.begin(), result.Entries.end());
-    result.Entries.resize(std::distance(result.Entries.begin(), ip));
-    return result;
-}
 
 Tints SkyrimBridge::GetPlayerFaceTints() const noexcept
 {

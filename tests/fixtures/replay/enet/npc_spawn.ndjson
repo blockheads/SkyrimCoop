@@ -1,3 +1,0 @@
-{"dir":"s2c","type":"AuthenticationResponse","opcode":0,"peer":1,"ts":0.0,"payload":"AQ==","description":"Auth accepted"}
-{"dir":"s2c","type":"AssignCharacterResponse","opcode":1,"peer":1,"ts":0.05,"payload":"AQAAABQAAAA8ADwA","description":"ServerId=1, owner=true"}
-{"dir":"s2c","type":"CharacterSpawnRequest","opcode":4,"peer":1,"ts":0.1,"payload":"AwAHAAAAAAAAAAAAAACAAIBAAQAAAAAAAAAA","FormId_ModId":0,"FormId_BaseId":7,"ServerId":3,"IsPlayer":false,"Position":[4,4,0],"Rotation":[0,0],"description":"World NPC spawn (Riverwood guard) with non-zero FormId=0:7"}

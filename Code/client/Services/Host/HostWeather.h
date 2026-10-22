@@ -6,10 +6,7 @@
 struct HostGame;
 struct HostPlayers;
 
-namespace Server
-{
-struct GameServer;
-}
+struct HostNetwork;
 
 /**
  * @brief The session's weather is the host's. Peers hold the host's weather in place of their
@@ -19,7 +16,7 @@ struct HostWeather
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
 
-    HostWeather(Server::GameServer& aServer, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
+    HostWeather(HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
     TP_NOCOPYMOVE(HostWeather);
 
@@ -28,7 +25,7 @@ struct HostWeather
     void SendWeather(ConnectionId_t aPlayer) const noexcept;
 
 private:
-    Server::GameServer& m_server;
+    HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;
     // What peers hold (none yet: the host has shown no weather to share).

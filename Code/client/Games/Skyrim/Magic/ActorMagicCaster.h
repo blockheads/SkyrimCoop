@@ -32,6 +32,6 @@ struct ActorMagicCaster : MagicCaster
     static constexpr uint32_t kSkipCheckCast = 1u << 1;
 };
 
-SKYRIM_STRUCT_ASSERT(sizeof(ActorMagicCaster) == 0x100);
+static_assert(sizeof(ActorMagicCaster) == 0x100);
 static_assert(offsetof(ActorMagicCaster, fCostCharged) == 0xF0);
 static_assert(offsetof(ActorMagicCaster, uiFlags) == 0xF8);

@@ -20,18 +20,12 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-#ifdef HAS_DIRECTXTK
 #include <Systems/RenderSystemD3D11.h>
-#endif
 
-#include <Services/OverlayService.h>
 #include <Services/ImguiService.h>
-#include <Services/DiscordService.h>
 
 #include <ScriptExtender.h>
-#ifdef HAS_DIRECTXTK
 #include <NvidiaUtil.h>
-#endif
 
 using TiltedPhoques::Debug;
 
@@ -73,20 +67,13 @@ void* TiltedOnlineApp::GetMainAddress() const
 bool TiltedOnlineApp::BeginMain()
 {
     World::Create();
-#ifdef HAS_DISCORD
-    World::Get().ctx().at<DiscordService>().Init();
-#endif
-#ifdef HAS_DIRECTXTK
-    World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<OverlayService>(), World::Get().ctx().at<ImguiService>());
-#endif
+    World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<ImguiService>());
 
     LoadScriptExender();
 
-#ifdef HAS_DIRECTXTK
     // TODO: Figure out a way to un-blacklist NvCamera64.dll (see DllBlocklist.cpp). Then this hack can be removed
     if (IsNvidiaOverlayLoaded())
         ApplyNvidiaFix();
-#endif
 
     return true;
 }
@@ -97,10 +84,8 @@ bool TiltedOnlineApp::EndMain()
     TestHarness::Shutdown();
 #endif
     UninstallHooks();
-#ifdef HAS_DIRECTXTK
     if (m_pDevice)
         m_pDevice->Release();
-#endif
 
     return true;
 }
@@ -179,7 +164,6 @@ void TiltedOnlineApp::UninstallHooks()
 {
 }
 
-#ifdef HAS_DIRECTXTK
 void TiltedOnlineApp::ApplyNvidiaFix() noexcept
 {
     auto d3dFeatureLevelOut = D3D_FEATURE_LEVEL_11_0;
@@ -190,4 +174,3 @@ void TiltedOnlineApp::ApplyNvidiaFix() noexcept
     if (d3dFeatureLevelOut < D3D_FEATURE_LEVEL_11_0)
         spdlog::warn("Unexpected D3D11 feature level detected (< 11.0), may cause issues");
 }
-#endif
