@@ -52,28 +52,28 @@ int32_t MenuTopicManager::IndexOf(const Dialogue* apOption) noexcept
 
 bool MenuTopicManager::HasOptions() noexcept
 {
-    TP_THIS_FUNCTION(TFirstOption, bool, MenuTopicManager, bool aSkipHidden);
+    using TFirstOption = bool(MenuTopicManager*, bool aSkipHidden);
     POINTER_SKYRIMSE(TFirstOption, s_firstOption, 35267);
     ListLock lock(criticalSection);
-    return TiltedPhoques::ThisCall(s_firstOption.Get(), this, false);
+    return (s_firstOption.Get())(this, false);
 }
 
 void MenuTopicManager::Pick(uint32_t aIndex) noexcept
 {
-    TP_THIS_FUNCTION(TSelectDialogue, void, MenuTopicManager, uint32_t aIndex);
-    TP_THIS_FUNCTION(TSaySelected, void, MenuTopicManager, bool aUnk1, bool aUnk2);
+    using TSelectDialogue = void(MenuTopicManager*, uint32_t aIndex);
+    using TSaySelected = void(MenuTopicManager*, bool aUnk1, bool aUnk2);
     POINTER_SKYRIMSE(TSelectDialogue, s_selectDialogue, 35269);
     POINTER_SKYRIMSE(TSaySelected, s_saySelected, 35283);
     ListLock lock(criticalSection);
-    TiltedPhoques::ThisCall(s_selectDialogue.Get(), this, aIndex);
-    TiltedPhoques::ThisCall(s_saySelected.Get(), this, false, false);
+    (s_selectDialogue.Get())(this, aIndex);
+    (s_saySelected.Get())(this, false, false);
 }
 
 void MenuTopicManager::Clear() noexcept
 {
-    TP_THIS_FUNCTION(TClear, void, MenuTopicManager);
+    using TClear = void(MenuTopicManager*);
     POINTER_SKYRIMSE(TClear, s_clear, 35274);
-    TiltedPhoques::ThisCall(s_clear.Get(), this);
+    (s_clear.Get())(this);
 }
 
 std::vector<TESTopic*> MenuTopicManager::Choices() noexcept
@@ -193,8 +193,8 @@ MenuTopicManager::Entry* MenuTopicManager::NewNode(Dialogue* apOption) noexcept
 
 void MenuTopicManager::Destroy(Dialogue* apOption) noexcept
 {
-    TP_THIS_FUNCTION(TDestroy, Dialogue*, Dialogue, bool aFree);
+    using TDestroy = Dialogue*(Dialogue*, bool aFree);
     POINTER_SKYRIMSE(TDestroy, s_destroy, 35319);
     if (apOption)
-        TiltedPhoques::ThisCall(s_destroy.Get(), apOption, true);
+        (s_destroy.Get())(apOption, true);
 }

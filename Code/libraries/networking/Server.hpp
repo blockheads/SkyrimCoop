@@ -59,7 +59,7 @@ namespace TiltedPhoques
         void SynchronizeClientClocks(ConnectionId_t aSpecificConnection = 0) noexcept;
 
         ENetHost* m_pHost;
-        Map<ConnectionId_t, ENetPeer*> m_peers;
+        std::unordered_map<ConnectionId_t, ENetPeer*> m_peers;
 
         uint32_t m_tickRate;
         uint16_t m_port;

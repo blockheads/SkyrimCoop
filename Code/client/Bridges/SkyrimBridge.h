@@ -100,8 +100,8 @@ public:
     void SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept override;
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override;
     void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override;
-    TiltedPhoques::String SaveActorGraphState(uint32_t aFormId) const noexcept override;
-    bool LoadActorGraphState(uint32_t aFormId, const TiltedPhoques::String& acState) noexcept override;
+    std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;
+    bool LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept override;
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept override;
     void ActorFixVampireLordModel(uint32_t aFormId) noexcept override;
@@ -109,9 +109,9 @@ public:
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
-    uint32_t CreateCustomActor(const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept override;
-    void DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept override;
-    uint32_t SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept override;
+    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
+    void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
+    uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
     bool IsActorNpcTemporary(uint32_t aFormId) const noexcept override;

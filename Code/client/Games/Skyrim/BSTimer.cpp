@@ -5,7 +5,7 @@
 #include <HookSwitch.h>
 #include <World.h>
 
-TP_THIS_FUNCTION(TSetGlobalTimeMultiplier, void, BSTimer, float aMultiplier, bool aArg2);
+using TSetGlobalTimeMultiplier = void(BSTimer*, float aMultiplier, bool aArg2);
 static TSetGlobalTimeMultiplier* RealSetGlobalTimeMultiplier = nullptr;
 
 namespace
@@ -23,11 +23,11 @@ BSTimer* BSTimer::Get() noexcept
 void BSTimer::SetSharedMultiplier(float aMultiplier) noexcept
 {
     s_shared = aMultiplier;
-    TiltedPhoques::ThisCall(RealSetGlobalTimeMultiplier, Get(), std::min(s_wanted, s_shared), false);
+    RealSetGlobalTimeMultiplier(Get(), std::min(s_wanted, s_shared), false);
 }
 
 // A kill cam (its camera shot's globalTimeMult), Slow Time, a bow zoom, `sgtm`: every game slows with it.
-void TP_MAKE_THISCALL(HookSetGlobalTimeMultiplier, BSTimer, float aMultiplier, bool aArg2)
+void HookSetGlobalTimeMultiplier(BSTimer* apThis, float aMultiplier, bool aArg2)
 {
     if (aMultiplier != s_wanted)
     {
@@ -35,7 +35,7 @@ void TP_MAKE_THISCALL(HookSetGlobalTimeMultiplier, BSTimer, float aMultiplier, b
         if (World::Get().GetTransport().IsConnected())
             World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
     }
-    TiltedPhoques::ThisCall(RealSetGlobalTimeMultiplier, apThis, std::min(s_wanted, s_shared), aArg2);
+    RealSetGlobalTimeMultiplier(apThis, std::min(s_wanted, s_shared), aArg2);
 }
 
 static TiltedPhoques::Initializer s_timerHooks(

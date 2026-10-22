@@ -27,20 +27,20 @@ namespace TiltedPhoques
 #endif
     }
 
-    String LoadFile(const std::filesystem::path& acPath) noexcept
+    std::string LoadFile(const std::filesystem::path& acPath) noexcept
     {
         std::ifstream file(acPath, std::ios::binary);
         file.seekg(0, std::ifstream::end);
         const size_t length = file.tellg();
         file.seekg(0, std::ifstream::beg);
 
-        String content(length, '\0');
+        std::string content(length, '\0');
         file.read(content.data(), length);
 
         return content;
     }
 
-    bool SaveFile(const std::filesystem::path& acPath, const String& acData) noexcept
+    bool SaveFile(const std::filesystem::path& acPath, const std::string& acData) noexcept
     {
         std::ofstream out(acPath, std::ios::binary);
         if (!out.is_open())

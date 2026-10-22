@@ -44,6 +44,6 @@ struct EnterCellRequest final : RequestMessage
     // The player as it arrives, for the copies others spawn of it now (the host's record of it is from when
     // it joined): its last action, its behaviour graphs' state, its inventory and values.
     ActionEvent LatestAction{};
-    TiltedPhoques::String GraphState{};
+    std::string GraphState{};
     ActorData Data{};
 };

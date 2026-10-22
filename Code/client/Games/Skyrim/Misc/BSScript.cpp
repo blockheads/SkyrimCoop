@@ -4,16 +4,16 @@
 
 uint64_t BSScript::Object::GetHandle()
 {
-    TP_THIS_FUNCTION(TGetHandle, uint64_t, BSScript::Object);
+    using TGetHandle = uint64_t(BSScript::Object*);
     POINTER_SKYRIMSE(TGetHandle, s_getHandle, 104247);
-    return TiltedPhoques::ThisCall(s_getHandle, this);
+    return s_getHandle(this);
 }
 
 uint32_t BSScript::Object::DecRef() noexcept
 {
-    TP_THIS_FUNCTION(TDecRef, uint32_t, BSScript::Object);
+    using TDecRef = uint32_t(BSScript::Object*);
     POINTER_SKYRIMSE(TDecRef, s_decRef, 104253);
-    return TiltedPhoques::ThisCall(s_decRef, this);
+    return s_decRef(this);
 }
 
 BSScript::Variable* BSScript::Object::GetVariable(const char* acpName) noexcept
@@ -47,11 +47,11 @@ BSScript::Variable::~Variable() noexcept
 
 void BSScript::Variable::Reset() noexcept
 {
-    TP_THIS_FUNCTION(TReset, void, BSScript::Variable);
+    using TReset = void(BSScript::Variable*);
 
     POINTER_SKYRIMSE(TReset, s_reset, 104296);
 
-    TiltedPhoques::ThisCall(s_reset, this);
+    s_reset(this);
 }
 
 void BSScript::Variable::Clear() noexcept
@@ -64,15 +64,15 @@ void BSScript::Variable::Clear() noexcept
 void BSScript::Variable::SetActor(Actor* apActor, IVirtualMachine* apVm) noexcept
 {
     // Game.GetPlayer's packer (55510) into a fresh value, then Variable's assignment (104297).
-    TP_THIS_FUNCTION(TPack, void, Variable, Actor*, IVirtualMachine*);
-    TP_THIS_FUNCTION(TAssign, void, Variable, const Variable*);
+    using TPack = void(Variable*, Actor*, IVirtualMachine*);
+    using TAssign = void(Variable*, const Variable*);
     POINTER_SKYRIMSE(TPack, s_pack, 55510);
     POINTER_SKYRIMSE(TAssign, s_assign, 104297);
     Variable packed;
     packed.type = kEmpty;
     packed.data.pObj = nullptr;
-    TiltedPhoques::ThisCall(s_pack, &packed, apActor, apVm);
-    TiltedPhoques::ThisCall(s_assign, this, &packed);
+    s_pack(&packed, apActor, apVm);
+    s_assign(this, &packed);
 }
 
 template <> void BSScript::Variable::Set(int32_t aValue) noexcept
@@ -140,9 +140,9 @@ template <class T> T* BSScript::Variable::ExtractComplexType() noexcept
 
 void BSScript::IFunctionArguments::Statement::SetSize(uint32_t aCount) noexcept
 {
-    TP_THIS_FUNCTION(TSetSize, void, BSScript::IFunctionArguments::Statement, uint32_t aCount);
+    using TSetSize = void(BSScript::IFunctionArguments::Statement*, uint32_t aCount);
     POINTER_SKYRIMSE(TSetSize, s_setSize, 53915);
-    TiltedPhoques::ThisCall(s_setSize, this, aCount);
+    s_setSize(this, aCount);
 }
 
 BSScript::IObjectHandlePolicy* BSScript::IObjectHandlePolicy::Get() noexcept
@@ -233,9 +233,9 @@ void BSScript::NativeFunctionBase::InsertLocals(StackFrame*)
 
 BSScript::CallResult BSScript::NativeFunctionBase::Call(Stack** appStack, void* apLogger, IVirtualMachine* apVm, bool aArg4)
 {
-    TP_THIS_FUNCTION(TCall, CallResult, NativeFunctionBase, Stack**, void*, IVirtualMachine*, bool);
+    using TCall = CallResult(NativeFunctionBase*, Stack**, void*, IVirtualMachine*, bool);
     POINTER_SKYRIMSE(TCall, s_call, 104651);
-    return TiltedPhoques::ThisCall(s_call, this, appStack, apLogger, apVm, aArg4);
+    return s_call(this, appStack, apLogger, apVm, aArg4);
 }
 
 BSFixedString& BSScript::NativeFunctionBase::GetSourceFilename()

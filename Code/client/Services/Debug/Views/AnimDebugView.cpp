@@ -42,12 +42,12 @@ void DebugService::DrawAnimDebugView()
 {
     static uint32_t fetchFormId = 0;
     static Actor* pActor = nullptr;
-    static Map<uint32_t, uint32_t> s_values;
-    static Map<uint32_t, uint32_t> s_reusedValues;
-    static Map<uint32_t, short> s_valueTypes; // 0 for bool, 1 for float, 2 for int
-    static Vector<uint32_t> s_blacklist{};
-    static SortedMap<uint32_t, String> s_varMap{};
-    static Map<uint64_t, uint32_t> s_cachedKeys{};
+    static std::unordered_map<uint32_t, uint32_t> s_values;
+    static std::unordered_map<uint32_t, uint32_t> s_reusedValues;
+    static std::unordered_map<uint32_t, short> s_valueTypes; // 0 for bool, 1 for float, 2 for int
+    static std::vector<uint32_t> s_blacklist{};
+    static std::map<uint32_t, std::string> s_varMap{};
+    static std::unordered_map<uint64_t, uint32_t> s_cachedKeys{};
 
     ImGui::Begin("Animation debugging");
 
@@ -143,9 +143,9 @@ void DebugService::DrawAnimDebugView()
             {
                 const auto* pVariableSet = pGraph->behaviorGraph->animationVariables;
 
-                Map<String, bool> bools{};
-                Map<String, float> floats{};
-                Map<String, int> ints{};
+                std::unordered_map<std::string, bool> bools{};
+                std::unordered_map<std::string, float> floats{};
+                std::unordered_map<std::string, int> ints{};
 
                 for (size_t i = 0; i < pDescriptor->BooleanLookUpTable.size(); ++i)
                 {

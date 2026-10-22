@@ -7,9 +7,9 @@
 
 EnchantmentItem* EnchantmentItem::Create(const Inventory::EnchantmentData& aData) noexcept
 {
-    TP_THIS_FUNCTION(TAddWeaponEnchantment, EnchantmentItem*, void, GameArray<EffectItem>*);
+    using TAddWeaponEnchantment = EnchantmentItem*(void*, GameArray<EffectItem>*);
     POINTER_SKYRIMSE(TAddWeaponEnchantment, addWeaponEnchantment, 36165);
-    TP_THIS_FUNCTION(TAddArmorEnchantment, EnchantmentItem*, void, GameArray<EffectItem>*);
+    using TAddArmorEnchantment = EnchantmentItem*(void*, GameArray<EffectItem>*);
     POINTER_SKYRIMSE(TAddArmorEnchantment, addArmorEnchantment, 36166);
 
     ModSystem& modSystem = World::Get().GetModSystem();
@@ -39,11 +39,11 @@ EnchantmentItem* EnchantmentItem::Create(const Inventory::EnchantmentData& aData
     EnchantmentItem* pItem = nullptr;
     if (aData.IsWeapon)
     {
-        pItem = TiltedPhoques::ThisCall(addWeaponEnchantment, objManager, &effects);
+        pItem = addWeaponEnchantment(objManager, &effects);
     }
     else
     {
-        pItem = TiltedPhoques::ThisCall(addArmorEnchantment, objManager, &effects);
+        pItem = addArmorEnchantment(objManager, &effects);
     }
 
     return pItem;

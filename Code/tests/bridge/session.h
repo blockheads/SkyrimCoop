@@ -114,7 +114,7 @@ inline AuthenticationRequest JoinRequest(const char* acpName, uint16_t aLevel = 
 struct Sent
 {
     ConnectionId_t To;
-    UniquePtr<NotifyMessage> Message;
+    std::unique_ptr<NotifyMessage> Message;
 };
 
 struct Session
@@ -182,17 +182,17 @@ struct Session
         return found;
     }
 
-    Vector<NotifyCharacterSpawn> Spawns;                // the host's own actors in its game
-    TiltedPhoques::Map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
+    std::vector<NotifyCharacterSpawn> Spawns;                // the host's own actors in its game
+    std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
-    Vector<HostGlobal> Globals;                              // the host's global variables
-    Vector<QuestState> Quests;                               // the host's quests
+    std::vector<HostGlobal> Globals;                              // the host's global variables
+    std::vector<QuestState> Quests;                               // the host's quests
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
     std::vector<std::tuple<GameId, GameId, uint32_t>> ItemsSet; // guests' container changes the host's game took
-    Vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
-    std::map<uint32_t, Vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
-    Vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
+    std::vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
+    std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
+    std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::vector<Sent> Outbox;
 
@@ -209,7 +209,7 @@ private:
     {
         HostGame game;
         game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
-            Vector<NotifyCharacterSpawn> spawns;
+            std::vector<NotifyCharacterSpawn> spawns;
             for (const auto& cSpawn : Spawns)
                 if (cSpawn.SessionId != aExcludedSessionId)
                     spawns.push_back(cSpawn);
@@ -221,7 +221,7 @@ private:
         game.ReadGlobals = [this] { return Globals; };
         game.ReadQuests = [this] { return Quests; };
         game.TakeObjectChanges = [this] { return std::exchange(ObjectChanges, {}); };
-        game.ReadCellState = [this](const GameId& acCell, const Vector<ChangedReference>& acChanged) -> std::optional<Vector<ObjectChange>> {
+        game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) -> std::optional<std::vector<ObjectChange>> {
             GuestChanged = acChanged;
             const auto it = LoadedCells.find(acCell.BaseId);
             if (it == LoadedCells.end())

@@ -6,10 +6,10 @@
 
 bool IAnimationGraphManagerHolder::SetVariableFloat(BSFixedString* apVariable, float aValue)
 {
-    TP_THIS_FUNCTION(TSetFloatVariable, bool, IAnimationGraphManagerHolder, BSFixedString*, float);
+    using TSetFloatVariable = bool(IAnimationGraphManagerHolder*, BSFixedString*, float);
     POINTER_SKYRIMSE(TSetFloatVariable, InternalSetFloatVariable, 32887);
 
-    return TiltedPhoques::ThisCall(InternalSetFloatVariable, this, apVariable, aValue);
+    return InternalSetFloatVariable(this, apVariable, aValue);
 }
 
 bool IAnimationGraphManagerHolder::IsReady()

@@ -12,7 +12,7 @@ target("SkyrimCoopNetworking")
     add_includedirs("networking/", {public = true})
     add_headerfiles("networking/*.hpp")
     add_deps("TiltedCore")
-    add_packages("enet6", "hopscotch-map", "snappy", "libuv", "spdlog")
+    add_packages("enet6", "snappy", "libuv", "spdlog")
 
     if is_plat("linux") then
         add_cxflags("-fPIC")
@@ -36,7 +36,7 @@ target("SkyrimCoopReverse")
     add_headerfiles("reverse/*.hpp", "reverse/*.inl")
     add_defines("NOMINMAX")
     add_deps("TiltedCore")
-    add_packages("rpmalloc", "hopscotch-map", "minhook", "xbyak")
+    add_packages("rpmalloc", "minhook", "xbyak")
 
     -- mem is header-only; use the vendored copy (the xmake package does not cross-build)
     add_includedirs("../external/mem", {public = true})
@@ -56,7 +56,7 @@ target("SkyrimCoopHooks")
     add_headerfiles("hooks/*.hpp")
     add_syslinks("dxguid", "dinput8", "d3d11")
     add_deps("TiltedCore", "SkyrimCoopReverse")
-    add_packages("rpmalloc", "hopscotch-map")
+    add_packages("rpmalloc")
 
     -- Ensure debug symbols
     if is_plat("windows") then

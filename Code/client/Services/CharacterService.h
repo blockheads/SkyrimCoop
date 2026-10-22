@@ -97,7 +97,7 @@ struct CharacterService
     /**
      * @brief Hosting: spawns for our own actors as the engine shows them now, but aExcludedSessionId.
      */
-    Vector<NotifyCharacterSpawn> BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept;
+    std::vector<NotifyCharacterSpawn> BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept;
     /**
      * @brief Hosting: our copy of another player's character as it is now (position, values,
      * items, hands, action) into aSpawn; false when we have no copy of it.
@@ -120,7 +120,7 @@ private:
         ActorData Data{};
         ActionEvent LatestAction{};
         // Its behaviour graphs' state, for a copy to start in (IActorBridge::SaveActorGraphState).
-        String GraphState{};
+        std::string GraphState{};
     };
     ActorLiveState ReadLiveState(uint32_t aFormId) const noexcept;
     // Everything a peer needs about one of our actors, read from the engine now.
@@ -146,7 +146,7 @@ private:
     IActorBridge& m_actorBridge;
     IFormBridge& m_formBridge;
     IPlayerBridge& m_playerBridge;
-    Set<uint32_t> m_discoveredActors;
+    std::unordered_set<uint32_t> m_discoveredActors;
 
 
     float m_cachedExperience = 0.f;

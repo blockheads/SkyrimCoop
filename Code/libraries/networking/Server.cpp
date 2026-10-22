@@ -3,7 +3,6 @@
 #include <thread>
 #include <algorithm>
 #include <Buffer.hpp>
-#include <StackAllocator.hpp>
 
 #include <cassert>
 #include <Packet.hpp>
@@ -360,12 +359,8 @@ namespace TiltedPhoques
     {
         const auto time = GetTick();
 
-        StackAllocator<1 << 10> allocator;
-        ScopedAllocator _{ &allocator };
-
-        const auto pBuffer = New<Buffer>(512);
-
-        Buffer::Writer writer(pBuffer);
+        Buffer buffer(512);
+        Buffer::Writer writer(&buffer);
         writer.WriteBits(kServerTime, 8);
 
         // Write big-endian uint64_t
@@ -384,7 +379,7 @@ namespace TiltedPhoques
             if (it != m_peers.end())
             {
                 // In this case we probably want it to arrive so send it reliably
-                ENetPacket* packet = enet_packet_create(pBuffer->GetData(), writer.Size() & 0xFFFFFFFF, ENET_PACKET_FLAG_RELIABLE);
+                ENetPacket* packet = enet_packet_create(buffer.GetData(), writer.Size() & 0xFFFFFFFF, ENET_PACKET_FLAG_RELIABLE);
                 enet_peer_send(it->second, 0, packet);
                 enet_host_flush(m_pHost);
             }
@@ -394,7 +389,7 @@ namespace TiltedPhoques
             // Broadcast unreliable clock sync to all clients
             for (const auto& [id, peer] : m_peers)
             {
-                ENetPacket* packet = enet_packet_create(pBuffer->GetData(), writer.Size() & 0xFFFFFFFF, 0);
+                ENetPacket* packet = enet_packet_create(buffer.GetData(), writer.Size() & 0xFFFFFFFF, 0);
                 enet_peer_send(peer, 1, packet);
             }
             enet_host_flush(m_pHost);

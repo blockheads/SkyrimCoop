@@ -315,13 +315,13 @@ void HostAuthority::Deliver(const NotifyMessage& acNotify, Delivery aDelivery, u
     }
 }
 
-TiltedPhoques::String ChatText(std::string_view aText) noexcept
+std::string ChatText(std::string_view aText) noexcept
 {
     // A character the limit cuts through is left out whole (UTF-8 continuation bytes are 10xxxxxx).
     size_t length = std::min(aText.size(), kChatMaxLength);
     while (length && length < aText.size() && (static_cast<unsigned char>(aText[length]) & 0xC0) == 0x80)
         --length;
-    TiltedPhoques::String text;
+    std::string text;
     for (const char c : aText.substr(0, length))
         if (static_cast<unsigned char>(c) >= 0x20 && c != 0x7F)
             text += c;

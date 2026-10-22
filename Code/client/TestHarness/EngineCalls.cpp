@@ -231,10 +231,10 @@ uint32_t GetEnemyHealthTarget() noexcept
 
 void PlayerActivates(uint32_t aObjectFormId) noexcept
 {
-    TP_THIS_FUNCTION(TActivate, bool, TESObjectREFR, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing);
+    using TActivate = bool(TESObjectREFR*, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing);
     POINTER_SKYRIMSE(TActivate, s_activate, 19796); // TESObjectREFR::ActivateRef
     if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId)))
-        TiltedPhoques::ThisCall(s_activate.Get(), pObject, PlayerCharacter::Get(), 0, nullptr, 1, 0);
+        (s_activate.Get())(pObject, PlayerCharacter::Get(), 0, nullptr, 1, 0);
 }
 
 bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) noexcept
@@ -243,10 +243,10 @@ bool ChangeLockAsGame(uint32_t aObjectFormId, bool aLocked, uint8_t aLockLevel) 
     ScopedPlayerLockOverride playerLock;
     if (!World::Get().GetFormBridge().SetObjectLock(aObjectFormId, aLocked, aLockLevel))
         return false;
-    TP_THIS_FUNCTION(TLockChange, void, TESObjectREFR);
+    using TLockChange = void(TESObjectREFR*);
     POINTER_SKYRIMSE(TLockChange, s_lockChange, 19512); // TESObjectREFR::AddLockChange
     if (auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId)))
-        TiltedPhoques::ThisCall(s_lockChange.Get(), pObject);
+        (s_lockChange.Get())(pObject);
     return true;
 }
 
@@ -257,9 +257,9 @@ void StopInteractingQuick(Actor* apActor) noexcept
 {
     if (!apActor->currentProcess)
         return;
-    TP_THIS_FUNCTION(TStopInteractingQuick, void, Actor, bool);
+    using TStopInteractingQuick = void(Actor*, bool);
     POINTER_SKYRIMSE(TStopInteractingQuick, s_stopInteractingQuick, 38697);
-    TiltedPhoques::ThisCall(s_stopInteractingQuick.Get(), apActor, true);
+    (s_stopInteractingQuick.Get())(apActor, true);
 }
 } // namespace
 
@@ -285,9 +285,9 @@ bool MoveActorHome(uint32_t aFormId) noexcept
     if (!pActor || aFormId == 0x14)
         return false;
     StopInteractingQuick(pActor);
-    TP_THIS_FUNCTION(TMoveToMyEditorLocation, bool, TESObjectREFR, TESObjectCELL*, bool);
+    using TMoveToMyEditorLocation = bool(TESObjectREFR*, TESObjectCELL*, bool);
     POINTER_SKYRIMSE(TMoveToMyEditorLocation, s_moveToMyEditorLocation, 19516); // what Papyrus MoveToMyEditorLocation runs
-    return TiltedPhoques::ThisCall(s_moveToMyEditorLocation.Get(), pActor, nullptr, false);
+    return (s_moveToMyEditorLocation.Get())(pActor, nullptr, false);
 }
 
 bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
@@ -302,8 +302,8 @@ bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
     static std::unordered_map<uint32_t, Before> s_frozen;
     constexpr uint32_t cFrozen = bhkCharacterController::kNotPushable | bhkCharacterController::kNoCharacterCollisions;
     constexpr uint32_t cHits = bhkCharacterController::kRecordHits | bhkCharacterController::kHitDamage;
-    TP_THIS_FUNCTION(TActorCall, void, Actor);
-    TP_THIS_FUNCTION(TSetRestrained, void, Actor, bool);
+    using TActorCall = void(Actor*);
+    using TSetRestrained = void(Actor*, bool);
     POINTER_SKYRIMSE(TSetRestrained, s_setRestrained, 37488); // Actor::SetRestrained: life state 6, movement stopped
     POINTER_SKYRIMSE(TActorCall, s_stopMovement, 37818);     // Actor::StopMovement: the mover's path
 
@@ -321,7 +321,7 @@ bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
         if (pController && it->second.ControllerFlags)
             pController->flags = (pController->flags & ~(cFrozen | cHits)) | (*it->second.ControllerFlags & (cFrozen | cHits));
         if (!it->second.Restrained)
-            TiltedPhoques::ThisCall(s_setRestrained.Get(), pActor, false);
+            (s_setRestrained.Get())(pActor, false);
         s_frozen.erase(it);
         return true;
     }
@@ -331,9 +331,9 @@ bool FreezeActor(uint32_t aFormId, bool aFrozen) noexcept
     StopInteractingQuick(pActor);
     pActor->flags1 &= ~Actor::kProcessMe;
     if (pProcess)
-        TiltedPhoques::ThisCall(s_stopMovement.Get(), pActor);
+        (s_stopMovement.Get())(pActor);
     if (!cRestrained)
-        TiltedPhoques::ThisCall(s_setRestrained.Get(), pActor, true);
+        (s_setRestrained.Get())(pActor, true);
     if (pController)
     {
         if (!it->second.ControllerFlags)
@@ -537,9 +537,9 @@ VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
     if (!pActor || !pActor->currentProcess || !pActor->currentProcess->highProcess)
         return {};
     BSSoundHandle* pHandle = &pActor->currentProcess->highProcess->soundHandles[0];
-    TP_THIS_FUNCTION(TGetDuration, uint64_t, BSSoundHandle);
+    using TGetDuration = uint64_t(BSSoundHandle*);
     POINTER_SKYRIMSE(TGetDuration, s_getDuration, 67630); // BSSoundHandle::GetDuration (CommonLib)
-    return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : TiltedPhoques::ThisCall(s_getDuration.Get(), pHandle)};
+    return {pHandle->soundID, pHandle->soundID == UINT32_MAX ? 0 : (s_getDuration.Get())(pHandle)};
 }
 
 namespace
@@ -726,7 +726,7 @@ std::optional<SavedForm> SaveFormState(uint32_t aFormId, bool aBaseForm, std::op
     if (!pForm)
         return std::nullopt;
     const uint32_t cFlags = aChangeFlags.value_or(pForm->GetChangeFlags());
-    String data;
+    std::string data;
     if (!FormState::Save(*pForm, cFlags, data))
         return std::nullopt;
     return SavedForm{pForm->formID, cFlags, std::string(data.data(), data.size())};
@@ -735,7 +735,7 @@ std::optional<SavedForm> SaveFormState(uint32_t aFormId, bool aBaseForm, std::op
 bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& acData) noexcept
 {
     TESForm* pForm = TESForm::GetById(aFormId);
-    return pForm && FormState::Load(*pForm, aChangeFlags, String(acData.data(), acData.size()));
+    return pForm && FormState::Load(*pForm, aChangeFlags, std::string(acData.data(), acData.size()));
 }
 
 bool IsProcessMe(uint32_t aFormId) noexcept
@@ -876,7 +876,7 @@ std::string SaveGraphState(uint32_t aFormId, int64_t& aMicroseconds) noexcept
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return {};
-    TiltedPhoques::String state;
+    std::string state;
     const auto cStart = std::chrono::steady_clock::now();
     const bool cSaved = pActor->SaveAnimationGraphState(state);
     aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
@@ -889,7 +889,7 @@ bool LoadGraphState(uint32_t aFormId, const std::string& acState, int64_t& aMicr
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return false;
-    const TiltedPhoques::String cState(acState.data(), acState.size());
+    const std::string cState(acState.data(), acState.size());
     const auto cStart = std::chrono::steady_clock::now();
     const bool cLoaded = pActor->LoadAnimationGraphState(cState);
     aMicroseconds = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - cStart).count();
@@ -938,9 +938,9 @@ int32_t GetCharacterState(uint32_t aFormId) noexcept
     Actor* pActor = GetActor(aFormId);
     if (!pActor)
         return -1;
-    TP_THIS_FUNCTION(TGetCharacterController, uint8_t*, Actor);
+    using TGetCharacterController = uint8_t*(Actor*);
     POINTER_SKYRIMSE(TGetCharacterController, s_getCharacterController, 37258); // Actor::GetCharacterController
-    const uint8_t* pController = TiltedPhoques::ThisCall(s_getCharacterController.Get(), pActor);
+    const uint8_t* pController = (s_getCharacterController.Get())(pActor);
     // bhkCharacterController::context (hkpCharacterContext) at 0x1E0, its currentState at +0x20 (CommonLibSSE-NG).
     return pController ? *reinterpret_cast<const int32_t*>(pController + 0x1E0 + 0x20) : -1;
 }
@@ -1037,10 +1037,10 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     // BSTEventSource<InputEvent*>::SendEvent: PollInputDevices sends the frame's queue through it, to
     // MenuControls, PlayerControls and the rest. Our PollInputDevices hook drops device input while the
     // window is in the background; this does not go through it.
-    TP_THIS_FUNCTION(TSendEvent, void, void, RawButtonEvent* const*);
+    using TSendEvent = void(void*, RawButtonEvent* const*);
     POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655);
     RawButtonEvent* pChain = &event;
-    TiltedPhoques::ThisCall(s_sendEvent.Get(), *inputDeviceManager.Get(), &pChain);
+    (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
     return true;
 }
 
@@ -1110,21 +1110,21 @@ bool MapAndSend(InputEvent& aEvent, BSFixedString& aUserEvent) noexcept
         return false;
 
     aUserEvent.Release();
-    TP_THIS_FUNCTION(TMapUserEvents, void, void, InputEvent*);
+    using TMapUserEvents = void(void*, InputEvent*);
     POINTER_SKYRIMSE(TMapUserEvents, s_mapUserEvents, 68542); // ControlMap::MapUserEvents
-    TiltedPhoques::ThisCall(s_mapUserEvents.Get(), *controlMap.Get(), &aEvent);
+    (s_mapUserEvents.Get())(*controlMap.Get(), &aEvent);
 
-    TP_THIS_FUNCTION(TSendEvent, void, void, InputEvent* const*);
+    using TSendEvent = void(void*, InputEvent* const*);
     POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655); // BSTEventSource<InputEvent*>::SendEvent
     InputEvent* pChain = &aEvent;
-    TiltedPhoques::ThisCall(s_sendEvent.Get(), *inputDeviceManager.Get(), &pChain);
+    (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
     return true;
 }
 
 bool SendButton(InputEvent::Device aDevice, uint32_t aIdCode, bool aDown) noexcept
 {
     // One event per button for the whole run (sinks may keep a pointer to one), as SendPlayerButton.
-    static Map<uint64_t, ButtonEvent> s_events;
+    static std::unordered_map<uint64_t, ButtonEvent> s_events;
     const VersionDbPtr<void> buttonEventVtable(208708);
     ButtonEvent& event = s_events[(static_cast<uint64_t>(aDevice) << 32) | aIdCode];
     event.header.pVtable = buttonEventVtable.GetPtr();

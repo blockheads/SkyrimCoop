@@ -32,7 +32,7 @@ struct BSAnimationGraphManager
 
     uint32_t animationGraphIndex; // A8 - 5C
 
-    SortedMap<uint32_t, String> DumpAnimationVariables(bool aPrintVariables);
+    std::map<uint32_t, std::string> DumpAnimationVariables(bool aPrintVariables);
     uint64_t GetDescriptorKey(int aForceIndex = -1);
     uint32_t ReSendEvent(BSFixedString* apEventName);
 };

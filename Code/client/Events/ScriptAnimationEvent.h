@@ -5,7 +5,7 @@
  */
 struct ScriptAnimationEvent
 {
-    ScriptAnimationEvent(uint32_t aFormID, String aAnimation, String aEventName)
+    ScriptAnimationEvent(uint32_t aFormID, std::string aAnimation, std::string aEventName)
         : FormID(aFormID)
         , Animation(aAnimation)
         , EventName(aEventName)
@@ -13,6 +13,6 @@ struct ScriptAnimationEvent
     }
 
     uint32_t FormID;
-    String Animation;
-    String EventName;
+    std::string Animation;
+    std::string EventName;
 };

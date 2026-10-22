@@ -42,7 +42,7 @@ struct TravelService
     // within a few seconds), and so who passes through whom.
     void UpdateStack() noexcept;
     // Our player and the copies of the others whose owners are around it: where each stands, by form id.
-    [[nodiscard]] Map<uint32_t, glm::vec3> PlayersHere() const noexcept;
+    [[nodiscard]] std::unordered_map<uint32_t, glm::vec3> PlayersHere() const noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -66,7 +66,7 @@ struct TravelService
         glm::vec3 Position{};
         float Heading{}; // the leader's on arrival
     };
-    Vector<TetherTarget> m_tetherTargets;
+    std::vector<TetherTarget> m_tetherTargets;
     struct Stack
     {
         struct Player

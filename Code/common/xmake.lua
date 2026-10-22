@@ -5,7 +5,6 @@ target("CommonLib")
     add_headerfiles("**.h")
     add_files("**.cpp")
     add_deps("TiltedCore")
-    add_packages("hopscotch-map")
 
     -- build/BuildInfo.h, on every xmake run (not only when configured): the join gate compares the
     -- build id (docs/design/join-flow.md, stage 1). Rewritten only when it changes, so an unchanged

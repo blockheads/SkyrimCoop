@@ -13,15 +13,15 @@ namespace TestHarness
 namespace
 {
 // (fragment map, quest, stage, item, out script name, out function name): true when the item has one.
-TP_THIS_FUNCTION(TFindFragment, bool, void, uint32_t, uint32_t, uint32_t, void*, void*);
+using TFindFragment = bool(void*, uint32_t, uint32_t, uint32_t, void*, void*);
 TFindFragment* RealFindFragment = nullptr;
 
 std::mutex s_lock;
 std::map<uint32_t, uint32_t> s_runs; // quest form id -> fragments found to run
 
-bool TP_MAKE_THISCALL(HookFindFragment, void, uint32_t aQuestId, uint32_t aStage, uint32_t aItem, void* apScript, void* apFunction)
+bool HookFindFragment(void* apThis, uint32_t aQuestId, uint32_t aStage, uint32_t aItem, void* apScript, void* apFunction)
 {
-    const bool cFound = TiltedPhoques::ThisCall(RealFindFragment, apThis, aQuestId, aStage, aItem, apScript, apFunction);
+    const bool cFound = RealFindFragment(apThis, aQuestId, aStage, aItem, apScript, apFunction);
     if (cFound)
     {
         std::scoped_lock lock(s_lock);

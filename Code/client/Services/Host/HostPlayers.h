@@ -19,7 +19,7 @@ struct HostPlayers
     struct Player
     {
         uint32_t Id{};
-        TiltedPhoques::String Name;
+        std::string Name;
         uint16_t Level{};
         bool IsHost{};
     };
@@ -29,7 +29,7 @@ struct HostPlayers
     TP_NOCOPYMOVE(HostPlayers);
 
     // A game that joined; returns its id in the player list (never reused in a session).
-    uint32_t Add(ConnectionId_t aConnection, const TiltedPhoques::String& acName, uint16_t aLevel, bool aIsHost) noexcept;
+    uint32_t Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost) noexcept;
     void Remove(ConnectionId_t aConnection) noexcept;
 
     // The player on that connection (null: not a player).
@@ -37,12 +37,12 @@ struct HostPlayers
     [[nodiscard]] bool IsPlayer(ConnectionId_t aConnection) const noexcept { return Find(aConnection) != nullptr; }
     // The player's id and name (0 and empty: not a player).
     [[nodiscard]] uint32_t PlayerIdOf(ConnectionId_t aConnection) const noexcept;
-    [[nodiscard]] TiltedPhoques::String PlayerNameOf(ConnectionId_t aConnection) const noexcept;
+    [[nodiscard]] std::string PlayerNameOf(ConnectionId_t aConnection) const noexcept;
     // The host's connection, once its own player is in (0 before).
     [[nodiscard]] ConnectionId_t Host() const noexcept;
     [[nodiscard]] size_t Count() const noexcept { return m_players.size(); }
     // Every player's connection, the host's included.
-    [[nodiscard]] TiltedPhoques::Vector<ConnectionId_t> Connections() const noexcept;
+    [[nodiscard]] std::vector<ConnectionId_t> Connections() const noexcept;
     // Each player, with its connection.
     template <class TFunction> void ForEach(const TFunction& acFunction) const
     {
@@ -59,6 +59,6 @@ struct HostPlayers
 
 private:
     HostNetwork& m_network;
-    TiltedPhoques::Map<ConnectionId_t, Player> m_players;
+    std::unordered_map<ConnectionId_t, Player> m_players;
     uint32_t m_lastId = 0;
 };

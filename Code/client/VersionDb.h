@@ -152,7 +152,7 @@ public:
         _base = 0;
     }
 
-    bool Load(const std::filesystem::path& acGamePath, const TiltedPhoques::String& acExeVersion)
+    bool Load(const std::filesystem::path& acGamePath, const std::string& acExeVersion)
     {
         int major, minor, revision, build;
 

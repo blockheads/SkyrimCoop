@@ -34,5 +34,5 @@ struct CellStateRequest final : RequestMessage
     }
 
     GameId Cell{};
-    TiltedPhoques::Vector<ChangedReference> Changed;
+    std::vector<ChangedReference> Changed;
 };

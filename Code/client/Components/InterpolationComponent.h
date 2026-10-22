@@ -21,6 +21,6 @@ struct InterpolationComponent
         TimePoint& operator=(const TimePoint&) = default;
     };
 
-    List<TimePoint> TimePoints;
+    std::list<TimePoint> TimePoints;
     glm::vec3 Position;
 };

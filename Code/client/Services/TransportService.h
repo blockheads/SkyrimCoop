@@ -79,8 +79,8 @@ private:
     IWorldBridge& m_worldBridge;
     bool m_connected;
     HostNetwork* m_pHostNetwork{nullptr};
-    Vector<Vector<uint8_t>> m_localInbox;
-    String m_serverPassword{};
+    std::vector<std::vector<uint8_t>> m_localInbox;
+    std::string m_serverPassword{};
     uint32_t m_localPlayerId;
     JoinStatus m_joinStatus;
 
@@ -88,5 +88,5 @@ private:
     entt::scoped_connection m_settingsChangeConnection;
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
-    std::function<void(UniquePtr<NotifyMessage>&)> m_messageHandlers[kNotifyOpcodeMax];
+    std::function<void(std::unique_ptr<NotifyMessage>&)> m_messageHandlers[kNotifyOpcodeMax];
 };

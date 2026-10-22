@@ -168,7 +168,7 @@ void CombatService::RunHitFeedback() noexcept
     const auto cNow = std::chrono::steady_clock::now();
     for (auto it = m_recentHits.begin(); it != m_recentHits.end();)
     {
-        auto& hit = it.value();
+        auto& hit = it->second;
         if (cNow - hit.At > cWatchFor)
         {
             it = m_recentHits.erase(it);

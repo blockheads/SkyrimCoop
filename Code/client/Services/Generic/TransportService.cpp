@@ -44,9 +44,9 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     {
         using T = typename std::remove_reference_t<decltype(x)>::Type;
 
-        m_messageHandlers[T::Opcode] = [this](UniquePtr<NotifyMessage>& apMessage)
+        m_messageHandlers[T::Opcode] = [this](std::unique_ptr<NotifyMessage>& apMessage)
         {
-            const auto pRealMessage = TiltedPhoques::CastUnique<T>(std::move(apMessage));
+            const auto pRealMessage = CastUnique<T>(std::move(apMessage));
             m_dispatcher.trigger(*pRealMessage);
         };
 
@@ -56,9 +56,9 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     NotifyMessageFactory::Visit(handlerGenerator);
 
     // Override authentication response
-    m_messageHandlers[AuthenticationResponse::Opcode] = [this](UniquePtr<NotifyMessage>& apMessage)
+    m_messageHandlers[AuthenticationResponse::Opcode] = [this](std::unique_ptr<NotifyMessage>& apMessage)
     {
-        const auto pRealMessage = TiltedPhoques::CastUnique<AuthenticationResponse>(std::move(apMessage));
+        const auto pRealMessage = CastUnique<AuthenticationResponse>(std::move(apMessage));
         HandleAuthenticationResponse(*pRealMessage);
     };
 }
@@ -118,34 +118,18 @@ uint64_t TransportService::GetTick() const noexcept
 
 bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 {
-    static thread_local ScratchAllocator s_allocator(1 << 18);
-
-    struct ScopedReset
-    {
-        ~ScopedReset() { s_allocator.Reset(); }
-    } allocatorGuard;
-
     if (m_pHostNetwork)
     {
-        // The host's rules handle it right away, and must not allocate from our scratch allocator: the
-        // bytes are copied out (into room reserved beforehand) and handed over after its scope.
-        Vector<uint8_t> payload;
-        payload.reserve(1 << 16);
-        {
-            ScopedAllocator _{s_allocator};
-            Buffer buffer(1 << 16);
-            Buffer::Writer writer(&buffer);
-            acMessage.Serialize(writer);
-            payload.assign(buffer.GetWriteData(), buffer.GetWriteData() + writer.Size());
-        }
-        m_pHostNetwork->Receive(payload.data(), static_cast<uint32_t>(payload.size()), kLocalConnectionId);
+        // The host's rules handle it right away.
+        Buffer buffer(1 << 16);
+        Buffer::Writer writer(&buffer);
+        acMessage.Serialize(writer);
+        m_pHostNetwork->Receive(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()), kLocalConnectionId);
         return true;
     }
 
     if (IsConnected())
     {
-        ScopedAllocator _{s_allocator};
-
         Buffer buffer(1 << 16);
         Buffer::Writer writer(&buffer);
         writer.WriteBits(0, 8); // Write first byte as packet needs it

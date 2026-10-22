@@ -52,7 +52,7 @@ private:
         uint32_t NpcId{};
         uint32_t Step = 1;
         // The games in it, in the order they joined: whose menu is open on it, and the peer who asked for it.
-        TiltedPhoques::Vector<ConnectionId_t> Players;
+        std::vector<ConnectionId_t> Players;
         // The host's game's options for this step (none yet after a pick).
         std::optional<DialogueOptions> HostOptions;
 

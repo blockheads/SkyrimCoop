@@ -63,13 +63,13 @@ namespace TiltedPhoques
             using CollectorResult = typename Collector::CollectorResult;
 
         private:
-            using CallbackSlot = UniquePtr<CbFunction>;
-            using CallbackList = Vector<CallbackSlot>;
+            using CallbackSlot = std::unique_ptr<CbFunction>;
+            using CallbackList = std::vector<CallbackSlot>;
             CallbackList callback_list_;
 
             size_t Add(const CbFunction& cb)
             {
-                callback_list_.emplace_back(MakeUnique<CbFunction>(cb));
+                callback_list_.emplace_back(std::make_unique<CbFunction>(cb));
                 return size_t(callback_list_.back().get());
             }
 
@@ -181,7 +181,7 @@ namespace TiltedPhoques
     template<typename Result>
     struct CollectorVector
     {
-        using CollectorResult = Vector<Result>;
+        using CollectorResult = std::vector<Result>;
         const CollectorResult& result() { return result_; }
         bool operator()(Result r)
         {

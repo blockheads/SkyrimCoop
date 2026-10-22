@@ -51,7 +51,7 @@ __declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom(Actor* apActor, uint32_
 }
 
 struct TextureHolder;
-TP_THIS_FUNCTION(TCreateResourceView, Ni2DBuffer*, TextureHolder, uint32_t, uint32_t);
+using TCreateResourceView = Ni2DBuffer*(TextureHolder*, uint32_t, uint32_t);
 
 using TCreateTexture = NiRenderedTexture*(BSFixedString& aName);
 using TCreateTints = void(const GameArray<TintMask*>& acTints, NiRenderedTexture* apTexture);

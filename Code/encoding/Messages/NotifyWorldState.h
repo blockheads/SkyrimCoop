@@ -23,5 +23,5 @@ struct NotifyWorldState final : NotifyMessage
         Rotator2_NetQuantize Rotation{};
     };
 
-    TiltedPhoques::Vector<EntityEntry> Entities;
+    std::vector<EntityEntry> Entities;
 };

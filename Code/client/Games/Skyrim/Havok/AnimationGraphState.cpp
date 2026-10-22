@@ -14,7 +14,7 @@ namespace
 // AnimationStreamSaveGame's 12 slots (43612-43602), each writing what the save buffer's does, in its byte order.
 struct AnimationStreamWriter
 {
-    TiltedPhoques::String Bytes;
+    std::string Bytes;
 
     virtual ~AnimationStreamWriter() = default;
     // A transform: bytes 0-15, 32-47, then 16-31.
@@ -59,11 +59,11 @@ struct AnimationStreamWriter
 // AnimationStreamLoadGame's 14 slots: a version slot, the save's slots, and a second string read.
 struct AnimationStreamReader
 {
-    const TiltedPhoques::String& Bytes;
+    const std::string& Bytes;
     size_t Offset = 0;
     bool Overrun = false;
 
-    explicit AnimationStreamReader(const TiltedPhoques::String& acBytes)
+    explicit AnimationStreamReader(const std::string& acBytes)
         : Bytes(acBytes)
     {
     }
@@ -122,7 +122,7 @@ struct AnimationStreamReader
             apValue->Set("");
             return false;
         }
-        const TiltedPhoques::String cText(Bytes.data() + Offset, length);
+        const std::string cText(Bytes.data() + Offset, length);
         Offset += length;
         apValue->Set(cText.c_str());
         return true;
@@ -130,11 +130,11 @@ struct AnimationStreamReader
 };
 
 // BShkbAnimationGraph::SaveState / LoadState (63601, 63602; our names).
-TP_THIS_FUNCTION(TSaveGraphState, bool, BShkbAnimationGraph, AnimationStreamWriter* apStream, bool aUnk);
-TP_THIS_FUNCTION(TLoadGraphState, bool, BShkbAnimationGraph, AnimationStreamReader* apStream);
+using TSaveGraphState = bool(BShkbAnimationGraph*, AnimationStreamWriter* apStream, bool aUnk);
+using TLoadGraphState = bool(BShkbAnimationGraph*, AnimationStreamReader* apStream);
 
 // The format: per graph its project name (16-bit length, characters) and its state (32-bit length, bytes).
-void AppendBlock(TiltedPhoques::String& aOut, const char* apData, size_t aSize, bool aWide)
+void AppendBlock(std::string& aOut, const char* apData, size_t aSize, bool aWide)
 {
     if (aWide)
     {
@@ -149,7 +149,7 @@ void AppendBlock(TiltedPhoques::String& aOut, const char* apData, size_t aSize, 
     aOut.append(apData, aSize);
 }
 
-bool TakeBlock(const TiltedPhoques::String& acIn, size_t& aOffset, TiltedPhoques::String& aOut, bool aWide)
+bool TakeBlock(const std::string& acIn, size_t& aOffset, std::string& aOut, bool aWide)
 {
     uint32_t size = 0;
     const size_t cHeader = aWide ? 4 : 2;
@@ -167,7 +167,7 @@ bool TakeBlock(const TiltedPhoques::String& acIn, size_t& aOffset, TiltedPhoques
 
 namespace AnimationGraphState
 {
-bool Save(BSAnimationGraphManager* apManager, TiltedPhoques::String& aState) noexcept
+bool Save(BSAnimationGraphManager* apManager, std::string& aState) noexcept
 {
     POINTER_SKYRIMSE(TSaveGraphState, s_saveGraphState, 63601);
 
@@ -184,7 +184,7 @@ bool Save(BSAnimationGraphManager* apManager, TiltedPhoques::String& aState) noe
             continue;
         AnimationStreamWriter writer;
         // The flag is the save's option bit 4 (TESObjectREFR::SaveGame); a normal save passes it clear.
-        saved = TiltedPhoques::ThisCall(s_saveGraphState, pGraph, &writer, false) && saved;
+        saved = s_saveGraphState(pGraph, &writer, false) && saved;
         const char* cpProject = pGraph->projectName ? pGraph->projectName : "";
         AppendBlock(aState, cpProject, std::strlen(cpProject), false);
         AppendBlock(aState, writer.Bytes.data(), writer.Bytes.size(), true);
@@ -192,7 +192,7 @@ bool Save(BSAnimationGraphManager* apManager, TiltedPhoques::String& aState) noe
     return saved && !aState.empty();
 }
 
-bool Load(BSAnimationGraphManager* apManager, const TiltedPhoques::String& acState) noexcept
+bool Load(BSAnimationGraphManager* apManager, const std::string& acState) noexcept
 {
     POINTER_SKYRIMSE(TLoadGraphState, s_loadGraphState, 63602);
 
@@ -200,10 +200,10 @@ bool Load(BSAnimationGraphManager* apManager, const TiltedPhoques::String& acSta
         return false;
 
     // Saved graphs by project.
-    TiltedPhoques::Vector<std::pair<TiltedPhoques::String, TiltedPhoques::String>> saved;
+    std::vector<std::pair<std::string, std::string>> saved;
     for (size_t offset = 0; offset < acState.size();)
     {
-        TiltedPhoques::String project, state;
+        std::string project, state;
         if (!TakeBlock(acState, offset, project, false) || !TakeBlock(acState, offset, state, true))
             return false;
         saved.emplace_back(std::move(project), std::move(state));
@@ -221,7 +221,7 @@ bool Load(BSAnimationGraphManager* apManager, const TiltedPhoques::String& acSta
         if (cIt == saved.end())
             continue;
         AnimationStreamReader reader(cIt->second);
-        const bool cLoaded = TiltedPhoques::ThisCall(s_loadGraphState, pGraph, &reader);
+        const bool cLoaded = s_loadGraphState(pGraph, &reader);
         ok = ok && cLoaded && !reader.Overrun && reader.Offset == cIt->second.size();
         spdlog::debug("Graph state {}: loaded {}, read {} of {} bytes", pGraph->projectName, cLoaded, reader.Offset, cIt->second.size());
         ++loaded;

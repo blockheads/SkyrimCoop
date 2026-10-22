@@ -235,7 +235,7 @@ TEST_CASE("Differential structures", "[encoding.differential]")
         AnimationVariables vars, recvVars;
  
         vars.Booleans.resize(76);
-        String testString("\xDE\xAD\xBE\xEF"
+        std::string testString("\xDE\xAD\xBE\xEF"
                           "\xDE\xAD\xBE\xEF\x76\xB");
         vars.String_to_VectorBool(testString, vars.Booleans);
 
@@ -526,7 +526,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         NotifyObjectChanges sendMessage, recvMessage;
         sendMessage.Cell = GameId(0, 0x133C6);
         ObjectChange contents{ObjectChange::Kind::kContents, GameId(0, 0xA05B5)};
-        const Vector<ObjectChange::ItemCount> cItems = {{GameId(0, 0xF), 120}, {GameId(2, 0x64B3D), 2}};
+        const std::vector<ObjectChange::ItemCount> cItems = {{GameId(0, 0xF), 120}, {GameId(2, 0x64B3D), 2}};
         contents.Data = ObjectChange::PackContents(cItems);
         REQUIRE(ObjectChange::UnpackContents(contents.Data) == cItems);
         sendMessage.Changes.push_back(contents);
@@ -543,7 +543,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK(unpacked.Position[1] == 2093.f);
         sendMessage.Changes.push_back(create);
         ObjectChange graph{ObjectChange::Kind::kGraph, GameId(0, 0x847D3)};
-        graph.Data = TiltedPhoques::String("\x02\x00graph", 7);
+        graph.Data = std::string("\x02\x00graph", 7);
         sendMessage.Changes.push_back(graph);
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
@@ -561,7 +561,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Changes.push_back(items);
         ObjectChange saveData{ObjectChange::Kind::kSaveData, GameId(0, 0x32AEC)};
         saveData.Value = 0x11; // form flags, scale
-        saveData.Data = TiltedPhoques::String("\x00\x08\x00\x00\xC8\x00", 6);
+        saveData.Data = std::string("\x00\x08\x00\x00\xC8\x00", 6);
         sendMessage.Changes.push_back(saveData);
         ObjectChange open{ObjectChange::Kind::kOpenState, GameId(0, 0x200CAAC)};
         open.Value = 1;
@@ -624,7 +624,7 @@ TEST_CASE("Packets", "[encoding.packets]")
 
         AnimationVariables vars;
         vars.Booleans.resize(76);
-        String testString("\xDE\xAD\xBE\xEF\x76\xB");
+        std::string testString("\xDE\xAD\xBE\xEF\x76\xB");
         vars.String_to_VectorBool(testString, vars.Booleans);
 
         vars.Floats.push_back(1.f);

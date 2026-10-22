@@ -14,9 +14,9 @@
 }
 
 // A map key for an engine name: the same for every spelling of it.
-[[nodiscard]] inline TiltedPhoques::String NameKey(std::string_view aName)
+[[nodiscard]] inline std::string NameKey(std::string_view aName)
 {
-    TiltedPhoques::String key(aName);
+    std::string key(aName);
     for (char& c : key)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return key;

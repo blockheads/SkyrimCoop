@@ -27,7 +27,7 @@ std::optional<ObjectChange> ReadContainerContents(const ModSystem& acMods, const
     ObjectChange change{ObjectChange::Kind::kContents};
     if (acObject.formType != FormType::Reference || !acObject.GetContainer() || !acMods.GetServerModId(acObject.formID, change.Object))
         return std::nullopt;
-    TiltedPhoques::Vector<ObjectChange::ItemCount> items;
+    std::vector<ObjectChange::ItemCount> items;
     for (const auto& [pItem, cCount] : acObject.GetContainerItems())
     {
         ObjectChange::ItemCount item{{}, cCount};
@@ -42,7 +42,7 @@ bool ApplyContainerContents(const ModSystem& acMods, TESObjectREFR& aObject, con
 {
     if (aObject.formType != FormType::Reference || !aObject.GetContainer())
         return false;
-    TiltedPhoques::Vector<std::pair<TESBoundObject*, int32_t>> wanted;
+    std::vector<std::pair<TESBoundObject*, int32_t>> wanted;
     for (const auto& cItem : ObjectChange::UnpackContents(acChange.Data))
         if (auto* pItem = Cast<TESBoundObject>(TESForm::GetById(acMods.GetGameId(cItem.Item))))
             wanted.emplace_back(pItem, cItem.Count);

@@ -16,22 +16,22 @@ SubtitleManager* SubtitleManager::Get() noexcept
     return *s_singleton.Get();
 }
 
-TP_THIS_FUNCTION(TShowSubtitle, void, SubtitleManager, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay);
+using TShowSubtitle = void(SubtitleManager*, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay);
 static TShowSubtitle* RealShowSubtitle = nullptr;
 
 void SubtitleManager::ShowSubtitle(TESObjectREFR* apSpeaker, const char* apSubtitleText, TESTopicInfo* apTopicInfo, bool aForceDisplay) noexcept
 {
-    TiltedPhoques::ThisCall(RealShowSubtitle, this, apSpeaker, apSubtitleText, aForceDisplay);
+    RealShowSubtitle(this, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
 void* SubtitleManager::HideSubtitle(TESObjectREFR* apSpeaker) noexcept
 {
-    TP_THIS_FUNCTION(THideSubtitle, void*, SubtitleManager, TESObjectREFR* apSpeaker);
+    using THideSubtitle = void*(SubtitleManager*, TESObjectREFR* apSpeaker);
     POINTER_SKYRIMSE(THideSubtitle, s_hideSubtitle, 52627);
-    return TiltedPhoques::ThisCall(s_hideSubtitle, this, apSpeaker);
+    return s_hideSubtitle(this, apSpeaker);
 }
 
-void TP_MAKE_THISCALL(HookShowSubtitle, SubtitleManager, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay)
+void HookShowSubtitle(SubtitleManager* apThis, TESObjectREFR* apSpeaker, const char* apSubtitleText, bool aForceDisplay)
 {
     // spdlog::debug("Subtitle for actor {:X} (bool {}):\n\t{}", apSpeaker ? apSpeaker->formID : 0, aForceDisplay, apSubtitleText);
 
@@ -42,7 +42,7 @@ void TP_MAKE_THISCALL(HookShowSubtitle, SubtitleManager, TESObjectREFR* apSpeake
     if (pActor && pActor->GetExtension()->IsCopy())
         return;
 
-    TiltedPhoques::ThisCall(RealShowSubtitle, apThis, apSpeaker, apSubtitleText, aForceDisplay);
+    RealShowSubtitle(apThis, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
 static TiltedPhoques::Initializer s_subtitleHooks(

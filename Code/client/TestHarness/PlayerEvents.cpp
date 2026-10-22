@@ -18,7 +18,7 @@ namespace
 std::mutex s_lock;
 
 // BGSStoryEventManager::AddEvent_Impl (32359): every story event, by its type index (QuestEvents.h).
-TP_THIS_FUNCTION(TAddEvent, uint32_t, void, uint32_t, const void*);
+using TAddEvent = uint32_t(void*, uint32_t, const void*);
 TAddEvent* RealAddEvent = nullptr;
 
 // Spike 4: the location change story event (CLOC), as PlayerCharacter::SetParentCell builds it (32288).
@@ -39,9 +39,9 @@ uint32_t LocationChangeIndex()
     return *s_index.Get();
 }
 
-uint32_t TP_MAKE_THISCALL(HookAddEvent, void, uint32_t aIndex, const void* apEvent)
+uint32_t HookAddEvent(void* apThis, uint32_t aIndex, const void* apEvent)
 {
-    const uint32_t cId = TiltedPhoques::ThisCall(RealAddEvent, apThis, aIndex, apEvent);
+    const uint32_t cId = RealAddEvent(apThis, aIndex, apEvent);
     std::scoped_lock _{s_lock};
     if (s_traceStory && apEvent && aIndex == LocationChangeIndex())
     {
@@ -62,10 +62,10 @@ TiltedPhoques::Initializer s_storyEventHooks(
     });
 
 // BGSStoryManager's own log of an event's processing (32374): what each node and quest did with it.
-TP_THIS_FUNCTION(TStoryLog, void, void, int32_t, const uint32_t*, TESForm*, TESForm*, bool, float, float);
+using TStoryLog = void(void*, int32_t, const uint32_t*, TESForm*, TESForm*, bool, float, float);
 TStoryLog* RealStoryLog = nullptr;
 
-void TP_MAKE_THISCALL(HookStoryLog, void, int32_t aCode, const uint32_t* apEvent, TESForm* apForm, TESForm* apNode, bool aAte, float aA, float aB)
+void HookStoryLog(void* apThis, int32_t aCode, const uint32_t* apEvent, TESForm* apForm, TESForm* apNode, bool aAte, float aA, float aB)
 {
     static constexpr const char* cCodes[] = {"started processing", "timed out", "finished", "node passed", "node failed conditions",
                                             "node at max quests", "quest waiting for reset", "quest already run", "quest started",
@@ -73,7 +73,7 @@ void TP_MAKE_THISCALL(HookStoryLog, void, int32_t aCode, const uint32_t* apEvent
     if (s_traceStory)
         spdlog::info("Story: event {:X} (type {}) {} {:X}", apEvent ? apEvent[0] : 0, apEvent ? apEvent[1] : 0,
                      aCode >= 0 && aCode < 12 ? cCodes[aCode] : "?", apForm && aCode >= 3 ? apForm->formID : 0);
-    TiltedPhoques::ThisCall(RealStoryLog, apThis, aCode, apEvent, apForm, apNode, aAte, aA, aB);
+    RealStoryLog(apThis, aCode, apEvent, apForm, apNode, aAte, aA, aB);
 }
 
 TiltedPhoques::Initializer s_storyHooks(
@@ -104,13 +104,13 @@ nlohmann::json StoryRaise(Harness&, const nlohmann::json& acRequest)
     auto* pActor = TESForm::GetById(acRequest.value("actor", 0u));
     if (!pActor)
         return Error("no such actor");
-    TP_THIS_FUNCTION(TBuild, LocationChangeEvent*, LocationChangeEvent, TESForm*, TESForm*, TESForm*);
+    using TBuild = LocationChangeEvent*(LocationChangeEvent*, TESForm*, TESForm*, TESForm*);
     using TGetManager = void*();
     POINTER_SKYRIMSE(TBuild, s_build, 32288);
     POINTER_SKYRIMSE(TGetManager, s_getManager, 22790);
     LocationChangeEvent event{};
-    TiltedPhoques::ThisCall(s_build, &event, pActor, TESForm::GetById(acRequest.value("old", 0u)), TESForm::GetById(acRequest.value("new", 0u)));
-    const uint32_t cId = TiltedPhoques::ThisCall(RealAddEvent, s_getManager.Get()(), LocationChangeIndex(), &event);
+    s_build(&event, pActor, TESForm::GetById(acRequest.value("old", 0u)), TESForm::GetById(acRequest.value("new", 0u)));
+    const uint32_t cId = RealAddEvent(s_getManager.Get()(), LocationChangeIndex(), &event);
     return {{"ok", true}, {"event", cId}};
 }
 

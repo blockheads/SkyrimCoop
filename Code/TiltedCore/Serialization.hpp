@@ -7,8 +7,8 @@ namespace TiltedPhoques
 {
     struct Serialization
     {
-        static String ReadString(Buffer::Reader& aReader);
-        static void WriteString(Buffer::Writer& aWriter, const String& acString);
+        static std::string ReadString(Buffer::Reader& aReader);
+        static void WriteString(Buffer::Writer& aWriter, const std::string& acString);
 
         static uint64_t ReadVarInt(Buffer::Reader& aReader);
         static void WriteVarInt(Buffer::Writer& aWriter, uint64_t aValue);

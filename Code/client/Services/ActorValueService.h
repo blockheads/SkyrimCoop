@@ -119,9 +119,9 @@ private:
     IActorBridge& m_actorBridge;
 
     //! @brief Session ids and collected health changes.
-    Map<uint32_t, float> m_smallHealthChanges;
+    std::unordered_map<uint32_t, float> m_smallHealthChanges;
     // Copies whose dead/alive state still differs from the owner's, by session id. Kill/Respawn on
     // a copy does not always take (e.g. resurrect while the death is still playing), so retry.
-    Map<uint32_t, bool> m_pendingDeathStates;
+    std::unordered_map<uint32_t, bool> m_pendingDeathStates;
     std::chrono::steady_clock::time_point m_nextDeathStateRetry;
 };

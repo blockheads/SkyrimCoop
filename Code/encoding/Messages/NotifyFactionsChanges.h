@@ -17,5 +17,5 @@ struct NotifyFactionsChanges final : NotifyMessage
 
     bool operator==(const NotifyFactionsChanges& acRhs) const noexcept { return Changes == acRhs.Changes && GetOpcode() == acRhs.GetOpcode(); }
 
-    TiltedPhoques::Map<uint32_t, Factions> Changes{};
+    std::map<uint32_t, Factions> Changes{};
 };

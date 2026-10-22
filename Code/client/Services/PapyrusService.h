@@ -16,7 +16,7 @@ struct PapyrusService
 
     TP_NOCOPYMOVE(PapyrusService);
 
-    const void* Get(const String& acNamespace, const String& acFunction) const noexcept;
+    const void* Get(const std::string& acNamespace, const std::string& acFunction) const noexcept;
 
     void HandlePapyrusFunctionEvent(const PapyrusFunctionRegisterEvent&) noexcept;
 
@@ -24,7 +24,7 @@ struct PapyrusService
     void HandOffFunctions() const noexcept;
 
 private:
-    Map<String, void*> m_functions; // by NameKey("Namespace::Name")
+    std::unordered_map<std::string, void*> m_functions; // by NameKey("Namespace::Name")
 
     entt::scoped_connection m_papyrusFunctionRegisterConnection;
 };

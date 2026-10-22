@@ -46,7 +46,7 @@ public:
     // This game's container's count of the item now (Bridges/ContainerItems.h), for a proposal to the host.
     [[nodiscard]] std::optional<ObjectChange> ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept;
     // The cells loaded here now and done loading (the interior, or the exterior grid's attached ones), by form id.
-    [[nodiscard]] TiltedPhoques::Vector<uint32_t> AttachedCells() const noexcept;
+    [[nodiscard]] std::vector<uint32_t> AttachedCells() const noexcept;
     // Asks for the host's state of that loaded cell, naming the references this game holds changes for; none for a
     // cell no longer loaded or not in the session's mods.
     [[nodiscard]] std::optional<CellStateRequest> ReadCellChanges(uint32_t aCellFormId) const noexcept;
@@ -67,5 +67,5 @@ private:
 
     const ModSystem& m_mods;
     // The host's created references' ids (base id part) and this game's, by handle.
-    TiltedPhoques::Map<uint32_t, uint32_t> m_created;
+    std::unordered_map<uint32_t, uint32_t> m_created;
 };

@@ -6,7 +6,7 @@
 
 struct RemoteAnimationComponent
 {
-    List<ActionEvent> TimePoints;
+    std::list<ActionEvent> TimePoints;
     ActionEvent LastRanAction;
     ActionEvent LastProcessedAction;
     // The owner's newest graph variables by owner tick (snapshots and replayed actions).

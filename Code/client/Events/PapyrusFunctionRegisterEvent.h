@@ -1,7 +1,5 @@
 #pragma once
 
-using TiltedPhoques::String;
-
 /**
  * @brief Dispatched when the game code registers a Papyrus function internally.
  */
@@ -14,7 +12,7 @@ struct PapyrusFunctionRegisterEvent
     {
     }
 
-    String Name;
-    String Namespace;
+    std::string Name;
+    std::string Namespace;
     void* Function;
 };

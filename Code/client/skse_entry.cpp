@@ -16,8 +16,6 @@
 #include "TestHarness/TestHarness.h"
 #endif
 
-using TiltedPhoques::String;
-
 #define MAKE_EXE_VERSION_EX(major, minor, build, sub) \
     ((((major) & 0xFF) << 24) | (((minor) & 0xFF) << 16) | (((build) & 0xFFF) << 4) | ((sub) & 0xF))
 #define MAKE_EXE_VERSION(major, minor, build) MAKE_EXE_VERSION_EX(major, minor, build, 0)
@@ -68,7 +66,7 @@ const SKSEPluginVersionData SKSEPlugin_Version = {
     0,
 };
 
-extern void RunTiltedInit(const std::filesystem::path& acGamePath, const TiltedPhoques::String& aExeVersion);
+extern void RunTiltedInit(const std::filesystem::path& acGamePath, const std::string& aExeVersion);
 extern void RunTiltedApp();
 
 // The resident hot-reload loader (Code/loader) loads a copy of this DLL from elsewhere and tells it
@@ -151,7 +149,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     TestHarness::Configure(pluginDirectory, pTasks ? pTasks->AddUITask : nullptr);
 #endif
 
-    TiltedPhoques::String exeVersion("1.6.1170.0");
+    std::string exeVersion("1.6.1170.0");
 
     RunTiltedInit(gamePath, exeVersion);
     RunTiltedApp();

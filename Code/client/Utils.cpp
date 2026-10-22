@@ -25,7 +25,7 @@ std::optional<uint32_t> GetSessionId(entt::entity aEntity) noexcept
     return {sessionId};
 }
 
-void ShowHudMessage(const TiltedPhoques::String& acMessage)
+void ShowHudMessage(const std::string& acMessage)
 {
     using TShowHudMessage = void(const char*, const char*, bool);
 

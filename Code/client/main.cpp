@@ -17,7 +17,7 @@ static void ShowAddressLibraryError(const wchar_t* apGamePath)
     exit(4);
 }
 
-void RunTiltedInit(const std::filesystem::path& acGamePath, const String& aExeVersion)
+void RunTiltedInit(const std::filesystem::path& acGamePath, const std::string& aExeVersion)
 {
     if (!VersionDb::Get().Load(acGamePath, aExeVersion))
     {

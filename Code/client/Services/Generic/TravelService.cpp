@@ -204,9 +204,9 @@ void TravelService::UpdateStack() noexcept
     m_playerBridge.SetPassThrough(stacked);
 }
 
-Map<uint32_t, glm::vec3> TravelService::PlayersHere() const noexcept
+std::unordered_map<uint32_t, glm::vec3> TravelService::PlayersHere() const noexcept
 {
-    Map<uint32_t, glm::vec3> players;
+    std::unordered_map<uint32_t, glm::vec3> players;
     glm::vec3 position;
     m_playerBridge.GetPlayerPosition(position.x, position.y, position.z);
     players[m_playerBridge.GetPlayerFormId()] = position;

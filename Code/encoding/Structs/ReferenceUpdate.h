@@ -4,7 +4,6 @@
 #include <Structs/ActionEvent.h>
 
 using TiltedPhoques::Buffer;
-using TiltedPhoques::Vector;
 
 struct ReferenceUpdate
 {
@@ -18,5 +17,5 @@ struct ReferenceUpdate
     void Deserialize(TiltedPhoques::Buffer::Reader& aReader);
 
     Movement UpdatedMovement{};
-    Vector<ActionEvent> ActionEvents{};
+    std::vector<ActionEvent> ActionEvents{};
 };

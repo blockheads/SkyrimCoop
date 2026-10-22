@@ -8,7 +8,7 @@
 
 struct LocalAnimationComponent
 {
-    Vector<ActionEvent> Actions;
+    std::vector<ActionEvent> Actions;
     ActionEvent LastProcessedAction;
 
     [[nodiscard]] Outcome<ActionEvent, bool> GetLatestAction() const noexcept

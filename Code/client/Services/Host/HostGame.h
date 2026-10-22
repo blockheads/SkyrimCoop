@@ -17,7 +17,7 @@
 struct HostGame
 {
     // The host's own actors as its engine shows them now, but aExcludedSessionId.
-    std::function<TiltedPhoques::Vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
+    std::function<std::vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
     // The host's copy of another player's character (position, values, items, hands, action) into
     // the spawn; false when it has no copy.
     std::function<bool(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn)> ReadCopy;
@@ -27,14 +27,14 @@ struct HostGame
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.
-    std::function<TiltedPhoques::Vector<HostGlobal>()> ReadGlobals;
+    std::function<std::vector<HostGlobal>()> ReadGlobals;
     // Every quest of the host's game as it holds it now.
-    std::function<TiltedPhoques::Vector<QuestState>()> ReadQuests;
+    std::function<std::vector<QuestState>()> ReadQuests;
     // The host's world objects' changes since the last call (references' state, scripts' events, containers' items), in order.
-    std::function<TiltedPhoques::Vector<ObjectChange>()> TakeObjectChanges;
+    std::function<std::vector<ObjectChange>()> TakeObjectChanges;
     // The state of a cell's references the host's game changed, or aChanged names (a guest's own changes); none
     // while that cell is not loaded here.
-    std::function<std::optional<TiltedPhoques::Vector<ObjectChange>>(const GameId& acCell, const TiltedPhoques::Vector<ChangedReference>& acChanged)>
+    std::function<std::optional<std::vector<ObjectChange>>(const GameId& acCell, const std::vector<ChangedReference>& acChanged)>
         ReadCellState;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;

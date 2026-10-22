@@ -40,7 +40,7 @@ static_assert(offsetof(RoomList, Size) == 0x10);
 constexpr size_t cPortalGraph = 0x228;        // ShadowSceneNode::portalGraph (CommonLibSSE)
 constexpr size_t cCameraEntry = 0x30190;      // the accumulating culler's BSPortalGraphEntry (TES::sub_13408)
 
-TP_THIS_FUNCTION(TSetPortalGraph, void, ShadowSceneNode, void* apPortalGraph);
+using TSetPortalGraph = void(ShadowSceneNode*, void* apPortalGraph);
 TSetPortalGraph* RealSetPortalGraph = nullptr;
 
 // The camera's portal graph entry, or null if it is not one (checked by its vtable).
@@ -62,10 +62,10 @@ void Release(NiRefObject* apObject) noexcept
         apObject->DecRef();
 }
 
-void TP_MAKE_THISCALL(HookSetPortalGraph, ShadowSceneNode, void* apPortalGraph)
+void HookSetPortalGraph(ShadowSceneNode* apThis, void* apPortalGraph)
 {
     const bool cChanged = *reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(apThis) + cPortalGraph) != apPortalGraph;
-    TiltedPhoques::ThisCall(RealSetPortalGraph, apThis, apPortalGraph);
+    RealSetPortalGraph(apThis, apPortalGraph);
     if (!cChanged)
         return;
 
@@ -80,9 +80,9 @@ void TP_MAKE_THISCALL(HookSetPortalGraph, ShadowSceneNode, void* apPortalGraph)
     spdlog::debug("Portal graph fix: graph changed, {} stale room(s) dropped", pEntry->Rooms.Size);
 
     // Its rooms (and their visibility) belong to the graph that is going away.
-    TP_THIS_FUNCTION(TClearVisibility, void, BSPortalGraphEntry);
+    using TClearVisibility = void(BSPortalGraphEntry*);
     POINTER_SKYRIMSE(TClearVisibility, s_clearVisibility, 76119);
-    TiltedPhoques::ThisCall(s_clearVisibility.Get(), pEntry);
+    (s_clearVisibility.Get())(pEntry);
 
     for (uint32_t i = 0; i < pEntry->Rooms.Size; ++i)
         Release(std::exchange(pEntry->Rooms.pData[i], nullptr));

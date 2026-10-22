@@ -59,9 +59,9 @@ struct Talking
     }
 
     // The texts of the last list sent to that game.
-    Vector<String> Texts(ConnectionId_t aTo)
+    std::vector<std::string> Texts(ConnectionId_t aTo)
     {
-        Vector<String> texts;
+        std::vector<std::string> texts;
         for (const auto& cOption : LastList(aTo).Options)
             texts.push_back(cOption.Text);
         return texts;
@@ -459,7 +459,7 @@ TEST_CASE("Dialogue: after a pick, the next list waits for the host's game", "[B
 
     talking.Options(kHost, 2, {Option(0xE, 0xE1, "Wait here.")});
     CHECK(talking.LastList(kPeer).Step == 2);
-    CHECK(talking.Texts(kPeer) == Vector<String>{"Wait here."});
+    CHECK(talking.Texts(kPeer) == std::vector<std::string>{"Wait here."});
 }
 
 TEST_CASE("Dialogue: Speech experience from a line goes to whoever picked it", "[Bridge][Dialogue]")

@@ -16,7 +16,7 @@ target(name)
     add_includedirs("Structs/Skyrim")
 
     add_deps("TiltedCore")
-    add_packages("hopscotch-map", "glm")
+    add_packages("glm")
 end
 
 build_encoding("SkyrimEncoding")

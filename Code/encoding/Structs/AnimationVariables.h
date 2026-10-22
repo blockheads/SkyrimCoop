@@ -2,13 +2,11 @@
 
 #include <cstdint>
 
-using TiltedPhoques::Vector;
-
 struct AnimationVariables
 {
-    Vector<bool> Booleans{};
-    Vector<uint32_t> Integers{};
-    Vector<float> Floats{};
+    std::vector<bool> Booleans{};
+    std::vector<uint32_t> Integers{};
+    std::vector<float> Floats{};
 
     bool operator==(const AnimationVariables& acRhs) const noexcept;
     bool operator!=(const AnimationVariables& acRhs) const noexcept;
@@ -18,6 +16,6 @@ struct AnimationVariables
 
     void GenerateDiff(const AnimationVariables& aPrevious, TiltedPhoques::Buffer::Writer& aWriter) const;
     void ApplyDiff(TiltedPhoques::Buffer::Reader& aReader);
-    void VectorBool_to_String(const Vector<bool>& bools, TiltedPhoques::String& chars) const;
-    void String_to_VectorBool(const TiltedPhoques::String& chars, Vector<bool>& bools);
+    void VectorBool_to_String(const std::vector<bool>& bools, std::string& chars) const;
+    void String_to_VectorBool(const std::string& chars, std::vector<bool>& bools);
 };

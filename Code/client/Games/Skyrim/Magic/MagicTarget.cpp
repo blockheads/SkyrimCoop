@@ -20,13 +20,12 @@
 #include <Papyrus/GuestScripts.h>
 #include <Services/HostService.h>
 
-TP_THIS_FUNCTION(TAddTarget, bool, MagicTarget, MagicTarget::AddTargetData& arData);
-TP_THIS_FUNCTION(TCheckAddEffectTargetData, bool, MagicTarget::AddTargetData, void* arArgs, float afResistance);
-TP_THIS_FUNCTION(TFindTargets, bool, MagicCaster, float afEffectivenessMult, int32_t* aruiTargetCount,
-                 TESBoundObject* apSource, char abLoadCast, char abAdjust);
-TP_THIS_FUNCTION(TAdjustForPerks, void, ActiveEffect, Actor* apCaster, MagicTarget* apTarget);
-TP_THIS_FUNCTION(THasPerk, bool, Actor, TESForm* apPerk, void* apUnk1, double* afReturnValue);
-TP_THIS_FUNCTION(TGetPerkRank, uint8_t, Actor, TESForm* apPerk);
+using TAddTarget = bool(MagicTarget*, MagicTarget::AddTargetData& arData);
+using TCheckAddEffectTargetData = bool(MagicTarget::AddTargetData*, void* arArgs, float afResistance);
+using TFindTargets = bool(MagicCaster*, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust);
+using TAdjustForPerks = void(ActiveEffect*, Actor* apCaster, MagicTarget* apTarget);
+using THasPerk = bool(Actor*, TESForm* apPerk, void* apUnk1, double* afReturnValue);
+using TGetPerkRank = uint8_t(Actor*, TESForm* apPerk);
 
 static TAddTarget* RealAddTarget = nullptr;
 static TCheckAddEffectTargetData* RealCheckAddEffectTargetData = nullptr;
@@ -41,9 +40,9 @@ static thread_local bool s_applyStaminaPerkBonus = false;
 
 void MagicTarget::DispelAllSpells(bool aNow) noexcept
 {
-    TP_THIS_FUNCTION(TDispelAllSpells, void, MagicTarget, bool aNow);
+    using TDispelAllSpells = void(MagicTarget*, bool aNow);
     POINTER_SKYRIMSE(TDispelAllSpells, dispelAllSpells, 34512);
-    TiltedPhoques::ThisCall(dispelAllSpells, this, aNow);
+    dispelAllSpells(this, aNow);
 }
 
 bool MagicTarget::AddTarget(AddTargetData& arData, bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
@@ -52,7 +51,7 @@ bool MagicTarget::AddTarget(AddTargetData& arData, bool aApplyHealPerkBonus, boo
     s_applyHealPerkBonus = aApplyHealPerkBonus;
     s_applyStaminaPerkBonus = aApplyStaminaPerkBonus;
 
-    bool result = TiltedPhoques::ThisCall(RealAddTarget, this, arData);
+    bool result = RealAddTarget(this, arData);
 
     s_autoSucceedEffectCheck = false;
     s_applyHealPerkBonus = false;
@@ -77,9 +76,9 @@ bool MagicTarget::AddTargetData::IsForbiddenEffect(Actor* apTarget)
 
 Actor* MagicTarget::GetTargetAsActor()
 {
-    TP_THIS_FUNCTION(TGetTargetAsActor, Actor*, MagicTarget);
+    using TGetTargetAsActor = Actor*(MagicTarget*);
     POINTER_SKYRIMSE(TGetTargetAsActor, getTargetAsActor, 34529);
-    return TiltedPhoques::ThisCall(getTargetAsActor, this);
+    return getTargetAsActor(this);
 }
 
 namespace
@@ -121,13 +120,13 @@ bool IsBlockedPvp(Actor* apCaster, const MagicItem* apSpell) noexcept
 }
 } // namespace
 
-bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& arData)
+bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
 {
     Actor* pTargetActor = apThis->GetTargetAsActor();
     spdlog::trace("HookAddTarget: target {:X}, caster {:X}, spell {:X}", pTargetActor ? pTargetActor->formID : 0,
                   arData.pCaster ? arData.pCaster->formID : 0, arData.pSpell ? arData.pSpell->formID : 0);
     if (!pTargetActor || arData.IsForbiddenEffect(pTargetActor))
-        return TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
+        return RealAddTarget(apThis, arData);
 
     ActorExtension* pTargetActorEx = pTargetActor->GetExtension();
 
@@ -138,7 +137,7 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
         pTargetActorEx->GraphDescriptorHash = AnimationGraphDescriptor_VampireLordBehavior::m_key;
 
     if (ScopedSpellCastOverride::IsOverriden())
-        return TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
+        return RealAddTarget(apThis, arData);
 
     AddTargetEvent addTargetEvent{};
     addTargetEvent.TargetID = pTargetActor->formID;
@@ -192,31 +191,31 @@ bool TP_MAKE_THISCALL(HookAddTarget, MagicTarget, MagicTarget::AddTargetData& ar
         return false;
     }
 
-    return TiltedPhoques::ThisCall(RealAddTarget, apThis, arData);
+    return RealAddTarget(apThis, arData);
 }
 
-bool TP_MAKE_THISCALL(HookCheckAddEffectTargetData, MagicTarget::AddTargetData, void* arArgs, float afResistance)
+bool HookCheckAddEffectTargetData(MagicTarget::AddTargetData* apThis, void* arArgs, float afResistance)
 {
     if (s_autoSucceedEffectCheck)
         return true;
 
-    return TiltedPhoques::ThisCall(RealCheckAddEffectTargetData, apThis, arArgs, afResistance);
+    return RealCheckAddEffectTargetData(apThis, arArgs, afResistance);
 }
 
-bool TP_MAKE_THISCALL(HookFindTargets, MagicCaster, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust)
+bool HookFindTargets(MagicCaster* apThis, float afEffectivenessMult, int32_t* aruiTargetCount, TESBoundObject* apSource, char abLoadCast, char abAdjust)
 {
-    return TiltedPhoques::ThisCall(RealFindTargets, apThis, afEffectivenessMult, aruiTargetCount, apSource, abLoadCast, abAdjust);
+    return RealFindTargets(apThis, afEffectivenessMult, aruiTargetCount, apSource, abLoadCast, abAdjust);
 }
 
-void TP_MAKE_THISCALL(HookAdjustForPerks, ActiveEffect, Actor* apCaster, MagicTarget* apTarget)
+void HookAdjustForPerks(ActiveEffect* apThis, Actor* apCaster, MagicTarget* apTarget)
 {
-    TiltedPhoques::ThisCall(RealAdjustForPerks, apThis, apCaster, apTarget);
+    RealAdjustForPerks(apThis, apCaster, apTarget);
 
     if (s_applyHealPerkBonus)
         apThis->fMagnitude *= 1.5f;
 }
 
-bool TP_MAKE_THISCALL(HookHasPerk, Actor, TESForm* apPerk, void* apUnk1, double* afReturnValue)
+bool HookHasPerk(Actor* apThis, TESForm* apPerk, void* apUnk1, double* afReturnValue)
 {
     if (apThis && apThis->GetExtension()->IsOtherPlayer())
     {
@@ -231,12 +230,12 @@ bool TP_MAKE_THISCALL(HookHasPerk, Actor, TESForm* apPerk, void* apUnk1, double*
         }
     }
 
-    return TiltedPhoques::ThisCall(RealHasPerk, apThis, apPerk, apUnk1, afReturnValue);
+    return RealHasPerk(apThis, apPerk, apUnk1, afReturnValue);
 }
 
-uint8_t TP_MAKE_THISCALL(HookGetPerkRank, Actor, TESForm* apPerk)
+uint8_t HookGetPerkRank(Actor* apThis, TESForm* apPerk)
 {
-    return TiltedPhoques::ThisCall(RealGetPerkRank, apThis, apPerk);
+    return RealGetPerkRank(apThis, apPerk);
 }
 
 static TiltedPhoques::Initializer s_magicTargetHooks([]() {

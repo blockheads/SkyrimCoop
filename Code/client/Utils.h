@@ -99,23 +99,5 @@ template <class T> T* GetBySessionId(const uint32_t acSessionId) noexcept
     return nullptr;
 }
 
-void ShowHudMessage(const TiltedPhoques::String& acMessage);
+void ShowHudMessage(const std::string& acMessage);
 } // namespace Utils
-
-namespace TiltedPhoques
-{
-template <class TFunc, class TThis, class... TArgs> constexpr decltype(auto) ThisCall(TFunc* aFunction, VersionDbPtr<TThis>& aThis, TArgs&&... args) noexcept
-{
-    return ThisCall(aFunction, aThis.Get(), args...);
-}
-
-template <class TFunc, class TThis, class... TArgs> constexpr decltype(auto) ThisCall(VersionDbPtr<TFunc>& aFunction, VersionDbPtr<TThis>& aThis, TArgs&&... args) noexcept
-{
-    return ThisCall(aFunction.Get(), aThis.Get(), args...);
-}
-
-template <class TFunc, class TThis, class... TArgs> constexpr decltype(auto) ThisCall(VersionDbPtr<TFunc>& aFunction, TThis* apThis, TArgs&&... args) noexcept
-{
-    return ThisCall(aFunction.Get(), apThis, args...);
-}
-} // namespace TiltedPhoques

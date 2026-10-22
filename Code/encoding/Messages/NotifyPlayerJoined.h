@@ -21,7 +21,7 @@ struct NotifyPlayerJoined final : NotifyMessage
     bool operator==(const NotifyPlayerJoined& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username && Level == acRhs.Level && IsHost == acRhs.IsHost; }
 
     uint32_t PlayerId{};
-    String Username{};
+    std::string Username{};
     uint16_t Level{};
     // The session's host (the authority, who alone may kick).
     bool IsHost{};

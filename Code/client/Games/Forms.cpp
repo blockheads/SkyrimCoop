@@ -18,12 +18,12 @@ TESForm* TESForm::GetById(const uint32_t aId)
     return getFormById.Get()(aId);
 }
 
-void TESNPC::Serialize(String* apSaveBuffer) const noexcept
+void TESNPC::Serialize(std::string* apSaveBuffer) const noexcept
 {
     FormState::Save(*this, GetChangeFlags(), *apSaveBuffer);
 }
 
-void TESNPC::Deserialize(const String& acBuffer, uint32_t aChangeFlags) noexcept
+void TESNPC::Deserialize(const std::string& acBuffer, uint32_t aChangeFlags) noexcept
 {
     FormState::Load(*this, aChangeFlags, acBuffer);
 }
@@ -79,14 +79,14 @@ bool ReadChangeEntry(uint32_t aFormId, TESForm::ChangeFlags& aEntry) noexcept
         void* unk330;
     };
 
-    TP_THIS_FUNCTION(InternalGetChangeFlags, bool, void, uint32_t formId, TESForm::ChangeFlags& changeFlags);
+    using InternalGetChangeFlags = bool(void*, uint32_t formId, TESForm::ChangeFlags& changeFlags);
 
     POINTER_SKYRIMSE(InternalGetChangeFlags, internalGetChangeFlags, 35503);
 
     POINTER_SKYRIMSE(Unk*, s_singleton, 403330);
 
     const auto pUnk = *(s_singleton.Get());
-    return TiltedPhoques::ThisCall(internalGetChangeFlags, pUnk->unk330, aFormId, aEntry);
+    return internalGetChangeFlags(pUnk->unk330, aFormId, aEntry);
 }
 } // namespace
 
@@ -102,7 +102,7 @@ bool TESForm::HasStoredChanges() const noexcept
     return ReadChangeEntry(formID, changeFlags) && changeFlags.storedBuffer != 0;
 }
 
-TESNPC* TESNPC::Create(const String& acBuffer, const uint32_t aChangeFlags) noexcept
+TESNPC* TESNPC::Create(const std::string& acBuffer, const uint32_t aChangeFlags) noexcept
 {
     auto pNpc = IFormFactory::Create<TESNPC>();
 

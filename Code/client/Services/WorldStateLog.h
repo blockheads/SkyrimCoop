@@ -47,7 +47,7 @@ inline std::string Describe(const ObjectChange& acChange)
 }
 
 // The first few, then how many more.
-template <class T, class F> std::string List(const TiltedPhoques::Vector<T>& acItems, F aDescribe, size_t aMax = 8)
+template <class T, class F> std::string List(const std::vector<T>& acItems, F aDescribe, size_t aMax = 8)
 {
     std::string text;
     for (size_t i = 0; i < acItems.size() && i < aMax; ++i)

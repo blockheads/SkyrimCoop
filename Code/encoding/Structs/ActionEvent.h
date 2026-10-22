@@ -3,8 +3,6 @@
 #include <cstdint>
 #include "AnimationVariables.h"
 
-using TiltedPhoques::String;
-
 struct ActionEvent
 {
     uint64_t Tick{0};
@@ -17,8 +15,8 @@ struct ActionEvent
     uint32_t State1{0};
     uint32_t State2{0};
     uint32_t Type{0};
-    String EventName{};
-    String TargetEventName{};
+    std::string EventName{};
+    std::string TargetEventName{};
     AnimationVariables Variables{};
 
     ActionEvent() = default;

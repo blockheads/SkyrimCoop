@@ -35,7 +35,7 @@ struct NotifyGlobals final : NotifyMessage
 
     bool operator==(const NotifyGlobals& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Values == acRhs.Values; }
 
-    TiltedPhoques::Vector<GlobalValue> Values;
+    std::vector<GlobalValue> Values;
 };
 
 // A quest's objective with a state other than hidden (0 hidden, 1 displayed, 2/3 completed, 4/5 failed).
@@ -83,10 +83,10 @@ struct QuestState
     GameId Id{};
     uint16_t Flags{};
     uint16_t CurrentStage{};
-    TiltedPhoques::Vector<uint16_t> DoneStages;
-    TiltedPhoques::Vector<QuestObjective> Objectives;
-    TiltedPhoques::Vector<QuestAliasFill> Aliases;
-    TiltedPhoques::Vector<QuestLocationFill> Locations;
+    std::vector<uint16_t> DoneStages;
+    std::vector<QuestObjective> Objectives;
+    std::vector<QuestAliasFill> Aliases;
+    std::vector<QuestLocationFill> Locations;
 
     bool operator==(const QuestState& acRhs) const noexcept
     {
@@ -109,7 +109,7 @@ struct NotifyQuests final : NotifyMessage
         return GetOpcode() == acRhs.GetOpcode() && Quests == acRhs.Quests && Join == acRhs.Join;
     }
 
-    TiltedPhoques::Vector<QuestState> Quests;
+    std::vector<QuestState> Quests;
     bool Join{};
 };
 
@@ -151,17 +151,17 @@ struct ObjectChange
         float Rotation[3]{};
     };
 
-    static TiltedPhoques::String PackPlacement(const Placement& acPlacement) noexcept
+    static std::string PackPlacement(const Placement& acPlacement) noexcept
     {
         const uint32_t cIds[4] = {acPlacement.Cell.ModId, acPlacement.Cell.BaseId, acPlacement.WorldSpace.ModId, acPlacement.WorldSpace.BaseId};
-        TiltedPhoques::String data(sizeof(cIds) + 6 * sizeof(float), '\0');
+        std::string data(sizeof(cIds) + 6 * sizeof(float), '\0');
         std::memcpy(data.data(), cIds, sizeof(cIds));
         std::memcpy(data.data() + sizeof(cIds), acPlacement.Position, sizeof(acPlacement.Position));
         std::memcpy(data.data() + sizeof(cIds) + sizeof(acPlacement.Position), acPlacement.Rotation, sizeof(acPlacement.Rotation));
         return data;
     }
 
-    static bool UnpackPlacement(const TiltedPhoques::String& acData, Placement& aPlacement) noexcept
+    static bool UnpackPlacement(const std::string& acData, Placement& aPlacement) noexcept
     {
         uint32_t ids[4];
         if (acData.size() != sizeof(ids) + 6 * sizeof(float))
@@ -184,9 +184,9 @@ struct ObjectChange
     };
 
     // kContents' Data: mod id, base id and count, 32 bits each.
-    static TiltedPhoques::String PackContents(const TiltedPhoques::Vector<ItemCount>& acItems) noexcept
+    static std::string PackContents(const std::vector<ItemCount>& acItems) noexcept
     {
-        TiltedPhoques::String data(acItems.size() * 3 * sizeof(uint32_t), '\0');
+        std::string data(acItems.size() * 3 * sizeof(uint32_t), '\0');
         auto* pOut = data.data();
         for (const auto& cItem : acItems)
         {
@@ -197,9 +197,9 @@ struct ObjectChange
         return data;
     }
 
-    static TiltedPhoques::Vector<ItemCount> UnpackContents(const TiltedPhoques::String& acData) noexcept
+    static std::vector<ItemCount> UnpackContents(const std::string& acData) noexcept
     {
-        TiltedPhoques::Vector<ItemCount> items(acData.size() / (3 * sizeof(uint32_t)));
+        std::vector<ItemCount> items(acData.size() / (3 * sizeof(uint32_t)));
         for (size_t i = 0; i < items.size(); ++i)
         {
             uint32_t values[3];
@@ -224,11 +224,11 @@ struct ObjectChange
     GameId Object{};
     GameId Activator{};              // kActivate: the reference that activated it
     uint8_t OpenState{};             // kActivate: the door's open state before
-    TiltedPhoques::String Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
-    TiltedPhoques::String Event;     // kAnimation
+    std::string Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
+    std::string Event;     // kAnimation
     GameId Item{};                   // kItems: the base item; kOwner: the owner; kBase: the base
     uint32_t Value{};                // a state's; kItems: the count
-    TiltedPhoques::String Data;      // kSaveData, kMove, kContents
+    std::string Data;      // kSaveData, kMove, kContents
 
     bool operator==(const ObjectChange& acRhs) const noexcept
     {
@@ -254,5 +254,5 @@ struct NotifyObjectChanges final : NotifyMessage
 
     // Set: that cell's state, for a guest that has it loaded.
     GameId Cell{};
-    TiltedPhoques::Vector<ObjectChange> Changes;
+    std::vector<ObjectChange> Changes;
 };

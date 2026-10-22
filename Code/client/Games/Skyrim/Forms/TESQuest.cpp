@@ -10,11 +10,11 @@
 
 TESObjectREFR* TESQuest::GetAliasedRef(uint32_t aAliasID) noexcept
 {
-    TP_THIS_FUNCTION(TGetAliasedRef, BSPointerHandle<TESObjectREFR>*, TESQuest, BSPointerHandle<TESObjectREFR>*, uint32_t);
+    using TGetAliasedRef = BSPointerHandle<TESObjectREFR>*(TESQuest*, BSPointerHandle<TESObjectREFR>*, uint32_t);
     POINTER_SKYRIMSE(TGetAliasedRef, getAliasedRef, 25066);
 
     BSPointerHandle<TESObjectREFR> result{};
-    TiltedPhoques::ThisCall(getAliasedRef, this, &result, aAliasID);
+    getAliasedRef(this, &result, aAliasID);
 
     return TESObjectREFR::GetByHandle(result.handle.iBits);
 }
@@ -36,30 +36,30 @@ TESQuest::State TESQuest::getState()
 
 void TESQuest::SetCompleted(bool aCompleted)
 {
-    TP_THIS_FUNCTION(TSetCompleted, void, TESQuest, bool);
+    using TSetCompleted = void(TESQuest*, bool);
     POINTER_SKYRIMSE(TSetCompleted, SetCompleted, 24991);
     SetCompleted(this, aCompleted);
 }
 
 BGSBaseAlias* TESQuest::GetRefAlias(uint32_t aAliasId) noexcept
 {
-    TP_THIS_FUNCTION(TGetRefAlias, BGSBaseAlias*, TESQuest, uint32_t);
+    using TGetRefAlias = BGSBaseAlias*(TESQuest*, uint32_t);
     POINTER_SKYRIMSE(TGetRefAlias, getRefAlias, 25042);
-    return TiltedPhoques::ThisCall(getRefAlias, this, aAliasId);
+    return getRefAlias(this, aAliasId);
 }
 
 void TESQuest::ForceRefIntoAlias(uint32_t aAliasId, TESObjectREFR* apRef) noexcept
 {
-    TP_THIS_FUNCTION(TForceRefIntoAlias, void, TESQuest, uint32_t, TESObjectREFR*);
+    using TForceRefIntoAlias = void(TESQuest*, uint32_t, TESObjectREFR*);
     POINTER_SKYRIMSE(TForceRefIntoAlias, forceRefIntoAlias, 25052);
-    TiltedPhoques::ThisCall(forceRefIntoAlias, this, aAliasId, apRef);
+    forceRefIntoAlias(this, aAliasId, apRef);
 }
 
 void TESQuest::ClearRefAlias(BGSBaseAlias* apAlias) noexcept
 {
-    TP_THIS_FUNCTION(TClearRefAlias, void, TESQuest, BGSBaseAlias*);
+    using TClearRefAlias = void(TESQuest*, BGSBaseAlias*);
     POINTER_SKYRIMSE(TClearRefAlias, clearRefAlias, 25051);
-    TiltedPhoques::ThisCall(clearRefAlias, this, apAlias);
+    clearRefAlias(this, apAlias);
 }
 
 BGSBaseAlias* TESQuest::GetAlias(uint32_t aAliasId) noexcept
@@ -72,23 +72,23 @@ BGSBaseAlias* TESQuest::GetAlias(uint32_t aAliasId) noexcept
 
 BGSLocation* TESQuest::GetAliasedLocation(uint32_t aAliasId) noexcept
 {
-    TP_THIS_FUNCTION(TGetAliasedLocation, BGSLocation*, TESQuest, uint32_t);
+    using TGetAliasedLocation = BGSLocation*(TESQuest*, uint32_t);
     POINTER_SKYRIMSE(TGetAliasedLocation, getAliasedLocation, 25067);
-    return TiltedPhoques::ThisCall(getAliasedLocation, this, aAliasId);
+    return getAliasedLocation(this, aAliasId);
 }
 
 void TESQuest::ForceLocationIntoAlias(uint32_t aAliasId, BGSLocation* apLocation) noexcept
 {
-    TP_THIS_FUNCTION(TForceLocationIntoAlias, void, TESQuest, uint32_t, BGSLocation*);
+    using TForceLocationIntoAlias = void(TESQuest*, uint32_t, BGSLocation*);
     POINTER_SKYRIMSE(TForceLocationIntoAlias, forceLocationIntoAlias, 25054);
-    TiltedPhoques::ThisCall(forceLocationIntoAlias, this, aAliasId, apLocation);
+    forceLocationIntoAlias(this, aAliasId, apLocation);
 }
 
 void TESQuest::ClearLocationAlias(BGSBaseAlias* apAlias) noexcept
 {
-    TP_THIS_FUNCTION(TClearLocationAlias, void, TESQuest, BGSBaseAlias*);
+    using TClearLocationAlias = void(TESQuest*, BGSBaseAlias*);
     POINTER_SKYRIMSE(TClearLocationAlias, clearLocationAlias, 25053);
-    TiltedPhoques::ThisCall(clearLocationAlias, this, apAlias);
+    clearLocationAlias(this, apAlias);
 }
 
 TESQuest::Stage* TESQuest::GetStage(uint16_t aIndex) noexcept
@@ -109,21 +109,21 @@ TESQuest::Objective* TESQuest::GetObjective(uint16_t aIndex) noexcept
 
 void TESQuest::SetFailed(bool aFailed) noexcept
 {
-    TP_THIS_FUNCTION(TSetFailed, void, TESQuest, bool);
+    using TSetFailed = void(TESQuest*, bool);
     POINTER_SKYRIMSE(TSetFailed, setFailed, 24988);
-    TiltedPhoques::ThisCall(setFailed, this, aFailed);
+    setFailed(this, aFailed);
 }
 
 void TESQuest::Objective::SetState(uint8_t aState) noexcept
 {
-    TP_THIS_FUNCTION(TSetState, void, Objective, uint32_t);
+    using TSetState = void(Objective*, uint32_t);
     POINTER_SKYRIMSE(TSetState, setState, 23933);
-    TiltedPhoques::ThisCall(setState, this, aState);
+    setState(this, aState);
 }
 
 void TESQuest::CompleteAllObjectives()
 {
-    TP_THIS_FUNCTION(TCompleteAllObjectives, void, TESQuest);
+    using TCompleteAllObjectives = void(TESQuest*);
     POINTER_SKYRIMSE(TCompleteAllObjectives, CompleteAll, 23231);
     CompleteAll(this);
 }
@@ -167,14 +167,14 @@ bool TESQuest::Kill()
 
 bool TESQuest::EnsureQuestStarted(bool& success, bool force)
 {
-    TP_THIS_FUNCTION(TSetRunning, bool, TESQuest, bool*, bool);
+    using TSetRunning = bool(TESQuest*, bool*, bool);
     POINTER_SKYRIMSE(TSetRunning, SetRunning, 25003);
     return SetRunning(this, &success, force);
 }
 
 bool TESQuest::SetStage(uint16_t newStage)
 {
-    TP_THIS_FUNCTION(TSetStage, bool, TESQuest, uint16_t);
+    using TSetStage = bool(TESQuest*, uint16_t);
     POINTER_SKYRIMSE(TSetStage, SetStage, 25004);
     return SetStage(this, newStage);
 }
@@ -206,13 +206,13 @@ struct StageItemCallback
 
 // The Papyrus VM's TESQuestStageEvent sink (53987): runs the item's fragment, then its callback; an item
 // without a fragment gets the callback at once.
-TP_THIS_FUNCTION(TQuestStageEventSink, uint32_t, void, const TESQuestStageEvent*, void*);
+using TQuestStageEventSink = uint32_t(void*, const TESQuestStageEvent*, void*);
 TQuestStageEventSink* RealQuestStageEventSink = nullptr;
 
 // Set while SetStageWithoutFragments runs: the stage's events are sent on this thread (25260).
 thread_local bool s_skipFragments = false;
 
-uint32_t TP_MAKE_THISCALL(HookQuestStageEventSink, void, const TESQuestStageEvent* apEvent, void* apSource)
+uint32_t HookQuestStageEventSink(void* apThis, const TESQuestStageEvent* apEvent, void* apSource)
 {
     if (s_skipFragments && apEvent)
     {
@@ -220,7 +220,7 @@ uint32_t TP_MAKE_THISCALL(HookQuestStageEventSink, void, const TESQuestStageEven
             static_cast<StageItemCallback*>(apEvent->callback)->Run();
         return 0; // BSEventNotifyControl::kContinue
     }
-    return TiltedPhoques::ThisCall(RealQuestStageEventSink, apThis, apEvent, apSource);
+    return RealQuestStageEventSink(apThis, apEvent, apSource);
 }
 } // namespace
 

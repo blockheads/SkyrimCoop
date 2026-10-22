@@ -29,7 +29,7 @@ void SessionService::OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept
 void SessionService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept
 {
     if (const auto it = m_players.find(acMessage.PlayerId); it != m_players.end())
-        it.value().Level = acMessage.NewLevel;
+        it->second.Level = acMessage.NewLevel;
 }
 
 void SessionService::OnDisconnected(const DisconnectedEvent&) noexcept

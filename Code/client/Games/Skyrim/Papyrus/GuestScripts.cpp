@@ -31,40 +31,34 @@ namespace
 // --- What we hook ---
 
 // Rule 1: a script compares two values (Internal::CodeTasklet, 105220).
-TP_THIS_FUNCTION(TCompare, int64_t, BSScript::CodeTasklet, BSScript::Variable*, BSScript::Variable*);
+using TCompare = int64_t(BSScript::CodeTasklet*, BSScript::Variable*, BSScript::Variable*);
 TCompare* RealCompare = nullptr;
-int64_t TP_MAKE_THISCALL(HookCompare, BSScript::CodeTasklet, BSScript::Variable* apFirst, BSScript::Variable* apSecond);
+int64_t HookCompare(BSScript::CodeTasklet* apThis, BSScript::Variable* apFirst, BSScript::Variable* apSecond);
 
 // Rule 2: Game.GetPlayer() returns (NativeFunction0<StaticFunctionTag, Actor*>::MarshallAndDispatch, 55618).
-TP_THIS_FUNCTION(TGetPlayer, bool, BSScript::IFunction, BSScript::Variable*, BSScript::IVirtualMachine*, uint32_t,
-                 BSScript::Variable*, BSScript::StackFrame*);
+using TGetPlayer = bool(BSScript::IFunction*, BSScript::Variable*, BSScript::IVirtualMachine*, uint32_t, BSScript::Variable*, BSScript::StackFrame*);
 TGetPlayer* RealGetPlayer = nullptr;
-bool TP_MAKE_THISCALL(HookGetPlayer, BSScript::IFunction, BSScript::Variable* apBase, BSScript::IVirtualMachine* apVm,
-                      uint32_t aStackId, BSScript::Variable* apResult, BSScript::StackFrame* apFrame);
+bool HookGetPlayer(BSScript::IFunction* apThis, BSScript::Variable* apBase, BSScript::IVirtualMachine* apVm, uint32_t aStackId, BSScript::Variable* apResult, BSScript::StackFrame* apFrame);
 
 // Tagging: an event or call is queued on a script object (Internal::RawFuncCallQuery's constructor, 104943).
-TP_THIS_FUNCTION(TCallQueued, void*, void, int32_t, void*, const BSFixedString*, const BSScript::Variable*,
-                 const BSScript::Arguments*);
+using TCallQueued = void*(void*, int32_t, void*, const BSFixedString*, const BSScript::Variable*, const BSScript::Arguments*);
 TCallQueued* RealCallQueued = nullptr;
-void* TP_MAKE_THISCALL(HookCallQueued, void, int32_t aCallType, void* apObjectType, const BSFixedString* apEvent,
-                       const BSScript::Variable* apSelf, const BSScript::Arguments* apArguments);
+void* HookCallQueued(void* apThis, int32_t aCallType, void* apObjectType, const BSFixedString* apEvent, const BSScript::Variable* apSelf, const BSScript::Arguments* apArguments);
 
 // Tagging: the call gets the stack that will run it (VirtualMachine, 104848).
-TP_THIS_FUNCTION(TStackCreated, bool, void, BSScript::Stack*, void**);
+using TStackCreated = bool(void*, BSScript::Stack*, void**);
 TStackCreated* RealStackCreated = nullptr;
-bool TP_MAKE_THISCALL(HookStackCreated, void, BSScript::Stack* apStack, void** appCall);
+bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall);
 
 // Tagging: a script calls a native (NativeFunctionBase::Call, 104651).
-TP_THIS_FUNCTION(TNativeCalled, BSScript::CallResult, BSScript::IFunction, BSScript::Stack**, void*,
-                 BSScript::IVirtualMachine*, bool);
+using TNativeCalled = BSScript::CallResult(BSScript::IFunction*, BSScript::Stack**, void*, BSScript::IVirtualMachine*, bool);
 TNativeCalled* RealNativeCalled = nullptr;
-BSScript::CallResult TP_MAKE_THISCALL(HookNativeCalled, BSScript::IFunction, BSScript::Stack** appStack, void* apLogger,
-                                      BSScript::IVirtualMachine* apVm, bool aArg4);
+BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4);
 
 // Tagging: a script finished (Stack::~Stack, 104480).
-TP_THIS_FUNCTION(TStackEnded, void*, BSScript::Stack);
+using TStackEnded = void*(BSScript::Stack*);
 TStackEnded* RealStackEnded = nullptr;
-void* TP_MAKE_THISCALL(HookStackEnded, BSScript::Stack);
+void* HookStackEnded(BSScript::Stack* apThis);
 
 // A delayed native's work, queued for later (SkyrimScript::DelayFunctor, CommonLibSSE-NG).
 struct DelayFunctor
@@ -77,14 +71,14 @@ static_assert(offsetof(DelayFunctor, stackId) == 0x0C);
 
 // Rule 2 for Spell.Cast (55747): it queues a CastFunctor (SkyrimVM, 53954), whose call (55744,
 // `Variable operator()()`, its vtable slot 1) casts later, maybe after the script ended.
-TP_THIS_FUNCTION(TFunctorQueued, bool, void, DelayFunctor**);
+using TFunctorQueued = bool(void*, DelayFunctor**);
 TFunctorQueued* RealFunctorQueued = nullptr;
-bool TP_MAKE_THISCALL(HookFunctorQueued, void, DelayFunctor** appFunctor);
+bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor);
 
-TP_THIS_FUNCTION(TCastRun, BSScript::Variable*, DelayFunctor, BSScript::Variable*);
+using TCastRun = BSScript::Variable*(DelayFunctor*, BSScript::Variable*);
 TCastRun* RealCastRun = nullptr;
 void* s_castRun = nullptr; // the original, as CastFunctor's vtable names it
-BSScript::Variable* TP_MAKE_THISCALL(HookCastRun, DelayFunctor, BSScript::Variable* apResult);
+BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResult);
 
 TiltedPhoques::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
@@ -331,7 +325,7 @@ uint32_t GuestOf(const BSScript::Stack* apStack) noexcept
 
 // --- The rules ---
 
-int64_t TP_MAKE_THISCALL(HookCompare, BSScript::CodeTasklet, BSScript::Variable* apFirst, BSScript::Variable* apSecond)
+int64_t HookCompare(BSScript::CodeTasklet* apThis, BSScript::Variable* apFirst, BSScript::Variable* apSecond)
 {
     if (IsHosting())
     {
@@ -340,14 +334,13 @@ int64_t TP_MAKE_THISCALL(HookCompare, BSScript::CodeTasklet, BSScript::Variable*
         if ((cFirst == cPlayerFormId && GuestCharacter(cSecond)) || (cSecond == cPlayerFormId && GuestCharacter(cFirst)))
             return 0; // equal
     }
-    return TiltedPhoques::ThisCall(RealCompare, apThis, apFirst, apSecond);
+    return RealCompare(apThis, apFirst, apSecond);
 }
 
 // 55618 serves every no-argument native returning an Actor: only GetPlayer is changed.
-bool TP_MAKE_THISCALL(HookGetPlayer, BSScript::IFunction, BSScript::Variable* apBase, BSScript::IVirtualMachine* apVm,
-                      uint32_t aStackId, BSScript::Variable* apResult, BSScript::StackFrame* apFrame)
+bool HookGetPlayer(BSScript::IFunction* apThis, BSScript::Variable* apBase, BSScript::IVirtualMachine* apVm, uint32_t aStackId, BSScript::Variable* apResult, BSScript::StackFrame* apFrame)
 {
-    const bool cResult = TiltedPhoques::ThisCall(RealGetPlayer, apThis, apBase, apVm, aStackId, apResult, apFrame);
+    const bool cResult = RealGetPlayer(apThis, apBase, apVm, aStackId, apResult, apFrame);
     const char* cpName = apThis->GetName().AsAscii();
     if (cResult && apFrame && apResult && cpName && SameName(cpName, "GetPlayer") && IsHosting())
         if (Actor* pGuest = GuestCharacter(GuestOf(apFrame->pParent)))
@@ -358,10 +351,9 @@ bool TP_MAKE_THISCALL(HookGetPlayer, BSScript::IFunction, BSScript::Variable* ap
 // --- Tagging ---
 
 // The call runs for the guest whose native queued it, whose character is an argument, or whose timer it answers.
-void* TP_MAKE_THISCALL(HookCallQueued, void, int32_t aCallType, void* apObjectType, const BSFixedString* apEvent,
-                       const BSScript::Variable* apSelf, const BSScript::Arguments* apArguments)
+void* HookCallQueued(void* apThis, int32_t aCallType, void* apObjectType, const BSFixedString* apEvent, const BSScript::Variable* apSelf, const BSScript::Arguments* apArguments)
 {
-    void* pResult = TiltedPhoques::ThisCall(RealCallQueued, apThis, aCallType, apObjectType, apEvent, apSelf, apArguments);
+    void* pResult = RealCallQueued(apThis, aCallType, apObjectType, apEvent, apSelf, apArguments);
     uint32_t guest = t_nativeGuest ? t_nativeGuest : GuestArgument(apArguments);
     auto* pSelf = apSelf ? apSelf->GetObject() : nullptr;
     if (!guest && pSelf && apEvent && apEvent->AsAscii() && s_tags.HasTimers())
@@ -372,16 +364,15 @@ void* TP_MAKE_THISCALL(HookCallQueued, void, int32_t aCallType, void* apObjectTy
     return pResult;
 }
 
-bool TP_MAKE_THISCALL(HookStackCreated, void, BSScript::Stack* apStack, void** appCall)
+bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall)
 {
     if (apStack && appCall && *appCall && s_tags.Any())
         s_tags.MoveToStack(*appCall, apStack->stackId);
-    return TiltedPhoques::ThisCall(RealStackCreated, apThis, apStack, appCall);
+    return RealStackCreated(apThis, apStack, appCall);
 }
 
 // While a native runs for a guest, what it queues runs for them too; a timer it sets fires for them.
-BSScript::CallResult TP_MAKE_THISCALL(HookNativeCalled, BSScript::IFunction, BSScript::Stack** appStack, void* apLogger,
-                                      BSScript::IVirtualMachine* apVm, bool aArg4)
+BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
 {
     uint32_t guest = 0;
     if (appStack && *appStack && s_tags.Any())
@@ -397,38 +388,38 @@ BSScript::CallResult TP_MAKE_THISCALL(HookNativeCalled, BSScript::IFunction, BSS
     }
     const uint32_t cOuter = t_nativeGuest;
     t_nativeGuest = guest;
-    const auto cResult = TiltedPhoques::ThisCall(RealNativeCalled, apThis, appStack, apLogger, apVm, aArg4);
+    const auto cResult = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
     t_nativeGuest = cOuter;
     return cResult;
 }
 
-bool TP_MAKE_THISCALL(HookFunctorQueued, void, DelayFunctor** appFunctor)
+bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
 {
     DelayFunctor* pFunctor = appFunctor ? *appFunctor : nullptr;
     const bool cTagged = t_nativeGuest && pFunctor && static_cast<void**>(pFunctor->pVtable)[1] == s_castRun;
     if (cTagged)
         s_tags.TagFunctor(pFunctor, t_nativeGuest); // before: the game thread may run it at once
-    const bool cQueued = TiltedPhoques::ThisCall(RealFunctorQueued, apThis, appFunctor);
+    const bool cQueued = RealFunctorQueued(apThis, appFunctor);
     if (cTagged && !cQueued)
         s_tags.TakeFunctor(pFunctor);
     return cQueued;
 }
 
 // The cast runs for the guest whose script called Spell.Cast: its effect on that guest is the host's world's.
-BSScript::Variable* TP_MAKE_THISCALL(HookCastRun, DelayFunctor, BSScript::Variable* apResult)
+BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResult)
 {
     const uint32_t cOuter = t_nativeGuest;
     t_nativeGuest = s_tags.Any() ? s_tags.TakeFunctor(apThis) : 0;
-    BSScript::Variable* pResult = TiltedPhoques::ThisCall(RealCastRun, apThis, apResult);
+    BSScript::Variable* pResult = RealCastRun(apThis, apResult);
     t_nativeGuest = cOuter;
     return pResult;
 }
 
-void* TP_MAKE_THISCALL(HookStackEnded, BSScript::Stack)
+void* HookStackEnded(BSScript::Stack* apThis)
 {
     if (s_tags.Any())
         s_tags.EndStack(apThis->stackId);
-    return TiltedPhoques::ThisCall(RealStackEnded, apThis);
+    return RealStackEnded(apThis);
 }
 } // namespace
 

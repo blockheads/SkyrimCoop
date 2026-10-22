@@ -44,14 +44,13 @@
 
 extern const AnimationGraphDescriptor* BehaviorVarPatch(BSAnimationGraphManager* pManager, Actor* pActor);
 
-TP_THIS_FUNCTION(TActivate, bool, TESObjectREFR, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing);
-TP_THIS_FUNCTION(TAddInventoryItem, void, TESObjectREFR, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
-TP_THIS_FUNCTION(
-    TRemoveInventoryItem, BSPointerHandle<TESObjectREFR>*, TESObjectREFR, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate);
-TP_THIS_FUNCTION(TPlayAnimationAndWait, bool, void, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName);
-TP_THIS_FUNCTION(TPlayAnimation, bool, void, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName);
-TP_THIS_FUNCTION(TRotate, void, TESObjectREFR, float aAngle);
-TP_THIS_FUNCTION(TLockChange, void, TESObjectREFR);
+using TActivate = bool(TESObjectREFR*, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing);
+using TAddInventoryItem = void(TESObjectREFR*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
+using TRemoveInventoryItem = BSPointerHandle<TESObjectREFR>*(TESObjectREFR*, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate);
+using TPlayAnimationAndWait = bool(void*, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName);
+using TPlayAnimation = bool(void*, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName);
+using TRotate = void(TESObjectREFR*, float aAngle);
+using TLockChange = void(TESObjectREFR*);
 
 static TActivate* RealActivate = nullptr;
 static TAddInventoryItem* RealAddInventoryItem = nullptr;
@@ -126,11 +125,11 @@ TESObjectREFR* TESObjectREFR::GetByHandle(uint32_t aHandle) noexcept
 
 BSPointerHandle<TESObjectREFR> TESObjectREFR::GetHandle() const noexcept
 {
-    TP_THIS_FUNCTION(TGetHandle, BSPointerHandle<TESObjectREFR>, const TESObjectREFR, BSPointerHandle<TESObjectREFR>* apResult);
+    using TGetHandle = BSPointerHandle<TESObjectREFR>(const TESObjectREFR*, BSPointerHandle<TESObjectREFR>* apResult);
     POINTER_SKYRIMSE(TGetHandle, s_getHandle, 19846);
 
     BSPointerHandle<TESObjectREFR> result{};
-    TiltedPhoques::ThisCall(s_getHandle, this, &result);
+    s_getHandle(this, &result);
 
     return result;
 }
@@ -152,7 +151,7 @@ TESObjectREFR* TESObjectREFR::LoadFromPlugin(uint32_t aRefId, uint32_t aCellId, 
         uint32_t Grid;
     };
     static_assert(sizeof(Entry) == 12);
-    TP_THIS_FUNCTION(TPromoteList, void, void, GameArray<Entry>*, TESForm*, GameArray<uint32_t>*);
+    using TPromoteList = void(void*, GameArray<Entry>*, TESForm*, GameArray<uint32_t>*);
     POINTER_SKYRIMSE(TPromoteList, promoteList, 15328);
     POINTER_SKYRIMSE(void*, s_persistence, 400326);
 
@@ -166,7 +165,7 @@ TESObjectREFR* TESObjectREFR::LoadFromPlugin(uint32_t aRefId, uint32_t aCellId, 
     entries.data = &entry;
     entries.capacity = entries.length = 1;
     GameArray<uint32_t> handles; // grown by the engine
-    TiltedPhoques::ThisCall(promoteList, pManager, &entries, apOwner, &handles);
+    promoteList(pManager, &entries, apOwner, &handles);
     if (handles.data)
         Memory::Free(handles.data);
     return Cast<TESObjectREFR>(TESForm::GetById(aRefId));
@@ -174,9 +173,9 @@ TESObjectREFR* TESObjectREFR::LoadFromPlugin(uint32_t aRefId, uint32_t aCellId, 
 
 void TESObjectREFR::SetRotation(float aX, float aY, float aZ) noexcept
 {
-    TiltedPhoques::ThisCall(RealRotateX, this, aX);
-    TiltedPhoques::ThisCall(RealRotateY, this, aY);
-    TiltedPhoques::ThisCall(RealRotateZ, this, aZ);
+    RealRotateX(this, aX);
+    RealRotateY(this, aY);
+    RealRotateZ(this, aZ);
 }
 
 using TiltedPhoques::Serialization;
@@ -192,23 +191,23 @@ template <class T> static bool WithGraphs(const TESObjectREFR& acRef, T&& aCall)
     return cDone;
 }
 
-bool TESObjectREFR::SaveGraphs(TiltedPhoques::String& aGraphs) const noexcept
+bool TESObjectREFR::SaveGraphs(std::string& aGraphs) const noexcept
 {
     aGraphs.clear();
     return WithGraphs(*this, [&aGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Save(apManager, aGraphs); });
 }
 
-bool TESObjectREFR::LoadGraphs(const TiltedPhoques::String& acGraphs) const noexcept
+bool TESObjectREFR::LoadGraphs(const std::string& acGraphs) const noexcept
 {
     return WithGraphs(*this, [&acGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Load(apManager, acGraphs); });
 }
 
 // The actor's state flags (weapon, sitting, life state) go first: the graph and they must agree.
-bool TESObjectREFR::SaveAnimationGraphState(TiltedPhoques::String& aState) const noexcept
+bool TESObjectREFR::SaveAnimationGraphState(std::string& aState) const noexcept
 {
     aState.clear();
     const auto* pActor = Cast<Actor>(this);
-    TiltedPhoques::String graphs;
+    std::string graphs;
     if (!pActor || !SaveGraphs(graphs))
         return false;
     const uint32_t cFlags[2]{pActor->actorState.flags1, pActor->actorState.flags2};
@@ -217,7 +216,7 @@ bool TESObjectREFR::SaveAnimationGraphState(TiltedPhoques::String& aState) const
     return true;
 }
 
-bool TESObjectREFR::LoadAnimationGraphState(const TiltedPhoques::String& acState) const noexcept
+bool TESObjectREFR::LoadAnimationGraphState(const std::string& acState) const noexcept
 {
     auto* pActor = Cast<Actor>(const_cast<TESObjectREFR*>(this));
     uint32_t flags[2]{};
@@ -439,25 +438,26 @@ void TESObjectREFR::MoveTo(TESObjectCELL* apCell, const NiPoint3& acPosition) co
 {
     ScopedReferencesOverride recursionGuard;
 
-    TP_THIS_FUNCTION(TInternalMoveTo, bool, const TESObjectREFR, uint32_t*&, TESObjectCELL*, TESWorldSpace*, const NiPoint3&, const NiPoint3&);
+    using TInternalMoveTo = bool(const TESObjectREFR*, uint32_t*&, TESObjectCELL*, TESWorldSpace*, const NiPoint3&, const NiPoint3&);
 
     POINTER_SKYRIMSE(TInternalMoveTo, s_internalMoveTo, 56626);
 
-    TiltedPhoques::ThisCall(s_internalMoveTo, this, GetNullHandle(), apCell, apCell->worldspace, acPosition, rotation);
+    uint32_t* pHandle = GetNullHandle();
+    s_internalMoveTo(this, pHandle, apCell, apCell->worldspace, acPosition, rotation);
 }
 
 void TESObjectREFR::SetPositionOnAxis(char aAxis, float aValue) noexcept
 {
-    TP_THIS_FUNCTION(TSetOnAxis, void, TESObjectREFR, char, float);
+    using TSetOnAxis = void(TESObjectREFR*, char, float);
     POINTER_SKYRIMSE(TSetOnAxis, s_setPositionOnAxis, 22053);
-    TiltedPhoques::ThisCall(s_setPositionOnAxis, this, aAxis, aValue);
+    s_setPositionOnAxis(this, aAxis, aValue);
 }
 
 void TESObjectREFR::SetAngleOnAxis(char aAxis, float aDegrees) noexcept
 {
-    TP_THIS_FUNCTION(TSetOnAxis, void, TESObjectREFR, char, float);
+    using TSetOnAxis = void(TESObjectREFR*, char, float);
     POINTER_SKYRIMSE(TSetOnAxis, s_setAngleOnAxis, 22054);
-    TiltedPhoques::ThisCall(s_setAngleOnAxis, this, aAxis, aDegrees);
+    s_setAngleOnAxis(this, aAxis, aDegrees);
     // It sets the 3D's local rotation only: its world transforms follow, as MoveTo does (NiAVObject::Update, 70251).
     if (NiAVObject* p3D = GetNiNode())
     {
@@ -470,16 +470,16 @@ void TESObjectREFR::SetAngleOnAxis(char aAxis, float aDegrees) noexcept
 
 void TESObjectREFR::SetScale(float aScale) noexcept
 {
-    TP_THIS_FUNCTION(TSetScale, void, TESObjectREFR, float);
+    using TSetScale = void(TESObjectREFR*, float);
     POINTER_SKYRIMSE(TSetScale, s_setScale, 19665);
-    TiltedPhoques::ThisCall(s_setScale, this, aScale);
+    s_setScale(this, aScale);
 }
 
 void TESObjectREFR::SetOwner(TESForm* apOwner) noexcept
 {
-    TP_THIS_FUNCTION(TSetOwner, void, TESObjectREFR, TESForm*);
+    using TSetOwner = void(TESObjectREFR*, TESForm*);
     POINTER_SKYRIMSE(TSetOwner, s_setOwner, 20198);
-    TiltedPhoques::ThisCall(s_setOwner, this, apOwner);
+    s_setOwner(this, apOwner);
 }
 
 TESForm* TESObjectREFR::GetOwner() const noexcept
@@ -502,30 +502,30 @@ void TESObjectREFR::PayGold(int32_t aAmount) noexcept
 
 void TESObjectREFR::PayGoldToContainer(TESObjectREFR* pContainer, int32_t aAmount) noexcept
 {
-    TP_THIS_FUNCTION(TPayGoldToContainer, void, TESObjectREFR, TESObjectREFR*, int32_t);
+    using TPayGoldToContainer = void(TESObjectREFR*, TESObjectREFR*, int32_t);
     POINTER_SKYRIMSE(TPayGoldToContainer, s_payGoldToContainer, 37511);
-    TiltedPhoques::ThisCall(s_payGoldToContainer, this, pContainer, aAmount);
+    s_payGoldToContainer(this, pContainer, aAmount);
 }
 
 Lock* TESObjectREFR::GetLock() const noexcept
 {
-    TP_THIS_FUNCTION(TGetLock, Lock*, const TESObjectREFR);
+    using TGetLock = Lock*(const TESObjectREFR*);
     POINTER_SKYRIMSE(TGetLock, realGetLock, 20223);
 
-    return TiltedPhoques::ThisCall(realGetLock, this);
+    return realGetLock(this);
 }
 
 Lock* TESObjectREFR::CreateLock() noexcept
 {
-    TP_THIS_FUNCTION(TCreateLock, Lock*, TESObjectREFR);
+    using TCreateLock = Lock*(TESObjectREFR*);
     POINTER_SKYRIMSE(TCreateLock, realCreateLock, 20221);
 
-    return TiltedPhoques::ThisCall(realCreateLock, this);
+    return realCreateLock(this);
 }
 
 void TESObjectREFR::LockChange() noexcept
 {
-    TiltedPhoques::ThisCall(RealLockChange, this);
+    RealLockChange(this);
 }
 
 const float TESObjectREFR::GetHeight() noexcept
@@ -545,11 +545,11 @@ TESObjectREFR::OpenState TESObjectREFR::GetOpenState() noexcept
 
 ExtraContainerChanges::Data* TESObjectREFR::GetContainerChanges() const noexcept
 {
-    TP_THIS_FUNCTION(TGetContainterChanges, ExtraContainerChanges::Data*, const TESObjectREFR);
+    using TGetContainterChanges = ExtraContainerChanges::Data*(const TESObjectREFR*);
 
     POINTER_SKYRIMSE(TGetContainterChanges, s_getContainerChangs, 16040);
 
-    return TiltedPhoques::ThisCall(s_getContainerChangs, this);
+    return s_getContainerChangs(this);
 }
 
 void TESObjectREFR::RemoveAllItems() noexcept
@@ -565,11 +565,11 @@ void TESObjectREFR::RemoveAllItems() noexcept
 
 TESContainer* TESObjectREFR::GetContainer() const noexcept
 {
-    TP_THIS_FUNCTION(TGetContainer, TESContainer*, const TESObjectREFR);
+    using TGetContainer = TESContainer*(const TESObjectREFR*);
 
     POINTER_SKYRIMSE(TGetContainer, s_getContainer, 19702);
 
-    return TiltedPhoques::ThisCall(s_getContainer, this);
+    return s_getContainer(this);
 }
 
 int64_t TESObjectREFR::GetItemCountInInventory(TESForm* apItem) const noexcept
@@ -594,14 +594,14 @@ int64_t TESObjectREFR::GetItemCountInInventory(TESForm* apItem) const noexcept
 
 ExtraContainerChanges::Data* TESObjectREFR::FindContainerChanges() const noexcept
 {
-    TP_THIS_FUNCTION(TGetInventoryChanges, ExtraContainerChanges::Data*, const TESObjectREFR);
+    using TGetInventoryChanges = ExtraContainerChanges::Data*(const TESObjectREFR*);
     POINTER_SKYRIMSE(TGetInventoryChanges, s_getInventoryChanges, 16039);
-    return TiltedPhoques::ThisCall(s_getInventoryChanges, this);
+    return s_getInventoryChanges(this);
 }
 
 std::optional<int32_t> TESObjectREFR::GetContainerCount(TESBoundObject* apItem) const noexcept
 {
-    TP_THIS_FUNCTION(TGetItemCount, int32_t, ExtraContainerChanges::Data, TESBoundObject*);
+    using TGetItemCount = int32_t(ExtraContainerChanges::Data*, TESBoundObject*);
     POINTER_SKYRIMSE(TGetItemCount, s_getItemCount, 16108); // InventoryChanges::GetItemCount
 
     const TESContainer* pContainer = GetContainer();
@@ -611,7 +611,7 @@ std::optional<int32_t> TESObjectREFR::GetContainerCount(TESBoundObject* apItem) 
     auto* pChanges = FindContainerChanges();
     if (!pChanges)
         return std::abs(static_cast<int32_t>(pContainer->GetItemCount(apItem)));
-    return std::abs(TiltedPhoques::ThisCall(s_getItemCount, pChanges, apItem));
+    return std::abs(s_getItemCount(pChanges, apItem));
 }
 
 bool TESObjectREFR::SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept
@@ -627,13 +627,13 @@ bool TESObjectREFR::SetContainerCount(TESBoundObject* apItem, int32_t aCount) no
     return true;
 }
 
-Vector<std::pair<TESBoundObject*, int32_t>> TESObjectREFR::GetContainerItems() const noexcept
+std::vector<std::pair<TESBoundObject*, int32_t>> TESObjectREFR::GetContainerItems() const noexcept
 {
-    Vector<std::pair<TESBoundObject*, int32_t>> items;
+    std::vector<std::pair<TESBoundObject*, int32_t>> items;
     const TESContainer* pContainer = GetContainer();
     if (!pContainer)
         return items;
-    Vector<TESBoundObject*> forms;
+    std::vector<TESBoundObject*> forms;
     for (uint32_t i = 0; i < pContainer->count; ++i)
         if (pContainer->entries[i] && pContainer->entries[i]->form && pContainer->entries[i]->form->formType != FormType::LeveledItem)
             if (auto* pItem = Cast<TESBoundObject>(pContainer->entries[i]->form))
@@ -665,16 +665,16 @@ uint32_t TESObjectREFR::CountLeveledEntries() const noexcept
 
 bool TESObjectREFR::InitInventoryIfRequired() noexcept
 {
-    TP_THIS_FUNCTION(TInitInventoryIfRequired, bool, TESObjectREFR, bool);
+    using TInitInventoryIfRequired = bool(TESObjectREFR*, bool);
     POINTER_SKYRIMSE(TInitInventoryIfRequired, s_initInventoryIfRequired, 16038);
-    return TiltedPhoques::ThisCall(s_initInventoryIfRequired, this, false);
+    return s_initInventoryIfRequired(this, false);
 }
 
 void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
 {
-    TP_THIS_FUNCTION(TSetObjectReference, void, TESObjectREFR, TESBoundObject*);
+    using TSetObjectReference = void(TESObjectREFR*, TESBoundObject*);
     POINTER_SKYRIMSE(TSetObjectReference, s_setObjectReference, 19785);
-    TiltedPhoques::ThisCall(s_setObjectReference, this, apBase);
+    s_setObjectReference(this, apBase);
     MarkChanged(CHANGE_REFR_BASEOBJECT);
     if (!GetNiNode() || IsDisabled())
         return;
@@ -1008,11 +1008,11 @@ void TESObjectREFR::SetInventory(const Inventory& aInventory) noexcept
     }
 }
 
-Vector<uint32_t> TESObjectREFR::RemoveNonQuestItems(Inventory& aCurrentInventory) noexcept
+std::vector<uint32_t> TESObjectREFR::RemoveNonQuestItems(Inventory& aCurrentInventory) noexcept
 {
     ScopedEquipOverride equipOverride_;
 
-    Vector<uint32_t> questEntries{};
+    std::vector<uint32_t> questEntries{};
 
     auto& modSystem = World::Get().GetModSystem();
 
@@ -1042,7 +1042,7 @@ void TESObjectREFR::SetInventoryRetainingQuestItems(Inventory& aCurrentInventory
     ScopedInventoryOverride _;
 
     // Remove all non-quest items first
-    Vector<uint32_t> questItemIds = RemoveNonQuestItems(aCurrentInventory);
+    std::vector<uint32_t> questItemIds = RemoveNonQuestItems(aCurrentInventory);
     auto& modSystem = World::Get().GetModSystem();
 
     for (const auto& entry : acSourceInventory.Entries)
@@ -1116,16 +1116,16 @@ void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSet
 
 void TESObjectREFR::UpdateItemList(TESForm* pUnkForm) noexcept
 {
-    TP_THIS_FUNCTION(TUpdateItemList, void, TESObjectREFR, TESForm*);
+    using TUpdateItemList = void(TESObjectREFR*, TESForm*);
     POINTER_SKYRIMSE(TUpdateItemList, updateItemList, 52849);
-    TiltedPhoques::ThisCall(updateItemList, this, pUnkForm);
+    updateItemList(this, pUnkForm);
 }
 
 bool TESObjectREFR::Activate(TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* aObjectToGet, int32_t aCount, char aDefaultProcessing) noexcept
 {
     ScopedActivateOverride _;
 
-    return TiltedPhoques::ThisCall(RealActivate, this, apActivator, aUnk1, aObjectToGet, aCount, aDefaultProcessing);
+    return RealActivate(this, apActivator, aUnk1, aObjectToGet, aCount, aDefaultProcessing);
 }
 
 bool TESObjectREFR::SetLockState(bool aLocked, uint8_t aLockLevel) noexcept
@@ -1143,11 +1143,11 @@ bool TESObjectREFR::SetLockState(bool aLocked, uint8_t aLockLevel) noexcept
 
 void TESObjectREFR::EnableImpl() noexcept
 {
-    TP_THIS_FUNCTION(TEnableImpl, void, TESObjectREFR, bool aResetInventory);
+    using TEnableImpl = void(TESObjectREFR*, bool aResetInventory);
 
     POINTER_SKYRIMSE(TEnableImpl, s_enable, 19800);
 
-    TiltedPhoques::ThisCall(s_enable, this, false);
+    s_enable(this, false);
 }
 
 uint32_t TESObjectREFR::GetAnimationVariableInt(BSFixedString* apVariableName) noexcept
@@ -1173,7 +1173,7 @@ bool TESObjectREFR::PlayAnimationAndWait(BSFixedString* apAnimation, BSFixedStri
     return result;
 }
 
-bool TP_MAKE_THISCALL(HookPlayAnimationAndWait, void, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName)
+bool HookPlayAnimationAndWait(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName)
 {
     spdlog::debug("Animation: {}, EventName: {}", apAnimation->AsAscii(), apEventName->AsAscii());
 
@@ -1181,7 +1181,7 @@ bool TP_MAKE_THISCALL(HookPlayAnimationAndWait, void, uint32_t auiStackID, TESOb
     if (!s_cancelAnimationWaitEvent && !ScopedHostChangeOverride::IsOverriden() && (apSelf->formID < 0xFF000000))
         World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, apAnimation->AsAscii(), apEventName->AsAscii()));
 
-    return TiltedPhoques::ThisCall(RealPlayAnimationAndWait, apThis, auiStackID, apSelf, apAnimation, apEventName);
+    return RealPlayAnimationAndWait(apThis, auiStackID, apSelf, apAnimation, apEventName);
 }
 
 static thread_local bool s_cancelAnimationEvent = false;
@@ -1203,17 +1203,17 @@ bool TESObjectREFR::SendAnimationEvent(BSFixedString* apEventName) noexcept
     return EngineVirtual(animationGraphHolder).SendAnimationEvent(apEventName);
 }
 
-bool TP_MAKE_THISCALL(HookPlayAnimation, void, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName)
+bool HookPlayAnimation(void* apThis, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName)
 {
     spdlog::debug("EventName: {}", apEventName->AsAscii());
 
     if (!s_cancelAnimationEvent && !ScopedHostChangeOverride::IsOverriden() && (apSelf->formID < 0xFF000000))
-        World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, String{}, apEventName->AsAscii()));
+        World::Get().GetRunner().Trigger(ScriptAnimationEvent(apSelf->formID, std::string{}, apEventName->AsAscii()));
 
-    return TiltedPhoques::ThisCall(RealPlayAnimation, apThis, auiStackID, apSelf, apEventName);
+    return RealPlayAnimation(apThis, auiStackID, apSelf, apEventName);
 }
 
-bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing)
+bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing)
 {
     Actor* pActivator = Cast<Actor>(apActivator);
     const bool cIsDoor = apThis->baseForm->formType == FormType::Door;
@@ -1237,12 +1237,12 @@ bool TP_MAKE_THISCALL(HookActivate, TESObjectREFR, TESObjectREFR* apActivator, u
     if (apActivator && apActivator == PlayerCharacter::Get())
     {
         ScopedPlayerLockOverride _;
-        return TiltedPhoques::ThisCall(RealActivate, apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);
+        return RealActivate(apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);
     }
-    return TiltedPhoques::ThisCall(RealActivate, apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);
+    return RealActivate(apThis, apActivator, aUnk1, apObjectToGet, aCount, aDefaultProcessing);
 }
 
-void TP_MAKE_THISCALL(HookAddInventoryItem, TESObjectREFR, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
+void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
@@ -1260,11 +1260,11 @@ void TP_MAKE_THISCALL(HookAddInventoryItem, TESObjectREFR, TESBoundObject* apIte
 
     spdlog::debug("Adding inventory item {:X} to {:X}", apItem->formID, apThis->formID);
 
-    TiltedPhoques::ThisCall(RealAddInventoryItem, apThis, apItem, apExtraData, aCount, apOldOwner);
+    RealAddInventoryItem(apThis, apItem, apExtraData, aCount, apOldOwner);
 }
 
 BSPointerHandle<TESObjectREFR>*
-TP_MAKE_THISCALL(HookRemoveInventoryItem, TESObjectREFR, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate)
+HookRemoveInventoryItem(TESObjectREFR* apThis, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate)
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
@@ -1288,10 +1288,10 @@ TP_MAKE_THISCALL(HookRemoveInventoryItem, TESObjectREFR, BSPointerHandle<TESObje
 
     ScopedItemRemovalOverride _;
 
-    return TiltedPhoques::ThisCall(RealRemoveInventoryItem, apThis, apResult, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apRotate);
+    return RealRemoveInventoryItem(apThis, apResult, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apRotate);
 }
 
-void TP_MAKE_THISCALL(HookRotateX, TESObjectREFR, float aAngle)
+void HookRotateX(TESObjectREFR* apThis, float aAngle)
 {
     if (apThis->formType == Actor::Type)
     {
@@ -1302,11 +1302,11 @@ void TP_MAKE_THISCALL(HookRotateX, TESObjectREFR, float aAngle)
     }
 
     const float cBefore = apThis->rotation.x;
-    TiltedPhoques::ThisCall(RealRotateX, apThis, aAngle);
+    RealRotateX(apThis, aAngle);
     apThis->RecordMove(apThis->rotation.x != cBefore);
 }
 
-void TP_MAKE_THISCALL(HookRotateY, TESObjectREFR, float aAngle)
+void HookRotateY(TESObjectREFR* apThis, float aAngle)
 {
     if (apThis->formType == Actor::Type)
     {
@@ -1317,11 +1317,11 @@ void TP_MAKE_THISCALL(HookRotateY, TESObjectREFR, float aAngle)
     }
 
     const float cBefore = apThis->rotation.y;
-    TiltedPhoques::ThisCall(RealRotateY, apThis, aAngle);
+    RealRotateY(apThis, aAngle);
     apThis->RecordMove(apThis->rotation.y != cBefore);
 }
 
-void TP_MAKE_THISCALL(HookRotateZ, TESObjectREFR, float aAngle)
+void HookRotateZ(TESObjectREFR* apThis, float aAngle)
 {
     if (apThis->formType == Actor::Type)
     {
@@ -1332,13 +1332,13 @@ void TP_MAKE_THISCALL(HookRotateZ, TESObjectREFR, float aAngle)
     }
 
     const float cBefore = apThis->rotation.z;
-    TiltedPhoques::ThisCall(RealRotateZ, apThis, aAngle);
+    RealRotateZ(apThis, aAngle);
     apThis->RecordMove(apThis->rotation.z != cBefore);
 }
 
-void TP_MAKE_THISCALL(HookLockChange, TESObjectREFR)
+void HookLockChange(TESObjectREFR* apThis)
 {
-    TiltedPhoques::ThisCall(RealLockChange, apThis);
+    RealLockChange(apThis);
     if (ScopedHostChangeOverride::IsOverriden())
         return;
     const auto* pLock = apThis->GetLock();
@@ -1350,37 +1350,37 @@ void TP_MAKE_THISCALL(HookLockChange, TESObjectREFR)
 }
 
 // LockpickingMenu::Unlock (51968, `void (LockpickingMenu*)`): the player's lockpick opened it.
-TP_THIS_FUNCTION(TLockpickUnlock, void, void);
+using TLockpickUnlock = void(void*);
 static TLockpickUnlock* RealLockpickUnlock = nullptr;
 
-void TP_MAKE_THISCALL(HookLockpickUnlock, void)
+void HookLockpickUnlock(void* apThis)
 {
     ScopedPlayerLockOverride _;
-    TiltedPhoques::ThisCall(RealLockpickUnlock, apThis);
+    RealLockpickUnlock(apThis);
 }
 
 // TESObjectREFR::SetAngle (19786, `void (TESObjectREFR*, const NiPoint3&)`): its move reaches the funnel (RecordMove).
-TP_THIS_FUNCTION(TSetAngle, void, TESObjectREFR, const NiPoint3&);
+using TSetAngle = void(TESObjectREFR*, const NiPoint3&);
 static TSetAngle* RealSetAngle = nullptr;
 
-void TP_MAKE_THISCALL(HookSetAngle, TESObjectREFR, const NiPoint3& acAngle)
+void HookSetAngle(TESObjectREFR* apThis, const NiPoint3& acAngle)
 {
     const NiPoint3 cBefore = apThis->rotation;
-    TiltedPhoques::ThisCall(RealSetAngle, apThis, acAngle);
+    RealSetAngle(apThis, acAngle);
     apThis->RecordMove(apThis->rotation != cBefore);
 }
 
 // TESObjectREFR::PickLeveledBase (20232, our name): at its cell's load, a reference placed with ExtraLeveledItemBase rolls
 // the list, takes the pick as its base (19785) and records it (0x80).
 static std::atomic<bool> s_picksLeveledBases{true};
-TP_THIS_FUNCTION(TPickLeveledBase, void*, TESObjectREFR);
+using TPickLeveledBase = void*(TESObjectREFR*);
 static TPickLeveledBase* RealPickLeveledBase = nullptr;
 
-void* TP_MAKE_THISCALL(HookPickLeveledBase, TESObjectREFR)
+void* HookPickLeveledBase(TESObjectREFR* apThis)
 {
     if (!s_picksLeveledBases.load(std::memory_order_relaxed))
         return nullptr;
-    return TiltedPhoques::ThisCall(RealPickLeveledBase, apThis);
+    return RealPickLeveledBase(apThis);
 }
 
 void TESObjectREFR::SetPicksLeveledBases(bool aPicks) noexcept

@@ -13,7 +13,7 @@ constexpr uint32_t cRightShift = 0x36;
 bool s_available = false;
 bool s_open = false;
 bool s_shift = false;
-Vector<UiInput::Key> s_keys;
+std::vector<UiInput::Key> s_keys;
 
 // Gameplay: nothing up but the HUD (no menu, console, dialogue or loading screen takes the keys).
 bool OnlyHudOpen() noexcept
@@ -76,7 +76,7 @@ void CloseChat() noexcept
     s_keys.clear();
 }
 
-Vector<Key> TakeKeys() noexcept
+std::vector<Key> TakeKeys() noexcept
 {
     return std::exchange(s_keys, {});
 }

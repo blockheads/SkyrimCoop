@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Stl.hpp"
+#include <functional>
 #include <mutex>
 
 namespace TiltedPhoques
@@ -20,6 +21,6 @@ namespace TiltedPhoques
     private:
 
         std::mutex m_mutex;
-        Queue<std::function<void()>> m_tasks;
+        std::queue<std::function<void()>> m_tasks;
     };
 }

@@ -4,7 +4,6 @@
 #include "../ChatMessageTypes.h"
 
 using TiltedPhoques::Serialization;
-using TiltedPhoques::String;
 
 struct RequestMessage : TiltedPhoques::AllocatorCompatible
 {
@@ -50,3 +49,9 @@ struct NotifyMessage : TiltedPhoques::AllocatorCompatible
 private:
     NotifyOpcode m_opcode;
 };
+
+// A message as its own type, from the factory's base pointer.
+template <class T, class U> std::unique_ptr<T> CastUnique(std::unique_ptr<U> aMessage) noexcept
+{
+    return std::unique_ptr<T>(static_cast<T*>(aMessage.release()));
+}

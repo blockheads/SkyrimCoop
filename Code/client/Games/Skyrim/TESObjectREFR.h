@@ -187,7 +187,7 @@ struct TESObjectREFR : TESForm
     bool SetContainerCount(TESBoundObject* apItem, int32_t aCount) noexcept;
     // Every item it holds and how many: its base container's (leveled lists aside: rolled into the changes) and its
     // changes'. Rolls nothing.
-    [[nodiscard]] Vector<std::pair<TESBoundObject*, int32_t>> GetContainerItems() const noexcept;
+    [[nodiscard]] std::vector<std::pair<TESBoundObject*, int32_t>> GetContainerItems() const noexcept;
     // Its base container's leveled entries (rolled when first needed).
     [[nodiscard]] uint32_t CountLeveledEntries() const noexcept;
     // Rolls its leveled entries as opening it does (InitInventoryIfRequired 16038); false for none to roll.
@@ -200,15 +200,15 @@ struct TESObjectREFR : TESForm
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;
     void LoadAnimationVariables(const AnimationVariables& aReader) const noexcept;
     // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h), any reference's.
-    bool SaveGraphs(TiltedPhoques::String& aGraphs) const noexcept;
-    bool LoadGraphs(const TiltedPhoques::String& acGraphs) const noexcept;
+    bool SaveGraphs(std::string& aGraphs) const noexcept;
+    bool LoadGraphs(const std::string& acGraphs) const noexcept;
     // An actor's, with its state flags.
-    bool SaveAnimationGraphState(TiltedPhoques::String& aState) const noexcept;
-    bool LoadAnimationGraphState(const TiltedPhoques::String& acState) const noexcept;
+    bool SaveAnimationGraphState(std::string& aState) const noexcept;
+    bool LoadAnimationGraphState(const std::string& acState) const noexcept;
     uint32_t GetAnimationVariableInt(BSFixedString* apVariableName) noexcept;
 
     void RemoveAllItems() noexcept;
-    Vector<uint32_t> RemoveNonQuestItems(Inventory& aCurrentInventory) noexcept;
+    std::vector<uint32_t> RemoveNonQuestItems(Inventory& aCurrentInventory) noexcept;
     void Delete() const noexcept;
     void Disable() const noexcept;
     void Enable() const noexcept;

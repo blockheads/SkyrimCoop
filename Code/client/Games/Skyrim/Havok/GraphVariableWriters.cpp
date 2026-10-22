@@ -69,7 +69,7 @@ const char* VariableName(const hkbBehaviorGraphNode* apBehaviour, int32_t aIndex
 }
 
 // "Variable = ..." assigns Variable.
-TiltedPhoques::String AssignedName(const char* acpExpression) noexcept
+std::string AssignedName(const char* acpExpression) noexcept
 {
     const char* p = acpExpression;
     while (*p == ' ')
@@ -77,32 +77,32 @@ TiltedPhoques::String AssignedName(const char* acpExpression) noexcept
     const char* cpStart = p;
     while (*p && (std::isalnum(static_cast<unsigned char>(*p)) || *p == '_'))
         ++p;
-    TiltedPhoques::String name(cpStart, p - cpStart);
+    std::string name(cpStart, p - cpStart);
     while (*p == ' ')
         ++p;
-    return *p == '=' && p[1] != '=' ? name : TiltedPhoques::String{};
+    return *p == '=' && p[1] != '=' ? name : std::string{};
 }
 
-void CollectBehaviour(hkbBehaviorGraphNode* apBehaviour, TiltedPhoques::Vector<hkbBehaviorGraphNode*>& aSeen,
-                      TiltedPhoques::Vector<Writer>& aOut) noexcept
+void CollectBehaviour(hkbBehaviorGraphNode* apBehaviour, std::vector<hkbBehaviorGraphNode*>& aSeen,
+                      std::vector<Writer>& aOut) noexcept
 {
     if (!apBehaviour || !apBehaviour->rootGenerator ||
         std::find(aSeen.begin(), aSeen.end(), apBehaviour) != aSeen.end())
         return;
     aSeen.push_back(apBehaviour);
 
-    const TiltedPhoques::String cBehaviour = apBehaviour->name ? apBehaviour->name : "";
-    auto add = [&](int32_t aIndex, const char* acpFallback, TiltedPhoques::String aNode) {
+    const std::string cBehaviour = apBehaviour->name ? apBehaviour->name : "";
+    auto add = [&](int32_t aIndex, const char* acpFallback, std::string aNode) {
         const char* cpName = VariableName(apBehaviour, aIndex);
         aOut.push_back({cpName ? cpName : (acpFallback ? acpFallback : ""), cBehaviour, std::move(aNode), aIndex});
     };
 
-    TiltedPhoques::Vector<hkbBehaviorGraphNode*> referenced;
+    std::vector<hkbBehaviorGraphNode*> referenced;
     hkbNodeIterator nodes(hkbNodeIterator::kIgnoreReferencedBehaviour, apBehaviour->rootGenerator);
     for (hkbNode* pNode = nodes.Next(); pNode; pNode = nodes.Next())
     {
-        const TiltedPhoques::String cNode =
-            TiltedPhoques::String(ClassName(pNode)) + " " + (pNode->name ? pNode->name : "");
+        const std::string cNode =
+            std::string(ClassName(pNode)) + " " + (pNode->name ? pNode->name : "");
         if (const hkbVariableBindingSet* pSet = pNode->bindings)
         {
             for (int32_t i = 0; i < pSet->bindings.size; ++i)
@@ -130,7 +130,7 @@ void CollectBehaviour(hkbBehaviorGraphNode* apBehaviour, TiltedPhoques::Vector<h
             {
                 const auto& cExpression = pArray->expressions.data[i];
                 const char* cpText = cExpression.expression ? cExpression.expression : "";
-                const TiltedPhoques::String cAssigned = AssignedName(cpText);
+                const std::string cAssigned = AssignedName(cpText);
                 if (cExpression.assignmentVariableIndex >= 0 || !cAssigned.empty())
                     add(cExpression.assignmentVariableIndex, cAssigned.c_str(), cNode + " '" + cpText + "'");
             }
@@ -142,12 +142,12 @@ void CollectBehaviour(hkbBehaviorGraphNode* apBehaviour, TiltedPhoques::Vector<h
 }
 } // namespace
 
-TiltedPhoques::Vector<Writer> Collect(const BShkbAnimationGraph* apGraph) noexcept
+std::vector<Writer> Collect(const BShkbAnimationGraph* apGraph) noexcept
 {
-    TiltedPhoques::Vector<Writer> writers;
+    std::vector<Writer> writers;
     if (!apGraph || !apGraph->behaviorGraph)
         return writers;
-    TiltedPhoques::Vector<hkbBehaviorGraphNode*> seen;
+    std::vector<hkbBehaviorGraphNode*> seen;
     CollectBehaviour(reinterpret_cast<hkbBehaviorGraphNode*>(apGraph->behaviorGraph), seen, writers);
     return writers;
 }

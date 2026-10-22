@@ -71,7 +71,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
-    game.ReadCellState = [this](const GameId& acCell, const TiltedPhoques::Vector<ChangedReference>& acChanged) {
+    game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return m_pEngine->ReadCellState(acCell, acChanged);
     };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };

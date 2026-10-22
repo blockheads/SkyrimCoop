@@ -105,9 +105,9 @@ namespace TiltedPhoques
         FunctionHookManager() noexcept;
         ~FunctionHookManager() noexcept;
 
-        Vector<FunctionHook> m_delayedHooks;
-        Vector<FunctionHook> m_installedHooks;
-        Vector<IATHook> m_iatHooks;
+        std::vector<FunctionHook> m_delayedHooks;
+        std::vector<FunctionHook> m_installedHooks;
+        std::vector<IATHook> m_iatHooks;
     };
 
     template<class T, class Func>

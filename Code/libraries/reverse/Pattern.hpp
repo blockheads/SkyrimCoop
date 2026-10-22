@@ -12,9 +12,9 @@ namespace TiltedPhoques
             kDirect
         };
 
-        Pattern(Vector<uint8_t> aBytePattern, size_t aExpected, EType aPatternType, intptr_t aOffset = 0, size_t aIndex = 0) noexcept;
+        Pattern(std::vector<uint8_t> aBytePattern, size_t aExpected, EType aPatternType, intptr_t aOffset = 0, size_t aIndex = 0) noexcept;
 
-        Vector<uint8_t> BytePattern;
+        std::vector<uint8_t> BytePattern;
         size_t Expected;
         EType Type;
         intptr_t Offset{ 0 };

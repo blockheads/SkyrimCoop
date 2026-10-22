@@ -40,7 +40,7 @@ private:
     World& m_world;
     GuestEngine& m_engine;
     // The attached cells already asked for.
-    TiltedPhoques::Vector<uint32_t> m_cells;
+    std::vector<uint32_t> m_cells;
 
     entt::scoped_connection m_globalsConnection;
     entt::scoped_connection m_questsConnection;

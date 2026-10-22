@@ -14,9 +14,9 @@ TES* TES::Get() noexcept
     return *tes.Get();
 }
 
-TiltedPhoques::Vector<TESObjectCELL*> TES::AttachedCells() const noexcept
+std::vector<TESObjectCELL*> TES::AttachedCells() const noexcept
 {
-    TiltedPhoques::Vector<TESObjectCELL*> attached;
+    std::vector<TESObjectCELL*> attached;
     if (interiorCell)
         attached.push_back(interiorCell);
     else if (cells && cells->arr)
@@ -59,14 +59,14 @@ std::vector<uint32_t> ProcessLists::GetPlayingVisualFormIds(uint32_t aRefHandle)
 
 void ProcessLists::StopEffectShader(TESObjectREFR* apRef, TESForm* apEffectShader) noexcept
 {
-    TP_THIS_FUNCTION(TStop, void, ProcessLists, TESObjectREFR*, TESForm*);
+    using TStop = void(ProcessLists*, TESObjectREFR*, TESForm*);
     POINTER_SKYRIMSE(TStop, s_stopEffectShader, 41395);
-    TiltedPhoques::ThisCall(s_stopEffectShader, this, apRef, apEffectShader);
+    s_stopEffectShader(this, apRef, apEffectShader);
 }
 
 void ProcessLists::StopArtObject(TESObjectREFR* apRef, TESForm* apArtObject) noexcept
 {
-    TP_THIS_FUNCTION(TStop, void, ProcessLists, TESObjectREFR*, TESForm*);
+    using TStop = void(ProcessLists*, TESObjectREFR*, TESForm*);
     POINTER_SKYRIMSE(TStop, s_stopArtObject, 41396);
-    TiltedPhoques::ThisCall(s_stopArtObject, this, apRef, apArtObject);
+    s_stopArtObject(this, apRef, apArtObject);
 }

@@ -233,7 +233,7 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 // player is in the host's cell, so the host owns every actor and guests only replicate them.
 void CharacterService::RunActorDiscovery() noexcept
 {
-    Set<uint32_t> loaded;
+    std::unordered_set<uint32_t> loaded;
     const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
     if (cPlayerId != 0 && m_actorBridge.ActorHas3D(cPlayerId))
         loaded.insert(cPlayerId);
@@ -242,7 +242,7 @@ void CharacterService::RunActorDiscovery() noexcept
             loaded.insert(cFormId);
 
     // Removals first, as the original DiscoveryService did.
-    Vector<uint32_t> removed;
+    std::vector<uint32_t> removed;
     for (const uint32_t cFormId : m_discoveredActors)
         if (!loaded.count(cFormId))
             removed.push_back(cFormId);
@@ -266,7 +266,7 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) const
 {
     // Go through all the forms that were previously detected
     auto view = m_world.view<FormIdComponent>();
-    Vector<entt::entity> entities(view.begin(), view.end());
+    std::vector<entt::entity> entities(view.begin(), view.end());
     spdlog::debug("CharacterService::OnConnected: processing {} discovered entities", entities.size());
 
     for (auto entity : entities)
@@ -806,7 +806,7 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
     uint32_t mountFormId = 0;
 
     auto formView = m_world.view<FormIdComponent>();
-    Vector<entt::entity> entities(formView.begin(), formView.end());
+    std::vector<entt::entity> entities(formView.begin(), formView.end());
 
     // TODO(cosideci): remove this, cause of NotifyRelinquishControl?
     for (auto entity : entities)
@@ -999,7 +999,7 @@ void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcep
 void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept
 {
     auto formView = m_world.view<FormIdComponent>();
-    Vector<entt::entity> entities(formView.begin(), formView.end());
+    std::vector<entt::entity> entities(formView.begin(), formView.end());
 
     // TODO(cosideci): this entity iteration shouldn't technically be necessary, just look for the local component
     for (auto entity : entities)
@@ -1200,9 +1200,9 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
 // What a peer needs to spawn a copy of one of our actors, as the embedded server built it from the
 // assignment (CreateCharacter + Serialize): a game reference keeps its id, a player or temporary
 // actor is rebuilt from its appearance and base.
-Vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept
+std::vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept
 {
-    Vector<NotifyCharacterSpawn> spawns;
+    std::vector<NotifyCharacterSpawn> spawns;
 
     // Ours, read from the engine as it is now.
     for (const auto cEntity : m_world.view<FormIdComponent, LocalComponent>())
@@ -1417,7 +1417,7 @@ void CharacterService::RunRemoteUpdates() noexcept
 
     auto waitingView = m_world.view<FormIdComponent, WaitingFor3D>();
 
-    Vector<entt::entity> toRemove;
+    std::vector<entt::entity> toRemove;
     for (auto entity : waitingView)
     {
         auto& formIdComponent = waitingView.get<FormIdComponent>(entity);
@@ -1491,7 +1491,7 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
 
     // The other players' copies travel with the party (RunPresence moves each to its owner); the others stay with
     // their cell.
-    Set<uint32_t> playerCopies;
+    std::unordered_set<uint32_t> playerCopies;
     for (const auto cEntity : m_world.view<RemoteComponent, PlayerComponent, FormIdComponent>())
     {
         playerCopies.insert(m_world.get<FormIdComponent>(cEntity).Id);
@@ -1544,8 +1544,8 @@ void CharacterService::RunPresence() noexcept
     const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
     const auto cNow = std::chrono::steady_clock::now();
 
-    Vector<std::pair<entt::entity, uint32_t>> gone;
-    Set<uint32_t> goneElsewhere;
+    std::vector<std::pair<entt::entity, uint32_t>> gone;
+    std::unordered_set<uint32_t> goneElsewhere;
     auto view = m_world.view<RemoteComponent, FormIdComponent, InterpolationComponent, OwnerPlaceComponent>();
     for (const auto entity : view)
     {
@@ -1597,7 +1597,7 @@ void CharacterService::RunPresence() noexcept
 void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept
 {
     auto remoteView = m_world.view<RemoteComponent>();
-    const Vector<entt::entity> cCopies(remoteView.begin(), remoteView.end());
+    const std::vector<entt::entity> cCopies(remoteView.begin(), remoteView.end());
     for (const auto entity : cCopies)
     {
         const auto* pFormIdComponent = m_world.try_get<FormIdComponent>(entity);

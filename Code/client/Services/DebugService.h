@@ -70,15 +70,15 @@ private:
     TransportService& m_transport;
     World& m_world;
 
-    Vector<GamePtr<Actor>> m_actors;
+    std::vector<GamePtr<Actor>> m_actors;
 
     uint32_t m_formId = 0;
 
     uint32_t ActorID = 0;
-    String VoiceFile = "";
+    std::string VoiceFile = "";
 
     uint32_t SubActorID = 0;
-    String SubtitleText = "";
+    std::string SubtitleText = "";
     uint32_t TopicID = 0;
 
     entt::scoped_connection m_updateConnection;

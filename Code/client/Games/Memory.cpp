@@ -19,15 +19,15 @@ struct GameHeap
     }
 };
 
-TP_THIS_FUNCTION(TFormAllocate, void*, GameHeap, size_t aSize, size_t aAlignment, bool aAligned);
-TP_THIS_FUNCTION(TFormFree, void, GameHeap, void* apPtr, bool aAligned);
-TP_THIS_FUNCTION(TFormReallocate, void*, GameHeap, void* apOld, size_t aSize, uint32_t aAlignment, bool aAligned);
+using TFormAllocate = void*(GameHeap*, size_t aSize, size_t aAlignment, bool aAligned);
+using TFormFree = void(GameHeap*, void* apPtr, bool aAligned);
+using TFormReallocate = void*(GameHeap*, void* apOld, size_t aSize, uint32_t aAlignment, bool aAligned);
 
 TFormAllocate* RealFormAllocate = nullptr;
 TFormFree* RealFormFree = nullptr;
 TFormReallocate* RealFormReallocate = nullptr;
 
-void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignment, bool aAligned)
+void* HookFormAllocate(GameHeap* apThis, size_t aSize, size_t aAlignment, bool aAligned)
 {
     switch (aSize)
     {
@@ -38,7 +38,7 @@ void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignme
 
     void* pPointer = HeapHistory::Start() ? HeapHistory::GuardAllocate(aSize) : nullptr;
     if (!pPointer)
-        pPointer = TiltedPhoques::ThisCall(RealFormAllocate, apThis, aSize, aAlignment, aAligned);
+        pPointer = RealFormAllocate(apThis, aSize, aAlignment, aAligned);
 
     if (!pPointer)
         return nullptr;
@@ -64,7 +64,7 @@ void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignme
 }
 
 // Only hooked with the heap history on (HeapHistory.h); our own frees always come through here.
-void TP_MAKE_THISCALL(HookFormFree, GameHeap, void* apPtr, bool aAligned)
+void HookFormFree(GameHeap* apThis, void* apPtr, bool aAligned)
 {
     if (apPtr && HeapHistory::Start())
     {
@@ -76,36 +76,36 @@ void TP_MAKE_THISCALL(HookFormFree, GameHeap, void* apPtr, bool aAligned)
             void* pEvicted = nullptr;
             bool evictedAligned = false;
             while (HeapHistory::TakeEvicted(pEvicted, evictedAligned))
-                TiltedPhoques::ThisCall(RealFormFree, apThis, pEvicted, evictedAligned);
+                RealFormFree(apThis, pEvicted, evictedAligned);
             return;
         }
     }
-    TiltedPhoques::ThisCall(RealFormFree, apThis, apPtr, aAligned);
+    RealFormFree(apThis, apPtr, aAligned);
 }
 
 // Only hooked with the heap guard on: the engine's own cannot size a guarded block.
-void* TP_MAKE_THISCALL(HookFormReallocate, GameHeap, void* apOld, size_t aSize, uint32_t aAlignment, bool aAligned)
+void* HookFormReallocate(GameHeap* apThis, void* apOld, size_t aSize, uint32_t aAlignment, bool aAligned)
 {
     const size_t cOldSize = apOld ? HeapHistory::GuardedSize(apOld) : 0;
     if (!cOldSize)
-        return TiltedPhoques::ThisCall(RealFormReallocate, apThis, apOld, aSize, aAlignment, aAligned);
+        return RealFormReallocate(apThis, apOld, aSize, aAlignment, aAligned);
     if (!aSize)
         return nullptr; // as the engine's: a zero size allocates nothing and keeps the old block
-    void* pNew = TiltedPhoques::ThisCall(HookFormAllocate, apThis, aSize, aAlignment, aAligned);
+    void* pNew = HookFormAllocate(apThis, aSize, aAlignment, aAligned);
     if (pNew)
         std::memcpy(pNew, apOld, std::min(aSize, cOldSize));
-    TiltedPhoques::ThisCall(HookFormFree, apThis, apOld, aAligned);
+    HookFormFree(apThis, apOld, aAligned);
     return pNew;
 }
 
 void* Memory::Allocate(const size_t aSize) noexcept
 {
-    return TiltedPhoques::ThisCall(HookFormAllocate, GameHeap::Get(), aSize, 0, false);
+    return HookFormAllocate(GameHeap::Get(), aSize, 0, false);
 }
 
 void Memory::Free(void* apData) noexcept
 {
-    TiltedPhoques::ThisCall(HookFormFree, GameHeap::Get(), apData, false);
+    HookFormFree(GameHeap::Get(), apData, false);
 }
 
 static bool IsFormAllocateReplacedByEF(TFormAllocate** appOutEngineFixesAlloc) noexcept

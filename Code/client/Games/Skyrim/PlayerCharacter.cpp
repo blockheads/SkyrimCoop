@@ -31,12 +31,12 @@
 
 int32_t PlayerCharacter::LastUsedCombatSkill = -1;
 
-TP_THIS_FUNCTION(TPickUpObject, char, PlayerCharacter, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2);
-TP_THIS_FUNCTION(TSetBeastForm, void, void, void* apUnk1, void* apUnk2, bool aEntering);
-TP_THIS_FUNCTION(TAddSkillExperience, void, PlayerCharacter, int32_t aSkill, float aExperience);
-TP_THIS_FUNCTION(TCalculateExperience, bool, int32_t, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2);
-TP_THIS_FUNCTION(TSetWaypoint, void, PlayerCharacter, NiPoint3* apPosition, TESForm* apWorldOrCell);
-TP_THIS_FUNCTION(TRemoveWaypoint, void, PlayerCharacter);
+using TPickUpObject = char(PlayerCharacter*, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2);
+using TSetBeastForm = void(void*, void* apUnk1, void* apUnk2, bool aEntering);
+using TAddSkillExperience = void(PlayerCharacter*, int32_t aSkill, float aExperience);
+using TCalculateExperience = bool(int32_t*, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2);
+using TSetWaypoint = void(PlayerCharacter*, NiPoint3* apPosition, TESForm* apWorldOrCell);
+using TRemoveWaypoint = void(PlayerCharacter*);
 
 static TPickUpObject* RealPickUpObject = nullptr;
 static TSetBeastForm* RealSetBeastForm = nullptr;
@@ -82,7 +82,7 @@ void PlayerCharacter::AddSkillExperience(int32_t aSkill, float aExperience) noex
 
     ScopedExperienceOverride _;
 
-    TiltedPhoques::ThisCall(RealAddSkillExperience, this, aSkill, aExperience);
+    RealAddSkillExperience(this, aSkill, aExperience);
 
     float newExperience = GetSkillExperience(skill);
     float deltaExperience = newExperience - oldExperience;
@@ -92,17 +92,17 @@ void PlayerCharacter::AddSkillExperience(int32_t aSkill, float aExperience) noex
 
 bool PlayerCharacter::SaidRecently(const TESTopicInfo* apInfo) const noexcept
 {
-    TP_THIS_FUNCTION(TSaidRecently, bool, const PlayerCharacter, const TESTopicInfo* apInfo);
+    using TSaidRecently = bool(const PlayerCharacter*, const TESTopicInfo* apInfo);
     POINTER_SKYRIMSE(TSaidRecently, s_saidRecently, 40694);
-    return apInfo && apInfo->timeUntilReset && TiltedPhoques::ThisCall(s_saidRecently.Get(), this, apInfo);
+    return apInfo && apInfo->timeUntilReset && (s_saidRecently.Get())(this, apInfo);
 }
 
 void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
 {
-    TP_THIS_FUNCTION(TRememberSaid, void, PlayerCharacter, const TESTopicInfo* apInfo);
+    using TRememberSaid = void(PlayerCharacter*, const TESTopicInfo* apInfo);
     POINTER_SKYRIMSE(TRememberSaid, s_rememberSaid, 40692);
     if (apInfo && apInfo->timeUntilReset)
-        TiltedPhoques::ThisCall(s_rememberSaid.Get(), this, apInfo);
+        (s_rememberSaid.Get())(this, apInfo);
 }
 
 NiPoint3 PlayerCharacter::RespawnPlayer() noexcept
@@ -162,15 +162,15 @@ void PlayerCharacter::PayCrimeGoldToAllFactions() noexcept
 
 void PlayerCharacter::SetWaypoint(NiPoint3* apPosition, TESForm* apWorldOrCell) noexcept
 {
-    return TiltedPhoques::ThisCall(RealSetWaypoint, this, apPosition, apWorldOrCell);
+    return RealSetWaypoint(this, apPosition, apWorldOrCell);
 }
 
 void PlayerCharacter::RemoveWaypoint() noexcept
 {
-    return TiltedPhoques::ThisCall(RealRemoveWaypoint, this);
+    return RealRemoveWaypoint(this);
 }
 
-char TP_MAKE_THISCALL(HookPickUpObject, PlayerCharacter, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2)
+char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2)
 {
     auto& modSystem = World::Get().GetModSystem();
 
@@ -192,10 +192,10 @@ char TP_MAKE_THISCALL(HookPickUpObject, PlayerCharacter, TESObjectREFR* apObject
 
     ScopedInventoryOverride _;
 
-    return TiltedPhoques::ThisCall(RealPickUpObject, apThis, apObject, aCount, aUnk1, aUnk2);
+    return RealPickUpObject(apThis, apObject, aCount, aUnk1, aUnk2);
 }
 
-void TP_MAKE_THISCALL(HookSetBeastForm, void, void* apUnk1, void* apUnk2, bool aEntering)
+void HookSetBeastForm(void* apThis, void* apUnk1, void* apUnk2, bool aEntering)
 {
     if (!aEntering)
     {
@@ -203,18 +203,18 @@ void TP_MAKE_THISCALL(HookSetBeastForm, void, void* apUnk1, void* apUnk2, bool a
         World::Get().GetRunner().Trigger(BeastFormChangeEvent());
     }
 
-    TiltedPhoques::ThisCall(RealSetBeastForm, apThis, apUnk1, apUnk2, aEntering);
+    RealSetBeastForm(apThis, apUnk1, apUnk2, aEntering);
 }
 
-void TP_MAKE_THISCALL(HookAddSkillExperience, PlayerCharacter, int32_t aSkill, float aExperience)
+void HookAddSkillExperience(PlayerCharacter* apThis, int32_t aSkill, float aExperience)
 {
     // TODO: armor skills? sneak?
-    static const Set<int32_t> combatSkills{ActorValueInfo::kAlteration, ActorValueInfo::kConjuration, ActorValueInfo::kDestruction, ActorValueInfo::kIllusion, ActorValueInfo::kRestoration, ActorValueInfo::kOneHanded, ActorValueInfo::kTwoHanded, ActorValueInfo::kMarksman, ActorValueInfo::kBlock};
+    static const std::unordered_set<int32_t> combatSkills{ActorValueInfo::kAlteration, ActorValueInfo::kConjuration, ActorValueInfo::kDestruction, ActorValueInfo::kIllusion, ActorValueInfo::kRestoration, ActorValueInfo::kOneHanded, ActorValueInfo::kTwoHanded, ActorValueInfo::kMarksman, ActorValueInfo::kBlock};
 
     Skills::Skill skill = Skills::GetSkillFromActorValue(aSkill);
     float oldExperience = apThis->GetSkillExperience(skill);
 
-    TiltedPhoques::ThisCall(RealAddSkillExperience, apThis, aSkill, aExperience);
+    RealAddSkillExperience(apThis, aSkill, aExperience);
 
     float newExperience = apThis->GetSkillExperience(skill);
     float deltaExperience = newExperience - oldExperience;
@@ -230,9 +230,9 @@ void TP_MAKE_THISCALL(HookAddSkillExperience, PlayerCharacter, int32_t aSkill, f
     }
 }
 
-bool TP_MAKE_THISCALL(HookCalculateExperience, int32_t, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2)
+bool HookCalculateExperience(int32_t* apThis, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2)
 {
-    bool result = TiltedPhoques::ThisCall(RealCalculateExperience, apThis, aFactor, aBonus, aUnk1, aUnk2);
+    bool result = RealCalculateExperience(apThis, aFactor, aBonus, aUnk1, aUnk2);
 
     if (ScopedExperienceOverride::IsOverriden())
     {
@@ -244,7 +244,7 @@ bool TP_MAKE_THISCALL(HookCalculateExperience, int32_t, float* aFactor, float* a
 }
 
 // The map menu places the player's marker (MapMenu::PlaceMarker 53113, then the terrain pick 53114).
-void TP_MAKE_THISCALL(HookSetWaypoint, PlayerCharacter, NiPoint3* apPosition, TESForm* apWorldOrCell)
+void HookSetWaypoint(PlayerCharacter* apThis, NiPoint3* apPosition, TESForm* apWorldOrCell)
 {
     Vector3_NetQuantize position{};
     position.x = apPosition->x;
@@ -253,17 +253,17 @@ void TP_MAKE_THISCALL(HookSetWaypoint, PlayerCharacter, NiPoint3* apPosition, TE
 
     World::Get().GetRunner().Trigger(SetWaypointEvent(position, apWorldOrCell ? apWorldOrCell->formID : 0));
 
-    return TiltedPhoques::ThisCall(RealSetWaypoint, apThis, apPosition, apWorldOrCell);
+    return RealSetWaypoint(apThis, apPosition, apWorldOrCell);
 }
 
 // Only the map's "remove marker" is the player's choice; the engine also clears it outside the map.
-void TP_MAKE_THISCALL(HookRemoveWaypoint, PlayerCharacter)
+void HookRemoveWaypoint(PlayerCharacter* apThis)
 {
     static const BSFixedString s_mapMenu("MapMenu");
     if (UI* pUI = UI::Get(); pUI && pUI->GetMenuOpen(s_mapMenu))
         World::Get().GetRunner().Trigger(RemoveWaypointEvent());
 
-    return TiltedPhoques::ThisCall(RealRemoveWaypoint, apThis);
+    return RealRemoveWaypoint(apThis);
 }
 
 namespace

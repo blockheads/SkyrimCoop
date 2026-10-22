@@ -32,7 +32,7 @@ struct AuthenticationResponse final : NotifyMessage
 
     ResponseType Type;
     // The host's build and game: what a refused game differs from.
-    String Version;
+    std::string Version;
     GameVersions Game{};
     Mods UserMods{};
     ServerSettings Settings{};

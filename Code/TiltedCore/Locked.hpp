@@ -7,7 +7,7 @@ namespace TiltedPhoques
     template<class T, class TLock>
     struct Locked
     {
-        Locked(SharedPtr<typename Lockable<T, TLock>::Data> apData)
+        Locked(std::shared_ptr<typename Lockable<T, TLock>::Data> apData)
             : m_pData(std::move(apData))
             , m_handle(m_pData->Lock)
         {
@@ -46,7 +46,7 @@ namespace TiltedPhoques
     private:
         friend struct Lockable<T, TLock>;
 
-        SharedPtr<typename Lockable<T, TLock>::Data> m_pData;
+        std::shared_ptr<typename Lockable<T, TLock>::Data> m_pData;
         std::scoped_lock<TLock> m_handle;
     };
 }

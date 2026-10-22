@@ -20,11 +20,11 @@
 #include <World.h>
 #include <Systems/AnimationSystem.h>
 
-TP_THIS_FUNCTION(TPerformAction, uint8_t, ActorMediator, TESActionData* apAction);
+using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
 static TPerformAction* RealPerformAction;
-TP_THIS_FUNCTION(TUpdateAnimationGraphs, bool, TESObjectREFR, float aDelta);
+using TUpdateAnimationGraphs = bool(TESObjectREFR*, float aDelta);
 static TUpdateAnimationGraphs* RealUpdateAnimationGraphs;
-TP_THIS_FUNCTION(TUpdateSynchronizedClip, void, BSSynchronizedClipGenerator, const hkbContext& acContext, float aTimestep);
+using TUpdateSynchronizedClip = void(BSSynchronizedClipGenerator*, const hkbContext& acContext, float aTimestep);
 static TUpdateSynchronizedClip* RealUpdateSynchronizedClip;
 
 // TODO: make scoped override
@@ -32,7 +32,7 @@ thread_local bool g_forceAnimation = false;
 // The local player's own action under way: a paired one (a kill move) starts its partner's half inside it.
 thread_local bool s_playerAction = false;
 
-uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apAction)
+uint8_t HookPerformAction(ActorMediator* apThis, TESActionData* apAction)
 {
     auto pActor = apAction->actor;
     const auto pExtension = pActor->GetExtension();
@@ -55,7 +55,7 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
 
         const bool cOuterPlayerAction = pActor == PlayerCharacter::Get() && !s_playerAction;
         s_playerAction |= cOuterPlayerAction;
-        const auto res = TiltedPhoques::ThisCall(RealPerformAction, apThis, apAction);
+        const auto res = RealPerformAction(apThis, apAction);
         if (cOuterPlayerAction)
             s_playerAction = false;
 
@@ -100,7 +100,7 @@ uint8_t TP_MAKE_THISCALL(HookPerformAction, ActorMediator, TESActionData* apActi
 
 // TESObjectREFR::sub_20123 (UpdateAnimationGraphs, our name): an actor's graph update in its animation job
 // (RunOneActorAnimationUpdateJob 41453). A copy's replayed action is applied in step with it.
-bool TP_MAKE_THISCALL(HookUpdateAnimationGraphs, TESObjectREFR, float aDelta)
+bool HookUpdateAnimationGraphs(TESObjectREFR* apThis, float aDelta)
 {
     // Runs for every animated reference each frame: a form type test, not an RTTI cast (copies are never the player).
     if (apThis->formType == Actor::Type && apThis != PlayerCharacter::Get())
@@ -109,14 +109,14 @@ bool TP_MAKE_THISCALL(HookUpdateAnimationGraphs, TESObjectREFR, float aDelta)
         if (pActor->GetExtension()->IsCopy())
             AnimationSystem::RunReplayStep(pActor);
     }
-    return TiltedPhoques::ThisCall(RealUpdateAnimationGraphs, apThis, aDelta);
+    return RealUpdateAnimationGraphs(apThis, aDelta);
 }
 
 // A copy's half of a paired animation is at its mark: its owner's game placed it, and the engine cannot walk
 // a copy there, so a kill move with a copy waited out the engine's fallback (docs/re/systems/actor-ai-and-copies.md).
-void TP_MAKE_THISCALL(HookUpdateSynchronizedClip, BSSynchronizedClipGenerator, const hkbContext& acContext, float aTimestep)
+void HookUpdateSynchronizedClip(BSSynchronizedClipGenerator* apThis, const hkbContext& acContext, float aTimestep)
 {
-    TiltedPhoques::ThisCall(RealUpdateSynchronizedClip, apThis, acContext, aTimestep);
+    RealUpdateSynchronizedClip(apThis, acContext, aTimestep);
     if (apThis->atMark || !acContext.character)
         return;
     const auto* pGraph = reinterpret_cast<const BShkbAnimationGraph*>(reinterpret_cast<const uint8_t*>(acContext.character) -
@@ -136,7 +136,7 @@ bool ActorMediator::PerformAction(TESActionData* apAction) noexcept
 {
     if (apAction->actor->formID == 0x13482)
     {
-        /*static Set<uint32_t> s_ids;
+        /*static std::unordered_set<uint32_t> s_ids;
 
         spdlog::error("New frame");
         for(auto i = 0; i < action.Variables.size(); ++i)
@@ -152,7 +152,7 @@ bool ActorMediator::PerformAction(TESActionData* apAction) noexcept
         // spdlog::info("Play animation name: {} with idle {:X} and target {:X} and unk {:X}", apAction->action->keyword.AsAscii(), (apAction->idleForm ? apAction->idleForm->formID : 0), (apAction->target ? apAction->target->formID : 0), apAction->unkInput);
     }
 
-    const auto res = TiltedPhoques::ThisCall(RealPerformAction, this, apAction);
+    const auto res = RealPerformAction(this, apAction);
     // const auto res = RePerformAction(apAction, aValue);
 
     if (res && apAction->actor->formID == 0x13482)
@@ -165,7 +165,7 @@ bool ActorMediator::PerformAction(TESActionData* apAction) noexcept
 
 bool ActorMediator::ForceAction(TESActionData* apAction) noexcept
 {
-    TP_THIS_FUNCTION(TAnimationStep, uint8_t, ActorMediator, TESActionData*);
+    using TAnimationStep = uint8_t(ActorMediator*, TESActionData*);
     using TApplyAnimationVariables = void*(void*, TESActionData*);
 
     POINTER_SKYRIMSE(TApplyAnimationVariables, ApplyAnimationVariables, 39004);
@@ -177,7 +177,7 @@ bool ActorMediator::ForceAction(TESActionData* apAction) noexcept
     auto pActor = static_cast<Actor*>(apAction->actor);
     if (!pActor || EngineVirtual(pActor->animationGraphHolder).IsReady())
     {
-        result = TiltedPhoques::ThisCall(PerformComplexAction, this, apAction);
+        result = PerformComplexAction(this, apAction);
 
         ApplyAnimationVariables(*qword_142F271B8.Get(), apAction);
     }

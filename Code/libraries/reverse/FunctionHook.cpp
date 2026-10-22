@@ -5,7 +5,6 @@
 #include <initializer_list>
 
 #include <FunctionHook.hpp>
-#include <StackAllocator.hpp>
 #include <Memory.hpp>
 
 #define RtlOffsetToPointer(Base, Offset) ((PCHAR)(((PCHAR)(Base)) + ((ULONG_PTR)(Offset))))
@@ -19,7 +18,7 @@ namespace TiltedPhoques
         HookObserver s_observer = nullptr;
         HookObserverFilter s_observerFilter = nullptr;
         // Executable pages holding the observer stubs; freed when every hook is removed.
-        Vector<uint8_t*> s_stubPages;
+        std::vector<uint8_t*> s_stubPages;
         size_t s_stubPageUsed = 0;
         constexpr size_t cStubPageSize = 4096;
         constexpr size_t cStubSize = 128;

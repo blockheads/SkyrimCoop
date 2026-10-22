@@ -2,9 +2,7 @@
 
 // What the host's code (Code/client/Services/Host/) takes from the client's precompiled header.
 #include <TiltedCore/Platform.hpp>
-#include <TiltedCore/ScratchAllocator.hpp>
 #include <TiltedCore/Serialization.hpp>
-#include <TiltedCore/StackAllocator.hpp>
 #include <TiltedCore/Stl.hpp>
 #include <TiltedCore/ViewBuffer.hpp>
 
@@ -21,10 +19,4 @@
 using namespace std::chrono_literals;
 
 using TiltedPhoques::ConnectionId_t;
-using TiltedPhoques::MakeUnique;
-using TiltedPhoques::Map;
-using TiltedPhoques::ScopedAllocator;
-using TiltedPhoques::String;
-using TiltedPhoques::UniquePtr;
-using TiltedPhoques::Vector;
 using TiltedPhoques::ViewBuffer;

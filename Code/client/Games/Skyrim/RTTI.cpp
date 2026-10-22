@@ -6,7 +6,7 @@ namespace internal
 {
 template <class T> RttiLocator<T>::RttiLocator(uint32_t aId)
 {
-    m_pRtti = TiltedPhoques::MakeUnique<VersionDbPtr<void*>>(aId);
+    m_pRtti = std::make_unique<VersionDbPtr<void*>>(aId);
 }
 
 template <class T> const void* RttiLocator<T>::Get()

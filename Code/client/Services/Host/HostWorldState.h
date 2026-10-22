@@ -54,12 +54,12 @@ private:
     const HostPlayers& m_players;
     const HostGame& m_game;
     // The globals' values the others hold, by session id ((mod id << 32) | base id), as float bits.
-    TiltedPhoques::Map<uint64_t, uint32_t> m_globals;
+    std::unordered_map<uint64_t, uint32_t> m_globals;
     uint64_t m_globalsTick{};
     // The quests as the others hold them, by session id, in the order the host's game lists them.
-    TiltedPhoques::Map<uint64_t, size_t> m_questIndex;
-    TiltedPhoques::Vector<QuestState> m_quests;
+    std::unordered_map<uint64_t, size_t> m_questIndex;
+    std::vector<QuestState> m_quests;
     uint64_t m_questsTick{};
     // Guests' cells the host's game has not loaded yet, oldest first.
-    TiltedPhoques::Vector<PendingCell> m_pendingCells;
+    std::vector<PendingCell> m_pendingCells;
 };

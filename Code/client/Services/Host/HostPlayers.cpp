@@ -7,7 +7,7 @@ HostPlayers::HostPlayers(HostNetwork& aNetwork) noexcept
 {
 }
 
-uint32_t HostPlayers::Add(ConnectionId_t aConnection, const TiltedPhoques::String& acName, uint16_t aLevel, bool aIsHost) noexcept
+uint32_t HostPlayers::Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost) noexcept
 {
     const uint32_t cId = ++m_lastId;
     m_players[aConnection] = {cId, acName, aLevel, aIsHost};
@@ -31,10 +31,10 @@ uint32_t HostPlayers::PlayerIdOf(ConnectionId_t aConnection) const noexcept
     return cpPlayer ? cpPlayer->Id : 0;
 }
 
-TiltedPhoques::String HostPlayers::PlayerNameOf(ConnectionId_t aConnection) const noexcept
+std::string HostPlayers::PlayerNameOf(ConnectionId_t aConnection) const noexcept
 {
     const auto* cpPlayer = Find(aConnection);
-    return cpPlayer ? cpPlayer->Name : TiltedPhoques::String{};
+    return cpPlayer ? cpPlayer->Name : std::string{};
 }
 
 HostPlayers::ConnectionId_t HostPlayers::Host() const noexcept
@@ -45,9 +45,9 @@ HostPlayers::ConnectionId_t HostPlayers::Host() const noexcept
     return 0;
 }
 
-TiltedPhoques::Vector<HostPlayers::ConnectionId_t> HostPlayers::Connections() const noexcept
+std::vector<HostPlayers::ConnectionId_t> HostPlayers::Connections() const noexcept
 {
-    TiltedPhoques::Vector<ConnectionId_t> connections;
+    std::vector<ConnectionId_t> connections;
     for (const auto& [cConnection, cPlayer] : m_players)
         connections.push_back(cConnection);
     return connections;
@@ -56,7 +56,7 @@ TiltedPhoques::Vector<HostPlayers::ConnectionId_t> HostPlayers::Connections() co
 void HostPlayers::SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept
 {
     if (const auto it = m_players.find(aConnection); it != m_players.end())
-        it.value().Level = aLevel;
+        it->second.Level = aLevel;
 }
 
 void HostPlayers::SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const noexcept

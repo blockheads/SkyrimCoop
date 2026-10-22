@@ -12,9 +12,7 @@ function component(name)
     add_headerfiles("**.h")
     add_files("**.cpp|**Test.cpp|**Test*.cpp")
     add_deps("TiltedCore")
-    add_packages(
-      "hopscotch-map",
-      "spdlog")
+    add_packages("spdlog")
 end
 
 -- Client components (Windows only)

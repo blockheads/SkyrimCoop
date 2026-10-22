@@ -58,11 +58,11 @@ TEST_CASE("Chat: a line is cut to the chat's length, whole characters, without c
     CHECK(ChatText("1 < 2 and <3 >_>") == "1 < 2 and <3 >_>");
     CHECK(ChatText("one\ntwo\tthree\x7f") == "onetwothree");
 
-    const String cLong(kChatMaxLength + 10, 'a');
+    const std::string cLong(kChatMaxLength + 10, 'a');
     CHECK(ChatText(cLong).size() == kChatMaxLength);
     // An é ("\xc3\xa9") across the limit is left out, not cut in half.
-    const String cAcross = String(kChatMaxLength - 1, 'a') + "\xc3\xa9";
-    CHECK(ChatText(cAcross) == String(kChatMaxLength - 1, 'a'));
-    const String cFits = String(kChatMaxLength - 2, 'a') + "\xc3\xa9";
+    const std::string cAcross = std::string(kChatMaxLength - 1, 'a') + "\xc3\xa9";
+    CHECK(ChatText(cAcross) == std::string(kChatMaxLength - 1, 'a'));
+    const std::string cFits = std::string(kChatMaxLength - 2, 'a') + "\xc3\xa9";
     CHECK(ChatText(cFits) == cFits);
 }

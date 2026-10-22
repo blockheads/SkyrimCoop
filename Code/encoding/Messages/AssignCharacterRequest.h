@@ -10,8 +10,6 @@
 #include <Structs/Factions.h>
 #include <Structs/ActorData.h>
 
-using TiltedPhoques::String;
-
 struct AssignCharacterRequest final : RequestMessage
 {
     static constexpr RequestOpcode Opcode = kAssignCharacterRequest;
@@ -40,11 +38,11 @@ struct AssignCharacterRequest final : RequestMessage
     Vector3_NetQuantize Position{};
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
-    String AppearanceBuffer{};
+    std::string AppearanceBuffer{};
     Factions FactionsContent{};
     ActionEvent LatestAction{};
     // The behaviour graphs' state, as a savegame keeps it: what a copy's fresh graph loads.
-    String GraphState{};
+    std::string GraphState{};
     Tints FaceTints{};
     bool IsDragon{};
     bool IsMount{};

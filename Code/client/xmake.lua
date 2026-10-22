@@ -49,7 +49,6 @@ target(name)
     add_packages(
         "rpmalloc",
         "spdlog",
-        "hopscotch-map",
         "enet6",
         "minhook",
         "entt",

@@ -3,13 +3,12 @@
 #include <TiltedCore/Stl.hpp>
 
 using TiltedPhoques::Buffer;
-using TiltedPhoques::Vector;
 
 struct Tints
 {
     struct Entry
     {
-        TiltedPhoques::String Name;
+        std::string Name;
         float Alpha;
         uint32_t Color;
         uint32_t Type;
@@ -27,5 +26,5 @@ struct Tints
     void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
 
-    Vector<Entry> Entries;
+    std::vector<Entry> Entries;
 };

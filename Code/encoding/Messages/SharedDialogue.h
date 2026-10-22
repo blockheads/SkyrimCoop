@@ -61,7 +61,7 @@ struct DialoguePickRequest final : RequestMessage
     uint32_t Step{};
     GameId Topic{};
     GameId Info{};
-    TiltedPhoques::String Text{};
+    std::string Text{};
 };
 
 // A game's player left the conversation (its menu closed); it ends once nobody is in it. From the host's game

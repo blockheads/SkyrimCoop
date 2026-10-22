@@ -43,11 +43,9 @@
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
 
-using TiltedPhoques::UniquePtr;
-
 struct RequestMessageFactory
 {
-    UniquePtr<RequestMessage> Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept;
+    std::unique_ptr<RequestMessage> Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept;
 
     template <class T> static auto Visit(T&& func)
     {

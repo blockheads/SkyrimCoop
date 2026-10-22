@@ -7,5 +7,5 @@ namespace PlayerCollision
 {
 // The stacked players (none: everyone collides). Main thread, every frame: an actor's collision group comes
 // from its current controller.
-void SetPassThrough(const TiltedPhoques::Vector<uint32_t>& acActorFormIds) noexcept;
+void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept;
 } // namespace PlayerCollision

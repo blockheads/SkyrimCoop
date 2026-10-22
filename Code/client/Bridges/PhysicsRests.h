@@ -20,7 +20,7 @@ public:
     PhysicsRests& operator=(const PhysicsRests&) = delete;
 
     // Each update: the references at rest now away from where their physics took them (a settle in place is none).
-    [[nodiscard]] TiltedPhoques::Vector<uint32_t> TakeRested() noexcept;
+    [[nodiscard]] std::vector<uint32_t> TakeRested() noexcept;
     // An id the game uses again.
     void Forget(uint32_t aFormId) noexcept;
 
@@ -43,6 +43,6 @@ private:
 
     void Moved(const TESObjectREFR& acObject) noexcept;
 
-    TiltedPhoques::Map<uint32_t, Watch> m_moving;
-    TiltedPhoques::Map<uint32_t, Pose> m_rested; // where each last rested
+    std::unordered_map<uint32_t, Watch> m_moving;
+    std::unordered_map<uint32_t, Pose> m_rested; // where each last rested
 };

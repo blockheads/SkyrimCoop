@@ -33,7 +33,7 @@ namespace
 {
 // A role's fill as a guest can make it (QuestAliasFill): acCreated, the created references that went out.
 QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef, const ModSystem& acMods,
-                             const TiltedPhoques::Map<uint32_t, uint32_t>& acCreated) noexcept
+                             const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
 {
     QuestAliasFill fill{aAliasId};
     if (!apRef)
@@ -55,7 +55,7 @@ QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef, cons
     return fill;
 }
 
-QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMods, const TiltedPhoques::Map<uint32_t, uint32_t>& acCreated) noexcept
+QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMods, const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
 {
     QuestState quest{acId, static_cast<uint16_t>(aQuest.flags & QuestState::kFlags), aQuest.currentStage};
     for (const TESQuest::Stage* pStage : aQuest.stages)
@@ -90,9 +90,9 @@ struct EngineLog
 {
     struct Taken
     {
-        TiltedPhoques::Vector<uint32_t> Created;          // in order
-        TiltedPhoques::Map<uint32_t, uint32_t> Changed;   // form id: change flags, merged
-        TiltedPhoques::Set<uint32_t> Removed;             // records that lost flags
+        std::vector<uint32_t> Created;          // in order
+        std::unordered_map<uint32_t, uint32_t> Changed;   // form id: change flags, merged
+        std::unordered_set<uint32_t> Removed;             // records that lost flags
     };
 
     void Created(uint32_t aFormId) noexcept
@@ -196,9 +196,9 @@ std::optional<GameId> HostEngine::ReadWeather() const noexcept
     return id;
 }
 
-TiltedPhoques::Vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
+std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
 {
-    TiltedPhoques::Vector<HostGlobal> globals;
+    std::vector<HostGlobal> globals;
     auto* pData = ModManager::Get();
     if (!pData)
         return globals;
@@ -212,9 +212,9 @@ TiltedPhoques::Vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
     return globals;
 }
 
-TiltedPhoques::Vector<QuestState> HostEngine::ReadQuests() const noexcept
+std::vector<QuestState> HostEngine::ReadQuests() const noexcept
 {
-    TiltedPhoques::Vector<QuestState> quests;
+    std::vector<QuestState> quests;
     auto* pData = ModManager::Get();
     if (!pData)
         return quests;
@@ -245,7 +245,7 @@ void HostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFor
         m_events.push_back(std::move(event));
 }
 
-void HostEngine::RecordAnimation(uint32_t aObjectFormId, const TiltedPhoques::String& acAnimation, const TiltedPhoques::String& acEvent) noexcept
+void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept
 {
     ObjectChange event{ObjectChange::Kind::kAnimation};
     event.Animation = acAnimation;
@@ -284,10 +284,10 @@ void HostEngine::SetItems(const GameId& acObject, const GameId& acItem, uint32_t
         spdlog::warn("HostEngine: a guest's items {:X} holds {} of {:X}: no such container or item here", acObject.LogFormat(), aCount, acItem.LogFormat());
 }
 
-TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
+std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
 {
     auto [created, changed, removed] = s_log.Take();
-    TiltedPhoques::Vector<ObjectChange> changes;
+    std::vector<ObjectChange> changes;
     TakeDeletedCreated(changes);
     // Created next: the changes after refer to them.
     for (const uint32_t cFormId : created)
@@ -335,7 +335,7 @@ bool HostEngine::IsShared(uint32_t aFormId) const noexcept
     return aFormId < 0xFF000000 || m_created.count(aFormId);
 }
 
-void HostEngine::TakeDeletedCreated(TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept
+void HostEngine::TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcept
 {
     for (auto it = m_created.begin(); it != m_created.end();)
     {
@@ -353,17 +353,17 @@ void HostEngine::TakeDeletedCreated(TiltedPhoques::Vector<ObjectChange>& aChange
     }
 }
 
-std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(const GameId& acCell,
-                                                                             const TiltedPhoques::Vector<ChangedReference>& acChanged) const noexcept
+std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId& acCell,
+                                                                             const std::vector<ChangedReference>& acChanged) const noexcept
 {
     auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(acCell)));
     if (!pCell || !pCell->IsFullyLoaded())
         return std::nullopt;
-    TiltedPhoques::Map<uint32_t, uint32_t> guestRows;
+    std::unordered_map<uint32_t, uint32_t> guestRows;
     for (const auto& cRef : acChanged)
         if (const uint32_t cFormId = m_mods.GetGameId(cRef.Id))
             guestRows[cFormId] |= cRef.Flags;
-    TiltedPhoques::Vector<ObjectChange> changes;
+    std::vector<ObjectChange> changes;
     const auto cReferences = pCell->GetReferences();
     // The host's created ones there first, so the guest makes its own, with their rows.
     for (const TESObjectREFR* pRef : cReferences)

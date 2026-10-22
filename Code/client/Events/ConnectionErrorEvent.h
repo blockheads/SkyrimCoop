@@ -8,5 +8,5 @@ struct ConnectionErrorEvent
 {
     ConnectionErrorEvent() = default;
 
-    TiltedPhoques::String ErrorDetail;
+    std::string ErrorDetail;
 };

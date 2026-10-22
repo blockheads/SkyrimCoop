@@ -17,7 +17,7 @@ bool AnimationVariables::operator!=(const AnimationVariables& acRhs) const noexc
 // translation needed. Should be better than winding down several layers to 
 // TiltedPhoques::Serialization::WriteBool, though.
 //
-void AnimationVariables::VectorBool_to_String(const Vector<bool>& bools, TiltedPhoques::String& chars) const
+void AnimationVariables::VectorBool_to_String(const std::vector<bool>& bools, std::string& chars) const
 {
     chars.assign((bools.size() + 7) >> 3, 0);
 
@@ -28,9 +28,9 @@ void AnimationVariables::VectorBool_to_String(const Vector<bool>& bools, TiltedP
             *citer |= *biter++ ? mask : 0;
 }
 
-// The Vector<bool> must be the correct size when called.
+// The std::vector<bool> must be the correct size when called.
 //
-void AnimationVariables::String_to_VectorBool(const TiltedPhoques::String& chars, Vector<bool>& bools)
+void AnimationVariables::String_to_VectorBool(const std::string& chars, std::vector<bool>& bools)
 {
     bools.assign(bools.size(), false);
 
@@ -45,7 +45,7 @@ void AnimationVariables::String_to_VectorBool(const TiltedPhoques::String& chars
 void AnimationVariables::Load(std::istream& aInput)
 {
     // Booleans are bitpacked and a bit different, not guaranteed contiguous.
-    TiltedPhoques::String chars((Booleans.size() + 7) >> 3, 0);
+    std::string chars((Booleans.size() + 7) >> 3, 0);
 
     aInput.read(reinterpret_cast<char*>(chars.data()), chars.size());
     String_to_VectorBool(chars, Booleans);
@@ -56,7 +56,7 @@ void AnimationVariables::Load(std::istream& aInput)
 void AnimationVariables::Save(std::ostream& aOutput) const
 {
     // Booleans bitpacked and not guaranteed contiguous.
-    TiltedPhoques::String chars;
+    std::string chars;
     VectorBool_to_String(Booleans, chars);
  
     aOutput.write(reinterpret_cast<const char*>(chars.data()), chars.size());
@@ -89,7 +89,7 @@ void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, Tilte
     TiltedPhoques::Serialization::WriteVarInt(aWriter, Integers.size());
     TiltedPhoques::Serialization::WriteVarInt(aWriter, Floats.size());
 
-    TiltedPhoques::String chars;
+    std::string chars;
     VectorBool_to_String(changedVector, chars);
     TiltedPhoques::Serialization::WriteString(aWriter, chars);
 
@@ -118,7 +118,7 @@ void AnimationVariables::ApplyDiff(TiltedPhoques::Buffer::Reader& aReader)
     if (Floats.size() != floatsSize)
         Floats.assign(floatsSize, 0.f);
     
-    TiltedPhoques::Vector<bool> changedVector(booleansSize + integersSize + floatsSize);
+    std::vector<bool> changedVector(booleansSize + integersSize + floatsSize);
     auto chars = TiltedPhoques::Serialization::ReadString(aReader);
     String_to_VectorBool(chars, changedVector);
 

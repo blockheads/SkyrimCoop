@@ -74,7 +74,6 @@ add_requires(
     "spdlog v1.13.0",
     "glm 0.9.9+8",
     "rpmalloc",
-    "hopscotch-map v2.3.1",
     "snappy 1.1.10",
     "enet6",
     "libuv v1.48.0",

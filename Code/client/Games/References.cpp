@@ -82,12 +82,12 @@ void FadeOutGame(bool aFadingOut, bool aBlackFade, float aFadeDuration, bool aRe
 // Disable AI sync for now, experiment didn't work, code might be useful later on though.
 #define AI_SYNC 0
 
-TP_THIS_FUNCTION(TCheckForNewPackage, bool, void, Actor* apActor, uint64_t aUnk1);
+using TCheckForNewPackage = bool(void*, Actor* apActor, uint64_t aUnk1);
 static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 
 // A copy runs no packages (copy contract) but holds the engine's do-nothing one, so the engine treats it
 // like any NPC with a package; HookUpdateAI keeps it from running.
-bool TP_MAKE_THISCALL(HookCheckForNewPackage, void, Actor* apActor, uint64_t aUnk1)
+bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
 {
     if (apActor && apActor->GetExtension()->IsCopy())
     {
@@ -97,44 +97,44 @@ bool TP_MAKE_THISCALL(HookCheckForNewPackage, void, Actor* apActor, uint64_t aUn
         return false;
     }
 
-    return TiltedPhoques::ThisCall(RealCheckForNewPackage, apThis, apActor, aUnk1);
+    return RealCheckForNewPackage(apThis, apActor, aUnk1);
 }
 
 // Packages the engine creates on the fly (movement blocked, flee, ...) all arrive here.
-TP_THIS_FUNCTION(TPutCreatedPackage, void, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk);
+using TPutCreatedPackage = void(Actor*, TESPackage* apPackage, bool aRunOnce, bool aUnk);
 static TPutCreatedPackage* RealPutCreatedPackage = nullptr;
 
 // Set while Actor::InitiateDoNothingPackage gives a copy its package.
 static thread_local bool s_copyPackage = false;
 
-void TP_MAKE_THISCALL(HookPutCreatedPackage, Actor, TESPackage* apPackage, bool aRunOnce, bool aUnk)
+void HookPutCreatedPackage(Actor* apThis, TESPackage* apPackage, bool aRunOnce, bool aUnk)
 {
     if (apThis->GetExtension()->IsCopy() && !s_copyPackage)
         return;
 
-    TiltedPhoques::ThisCall(RealPutCreatedPackage, apThis, apPackage, aRunOnce, aUnk);
+    RealPutCreatedPackage(apThis, apPackage, aRunOnce, aUnk);
 }
 
 // Actor::InitiateDoNothingPackage (37402): only in high or middle-high process.
 void Actor::InitiateDoNothingPackage() noexcept
 {
-    TP_THIS_FUNCTION(TInitiateDoNothingPackage, void, Actor);
+    using TInitiateDoNothingPackage = void(Actor*);
     POINTER_SKYRIMSE(TInitiateDoNothingPackage, s_initiateDoNothingPackage, 37402);
 
     s_copyPackage = true;
-    TiltedPhoques::ThisCall(s_initiateDoNothingPackage, this);
+    s_initiateDoNothingPackage(this);
     s_copyPackage = false;
 }
 
-TP_THIS_FUNCTION(TInitFromPackage, void, void, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor);
+using TInitFromPackage = void(void*, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor);
 static TInitFromPackage* RealInitFromPackage = nullptr;
 
-void TP_MAKE_THISCALL(HookInitFromPackage, void, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor)
+void HookInitFromPackage(void* apThis, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor)
 {
 #if AI_SYNC
     // This guard is here for when the client sets the package based on a remote message
     if (s_execInitPackage)
-        return TiltedPhoques::ThisCall(RealInitFromPackage, apThis, apPackage, apTarget, arActor);
+        return RealInitFromPackage(apThis, apPackage, apTarget, arActor);
 
     if (arActor && arActor->GetExtension()->IsCopy())
         return;
@@ -143,13 +143,13 @@ void TP_MAKE_THISCALL(HookInitFromPackage, void, TESPackage* apPackage, TESObjec
         World::Get().GetRunner().Trigger(InitPackageEvent(arActor->formID, apPackage->formID));
 
 #endif
-    return TiltedPhoques::ThisCall(RealInitFromPackage, apThis, apPackage, apTarget, arActor);
+    return RealInitFromPackage(apThis, apPackage, apTarget, arActor);
 }
 
-TP_THIS_FUNCTION(TSetCurrentPickREFR, void, Console, BSPointerHandle<TESObjectREFR>* apRefr);
+using TSetCurrentPickREFR = void(Console*, BSPointerHandle<TESObjectREFR>* apRefr);
 static TSetCurrentPickREFR* RealSetCurrentPickREFR = nullptr;
 
-void TP_MAKE_THISCALL(HookSetCurrentPickREFR, Console, BSPointerHandle<TESObjectREFR>* apRefr)
+void HookSetCurrentPickREFR(Console* apThis, BSPointerHandle<TESObjectREFR>* apRefr)
 {
     uint32_t formId = 0;
 
@@ -159,7 +159,7 @@ void TP_MAKE_THISCALL(HookSetCurrentPickREFR, Console, BSPointerHandle<TESObject
 
     World::Get().GetDebugService().SetDebugId(formId);
 
-    return TiltedPhoques::ThisCall(RealSetCurrentPickREFR, apThis, apRefr);
+    return RealSetCurrentPickREFR(apThis, apRefr);
 }
 
 static TiltedPhoques::Initializer s_referencesHooks(

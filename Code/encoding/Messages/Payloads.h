@@ -41,7 +41,7 @@ struct ActorValueChanges
     bool operator==(const ActorValueChanges&) const noexcept = default;
 
     uint32_t Id{};
-    TiltedPhoques::Map<uint32_t, float> Values{};
+    std::map<uint32_t, float> Values{};
 };
 
 struct ActorMaxValueChanges
@@ -52,7 +52,7 @@ struct ActorMaxValueChanges
     bool operator==(const ActorMaxValueChanges&) const noexcept = default;
 
     uint32_t Id{};
-    TiltedPhoques::Map<uint32_t, float> Values{};
+    std::map<uint32_t, float> Values{};
 };
 
 struct DeathStateChange
@@ -194,7 +194,7 @@ struct Dialogue
     bool operator==(const Dialogue&) const noexcept = default;
 
     uint32_t SessionId{};
-    TiltedPhoques::String SoundFilename{};
+    std::string SoundFilename{};
 };
 
 struct Subtitle
@@ -205,7 +205,7 @@ struct Subtitle
     bool operator==(const Subtitle&) const noexcept = default;
 
     uint32_t SessionId{};
-    TiltedPhoques::String Text{};
+    std::string Text{};
     uint32_t TopicFormId{};
     bool Force{}; // shown at any distance (the engine's forceDisplay, as for a line said to the player)
 };
@@ -229,6 +229,6 @@ struct ActiveEffects
     bool operator==(const ActiveEffects&) const noexcept = default;
 
     uint32_t SessionId{};
-    Vector<GameId> EffectIds{};
+    std::vector<GameId> EffectIds{};
 };
 } // namespace Payloads

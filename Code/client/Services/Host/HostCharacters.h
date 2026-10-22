@@ -89,7 +89,7 @@ private:
     HostNetwork& m_network;
     const HostPlayers& m_players;
     const HostGame& m_game;
-    TiltedPhoques::Map<uint32_t, Character> m_characters;
+    std::unordered_map<uint32_t, Character> m_characters;
     // Never reused in a session: a late message for a removed character finds nothing.
     uint32_t m_lastSessionId = 0;
 
@@ -102,10 +102,10 @@ private:
     };
     static Place PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept;
     // From each player's announcement, then its arrivals.
-    TiltedPhoques::Map<ConnectionId_t, Place> m_places;
+    std::unordered_map<ConnectionId_t, Place> m_places;
     // Arrived where the host is not yet (it led, or the host is still loading): the host's actors there reach
     // them once the host arrives.
-    TiltedPhoques::Set<ConnectionId_t> m_aheadOfHost;
+    std::unordered_set<ConnectionId_t> m_aheadOfHost;
     // Where the party went last (the latest player to travel by itself), for followers that arrive elsewhere.
     std::optional<NotifyPartyTravel> m_partyTravel;
 };

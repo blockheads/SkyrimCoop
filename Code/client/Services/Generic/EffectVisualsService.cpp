@@ -54,7 +54,7 @@ void EffectVisualsService::SendOwnedEffects() noexcept
         if (!m_actorBridge.ActorExists(cFormId))
             continue;
 
-        Vector<uint32_t> ids;
+        std::vector<uint32_t> ids;
         for (const auto& cEffect : m_actorBridge.GetActorActiveEffects(cFormId))
             if (!(cEffect.Flags & cInactive) && m_actorBridge.EffectHasHitVisuals(cEffect.EffectFormId))
                 ids.push_back(cEffect.EffectFormId);
@@ -90,7 +90,7 @@ void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMe
         return;
 
     auto& modSystem = m_world.GetModSystem();
-    Vector<uint32_t> wanted;
+    std::vector<uint32_t> wanted;
     for (const auto& cEffectId : acMessage.EffectIds)
         if (const uint32_t cId = modSystem.GetGameId(cEffectId))
             wanted.push_back(cId);

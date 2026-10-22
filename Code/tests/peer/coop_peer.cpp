@@ -20,9 +20,6 @@
 #include <ENetInterface.hpp>
 
 using TiltedPhoques::ConnectionId_t;
-using TiltedPhoques::String;
-using TiltedPhoques::UniquePtr;
-using TiltedPhoques::Vector;
 
 #include <Client.hpp>
 #include <Packet.hpp>

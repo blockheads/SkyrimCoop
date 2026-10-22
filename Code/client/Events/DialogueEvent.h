@@ -5,12 +5,12 @@
  */
 struct DialogueEvent
 {
-    DialogueEvent(uint32_t aActorID, String aVoiceFile)
+    DialogueEvent(uint32_t aActorID, std::string aVoiceFile)
         : ActorID(aActorID)
         , VoiceFile(aVoiceFile)
     {
     }
 
     uint32_t ActorID;
-    String VoiceFile;
+    std::string VoiceFile;
 };

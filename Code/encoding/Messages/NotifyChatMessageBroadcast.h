@@ -2,8 +2,6 @@
 
 #include "Message.h"
 
-using TiltedPhoques::String;
-
 struct NotifyChatMessageBroadcast final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyChatMessageBroadcast;
@@ -21,6 +19,6 @@ struct NotifyChatMessageBroadcast final : NotifyMessage
     bool operator==(const NotifyChatMessageBroadcast& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && MessageType == acRhs.MessageType && PlayerName == acRhs.PlayerName && ChatMessage == acRhs.ChatMessage; }
 
     ChatMessageType MessageType;
-    TiltedPhoques::String PlayerName;
-    TiltedPhoques::String ChatMessage;
+    std::string PlayerName;
+    std::string ChatMessage;
 };

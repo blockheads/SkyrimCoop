@@ -64,9 +64,9 @@ void CombatController::UpdateTarget()
 
 void CombatController::SetTarget(Actor* apTarget)
 {
-    TP_THIS_FUNCTION(TSetTarget, void, CombatController, Actor*);
+    using TSetTarget = void(CombatController*, Actor*);
     POINTER_SKYRIMSE(TSetTarget, setTarget, 33235);
-    TiltedPhoques::ThisCall(setTarget, this, apTarget);
+    setTarget(this, apTarget);
 }
 
 

@@ -39,10 +39,10 @@ uint16_t GroupOf(uint32_t aFormId) noexcept
 
 // bhkCollisionFilter::CompareFilterInfo (78553): whether two bodies' filter infos collide; every Havok
 // collision and query asks it (Precision hooks its seven callers).
-TP_THIS_FUNCTION(TCompareFilterInfo, bool, void, uint32_t aFilterA, uint32_t aFilterB);
+using TCompareFilterInfo = bool(void*, uint32_t aFilterA, uint32_t aFilterB);
 TCompareFilterInfo* RealCompareFilterInfo = nullptr;
 
-bool TP_MAKE_THISCALL(HookCompareFilterInfo, void, uint32_t aFilterA, uint32_t aFilterB)
+bool HookCompareFilterInfo(void* apThis, uint32_t aFilterA, uint32_t aFilterB)
 {
     // Two different stacked players pass through each other; anything else collides as the engine says.
     const uint32_t cGroupA = aFilterA >> 16;
@@ -53,7 +53,7 @@ bool TP_MAKE_THISCALL(HookCompareFilterInfo, void, uint32_t aFilterA, uint32_t a
         if (cStacked.Has(cGroupA) && cStacked.Has(cGroupB))
             return false;
     }
-    return TiltedPhoques::ThisCall(RealCompareFilterInfo, apThis, aFilterA, aFilterB);
+    return RealCompareFilterInfo(apThis, aFilterA, aFilterB);
 }
 
 TiltedPhoques::Initializer s_playerCollisionHooks([] {
@@ -66,7 +66,7 @@ TiltedPhoques::Initializer s_playerCollisionHooks([] {
 
 namespace PlayerCollision
 {
-void SetPassThrough(const TiltedPhoques::Vector<uint32_t>& acActorFormIds) noexcept
+void SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept
 {
     Groups stacked;
     size_t count = 0;

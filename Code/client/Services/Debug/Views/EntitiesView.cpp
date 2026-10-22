@@ -39,12 +39,9 @@ void DebugService::DisplayEntities() noexcept
 {
     static uint32_t s_selected = 0;
 
-    StackAllocator<1 << 12> allocator;
-    ScopedAllocator _{allocator};
-
     const auto view = m_world.view<FormIdComponent>();
 
-    Vector<entt::entity> entities(view.begin(), view.end());
+    std::vector<entt::entity> entities(view.begin(), view.end());
 
     ImGui::Text("Actor list (%d)", entities.size());
 

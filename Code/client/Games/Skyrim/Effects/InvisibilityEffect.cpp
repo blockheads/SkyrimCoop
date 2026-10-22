@@ -5,11 +5,11 @@
 #include <Games/ActorExtension.h>
 #include <Forms/ActorValueInfo.h>
 
-TP_THIS_FUNCTION(TFinish, void, InvisibilityEffect);
+using TFinish = void(InvisibilityEffect*);
 static TFinish* RealFinish = nullptr;
 
 // This needs to be done because the actor value does not update in time
-void TP_MAKE_THISCALL(HookFinish, InvisibilityEffect)
+void HookFinish(InvisibilityEffect* apThis)
 {
     if (apThis && apThis->pTarget)
     {
@@ -20,7 +20,7 @@ void TP_MAKE_THISCALL(HookFinish, InvisibilityEffect)
         }
     }
 
-    TiltedPhoques::ThisCall(RealFinish, apThis);
+    RealFinish(apThis);
 }
 
 static TiltedPhoques::Initializer s_invisibilityEffectsHooks(

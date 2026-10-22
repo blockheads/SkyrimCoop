@@ -25,7 +25,7 @@ struct Key
     bool Shift;
 };
 // The presses since the last call, while the chat is open.
-[[nodiscard]] Vector<Key> TakeKeys() noexcept;
+[[nodiscard]] std::vector<Key> TakeKeys() noexcept;
 
 // DirectInput scan codes the chat handles itself.
 constexpr uint32_t cEscape = 0x01;

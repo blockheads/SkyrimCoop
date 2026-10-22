@@ -25,11 +25,11 @@ struct RequestRespawn final : RequestMessage
     }
 
     uint32_t ActorId{};
-    String AppearanceBuffer{};
+    std::string AppearanceBuffer{};
     uint32_t ChangeFlags{0};
     // The owner's state now, sent with its own respawn: what the new copies start from.
     bool HasState{false};
     ActionEvent LatestAction{};
-    String GraphState{};
+    std::string GraphState{};
     ActorData Data{};
 };

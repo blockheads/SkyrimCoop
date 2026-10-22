@@ -58,7 +58,7 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
         spdlog::info("GuestWorldState: the host's state of cell {:X} came after it unloaded here, left", acMessage.Cell.LogFormat());
         return;
     }
-    TiltedPhoques::Vector<ObjectChange> applied;
+    std::vector<ObjectChange> applied;
     for (const auto& cChange : acMessage.Changes)
     {
         if (m_engine.ApplyObjectChange(cChange, acMessage.Cell != GameId{}))

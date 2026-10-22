@@ -6,7 +6,7 @@ target("TPTests")
     add_includedirs(".", "../encoding", "../common", "../base", "../external")
     add_files("encoding.cpp", "main.cpp")
     add_deps("SkyrimEncoding")
-    add_packages("catch2", "glm", "spdlog", "hopscotch-map", "rpmalloc")
+    add_packages("catch2", "glm", "spdlog", "rpmalloc")
 
 includes("bridge")
 includes("peer")

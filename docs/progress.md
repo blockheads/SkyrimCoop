@@ -189,6 +189,18 @@ called), upstream's F4 "reveal other players" (needed `SkyrimTogether.esp`), `BG
 and clang-cl's PCH include rule are silenced as expected. The one stub something called, `SetActorRotation`, is
 implemented: a copy now spawns facing its owner's way (it kept its created heading until the owner's next move).
 
+Leaving `TiltedPhoques` (2026-10-21, `docs/ideas.md`, "Modern C++ over `TiltedPhoques`"), steps 1-3 of 4:
+1. No scoped allocators (the transport's send, the enet clock sync, a debug view): every allocation is rpmalloc
+   through global `new`.
+2. Containers are `std`: `std::vector`, `std::string`, `std::unordered_map`/`set`, `std::unique_ptr`; the hopscotch
+   package is gone. Maps that go on the wire are ordered `std::map` (bytes in key order, as `wire_tests` pins them).
+   A hot reload refuses this change (actor extension layout): restart the games.
+3. `TP_THIS_FUNCTION`/`TP_MAKE_THISCALL`/`ThisCall` are plain C++: `using T = R(C*, A...)`, `R Hook(C* apThis, ...)`,
+   `f(this, ...)` (an engine address wrapper converts to its function pointer). One call bound an rvalue to the
+   engine's `uint32_t*&` through `ThisCall`'s copy; it names the copy now (`TESObjectREFR::MoveTo`).
+Step 4 (moving the wire buffer, hooks, init list and enet transport into our tree; deleting `Code/TiltedCore` and
+`Code/libraries`) is next.
+
 ## Sync by system
 
 Each verified system has a two-game scenario (`scripts/coop_test.py scenario <name>`).
@@ -641,6 +653,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   entries above). `HEAD` before phase 5 passed 6 of 6, the same orders included; not settled whether phase 5 makes
   it likelier. Likely the spawn heading: `SetActorRotation` was a stub, so a copy kept its created heading until its
   owner moved; implemented the same day, then 3 of 3 passed right after the scenarios that had tripped it.
+- `burning-shows-on-copy` fails its world check about half the time (2026-10-21, 3 of 6 after the `TiltedPhoques` steps;
+  it passed the run before them): each game's own fire hazard from the spell's impact (`HAZD` 3E075, a created
+  reference) is still there when the check looks, at a different spot in each game. Either hazards are each game's
+  own transient effect and the check should skip them like projectiles, or the host's should be the only one;
+  not decided.
 - `party-stacks-on-arrival` fails every run (2026-10-21; with copies spawning at their owner's heading, 2 of 4 passed): "[client] came within 9 units of the other player: it
   walked through it". Not followed up.
 

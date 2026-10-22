@@ -53,7 +53,7 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
             continue;
         }
         notify.Updates[cSessionId] = cUpdate;
-        if (auto& record = it.value().PlayerRecord)
+        if (auto& record = it->second.PlayerRecord)
         {
             record->CellId = cUpdate.UpdatedMovement.CellId;
             record->Position = cUpdate.UpdatedMovement.Position;
@@ -77,7 +77,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
     if (cIsPlayer)
     {
         // A player has one character: an earlier one (re-announced after a respawn) goes.
-        Vector<uint32_t> previous;
+        std::vector<uint32_t> previous;
         for (const auto& [cSessionId, cCharacter] : m_characters)
             if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
                 previous.push_back(cSessionId);
@@ -142,7 +142,7 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
         return;
     }
 
-    if (auto& record = it.value().PlayerRecord)
+    if (auto& record = it->second.PlayerRecord)
     {
         // The respawned copies start from the record: the owner's state now, else the host's copy's while it exists.
         if (acRequest.HasState)
@@ -186,7 +186,7 @@ void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     m_places.erase(aPlayer);
     m_aheadOfHost.erase(aPlayer);
-    Vector<uint32_t> owned;
+    std::vector<uint32_t> owned;
     for (const auto& [cSessionId, cCharacter] : m_characters)
         if (cCharacter.Owner == aPlayer)
             owned.push_back(cSessionId);
@@ -229,7 +229,7 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
     }
     for (auto it = m_characters.begin(); it != m_characters.end(); ++it)
     {
-        auto& record = it.value().PlayerRecord;
+        auto& record = it->second.PlayerRecord;
         if (it->second.Owner == aSender && record)
         {
             record->CellId = acRequest.CellId;
@@ -259,7 +259,7 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         SendHostActors(aSender);
         return;
     }
-    TiltedPhoques::Vector<ConnectionId_t> arrived;
+    std::vector<ConnectionId_t> arrived;
     for (const ConnectionId_t cPlayer : m_aheadOfHost)
         if (WithHost(cPlayer))
             arrived.push_back(cPlayer);

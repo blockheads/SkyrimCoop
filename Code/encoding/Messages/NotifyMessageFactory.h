@@ -50,11 +50,9 @@
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWorldState.h>
 
-using TiltedPhoques::UniquePtr;
-
 struct NotifyMessageFactory
 {
-    UniquePtr<NotifyMessage> Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept;
+    std::unique_ptr<NotifyMessage> Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept;
 
     template <class T> static auto Visit(T&& func)
     {

@@ -267,7 +267,7 @@ void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept
 }
 
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
-          TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept
+          std::vector<ObjectChange>& aChanges) noexcept
 {
     uint32_t left = aFlags & SentFlags();
     for (const auto& cState : cStates)

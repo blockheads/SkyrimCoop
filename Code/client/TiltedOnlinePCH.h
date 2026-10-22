@@ -18,8 +18,6 @@
 
 
 // TiltedCore
-#include <TiltedCore/StackAllocator.hpp>
-#include <TiltedCore/ScratchAllocator.hpp>
 #include <TiltedCore/Filesystem.hpp>
 #include <TiltedCore/Stl.hpp>
 #include <TiltedCore/Outcome.hpp>
@@ -36,7 +34,6 @@
 #include <FunctionHook.hpp>
 #include <Entry.hpp>
 #include <Debug.hpp>
-#include <ThisCall.hpp>
 
 extern void* RipAllocateN(size_t blockLength);
 #define REVERSE_ALLOC_STUB(x) RipAllocateN(x)
@@ -49,7 +46,13 @@ extern void* RipAllocateN(size_t blockLength);
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
 
+#include <algorithm>
 #include <any>
+#include <array>
+#include <functional>
+#include <optional>
+#include <span>
+#include <string_view>
 #include <mutex>
 #include <chrono>
 #include <iostream>
@@ -63,18 +66,7 @@ using TiltedPhoques::Allocator;
 using TiltedPhoques::App;
 using TiltedPhoques::AutoPtr;
 using TiltedPhoques::Buffer;
-using TiltedPhoques::List;
-using TiltedPhoques::Map;
 using TiltedPhoques::Outcome;
-using TiltedPhoques::ScopedAllocator;
-using TiltedPhoques::ScratchAllocator;
-using TiltedPhoques::Set;
-using TiltedPhoques::SortedMap;
-using TiltedPhoques::StackAllocator;
-using TiltedPhoques::String;
-using TiltedPhoques::ThisCall;
-using TiltedPhoques::UniquePtr;
-using TiltedPhoques::Vector;
 
 using namespace std::chrono_literals;
 

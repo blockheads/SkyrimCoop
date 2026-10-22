@@ -120,4 +120,4 @@ private:
 };
 
 // A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.
-[[nodiscard]] TiltedPhoques::String ChatText(std::string_view aText) noexcept;
+[[nodiscard]] std::string ChatText(std::string_view aText) noexcept;

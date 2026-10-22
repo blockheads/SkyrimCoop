@@ -1,6 +1,8 @@
 #include <Structs/GridCellCoords.h>
 #include <TiltedCore/Serialization.hpp>
 
+#include <cmath>
+
 using TiltedPhoques::Serialization;
 
 GridCellCoords::GridCellCoords()
@@ -43,8 +45,8 @@ GridCellCoords GridCellCoords::CalculateGridCellCoords(const Vector3_NetQuantize
 
 GridCellCoords GridCellCoords::CalculateGridCellCoords(const float aX, const float aY) noexcept
 {
-    auto x = static_cast<int32_t>(floor(aX / 4096.f));
-    auto y = static_cast<int32_t>(floor(aY / 4096.f));
+    auto x = static_cast<int32_t>(std::floor(aX / 4096.f));
+    auto y = static_cast<int32_t>(std::floor(aY / 4096.f));
     return GridCellCoords(x, y);
 }
 

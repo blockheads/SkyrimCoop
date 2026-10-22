@@ -31,7 +31,7 @@ struct AnimationGraphDescriptor
         return false;
     }
 
-    TiltedPhoques::Vector<uint32_t> BooleanLookUpTable;
-    TiltedPhoques::Vector<uint32_t> FloatLookupTable;
-    TiltedPhoques::Vector<uint32_t> IntegerLookupTable;
+    std::vector<uint32_t> BooleanLookUpTable;
+    std::vector<uint32_t> FloatLookupTable;
+    std::vector<uint32_t> IntegerLookupTable;
 };

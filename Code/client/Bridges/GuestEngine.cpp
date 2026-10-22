@@ -363,9 +363,9 @@ bool GuestEngine::PlaceAtHostRest(TESObjectREFR& aObject, const ObjectChange& ac
     return true;
 }
 
-TiltedPhoques::Vector<uint32_t> GuestEngine::AttachedCells() const noexcept
+std::vector<uint32_t> GuestEngine::AttachedCells() const noexcept
 {
-    TiltedPhoques::Vector<uint32_t> cells;
+    std::vector<uint32_t> cells;
     if (const TES* pTes = TES::Get())
         for (const TESObjectCELL* pCell : pTes->AttachedCells())
             if (pCell->IsFullyLoaded())

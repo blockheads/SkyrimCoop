@@ -6,8 +6,8 @@
 #include <Events/PapyrusFunctionRegisterEvent.h>
 #include <Games/Memory.h>
 
-TP_THIS_FUNCTION(TRegisterPapyrusFunction, void, BSScript::IVirtualMachine, NativeFunction*);
-TP_THIS_FUNCTION(TBindEverythingToScript, void, BSScript::IVirtualMachine*);
+using TRegisterPapyrusFunction = void(BSScript::IVirtualMachine*, NativeFunction*);
+using TBindEverythingToScript = void(BSScript::IVirtualMachine**);
 
 TRegisterPapyrusFunction* RealRegisterPapyrusFunction = nullptr;
 TBindEverythingToScript* RealBindEverythingToScript = nullptr;
@@ -18,7 +18,7 @@ static bool DidLaunchSkyrimTogether()
     return true;
 }
 
-void TP_MAKE_THISCALL(HookRegisterPapyrusFunction, BSScript::IVirtualMachine, NativeFunction* apFunction)
+void HookRegisterPapyrusFunction(BSScript::IVirtualMachine* apThis, NativeFunction* apFunction)
 {
     // Synchronous: natives register on the main thread during VM setup, and hooks such as
     // HookActivate look them up (PAPYRUS_FUNCTION) before the first World::Update would
@@ -26,17 +26,17 @@ void TP_MAKE_THISCALL(HookRegisterPapyrusFunction, BSScript::IVirtualMachine, Na
     World::Get().GetDispatcher().trigger(
         PapyrusFunctionRegisterEvent(apFunction->functionName.AsAscii(), apFunction->typeName.AsAscii(), apFunction->functionAddress));
 
-    TiltedPhoques::ThisCall(RealRegisterPapyrusFunction, apThis, apFunction);
+    RealRegisterPapyrusFunction(apThis, apFunction);
 }
 
-void TP_MAKE_THISCALL(HookBindEverythingToScript, BSScript::IVirtualMachine*)
+void HookBindEverythingToScript(BSScript::IVirtualMachine** apThis)
 {
     // The VM owns bound functions and frees them with the game heap (e.g. when the
     // script class is not installed), so they must come from the game heap too.
     // Plain `new` used the DLL's allocator and crashed BSSmallBlockAllocator at startup.
     (*apThis)->BindNativeMethod(Memory::New<BSScript::DidLaunchSkyrimTogetherFunc>("DidLaunchSkyrimTogether", "SkyrimTogetherVerifyLaunchScript", DidLaunchSkyrimTogether, BSScript::Variable::kBoolean));
 
-    TiltedPhoques::ThisCall(RealBindEverythingToScript, apThis);
+    RealBindEverythingToScript(apThis);
 }
 
 static TiltedPhoques::Initializer s_vmHooks(

@@ -29,10 +29,10 @@ struct AuthenticationRequest final : RequestMessage
     }
 
     GameVersions Game{};
-    String Token{};
-    String Version{};
+    std::string Token{};
+    std::string Version{};
     Mods UserMods{};
-    String Username{};
+    std::string Username{};
     GameId WorldSpaceId{};
     GameId CellId{};
     uint16_t Level{};

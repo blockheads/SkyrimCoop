@@ -10,8 +10,6 @@
 #include <Structs/Rotator2_NetQuantize.h>
 #include <Structs/ActorValues.h>
 
-using TiltedPhoques::String;
-
 struct AssignCharacterRequest;
 
 struct NotifyCharacterSpawn final : NotifyMessage
@@ -43,12 +41,12 @@ struct NotifyCharacterSpawn final : NotifyMessage
     Vector3_NetQuantize Position{};
     Rotator2_NetQuantize Rotation{};
     uint32_t ChangeFlags{};
-    String AppearanceBuffer{};
+    std::string AppearanceBuffer{};
     Inventory InventoryContent{};
     Factions FactionsContent{};
     ActionEvent LatestAction{};
     // The owner's behaviour graphs' state: the copy's fresh graph loads it instead of replaying LatestAction.
-    String GraphState{};
+    std::string GraphState{};
     Tints FaceTints{};
     ActorValues InitialActorValues{};
     uint32_t PlayerId{};

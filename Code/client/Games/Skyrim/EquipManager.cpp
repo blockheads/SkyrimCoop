@@ -47,12 +47,12 @@ struct ShoutEquipData
 };
 static_assert(sizeof(MagicEquipData) == 0x10);
 
-TP_THIS_FUNCTION(TEquip, void*, EquipManager, Actor* apActor, TESForm* apItem, EquipData* apData);
-TP_THIS_FUNCTION(TUnEquip, void*, EquipManager, Actor* apActor, TESForm* apItem, EquipData* apData);
-TP_THIS_FUNCTION(TEquipSpell, void*, EquipManager, Actor* apActor, TESForm* apSpell, MagicEquipData* apData);
-TP_THIS_FUNCTION(TUnEquipSpell, void*, EquipManager, Actor* apActor, TESForm* apSpell, MagicEquipData* apData);
-TP_THIS_FUNCTION(TEquipShout, void*, EquipManager, Actor* apActor, TESForm* apShout, ShoutEquipData* apData);
-TP_THIS_FUNCTION(TUnEquipShout, void*, EquipManager, Actor* apActor, TESForm* apShout, ShoutEquipData* apData);
+using TEquip = void*(EquipManager*, Actor* apActor, TESForm* apItem, EquipData* apData);
+using TUnEquip = void*(EquipManager*, Actor* apActor, TESForm* apItem, EquipData* apData);
+using TEquipSpell = void*(EquipManager*, Actor* apActor, TESForm* apSpell, MagicEquipData* apData);
+using TUnEquipSpell = void*(EquipManager*, Actor* apActor, TESForm* apSpell, MagicEquipData* apData);
+using TEquipShout = void*(EquipManager*, Actor* apActor, TESForm* apShout, ShoutEquipData* apData);
+using TUnEquipShout = void*(EquipManager*, Actor* apActor, TESForm* apShout, ShoutEquipData* apData);
 
 TUnEquip* RealUnEquip = nullptr;
 TEquip* RealEquip = nullptr;
@@ -70,81 +70,81 @@ EquipManager* EquipManager::Get() noexcept
 
 void* EquipManager::Equip(Actor* apActor, TESForm* apItem, ExtraDataList* apExtraDataList, int aCount, TESForm* apSlot, bool abQueueEquip, bool abForceEquip, bool abPlaySound, bool abApplyNow)
 {
-    TP_THIS_FUNCTION(TEquipInternal, void*, EquipManager, Actor* apActor, TESForm* apItem, ExtraDataList* apExtraDataList, int aCount, TESForm* apSlot, bool abQueueEquip, bool abForceEquip, bool abPlaySound, bool abApplyNow);
+    using TEquipInternal = void*(EquipManager*, Actor* apActor, TESForm* apItem, ExtraDataList* apExtraDataList, int aCount, TESForm* apSlot, bool abQueueEquip, bool abForceEquip, bool abPlaySound, bool abApplyNow);
     POINTER_SKYRIMSE(TEquipInternal, s_equipFunc, 38894);
 
     ScopedEquipOverride equipOverride;
 
     spdlog::debug("Call Actor[{:X}]::Equip(), item id: {:X}, extra data? {}, count: {}", apActor->formID, apItem->formID, (bool)apExtraDataList, aCount);
 
-    return TiltedPhoques::ThisCall(s_equipFunc, this, apActor, apItem, apExtraDataList, aCount, apSlot, abQueueEquip, abForceEquip, abPlaySound, abApplyNow);
+    return s_equipFunc(this, apActor, apItem, apExtraDataList, aCount, apSlot, abQueueEquip, abForceEquip, abPlaySound, abApplyNow);
 }
 
 void* EquipManager::UnEquip(Actor* apActor, TESForm* apItem, ExtraDataList* apExtraDataList, int aCount, TESForm* apSlot, bool abQueueEquip, bool abForceEquip, bool abPlaySound, bool abApplyNow, TESForm* apSlotToReplace)
 {
-    TP_THIS_FUNCTION(TUnEquipInternal, void*, EquipManager, Actor* apActor, TESForm* apItem, ExtraDataList* apExtraDataList, int aCount, TESForm* apSlot, bool abQueueEquip, bool abForceEquip, bool abPlaySound, bool abApplyNow, TESForm* apSlotToReplace);
+    using TUnEquipInternal = void*(EquipManager*, Actor* apActor, TESForm* apItem, ExtraDataList* apExtraDataList, int aCount, TESForm* apSlot, bool abQueueEquip, bool abForceEquip, bool abPlaySound, bool abApplyNow, TESForm* apSlotToReplace);
     POINTER_SKYRIMSE(TUnEquipInternal, s_unequipFunc, 38901);
 
     ScopedEquipOverride equipOverride;
 
     spdlog::debug("Call Actor[{:X}]::UnEquip(), item id: {:X}, extra data? {}, count: {}", apActor->formID, apItem->formID, (bool)apExtraDataList, aCount);
 
-    return TiltedPhoques::ThisCall(s_unequipFunc, this, apActor, apItem, apExtraDataList, aCount, apSlot, abQueueEquip, abForceEquip, abPlaySound, abApplyNow, apSlotToReplace);
+    return s_unequipFunc(this, apActor, apItem, apExtraDataList, aCount, apSlot, abQueueEquip, abForceEquip, abPlaySound, abApplyNow, apSlotToReplace);
 }
 
 void* EquipManager::EquipSpell(Actor* apActor, TESForm* apSpell, uint32_t aSlotId)
 {
-    TP_THIS_FUNCTION(TEquipSpellInternal, void*, EquipManager, Actor*, TESForm*, uint32_t);
+    using TEquipSpellInternal = void*(EquipManager*, Actor*, TESForm*, uint32_t);
     POINTER_SKYRIMSE(TEquipSpellInternal, s_equipFunc, 38896);
 
     ScopedEquipOverride equipOverride;
 
-    return TiltedPhoques::ThisCall(s_equipFunc, this, apActor, apSpell, aSlotId);
+    return s_equipFunc(this, apActor, apSpell, aSlotId);
 }
 
 void* EquipManager::UnEquipSpell(Actor* apActor, TESForm* apSpell, uint32_t aSlotId)
 {
-    TP_THIS_FUNCTION(TUnEquipSpellInternal, void*, EquipManager, Actor*, TESForm*, uint32_t);
+    using TUnEquipSpellInternal = void*(EquipManager*, Actor*, TESForm*, uint32_t);
     POINTER_SKYRIMSE(TUnEquipSpellInternal, s_unequipFunc, 38903);
 
     ScopedEquipOverride equipOverride;
 
-    return TiltedPhoques::ThisCall(s_unequipFunc, this, apActor, apSpell, aSlotId);
+    return s_unequipFunc(this, apActor, apSpell, aSlotId);
 }
 
 void* EquipManager::EquipShout(Actor* apActor, TESForm* apShout)
 {
-    TP_THIS_FUNCTION(TEquipShoutInternal, void*, EquipManager, Actor*, TESForm*);
+    using TEquipShoutInternal = void*(EquipManager*, Actor*, TESForm*);
     POINTER_SKYRIMSE(TEquipShoutInternal, s_equipFunc, 38897);
 
     ScopedEquipOverride equipOverride;
 
-    return TiltedPhoques::ThisCall(s_equipFunc, this, apActor, apShout);
+    return s_equipFunc(this, apActor, apShout);
 }
 
 void* EquipManager::UnEquipShout(Actor* apActor, TESForm* apShout)
 {
     // ActorEquipManager::UnequipShout, the mirror of EquipShout (38897). Not 38903: that is the unequip
     // by slot (left, right, voice) and takes the slot as a fourth argument.
-    TP_THIS_FUNCTION(TUnEquipShoutInternal, void*, EquipManager, Actor*, TESForm*);
+    using TUnEquipShoutInternal = void*(EquipManager*, Actor*, TESForm*);
     POINTER_SKYRIMSE(TUnEquipShoutInternal, s_unequipFunc, 38904);
 
     ScopedEquipOverride equipOverride;
 
-    return TiltedPhoques::ThisCall(s_unequipFunc, this, apActor, apShout);
+    return s_unequipFunc(this, apActor, apShout);
 }
 
 void EquipManager::UnequipAll(Actor* apActor)
 {
-    TP_THIS_FUNCTION(TUnEquipAll, void, EquipManager, Actor*);
+    using TUnEquipAll = void(EquipManager*, Actor*);
     POINTER_SKYRIMSE(TUnEquipAll, s_unequipAll, 38899);
 
     ScopedEquipOverride equipOverride;
 
-    TiltedPhoques::ThisCall(s_unequipAll, this, apActor);
+    s_unequipAll(this, apActor);
 }
 
-void* TP_MAKE_THISCALL(EquipHook, EquipManager, Actor* apActor, TESForm* apItem, EquipData* apData)
+void* EquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipData* apData)
 {
     if (!apActor)
         return nullptr;
@@ -176,10 +176,10 @@ void* TP_MAKE_THISCALL(EquipHook, EquipManager, Actor* apActor, TESForm* apItem,
 
     ScopedUnequipOverride _;
 
-    return TiltedPhoques::ThisCall(RealEquip, apThis, apActor, apItem, apData);
+    return RealEquip(apThis, apActor, apItem, apData);
 }
 
-void* TP_MAKE_THISCALL(UnEquipHook, EquipManager, Actor* apActor, TESForm* apItem, EquipData* apData)
+void* UnEquipHook(EquipManager* apThis, Actor* apActor, TESForm* apItem, EquipData* apData)
 {
     if (!apActor)
         return nullptr;
@@ -210,10 +210,10 @@ void* TP_MAKE_THISCALL(UnEquipHook, EquipManager, Actor* apActor, TESForm* apIte
 
     spdlog::debug("UnEquipHook, actor: {:X}", apActor->formID);
 
-    return TiltedPhoques::ThisCall(RealUnEquip, apThis, apActor, apItem, apData);
+    return RealUnEquip(apThis, apActor, apItem, apData);
 }
 
-void* TP_MAKE_THISCALL(EquipSpellHook, EquipManager, Actor* apActor, TESForm* apSpell, MagicEquipData* apData)
+void* EquipSpellHook(EquipManager* apThis, Actor* apActor, TESForm* apSpell, MagicEquipData* apData)
 {
     if (!apActor)
         return nullptr;
@@ -235,10 +235,10 @@ void* TP_MAKE_THISCALL(EquipSpellHook, EquipManager, Actor* apActor, TESForm* ap
 
     ScopedUnequipOverride _;
 
-    return TiltedPhoques::ThisCall(RealEquipSpell, apThis, apActor, apSpell, apData);
+    return RealEquipSpell(apThis, apActor, apSpell, apData);
 }
 
-void* TP_MAKE_THISCALL(UnEquipSpellHook, EquipManager, Actor* apActor, TESForm* apSpell, MagicEquipData* apData)
+void* UnEquipSpellHook(EquipManager* apThis, Actor* apActor, TESForm* apSpell, MagicEquipData* apData)
 {
     if (!apActor)
         return nullptr;
@@ -259,10 +259,10 @@ void* TP_MAKE_THISCALL(UnEquipSpellHook, EquipManager, Actor* apActor, TESForm* 
         World::Get().GetRunner().Trigger(evt);
     }
 
-    return TiltedPhoques::ThisCall(RealUnEquipSpell, apThis, apActor, apSpell, apData);
+    return RealUnEquipSpell(apThis, apActor, apSpell, apData);
 }
 
-void* TP_MAKE_THISCALL(EquipShoutHook, EquipManager, Actor* apActor, TESForm* apShout, ShoutEquipData* apData)
+void* EquipShoutHook(EquipManager* apThis, Actor* apActor, TESForm* apShout, ShoutEquipData* apData)
 {
     if (!apActor)
         return nullptr;
@@ -284,10 +284,10 @@ void* TP_MAKE_THISCALL(EquipShoutHook, EquipManager, Actor* apActor, TESForm* ap
 
     ScopedUnequipOverride _;
 
-    return TiltedPhoques::ThisCall(RealEquipShout, apThis, apActor, apShout, apData);
+    return RealEquipShout(apThis, apActor, apShout, apData);
 }
 
-void* TP_MAKE_THISCALL(UnEquipShoutHook, EquipManager, Actor* apActor, TESForm* apShout, ShoutEquipData* apData)
+void* UnEquipShoutHook(EquipManager* apThis, Actor* apActor, TESForm* apShout, ShoutEquipData* apData)
 {
     if (!apActor)
         return nullptr;
@@ -308,7 +308,7 @@ void* TP_MAKE_THISCALL(UnEquipShoutHook, EquipManager, Actor* apActor, TESForm* 
         World::Get().GetRunner().Trigger(evt);
     }
 
-    return TiltedPhoques::ThisCall(RealUnEquipShout, apThis, apActor, apShout, apData);
+    return RealUnEquipShout(apThis, apActor, apShout, apData);
 }
 
 static TiltedPhoques::Initializer s_equipmentHooks(

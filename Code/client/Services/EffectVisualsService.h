@@ -45,15 +45,15 @@ private:
     Clock::time_point m_lastCheck{};
     Clock::time_point m_lastFullSend{};
     // Per owned actor (session id): the effect form ids last sent.
-    Map<uint32_t, Vector<uint32_t>> m_sent;
+    std::unordered_map<uint32_t, std::vector<uint32_t>> m_sent;
     // Per copy (form id): the effects its owner lists (whose visuals it plays), and when it last
     // heard from the owner.
     struct Shown
     {
-        Vector<uint32_t> EffectIds;
+        std::vector<uint32_t> EffectIds;
         Clock::time_point LastHeard;
     };
-    Map<uint32_t, Shown> m_shown;
+    std::unordered_map<uint32_t, Shown> m_shown;
 
     void PlayMissing(uint32_t aFormId, const Shown& acShown) noexcept;
 

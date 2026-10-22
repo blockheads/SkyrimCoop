@@ -68,7 +68,7 @@ void HostWorldState::UpdateGlobals() noexcept
         auto [it, cAdded] = m_globals.try_emplace(Key(cGlobal.Id), cBits);
         if (!cAdded && it->second == cBits)
             continue;
-        it.value() = cBits;
+        it->second = cBits;
         changed.Values.push_back({cGlobal.Id, cGlobal.Value});
     }
     if (changed.Values.empty())

@@ -33,14 +33,14 @@ uint32_t Mod::GetFormId(uint32_t aBaseId) const noexcept
     return aBaseId;
 }
 
-TP_THIS_FUNCTION(TSpawnNewREFR, uint32_t&, ModManager, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12);
+using TSpawnNewREFR = uint32_t&(ModManager*, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12);
 TSpawnNewREFR* RealSpawnNewREFR;
 
 static std::atomic<void (*)(uint32_t)> s_createdWatcher{nullptr};
 
-uint32_t& TP_MAKE_THISCALL(SpawnNewREFR, ModManager, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12)
+uint32_t& SpawnNewREFR(ModManager* apThis, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12)
 {
-    uint32_t& handle = TiltedPhoques::ThisCall(RealSpawnNewREFR, apThis, aRefHandleOut, apBaseForm, apPosition, apRotation, apParentCell, apWorldSpace, apActor, a9, a10, aForcePersist, a12);
+    uint32_t& handle = RealSpawnNewREFR(apThis, aRefHandleOut, apBaseForm, apPosition, apRotation, apParentCell, apWorldSpace, apActor, a9, a10, aForcePersist, a12);
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     if (const auto cWatcher = s_createdWatcher.load(std::memory_order_acquire); cWatcher && pSaveLoad && !pSaveLoad->IsSavingOrLoading())
         if (const TESObjectREFR* pRef = TESObjectREFR::GetByHandle(handle))
@@ -55,8 +55,7 @@ uint32_t ModManager::CreateReference(TESBoundObject* apBase, const NiPoint3& acP
     NiPoint3 position = acPosition;
     NiPoint3 rotation = acRotation;
     uint32_t noRoom = 0;
-    TiltedPhoques::ThisCall(RealSpawnNewREFR, this, handle, apBase, &position, &rotation, apCell, apWorldSpace, nullptr, 0,
-                            reinterpret_cast<uintptr_t>(&noRoom), static_cast<char>(0), static_cast<char>(1));
+    RealSpawnNewREFR(this, handle, apBase, &position, &rotation, apCell, apWorldSpace, nullptr, 0, reinterpret_cast<uintptr_t>(&noRoom), static_cast<char>(0), static_cast<char>(1));
     return handle;
 }
 
@@ -69,7 +68,7 @@ uint32_t ModManager::Spawn(NiPoint3& aPosition, NiPoint3& aRotation, TESObjectCE
 {
     uint32_t refrHandle = 0;
 
-    TiltedPhoques::ThisCall(RealSpawnNewREFR, this, refrHandle, apCharacter->baseForm, &aPosition, &aRotation, apParentCell, apWorldSpace, apCharacter, 0, 0, static_cast<char>(0), static_cast<char>(1));
+    RealSpawnNewREFR(this, refrHandle, apCharacter->baseForm, &aPosition, &aRotation, apParentCell, apWorldSpace, apCharacter, 0, 0, static_cast<char>(0), static_cast<char>(1));
 
     return refrHandle;
 }
@@ -91,10 +90,10 @@ Mod* ModManager::GetByName(const char* acpName) const noexcept
 
 TESObjectCELL* ModManager::GetCellFromCoordinates(int32_t aX, int32_t aY, TESWorldSpace* aWorldSpace, bool aSpawnCell) noexcept
 {
-    TP_THIS_FUNCTION(TModManager, TESObjectCELL*, ModManager, int32_t, int32_t, TESWorldSpace*, bool);
+    using TModManager = TESObjectCELL*(ModManager*, int32_t, int32_t, TESWorldSpace*, bool);
     POINTER_SKYRIMSE(TModManager, getCell, 13718);
 
-    return TiltedPhoques::ThisCall(getCell, this, aX, aY, aWorldSpace, aSpawnCell);
+    return getCell(this, aX, aY, aWorldSpace, aSpawnCell);
 }
 
 static TiltedPhoques::Initializer s_tesHooks(

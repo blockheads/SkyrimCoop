@@ -26,7 +26,7 @@ void DebugService::DrawQuestDebugView()
     }
     else
     {
-        Set<uint32_t> foundQuests{};
+        std::unordered_set<uint32_t> foundQuests{};
 
         for (auto& objective : pPlayer->objectives)
         {
@@ -63,7 +63,7 @@ void DebugService::DrawQuestDebugView()
 
             if (ImGui::CollapsingHeader("Actors"))
             {
-                Set<uint32_t> foundActors{};
+                std::unordered_set<uint32_t> foundActors{};
 
                 for (BGSScene* pScene : pQuest->scenes)
                 {

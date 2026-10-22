@@ -41,19 +41,19 @@ bool IsOwnEvent(uint64_t aHandle, const BSFixedString& acEvent, const void* apCa
 
 // Internal::VirtualMachine::SendEvent (104800, vtable slot 0x24, SKSE's QueueEvent): every event to a handle's
 // scripts; RelayEvent (54033) sends a reference's event to its aliases and magic effects through it too.
-TP_THIS_FUNCTION(TSendEvent, void, void, uint64_t, const BSFixedString&, void*);
+using TSendEvent = void(void*, uint64_t, const BSFixedString&, void*);
 TSendEvent* RealSendEvent = nullptr;
 
-void TP_MAKE_THISCALL(HookSendEvent, void, uint64_t aHandle, const BSFixedString& acEvent, void* apArguments)
+void HookSendEvent(void* apThis, uint64_t aHandle, const BSFixedString& acEvent, void* apArguments)
 {
     if (s_delivered.load(std::memory_order_relaxed))
-        return TiltedPhoques::ThisCall(RealSendEvent, apThis, aHandle, acEvent, apArguments);
+        return RealSendEvent(apThis, aHandle, acEvent, apArguments);
     // A guest: the host's game runs the world's scripts.
     if (!IsOwnEvent(aHandle, acEvent, _ReturnAddress()))
         return;
     // What its scripts start or register runs here too.
     GuestScripts::ScopedCause _(cPlayerFormId);
-    TiltedPhoques::ThisCall(RealSendEvent, apThis, aHandle, acEvent, apArguments);
+    RealSendEvent(apThis, aHandle, acEvent, apArguments);
 }
 
 TiltedPhoques::Initializer s_hooks(

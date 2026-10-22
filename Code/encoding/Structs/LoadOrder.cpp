@@ -5,7 +5,7 @@
 
 namespace
 {
-std::string Lower(const TiltedPhoques::String& acName)
+std::string Lower(const std::string& acName)
 {
     std::string lower(acName.c_str());
     std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });

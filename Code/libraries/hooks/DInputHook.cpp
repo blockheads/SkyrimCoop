@@ -5,6 +5,8 @@
 #include <dinput.h>
 
 #include <FunctionHook.hpp>
+#include <algorithm>
+#include <array>
 #include <iostream>
 
 namespace TiltedPhoques
@@ -61,7 +63,7 @@ namespace TiltedPhoques
     constexpr size_t kDirectInput8CreatePrologueSize = 16;
     static std::array<uint8_t, kDirectInput8CreatePrologueSize> s_realDirectInput8CreatePrologue{}; 
 
-    static Set<StubIDirectInputDevice8A*> s_devices;
+    static std::unordered_set<StubIDirectInputDevice8A*> s_devices;
 
     HRESULT WINAPI StubIDirectInputDevice8A::GetDeviceState(DWORD outDataLen, LPVOID outData)
     {

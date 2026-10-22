@@ -11,9 +11,9 @@ struct NavMeshArray;
 
 struct TESObjectCELL : TESForm
 {
-    Vector<TESObjectREFR*> GetRefsByFormTypes(const Vector<FormType>& aFormTypes) const noexcept;
+    std::vector<TESObjectREFR*> GetRefsByFormTypes(const std::vector<FormType>& aFormTypes) const noexcept;
     // Every reference in the cell, taken under its lock (as the engine's own walks do, e.g. OnCellLoad's 53964).
-    [[nodiscard]] Vector<TESObjectREFR*> GetReferences() noexcept;
+    [[nodiscard]] std::vector<TESObjectREFR*> GetReferences() noexcept;
     void GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept;
 
     bool IsValid() const { return cellFlags[4] == 7; }

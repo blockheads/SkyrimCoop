@@ -453,7 +453,7 @@ void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessa
 
 void ActorValueService::ApplyPendingDeathStates() noexcept
 {
-    Vector<uint32_t> done;
+    std::vector<uint32_t> done;
     for (const auto& [cSessionId, cIsDead] : m_pendingDeathStates)
     {
         const uint32_t cFormId = Utils::GetFormIdBySessionId(cSessionId);

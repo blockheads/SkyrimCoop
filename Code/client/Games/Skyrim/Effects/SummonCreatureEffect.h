@@ -10,10 +10,10 @@ struct SummonCreatureEffect : ActiveEffect
 {
 };
 
-TP_THIS_FUNCTION(TInitializeSummonCreatureEffect, void*, Actor, MagicItem*, EffectItem*);
+using TInitializeSummonCreatureEffect = void*(Actor*, MagicItem*, EffectItem*);
 static TInitializeSummonCreatureEffect* RealInitializeSummonCreatureEffect = nullptr;
 
-void* TP_MAKE_THISCALL(HookInitializeSummonCreatureEffect, Actor, MagicItem* apSpell, EffectItem* apEffect)
+void* HookInitializeSummonCreatureEffect(Actor* apThis, MagicItem* apSpell, EffectItem* apEffect)
 {
     if (apThis)
     {
@@ -22,7 +22,7 @@ void* TP_MAKE_THISCALL(HookInitializeSummonCreatureEffect, Actor, MagicItem* apS
             return nullptr;
     }
 
-    return TiltedPhoques::ThisCall(RealInitializeSummonCreatureEffect, apThis, apSpell, apEffect);
+    return RealInitializeSummonCreatureEffect(apThis, apSpell, apEffect);
 }
 
 static TiltedPhoques::Initializer s_summonCreatureEffectsHooks(

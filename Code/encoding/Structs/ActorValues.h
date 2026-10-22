@@ -11,6 +11,6 @@ struct ActorValues
     void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
 
-    TiltedPhoques::Map<uint32_t, float> ActorValuesList{};
-    TiltedPhoques::Map<uint32_t, float> ActorMaxValuesList{};
+    std::map<uint32_t, float> ActorValuesList{};
+    std::map<uint32_t, float> ActorMaxValuesList{};
 };

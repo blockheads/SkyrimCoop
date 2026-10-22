@@ -1,6 +1,6 @@
 #include <Messages/NotifyMessageFactory.h>
 
-static std::function<UniquePtr<NotifyMessage>(TiltedPhoques::Buffer::Reader& aReader)> s_serverMessageExtractor[kNotifyOpcodeMax];
+static std::function<std::unique_ptr<NotifyMessage>(TiltedPhoques::Buffer::Reader& aReader)> s_serverMessageExtractor[kNotifyOpcodeMax];
 
 namespace details
 {
@@ -14,9 +14,9 @@ static struct NotifyMessageFactoryInit
 
             s_serverMessageExtractor[T::Opcode] = [](TiltedPhoques::Buffer::Reader& aReader)
             {
-                auto ptr = TiltedPhoques::MakeUnique<T>();
+                auto ptr = std::make_unique<T>();
                 ptr->DeserializeRaw(aReader);
-                return TiltedPhoques::CastUnique<NotifyMessage>(std::move(ptr));
+                return CastUnique<NotifyMessage>(std::move(ptr));
             };
 
             return false;
@@ -27,7 +27,7 @@ static struct NotifyMessageFactoryInit
 } s_NotifyMessageFactoryInit;
 } // namespace details
 
-UniquePtr<NotifyMessage> NotifyMessageFactory::Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept
+std::unique_ptr<NotifyMessage> NotifyMessageFactory::Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept
 {
     uint64_t data;
     aReader.ReadBits(data, sizeof(NotifyOpcode) * 8);

@@ -9,12 +9,12 @@ namespace GraphVariableWriters
 {
 struct Writer
 {
-    TiltedPhoques::String Variable;  // by the writing behaviour's own variable names
-    TiltedPhoques::String Behaviour; // the behaviour graph's name ("0_Master.hkb")
-    TiltedPhoques::String Node;      // "Class Name.member", "Class Name syncVariable", "Class Name 'expr'"
+    std::string Variable;  // by the writing behaviour's own variable names
+    std::string Behaviour; // the behaviour graph's name ("0_Master.hkb")
+    std::string Node;      // "Class Name.member", "Class Name syncVariable", "Class Name 'expr'"
     int32_t Index;                   // the variable index as the node holds it
 };
 
 // Walks every node of the graph and of the behaviours it references, active or not.
-TiltedPhoques::Vector<Writer> Collect(const BShkbAnimationGraph* apGraph) noexcept;
+std::vector<Writer> Collect(const BShkbAnimationGraph* apGraph) noexcept;
 } // namespace GraphVariableWriters

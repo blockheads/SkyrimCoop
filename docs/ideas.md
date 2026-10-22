@@ -174,7 +174,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   `GameId` like a placed object. Unified: a reference's id is its `GameId`, and the session-id space covers only
   the per-game ones, actors and objects alike. About 40 messages carry actor ids, and `CharacterService` keys its
   maps by them; its own refactor, after the `SessionId` → `SessionId` rename (2026-10-21).
-- **Modern C++ over `TiltedPhoques`.** A track of its own now the server is gone (phase 5, 2026-10-21). What is
+- **Modern C++ over `TiltedPhoques`.** Steps 1-3 done 2026-10-21 (allocator scopes, `std` containers, the `ThisCall`
+  macros; `docs/progress.md`); step 4, moving the rest into our tree, is next. A track of its own now the server is gone (phase 5, 2026-10-21). What is
   left of `TiltedPhoques`: `TiltedCore`, `libraries/networking` (the enet transport under `HostNetwork` and a
   guest's `TransportService`), `libraries/hooks` and `libraries/reverse`.
   - Containers: `Vector`, `String`, `List`, `Deque`, `UniquePtr` are std types with TiltedCore's

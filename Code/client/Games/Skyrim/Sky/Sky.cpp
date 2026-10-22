@@ -1,8 +1,8 @@
 #include "Sky.h"
 #include <HookSwitch.h>
 
-TP_THIS_FUNCTION(TSetWeather, void, Sky, TESWeather* apWeather, bool abOverride, bool abAccelerate);
-TP_THIS_FUNCTION(TForceWeather, void, Sky, TESWeather* apWeather, bool abOverride);
+using TSetWeather = void(Sky*, TESWeather* apWeather, bool abOverride, bool abAccelerate);
+using TForceWeather = void(Sky*, TESWeather* apWeather, bool abOverride);
 
 static TSetWeather* RealSetWeather = nullptr;
 static TForceWeather* RealForceWeather = nullptr;
@@ -19,29 +19,29 @@ Sky* Sky::Get() noexcept
 void Sky::SetWeather(TESWeather* apWeather) noexcept
 {
     // TODO: verify the use of these bools
-    TiltedPhoques::ThisCall(RealSetWeather, this, apWeather, true, true);
+    RealSetWeather(this, apWeather, true, true);
 }
 
 void Sky::ForceWeather(TESWeather* apWeather) noexcept
 {
     // TODO: verify the use of abOverride
-    TiltedPhoques::ThisCall(RealForceWeather, this, apWeather, true);
+    RealForceWeather(this, apWeather, true);
 }
 
 void Sky::ReleaseWeatherOverride() noexcept
 {
-    TP_THIS_FUNCTION(TReleaseWeatherOverride, void, Sky);
+    using TReleaseWeatherOverride = void(Sky*);
     POINTER_SKYRIMSE(TReleaseWeatherOverride, releaseWeatherOverride, 26244);
 
-    TiltedPhoques::ThisCall(releaseWeatherOverride, this);
+    releaseWeatherOverride(this);
 }
 
 void Sky::ResetWeather() noexcept
 {
-    TP_THIS_FUNCTION(TResetWeather, void, Sky);
+    using TResetWeather = void(Sky*);
     POINTER_SKYRIMSE(TResetWeather, resetWeather, 26242);
 
-    TiltedPhoques::ThisCall(resetWeather, this);
+    resetWeather(this);
 }
 
 TESWeather* Sky::GetWeather() const noexcept
@@ -49,22 +49,22 @@ TESWeather* Sky::GetWeather() const noexcept
     return pCurrentWeather;
 }
 
-void TP_MAKE_THISCALL(HookSetWeather, Sky, TESWeather* apWeather, bool abOverride, bool abAccelerate)
+void HookSetWeather(Sky* apThis, TESWeather* apWeather, bool abOverride, bool abAccelerate)
 {
-    TiltedPhoques::ThisCall(RealSetWeather, apThis, apWeather, abOverride, abAccelerate);
+    RealSetWeather(apThis, apWeather, abOverride, abAccelerate);
 }
 
-void TP_MAKE_THISCALL(HookForceWeather, Sky, TESWeather* apWeather, bool abOverride)
+void HookForceWeather(Sky* apThis, TESWeather* apWeather, bool abOverride)
 {
-    TiltedPhoques::ThisCall(RealForceWeather, apThis, apWeather, abOverride);
+    RealForceWeather(apThis, apWeather, abOverride);
 }
 
-TP_THIS_FUNCTION(TUpdateWeather, void, Sky);
+using TUpdateWeather = void(Sky*);
 static TUpdateWeather* RealUpdateWeather = nullptr;
 
-void TP_MAKE_THISCALL(HookUpdateWeather, Sky)
+void HookUpdateWeather(Sky* apThis)
 {
-    TiltedPhoques::ThisCall(RealUpdateWeather, apThis);
+    RealUpdateWeather(apThis);
 }
 
 static TiltedPhoques::Initializer s_skyHooks(

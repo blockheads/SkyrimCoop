@@ -43,7 +43,7 @@ private:
         std::chrono::steady_clock::time_point At;
         float Health;
     };
-    TiltedPhoques::Map<uint32_t, RecentHit> m_recentHits;
+    std::unordered_map<uint32_t, RecentHit> m_recentHits;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_localComponentRemoved;

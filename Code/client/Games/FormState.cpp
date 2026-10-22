@@ -15,7 +15,7 @@ constexpr uint32_t cLoadingFlag = 0x200000;
 constexpr uint32_t cDeletedFlag = 0x20;
 } // namespace
 
-bool Save(const TESForm& acForm, uint32_t aChangeFlags, String& aData) noexcept
+bool Save(const TESForm& acForm, uint32_t aChangeFlags, std::string& aData) noexcept
 {
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     if (!pSaveLoad || pSaveLoad->IsSavingOrLoading())
@@ -30,7 +30,7 @@ bool Save(const TESForm& acForm, uint32_t aChangeFlags, String& aData) noexcept
     return true;
 }
 
-bool Load(TESForm& aForm, uint32_t aChangeFlags, const String& acData) noexcept
+bool Load(TESForm& aForm, uint32_t aChangeFlags, const std::string& acData) noexcept
 {
     BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     if (!pSaveLoad || pSaveLoad->IsSavingOrLoading())

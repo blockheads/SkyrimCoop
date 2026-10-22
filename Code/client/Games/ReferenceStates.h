@@ -25,7 +25,7 @@ uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept;
 void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept;
 // The reference's state now for aFlags: a change for each row that takes any of them.
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
-          TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept;
+          std::vector<ObjectChange>& aChanges) noexcept;
 // The enabled row of a reference that is gone (deleted), for one no longer there to read.
 ObjectChange Deleted(const GameId& acId) noexcept;
 // Whether the reference here already reads as the change (a row's kind only).

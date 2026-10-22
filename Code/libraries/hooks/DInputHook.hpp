@@ -26,7 +26,7 @@ namespace TiltedPhoques
         DInputHook() noexcept;
         ~DInputHook() = default;
 
-        Set<unsigned long> m_toggleKeys;
+        std::unordered_set<unsigned long> m_toggleKeys;
 
         bool m_enabled{ false };
     };

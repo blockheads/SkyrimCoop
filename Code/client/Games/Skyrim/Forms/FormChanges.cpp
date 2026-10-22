@@ -23,21 +23,21 @@ void Notify(const TESForm* apForm, uint32_t aFlags, bool aForced, bool aRecorded
 }
 
 // Both return whether the funnel recorded the change (the forced one in its low byte).
-TP_THIS_FUNCTION(TAddChange, bool, TESForm, uint32_t);
-TP_THIS_FUNCTION(TAddChangeForced, uint64_t, TESForm, uint32_t);
+using TAddChange = bool(TESForm*, uint32_t);
+using TAddChangeForced = uint64_t(TESForm*, uint32_t);
 TAddChange* RealAddChange = nullptr;
 TAddChangeForced* RealAddChangeForced = nullptr;
 
-bool TP_MAKE_THISCALL(HookAddChange, TESForm, uint32_t aFlags)
+bool HookAddChange(TESForm* apThis, uint32_t aFlags)
 {
-    const bool cRecorded = TiltedPhoques::ThisCall(RealAddChange, apThis, aFlags);
+    const bool cRecorded = RealAddChange(apThis, aFlags);
     Notify(apThis, aFlags, false, cRecorded);
     return cRecorded;
 }
 
-uint64_t TP_MAKE_THISCALL(HookAddChangeForced, TESForm, uint32_t aFlags)
+uint64_t HookAddChangeForced(TESForm* apThis, uint32_t aFlags)
 {
-    const uint64_t cResult = TiltedPhoques::ThisCall(RealAddChangeForced, apThis, aFlags);
+    const uint64_t cResult = RealAddChangeForced(apThis, aFlags);
     Notify(apThis, aFlags, true, (cResult & 0xFF) != 0);
     return cResult;
 }
@@ -45,15 +45,15 @@ uint64_t TP_MAKE_THISCALL(HookAddChangeForced, TESForm, uint32_t aFlags)
 // The change records' own remove (35511, (map, form id, flags)): TESForm::RemoveChange (14609) calls it, and so does
 // StoreChangesOnUnload (35570) for the flags a reference it stores or demotes does not keep. Recorded: the record held
 // a flag before and not after.
-TP_THIS_FUNCTION(TRemoveFlags, bool, void, uint32_t, uint32_t);
+using TRemoveFlags = bool(void*, uint32_t, uint32_t);
 TRemoveFlags* RealRemoveFlags = nullptr;
 
-bool TP_MAKE_THISCALL(HookRemoveFlags, void, uint32_t aFormId, uint32_t aFlags)
+bool HookRemoveFlags(void* apThis, uint32_t aFormId, uint32_t aFlags)
 {
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     const TESForm* pForm = TESForm::GetById(aFormId);
     const bool cHeld = pForm && pSaveLoad && pSaveLoad->HasChange(*pForm, aFlags);
-    const bool cResult = TiltedPhoques::ThisCall(RealRemoveFlags, apThis, aFormId, aFlags);
+    const bool cResult = RealRemoveFlags(apThis, aFormId, aFlags);
     if (cHeld)
         Notify(pForm, aFlags, false, !pSaveLoad->HasChange(*pForm, aFlags));
     return cResult;

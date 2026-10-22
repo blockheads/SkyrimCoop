@@ -23,7 +23,7 @@ namespace TiltedPhoques
 
         struct Ref
         {
-            Ref(typename SharedPtr<Data>::weak_type apData)
+            Ref(typename std::shared_ptr<Data>::weak_type apData)
                 : m_pData(std::move(apData))
             {}
 
@@ -38,13 +38,13 @@ namespace TiltedPhoques
             }
 
         private:
-            typename SharedPtr<Data>::weak_type m_pData;
+            typename std::shared_ptr<Data>::weak_type m_pData;
         };
 
 
         template<class... Args>
         Lockable(Args&& ... aArgs)
-            : m_pData(MakeShared<Data>(std::forward<Args>(aArgs)...))
+            : m_pData(std::make_shared<Data>(std::forward<Args>(aArgs)...))
         {}
 
         Ref AsRef() const noexcept
@@ -61,7 +61,7 @@ namespace TiltedPhoques
 
         friend struct Locked<T, TLock>;
 
-        SharedPtr<Data> m_pData;
+        std::shared_ptr<Data> m_pData;
     };
 }
 

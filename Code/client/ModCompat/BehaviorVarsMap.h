@@ -3,14 +3,14 @@
 struct BehaviorVars
 {
     uint64_t m_key;
-    TiltedPhoques::Map<TiltedPhoques::String, uint32_t> m_nameMap;
-    TiltedPhoques::Map<uint32_t, TiltedPhoques::String> m_valueMap;
+    std::unordered_map<std::string, uint32_t> m_nameMap;
+    std::unordered_map<uint32_t, std::string> m_valueMap;
 };
 
 class BehaviorVarsMap
 {
 private:
-    TiltedPhoques::Map<uint64_t, BehaviorVars> m_map;
+    std::unordered_map<uint64_t, BehaviorVars> m_map;
 
     // Singleton
     BehaviorVarsMap(){};
@@ -18,10 +18,10 @@ private:
     void operator=(BehaviorVarsMap const&) = delete;
 
 public:
-    const uint32_t find(const uint64_t acBehaviorVarKey, const TiltedPhoques::String acName);
+    const uint32_t find(const uint64_t acBehaviorVarKey, const std::string acName);
 
-    const TiltedPhoques::String find(const uint64_t acBehaviorVarKey, const uint32_t acValue);
-    void Hashes(TiltedPhoques::Vector<uint64_t>& aHashes) const
+    const std::string find(const uint64_t acBehaviorVarKey, const uint32_t acValue);
+    void Hashes(std::vector<uint64_t>& aHashes) const
     {
         aHashes.clear();
         for (auto& item : m_map)

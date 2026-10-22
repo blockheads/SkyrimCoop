@@ -2,8 +2,6 @@
 
 #include "Faction.h"
 
-using TiltedPhoques::Vector;
-
 struct Factions
 {
     Factions() = default;
@@ -15,6 +13,6 @@ struct Factions
     void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
     void Deserialize(TiltedPhoques::Buffer::Reader& aReader);
 
-    Vector<Faction> NpcFactions;
-    Vector<Faction> ExtraFactions;
+    std::vector<Faction> NpcFactions;
+    std::vector<Faction> ExtraFactions;
 };

@@ -7,9 +7,9 @@
 
 #include <TiltedCore/Hash.hpp>
 
-SortedMap<uint32_t, String> BSAnimationGraphManager::DumpAnimationVariables(bool aPrintVariables)
+std::map<uint32_t, std::string> BSAnimationGraphManager::DumpAnimationVariables(bool aPrintVariables)
 {
-    SortedMap<uint32_t, String> variables;
+    std::map<uint32_t, std::string> variables;
 
     if (animationGraphIndex < animationGraphs.size)
     {
@@ -58,7 +58,7 @@ uint64_t BSAnimationGraphManager::GetDescriptorKey(int aForceIndex)
 {
     using TiltedPhoques::FHash::Crc64;
 
-    String variableNames{};
+    std::string variableNames{};
     variableNames.reserve(8192);
     std::map<uint32_t, const char*> variables;
 

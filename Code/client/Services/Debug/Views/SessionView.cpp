@@ -19,7 +19,7 @@ void DebugService::DrawSessionView()
     {
         ImGui::PushID(static_cast<int>(cId));
 
-        String name = cPlayer.Name;
+        std::string name = cPlayer.Name;
         if (cPlayer.IsHost)
             name += " (host)";
         ImGui::BulletText("%s", name.c_str());

@@ -110,7 +110,7 @@ namespace
 const GameId kCorneredRat(0, 0x36191);
 const GameId kAlduinsWall(0, 0x36192);
 
-QuestState Quest(const GameId& acId, uint16_t aFlags, uint16_t aStage, Vector<uint16_t> aDone = {})
+QuestState Quest(const GameId& acId, uint16_t aFlags, uint16_t aStage, std::vector<uint16_t> aDone = {})
 {
     QuestState quest;
     quest.Id = acId;
@@ -314,7 +314,7 @@ TEST_CASE("World state: the host's own cells are not asked for", "[Bridge][World
 TEST_CASE("World state: a large cell's state goes in several messages", "[Bridge][WorldState]")
 {
     Session session;
-    Vector<ObjectChange> state(1500, InnDoorLocked());
+    std::vector<ObjectChange> state(1500, InnDoorLocked());
     session.LoadedCells[kInn.BaseId] = state;
     session.Receive(kPeer, InnLoaded());
 

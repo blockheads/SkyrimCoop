@@ -14,7 +14,7 @@ struct SessionService
 {
     struct Player
     {
-        String Name;
+        std::string Name;
         bool IsHost{};
         // Its character's level.
         uint16_t Level{};
@@ -26,7 +26,7 @@ struct SessionService
     TP_NOCOPYMOVE(SessionService);
 
     // By player id.
-    [[nodiscard]] const Map<uint32_t, Player>& GetPlayers() const noexcept { return m_players; }
+    [[nodiscard]] const std::unordered_map<uint32_t, Player>& GetPlayers() const noexcept { return m_players; }
 
 protected:
     void OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcept;
@@ -35,7 +35,7 @@ protected:
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
 
 private:
-    Map<uint32_t, Player> m_players;
+    std::unordered_map<uint32_t, Player> m_players;
 
     entt::scoped_connection m_playerJoinedConnection;
     entt::scoped_connection m_playerLeftConnection;

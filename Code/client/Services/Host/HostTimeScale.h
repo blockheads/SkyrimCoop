@@ -35,6 +35,6 @@ private:
 
     HostNetwork& m_network;
     const HostPlayers& m_players;
-    TiltedPhoques::Map<ConnectionId_t, float> m_wanted; // each game's own clock
-    TiltedPhoques::Map<ConnectionId_t, float> m_told;   // what each game was last told
+    std::unordered_map<ConnectionId_t, float> m_wanted; // each game's own clock
+    std::unordered_map<ConnectionId_t, float> m_told;   // what each game was last told
 };

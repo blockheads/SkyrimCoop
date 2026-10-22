@@ -172,8 +172,8 @@ public:
     virtual void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept = 0;
     virtual void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept = 0;
     // The actor's behaviour graph state as a savegame keeps it, and loading it into a copy.
-    virtual TiltedPhoques::String SaveActorGraphState(uint32_t aFormId) const noexcept = 0;
-    virtual bool LoadActorGraphState(uint32_t aFormId, const TiltedPhoques::String& acState) noexcept = 0;
+    virtual std::string SaveActorGraphState(uint32_t aFormId) const noexcept = 0;
+    virtual bool LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept = 0;
     virtual ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept = 0;
 
@@ -191,15 +191,15 @@ public:
     /// Create an Actor from an existing NPC base form. Returns the new actor's formID (0 on failure).
     virtual uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept = 0;
     /// Create a new temporary NPC + Actor from serialized appearance data. Returns new formID.
-    /// acAppearance is a raw byte buffer stored as String (same type as AppearanceBuffer in messages).
-    virtual uint32_t CreateCustomActor(const TiltedPhoques::String& acAppearance,
+    /// acAppearance is a raw byte buffer stored as std::string (same type as AppearanceBuffer in messages).
+    virtual uint32_t CreateCustomActor(const std::string& acAppearance,
                                         uint32_t aChangeFlags) noexcept = 0;
     /// Deserialize appearance data onto an existing actor's NPC base form.
-    /// acAppearance is a raw byte buffer stored as String.
-    virtual void DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::String& acAppearance,
+    /// acAppearance is a raw byte buffer stored as std::string.
+    virtual void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance,
                                       uint32_t aChangeFlags) noexcept = 0;
-    /// Serialize the actor's NPC base form into a String buffer. Returns change flags.
-    virtual uint32_t SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept = 0;
+    /// Serialize the actor's NPC base form into a std::string buffer. Returns change flags.
+    virtual uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept = 0;
     /// Mark NPC changed flags (for appearance marking).
     virtual void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept = 0;
     /// Get the template base NPC form ID for this actor (for temp NPC chains). 0 if not temp.

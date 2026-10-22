@@ -16,7 +16,7 @@ constexpr float kRestAngle = 0.005f;
 
 // The references the funnel saw physics move since the last update, filled on the engine's threads. A leaf lock.
 std::mutex s_movedLock;
-TiltedPhoques::Set<uint32_t> s_moved;
+std::unordered_set<uint32_t> s_moved;
 
 // The havok move flag: every frame while a body is awake, at rest too.
 void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool, bool aRecorded) noexcept
@@ -63,9 +63,9 @@ void PhysicsRests::Moved(const TESObjectREFR& acObject) noexcept
     m_moving[acObject.formID] = {cNow, cNow, 0};
 }
 
-TiltedPhoques::Vector<uint32_t> PhysicsRests::TakeRested() noexcept
+std::vector<uint32_t> PhysicsRests::TakeRested() noexcept
 {
-    TiltedPhoques::Set<uint32_t> moved;
+    std::unordered_set<uint32_t> moved;
     {
         std::scoped_lock _(s_movedLock);
         moved.swap(s_moved);
@@ -74,7 +74,7 @@ TiltedPhoques::Vector<uint32_t> PhysicsRests::TakeRested() noexcept
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
             Moved(*pObject);
 
-    TiltedPhoques::Vector<uint32_t> rested;
+    std::vector<uint32_t> rested;
     for (auto it = m_moving.begin(); it != m_moving.end();)
     {
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(it->first));
@@ -84,7 +84,7 @@ TiltedPhoques::Vector<uint32_t> PhysicsRests::TakeRested() noexcept
             it = m_moving.erase(it);
             continue;
         }
-        Watch& watch = it.value();
+        Watch& watch = it->second;
         const Pose cNow = Pose::Of(*pObject);
         if (!watch.Last.IsNear(cNow))
             watch = {watch.Start, cNow, 0};

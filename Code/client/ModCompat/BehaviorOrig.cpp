@@ -15,7 +15,7 @@ template <typename V> void GenerateFromEnum(uint64_t aKey)
     sig.m_key = aKey;
     for (size_t index = 0; index < count; index++)
     {
-        TiltedPhoques::String name(variables_names[index]);
+        std::string name(variables_names[index]);
         uint32_t value = enum_integer(variables_values[index]);
 
         // Remove the leading 'k'

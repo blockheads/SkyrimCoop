@@ -1,7 +1,6 @@
 #include <Structs/ActionEvent.h>
 #include <TiltedCore/Serialization.hpp>
 #include <sstream>
-#include <TiltedCore/StackAllocator.hpp>
 
 using TiltedPhoques::Serialization;
 

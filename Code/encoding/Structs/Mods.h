@@ -2,14 +2,11 @@
 
 #include <cstdint>
 
-using TiltedPhoques::String;
-using TiltedPhoques::Vector;
-
 struct Mods
 {
     struct Entry
     {
-        String Filename;
+        std::string Filename;
         uint16_t Id{};
         bool IsLite{};
 
@@ -18,7 +15,7 @@ struct Mods
         bool operator!=(const Entry& acRhs) const noexcept { return !this->operator==(acRhs); }
     };
 
-    Vector<Entry> ModList{};
+    std::vector<Entry> ModList{};
 
     Mods() = default;
     ~Mods() = default;

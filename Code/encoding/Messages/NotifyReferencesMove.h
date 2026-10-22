@@ -3,8 +3,6 @@
 #include "Message.h"
 #include <Structs/ReferenceUpdate.h>
 
-using TiltedPhoques::String;
-
 struct NotifyReferencesMove final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyReferencesMove;
@@ -20,5 +18,5 @@ struct NotifyReferencesMove final : NotifyMessage
     bool operator==(const NotifyReferencesMove& acRhs) const noexcept { return Updates == acRhs.Updates && Tick == acRhs.Tick && GetOpcode() == acRhs.GetOpcode(); }
 
     uint64_t Tick{};
-    TiltedPhoques::Map<uint32_t, ReferenceUpdate> Updates{};
+    std::map<uint32_t, ReferenceUpdate> Updates{};
 };

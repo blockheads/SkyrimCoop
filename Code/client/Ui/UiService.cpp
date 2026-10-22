@@ -259,7 +259,7 @@ void UiService::UpdateParty() noexcept
     if (m_world.GetTransport().IsConnected())
     {
         // Each other player's character in our game, for its health.
-        Map<uint32_t, uint32_t> characters;
+        std::unordered_map<uint32_t, uint32_t> characters;
         for (auto [entity, player, formId] : m_world.view<PlayerComponent, FormIdComponent>().each())
             characters[player.Id] = formId.Id;
 

@@ -34,7 +34,7 @@ void PapyrusService::HandOffFunctions() const noexcept
     CoopReload::HandOff(kHandoffKey, lines.str());
 }
 
-const void* PapyrusService::Get(const String& acNamespace, const String& acFunction) const noexcept
+const void* PapyrusService::Get(const std::string& acNamespace, const std::string& acFunction) const noexcept
 {
     const auto itor = m_functions.find(NameKey(acNamespace + "::" + acFunction));
     if (itor != std::end(m_functions))

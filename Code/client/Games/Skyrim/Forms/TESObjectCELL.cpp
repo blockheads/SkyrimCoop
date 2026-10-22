@@ -1,9 +1,9 @@
 #include <Forms/TESObjectCELL.h>
 #include <TESObjectREFR.h>
 
-Vector<TESObjectREFR*> TESObjectCELL::GetRefsByFormTypes(const Vector<FormType>& aFormTypes) const noexcept
+std::vector<TESObjectREFR*> TESObjectCELL::GetRefsByFormTypes(const std::vector<FormType>& aFormTypes) const noexcept
 {
-    Vector<TESObjectREFR*> references{};
+    std::vector<TESObjectREFR*> references{};
 
     if (!refData.refArray)
         return references;
@@ -39,9 +39,9 @@ bool TESObjectCELL::GetGrid(int32_t& aX, int32_t& aY) const noexcept
     return true;
 }
 
-Vector<TESObjectREFR*> TESObjectCELL::GetReferences() noexcept
+std::vector<TESObjectREFR*> TESObjectCELL::GetReferences() noexcept
 {
-    Vector<TESObjectREFR*> references;
+    std::vector<TESObjectREFR*> references;
     lock.Lock();
     if (refData.refArray)
         for (uint32_t i = 0; i < refData.capacity; ++i)
@@ -53,7 +53,7 @@ Vector<TESObjectREFR*> TESObjectCELL::GetReferences() noexcept
 
 void TESObjectCELL::GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept
 {
-    TP_THIS_FUNCTION(TGetCOCPlacementInfo, void, TESObjectCELL, NiPoint3*, NiPoint3*, bool);
+    using TGetCOCPlacementInfo = void(TESObjectCELL*, NiPoint3*, NiPoint3*, bool);
     POINTER_SKYRIMSE(TGetCOCPlacementInfo, s_getCOCPlacementInfo, 19075);
-    TiltedPhoques::ThisCall(s_getCOCPlacementInfo, this, aOutPos, aOutRot, aAllowCellLoad);
+    s_getCOCPlacementInfo(this, aOutPos, aOutRot, aAllowCellLoad);
 }

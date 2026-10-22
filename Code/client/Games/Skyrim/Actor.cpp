@@ -109,15 +109,15 @@ void Actor::Save_Reversed(const uint32_t aChangeFlags, Buffer::Writer& aWriter)
 
 #endif
 
-TP_THIS_FUNCTION(TRemoveSpell, bool, Actor, MagicItem*);
-TP_THIS_FUNCTION(TCharacterConstructor, Actor*, Actor);
-TP_THIS_FUNCTION(TCharacterConstructor2, Actor*, Actor, uint8_t aUnk);
-TP_THIS_FUNCTION(TCharacterDestructor, Actor*, Actor);
-TP_THIS_FUNCTION(TAddInventoryItem, void, Actor, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
-TP_THIS_FUNCTION(TPickUpObject, void*, Actor, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2);
-TP_THIS_FUNCTION(TDropObject, void*, Actor, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation);
-TP_THIS_FUNCTION(TSetPosition, char, Actor, NiPoint3& acPosition);
-TP_THIS_FUNCTION(TApplyMovement, void, Actor, float aDelta);
+using TRemoveSpell = bool(Actor*, MagicItem*);
+using TCharacterConstructor = Actor*(Actor*);
+using TCharacterConstructor2 = Actor*(Actor*, uint8_t aUnk);
+using TCharacterDestructor = Actor*(Actor*);
+using TAddInventoryItem = void(Actor*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
+using TPickUpObject = void*(Actor*, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2);
+using TDropObject = void*(Actor*, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation);
+using TSetPosition = char(Actor*, NiPoint3& acPosition);
+using TApplyMovement = void(Actor*, float aDelta);
 
 using TGetLocation = TESForm*(TESForm*);
 static TGetLocation* FUNC_GetActorLocation;
@@ -150,9 +150,9 @@ void Actor::SetSpeed(float aSpeed) noexcept
 
 uint16_t Actor::GetLevel() const noexcept
 {
-    TP_THIS_FUNCTION(TGetLevel, uint16_t, const Actor);
+    using TGetLevel = uint16_t(const Actor*);
     POINTER_SKYRIMSE(TGetLevel, s_getLevel, 37334);
-    return TiltedPhoques::ThisCall(s_getLevel, this);
+    return s_getLevel(this);
 }
 
 void Actor::ForcePosition(const NiPoint3& acPosition) noexcept
@@ -169,10 +169,10 @@ void Actor::QueueUpdate() noexcept
     const auto originalValue = pSetting->data;
     pSetting->data = 0;
 
-    TP_THIS_FUNCTION(TQueueUpdate, void, Actor, bool);
+    using TQueueUpdate = void(Actor*, bool);
     POINTER_SKYRIMSE(TQueueUpdate, QueueUpdate, 40255);
 
-    TiltedPhoques::ThisCall(QueueUpdate, this, true);
+    QueueUpdate(this, true);
 
     pSetting->data = originalValue;
 }
@@ -220,12 +220,12 @@ GamePtr<Actor> Actor::Spawn(uint32_t aBaseFormId) noexcept
 
 void Actor::SetLevelMod(uint32_t aLevel) noexcept
 {
-    TP_THIS_FUNCTION(TActorSetLevelMod, void, ExtraDataList, uint32_t);
+    using TActorSetLevelMod = void(ExtraDataList*, uint32_t);
     POINTER_SKYRIMSE(TActorSetLevelMod, realSetLevelMod, 11806);
 
     const auto pExtraDataList = &extraData;
 
-    TiltedPhoques::ThisCall(realSetLevelMod, pExtraDataList, aLevel);
+    realSetLevelMod(pExtraDataList, aLevel);
 }
 
 ActorExtension* Actor::GetExtension() noexcept
@@ -321,9 +321,9 @@ void Actor::SetEssentialEx(bool aSet) noexcept
 
 void Actor::SetNoBleedoutRecovery(bool aSet) noexcept
 {
-    TP_THIS_FUNCTION(TSetNoBleedoutRecovery, void, Actor, bool);
+    using TSetNoBleedoutRecovery = void(Actor*, bool);
     POINTER_SKYRIMSE(TSetNoBleedoutRecovery, s_setNoBleedoutRecovery, 38533);
-    TiltedPhoques::ThisCall(s_setNoBleedoutRecovery, this, aSet);
+    s_setNoBleedoutRecovery(this, aSet);
 }
 
 void Actor::DispelAllSpells(bool aNow) noexcept
@@ -380,7 +380,7 @@ bool Actor::RemoveSpell(MagicItem* apSpell) noexcept
         return false;
     }
     // spdlog::info("{}: : removing: {} from actor: {}", __FUNCTION__, apSpell->formID, formID);
-    return TiltedPhoques::ThisCall(RealRemoveSpell, this, apSpell);
+    return RealRemoveSpell(this, apSpell);
 }
 
 bool Actor::HasPerk(uint32_t aPerkFormId) const noexcept
@@ -394,15 +394,15 @@ uint8_t Actor::GetPerkRank(uint32_t aPerkFormId) const noexcept
     if (!pPerk)
         return 0;
 
-    TP_THIS_FUNCTION(TGetPerkRank, uint8_t, const Actor, BGSPerk*);
+    using TGetPerkRank = uint8_t(const Actor*, BGSPerk*);
     POINTER_SKYRIMSE(TGetPerkRank, getPerkRank, 37698);
 
-    return TiltedPhoques::ThisCall(getPerkRank, this, pPerk);
+    return getPerkRank(this, pPerk);
 }
 
-bool TP_MAKE_THISCALL(HookRemoveSpell, Actor, MagicItem* apSpell)
+bool HookRemoveSpell(Actor* apThis, MagicItem* apSpell)
 {
-    bool result = TiltedPhoques::ThisCall(RealRemoveSpell, apThis, apSpell);
+    bool result = RealRemoveSpell(apThis, apSpell);
     if (apThis->GetExtension()->IsLocalPlayer() && result)
     {
         //spdlog::info("{}: : spell: {}, ID: {} from local player", __FUNCTION__, apSpell->GetName() , apSpell->formID);
@@ -416,25 +416,25 @@ bool TP_MAKE_THISCALL(HookRemoveSpell, Actor, MagicItem* apSpell)
     return result;
 }
 
-Actor* TP_MAKE_THISCALL(HookCharacterConstructor, Actor)
+Actor* HookCharacterConstructor(Actor* apThis)
 {
     TP_EMPTY_HOOK_PLACEHOLDER;
 
-    TiltedPhoques::ThisCall(RealCharacterConstructor, apThis);
+    RealCharacterConstructor(apThis);
 
     return apThis;
 }
 
-Actor* TP_MAKE_THISCALL(HookCharacterConstructor2, Actor, uint8_t aUnk)
+Actor* HookCharacterConstructor2(Actor* apThis, uint8_t aUnk)
 {
     TP_EMPTY_HOOK_PLACEHOLDER;
 
-    TiltedPhoques::ThisCall(RealCharacterConstructor2, apThis, aUnk);
+    RealCharacterConstructor2(apThis, aUnk);
 
     return apThis;
 }
 
-Actor* TP_MAKE_THISCALL(HookCharacterDestructor, Actor)
+Actor* HookCharacterDestructor(Actor* apThis)
 {
     TP_EMPTY_HOOK_PLACEHOLDER;
 
@@ -445,7 +445,7 @@ Actor* TP_MAKE_THISCALL(HookCharacterDestructor, Actor)
         pExtension->~ActorExtension();
     }
 
-    TiltedPhoques::ThisCall(RealCharacterDestructor, apThis);
+    RealCharacterDestructor(apThis);
 
     return apThis;
 }
@@ -454,18 +454,18 @@ GamePtr<Actor> Actor::New() noexcept
 {
     auto* const pActor = Memory::Allocate<Actor>();
 
-    TiltedPhoques::ThisCall(RealCharacterConstructor, pActor);
+    RealCharacterConstructor(pActor);
 
     return {pActor};
 }
 
 void Actor::InterruptCast(bool abRefund) noexcept
 {
-    TP_THIS_FUNCTION(TInterruptCast, void, Actor, bool abRefund);
+    using TInterruptCast = void(Actor*, bool abRefund);
 
     POINTER_SKYRIMSE(TInterruptCast, s_interruptCast, 38757);
 
-    TiltedPhoques::ThisCall(s_interruptCast, this, abRefund);
+    s_interruptCast(this, abRefund);
 }
 
 TESForm* Actor::GetEquippedWeapon(uint32_t aSlotId) const noexcept
@@ -658,10 +658,10 @@ void Actor::ForceActorValue(ActorValueOwner::ForceMode aMode, uint32_t aId, floa
 void Actor::DamageHealth(float aDamage, Actor* apAttacker) noexcept
 {
     // Actor::SetActorValueModifiers (38468), as DoDamage (37335) calls it: calls HandleHealthDamage (38606).
-    TP_THIS_FUNCTION(TSetActorValueModifiers, void, Actor, int32_t aModifier, uint32_t aId, float aValue, Actor* apSource);
+    using TSetActorValueModifiers = void(Actor*, int32_t aModifier, uint32_t aId, float aValue, Actor* apSource);
     POINTER_SKYRIMSE(TSetActorValueModifiers, s_setActorValueModifiers, 38468);
     constexpr int32_t cDamageModifier = 2;
-    TiltedPhoques::ThisCall(s_setActorValueModifiers.Get(), this, cDamageModifier, ActorValueInfo::kHealth, -aDamage, apAttacker);
+    (s_setActorValueModifiers.Get())(this, cDamageModifier, ActorValueInfo::kHealth, -aDamage, apAttacker);
 }
 
 Inventory Actor::GetActorInventory() const noexcept
@@ -701,9 +701,9 @@ Inventory Actor::GetEquipment() const noexcept
 
 int32_t Actor::GetGoldAmount() const noexcept
 {
-    TP_THIS_FUNCTION(TGetGoldAmount, int32_t, const Actor);
+    using TGetGoldAmount = int32_t(const Actor*);
     POINTER_SKYRIMSE(TGetGoldAmount, s_getGoldAmount, 37527);
-    return TiltedPhoques::ThisCall(s_getGoldAmount, this);
+    return s_getGoldAmount(this);
 }
 
 void Actor::SetActorInventory(const Inventory& acInventory) noexcept
@@ -789,18 +789,18 @@ void Actor::SetFactions(const Factions& acFactions) noexcept
 
 void Actor::SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept
 {
-    TP_THIS_FUNCTION(TSetFactionRankInternal, void, Actor, const TESFaction*, int8_t);
+    using TSetFactionRankInternal = void(Actor*, const TESFaction*, int8_t);
 
     POINTER_SKYRIMSE(TSetFactionRankInternal, s_setFactionRankInternal, 37677);
 
-    TiltedPhoques::ThisCall(s_setFactionRankInternal, this, apFaction, aRank);
+    s_setFactionRankInternal(this, apFaction, aRank);
 }
 
 void Actor::SetPlayerTeammate(bool aSet) noexcept
 {
-    TP_THIS_FUNCTION(TSetPlayerTeammate, void, Actor, bool aSet, bool abCanDoFavor);
+    using TSetPlayerTeammate = void(Actor*, bool aSet, bool abCanDoFavor);
     POINTER_SKYRIMSE(TSetPlayerTeammate, setPlayerTeammate, 37717);
-    return TiltedPhoques::ThisCall(setPlayerTeammate, this, aSet, true);
+    return setPlayerTeammate(this, aSet, true);
 }
 
 void Actor::UnEquipAll() noexcept
@@ -822,12 +822,12 @@ void Actor::RemoveFromAllFactions() noexcept
     s_pRemoveFromAllFactions(this);
 }
 
-TP_THIS_FUNCTION(TInitiateMountPackage, bool, Actor, Actor* apMount);
+using TInitiateMountPackage = bool(Actor*, Actor* apMount);
 static TInitiateMountPackage* RealInitiateMountPackage = nullptr;
 
 bool Actor::InitiateMountPackage(Actor* apMount) noexcept
 {
-    return TiltedPhoques::ThisCall(RealInitiateMountPackage, this, apMount);
+    return RealInitiateMountPackage(this, apMount);
 }
 
 void Actor::GenerateMagicCasters() noexcept
@@ -857,33 +857,33 @@ bool Actor::IsDragon() const noexcept
 void Actor::StartDeferredKill() noexcept
 {
     // Character::StartDeferredKill (38616), with the papyrus wrapper's argument.
-    TP_THIS_FUNCTION(TStartDeferredKill, void, Actor, bool aScripted);
+    using TStartDeferredKill = void(Actor*, bool aScripted);
     POINTER_SKYRIMSE(TStartDeferredKill, s_startDeferredKill, 38616);
-    TiltedPhoques::ThisCall(s_startDeferredKill.Get(), this, true);
+    (s_startDeferredKill.Get())(this, true);
 }
 
 void Actor::EndDeferredKill() noexcept
 {
     // Actor::EndDeferredKill (38618); a kill it held back is queued (task queue), after any kill made now.
-    TP_THIS_FUNCTION(TEndDeferredKill, void, Actor, bool aScripted);
+    using TEndDeferredKill = void(Actor*, bool aScripted);
     POINTER_SKYRIMSE(TEndDeferredKill, s_endDeferredKill, 38618);
-    TiltedPhoques::ThisCall(s_endDeferredKill.Get(), this, true);
+    (s_endDeferredKill.Get())(this, true);
 }
 
 bool Actor::IsInKillMove() const noexcept
 {
     // Actor::IsInKillMove (38615): either half of a kill move.
-    TP_THIS_FUNCTION(TIsInKillMove, bool, const Actor);
+    using TIsInKillMove = bool(const Actor*);
     POINTER_SKYRIMSE(TIsInKillMove, s_isInKillMove, 38615);
-    return TiltedPhoques::ThisCall(s_isInKillMove.Get(), this);
+    return (s_isInKillMove.Get())(this);
 }
 
 bool Actor::IsHeldByKillMove() const noexcept
 {
     // Character 38619 (in a deferred kill, as KillActorHandler tests it): a kill move holds its victim so until KillActor.
-    TP_THIS_FUNCTION(TIsInDeferredKill, bool, const Actor);
+    using TIsInDeferredKill = bool(const Actor*);
     POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
-    return IsInKillMove() && TiltedPhoques::ThisCall(s_isInDeferredKill.Get(), this);
+    return IsInKillMove() && (s_isInDeferredKill.Get())(this);
 }
 
 void Actor::Kill() noexcept
@@ -987,7 +987,7 @@ void Actor::FixVampireLordModel() noexcept
     g_forceAnimation = false;
 }
 
-char TP_MAKE_THISCALL(HookSetPosition, Actor, NiPoint3& aPosition)
+char HookSetPosition(Actor* apThis, NiPoint3& aPosition)
 {
     const auto pExtension = apThis ? apThis->GetExtension() : nullptr;
     const auto bIsCopy = pExtension && pExtension->IsCopy();
@@ -999,14 +999,14 @@ char TP_MAKE_THISCALL(HookSetPosition, Actor, NiPoint3& aPosition)
     if (apThis->formType != Actor::Type)
     {
         const NiPoint3 cBefore = apThis->position;
-        const char cResult = TiltedPhoques::ThisCall(RealSetPosition, apThis, aPosition);
+        const char cResult = RealSetPosition(apThis, aPosition);
         apThis->RecordMove(apThis->position != cBefore);
         return cResult;
     }
 
     // Don't interfere with the player, or if we are calling our self
     if (apThis == PlayerCharacter::Get() || ScopedReferencesOverride::IsOverriden())
-        return TiltedPhoques::ThisCall(RealSetPosition, apThis, aPosition);
+        return RealSetPosition(apThis, aPosition);
 
     ScopedReferencesOverride recursionGuard;
 
@@ -1016,10 +1016,10 @@ char TP_MAKE_THISCALL(HookSetPosition, Actor, NiPoint3& aPosition)
     return 1;
 }
 
-TP_THIS_FUNCTION(TForceState, void, Actor, const NiPoint3&, float, float, TESObjectCELL*, TESWorldSpace*, bool);
+using TForceState = void(Actor*, const NiPoint3&, float, float, TESObjectCELL*, TESWorldSpace*, bool);
 static TForceState* RealForceState = nullptr;
 
-void TP_MAKE_THISCALL(HookForceState, Actor, const NiPoint3& acPosition, float aX, float aZ, TESObjectCELL* apCell, TESWorldSpace* apWorldSpace, bool aUnkBool)
+void HookForceState(Actor* apThis, const NiPoint3& acPosition, float aX, float aZ, TESObjectCELL* apCell, TESWorldSpace* apWorldSpace, bool aUnkBool)
 {
     /*const auto pNpc = Cast<TESNPC>(apThis->baseForm);
     if (pNpc)
@@ -1031,10 +1031,10 @@ void TP_MAKE_THISCALL(HookForceState, Actor, const NiPoint3& acPosition, float a
     // if (apThis != PlayerCharacter::Get())
     //     return;
 
-    return TiltedPhoques::ThisCall(RealForceState, apThis, acPosition, aX, aZ, apCell, apWorldSpace, aUnkBool);
+    return RealForceState(apThis, acPosition, aX, aZ, apCell, apWorldSpace, aUnkBool);
 }
 
-TP_THIS_FUNCTION(TDamageActor, bool, Actor, float aDamage, Actor* apHitter, bool aKillMove);
+using TDamageActor = bool(Actor*, float aDamage, Actor* apHitter, bool aKillMove);
 static TDamageActor* RealDamageActor = nullptr;
 
 // TODO: this is flawed, since it does not account for invulnerable actors
@@ -1042,7 +1042,7 @@ static TDamageActor* RealDamageActor = nullptr;
 // effect this game owns, never from a replayed melee swing.
 static thread_local bool s_applyingEffect = false;
 
-bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bool aKillMove)
+bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
 {
     if (apHitter)
         World::Get().GetRunner().Trigger(HitEvent(apHitter->formID, apThis->formID));
@@ -1062,7 +1062,7 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
         }
 
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
-        return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
+        return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     }
     else if (pExHittee->IsOtherPlayer())
     {
@@ -1079,7 +1079,7 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
             // request to that owner. Our copy mirrors the owner's health instead of applying it.
             if (pExHittee->IsCopy())
                 return wouldKill;
-            return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
+            return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
         }
         if (pExHitter->IsOtherPlayer())
         {
@@ -1088,7 +1088,7 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
             if (s_applyingEffect && pExHittee->IsLocal())
             {
                 World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
-                return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
+                return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
             }
             // Otherwise their replayed swing hit our actor; their game already sent the request.
             return wouldKill;
@@ -1098,7 +1098,7 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
     if (pExHittee->IsLocal())
     {
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
-        return TiltedPhoques::ThisCall(RealDamageActor, apThis, aDamage, apHitter, aKillMove);
+        return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
     }
     else
     {
@@ -1106,10 +1106,10 @@ bool TP_MAKE_THISCALL(HookDamageActor, Actor, float aDamage, Actor* apHitter, bo
     }
 }
 
-TP_THIS_FUNCTION(TApplyActorEffect, void, ActiveEffect, Actor* apTarget, float aEffectValue, unsigned int unk1);
+using TApplyActorEffect = void(ActiveEffect*, Actor* apTarget, float aEffectValue, unsigned int unk1);
 static TApplyActorEffect* RealApplyActorEffect = nullptr;
 
-void TP_MAKE_THISCALL(HookApplyActorEffect, ActiveEffect, Actor* apTarget, float aEffectValue, unsigned int unk1)
+void HookApplyActorEffect(ActiveEffect* apThis, Actor* apTarget, float aEffectValue, unsigned int unk1)
 {
     struct ScopedEffect
     {
@@ -1129,32 +1129,32 @@ void TP_MAKE_THISCALL(HookApplyActorEffect, ActiveEffect, Actor* apTarget, float
                 if (pExTarget->IsLocal())
                 {
                     World::Get().GetRunner().Trigger(HealthChangeEvent(apTarget->formID, aEffectValue));
-                    return TiltedPhoques::ThisCall(RealApplyActorEffect, apThis, apTarget, aEffectValue, unk1);
+                    return RealApplyActorEffect(apThis, apTarget, aEffectValue, unk1);
                 }
                 return;
             }
         }
     }
 
-    return TiltedPhoques::ThisCall(RealApplyActorEffect, apThis, apTarget, aEffectValue, unk1);
+    return RealApplyActorEffect(apThis, apTarget, aEffectValue, unk1);
 }
 
 // The passive regeneration of health (24), magicka (25) and stamina (26): aDelta seconds' worth, restored
 // into the damage modifier. The per-value updates (38451 health, 38452 stamina, 38453 magicka) call it every
 // frame. Copies take these values from their owner, so they never regenerate. (Upstream hooked 37448,
 // Actor::GetSubmergedLevel, here since its 2021 AE port; see docs/re/systems/actor-values.md.)
-TP_THIS_FUNCTION(TRegenerateActorValue, void, Actor, int32_t aActorValue, float aDelta);
+using TRegenerateActorValue = void(Actor*, int32_t aActorValue, float aDelta);
 static TRegenerateActorValue* RealRegenerateActorValue = nullptr;
 
-void TP_MAKE_THISCALL(HookRegenerateActorValue, Actor, int32_t aActorValue, float aDelta)
+void HookRegenerateActorValue(Actor* apThis, int32_t aActorValue, float aDelta)
 {
     if (apThis->GetExtension()->IsCopy())
         return;
 
-    TiltedPhoques::ThisCall(RealRegenerateActorValue, apThis, aActorValue, aDelta);
+    RealRegenerateActorValue(apThis, aActorValue, aDelta);
 }
 
-void TP_MAKE_THISCALL(HookAddInventoryItem, Actor, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
+void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner)
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
@@ -1170,10 +1170,10 @@ void TP_MAKE_THISCALL(HookAddInventoryItem, Actor, TESBoundObject* apItem, Extra
         World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item)));
     }
 
-    TiltedPhoques::ThisCall(RealAddInventoryItem, apThis, apItem, apExtraData, aCount, apOldOwner);
+    RealAddInventoryItem(apThis, apItem, apExtraData, aCount, apOldOwner);
 }
 
-void* TP_MAKE_THISCALL(HookPickUpObject, Actor, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2)
+void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2)
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
@@ -1193,15 +1193,15 @@ void* TP_MAKE_THISCALL(HookPickUpObject, Actor, TESObjectREFR* apObject, int32_t
         World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item), false, shouldUpdateClients));
     }
 
-    return TiltedPhoques::ThisCall(RealPickUpObject, apThis, apObject, aCount, aUnk1, aUnk2);
+    return RealPickUpObject(apThis, apObject, aCount, aUnk1, aUnk2);
 }
 
 void Actor::PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, float aUnk2) noexcept
 {
-    TiltedPhoques::ThisCall(RealPickUpObject, this, apObject, aCount, aUnk1, aUnk2);
+    RealPickUpObject(this, apObject, aCount, aUnk1, aUnk2);
 }
 
-void* TP_MAKE_THISCALL(HookDropObject, Actor, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
+void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
 {
     auto& modSystem = World::Get().GetModSystem();
 
@@ -1216,7 +1216,7 @@ void* TP_MAKE_THISCALL(HookDropObject, Actor, void* apResult, TESBoundObject* ap
 
     ScopedInventoryOverride _;
 
-    return TiltedPhoques::ThisCall(RealDropObject, apThis, apResult, apObject, apExtraData, aCount, apLocation, apRotation);
+    return RealDropObject(apThis, apResult, apObject, apExtraData, aCount, apLocation, apRotation);
 }
 
 void Actor::DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apLocation, NiPoint3* apRotation) noexcept
@@ -1242,13 +1242,13 @@ void Actor::DropObject(TESBoundObject* apObject, ExtraDataList* apExtraData, int
 {
     spdlog::debug("Dropping object, form id: {:X}, count: {}, actor: {:X}", apObject->formID, aCount, formID);
     BSPointerHandle<TESObjectREFR> result{};
-    TiltedPhoques::ThisCall(RealDropObject, this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
+    RealDropObject(this, &result, apObject, apExtraData, aCount, apLocation, apRotation);
 }
 
-TP_THIS_FUNCTION(TUpdateDetectionState, void, ActorKnowledge, void*);
+using TUpdateDetectionState = void(ActorKnowledge*, void*);
 static TUpdateDetectionState* RealUpdateDetectionState = nullptr;
 
-void TP_MAKE_THISCALL(HookUpdateDetectionState, ActorKnowledge, void* apState)
+void HookUpdateDetectionState(ActorKnowledge* apThis, void* apState)
 {
     auto pOwner = TESObjectREFR::GetByHandle(apThis->hOwner);
     auto pTarget = TESObjectREFR::GetByHandle(apThis->hTarget);
@@ -1267,7 +1267,7 @@ void TP_MAKE_THISCALL(HookUpdateDetectionState, ActorKnowledge, void* apState)
         }
     }
 
-    return TiltedPhoques::ThisCall(RealUpdateDetectionState, apThis, apState);
+    return RealUpdateDetectionState(apThis, apState);
 }
 
 struct DialogueItem;
@@ -1275,41 +1275,41 @@ struct DialogueItem;
 // TODO: This is an AIProcess function
 // The engine passes a fifth argument (a byte it hands on to the response's processing); dropping it left
 // the original reading an uninitialized stack slot.
-TP_THIS_FUNCTION(TProcessResponse, uint64_t, void, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk);
+using TProcessResponse = uint64_t(void*, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk);
 static TProcessResponse* RealProcessResponse = nullptr;
 
-uint64_t TP_MAKE_THISCALL(HookProcessResponse, void, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk)
+uint64_t HookProcessResponse(void* apThis, DialogueItem* apVoice, Actor* apTalkingActor, Actor* apTalkedToActor, bool aUnk)
 {
     if (apTalkingActor)
     {
         if (apTalkingActor->GetExtension()->IsOtherPlayer())
             return 0;
     }
-    return TiltedPhoques::ThisCall(RealProcessResponse, apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
+    return RealProcessResponse(apThis, apVoice, apTalkingActor, apTalkedToActor, aUnk);
 }
 
-bool TP_MAKE_THISCALL(HookInitiateMountPackage, Actor, Actor* apMount)
+bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
 {
     if (apMount && apThis->GetExtension()->IsLocal())
         World::Get().GetRunner().Trigger(MountEvent(apThis->formID, apMount->formID));
 
-    return TiltedPhoques::ThisCall(RealInitiateMountPackage, apThis, apMount);
+    return RealInitiateMountPackage(apThis, apMount);
 }
 
-TP_THIS_FUNCTION(TUnequipObject, void, Actor, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
+using TUnequipObject = void(Actor*, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
 static TUnequipObject* RealUnequipObject = nullptr;
 
-void TP_MAKE_THISCALL(HookUnequipObject, Actor, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3)
+void HookUnequipObject(Actor* apThis, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3)
 {
-    TiltedPhoques::ThisCall(RealUnequipObject, apThis, apUnk1, apObject, aUnk2, apUnk3);
+    RealUnequipObject(apThis, apUnk1, apObject, aUnk2, apUnk3);
 }
 
 // Character::SpeakSound (37542): queues a line; returns when it ends (game seconds), -1 without a voice, which
 // Actor::UpdateInDialogue (37541) takes as said: the menu's voice is ready and it takes a pick.
-TP_THIS_FUNCTION(TSpeakSoundFunction, float, Actor, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14);
+using TSpeakSoundFunction = float(Actor*, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14);
 static TSpeakSoundFunction* RealSpeakSoundFunction = nullptr;
 
-float TP_MAKE_THISCALL(HookSpeakSoundFunction, Actor, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14)
+float HookSpeakSoundFunction(Actor* apThis, const char* apName, uint32_t* a3, uint32_t a4, uint32_t a5, uint32_t a6, uint64_t a7, uint64_t a8, uint64_t a9, bool a10, uint64_t a11, bool a12, bool a13, bool a14)
 {
     spdlog::debug("a3: {:X}, a4: {}, a5: {}, a6: {}, a7: {}, a8: {:X}, a9: {:X}, a10: {}, a11: {:X}, a12: {}, a13: {}, a14: {}", (uint64_t)a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
 
@@ -1319,48 +1319,48 @@ float TP_MAKE_THISCALL(HookSpeakSoundFunction, Actor, const char* apName, uint32
     else if (apThis->GetExtension()->IsCopy())
         return -1.f;
 
-    return TiltedPhoques::ThisCall(RealSpeakSoundFunction, apThis, apName, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
+    return RealSpeakSoundFunction(apThis, apName, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14);
 }
 
 void Actor::SpeakSound(const char* pFile)
 {
     uint32_t handle[3]{};
     handle[0] = -1;
-    TiltedPhoques::ThisCall(RealSpeakSoundFunction, this, pFile, handle, 0, 0x32, 0, 0, 0, 0, 0, 0, 0, 1, 1);
+    RealSpeakSoundFunction(this, pFile, handle, 0, 0x32, 0, 0, 0, 0, 0, 0, 0, 1, 1);
 }
 
 // Actor::ResetInventory (37322): back to its base's template, outfit taken off and put on again, as enabling
 // it does (TESObjectREFR::Enable 19800). A copy's inventory is its owner's: never reset (copy-contract.md).
-TP_THIS_FUNCTION(TResetInventory, void, Actor, bool aLeveledOnly);
+using TResetInventory = void(Actor*, bool aLeveledOnly);
 static TResetInventory* RealResetInventory = nullptr;
-void TP_MAKE_THISCALL(HookResetInventory, Actor, bool aLeveledOnly)
+void HookResetInventory(Actor* apThis, bool aLeveledOnly)
 {
     if (apThis->GetExtension()->IsCopy())
         return;
-    TiltedPhoques::ThisCall(RealResetInventory, apThis, aLeveledOnly);
+    RealResetInventory(apThis, aLeveledOnly);
 }
 
 // Actor::ApplyMovement (37356): the sync positions copies.
-void TP_MAKE_THISCALL(HookApplyMovement, Actor, float aDelta)
+void HookApplyMovement(Actor* apThis, float aDelta)
 {
     if (apThis->GetExtension()->IsCopy())
         return;
 
-    TiltedPhoques::ThisCall(RealApplyMovement, apThis, aDelta);
+    RealApplyMovement(apThis, aDelta);
 }
 
 // Character::UpdateAI (37347). Copies skip it but run its body upkeep below
 // (docs/re/systems/actor-ai-and-copies.md).
-TP_THIS_FUNCTION(TUpdateAI, void, Actor, float aDelta);
+using TUpdateAI = void(Actor*, float aDelta);
 static TUpdateAI* RealUpdateAI = nullptr;
 // Character::UpdateCellAttachment (37352): loads/unloads 3D as the actor's cell attaches.
-TP_THIS_FUNCTION(TUpdateCellAttachment, void, Actor);
+using TUpdateCellAttachment = void(Actor*);
 static TUpdateCellAttachment* UpdateCellAttachment = nullptr;
 // Character::UpdateVoiceTimer (37752): counts the voice line down and marks it ended.
-TP_THIS_FUNCTION(TUpdateVoiceTimer, void, Actor, bool aForceEnd);
+using TUpdateVoiceTimer = void(Actor*, bool aForceEnd);
 static TUpdateVoiceTimer* UpdateVoiceTimer = nullptr;
 // Character::CalculateEssentialProtected (37227): kEssential/kProtected.
-TP_THIS_FUNCTION(TCalculateEssentialProtected, void, Actor);
+using TCalculateEssentialProtected = void(Actor*);
 static TCalculateEssentialProtected* CalculateEssentialProtected = nullptr;
 // AIProcess::GetLipData (39373), AIProcess::UpdateLipSyncGraph (39377): mouth movement of races
 // without a FaceGen head (dragons).
@@ -1369,7 +1369,7 @@ static TGetLipData* GetLipData = nullptr;
 using TUpdateLipSyncGraph = void(AIProcess*, void* apLipData, Actor* apActor);
 static TUpdateLipSyncGraph* UpdateLipSyncGraph = nullptr;
 
-void TP_MAKE_THISCALL(HookUpdateAI, Actor, float aDelta)
+void HookUpdateAI(Actor* apThis, float aDelta)
 {
     if (apThis->GetExtension()->IsCopy())
     {
@@ -1377,7 +1377,7 @@ void TP_MAKE_THISCALL(HookUpdateAI, Actor, float aDelta)
         if (!(apThis->flags1 & Actor::kProcessMe) || apThis->IsDisabled())
             return;
 
-        TiltedPhoques::ThisCall(UpdateVoiceTimer, apThis, false);
+        UpdateVoiceTimer(apThis, false);
         apThis->UpdateSoundCallback(false);
 
         // Copies die with their owner, never from their own health (as skymp keeps its remote actors).
@@ -1387,45 +1387,45 @@ void TP_MAKE_THISCALL(HookUpdateAI, Actor, float aDelta)
         AIProcess* pProcess = apThis->currentProcess;
         if (pProcess && pProcess->processLevel == 0)
         {
-            TiltedPhoques::ThisCall(CalculateEssentialProtected, apThis);
+            CalculateEssentialProtected(apThis);
             if (void* pLipData = GetLipData(pProcess); pLipData && apThis->race && !(apThis->race->raceFlags & TESRace::kFaceGenHead))
                 UpdateLipSyncGraph(pProcess, pLipData, apThis);
         }
 
         // UpdateAI does this last, below high process.
         if (apThis->baseForm && (!pProcess || pProcess->processLevel != 0))
-            TiltedPhoques::ThisCall(UpdateCellAttachment, apThis);
+            UpdateCellAttachment(apThis);
         return;
     }
 
-    TiltedPhoques::ThisCall(RealUpdateAI, apThis, aDelta);
+    RealUpdateAI(apThis, aDelta);
 }
 
-TP_THIS_FUNCTION(TAddDeathItems, void, Actor);
+using TAddDeathItems = void(Actor*);
 static TAddDeathItems* RealAddDeathItems = nullptr;
 
-void TP_MAKE_THISCALL(HookAddDeathItems, Actor)
+void HookAddDeathItems(Actor* apThis)
 {
     if (apThis->GetExtension()->IsCopy())
         return;
 
-    TiltedPhoques::ThisCall(RealAddDeathItems, apThis);
+    RealAddDeathItems(apThis);
 }
 
-TP_THIS_FUNCTION(TIsFleeing, bool, Actor);
+using TIsFleeing = bool(Actor*);
 static TIsFleeing* RealIsFleeing = nullptr;
 
-bool TP_MAKE_THISCALL(HookIsFleeing, Actor)
+bool HookIsFleeing(Actor* apThis)
 {
     // TODO: Player or RemotePlayer? Can players be in fleeing mode in skyrim?
     // TODO: investigate why the flee flag is set at all on remote players sometimes.
     if (apThis->GetExtension()->IsPlayer())
         return false;
     
-    return TiltedPhoques::ThisCall(RealIsFleeing, apThis);
+    return RealIsFleeing(apThis);
 }
 
-TP_THIS_FUNCTION(TIsHostileToActor, bool, Actor, Actor* apOther);
+using TIsHostileToActor = bool(Actor*, Actor* apOther);
 static TIsHostileToActor* RealIsHostileToActor = nullptr;
 
 namespace
@@ -1554,11 +1554,11 @@ void RefreshHangLockWatch() noexcept
         s_lockWatch[index] = nullptr;
 }
 
-bool TP_MAKE_THISCALL(HookIsHostileToActor, Actor, Actor* apOther)
+bool HookIsHostileToActor(Actor* apThis, Actor* apOther)
 {
     if (IsAngryWithRemotePlayer(apThis, apOther))
         return true;
-    return TiltedPhoques::ThisCall(RealIsHostileToActor, apThis, apOther);
+    return RealIsHostileToActor(apThis, apOther);
 }
 
 // The relationship every hostility and combat decision reads: 0 neutral, 1 enemy, 2 ally, 3 friend.
@@ -1567,37 +1567,37 @@ bool TP_MAKE_THISCALL(HookIsHostileToActor, Actor, Actor* apOther)
 // an enemy in both.
 constexpr int32_t cReactionEnemy = 1;
 
-TP_THIS_FUNCTION(TGetFactionReaction, int32_t, Actor, Actor* apOther);
+using TGetFactionReaction = int32_t(Actor*, Actor* apOther);
 static TGetFactionReaction* RealGetFactionReaction = nullptr;
 
-int32_t TP_MAKE_THISCALL(HookGetFactionReaction, Actor, Actor* apOther)
+int32_t HookGetFactionReaction(Actor* apThis, Actor* apOther)
 {
     if (IsAngryWithRemotePlayer(apThis, apOther))
         return cReactionEnemy;
-    return TiltedPhoques::ThisCall(RealGetFactionReaction, apThis, apOther);
+    return RealGetFactionReaction(apThis, apOther);
 }
 
 // The core "may this actor attack that one" check (CanAttackActor, IsHostileToActor and combat
 // use it). It reads the relationship cached in the actor's knowledge of the other directly, which
 // still says ally right after the actor got angry, so answer it here too.
-TP_THIS_FUNCTION(TShouldAttack, bool, Actor, Actor* apOther, int32_t aAggression, uint8_t aFlags);
+using TShouldAttack = bool(Actor*, Actor* apOther, int32_t aAggression, uint8_t aFlags);
 static TShouldAttack* RealShouldAttack = nullptr;
 
-bool TP_MAKE_THISCALL(HookShouldAttack, Actor, Actor* apOther, int32_t aAggression, uint8_t aFlags)
+bool HookShouldAttack(Actor* apThis, Actor* apOther, int32_t aAggression, uint8_t aFlags)
 {
     if (IsAngryWithRemotePlayer(apThis, apOther))
         return true;
-    return TiltedPhoques::ThisCall(RealShouldAttack, apThis, apOther, aAggression, aFlags);
+    return RealShouldAttack(apThis, apOther, aAggression, aFlags);
 }
 
-TP_THIS_FUNCTION(TComputeReaction, int32_t, Actor, Actor* apOther, bool aUnk);
+using TComputeReaction = int32_t(Actor*, Actor* apOther, bool aUnk);
 static TComputeReaction* RealComputeReaction = nullptr;
 
-int32_t TP_MAKE_THISCALL(HookComputeReaction, Actor, Actor* apOther, bool aUnk)
+int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
 {
     if (IsAngryWithRemotePlayer(apThis, apOther))
         return cReactionEnemy;
-    return TiltedPhoques::ThisCall(RealComputeReaction, apThis, apOther, aUnk);
+    return RealComputeReaction(apThis, apOther, aUnk);
 }
 
 static TiltedPhoques::Initializer s_actorHooks(

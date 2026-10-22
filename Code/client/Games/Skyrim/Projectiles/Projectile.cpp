@@ -10,12 +10,12 @@
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
 #include <Forms/SpellItem.h>
 
-TP_THIS_FUNCTION(TLaunch, BSPointerHandle<Projectile>*, BSPointerHandle<Projectile>, Projectile::LaunchData& arData);
+using TLaunch = BSPointerHandle<Projectile>*(BSPointerHandle<Projectile>*, Projectile::LaunchData& arData);
 static TLaunch* RealLaunch = nullptr;
 
 BSPointerHandle<Projectile>* Projectile::Launch(BSPointerHandle<Projectile>* apResult, LaunchData& apLaunchData) noexcept
 {
-    BSPointerHandle<Projectile>* result = TiltedPhoques::ThisCall(RealLaunch, apResult, apLaunchData);
+    BSPointerHandle<Projectile>* result = RealLaunch(apResult, apLaunchData);
 
     TP_ASSERT(result, "No projectile handle returned.");
     if (!result)
@@ -39,7 +39,7 @@ BSPointerHandle<Projectile>* Projectile::Launch(BSPointerHandle<Projectile>* apR
     return result;
 }
 
-BSPointerHandle<Projectile>* TP_MAKE_THISCALL(HookLaunch, BSPointerHandle<Projectile>, Projectile::LaunchData& arData)
+BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Projectile::LaunchData& arData)
 {
     // sync concentration spells through spell cast sync, the rest through projectile sync
     if (arData.pSpell)
@@ -48,7 +48,7 @@ BSPointerHandle<Projectile>* TP_MAKE_THISCALL(HookLaunch, BSPointerHandle<Projec
         {
             if (pSpell->eCastingType == MagicSystem::CastingType::CONCENTRATION)
             {
-                return TiltedPhoques::ThisCall(RealLaunch, apThis, arData);
+                return RealLaunch(apThis, arData);
             }
         }
     }
@@ -96,7 +96,7 @@ BSPointerHandle<Projectile>* TP_MAKE_THISCALL(HookLaunch, BSPointerHandle<Projec
     Event.DeferInitialization = arData.bDeferInitialization;
     Event.ForceConeOfFire = arData.bForceConeOfFire;
 
-    auto result = TiltedPhoques::ThisCall(RealLaunch, apThis, arData);
+    auto result = RealLaunch(apThis, arData);
 
     TP_ASSERT(result, "No projectile handle returned.");
 

@@ -2,9 +2,9 @@
 
 namespace TiltedPhoques
 {
-    String Serialization::ReadString(Buffer::Reader& aReader)
+    std::string Serialization::ReadString(Buffer::Reader& aReader)
     {
-        String result;
+        std::string result;
 
         const uint16_t len = ReadVarInt(aReader) & 0xFFFF;
         result.resize(len);
@@ -13,7 +13,7 @@ namespace TiltedPhoques
         return result;
     }
 
-    void Serialization::WriteString(Buffer::Writer& aWriter, const String& acString)
+    void Serialization::WriteString(Buffer::Writer& aWriter, const std::string& acString)
     {
         const uint16_t len = acString.size() & 0xFFFF;
 

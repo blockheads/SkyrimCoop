@@ -19,18 +19,18 @@ bool UI::GetMenuOpen(const BSFixedString& acName) const
     if (acName.data == nullptr)
         return false;
 
-    TP_THIS_FUNCTION(TMenuSystem_IsOpen, bool, const UI, const BSFixedString&);
+    using TMenuSystem_IsOpen = bool(const UI*, const BSFixedString&);
     POINTER_SKYRIMSE(TMenuSystem_IsOpen, s_isMenuOpen, 82074);
 
-    return TiltedPhoques::ThisCall(s_isMenuOpen.Get(), this, acName);
+    return (s_isMenuOpen.Get())(this, acName);
 }
 
 void UI::CloseAllMenus()
 {
-    TP_THIS_FUNCTION(TUI_CloseAll, void, const UI);
+    using TUI_CloseAll = void(const UI*);
     POINTER_SKYRIMSE(TUI_CloseAll, s_CloseAll, 82088);
 
-    TiltedPhoques::ThisCall(s_CloseAll.Get(), this);
+    (s_CloseAll.Get())(this);
 }
 
 BSFixedString* UI::LookupMenuNameByInstance(IMenu* apMenu)
@@ -117,9 +117,9 @@ BSUIMessageData* UIMessageQueue::CreateData() noexcept
 
 void UIMessageQueue::AddMessage(const BSFixedString& acMenu, UIMessage::UI_MESSAGE_TYPE aType, BSUIMessageData* apData) noexcept
 {
-    TP_THIS_FUNCTION(TAddMessage, void, UIMessageQueue, const BSFixedString* apMenu, uint32_t aType, void* apData);
+    using TAddMessage = void(UIMessageQueue*, const BSFixedString* apMenu, uint32_t aType, void* apData);
     POINTER_SKYRIMSE(TAddMessage, s_addMessage, 13631);
-    TiltedPhoques::ThisCall(s_addMessage.Get(), this, &acMenu, aType, apData);
+    (s_addMessage.Get())(this, &acMenu, aType, apData);
 }
 
 using TCallback = void(void*, const BSFixedString*, uint32_t, void*);

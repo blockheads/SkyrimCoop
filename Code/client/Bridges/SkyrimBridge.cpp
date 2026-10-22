@@ -516,9 +516,9 @@ void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormI
     // same rule to remote players: after too many hits the victim fights them.
     if (pAttacker->GetExtension()->IsOtherPlayer())
     {
-        TP_THIS_FUNCTION(TGetFactionReaction, int32_t, Actor, Actor*);
+        using TGetFactionReaction = int32_t(Actor*, Actor*);
         POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
-        const int32_t cReaction = TiltedPhoques::ThisCall(s_getFactionReaction.Get(), pVictim, pAttacker);
+        const int32_t cReaction = (s_getFactionReaction.Get())(pVictim, pAttacker);
         constexpr int32_t cAlly = 2, cFriend = 3;
         if (cReaction == cAlly || cReaction == cFriend)
         {
@@ -534,7 +534,7 @@ void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormI
                 int32_t Count{};
                 std::chrono::steady_clock::time_point Last{};
             };
-            static Map<uint64_t, Hits> s_friendlyHits;
+            static std::unordered_map<uint64_t, Hits> s_friendlyHits;
             auto& hits = s_friendlyHits[(uint64_t(aVictimFormId) << 32) | aAttackerFormId];
             const auto cNow = std::chrono::steady_clock::now();
             // One spell arrives as one request per effect: those are the same hit.
@@ -558,12 +558,12 @@ void SkyrimBridge::ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormI
 
     // Called by the engine's hit processing as Attacked(victim, attacker, 0, victim aggression)
     // (IDA: TESObjectREFR::sub_38586 at +0x1352 on 1.6.1170).
-    TP_THIS_FUNCTION(TGetAggression, uint32_t, Actor);
+    using TGetAggression = uint32_t(Actor*);
     POINTER_SKYRIMSE(TGetAggression, s_getAggression, 37671);
     using TAttacked = void(Actor*, Actor*, uint64_t, uint32_t);
     POINTER_SKYRIMSE(TAttacked, s_attacked, 38626);
 
-    const uint32_t cAggression = TiltedPhoques::ThisCall(s_getAggression.Get(), pVictim);
+    const uint32_t cAggression = (s_getAggression.Get())(pVictim);
     s_attacked.Get()(pVictim, pAttacker, 0, cAggression);
     spdlog::debug("ReactToAttack: {:X} attacked by {:X} (aggression {})", aVictimFormId, aAttackerFormId, cAggression);
 }
@@ -1381,7 +1381,7 @@ void SkyrimBridge::SetPlayerHeading(float aHeading) noexcept
 
 void SkyrimBridge::SetPassThrough(const std::vector<uint32_t>& acActorFormIds) noexcept
 {
-    PlayerCollision::SetPassThrough(TiltedPhoques::Vector<uint32_t>(acActorFormIds.begin(), acActorFormIds.end()));
+    PlayerCollision::SetPassThrough(std::vector<uint32_t>(acActorFormIds.begin(), acActorFormIds.end()));
 }
 
 void SkyrimBridge::StopTeleportEvents() noexcept
@@ -1391,7 +1391,7 @@ void SkyrimBridge::StopTeleportEvents() noexcept
 
 void SkyrimBridge::ShowHudMessage(const std::string& aMessage) noexcept
 {
-    Utils::ShowHudMessage(String(aMessage));
+    Utils::ShowHudMessage(std::string(aMessage));
 }
 
 void SkyrimBridge::ShowEnemyHealth(uint32_t aActorFormId) noexcept
@@ -1703,15 +1703,15 @@ void SkyrimBridge::ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariab
         pActor->SaveAnimationVariables(aVars);
 }
 
-TiltedPhoques::String SkyrimBridge::SaveActorGraphState(uint32_t aFormId) const noexcept
+std::string SkyrimBridge::SaveActorGraphState(uint32_t aFormId) const noexcept
 {
-    TiltedPhoques::String state;
+    std::string state;
     if (Actor* pActor = GetActor(aFormId))
         pActor->SaveAnimationGraphState(state);
     return state;
 }
 
-bool SkyrimBridge::LoadActorGraphState(uint32_t aFormId, const TiltedPhoques::String& acState) noexcept
+bool SkyrimBridge::LoadActorGraphState(uint32_t aFormId, const std::string& acState) noexcept
 {
     Breadcrumbs::Record("LoadActorGraphState", aFormId);
     Actor* pActor = GetActor(aFormId);
@@ -1778,7 +1778,7 @@ uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
     return pActor ? pActor->formID : 0;
 }
 
-uint32_t SkyrimBridge::CreateCustomActor(const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
+uint32_t SkyrimBridge::CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept
 {
     Breadcrumbs::Record("CreateCustomActor", aChangeFlags);
     TESNPC* pNpc = TESNPC::Create(acAppearance, aChangeFlags);
@@ -1788,7 +1788,7 @@ uint32_t SkyrimBridge::CreateCustomActor(const TiltedPhoques::String& acAppearan
     return pActor ? pActor->formID : 0;
 }
 
-void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::String& acAppearance, uint32_t aChangeFlags) noexcept
+void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept
 {
     Breadcrumbs::Record("DeserializeActorNpc", aFormId, aChangeFlags);
     Actor* pActor = GetActor(aFormId);
@@ -1800,7 +1800,7 @@ void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const TiltedPhoques::St
     pNpc->Deserialize(acAppearance, aChangeFlags);
 }
 
-uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, TiltedPhoques::String& aBuffer) noexcept
+uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept
 {
     Breadcrumbs::Record("SerializeActorNpc", aFormId);
     Actor* pActor = GetActor(aFormId);
@@ -1957,13 +1957,13 @@ bool SkyrimBridge::PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId
     // TESObjectREFR::ApplyEffectShader / ApplyArtObject (shader or art, duration (-1: until
     // stopped), facing ref, face target, attach to camera, attach node, interface effect), as
     // Papyrus Play and the console's PlayMagicShaderVisuals do.
-    TP_THIS_FUNCTION(TApply, bool, TESObjectREFR, TESForm*, float, TESObjectREFR*, bool, bool, void*, bool);
+    using TApply = bool(TESObjectREFR*, TESForm*, float, TESObjectREFR*, bool, bool, void*, bool);
     POINTER_SKYRIMSE(TApply, s_applyEffectShader, 19872);
     POINTER_SKYRIMSE(TApply, s_applyArtObject, 22769);
     if (cVisuals.pShader)
-        TiltedPhoques::ThisCall(s_applyEffectShader.Get(), pActor, cVisuals.pShader, -1.f, nullptr, false, false, nullptr, false);
+        (s_applyEffectShader.Get())(pActor, cVisuals.pShader, -1.f, nullptr, false, false, nullptr, false);
     if (cVisuals.pArt)
-        TiltedPhoques::ThisCall(s_applyArtObject.Get(), pActor, cVisuals.pArt, -1.f, nullptr, false, false, nullptr, false);
+        (s_applyArtObject.Get())(pActor, cVisuals.pArt, -1.f, nullptr, false, false, nullptr, false);
     return IsPlayingEffectHitVisuals(aFormId, aEffectFormId);
 }
 

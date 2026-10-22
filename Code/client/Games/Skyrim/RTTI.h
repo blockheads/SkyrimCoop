@@ -7,7 +7,7 @@ template <class T> struct RttiLocator
     RttiLocator(uint32_t aId);
     static const void* Get();
 
-    static inline UniquePtr<VersionDbPtr<void*>> m_pRtti;
+    static inline std::unique_ptr<VersionDbPtr<void*>> m_pRtti;
 };
 
 using TDynamicCast = void*(void* apThis, uint32_t a1, const void* acpBaseRTTI, const void* acpTargetRTTI, uint32_t a4);

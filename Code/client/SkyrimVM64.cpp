@@ -12,15 +12,15 @@ extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
 struct Main;
 struct VMContext; // SkyrimVM; isFrozen is at 0x680 (CommonLibSSE), unused here
 
-TP_THIS_FUNCTION(TVMUpdate, int, VMContext, float);
-TP_THIS_FUNCTION(TMainLoop, short, Main);
-TP_THIS_FUNCTION(TVMDestructor, uintptr_t, void);
+using TVMUpdate = int(VMContext*, float);
+using TMainLoop = short(Main*);
+using TVMDestructor = uintptr_t(void*);
 
 static TVMUpdate* VMUpdate = nullptr;
 static TMainLoop* MainLoop = nullptr;
 static TVMDestructor* VMDestructor = nullptr;
 
-int TP_MAKE_THISCALL(HookVMUpdate, VMContext, float a2)
+int HookVMUpdate(VMContext* apThis, float a2)
 {
     // Tick even while the VM is frozen (menus, pause): the embedded server must keep
     // accepting connections. A 2026-10-10 startup crash blamed on this was the MinGW
@@ -34,10 +34,10 @@ int TP_MAKE_THISCALL(HookVMUpdate, VMContext, float a2)
 
     g_appInstance->Update();
 
-    return TiltedPhoques::ThisCall(VMUpdate, apThis, a2);
+    return VMUpdate(apThis, a2);
 }
 
-short TP_MAKE_THISCALL(HookMainLoop, Main)
+short HookMainLoop(Main* apThis)
 {
     TP_EMPTY_HOOK_PLACEHOLDER
 
@@ -48,14 +48,14 @@ short TP_MAKE_THISCALL(HookMainLoop, Main)
     TestHarness::Poll();
 #endif
 
-    return TiltedPhoques::ThisCall(MainLoop, apThis);
+    return MainLoop(apThis);
 }
 
-uintptr_t TP_MAKE_THISCALL(HookVMDestructor, void)
+uintptr_t HookVMDestructor(void* apThis)
 {
     TP_EMPTY_HOOK_PLACEHOLDER
 
-    return TiltedPhoques::ThisCall(VMDestructor, apThis);
+    return VMDestructor(apThis);
 }
 
 static TiltedPhoques::Initializer s_mainHooks(

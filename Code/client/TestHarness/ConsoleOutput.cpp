@@ -27,16 +27,16 @@ uint64_t s_next = 1;
 bool s_running = false;
 thread_local Ticket* t_pCurrent = nullptr;
 
-TP_THIS_FUNCTION(TVPrint, void, ConsoleLog, const char* apFormat, va_list aArguments);
+using TVPrint = void(ConsoleLog*, const char* apFormat, va_list aArguments);
 TVPrint* RealVPrint = nullptr;
 using TRunQueued = void();
 TRunQueued* RealRunQueued = nullptr;
-TP_THIS_FUNCTION(TCompileAndRun, void, Script, void* apCompiler, uint32_t aCompilerName, void* apTarget);
+using TCompileAndRun = void(Script*, void* apCompiler, uint32_t aCompilerName, void* apTarget);
 TCompileAndRun* RealCompileAndRun = nullptr;
 
-void TP_MAKE_THISCALL(HookVPrint, ConsoleLog, const char* apFormat, va_list aArguments)
+void HookVPrint(ConsoleLog* apThis, const char* apFormat, va_list aArguments)
 {
-    TiltedPhoques::ThisCall(RealVPrint, apThis, apFormat, aArguments);
+    RealVPrint(apThis, apFormat, aArguments);
     std::string line(apThis->lastMessage, strnlen(apThis->lastMessage, sizeof(apThis->lastMessage)));
     while (!line.empty() && (line.back() == '\n' || line.back() == '\r'))
         line.pop_back();
@@ -52,14 +52,14 @@ void HookRunQueued()
 }
 
 // Each queued line runs here; the first waiting ticket with its text takes what it prints.
-void TP_MAKE_THISCALL(HookCompileAndRun, Script, void* apCompiler, uint32_t aCompilerName, void* apTarget)
+void HookCompileAndRun(Script* apThis, void* apCompiler, uint32_t aCompilerName, void* apTarget)
 {
     const char* pText = apThis->text ? apThis->text : "";
     const auto cTicket = s_running ? std::ranges::find_if(s_waiting, [pText](const Ticket& acTicket) { return _stricmp(acTicket.Line.c_str(), pText) == 0; })
                                    : s_waiting.end();
     if (cTicket == s_waiting.end())
     {
-        TiltedPhoques::ThisCall(RealCompileAndRun, apThis, apCompiler, aCompilerName, apTarget);
+        RealCompileAndRun(apThis, apCompiler, aCompilerName, apTarget);
         return;
     }
     Ticket ticket = std::move(*cTicket);
@@ -72,7 +72,7 @@ void TP_MAKE_THISCALL(HookCompileAndRun, Script, void* apCompiler, uint32_t aCom
     else
     {
         t_pCurrent = &ticket;
-        TiltedPhoques::ThisCall(RealCompileAndRun, apThis, apCompiler, aCompilerName, pTarget);
+        RealCompileAndRun(apThis, apCompiler, aCompilerName, pTarget);
         t_pCurrent = nullptr;
     }
     if (!ticket.Output.empty())

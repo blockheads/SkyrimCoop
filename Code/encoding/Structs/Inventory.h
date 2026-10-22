@@ -3,8 +3,6 @@
 #include "MagicEquipment.h"
 
 using TiltedPhoques::Buffer;
-using TiltedPhoques::String;
-using TiltedPhoques::Vector;
 
 struct Inventory
 {
@@ -23,7 +21,7 @@ struct Inventory
     struct EnchantmentData
     {
         bool IsWeapon{};
-        Vector<EffectItem> Effects{};
+        std::vector<EffectItem> Effects{};
     };
 
     struct Entry
@@ -85,6 +83,6 @@ struct Inventory
     void UpdateEquipment(const Inventory& acNewInventory) noexcept;
     bool ContainsQuestItems() const noexcept;
 
-    Vector<Entry> Entries{};
+    std::vector<Entry> Entries{};
     MagicEquipment CurrentMagicEquipment{};
 };

@@ -13,10 +13,10 @@ struct DialogueOption
     GameId Topic{};
     GameId Info{}; // the info said when picked
     GameId Quest{};
-    TiltedPhoques::String Text{};
+    std::string Text{};
 };
 
-using DialogueOptions = TiltedPhoques::Vector<DialogueOption>;
+using DialogueOptions = std::vector<DialogueOption>;
 
 void SerializeDialogueOptions(TiltedPhoques::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept;
 void DeserializeDialogueOptions(TiltedPhoques::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept;

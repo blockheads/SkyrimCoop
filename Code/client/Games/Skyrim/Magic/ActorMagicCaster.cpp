@@ -9,17 +9,17 @@
 
 #include <World.h>
 
-TP_THIS_FUNCTION(TSpellCast, void, ActorMagicCaster, bool sbSuccess, int32_t auiTargetCount, MagicItem* apSpell);
-TP_THIS_FUNCTION(TInterruptCast, void, ActorMagicCaster, bool);
-TP_THIS_FUNCTION(TCasterUpdate, void, ActorMagicCaster, float aDelta);
-TP_THIS_FUNCTION(TCheckCast, bool, ActorMagicCaster, MagicItem* apSpell, bool abDualCast, float* apEffectStrength, uint32_t* apReason, bool abUseBaseValueForCost);
+using TSpellCast = void(ActorMagicCaster*, bool sbSuccess, int32_t auiTargetCount, MagicItem* apSpell);
+using TInterruptCast = void(ActorMagicCaster*, bool);
+using TCasterUpdate = void(ActorMagicCaster*, float aDelta);
+using TCheckCast = bool(ActorMagicCaster*, MagicItem* apSpell, bool abDualCast, float* apEffectStrength, uint32_t* apReason, bool abUseBaseValueForCost);
 
 static TSpellCast* RealSpellCast = nullptr;
 static TInterruptCast* RealInterruptCast = nullptr;
 static TCasterUpdate* RealCasterUpdate = nullptr;
 static TCheckCast* RealCheckCast = nullptr;
 
-void TP_MAKE_THISCALL(HookSpellCast, ActorMagicCaster, bool abSuccess, int32_t auiTargetCount, MagicItem* apSpell)
+void HookSpellCast(ActorMagicCaster* apThis, bool abSuccess, int32_t auiTargetCount, MagicItem* apSpell)
 {
     spdlog::debug("HookSpellCast, abSuccess: {}, auiTargetCount: {}, apSpell: {:X}", abSuccess, auiTargetCount, (uint64_t)apSpell);
 
@@ -51,17 +51,17 @@ void TP_MAKE_THISCALL(HookSpellCast, ActorMagicCaster, bool abSuccess, int32_t a
                                                        cCastingSource, cIsDualCasting, cHasNiNode));
     }
 
-    TiltedPhoques::ThisCall(RealSpellCast, apThis, abSuccess, auiTargetCount, apSpell);
+    RealSpellCast(apThis, abSuccess, auiTargetCount, apSpell);
 }
 
-void TP_MAKE_THISCALL(HookInterruptCast, ActorMagicCaster, bool abRefund)
+void HookInterruptCast(ActorMagicCaster* apThis, bool abRefund)
 {
     ActorExtension* pExtended = apThis->pCasterActor->GetExtension();
 
     if (pExtended->IsLocal())
         World::Get().GetRunner().Trigger(InterruptCastEvent(apThis->pCasterActor->formID, apThis->eCastingSource));
 
-    TiltedPhoques::ThisCall(RealInterruptCast, apThis, abRefund);
+    RealInterruptCast(apThis, abRefund);
 }
 
 // A copy's cast is its owner's, checked and paid for there: free, in the two readers of the flag
@@ -73,16 +73,16 @@ static void MarkCopyCastFree(ActorMagicCaster* apCaster) noexcept
 }
 
 // ActorMagicCaster::Update (34143): spends while charging or channelling.
-void TP_MAKE_THISCALL(HookCasterUpdate, ActorMagicCaster, float aDelta)
+void HookCasterUpdate(ActorMagicCaster* apThis, float aDelta)
 {
     MarkCopyCastFree(apThis);
-    TiltedPhoques::ThisCall(RealCasterUpdate, apThis, aDelta);
+    RealCasterUpdate(apThis, aDelta);
 }
 
-bool TP_MAKE_THISCALL(HookCheckCast, ActorMagicCaster, MagicItem* apSpell, bool abDualCast, float* apEffectStrength, uint32_t* apReason, bool abUseBaseValueForCost)
+bool HookCheckCast(ActorMagicCaster* apThis, MagicItem* apSpell, bool abDualCast, float* apEffectStrength, uint32_t* apReason, bool abUseBaseValueForCost)
 {
     MarkCopyCastFree(apThis);
-    return TiltedPhoques::ThisCall(RealCheckCast, apThis, apSpell, abDualCast, apEffectStrength, apReason, abUseBaseValueForCost);
+    return RealCheckCast(apThis, apSpell, abDualCast, apEffectStrength, apReason, abUseBaseValueForCost);
 }
 
 static TiltedPhoques::Initializer s_actorMagicCasterHooks(
