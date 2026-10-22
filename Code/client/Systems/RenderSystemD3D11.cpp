@@ -8,14 +8,14 @@
 #include <Ui/UiService.h>
 #include <World.h>
 
-#include <D3D11Hook.hpp>
+#include <Hooks/D3D11Hook.h>
 #include <d3d11.h>
 
 RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService)
     : m_pSwapChain(nullptr)
     , m_imguiService(aImguiService)
 {
-    auto& d3d11 = TiltedPhoques::D3D11Hook::Get();
+    auto& d3d11 = Hooks::D3D11Hook::Get();
 
     m_createConnection = d3d11.OnCreate.Connect([this](IDXGISwapChain* apSwapChain) { OnDeviceCreation(apSwapChain); });
     m_resetConnection = d3d11.OnLost.Connect(std::bind(&RenderSystemD3D11::OnReset, this, std::placeholders::_1));
@@ -23,7 +23,7 @@ RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService)
 
 RenderSystemD3D11::~RenderSystemD3D11()
 {
-    auto& d3d11 = TiltedPhoques::D3D11Hook::Get();
+    auto& d3d11 = Hooks::D3D11Hook::Get();
 
     d3d11.OnCreate.Disconnect(m_createConnection);
     d3d11.OnLost.Disconnect(m_resetConnection);

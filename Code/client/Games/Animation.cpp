@@ -241,7 +241,7 @@ TESActionData::~TESActionData()
     ActionInput::Release();
 }
 
-static TiltedPhoques::Initializer s_animationHook(
+static Hooks::Initializer s_animationHook(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -253,8 +253,8 @@ static TiltedPhoques::Initializer s_animationHook(
         RealPerformAction = performAction.Get();
         RealUpdateAnimationGraphs = updateAnimationGraphs.Get();
 
-        TP_HOOK(&RealPerformAction, HookPerformAction);
+        HOOK(&RealPerformAction, HookPerformAction);
         RealUpdateSynchronizedClip = updateSynchronizedClip.Get();
-        TP_HOOK(&RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
-        TP_HOOK(&RealUpdateSynchronizedClip, HookUpdateSynchronizedClip);
+        HOOK(&RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
+        HOOK(&RealUpdateSynchronizedClip, HookUpdateSynchronizedClip);
     });

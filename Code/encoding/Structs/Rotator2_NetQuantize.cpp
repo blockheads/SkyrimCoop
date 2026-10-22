@@ -1,10 +1,11 @@
 #include <Structs/Rotator2_NetQuantize.h>
-#include <TiltedCore/Math.hpp>
-#include <TiltedCore/Serialization.hpp>
+#include <cmath>
+#include <numbers>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
-constexpr float cScalingFactory = float(0xFFFF) / (2.0f * float(TiltedPhoques::Pi));
+constexpr float cScalingFactory = float(0xFFFF) / (2.0f * std::numbers::pi_v<float>);
 constexpr float cReverseScalingFactory = 1.0f / cScalingFactory;
 
 bool Rotator2_NetQuantize::operator==(const Rotator2_NetQuantize& acRhs) const noexcept
@@ -17,12 +18,12 @@ bool Rotator2_NetQuantize::operator!=(const Rotator2_NetQuantize& acRhs) const n
     return !this->operator==(acRhs);
 }
 
-void Rotator2_NetQuantize::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Rotator2_NetQuantize::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(Pack(), 32);
 }
 
-void Rotator2_NetQuantize::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Rotator2_NetQuantize::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     uint64_t data = 0;
     aReader.ReadBits(data, 32);
@@ -45,10 +46,10 @@ uint32_t Rotator2_NetQuantize::Pack() const noexcept
 
     auto WrapAngle = [](float angle)
     {
-        angle = TiltedPhoques::Mod(angle, 2.f * float(TiltedPhoques::Pi));
+        angle = std::fmod(angle, 2.f * std::numbers::pi_v<float>);
         if (angle < 0.f)
         {
-            angle += 2.f * float(TiltedPhoques::Pi);
+            angle += 2.f * std::numbers::pi_v<float>;
         }
 
         return angle;

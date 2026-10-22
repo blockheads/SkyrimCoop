@@ -336,7 +336,7 @@ void PlayerCharacter::StopTeleportEvents() noexcept
         pSource->UnRegisterSink(&s_positionPlayerSink);
 }
 
-static TiltedPhoques::Initializer s_playerCharacterHooks(
+static Hooks::Initializer s_playerCharacterHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -354,10 +354,10 @@ static TiltedPhoques::Initializer s_playerCharacterHooks(
         RealSetWaypoint = s_setWaypoint.Get();
         RealRemoveWaypoint = s_removeWaypoint.Get();
 
-        TP_HOOK(&RealPickUpObject, HookPickUpObject);
-        TP_HOOK(&RealSetBeastForm, HookSetBeastForm);
-        TP_HOOK(&RealAddSkillExperience, HookAddSkillExperience);
-        TP_HOOK(&RealCalculateExperience, HookCalculateExperience);
-        TP_HOOK(&RealSetWaypoint, HookSetWaypoint);
-        TP_HOOK(&RealRemoveWaypoint, HookRemoveWaypoint);
+        HOOK(&RealPickUpObject, HookPickUpObject);
+        HOOK(&RealSetBeastForm, HookSetBeastForm);
+        HOOK(&RealAddSkillExperience, HookAddSkillExperience);
+        HOOK(&RealCalculateExperience, HookCalculateExperience);
+        HOOK(&RealSetWaypoint, HookSetWaypoint);
+        HOOK(&RealRemoveWaypoint, HookRemoveWaypoint);
     });

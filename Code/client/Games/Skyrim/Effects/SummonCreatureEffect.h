@@ -25,7 +25,7 @@ void* HookInitializeSummonCreatureEffect(Actor* apThis, MagicItem* apSpell, Effe
     return RealInitializeSummonCreatureEffect(apThis, apSpell, apEffect);
 }
 
-static TiltedPhoques::Initializer s_summonCreatureEffectsHooks(
+static Hooks::Initializer s_summonCreatureEffectsHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -33,5 +33,5 @@ static TiltedPhoques::Initializer s_summonCreatureEffectsHooks(
 
         RealInitializeSummonCreatureEffect = s_start.Get();
 
-        TP_HOOK(&RealInitializeSummonCreatureEffect, HookInitializeSummonCreatureEffect);
+        HOOK(&RealInitializeSummonCreatureEffect, HookInitializeSummonCreatureEffect);
     });

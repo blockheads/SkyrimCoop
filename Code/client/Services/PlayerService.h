@@ -25,7 +25,7 @@ struct PlayerService
                   IPlayerBridge& aPlayerBridge, IFormBridge& aFormBridge, IActorBridge& aActorBridge) noexcept;
     ~PlayerService() noexcept = default;
 
-    TP_NOCOPYMOVE(PlayerService);
+    NO_COPY_MOVE(PlayerService);
 
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;

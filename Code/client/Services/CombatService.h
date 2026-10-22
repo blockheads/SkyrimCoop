@@ -19,7 +19,7 @@ struct CombatService
                   IActorBridge& aActorBridge, IPlayerBridge& aPlayerBridge);
     ~CombatService() noexcept = default;
 
-    TP_NOCOPYMOVE(CombatService);
+    NO_COPY_MOVE(CombatService);
 
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;

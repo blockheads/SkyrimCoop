@@ -1,12 +1,12 @@
 #include <Messages/NotifyPlayerLevel.h>
 
-void NotifyPlayerLevel::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyPlayerLevel::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteVarInt(aWriter, NewLevel);
 }
 
-void NotifyPlayerLevel::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyPlayerLevel::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

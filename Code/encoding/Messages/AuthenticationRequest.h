@@ -2,7 +2,7 @@
 
 #include "Message.h"
 #include <Structs/Mods.h>
-#include <TiltedCore/Buffer.hpp>
+#include <Wire/Buffer.h>
 #include <Structs/GameId.h>
 #include <Structs/GameVersions.h>
 #include <Structs/TimeModel.h>
@@ -18,8 +18,8 @@ struct AuthenticationRequest final : RequestMessage
 
     virtual ~AuthenticationRequest() = default;
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const AuthenticationRequest& achRhs) const noexcept
     {

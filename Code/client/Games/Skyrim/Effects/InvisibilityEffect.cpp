@@ -23,7 +23,7 @@ void HookFinish(InvisibilityEffect* apThis)
     RealFinish(apThis);
 }
 
-static TiltedPhoques::Initializer s_invisibilityEffectsHooks(
+static Hooks::Initializer s_invisibilityEffectsHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -31,5 +31,5 @@ static TiltedPhoques::Initializer s_invisibilityEffectsHooks(
 
         RealFinish = s_finish.Get();
 
-        TP_HOOK(&RealFinish, HookFinish);
+        HOOK(&RealFinish, HookFinish);
     });

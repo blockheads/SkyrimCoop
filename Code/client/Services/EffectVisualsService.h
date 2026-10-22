@@ -24,7 +24,7 @@ struct EffectVisualsService
     EffectVisualsService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge) noexcept;
     ~EffectVisualsService() noexcept = default;
 
-    TP_NOCOPYMOVE(EffectVisualsService);
+    NO_COPY_MOVE(EffectVisualsService);
 
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;

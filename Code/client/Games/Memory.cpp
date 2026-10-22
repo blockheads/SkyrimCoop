@@ -138,7 +138,7 @@ static bool IsFormAllocateReplacedByEF(TFormAllocate** appOutEngineFixesAlloc) n
 static void RehookFormAllocate(TFormAllocate* apEngineFixesAllocate) noexcept
 {
     RealFormAllocate = apEngineFixesAllocate;
-    TP_HOOK_IMMEDIATE(&RealFormAllocate, HookFormAllocate);
+    HOOK_IMMEDIATE(&RealFormAllocate, HookFormAllocate);
 }
 
 size_t Hook_msize(void* apData)
@@ -171,7 +171,7 @@ void* Hook_aligned_malloc(size_t aSize, size_t aAlignment)
     return rpmemalign(aAlignment, aSize);
 }
 
-static TiltedPhoques::Initializer s_memoryHooks(
+static Hooks::Initializer s_memoryHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -204,19 +204,19 @@ static TiltedPhoques::Initializer s_memoryHooks(
 
         const char* cModuleName = "api-ms-win-crt-heap-l1-1-0.dll";
 
-        TP_HOOK_IAT(_msize, cModuleName);
-        TP_HOOK_IAT(free, cModuleName);
-        TP_HOOK_IAT(calloc, cModuleName);
-        TP_HOOK_IAT(malloc, cModuleName);
-        TP_HOOK_IAT(_aligned_malloc, cModuleName);
-        TP_HOOK_IAT(_aligned_free, cModuleName);
+        HOOK_IAT(_msize, cModuleName);
+        HOOK_IAT(free, cModuleName);
+        HOOK_IAT(calloc, cModuleName);
+        HOOK_IAT(malloc, cModuleName);
+        HOOK_IAT(_aligned_malloc, cModuleName);
+        HOOK_IAT(_aligned_free, cModuleName);
 #endif
 
-        TP_HOOK(&RealFormAllocate, HookFormAllocate);
+        HOOK(&RealFormAllocate, HookFormAllocate);
         if (HeapHistory::Start())
         {
-            TP_HOOK(&RealFormFree, HookFormFree);
-            TP_HOOK(&RealFormReallocate, HookFormReallocate);
+            HOOK(&RealFormFree, HookFormFree);
+            HOOK(&RealFormReallocate, HookFormReallocate);
         }
     });
 
@@ -240,7 +240,7 @@ int __cdecl Hook_initterm_e(_PIFV* apFirst, _PIFV* apLast)
 
 void HookFormAllocateSentinelInit()
 {
-    TP_HOOK_IAT(_initterm_e, "api-ms-win-crt-runtime-l1-1-0.dll");
+    HOOK_IAT(_initterm_e, "api-ms-win-crt-runtime-l1-1-0.dll");
 }
 
 #pragma optimize("", on)

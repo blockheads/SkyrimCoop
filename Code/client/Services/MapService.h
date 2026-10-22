@@ -17,7 +17,7 @@ struct MapService
     MapService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
     ~MapService() noexcept = default;
 
-    TP_NOCOPYMOVE(MapService);
+    NO_COPY_MOVE(MapService);
 
   protected:
     void OnSetWaypoint(const SetWaypointEvent& acMessage) noexcept;

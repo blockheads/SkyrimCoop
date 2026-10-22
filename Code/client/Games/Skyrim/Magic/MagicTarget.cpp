@@ -238,7 +238,7 @@ uint8_t HookGetPerkRank(Actor* apThis, TESForm* apPerk)
     return RealGetPerkRank(apThis, apPerk);
 }
 
-static TiltedPhoques::Initializer s_magicTargetHooks([]() {
+static Hooks::Initializer s_magicTargetHooks([]() {
     const HookGate cGate(__FILE__);
     POINTER_SKYRIMSE(TAddTarget, addTarget, 34526);
     POINTER_SKYRIMSE(TCheckAddEffectTargetData, checkAddEffectTargetData, 34525);
@@ -254,10 +254,10 @@ static TiltedPhoques::Initializer s_magicTargetHooks([]() {
     RealHasPerk = hasPerk.Get();
     RealGetPerkRank = getPerkRank.Get();
 
-    TP_HOOK(&RealAddTarget, HookAddTarget);
-    TP_HOOK(&RealCheckAddEffectTargetData, HookCheckAddEffectTargetData);
-    TP_HOOK(&RealFindTargets, HookFindTargets);
-    TP_HOOK(&RealAdjustForPerks, HookAdjustForPerks);
-    TP_HOOK(&RealHasPerk, HookHasPerk);
-    //TP_HOOK(&RealGetPerkRank, HookGetPerkRank);
+    HOOK(&RealAddTarget, HookAddTarget);
+    HOOK(&RealCheckAddEffectTargetData, HookCheckAddEffectTargetData);
+    HOOK(&RealFindTargets, HookFindTargets);
+    HOOK(&RealAdjustForPerks, HookAdjustForPerks);
+    HOOK(&RealHasPerk, HookHasPerk);
+    //HOOK(&RealGetPerkRank, HookGetPerkRank);
 });

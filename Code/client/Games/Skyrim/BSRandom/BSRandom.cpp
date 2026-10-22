@@ -12,7 +12,7 @@ uint32_t UnsignedInt(uint32_t aMin, uint32_t aMax)
     return Real_UnsignedInt(GetGenerator(), aMax - aMin);
 }
 
-static TiltedPhoques::Initializer s_randomInit(
+static Hooks::Initializer s_randomInit(
     []()
     {
         const HookGate cGate(__FILE__);

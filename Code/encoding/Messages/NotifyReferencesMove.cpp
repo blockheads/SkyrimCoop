@@ -1,7 +1,7 @@
 #include <Messages/NotifyReferencesMove.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void NotifyReferencesMove::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyReferencesMove::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Tick);
     Serialization::WriteVarInt(aWriter, Updates.size());
@@ -13,7 +13,7 @@ void NotifyReferencesMove::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
     }
 }
 
-void NotifyReferencesMove::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyReferencesMove::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

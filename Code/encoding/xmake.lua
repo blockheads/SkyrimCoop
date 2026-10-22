@@ -2,7 +2,7 @@ local function build_encoding(name)
 target(name)
     set_kind("static")
     set_group("common")
-    add_includedirs(".", "../", {public = true})
+    add_includedirs(".", "../", "../common", {public = true})
     add_headerfiles("**.h|Structs/Skyrim/**", {prefixdir = "Encoding"})
     add_files("**.cpp|Structs/Skyrim/**")
     set_pcxxheader("EncodingPch.h")
@@ -15,7 +15,6 @@ target(name)
     add_headerfiles("Structs/Skyrim/**.h")
     add_includedirs("Structs/Skyrim")
 
-    add_deps("TiltedCore")
     add_packages("glm")
 end
 

@@ -38,7 +38,7 @@ void HookSetGlobalTimeMultiplier(BSTimer* apThis, float aMultiplier, bool aArg2)
     RealSetGlobalTimeMultiplier(apThis, std::min(s_wanted, s_shared), aArg2);
 }
 
-static TiltedPhoques::Initializer s_timerHooks(
+static Hooks::Initializer s_timerHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -46,5 +46,5 @@ static TiltedPhoques::Initializer s_timerHooks(
 
         RealSetGlobalTimeMultiplier = s_setGlobalTimeMultiplier.Get();
 
-        TP_HOOK(&RealSetGlobalTimeMultiplier, HookSetGlobalTimeMultiplier);
+        HOOK(&RealSetGlobalTimeMultiplier, HookSetGlobalTimeMultiplier);
     });

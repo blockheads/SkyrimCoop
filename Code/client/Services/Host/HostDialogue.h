@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 #include <Structs/DialogueOption.h>
 
 #include <algorithm>
@@ -28,12 +28,12 @@ struct HostNetwork;
  */
 struct HostDialogue
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers,
                  const HostCharacters& acCharacters) noexcept;
 
-    TP_NOCOPYMOVE(HostDialogue);
+    NO_COPY_MOVE(HostDialogue);
 
     void OnStart(const DialogueStartRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId_t aSender) noexcept;

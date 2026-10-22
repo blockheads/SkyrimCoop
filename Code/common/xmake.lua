@@ -1,10 +1,9 @@
 target("CommonLib")
     set_kind("static")
     set_group("common")
-    add_includedirs(".", "../", "../../build", {public = true})
+    add_includedirs(".", "../", "../encoding", "../../build", {public = true})
     add_headerfiles("**.h")
     add_files("**.cpp")
-    add_deps("TiltedCore")
 
     -- build/BuildInfo.h, on every xmake run (not only when configured): the join gate compares the
     -- build id (docs/design/join-flow.md, stage 1). Rewritten only when it changes, so an unchanged

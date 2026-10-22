@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Server.hpp>
+#include <network/Server.h>
 
 #include <functional>
 
@@ -12,9 +12,9 @@ struct NotifyMessage;
  * join, and in-process routes (the host's own game; the bridge tests' games). Each message a game
  * sends goes to the front door (HostAuthority).
  */
-struct HostNetwork final : TiltedPhoques::Server
+struct HostNetwork final : Net::Server
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
     // True: the message was handled.
     using FrontDoor = std::function<bool(const RequestMessage&, ConnectionId_t)>;
     using Disconnected = std::function<void(ConnectionId_t)>;
@@ -23,7 +23,7 @@ struct HostNetwork final : TiltedPhoques::Server
 
     HostNetwork() noexcept = default;
 
-    TP_NOCOPYMOVE(HostNetwork);
+    NO_COPY_MOVE(HostNetwork);
 
     // Listens on aPort, or the next free one above it.
     bool Listen(uint16_t aPort) noexcept;
@@ -38,7 +38,7 @@ struct HostNetwork final : TiltedPhoques::Server
 
     // A message from the game on aConnection.
     void Receive(const void* apData, uint32_t aSize, ConnectionId_t aConnection) noexcept;
-    void Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, TiltedPhoques::EPacketFlags aFlags = TiltedPhoques::kReliable) const noexcept;
+    void Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, Net::EPacketFlags aFlags = Net::kReliable) const noexcept;
 
 protected:
     void OnUpdate() override {}

@@ -38,7 +38,7 @@ struct MagicService
                  IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept;
     ~MagicService() noexcept = default;
 
-    TP_NOCOPYMOVE(MagicService);
+    NO_COPY_MOVE(MagicService);
 
   protected:
     /**

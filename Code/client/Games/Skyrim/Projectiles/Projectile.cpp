@@ -112,7 +112,7 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     return result;
 }
 
-static TiltedPhoques::Initializer s_projectileHooks(
+static Hooks::Initializer s_projectileHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -120,11 +120,11 @@ static TiltedPhoques::Initializer s_projectileHooks(
 
         RealLaunch = s_launch.Get();
 
-        TP_HOOK(&RealLaunch, HookLaunch);
+        HOOK(&RealLaunch, HookLaunch);
 
         VersionDbPtr<uint8_t> hookLoc(34452);
 
-        struct C : TiltedPhoques::CodeGenerator
+        struct C : Hooks::CodeGenerator
         {
             C(uint8_t* apLoc)
             {
@@ -152,5 +152,5 @@ static TiltedPhoques::Initializer s_projectileHooks(
                 ret();
             }
         } gen(hookLoc.Get());
-        TiltedPhoques::Jump(hookLoc.Get() + 0x374, gen.getCode());
+        Hooks::Jump(hookLoc.Get() + 0x374, gen.getCode());
     });

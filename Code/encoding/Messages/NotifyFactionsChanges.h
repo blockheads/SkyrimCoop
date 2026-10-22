@@ -12,8 +12,8 @@ struct NotifyFactionsChanges final : NotifyMessage
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const NotifyFactionsChanges& acRhs) const noexcept { return Changes == acRhs.Changes && GetOpcode() == acRhs.GetOpcode(); }
 

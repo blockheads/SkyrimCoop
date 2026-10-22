@@ -13,6 +13,6 @@ namespace TestHarness
 void Configure(const std::filesystem::path& acPluginDirectory, void (*apAddUITask)(void*));
 // Every frame from boot, on the game's main loop, before the client's update.
 void Poll();
-// The plugin unloads (EndMain, or a hot reload).
+// The plugin unloads (a hot reload).
 void Shutdown();
 } // namespace TestHarness

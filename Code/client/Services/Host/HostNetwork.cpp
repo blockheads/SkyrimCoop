@@ -2,7 +2,7 @@
 
 #include <Messages/RequestMessageFactory.h>
 #include <Messages/Message.h>
-#include <Packet.hpp>
+#include <network/Packet.h>
 
 #include <spdlog/spdlog.h>
 
@@ -44,7 +44,7 @@ void HostNetwork::CloseRoute(ConnectionId_t aConnection) noexcept
 
 void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aConnection) noexcept
 {
-    TiltedPhoques::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
+    Wire::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
     Buffer::Reader reader(&buffer);
     const auto pMessage = RequestMessageFactory{}.Extract(reader);
     if (!pMessage)
@@ -56,7 +56,7 @@ void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aCo
         spdlog::debug("HostNetwork: dropped opcode {} from {:x}", uint32_t(pMessage->GetOpcode()), aConnection);
 }
 
-void HostNetwork::Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, TiltedPhoques::EPacketFlags aFlags) const noexcept
+void HostNetwork::Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, Net::EPacketFlags aFlags) const noexcept
 {
     Buffer buffer(1 << 20);
     Buffer::Writer writer(&buffer);
@@ -69,7 +69,7 @@ void HostNetwork::Send(ConnectionId_t aConnection, const NotifyMessage& acMessag
     // An enet packet starts with a type byte, which the packet fills in.
     writer.WriteBits(0, 8);
     acMessage.Serialize(writer);
-    TiltedPhoques::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), static_cast<uint32_t>(writer.Size()));
+    Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), static_cast<uint32_t>(writer.Size()));
     Server::Send(aConnection, &packet, aFlags);
 }
 

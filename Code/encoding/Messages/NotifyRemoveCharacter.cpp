@@ -1,11 +1,11 @@
 #include <Messages/NotifyRemoveCharacter.h>
 
-void NotifyRemoveCharacter::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyRemoveCharacter::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
 }
 
-void NotifyRemoveCharacter::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyRemoveCharacter::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

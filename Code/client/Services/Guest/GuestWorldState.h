@@ -21,7 +21,7 @@ struct GuestWorldState
     GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
     ~GuestWorldState() noexcept;
 
-    TP_NOCOPYMOVE(GuestWorldState);
+    NO_COPY_MOVE(GuestWorldState);
 
     // Each frame, from GuestService: each cell newly attached here (a load or back from the cell buffer, which raises
     // no load event) asks for the host's state there.

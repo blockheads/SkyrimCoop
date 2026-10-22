@@ -1,12 +1,12 @@
 #include <Messages/NotifySettingsChange.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void NotifySettingsChange::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifySettingsChange::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Settings.Serialize(aWriter);
 }
 
-void NotifySettingsChange::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifySettingsChange::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

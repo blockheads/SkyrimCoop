@@ -3,7 +3,15 @@
 #include "Message.h"
 
 #include <Structs/GameId.h>
-#include <TiltedCore/Stl.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 // A reference whose change record holds these flags (TESObjectREFR::ChangeFlags) in the sender's game.
 struct ChangedReference
@@ -25,8 +33,8 @@ struct CellStateRequest final : RequestMessage
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const CellStateRequest& acRhs) const noexcept
     {

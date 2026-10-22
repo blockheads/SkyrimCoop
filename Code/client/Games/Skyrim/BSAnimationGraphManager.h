@@ -26,9 +26,6 @@ struct BSAnimationGraphManager
     BSRecursiveLock lock;  // 98 - 4C
     void* unkPtrAfterLock; // A0 - 58
 
-#if TP_PLATFORM_32
-    void* unkPtrOldrim;
-#endif
 
     uint32_t animationGraphIndex; // A8 - 5C
 
@@ -37,13 +34,7 @@ struct BSAnimationGraphManager
     uint32_t ReSendEvent(BSFixedString* apEventName);
 };
 
-#if TP_PLATFORM_64
 static_assert(offsetof(BSAnimationGraphManager, boundChannels) == 0x10);
 static_assert(offsetof(BSAnimationGraphManager, animationGraphs) == 0x40);
 static_assert(offsetof(BSAnimationGraphManager, lock) == 0xA0);
 static_assert(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0xB0);
-#else
-static_assert(offsetof(BSAnimationGraphManager, animationGraphs) == 0x20);
-static_assert(offsetof(BSAnimationGraphManager, lock) == 0x4C);
-static_assert(offsetof(BSAnimationGraphManager, animationGraphIndex) == 0x5C);
-#endif

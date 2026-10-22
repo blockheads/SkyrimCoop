@@ -1,7 +1,7 @@
 #include <Messages/NotifyPlayerJoined.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void NotifyPlayerJoined::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyPlayerJoined::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteString(aWriter, Username);
@@ -9,7 +9,7 @@ void NotifyPlayerJoined::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
     Serialization::WriteBool(aWriter, IsHost);
 }
 
-void NotifyPlayerJoined::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyPlayerJoined::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

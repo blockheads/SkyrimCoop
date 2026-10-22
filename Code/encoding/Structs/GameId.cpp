@@ -1,7 +1,7 @@
 #include <Structs/GameId.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 GameId::GameId(uint32_t aModId, uint32_t aBaseId) noexcept
     : BaseId(aBaseId)
@@ -24,13 +24,13 @@ GameId::operator bool() const noexcept
     return *this != GameId{};
 }
 
-void GameId::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void GameId::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, BaseId);
     Serialization::WriteVarInt(aWriter, ModId);
 }
 
-void GameId::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void GameId::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     BaseId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ModId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

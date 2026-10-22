@@ -45,7 +45,7 @@ void HookShowSubtitle(SubtitleManager* apThis, TESObjectREFR* apSpeaker, const c
     RealShowSubtitle(apThis, apSpeaker, apSubtitleText, aForceDisplay);
 }
 
-static TiltedPhoques::Initializer s_subtitleHooks(
+static Hooks::Initializer s_subtitleHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -53,5 +53,5 @@ static TiltedPhoques::Initializer s_subtitleHooks(
 
         RealShowSubtitle = s_showSubtitle.Get();
 
-        TP_HOOK(&RealShowSubtitle, HookShowSubtitle);
+        HOOK(&RealShowSubtitle, HookShowSubtitle);
     });

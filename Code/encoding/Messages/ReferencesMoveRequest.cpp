@@ -1,7 +1,7 @@
 #include <Messages/ReferencesMoveRequest.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void ReferencesMoveRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ReferencesMoveRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Tick);
     Serialization::WriteVarInt(aWriter, Updates.size());
@@ -13,7 +13,7 @@ void ReferencesMoveRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
     }
 }
 
-void ReferencesMoveRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ReferencesMoveRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

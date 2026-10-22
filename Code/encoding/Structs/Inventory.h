@@ -1,8 +1,9 @@
 #pragma once
 
+#include <functional>
 #include "MagicEquipment.h"
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct Inventory
 {
@@ -14,8 +15,8 @@ struct Inventory
         float RawCost{};
         GameId EffectId{};
 
-        void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-        void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+        void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+        void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
     };
 
     struct EnchantmentData
@@ -50,8 +51,8 @@ struct Inventory
         bool operator==(const Entry& acRhs) const noexcept;
         bool operator!=(const Entry& acRhs) const noexcept;
 
-        void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-        void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+        void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+        void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
         bool ContainsExtraData() const noexcept { return !IsExtraDataEquals(Entry{}); }
 
@@ -72,8 +73,8 @@ struct Inventory
     bool operator==(const Inventory& acRhs) const noexcept;
     bool operator!=(const Inventory& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     std::optional<Entry> GetEntryById(GameId& aItemId) const noexcept;
     int32_t GetEntryCountById(GameId& aItemId) const noexcept;

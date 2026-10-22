@@ -19,8 +19,8 @@ namespace
 {
 bool SaveMessage(const std::filesystem::path& path, const RequestMessage& message)
 {
-    TiltedPhoques::Buffer buffer(1 << 20);
-    TiltedPhoques::Buffer::Writer writer(&buffer);
+    Wire::Buffer buffer(1 << 20);
+    Wire::Buffer::Writer writer(&buffer);
     message.Serialize(writer);
     if (writer.Size() >= (1 << 16) - 1) return false;
     std::ofstream output(path, std::ios::binary | std::ios::trunc);

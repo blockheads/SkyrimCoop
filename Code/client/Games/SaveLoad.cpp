@@ -8,11 +8,11 @@
 
 #include <World.h>
 
-#include <TiltedCore/Serialization.hpp>
-#include <TiltedCore/Buffer.hpp>
+#include <Wire/Serialization.h>
+#include <Wire/Buffer.h>
 
-using TiltedPhoques::Serialization;
-using TiltedPhoques::ViewBuffer;
+using Wire::Serialization;
+using Wire::ViewBuffer;
 
 BGSSaveFormBuffer::BGSSaveFormBuffer() noexcept
 {
@@ -180,7 +180,7 @@ bool BGSLoadFormBuffer_LoadFormId(BGSLoadFormBuffer* apThis, uint32_t& aFormId)
     return (modId != 0 || baseId != 0) && aFormId == 0;
 }
 
-static TiltedPhoques::Initializer s_saveLoadHooks(
+static Hooks::Initializer s_saveLoadHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -192,7 +192,7 @@ static TiltedPhoques::Initializer s_saveLoadHooks(
         RealBGSSaveFormBuffer_WriteFormId = s_writeFormId.Get();
         RealBGSSaveFormBuffer_WriteId = s_writeId.Get();
 
-        TP_HOOK(&RealBGSLoadFormBuffer_ReadFormId, BGSLoadFormBuffer_LoadFormId);
-        TP_HOOK(&RealBGSSaveFormBuffer_WriteFormId, BGSSaveFormBuffer_WriteFormId);
-        TP_HOOK(&RealBGSSaveFormBuffer_WriteId, BGSSaveFormBuffer_WriteId);
+        HOOK(&RealBGSLoadFormBuffer_ReadFormId, BGSLoadFormBuffer_LoadFormId);
+        HOOK(&RealBGSSaveFormBuffer_WriteFormId, BGSSaveFormBuffer_WriteFormId);
+        HOOK(&RealBGSSaveFormBuffer_WriteId, BGSSaveFormBuffer_WriteId);
     });

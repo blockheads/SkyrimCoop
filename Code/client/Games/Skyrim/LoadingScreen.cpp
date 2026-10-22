@@ -13,11 +13,7 @@ struct ScaleFormReturn
     void* ptrs[7];      // again don't know if this is located here
     uint32_t values[6]; // again don't know if this is located here, this is used to make sure we land on the correct offsets of 32/64bits
     uint8_t someBool50; // 50 - 34
-#if TP_PLATFORM_64
     uint8_t pad51[7];
-#else
-    uint8_t pad35[3];
-#endif
     void* ptrs2[4];
     ScaleFormValue* scaleformValue; // 78 - 48
 };
@@ -44,7 +40,7 @@ void RequestLoadingText(ScaleFormContext* apContext)
     RealRequestLoadingText(apContext);
 }
 
-static TiltedPhoques::Initializer s_loadingScreenHooks(
+static Hooks::Initializer s_loadingScreenHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -52,5 +48,5 @@ static TiltedPhoques::Initializer s_loadingScreenHooks(
 
         RealRequestLoadingText = s_requestLoadingText.Get();
 
-        // TP_HOOK(&RealRequestLoadingText, RequestLoadingText);
+        // HOOK(&RealRequestLoadingText, RequestLoadingText);
     });

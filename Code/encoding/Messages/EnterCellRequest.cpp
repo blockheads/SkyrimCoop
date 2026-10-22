@@ -1,6 +1,6 @@
 #include <Messages/EnterCellRequest.h>
 
-void EnterCellRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void EnterCellRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     CellId.Serialize(aWriter);
     WorldSpaceId.Serialize(aWriter);
@@ -12,7 +12,7 @@ void EnterCellRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
     Data.Serialize(aWriter);
 }
 
-void EnterCellRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void EnterCellRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

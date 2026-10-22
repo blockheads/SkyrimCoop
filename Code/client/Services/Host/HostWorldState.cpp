@@ -76,7 +76,7 @@ void HostWorldState::UpdateGlobals() noexcept
     spdlog::info("HostWorldState: sent {} globals: {}", changed.Values.size(), WorldStateLog::List(changed.Values, [](const GlobalValue& acValue) {
                      return fmt::format("{:X}={}", acValue.Id.LogFormat(), acValue.Value);
                  }));
-    m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
+    m_players.SendToOthers(changed, cHost, Net::kReliable);
 }
 
 void HostWorldState::UpdateQuests() noexcept
@@ -105,7 +105,7 @@ void HostWorldState::UpdateQuests() noexcept
                  WorldStateLog::List(changed.Quests, [](const QuestState& acQuest) {
                      return fmt::format("{:X} stage {} flags {:X}", acQuest.Id.LogFormat(), acQuest.CurrentStage, acQuest.Flags);
                  }));
-    m_players.SendToOthers(changed, cHost, TiltedPhoques::kReliable);
+    m_players.SendToOthers(changed, cHost, Net::kReliable);
 }
 
 void HostWorldState::UpdateObjectChanges() noexcept
@@ -118,7 +118,7 @@ void HostWorldState::UpdateObjectChanges() noexcept
     if (!cHost || changes.Changes.empty())
         return;
     spdlog::info("HostWorldState: sent {} object changes: {}", changes.Changes.size(), WorldStateLog::List(changes.Changes, &WorldStateLog::Describe, 16));
-    m_players.SendToOthers(changes, cHost, TiltedPhoques::kReliable);
+    m_players.SendToOthers(changes, cHost, Net::kReliable);
 }
 
 void HostWorldState::OnCellState(const CellStateRequest& acRequest, ConnectionId_t aSender) noexcept

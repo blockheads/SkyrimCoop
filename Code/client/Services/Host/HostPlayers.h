@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 
 struct NotifyMessage;
 
@@ -13,7 +13,7 @@ struct HostNetwork;
  */
 struct HostPlayers
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     // A player as the session keeps it (later also the account its stored character is under).
     struct Player
@@ -26,7 +26,7 @@ struct HostPlayers
 
     explicit HostPlayers(HostNetwork& aNetwork) noexcept;
 
-    TP_NOCOPYMOVE(HostPlayers);
+    NO_COPY_MOVE(HostPlayers);
 
     // A game that joined; returns its id in the player list (never reused in a session).
     uint32_t Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost) noexcept;
@@ -52,7 +52,7 @@ struct HostPlayers
 
     // The player's character level, as the player list shows it.
     void SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept;
-    void SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags = TiltedPhoques::kReliable) const noexcept;
+    void SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, Net::EPacketFlags aFlags = Net::kReliable) const noexcept;
     void SendToAll(const NotifyMessage& acMessage) const noexcept { SendToOthers(acMessage, 0); }
     // The host removes a player (never itself: the host is the session).
     void Kick(uint32_t aPlayerId) noexcept;

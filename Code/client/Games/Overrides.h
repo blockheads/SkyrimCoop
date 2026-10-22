@@ -6,7 +6,7 @@ template <class T> struct ScopedOverride
 
     ~ScopedOverride() { s_refCount--; }
 
-    TP_NOCOPYMOVE(ScopedOverride);
+    NO_COPY_MOVE(ScopedOverride);
 
     static bool IsOverriden() { return s_refCount > 0; }
 

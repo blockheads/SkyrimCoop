@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-#include <TiltedCore/Buffer.hpp>
+#include <Wire/Buffer.h>
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct TimeModel
 {
@@ -17,8 +17,8 @@ struct TimeModel
     // Whole days since the game started (the calendar's rawDaysPassed): GameDaysPassed is this + Time / 24.
     uint32_t DaysPassed = 0;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const TimeModel& achRhs) const noexcept { return TimeScale == achRhs.TimeScale && Time == achRhs.Time && Day == achRhs.Day && Month == achRhs.Month && Year == achRhs.Year && DaysPassed == achRhs.DaysPassed; }
     bool operator!=(const TimeModel& achRhs) const noexcept { return !this->operator==(achRhs); }

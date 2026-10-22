@@ -1,7 +1,7 @@
 #include <Structs/DialogueOption.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 namespace
 {
@@ -9,7 +9,7 @@ namespace
 constexpr uint64_t kMaxOptions = 64;
 } // namespace
 
-void DialogueOption::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueOption::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Topic.Serialize(aWriter);
     Info.Serialize(aWriter);
@@ -17,7 +17,7 @@ void DialogueOption::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noe
     Serialization::WriteString(aWriter, Text);
 }
 
-void DialogueOption::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueOption::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     Topic.Deserialize(aReader);
     Info.Deserialize(aReader);
@@ -25,14 +25,14 @@ void DialogueOption::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcep
     Text = Serialization::ReadString(aReader);
 }
 
-void SerializeDialogueOptions(TiltedPhoques::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept
+void SerializeDialogueOptions(Wire::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept
 {
     Serialization::WriteVarInt(aWriter, acOptions.size());
     for (const auto& cOption : acOptions)
         cOption.Serialize(aWriter);
 }
 
-void DeserializeDialogueOptions(TiltedPhoques::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept
+void DeserializeDialogueOptions(Wire::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept
 {
     const uint64_t cCount = Serialization::ReadVarInt(aReader);
     aOptions.clear();

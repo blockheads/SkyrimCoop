@@ -29,7 +29,7 @@ struct UiService
     UiService(World& aWorld, IActorBridge& aActorBridge) noexcept;
     ~UiService() noexcept;
 
-    TP_NOCOPYMOVE(UiService);
+    NO_COPY_MOVE(UiService);
 
     // On the render thread, from RenderSystemD3D11.
     void Create(IDXGISwapChain* apSwapChain) noexcept;

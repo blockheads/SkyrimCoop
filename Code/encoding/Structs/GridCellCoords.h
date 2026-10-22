@@ -3,7 +3,7 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <limits>
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct GridCellCoords
 {
@@ -21,8 +21,8 @@ struct GridCellCoords
     bool operator==(const GridCellCoords& acRhs) const noexcept;
     bool operator!=(const GridCellCoords& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     void Reset() noexcept { X = Y = std::numeric_limits<int32_t>::max(); }
 

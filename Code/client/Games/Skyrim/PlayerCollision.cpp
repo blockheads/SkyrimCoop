@@ -56,11 +56,11 @@ bool HookCompareFilterInfo(void* apThis, uint32_t aFilterA, uint32_t aFilterB)
     return RealCompareFilterInfo(apThis, aFilterA, aFilterB);
 }
 
-TiltedPhoques::Initializer s_playerCollisionHooks([] {
+Hooks::Initializer s_playerCollisionHooks([] {
     const HookGate cGate(__FILE__);
     POINTER_SKYRIMSE(TCompareFilterInfo, s_compareFilterInfo, 78553);
     RealCompareFilterInfo = s_compareFilterInfo.Get();
-    TP_HOOK(&RealCompareFilterInfo, HookCompareFilterInfo);
+    HOOK(&RealCompareFilterInfo, HookCompareFilterInfo);
 });
 } // namespace
 

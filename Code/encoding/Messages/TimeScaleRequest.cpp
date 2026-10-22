@@ -1,15 +1,15 @@
 #include <Messages/TimeScaleRequest.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void TimeScaleRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void TimeScaleRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    TiltedPhoques::Serialization::WriteFloat(aWriter, Multiplier);
+    Wire::Serialization::WriteFloat(aWriter, Multiplier);
 }
 
-void TimeScaleRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void TimeScaleRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 
-    Multiplier = TiltedPhoques::Serialization::ReadFloat(aReader);
+    Multiplier = Wire::Serialization::ReadFloat(aReader);
 }

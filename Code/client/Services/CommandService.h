@@ -15,7 +15,7 @@ public:
     CommandService(TransportService& aTransport, entt::dispatcher& aDispatcher);
     ~CommandService() noexcept = default;
 
-    TP_NOCOPYMOVE(CommandService);
+    NO_COPY_MOVE(CommandService);
 
 protected:
     void OnSetTimeCommand(const SetTimeCommandEvent&) const noexcept;

@@ -23,13 +23,13 @@ void* HookInitLeveledItems(ExtraContainerChanges::Data* apThis)
     return RealInitLeveledItems(apThis);
 }
 
-TiltedPhoques::Initializer s_leveledItemsHooks(
+Hooks::Initializer s_leveledItemsHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TInitLeveledItems, s_initLeveledItems, 16129);
         RealInitLeveledItems = s_initLeveledItems.Get();
-        TP_HOOK(&RealInitLeveledItems, HookInitLeveledItems);
+        HOOK(&RealInitLeveledItems, HookInitLeveledItems);
     });
 } // namespace
 

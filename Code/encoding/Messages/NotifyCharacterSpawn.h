@@ -24,8 +24,8 @@ struct NotifyCharacterSpawn final : NotifyMessage
     // What others spawn for a character its owner announced (aPlayerId: the owner's, for players).
     static NotifyCharacterSpawn FromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aSessionId, uint32_t aPlayerId) noexcept;
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const NotifyCharacterSpawn& acRhs) const noexcept
     {

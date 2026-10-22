@@ -1,8 +1,8 @@
 #include <Messages/RequestFactionsChanges.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <cassert>
 
-void RequestFactionsChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RequestFactionsChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     assert(Changes.size() < 0x100);
 
@@ -15,7 +15,7 @@ void RequestFactionsChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
     }
 }
 
-void RequestFactionsChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void RequestFactionsChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

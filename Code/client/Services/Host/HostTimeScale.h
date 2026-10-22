@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 
 struct HostAuthority;
 struct HostPlayers;
@@ -15,11 +15,11 @@ struct HostNetwork;
  */
 struct HostTimeScale
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     HostTimeScale(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers) noexcept;
 
-    TP_NOCOPYMOVE(HostTimeScale);
+    NO_COPY_MOVE(HostTimeScale);
 
     void OnTimeScale(const TimeScaleRequest& acRequest, ConnectionId_t aSender) noexcept;
     // After the player is off the list: its slow clock no longer holds the others.

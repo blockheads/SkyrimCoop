@@ -1,12 +1,12 @@
 #include <Messages/SendChatMessageRequest.h>
 
-void SendChatMessageRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void SendChatMessageRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, static_cast<uint64_t>(MessageType));
     Serialization::WriteString(aWriter, ChatMessage);
 }
 
-void SendChatMessageRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void SendChatMessageRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

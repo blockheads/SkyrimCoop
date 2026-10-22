@@ -67,7 +67,7 @@ void HookUpdateWeather(Sky* apThis)
     RealUpdateWeather(apThis);
 }
 
-static TiltedPhoques::Initializer s_skyHooks(
+static Hooks::Initializer s_skyHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -79,7 +79,7 @@ static TiltedPhoques::Initializer s_skyHooks(
         RealForceWeather = forceWeather.Get();
         RealUpdateWeather = updateWeather.Get();
 
-        TP_HOOK(&RealSetWeather, HookSetWeather);
-        TP_HOOK(&RealForceWeather, HookForceWeather);
-        TP_HOOK(&RealUpdateWeather, HookUpdateWeather);
+        HOOK(&RealSetWeather, HookSetWeather);
+        HOOK(&RealForceWeather, HookForceWeather);
+        HOOK(&RealUpdateWeather, HookUpdateWeather);
     });

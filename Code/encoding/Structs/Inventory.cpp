@@ -1,9 +1,9 @@
 #include <Structs/Inventory.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
-void Inventory::EffectItem::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Inventory::EffectItem::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteFloat(aWriter, Magnitude);
     Serialization::WriteVarInt(aWriter, Area);
@@ -12,7 +12,7 @@ void Inventory::EffectItem::Serialize(TiltedPhoques::Buffer::Writer& aWriter) co
     EffectId.Serialize(aWriter);
 }
 
-void Inventory::EffectItem::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Inventory::EffectItem::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     Magnitude = Serialization::ReadFloat(aReader);
     Area = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
@@ -21,7 +21,7 @@ void Inventory::EffectItem::Deserialize(TiltedPhoques::Buffer::Reader& aReader) 
     EffectId.Deserialize(aReader);
 }
 
-void Inventory::Entry::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Inventory::Entry::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     BaseId.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Count);
@@ -50,7 +50,7 @@ void Inventory::Entry::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const n
     Serialization::WriteBool(aWriter, IsQuestItem);
 }
 
-void Inventory::Entry::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Inventory::Entry::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     BaseId.Deserialize(aReader);
     Count = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
@@ -101,7 +101,7 @@ bool Inventory::Entry::operator!=(const Inventory::Entry& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void Inventory::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Inventory::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Entries.size());
     for (const Entry& entry : Entries)
@@ -112,7 +112,7 @@ void Inventory::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     CurrentMagicEquipment.Serialize(aWriter);
 }
 
-void Inventory::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Inventory::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     uint32_t count = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     for (uint32_t i = 0; i < count; i++)

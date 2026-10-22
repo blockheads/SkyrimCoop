@@ -1,9 +1,9 @@
 #include <Structs/TimeModel.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
-void TimeModel::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void TimeModel::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteFloat(aWriter, TimeScale);
     Serialization::WriteFloat(aWriter, Time);
@@ -13,7 +13,7 @@ void TimeModel::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, DaysPassed);
 }
 
-void TimeModel::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void TimeModel::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     TimeScale = Serialization::ReadFloat(aReader);
     Time = Serialization::ReadFloat(aReader);

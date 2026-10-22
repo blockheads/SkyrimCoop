@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyPartyTravel.h>
 
@@ -33,12 +33,12 @@ struct HostNetwork;
  */
 struct HostCharacters
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aAuthority.
     HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
-    TP_NOCOPYMOVE(HostCharacters);
+    NO_COPY_MOVE(HostCharacters);
 
     // The owner's connection (0: no such character).
     [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aSessionId) const noexcept;

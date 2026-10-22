@@ -54,7 +54,7 @@ void HostClock::Update(uint64_t aTick) noexcept
     m_peersClockTick = aTick;
     NotifyTimeSettings time;
     time.timeModel = cHostClock.m_timeModel;
-    m_players.SendToOthers(time, m_players.Host(), TiltedPhoques::kReliable);
+    m_players.SendToOthers(time, m_players.Host(), Net::kReliable);
 }
 
 void HostClock::SendTime(ConnectionId_t aPlayer) const noexcept

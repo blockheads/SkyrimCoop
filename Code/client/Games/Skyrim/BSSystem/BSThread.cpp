@@ -41,16 +41,16 @@ void Hook_SetThreadName(uint32_t aThreadId, const char* apThreadName)
 }
 } // namespace
 
-static TiltedPhoques::Initializer s_BSThreadInit(
+static Hooks::Initializer s_BSThreadInit(
     []()
     {
         const HookGate cGate(__FILE__);
         const VersionDbPtr<uint8_t> threadInit(68261);
         BSThread_Initialize = reinterpret_cast<decltype(BSThread_Initialize)>(threadInit.GetPtr());
         // need to detour this for now :/
-        TP_HOOK_IMMEDIATE(&BSThread_Initialize, &Hook_BSThread_Initialize);
+        HOOK_IMMEDIATE(&BSThread_Initialize, &Hook_BSThread_Initialize);
 
         const VersionDbPtr<uint8_t> setThreadName(69066);
-        TiltedPhoques::Jump(setThreadName.Get(), &Hook_SetThreadName);
+        Hooks::Jump(setThreadName.Get(), &Hook_SetThreadName);
 
     });

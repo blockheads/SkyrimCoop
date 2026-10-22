@@ -1,13 +1,13 @@
 #include <Messages/NotifyActivate.h>
 
-void NotifyActivate::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyActivate::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Id.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, ActivatorId);
     aWriter.WriteBits(PreActivationOpenState, 8);
 }
 
-void NotifyActivate::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyActivate::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

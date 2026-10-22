@@ -1,38 +1,38 @@
 #include <Messages/SharedDialogue.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
 namespace
 {
-uint32_t ReadId(TiltedPhoques::Buffer::Reader& aReader) noexcept
+uint32_t ReadId(Wire::Buffer::Reader& aReader) noexcept
 {
     return Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 } // namespace
 
-void DialogueStartRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueStartRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
 }
 
-void DialogueStartRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueStartRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
 }
 
-void DialogueOpenedRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueOpenedRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
 }
 
-void DialogueOpenedRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueOpenedRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
 }
 
-void DialogueOptionsRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueOptionsRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, Step);
@@ -40,7 +40,7 @@ void DialogueOptionsRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
     SerializeDialogueOptions(aWriter, Options);
 }
 
-void DialogueOptionsRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueOptionsRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
@@ -49,7 +49,7 @@ void DialogueOptionsRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aRead
     DeserializeDialogueOptions(aReader, Options);
 }
 
-void DialoguePickRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialoguePickRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, Step);
@@ -58,7 +58,7 @@ void DialoguePickRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
     Serialization::WriteString(aWriter, Text);
 }
 
-void DialoguePickRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialoguePickRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
@@ -68,55 +68,55 @@ void DialoguePickRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader)
     Text = Serialization::ReadString(aReader);
 }
 
-void DialogueCloseRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueCloseRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteBool(aWriter, Ended);
 }
 
-void DialogueCloseRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueCloseRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     Ended = Serialization::ReadBool(aReader);
 }
 
-void DialogueJoinRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueJoinRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
 }
 
-void DialogueJoinRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueJoinRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
 }
 
-void NotifyDialogueStart::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyDialogueStart::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
 }
 
-void NotifyDialogueStart::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyDialogueStart::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
 }
 
-void NotifyDialogueOpen::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyDialogueOpen::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, NpcId);
 }
 
-void NotifyDialogueOpen::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     NpcId = ReadId(aReader);
 }
 
-void NotifyDialogueList::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyDialogueList::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, Step);
@@ -124,7 +124,7 @@ void NotifyDialogueList::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
     SerializeDialogueOptions(aWriter, Options);
 }
 
-void NotifyDialogueList::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyDialogueList::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
@@ -133,7 +133,7 @@ void NotifyDialogueList::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) 
     DeserializeDialogueOptions(aReader, Options);
 }
 
-void NotifyDialoguePicked::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyDialoguePicked::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, Step);
@@ -142,7 +142,7 @@ void NotifyDialoguePicked::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
     Serialization::WriteVarInt(aWriter, PlayerId);
 }
 
-void NotifyDialoguePicked::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyDialoguePicked::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
@@ -152,34 +152,34 @@ void NotifyDialoguePicked::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader
     PlayerId = ReadId(aReader);
 }
 
-void NotifyDialogueClosed::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyDialogueClosed::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Conversation);
 }
 
-void NotifyDialogueClosed::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyDialogueClosed::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
 }
 
-void DialogueExperienceRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DialogueExperienceRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteFloat(aWriter, Experience);
 }
 
-void DialogueExperienceRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DialogueExperienceRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     Experience = Serialization::ReadFloat(aReader);
 }
 
-void NotifyDialogueExperience::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyDialogueExperience::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteFloat(aWriter, Experience);
 }
 
-void NotifyDialogueExperience::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyDialogueExperience::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
     Experience = Serialization::ReadFloat(aReader);

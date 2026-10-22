@@ -1,6 +1,6 @@
 #include <Messages/AuthenticationResponse.h>
 
-void AuthenticationResponse::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void AuthenticationResponse::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, static_cast<uint32_t>(Type));
     Serialization::WriteString(aWriter, Version);
@@ -10,7 +10,7 @@ void AuthenticationResponse::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
     Serialization::WriteVarInt(aWriter, PlayerId);
 }
 
-void AuthenticationResponse::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void AuthenticationResponse::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     Type = static_cast<ResponseType>(Serialization::ReadVarInt(aReader) & 0xFFFFFFFF);
     Version = Serialization::ReadString(aReader);

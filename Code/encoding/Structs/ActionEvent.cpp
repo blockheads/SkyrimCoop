@@ -1,8 +1,8 @@
 #include <Structs/ActionEvent.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <sstream>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 enum DifferentialFlags
 {
@@ -30,7 +30,7 @@ bool ActionEvent::operator!=(const ActionEvent& acRhs) const noexcept
     return !operator==(acRhs);
 }
 
-void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffer::Writer& aWriter) const noexcept
 {
     uint16_t flags = 0;
 
@@ -116,7 +116,7 @@ void ActionEvent::GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoqu
     }
 }
 
-void ActionEvent::ApplyDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActionEvent::ApplyDifferential(Wire::Buffer::Reader& aReader) noexcept
 {
     uint64_t flags = 0;
 

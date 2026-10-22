@@ -34,7 +34,7 @@ public:
     ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
     ~ActorValueService() noexcept = default;
 
-    TP_NOCOPYMOVE(ActorValueService);
+    NO_COPY_MOVE(ActorValueService);
 
 private:
     enum ValueType : uint8_t

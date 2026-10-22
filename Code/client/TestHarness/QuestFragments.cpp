@@ -30,13 +30,13 @@ bool HookFindFragment(void* apThis, uint32_t aQuestId, uint32_t aStage, uint32_t
     return cFound;
 }
 
-TiltedPhoques::Initializer s_questFragmentHooks(
+Hooks::Initializer s_questFragmentHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TFindFragment, s_findFragment, 53429);
         RealFindFragment = s_findFragment.Get();
-        TP_HOOK(&RealFindFragment, HookFindFragment);
+        HOOK(&RealFindFragment, HookFindFragment);
     });
 
 // {"cmd": "quest_fragments", "quest": id}: fragments the VM went to run for that quest since the last reset.

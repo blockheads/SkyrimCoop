@@ -1,8 +1,8 @@
 #include <Structs/Mods.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <algorithm>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool Mods::operator==(const Mods& acRhs) const noexcept
 {
@@ -14,7 +14,7 @@ bool Mods::operator!=(const Mods& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void Mods::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Mods::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     const uint16_t modCount = std::min(ModList.size(), size_t(4096)) & 0xFFFF;
     aWriter.WriteBits(modCount, 13);
@@ -27,7 +27,7 @@ void Mods::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     }
 }
 
-void Mods::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Mods::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     uint64_t data = 0;
     aReader.ReadBits(data, 13);

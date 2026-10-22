@@ -21,7 +21,7 @@ struct DebugService
     DebugService(entt::dispatcher& aDispatcher, World& aWorld, TransportService& aTransport, ImguiService& aImguiService);
     ~DebugService() noexcept = default;
 
-    TP_NOCOPYMOVE(DebugService);
+    NO_COPY_MOVE(DebugService);
 
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnDialogue(const DialogueEvent&) noexcept;

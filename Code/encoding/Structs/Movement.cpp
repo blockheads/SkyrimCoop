@@ -1,7 +1,7 @@
 #include <Structs/Movement.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool Movement::operator==(const Movement& acRhs) const noexcept
 {
@@ -13,7 +13,7 @@ bool Movement::operator!=(const Movement& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void Movement::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Movement::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     CellId.Serialize(aWriter);
     WorldSpaceId.Serialize(aWriter);
@@ -23,7 +23,7 @@ void Movement::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     aWriter.WriteBits(*reinterpret_cast<const uint32_t*>(&Direction), 32);
 }
 
-void Movement::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Movement::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     CellId.Deserialize(aReader);
     WorldSpaceId.Deserialize(aReader);

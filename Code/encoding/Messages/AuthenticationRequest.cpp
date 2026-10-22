@@ -1,6 +1,6 @@
 #include <Messages/AuthenticationRequest.h>
 
-void AuthenticationRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void AuthenticationRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Game.Serialize(aWriter);
     Serialization::WriteString(aWriter, Token);
@@ -13,7 +13,7 @@ void AuthenticationRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
     PlayerTime.Serialize(aWriter);
 }
 
-void AuthenticationRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

@@ -22,7 +22,7 @@ struct HostService
     HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
     ~HostService() noexcept;
 
-    TP_NOCOPYMOVE(HostService);
+    NO_COPY_MOVE(HostService);
 
     // Listens on aPort, or the next free one above it.
     bool StartHosting(uint16_t aPort = 10578) noexcept;

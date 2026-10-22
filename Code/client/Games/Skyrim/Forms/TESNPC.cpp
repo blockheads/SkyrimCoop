@@ -13,7 +13,7 @@ TESNPC* HookSetLeveledNpc(TESNPC* apThis, TESNPC* apSelectedNpc)
     return RealSetLeveledNpc(apThis, Cast<TESNPC>(TESForm::GetById(0x3B547)));
 }
 
-static TiltedPhoques::Initializer s_npcInitHooks(
+static Hooks::Initializer s_npcInitHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -21,5 +21,5 @@ static TiltedPhoques::Initializer s_npcInitHooks(
 
         RealSetLeveledNpc = s_SetLeveledNpc.Get();
 
-        // TP_HOOK(&RealSetLeveledNpc, HookSetLeveledNpc);
+        // HOOK(&RealSetLeveledNpc, HookSetLeveledNpc);
     });

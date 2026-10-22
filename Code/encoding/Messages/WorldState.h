@@ -30,8 +30,8 @@ struct NotifyGlobals final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyGlobals;
     NotifyGlobals() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const NotifyGlobals& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Values == acRhs.Values; }
 
@@ -101,8 +101,8 @@ struct NotifyQuests final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyQuests;
     NotifyQuests() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const NotifyQuests& acRhs) const noexcept
     {
@@ -244,8 +244,8 @@ struct NotifyObjectChanges final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyObjectChanges;
     NotifyObjectChanges() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const NotifyObjectChanges& acRhs) const noexcept
     {

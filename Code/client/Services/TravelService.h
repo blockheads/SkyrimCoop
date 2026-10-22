@@ -22,7 +22,7 @@ struct TravelService
     TravelService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                   IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept;
 
-    TP_NOCOPYMOVE(TravelService);
+    NO_COPY_MOVE(TravelService);
 
     // A place a peer reports is around our player: its interior cell, or outdoors its worldspace within the
     // loaded grid.

@@ -1,6 +1,6 @@
 #include <Messages/LockChangeRequest.h>
 
-void LockChangeRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void LockChangeRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Id.Serialize(aWriter);
     CellId.Serialize(aWriter);
@@ -8,7 +8,7 @@ void LockChangeRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
     aWriter.WriteBits(LockLevel, 8);
 }
 
-void LockChangeRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void LockChangeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

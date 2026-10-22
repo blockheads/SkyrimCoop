@@ -4,7 +4,7 @@
 
 struct AnimationGraphDescriptorManager
 {
-    TP_NOCOPYMOVE(AnimationGraphDescriptorManager);
+    NO_COPY_MOVE(AnimationGraphDescriptorManager);
 
     static AnimationGraphDescriptorManager& Get() noexcept;
     const AnimationGraphDescriptor* GetDescriptor(uint64_t aKey) const noexcept;

@@ -74,15 +74,15 @@ Code/
 │   │   └── Guest/       # Only while joined: the host's clock, weather, world state applied
 │   ├── Bridges/         # The engine behind interfaces: SkyrimBridge, HostEngine (the host's reads), GuestEngine
 │   ├── Games/Skyrim/    # Typed engine structs and hooks
+│   ├── Hooks/           # MinHook wrapper (HOOK, Hooks::Initializer), patch helpers, D3D11/input hooks
 │   ├── Components/      # ECS components (LocalComponent, RemoteComponent, ...)
 │   ├── Systems/         # Interpolation, animation, rendering
 │   ├── Ui/              # The in-game UI (RmlUi)
 │   ├── TestHarness/     # What scripts/coop_test.py drives; test builds only
 │   └── HotReload/       # Swapping a rebuilt DLL into a running game; test builds only
-├── encoding/            # Messages (Messages/), shared structs (Structs/), opcodes
-├── libraries/           # networking (enet transport), hooks, reverse (TiltedPhoques)
-├── TiltedCore/          # Allocators, containers, buffers
-├── common/, base/       # GameId, Map, build version; threading, dialogs
+├── encoding/            # Messages (Messages/), shared structs (Structs/), the wire buffer (Wire/), opcodes
+├── network/             # The enet transport (Net::Server under HostNetwork, Net::Client under TransportService)
+├── common/, base/       # Build version, DateTime, NO_COPY_MOVE; rpmalloc as global new/delete, thread names
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin

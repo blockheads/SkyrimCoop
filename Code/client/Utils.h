@@ -6,7 +6,6 @@
 #include "World.h"
 
 #define POINTER_SKYRIMSE(className, variableName, ...) static VersionDbPtr<className> variableName(__VA_ARGS__)
-#define POINTER_SKYRIMSE_LEGACY(className, variableName, ...) static AutoPtr<decltype()> variableName(__VA_ARGS__)
 
 // TODO: should this be debug only? I removed the check since debug is broken, can only use releasedbg
 #define TP_ASSERT(Expr, Msg, ...)                                    \

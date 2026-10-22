@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DateTime.h>
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 
 #include <optional>
 
@@ -18,12 +18,12 @@ struct HostNetwork;
  */
 struct HostClock
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     // Registers its rules with aAuthority.
     HostClock(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
-    TP_NOCOPYMOVE(HostClock);
+    NO_COPY_MOVE(HostClock);
 
     // Every frame: tells peers when the host's clock left the one they run.
     void Update(uint64_t aTick) noexcept;

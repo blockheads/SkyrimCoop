@@ -1,6 +1,6 @@
 #include <Messages/AssignCharacterResponse.h>
 
-void AssignCharacterResponse::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void AssignCharacterResponse::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Cookie);
     Serialization::WriteVarInt(aWriter, SessionId);
@@ -15,7 +15,7 @@ void AssignCharacterResponse::SerializeRaw(TiltedPhoques::Buffer::Writer& aWrite
     Serialization::WriteBool(aWriter, IsWeaponDrawn);
 }
 
-void AssignCharacterResponse::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void AssignCharacterResponse::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     Cookie = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

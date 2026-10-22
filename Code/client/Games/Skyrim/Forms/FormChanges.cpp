@@ -59,7 +59,7 @@ bool HookRemoveFlags(void* apThis, uint32_t aFormId, uint32_t aFlags)
     return cResult;
 }
 
-TiltedPhoques::Initializer s_formChangesHooks(
+Hooks::Initializer s_formChangesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -69,9 +69,9 @@ TiltedPhoques::Initializer s_formChangesHooks(
         RealAddChange = s_addChange.Get();
         RealAddChangeForced = s_addChangeForced.Get();
         RealRemoveFlags = s_removeFlags.Get();
-        TP_HOOK(&RealAddChange, HookAddChange);
-        TP_HOOK(&RealAddChangeForced, HookAddChangeForced);
-        TP_HOOK(&RealRemoveFlags, HookRemoveFlags);
+        HOOK(&RealAddChange, HookAddChange);
+        HOOK(&RealAddChangeForced, HookAddChangeForced);
+        HOOK(&RealRemoveFlags, HookRemoveFlags);
     });
 } // namespace
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <TiltedCore/TaskQueue.hpp>
+#include <TaskQueue.h>
 
 struct UpdateEvent;
 
@@ -12,7 +12,7 @@ struct RunnerService
     RunnerService(entt::dispatcher& aDispatcher) noexcept;
     ~RunnerService() noexcept = default;
 
-    TP_NOCOPYMOVE(RunnerService);
+    NO_COPY_MOVE(RunnerService);
 
     /**
      * @brief Executes all queued events every frame.
@@ -34,5 +34,5 @@ struct RunnerService
 
 private:
     entt::dispatcher& m_dispatcher;
-    TiltedPhoques::TaskQueue m_runner;
+    TaskQueue m_runner;
 };

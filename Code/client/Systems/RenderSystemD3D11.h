@@ -12,7 +12,7 @@ struct RenderSystemD3D11
     explicit RenderSystemD3D11(ImguiService& aImguiService);
     ~RenderSystemD3D11();
 
-    TP_NOCOPYMOVE(RenderSystemD3D11);
+    NO_COPY_MOVE(RenderSystemD3D11);
 
     [[nodiscard]] HWND GetWindow() const;
     [[nodiscard]] IDXGISwapChain* GetSwapChain() const;

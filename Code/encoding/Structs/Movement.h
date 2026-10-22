@@ -6,7 +6,7 @@
 #include <Structs/Rotator2_NetQuantize.h>
 #include <Structs/AnimationVariables.h>
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct Movement
 {
@@ -16,8 +16,8 @@ struct Movement
     bool operator==(const Movement& acRhs) const noexcept;
     bool operator!=(const Movement& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     GameId CellId{};
     GameId WorldSpaceId{};

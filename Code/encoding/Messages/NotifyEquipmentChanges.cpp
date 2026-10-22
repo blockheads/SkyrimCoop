@@ -1,7 +1,7 @@
 #include <Messages/NotifyEquipmentChanges.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void NotifyEquipmentChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyEquipmentChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     ItemId.Serialize(aWriter);
@@ -12,7 +12,7 @@ void NotifyEquipmentChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
     Serialization::WriteBool(aWriter, IsShout);
 }
 
-void NotifyEquipmentChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyEquipmentChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

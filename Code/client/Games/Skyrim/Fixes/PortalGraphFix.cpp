@@ -94,11 +94,11 @@ void HookSetPortalGraph(ShadowSceneNode* apThis, void* apPortalGraph)
 }
 } // namespace
 
-static TiltedPhoques::Initializer s_portalGraphFix(
+static Hooks::Initializer s_portalGraphFix(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSetPortalGraph, s_setPortalGraph, 106385);
         RealSetPortalGraph = s_setPortalGraph.Get();
-        TP_HOOK(&RealSetPortalGraph, HookSetPortalGraph);
+        HOOK(&RealSetPortalGraph, HookSetPortalGraph);
     });

@@ -60,5 +60,5 @@ float GuestClock::FadedHour() const noexcept
     const float cTo = m_hostTime.m_timeModel.Time;
     // Forward through midnight when the host's hour is earlier.
     const float cAhead = cTo < cFrom ? cTo + 24.f - cFrom : cTo - cFrom;
-    return TiltedPhoques::Mod(cFrom + TiltedPhoques::Lerp(0.f, cAhead, m_fadeTimer / kFadeSeconds), 24.f);
+    return std::fmod(cFrom + std::lerp(0.f, cAhead, m_fadeTimer / kFadeSeconds), 24.f);
 }

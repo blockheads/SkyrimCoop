@@ -34,7 +34,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAssignment(const AssignCharacterR
     return spawn;
 }
 
-void NotifyCharacterSpawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     FormId.Serialize(aWriter);
@@ -57,7 +57,7 @@ void NotifyCharacterSpawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
     Serialization::WriteString(aWriter, GraphState);
 }
 
-void NotifyCharacterSpawn::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

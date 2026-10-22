@@ -21,13 +21,13 @@ uint64_t HookProcessEvent(void* apThis, const void* apEvent, void* apTimer, bool
     return 0;
 }
 
-TiltedPhoques::Initializer s_storyManagerHooks(
+Hooks::Initializer s_storyManagerHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TProcessEvent, s_processEvent, 32372);
         RealProcessEvent = s_processEvent.Get();
-        TP_HOOK(&RealProcessEvent, HookProcessEvent);
+        HOOK(&RealProcessEvent, HookProcessEvent);
     });
 } // namespace
 

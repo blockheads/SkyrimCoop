@@ -1,7 +1,7 @@
 #include <Structs/Vector2_NetQuantize.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool Vector2_NetQuantize::operator==(const Vector2_NetQuantize& acRhs) const noexcept
 {
@@ -19,12 +19,12 @@ Vector2_NetQuantize& Vector2_NetQuantize::operator=(const glm::vec2& acRhs) noex
     return *this;
 }
 
-void Vector2_NetQuantize::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Vector2_NetQuantize::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(Pack(), 32);
 }
 
-void Vector2_NetQuantize::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Vector2_NetQuantize::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     uint64_t data;
     aReader.ReadBits(data, 32);

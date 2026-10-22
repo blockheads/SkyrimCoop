@@ -16,7 +16,7 @@ namespace Breadcrumbs
 {
 // acpWhat must be a string literal. aDetail: a second form or value, when the call has one.
 void Record(const char* acpWhat, uint32_t aFormId, uint32_t aDetail = 0) noexcept;
-// One of our hooks ran (TiltedPhoques::SetHookObserver): its name and first argument (the object a
+// One of our hooks ran (Hooks::SetHookObserver): its name and first argument (the object a
 // member hook runs on), described as it is now.
 void RecordHook(const char* acpHookName, const void* apFirstArgument) noexcept;
 // Whether to observe a hook at all: not the ones called thousands of times a frame.

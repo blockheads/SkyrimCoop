@@ -1,6 +1,6 @@
 #include <Messages/CellStateRequest.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
 namespace
 {
@@ -8,7 +8,7 @@ namespace
 constexpr uint64_t kMaxChanged = 0x4000;
 } // namespace
 
-void CellStateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void CellStateRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Cell.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Changed.size());
@@ -19,7 +19,7 @@ void CellStateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
     }
 }
 
-void CellStateRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void CellStateRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

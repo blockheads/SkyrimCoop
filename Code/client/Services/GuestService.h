@@ -17,7 +17,7 @@ struct GuestService
     GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
     ~GuestService() noexcept;
 
-    TP_NOCOPYMOVE(GuestService);
+    NO_COPY_MOVE(GuestService);
 
     [[nodiscard]] bool IsGuest() const noexcept { return m_pGuest != nullptr; }
 

@@ -1,12 +1,12 @@
 #include <Messages/NotifySetWaypoint.h>
 
-void NotifySetWaypoint::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifySetWaypoint::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Position.Serialize(aWriter);
     WorldSpaceFormID.Serialize(aWriter);
 }
 
-void NotifySetWaypoint::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifySetWaypoint::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

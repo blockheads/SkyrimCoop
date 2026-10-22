@@ -1,15 +1,15 @@
 #include <Messages/NotifyTimeScale.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void NotifyTimeScale::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyTimeScale::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    TiltedPhoques::Serialization::WriteFloat(aWriter, Multiplier);
+    Wire::Serialization::WriteFloat(aWriter, Multiplier);
 }
 
-void NotifyTimeScale::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyTimeScale::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 
-    Multiplier = TiltedPhoques::Serialization::ReadFloat(aReader);
+    Multiplier = Wire::Serialization::ReadFloat(aReader);
 }

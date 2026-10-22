@@ -56,13 +56,13 @@ void HookSendEvent(void* apThis, uint64_t aHandle, const BSFixedString& acEvent,
     RealSendEvent(apThis, aHandle, acEvent, apArguments);
 }
 
-TiltedPhoques::Initializer s_hooks(
+Hooks::Initializer s_hooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 104800);
         RealSendEvent = s_sendEvent.Get();
-        TP_HOOK(&RealSendEvent, HookSendEvent);
+        HOOK(&RealSendEvent, HookSendEvent);
     });
 } // namespace
 

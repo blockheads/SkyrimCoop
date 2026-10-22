@@ -1,6 +1,6 @@
 #include <Messages/NotifyWorldState.h>
 
-void NotifyWorldState::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyWorldState::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Entities.size());
 
@@ -12,7 +12,7 @@ void NotifyWorldState::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
     }
 }
 
-void NotifyWorldState::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyWorldState::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

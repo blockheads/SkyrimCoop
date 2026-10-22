@@ -85,7 +85,7 @@ bool HookCheckCast(ActorMagicCaster* apThis, MagicItem* apSpell, bool abDualCast
     return RealCheckCast(apThis, apSpell, abDualCast, apEffectStrength, apReason, abUseBaseValueForCost);
 }
 
-static TiltedPhoques::Initializer s_actorMagicCasterHooks(
+static Hooks::Initializer s_actorMagicCasterHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -99,8 +99,8 @@ static TiltedPhoques::Initializer s_actorMagicCasterHooks(
         RealCasterUpdate = s_casterUpdate.Get();
         RealCheckCast = s_checkCast.Get();
 
-        TP_HOOK(&RealSpellCast, HookSpellCast);
-        TP_HOOK(&RealInterruptCast, HookInterruptCast);
-        TP_HOOK(&RealCasterUpdate, HookCasterUpdate);
-        TP_HOOK(&RealCheckCast, HookCheckCast);
+        HOOK(&RealSpellCast, HookSpellCast);
+        HOOK(&RealInterruptCast, HookInterruptCast);
+        HOOK(&RealCasterUpdate, HookCasterUpdate);
+        HOOK(&RealCheckCast, HookCheckCast);
     });

@@ -1,7 +1,7 @@
 #include <Structs/ObjectData.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool ObjectData::operator==(const ObjectData& acRhs) const noexcept
 {
@@ -13,7 +13,7 @@ bool ObjectData::operator!=(const ObjectData& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void ObjectData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ObjectData::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     Id.Serialize(aWriter);
@@ -25,7 +25,7 @@ void ObjectData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcep
     Serialization::WriteBool(aWriter, IsSenderFirst);
 }
 
-void ObjectData::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ObjectData::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Id.Deserialize(aReader);

@@ -27,12 +27,12 @@ static void Hook_Construct_TaskletManager(BSTaskletManager* apSelf)
 }
 } // namespace
 
-static TiltedPhoques::Initializer s_BSThreadInit(
+static Hooks::Initializer s_BSThreadInit(
     []()
     {
         const HookGate cGate(__FILE__);
         const VersionDbPtr<uint8_t> getTaskletManagerInstance(69554);
 
         // tasklet naming
-        TiltedPhoques::SwapCall(getTaskletManagerInstance.Get() + 0x63, Construct_TaskletManager, &Hook_Construct_TaskletManager);
+        Hooks::SwapCall(getTaskletManagerInstance.Get() + 0x63, Construct_TaskletManager, &Hook_Construct_TaskletManager);
     });

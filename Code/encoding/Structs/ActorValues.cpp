@@ -1,7 +1,7 @@
 #include <Structs/ActorValues.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool ActorValues::operator==(const ActorValues& acRhs) const noexcept
 {
@@ -13,7 +13,7 @@ bool ActorValues::operator!=(const ActorValues& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void ActorValues::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActorValues::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ActorValuesList.size());
     for (auto& value : ActorValuesList)
@@ -30,7 +30,7 @@ void ActorValues::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexce
     }
 }
 
-void ActorValues::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActorValues::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     auto count = Serialization::ReadVarInt(aReader);
     for (int i = 0; i < count; i++)

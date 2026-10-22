@@ -1,64 +1,82 @@
-// Purposefully in no namespace.
+// The plugin's global new and delete: rpmalloc for every allocation (containers, messages, buffers).
+#include <rpmalloc.h>
 
-#include <TiltedCore/Allocator.hpp>
+#include <cstdlib>
+#include <new>
 
-// not private cause thse can be referenced as external symbols
-void* TiltedAlloc(const size_t acSize)
+namespace
 {
-    return TiltedPhoques::Allocator::GetDefault()->Allocate(acSize);
+// The SKSE DLL has no executable main() to initialize rpmalloc: static globals allocate before SKSEPlugin_Load,
+// and engine-created threads can enter the allocator without our thread startup code. So it starts lazily, before
+// the first allocation on each thread; it is never finalized (engine threads and static destructors still use it).
+void EnsureThreadHeap() noexcept
+{
+    static const int cInitialized = rpmalloc_initialize();
+    if (cInitialized != 0)
+        std::abort();
+    if (!rpmalloc_is_thread_initialized())
+        rpmalloc_thread_initialize();
 }
 
-void TiltedFree(void* apBlock)
+void* Allocate(size_t aSize) noexcept
 {
-    TiltedPhoques::Allocator::GetDefault()->Free(apBlock);
+    EnsureThreadHeap();
+    return rpmalloc(aSize);
 }
+
+void Free(void* apBlock) noexcept
+{
+    EnsureThreadHeap();
+    rpfree(apBlock);
+}
+} // namespace
 
 void* operator new(size_t size)
 {
-    return TiltedAlloc(size);
+    return Allocate(size);
 }
 
 void operator delete(void* p) noexcept
 {
-    TiltedFree(p);
+    Free(p);
 }
 
 void* operator new[](size_t size)
 {
-    return TiltedAlloc(size);
+    return Allocate(size);
 }
 
 void operator delete[](void* p) noexcept
 {
-    TiltedFree(p);
+    Free(p);
 }
 
 void* operator new(size_t size, const std::nothrow_t&) noexcept
 {
-    return TiltedAlloc(size);
+    return Allocate(size);
 }
 
 void* operator new[](size_t size, const std::nothrow_t&) noexcept
 {
-    return TiltedAlloc(size);
+    return Allocate(size);
 }
 
 void operator delete(void* p, const std::nothrow_t&) noexcept
 {
-    TiltedFree(p);
+    Free(p);
 }
 
 void operator delete[](void* p, const std::nothrow_t&) noexcept
 {
-    TiltedFree(p);
+    Free(p);
 }
 
 void operator delete(void* p, size_t) noexcept
 {
-    TiltedFree(p);
+    Free(p);
 }
 
 void operator delete[](void* p, size_t) noexcept
 {
-    TiltedFree(p);
+    Free(p);
 }

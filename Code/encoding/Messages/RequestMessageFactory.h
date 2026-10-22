@@ -45,7 +45,7 @@
 
 struct RequestMessageFactory
 {
-    std::unique_ptr<RequestMessage> Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept;
+    std::unique_ptr<RequestMessage> Extract(Wire::Buffer::Reader& aReader) const noexcept;
 
     template <class T> static auto Visit(T&& func)
     {

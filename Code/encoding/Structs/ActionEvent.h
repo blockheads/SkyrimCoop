@@ -32,6 +32,6 @@ struct ActionEvent
     void Load(std::istream&);
     void Save(std::ostream&) const;
 
-    void GenerateDifferential(const ActionEvent& aPrevious, TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void ApplyDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void GenerateDifferential(const ActionEvent& aPrevious, Wire::Buffer::Writer& aWriter) const noexcept;
+    void ApplyDifferential(Wire::Buffer::Reader& aReader) noexcept;
 };

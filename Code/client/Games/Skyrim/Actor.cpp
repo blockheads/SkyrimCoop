@@ -418,7 +418,7 @@ bool HookRemoveSpell(Actor* apThis, MagicItem* apSpell)
 
 Actor* HookCharacterConstructor(Actor* apThis)
 {
-    TP_EMPTY_HOOK_PLACEHOLDER;
+    EMPTY_HOOK_PLACEHOLDER;
 
     RealCharacterConstructor(apThis);
 
@@ -427,7 +427,7 @@ Actor* HookCharacterConstructor(Actor* apThis)
 
 Actor* HookCharacterConstructor2(Actor* apThis, uint8_t aUnk)
 {
-    TP_EMPTY_HOOK_PLACEHOLDER;
+    EMPTY_HOOK_PLACEHOLDER;
 
     RealCharacterConstructor2(apThis, aUnk);
 
@@ -436,7 +436,7 @@ Actor* HookCharacterConstructor2(Actor* apThis, uint8_t aUnk)
 
 Actor* HookCharacterDestructor(Actor* apThis)
 {
-    TP_EMPTY_HOOK_PLACEHOLDER;
+    EMPTY_HOOK_PLACEHOLDER;
 
     auto pExtension = apThis->GetExtension();
 
@@ -1600,7 +1600,7 @@ int32_t HookComputeReaction(Actor* apThis, Actor* apOther, bool aUnk)
     return RealComputeReaction(apThis, apOther, aUnk);
 }
 
-static TiltedPhoques::Initializer s_actorHooks(
+static Hooks::Initializer s_actorHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -1661,41 +1661,41 @@ static TiltedPhoques::Initializer s_actorHooks(
         RealAddDeathItems = addDeathItems.Get();
         RealIsFleeing = isFleeing.Get();
 
-        TP_HOOK(&RealApplyMovement, HookApplyMovement);
-        TP_HOOK(&RealResetInventory, HookResetInventory);
-        TP_HOOK(&RealUpdateAI, HookUpdateAI);
-        TP_HOOK(&RealSetPosition, HookSetPosition);
-        TP_HOOK(&RealRemoveSpell, HookRemoveSpell);
-        TP_HOOK(&RealCharacterConstructor, HookCharacterConstructor);
-        TP_HOOK(&RealCharacterConstructor2, HookCharacterConstructor2);
-        TP_HOOK(&RealForceState, HookForceState);
-        TP_HOOK(&RealDamageActor, HookDamageActor);
-        TP_HOOK(&RealApplyActorEffect, HookApplyActorEffect);
-        TP_HOOK(&RealRegenerateActorValue, HookRegenerateActorValue);
+        HOOK(&RealApplyMovement, HookApplyMovement);
+        HOOK(&RealResetInventory, HookResetInventory);
+        HOOK(&RealUpdateAI, HookUpdateAI);
+        HOOK(&RealSetPosition, HookSetPosition);
+        HOOK(&RealRemoveSpell, HookRemoveSpell);
+        HOOK(&RealCharacterConstructor, HookCharacterConstructor);
+        HOOK(&RealCharacterConstructor2, HookCharacterConstructor2);
+        HOOK(&RealForceState, HookForceState);
+        HOOK(&RealDamageActor, HookDamageActor);
+        HOOK(&RealApplyActorEffect, HookApplyActorEffect);
+        HOOK(&RealRegenerateActorValue, HookRegenerateActorValue);
 
         POINTER_SKYRIMSE(TIsHostileToActor, s_isHostileToActor, 37537);
         RealIsHostileToActor = s_isHostileToActor.Get();
-        TP_HOOK(&RealIsHostileToActor, HookIsHostileToActor);
+        HOOK(&RealIsHostileToActor, HookIsHostileToActor);
 
         POINTER_SKYRIMSE(TGetFactionReaction, s_getFactionReaction, 37666);
         RealGetFactionReaction = s_getFactionReaction.Get();
-        TP_HOOK(&RealGetFactionReaction, HookGetFactionReaction);
+        HOOK(&RealGetFactionReaction, HookGetFactionReaction);
 
         POINTER_SKYRIMSE(TShouldAttack, s_shouldAttack, 37534);
         RealShouldAttack = s_shouldAttack.Get();
-        TP_HOOK(&RealShouldAttack, HookShouldAttack);
+        HOOK(&RealShouldAttack, HookShouldAttack);
 
         POINTER_SKYRIMSE(TComputeReaction, s_computeReaction, 37667);
         RealComputeReaction = s_computeReaction.Get();
-        TP_HOOK(&RealComputeReaction, HookComputeReaction);
-        TP_HOOK(&RealAddInventoryItem, HookAddInventoryItem);
-        TP_HOOK(&RealPickUpObject, HookPickUpObject);
-        TP_HOOK(&RealDropObject, HookDropObject);
-        TP_HOOK(&RealUpdateDetectionState, HookUpdateDetectionState);
-        TP_HOOK(&RealProcessResponse, HookProcessResponse);
-        TP_HOOK(&RealInitiateMountPackage, HookInitiateMountPackage);
-        TP_HOOK(&RealUnequipObject, HookUnequipObject);
-        TP_HOOK(&RealSpeakSoundFunction, HookSpeakSoundFunction);
-        TP_HOOK(&RealAddDeathItems, HookAddDeathItems);
-        TP_HOOK(&RealIsFleeing, HookIsFleeing);
+        HOOK(&RealComputeReaction, HookComputeReaction);
+        HOOK(&RealAddInventoryItem, HookAddInventoryItem);
+        HOOK(&RealPickUpObject, HookPickUpObject);
+        HOOK(&RealDropObject, HookDropObject);
+        HOOK(&RealUpdateDetectionState, HookUpdateDetectionState);
+        HOOK(&RealProcessResponse, HookProcessResponse);
+        HOOK(&RealInitiateMountPackage, HookInitiateMountPackage);
+        HOOK(&RealUnequipObject, HookUnequipObject);
+        HOOK(&RealSpeakSoundFunction, HookSpeakSoundFunction);
+        HOOK(&RealAddDeathItems, HookAddDeathItems);
+        HOOK(&RealIsFleeing, HookIsFleeing);
     });

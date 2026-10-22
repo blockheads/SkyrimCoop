@@ -1,6 +1,6 @@
 #include <Messages/NotifyPartyTravel.h>
 
-void NotifyPartyTravel::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyPartyTravel::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     CellId.Serialize(aWriter);
     WorldSpaceId.Serialize(aWriter);
@@ -8,7 +8,7 @@ void NotifyPartyTravel::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
     Serialization::WriteFloat(aWriter, Heading);
 }
 
-void NotifyPartyTravel::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyPartyTravel::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

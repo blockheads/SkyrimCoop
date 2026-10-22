@@ -28,7 +28,7 @@ struct InventoryService
                      IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept;
     ~InventoryService() noexcept = default;
 
-    TP_NOCOPYMOVE(InventoryService);
+    NO_COPY_MOVE(InventoryService);
 
     /**
      * @brief Check weapon state.

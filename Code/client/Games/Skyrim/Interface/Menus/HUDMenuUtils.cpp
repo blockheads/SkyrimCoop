@@ -14,7 +14,7 @@ bool WorldPtToScreenPt3(const NiPoint3& aWorldPt, NiPoint3& aScreenPt)
 }
 } // namespace HUDMenuUtils
 
-static TiltedPhoques::Initializer s_Init(
+static Hooks::Initializer s_Init(
     []()
     {
         const HookGate cGate(__FILE__);

@@ -15,7 +15,5 @@ struct TESActionData final : BGSActionData
     bool ComputeResult();
 };
 
-#if TP_PLATFORM_64
 static_assert(offsetof(TESActionData, eventName) == 0x28);
 static_assert(offsetof(TESActionData, idleForm) == 0x48);
-#endif

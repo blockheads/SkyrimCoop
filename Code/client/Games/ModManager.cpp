@@ -96,7 +96,7 @@ TESObjectCELL* ModManager::GetCellFromCoordinates(int32_t aX, int32_t aY, TESWor
     return getCell(this, aX, aY, aWorldSpace, aSpawnCell);
 }
 
-static TiltedPhoques::Initializer s_tesHooks(
+static Hooks::Initializer s_tesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -104,5 +104,5 @@ static TiltedPhoques::Initializer s_tesHooks(
 
         RealSpawnNewREFR = s_realSpawnNewREFR.Get();
 
-        TP_HOOK(&RealSpawnNewREFR, SpawnNewREFR);
+        HOOK(&RealSpawnNewREFR, SpawnNewREFR);
     });

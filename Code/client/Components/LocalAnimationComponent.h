@@ -11,12 +11,11 @@ struct LocalAnimationComponent
     std::vector<ActionEvent> Actions;
     ActionEvent LastProcessedAction;
 
-    [[nodiscard]] Outcome<ActionEvent, bool> GetLatestAction() const noexcept
+    [[nodiscard]] std::optional<ActionEvent> GetLatestAction() const noexcept
     {
         if (Actions.empty())
-            return false;
-
-        return Actions[Actions.size() - 1];
+            return std::nullopt;
+        return Actions.back();
     }
 
     void Append(const ActionEvent& acEvent) noexcept { Actions.push_back(acEvent); }

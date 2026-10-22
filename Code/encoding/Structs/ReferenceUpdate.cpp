@@ -1,8 +1,8 @@
 #include <Structs/ReferenceUpdate.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <stdexcept>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool ReferenceUpdate::operator==(const ReferenceUpdate& acRhs) const noexcept
 {
@@ -14,7 +14,7 @@ bool ReferenceUpdate::operator!=(const ReferenceUpdate& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void ReferenceUpdate::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ReferenceUpdate::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     UpdatedMovement.Serialize(aWriter);
 
@@ -26,7 +26,7 @@ void ReferenceUpdate::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const no
     }
 }
 
-void ReferenceUpdate::Deserialize(TiltedPhoques::Buffer::Reader& aReader)
+void ReferenceUpdate::Deserialize(Wire::Buffer::Reader& aReader)
 {
     UpdatedMovement.Deserialize(aReader);
 

@@ -11,7 +11,6 @@ function component(name)
       {public = true})
     add_headerfiles("**.h")
     add_files("**.cpp|**Test.cpp|**Test*.cpp")
-    add_deps("TiltedCore")
     add_packages("spdlog")
 end
 

@@ -82,7 +82,7 @@ void HookCompileAndRun(Script* apThis, void* apCompiler, uint32_t aCompilerName,
         s_ran.erase(s_ran.begin());
 }
 
-TiltedPhoques::Initializer s_consoleOutputHooks(
+Hooks::Initializer s_consoleOutputHooks(
     []()
     {
         POINTER_SKYRIMSE(TVPrint, s_vprint, 51110);                 // ConsoleLog::VPrint
@@ -91,9 +91,9 @@ TiltedPhoques::Initializer s_consoleOutputHooks(
         RealVPrint = s_vprint.Get();
         RealRunQueued = s_runQueued.Get();
         RealCompileAndRun = s_compileAndRun.Get();
-        TP_HOOK(&RealVPrint, HookVPrint);
-        TP_HOOK(&RealRunQueued, HookRunQueued);
-        TP_HOOK(&RealCompileAndRun, HookCompileAndRun);
+        HOOK(&RealVPrint, HookVPrint);
+        HOOK(&RealRunQueued, HookRunQueued);
+        HOOK(&RealCompileAndRun, HookCompileAndRun);
     });
 } // namespace
 

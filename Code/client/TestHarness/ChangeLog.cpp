@@ -100,7 +100,7 @@ void Count(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRecorded)
         s_distinct[cType].fetch_add(1, std::memory_order_relaxed);
 }
 
-TiltedPhoques::Initializer s_changeLogWatcher(
+Hooks::Initializer s_changeLogWatcher(
     []()
     {
         FormChanges::Watch(&Count);

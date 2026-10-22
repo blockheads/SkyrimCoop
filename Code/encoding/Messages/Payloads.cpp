@@ -1,35 +1,35 @@
 #include <Messages/Payloads.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 namespace Payloads
 {
-void EquipmentSnapshot::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void EquipmentSnapshot::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     Equipment.Serialize(aWriter);
 }
 
-void EquipmentSnapshot::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void EquipmentSnapshot::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Equipment.Deserialize(aReader);
 }
 
-void DrawWeapon::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DrawWeapon::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);
     Serialization::WriteBool(aWriter, IsWeaponDrawn);
 }
 
-void DrawWeapon::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DrawWeapon::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     IsWeaponDrawn = Serialization::ReadBool(aReader);
 }
 
-void ActorValueChanges::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActorValueChanges::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);
 
@@ -41,7 +41,7 @@ void ActorValueChanges::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter)
     }
 }
 
-void ActorValueChanges::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActorValueChanges::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
@@ -54,7 +54,7 @@ void ActorValueChanges::DeserializePayload(TiltedPhoques::Buffer::Reader& aReade
     }
 }
 
-void ActorMaxValueChanges::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActorMaxValueChanges::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);
 
@@ -66,7 +66,7 @@ void ActorMaxValueChanges::SerializePayload(TiltedPhoques::Buffer::Writer& aWrit
     }
 }
 
-void ActorMaxValueChanges::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActorMaxValueChanges::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
@@ -79,19 +79,19 @@ void ActorMaxValueChanges::DeserializePayload(TiltedPhoques::Buffer::Reader& aRe
     }
 }
 
-void DeathStateChange::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void DeathStateChange::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);
     Serialization::WriteBool(aWriter, IsDead);
 }
 
-void DeathStateChange::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void DeathStateChange::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     IsDead = Serialization::ReadBool(aReader);
 }
 
-void HealthChange::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void HealthChange::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Id);
     Serialization::WriteFloat(aWriter, DeltaHealth);
@@ -99,7 +99,7 @@ void HealthChange::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) cons
     Serialization::WriteVarInt(aWriter, AttackerId);
 }
 
-void HealthChange::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void HealthChange::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     DeltaHealth = Serialization::ReadFloat(aReader);
@@ -107,7 +107,7 @@ void HealthChange::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) no
     AttackerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void SpellCast::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void SpellCast::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, CasterId);
     SpellFormId.Serialize(aWriter);
@@ -116,7 +116,7 @@ void SpellCast::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const n
     Serialization::WriteVarInt(aWriter, DesiredTarget);
 }
 
-void SpellCast::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void SpellCast::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     SpellFormId.Deserialize(aReader);
@@ -125,19 +125,19 @@ void SpellCast::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexc
     DesiredTarget = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void InterruptCast::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void InterruptCast::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, CasterId);
     Serialization::WriteVarInt(aWriter, CastingSource);
 }
 
-void InterruptCast::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void InterruptCast::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     CastingSource = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void ProjectileLaunch::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ProjectileLaunch::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ShooterID);
 
@@ -172,7 +172,7 @@ void ProjectileLaunch::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) 
     Serialization::WriteBool(aWriter, UnkBool2);
 }
 
-void ProjectileLaunch::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ProjectileLaunch::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     ShooterID = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 
@@ -207,7 +207,7 @@ void ProjectileLaunch::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader
     UnkBool2 = Serialization::ReadBool(aReader);
 }
 
-void AddTarget::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void AddTarget::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, TargetId);
     Serialization::WriteVarInt(aWriter, CasterId);
@@ -219,7 +219,7 @@ void AddTarget::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const n
     Serialization::WriteBool(aWriter, ApplyStaminaPerkBonus);
 }
 
-void AddTarget::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void AddTarget::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     TargetId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     CasterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
@@ -231,55 +231,55 @@ void AddTarget::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexc
     ApplyStaminaPerkBonus = Serialization::ReadBool(aReader);
 }
 
-void RemoveSpell::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RemoveSpell::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, TargetId);
     SpellId.Serialize(aWriter);
 }
 
-void RemoveSpell::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void RemoveSpell::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     TargetId = Serialization::ReadVarInt(aReader);
     SpellId.Deserialize(aReader);
 }
 
-void Mount::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Mount::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, RiderId);
     Serialization::WriteVarInt(aWriter, MountId);
 }
 
-void Mount::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Mount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     RiderId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     MountId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void NewPackage::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NewPackage::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ActorId);
     PackageId.Serialize(aWriter);
 }
 
-void NewPackage::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NewPackage::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     PackageId.Deserialize(aReader);
 }
 
-void Dialogue::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Dialogue::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteString(aWriter, SoundFilename);
 }
 
-void Dialogue::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Dialogue::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     SoundFilename = Serialization::ReadString(aReader);
 }
 
-void Subtitle::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Subtitle::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteString(aWriter, Text);
@@ -287,7 +287,7 @@ void Subtitle::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const no
     Serialization::WriteBool(aWriter, Force);
 }
 
-void Subtitle::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Subtitle::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Text = Serialization::ReadString(aReader);
@@ -295,17 +295,17 @@ void Subtitle::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexce
     Force = Serialization::ReadBool(aReader);
 }
 
-void SyncExperience::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void SyncExperience::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteFloat(aWriter, Experience);
 }
 
-void SyncExperience::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void SyncExperience::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Experience = Serialization::ReadFloat(aReader);
 }
 
-void ActiveEffects::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActiveEffects::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteVarInt(aWriter, EffectIds.size());
@@ -313,7 +313,7 @@ void ActiveEffects::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) con
         cEffectId.Serialize(aWriter);
 }
 
-void ActiveEffects::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     const auto cCount = Serialization::ReadVarInt(aReader);

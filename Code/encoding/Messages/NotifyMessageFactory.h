@@ -1,6 +1,14 @@
 #pragma once
 
-#include <TiltedCore/Stl.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyActiveEffects.h>
 #include <Messages/Message.h>
@@ -52,7 +60,7 @@
 
 struct NotifyMessageFactory
 {
-    std::unique_ptr<NotifyMessage> Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept;
+    std::unique_ptr<NotifyMessage> Extract(Wire::Buffer::Reader& aReader) const noexcept;
 
     template <class T> static auto Visit(T&& func)
     {

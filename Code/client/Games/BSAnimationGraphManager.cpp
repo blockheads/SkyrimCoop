@@ -5,7 +5,7 @@
 #include <Havok/BShkbHkxDB.h>
 #include <Havok/hkbBehaviorGraph.h>
 
-#include <TiltedCore/Hash.hpp>
+#include <Games/Crc64.h>
 
 std::map<uint32_t, std::string> BSAnimationGraphManager::DumpAnimationVariables(bool aPrintVariables)
 {
@@ -56,8 +56,6 @@ std::map<uint32_t, std::string> BSAnimationGraphManager::DumpAnimationVariables(
 
 uint64_t BSAnimationGraphManager::GetDescriptorKey(int aForceIndex)
 {
-    using TiltedPhoques::FHash::Crc64;
-
     std::string variableNames{};
     variableNames.reserve(8192);
     std::map<uint32_t, const char*> variables;

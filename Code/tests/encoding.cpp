@@ -1,7 +1,14 @@
-#include <TiltedCore/Stl.hpp>
-#include <TiltedCore/Allocator.hpp>
-#include <TiltedCore/Buffer.hpp>
-#include <TiltedCore/Serialization.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <Wire/Buffer.h>
+#include <Wire/Serialization.h>
 
 #include <optional>
 
@@ -17,10 +24,9 @@
 #include <Messages/WorldState.h>
 #include <Structs/Vector2_NetQuantize.h>
 
-#include <TiltedCore/Math.hpp>
-#include <TiltedCore/Platform.hpp>
+#include <numbers>
 
-using namespace TiltedPhoques;
+using namespace Wire;
 
 TEST_CASE("Encoding factory", "[encoding.factory]")
 {
@@ -129,7 +135,7 @@ TEST_CASE("Static structures", "[encoding.static]")
     {
         Rotator2_NetQuantize sendObjects, recvObjects;
         sendObjects.x = 1.89f;
-        sendObjects.y = TiltedPhoques::Pi * 2.0f;
+        sendObjects.y = std::numbers::pi_v<float> * 2.0f;
 
         {
             Buffer buff(1000);
@@ -149,7 +155,7 @@ TEST_CASE("Static structures", "[encoding.static]")
         // This test is a bit dangerous as floating errors can lead to sendObjects != recvObjects but the difference is minuscule so we don't care abut such cases
         Rotator2_NetQuantize sendObjects, recvObjects;
         sendObjects.x = -1.87f;
-        sendObjects.y = static_cast<float>(TiltedPhoques::Pi) * 18.0f + 3.6f;
+        sendObjects.y = std::numbers::pi_v<float> * 18.0f + 3.6f;
 
         {
             Buffer buff(1000);

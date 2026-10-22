@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 #include <Structs/ServerSettings.h>
 
 #include <optional>
@@ -19,14 +19,14 @@ struct HostNetwork;
  */
 struct HostSession
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     static constexpr uint32_t cMaxPlayers = 8;
 
     // Registers its rules with aAuthority.
     HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
 
-    TP_NOCOPYMOVE(HostSession);
+    NO_COPY_MOVE(HostSession);
 
     // The session's settings, the same for every player: the host's difficulty, the co-op options'
     // defaults.

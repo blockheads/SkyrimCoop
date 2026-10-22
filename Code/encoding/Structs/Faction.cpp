@@ -10,13 +10,13 @@ bool Faction::operator!=(const Faction& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void Faction::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Faction::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Id.Serialize(aWriter);
     aWriter.WriteBits(Rank, 8);
 }
 
-void Faction::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Faction::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     Id.Deserialize(aReader);
 

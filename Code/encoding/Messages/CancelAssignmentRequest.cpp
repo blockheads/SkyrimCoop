@@ -1,11 +1,11 @@
 #include <Messages/CancelAssignmentRequest.h>
 
-void CancelAssignmentRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void CancelAssignmentRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Cookie);
 }
 
-void CancelAssignmentRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void CancelAssignmentRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

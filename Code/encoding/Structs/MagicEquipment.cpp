@@ -1,8 +1,8 @@
 #include <Structs/MagicEquipment.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <Messages/RequestEquipmentChanges.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool MagicEquipment::operator==(const MagicEquipment& acRhs) const noexcept
 {
@@ -14,7 +14,7 @@ bool MagicEquipment::operator!=(const MagicEquipment& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void MagicEquipment::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void MagicEquipment::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     bool isLeftSpellSet = LeftHandSpell != GameId{};
     bool isRightSpellSet = RightHandSpell != GameId{};
@@ -34,7 +34,7 @@ void MagicEquipment::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noe
         Shout.Serialize(aWriter);
 }
 
-void MagicEquipment::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void MagicEquipment::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     bool isLeftSpellSet = Serialization::ReadBool(aReader);
     bool isRightSpellSet = Serialization::ReadBool(aReader);

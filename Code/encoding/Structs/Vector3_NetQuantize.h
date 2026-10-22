@@ -1,6 +1,6 @@
 #pragma once
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 //! Network optimized 3d vector
 struct Vector3_NetQuantize : glm::vec3

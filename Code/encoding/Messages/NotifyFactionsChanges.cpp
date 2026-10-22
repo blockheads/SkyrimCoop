@@ -1,10 +1,10 @@
 #include <Messages/NotifyFactionsChanges.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <cassert>
 
 static const uint64_t kMaxChangeCount = 0x400;
 
-void NotifyFactionsChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyFactionsChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     assert(Changes.size() < 0x400);
 
@@ -17,7 +17,7 @@ void NotifyFactionsChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
     }
 }
 
-void NotifyFactionsChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyFactionsChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

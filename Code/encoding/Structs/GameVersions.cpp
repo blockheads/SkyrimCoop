@@ -1,15 +1,15 @@
 #include <Structs/GameVersions.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
-void GameVersions::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void GameVersions::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Runtime);
     Serialization::WriteVarInt(aWriter, Skse);
 }
 
-void GameVersions::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void GameVersions::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     Runtime = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Skse = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

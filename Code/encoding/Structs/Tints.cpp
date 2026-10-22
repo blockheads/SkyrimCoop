@@ -1,8 +1,8 @@
 #include <Structs/Tints.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <stdexcept>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool Tints::Entry::operator==(const Entry& acRhs) const noexcept
 {
@@ -24,7 +24,7 @@ bool Tints::operator!=(const Tints& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void Tints::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Tints::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(Entries.size(), 8);
 
@@ -37,7 +37,7 @@ void Tints::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     }
 }
 
-void Tints::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void Tints::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     uint64_t tmp = 0;
     aReader.ReadBits(tmp, 8);

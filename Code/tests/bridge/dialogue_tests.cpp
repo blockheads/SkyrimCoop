@@ -29,8 +29,9 @@ struct Talking
         session.Receive(kHost, opened);
         const auto cOpen = session.SentTo<NotifyDialogueOpen>(kPeer);
         REQUIRE(cOpen.size() == 1);
-        session.Outbox.clear();
-        return cOpen[0]->Conversation;
+        const uint32_t cId = cOpen[0]->Conversation;
+        session.Outbox.clear(); // frees what cOpen points at
+        return cId;
     }
 
     void Options(ConnectionId_t aFrom, uint32_t aStep, DialogueOptions aOptions, bool aChoices = false)

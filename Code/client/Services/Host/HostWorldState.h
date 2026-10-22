@@ -1,10 +1,18 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
-#include <TiltedCore/Stl.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 struct HostAuthority;
 struct HostGame;
@@ -22,11 +30,11 @@ struct HostNetwork;
  */
 struct HostWorldState
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
-    TP_NOCOPYMOVE(HostWorldState);
+    NO_COPY_MOVE(HostWorldState);
 
     // Every frame: tells the others what changed in the host's world.
     void Update(uint64_t aTick) noexcept;

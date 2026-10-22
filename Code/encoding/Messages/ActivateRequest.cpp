@@ -1,6 +1,6 @@
 #include <Messages/ActivateRequest.h>
 
-void ActivateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActivateRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Id.Serialize(aWriter);
     CellId.Serialize(aWriter);
@@ -8,7 +8,7 @@ void ActivateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const
     aWriter.WriteBits(PreActivationOpenState, 8);
 }
 
-void ActivateRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActivateRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

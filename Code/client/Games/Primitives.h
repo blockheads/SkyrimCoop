@@ -112,13 +112,8 @@ template <class T> struct BSTSmallArray
     }
 };
 
-#if TP_PLATFORM_64
 static_assert(offsetof(BSTSmallArray<int>, size) == 0x10);
 static_assert(sizeof(BSTSmallArray<int>) == 0x18);
-#else
-static_assert(offsetof(BSTSmallArray<int>, size) == 0x8);
-static_assert(sizeof(BSTSmallArray<int>) == 0xC);
-#endif
 
 template <class T> struct GameList
 {
@@ -167,12 +162,8 @@ template <class T> struct GameList
     Iterator end() { return Iterator(nullptr); }
 };
 
-#if TP_PLATFORM_64
 static_assert(offsetof(GameArray<int>, length) == 0x10);
 static_assert(sizeof(GameArray<int>) == 0x18);
-#else
-static_assert(offsetof(GameArray<int>, length) == 0x8);
-#endif
 
 struct NiRefObject
 {
@@ -188,9 +179,7 @@ struct NiRefObject
     uint32_t padC;
 };
 
-#if TP_PLATFORM_64
 static_assert(sizeof(NiRefObject) == 0x10);
-#endif
 
 struct BSHandleRefObject : NiRefObject
 {

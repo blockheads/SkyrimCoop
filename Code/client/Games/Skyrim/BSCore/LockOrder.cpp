@@ -4,7 +4,7 @@
 #include "LockOrder.h"
 
 #include <HotReload/Handoff.h>
-#include <SkseBranchPatch.hpp>
+#include <Hooks/SkseBranchPatch.h>
 
 #include <charconv>
 #include <intrin.h>
@@ -479,7 +479,7 @@ void ModuleRange(HMODULE aModule, uintptr_t& aBase, uintptr_t& aEnd)
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-static TiltedPhoques::Initializer s_lockOrderHooks([]() {
+static Hooks::Initializer s_lockOrderHooks([]() {
     const HookGate cGate(__FILE__);
     char value[8]{};
     if (GetEnvironmentVariableA("SKYRIMCOOP_LOCKORDER", value, sizeof(value)) > 0 && value[0] == '0')
@@ -497,7 +497,7 @@ static TiltedPhoques::Initializer s_lockOrderHooks([]() {
         s_edges = static_cast<Edge*>(VirtualAlloc(nullptr, sizeof(Edge) * cEdgeCapacity, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
     if (!s_edges)
         return;
-    TiltedPhoques::AtUnload([] {
+    Hooks::AtUnload([] {
         CoopReload::HandOff(cEdgesHandoffKey, std::to_string(reinterpret_cast<uintptr_t>(s_edges)));
     });
 
@@ -514,10 +514,10 @@ static TiltedPhoques::Initializer s_lockOrderHooks([]() {
     RealUnlockForRead = unlockForRead.Get();
     RealUnlockForWrite = unlockForWrite.Get();
 
-    TP_HOOK(&RealLockForRead, HookLockForRead);
-    TP_HOOK(&RealLockForWrite, HookLockForWrite);
-    TP_HOOK(&RealUnlockForRead, HookUnlockForRead);
-    TP_HOOK(&RealUnlockForWrite, HookUnlockForWrite);
+    HOOK(&RealLockForRead, HookLockForRead);
+    HOOK(&RealLockForWrite, HookLockForWrite);
+    HOOK(&RealUnlockForRead, HookUnlockForRead);
+    HOOK(&RealUnlockForWrite, HookUnlockForWrite);
     s_enabled = true;
     spdlog::info("LockOrder: tracking BSReadWriteLock at SkyrimSE.exe+{:#x}",
                  reinterpret_cast<uintptr_t>(RealLockForRead) - s_engineBase);

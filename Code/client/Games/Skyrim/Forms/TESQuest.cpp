@@ -232,11 +232,11 @@ bool TESQuest::SetStageWithoutFragments(uint16_t aStage) noexcept
     return cSet;
 }
 
-static TiltedPhoques::Initializer s_questInitHooks(
+static Hooks::Initializer s_questInitHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TQuestStageEventSink, s_questStageEventSink, 53987);
         RealQuestStageEventSink = s_questStageEventSink.Get();
-        TP_HOOK(&RealQuestStageEventSink, HookQuestStageEventSink);
+        HOOK(&RealQuestStageEventSink, HookQuestStageEventSink);
     });

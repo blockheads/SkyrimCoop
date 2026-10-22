@@ -1,6 +1,6 @@
 #include "HookSwitch.h"
 
-#include <SkseBranchPatch.hpp>
+#include <Hooks/SkseBranchPatch.h>
 
 #include <windows.h>
 
@@ -42,11 +42,11 @@ HookGate::HookGate(const char* acpFile) noexcept
     : m_suppressing(Disabled(acpFile))
 {
     if (m_suppressing)
-        TiltedPhoques::SuppressPatches(true);
+        Hooks::SuppressPatches(true);
 }
 
 HookGate::~HookGate() noexcept
 {
     if (m_suppressing)
-        TiltedPhoques::SuppressPatches(false);
+        Hooks::SuppressPatches(false);
 }

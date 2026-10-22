@@ -27,7 +27,7 @@ void Hook_InputEventSource_SendEvent(void* apSource, InputEvent* const* appChain
     InputEventSource_SendEvent(apSource, appChain);
 }
 
-static TiltedPhoques::Initializer s_initInputDeviceManager(
+static Hooks::Initializer s_initInputDeviceManager(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -37,6 +37,6 @@ static TiltedPhoques::Initializer s_initInputDeviceManager(
         BSInputDeviceManager_PollInputDevices = reinterpret_cast<decltype(BSInputDeviceManager_PollInputDevices)>(pollInputDevices.GetPtr());
         InputEventSource_SendEvent = reinterpret_cast<decltype(InputEventSource_SendEvent)>(sendEvent.GetPtr());
 
-        TP_HOOK_IMMEDIATE(&BSInputDeviceManager_PollInputDevices, &Hook_BSInputDeviceManager_PollInputDevices);
-        TP_HOOK_IMMEDIATE(&InputEventSource_SendEvent, &Hook_InputEventSource_SendEvent);
+        HOOK_IMMEDIATE(&BSInputDeviceManager_PollInputDevices, &Hook_BSInputDeviceManager_PollInputDevices);
+        HOOK_IMMEDIATE(&InputEventSource_SendEvent, &Hook_InputEventSource_SendEvent);
     });

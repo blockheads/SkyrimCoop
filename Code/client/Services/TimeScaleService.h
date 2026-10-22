@@ -14,7 +14,7 @@ struct TimeScaleService
 {
     TimeScaleService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
 
-    TP_NOCOPYMOVE(TimeScaleService);
+    NO_COPY_MOVE(TimeScaleService);
 
 private:
     void OnTimeScale(const TimeScaleEvent& acEvent) const noexcept;

@@ -23,6 +23,6 @@ struct Mods
     bool operator==(const Mods& acRhs) const noexcept;
     bool operator!=(const Mods& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 };

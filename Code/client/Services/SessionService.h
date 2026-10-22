@@ -23,7 +23,7 @@ struct SessionService
     SessionService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
     ~SessionService() = default;
 
-    TP_NOCOPYMOVE(SessionService);
+    NO_COPY_MOVE(SessionService);
 
     // By player id.
     [[nodiscard]] const std::unordered_map<uint32_t, Player>& GetPlayers() const noexcept { return m_players; }

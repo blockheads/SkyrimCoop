@@ -1,5 +1,7 @@
 #pragma once
 
+#include <NoCopyMove.h>
+
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -8,7 +10,6 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include <TiltedCore/Platform.hpp>
 
 #include <windows.h>
 #include <winsock2.h>
@@ -17,27 +18,29 @@
 #include <cstdint>
 
 
-// TiltedCore
-#include <TiltedCore/Filesystem.hpp>
-#include <TiltedCore/Stl.hpp>
-#include <TiltedCore/Outcome.hpp>
-#include <TiltedCore/ViewBuffer.hpp>
-#include <TiltedCore/Math.hpp>
-#include <TiltedCore/TaskQueue.hpp>
-#include <TiltedCore/Buffer.hpp>
-#include <TiltedCore/Initializer.hpp>
-#include <TiltedCore/Serialization.hpp>
+// Standard library
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <Wire/ViewBuffer.h>
+#include <numbers>
+#include <TaskQueue.h>
+#include <Wire/Buffer.h>
+#include <Hooks/Initializer.h>
+#include <Wire/Serialization.h>
 
 // TiltedReverse
-#include <AutoPtr.hpp>
-#include <App.hpp>
-#include <FunctionHook.hpp>
-#include <Entry.hpp>
-#include <Debug.hpp>
+#include <Hooks/FunctionHook.h>
 
 extern void* RipAllocateN(size_t blockLength);
 #define REVERSE_ALLOC_STUB(x) RipAllocateN(x)
-#include <JitAssembly.hpp>
+#include <Hooks/JitAssembly.h>
 
 #define SPDLOG_WCHAR_FILENAMES
 #define SPDLOG_WCHAR_TO_UTF8_SUPPORT
@@ -62,11 +65,7 @@ extern void* RipAllocateN(size_t blockLength);
 #include <BuildVersion.h>
 #include <Games/Primitives.h>
 
-using TiltedPhoques::Allocator;
-using TiltedPhoques::App;
-using TiltedPhoques::AutoPtr;
-using TiltedPhoques::Buffer;
-using TiltedPhoques::Outcome;
+using Wire::Buffer;
 
 using namespace std::chrono_literals;
 

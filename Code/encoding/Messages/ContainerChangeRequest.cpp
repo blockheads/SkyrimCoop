@@ -1,15 +1,15 @@
 #include <Messages/ContainerChangeRequest.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void ContainerChangeRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ContainerChangeRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Container.Serialize(aWriter);
     Item.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Count);
 }
 
-void ContainerChangeRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ContainerChangeRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

@@ -25,7 +25,7 @@ bool NiCamera::WorldPtToScreenPt3(float* matrix, const NiRect<float>* port, cons
     return s_WorldPtToScreenPt3(matrix, port, p_in, x_out, y_out, z_out, zeroTolerance);
 }
 
-static TiltedPhoques::Initializer s_Init(
+static Hooks::Initializer s_Init(
     []()
     {
         const HookGate cGate(__FILE__);

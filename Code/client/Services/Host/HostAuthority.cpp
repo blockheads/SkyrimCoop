@@ -264,7 +264,7 @@ void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, C
         if (m_characters.OwnerOf(cSessionId) == aSender)
             notify.Changes[cSessionId] = cFactions;
     if (!notify.Changes.empty())
-        m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+        m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
 void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
@@ -294,7 +294,7 @@ void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, Connectio
     NotifyPlayerLevel notify;
     notify.PlayerId = m_players.PlayerIdOf(aSender);
     notify.NewLevel = acRequest.NewLevel;
-    m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
 void HostAuthority::Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
@@ -303,11 +303,11 @@ void HostAuthority::Deliver(const NotifyMessage& acNotify, Delivery aDelivery, u
     {
     case Delivery::FromOwner:
         if (m_characters.OwnerOf(aActor) == aSender)
-            m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable);
+            m_players.SendToOthers(acNotify, aSender, Net::kReliable);
         else
             spdlog::debug("HostAuthority: {:x} sent opcode {} for {:x}, which it does not own", aSender, uint32_t(acNotify.GetOpcode()), aActor);
         break;
-    case Delivery::FromAnyone: m_players.SendToOthers(acNotify, aSender, TiltedPhoques::kReliable); break;
+    case Delivery::FromAnyone: m_players.SendToOthers(acNotify, aSender, Net::kReliable); break;
     case Delivery::ToOwner:
         if (const ConnectionId_t cOwner = m_characters.OwnerOf(aActor); cOwner != 0 && cOwner != aSender)
             m_network.Send(cOwner, acNotify);

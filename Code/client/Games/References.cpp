@@ -23,7 +23,7 @@
 
 #include <Events/InitPackageEvent.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
 #include <Services/PapyrusService.h>
 #include <Services/DebugService.h>
@@ -162,7 +162,7 @@ void HookSetCurrentPickREFR(Console* apThis, BSPointerHandle<TESObjectREFR>* apR
     return RealSetCurrentPickREFR(apThis, apRefr);
 }
 
-static TiltedPhoques::Initializer s_referencesHooks(
+static Hooks::Initializer s_referencesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -175,10 +175,10 @@ static TiltedPhoques::Initializer s_referencesHooks(
         RealInitFromPackage = s_initFromPackage.Get();
         RealSetCurrentPickREFR = s_setCurrentPickREFR.Get();
 
-        TP_HOOK(&RealCheckForNewPackage, HookCheckForNewPackage);
-        TP_HOOK(&RealInitFromPackage, HookInitFromPackage);
-        TP_HOOK(&RealSetCurrentPickREFR, HookSetCurrentPickREFR);
+        HOOK(&RealCheckForNewPackage, HookCheckForNewPackage);
+        HOOK(&RealInitFromPackage, HookInitFromPackage);
+        HOOK(&RealSetCurrentPickREFR, HookSetCurrentPickREFR);
 
         RealPutCreatedPackage = s_putCreatedPackage.Get();
-        TP_HOOK(&RealPutCreatedPackage, HookPutCreatedPackage);
+        HOOK(&RealPutCreatedPackage, HookPutCreatedPackage);
     });

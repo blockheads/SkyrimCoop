@@ -39,7 +39,7 @@ int HookVMUpdate(VMContext* apThis, float a2)
 
 short HookMainLoop(Main* apThis)
 {
-    TP_EMPTY_HOOK_PLACEHOLDER
+    EMPTY_HOOK_PLACEHOLDER
 
     CrashHandler::OnMainLoopTick();
 #if COOP_TEST_HARNESS
@@ -53,12 +53,12 @@ short HookMainLoop(Main* apThis)
 
 uintptr_t HookVMDestructor(void* apThis)
 {
-    TP_EMPTY_HOOK_PLACEHOLDER
+    EMPTY_HOOK_PLACEHOLDER
 
     return VMDestructor(apThis);
 }
 
-static TiltedPhoques::Initializer s_mainHooks(
+static Hooks::Initializer s_mainHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -70,8 +70,8 @@ static TiltedPhoques::Initializer s_mainHooks(
         MainLoop = cMainLoop.Get();
         VMDestructor = cVMDestructor.Get();
 
-        TP_HOOK(&VMUpdate, HookVMUpdate);
-        TP_HOOK(&MainLoop, HookMainLoop);
-        TP_HOOK(&VMDestructor, HookVMDestructor);
+        HOOK(&VMUpdate, HookVMUpdate);
+        HOOK(&MainLoop, HookMainLoop);
+        HOOK(&VMDestructor, HookVMDestructor);
     });
 

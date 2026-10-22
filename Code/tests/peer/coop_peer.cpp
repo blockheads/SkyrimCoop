@@ -10,20 +10,28 @@
 #include <mutex>
 #include <optional>
 
-#include <TiltedCore/Stl.hpp>
-#include <TiltedCore/Buffer.hpp>
-#include <TiltedCore/Serialization.hpp>
-#include <TiltedCore/ViewBuffer.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <Wire/Buffer.h>
+#include <Wire/Serialization.h>
+#include <Wire/ViewBuffer.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 
-using TiltedPhoques::ConnectionId_t;
+using Net::ConnectionId_t;
 
-#include <Client.hpp>
-#include <Packet.hpp>
-#include <Server.hpp>
+#include <network/Client.h>
+#include <network/Packet.h>
+#include <network/Server.h>
 
 #include <BuildVersion.h>
 #include <Messages/AuthenticationRequest.h>
@@ -53,11 +61,11 @@ using ResponseType = AuthenticationResponse::ResponseType;
 // [packet type byte][message], as the games send it.
 template <class TMessage, class TSend> void SendMessage(const TMessage& acMessage, TSend&& aSend)
 {
-    TiltedPhoques::Buffer buffer(1 << 16);
-    TiltedPhoques::Buffer::Writer writer(&buffer);
+    Wire::Buffer buffer(1 << 16);
+    Wire::Buffer::Writer writer(&buffer);
     writer.WriteBits(0, 8);
     acMessage.Serialize(writer);
-    TiltedPhoques::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), static_cast<uint32_t>(writer.Size()));
+    Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), static_cast<uint32_t>(writer.Size()));
     aSend(&packet);
 }
 
@@ -74,7 +82,7 @@ const char* Name(ResponseType aType)
     }
 }
 
-struct RefusingHost final : TiltedPhoques::Server
+struct RefusingHost final : Net::Server
 {
     ResponseType Reason{};
     std::string Version;
@@ -86,8 +94,8 @@ struct RefusingHost final : TiltedPhoques::Server
 
     void OnConsume(const void* apData, uint32_t aSize, ConnectionId_t aConnection) override
     {
-        TiltedPhoques::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
-        TiltedPhoques::Buffer::Reader reader(&buffer);
+        Wire::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
+        Wire::Buffer::Reader reader(&buffer);
         const auto pMessage = RequestMessageFactory{}.Extract(reader);
         if (!pMessage || pMessage->GetOpcode() != kAuthenticationRequest)
             return;
@@ -96,14 +104,14 @@ struct RefusingHost final : TiltedPhoques::Server
         response.Type = Reason;
         response.Version = Version.c_str();
         response.Game = Game;
-        SendMessage(response, [&](TiltedPhoques::Packet* apPacket) { Send(aConnection, apPacket); });
+        SendMessage(response, [&](Net::Packet* apPacket) { Send(aConnection, apPacket); });
         Kick(aConnection);
         std::printf("refused %s\n", static_cast<const AuthenticationRequest&>(*pMessage).Username.c_str());
         std::fflush(stdout);
     }
 };
 
-struct JoiningGame final : TiltedPhoques::Client
+struct JoiningGame final : Net::Client
 {
     AuthenticationRequest Request;
     std::optional<ResponseType> Answer;
@@ -113,13 +121,13 @@ struct JoiningGame final : TiltedPhoques::Client
 
     void OnConnected() override
     {
-        SendMessage(Request, [&](TiltedPhoques::Packet* apPacket) { Send(apPacket); });
+        SendMessage(Request, [&](Net::Packet* apPacket) { Send(apPacket); });
     }
 
     void OnConsume(const void* apData, uint32_t aSize) override
     {
-        TiltedPhoques::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
-        TiltedPhoques::Buffer::Reader reader(&buffer);
+        Wire::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
+        Wire::Buffer::Reader reader(&buffer);
         const auto pMessage = NotifyMessageFactory{}.Extract(reader);
         if (pMessage && pMessage->GetOpcode() == kAuthenticationResponse)
             Answer = static_cast<const AuthenticationResponse&>(*pMessage).Type;

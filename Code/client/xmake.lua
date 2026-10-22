@@ -7,7 +7,7 @@ end
 local function build_client(name)
 target(name)
     -- Objects, not a static archive: every .obj is linked into the DLL. From an archive the linker
-    -- dropped the ~38 files only referenced through self-registering TiltedPhoques::Initializer hooks
+    -- dropped the ~38 files only referenced through self-registering Hooks::Initializer hooks
     -- (ActorMagicCaster, SkyrimVM64, UI, ...), so their hooks never installed.
     set_kind("object")
     set_group("Client")
@@ -39,9 +39,7 @@ target(name)
         "CommonLib",
         "BaseLib",
         "ImGuiImpl",
-        "SkyrimCoopNetworking",
-        "SkyrimCoopReverse",
-        "SkyrimCoopHooks",
+        "Network",
         {inherit = true}
     )
 
@@ -61,7 +59,7 @@ target(name)
 
     -- ImGui (debug views), RmlUi (the in-game UI, Code/client/Ui)
     add_packages("imgui", "rmlui")
-    add_syslinks("d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32")
+    add_syslinks("d3dcompiler", "windowscodecs", "ole32", "version", "dbghelp", "kernel32", "dxguid", "dinput8", "d3d11")
 end
 
 

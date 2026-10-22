@@ -1,5 +1,5 @@
 #include <Structs/AnimationVariables.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <iostream>
 
 bool AnimationVariables::operator==(const AnimationVariables& acRhs) const noexcept
@@ -15,7 +15,7 @@ bool AnimationVariables::operator!=(const AnimationVariables& acRhs) const noexc
 // std::vector<bool> implementation is unspecified, but often packed reasonably.
 // The spec does not guarantee contiguous memory, though, so somewhat laborious 
 // translation needed. Should be better than winding down several layers to 
-// TiltedPhoques::Serialization::WriteBool, though.
+// Wire::Serialization::WriteBool, though.
 //
 void AnimationVariables::VectorBool_to_String(const std::vector<bool>& bools, std::string& chars) const
 {
@@ -72,7 +72,7 @@ void AnimationVariables::Save(std::ostream& aOutput) const
 // the stream.
 //
 //
-void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, TiltedPhoques::Buffer::Writer& aWriter) const
+void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, Wire::Buffer::Writer& aWriter) const
 {
     const size_t sizeChangedVector = Booleans.size() + Integers.size() + Floats.size();
     auto changedVector = Booleans;
@@ -85,21 +85,21 @@ void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, Tilte
 
     // Now serialize: VarInts Booleans.size(), Integers.size(), Floats.size(),
     // then the change table bits, then changed Integers, then changed Floats.
-    TiltedPhoques::Serialization::WriteVarInt(aWriter, Booleans.size());
-    TiltedPhoques::Serialization::WriteVarInt(aWriter, Integers.size());
-    TiltedPhoques::Serialization::WriteVarInt(aWriter, Floats.size());
+    Wire::Serialization::WriteVarInt(aWriter, Booleans.size());
+    Wire::Serialization::WriteVarInt(aWriter, Integers.size());
+    Wire::Serialization::WriteVarInt(aWriter, Floats.size());
 
     std::string chars;
     VectorBool_to_String(changedVector, chars);
-    TiltedPhoques::Serialization::WriteString(aWriter, chars);
+    Wire::Serialization::WriteString(aWriter, chars);
 
     auto biter = changedVector.begin() + Booleans.size();
     for (size_t i = 0; i < Integers.size(); i++)
         if (*biter++)
-            TiltedPhoques::Serialization::WriteVarInt(aWriter, Integers[i] & 0xFFFFFFFF);
+            Wire::Serialization::WriteVarInt(aWriter, Integers[i] & 0xFFFFFFFF);
     for (size_t i = 0; i < Floats.size(); i++)
         if (*biter++)
-            TiltedPhoques::Serialization::WriteFloat(aWriter, Floats[i]);
+            Wire::Serialization::WriteFloat(aWriter, Floats[i]);
 }
 
 // Reads 3 VarInts that represent the size of the Booleans, Integers and Floats.
@@ -108,18 +108,18 @@ void AnimationVariables::GenerateDiff(const AnimationVariables& aPrevious, Tilte
 // The Changed? table is scanned and for each true bit, the corresponsing Integer
 // or Float is deserialized.
 // 
-void AnimationVariables::ApplyDiff(TiltedPhoques::Buffer::Reader& aReader)
+void AnimationVariables::ApplyDiff(Wire::Buffer::Reader& aReader)
 {
-    size_t booleansSize = TiltedPhoques::Serialization::ReadVarInt(aReader);
-    size_t integersSize = TiltedPhoques::Serialization::ReadVarInt(aReader);
-    size_t floatsSize   = TiltedPhoques::Serialization::ReadVarInt(aReader);
+    size_t booleansSize = Wire::Serialization::ReadVarInt(aReader);
+    size_t integersSize = Wire::Serialization::ReadVarInt(aReader);
+    size_t floatsSize   = Wire::Serialization::ReadVarInt(aReader);
     if (Integers.size() != integersSize)
         Integers.assign(integersSize, 0);
     if (Floats.size() != floatsSize)
         Floats.assign(floatsSize, 0.f);
     
     std::vector<bool> changedVector(booleansSize + integersSize + floatsSize);
-    auto chars = TiltedPhoques::Serialization::ReadString(aReader);
+    auto chars = Wire::Serialization::ReadString(aReader);
     String_to_VectorBool(chars, changedVector);
 
     Booleans.assign(changedVector.begin(), changedVector.begin() + booleansSize);
@@ -127,8 +127,8 @@ void AnimationVariables::ApplyDiff(TiltedPhoques::Buffer::Reader& aReader)
     auto biter = changedVector.begin() + booleansSize;
     for (size_t i = 0; i < integersSize; i++)
         if (*biter++)
-            Integers[i] = TiltedPhoques::Serialization::ReadVarInt(aReader);
+            Integers[i] = Wire::Serialization::ReadVarInt(aReader);
     for (size_t i = 0; i < floatsSize; i++)
         if (*biter++)
-            Floats[i] = TiltedPhoques::Serialization::ReadFloat(aReader);
+            Floats[i] = Wire::Serialization::ReadFloat(aReader);
 }

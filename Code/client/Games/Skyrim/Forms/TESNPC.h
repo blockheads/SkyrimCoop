@@ -74,11 +74,7 @@ struct TESNPC : TESActorBase
     BGSHeadPart** headparts;
     uint8_t headpartsCount;
 
-#if TP_PLATFORM_64
     uint8_t pad241[5];
-#else
-    uint8_t pad151[3];
-#endif
 
     struct Color
     {

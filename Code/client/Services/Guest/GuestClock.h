@@ -16,7 +16,7 @@ struct GuestClock
     GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
     ~GuestClock() noexcept;
 
-    TP_NOCOPYMOVE(GuestClock);
+    NO_COPY_MOVE(GuestClock);
 
     // False while a guest runs the host's clock: the engine's own (Calendar::Update) then stays off.
     static bool GameClockRuns() noexcept { return !s_hostClock; }

@@ -1,7 +1,7 @@
 #include "ServerSettings.h"
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool ServerSettings::operator==(const ServerSettings& acRhs) const noexcept
 {
@@ -13,7 +13,7 @@ bool ServerSettings::operator!=(const ServerSettings& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void ServerSettings::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ServerSettings::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Difficulty);
     Serialization::WriteBool(aWriter, GreetingsEnabled);
@@ -23,7 +23,7 @@ void ServerSettings::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noe
     Serialization::WriteBool(aWriter, SyncPlayerCalendar);
 }
 
-void ServerSettings::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ServerSettings::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     Difficulty = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     GreetingsEnabled = Serialization::ReadBool(aReader);

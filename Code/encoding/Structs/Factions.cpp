@@ -1,8 +1,8 @@
 #include <Structs/Factions.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 #include <stdexcept>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool Factions::operator==(const Factions& acRhs) const noexcept
 {
@@ -14,7 +14,7 @@ bool Factions::operator!=(const Factions& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void Factions::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void Factions::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     // Limit the number of factions to send
     Serialization::WriteVarInt(aWriter, NpcFactions.size() & 0x1FF);
@@ -32,7 +32,7 @@ void Factions::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     }
 }
 
-void Factions::Deserialize(TiltedPhoques::Buffer::Reader& aReader)
+void Factions::Deserialize(Wire::Buffer::Reader& aReader)
 {
     auto npcCount = Serialization::ReadVarInt(aReader);
     if (npcCount > 0x1FF)

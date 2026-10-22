@@ -61,7 +61,7 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
         }
     }
     if (!notify.Updates.empty())
-        m_players.SendToOthers(notify, aSender, TiltedPhoques::kUnreliable);
+        m_players.SendToOthers(notify, aSender, Net::kUnreliable);
 }
 
 void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -165,7 +165,7 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
     spdlog::info("HostCharacters: {:x} respawns its {}", aSender, acRequest.ActorId);
     NotifyRespawn notify;
     notify.ActorId = acRequest.ActorId;
-    m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
 void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t aSender) const noexcept
@@ -177,7 +177,7 @@ void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t
         {
             NotifyRespawn notify;
             notify.ActorId = cSessionId;
-            m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
+            m_players.SendToOthers(notify, aSender, Net::kReliable);
         }
     }
 }
@@ -206,7 +206,7 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
         travel.WorldSpaceId = acRequest.WorldSpaceId;
         travel.Position = acRequest.Position;
         travel.Heading = acRequest.Heading;
-        m_players.SendToOthers(travel, aSender, TiltedPhoques::kReliable);
+        m_players.SendToOthers(travel, aSender, Net::kReliable);
         m_partyTravel = travel;
     }
     // A follower that arrived where the party is not (two players led at once, and it followed the one that led
@@ -224,7 +224,7 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
             spdlog::info("HostCharacters: {:x} followed to {:x}:{:x}, the party is at {:x}:{:x}: sent on", aSender,
                          acRequest.CellId.ModId, acRequest.CellId.BaseId, m_partyTravel->CellId.ModId,
                          m_partyTravel->CellId.BaseId);
-            m_network.Send(aSender, *m_partyTravel, TiltedPhoques::kReliable);
+            m_network.Send(aSender, *m_partyTravel, Net::kReliable);
         }
     }
     for (auto it = m_characters.begin(); it != m_characters.end(); ++it)
@@ -309,7 +309,7 @@ void HostCharacters::SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, C
 {
     for (const ConnectionId_t cPlayer : m_players.Connections())
         if (cPlayer != aSender && WithHost(cPlayer))
-            m_network.Send(cPlayer, acSpawn, TiltedPhoques::kReliable);
+            m_network.Send(cPlayer, acSpawn, Net::kReliable);
 }
 
 HostCharacters::ConnectionId_t HostCharacters::OwnerOf(uint32_t aSessionId) const noexcept
@@ -367,7 +367,7 @@ void HostCharacters::RemoveCharacter(uint32_t aSessionId) noexcept
 
     NotifyRemoveCharacter notify;
     notify.SessionId = aSessionId;
-    m_players.SendToOthers(notify, it->second.Owner, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, it->second.Owner, Net::kReliable);
 
     m_characters.erase(it);
 }

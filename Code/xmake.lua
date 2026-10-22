@@ -1,5 +1,4 @@
-includes("TiltedCore")
-includes("libraries")
+includes("network")
 includes("common")
 includes("components")
 includes("base")

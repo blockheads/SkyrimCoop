@@ -10,8 +10,8 @@ struct Factions
     bool operator==(const Factions& acRhs) const noexcept;
     bool operator!=(const Factions& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader);
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader);
 
     std::vector<Faction> NpcFactions;
     std::vector<Faction> ExtraFactions;

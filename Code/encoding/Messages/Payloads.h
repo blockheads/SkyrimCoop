@@ -13,8 +13,8 @@ namespace Payloads
 // (missed or undone change) converges back to the owner's state.
 struct EquipmentSnapshot
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const EquipmentSnapshot&) const noexcept = default;
 
@@ -24,8 +24,8 @@ struct EquipmentSnapshot
 
 struct DrawWeapon
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const DrawWeapon&) const noexcept = default;
 
@@ -35,8 +35,8 @@ struct DrawWeapon
 
 struct ActorValueChanges
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const ActorValueChanges&) const noexcept = default;
 
@@ -46,8 +46,8 @@ struct ActorValueChanges
 
 struct ActorMaxValueChanges
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const ActorMaxValueChanges&) const noexcept = default;
 
@@ -57,8 +57,8 @@ struct ActorMaxValueChanges
 
 struct DeathStateChange
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const DeathStateChange&) const noexcept = default;
 
@@ -68,8 +68,8 @@ struct DeathStateChange
 
 struct HealthChange
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const HealthChange&) const noexcept = default;
 
@@ -81,8 +81,8 @@ struct HealthChange
 
 struct SpellCast
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const SpellCast&) const noexcept = default;
 
@@ -95,8 +95,8 @@ struct SpellCast
 
 struct InterruptCast
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const InterruptCast&) const noexcept = default;
 
@@ -106,8 +106,8 @@ struct InterruptCast
 
 struct ProjectileLaunch
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const ProjectileLaunch&) const noexcept = default;
 
@@ -138,8 +138,8 @@ struct ProjectileLaunch
 
 struct AddTarget
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const AddTarget&) const noexcept = default;
 
@@ -155,8 +155,8 @@ struct AddTarget
 
 struct RemoveSpell
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const RemoveSpell&) const noexcept = default;
 
@@ -166,8 +166,8 @@ struct RemoveSpell
 
 struct Mount
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const Mount&) const noexcept = default;
 
@@ -177,8 +177,8 @@ struct Mount
 
 struct NewPackage
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const NewPackage&) const noexcept = default;
 
@@ -188,8 +188,8 @@ struct NewPackage
 
 struct Dialogue
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const Dialogue&) const noexcept = default;
 
@@ -199,8 +199,8 @@ struct Dialogue
 
 struct Subtitle
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const Subtitle&) const noexcept = default;
 
@@ -212,8 +212,8 @@ struct Subtitle
 
 struct SyncExperience
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const SyncExperience&) const noexcept = default;
 
@@ -223,8 +223,8 @@ struct SyncExperience
 // a healing glow), from its owner. Copies play only those visuals; the owner applies the effects.
 struct ActiveEffects
 {
-    void SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
     bool operator==(const ActiveEffects&) const noexcept = default;
 

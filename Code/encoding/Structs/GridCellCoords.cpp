@@ -1,9 +1,9 @@
 #include <Structs/GridCellCoords.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
 #include <cmath>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 GridCellCoords::GridCellCoords()
 {
@@ -26,13 +26,13 @@ bool GridCellCoords::operator!=(const GridCellCoords& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void GridCellCoords::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void GridCellCoords::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, X);
     Serialization::WriteVarInt(aWriter, Y);
 }
 
-void GridCellCoords::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void GridCellCoords::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     X = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Y = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

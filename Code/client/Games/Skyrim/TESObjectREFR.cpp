@@ -178,7 +178,7 @@ void TESObjectREFR::SetRotation(float aX, float aY, float aZ) noexcept
     RealRotateZ(this, aZ);
 }
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 // aCall with the reference's graph manager, held for it; false if it has none.
 template <class T> static bool WithGraphs(const TESObjectREFR& acRef, T&& aCall) noexcept
@@ -1388,7 +1388,7 @@ void TESObjectREFR::SetPicksLeveledBases(bool aPicks) noexcept
     s_picksLeveledBases.store(aPicks, std::memory_order_relaxed);
 }
 
-static TiltedPhoques::Initializer s_objectReferencesHooks(
+static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -1414,20 +1414,20 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         RealPlayAnimationAndWait = s_playAnimationAndWait.Get();
         RealPlayAnimation = s_playAnimation.Get();
 
-        TP_HOOK(&RealLockChange, HookLockChange);
-        TP_HOOK(&RealRotateX, HookRotateX);
-        TP_HOOK(&RealRotateY, HookRotateY);
-        TP_HOOK(&RealRotateZ, HookRotateZ);
-        TP_HOOK(&RealActivate, HookActivate);
-        TP_HOOK(&RealAddInventoryItem, HookAddInventoryItem);
-        TP_HOOK(&RealRemoveInventoryItem, HookRemoveInventoryItem);
-        TP_HOOK(&RealPlayAnimationAndWait, HookPlayAnimationAndWait);
-        TP_HOOK(&RealPlayAnimation, HookPlayAnimation);
+        HOOK(&RealLockChange, HookLockChange);
+        HOOK(&RealRotateX, HookRotateX);
+        HOOK(&RealRotateY, HookRotateY);
+        HOOK(&RealRotateZ, HookRotateZ);
+        HOOK(&RealActivate, HookActivate);
+        HOOK(&RealAddInventoryItem, HookAddInventoryItem);
+        HOOK(&RealRemoveInventoryItem, HookRemoveInventoryItem);
+        HOOK(&RealPlayAnimationAndWait, HookPlayAnimationAndWait);
+        HOOK(&RealPlayAnimation, HookPlayAnimation);
         RealLockpickUnlock = s_lockpickUnlock.Get();
-        TP_HOOK(&RealLockpickUnlock, HookLockpickUnlock);
+        HOOK(&RealLockpickUnlock, HookLockpickUnlock);
         RealSetAngle = s_setAngle.Get();
-        TP_HOOK(&RealSetAngle, HookSetAngle);
+        HOOK(&RealSetAngle, HookSetAngle);
         POINTER_SKYRIMSE(TPickLeveledBase, s_pickLeveledBase, 20232);
         RealPickLeveledBase = s_pickLeveledBase.Get();
-        TP_HOOK(&RealPickLeveledBase, HookPickLeveledBase);
+        HOOK(&RealPickLeveledBase, HookPickLeveledBase);
     });

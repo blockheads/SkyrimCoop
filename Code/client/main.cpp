@@ -28,11 +28,11 @@ void RunTiltedInit(const std::filesystem::path& acGamePath, const std::string& a
 
     g_appInstance = std::make_unique<TiltedOnlineApp>();
 
-    TiltedOnlineApp::InstallHooks2();
-    TP_HOOK_COMMIT;
+    TiltedOnlineApp::InstallHooks();
+    HOOK_COMMIT;
 }
 
 void RunTiltedApp()
 {
-    g_appInstance->BeginMain();
+    g_appInstance->Start();
 }

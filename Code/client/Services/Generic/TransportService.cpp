@@ -17,14 +17,14 @@
 #include <Messages/NotifyMessageFactory.h>
 #include <Services/Host/HostNetwork.h>
 #include <Messages/NotifySettingsChange.h>
-#include <Packet.hpp>
+#include <network/Packet.h>
 
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 
 // #include <imgui_internal.h>
 
-using TiltedPhoques::Packet;
+using Net::Packet;
 
 TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld)
@@ -65,7 +65,7 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
 
 // The host's game's in-process connection to its own network. Real connection ids are enet peer
 // addresses, so this one cannot collide.
-static constexpr TiltedPhoques::ConnectionId_t kLocalConnectionId = 1;
+static constexpr Net::ConnectionId_t kLocalConnectionId = 1;
 
 void TransportService::ConnectLocal(HostNetwork& aNetwork) noexcept
 {
@@ -136,7 +136,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 
         acMessage.Serialize(writer);
 
-        TiltedPhoques::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
+        Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
 
         Client::Send(&packet);
 
@@ -149,7 +149,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 void TransportService::OnConsume(const void* apData, uint32_t aSize)
 {
     NotifyMessageFactory factory;
-    TiltedPhoques::ViewBuffer buf((uint8_t*)apData, aSize);
+    Wire::ViewBuffer buf((uint8_t*)apData, aSize);
     Buffer::Reader reader(&buf);
 
     auto pMessage = factory.Extract(reader);

@@ -1,11 +1,11 @@
 #include <Messages/NotifyWeatherChange.h>
 
-void NotifyWeatherChange::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyWeatherChange::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Id.Serialize(aWriter);
 }
 
-void NotifyWeatherChange::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyWeatherChange::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

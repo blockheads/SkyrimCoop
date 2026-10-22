@@ -15,7 +15,7 @@ struct ImguiService
     ImguiService();
     ~ImguiService() noexcept;
 
-    TP_NOCOPYMOVE(ImguiService);
+    NO_COPY_MOVE(ImguiService);
 
     void Create(RenderSystemD3D11* apRenderSystem, HWND aHwnd);
 

@@ -1,7 +1,7 @@
 #include <Structs/LockData.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
 bool LockData::operator==(const LockData& acRhs) const noexcept
 {
@@ -13,13 +13,13 @@ bool LockData::operator!=(const LockData& acRhs) const noexcept
     return !this->operator==(acRhs);
 }
 
-void LockData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void LockData::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteBool(aWriter, IsLocked);
     aWriter.WriteBits(LockLevel, 8);
 }
 
-void LockData::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void LockData::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     IsLocked = Serialization::ReadBool(aReader);
 

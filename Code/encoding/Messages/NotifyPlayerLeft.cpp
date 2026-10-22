@@ -1,13 +1,13 @@
 #include <Messages/NotifyPlayerLeft.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-void NotifyPlayerLeft::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyPlayerLeft::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteString(aWriter, Username);
 }
 
-void NotifyPlayerLeft::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyPlayerLeft::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

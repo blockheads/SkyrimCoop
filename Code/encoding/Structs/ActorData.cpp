@@ -1,9 +1,9 @@
 #include <Structs/ActorData.h>
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
-void ActorData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void ActorData::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
 {
     InitialActorValues.Serialize(aWriter);
     InitialInventory.Serialize(aWriter);
@@ -11,7 +11,7 @@ void ActorData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteBool(aWriter, IsWeaponDrawn);
 }
 
-void ActorData::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void ActorData::Deserialize(Wire::Buffer::Reader& aReader) noexcept
 {
     InitialActorValues.Deserialize(aReader);
     InitialInventory.Deserialize(aReader);

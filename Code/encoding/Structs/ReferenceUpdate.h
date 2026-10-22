@@ -3,7 +3,7 @@
 #include <Structs/Movement.h>
 #include <Structs/ActionEvent.h>
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct ReferenceUpdate
 {
@@ -13,8 +13,8 @@ struct ReferenceUpdate
     bool operator==(const ReferenceUpdate& acRhs) const noexcept;
     bool operator!=(const ReferenceUpdate& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader);
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader);
 
     Movement UpdatedMovement{};
     std::vector<ActionEvent> ActionEvents{};

@@ -1,6 +1,6 @@
 #include <Messages/RequestRespawn.h>
 
-void RequestRespawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RequestRespawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, ActorId);
     Serialization::WriteString(aWriter, AppearanceBuffer);
@@ -13,7 +13,7 @@ void RequestRespawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const 
     Data.Serialize(aWriter);
 }
 
-void RequestRespawn::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void RequestRespawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

@@ -1,6 +1,14 @@
 #pragma once
 
-#include <TiltedCore/Stl.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 #include <cctype>
 #include <cstring>

@@ -3,9 +3,9 @@
 #include "../Opcodes.h"
 #include "../ChatMessageTypes.h"
 
-using TiltedPhoques::Serialization;
+using Wire::Serialization;
 
-struct RequestMessage : TiltedPhoques::AllocatorCompatible
+struct RequestMessage
 {
     RequestMessage(RequestOpcode aOpcode)
         : m_opcode(aOpcode)
@@ -14,14 +14,14 @@ struct RequestMessage : TiltedPhoques::AllocatorCompatible
 
     virtual ~RequestMessage() = default;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
     // Serialize values that are not dependent on previous states
-    virtual void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
+    virtual void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept;
     // Serialize values that are dependent on previous states
-    virtual void SerializeDifferential(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
+    virtual void SerializeDifferential(Wire::Buffer::Writer& aWriter) const noexcept;
     // Deserialize values that are dependent on previous states, this function will already be called
-    virtual void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept;
-    virtual void DeserializeDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    virtual void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept;
+    virtual void DeserializeDifferential(Wire::Buffer::Reader& aReader) noexcept;
 
     [[nodiscard]] RequestOpcode GetOpcode() const noexcept;
 
@@ -29,7 +29,7 @@ private:
     RequestOpcode m_opcode;
 };
 
-struct NotifyMessage : TiltedPhoques::AllocatorCompatible
+struct NotifyMessage
 {
     NotifyMessage(NotifyOpcode aOpcode)
         : m_opcode(aOpcode)
@@ -38,11 +38,11 @@ struct NotifyMessage : TiltedPhoques::AllocatorCompatible
 
     virtual ~NotifyMessage() = default;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    virtual void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    virtual void SerializeDifferential(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    virtual void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept;
-    virtual void DeserializeDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    virtual void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept;
+    virtual void SerializeDifferential(Wire::Buffer::Writer& aWriter) const noexcept;
+    virtual void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept;
+    virtual void DeserializeDifferential(Wire::Buffer::Reader& aReader) noexcept;
 
     [[nodiscard]] NotifyOpcode GetOpcode() const noexcept;
 

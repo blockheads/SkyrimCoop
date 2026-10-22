@@ -11,7 +11,7 @@ struct ModSystem
     ModSystem(entt::dispatcher& aDispatcher) noexcept;
     ~ModSystem() = default;
 
-    TP_NOCOPYMOVE(ModSystem);
+    NO_COPY_MOVE(ModSystem);
 
     bool GetServerModId(uint32_t aGameId, uint32_t& aModId, uint32_t& aBaseId) const noexcept;
     bool GetServerModId(uint32_t aGameId, GameId& aSessionId) const noexcept;

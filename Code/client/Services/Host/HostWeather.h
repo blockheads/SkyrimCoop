@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 #include <Structs/GameId.h>
 
 struct HostGame;
@@ -14,11 +14,11 @@ struct HostNetwork;
  */
 struct HostWeather
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     HostWeather(HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept;
 
-    TP_NOCOPYMOVE(HostWeather);
+    NO_COPY_MOVE(HostWeather);
 
     // Every frame: tells peers when the host's weather changed.
     void Update() noexcept;

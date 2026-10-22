@@ -1,11 +1,11 @@
 #include <Messages/NotifyRelinquishControl.h>
 
-void NotifyRelinquishControl::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyRelinquishControl::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
 }
 
-void NotifyRelinquishControl::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyRelinquishControl::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

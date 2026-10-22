@@ -1,6 +1,6 @@
 #include <Messages/WorldState.h>
 
-#include <TiltedCore/Serialization.hpp>
+#include <Wire/Serialization.h>
 
 namespace
 {
@@ -10,7 +10,7 @@ constexpr uint64_t kMaxQuests = 0x10000;
 constexpr uint64_t kMaxPerQuest = 0x1000;
 constexpr uint64_t kMaxObjectChanges = 0x1000;
 
-void Write(TiltedPhoques::Buffer::Writer& aWriter, const QuestState& acQuest) noexcept
+void Write(Wire::Buffer::Writer& aWriter, const QuestState& acQuest) noexcept
 {
     acQuest.Id.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, acQuest.Flags);
@@ -42,7 +42,7 @@ void Write(TiltedPhoques::Buffer::Writer& aWriter, const QuestState& acQuest) no
     }
 }
 
-bool Read(TiltedPhoques::Buffer::Reader& aReader, QuestState& aQuest) noexcept
+bool Read(Wire::Buffer::Reader& aReader, QuestState& aQuest) noexcept
 {
     aQuest.Id.Deserialize(aReader);
     aQuest.Flags = static_cast<uint16_t>(Serialization::ReadVarInt(aReader));
@@ -88,7 +88,7 @@ bool Read(TiltedPhoques::Buffer::Reader& aReader, QuestState& aQuest) noexcept
 }
 } // namespace
 
-void NotifyGlobals::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyGlobals::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Values.size());
     for (const auto& cValue : Values)
@@ -98,7 +98,7 @@ void NotifyGlobals::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const n
     }
 }
 
-void NotifyGlobals::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyGlobals::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 
@@ -113,7 +113,7 @@ void NotifyGlobals::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexc
     }
 }
 
-void NotifyQuests::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyQuests::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteBool(aWriter, Join);
     Serialization::WriteVarInt(aWriter, Quests.size());
@@ -121,7 +121,7 @@ void NotifyQuests::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const no
         Write(aWriter, cQuest);
 }
 
-void NotifyQuests::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyQuests::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 
@@ -138,7 +138,7 @@ void NotifyQuests::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexce
         }
 }
 
-void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyObjectChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Cell.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Changes.size());
@@ -167,7 +167,7 @@ void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
     }
 }
 
-void NotifyObjectChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyObjectChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

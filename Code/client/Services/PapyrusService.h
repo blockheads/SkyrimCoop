@@ -14,7 +14,7 @@ struct PapyrusService
     PapyrusService(entt::dispatcher& aDispatcher) noexcept;
     ~PapyrusService() noexcept = default;
 
-    TP_NOCOPYMOVE(PapyrusService);
+    NO_COPY_MOVE(PapyrusService);
 
     const void* Get(const std::string& acNamespace, const std::string& acFunction) const noexcept;
 

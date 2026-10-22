@@ -21,7 +21,7 @@ public:
     explicit GuestEngine(const ModSystem& acMods) noexcept;
     ~GuestEngine() noexcept;
 
-    TP_NOCOPYMOVE(GuestEngine);
+    NO_COPY_MOVE(GuestEngine);
 
     // The calendar as the engine's clock leaves it (Calendar::Update 36291), date and days passed included.
     void SetCalendar(const TimeModel& acTime) noexcept;

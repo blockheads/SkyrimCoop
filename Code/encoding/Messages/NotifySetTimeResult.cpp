@@ -1,11 +1,11 @@
 ﻿#include <Messages/NotifySetTimeResult.h>
 
-void NotifySetTimeResult::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifySetTimeResult::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(static_cast<uint64_t>(Result), 8);
 }
 
-void NotifySetTimeResult::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifySetTimeResult::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 

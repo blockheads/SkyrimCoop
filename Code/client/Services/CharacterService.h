@@ -58,7 +58,7 @@ struct CharacterService
                      IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept;
     ~CharacterService() noexcept;
 
-    TP_NOCOPYMOVE(CharacterService);
+    NO_COPY_MOVE(CharacterService);
 
     static void DeleteTempActor(const uint32_t aFormId) noexcept;
 

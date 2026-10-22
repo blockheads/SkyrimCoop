@@ -1,12 +1,12 @@
 #include <Messages/RequestSetWaypoint.h>
 
-void RequestSetWaypoint::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RequestSetWaypoint::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Position.Serialize(aWriter);
     WorldSpaceFormID.Serialize(aWriter);
 }
 
-void RequestSetWaypoint::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void RequestSetWaypoint::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

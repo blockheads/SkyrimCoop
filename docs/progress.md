@@ -198,8 +198,14 @@ Leaving `TiltedPhoques` (2026-10-21, `docs/ideas.md`, "Modern C++ over `TiltedPh
 3. `TP_THIS_FUNCTION`/`TP_MAKE_THISCALL`/`ThisCall` are plain C++: `using T = R(C*, A...)`, `R Hook(C* apThis, ...)`,
    `f(this, ...)` (an engine address wrapper converts to its function pointer). One call bound an rvalue to the
    engine's `uint32_t*&` through `ThisCall`'s copy; it names the copy now (`TESObjectREFR::MoveTo`).
-Step 4 (moving the wire buffer, hooks, init list and enet transport into our tree; deleting `Code/TiltedCore` and
-`Code/libraries`) is next.
+4. The rest moved into our tree and `Code/TiltedCore` and `Code/libraries` are gone: the wire buffer is
+   `Code/encoding/Wire` (`Wire::Buffer`, `Wire::Serialization`), the enet transport `Code/network` (`Net::Server`,
+   `Net::Client`), the MinHook wrapper, patch helpers and D3D11/input hooks `Code/client/Hooks` (`Hooks::`, `HOOK`,
+   `Hooks::Initializer`), `TaskQueue` the client's own, the CRC64 of animation descriptors `Games/Crc64`, and global
+   `new`/`delete` call rpmalloc directly (`Code/base/allocator`). The `App`/`Entry` framework, its WinMain hooks and
+   the SKSE loader went (`TiltedOnlineApp` is a plain class: `InstallHooks`, `Start`, `Update`). Found on the way:
+   a bridge test read a message after freeing the outbox that held it (`dialogue_tests.cpp`, `Talking::Open`);
+   the custom allocator had hidden it.
 
 ## Sync by system
 

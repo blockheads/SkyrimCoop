@@ -52,13 +52,13 @@ uint32_t HookAddEvent(void* apThis, uint32_t aIndex, const void* apEvent)
     return cId;
 }
 
-TiltedPhoques::Initializer s_storyEventHooks(
+Hooks::Initializer s_storyEventHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TAddEvent, s_addEvent, 32359);
         RealAddEvent = s_addEvent.Get();
-        TP_HOOK(&RealAddEvent, HookAddEvent);
+        HOOK(&RealAddEvent, HookAddEvent);
     });
 
 // BGSStoryManager's own log of an event's processing (32374): what each node and quest did with it.
@@ -76,13 +76,13 @@ void HookStoryLog(void* apThis, int32_t aCode, const uint32_t* apEvent, TESForm*
     RealStoryLog(apThis, aCode, apEvent, apForm, apNode, aAte, aA, aB);
 }
 
-TiltedPhoques::Initializer s_storyHooks(
+Hooks::Initializer s_storyHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TStoryLog, s_storyLog, 32374);
         RealStoryLog = s_storyLog.Get();
-        TP_HOOK(&RealStoryLog, HookStoryLog);
+        HOOK(&RealStoryLog, HookStoryLog);
     });
 
 // {"cmd": "story_trace", "on": true}: log the story manager's outcomes and capture the player's CLOC events;

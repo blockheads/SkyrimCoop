@@ -5,10 +5,10 @@
 #include <VersionDb.h>
 
 #include <deque>
-#include <FunctionHook.hpp>
+#include <Hooks/FunctionHook.h>
 
-#include <DInputHook.hpp>
-#include <WindowsHook.hpp>
+#include <Hooks/DInputHook.h>
+#include <Hooks/WindowsHook.h>
 
 #include <World.h>
 #include <PluginPaths.h>
@@ -24,10 +24,7 @@
 
 #include <Services/ImguiService.h>
 
-#include <ScriptExtender.h>
 #include <NvidiaUtil.h>
-
-using TiltedPhoques::Debug;
 
 TiltedOnlineApp::TiltedOnlineApp()
 {
@@ -57,37 +54,14 @@ TiltedOnlineApp::TiltedOnlineApp()
 
 TiltedOnlineApp::~TiltedOnlineApp() = default;
 
-void* TiltedOnlineApp::GetMainAddress() const
-{
-    POINTER_SKYRIMSE(void, winMain, 36544);
-
-    return winMain.GetPtr();
-}
-
-bool TiltedOnlineApp::BeginMain()
+void TiltedOnlineApp::Start()
 {
     World::Create();
     World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<ImguiService>());
 
-    LoadScriptExender();
-
     // TODO: Figure out a way to un-blacklist NvCamera64.dll (see DllBlocklist.cpp). Then this hack can be removed
     if (IsNvidiaOverlayLoaded())
         ApplyNvidiaFix();
-
-    return true;
-}
-
-bool TiltedOnlineApp::EndMain()
-{
-#if COOP_TEST_HARNESS
-    TestHarness::Shutdown();
-#endif
-    UninstallHooks();
-    if (m_pDevice)
-        m_pDevice->Release();
-
-    return true;
 }
 
 void TiltedOnlineApp::Update()
@@ -111,20 +85,6 @@ void TiltedOnlineApp::Update()
     World::Get().Update();
 }
 
-bool TiltedOnlineApp::Attach()
-{
-    TiltedPhoques::Debug::OnAttach();
-
-    // TiltedPhoques::Nop(0x1405D3FA1, 6);
-    return true;
-}
-
-bool TiltedOnlineApp::Detach()
-{
-    TiltedPhoques::Debug::OnDetach();
-    return true;
-}
-
 // SKYRIMCOOP_PROBE=13408,36559: engine functions (Address Library IDs) whose calls leave crash
 // breadcrumbs ("probe:13408": calls, when, thread, first argument), to see whether and in what order
 // the engine ran them before a crash. No code change per investigation.
@@ -143,25 +103,21 @@ static void InstallProbes()
         p = *pEnd == ',' ? pEnd + 1 : pEnd;
         VersionDbPtr<void> function(cId);
         const std::string& cName = s_names.emplace_back("probe:" + std::to_string(cId));
-        if (function.GetPtr() && TiltedPhoques::FunctionHookManager::GetInstance().AddProbe(function.GetPtr(), cName.c_str()))
+        if (function.GetPtr() && Hooks::FunctionHookManager::GetInstance().AddProbe(function.GetPtr(), cName.c_str()))
             spdlog::warn("Probe on engine function {}", cName);
         else
             spdlog::error("Probe on engine function {}: could not hook it (unknown ID, or hooked already)", cName);
     }
 }
 
-void TiltedOnlineApp::InstallHooks2()
+void TiltedOnlineApp::InstallHooks()
 {
     // Before any hook is added: each is wrapped so that its calls leave crash breadcrumbs.
-    TiltedPhoques::SetHookObserver(&Breadcrumbs::RecordHook, &Breadcrumbs::ObservesHook);
-    TiltedPhoques::Initializer::RunAll();
+    Hooks::SetHookObserver(&Breadcrumbs::RecordHook, &Breadcrumbs::ObservesHook);
+    Hooks::Initializer::RunAll();
     InstallProbes();
 
-    TiltedPhoques::DInputHook::Install();
-}
-
-void TiltedOnlineApp::UninstallHooks()
-{
+    Hooks::DInputHook::Install();
 }
 
 void TiltedOnlineApp::ApplyNvidiaFix() noexcept

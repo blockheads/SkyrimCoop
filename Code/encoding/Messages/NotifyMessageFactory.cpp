@@ -1,6 +1,6 @@
 #include <Messages/NotifyMessageFactory.h>
 
-static std::function<std::unique_ptr<NotifyMessage>(TiltedPhoques::Buffer::Reader& aReader)> s_serverMessageExtractor[kNotifyOpcodeMax];
+static std::function<std::unique_ptr<NotifyMessage>(Wire::Buffer::Reader& aReader)> s_serverMessageExtractor[kNotifyOpcodeMax];
 
 namespace details
 {
@@ -12,7 +12,7 @@ static struct NotifyMessageFactoryInit
         {
             using T = typename std::remove_reference_t<decltype(x)>::Type;
 
-            s_serverMessageExtractor[T::Opcode] = [](TiltedPhoques::Buffer::Reader& aReader)
+            s_serverMessageExtractor[T::Opcode] = [](Wire::Buffer::Reader& aReader)
             {
                 auto ptr = std::make_unique<T>();
                 ptr->DeserializeRaw(aReader);
@@ -27,7 +27,7 @@ static struct NotifyMessageFactoryInit
 } s_NotifyMessageFactoryInit;
 } // namespace details
 
-std::unique_ptr<NotifyMessage> NotifyMessageFactory::Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept
+std::unique_ptr<NotifyMessage> NotifyMessageFactory::Extract(Wire::Buffer::Reader& aReader) const noexcept
 {
     uint64_t data;
     aReader.ReadBits(data, sizeof(NotifyOpcode) * 8);

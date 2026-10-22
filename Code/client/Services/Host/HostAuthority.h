@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ENetInterface.hpp>
+#include <network/ENetInterface.h>
 #include <Messages/Message.h>
 #include <Opcodes.h>
 #include <Services/Host/HostCharacters.h>
@@ -44,13 +44,13 @@ struct HostNetwork;
  */
 struct HostAuthority
 {
-    using ConnectionId_t = TiltedPhoques::ConnectionId_t;
+    using ConnectionId_t = Net::ConnectionId_t;
 
     // Installs itself on aNetwork (front door, leaving players), which calls into it from then on:
     // the network goes first.
     HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept;
 
-    TP_NOCOPYMOVE(HostAuthority);
+    NO_COPY_MOVE(HostAuthority);
 
     // True when the message was handled here.
     bool Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept;

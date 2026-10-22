@@ -16,7 +16,7 @@ struct GuestWeather
     GuestWeather(entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept;
     ~GuestWeather() noexcept;
 
-    TP_NOCOPYMOVE(GuestWeather);
+    NO_COPY_MOVE(GuestWeather);
 
     // Each frame, from GuestService (the parts subscribe to no update: they come and go inside one).
     void OnUpdate(const UpdateEvent& acEvent) noexcept;

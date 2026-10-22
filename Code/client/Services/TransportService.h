@@ -5,7 +5,7 @@
 #include "Services/JoinStatus.h"
 
 #include <atomic>
-#include <Client.hpp>
+#include <network/Client.h>
 
 struct ImguiService;
 struct UpdateEvent;
@@ -20,7 +20,7 @@ class IWorldBridge;
 
 struct HostNetwork;
 
-using TiltedPhoques::Client;
+using Net::Client;
 
 /**
  * @brief Handles communication with the host.
@@ -30,7 +30,7 @@ struct TransportService : Client
     TransportService(World& aWorld, entt::dispatcher& aDispatcher) noexcept;
     ~TransportService() noexcept = default;
 
-    TP_NOCOPYMOVE(TransportService);
+    NO_COPY_MOVE(TransportService);
 
     bool Send(const RequestMessage& acMessage) const noexcept;
 

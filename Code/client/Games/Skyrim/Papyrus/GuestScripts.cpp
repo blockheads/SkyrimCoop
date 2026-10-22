@@ -80,7 +80,7 @@ TCastRun* RealCastRun = nullptr;
 void* s_castRun = nullptr; // the original, as CastFunctor's vtable names it
 BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResult);
 
-TiltedPhoques::Initializer s_hooks([]() {
+Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
     POINTER_SKYRIMSE(TCompare, s_compare, 105220);
     POINTER_SKYRIMSE(TGetPlayer, s_getPlayer, 55618);
@@ -99,14 +99,14 @@ TiltedPhoques::Initializer s_hooks([]() {
     RealFunctorQueued = s_functorQueued.Get();
     RealCastRun = s_castRunPointer.Get();
     s_castRun = reinterpret_cast<void*>(RealCastRun);
-    TP_HOOK(&RealCompare, HookCompare);
-    TP_HOOK(&RealGetPlayer, HookGetPlayer);
-    TP_HOOK(&RealCallQueued, HookCallQueued);
-    TP_HOOK(&RealStackCreated, HookStackCreated);
-    TP_HOOK(&RealNativeCalled, HookNativeCalled);
-    TP_HOOK(&RealStackEnded, HookStackEnded);
-    TP_HOOK(&RealFunctorQueued, HookFunctorQueued);
-    TP_HOOK(&RealCastRun, HookCastRun);
+    HOOK(&RealCompare, HookCompare);
+    HOOK(&RealGetPlayer, HookGetPlayer);
+    HOOK(&RealCallQueued, HookCallQueued);
+    HOOK(&RealStackCreated, HookStackCreated);
+    HOOK(&RealNativeCalled, HookNativeCalled);
+    HOOK(&RealStackEnded, HookStackEnded);
+    HOOK(&RealFunctorQueued, HookFunctorQueued);
+    HOOK(&RealCastRun, HookCastRun);
 });
 
 constexpr uint32_t cPlayerFormId = 0x14;

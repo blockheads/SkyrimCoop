@@ -1,6 +1,6 @@
 #include <Messages/RequestMessageFactory.h>
 
-static std::function<std::unique_ptr<RequestMessage>(TiltedPhoques::Buffer::Reader& aReader)> s_clientMessageExtractor[kRequestOpcodeMax];
+static std::function<std::unique_ptr<RequestMessage>(Wire::Buffer::Reader& aReader)> s_clientMessageExtractor[kRequestOpcodeMax];
 
 namespace details
 {
@@ -12,7 +12,7 @@ static struct RequestMessageFactoryInit
         {
             using T = typename std::remove_reference_t<decltype(x)>::Type;
 
-            s_clientMessageExtractor[T::Opcode] = [](TiltedPhoques::Buffer::Reader& aReader)
+            s_clientMessageExtractor[T::Opcode] = [](Wire::Buffer::Reader& aReader)
             {
                 auto ptr = std::make_unique<T>();
                 ptr->DeserializeRaw(aReader);
@@ -27,7 +27,7 @@ static struct RequestMessageFactoryInit
 } s_RequestMessageFactoryInit;
 } // namespace details
 
-std::unique_ptr<RequestMessage> RequestMessageFactory::Extract(TiltedPhoques::Buffer::Reader& aReader) const noexcept
+std::unique_ptr<RequestMessage> RequestMessageFactory::Extract(Wire::Buffer::Reader& aReader) const noexcept
 {
     uint64_t data;
     aReader.ReadBits(data, sizeof(RequestOpcode) * 8);

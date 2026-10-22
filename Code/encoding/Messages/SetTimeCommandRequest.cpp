@@ -1,13 +1,13 @@
 ﻿#include "SetTimeCommandRequest.h"
 
-void SetTimeCommandRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void SetTimeCommandRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(Hours, 8);
     aWriter.WriteBits(Minutes, 8);
     aWriter.WriteBits(PlayerId, 32);
 }
 
-void SetTimeCommandRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void SetTimeCommandRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

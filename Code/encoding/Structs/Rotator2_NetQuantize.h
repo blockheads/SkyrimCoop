@@ -1,6 +1,6 @@
 #pragma once
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct Rotator2_NetQuantize : glm::vec2
 {
@@ -14,8 +14,8 @@ struct Rotator2_NetQuantize : glm::vec2
     bool operator==(const Rotator2_NetQuantize& acRhs) const noexcept;
     bool operator!=(const Rotator2_NetQuantize& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     [[nodiscard]] uint32_t Pack() const noexcept;
     void Unpack(uint32_t aValue) noexcept;

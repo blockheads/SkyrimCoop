@@ -8,8 +8,8 @@
 #include <Bridges/IActorBridge.h>
 #include <Services/PapyrusService.h>
 
-#include <Client.hpp>
-#include <FunctionHook.hpp>
+#include <network/Client.h>
+#include <Hooks/FunctionHook.h>
 #include <SkseRipAllocator.h>
 
 extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
@@ -60,14 +60,14 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
     TestHarness::Shutdown();
 
     // Nothing in the game may point into this DLL afterwards.
-    TiltedPhoques::FunctionHookManager::GetInstance().RemoveAllHooks();
-    TiltedPhoques::RestorePatches();
-    TiltedPhoques::RunUnloadCallbacks();
+    Hooks::FunctionHookManager::GetInstance().RemoveAllHooks();
+    Hooks::RestorePatches();
+    Hooks::RunUnloadCallbacks();
     CoopSkse::HandOffJit(); // Only the patches just restored branched into it.
 
     // Our threads: the hang watchdog (crash handler), the network library's, spdlog's flusher.
     g_appInstance.reset();
-    TiltedPhoques::ShutdownNetworkWorkers();
+    Net::ShutdownNetworkWorkers();
     spdlog::info("Hot reload: unloaded");
     spdlog::shutdown();
     return true;

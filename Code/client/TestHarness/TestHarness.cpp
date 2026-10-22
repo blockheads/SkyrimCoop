@@ -24,7 +24,7 @@ void CloseTutorialPopups()
 
 Harness& Harness::Get()
 {
-    // Process-lifetime. Shut down from EndMain or the hot reload, never from CRT destructors/DllMain.
+    // Process-lifetime. Shut down from the hot reload, never from CRT destructors/DllMain.
     static Harness* s_harness = new Harness;
     return *s_harness;
 }

@@ -1,8 +1,16 @@
 #pragma once
 
-#include <TiltedCore/Stl.hpp>
+#include <deque>
+#include <list>
+#include <map>
+#include <memory>
+#include <queue>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
-using TiltedPhoques::Buffer;
+using Wire::Buffer;
 
 struct Tints
 {
@@ -23,8 +31,8 @@ struct Tints
     bool operator==(const Tints& acRhs) const noexcept;
     bool operator!=(const Tints& acRhs) const noexcept;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     std::vector<Entry> Entries;
 };

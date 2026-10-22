@@ -3,7 +3,7 @@
 #include "Breadcrumbs.h"
 #include "HeapHistory.h"
 #include <dbghelp.h>
-#include <FunctionHook.hpp>
+#include <Hooks/FunctionHook.h>
 #include <windows.h>
 #include <algorithm>
 #include <atomic>
@@ -217,7 +217,7 @@ CrashHandler::CrashHandler()
 
     RealExitProcess = reinterpret_cast<TExitProcess>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "ExitProcess"));
     if (RealExitProcess)
-        TP_HOOK_IMMEDIATE(&RealExitProcess, &HookExitProcess);
+        HOOK_IMMEDIATE(&RealExitProcess, &HookExitProcess);
 }
 
 // Set when the plugin unloads (hot reload): wakes the watchdog so it exits at once.

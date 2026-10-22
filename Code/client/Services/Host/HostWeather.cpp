@@ -24,7 +24,7 @@ void HostWeather::Update() noexcept
     m_peersWeather = *cWeather;
     NotifyWeatherChange notify;
     notify.Id = m_peersWeather;
-    m_players.SendToOthers(notify, cHost, TiltedPhoques::kReliable);
+    m_players.SendToOthers(notify, cHost, Net::kReliable);
 }
 
 void HostWeather::SendWeather(ConnectionId_t aPlayer) const noexcept

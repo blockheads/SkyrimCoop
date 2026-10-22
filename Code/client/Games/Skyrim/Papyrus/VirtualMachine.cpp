@@ -39,7 +39,7 @@ void HookBindEverythingToScript(BSScript::IVirtualMachine** apThis)
     RealBindEverythingToScript(apThis);
 }
 
-static TiltedPhoques::Initializer s_vmHooks(
+static Hooks::Initializer s_vmHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -49,6 +49,6 @@ static TiltedPhoques::Initializer s_vmHooks(
         RealRegisterPapyrusFunction = s_registerPapyrusFunction.Get();
         RealBindEverythingToScript = s_bindEverythingToScript.Get();
 
-        TP_HOOK(&RealRegisterPapyrusFunction, HookRegisterPapyrusFunction);
-        TP_HOOK(&RealBindEverythingToScript, HookBindEverythingToScript);
+        HOOK(&RealRegisterPapyrusFunction, HookRegisterPapyrusFunction);
+        HOOK(&RealBindEverythingToScript, HookBindEverythingToScript);
     });

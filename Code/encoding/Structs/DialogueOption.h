@@ -7,8 +7,8 @@ struct DialogueOption
 {
     bool operator==(const DialogueOption&) const noexcept = default;
 
-    void Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept;
-    void Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept;
+    void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
+    void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
 
     GameId Topic{};
     GameId Info{}; // the info said when picked
@@ -18,5 +18,5 @@ struct DialogueOption
 
 using DialogueOptions = std::vector<DialogueOption>;
 
-void SerializeDialogueOptions(TiltedPhoques::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept;
-void DeserializeDialogueOptions(TiltedPhoques::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept;
+void SerializeDialogueOptions(Wire::Buffer::Writer& aWriter, const DialogueOptions& acOptions) noexcept;
+void DeserializeDialogueOptions(Wire::Buffer::Reader& aReader, DialogueOptions& aOptions) noexcept;

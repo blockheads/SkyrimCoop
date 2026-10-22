@@ -13,8 +13,8 @@ struct LockChangeRequest final : RequestMessage
     {
     }
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     bool operator==(const LockChangeRequest& acRhs) const noexcept { return Id == acRhs.Id && CellId == acRhs.CellId && IsLocked == acRhs.IsLocked && LockLevel == acRhs.LockLevel && GetOpcode() == acRhs.GetOpcode(); }
 

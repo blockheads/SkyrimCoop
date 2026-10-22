@@ -26,11 +26,11 @@ void HookSimulateTime(TimeData* apData, float aMultiplier)
     }
 }
 
-static TiltedPhoques::Initializer s_loadingScreenHooks(
+static Hooks::Initializer s_loadingScreenHooks(
     []()
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TSimulateTime, s_SimulateTime, 36291);
         RealSimulateTime = s_SimulateTime.Get();
-        TP_HOOK(&RealSimulateTime, HookSimulateTime);
+        HOOK(&RealSimulateTime, HookSimulateTime);
     });

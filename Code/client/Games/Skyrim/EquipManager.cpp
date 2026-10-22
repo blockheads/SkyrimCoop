@@ -311,7 +311,7 @@ void* UnEquipShoutHook(EquipManager* apThis, Actor* apActor, TESForm* apShout, S
     return RealUnEquipShout(apThis, apActor, apShout, apData);
 }
 
-static TiltedPhoques::Initializer s_equipmentHooks(
+static Hooks::Initializer s_equipmentHooks(
     []()
     {
         const HookGate cGate(__FILE__);
@@ -329,10 +329,10 @@ static TiltedPhoques::Initializer s_equipmentHooks(
         RealEquipShout = s_equipShoutFunc.Get();
         RealUnEquipShout = s_unequipShoutFunc.Get();
 
-        TP_HOOK(&RealEquip, EquipHook);
-        TP_HOOK(&RealUnEquip, UnEquipHook);
-        TP_HOOK(&RealEquipSpell, EquipSpellHook);
-        TP_HOOK(&RealUnEquipSpell, UnEquipSpellHook);
-        TP_HOOK(&RealEquipShout, EquipShoutHook);
-        TP_HOOK(&RealUnEquipShout, UnEquipShoutHook);
+        HOOK(&RealEquip, EquipHook);
+        HOOK(&RealUnEquip, UnEquipHook);
+        HOOK(&RealEquipSpell, EquipSpellHook);
+        HOOK(&RealUnEquipSpell, UnEquipSpellHook);
+        HOOK(&RealEquipShout, EquipShoutHook);
+        HOOK(&RealUnEquipShout, UnEquipShoutHook);
     });

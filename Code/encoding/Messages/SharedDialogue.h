@@ -13,8 +13,8 @@ struct DialogueStartRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialogueStartRequest;
     DialogueStartRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{}; // session id
 };
@@ -25,8 +25,8 @@ struct DialogueOpenedRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialogueOpenedRequest;
     DialogueOpenedRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
 };
@@ -38,8 +38,8 @@ struct DialogueOptionsRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialogueOptionsRequest;
     DialogueOptionsRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
     uint32_t Step{};
@@ -54,8 +54,8 @@ struct DialoguePickRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialoguePickRequest;
     DialoguePickRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
     uint32_t Step{};
@@ -71,8 +71,8 @@ struct DialogueCloseRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialogueCloseRequest;
     DialogueCloseRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
     bool Ended{};
@@ -85,8 +85,8 @@ struct DialogueJoinRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialogueJoinRequest;
     DialogueJoinRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
 };
@@ -98,8 +98,8 @@ struct DialogueExperienceRequest final : RequestMessage
     static constexpr RequestOpcode Opcode = kDialogueExperienceRequest;
     DialogueExperienceRequest() : RequestMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     float Experience{};
 };
@@ -110,8 +110,8 @@ struct NotifyDialogueStart final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyDialogueStart;
     NotifyDialogueStart() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
 };
@@ -123,8 +123,8 @@ struct NotifyDialogueOpen final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyDialogueOpen;
     NotifyDialogueOpen() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
     uint32_t NpcId{};
@@ -137,8 +137,8 @@ struct NotifyDialogueList final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyDialogueList;
     NotifyDialogueList() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
     uint32_t Step{};
@@ -153,8 +153,8 @@ struct NotifyDialoguePicked final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyDialoguePicked;
     NotifyDialoguePicked() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
     uint32_t Step{};
@@ -169,8 +169,8 @@ struct NotifyDialogueClosed final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyDialogueClosed;
     NotifyDialogueClosed() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t Conversation{};
 };
@@ -181,8 +181,8 @@ struct NotifyDialogueExperience final : NotifyMessage
     static constexpr NotifyOpcode Opcode = kNotifyDialogueExperience;
     NotifyDialogueExperience() : NotifyMessage(Opcode) {}
 
-    void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
-    void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
+    void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
+    void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     float Experience{};
 };

@@ -4,31 +4,23 @@
 
 #include "CrashHandler.h"
 
-struct TiltedOnlineApp final : App
+// The plugin's lifetime: logging and the crash handler from SKSE's load, the world once the game runs.
+struct TiltedOnlineApp final
 {
     TiltedOnlineApp();
-    virtual ~TiltedOnlineApp();
+    ~TiltedOnlineApp();
 
     TiltedOnlineApp(TiltedOnlineApp&&) = delete;
     TiltedOnlineApp(const TiltedOnlineApp&) = delete;
     TiltedOnlineApp& operator=(TiltedOnlineApp&&) = delete;
     TiltedOnlineApp& operator=(const TiltedOnlineApp&) = delete;
 
-    [[nodiscard]] void* GetMainAddress() const override;
-
-    bool BeginMain() override;
-    bool EndMain() override;
-
-    void Update() override;
-
-    bool Attach() override;
-    bool Detach() override;
-
-    static void InstallHooks2();
-
-protected:
-    void InstallHooks();
-    void UninstallHooks();
+    // Every hook the plugin's files registered (Initializer), installed at SKSE's load.
+    static void InstallHooks();
+    // Creates the world (SKSE's load, after InstallHooks).
+    void Start();
+    // Every frame (the Papyrus VM's update hook).
+    void Update();
 
 private:
     void ApplyNvidiaFix() noexcept;

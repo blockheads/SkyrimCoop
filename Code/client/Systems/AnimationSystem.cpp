@@ -256,7 +256,7 @@ void AnimationSystem::AddAction(RemoteAnimationComponent& aAnimationComponent, c
 {
     auto& lastProcessedAction = aAnimationComponent.LastProcessedAction;
 
-    TiltedPhoques::ViewBuffer buffer((uint8_t*)acActionDiff.data(), acActionDiff.size());
+    Wire::ViewBuffer buffer((uint8_t*)acActionDiff.data(), acActionDiff.size());
     Buffer::Reader reader(&buffer);
 
     lastProcessedAction.ApplyDifferential(reader);
@@ -300,7 +300,7 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     auto latestAction = animationComponent.GetLatestAction();
 
     if (latestAction)
-        localComponent.CurrentAction = latestAction.MoveResult();
+        localComponent.CurrentAction = std::move(*latestAction);
 
     animationComponent.Actions.clear();
 }
@@ -318,7 +318,7 @@ bool AnimationSystem::Serialize(World& aWorld, const ActionEvent& aActionEvent, 
         return false;
 
     uint8_t scratch[1 << 14];
-    TiltedPhoques::ViewBuffer buffer(scratch, std::size(scratch));
+    Wire::ViewBuffer buffer(scratch, std::size(scratch));
     Buffer::Writer writer(&buffer);
     aActionEvent.GenerateDifferential(aLastProcessedAction, writer);
 
