@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Services/ImguiService.h>
 
 #include <Systems/RenderSystemD3D11.h>

@@ -1,5 +1,6 @@
 #include <imgui.h>
 #include <inttypes.h>
+#include <Services/DebugService.h>
 
 void DebugService::DrawDragonSpawnerView()
 {

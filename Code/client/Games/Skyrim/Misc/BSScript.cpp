@@ -1,6 +1,7 @@
 #include <Misc/BSScript.h>
 #include <Misc/GameVM.h>
 #include <Actor.h>
+#include <VersionDb.h>
 
 uint64_t BSScript::Object::GetHandle()
 {

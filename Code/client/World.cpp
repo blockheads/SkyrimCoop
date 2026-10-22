@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include "World.h"
 
 // SkyrimBridge is included here (not in World.h) to keep SKSE headers out of
@@ -27,10 +25,15 @@
 #include <Services/GuestService.h>
 #include <Services/MapService.h>
 #include <Services/HostService.h>
+#include <Services/SessionService.h>
+#include <Services/CharacterService.h>
+#include <Services/TravelService.h>
+#include <Services/DebugService.h>
 
 #include <Events/UpdateEvent.h>
 
 #include <ModCompat/BehaviorVar.h>  
+#include <Hooks/MemoryVP.h>
 
 namespace
 {
@@ -196,4 +199,64 @@ void World::Create() noexcept
 World& World::Get() noexcept
 {
     return entt::locator<World>::value();
+}
+
+SessionService& World::GetSessionService() noexcept
+{
+    return ctx().at<SessionService>();
+}
+
+const SessionService& World::GetSessionService() const noexcept
+{
+    return ctx().at<const SessionService>();
+}
+
+TravelService& World::GetTravelService() noexcept
+{
+    return ctx().at<TravelService>();
+}
+
+const TravelService& World::GetTravelService() const noexcept
+{
+    return ctx().at<const TravelService>();
+}
+
+CharacterService& World::GetCharacterService() noexcept
+{
+    return ctx().at<CharacterService>();
+}
+
+const CharacterService& World::GetCharacterService() const noexcept
+{
+    return ctx().at<const CharacterService>();
+}
+
+DebugService& World::GetDebugService() noexcept
+{
+    return ctx().at<DebugService>();
+}
+
+const DebugService& World::GetDebugService() const noexcept
+{
+    return ctx().at<const DebugService>();
+}
+
+MagicService& World::GetMagicService() noexcept
+{
+    return ctx().at<MagicService>();
+}
+
+const MagicService& World::GetMagicService() const noexcept
+{
+    return ctx().at<const MagicService>();
+}
+
+HostService& World::GetHostService() noexcept
+{
+    return ctx().at<HostService>();
+}
+
+const HostService& World::GetHostService() const noexcept
+{
+    return ctx().at<const HostService>();
 }

@@ -7,6 +7,7 @@
 #include <PlayerCharacter.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
+#include <World.h>
 
 void DebugService::DrawPlayerDebugView()
 {

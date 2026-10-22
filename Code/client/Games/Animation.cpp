@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include <Games/References.h>
@@ -19,6 +18,10 @@
 
 #include <World.h>
 #include <Systems/AnimationSystem.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <Utils.h>
+#include <VersionDb.h>
 
 using TPerformAction = uint8_t(ActorMediator*, TESActionData* apAction);
 static TPerformAction* RealPerformAction;

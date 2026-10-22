@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "InputTrace.h"
 #include "EngineCalls.h"
 
@@ -6,6 +5,7 @@
 #include <Games/Skyrim/BSInput/InputEvent.h>
 
 #include <chrono>
+#include <VersionDb.h>
 
 namespace TestHarness
 {

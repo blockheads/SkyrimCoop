@@ -1,4 +1,5 @@
 #include "BGSCreatedObjectManager.h"
+#include <VersionDb.h>
 
 BGSCreatedObjectManager* BGSCreatedObjectManager::Get() noexcept
 {

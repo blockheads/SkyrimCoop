@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Havok/AnimationGraphState.h>
 
 #include <BSAnimationGraphManager.h>
@@ -8,6 +6,7 @@
 #include <Misc/BSFixedString.h>
 
 #include <cstring>
+#include <VersionDb.h>
 
 namespace
 {

@@ -4,16 +4,6 @@
 
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
-#include <Services/SessionService.h>
-#include <Services/CharacterService.h>
-#include <Services/CharacterService.h>
-#include <Services/MagicService.h>
-#include <Services/HostService.h>
-#include <Services/TravelService.h>
-
-// DebugService requires SKSE types (Actor.h, ImGui, HWND) — only include when they are available.
-#include <Services/DebugService.h>
-
 #include <Systems/ModSystem.h>
 
 #include <Structs/ServerSettings.h>
@@ -25,6 +15,13 @@ class IFormBridge;
 class IPlayerBridge;
 class IWorldBridge;
 class SkyrimBridge;
+
+struct SessionService;
+struct TravelService;
+struct CharacterService;
+struct DebugService;
+struct MagicService;
+struct HostService;
 
 struct World : entt::registry
 {
@@ -49,18 +46,18 @@ struct World : entt::registry
     TransportService& GetTransport() noexcept;
     ModSystem& GetModSystem() noexcept;
 
-    SessionService& GetSessionService() noexcept { return ctx().at<SessionService>(); }
-    const SessionService& GetSessionService() const noexcept { return ctx().at<const SessionService>(); }
-    TravelService& GetTravelService() noexcept { return ctx().at<TravelService>(); }
-    const TravelService& GetTravelService() const noexcept { return ctx().at<const TravelService>(); }
-    CharacterService& GetCharacterService() noexcept { return ctx().at<CharacterService>(); }
-    const CharacterService& GetCharacterService() const noexcept { return ctx().at<const CharacterService>(); }
-    DebugService& GetDebugService() noexcept { return ctx().at<DebugService>(); }
-    const DebugService& GetDebugService() const noexcept { return ctx().at<const DebugService>(); }
-    MagicService& GetMagicService() noexcept { return ctx().at<MagicService>(); }
-    const MagicService& GetMagicService() const noexcept { return ctx().at<const MagicService>(); }
-    HostService& GetHostService() noexcept { return ctx().at<HostService>(); }
-    const HostService& GetHostService() const noexcept { return ctx().at<const HostService>(); }
+    SessionService& GetSessionService() noexcept;
+    const SessionService& GetSessionService() const noexcept;
+    TravelService& GetTravelService() noexcept;
+    const TravelService& GetTravelService() const noexcept;
+    CharacterService& GetCharacterService() noexcept;
+    const CharacterService& GetCharacterService() const noexcept;
+    DebugService& GetDebugService() noexcept;
+    const DebugService& GetDebugService() const noexcept;
+    MagicService& GetMagicService() noexcept;
+    const MagicService& GetMagicService() const noexcept;
+    HostService& GetHostService() noexcept;
+    const HostService& GetHostService() const noexcept;
 
     // Bridge accessors — interfaces injected into EnTT context by World.cpp
     IActorBridge& GetActorBridge() noexcept;

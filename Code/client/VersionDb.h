@@ -361,3 +361,5 @@ private:
     mutable void* m_pPtr;
     uint32_t m_id;
 };
+
+#define POINTER_SKYRIMSE(className, variableName, ...) static VersionDbPtr<className> variableName(__VA_ARGS__)

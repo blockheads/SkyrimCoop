@@ -1,5 +1,7 @@
 #pragma once
 
+#include <NoCopyMove.h>
+
 struct Mods;
 struct GameId;
 

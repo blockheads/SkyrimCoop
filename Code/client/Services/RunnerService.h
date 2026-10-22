@@ -1,6 +1,7 @@
 #pragma once
 
 #include <TaskQueue.h>
+#include <NoCopyMove.h>
 
 struct UpdateEvent;
 

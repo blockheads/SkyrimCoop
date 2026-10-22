@@ -7,6 +7,7 @@
 #include <World.h>
 
 #include <DefaultObjectManager.h>
+#include <RTTI.h>
 
 void DebugService::DrawContainerDebugView()
 {

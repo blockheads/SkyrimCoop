@@ -1,6 +1,7 @@
 #include "ExtraDataList.h"
 
 #include <Games/Overrides.h>
+#include <VersionDb.h>
 
 ExtraDataList* ExtraDataList::New() noexcept
 {

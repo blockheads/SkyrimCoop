@@ -5,6 +5,7 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/Rotator2_NetQuantize.h>
 #include <Structs/AnimationVariables.h>
+#include <Wire/Buffer.h>
 
 using Wire::Buffer;
 

@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include "LockOrder.h"
@@ -10,6 +9,9 @@
 #include <intrin.h>
 #include <mutex>
 #include <span>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 // BSReadWriteLock (1.6.1170): {uint32 writer thread id, uint32 lock word}. The word holds the
 // reader count, or 0x80000001 plus nested acquisitions while a thread writes. The writer may

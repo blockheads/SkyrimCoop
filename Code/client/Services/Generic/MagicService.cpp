@@ -20,6 +20,9 @@
 #include <Bridges/IFormBridge.h>
 
 #include <Games/Overrides.h>
+#include <Components/LocalComponent.h>
+#include <Utils.h>
+#include <Components/FormIdComponent.h>
 
 MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                            IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept

@@ -6,6 +6,7 @@
 #include <Messages/NotifyRemoveSpell.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
+#include <NoCopyMove.h>
 
 class IActorBridge;
 class IFormBridge;

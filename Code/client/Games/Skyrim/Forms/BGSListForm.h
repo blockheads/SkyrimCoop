@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TESForm.h"
+#include <Games/Primitives.h>
 
 struct BGSListForm : TESForm
 {

@@ -8,6 +8,9 @@
 #include <Games/ActorExtension.h>
 
 #include <World.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 using TSpellCast = void(ActorMagicCaster*, bool sbSuccess, int32_t auiTargetCount, MagicItem* apSpell);
 using TInterruptCast = void(ActorMagicCaster*, bool);

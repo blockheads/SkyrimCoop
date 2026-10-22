@@ -1,9 +1,9 @@
 
 #include <Plugin.h>
-#include <ClientPch.h>
-
 #include <windows.h>
 #include <shellapi.h>
+#include <Hooks/FunctionHook.h>
+#include <VersionDb.h>
 
 std::unique_ptr<Plugin> g_plugin{nullptr};
 

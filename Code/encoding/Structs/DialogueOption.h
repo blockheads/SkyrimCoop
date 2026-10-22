@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Structs/GameId.h>
+#include <Wire/Buffer.h>
 
 // One option of the host's list for a step (docs/design/shared-dialogue.md).
 struct DialogueOption

@@ -4,6 +4,7 @@
 
 #include <imgui.h>
 #include <inttypes.h>
+#include <World.h>
 
 void DebugService::DrawProcessView()
 {

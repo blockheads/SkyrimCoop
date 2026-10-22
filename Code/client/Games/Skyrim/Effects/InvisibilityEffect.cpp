@@ -4,6 +4,9 @@
 #include <Actor.h>
 #include <Games/ActorExtension.h>
 #include <Forms/ActorValueInfo.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 using TFinish = void(InvisibilityEffect*);
 static TFinish* RealFinish = nullptr;

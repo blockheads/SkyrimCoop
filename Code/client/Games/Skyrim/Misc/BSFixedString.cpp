@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Misc/BSFixedString.h>
+#include <VersionDb.h>
 
 BSFixedString::BSFixedString()
     : data{nullptr}

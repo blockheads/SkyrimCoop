@@ -1,5 +1,7 @@
 #pragma once
 
+#include <NoCopyMove.h>
+
 class IActorBridge;
 class IFormBridge;
 class IPlayerBridge;

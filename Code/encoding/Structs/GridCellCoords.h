@@ -2,6 +2,7 @@
 
 #include <Structs/Vector3_NetQuantize.h>
 #include <limits>
+#include <Wire/Buffer.h>
 
 using Wire::Buffer;
 

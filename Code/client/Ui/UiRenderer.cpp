@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Ui/UiRenderer.h>
 
 #include <RmlUi/Core/DecorationTypes.h>

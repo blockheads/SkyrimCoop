@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "EngineCalls.h"
 
 #include <AI/AIProcess.h>
@@ -52,6 +51,8 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 // The test harness's own engine calls (scripts/coop_test.py, through the harness's commands): staging, the
 // player's input, and what scenarios check. Nothing in the client uses them.

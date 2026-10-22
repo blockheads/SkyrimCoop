@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Camera/VATS.h>
+#include <VersionDb.h>
 
 VATS* VATS::Get() noexcept
 {

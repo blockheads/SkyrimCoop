@@ -5,6 +5,7 @@
 
 #include <Sky/Sky.h>
 #include <Forms/TESWeather.h>
+#include <RTTI.h>
 
 void DebugService::DrawWeatherView()
 {

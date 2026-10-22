@@ -4,6 +4,7 @@
 
 #include <Structs/ActionEvent.h>
 #include <Structs/ActorData.h>
+#include <Wire/Buffer.h>
 
 struct RequestRespawn final : RequestMessage
 {

@@ -7,6 +7,10 @@
 #include <Games/Overrides.h>
 #include <Events/EventDispatcher.h>
 #include <Forms/BGSBaseAlias.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <World.h>
+#include <VersionDb.h>
 
 TESObjectREFR* TESQuest::GetAliasedRef(uint32_t aAliasID) noexcept
 {

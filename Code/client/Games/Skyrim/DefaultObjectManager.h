@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Forms/TESForm.h>
+
 struct BGSAction;
 
 struct DefaultObjectManager

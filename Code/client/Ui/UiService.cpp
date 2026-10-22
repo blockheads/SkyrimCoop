@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Ui/UiService.h>
 #include <Ui/UiRenderer.h>
 #include <Ui/UiInput.h>

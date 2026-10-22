@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "Handoff.h"
 
 namespace CoopReload

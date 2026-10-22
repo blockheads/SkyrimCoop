@@ -24,6 +24,8 @@
 #include <inttypes.h>
 
 #include <ModCompat/BehaviorVar.h>
+#include <RTTI.h>
+#include <Utils.h>
 
 uint64_t DisplayGraphDescriptorKey(BSAnimationGraphManager* pManager) noexcept
 {

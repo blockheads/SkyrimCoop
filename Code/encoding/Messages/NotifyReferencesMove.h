@@ -2,6 +2,7 @@
 
 #include "Message.h"
 #include <Structs/ReferenceUpdate.h>
+#include <Wire/Buffer.h>
 
 struct NotifyReferencesMove final : NotifyMessage
 {

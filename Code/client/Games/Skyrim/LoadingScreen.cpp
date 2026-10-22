@@ -1,5 +1,7 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
+#include <Hooks/FunctionHook.h>
 
 struct ScaleFormValue
 {

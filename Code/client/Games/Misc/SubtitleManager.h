@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Misc/BSString.h>
+#include <Forms/TESTopicInfo.h>
+#include <Games/Primitives.h>
 
 struct TESObjectREFR;
 

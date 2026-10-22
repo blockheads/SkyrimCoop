@@ -1,13 +1,16 @@
 #pragma once
 
 #include <NetImmerse/NiPointer.h>
+#include <Actor.h>
+#include <Games/Primitives.h>
 
 struct CombatTargetSelector;
+struct TESCombatStyle;
+struct CombatAreaStandard;
 struct CombatGroup;
 struct CombatState;
 struct CombatInventory;
 struct CombatAimController;
-struct CombatTargetSelector;
 
 struct CombatController
 {

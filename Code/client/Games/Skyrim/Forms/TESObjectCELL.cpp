@@ -1,5 +1,6 @@
 #include <Forms/TESObjectCELL.h>
 #include <TESObjectREFR.h>
+#include <VersionDb.h>
 
 std::vector<TESObjectREFR*> TESObjectCELL::GetRefsByFormTypes(const std::vector<FormType>& aFormTypes) const noexcept
 {

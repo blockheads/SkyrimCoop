@@ -1,4 +1,7 @@
 #include "AIProcess.h"
+#include <Actor.h>
+#include <Games/Primitives.h>
+#include <VersionDb.h>
 
 void AIProcess::KnockExplosion(Actor* apActor, const NiPoint3* aSourceLocation, float afMagnitude)
 {

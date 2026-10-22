@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Interface/MenuCursor.h>
+#include <VersionDb.h>
 
 MenuCursor* MenuCursor::Get() noexcept
 {

@@ -6,6 +6,7 @@
 #include <TESObjectREFR.h>
 
 #include <algorithm>
+#include <RTTI.h>
 
 std::optional<ObjectChange> ReadContainerItems(const ModSystem& acMods, uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {

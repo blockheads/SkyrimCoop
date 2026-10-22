@@ -1,6 +1,7 @@
 #pragma once
 
 #include <network/ENetInterface.h>
+#include <NoCopyMove.h>
 
 struct HostAuthority;
 struct HostPlayers;

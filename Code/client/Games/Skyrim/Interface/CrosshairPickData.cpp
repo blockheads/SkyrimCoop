@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Interface/CrosshairPickData.h>
+#include <VersionDb.h>
 
 CrosshairPickData* CrosshairPickData::Get() noexcept
 {

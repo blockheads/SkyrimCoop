@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Games/Magic/MagicSystem.h>
+#include <Games/Primitives.h>
 
 struct Actor;
 struct TESObjectREFR;

@@ -3,6 +3,7 @@
 #include <Structs/AnimationGraphDescriptorManager.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
 #include <Structs/Skyrim/AnimationGraphDescriptor_BHR_Master.h>
+#include <BSAnimationGraphManager.h>
 
 struct BehaviorVar
 {

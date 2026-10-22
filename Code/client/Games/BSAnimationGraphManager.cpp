@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <BSAnimationGraphManager.h>
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/BShkbHkxDB.h>

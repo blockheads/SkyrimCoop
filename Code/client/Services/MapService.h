@@ -1,5 +1,7 @@
 #pragma once
 
+#include <NoCopyMove.h>
+
 struct World;
 struct TransportService;
 

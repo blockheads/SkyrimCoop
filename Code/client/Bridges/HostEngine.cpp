@@ -26,6 +26,7 @@
 #include <iterator>
 #include <mutex>
 #include <utility>
+#include <RTTI.h>
 
 static_assert(QuestState::kFlags == (TESQuest::Enabled | TESQuest::Completed | TESQuest::Failed | TESQuest::StageWait));
 

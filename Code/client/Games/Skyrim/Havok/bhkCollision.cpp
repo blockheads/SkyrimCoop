@@ -1,9 +1,9 @@
-#include <ClientPch.h>
-
 #include <Havok/bhkCollision.h>
 
 #include <NetImmerse/NiAVObject.h>
 #include <NetImmerse/NiNode.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 void HoldBodies(NiAVObject& aRoot) noexcept
 {

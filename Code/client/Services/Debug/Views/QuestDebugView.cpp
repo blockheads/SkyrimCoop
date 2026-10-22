@@ -9,6 +9,9 @@
 #include <Events/MoveActorEvent.h>
 
 #include <imgui.h>
+#include <RTTI.h>
+#include <World.h>
+#include <Services/HostService.h>
 
 void DebugService::DrawQuestDebugView()
 {

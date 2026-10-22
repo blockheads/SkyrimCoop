@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <NoCopyMove.h>
 
 struct World;
 struct ConnectedEvent;

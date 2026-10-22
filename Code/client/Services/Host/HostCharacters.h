@@ -5,6 +5,7 @@
 #include <Messages/NotifyPartyTravel.h>
 
 #include <optional>
+#include <NoCopyMove.h>
 
 struct HostAuthority;
 struct HostGame;

@@ -2,6 +2,10 @@
 // The game calls it statsmenu.
 #include <Interface/Menus/SkillsMenu.h>
 #include <HookSwitch.h>
+#include <Hooks/Initializer.h>
+#include <Interface/IMenu.h>
+#include <VersionDb.h>
+#include <Hooks/Memory.h>
 
 static Hooks::Initializer s_skillsMenuInit(
     []()

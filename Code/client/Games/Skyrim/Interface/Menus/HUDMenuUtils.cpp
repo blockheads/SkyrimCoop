@@ -2,6 +2,8 @@
 #include <Games/Skyrim/Interface/Menus/HUDMenuUtils.h>
 #include <HookSwitch.h>
 #include <Games/Skyrim/NetImmerse/NiCamera.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace HUDMenuUtils
 {

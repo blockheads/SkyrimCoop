@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <DefaultObjectManager.h>
+#include <VersionDb.h>
 
 DefaultObjectManager& DefaultObjectManager::Get()
 {

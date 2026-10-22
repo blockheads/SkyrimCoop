@@ -1,6 +1,9 @@
 #include <Services/Guest/GuestClock.h>
 #include <HookSwitch.h>
 #include <TimeManager.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 TimeData* TimeData::Get() noexcept
 {

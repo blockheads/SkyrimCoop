@@ -1,5 +1,8 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
+#include <Games/Primitives.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 // Engine bug fix: a cell change in the middle of a frame (coc, a teleport out of an interior) can
 // crash the renderer on the cell's freed portals (docs/re/crashes/2026-10-11-qasmoke-exit-portal-graph.md).

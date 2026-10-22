@@ -12,6 +12,10 @@
 #include <World.h>
 #include <imgui.h>
 #include <inttypes.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <RTTI.h>
 
 void DebugService::DrawEntitiesView()
 {

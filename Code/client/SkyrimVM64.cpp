@@ -1,9 +1,11 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 #include "Plugin.h"
 #include "CrashHandler.h"
 #if COOP_TEST_HARNESS
 #include "TestHarness/TestHarness.h"
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 #endif
 
 extern std::unique_ptr<Plugin> g_plugin;

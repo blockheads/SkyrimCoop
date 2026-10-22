@@ -1,4 +1,5 @@
 #include "ActorState.h"
+#include <VersionDb.h>
 
 bool ActorState::SetWeaponDrawn(bool aDraw) noexcept
 {

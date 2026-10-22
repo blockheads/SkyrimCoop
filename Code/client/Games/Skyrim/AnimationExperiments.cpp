@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 thread_local const char* g_animErrorCode = "";
 
 #include <Games/Animation/TESActionData.h>
@@ -23,6 +21,8 @@ thread_local const char* g_animErrorCode = "";
 #include <Havok/hkEventType.h>
 #include <Havok/hkbGenerator.h>
 #include <Havok/BShkbHkxDB.h>
+#include <Utils.h>
+#include <VersionDb.h>
 
 #pragma optimize("", off)
 

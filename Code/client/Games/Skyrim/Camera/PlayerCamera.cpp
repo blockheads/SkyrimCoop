@@ -1,8 +1,7 @@
 
 #include <Camera/PlayerCamera.h>
 #include <NetImmerse/NiCamera.h>
-#include <ClientPch.h>
-
+#include <VersionDb.h>
 PlayerCamera* PlayerCamera::Get() noexcept
 {
     POINTER_SKYRIMSE(PlayerCamera*, s_instance, 400802);

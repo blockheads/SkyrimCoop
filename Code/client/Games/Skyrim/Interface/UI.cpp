@@ -2,9 +2,11 @@
 #include <HookSwitch.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <Misc/BSFixedString.h>
-#include <ClientPch.h>
-
 #include <World.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
+#include <Hooks/Memory.h>
+#include <Hooks/FunctionHook.h>
 
 static bool g_RequestUnpauseAll{false};
 

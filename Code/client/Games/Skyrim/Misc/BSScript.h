@@ -4,6 +4,8 @@
 #include <Games/Skyrim/BSCore/BSTHashMap.h>
 #include <Misc/BSFixedString.h>
 #include <tuple>
+#include <VersionDb.h>
+#include <Games/Primitives.h>
 
 struct Actor;
 

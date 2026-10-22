@@ -5,6 +5,7 @@
 #include <network/Packet.h>
 
 #include <spdlog/spdlog.h>
+#include <Wire/ViewBuffer.h>
 
 namespace
 {

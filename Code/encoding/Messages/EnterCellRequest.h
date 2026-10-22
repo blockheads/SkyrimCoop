@@ -5,6 +5,7 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/ActionEvent.h>
 #include <Structs/ActorData.h>
+#include <Wire/Buffer.h>
 
 // A player's game arrived somewhere new (a door, coc, fast travel): its copies of everyone else
 // went with the old cell. The host sends it what is there and tells those there about it

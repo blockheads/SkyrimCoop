@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 #include "Commands.h"
 
@@ -8,6 +7,9 @@
 #include <array>
 #include <mutex>
 #include <vector>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 // Spikes (docs/research/player-events.md) kept for measuring: forwarding a story event, and probes on the
 // engine functions that read the player. The script-engine spikes became Games/Skyrim/Papyrus/GuestScripts.cpp.

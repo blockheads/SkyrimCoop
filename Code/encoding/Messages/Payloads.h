@@ -6,6 +6,7 @@
 
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
+#include <Wire/Buffer.h>
 
 namespace Payloads
 {

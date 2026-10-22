@@ -4,6 +4,7 @@
 #include <Structs/ServerSettings.h>
 
 #include <optional>
+#include <NoCopyMove.h>
 
 struct AuthenticationRequest;
 struct HostAuthority;

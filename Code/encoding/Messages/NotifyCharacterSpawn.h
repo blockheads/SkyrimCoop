@@ -9,6 +9,7 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/Rotator2_NetQuantize.h>
 #include <Structs/ActorValues.h>
+#include <Wire/Buffer.h>
 
 struct AssignCharacterRequest;
 

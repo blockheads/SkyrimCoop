@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Games/ActorExtension.h>
 
 bool ActorExtension::IsCopy() const noexcept

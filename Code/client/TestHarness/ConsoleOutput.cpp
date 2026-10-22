@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "ConsoleOutput.h"
 
 #include <Games/Skyrim/Forms/Script.h>
@@ -7,6 +6,10 @@
 
 #include <deque>
 #include <map>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 namespace TestHarness::ConsoleOutput
 {

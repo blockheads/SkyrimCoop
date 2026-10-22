@@ -1,5 +1,7 @@
 #pragma once
 
+#include <NoCopyMove.h>
+
 struct NotifyTimeScale;
 struct TimeScaleEvent;
 struct DisconnectedEvent;

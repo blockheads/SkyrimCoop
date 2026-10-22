@@ -1,5 +1,8 @@
 #pragma once
 
+#include <NoCopyMove.h>
+#include <TESObjectREFR.h>
+
 template <class T> struct ScopedOverride
 {
     ScopedOverride() { s_refCount++; }

@@ -6,6 +6,7 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
+#include <Wire/Buffer.h>
 
 struct AssignCharacterResponse final : NotifyMessage
 {

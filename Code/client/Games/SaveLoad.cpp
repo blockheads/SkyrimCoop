@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include <SaveLoad.h>
@@ -10,6 +9,10 @@
 
 #include <Wire/Serialization.h>
 #include <Wire/Buffer.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <Wire/ViewBuffer.h>
+#include <VersionDb.h>
 
 using Wire::Serialization;
 using Wire::ViewBuffer;
@@ -54,7 +57,7 @@ void BGSSaveFormBuffer::WriteId(uint32_t aId) noexcept
     constexpr uint32_t cMaxVarInts = 20; // two var ints of up to 10 bytes
     Reserve(position + cMaxVarInts);
     ViewBuffer view(reinterpret_cast<uint8_t*>(buffer + position), capacity - position);
-    Buffer::Writer writer(&view);
+    Wire::Buffer::Writer writer(&view);
     Serialization::WriteVarInt(writer, modId);
     Serialization::WriteVarInt(writer, baseId);
     position += writer.Size() & 0xFFFFFFFF;

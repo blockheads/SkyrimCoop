@@ -3,6 +3,7 @@
 #include <Structs/GameId.h>
 
 #include <optional>
+#include <NoCopyMove.h>
 
 struct UpdateEvent;
 struct NotifyWeatherChange;

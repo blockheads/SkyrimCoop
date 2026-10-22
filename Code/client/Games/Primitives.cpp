@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Games/Primitives.h>
+#include <VersionDb.h>
 
 void NiRefObject::IncRef()
 {

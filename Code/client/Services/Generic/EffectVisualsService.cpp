@@ -6,6 +6,10 @@
 #include <Messages/NotifyActiveEffects.h>
 #include <Messages/RequestActiveEffects.h>
 #include <World.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Utils.h>
+#include <Components/FormIdComponent.h>
 
 namespace
 {

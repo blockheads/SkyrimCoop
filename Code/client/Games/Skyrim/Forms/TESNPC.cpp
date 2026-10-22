@@ -1,7 +1,10 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include <Forms/TESNPC.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <VersionDb.h>
+#include <Hooks/FunctionHook.h>
 
 using TSetLeveledNpc = TESNPC*(TESNPC*, TESNPC*);
 static TSetLeveledNpc* RealSetLeveledNpc = nullptr;

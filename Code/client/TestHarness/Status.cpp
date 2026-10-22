@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "Status.h"
 #include "EngineCalls.h"
 #include "Harness.h"
@@ -15,6 +14,7 @@
 #include <Services/HostService.h>
 #include <Ui/UiService.h>
 #include <Games/Skyrim/BSCore/LockOrder.h>
+#include <BuildVersion.h>
 
 namespace TestHarness
 {

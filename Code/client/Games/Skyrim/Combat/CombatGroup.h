@@ -3,6 +3,9 @@
 #include <AI/AITimer.h>
 #include <Games/Misc/BGSWorldLocation.h>
 
+struct CombatGroupDetectionListener;
+struct BSPathingLOSGridMap;
+
 struct CombatTarget
 {
     enum FLAGS : int16_t

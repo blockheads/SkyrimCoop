@@ -3,6 +3,9 @@
 #include <Games/Skyrim/BSInput/InputEvent.h>
 
 #include <Ui/UiInput.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 struct BSInputDeviceManager;
 

@@ -4,10 +4,7 @@
 #include <optional>
 #include <source_location>
 #include <string_view>
-#include "VersionDb.h"
-#include "World.h"
-
-#define POINTER_SKYRIMSE(className, variableName, ...) static VersionDbPtr<className> variableName(__VA_ARGS__)
+#include <RTTI.h>
 
 struct TESForm;
 
@@ -36,63 +33,16 @@ inline void Assert(bool aCondition, std::string_view aMessage, std::source_locat
 
 std::optional<uint32_t> GetSessionId(entt::entity aEntity) noexcept;
 
-/// Returns the local formId for a given server-side actor id.
-/// Does ECS-only lookup — no SKSE types or TESForm::GetById.
-/// Returns 0 if not found.
-inline uint32_t GetFormIdBySessionId(const uint32_t acSessionId) noexcept
+// The local form id of the actor with this session id; 0 if none.
+uint32_t GetFormIdBySessionId(uint32_t aSessionId) noexcept;
+// The session id of the actor with this local form id, if the mod tracks it.
+std::optional<uint32_t> GetSessionIdByFormId(uint32_t aFormId) noexcept;
+TESForm* GetFormBySessionId(uint32_t aSessionId) noexcept;
+
+template <class T> T* GetBySessionId(uint32_t aSessionId) noexcept
 {
-    auto view = World::Get().view<FormIdComponent>();
-    for (entt::entity entity : view)
-    {
-        std::optional<uint32_t> sessionIdRes = GetSessionId(entity);
-        if (!sessionIdRes.has_value() || sessionIdRes.value() != acSessionId)
-            continue;
-        return view.get<FormIdComponent>(entity).Id;
-    }
-    spdlog::debug("GetFormIdBySessionId: form not found for session id {:X}", acSessionId);
-    return 0;
-}
-
-/// The session id of the actor with this local formId, if the mod tracks it.
-inline std::optional<uint32_t> GetSessionIdByFormId(const uint32_t acFormId) noexcept
-{
-    if (!acFormId)
-        return std::nullopt;
-    auto view = World::Get().view<FormIdComponent>();
-    for (entt::entity entity : view)
-        if (view.get<FormIdComponent>(entity).Id == acFormId)
-            return GetSessionId(entity);
-    return std::nullopt;
-}
-
-// GetBySessionId<T> requires the full TESForm type (TESForm::GetById) and RTTI Cast<T>.
-// Only available when Games/Skyrim SKSE types are compiled in (i.e. HAS_DIRECTXTK builds).
-template <class T> T* GetBySessionId(const uint32_t acSessionId) noexcept
-{
-    auto view = World::Get().view<FormIdComponent>();
-
-    for (entt::entity entity : view)
-    {
-        std::optional<uint32_t> sessionIdRes = GetSessionId(entity);
-        if (!sessionIdRes.has_value())
-            continue;
-
-        uint32_t sessionId = sessionIdRes.value();
-
-        if (sessionId == acSessionId)
-        {
-            const auto& formIdComponent = view.get<FormIdComponent>(entity);
-            TESForm* pForm = TESForm::GetById(formIdComponent.Id);
-
-            if (pForm != nullptr)
-            {
-                return Cast<T>(pForm);
-            }
-        }
-    }
-
-    spdlog::debug("{}: form not found for session id {:X}", __FUNCTION__, acSessionId);
-    return nullptr;
+    TESForm* pForm = GetFormBySessionId(aSessionId);
+    return pForm ? Cast<T>(pForm) : nullptr;
 }
 
 void ShowHudMessage(const std::string& acMessage);

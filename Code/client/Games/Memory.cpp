@@ -1,9 +1,11 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 #include <HeapHistory.h>
 
 #include <Games/Memory.h>
 #include <Games/References.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 #pragma optimize("", off)
 

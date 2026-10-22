@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Components/TESTexture.h>
+#include <VersionDb.h>
 
 void TESTexture::Construct()
 {

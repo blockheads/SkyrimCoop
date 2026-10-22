@@ -1,6 +1,10 @@
 #pragma once
 
 #include <Actor.h>
+#include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Components/RemoteComponent.h>
+#include <NoCopyMove.h>
 
 struct World;
 struct ImguiService;

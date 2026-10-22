@@ -6,6 +6,8 @@
 
 #include <atomic>
 #include <network/Client.h>
+#include <Messages/Message.h>
+#include <NoCopyMove.h>
 
 struct ImguiService;
 struct UpdateEvent;

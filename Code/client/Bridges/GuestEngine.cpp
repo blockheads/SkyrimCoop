@@ -24,6 +24,7 @@
 #include <Actor.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
+#include <RTTI.h>
 
 
 namespace

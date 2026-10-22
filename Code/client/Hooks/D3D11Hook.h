@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Hooks/Signal.h>
+#include <NoCopyMove.h>
 
 struct IDXGISwapChain;
 

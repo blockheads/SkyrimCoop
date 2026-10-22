@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <DefaultStringManager.h>
+#include <VersionDb.h>
 
 DefaultStringManager& DefaultStringManager::Get()
 {

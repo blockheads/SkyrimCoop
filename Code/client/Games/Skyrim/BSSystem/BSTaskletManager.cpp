@@ -1,6 +1,9 @@
 
 #include <base/threading/ThreadUtils.h>
 #include <HookSwitch.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
+#include <Hooks/Memory.h>
 
 namespace
 {

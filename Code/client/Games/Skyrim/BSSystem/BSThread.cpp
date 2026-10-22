@@ -2,6 +2,9 @@
 #include <Games/Skyrim/BSSystem/BSThread.h>
 #include <HookSwitch.h>
 #include <base/threading/ThreadUtils.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace
 {

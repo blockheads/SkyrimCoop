@@ -12,6 +12,8 @@
 #include <Games/Skyrim/NetImmerse/NiCamera.h>
 #include <Games/Skyrim/TESObjectREFR.h>
 #include <NetImmerse/NiCamera.h>
+#include <RTTI.h>
+#include <Utils.h>
 
 namespace
 {

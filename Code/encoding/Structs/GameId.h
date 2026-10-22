@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Buffer.h>
+
 using Wire::Buffer;
 
 struct GameId

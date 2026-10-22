@@ -1,9 +1,10 @@
-#include <ClientPch.h>
-
 #include <BSTimer.h>
 #include <Events/TimeScaleEvent.h>
 #include <HookSwitch.h>
 #include <World.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 using TSetGlobalTimeMultiplier = void(BSTimer*, float aMultiplier, bool aArg2);
 static TSetGlobalTimeMultiplier* RealSetGlobalTimeMultiplier = nullptr;

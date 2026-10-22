@@ -1,4 +1,5 @@
 #include "RTTI.h"
+#include <VersionDb.h>
 
 const VersionDbPtr<internal::TDynamicCast> internal::DynamicCast(109689);
 

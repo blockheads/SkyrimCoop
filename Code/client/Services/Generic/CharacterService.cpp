@@ -55,6 +55,9 @@
 #include <Systems/FaceGenSystem.h>
 
 #include <World.h>
+#include <Utils.h>
+#include <Services/HostService.h>
+#include <Camera/TESCamera.h>
 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept

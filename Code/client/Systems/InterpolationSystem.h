@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Components/InterpolationComponent.h>
+
 struct World;
 
 /**

@@ -1,4 +1,6 @@
 #include "TESWorldSpace.h"
+#include <Forms/TESObjectCELL.h>
+#include <VersionDb.h>
 
 TESObjectCELL* TESWorldSpace::LoadCell(int32_t aXCoordinate, int32_t aYCoordinate) noexcept
 {

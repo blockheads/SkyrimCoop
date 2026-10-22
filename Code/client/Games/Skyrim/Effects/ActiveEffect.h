@@ -1,6 +1,10 @@
 #pragma once
 
 #include <Games/Magic/MagicSystem.h>
+#include <Actor.h>
+#include <Forms/MagicItem.h>
+#include <Forms/TESBoundObject.h>
+#include <NetImmerse/NiNode.h>
 
 struct MagicTarget;
 struct EffectItem;

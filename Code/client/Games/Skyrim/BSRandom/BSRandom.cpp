@@ -1,6 +1,8 @@
 
 #include <Games/Skyrim/BSRandom/BSRandom.h>
 #include <HookSwitch.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace BSRandom
 {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Structs/Vector3_NetQuantize.h>
+
 /**
  * @brief Dispatched whenever the player sets a waypoint
  */

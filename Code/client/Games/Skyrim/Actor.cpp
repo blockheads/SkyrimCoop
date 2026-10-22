@@ -60,54 +60,11 @@
 
 #include <ModCompat/BehaviorVar.h>
 
-#ifdef SAVE_STUFF
-
-#include <Games/Skyrim/SaveLoad.h>
-#include "Actor.h"
-
-void Actor::Save_Reversed(const uint32_t aChangeFlags, Buffer::Writer& aWriter)
-{
-    BGSSaveFormBuffer buffer;
-
-    Save(&buffer);
-
-    AIProcess* pProcess = currentProcess;
-    const int32_t handlerId = pProcess != nullptr ? pProcess->handlerId : -1;
-
-    aWriter.WriteBytes((uint8_t*)&handlerId, 4); // TODO: is this needed ?
-    aWriter.WriteBytes((uint8_t*)&flags1, 4);
-
-    //     if (!handlerId
-    //         && (uint8_t)AIProcess::GetBoolInSubStructure(pProcess))
-    //     {
-    //         Actor::SaveSkinFar(this);
-    //     }
-
-    TESObjectREFR::Save_Reversed(aChangeFlags, aWriter);
-
-    if (pProcess)
-        ; // Skyrim saves the process manager state, but we don't give a shit so skip !
-
-    aWriter.WriteBytes((uint8_t*)&soundCallBackSet, 4);
-    aWriter.WriteBytes((uint8_t*)&headTrackingUpdateDelay, 4);
-    aWriter.WriteBytes((uint8_t*)&unk9C, 4);
-    // We skip 0x180 as it's not something we care about, some timer related data
-
-    aWriter.WriteBytes((uint8_t*)&unk98, 4);
-    // skip A8 - related to timers
-    // skip AC - related to timers as well
-    aWriter.WriteBytes((uint8_t*)&unkB0, 4);
-    // skip E4 - never seen this used
-    // skip E8 - same as E4
-    aWriter.WriteBytes((uint8_t*)&unk84, 4);
-    aWriter.WriteBytes((uint8_t*)&unkA4, 4);
-    // skip baseForm->weight
-    // skip 12C
-
-    // Save actor state sub_6F0FB0
-}
-
-#endif
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <Utils.h>
+#include <VersionDb.h>
 
 using TRemoveSpell = bool(Actor*, MagicItem*);
 using TCharacterConstructor = Actor*(Actor*);

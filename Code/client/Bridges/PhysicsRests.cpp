@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 
 #include <mutex>
+#include <RTTI.h>
 
 namespace
 {

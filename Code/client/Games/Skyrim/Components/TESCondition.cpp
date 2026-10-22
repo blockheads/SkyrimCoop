@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Components/TESCondition.h>
+#include <VersionDb.h>
 
 bool TESConditionItem::IsTrue(ConditionCheckParams& aParams) const noexcept
 {

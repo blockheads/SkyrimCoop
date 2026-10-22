@@ -220,6 +220,15 @@ release-branch flag `IS_MASTER` (`BranchInfo.h`); the CRT heap swap and the Engi
 and the components' include guard is gone. 11 scenarios pass on a fresh duo (sessions, time, combat,
 magic, chat).
 
+Includes (2026-10-22): `ClientPch.h`, forced into every client file, held our own often edited headers
+(`Utils.h` → `World.h` → every service, `Components.h`), so editing any of them rebuilt all 201 client files.
+It now holds third-party, standard and rarely edited headers of ours (`RTTI.h`, `Primitives.h`, `VersionDb.h`,
+`Wire`, `Hooks`); files include the rest themselves. `World.h` forward-declares the services it hands out,
+`Utils.h` no longer includes `World.h` (its session-id lookups are in `Utils.cpp`), `POINTER_SKYRIMSE` lives in
+`VersionDb.h`. Builds (DLL, `-j8`, duo running), before → after: full 33 s → 26 s, one `.cpp` 2.8 s → 2.5 s,
+a component header 20.5 s → 7.2 s, a service header 21.8 s → 4.7 s, `Actor.h` 22 s → 6.7 s. Also deleted:
+upstream's `SAVE_STUFF` blocks and `Save_Reversed` (never compiled).
+
 ## Sync by system
 
 Each verified system has a two-game scenario (`scripts/coop_test.py scenario <name>`).

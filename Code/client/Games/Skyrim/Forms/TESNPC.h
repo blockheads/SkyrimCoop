@@ -4,6 +4,7 @@
 
 #include <Components/TESRaceForm.h>
 #include <Components/BGSOverridePackCollection.h>
+#include <Games/Primitives.h>
 
 struct BGSColorForm;
 struct BGSTextureSet;

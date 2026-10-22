@@ -3,6 +3,7 @@
 #include <Forms/TESForm.h>
 
 #include <Components/TESFullName.h>
+#include <Forms/TESObjectCELL.h>
 
 struct TESWorldSpace : TESForm
 {

@@ -18,6 +18,13 @@
 #include <Bridges/IFormBridge.h>
 #include <Games/Overrides.h>
 #include <set>
+#include <Components/LocalComponent.h>
+#include <Components/LocalWeaponDrawComponent.h>
+#include <Components/RemoteAnimationComponent.h>
+#include <Components/RemoteComponent.h>
+#include <Components/RemoteWeaponDrawComponent.h>
+#include <Utils.h>
+#include <Components/FormIdComponent.h>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                     IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept

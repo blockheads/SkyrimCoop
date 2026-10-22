@@ -3,6 +3,7 @@
 #include "Message.h"
 
 #include <Structs/GameId.h>
+#include <Wire/Buffer.h>
 
 struct NotifyPlayerJoined final : NotifyMessage
 {

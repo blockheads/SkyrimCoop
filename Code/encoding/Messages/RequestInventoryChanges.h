@@ -2,6 +2,7 @@
 
 #include "Message.h"
 #include <Structs/Inventory.h>
+#include <Wire/Buffer.h>
 
 struct RequestInventoryChanges final : RequestMessage
 {

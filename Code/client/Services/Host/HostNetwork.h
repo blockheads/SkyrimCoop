@@ -3,6 +3,7 @@
 #include <network/Server.h>
 
 #include <functional>
+#include <NoCopyMove.h>
 
 struct RequestMessage;
 struct NotifyMessage;

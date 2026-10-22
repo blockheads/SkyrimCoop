@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Services/RunnerService.h>
 
 #include <Events/UpdateEvent.h>

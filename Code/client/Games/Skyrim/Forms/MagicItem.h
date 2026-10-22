@@ -6,6 +6,7 @@
 #include <Magic/EffectItem.h>
 #include <Components/BGSKeywordForm.h>
 #include <Components/TESFullName.h>
+#include <Games/Primitives.h>
 
 struct MagicItem : TESBoundObject
 {

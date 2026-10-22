@@ -28,6 +28,10 @@
 #include <Interface/UI.h>
 
 #include <ModCompat/BehaviorVar.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 int32_t PlayerCharacter::LastUsedCombatSkill = -1;
 

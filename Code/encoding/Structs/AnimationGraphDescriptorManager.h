@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Structs/AnimationGraphDescriptor.h>
+#include <NoCopyMove.h>
 
 struct AnimationGraphDescriptorManager
 {

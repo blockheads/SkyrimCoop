@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <spdlog/spdlog.h>
+#include <NoCopyMove.h>
 
 struct World;
 struct UpdateEvent;

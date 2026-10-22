@@ -3,6 +3,8 @@
 #include <Forms/ActorValueInfo.h>
 
 #include <imgui.h>
+#include <RTTI.h>
+#include <Utils.h>
 
 void DebugService::DrawActorValuesView()
 {

@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include <EquipManager.h>
@@ -13,6 +12,9 @@
 #include <AI/AIProcess.h>
 #include <Games/Skyrim/Misc/MiddleProcess.h>
 #include <DefaultObjectManager.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 struct BGSEquipSlot : TESForm
 {

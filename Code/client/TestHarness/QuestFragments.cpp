@@ -1,9 +1,11 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 #include "Commands.h"
 
 #include <map>
 #include <mutex>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 // Counts the quest stage fragments the Papyrus VM is about to run, per quest: the VM's TESQuestStageEvent
 // sink (53987) looks each up (53429) before it runs one, and skips the lookup for a stage a guest applied

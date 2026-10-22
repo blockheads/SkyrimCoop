@@ -1,11 +1,12 @@
-#include <ClientPch.h>
-
 #include <ExtraData/ExtraContainerChanges.h>
 
 #include <HookSwitch.h>
 #include <TESObjectREFR.h>
 
 #include <atomic>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace
 {

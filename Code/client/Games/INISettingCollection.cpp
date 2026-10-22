@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Games/TES.h>
+#include <VersionDb.h>
 
 INISettingCollection* INISettingCollection::Get() noexcept
 {

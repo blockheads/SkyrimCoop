@@ -1,6 +1,7 @@
 #pragma once
 
 #include <imgui/ImGuiDriver.h>
+#include <NoCopyMove.h>
 
 struct RenderSystemD3D9;
 struct RenderSystemD3D11;

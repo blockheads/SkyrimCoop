@@ -9,6 +9,9 @@
 #include <Combat/CombatInventory.h>
 
 #include <math.h>
+#include <Forms/BGSEncounterZone.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 namespace
 {

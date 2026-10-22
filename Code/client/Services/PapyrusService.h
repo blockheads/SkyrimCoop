@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Misc/GameVM.h>
+#include <NoCopyMove.h>
 
 struct TESForm;
 struct TESObjectREFR;

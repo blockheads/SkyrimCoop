@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Forms/TESBoundObject.h>
+#include <Games/Primitives.h>
+
 struct NEW_REFR_DATA;
 struct TESObjectCELL;
 struct TESWorldSpace;

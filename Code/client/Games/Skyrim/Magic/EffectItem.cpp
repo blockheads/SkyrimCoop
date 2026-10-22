@@ -2,6 +2,8 @@
 
 #include <Games/Magic/MagicSystem.h>
 #include <Forms/EffectSetting.h>
+#include <RTTI.h>
+#include <Utils.h>
 
 bool EffectItem::IsHealingEffect() const noexcept
 {

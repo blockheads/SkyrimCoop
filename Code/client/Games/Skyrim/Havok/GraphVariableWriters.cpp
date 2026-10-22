@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Havok/GraphVariableWriters.h>
 
 #include <Havok/BShkbAnimationGraph.h>
@@ -7,6 +5,7 @@
 #include <Havok/hkbNode.h>
 
 #include <cstring>
+#include <VersionDb.h>
 
 hkbNodeIterator::hkbNodeIterator(uint32_t aFlags, hkbNode* apRoot) noexcept
 {

@@ -18,6 +18,7 @@
 
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
+#include <Services/HostService.h>
 
 // ActorValueInfo::kHealth = 24 (Skyrim SE enum value)
 static constexpr int32_t kHealthActorValue = 24;

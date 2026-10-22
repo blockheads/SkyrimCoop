@@ -19,6 +19,10 @@
 #include <Effects/ActiveEffect.h>
 #include <Papyrus/GuestScripts.h>
 #include <Services/HostService.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 using TAddTarget = bool(MagicTarget*, MagicTarget::AddTargetData& arData);
 using TCheckAddEffectTargetData = bool(MagicTarget::AddTargetData*, void* arArgs, float afResistance);

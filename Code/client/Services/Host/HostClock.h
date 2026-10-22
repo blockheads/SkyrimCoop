@@ -4,6 +4,7 @@
 #include <network/ENetInterface.h>
 
 #include <optional>
+#include <NoCopyMove.h>
 
 struct HostAuthority;
 struct HostGame;

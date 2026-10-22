@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <Games/Memory.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
@@ -62,50 +61,12 @@ static TRotate* RealRotateY = nullptr;
 static TRotate* RealRotateZ = nullptr;
 static TLockChange* RealLockChange = nullptr;
 
-#ifdef SAVE_STUFF
-
-#include <Games/Skyrim/SaveLoad.h>
-
-void TESObjectREFR::Save_Reversed(const uint32_t aChangeFlags, Buffer::Writer& aWriter)
-{
-    TESForm::Save_Reversed(aChangeFlags, aWriter);
-
-    if (aChangeFlags & CHANGE_REFR_BASEOBJECT)
-    {
-        // save baseForm->formID;
-        // we don't because each player has it's own form id system
-    }
-
-    if (aChangeFlags & CHANGE_REFR_SCALE)
-    {
-        // So skyrim does some weird conversion shit here, we are going to do the same for now
-        float fScale = scale;
-        fScale /= 100.f;
-        aWriter.WriteBytes((uint8_t*)&fScale, 4);
-    }
-
-    // So skyrim
-    uint32_t extraFlags = 0xA6021C40;
-    if (formType == Character)
-        extraFlags = 0xA6061840;
-
-    if (aChangeFlags & extraFlags)
-    {
-        // We have flags to save
-    }
-
-    if (aChangeFlags & (CHANGE_REFR_INVENTORY | CHANGE_REFR_LEVELED_INVENTORY))
-    {
-    }
-
-    if (aChangeFlags & CHANGE_REFR_ANIMATION)
-    {
-        // do something with animations
-        // get extradata 0x41
-    }
-}
-
-#endif
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <Utils.h>
+#include <Wire/Buffer.h>
+#include <VersionDb.h>
 
 TESObjectREFR* TESObjectREFR::GetByHandle(uint32_t aHandle) noexcept
 {
@@ -921,7 +882,6 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
             extraInventory.Entries.push_back(std::move(entry));
     }
 
-
     Inventory minimizedExtraInventory{};
 
     for (auto& entry : extraInventory.Entries)
@@ -937,7 +897,6 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
         duplicate->Count += entry.Count;
     }
 
-
     for (auto& entry : minimizedExtraInventory.Entries)
     {
         if (entry.ContainsExtraData())
@@ -952,12 +911,9 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
         duplicate->Count = 0;
     }
 
-
     inventory.Entries.insert(inventory.Entries.end(), minimizedExtraInventory.Entries.begin(), minimizedExtraInventory.Entries.end());
 
-
     inventory.RemoveByFilter([](const auto& entry) { return entry.Count == 0; });
-
 
     return inventory;
 }

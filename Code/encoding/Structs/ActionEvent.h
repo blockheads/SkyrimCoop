@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "AnimationVariables.h"
+#include <Wire/Buffer.h>
 
 struct ActionEvent
 {

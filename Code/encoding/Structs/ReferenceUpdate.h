@@ -2,6 +2,7 @@
 
 #include <Structs/Movement.h>
 #include <Structs/ActionEvent.h>
+#include <Wire/Buffer.h>
 
 using Wire::Buffer;
 

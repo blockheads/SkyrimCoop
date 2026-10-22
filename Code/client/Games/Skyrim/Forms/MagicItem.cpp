@@ -1,5 +1,7 @@
 #include "MagicItem.h"
 #include <Games/TES.h>
+#include <RTTI.h>
+#include <Utils.h>
 
 bool MagicItem::IsWardSpell() const noexcept
 {

@@ -9,6 +9,12 @@
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Games/Skyrim/Forms/TESObjectCELL.h>
 #include <Forms/SpellItem.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <Hooks/JitAssembly.h>
+#include <RTTI.h>
+#include <Utils.h>
+#include <VersionDb.h>
 
 using TLaunch = BSPointerHandle<Projectile>*(BSPointerHandle<Projectile>*, Projectile::LaunchData& arData);
 static TLaunch* RealLaunch = nullptr;

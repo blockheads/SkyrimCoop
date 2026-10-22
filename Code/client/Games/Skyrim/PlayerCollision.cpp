@@ -8,6 +8,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 namespace
 {

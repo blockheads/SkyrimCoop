@@ -4,6 +4,7 @@
 
 #include <Structs/GameId.h>
 #include <Structs/Vector3_NetQuantize.h>
+#include <Wire/Buffer.h>
 
 // The party tether: a player travelled by itself (EnterCellRequest::Travel::kOwn) and everyone else goes where it
 // arrived. A game already there stays.

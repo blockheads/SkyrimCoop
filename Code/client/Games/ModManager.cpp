@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include <Games/TES.h>
@@ -8,6 +7,9 @@
 #include <TESObjectREFR.h>
 
 #include <atomic>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 ModManager* ModManager::Get() noexcept
 {

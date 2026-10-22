@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include <ChatMessageTypes.h>
+#include <NoCopyMove.h>
 
 struct LockChangeRequest;
 struct ContainerChangeRequest;

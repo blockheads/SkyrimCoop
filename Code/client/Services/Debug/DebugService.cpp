@@ -61,6 +61,9 @@
 
 #include <imgui.h>
 #include <inttypes.h>
+#include <BuildVersion.h>
+#include <RTTI.h>
+#include <Services/HostService.h>
 extern thread_local bool g_overrideFormId;
 
 static void DrawBuildTag()

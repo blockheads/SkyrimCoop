@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Games/IFormFactory.h>
+#include <VersionDb.h>
 
 IFormFactory* IFormFactory::GetForType(const FormType aId) noexcept
 {

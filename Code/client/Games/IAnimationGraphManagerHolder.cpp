@@ -1,8 +1,7 @@
-#include <ClientPch.h>
-
 #include <Games/Animation/IAnimationGraphManagerHolder.h>
 
 #include <BSAnimationGraphManager.h>
+#include <VersionDb.h>
 
 bool IAnimationGraphManagerHolder::SetVariableFloat(BSFixedString* apVariable, float aValue)
 {

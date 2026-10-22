@@ -1,11 +1,11 @@
-#include <ClientPch.h>
-
 #include <Games/TES.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESObjectCELL.h>
 #include <Effects/ReferenceEffect.h>
 
 #include <algorithm>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 TES* TES::Get() noexcept
 {

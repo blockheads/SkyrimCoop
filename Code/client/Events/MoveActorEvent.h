@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Games/Primitives.h>
+
 struct MoveActorEvent
 {
     MoveActorEvent(uint32_t aFormId, uint32_t aCellId, NiPoint3 aPosition)

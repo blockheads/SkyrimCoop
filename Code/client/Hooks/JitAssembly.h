@@ -1,10 +1,10 @@
 #pragma once
 
-#ifndef REVERSE_ALLOC_STUB
-#define REVERSE_ALLOC_STUB(x) malloc(x)
-#endif
-
 #include <xbyak/xbyak.h>
+#include <mem/mem.h>
+
+// Stubs within a branch's reach of the game (skse_globals.cpp).
+extern void* RipAllocateN(size_t aBlockLength);
 
 namespace Hooks
 {
@@ -15,7 +15,7 @@ namespace Hooks
         static constexpr size_t kDefaultAllocStubsize = 64;
 
         CodeGenerator(const size_t aAllocSize = kDefaultAllocStubsize) :
-            Xbyak::CodeGenerator(aAllocSize, REVERSE_ALLOC_STUB(aAllocSize)){}
+            Xbyak::CodeGenerator(aAllocSize, RipAllocateN(aAllocSize)){}
 
         void jmp_S(const mem::pointer acEa) {
             Xbyak::CodeGenerator::jmp(acEa.as<const void*>());

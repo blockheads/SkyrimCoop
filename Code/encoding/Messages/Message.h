@@ -2,6 +2,8 @@
 
 #include "../Opcodes.h"
 #include "../ChatMessageTypes.h"
+#include <Wire/Buffer.h>
+#include <Wire/Serialization.h>
 
 using Wire::Serialization;
 

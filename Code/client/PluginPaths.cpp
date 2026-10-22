@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <PluginPaths.h>
 
 #include <algorithm>

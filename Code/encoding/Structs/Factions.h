@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Faction.h"
+#include <Wire/Buffer.h>
 
 struct Factions
 {

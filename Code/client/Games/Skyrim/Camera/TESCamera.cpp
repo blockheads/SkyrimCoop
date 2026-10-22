@@ -1,8 +1,7 @@
 
 #include <Camera/TESCamera.h>
 #include <NetImmerse/NiNode.h>
-#include <ClientPch.h>
-
+#include <VersionDb.h>
 NiCamera* TESCamera::GetNiCamera()
 {
     POINTER_SKYRIMSE(NiRTTI, NiCameraRTTI, 410506);

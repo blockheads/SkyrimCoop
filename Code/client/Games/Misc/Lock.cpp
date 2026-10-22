@@ -1,4 +1,5 @@
 #include <Games/Misc/Lock.h>
+#include <VersionDb.h>
 
 void Lock::SetLock(bool aIsLocked) noexcept
 {

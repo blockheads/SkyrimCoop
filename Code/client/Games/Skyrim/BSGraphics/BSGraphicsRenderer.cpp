@@ -6,6 +6,9 @@
 
 #include "BSGraphics/BSGraphicsRenderer.h"
 #include "BSRandom/BSRandom.h"
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 // shared resource by launcher
 extern HICON g_SharedWindowIcon;

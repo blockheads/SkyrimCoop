@@ -3,6 +3,11 @@
 #include "CombatTargetSelector.h"
 #include <Actor.h>
 #include <TESObjectREFR.h>
+#include <Components/FormIdComponent.h>
+#include <RTTI.h>
+#include <World.h>
+#include <Components/CombatComponent.h>
+#include <VersionDb.h>
 
 void ArrayQuickSortRecursiveCombatTargets(GameArray<CombatTargetSelector*>* apArray, uint32_t aiLowIndex,
                                           uint32_t aiHighIndex)

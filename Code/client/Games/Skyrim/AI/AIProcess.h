@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Actor.h>
+#include <Games/Primitives.h>
+
 struct TESForm;
 struct MiddleProcess;
 struct HighProcessData;

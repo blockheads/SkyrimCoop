@@ -1,5 +1,7 @@
 #pragma once
 
+#include <VersionDb.h>
+
 struct AITimer
 {
     static float GetAITime()

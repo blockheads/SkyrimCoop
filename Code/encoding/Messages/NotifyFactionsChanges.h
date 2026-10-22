@@ -2,6 +2,7 @@
 
 #include "Message.h"
 #include <Structs/Factions.h>
+#include <Wire/Buffer.h>
 
 struct NotifyFactionsChanges final : NotifyMessage
 {

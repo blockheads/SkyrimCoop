@@ -61,6 +61,10 @@
 
 #include <chrono>
 #include <cstring>
+#include <RTTI.h>
+#include <Utils.h>
+#include <VersionDb.h>
+#include <World.h>
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Renderer.h>
+#include <VersionDb.h>
 
 BGSRenderer* BGSRenderer::Get()
 {

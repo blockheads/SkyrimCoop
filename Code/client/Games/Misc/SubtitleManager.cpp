@@ -9,6 +9,11 @@
 
 #include <Forms/TESTopicInfo.h>
 #include <Misc/BSFixedString.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <World.h>
+#include <VersionDb.h>
 
 SubtitleManager* SubtitleManager::Get() noexcept
 {

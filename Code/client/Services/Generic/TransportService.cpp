@@ -6,7 +6,6 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 
-#include <ClientPch.h>
 #include <World.h>
 
 #include <Bridges/IPlayerBridge.h>
@@ -21,6 +20,8 @@
 
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
+#include <BuildVersion.h>
+#include <Wire/ViewBuffer.h>
 
 // #include <imgui_internal.h>
 
@@ -121,8 +122,8 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
     if (m_pHostNetwork)
     {
         // The host's rules handle it right away.
-        Buffer buffer(1 << 16);
-        Buffer::Writer writer(&buffer);
+        Wire::Buffer buffer(1 << 16);
+        Wire::Buffer::Writer writer(&buffer);
         acMessage.Serialize(writer);
         m_pHostNetwork->Receive(buffer.GetWriteData(), static_cast<uint32_t>(writer.Size()), kLocalConnectionId);
         return true;
@@ -130,8 +131,8 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 
     if (IsConnected())
     {
-        Buffer buffer(1 << 16);
-        Buffer::Writer writer(&buffer);
+        Wire::Buffer buffer(1 << 16);
+        Wire::Buffer::Writer writer(&buffer);
         writer.WriteBits(0, 8); // Write first byte as packet needs it
 
         acMessage.Serialize(writer);
@@ -150,7 +151,7 @@ void TransportService::OnConsume(const void* apData, uint32_t aSize)
 {
     NotifyMessageFactory factory;
     Wire::ViewBuffer buf((uint8_t*)apData, aSize);
-    Buffer::Reader reader(&buf);
+    Wire::Buffer::Reader reader(&buf);
 
     auto pMessage = factory.Extract(reader);
     if (!pMessage)

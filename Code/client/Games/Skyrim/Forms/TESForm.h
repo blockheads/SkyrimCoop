@@ -2,6 +2,7 @@
 
 #include <Components/BaseFormComponent.h>
 #include <Misc/BSFixedString.h>
+#include <Wire/Buffer.h>
 
 enum class FormType : uint8_t
 {
@@ -108,7 +109,6 @@ struct TESForm : BaseFormComponent
     virtual void unk_3A();
 
     // void CopyFromEx(TESForm* rhs);
-    void Save_Reversed(uint32_t aChangeFlags, Buffer::Writer& aWriter);
     void SetSkipSaveFlag(bool aSet) noexcept;
     uint32_t GetChangeFlags() const noexcept;
     // Its changes sit in a stored buffer (StoreChangesOnUnload): kept, though no live flag shows them.

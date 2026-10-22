@@ -138,4 +138,7 @@ Code:
 - No exceptions: return `bool` or result values, `noexcept` where possible, `[[nodiscard]]` on results that matter
 - Pass complex objects by const reference (`const AuthenticationResponse& acMessage`)
 - `struct` for most types; `NO_COPY_MOVE` in services; `#pragma once` in every header
+- Include what a file uses. `Code/client/ClientPch.h` is forced into every client file and holds only third-party,
+  standard and rarely edited headers of ours (editing one rebuilds the whole plugin); never add a service,
+  component or engine struct there
 - Log with spdlog (`spdlog::info/warn/error/debug`)

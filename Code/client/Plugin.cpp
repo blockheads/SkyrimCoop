@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Plugin.h>
 #include <Breadcrumbs.h>
 #include <VersionDb.h>
@@ -24,6 +22,7 @@
 #include <Services/ImguiService.h>
 
 #include <NvidiaUtil.h>
+#include <Hooks/Initializer.h>
 
 Plugin::Plugin()
 {

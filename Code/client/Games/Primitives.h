@@ -3,6 +3,7 @@
 #include <Games/Memory.h>
 #include <iterator>
 #include <cstddef>
+#include <Interface/IMenu.h>
 
 template <class T> struct GameArray
 {

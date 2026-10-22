@@ -2,6 +2,7 @@
 
 #include <functional>
 #include "MagicEquipment.h"
+#include <Wire/Buffer.h>
 
 using Wire::Buffer;
 

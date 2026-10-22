@@ -1,6 +1,7 @@
 #include <World.h>
 #include <Components.h>
 #include <Actor.h>
+#include <VersionDb.h>
 
 namespace Utils
 {
@@ -23,6 +24,34 @@ std::optional<uint32_t> GetSessionId(entt::entity aEntity) noexcept
     }
 
     return {sessionId};
+}
+
+uint32_t GetFormIdBySessionId(uint32_t aSessionId) noexcept
+{
+    auto view = World::Get().view<FormIdComponent>();
+    for (entt::entity entity : view)
+        if (GetSessionId(entity) == aSessionId)
+            return view.get<FormIdComponent>(entity).Id;
+    spdlog::debug("GetFormIdBySessionId: form not found for session id {:X}", aSessionId);
+    return 0;
+}
+
+std::optional<uint32_t> GetSessionIdByFormId(uint32_t aFormId) noexcept
+{
+    if (!aFormId)
+        return std::nullopt;
+    auto view = World::Get().view<FormIdComponent>();
+    for (entt::entity entity : view)
+        if (view.get<FormIdComponent>(entity).Id == aFormId)
+            return GetSessionId(entity);
+    return std::nullopt;
+}
+
+TESForm* GetFormBySessionId(uint32_t aSessionId) noexcept
+{
+    if (const uint32_t cFormId = GetFormIdBySessionId(aSessionId))
+        return TESForm::GetById(cFormId);
+    return nullptr;
 }
 
 void ShowHudMessage(const std::string& acMessage)

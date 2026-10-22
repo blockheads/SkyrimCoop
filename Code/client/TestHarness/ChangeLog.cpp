@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "ChangeLog.h"
 #include "Commands.h"
 
@@ -8,6 +7,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <Hooks/Initializer.h>
 
 namespace TestHarness::ChangeLog
 {

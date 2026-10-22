@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "Session.h"
 #include <World.h>
 #include <Services/Host/HostNetwork.h>
@@ -12,6 +11,8 @@
 #include <Structs/GameVersions.h>
 #include <fstream>
 #include <algorithm>
+#include <BuildVersion.h>
+#include <Services/HostService.h>
 
 namespace TestHarness
 {

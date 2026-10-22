@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Systems/AnimationSystem.h>
 
 #include <Games/Animation/TESActionData.h>
@@ -20,6 +18,9 @@
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
 #include <DefaultObjectManager.h>
+#include <RTTI.h>
+#include <Wire/Buffer.h>
+#include <Wire/ViewBuffer.h>
 
 namespace
 {

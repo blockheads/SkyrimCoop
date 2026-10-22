@@ -1,4 +1,5 @@
 #include "MagicCaster.h"
+#include <VersionDb.h>
 
 bool MagicCaster::CastSpell(MagicItem* apSpell, TESObjectREFR* apDesiredTarget, bool abLoadCast) noexcept
 {

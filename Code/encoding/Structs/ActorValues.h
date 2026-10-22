@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Wire/Buffer.h>
+
 struct ActorValues
 {
     ActorValues() = default;

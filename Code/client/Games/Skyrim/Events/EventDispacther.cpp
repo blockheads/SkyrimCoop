@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Events/EventDispatcher.h>
+#include <VersionDb.h>
 
 namespace details
 {

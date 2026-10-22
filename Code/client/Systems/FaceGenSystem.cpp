@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Systems/FaceGenSystem.h>
 
 #include <Games/References.h>
@@ -18,6 +16,9 @@
 #include <Games/Skyrim/NetImmerse/BSLightingShaderProperty.h>
 #include <Games/Skyrim/NetImmerse/BSMaskedShaderMaterial.h>
 #include <Games/Memory.h>
+#include <RTTI.h>
+#include <Ui/UiRenderer.h>
+#include <VersionDb.h>
 
 __declspec(noinline) NiTriBasedGeom* GetHeadTriBasedGeom(Actor* apActor, uint32_t aPartType)
 {

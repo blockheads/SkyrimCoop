@@ -1,6 +1,7 @@
 #pragma once
 
 #include <RmlUi/Core/DataModelHandle.h>
+#include <NoCopyMove.h>
 
 struct World;
 struct UiRenderer;

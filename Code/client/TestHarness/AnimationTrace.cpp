@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "AnimationTrace.h"
 #include "EngineCalls.h"
 
@@ -12,6 +11,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <RTTI.h>
 
 namespace TestHarness
 {

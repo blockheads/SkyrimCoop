@@ -5,6 +5,7 @@
 #include <Components/TESFullName.h>
 #include <Forms/BGSStoryManagerTree.h>
 #include <Forms/BGSBaseAlias.h>
+#include <TESObjectREFR.h>
 
 struct BGSLocation;
 

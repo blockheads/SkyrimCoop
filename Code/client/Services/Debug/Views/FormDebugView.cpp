@@ -10,6 +10,7 @@
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
 #include <Effects/ActiveEffect.h>
+#include <RTTI.h>
 
 void DebugService::DrawFormDebugView()
 {

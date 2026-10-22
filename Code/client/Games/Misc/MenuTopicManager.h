@@ -3,6 +3,7 @@
 #include <Misc/BSString.h>
 
 #include <vector>
+#include <Games/Primitives.h>
 
 struct TESForm;
 struct TESQuest;

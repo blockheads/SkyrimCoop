@@ -18,6 +18,10 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <RTTI.h>
+#include <VersionDb.h>
 
 // On the host, scripts treat a guest's character as the player:
 //   Rule 1: `x == Game.GetPlayer()` is true when x is a guest's character.

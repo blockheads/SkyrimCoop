@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include <HookSwitch.h>
 
 #include <Games/References.h>
@@ -31,6 +30,9 @@
 
 #include <AI/AITimer.h>
 #include <Combat/CombatTargetSelector.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace Settings
 {

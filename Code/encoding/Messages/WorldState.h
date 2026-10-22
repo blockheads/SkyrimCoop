@@ -5,6 +5,7 @@
 #include <Structs/GameId.h>
 
 #include <cstring>
+#include <Wire/Buffer.h>
 
 // World state from the host's game (docs/design/world-state-sync.md, step 4).
 

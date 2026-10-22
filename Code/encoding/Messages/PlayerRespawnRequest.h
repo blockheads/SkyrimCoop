@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <Wire/Buffer.h>
 
 struct PlayerRespawnRequest final : RequestMessage
 {

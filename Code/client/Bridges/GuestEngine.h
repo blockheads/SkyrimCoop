@@ -6,6 +6,7 @@
 #include <Structs/TimeModel.h>
 
 #include <optional>
+#include <NoCopyMove.h>
 
 struct ModSystem;
 struct TESObjectREFR;

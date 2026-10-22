@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Components/BaseFormComponent.h>
+#include <Games/Primitives.h>
 
 struct TESPackage;
 

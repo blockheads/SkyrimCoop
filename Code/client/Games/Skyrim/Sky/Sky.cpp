@@ -1,5 +1,8 @@
 #include "Sky.h"
 #include <HookSwitch.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 using TSetWeather = void(Sky*, TESWeather* apWeather, bool abOverride, bool abAccelerate);
 using TForceWeather = void(Sky*, TESWeather* apWeather, bool abOverride);

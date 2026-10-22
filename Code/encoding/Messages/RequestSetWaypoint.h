@@ -3,6 +3,7 @@
 #include "Message.h"
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/GameId.h>
+#include <Wire/Buffer.h>
 
 struct RequestSetWaypoint final : RequestMessage
 {

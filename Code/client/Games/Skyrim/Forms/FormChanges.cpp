@@ -6,6 +6,9 @@
 
 #include <array>
 #include <atomic>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace FormChanges
 {

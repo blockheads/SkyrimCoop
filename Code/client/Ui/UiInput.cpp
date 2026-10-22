@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Ui/UiInput.h>
 
 #include <Games/Skyrim/BSInput/InputEvent.h>

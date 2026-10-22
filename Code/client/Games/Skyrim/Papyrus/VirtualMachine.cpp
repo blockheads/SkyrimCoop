@@ -5,6 +5,10 @@
 #include <World.h>
 #include <Events/PapyrusFunctionRegisterEvent.h>
 #include <Games/Memory.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
+#include <Services/PapyrusService.h>
 
 using TRegisterPapyrusFunction = void(BSScript::IVirtualMachine*, NativeFunction*);
 using TBindEverythingToScript = void(BSScript::IVirtualMachine**);

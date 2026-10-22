@@ -7,6 +7,9 @@
 
 #include <atomic>
 #include <intrin.h>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace WorldEvents
 {

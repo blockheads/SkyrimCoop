@@ -3,6 +3,7 @@
 #include <Forms/TESTopic.h>
 #include <Games/Memory.h>
 #include <TESObjectREFR.h>
+#include <VersionDb.h>
 
 namespace
 {

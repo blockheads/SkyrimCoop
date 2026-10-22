@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Events/PapyrusFunctionRegisterEvent.h>
 
 #include <Services/PapyrusService.h>

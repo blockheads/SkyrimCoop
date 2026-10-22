@@ -1,6 +1,7 @@
 #pragma once
 
 #include <DateTime.h>
+#include <NoCopyMove.h>
 
 struct World;
 struct UpdateEvent;

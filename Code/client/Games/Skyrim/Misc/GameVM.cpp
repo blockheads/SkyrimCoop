@@ -1,6 +1,5 @@
-#include <ClientPch.h>
-
 #include <Misc/GameVM.h>
+#include <VersionDb.h>
 
 SkyrimVM* SkyrimVM::Get()
 {

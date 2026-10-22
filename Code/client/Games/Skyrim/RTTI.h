@@ -1,5 +1,7 @@
 #pragma once
 
+#include <VersionDb.h>
+
 namespace internal
 {
 template <class T> struct RttiLocator

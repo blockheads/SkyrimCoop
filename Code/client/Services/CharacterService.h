@@ -3,6 +3,7 @@
 #include "Structs/ActorData.h"
 #include <Messages/AssignCharacterRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
+#include <NoCopyMove.h>
 
 struct ActorAddedEvent;
 struct ActorRemovedEvent;

@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Systems/ModSystem.h>
 
 #include <Structs/Mods.h>

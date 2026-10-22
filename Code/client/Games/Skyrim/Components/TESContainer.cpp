@@ -1,4 +1,5 @@
 #include "TESContainer.h"
+#include <VersionDb.h>
 
 int64_t TESContainer::GetItemCount(TESForm* apItem) const noexcept
 {

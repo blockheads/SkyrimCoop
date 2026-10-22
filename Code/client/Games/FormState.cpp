@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Games/FormState.h>
 
 #include <Forms/TESForm.h>

@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Plugin.h>
 #include <World.h>
 #include <Components.h>
@@ -11,6 +9,7 @@
 #include <network/Client.h>
 #include <Hooks/FunctionHook.h>
 #include <SkseRipAllocator.h>
+#include <VersionDb.h>
 
 extern std::unique_ptr<Plugin> g_plugin;
 

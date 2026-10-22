@@ -2,6 +2,7 @@
 
 #include <Structs/ActorValues.h>
 #include <Structs/Inventory.h>
+#include <Wire/Buffer.h>
 
 struct ActorData
 {

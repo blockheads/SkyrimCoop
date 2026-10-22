@@ -2,6 +2,7 @@
 
 #include <network/ENetInterface.h>
 #include <Structs/GameId.h>
+#include <NoCopyMove.h>
 
 struct HostGame;
 struct HostPlayers;

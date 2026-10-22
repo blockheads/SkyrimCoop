@@ -1,4 +1,3 @@
-#include <ClientPch.h>
 #include "TestHarness.h"
 #include "Harness.h"
 #include "Commands.h"

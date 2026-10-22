@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <Games/ReferenceStates.h>
 
 #include <Games/FormState.h>
@@ -9,6 +7,9 @@
 #include <TESObjectREFR.h>
 
 #include <cstring>
+#include <RTTI.h>
+#include <VersionDb.h>
+#include <Forms/TESBoundObject.h>
 
 namespace ReferenceStates
 {

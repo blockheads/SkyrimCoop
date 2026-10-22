@@ -9,6 +9,7 @@
 #include <Structs/Tints.h>
 #include <Structs/Factions.h>
 #include <Structs/ActorData.h>
+#include <Wire/Buffer.h>
 
 struct AssignCharacterRequest final : RequestMessage
 {

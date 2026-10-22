@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <TESObjectREFR.h>
 
 // Raw SKSE pointer fields are only accessible in code compiled with SKSE headers (HAS_DIRECTXTK).
 // Services must use the pre-extracted FormId fields below instead.

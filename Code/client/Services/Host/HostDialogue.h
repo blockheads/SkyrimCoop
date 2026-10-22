@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <NoCopyMove.h>
 
 struct HostAuthority;
 struct HostCharacters;

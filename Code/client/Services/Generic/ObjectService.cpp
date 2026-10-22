@@ -10,6 +10,9 @@
 #include <Bridges/IActorBridge.h>
 
 #include <inttypes.h>
+#include <Components/LocalComponent.h>
+#include <Utils.h>
+#include <Components/FormIdComponent.h>
 
 ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                               IFormBridge& aFormBridge, IActorBridge& aActorBridge)

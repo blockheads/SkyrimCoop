@@ -2,6 +2,7 @@
 
 #include "Message.h"
 #include "Payloads.h"
+#include <Wire/Buffer.h>
 
 struct DrawWeaponRequest final : RequestMessage, Payloads::DrawWeapon
 {

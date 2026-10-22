@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <Wire/Buffer.h>
 
 // A reference whose change record holds these flags (TESObjectREFR::ChangeFlags) in the sender's game.
 struct ChangedReference

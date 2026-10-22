@@ -1,5 +1,3 @@
-#include <ClientPch.h>
-
 #include <PlayerCharacter.h>
 #include <Forms/BGSHeadPart.h>
 #include <Forms/TESNPC.h>
@@ -9,6 +7,9 @@
 #include <Games/FormState.h>
 #include <SaveLoad.h>
 #include <Games/Overrides.h>
+#include <RTTI.h>
+#include <Wire/Buffer.h>
+#include <VersionDb.h>
 
 TESForm* TESForm::GetById(const uint32_t aId)
 {
@@ -42,15 +43,6 @@ void TESNPC::Initialize() noexcept
     // End defaults
 
     flags |= 0x200000;
-}
-
-void TESForm::Save_Reversed(const uint32_t aChangeFlags, Buffer::Writer& aWriter)
-{
-    if (aChangeFlags & 1)
-    {
-        aWriter.WriteBytes(reinterpret_cast<uint8_t*>(&flags), 4);
-        aWriter.WriteBytes(reinterpret_cast<uint8_t*>(&inGameFormFlags), 2);
-    }
 }
 
 void TESForm::SetSkipSaveFlag(bool aSet) noexcept
