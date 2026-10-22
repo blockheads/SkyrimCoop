@@ -38,7 +38,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 ## Build
 
-XMake 2.8.5+, C++20. Two configurations, each with its own config directory, one target per build, `-j8`
+XMake 2.8.5+, C++23 (the Linux build needs `libstdc++-12-dev`). Two configurations, each with its own config directory, one target per build, `-j8`
 (`-j16` has crashed clang-cl and the linker with the duo running).
 
 ```bash

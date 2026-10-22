@@ -2,7 +2,7 @@
 
 ## Language
 
-We are using C++20, any C++20 feature supported by vs2019 is allowed.
+We are using C++23: clang-cl with the MSVC STL 14.44 (`/std:c++latest`) for the plugin, clang 18 with libstdc++ 12 for the Linux tests. Use what both have (`std::expected` yes; check newer library features against libstdc++ 12).
 
 Please try to use templates responsibly, we don't want compilation times to explode and to deal with bloated binaries.
 

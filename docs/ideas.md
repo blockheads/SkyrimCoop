@@ -186,7 +186,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
     (`test_allocator_startup.py`, `Code/tests/hot_reload/allocator_startup.cpp`). Changing a container
     changes which allocator frees what; check the `ScopedAllocator` uses (`TransportService.cpp`) too.
   - Interfaces: `std::span`/`std::string_view` at boundaries, `std::expected` in place of `Outcome`
-    (check what C++ version clang-cl with the MSVC STL allows; C++23 likely).
+    (both builds are C++23 since 2026-10-21).
   - `Buffer`/`Serialization` stay as the wire format (pinned by `wire_tests.cpp`); only their
     interface could change. `ThisCall`/hooks have no std equivalent.
   - Start with a clang-tidy `modernize-*`/`readability-*` baseline count, then a short plan
