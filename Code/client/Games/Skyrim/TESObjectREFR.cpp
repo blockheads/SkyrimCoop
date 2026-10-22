@@ -1,4 +1,5 @@
 #include <TiltedOnlinePCH.h>
+#include <Games/Memory.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
 #include <cstring>
@@ -141,6 +142,36 @@ uint32_t* TESObjectREFR::GetNullHandle() noexcept
     return s_nullHandle.Get();
 }
 
+TESObjectREFR* TESObjectREFR::LoadFromPlugin(uint32_t aRefId, uint32_t aCellId, int16_t aGridX, int16_t aGridY, TESForm* apOwner) noexcept
+{
+    // An entry of the promote list (BGSLocation 18359's unique references): the grid packs x high, y low.
+    struct Entry
+    {
+        uint32_t RefId;
+        uint32_t CellId;
+        uint32_t Grid;
+    };
+    static_assert(sizeof(Entry) == 12);
+    TP_THIS_FUNCTION(TPromoteList, void, void, GameArray<Entry>*, TESForm*, GameArray<uint32_t>*);
+    POINTER_SKYRIMSE(TPromoteList, promoteList, 15328);
+    POINTER_SKYRIMSE(void*, s_persistence, 400326);
+
+    if (auto* pLoaded = Cast<TESObjectREFR>(TESForm::GetById(aRefId)))
+        return pLoaded;
+    void* pManager = *s_persistence.Get();
+    if (!pManager || !aCellId)
+        return nullptr;
+    Entry entry{aRefId, aCellId, (static_cast<uint32_t>(static_cast<uint16_t>(aGridX)) << 16) | static_cast<uint16_t>(aGridY)};
+    GameArray<Entry> entries;
+    entries.data = &entry;
+    entries.capacity = entries.length = 1;
+    GameArray<uint32_t> handles; // grown by the engine
+    TiltedPhoques::ThisCall(promoteList, pManager, &entries, apOwner, &handles);
+    if (handles.data)
+        Memory::Free(handles.data);
+    return Cast<TESObjectREFR>(TESForm::GetById(aRefId));
+}
+
 void TESObjectREFR::SetRotation(float aX, float aY, float aZ) noexcept
 {
     TiltedPhoques::ThisCall(RealRotateX, this, aX);
@@ -150,18 +181,35 @@ void TESObjectREFR::SetRotation(float aX, float aY, float aZ) noexcept
 
 using TiltedPhoques::Serialization;
 
+// aCall with the reference's graph manager, held for it; false if it has none.
+template <class T> static bool WithGraphs(const TESObjectREFR& acRef, T&& aCall) noexcept
+{
+    BSAnimationGraphManager* pManager = nullptr;
+    if (!EngineVirtual(acRef.animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+        return false;
+    const bool cDone = aCall(pManager);
+    pManager->Release();
+    return cDone;
+}
+
+bool TESObjectREFR::SaveGraphs(TiltedPhoques::String& aGraphs) const noexcept
+{
+    aGraphs.clear();
+    return WithGraphs(*this, [&aGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Save(apManager, aGraphs); });
+}
+
+bool TESObjectREFR::LoadGraphs(const TiltedPhoques::String& acGraphs) const noexcept
+{
+    return WithGraphs(*this, [&acGraphs](BSAnimationGraphManager* apManager) { return AnimationGraphState::Load(apManager, acGraphs); });
+}
+
 // The actor's state flags (weapon, sitting, life state) go first: the graph and they must agree.
 bool TESObjectREFR::SaveAnimationGraphState(TiltedPhoques::String& aState) const noexcept
 {
     aState.clear();
     const auto* pActor = Cast<Actor>(this);
-    BSAnimationGraphManager* pManager = nullptr;
-    if (!pActor || !EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
-        return false;
     TiltedPhoques::String graphs;
-    const bool cSaved = AnimationGraphState::Save(pManager, graphs);
-    pManager->Release();
-    if (!cSaved)
+    if (!pActor || !SaveGraphs(graphs))
         return false;
     const uint32_t cFlags[2]{pActor->actorState.flags1, pActor->actorState.flags2};
     aState.append(reinterpret_cast<const char*>(cFlags), sizeof(cFlags));
@@ -173,12 +221,10 @@ bool TESObjectREFR::LoadAnimationGraphState(const TiltedPhoques::String& acState
 {
     auto* pActor = Cast<Actor>(const_cast<TESObjectREFR*>(this));
     uint32_t flags[2]{};
-    BSAnimationGraphManager* pManager = nullptr;
-    if (!pActor || acState.size() < sizeof(flags) || !EngineVirtual(animationGraphHolder).GetBSAnimationGraph(&pManager) || !pManager)
+    if (!pActor || acState.size() < sizeof(flags))
         return false;
     std::memcpy(flags, acState.data(), sizeof(flags));
-    const bool cLoaded = AnimationGraphState::Load(pManager, acState.substr(sizeof(flags)));
-    pManager->Release();
+    const bool cLoaded = LoadGraphs(acState.substr(sizeof(flags)));
     if (cLoaded)
     {
         pActor->actorState.flags1 = flags[0];

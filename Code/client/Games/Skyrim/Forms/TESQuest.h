@@ -6,6 +6,8 @@
 #include <Forms/BGSStoryManagerTree.h>
 #include <Forms/BGSBaseAlias.h>
 
+struct BGSLocation;
+
 struct BGSScene : TESForm
 {
     GameArray<void*> phases;
@@ -129,6 +131,14 @@ struct TESQuest : BGSStoryManagerTreeForm
     void ForceRefIntoAlias(uint32_t aAliasId, TESObjectREFR* apRef) noexcept;
     // ReferenceAlias.Clear (25051).
     void ClearRefAlias(BGSBaseAlias* apAlias) noexcept;
+    // The alias with that id, any kind.
+    BGSBaseAlias* GetAlias(uint32_t aAliasId) noexcept;
+    // A location alias's fill (LocationAlias.GetLocation: 25067, the quest's location fills under its alias lock).
+    BGSLocation* GetAliasedLocation(uint32_t aAliasId) noexcept;
+    // LocationAlias.ForceLocationTo (25054): clears the old fill, fills it; a reference alias is left.
+    void ForceLocationIntoAlias(uint32_t aAliasId, BGSLocation* apLocation) noexcept;
+    // LocationAlias.Clear (25053).
+    void ClearLocationAlias(BGSBaseAlias* apAlias) noexcept;
 
     Stage* GetStage(uint16_t aIndex) noexcept;
     Objective* GetObjective(uint16_t aIndex) noexcept;

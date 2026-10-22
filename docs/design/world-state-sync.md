@@ -153,6 +153,7 @@ Rows (2026-10-21, `Games/ReferenceStates.cpp`):
 | scale `0x10` | `kScale` | `SetScale` (19665): the 3D and collision follow |
 | owner `0x40` | `kOwner` | `SetOwner` (20198), the owner as a `GameId` |
 | base object `0x80` | `kBase` | `SetObjectReference` (19785), then the 3D again: a placed leveled item's pick (a guest picks none, 20232 skipped) |
+| animation `0x10000000` | `kGraph` | the graphs' save data loaded (`AnimationGraphState`), with a cell's state only: live, the scripts' animations are relayed as events |
 | every other flag | `kSaveData` | the last row: `FormState::Load`, then the flags marked. **Off** (`cSaveDataFallback`) |
 
 Containers' items go as `kItems` events (the container event), so inventory `0x20` is not a row. Not sent:
@@ -275,7 +276,21 @@ scripts for its own player too, so a lever, a trigger or a quest script fires on
 happen twice (spike 1 counted 80 to 540 world-script events per scenario window on the guest). Under "only
 the host decides", the guest's game keeps raising its player's events (the host needs them) but its world
 scripts must not commit world changes; the host's results reach it as messages. How (not run them, run
-them and discard their changes, or something between) is step 5. Its first slice (2026-10-21): a guest's
+them and discard their changes, or something between) is step 5.
+
+**Decided 2026-10-21: a guest runs only the scripts about its own player's body and its UI**
+(`docs/research/guest-scripts-and-mods.md`). Every Papyrus event passes `VirtualMachine::SendEvent` (104800),
+and its handle names its subject (53508): a guest delivers it when the subject is its own player (the
+player reference, an active effect on it), or when it is the game's own UI: SKSE's events (input, menus,
+mod events) and `OnPlayerLoadGame`. Everything else (references, NPCs, quests, aliases, items) runs on the
+host only, and its results reach the guest as state. Rejected: a list of event names (mods' own events
+would pass) and running scripts while discarding their world changes (every native of every SKSE plugin
+would have to be known). Cost: a quest that tracks one player's body (Frostfall, needs mods) tracks the
+host's player only; per-player system quests are an idea for mod support (`docs/ideas.md`). A quest's alias
+fill of a reference the guest never loaded is loaded the engine's way (its promote task, 15319), as the
+host's game did.
+
+Its first slice (2026-10-21): a guest's
 game does not deliver activation and trigger events to the world's scripts; the host's copy of the guest
 raises them there, and the results come back (below, step 5). Other events (hits, deaths, container changes,
 timers, loads) still run on both games.

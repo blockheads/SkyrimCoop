@@ -138,6 +138,7 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     std::filesystem::path gamePath = pluginDirectory.parent_path().parent_path().parent_path();
     PluginPaths::SetDirectory(pluginDirectory);
     RunningGame::SetVersions(apSkse->runtimeVersion, apSkse->skseVersion);
+    RunningGame::SetScriptExtender(reinterpret_cast<const void*>(apSkse->QueryInterface));
 #if COOP_TEST_HARNESS
     // SKSETaskInterface (kTask = 4): { version, AddTask, AddUITask }.
     struct TaskInterface

@@ -55,6 +55,7 @@ default to this machine; override with SKYRIM_GAME_DIR, SKYRIM_PROTON_DIR,
 SKYRIM_RUNTIME_DIR. Every game run keeps its logs in build/coop-test/runs/<time>/.
 """
 import argparse
+import collections
 import contextlib
 import json
 import math
@@ -1908,18 +1909,15 @@ LUTE_QUEST, CR03_QUEST = 0xD93FA, 0x25230
 SYNCED_QUEST_FLAGS = 0xC3  # running, starting, completed, failed (the HUD's tracking is each player's own)
 
 
-def synced_quest(instance, quest, skip_aliases=()):
-    """What quest sync carries of a quest on that game: flags, stage, done stages, objectives, fills by id
-    but skip_aliases'."""
+def synced_quest(instance, quest):
+    """What quest sync carries of a quest on that game: flags, stage, done stages, objectives, reference fills by id
+    (a created reference by its base: each game has its own id for it) and location fills."""
     state = quest_snapshot(instance, quest)
+    def fill(alias, ref):
+        return ("created", state["bases"].get(alias)) if ref >= CREATED_ID else ref
     return {"flags": state["flags"] & SYNCED_QUEST_FLAGS, "stage": state["stage"], "done": state["done"],
-            "objectives": state["objectives"],
-            "aliases": {alias: ref for alias, (ref, _) in state["aliases"].items() if alias not in skip_aliases}}
-
-
-def created_aliases(instance, quest):
-    """Aliases filled with a reference that game created: its id is the game's own, not synced (yet)."""
-    return {alias for alias, (ref, _) in quest_snapshot(instance, quest)["aliases"].items() if ref >= 0xFF000000}
+            "objectives": state["objectives"], "locations": state["locations"],
+            "aliases": {alias: fill(alias, ref) for alias, (ref, _) in state["aliases"].items()}}
 
 
 def quest_fragments(instance, quest):
@@ -1935,8 +1933,7 @@ def reset_quest_fragments():
 
 def client_quest_matches(quest, label):
     def matches():
-        skipped = created_aliases("", quest) | created_aliases("client", quest)
-        return synced_quest("client", quest, skipped) == synced_quest("", quest, skipped)
+        return synced_quest("client", quest) == synced_quest("", quest)
     wait_for(f"[client] {label} as on the host", matches, 5)
 
 
@@ -1984,6 +1981,76 @@ def scenario_guest_story_starts_no_quest():
         for name in ("", "client"):
             player_command(name, {"cmd": "story_trace", "on": False})
         both_go(HOME_CELL)
+
+
+# Scripts the host's game runs alone: vanilla ones a guest used to run too (docs/research/guest-scripts-and-mods.md).
+CRITTER_SPAWNER = 0x6B45C  # critterSpawnDragonflies24x7: CritterSpawn's OnLoad places 2 dragonflies (05:00-20:00)
+VALDR, VALDR_QUEST = 0x411BA, 0x376EE  # his base's defaultSetStageOnDeath: OnDeath sets the quest's stage 105
+STAGE_ON_DEATH = "defaultSetStageOnDeath"
+
+
+def created_by_base(instance):
+    """The references that game created, counted by base."""
+    return collections.Counter(r["base"] for i, r in world_state(instance).items() if i >= CREATED_ID)
+
+
+def scenario_guest_spawns_no_critters():
+    """The host places a critter spawner: its script (CritterSpawn, on loading) places the dragonflies on the
+    host's game, and the client shows those. The client's own spawner (made as the host's created object) runs
+    no world script, so it places none of its own."""
+    console_on("", "set gamehour to 12")
+    before = {name: created_by_base(name) for name in ("", "client")}
+    before_ids = {i for i in world_state("") if i >= CREATED_ID}
+    console_on("", f"player.placeatme {CRITTER_SPAWNER:X} 1")
+    try:
+        def critters(name):
+            return {base: n - before[name].get(base, 0) for base, n in created_by_base(name).items()
+                    if base != CRITTER_SPAWNER and n > before[name].get(base, 0)}
+        host = wait_for("[host] its spawner places the dragonflies", lambda: critters("") or None, 20)
+        wait_for("[client] shows the host's dragonflies", lambda: all(critters("client").get(b, 0) >= n for b, n in host.items()), 10)
+        stable_until = time.monotonic() + 4.0
+        wait_for("[client] places none of its own (as many as the host's for 4 s)",
+                 lambda: critters("client") == critters("") and time.monotonic() >= stable_until, 10)
+    finally:
+        # The spawner first (it places more while it lives), then what it placed; the client's twins go with the
+        # host's (its own, if it placed any, stay: the world check names them).
+        def placed():  # made since the scenario began, alive: not disabled (0x800) or deleted (0x20)
+            return [(ref, r) for ref, r in world_state("").items()
+                    if ref >= CREATED_ID and ref not in before_ids and not r.get("flags", 0) & 0x820]
+        for ref, _ in sorted(placed(), key=lambda item: item[1]["base"] != CRITTER_SPAWNER):
+            console_on("", f"{ref:X}.disable")
+            console_on("", f"{ref:X}.markfordelete")
+        wait_for("[host] nothing the spawner placed is left", lambda: not placed(), 10)
+
+
+def stage_script_state(instance, actor):
+    select_instance(instance)
+    return ((rpc({"cmd": "script_state", "object": actor, "script": STAGE_ON_DEATH}) or {}).get("state") or "").lower()
+
+
+def scenario_death_stage_runs_once():
+    """The host kills an NPC whose script sets a quest stage on its death (Valdr: defaultSetStageOnDeath, which
+    then goes to its "inactive" state). The script runs on the host's game; the client's copy dies too, but its
+    script stays waiting: a stage it set would run the quest's fragment a second time."""
+    reset_quest_fragments()
+    npc, _, copy = spawn_host_npc(f"{VALDR:08X}", restrained=True)
+    try:
+        for name, actor in (("", npc), ("client", copy)):
+            if stage_script_state(name, actor) != "waiting":
+                raise TestFailure(f"[{name or 'host'}] {STAGE_ON_DEATH} on {actor:X} is "
+                                  f"'{stage_script_state(name, actor)}', not waiting")
+        console_on("", f"{npc:08X}.kill")
+        wait_on("client", f"NPC copy {copy:08X} dies", lambda actors: actors.get(str(copy), {}).get("dead"))
+        wait_for("[host] its death script ran", lambda: stage_script_state("", npc) == "inactive", 10)
+        waiting_until = time.monotonic() + 3.0
+        wait_for("[client] its copy's death script stays waiting (3 s)",
+                 lambda: stage_script_state("client", copy) != "waiting" or time.monotonic() >= waiting_until, 10)
+        if (state := stage_script_state("client", copy)) != "waiting":
+            raise TestFailure(f"[client] its copy's {STAGE_ON_DEATH} ran ('{state}'): the client's own script set the stage")
+        if runs := quest_fragments("client", VALDR_QUEST):
+            raise TestFailure(f"[client] ran {runs} of the quest's fragments: only the host's game runs them")
+    finally:
+        console_on("", f"resetquest {VALDR_QUEST:X}")
 
 
 def scenario_quest_stage_reaches_guest():
@@ -2037,6 +2104,39 @@ def scenario_quest_roles_match_host():
     finally:
         console_on("", "stopquest CR03")
         client_quest_matches(CR03_QUEST, "CR03 is stopped again")
+
+
+# Temporary references in a cell no scenario loads: one a game read once stays in its memory (kept for the quest).
+EMBERSHARD_MINE, EMBERSHARD_REFS = 0xB6BE6, range(0x10A7C2, 0x10A7CD)
+CR03_SPAWN_ALIAS = 5  # SamplePeltSpawnPoint
+
+
+def in_memory(instance, form_id):
+    select_instance(instance)
+    return bool((rpc({"cmd": "form", "form": form_id}) or {}).get("ok"))
+
+
+def scenario_quest_fill_loads_on_guest():
+    """The host's quest fills a role with a reference in a cell neither game loaded (as a radiant quest fills its
+    target): the host's game reads it from the plugin, and so does the client's, the quest's role filled the same."""
+    console_on("", "stopquest CR03")
+    client_quest_matches(CR03_QUEST, "CR03 is stopped")
+    try:
+        console_on("", "startquest CR03")
+        client_quest_matches(CR03_QUEST, "CR03 runs with the host's roles")
+        ref = next((r for r in EMBERSHARD_REFS if not in_memory("client", r)), None)
+        if ref is None:
+            raise TestFailure("[client] every Embershard Mine reference is in memory already: restart the games")
+        select_instance("")
+        response = rpc({"cmd": "quest_force_alias", "quest": CR03_QUEST, "alias": CR03_SPAWN_ALIAS,
+                        "ref": ref, "parent": EMBERSHARD_MINE}) or {}
+        if not response.get("ok"):
+            raise TestFailure(f"[host] cannot fill CR03's alias {CR03_SPAWN_ALIAS}: {response.get('error')}")
+        wait_for(f"[client] {ref:X} loaded and in the role",
+                 lambda: quest_snapshot("client", CR03_QUEST)["aliases"].get(CR03_SPAWN_ALIAS, (0,))[0] == ref, 10)
+        client_quest_matches(CR03_QUEST, "CR03's roles are the host's")
+    finally:
+        console_on("", "stopquest CR03")
 
 
 def scenario_late_join_gets_quests():
@@ -3482,26 +3582,57 @@ def before_claw_door():
     place_before("client", CLAW_KEYHOLE, 300, bearing=90)
 
 
+def ring_looks_alike(ring):
+    """The ring's pose and record on the client are the host's (world_state's pose: its nodes' rotations)."""
+    return not reference_differences(world_state("", [ring])[ring], world_state("client", [ring])[ring])
+
+
 def scenario_ring_turns_for_client():
     """The client turns a ring of a claw door three times round. On the host the ring's check counts
     its character as the player (rule 1, docs/design/party-model.md), so the host's ring turns with it.
-    The client's own ring script runs nothing (world-state sync step 5): it stays where it was, and the
-    client sees the turn played by the host's script."""
+    The client runs no world script (it never ran the ring's: its script has no state); its ring turns as
+    the host's does, from the host's animations."""
     ring = next(iter(CLAW_RINGS))
     try:
         before_claw_door()
         start = claw_door_state("", ring)
-        if not start.startswith("position") or claw_door_state("client", ring) != start:
-            raise TestFailure(f"ring {ring:X} is '{start}' on the host and '{claw_door_state('client', ring)}' on the client to begin with")
+        if not start.startswith("position"):
+            raise TestFailure(f"[host] ring {ring:X} is '{start}' to begin with")
+        wait_for(f"[client] ring {ring:X} looks as the host's to begin with", lambda: ring_looks_alike(ring), 5)
         position = int(start[-1])
         for _ in range(3):
             position = position % 3 + 1
             activate_on("client", ring)
             wait_for(f"[host] ring {ring:X} turns to position {position}",
                      lambda: claw_door_state("", ring) == f"position0{position}", 10)
-            if claw_door_state("client", ring) != start:
-                raise TestFailure(f"[client] ring {ring:X}'s own script ran: '{claw_door_state('client', ring)}', not '{start}'")
+            wait_for(f"[client] ring {ring:X} turned as the host's", lambda: ring_looks_alike(ring), 10)
+            if state := claw_door_state("client", ring):
+                raise TestFailure(f"[client] ring {ring:X}'s own script ran: it is '{state}'")
     finally:
+        both_go(HOME_CELL)
+
+
+def scenario_late_join_gets_ring_pose():
+    """The host turns a claw door's ring while the client is away; the client rejoins at the door. Its ring was
+    never animated there, so only the cell's state (the ring's graph, kGraph) can show the host's turn."""
+    ring = next(iter(CLAW_RINGS))
+    try:
+        before_claw_door()
+        wait_for(f"[client] ring {ring:X} looks as the host's to begin with", lambda: ring_looks_alike(ring), 5)
+        start = claw_door_state("", ring)
+        disconnect_client()
+        console_on("", f"{ring:X}.activate player")
+        turned = f"position0{int(start[-1]) % 3 + 1}"
+        wait_for(f"[host] ring {ring:X} turns to {turned}", lambda: claw_door_state("", ring) == turned, 10)
+        rejoin_client()
+        wait_for(f"[client] ring {ring:X} looks as the host's turned one", lambda: ring_looks_alike(ring), 15)
+    finally:
+        # Back to where it was: two more turns.
+        for _ in range(2):
+            if claw_door_state("", ring) != start:
+                before = claw_door_state("", ring)
+                console_on("", f"{ring:X}.activate player")
+                wait_for(f"[host] ring {ring:X} turns on", lambda: claw_door_state("", ring) != before, 10)
         both_go(HOME_CELL)
 
 
@@ -3785,10 +3916,16 @@ WORLD_TOLERANCES = {"position": 1.0, "position_3d": 1.0, "rotation": 0.01, "scal
 POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE = 1.0, 0.01, 2.0
 CREATED_ID = 0xFF000000  # references a game made itself, numbered per game
 FORM_DISABLED = 0x800
+FORM_DELETED = 0x20
+FORM_PERSISTENT = 0x400  # also dynamic: promoted while a script holds the reference (BGSDynamicPersistenceManager)
 FORM_ALTERED = 0x2  # TESForm kAltered: the engine's "has changes" bookkeeping, not the world's state
 FORM_HEADING_TARGET = 0x40000  # has an ExtraHeadingTarget (19584, from SetHeadingTargetRefHandle): look-at bookkeeping
+# Each game's own bookkeeping, not world state: a guest runs no world script to hold a reference, and a twin its cell
+# freed is made again from the cell's state.
+FORM_NOT_SYNCED = FORM_ALTERED | FORM_HEADING_TARGET | FORM_PERSISTENT
 # Change record bits each game keeps for itself: ANIMATION (a graph's state, e.g. furniture someone used),
 # PROMOTED (a reference its player touched made persistent) and GAME_ONLY_EXTRA (runtime bookkeeping, never sent).
+CHANGES_FORM_FLAGS = 0x1  # the record of the form flags (enabled, deleted, and the bookkeeping ones)
 CHANGES_OWN = 0x10000000 | 0x2000000 | 0x80000000
 CHANGES_MOVED, CHANGES_HAVOK_MOVED = 0x2, 0x4
 
@@ -3880,9 +4017,12 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
         if field == "lock":  # no lock reads as unlocked at level 0, as the lock row does
             a, b = (v or {"level": 0, "locked": False} for v in (a, b))
         if field == "flags" and a is not None and b is not None:
-            a, b = a & ~(FORM_ALTERED | FORM_HEADING_TARGET), b & ~(FORM_ALTERED | FORM_HEADING_TARGET)
+            a, b = a & ~FORM_NOT_SYNCED, b & ~FORM_NOT_SYNCED
         if field == "changes":
             a, b = (a or 0) & ~CHANGES_OWN or None, (b or 0) & ~CHANGES_OWN or None
+            # A form-flags record for a flag each game keeps itself (a look-at target): equal flags otherwise.
+            if ((host.get("flags") or 0) ^ (guest.get("flags") or 0)) & ~FORM_NOT_SYNCED == 0:
+                a, b = (a or 0) & ~CHANGES_FORM_FLAGS or None, (b or 0) & ~CHANGES_FORM_FLAGS or None
             # Moved by a call or by physics: either way its position is what a save keeps.
             a, b = ((v | CHANGES_MOVED) & ~CHANGES_HAVOK_MOVED if v and v & CHANGES_HAVOK_MOVED else v for v in (a, b))
         if field in WORLD_TOLERANCES and a is not None and b is not None:
@@ -3924,8 +4064,11 @@ def world_differences(host, guest, host_again=(), guest_again=()):
     for ref_id, ref in guest.items():
         if ref_id < CREATED_ID and ref_id not in host:
             differences[reference_label(ref)] = {"present": "client only"}
-    unpaired = [r for r in guest.values() if r["id"] >= CREATED_ID]
-    for ref in (r for r in host.values() if r["id"] >= CREATED_ID):
+    # A created reference deleted is gone (the engine frees it): only a living one is compared.
+    def alive_created(world):
+        return [r for r in world.values() if r["id"] >= CREATED_ID and not (r.get("flags") or 0) & FORM_DELETED]
+    unpaired = alive_created(guest)
+    for ref in alive_created(host):
         twin = next((r for r in unpaired if r["base"] == ref["base"] and near(r["position"], ref["position"], 2.0)), None)
         if twin is None:
             differences[reference_label(ref, "host")] = {"present": "host only"}
@@ -5122,8 +5265,11 @@ SCENARIOS = {
     "late-join-gets-globals": scenario_late_join_gets_globals,
     "quest-stage-reaches-guest": scenario_quest_stage_reaches_guest,
     "guest-story-starts-no-quest": scenario_guest_story_starts_no_quest,
+    "guest-spawns-no-critters": scenario_guest_spawns_no_critters,
+    "death-stage-runs-once": scenario_death_stage_runs_once,
     "quest-completes-for-guest": scenario_quest_completes_for_guest,
     "quest-roles-match-host": scenario_quest_roles_match_host,
+    "quest-fill-loads-on-guest": scenario_quest_fill_loads_on_guest,
     "late-join-gets-quests": scenario_late_join_gets_quests,
     # characters
     "steady-state": scenario_steady_state,
@@ -5184,6 +5330,7 @@ SCENARIOS = {
     "sword-box-asks-client": scenario_sword_box_asks_client,
     "statue-fires-at-client": scenario_statue_fires_at_client,
     "ring-turns-for-client": scenario_ring_turns_for_client,
+    "late-join-gets-ring-pose": scenario_late_join_gets_ring_pose,
     "keyhole-asks-client": scenario_keyhole_asks_client,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
@@ -5225,8 +5372,11 @@ TAGS = {
     "late-join-gets-globals": {'world', 'session'},
     "quest-stage-reaches-guest": {'world', 'quest'},
     "guest-story-starts-no-quest": {'world', 'quest', 'cells'},
+    "guest-spawns-no-critters": {'world', 'scripts', 'objects'},
+    "death-stage-runs-once": {'world', 'scripts', 'quest', 'spawn'},
     "quest-completes-for-guest": {'world', 'quest'},
     "quest-roles-match-host": {'world', 'quest'},
+    "quest-fill-loads-on-guest": {'quest', 'world'},
     "late-join-gets-quests": {'world', 'quest', 'session'},
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
@@ -5280,6 +5430,7 @@ TAGS = {
     "sword-box-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
     "statue-fires-at-client": {'scripts', 'cells', 'magic'},
     "ring-turns-for-client": {'objects', 'scripts', 'cells'},
+    "late-join-gets-ring-pose": {'world', 'cells', 'session', 'scripts'},
     "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
@@ -5604,7 +5755,9 @@ def quest_snapshot(instance, quest):
     return {"flags": response["flags"], "stage": response["current_stage"],
             "done": sorted(stage for stage, done in response["stages"] if done),
             "objectives": {index: state for index, state in response["objectives"] if state},
-            "aliases": {a["id"]: (a["ref"], a["name"]) for a in response["aliases"]}}
+            "aliases": {a["id"]: (a["ref"], a["name"]) for a in response["aliases"]},
+            "bases": {a["id"]: a.get("base", 0) for a in response["aliases"]},
+            "locations": {a["id"]: a["location"] for a in response["aliases"] if a.get("location")}}
 
 
 def snapshot_differences(host, client, names):

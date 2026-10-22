@@ -276,7 +276,7 @@ nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
         return Error("no such quest");
     auto aliases = nlohmann::json::array();
     for (const auto& cAlias : cState->Aliases)
-        aliases.push_back({{"id", cAlias.Id}, {"name", cAlias.Name}, {"ref", cAlias.Ref}, {"base", cAlias.Base}});
+        aliases.push_back({{"id", cAlias.Id}, {"name", cAlias.Name}, {"ref", cAlias.Ref}, {"base", cAlias.Base}, {"location", cAlias.Location}});
     return {{"ok", true},
             {"flags", cState->Flags},
             {"current_stage", cState->CurrentStage},
@@ -284,6 +284,17 @@ nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
             {"stages", cState->Stages},
             {"objectives", cState->Objectives},
             {"aliases", aliases}};
+}
+
+// {"cmd": "quest_force_alias", "quest", "alias", "ref", "parent", "x", "y"}: a scenario's fill of a reference alias, the
+// reference read from its plugin as a quest's own fill reads one (a reference in a cell no game loaded).
+nlohmann::json QuestForceAlias(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::ForceQuestAlias(acRequest.value("quest", 0u), acRequest.value("alias", 0u), acRequest.value("ref", 0u),
+                                      acRequest.value("parent", 0u), static_cast<int16_t>(acRequest.value("x", 0)),
+                                      static_cast<int16_t>(acRequest.value("y", 0))))
+        return Error("no such quest alias, or the reference could not be loaded");
+    return {{"ok", true}};
 }
 
 // {"cmd": "global", "global": id}: a global variable's value.
@@ -457,6 +468,7 @@ constexpr Command cCommands[] = {
     {"objects", true, &Objects},
     {"world_state", true, &WorldState},
     {"quest", true, &Quest},
+    {"quest_force_alias", true, &QuestForceAlias},
     {"global", true, &Global},
     {"form_save", true, &FormSave},
     {"engine_events", false, &GetEngineEvents},

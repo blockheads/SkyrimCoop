@@ -49,16 +49,28 @@ struct QuestObjective
 
 // What fills a reference alias: none, a reference (by id), or one the host's game created (Created: its id is
 // that game's own, so it cannot be sent by id).
+// A reference alias's fill. A reference the host's game created goes by its session id (ObjectChange::kCreatedModId)
+// once it went out; one never sent is HostOnly (a guest leaves the role). A plugin's names where it lives (Cell: its
+// cell, or outdoors its worldspace and grid cell) for a guest whose game has to read it from the plugin.
 struct QuestAliasFill
 {
     uint32_t AliasId{};
     GameId Ref{};
-    bool Created{};
+    bool HostOnly{};
+    GameId Cell{};
+    int16_t GridX{};
+    int16_t GridY{};
 
-    bool operator==(const QuestAliasFill& acRhs) const noexcept
-    {
-        return AliasId == acRhs.AliasId && Ref == acRhs.Ref && Created == acRhs.Created;
-    }
+    bool operator==(const QuestAliasFill&) const noexcept = default;
+};
+
+// A location alias's fill (none: cleared).
+struct QuestLocationFill
+{
+    uint32_t AliasId{};
+    GameId Location{};
+
+    bool operator==(const QuestLocationFill&) const noexcept = default;
 };
 
 // A quest as the host's game holds it: flags Running (0x1), Completed (0x2), Failed (0x40), StageWait (0x80), the stage, the
@@ -74,11 +86,12 @@ struct QuestState
     TiltedPhoques::Vector<uint16_t> DoneStages;
     TiltedPhoques::Vector<QuestObjective> Objectives;
     TiltedPhoques::Vector<QuestAliasFill> Aliases;
+    TiltedPhoques::Vector<QuestLocationFill> Locations;
 
     bool operator==(const QuestState& acRhs) const noexcept
     {
         return Id == acRhs.Id && Flags == acRhs.Flags && CurrentStage == acRhs.CurrentStage && DoneStages == acRhs.DoneStages &&
-               Objectives == acRhs.Objectives && Aliases == acRhs.Aliases;
+               Objectives == acRhs.Objectives && Aliases == acRhs.Aliases && Locations == acRhs.Locations;
     }
 };
 
@@ -122,6 +135,7 @@ struct ObjectChange
         kBase,      // Item: its base, the host's pick for one placed with a leveled base
         kCreate,    // the host's game made Object (kCreatedModId): Item its base, Data where (PackPlacement)
         kRecord,    // Value: the row flags the host's change record holds; a guest's record is made the same
+        kGraph,     // Data: its behaviour graphs' state as a save keeps it (a lever's, a claw ring's), at a cell load
     };
 
     // The mod id of a reference the host's game created (its 0xFF id's low bits as the base id): each game makes its
@@ -198,7 +212,8 @@ struct ObjectChange
     // The kinds that carry Data, and those that carry Item.
     static bool HasData(Kind aKind) noexcept
     {
-        return aKind == Kind::kSaveData || aKind == Kind::kMove || aKind == Kind::kContents || aKind == Kind::kCreate;
+        return aKind == Kind::kSaveData || aKind == Kind::kMove || aKind == Kind::kContents || aKind == Kind::kCreate ||
+               aKind == Kind::kGraph;
     }
     static bool HasItem(Kind aKind) noexcept
     {

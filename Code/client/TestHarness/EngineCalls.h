@@ -62,10 +62,14 @@ struct QuestState
         std::string Name;
         uint32_t Ref;  // the reference filling it (GetAliasedRef 25066), 0 for none or a location alias
         uint32_t Base; // that reference's base form
+        uint32_t Location; // a location alias's fill (25067), 0 for none or a reference alias
     };
     std::vector<Alias> Aliases;
 };
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
+// Fills the quest's reference alias with the reference, read from its plugin first when it is not in memory (indoors:
+// aParentId its cell; outdoors: its worldspace and grid cell); false if either is missing.
+bool ForceQuestAlias(uint32_t aQuestId, uint32_t aAliasId, uint32_t aRefId, uint32_t aParentId, int16_t aGridX, int16_t aGridY) noexcept;
 // A global variable's value (TESGlobal 0x34), none for no such global.
 std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept;
 // The calendar's whole days passed (TimeData::rawDaysPassed), which its clock counts on from.

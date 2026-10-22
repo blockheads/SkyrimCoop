@@ -29,7 +29,16 @@ void Write(TiltedPhoques::Buffer::Writer& aWriter, const QuestState& acQuest) no
     {
         Serialization::WriteVarInt(aWriter, cFill.AliasId);
         cFill.Ref.Serialize(aWriter);
-        Serialization::WriteBool(aWriter, cFill.Created);
+        Serialization::WriteBool(aWriter, cFill.HostOnly);
+        cFill.Cell.Serialize(aWriter);
+        Serialization::WriteVarInt(aWriter, static_cast<uint16_t>(cFill.GridX));
+        Serialization::WriteVarInt(aWriter, static_cast<uint16_t>(cFill.GridY));
+    }
+    Serialization::WriteVarInt(aWriter, acQuest.Locations.size());
+    for (const auto& cFill : acQuest.Locations)
+    {
+        Serialization::WriteVarInt(aWriter, cFill.AliasId);
+        cFill.Location.Serialize(aWriter);
     }
 }
 
@@ -61,7 +70,19 @@ bool Read(TiltedPhoques::Buffer::Reader& aReader, QuestState& aQuest) noexcept
     {
         fill.AliasId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
         fill.Ref.Deserialize(aReader);
-        fill.Created = Serialization::ReadBool(aReader);
+        fill.HostOnly = Serialization::ReadBool(aReader);
+        fill.Cell.Deserialize(aReader);
+        fill.GridX = static_cast<int16_t>(static_cast<uint16_t>(Serialization::ReadVarInt(aReader)));
+        fill.GridY = static_cast<int16_t>(static_cast<uint16_t>(Serialization::ReadVarInt(aReader)));
+    }
+    count = Serialization::ReadVarInt(aReader);
+    if (count > kMaxPerQuest)
+        return false;
+    aQuest.Locations.resize(count);
+    for (auto& fill : aQuest.Locations)
+    {
+        fill.AliasId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
+        fill.Location.Deserialize(aReader);
     }
     return true;
 }

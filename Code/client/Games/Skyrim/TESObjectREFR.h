@@ -61,6 +61,9 @@ struct TESObjectREFR : TESForm
     };
 
     static TESObjectREFR* GetByHandle(uint32_t aHandle) noexcept;
+    // A reference not in memory, read from its plugin as a quest's alias fill reads one (the promote task's list,
+    // 15328: its cell indoors, or its worldspace and grid cell outdoors), kept persistent for apOwner. Null if none.
+    static TESObjectREFR* LoadFromPlugin(uint32_t aRefId, uint32_t aCellId, int16_t aGridX, int16_t aGridY, TESForm* apOwner) noexcept;
     // Off: a reference placed with a leveled base (ExtraLeveledItemBase, XLIB) keeps its placeholder when its cell
     // loads (the pick, 20232, skipped), its base coming from the host's pick.
     static void SetPicksLeveledBases(bool aPicks) noexcept;
@@ -197,7 +200,10 @@ struct TESObjectREFR : TESForm
 
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;
     void LoadAnimationVariables(const AnimationVariables& aReader) const noexcept;
-    // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h).
+    // The behaviour graphs' state as a savegame keeps it (Havok/AnimationGraphState.h), any reference's.
+    bool SaveGraphs(TiltedPhoques::String& aGraphs) const noexcept;
+    bool LoadGraphs(const TiltedPhoques::String& acGraphs) const noexcept;
+    // An actor's, with its state flags.
     bool SaveAnimationGraphState(TiltedPhoques::String& aState) const noexcept;
     bool LoadAnimationGraphState(const TiltedPhoques::String& acState) const noexcept;
     uint32_t GetAnimationVariableInt(BSFixedString* apVariableName) noexcept;

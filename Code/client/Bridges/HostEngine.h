@@ -52,9 +52,12 @@ public:
 private:
     // The guests have it: a plugin's reference, or one this game created that went out (kCreate).
     [[nodiscard]] bool IsShared(uint32_t aFormId) const noexcept;
+    // The created references that went out and are gone here (deleted, freed, or their id now another's), as
+    // deletions for the guests: a script's Delete() of one often records no change (it is never saved).
+    void TakeDeletedCreated(TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept;
 
     const ModSystem& m_mods;
     PhysicsRests m_rests;
     TiltedPhoques::Vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges
-    TiltedPhoques::Set<uint32_t> m_created;       // the references the game created that went out, alive
+    TiltedPhoques::Map<uint32_t, uint32_t> m_created; // the created references that went out: id -> base
 };

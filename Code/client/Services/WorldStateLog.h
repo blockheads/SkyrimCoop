@@ -18,7 +18,9 @@ inline std::string Describe(const ObjectChange& acChange)
     case ObjectChange::Kind::kActivate: return fmt::format("activate {:X} by {:X} (open state {})", cObject, acChange.Activator.LogFormat(), acChange.OpenState);
     case ObjectChange::Kind::kAnimation: return fmt::format("animation {:X} '{}' '{}'", cObject, acChange.Animation.c_str(), acChange.Event.c_str());
     case ObjectChange::Kind::kItems: return fmt::format("items {:X} holds {} of {:X}", cObject, acChange.Value, acChange.Item.LogFormat());
-    case ObjectChange::Kind::kEnabled: return fmt::format("{} {:X}", acChange.Value ? "enable" : "disable", cObject);
+    // ReferenceStates' packing: 1 enabled, 2 deleted.
+    case ObjectChange::Kind::kEnabled:
+        return fmt::format("{} {:X}", (acChange.Value & 2) ? "delete" : acChange.Value ? "enable" : "disable", cObject);
     // ReferenceStates' packing: the level in the low byte, locked at 0x100.
     case ObjectChange::Kind::kLock:
         return fmt::format("lock {:X} {} at {}", cObject, (acChange.Value & 0x100) ? "locked" : "unlocked", acChange.Value & 0xFF);
@@ -35,6 +37,7 @@ inline std::string Describe(const ObjectChange& acChange)
     case ObjectChange::Kind::kOwner: return fmt::format("owner {:X} {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kCreate: return fmt::format("create {:X} of {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kRecord: return fmt::format("record {:X} {:X}", cObject, acChange.Value);
+    case ObjectChange::Kind::kGraph: return fmt::format("graph {:X}: {} bytes", cObject, acChange.Data.size());
     case ObjectChange::Kind::kBase: return fmt::format("base {:X} {:X}", cObject, acChange.Item.LogFormat());
     case ObjectChange::Kind::kContents:
         return fmt::format("contents {:X}: {} items", cObject, ObjectChange::UnpackContents(acChange.Data).size());

@@ -24,6 +24,21 @@ Vector<TESObjectREFR*> TESObjectCELL::GetRefsByFormTypes(const Vector<FormType>&
     return references;
 }
 
+bool TESObjectCELL::GetGrid(int32_t& aX, int32_t& aY) const noexcept
+{
+    struct ExteriorData
+    {
+        int32_t cellX;
+        int32_t cellY;
+    };
+    const auto* pExterior = reinterpret_cast<const ExteriorData*>(cellData);
+    if (IsInterior() || !pExterior)
+        return false;
+    aX = pExterior->cellX;
+    aY = pExterior->cellY;
+    return true;
+}
+
 Vector<TESObjectREFR*> TESObjectCELL::GetReferences() noexcept
 {
     Vector<TESObjectREFR*> references;

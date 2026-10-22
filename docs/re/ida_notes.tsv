@@ -171,3 +171,15 @@ id	rva	name	comment
 78383	0xea5980	BSFadeNode::UpdateCollisionObject	(node, bool): moves the 3D's collision to its transform
 70251	0xd1bf70	NiAVObject::Update	(object, NiUpdateData*): world transforms down the tree
 20232	0x2fb150	TESObjectREFR::PickLeveledBase	(ref): a reference placed with ExtraLeveledItemBase rolls it (14752) at its cell's load and takes the pick as its base (19785), records 0x80. Hooked: a guest picks none
+13723	0x1b6c10	TESDataHandler::CreateReferenceAtLocation	(handle out, base, pos, rot, cell, worldspace, created, primitive, linked room, forcePersist, arg11): ModManager::CreateReference passes forcePersist 0; the created-reference watcher hooks it
+35511	0x600f70	BGSSaveLoadGame::RemoveChangeFlags	(formId, flags): the change map's remove under RemoveChange 14609 and a demotion on a long wait; hooked as the funnel's removal (FormChanges HookRemoveFlags)
+19584	0x2de3b0	TESObjectREFR::SetHeadingTargetFlag	sets form flag 0x40000 (ExtraHeadingTarget bookkeeping, a look-at target) and records the form flags (0x1): not world state, the oracle masks it
+19146	0x2c3830	TESObjectCELL::SendFullyLoadedEvent	sends TESCellFullyLoadedEvent {cell}, sets LoadedCellData+0x17C
+19428	0x2d3680	TESObjectCELL::AddActivatingRef	(cell, handle*): puts a reference on LoadedCellData+0xF0 activatingRefs while its activate-parent children run (InitChildActivates, FinishLoadGame, a cell's load) and records 0x4000000; 19032 and Revert remove it
+15328	0x1fedb0	BGSDynamicPersistenceManager::PromoteList	(manager 400326, entries {ref, parent cell or worldspace, grid x<<16|y} x n, owner, out handles): each reference looked up, or read from its plugin (15360) when not in memory, then PromoteReference 15330 for the owner. QueuedPromoteReferencesTask 15319 runs it for quests (25212) and locations
+15360	0x2008c0	TESObjectREFR::LoadFromFile	(entry, out ref): seeks the reference's cell (19080) or worldspace grid cell (20456) in each plugin holding it, finds its record (0x2BEF90) and loads it (TESDataHandler 13763)
+400326	0x20f69f8	BGSDynamicPersistenceManager::singleton	the manager PromoteList 15328 takes
+25053	0x3ce1c0	TESQuest::ClearLocationAlias	(quest, alias): LocationAlias.Clear 55188
+25054	0x3ce3a0	TESQuest::ForceLocationIntoAlias	(quest, alias id, location): LocationAlias.ForceLocationTo 55191; clears the old fill (25053) under the alias lock (+0xD0)
+25067	0x3d1550	TESQuest::GetAliasedLocation	(quest, alias id): the location fill from the quest's map at +0xA8, under the alias lock; LocationAlias.GetLocation 55189
+53508	0x9a1d40	SkyrimScript::HandlePolicy::GetHandleForObject	a VM handle: a form 0x0000'FFFF'<id>, an alias <alias id><<32 | quest id (types 139-141), an active effect 0x0002'<unique id>'<actor>, an inventory item 0x0001'<unique id>'<container>

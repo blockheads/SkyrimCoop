@@ -104,3 +104,10 @@ SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d4cb > SkyrimS
 # 12729). Ours on the stack: the pass-throughs HookFindTargets, HookAddTarget (an owned actor, our caster) and
 # HookSendEvent (host). Seen in vilkas-counts-client-hits after a wait scenario; both stacks read on 2026-10-21.
 SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16f48b > SkyrimSE.exe+0x182f95
+
+# The engine's inventory: InventoryChanges::RemoveItem (16059 -> 11591) takes one lock then the other, adding an
+# item (TESObjectREFR::AddToInventoryChanges 19688 -> 16053 -> 11594) the other way round. Ours: a copy's inventory
+# set from the owner's (SkyrimBridge::SetActorInventory: RemoveAllItems, then AddObjectToContainer per item) on the
+# update job, one call at a time; vanilla takes both from scripts and the player's own pickups. Both stacks read
+# on 2026-10-21 (keyhole-asks-client, client).
+SkyrimSE.exe+0x15583a > SkyrimSE.exe+0x15584d vs SkyrimSE.exe+0x154dce > SkyrimSE.exe+0x154de0

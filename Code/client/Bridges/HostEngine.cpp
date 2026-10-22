@@ -7,6 +7,7 @@
 #include <Systems/ModSystem.h>
 
 #include <Forms/FormChanges.h>
+#include <Forms/BGSLocation.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
@@ -30,7 +31,31 @@ static_assert(QuestState::kFlags == (TESQuest::Enabled | TESQuest::Completed | T
 
 namespace
 {
-QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMods) noexcept
+// A role's fill as a guest can make it (QuestAliasFill): acCreated, the created references that went out.
+QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef, const ModSystem& acMods,
+                             const TiltedPhoques::Map<uint32_t, uint32_t>& acCreated) noexcept
+{
+    QuestAliasFill fill{aAliasId};
+    if (!apRef)
+        return fill;
+    if (apRef->IsTemporary())
+    {
+        fill.HostOnly = !acCreated.count(apRef->formID) || !acMods.GetServerModId(apRef->formID, fill.Ref);
+        return fill;
+    }
+    const TESObjectCELL* pCell = apRef->GetParentCellEx();
+    if (!acMods.GetServerModId(apRef->formID, fill.Ref) || !pCell)
+        return fill;
+    int32_t x = 0;
+    int32_t y = 0;
+    const bool cOutdoors = pCell->worldspace && pCell->GetGrid(x, y);
+    acMods.GetServerModId(cOutdoors ? pCell->worldspace->formID : pCell->formID, fill.Cell);
+    fill.GridX = static_cast<int16_t>(x);
+    fill.GridY = static_cast<int16_t>(y);
+    return fill;
+}
+
+QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMods, const TiltedPhoques::Map<uint32_t, uint32_t>& acCreated) noexcept
 {
     QuestState quest{acId, static_cast<uint16_t>(aQuest.flags & QuestState::kFlags), aQuest.currentStage};
     for (const TESQuest::Stage* pStage : aQuest.stages)
@@ -45,14 +70,16 @@ QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMo
         return quest;
     for (const BGSBaseAlias* pAlias : aQuest.aliases)
     {
-        if (!pAlias || !aQuest.GetRefAlias(pAlias->aliasId))
+        if (!pAlias)
             continue;
-        QuestAliasFill& fill = quest.Aliases.emplace_back(QuestAliasFill{pAlias->aliasId});
-        const TESObjectREFR* pRef = aQuest.GetAliasedRef(pAlias->aliasId);
-        // A reference the host's game created has an id of its own (docs/progress.md, loose ends).
-        fill.Created = pRef && pRef->formID >= 0xFF000000;
-        if (pRef && !fill.Created)
-            acMods.GetServerModId(pRef->formID, fill.Ref);
+        if (aQuest.GetRefAlias(pAlias->aliasId))
+        {
+            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, aQuest.GetAliasedRef(pAlias->aliasId), acMods, acCreated));
+            continue;
+        }
+        QuestLocationFill& fill = quest.Locations.emplace_back(QuestLocationFill{pAlias->aliasId});
+        if (const BGSLocation* pLocation = aQuest.GetAliasedLocation(pAlias->aliasId))
+            acMods.GetServerModId(pLocation->formID, fill.Location);
     }
     return quest;
 }
@@ -196,7 +223,7 @@ TiltedPhoques::Vector<QuestState> HostEngine::ReadQuests() const noexcept
     {
         GameId id;
         if (pQuest && m_mods.GetServerModId(pQuest->formID, id))
-            quests.push_back(ReadQuest(*pQuest, id, m_mods));
+            quests.push_back(ReadQuest(*pQuest, id, m_mods, m_created));
     }
     return quests;
 }
@@ -261,13 +288,17 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
 {
     auto [created, changed, removed] = s_log.Take();
     TiltedPhoques::Vector<ObjectChange> changes;
-    // Created first: the changes after refer to them.
+    TakeDeletedCreated(changes);
+    // Created next: the changes after refer to them.
     for (const uint32_t cFormId : created)
     {
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
         if (auto create = pObject ? ReadCreate(*pObject, m_mods) : std::nullopt)
         {
-            m_created.insert(cFormId);
+            // An id still out: its old reference was deleted and the id used again since the last update.
+            if (m_created.count(cFormId))
+                changes.push_back(ReferenceStates::Deleted(create->Object));
+            m_created[cFormId] = pObject->baseForm->formID;
             m_rests.Forget(cFormId); // an id used before: the old one's rest is not this one's
             changes.push_back(std::move(*create));
         }
@@ -279,8 +310,10 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
         GameId id;
         if (!pObject || !IsShared(cFormId) || !m_mods.GetServerModId(cFormId, id))
             continue;
-        // A physics move goes out once it rests (m_rests): each game simulates the flight.
-        ReferenceStates::Read(*pObject, id, cFlags & ~TESObjectREFR::CHANGE_REFR_HAVOK_MOVE, m_mods, changes);
+        // A physics move goes out once it rests (m_rests): each game simulates the flight. A graph's live changes
+        // are the animations scripts play (relayed as events); its state goes with a cell's.
+        constexpr uint32_t cNotLive = TESObjectREFR::CHANGE_REFR_HAVOK_MOVE | TESObjectREFR::CHANGE_REFR_ANIMATION;
+        ReferenceStates::Read(*pObject, id, cFlags & ~cNotLive, m_mods, changes);
     }
     for (const uint32_t cFormId : m_rests.TakeRested())
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
@@ -291,10 +324,6 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
             if (GameId id; IsShared(cFormId) && m_mods.GetServerModId(cFormId, id))
                 changes.push_back(ReadRecord(*pObject, id));
-    // A deleted created one's id is the game's to use again.
-    for (const auto& [cFormId, cFlags] : changed)
-        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); m_created.count(cFormId) && (!pObject || pObject->IsDeleted()))
-            m_created.erase(cFormId);
     // Events last: an object a script enabled and then animated is enabled for the animation.
     changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
     m_events.clear();
@@ -304,6 +333,24 @@ TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
 bool HostEngine::IsShared(uint32_t aFormId) const noexcept
 {
     return aFormId < 0xFF000000 || m_created.count(aFormId);
+}
+
+void HostEngine::TakeDeletedCreated(TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept
+{
+    for (auto it = m_created.begin(); it != m_created.end();)
+    {
+        const auto [cFormId, cBaseId] = *it;
+        const auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
+        if (pRef && !pRef->IsDeleted() && pRef->baseForm && pRef->baseForm->formID == cBaseId)
+        {
+            ++it;
+            continue;
+        }
+        if (GameId id; m_mods.GetServerModId(cFormId, id))
+            aChanges.push_back(ReferenceStates::Deleted(id));
+        m_rests.Forget(cFormId);
+        it = m_created.erase(it);
+    }
 }
 
 std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(const GameId& acCell,

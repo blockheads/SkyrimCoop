@@ -62,6 +62,35 @@ void TESQuest::ClearRefAlias(BGSBaseAlias* apAlias) noexcept
     TiltedPhoques::ThisCall(clearRefAlias, this, apAlias);
 }
 
+BGSBaseAlias* TESQuest::GetAlias(uint32_t aAliasId) noexcept
+{
+    for (BGSBaseAlias* pAlias : aliases)
+        if (pAlias && pAlias->aliasId == aAliasId)
+            return pAlias;
+    return nullptr;
+}
+
+BGSLocation* TESQuest::GetAliasedLocation(uint32_t aAliasId) noexcept
+{
+    TP_THIS_FUNCTION(TGetAliasedLocation, BGSLocation*, TESQuest, uint32_t);
+    POINTER_SKYRIMSE(TGetAliasedLocation, getAliasedLocation, 25067);
+    return TiltedPhoques::ThisCall(getAliasedLocation, this, aAliasId);
+}
+
+void TESQuest::ForceLocationIntoAlias(uint32_t aAliasId, BGSLocation* apLocation) noexcept
+{
+    TP_THIS_FUNCTION(TForceLocationIntoAlias, void, TESQuest, uint32_t, BGSLocation*);
+    POINTER_SKYRIMSE(TForceLocationIntoAlias, forceLocationIntoAlias, 25054);
+    TiltedPhoques::ThisCall(forceLocationIntoAlias, this, aAliasId, apLocation);
+}
+
+void TESQuest::ClearLocationAlias(BGSBaseAlias* apAlias) noexcept
+{
+    TP_THIS_FUNCTION(TClearLocationAlias, void, TESQuest, BGSBaseAlias*);
+    POINTER_SKYRIMSE(TClearLocationAlias, clearLocationAlias, 25053);
+    TiltedPhoques::ThisCall(clearLocationAlias, this, apAlias);
+}
+
 TESQuest::Stage* TESQuest::GetStage(uint16_t aIndex) noexcept
 {
     for (Stage* pStage : stages)

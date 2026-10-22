@@ -23,6 +23,7 @@
 //   Rule 1: `x == Game.GetPlayer()` is true when x is a guest's character.
 //   Rule 2: Game.GetPlayer() returns the guest whose action started the script, so every running script is
 //   tagged with the guest it runs for. Evidence: docs/re/systems/papyrus-guest-scripts.md.
+// On a guest the same tags mark the scripts its own player caused (WorldEvents lets only those run).
 namespace GuestScripts
 {
 namespace
@@ -166,22 +167,32 @@ enum class Timer : uint8_t
     kStop,
 };
 
-// A script's timer: when it fires, the engine queues Event on the script that set it.
+// A script's timer or registration: when it fires, the engine queues one of Events on the script that set it.
 struct TimerNative
 {
     std::string_view Name;
-    std::string_view Event;
+    std::array<std::string_view, 2> Events;
     Timer Kind;
 };
 
 // Form, Alias and ActiveMagicEffect share these names.
 constexpr TimerNative cTimerNatives[] = {
-    {"RegisterForSingleUpdate", "OnUpdate", Timer::kOnce},
-    {"RegisterForUpdate", "OnUpdate", Timer::kRepeat},
-    {"UnregisterForUpdate", "OnUpdate", Timer::kStop},
-    {"RegisterForSingleUpdateGameTime", "OnUpdateGameTime", Timer::kOnce},
-    {"RegisterForUpdateGameTime", "OnUpdateGameTime", Timer::kRepeat},
-    {"UnregisterForUpdateGameTime", "OnUpdateGameTime", Timer::kStop},
+    {"RegisterForSingleUpdate", {"OnUpdate"}, Timer::kOnce},
+    {"RegisterForUpdate", {"OnUpdate"}, Timer::kRepeat},
+    {"UnregisterForUpdate", {"OnUpdate"}, Timer::kStop},
+    {"RegisterForSingleUpdateGameTime", {"OnUpdateGameTime"}, Timer::kOnce},
+    {"RegisterForUpdateGameTime", {"OnUpdateGameTime"}, Timer::kRepeat},
+    {"UnregisterForUpdateGameTime", {"OnUpdateGameTime"}, Timer::kStop},
+    {"RegisterForAnimationEvent", {"OnAnimationEvent", "OnAnimationEventUnregistered"}, Timer::kRepeat},
+    {"UnregisterForAnimationEvent", {"OnAnimationEvent"}, Timer::kStop},
+    {"RegisterForSleep", {"OnSleepStart", "OnSleepStop"}, Timer::kRepeat},
+    {"UnregisterForSleep", {"OnSleepStart", "OnSleepStop"}, Timer::kStop},
+    {"RegisterForLOS", {"OnGainLOS", "OnLostLOS"}, Timer::kRepeat},
+    {"RegisterForSingleLOSGain", {"OnGainLOS"}, Timer::kOnce},
+    {"RegisterForSingleLOSLost", {"OnLostLOS"}, Timer::kOnce},
+    {"UnregisterForLOS", {"OnGainLOS", "OnLostLOS"}, Timer::kStop},
+    {"RegisterForTrackedStatsEvent", {"OnTrackedStatsEvent"}, Timer::kRepeat},
+    {"UnregisterForTrackedStatsEvent", {"OnTrackedStatsEvent"}, Timer::kStop},
 };
 
 const TimerNative* FindTimerNative(std::string_view aName) noexcept
@@ -193,8 +204,11 @@ const TimerNative* FindTimerNative(std::string_view aName) noexcept
 // The timer event aEvent names, spelled as cTimerNatives spells it ("" if none).
 std::string_view TimerEvent(std::string_view aEvent) noexcept
 {
-    const auto it = std::ranges::find_if(cTimerNatives, [aEvent](const auto& acTimer) { return SameName(acTimer.Event, aEvent); });
-    return it != std::end(cTimerNatives) ? it->Event : std::string_view{};
+    for (const auto& cTimer : cTimerNatives)
+        for (const std::string_view cEvent : cTimer.Events)
+            if (!cEvent.empty() && SameName(cEvent, aEvent))
+                return cEvent;
+    return {};
 }
 
 // Its lock is a leaf: no engine call while it is held.
@@ -253,6 +267,14 @@ class Tags
     {
         std::scoped_lock _{m_lock};
         return !m_timers.empty();
+    }
+
+    // The guest whose timer raised aEvent on aObject, kept for TakeTimer.
+    uint32_t PeekTimer(uint64_t aObject, std::string_view aEvent) noexcept
+    {
+        std::scoped_lock _{m_lock};
+        const auto it = m_timers.find({aObject, std::string(aEvent)});
+        return it != m_timers.end() ? it->second.Guest : 0;
     }
 
     // The guest whose timer raised aEvent on aObject; a single timer is used up.
@@ -340,8 +362,6 @@ void* TP_MAKE_THISCALL(HookCallQueued, void, int32_t aCallType, void* apObjectTy
                        const BSScript::Variable* apSelf, const BSScript::Arguments* apArguments)
 {
     void* pResult = TiltedPhoques::ThisCall(RealCallQueued, apThis, aCallType, apObjectType, apEvent, apSelf, apArguments);
-    if (!IsHosting())
-        return pResult;
     uint32_t guest = t_nativeGuest ? t_nativeGuest : GuestArgument(apArguments);
     auto* pSelf = apSelf ? apSelf->GetObject() : nullptr;
     if (!guest && pSelf && apEvent && apEvent->AsAscii() && s_tags.HasTimers())
@@ -371,7 +391,9 @@ BSScript::CallResult TP_MAKE_THISCALL(HookNativeCalled, BSScript::IFunction, BSS
         const BSScript::StackFrame* pTop = (*appStack)->pTop;
         if (const TimerNative* pTimer = cpName ? FindTimerNative(cpName) : nullptr)
             if (auto* pScript = pTop ? pTop->self.GetObject() : nullptr)
-                s_tags.SetTimer(pScript->GetHandle(), pTimer->Event, guest, pTimer->Kind);
+                for (const std::string_view cEvent : pTimer->Events)
+                    if (!cEvent.empty())
+                        s_tags.SetTimer(pScript->GetHandle(), cEvent, guest, pTimer->Kind);
     }
     const uint32_t cOuter = t_nativeGuest;
     t_nativeGuest = guest;
@@ -413,6 +435,25 @@ void* TP_MAKE_THISCALL(HookStackEnded, BSScript::Stack)
 uint32_t NativeGuest() noexcept
 {
     return t_nativeGuest;
+}
+
+ScopedCause::ScopedCause(uint32_t aPlayer) noexcept
+    : m_outer(t_nativeGuest)
+{
+    t_nativeGuest = aPlayer;
+}
+
+ScopedCause::~ScopedCause() noexcept
+{
+    t_nativeGuest = m_outer;
+}
+
+uint32_t RegisteredBy(uint64_t aObject, std::string_view aEvent) noexcept
+{
+    if (!s_tags.HasTimers())
+        return 0;
+    const auto cEvent = TimerEvent(aEvent);
+    return cEvent.empty() ? 0 : s_tags.PeekTimer(aObject, cEvent);
 }
 
 void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept

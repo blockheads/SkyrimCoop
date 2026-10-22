@@ -118,3 +118,20 @@ What the change funnel (`AddChangeFlags`) does and does not see of a reference, 
   `0x80`, then `sub_19671`. Called from the cell's reference loads (`sub_1402C9990`, `sub_1402CC7F0`, both under
   `TESObjectCELL` 19084). The pick is per game: two games show different books.
 
+
+## Animation, activating children, created references (2026-10-21)
+
+- Animation `0x10000000` is recorded on nearly every loaded object with a graph, by each game itself (a cell's
+  attach 19130, `Set3D` removes it, `PlayGamebryoAnimation`, `FinishLoadGame`): the flag is no desync, the graph's
+  state is. It goes with a cell's state as the graphs' save data (`kGraph`).
+- Activating children `0x4000000`: `TESObjectCELL` 19428 puts a reference on `LoadedCellData+0xF0`
+  (`activatingRefs`) while its activate-parent children run (`InitChildActivates`, `FinishLoadGame`, the cell's
+  load) and records the flag; 19032 and `Revert` remove it. Transient, the host's: not sent.
+- A created reference a script deletes (`Delete()`) is often freed without the funnel recording anything (it is
+  never saved): the host sweeps the ones it sent each update. Its id can be used again in the same update.
+- Form flag `0x400` (persistent) also changes at run time: `BGSDynamicPersistenceManager` promotes a reference while
+  a script or quest holds it (15330) and demotes it after; `0x40000` is a look-at target's bookkeeping (19584),
+  recording the form flags `0x1`. Both are each game's own.
+- A quest's fill of a reference not in memory reads it from its plugin: `QueuedPromoteQuestTask` (25212) →
+  `QueuedPromoteReferencesTask` (15319) → 15328 → 15360 (seek the cell or worldspace grid cell's records, load the
+  one) → `PromoteReference` 15330 for the quest. A guest calls 15328 directly with the host's reference and parent.

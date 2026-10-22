@@ -542,6 +542,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK(unpacked.Cell == placement.Cell);
         CHECK(unpacked.Position[1] == 2093.f);
         sendMessage.Changes.push_back(create);
+        ObjectChange graph{ObjectChange::Kind::kGraph, GameId(0, 0x847D3)};
+        graph.Data = TiltedPhoques::String("\x02\x00graph", 7);
+        sendMessage.Changes.push_back(graph);
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});
@@ -596,7 +599,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         quest.CurrentStage = 150;
         quest.DoneStages = {10, 20, 140, 150};
         quest.Objectives = {{10, 3}, {20, 1}};
-        quest.Aliases = {{4, GameId(0, 0x1A677), false}, {9, GameId(), true}, {11, GameId(), false}};
+        quest.Aliases = {{4, GameId(0, 0x1A677), false}, {9, GameId(), true}, {11, GameId(), false},
+                         {5, GameId(0, 0x10A7CC), false, GameId(0, 0xB6BE6)}, {6, GameId(0, 0x1D4F0), false, GameId(0, 0x3C), -12, 7}};
+        quest.Locations = {{2, GameId(0, 0x18A56)}, {3, GameId()}};
         sendMessage.Quests.emplace_back().Id = GameId(2, 0x801);
 
         Buffer buff(1000);

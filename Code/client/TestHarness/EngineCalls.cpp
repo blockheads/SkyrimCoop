@@ -14,6 +14,7 @@
 #include <Forms/TESIdleForm.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESPackage.h>
+#include <Forms/BGSLocation.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWorldSpace.h>
 #include <Games/FormState.h>
@@ -688,10 +689,24 @@ std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
         if (!pAlias)
             continue;
         auto* pRef = pQuest->GetAliasedRef(pAlias->aliasId);
+        const BGSLocation* pLocation = pQuest->GetRefAlias(pAlias->aliasId) ? nullptr : pQuest->GetAliasedLocation(pAlias->aliasId);
         state.Aliases.push_back({pAlias->aliasId, pAlias->name.AsAscii() ? pAlias->name.AsAscii() : "",
-                                 pRef ? pRef->formID : 0, pRef && pRef->baseForm ? pRef->baseForm->formID : 0});
+                                 pRef ? pRef->formID : 0, pRef && pRef->baseForm ? pRef->baseForm->formID : 0,
+                                 pLocation ? pLocation->formID : 0});
     }
     return state;
+}
+
+bool ForceQuestAlias(uint32_t aQuestId, uint32_t aAliasId, uint32_t aRefId, uint32_t aParentId, int16_t aGridX, int16_t aGridY) noexcept
+{
+    auto* pQuest = Cast<TESQuest>(TESForm::GetById(aQuestId));
+    if (!pQuest || !pQuest->GetRefAlias(aAliasId))
+        return false;
+    TESObjectREFR* pRef = TESObjectREFR::LoadFromPlugin(aRefId, aParentId, aGridX, aGridY, pQuest);
+    if (!pRef)
+        return false;
+    pQuest->ForceRefIntoAlias(aAliasId, pRef);
+    return true;
 }
 
 uint32_t GetSelectedPower(uint32_t aFormId) noexcept

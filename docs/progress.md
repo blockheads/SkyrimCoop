@@ -119,8 +119,10 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
 3. **Created objects** (`0xFF` ids, each game's own): dropped items, placed objects, loot. A mapping between the
    host's and each guest's ids, made when the host creates one; also what quest fills of created objects need
    (loose ends, "Created objects in quest alias fills").
-4. **The rest of `unsynced`:** animation `0x10000000` (or covered by the animation events), activating children
-   `0x4000000`; each a row or noted as covered.
+4. **The rest of `unsynced`:** done 2026-10-21. Animation `0x10000000`: the graph row (`kGraph`, the graphs' save
+   data, ~130 bytes each) goes with a cell's state only (live changes are the relayed animation events);
+   `late-join-gets-ring-pose` (a claw ring turned while the client was away). Activating children `0x4000000`:
+   not sent, the host's transient bookkeeping while a reference's activate-parent children run (19428).
 5. **Physics objects' rest positions.** Havok moved `0x4`: when the host's body comes to rest (deactivated), its
    position and angle go out through the move row. Each game simulates the flight its own way, then the host's
    resting spot wins. Built 2026-10-21 (`Bridges/PhysicsRests`); a guest's own push is not sent (its cell's next
@@ -597,6 +599,25 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   them; the run folder's copy is taken at the duo's start): an engine inversion between a quest alias fill
   adding a spell (the VM relays the magic event under the alias array's lock) and the Wait menu's autosave,
   with only our pass-through hooks on the stack. In `scripts/lock_order_known.txt`.
+- **Guest scripts, option 1, built 2026-10-21** (`docs/research/guest-scripts-and-mods.md`): a guest runs only the
+  scripts its own player or UI caused (and what they start). Open: the UI lane is untested (no SKSE script mod in
+  the test install); fragments and stacks resumed from a save skip the gate (no `SendEvent`); a guest's player-alias
+  events (location changes, item pickups) are dropped and not yet raised on the host (party model rule 4).
+- **Quest fills, 2026-10-21:** a fill of a reference the guest never loaded is read from its plugin as the host's
+  quest did (15328), `quest-fill-loads-on-guest`; a created reference in a fill maps to the guest's twin
+  (`quest-roles-match-host` now compares them by base); location aliases are synced (`QuestState::Locations`,
+  25054/25067), no scenario (no console-started quest fills one in the test setup). A join loads every running
+  quest's unloaded references at once: not measured on a late save.
+- **Created objects, 2026-10-21** (critters stressed them): a deleted one is found by sweeping the ones sent each
+  update (a script's `Delete()` often records nothing), an id reused in one update sends the old one's deletion
+  first; dynamic persistence (`0x400`) and a look-at form-flags record (`0x40000`) are each game's own (oracle).
+- Not done from the 2026-10-21 list: enchanted, tempered or poisoned items taken from containers still arrive plain
+  (counts per base item); the client sometimes misses one door `open` event in `world-changes-reach-guest` (2 of
+  ~10 runs, passes on rerun), not looked into.
+- Regression 2026-10-21 evening (55 world, session, script and quest scenarios, fresh duo, 434 s): 53 pass.
+  `form-state-round-trips` (the fresh-duo loose end above) and `late-join-gets-ring-pose` on a guest lock report,
+  `+0x15584d > +0x155859` against `+0x154dce > +0x154de0`: the engine's inventory functions 11594/11591 again
+  (see `lock_order_known.txt`), at other sites; its stacks were not in the log, so not added to the known list.
 - `party-stacks-on-arrival` fails every run (2026-10-21): "[client] came within 9 units of the other player: it
   walked through it". Not followed up.
 

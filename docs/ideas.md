@@ -29,6 +29,14 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Sync
 
+- **Per-player system quests (mod support, 2026-10-21).** Under "only the host decides", every quest's
+  scripts run on the host only, so a quest that tracks one player's body (Frostfall's exposure system,
+  needs mods, vanilla `PlayerVampireQuest`) tracks only the host's player: a guest never gets cold or hungry
+  on its own. Later, an opt-in list of such quests that also run on each guest's game for its own player,
+  with the globals their scripts name kept per game (left out of the host's global sync). The list first,
+  shipped for known mods; then found by a heuristic (no stages, objectives or aliases but the player's) or
+  from the compiled scripts (`.pex`: which natives, on what). Their world writes (a campfire, harvesting) go
+  to the host as a guest's actions. Notes: `docs/research/guest-scripts-and-mods.md`.
 - **Switch a guest's own weather choice off** (2026-10-20). Today a guest's game keeps picking its own weather
   (the region's climate, cell changes, scripts), and `GuestWeather` checks every frame and forces the
   host's back (`GuestEngine::HoldWeather`). Cleaner: while a guest, stop the game choosing at all, so the

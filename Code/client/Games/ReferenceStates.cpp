@@ -172,6 +172,17 @@ bool ApplySaveData(TESObjectREFR& aObject, const ObjectChange& acChange, const M
     return true;
 }
 
+// An actor's graphs are its owner's (copies load them at spawn).
+bool ReadGraph(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+{
+    return acObject.formType == FormType::Reference && acObject.SaveGraphs(aChange.Data) && !aChange.Data.empty();
+}
+
+bool ApplyGraph(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+{
+    return aObject.LoadGraphs(acChange.Data);
+}
+
 struct ReferenceState
 {
     ObjectChange::Kind Kind;
@@ -189,6 +200,7 @@ constexpr ReferenceState cStates[] = {
     {ObjectChange::Kind::kScale, TESObjectREFR::CHANGE_REFR_SCALE, &ReadScale, &ApplyScale},
     {ObjectChange::Kind::kOwner, TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP, &ReadOwner, &ApplyOwner},
     {ObjectChange::Kind::kBase, TESObjectREFR::CHANGE_REFR_BASEOBJECT, &ReadBase, &ApplyBase},
+    {ObjectChange::Kind::kGraph, TESObjectREFR::CHANGE_REFR_ANIMATION, &ReadGraph, &ApplyGraph},
     {ObjectChange::Kind::kSaveData, ~0u, &ReadSaveData, &ApplySaveData},
 };
 
@@ -198,9 +210,11 @@ constexpr bool cSaveDataFallback = false;
 // Game-only extra data is the engine's runtime bookkeeping, whose load on a guest re-runs a reference's alias data
 // under the quests' locks (FinishLoadGame) against a cell load's alias fills; promoted and cell changed are the
 // location header's, which FormState does not carry (loaded alone: a half-promoted reference).
-// Inventory travels as the container event's kItems changes (ContainerEvents), not a row.
+// Inventory travels as the container event's kItems changes (ContainerEvents), not a row. Activating children: a
+// reference on its cell's list while its activate-parent children run (InitChildActivates, 19428), the host's.
 constexpr uint32_t cNotSent = TESObjectREFR::CHANGE_REFR_EXTRA_GAME_ONLY | TESObjectREFR::CHANGE_REFR_PROMOTED |
-                              TESObjectREFR::CHANGE_REFR_CELL_CHANGED | TESObjectREFR::CHANGE_REFR_INVENTORY;
+                              TESObjectREFR::CHANGE_REFR_CELL_CHANGED | TESObjectREFR::CHANGE_REFR_INVENTORY |
+                              TESObjectREFR::CHANGE_REFR_EXTRA_ACTIVATING_CHILDREN;
 } // namespace
 
 uint32_t SentFlags() noexcept
@@ -230,6 +244,13 @@ uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept
 uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept
 {
     return acObject.IsTemporary() ? 0 : RecordedRows(acObject);
+}
+
+ObjectChange Deleted(const GameId& acId) noexcept
+{
+    ObjectChange change{ObjectChange::Kind::kEnabled, acId};
+    change.Value = kDeleted;
+    return change;
 }
 
 void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept

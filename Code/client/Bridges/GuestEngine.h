@@ -9,6 +9,7 @@
 
 struct ModSystem;
 struct TESObjectREFR;
+struct TESQuest;
 
 /**
  * @brief A guest's game taking the host's world, each with the engine's own call, from session ids.
@@ -54,6 +55,11 @@ public:
 private:
     // The reference here for a session id; the host's created ones (ObjectChange::kCreatedModId) through m_created.
     [[nodiscard]] TESObjectREFR* FindReference(const GameId& acId) const noexcept;
+    // The reference the host's fill names here: the twin of one the host's game created, the plugin's in memory, or
+    // read from the plugin as the host's quest read it (kept for aQuest).
+    [[nodiscard]] TESObjectREFR* FindFillReference(TESQuest& aQuest, const QuestAliasFill& acFill) const noexcept;
+    // The host's role fills, references and locations, on this game's quest.
+    void ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const noexcept;
     // Makes this game's own of a reference the host's game created, once.
     bool Create(const ObjectChange& acChange) noexcept;
     // The host's rest of a physics object: put there and held (its bodies keyframed).
