@@ -7,7 +7,7 @@ void NotifySetTimeResult::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void NotifySetTimeResult::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     uint64_t dest = 0;
     aReader.ReadBits(dest, 8);

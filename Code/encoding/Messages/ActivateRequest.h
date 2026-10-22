@@ -4,12 +4,12 @@
 
 #include <Structs/GameId.h>
 
-struct ActivateRequest final : ClientMessage
+struct ActivateRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kActivateRequest;
+    static constexpr RequestOpcode Opcode = kActivateRequest;
 
     ActivateRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

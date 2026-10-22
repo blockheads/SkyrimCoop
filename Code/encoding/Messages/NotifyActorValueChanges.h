@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyActorValueChanges final : ServerMessage, Payloads::ActorValueChanges
+struct NotifyActorValueChanges final : NotifyMessage, Payloads::ActorValueChanges
 {
-    static constexpr ServerOpcode Opcode = kNotifyActorValueChanges;
+    static constexpr NotifyOpcode Opcode = kNotifyActorValueChanges;
     using Payload = Payloads::ActorValueChanges;
 
     NotifyActorValueChanges()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

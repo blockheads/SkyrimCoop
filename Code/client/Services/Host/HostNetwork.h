@@ -4,8 +4,8 @@
 
 #include <functional>
 
-struct ClientMessage;
-struct ServerMessage;
+struct RequestMessage;
+struct NotifyMessage;
 
 /**
  * @brief The host's end of the session's connections: the enet listener the other players' games
@@ -16,7 +16,7 @@ struct HostNetwork final : TiltedPhoques::Server
 {
     using ConnectionId_t = TiltedPhoques::ConnectionId_t;
     // True: the message was handled.
-    using FrontDoor = std::function<bool(const ClientMessage&, ConnectionId_t)>;
+    using FrontDoor = std::function<bool(const RequestMessage&, ConnectionId_t)>;
     using Disconnected = std::function<void(ConnectionId_t)>;
     // A message for an in-process game, serialized as on the wire.
     using Inbox = std::function<void(const void*, uint32_t)>;
@@ -38,7 +38,7 @@ struct HostNetwork final : TiltedPhoques::Server
 
     // A message from the game on aConnection.
     void Receive(const void* apData, uint32_t aSize, ConnectionId_t aConnection) noexcept;
-    void Send(ConnectionId_t aConnection, const ServerMessage& acMessage, TiltedPhoques::EPacketFlags aFlags = TiltedPhoques::kReliable) const noexcept;
+    void Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, TiltedPhoques::EPacketFlags aFlags = TiltedPhoques::kReliable) const noexcept;
 
 protected:
     void OnUpdate() override {}

@@ -6,5 +6,5 @@ void RequestRemoveWaypoint::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
 
 void RequestRemoveWaypoint::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 }

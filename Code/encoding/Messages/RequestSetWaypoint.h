@@ -4,11 +4,11 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/GameId.h>
 
-struct RequestSetWaypoint final : ClientMessage
+struct RequestSetWaypoint final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kRequestSetWaypoint;
+    static constexpr RequestOpcode Opcode = kRequestSetWaypoint;
 
-    RequestSetWaypoint() : ClientMessage(Opcode)
+    RequestSetWaypoint() : RequestMessage(Opcode)
     {
     }
 

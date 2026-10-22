@@ -3,7 +3,7 @@
 void AssignCharacterResponse::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, Cookie);
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteVarInt(aWriter, PlayerId);
     Position.Serialize(aWriter);
     CellId.Serialize(aWriter);
@@ -18,7 +18,7 @@ void AssignCharacterResponse::SerializeRaw(TiltedPhoques::Buffer::Writer& aWrite
 void AssignCharacterResponse::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
     Cookie = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Position.Deserialize(aReader);
     CellId.Deserialize(aReader);

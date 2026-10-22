@@ -44,7 +44,7 @@ private:
 
     Clock::time_point m_lastCheck{};
     Clock::time_point m_lastFullSend{};
-    // Per owned actor (server id): the effect form ids last sent.
+    // Per owned actor (session id): the effect form ids last sent.
     Map<uint32_t, Vector<uint32_t>> m_sent;
     // Per copy (form id): the effects its owner lists (whose visuals it plays), and when it last
     // heard from the owner.

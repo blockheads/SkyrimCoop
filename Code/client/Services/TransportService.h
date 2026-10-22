@@ -9,7 +9,7 @@
 
 struct ImguiService;
 struct UpdateEvent;
-struct ClientMessage;
+struct RequestMessage;
 struct AuthenticationResponse;
 struct NotifySettingsChange;
 
@@ -32,7 +32,7 @@ struct TransportService : Client
 
     TP_NOCOPYMOVE(TransportService);
 
-    bool Send(const ClientMessage& acMessage) const noexcept;
+    bool Send(const RequestMessage& acMessage) const noexcept;
 
     /**
      * @brief Hosting: talks to the host's network in this process instead of over a socket.
@@ -85,9 +85,8 @@ private:
     JoinStatus m_joinStatus;
 
     entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_sendServerMessageConnection;
     entt::scoped_connection m_settingsChangeConnection;
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
-    std::function<void(UniquePtr<ServerMessage>&)> m_messageHandlers[kServerOpcodeMax];
+    std::function<void(UniquePtr<NotifyMessage>&)> m_messageHandlers[kNotifyOpcodeMax];
 };

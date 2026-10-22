@@ -3,12 +3,12 @@
 #include "Message.h"
 
 // The slowest clock the other players' games want: the receiving game runs no faster.
-struct NotifyTimeScale final : ServerMessage
+struct NotifyTimeScale final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyTimeScale;
+    static constexpr NotifyOpcode Opcode = kNotifyTimeScale;
 
     NotifyTimeScale()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

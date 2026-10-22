@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct SubtitleRequest final : ClientMessage, Payloads::Subtitle
+struct SubtitleRequest final : RequestMessage, Payloads::Subtitle
 {
-    static constexpr ClientOpcode Opcode = kSubtitleRequest;
+    static constexpr RequestOpcode Opcode = kSubtitleRequest;
     using Payload = Payloads::Subtitle;
 
     SubtitleRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

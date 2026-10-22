@@ -11,9 +11,9 @@
 
 #include <catch2/catch.hpp>
 
-#include <Messages/ClientMessageFactory.h>
-#include <Messages/ServerMessageFactory.h>
-#include <Messages/ServerTimeSettings.h>
+#include <Messages/RequestMessageFactory.h>
+#include <Messages/NotifyMessageFactory.h>
+#include <Messages/NotifyTimeSettings.h>
 #include <Messages/WorldState.h>
 #include <Structs/Vector2_NetQuantize.h>
 
@@ -35,7 +35,7 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
 
         Buffer::Reader reader(&buff);
 
-        const ClientMessageFactory factory;
+        const RequestMessageFactory factory;
         auto pMessage = factory.Extract(reader);
 
         REQUIRE(pMessage);
@@ -54,7 +54,7 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
 
         Buffer::Reader reader(&buff);
 
-        const ClientMessageFactory factory;
+        const RequestMessageFactory factory;
         auto pMessage = factory.Extract(reader);
 
         REQUIRE(pMessage);
@@ -481,9 +481,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
-    SECTION("ServerTimeSettings")
+    SECTION("NotifyTimeSettings")
     {
-        ServerTimeSettings sendMessage, recvMessage;
+        NotifyTimeSettings sendMessage, recvMessage;
         sendMessage.timeModel.TimeScale = 6.f;
         sendMessage.timeModel.Time = 23.75f;
         sendMessage.timeModel.Day = 31;
@@ -616,9 +616,9 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
-    GIVEN("ClientReferencesMoveRequest")
+    GIVEN("ReferencesMoveRequest")
     {
-        ClientReferencesMoveRequest sendMessage, recvMessage;
+        ReferencesMoveRequest sendMessage, recvMessage;
         auto& update = sendMessage.Updates[1];
         auto& move = update.UpdatedMovement;
 

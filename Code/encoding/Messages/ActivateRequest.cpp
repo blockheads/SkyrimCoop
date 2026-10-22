@@ -10,7 +10,7 @@ void ActivateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const
 
 void ActivateRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Id.Deserialize(aReader);
     CellId.Deserialize(aReader);

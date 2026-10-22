@@ -2,11 +2,11 @@
 
 #include "Message.h"
 
-struct RequestRemoveWaypoint final : ClientMessage
+struct RequestRemoveWaypoint final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kRequestRemoveWaypoint;
+    static constexpr RequestOpcode Opcode = kRequestRemoveWaypoint;
 
-    RequestRemoveWaypoint() : ClientMessage(Opcode)
+    RequestRemoveWaypoint() : RequestMessage(Opcode)
     {
     }
 

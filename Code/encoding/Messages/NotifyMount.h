@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyMount final : ServerMessage, Payloads::Mount
+struct NotifyMount final : NotifyMessage, Payloads::Mount
 {
-    static constexpr ServerOpcode Opcode = kNotifyMount;
+    static constexpr NotifyOpcode Opcode = kNotifyMount;
     using Payload = Payloads::Mount;
 
     NotifyMount()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

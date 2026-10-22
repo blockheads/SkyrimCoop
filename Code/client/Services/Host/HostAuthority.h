@@ -53,26 +53,26 @@ struct HostAuthority
     TP_NOCOPYMOVE(HostAuthority);
 
     // True when the message was handled here.
-    bool Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept;
+    bool Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept;
     // Every frame.
     void Update(uint64_t aTick) noexcept;
 
     // For the parts: TRequest is handled by aOwner's member function.
     template <class TOwner, class TRequest> void On(TOwner& aOwner, void (TOwner::*apRule)(const TRequest&, ConnectionId_t) noexcept) noexcept
     {
-        m_rules[TRequest::Opcode] = [&aOwner, apRule](const ClientMessage& acMessage, ConnectionId_t aSender) {
+        m_rules[TRequest::Opcode] = [&aOwner, apRule](const RequestMessage& acMessage, ConnectionId_t aSender) {
             (aOwner.*apRule)(static_cast<const TRequest&>(acMessage), aSender);
         };
     }
     template <class TOwner, class TRequest> void On(TOwner& aOwner, void (TOwner::*apRule)(const TRequest&, ConnectionId_t) const noexcept) noexcept
     {
-        m_rules[TRequest::Opcode] = [&aOwner, apRule](const ClientMessage& acMessage, ConnectionId_t aSender) {
+        m_rules[TRequest::Opcode] = [&aOwner, apRule](const RequestMessage& acMessage, ConnectionId_t aSender) {
             (aOwner.*apRule)(static_cast<const TRequest&>(acMessage), aSender);
         };
     }
 
     // A player's own character is in the world: everything it must know about the session.
-    void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) noexcept;
+    void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
     // The host removes a player from the session.
     void Kick(uint32_t aPlayerId) noexcept;
 
@@ -84,7 +84,7 @@ private:
         ToOwner,    // something done to another's actor: its owner alone applies it
     };
 
-    using Rule = std::function<void(const ClientMessage&, ConnectionId_t aSender)>;
+    using Rule = std::function<void(const RequestMessage&, ConnectionId_t aSender)>;
 
     // TRequest passed on as TNotify (the same payload); apActor names the actor Delivery checks.
     template <class TRequest, class TNotify> void Relay(Delivery aDelivery, uint32_t TRequest::*apActor = nullptr) noexcept;
@@ -103,11 +103,11 @@ private:
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
 
-    void Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
+    void Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept;
 
     HostNetwork& m_network;
     HostGame m_game;
-    std::array<Rule, kClientOpcodeMax> m_rules{};
+    std::array<Rule, kRequestOpcodeMax> m_rules{};
     // The parts, after the rules they register into, and the players first: the others read them.
     HostPlayers m_players;
     HostSession m_session;

@@ -3,7 +3,7 @@
 #include <Bridges/GuestEngine.h>
 #include <Bridges/IWorldBridge.h>
 #include <Events/UpdateEvent.h>
-#include <Messages/ServerTimeSettings.h>
+#include <Messages/NotifyTimeSettings.h>
 #include <World.h>
 
 namespace
@@ -17,7 +17,7 @@ GuestClock::GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine
     : m_world(aWorld)
     , m_engine(aEngine)
 {
-    m_timeConnection = aDispatcher.sink<ServerTimeSettings>().connect<&GuestClock::OnTimeSettings>(this);
+    m_timeConnection = aDispatcher.sink<NotifyTimeSettings>().connect<&GuestClock::OnTimeSettings>(this);
 }
 
 GuestClock::~GuestClock() noexcept
@@ -25,7 +25,7 @@ GuestClock::~GuestClock() noexcept
     s_hostClock = false;
 }
 
-void GuestClock::OnTimeSettings(const ServerTimeSettings& acMessage) noexcept
+void GuestClock::OnTimeSettings(const NotifyTimeSettings& acMessage) noexcept
 {
     m_shownTime = m_world.ctx().at<IWorldBridge&>().GetGameTime();
     s_hostClock = true;

@@ -2,7 +2,7 @@
 #include "Structs/Inventory.h"
 #include "Structs/ActorData.h"
 #include <Messages/AssignCharacterRequest.h>
-#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyCharacterSpawn.h>
 
 struct ActorAddedEvent;
 struct ActorRemovedEvent;
@@ -13,8 +13,8 @@ struct EquipmentChangeEvent;
 struct FormIdComponent;
 struct ActionEvent;
 struct AssignCharacterResponse;
-struct CharacterSpawnRequest;
-struct ServerReferencesMoveRequest;
+struct NotifyCharacterSpawn;
+struct NotifyReferencesMove;
 struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
 struct NotifyRemoveCharacter;
@@ -62,7 +62,7 @@ struct CharacterService
 
     static void DeleteTempActor(const uint32_t aFormId) noexcept;
 
-    bool TakeOwnership(const uint32_t acFormId, const uint32_t acServerId, const entt::entity acEntity) const noexcept;
+    bool TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity) const noexcept;
 
     void OnActorAdded(const ActorAddedEvent& acEvent) noexcept;
     void OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept;
@@ -70,8 +70,8 @@ struct CharacterService
     void OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept;
     void OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept;
     void OnAssignCharacter(const AssignCharacterResponse& acMessage) noexcept;
-    void OnCharacterSpawn(const CharacterSpawnRequest& acMessage) const noexcept;
-    void OnReferencesMoveRequest(const ServerReferencesMoveRequest& acMessage) const noexcept;
+    void OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) const noexcept;
+    void OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept;
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept;
@@ -95,14 +95,14 @@ struct CharacterService
     void ProcessNewEntity(entt::entity aEntity) const noexcept;
 
     /**
-     * @brief Hosting: spawns for our own actors as the engine shows them now, but aExcludedServerId.
+     * @brief Hosting: spawns for our own actors as the engine shows them now, but aExcludedSessionId.
      */
-    Vector<CharacterSpawnRequest> BuildSpawnRequests(uint32_t aExcludedServerId) const noexcept;
+    Vector<NotifyCharacterSpawn> BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept;
     /**
      * @brief Hosting: our copy of another player's character as it is now (position, values,
      * items, hands, action) into aSpawn; false when we have no copy of it.
      */
-    bool ReadCopy(uint32_t aServerId, CharacterSpawnRequest& aSpawn) const noexcept;
+    bool ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) const noexcept;
 
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
@@ -134,9 +134,9 @@ private:
     // Copies whose owner is around us but which are elsewhere or without 3D go where the owner is.
     void RunPresence() noexcept;
     // A spawn for a copy we already have: its owner's latest place and spawn data.
-    void RefreshCopy(entt::entity aEntity, const CharacterSpawnRequest& acMessage) const noexcept;
+    void RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept;
     // Drops the copy and asks the host to spawn it again.
-    void RespawnCopy(entt::entity aEntity, uint32_t aServerId) const noexcept;
+    void RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept;
     // Drops our entities for the copies acShouldDrop picks (by form id).
     void DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept;
 

@@ -12,12 +12,12 @@
 
 using TiltedPhoques::String;
 
-struct AssignCharacterRequest final : ClientMessage
+struct AssignCharacterRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kAssignCharacterRequest;
+    static constexpr RequestOpcode Opcode = kAssignCharacterRequest;
 
     AssignCharacterRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

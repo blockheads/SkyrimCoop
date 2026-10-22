@@ -8,7 +8,7 @@ void NotifySettingsChange::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void NotifySettingsChange::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Settings.Deserialize(aReader);
 }

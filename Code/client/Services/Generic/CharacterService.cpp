@@ -22,9 +22,9 @@
 #include <Messages/CancelAssignmentRequest.h>
 #include <Messages/AssignCharacterRequest.h>
 #include <Messages/AssignCharacterResponse.h>
-#include <Messages/ServerReferencesMoveRequest.h>
-#include <Messages/ClientReferencesMoveRequest.h>
-#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyReferencesMove.h>
+#include <Messages/ReferencesMoveRequest.h>
+#include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
@@ -77,8 +77,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&CharacterService::OnDisconnected>(this);
 
     m_assignCharacterConnection = m_dispatcher.sink<AssignCharacterResponse>().connect<&CharacterService::OnAssignCharacter>(this);
-    m_characterSpawnConnection = m_dispatcher.sink<CharacterSpawnRequest>().connect<&CharacterService::OnCharacterSpawn>(this);
-    m_referenceMovementSnapshotConnection = m_dispatcher.sink<ServerReferencesMoveRequest>().connect<&CharacterService::OnReferencesMoveRequest>(this);
+    m_characterSpawnConnection = m_dispatcher.sink<NotifyCharacterSpawn>().connect<&CharacterService::OnCharacterSpawn>(this);
+    m_referenceMovementSnapshotConnection = m_dispatcher.sink<NotifyReferencesMove>().connect<&CharacterService::OnReferencesMoveRequest>(this);
     m_factionsConnection = m_dispatcher.sink<NotifyFactionsChanges>().connect<&CharacterService::OnFactionsChanges>(this);
     m_removeCharacterConnection = m_dispatcher.sink<NotifyRemoveCharacter>().connect<&CharacterService::OnRemoveCharacter>(this);
     m_remoteSpawnDataReceivedConnection = m_dispatcher.sink<NotifySpawnData>().connect<&CharacterService::OnRemoteSpawnDataReceived>(this);
@@ -113,23 +113,23 @@ void CharacterService::DeleteRemoteEntityComponents(entt::entity aEntity) const 
                    OwnerPlaceComponent>(aEntity);
 }
 
-bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acServerId, const entt::entity acEntity) const noexcept
+bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acSessionId, const entt::entity acEntity) const noexcept
 {
     if (!m_actorBridge.ActorExists(acFormId))
     {
-        spdlog::error("Cannot find actor to take control over, form id: {:X}, server id: {:X}", acFormId, acServerId);
+        spdlog::error("Cannot find actor to take control over, form id: {:X}, session id: {:X}", acFormId, acSessionId);
         return false;
     }
 
     if (m_actorBridge.IsOtherPlayer(acFormId))
     {
-        spdlog::error("Cannot take control over remote player actor, form id: {:X}, server id: {:X}", acFormId, acServerId);
+        spdlog::error("Cannot take control over remote player actor, form id: {:X}, session id: {:X}", acFormId, acSessionId);
         return false;
     }
 
     if (m_actorBridge.IsPlayerSummon(acFormId))
     {
-        spdlog::error("Cannot take control over remote player summon, form id: {:X}, server id: {:X}", acFormId, acServerId);
+        spdlog::error("Cannot take control over remote player summon, form id: {:X}, session id: {:X}", acFormId, acSessionId);
         return false;
     }
 
@@ -138,7 +138,7 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
     // TODO(cosideci): this should be done differently.
     // Send an ownership claim request, and have the server broadcast the result.
     // Only then should components be added or removed.
-    m_world.emplace_or_replace<LocalComponent>(acEntity, acServerId);
+    m_world.emplace_or_replace<LocalComponent>(acEntity, acSessionId);
     m_world.emplace_or_replace<LocalAnimationComponent>(acEntity);
     DeleteRemoteEntityComponents(acEntity);
 
@@ -229,9 +229,8 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
 // server assignment (replaces the actor half of DiscoveryService, removed in ec7d02d1).
-// Everyone announces their own player. Only the host announces NPCs: under the party tether
-// (P2P_ARCHITECTURE.md, open question 4) every player is in the host's cell, so the host owns
-// every actor and peers only replicate them.
+// Everyone announces their own player. Only the host announces NPCs: under the party tether every
+// player is in the host's cell, so the host owns every actor and guests only replicate them.
 void CharacterService::RunActorDiscovery() noexcept
 {
     Set<uint32_t> loaded;
@@ -293,7 +292,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 
 void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessage) noexcept
 {
-    spdlog::info("Received for cookie {:X}, server id {:X}", acMessage.Cookie, acMessage.ServerId);
+    spdlog::info("Received for cookie {:X}, session id {:X}", acMessage.Cookie, acMessage.SessionId);
 
     auto view = m_world.view<WaitingForAssignmentComponent>();
     const auto itor = std::find_if(std::begin(view), std::end(view), [view, cookie = acMessage.Cookie](auto entity) { return view.get<WaitingForAssignmentComponent>(entity).Cookie == cookie; });
@@ -330,20 +329,20 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
     {
         spdlog::info("Received local actor, form id: {:X}", formIdComponent->Id);
 
-        m_world.emplace_or_replace<LocalComponent>(cEntity, acMessage.ServerId);
+        m_world.emplace_or_replace<LocalComponent>(cEntity, acMessage.SessionId);
         // Its actions since the request are queued already (RequestServerAssignment).
         m_world.get_or_emplace<LocalAnimationComponent>(cEntity);
 
         m_actorBridge.SetActorCopy(formIdComponent->Id, false);
 
-        // Nothing is re-sent: copies start in this actor's graph state (CharacterSpawnRequest::GraphState).
+        // Nothing is re-sent: copies start in this actor's graph state (NotifyCharacterSpawn::GraphState).
     }
     else
     {
         spdlog::info("Received remote actor, form id: {:X}, isweapondrawn: {}", formIdComponent->Id, acMessage.IsWeaponDrawn);
 
         m_world.remove<LocalAnimationComponent>(cEntity);
-        m_world.emplace_or_replace<RemoteComponent>(cEntity, acMessage.ServerId, formIdComponent->Id);
+        m_world.emplace_or_replace<RemoteComponent>(cEntity, acMessage.SessionId, formIdComponent->Id);
 
         m_actorBridge.SetActorCopy(formIdComponent->Id, true);
 
@@ -369,10 +368,10 @@ CharacterService::~CharacterService() noexcept
     m_playerBridge.StopTeleportEvents();
 }
 
-void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) const noexcept
+void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) const noexcept
 {
     auto remoteView = m_world.view<RemoteComponent>();
-    const auto remoteItor = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ServerId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
+    const auto remoteItor = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
 
     if (remoteItor != std::end(remoteView))
     {
@@ -441,11 +440,11 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
 
     if (!actorFormId)
     {
-        spdlog::error("Actor object {:X} could not be created.", acMessage.ServerId);
+        spdlog::error("Actor object {:X} could not be created.", acMessage.SessionId);
         return;
     }
 
-    spdlog::info("CharacterSpawnRequest, server id: {:X}, form id: {:X}", acMessage.ServerId, actorFormId);
+    spdlog::info("NotifyCharacterSpawn, session id: {:X}, form id: {:X}", acMessage.SessionId, actorFormId);
 
     if (m_actorBridge.IsActorDisabled(actorFormId))
     {
@@ -492,7 +491,7 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
         m_actorBridge.SetActorCommandingActor(actorFormId, cPlayerId);
     }
 
-    auto& remoteComponent = m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.ServerId, actorFormId);
+    auto& remoteComponent = m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
     // Link the engine actor now: DiscoveryService (removed in ec7d02d1) used to do this when the
     // actor entered a loaded cell, via ActorAddedEvent -> OnActorAdded. Without the link,
     // RunRemoteUpdates has no actor to apply interpolated movement to.
@@ -512,7 +511,7 @@ void CharacterService::OnCharacterSpawn(const CharacterSpawnRequest& acMessage) 
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
 }
 
-void CharacterService::RefreshCopy(entt::entity aEntity, const CharacterSpawnRequest& acMessage) const noexcept
+void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept
 {
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
@@ -525,7 +524,7 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const CharacterSpawnReq
     const auto* pFormId = m_world.try_get<FormIdComponent>(aEntity);
     if (pFormId && !m_actorBridge.ActorHas3D(pFormId->Id) && !acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
-    spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.ServerId,
+    spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.SessionId,
                  acMessage.CellId.BaseId);
 }
 
@@ -537,9 +536,9 @@ void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessag
         std::begin(view), std::end(view),
         [view, id = acMessage.Id](auto entity)
         {
-            if (auto serverId = Utils::GetServerId(entity))
+            if (auto sessionId = Utils::GetSessionId(entity))
             {
-                if (*serverId == id)
+                if (*sessionId == id)
                     return true;
             }
             return false;
@@ -573,13 +572,13 @@ void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessag
     spdlog::info("Applied remote spawn data, actor form id: {:X}", formIdComponent.Id);
 }
 
-void CharacterService::OnReferencesMoveRequest(const ServerReferencesMoveRequest& acMessage) const noexcept
+void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept
 {
     auto view = m_world.view<RemoteComponent, InterpolationComponent, RemoteAnimationComponent>();
 
-    for (const auto& [serverId, update] : acMessage.Updates)
+    for (const auto& [sessionId, update] : acMessage.Updates)
     {
-        auto itor = std::find_if(std::begin(view), std::end(view), [serverId = serverId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == serverId; });
+        auto itor = std::find_if(std::begin(view), std::end(view), [sessionId = sessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == sessionId; });
 
         if (itor == std::end(view))
             continue;
@@ -649,7 +648,7 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
 {
     auto view = m_world.view<RemoteComponent>();
 
-    const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.ServerId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
+    const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.SessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
 
     if (itor != std::end(view))
     {
@@ -695,7 +694,7 @@ void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) const noe
     RespawnCopy(*entityIt, acMessage.ActorId);
 }
 
-void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aServerId) const noexcept
+void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept
 {
     CancelServerAssignment(aEntity, m_world.get<FormIdComponent>(aEntity).Id);
 
@@ -707,7 +706,7 @@ void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aServerId) con
 
     // Asked by a game that does not own it, the host answers with a fresh spawn (HostCharacters::OnRespawn).
     RequestRespawn request;
-    request.ActorId = aServerId;
+    request.ActorId = aSessionId;
     m_transport.Send(request);
 }
 
@@ -717,17 +716,17 @@ void CharacterService::OnBeastFormChange(const BeastFormChangeEvent& acEvent) co
 
     const auto it = std::find_if(view.begin(), view.end(), [view](auto entity) { return view.get<FormIdComponent>(entity).Id == 0x14; });
 
-    std::optional<uint32_t> serverIdRes = it != view.end() ? Utils::GetServerId(*it) : std::nullopt;
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = it != view.end() ? Utils::GetSessionId(*it) : std::nullopt;
+    if (!sessionIdRes.has_value())
     {
-        spdlog::error("{}: failed to find server id", __FUNCTION__);
+        spdlog::error("{}: failed to find session id", __FUNCTION__);
         return;
     }
 
-    uint32_t serverId = serverIdRes.value();
+    uint32_t sessionId = sessionIdRes.value();
 
     RequestRespawn request;
-    request.ActorId = serverId;
+    request.ActorId = sessionId;
 
     // SerializeActorNpc returns the change flags bitmask
     request.ChangeFlags = m_actorBridge.SerializeActorNpc(0x14, request.AppearanceBuffer);
@@ -755,10 +754,10 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) const noexcept
 
     const entt::entity cRiderEntity = *riderIt;
 
-    std::optional<uint32_t> riderServerIdRes = Utils::GetServerId(cRiderEntity);
-    if (!riderServerIdRes.has_value())
+    std::optional<uint32_t> riderSessionIdRes = Utils::GetSessionId(cRiderEntity);
+    if (!riderSessionIdRes.has_value())
     {
-        spdlog::error("{}: failed to find server id", __FUNCTION__);
+        spdlog::error("{}: failed to find session id", __FUNCTION__);
         return;
     }
 
@@ -772,19 +771,19 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) const noexcept
 
     const entt::entity cMountEntity = *mountIt;
 
-    std::optional<uint32_t> mountServerIdRes = Utils::GetServerId(cMountEntity);
-    if (!mountServerIdRes.has_value())
+    std::optional<uint32_t> mountSessionIdRes = Utils::GetSessionId(cMountEntity);
+    if (!mountSessionIdRes.has_value())
     {
-        spdlog::error("{}: failed to find server id", __FUNCTION__);
+        spdlog::error("{}: failed to find session id", __FUNCTION__);
         return;
     }
 
     if (m_world.try_get<RemoteComponent>(cMountEntity))
-        TakeOwnership(acEvent.MountID, *mountServerIdRes, cMountEntity);
+        TakeOwnership(acEvent.MountID, *mountSessionIdRes, cMountEntity);
 
     MountRequest request;
-    request.MountId = mountServerIdRes.value();
-    request.RiderId = riderServerIdRes.value();
+    request.MountId = mountSessionIdRes.value();
+    request.RiderId = riderSessionIdRes.value();
 
     m_transport.Send(request);
 }
@@ -812,16 +811,16 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
     // TODO(cosideci): remove this, cause of NotifyRelinquishControl?
     for (auto entity : entities)
     {
-        std::optional<uint32_t> serverIdRes = Utils::GetServerId(entity);
-        if (!serverIdRes.has_value())
+        std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
+        if (!sessionIdRes.has_value())
         {
-            spdlog::error("{}: failed to find server id", __FUNCTION__);
+            spdlog::error("{}: failed to find session id", __FUNCTION__);
             continue;
         }
 
-        uint32_t serverId = serverIdRes.value();
+        uint32_t sessionId = sessionIdRes.value();
 
-        if (serverId == acMessage.MountId)
+        if (sessionId == acMessage.MountId)
         {
             auto& mountFormIdComponent = m_world.get<FormIdComponent>(entity);
             mountFormId = mountFormIdComponent.Id;
@@ -859,15 +858,15 @@ void CharacterService::OnInitPackageEvent(const InitPackageEvent& acEvent) const
 
     const entt::entity cActorEntity = *actorIt;
 
-    std::optional<uint32_t> actorServerIdRes = Utils::GetServerId(cActorEntity);
-    if (!actorServerIdRes.has_value())
+    std::optional<uint32_t> actorSessionIdRes = Utils::GetSessionId(cActorEntity);
+    if (!actorSessionIdRes.has_value())
     {
-        spdlog::error("{}: failed to find server id", __FUNCTION__);
+        spdlog::error("{}: failed to find session id", __FUNCTION__);
         return;
     }
 
     NewPackageRequest request;
-    request.ActorId = actorServerIdRes.value();
+    request.ActorId = actorSessionIdRes.value();
     if (!m_world.GetModSystem().GetServerModId(acEvent.PackageId, request.PackageId.ModId, request.PackageId.BaseId))
         return;
 
@@ -922,15 +921,15 @@ void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
     if (entityIt == view.end())
         return;
 
-    auto serverIdRes = Utils::GetServerId(*entityIt);
-    if (!serverIdRes)
+    auto sessionIdRes = Utils::GetSessionId(*entityIt);
+    if (!sessionIdRes)
     {
-        spdlog::error("{}: server id not found for form id {:X}", __FUNCTION__, acEvent.ActorID);
+        spdlog::error("{}: session id not found for form id {:X}", __FUNCTION__, acEvent.ActorID);
         return;
     }
 
     DialogueRequest request{};
-    request.ServerId = serverIdRes.value();
+    request.SessionId = sessionIdRes.value();
     request.SoundFilename = acEvent.VoiceFile;
 
     m_transport.Send(request);
@@ -939,11 +938,11 @@ void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept
 void CharacterService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept
 {
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ServerId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
+    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
 
     if (remoteIt == std::end(remoteView))
     {
-        spdlog::warn("Actor for dialogue with remote id {:X} not found.", acMessage.ServerId);
+        spdlog::warn("Actor for dialogue with remote id {:X} not found.", acMessage.SessionId);
         return;
     }
 
@@ -964,15 +963,15 @@ void CharacterService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
     if (entityIt == view.end())
         return;
 
-    auto serverIdRes = Utils::GetServerId(*entityIt);
-    if (!serverIdRes)
+    auto sessionIdRes = Utils::GetSessionId(*entityIt);
+    if (!sessionIdRes)
     {
-        spdlog::error("{}: server id not found for form id {:X}", __FUNCTION__, acEvent.SpeakerID);
+        spdlog::error("{}: session id not found for form id {:X}", __FUNCTION__, acEvent.SpeakerID);
         return;
     }
 
     SubtitleRequest request{};
-    request.ServerId = serverIdRes.value();
+    request.SessionId = sessionIdRes.value();
     request.Text = acEvent.Text;
     request.TopicFormId = acEvent.TopicFormID;
     request.Force = acEvent.Force;
@@ -983,11 +982,11 @@ void CharacterService::OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept
 void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept
 {
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ServerId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
+    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.SessionId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
 
     if (remoteIt == std::end(remoteView))
     {
-        spdlog::warn("Actor for dialogue with remote id {:X} not found.", acMessage.ServerId);
+        spdlog::warn("Actor for dialogue with remote id {:X} not found.", acMessage.SessionId);
         return;
     }
 
@@ -1005,29 +1004,29 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
     // TODO(cosideci): this entity iteration shouldn't technically be necessary, just look for the local component
     for (auto entity : entities)
     {
-        std::optional<uint32_t> serverIdRes = Utils::GetServerId(entity);
-        if (!serverIdRes.has_value())
+        std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
+        if (!sessionIdRes.has_value())
         {
-            spdlog::error("{}: : failed to find server id for entity", __FUNCTION__);
+            spdlog::error("{}: : failed to find session id for entity", __FUNCTION__);
             continue;
         }
 
-        uint32_t serverId = serverIdRes.value();
+        uint32_t sessionId = sessionIdRes.value();
 
-        if (serverId == acMessage.ServerId)
+        if (sessionId == acMessage.SessionId)
         {
             auto& formIdComponent = m_world.get<FormIdComponent>(entity);
 
             if (m_world.all_of<LocalComponent>(entity))
             {
                 m_world.remove<LocalAnimationComponent, LocalComponent>(entity);
-                m_world.emplace_or_replace<RemoteComponent>(entity, acMessage.ServerId, formIdComponent.Id);
+                m_world.emplace_or_replace<RemoteComponent>(entity, acMessage.SessionId, formIdComponent.Id);
             }
 
             if (!m_actorBridge.ActorExists(formIdComponent.Id))
             {
                 // Probably left the room and/or temporary.
-                spdlog::info("{}: : no local Actor for serverId {:X} to relinquish", __FUNCTION__, serverId);
+                spdlog::info("{}: : no local Actor for sessionId {:X} to relinquish", __FUNCTION__, sessionId);
                 continue;
             }
 
@@ -1036,13 +1035,13 @@ void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& 
             InterpolationSystem::Setup(m_world, entity);
             AnimationSystem::Setup(m_world, entity);
 
-            spdlog::info("{}: : relinquished control of actor {:X} with server id {:X}", __FUNCTION__, formIdComponent.Id, acMessage.ServerId);
+            spdlog::info("{}: : relinquished control of actor {:X} with session id {:X}", __FUNCTION__, formIdComponent.Id, acMessage.SessionId);
 
             return;
         }
     }
 
-    spdlog::error("Did not find actor to relinquish control of, server id {:X}", acMessage.ServerId);
+    spdlog::error("Did not find actor to relinquish control of, session id {:X}", acMessage.SessionId);
 }
 
 void CharacterService::MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept
@@ -1072,7 +1071,7 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
 
     if (auto* pRemoteComponent = m_world.try_get<RemoteComponent>(aEntity); pRemoteComponent)
     {
-        spdlog::info("New entity remotely managed, form id: {:X}, server id: {:X}", formIdComponent.Id, pRemoteComponent->Id);
+        spdlog::info("New entity remotely managed, form id: {:X}, session id: {:X}", formIdComponent.Id, pRemoteComponent->Id);
         return;
     }
 
@@ -1201,28 +1200,28 @@ void CharacterService::RequestServerAssignment(const entt::entity aEntity) const
 // What a peer needs to spawn a copy of one of our actors, as the embedded server built it from the
 // assignment (CreateCharacter + Serialize): a game reference keeps its id, a player or temporary
 // actor is rebuilt from its appearance and base.
-Vector<CharacterSpawnRequest> CharacterService::BuildSpawnRequests(uint32_t aExcludedServerId) const noexcept
+Vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept
 {
-    Vector<CharacterSpawnRequest> spawns;
+    Vector<NotifyCharacterSpawn> spawns;
 
     // Ours, read from the engine as it is now.
     for (const auto cEntity : m_world.view<FormIdComponent, LocalComponent>())
     {
-        const uint32_t cServerId = m_world.get<LocalComponent>(cEntity).Id;
-        if (cServerId == aExcludedServerId)
+        const uint32_t cSessionId = m_world.get<LocalComponent>(cEntity).Id;
+        if (cSessionId == aExcludedSessionId)
             continue;
         if (const auto cAssignment = BuildAssignment(cEntity))
-            spawns.push_back(CharacterSpawnRequest::FromAssignment(*cAssignment, cServerId, m_transport.GetLocalPlayerId()));
+            spawns.push_back(NotifyCharacterSpawn::FromAssignment(*cAssignment, cSessionId, m_transport.GetLocalPlayerId()));
     }
 
     return spawns;
 }
 
-bool CharacterService::ReadCopy(uint32_t aServerId, CharacterSpawnRequest& aSpawn) const noexcept
+bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) const noexcept
 {
     for (const auto cEntity : m_world.view<FormIdComponent, RemoteComponent>())
     {
-        if (m_world.get<RemoteComponent>(cEntity).Id != aServerId)
+        if (m_world.get<RemoteComponent>(cEntity).Id != aSessionId)
             continue;
         const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
         if (!m_actorBridge.ActorExists(cFormId))
@@ -1268,7 +1267,7 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
     if (const auto* pLocalComponent = m_world.try_get<LocalComponent>(aEntity))
     {
         RequestRemoveCharacter message;
-        message.ServerId = pLocalComponent->Id;
+        message.SessionId = pLocalComponent->Id;
         m_transport.Send(message);
 
         m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
@@ -1328,7 +1327,7 @@ void CharacterService::RunLocalUpdates() const noexcept
 
     lastSendTimePoint = now;
 
-    ClientReferencesMoveRequest message;
+    ReferencesMoveRequest message;
     message.Tick = m_transport.GetTick();
 
     auto animatedLocalView = m_world.view<LocalComponent, LocalAnimationComponent, FormIdComponent>();
@@ -1582,10 +1581,10 @@ void CharacterService::RunPresence() noexcept
         MoveActor(cFormId, place.WorldSpaceId, place.CellId, position);
     }
 
-    for (const auto& [cEntity, cServerId] : gone)
+    for (const auto& [cEntity, cSessionId] : gone)
     {
-        spdlog::info("Copy of {:X} is gone where its owner is: spawned again", cServerId);
-        RespawnCopy(cEntity, cServerId);
+        spdlog::info("Copy of {:X} is gone where its owner is: spawned again", cSessionId);
+        RespawnCopy(cEntity, cSessionId);
     }
     // Its owner is elsewhere: the host sends it again when they meet (an arrival).
     if (!goneElsewhere.empty())

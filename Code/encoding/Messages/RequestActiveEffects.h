@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct RequestActiveEffects final : ClientMessage, Payloads::ActiveEffects
+struct RequestActiveEffects final : RequestMessage, Payloads::ActiveEffects
 {
-    static constexpr ClientOpcode Opcode = kRequestActiveEffects;
+    static constexpr RequestOpcode Opcode = kRequestActiveEffects;
     using Payload = Payloads::ActiveEffects;
 
     RequestActiveEffects()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

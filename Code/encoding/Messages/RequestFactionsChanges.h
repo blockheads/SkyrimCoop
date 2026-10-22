@@ -3,12 +3,12 @@
 #include "Message.h"
 #include <Structs/Factions.h>
 
-struct RequestFactionsChanges final : ClientMessage
+struct RequestFactionsChanges final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kRequestFactionsChanges;
+    static constexpr RequestOpcode Opcode = kRequestFactionsChanges;
 
     RequestFactionsChanges()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

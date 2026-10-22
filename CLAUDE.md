@@ -101,8 +101,8 @@ the host's own game: the same, over an in-process route instead of enet
 
 ### Adding a message
 
-1. Define the struct in `Code/encoding/Messages/` (a `ClientMessage` or `ServerMessage` with `SerializeRaw`/`DeserializeRaw`)
-2. Add its opcode to `Code/encoding/Opcodes.h` and the message to `ClientMessageFactory.h` / `ServerMessageFactory.h`
+1. Define the struct in `Code/encoding/Messages/` (a `RequestMessage` or `NotifyMessage` with `SerializeRaw`/`DeserializeRaw`)
+2. Add its opcode to `Code/encoding/Opcodes.h` and the message to `RequestMessageFactory.h` / `NotifyMessageFactory.h`
 3. The host's rule: a part in `Services/Host/` registered with `HostAuthority::On` (or a `Relay`), with a `BridgeTests` case
 4. Each game's handler: a client service's `m_messageHandlers` entry or dispatcher sink
 5. A round trip in `Code/tests/encoding.cpp`

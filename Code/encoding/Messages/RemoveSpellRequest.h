@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct RemoveSpellRequest final : ClientMessage, Payloads::RemoveSpell
+struct RemoveSpellRequest final : RequestMessage, Payloads::RemoveSpell
 {
-    static constexpr ClientOpcode Opcode = kRequestRemoveSpell;
+    static constexpr RequestOpcode Opcode = kRequestRemoveSpell;
     using Payload = Payloads::RemoveSpell;
 
     RemoveSpellRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

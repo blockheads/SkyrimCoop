@@ -17,7 +17,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | System | Copy takes part? | How it is enforced / where |
 |---|---|---|
 | Body, 3D, animation graph, collision | yes | the movement and animation sync drive it |
-| Where it is (cell) | the owner's | spawned into the owner's cell (`CharacterSpawnRequest::CellId`), then moved by the sync |
+| Where it is (cell) | the owner's | spawned into the owner's cell (`NotifyCharacterSpawn::CellId`), then moved by the sync |
 | Faction membership (others' reactions to it) | yes | copies keep their factions; ally anger is our registry (Actor.cpp) |
 | Being targeted, hit, damaged, killed | yes, by the owner | hits are requested from the owner (ActorValueService, MagicTarget hook) |
 | Per-frame AI update (packages, procedures, combat and weapon decisions, crime, headtracking choice, movement controller) | no | `HookUpdateAI` (Actor.cpp) returns at the entry of `Character::UpdateAI` (37347) for copies and runs only its upkeep: voice line (37752, 37544), lip sync (39373/39377), essential/protected flags (37227), cell attachment (37352). Every callee is classified in actor-ai-and-copies.md. A copy holds the engine's do-nothing package (`HookCheckForNewPackage`, `Actor::InitiateDoNothingPackage` 37402), so an unseen one gets there too, as any NPC with a package does |

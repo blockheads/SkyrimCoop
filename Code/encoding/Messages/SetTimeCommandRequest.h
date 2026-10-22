@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct SetTimeCommandRequest final : ClientMessage
+struct SetTimeCommandRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kSetTimeCommandRequest;
+    static constexpr RequestOpcode Opcode = kSetTimeCommandRequest;
 
     SetTimeCommandRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

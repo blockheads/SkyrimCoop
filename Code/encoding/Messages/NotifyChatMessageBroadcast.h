@@ -4,12 +4,12 @@
 
 using TiltedPhoques::String;
 
-struct NotifyChatMessageBroadcast final : ServerMessage
+struct NotifyChatMessageBroadcast final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyChatMessageBroadcast;
+    static constexpr NotifyOpcode Opcode = kNotifyChatMessageBroadcast;
 
     NotifyChatMessageBroadcast()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

@@ -7,7 +7,7 @@ void NotifyPlayerRespawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void NotifyPlayerRespawn::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     GoldLost = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

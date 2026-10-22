@@ -84,9 +84,9 @@ def pairs():
         worlds[game] = (coop_test.read_status() or {}).get("world") or {}
     found = []
     for game, world in worlds.items():
-        copies = {s["mod"]["server_id"]: int(fid) for fid, s in worlds[OTHER[game]].items() if s.get("role") == "copy"}
+        copies = {s["mod"]["session_id"]: int(fid) for fid, s in worlds[OTHER[game]].items() if s.get("role") == "copy"}
         for fid, s in world.items():
-            sid = s.get("mod", {}).get("server_id", -1)
+            sid = s.get("mod", {}).get("session_id", -1)
             if s.get("role") == "own" and sid in copies:
                 who = (s.get("identity") or {}).get("name") or f"{int(fid):X}"
                 found.append((game, int(fid), OTHER[game], copies[sid], f"{who} (owned by {game or 'host'})"))

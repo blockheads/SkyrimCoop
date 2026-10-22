@@ -31,8 +31,8 @@ using TiltedPhoques::Vector;
 #include <BuildVersion.h>
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
-#include <Messages/ClientMessageFactory.h>
-#include <Messages/ServerMessageFactory.h>
+#include <Messages/RequestMessageFactory.h>
+#include <Messages/NotifyMessageFactory.h>
 
 #include <rpmalloc.h>
 #include <spdlog/spdlog.h>
@@ -91,7 +91,7 @@ struct RefusingHost final : TiltedPhoques::Server
     {
         TiltedPhoques::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
         TiltedPhoques::Buffer::Reader reader(&buffer);
-        const auto pMessage = ClientMessageFactory{}.Extract(reader);
+        const auto pMessage = RequestMessageFactory{}.Extract(reader);
         if (!pMessage || pMessage->GetOpcode() != kAuthenticationRequest)
             return;
 
@@ -123,7 +123,7 @@ struct JoiningGame final : TiltedPhoques::Client
     {
         TiltedPhoques::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
         TiltedPhoques::Buffer::Reader reader(&buffer);
-        const auto pMessage = ServerMessageFactory{}.Extract(reader);
+        const auto pMessage = NotifyMessageFactory{}.Extract(reader);
         if (pMessage && pMessage->GetOpcode() == kAuthenticationResponse)
             Answer = static_cast<const AuthenticationResponse&>(*pMessage).Type;
     }

@@ -50,7 +50,7 @@ void EffectVisualsService::SendOwnedEffects() noexcept
     for (auto entity : view)
     {
         const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        const uint32_t cServerId = view.get<LocalComponent>(entity).Id;
+        const uint32_t cSessionId = view.get<LocalComponent>(entity).Id;
         if (!m_actorBridge.ActorExists(cFormId))
             continue;
 
@@ -61,31 +61,31 @@ void EffectVisualsService::SendOwnedEffects() noexcept
         std::sort(ids.begin(), ids.end());
         ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
 
-        const auto cSent = m_sent.find(cServerId);
+        const auto cSent = m_sent.find(cSessionId);
         const bool cChanged = cSent == m_sent.end() ? !ids.empty() : cSent->second != ids;
         if (!cChanged && (!cSendAll || ids.empty()))
             continue;
 
         RequestActiveEffects request;
-        request.ServerId = cServerId;
+        request.SessionId = cSessionId;
         for (const uint32_t cId : ids)
         {
             GameId effectId;
             if (modSystem.GetServerModId(cId, effectId))
                 request.EffectIds.push_back(effectId);
         }
-        spdlog::debug("Active effects of {:X} (server id {:X}): {} with visuals", cFormId, cServerId, request.EffectIds.size());
+        spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals", cFormId, cSessionId, request.EffectIds.size());
         m_transport.Send(request);
         if (ids.empty())
-            m_sent.erase(cServerId);
+            m_sent.erase(cSessionId);
         else
-            m_sent[cServerId] = std::move(ids);
+            m_sent[cSessionId] = std::move(ids);
     }
 }
 
 void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept
 {
-    const uint32_t cFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
     if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
         return;
 

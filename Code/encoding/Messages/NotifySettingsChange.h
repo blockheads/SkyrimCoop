@@ -3,12 +3,12 @@
 #include "Message.h"
 #include <Structs/ServerSettings.h>
 
-struct NotifySettingsChange final : ServerMessage
+struct NotifySettingsChange final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifySettingsChange;
+    static constexpr NotifyOpcode Opcode = kNotifySettingsChange;
 
     NotifySettingsChange()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

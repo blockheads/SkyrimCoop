@@ -9,12 +9,12 @@
 // A player's game arrived somewhere new (a door, coc, fast travel): its copies of everyone else
 // went with the old cell. The host sends it what is there and tells those there about it
 // (HostCharacters::OnEnterCell).
-struct EnterCellRequest final : ClientMessage
+struct EnterCellRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kEnterCellRequest;
+    static constexpr RequestOpcode Opcode = kEnterCellRequest;
 
     EnterCellRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

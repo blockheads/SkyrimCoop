@@ -7,7 +7,7 @@ void PlayerLevelRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
 
 void PlayerLevelRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     NewLevel = Serialization::ReadVarInt(aReader) & 0xFFFF;
 }

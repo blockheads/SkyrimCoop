@@ -3,12 +3,12 @@
 #include "Message.h"
 #include <Structs/ActorData.h>
 
-struct NotifySpawnData final : ServerMessage
+struct NotifySpawnData final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifySpawnData;
+    static constexpr NotifyOpcode Opcode = kNotifySpawnData;
 
     NotifySpawnData()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

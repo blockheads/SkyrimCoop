@@ -85,7 +85,7 @@ Every game, the host's too, runs the same `DialogueService`; the host's talks to
 in-process route like any player. `HostDialogue` (the bridge rule) decides; games only report and apply.
 
 1. **Start.** A peer activates a copy. The start reaches `Actor::SetDialogueWithPlayer` (37200), which
-   `DialogueService` stops and sends instead: `DialogueStartRequest` (the NPC's server id). `HostDialogue`
+   `DialogueService` stops and sends instead: `DialogueStartRequest` (the NPC's session id). `HostDialogue`
    refuses it for an actor the host does not own, or while another conversation runs; a start for the NPC
    already in conversation returns silently (the peer joins locally, step 7). Otherwise it tells the host's
    game to start (`NotifyDialogueStart`). That game, unless it talks to someone already (one conversation at a
@@ -95,7 +95,7 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    forgets its ask; kept, the host's next conversation with that NPC opened its menu) and a chat line.
 2. **Open.** A force greet reaches the start filter with its flag (37200's `forceGreet`); the host's game marks
    the open `Everyone`, `HostDialogue` puts every player in it and every peer opens its menu on its copy.
-   The host's game has a conversation with an NPC with a server id (whoever started it, a
+   The host's game has a conversation with an NPC with a session id (whoever started it, a
    force-greet too; tracked by `MenuTopicManager`'s speaker, not the menu): its `DialogueService` sends
    `DialogueOpenedRequest` (the NPC). `HostDialogue` opens the conversation (a new id, step 1; the host
    turning to another NPC ends the old one first) and sends `NotifyDialogueOpen` to everyone. The peer that
@@ -189,10 +189,10 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 
 | Message | From → to | Content |
 |---|---|---|
-| `DialogueStartRequest` | game → host | NPC server id |
-| `NotifyDialogueStart` | host → host's game | NPC server id |
-| `DialogueOpenedRequest` | host's game → host | NPC server id |
-| `NotifyDialogueOpen` | host → all | conversation, NPC server id |
+| `DialogueStartRequest` | game → host | NPC session id |
+| `NotifyDialogueStart` | host → host's game | NPC session id |
+| `DialogueOpenedRequest` | host's game → host | NPC session id |
+| `NotifyDialogueOpen` | host → all | conversation, NPC session id |
 | `DialogueOptionsRequest` / `NotifyDialogueList` | host's game → host → all | conversation, step, choices, options (topic, info, quest, text) |
 | `DialoguePickRequest` / `NotifyDialoguePicked` | game → host → all | topic, the picker's line, its text / the next step, topic, the line said, picker |
 | `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerDialogue`, the picker's name, the option's text |

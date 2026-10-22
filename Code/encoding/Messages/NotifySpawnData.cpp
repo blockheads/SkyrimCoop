@@ -8,7 +8,7 @@ void NotifySpawnData::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const
 
 void NotifySpawnData::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     NewActorData.Deserialize(aReader);

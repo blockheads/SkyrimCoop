@@ -23,7 +23,7 @@ void AssignCharacterRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
 
 void AssignCharacterRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Cookie = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ReferenceId.Deserialize(aReader);

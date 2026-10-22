@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifySubtitle final : ServerMessage, Payloads::Subtitle
+struct NotifySubtitle final : NotifyMessage, Payloads::Subtitle
 {
-    static constexpr ServerOpcode Opcode = kNotifySubtitle;
+    static constexpr NotifyOpcode Opcode = kNotifySubtitle;
     using Payload = Payloads::Subtitle;
 
     NotifySubtitle()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

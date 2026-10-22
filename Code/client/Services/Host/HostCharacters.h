@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ENetInterface.hpp>
-#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyPartyTravel.h>
 
 #include <optional>
@@ -9,7 +9,7 @@
 struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
-struct ClientReferencesMoveRequest;
+struct ReferencesMoveRequest;
 struct AssignCharacterRequest;
 struct CancelAssignmentRequest;
 struct RequestRemoveCharacter;
@@ -20,7 +20,7 @@ struct EnterCellRequest;
 struct HostNetwork;
 
 /**
- * @brief The session's characters on the host: hands out their server ids, knows who owns each,
+ * @brief The session's characters on the host: hands out their session ids, knows who owns each,
  * and spawns them for players who did not see them appear.
  *
  * Players' characters keep a record of what the host's copy cannot show (appearance, base, face),
@@ -41,14 +41,14 @@ struct HostCharacters
     TP_NOCOPYMOVE(HostCharacters);
 
     // The owner's connection (0: no such character).
-    [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aServerId) const noexcept;
-    // Every character but aPlayer's own (aOwnServerId), as it is now.
-    void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnServerId) const noexcept;
+    [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aSessionId) const noexcept;
+    // Every character but aPlayer's own (aOwnSessionId), as it is now.
+    void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) const noexcept;
     // Its characters leave with it.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
 private:
-    // A player's own character, or (the host only) one of the host's actors, gets a server id; its
+    // A player's own character, or (the host only) one of the host's actors, gets a session id; its
     // owner gets the id, everyone else a spawn.
     void OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
     // The owner dropped an announcement it is still waiting on.
@@ -61,28 +61,28 @@ private:
     // A player came back from death: everyone else respawns its character.
     void OnPlayerRespawn(const PlayerRespawnRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
-    void OnMovement(const ClientReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
     // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
-    // The player's own character (its server id), or none.
+    // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
     // The host's actors (not its player, whose copy travels with the party) to one player.
     void SendHostActors(ConnectionId_t aPlayer) const noexcept;
-    void SendToOthersWithHost(const CharacterSpawnRequest& acSpawn, ConnectionId_t aSender) const noexcept;
+    void SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, ConnectionId_t aSender) const noexcept;
 
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
     // record and the host's copy.
-    [[nodiscard]] std::optional<CharacterSpawnRequest> BuildSpawn(uint32_t aServerId) const noexcept;
-    void RemoveCharacter(uint32_t aServerId) noexcept;
+    [[nodiscard]] std::optional<NotifyCharacterSpawn> BuildSpawn(uint32_t aSessionId) const noexcept;
+    void RemoveCharacter(uint32_t aSessionId) noexcept;
 
     struct Character
     {
         ConnectionId_t Owner{};
         uint32_t Cookie{}; // of the owner's announcement
         // A player's: what is needed to spawn it again, kept current with its movement.
-        std::optional<CharacterSpawnRequest> PlayerRecord;
+        std::optional<NotifyCharacterSpawn> PlayerRecord;
     };
 
     HostAuthority& m_authority;
@@ -91,7 +91,7 @@ private:
     const HostGame& m_game;
     TiltedPhoques::Map<uint32_t, Character> m_characters;
     // Never reused in a session: a late message for a removed character finds nothing.
-    uint32_t m_lastServerId = 0;
+    uint32_t m_lastSessionId = 0;
 
     // Where a player's game is: a worldspace (outdoors) or an interior cell.
     struct Place

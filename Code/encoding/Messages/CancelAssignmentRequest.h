@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct CancelAssignmentRequest final : ClientMessage
+struct CancelAssignmentRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kCancelAssignmentRequest;
+    static constexpr RequestOpcode Opcode = kCancelAssignmentRequest;
 
     CancelAssignmentRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

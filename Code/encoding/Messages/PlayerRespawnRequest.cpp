@@ -6,5 +6,5 @@ void PlayerRespawnRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void PlayerRespawnRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 }

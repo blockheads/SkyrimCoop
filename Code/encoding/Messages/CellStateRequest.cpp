@@ -21,7 +21,7 @@ void CellStateRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
 
 void CellStateRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Cell.Deserialize(aReader);
     const uint64_t cCount = Serialization::ReadVarInt(aReader);

@@ -89,13 +89,13 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
 
     {
         RequestEquipmentSnapshot m;
-        m.ServerId = 0x123456;
+        m.SessionId = 0x123456;
         m.Equipment = SomeEquipment();
         add("EquipmentSnapshot", m, (NotifyEquipmentSnapshot*)nullptr);
     }
     {
         RequestActiveEffects m;
-        m.ServerId = 0x2345;
+        m.SessionId = 0x2345;
         m.EffectIds = {GameId(1, 0x12F03), GameId(2, 0x1B212)};
         add("ActiveEffects", m, (NotifyActiveEffects*)nullptr);
     }
@@ -206,13 +206,13 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
     }
     {
         DialogueRequest m;
-        m.ServerId = 0x2345;
+        m.SessionId = 0x2345;
         m.SoundFilename = "Sound\\Voice\\Skyrim.esm\\FemaleNord\\hello.fuz";
         add("Dialogue", m, (NotifyDialogue*)nullptr);
     }
     {
         SubtitleRequest m;
-        m.ServerId = 0x3456;
+        m.SessionId = 0x3456;
         m.Text = "Let me guess...";
         m.TopicFormId = 0x4567;
         m.Force = true;

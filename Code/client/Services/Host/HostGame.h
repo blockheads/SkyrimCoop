@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Messages/CellStateRequest.h>
-#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/WorldState.h>
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
@@ -16,11 +16,11 @@
  */
 struct HostGame
 {
-    // The host's own actors as its engine shows them now, but aExcludedServerId.
-    std::function<TiltedPhoques::Vector<CharacterSpawnRequest>(uint32_t aExcludedServerId)> OwnSpawns;
+    // The host's own actors as its engine shows them now, but aExcludedSessionId.
+    std::function<TiltedPhoques::Vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
     // The host's copy of another player's character (position, values, items, hands, action) into
     // the spawn; false when it has no copy.
-    std::function<bool(uint32_t aServerId, CharacterSpawnRequest& aSpawn)> ReadCopy;
+    std::function<bool(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn)> ReadCopy;
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;

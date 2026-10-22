@@ -18,7 +18,7 @@ struct EquipmentSnapshot
 
     bool operator==(const EquipmentSnapshot&) const noexcept = default;
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     Inventory Equipment{};
 };
 
@@ -193,7 +193,7 @@ struct Dialogue
 
     bool operator==(const Dialogue&) const noexcept = default;
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     TiltedPhoques::String SoundFilename{};
 };
 
@@ -204,7 +204,7 @@ struct Subtitle
 
     bool operator==(const Subtitle&) const noexcept = default;
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     TiltedPhoques::String Text{};
     uint32_t TopicFormId{};
     bool Force{}; // shown at any distance (the engine's forceDisplay, as for a line said to the player)
@@ -228,7 +228,7 @@ struct ActiveEffects
 
     bool operator==(const ActiveEffects&) const noexcept = default;
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     Vector<GameId> EffectIds{};
 };
 } // namespace Payloads

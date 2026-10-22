@@ -18,13 +18,13 @@
 #include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WorldState.h>
-#include <Messages/ServerTimeSettings.h>
+#include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
 #include <Messages/AssignCharacterRequest.h>
 #include <Messages/AssignCharacterResponse.h>
 #include <Messages/CancelAssignmentRequest.h>
-#include <Messages/CharacterSpawnRequest.h>
-#include <Messages/ClientReferencesMoveRequest.h>
+#include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/PlayerRespawnRequest.h>
@@ -67,7 +67,7 @@
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/SendChatMessageRequest.h>
-#include <Messages/ServerMessageFactory.h>
+#include <Messages/NotifyMessageFactory.h>
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AuthenticationResponse.h>
 #include <Messages/NotifyPlayerJoined.h>
@@ -114,7 +114,7 @@ inline AuthenticationRequest JoinRequest(const char* acpName, uint16_t aLevel = 
 struct Sent
 {
     ConnectionId_t To;
-    UniquePtr<ServerMessage> Message;
+    UniquePtr<NotifyMessage> Message;
 };
 
 struct Session
@@ -141,7 +141,7 @@ struct Session
     uint32_t PlayerId(ConnectionId_t aPlayer) const { return m_playerIds.at(aPlayer); }
 
     // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player.
-    // Returns its server id; what the announcement sent is cleared.
+    // Returns its session id; what the announcement sent is cleared.
     uint32_t Character(ConnectionId_t aOwner)
     {
         AssignCharacterRequest announce;
@@ -150,9 +150,9 @@ struct Session
         Receive(aOwner, announce);
         const auto cResponses = SentTo<AssignCharacterResponse>(aOwner);
         REQUIRE(cResponses.size() == 1);
-        const uint32_t cServerId = cResponses[0]->ServerId;
+        const uint32_t cSessionId = cResponses[0]->SessionId;
         Outbox.clear();
-        return cServerId;
+        return cSessionId;
     }
 
     void Leave(ConnectionId_t aPlayer)
@@ -162,7 +162,7 @@ struct Session
     }
     void Frame(uint64_t aTick) { m_authority.Update(aTick); }
 
-    void Receive(ConnectionId_t aFrom, const ClientMessage& acMessage)
+    void Receive(ConnectionId_t aFrom, const RequestMessage& acMessage)
     {
         // A game's first message connects it; the first game is the host's own.
         if (m_games.insert(aFrom).second)
@@ -182,7 +182,7 @@ struct Session
         return found;
     }
 
-    Vector<CharacterSpawnRequest> Spawns;                // the host's own actors in its game
+    Vector<NotifyCharacterSpawn> Spawns;                // the host's own actors in its game
     TiltedPhoques::Map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
@@ -201,17 +201,17 @@ private:
     {
         ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
         Buffer::Reader reader(&buffer);
-        if (auto pMessage = ServerMessageFactory{}.Extract(reader))
+        if (auto pMessage = NotifyMessageFactory{}.Extract(reader))
             Outbox.push_back({aTo, std::move(pMessage)});
     }
 
     HostGame Game()
     {
         HostGame game;
-        game.OwnSpawns = [this](uint32_t aExcludedServerId) {
-            Vector<CharacterSpawnRequest> spawns;
+        game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
+            Vector<NotifyCharacterSpawn> spawns;
             for (const auto& cSpawn : Spawns)
-                if (cSpawn.ServerId != aExcludedServerId)
+                if (cSpawn.SessionId != aExcludedSessionId)
                     spawns.push_back(cSpawn);
             return spawns;
         };
@@ -233,8 +233,8 @@ private:
         game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();
-        game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) {
-            const auto it = Copies.find(aServerId);
+        game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
+            const auto it = Copies.find(aSessionId);
             if (it == Copies.end())
                 return false;
             aSpawn.Position = it->second;

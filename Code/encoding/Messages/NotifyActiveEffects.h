@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyActiveEffects final : ServerMessage, Payloads::ActiveEffects
+struct NotifyActiveEffects final : NotifyMessage, Payloads::ActiveEffects
 {
-    static constexpr ServerOpcode Opcode = kNotifyActiveEffects;
+    static constexpr NotifyOpcode Opcode = kNotifyActiveEffects;
     using Payload = Payloads::ActiveEffects;
 
     NotifyActiveEffects()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

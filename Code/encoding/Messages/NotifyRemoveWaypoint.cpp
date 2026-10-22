@@ -6,5 +6,5 @@ void NotifyRemoveWaypoint::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void NotifyRemoveWaypoint::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 }

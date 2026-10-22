@@ -73,9 +73,9 @@ static nlohmann::json ActorRotation(uint32_t aFormId)
     return {rotation[0], rotation[1], rotation[2]};
 }
 
-// The server id the mod links this game actor to (-1 if none; 0 is a valid id), so the harness
+// The session id the mod links this game actor to (-1 if none; ids start at 1), so the harness
 // can pair an owned actor with its copy in the other game.
-static int64_t ServerId(uint32_t aFormId)
+static int64_t SessionId(uint32_t aFormId)
 {
     auto& world = World::Get();
     for (const auto entity : world.view<FormIdComponent>())
@@ -134,7 +134,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     float position[3]{};
     actors.GetActorPosition(aFormId, position[0], position[1], position[2]);
 
-    nlohmann::json mod = {{"server_id", ServerId(aFormId)}};
+    nlohmann::json mod = {{"session_id", SessionId(aFormId)}};
     // The last action the actor's graph took: an owner's own, or a copy's accepted replay or forced action.
     const ActionEvent latest = actors.GetActorLatestAnimation(aFormId);
     for (const auto entity : world.view<FormIdComponent>())
@@ -249,7 +249,7 @@ static nlohmann::json LocalActors()
             result[std::to_string(cFormId)] = {{"health", actors.GetActorValue(cFormId, 24)},
                                                {"dead", actors.IsActorDead(cFormId)},
                                                {"position", {position[0], position[1], position[2]}},
-                                               {"server_id", ServerId(cFormId)},
+                                               {"session_id", SessionId(cFormId)},
                                                {"identity", Identity(cFormId)}};
         }
     return result;
@@ -345,7 +345,7 @@ static nlohmann::json Copies()
         float position[3]{};
         actors.GetActorPosition(cFormId, position[0], position[1], position[2]);
         nlohmann::json copy = {
-            {"server_id", world.get<RemoteComponent>(cEntity).Id},
+            {"session_id", world.get<RemoteComponent>(cEntity).Id},
             {"identity", Identity(cFormId)},
             {"observed_ms", cUnixMs},
             {"has_3d", actors.ActorHas3D(cFormId)},

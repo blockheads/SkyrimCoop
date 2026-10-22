@@ -7,12 +7,12 @@
 #include <Structs/GameVersions.h>
 #include <Structs/TimeModel.h>
 
-struct AuthenticationRequest final : ClientMessage
+struct AuthenticationRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kAuthenticationRequest;
+    static constexpr RequestOpcode Opcode = kAuthenticationRequest;
 
     AuthenticationRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

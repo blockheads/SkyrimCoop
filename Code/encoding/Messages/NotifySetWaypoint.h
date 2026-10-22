@@ -4,11 +4,11 @@
 #include <Structs/Vector3_NetQuantize.h>
 #include <Structs/GameId.h>
 
-struct NotifySetWaypoint final : ServerMessage
+struct NotifySetWaypoint final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifySetWaypoint;
+    static constexpr NotifyOpcode Opcode = kNotifySetWaypoint;
 
-    NotifySetWaypoint() : ServerMessage(Opcode)
+    NotifySetWaypoint() : NotifyMessage(Opcode)
     {
     }
 

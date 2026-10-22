@@ -8,7 +8,7 @@ void NotifySetWaypoint::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
 
 void NotifySetWaypoint::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Position.Deserialize(aReader);
     WorldSpaceFormID.Deserialize(aReader);

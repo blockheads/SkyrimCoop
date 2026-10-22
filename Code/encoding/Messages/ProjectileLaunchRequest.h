@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct ProjectileLaunchRequest final : ClientMessage, Payloads::ProjectileLaunch
+struct ProjectileLaunchRequest final : RequestMessage, Payloads::ProjectileLaunch
 {
-    static constexpr ClientOpcode Opcode = kProjectileLaunchRequest;
+    static constexpr RequestOpcode Opcode = kProjectileLaunchRequest;
     using Payload = Payloads::ProjectileLaunch;
 
     ProjectileLaunchRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

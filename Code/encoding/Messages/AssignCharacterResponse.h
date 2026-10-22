@@ -7,12 +7,12 @@
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 
-struct AssignCharacterResponse final : ServerMessage
+struct AssignCharacterResponse final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kAssignCharacterResponse;
+    static constexpr NotifyOpcode Opcode = kAssignCharacterResponse;
 
     AssignCharacterResponse()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 
@@ -21,12 +21,12 @@ struct AssignCharacterResponse final : ServerMessage
 
     bool operator==(const AssignCharacterResponse& achRhs) const noexcept
     {
-        return GetOpcode() == achRhs.GetOpcode() && Cookie == achRhs.Cookie && ServerId == achRhs.ServerId && PlayerId == achRhs.PlayerId && Position == achRhs.Position && CellId == achRhs.CellId && WorldSpaceId == achRhs.WorldSpaceId && AllActorValues == achRhs.AllActorValues &&
+        return GetOpcode() == achRhs.GetOpcode() && Cookie == achRhs.Cookie && SessionId == achRhs.SessionId && PlayerId == achRhs.PlayerId && Position == achRhs.Position && CellId == achRhs.CellId && WorldSpaceId == achRhs.WorldSpaceId && AllActorValues == achRhs.AllActorValues &&
                CurrentInventory == achRhs.CurrentInventory && Owner == achRhs.Owner && IsDead == achRhs.IsDead && IsWeaponDrawn == achRhs.IsWeaponDrawn;
     }
 
     uint32_t Cookie{};
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     uint32_t PlayerId{};
     Vector3_NetQuantize Position{};
     GameId CellId{};

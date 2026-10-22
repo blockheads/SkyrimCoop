@@ -7,10 +7,10 @@
 TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it everyone else's", "[Bridge][Characters]")
 {
     Session session;
-    for (const uint32_t cServerId : {100u, 101u})
+    for (const uint32_t cSessionId : {100u, 101u})
     {
-        CharacterSpawnRequest spawn;
-        spawn.ServerId = cServerId;
+        NotifyCharacterSpawn spawn;
+        spawn.SessionId = cSessionId;
         session.Spawns.push_back(spawn);
     }
     const uint32_t cOtherPlayer = session.Character(kOtherPeer);
@@ -26,24 +26,24 @@ TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it 
     REQUIRE(cResponses.size() == 1);
     CHECK(cResponses[0]->Cookie == 5);
     CHECK(cResponses[0]->Owner);
-    const uint32_t cPlayer = cResponses[0]->ServerId;
+    const uint32_t cPlayer = cResponses[0]->SessionId;
     CHECK(cPlayer != cOtherPlayer);
 
     // The joiner: the host's actors and the other player as the host's copy shows it.
-    const auto cToJoiner = session.SentTo<CharacterSpawnRequest>(kPeer);
+    const auto cToJoiner = session.SentTo<NotifyCharacterSpawn>(kPeer);
     REQUIRE(cToJoiner.size() == 3);
-    CHECK(cToJoiner[0]->ServerId == 100);
-    CHECK(cToJoiner[1]->ServerId == 101);
-    CHECK(cToJoiner[2]->ServerId == cOtherPlayer);
+    CHECK(cToJoiner[0]->SessionId == 100);
+    CHECK(cToJoiner[1]->SessionId == 101);
+    CHECK(cToJoiner[2]->SessionId == cOtherPlayer);
     CHECK(cToJoiner[2]->IsPlayer);
     CHECK(cToJoiner[2]->Position == session.Copies[cOtherPlayer]);
 
     // Everyone else: the new player, as it announced itself.
     for (const auto cTo : {kHost, kOtherPeer})
     {
-        const auto cSpawns = session.SentTo<CharacterSpawnRequest>(cTo);
+        const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(cTo);
         REQUIRE(cSpawns.size() == 1);
-        CHECK(cSpawns[0]->ServerId == cPlayer);
+        CHECK(cSpawns[0]->SessionId == cPlayer);
         CHECK(cSpawns[0]->AppearanceBuffer == "face");
     }
 }
@@ -64,12 +64,12 @@ TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving
     const uint32_t cPeerPlayer = session.Character(kPeer);
 
     RequestRemoveCharacter removal;
-    removal.ServerId = cHostNpc;
+    removal.SessionId = cHostNpc;
     session.Receive(kPeer, removal); // not its
     CHECK(session.Outbox.empty());
     session.Receive(kHost, removal);
     REQUIRE(session.SentTo<NotifyRemoveCharacter>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyRemoveCharacter>(kPeer)[0]->ServerId == cHostNpc);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kPeer)[0]->SessionId == cHostNpc);
     CHECK(session.SentTo<NotifyRemoveCharacter>(kHost).empty());
 
     // Gone: the owner no longer speaks for it.
@@ -85,12 +85,12 @@ TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving
     cancel.Cookie = 3; // the third announcement in this session
     session.Receive(kHost, cancel);
     REQUIRE(session.SentTo<NotifyRemoveCharacter>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyRemoveCharacter>(kPeer)[0]->ServerId == cCancelled);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kPeer)[0]->SessionId == cCancelled);
 
     session.Outbox.clear();
     session.Leave(kPeer);
     REQUIRE(session.SentTo<NotifyRemoveCharacter>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->ServerId == cPeerPlayer);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->SessionId == cPeerPlayer);
 }
 
 TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn", "[Bridge][Characters]")
@@ -108,14 +108,14 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     CHECK(session.SentTo<NotifyRespawn>(kOtherPeer)[0]->ActorId == cPeerPlayer);
 
     // The host dropped its copy and asks again: the new appearance, where the player last moved.
-    ClientReferencesMoveRequest movement;
+    ReferencesMoveRequest movement;
     movement.Updates[cPeerPlayer].UpdatedMovement.Position = glm::vec3(40.f, 50.f, 60.f);
     session.Receive(kPeer, movement);
     session.Outbox.clear();
     RequestRespawn again;
     again.ActorId = cPeerPlayer;
     session.Receive(kHost, again);
-    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kHost);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kHost);
     REQUIRE(cSpawns.size() == 1);
     CHECK(cSpawns[0]->AppearanceBuffer == "werewolf");
     CHECK(cSpawns[0]->ChangeFlags == 7);
@@ -134,7 +134,7 @@ TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn
         RequestRespawn again;
         again.ActorId = cPeerPlayer;
         session.Receive(kHost, again);
-        const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kHost);
+        const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kHost);
         REQUIRE(cSpawns.size() == 1);
         return *cSpawns[0];
     };
@@ -163,16 +163,16 @@ TEST_CASE("Respawn: a peer that lost the host's first character gets it again", 
     // when it changes cells.
     const uint32_t cHostPlayer = session.Character(kHost);
     REQUIRE(cHostPlayer != 0);
-    CharacterSpawnRequest spawn;
-    spawn.ServerId = cHostPlayer;
+    NotifyCharacterSpawn spawn;
+    spawn.SessionId = cHostPlayer;
     session.Spawns.push_back(spawn);
 
     RequestRespawn request;
     request.ActorId = cHostPlayer;
     session.Receive(kPeer, request);
-    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kPeer);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kPeer);
     REQUIRE(cSpawns.size() == 1);
-    CHECK(cSpawns[0]->ServerId == cHostPlayer);
+    CHECK(cSpawns[0]->SessionId == cHostPlayer);
 }
 
 namespace
@@ -196,8 +196,8 @@ TEST_CASE("Arriving: a player gets the host's actors there; players' copies trav
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
-    CharacterSpawnRequest npc;
-    npc.ServerId = cHostNpc;
+    NotifyCharacterSpawn npc;
+    npc.SessionId = cHostNpc;
     session.Spawns.push_back(npc);
     const uint32_t cPeerPlayer = session.Character(kPeer);
     const uint32_t cOtherPlayer = session.Character(kOtherPeer);
@@ -209,12 +209,12 @@ TEST_CASE("Arriving: a player gets the host's actors there; players' copies trav
 
     session.Receive(kPeer, Arrival(0x102, 0x3C, {1.f, 2.f, 3.f}));
     // It: the host's actors, not the other player (its copy came along).
-    const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
+    const auto cToPeer = session.SentTo<NotifyCharacterSpawn>(kPeer);
     REQUIRE(cToPeer.size() == 1);
-    CHECK(cToPeer[0]->ServerId == cHostNpc);
+    CHECK(cToPeer[0]->SessionId == cHostNpc);
     // Those there: nothing (their copy of it came along).
     for (const auto cTo : {kHost, kOtherPeer})
-        CHECK(session.SentTo<CharacterSpawnRequest>(cTo).empty());
+        CHECK(session.SentTo<NotifyCharacterSpawn>(cTo).empty());
     (void)cPeerPlayer;
     (void)cOtherPlayer;
 }
@@ -229,15 +229,15 @@ TEST_CASE("Arriving: the host's actors only go to players with the host", "[Brid
     session.Outbox.clear();
 
     const uint32_t cHostNpc = session.Character(kHost);
-    CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kPeer).empty());
 
-    CharacterSpawnRequest npc;
-    npc.ServerId = cHostNpc;
+    NotifyCharacterSpawn npc;
+    npc.SessionId = cHostNpc;
     session.Spawns.push_back(npc);
     session.Receive(kPeer, Arrival(0x200));
-    const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
+    const auto cToPeer = session.SentTo<NotifyCharacterSpawn>(kPeer);
     REQUIRE(cToPeer.size() == 1);
-    CHECK(cToPeer[0]->ServerId == cHostNpc);
+    CHECK(cToPeer[0]->SessionId == cHostNpc);
 }
 
 namespace
@@ -251,11 +251,11 @@ uint32_t BothInQASmoke(Session& aSession)
     player.CellId = GameId(0, 0x32AE7);
     aSession.Receive(kHost, player);
     // The host's player, as its engine shows it.
-    CharacterSpawnRequest hostPlayer;
-    hostPlayer.ServerId = aSession.SentTo<AssignCharacterResponse>(kHost)[0]->ServerId;
+    NotifyCharacterSpawn hostPlayer;
+    hostPlayer.SessionId = aSession.SentTo<AssignCharacterResponse>(kHost)[0]->SessionId;
     aSession.Spawns.push_back(hostPlayer);
     aSession.Receive(kPeer, player);
-    const uint32_t cPeerPlayer = aSession.SentTo<AssignCharacterResponse>(kPeer)[0]->ServerId;
+    const uint32_t cPeerPlayer = aSession.SentTo<AssignCharacterResponse>(kPeer)[0]->SessionId;
     aSession.Outbox.clear();
     return cPeerPlayer;
 }
@@ -268,11 +268,11 @@ TEST_CASE("Arriving: the host first, then a peer still on its way", "[Bridge][Ch
 
     // The host reaches Riverwood first: the peer is still in QASmoke, it gets nothing yet.
     session.Receive(kHost, Arrival(0x9732, 0x3C));
-    CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
-    CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kHost).empty());
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kPeer).empty());
     // The peer arrives: its copy on the host came along, nothing is spawned for it.
     session.Receive(kPeer, Arrival(0x9732, 0x3C));
-    CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kHost).empty());
     (void)cPeerPlayer;
 }
 
@@ -285,18 +285,18 @@ TEST_CASE("Arriving: a peer ahead of the host gets the host's actors when the ho
     session.Receive(kPeer, Arrival(0x9732, 0x3C));
     CHECK(session.Outbox.empty());
     // The host arrives with an NPC (a follower): the peer gets it, not the host's player (its copy came along).
-    CharacterSpawnRequest follower;
-    follower.ServerId = session.Character(kHost);
+    NotifyCharacterSpawn follower;
+    follower.SessionId = session.Character(kHost);
     session.Spawns.push_back(follower);
     session.Receive(kHost, Arrival(0x9733, 0x3C));
-    CHECK(session.SentTo<CharacterSpawnRequest>(kHost).empty());
-    const auto cToPeer = session.SentTo<CharacterSpawnRequest>(kPeer);
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kHost).empty());
+    const auto cToPeer = session.SentTo<NotifyCharacterSpawn>(kPeer);
     REQUIRE(cToPeer.size() == 1);
-    CHECK(cToPeer[0]->ServerId == follower.ServerId);
+    CHECK(cToPeer[0]->SessionId == follower.SessionId);
     // Once: the host's next arrival with the peer there sends it nothing more.
     session.Outbox.clear();
     session.Receive(kHost, Arrival(0x9734, 0x3C));
-    CHECK(session.SentTo<CharacterSpawnRequest>(kPeer).empty());
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kPeer).empty());
     (void)cPeerPlayer;
 }
 
@@ -386,7 +386,7 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     RequestRespawn again;
     again.ActorId = cPeerPlayer;
     session.Receive(kHost, again);
-    const auto cToHost = session.SentTo<CharacterSpawnRequest>(kHost);
+    const auto cToHost = session.SentTo<NotifyCharacterSpawn>(kHost);
     REQUIRE(cToHost.size() == 1);
     CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);
     CHECK(cToHost[0]->IsWeaponDrawn);
@@ -419,13 +419,13 @@ TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared fir
     tint.Type = 6;
     announce.FaceTints.Entries.push_back(tint);
     session.Receive(kHost, announce);
-    const auto cSpawns = session.SentTo<CharacterSpawnRequest>(kPeer);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(kPeer);
     REQUIRE(cSpawns.size() == 1);
     REQUIRE(cSpawns[0]->FaceTints.Entries.size() == 1);
     CHECK(cSpawns[0]->FaceTints.Entries[0].Name == tint.Name);
 
     // The peer casts: the other players replay the action by its graph event names.
-    ClientReferencesMoveRequest movement;
+    ReferencesMoveRequest movement;
     ActionEvent cast;
     cast.ActionId = 0x13005;
     cast.EventName = "MRh_SpellAimedStart";
@@ -434,7 +434,7 @@ TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared fir
     session.Receive(kPeer, movement);
     for (const auto cTo : {kHost, kOtherPeer})
     {
-        const auto cMoves = session.SentTo<ServerReferencesMoveRequest>(cTo);
+        const auto cMoves = session.SentTo<NotifyReferencesMove>(cTo);
         REQUIRE(cMoves.size() == 1);
         const auto& cActions = cMoves[0]->Updates.at(cPeerPlayer).ActionEvents;
         REQUIRE(cActions.size() == 1);

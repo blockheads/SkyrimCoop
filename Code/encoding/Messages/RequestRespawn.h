@@ -5,12 +5,12 @@
 #include <Structs/ActionEvent.h>
 #include <Structs/ActorData.h>
 
-struct RequestRespawn final : ClientMessage
+struct RequestRespawn final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kRequestRespawn;
+    static constexpr RequestOpcode Opcode = kRequestRespawn;
 
     RequestRespawn()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

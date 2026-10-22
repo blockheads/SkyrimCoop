@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct RequestHealthChangeBroadcast final : ClientMessage, Payloads::HealthChange
+struct RequestHealthChangeBroadcast final : RequestMessage, Payloads::HealthChange
 {
-    static constexpr ClientOpcode Opcode = kRequestHealthChangeBroadcast;
+    static constexpr RequestOpcode Opcode = kRequestHealthChangeBroadcast;
     using Payload = Payloads::HealthChange;
 
     RequestHealthChangeBroadcast()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

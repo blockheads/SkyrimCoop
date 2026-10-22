@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct RequestDeathStateChange final : ClientMessage, Payloads::DeathStateChange
+struct RequestDeathStateChange final : RequestMessage, Payloads::DeathStateChange
 {
-    static constexpr ClientOpcode Opcode = kRequestDeathStateChange;
+    static constexpr RequestOpcode Opcode = kRequestDeathStateChange;
     using Payload = Payloads::DeathStateChange;
 
     RequestDeathStateChange()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

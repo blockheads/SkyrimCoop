@@ -4,21 +4,21 @@
 
 #include <Structs/Inventory.h>
 
-struct NotifyInventoryChanges final : ServerMessage
+struct NotifyInventoryChanges final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyInventoryChanges;
+    static constexpr NotifyOpcode Opcode = kNotifyInventoryChanges;
 
     NotifyInventoryChanges()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyInventoryChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && ServerId == acRhs.ServerId && Item == acRhs.Item && Drop == acRhs.Drop; }
+    bool operator==(const NotifyInventoryChanges& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && Item == acRhs.Item && Drop == acRhs.Drop; }
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     Inventory::Entry Item{};
     bool Drop = false;
 };

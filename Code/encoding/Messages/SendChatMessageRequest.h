@@ -4,12 +4,12 @@
 
 using TiltedPhoques::String;
 
-struct SendChatMessageRequest final : ClientMessage
+struct SendChatMessageRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kSendChatMessageRequest;
+    static constexpr RequestOpcode Opcode = kSendChatMessageRequest;
 
     SendChatMessageRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

@@ -58,15 +58,15 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     if (iter == std::end(view))
         return;
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*iter);
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*iter);
+    if (!sessionIdRes.has_value())
     {
-        spdlog::error("{}: : failed to find server id, target form id: {:X}, item id: {:X}, count: {}", __FUNCTION__, acEvent.FormId, acEvent.Item.BaseId.BaseId, acEvent.Item.Count);
+        spdlog::error("{}: : failed to find session id, target form id: {:X}, item id: {:X}, count: {}", __FUNCTION__, acEvent.FormId, acEvent.Item.BaseId.BaseId, acEvent.Item.Count);
         return;
     }
 
     RequestInventoryChanges request;
-    request.ServerId = serverIdRes.value();
+    request.SessionId = sessionIdRes.value();
     request.Item = acEvent.Item;
     request.Drop = acEvent.Drop;
     request.UpdateClients = acEvent.UpdateClients;
@@ -88,10 +88,10 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
     if (iter == std::end(view))
         return;
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*iter);
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*iter);
+    if (!sessionIdRes.has_value())
     {
-        spdlog::error("{}: : failed to find server id, actor id: {:X}, item id: {:X}, isAmmo: {}, unequip: {}, slot: {:X}", __FUNCTION__, acEvent.ActorId, acEvent.ItemId, acEvent.IsAmmo, acEvent.Unequip, acEvent.EquipSlotId);
+        spdlog::error("{}: : failed to find session id, actor id: {:X}, item id: {:X}, isAmmo: {}, unequip: {}, slot: {:X}", __FUNCTION__, acEvent.ActorId, acEvent.ItemId, acEvent.IsAmmo, acEvent.Unequip, acEvent.EquipSlotId);
         return;
     }
 
@@ -101,7 +101,7 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
     auto& modSystem = World::Get().GetModSystem();
 
     RequestEquipmentChanges request;
-    request.ServerId = serverIdRes.value();
+    request.SessionId = sessionIdRes.value();
 
     if (!modSystem.GetServerModId(acEvent.EquipSlotId, request.EquipSlotId))
         return;
@@ -124,10 +124,10 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
 {
     if (acMessage.Drop)
     {
-        const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+        const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
         if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
         {
-            spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.ServerId);
+            spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.SessionId);
             return;
         }
 
@@ -137,7 +137,7 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
     }
     else
     {
-        const uint32_t cObjectFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+        const uint32_t cObjectFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
         if (cObjectFormId == 0 || !m_formBridge.FormExists(cObjectFormId))
             return;
 
@@ -149,10 +149,10 @@ void InventoryService::OnNotifyInventoryChanges(const NotifyInventoryChanges& ac
 
 void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& acMessage) noexcept
 {
-    const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
     if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
     {
-        spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.ServerId);
+        spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.SessionId);
         return;
     }
 
@@ -243,7 +243,7 @@ void InventoryService::RunEquipmentSnapshots() noexcept
             continue;
 
         RequestEquipmentSnapshot request;
-        request.ServerId = view.get<LocalComponent>(entity).Id;
+        request.SessionId = view.get<LocalComponent>(entity).Id;
         request.Equipment = m_formBridge.GetActorEquipment(cFormId);
         m_transport.Send(request);
     }
@@ -251,7 +251,7 @@ void InventoryService::RunEquipmentSnapshots() noexcept
 
 void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& acMessage) noexcept
 {
-    const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ServerId);
+    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
     if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId) || !m_actorBridge.IsActorCopy(cActorFormId))
         return;
 

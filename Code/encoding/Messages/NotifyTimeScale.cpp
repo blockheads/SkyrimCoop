@@ -9,7 +9,7 @@ void NotifyTimeScale::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const
 
 void NotifyTimeScale::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Multiplier = TiltedPhoques::Serialization::ReadFloat(aReader);
 }

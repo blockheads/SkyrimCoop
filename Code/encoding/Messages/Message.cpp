@@ -1,61 +1,61 @@
 #include <Messages/Message.h>
 
-void ClientMessage::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void RequestMessage::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
     // We don't read the opcode, the factory will do it
 }
 
-void ClientMessage::DeserializeDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void RequestMessage::DeserializeDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
 }
 
-ClientOpcode ClientMessage::GetOpcode() const noexcept
+RequestOpcode RequestMessage::GetOpcode() const noexcept
 {
     return m_opcode;
 }
 
-void ClientMessage::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RequestMessage::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    ClientMessage::SerializeRaw(aWriter);
+    RequestMessage::SerializeRaw(aWriter);
     SerializeRaw(aWriter);
     SerializeDifferential(aWriter);
 }
 
-void ClientMessage::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RequestMessage::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(m_opcode, sizeof(m_opcode) * 8);
 }
 
-void ClientMessage::SerializeDifferential(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void RequestMessage::SerializeDifferential(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
 }
 
-void ServerMessage::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyMessage::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
     // We don't read the opcode, the factory will do it
 }
 
-void ServerMessage::DeserializeDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept
+void NotifyMessage::DeserializeDifferential(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
 }
 
-ServerOpcode ServerMessage::GetOpcode() const noexcept
+NotifyOpcode NotifyMessage::GetOpcode() const noexcept
 {
     return m_opcode;
 }
 
-void ServerMessage::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyMessage::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    ServerMessage::SerializeRaw(aWriter);
+    NotifyMessage::SerializeRaw(aWriter);
     SerializeRaw(aWriter);
     SerializeDifferential(aWriter);
 }
 
-void ServerMessage::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyMessage::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
     aWriter.WriteBits(m_opcode, sizeof(m_opcode) * 8);
 }
 
-void ServerMessage::SerializeDifferential(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
+void NotifyMessage::SerializeDifferential(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
 }

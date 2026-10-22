@@ -1110,7 +1110,7 @@ def stop_casting(instance):
     release(instance, "right")
 
 
-# --- The host's NPCs and their copies, by server id -----------------------------------------
+# --- The host's NPCs and their copies, by session id -----------------------------------------
 
 def host_npc_state(npc):
     return local_player("").get("local_actors", {}).get(str(npc), {})
@@ -1121,11 +1121,11 @@ def host_world(form_id):
     return ((read_status() or {}).get("world") or {}).get(str(form_id)) or {}
 
 
-def copy_of(instance, server_id, timeout=15):
-    """The form id of the copy, in that game, of the actor with this server id."""
-    return wait_on(instance, f"shows server actor {server_id:X}",
+def copy_of(instance, session_id, timeout=15):
+    """The form id of the copy, in that game, of the actor with this session id."""
+    return wait_on(instance, f"shows server actor {session_id:X}",
                    lambda actors: next((int(a) for a, s in actors.items()
-                                        if s.get("server_id") == server_id and s.get("has_3d")), None), timeout)
+                                        if s.get("session_id") == session_id and s.get("has_3d")), None), timeout)
 
 
 STAGE_DEPTH = 450  # units past the host's home spot, away from the client's
@@ -1143,25 +1143,25 @@ def stage_spot():
 
 
 def spawn_host_npc(base, restrained=False):
-    """The host spawns an NPC on the stage: (host ref id, server id, the client's copy).
+    """The host spawns an NPC on the stage: (host ref id, session id, the client's copy).
     Restrained, it stays there (an NPC otherwise walks up to greet the players)."""
     before = set(local_player("").get("local_actors", {}))
     console_on("", f"player.placeatme {base} 1")
     npc = int(next(iter(wait_for("[host] new NPC loaded",
                                  lambda: set(local_player("").get("local_actors", {})) - before, 15))))
-    # Unassigned, it reads -1 (server id 0 is valid: the host's player).
-    server_id = wait_for("[host] NPC has a server id",
-                         lambda: (sid := host_npc_state(npc).get("server_id")) is not None and sid >= 0 and (sid,), 10)[0]
+    # Unassigned, it reads -1.
+    session_id = wait_for("[host] NPC has a session id",
+                          lambda: (sid := host_npc_state(npc).get("session_id")) is not None and sid >= 0 and (sid,), 10)[0]
     if restrained:
         console_on("", f"{npc:08X}.setrestrained 1")
     goal = stage_spot()
     place("", f"{npc:08X}", goal, host_npc_state(npc)["position"])
     wait_for("[host] NPC on the stage", lambda: distance(host_npc_state(npc)["position"][:2], goal[:2]) < 40
              and abs(host_npc_state(npc)["position"][2] - goal[2]) < 60, 10)
-    copy = copy_of("client", server_id)
+    copy = copy_of("client", session_id)
     wait_on("client", "its copy on the stage",
             lambda actors: distance((actors.get(str(copy), {}).get("actual") or [1e9, 1e9])[:2], goal[:2]) < 60, 10)
-    return npc, server_id, copy
+    return npc, session_id, copy
 
 
 def freeze(instance, actor, frozen=True):
@@ -1176,7 +1176,7 @@ def stage_host_npc(npc):
     # Its own package can bring it into the cell elsewhere (an unloaded actor travelling to the player arrives at
     # the door): it is frozen once here, then moved within the cell.
     player_command("", {"cmd": "move_actor", "actor": npc, "position": goal})
-    wait_for(f"[host] {npc:X} is in the home cell", lambda: host_npc_state(npc).get("server_id", -1) >= 0, 10)
+    wait_for(f"[host] {npc:X} is in the home cell", lambda: host_npc_state(npc).get("session_id", -1) >= 0, 10)
     freeze("", npc)
     player_command("", {"cmd": "move_actor", "actor": npc, "position": goal})
     try:
@@ -1184,7 +1184,7 @@ def stage_host_npc(npc):
     except TestFailure:
         raise TestFailure(f"[host] {npc:X} is not on the stage {[round(x) for x in goal]}: {host_world(npc).get('placement')}")
     freeze("", npc)  # again: its character controller exists now
-    copy = copy_of("client", host_npc_state(npc)["server_id"])
+    copy = copy_of("client", host_npc_state(npc)["session_id"])
     wait_on("client", f"its copy of {npc:X} on the stage",
             lambda actors: distance((actors.get(str(copy), {}).get("actual") or [1e9, 1e9])[:2], goal[:2]) < 60, 10)
     return copy
@@ -1532,7 +1532,7 @@ def scenario_late_join_client():
     """The client leaves and joins again while the host's world changed: it must see the world as it
     is now (the host's player and NPC as they are), and the host must drop the client's character
     while it is away."""
-    npc, server_id, _ = spawn_host_npc(LYDIA)
+    npc, session_id, _ = spawn_host_npc(LYDIA)
     console_on("", f"{npc:08X}.additem {IRON_SWORD:08X} 1")
     console_on("", f"{npc:08X}.equipitem {IRON_SWORD:08X}")
     give_sword("")
@@ -1543,7 +1543,7 @@ def scenario_late_join_client():
     console_on("", f"{npc:08X}.damageav health 50")
     rejoin_client()
     party_panel_lists_the_other("after the client joined again")
-    copy = copy_of("client", server_id)
+    copy = copy_of("client", session_id)
     wait_on("client", "the NPC's copy holds the sword", lambda actors: IRON_SWORD in actors.get(str(copy), {}).get("equipped", []))
     copy_health_matches(npc, copy)
     wait_on("client", "the host's character has the sword drawn",
@@ -1560,8 +1560,8 @@ def scenario_host_rejoins():
     select_instance("")
     start_session("")
     rejoin_client()
-    npc, server_id, copy = spawn_host_npc(LYDIA)
-    log(f"host's NPC {npc:08X} (server id {server_id:X}) reaches the client as {copy:08X}")
+    npc, session_id, copy = spawn_host_npc(LYDIA)
+    log(f"host's NPC {npc:08X} (session id {session_id:X}) reaches the client as {copy:08X}")
 
 
 def scenario_host_kicks_client():
@@ -2280,7 +2280,7 @@ def scenario_remove_host_npc():
 def scenario_teleport_keeps_copies():
     """The client teleports within the cell (moveto): its game keeps the copies it shows (the host's
     character and NPC stay the same actors). A respawned copy loses its state and id."""
-    _, server_id, copy = spawn_host_npc(LYDIA, restrained=True)
+    _, session_id, copy = spawn_host_npc(LYDIA, restrained=True)
     host_copy = other_player(actors_on("client"))
     log_file = plugin_log("client")
     start = log_file.stat().st_size
@@ -2292,7 +2292,7 @@ def scenario_teleport_keeps_copies():
         actors = actors_on("client")
         if other_player(actors) != host_copy:
             raise TestFailure(f"the host's character was respawned: copy {host_copy:08X} is now {other_player(actors)}")
-        now = next((int(a) for a, s in actors.items() if s.get("server_id") == server_id), None)
+        now = next((int(a) for a, s in actors.items() if s.get("session_id") == session_id), None)
         if now != copy:
             raise TestFailure(f"the host's NPC was respawned: copy {copy:08X} is now {now}")
         time.sleep(0.1)
@@ -5383,9 +5383,9 @@ def status_table():
     rows.append(("client's character", describe(client_on_host), describe(client_player)))
     # Pair each host NPC with the client copy linked to the same server actor; anything left
     # unpaired on either side is a desync (a copy the host no longer has, or a missing copy).
-    copies = {v.get("server_id"): v for v in (client.get("actors") or {}).values() if not v.get("other_player")}
+    copies = {v.get("session_id"): v for v in (client.get("actors") or {}).values() if not v.get("other_player")}
     for npc, owned in sorted((host_player.get("local_actors") or {}).items()):
-        copy = copies.pop(owned.get("server_id"), None)
+        copy = copies.pop(owned.get("session_id"), None)
         gap = f"  {distance(owned['position'], copy['actual']):.0f} apart" if copy and owned.get("position") else ""
         mine, theirs = owned.get("identity") or {}, (copy or {}).get("identity") or {}
         # Same name and race, or the copy is a different-looking actor (built from the wrong record).
@@ -5393,8 +5393,8 @@ def status_table():
             else f" WRONG-ACTOR({theirs.get('name') or '?'})"
         label = f"NPC {mine.get('name') or ''} {int(npc):08X}".replace("  ", " ")[:20]
         rows.append((label, describe(owned), (describe(copy) + wrong if copy else "MISSING") + gap))
-    for server_id, copy in copies.items():
-        rows.append((f"NPC server {server_id}", "GONE on host", describe(copy)))
+    for session_id, copy in copies.items():
+        rows.append((f"NPC server {session_id}", "GONE on host", describe(copy)))
     lines = [f"{'':20s} {'HOST game':24s} {'CLIENT game':24s}"]
     lines += [f"{who:20s} {h:24s} {c:24s}" for who, h, c in rows]
     return "\n".join(lines)
@@ -5403,7 +5403,7 @@ def status_table():
 # --- Desync checker -------------------------------------------------------------------------
 # Each game's status.json carries "world": a snapshot of every loaded actor (TestHarness/Status.cpp
 # Snapshot()). Every actor has exactly one owner game; the other game holds a copy linked by the
-# same server id. The checker pairs them and compares every snapshot field, so a field added to
+# same session id. The checker pairs them and compares every snapshot field, so a field added to
 # Snapshot() is checked without touching this code. Rules below only say how to compare a field
 # (tolerances) or why a field is expected to differ.
 
@@ -5467,7 +5467,7 @@ def mod_problems(snapshot, role):
 
 def describe_actor(snapshot, form_id, game):
     name = snapshot["identity"].get("name") or ("player" if snapshot["player"] else "?")
-    return f"{name} [{game} {int(form_id):08X}, sid {snapshot['mod']['server_id']}]"
+    return f"{name} [{game} {int(form_id):08X}, sid {snapshot['mod']['session_id']}]"
 
 
 def find_desyncs():
@@ -5480,7 +5480,7 @@ def find_desyncs():
             raise TestFailure(f"{game} game reports no world snapshot (old DLL or not running)")
         worlds[game] = status["world"]
     problems = []
-    copies = {game: {s["mod"]["server_id"]: (fid, s) for fid, s in world.items() if s["role"] == "copy"}
+    copies = {game: {s["mod"]["session_id"]: (fid, s) for fid, s in world.items() if s["role"] == "copy"}
               for game, world in worlds.items()}
     paired = {game: set() for game in worlds}
     for game, world in worlds.items():
@@ -5491,7 +5491,7 @@ def find_desyncs():
             who = describe_actor(owned, form_id, game)
             for problem in mod_problems(owned, "own"):
                 problems.append((f"{who} {problem}", f"{who} (owned by {game}): {problem}"))
-            sid = owned["mod"]["server_id"]
+            sid = owned["mod"]["session_id"]
             if sid < 0:
                 problems.append((f"{who} unlinked", f"{who}: owned by {game} but never registered with the server"))
                 continue

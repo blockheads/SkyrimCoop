@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct RequestActorValueChanges final : ClientMessage, Payloads::ActorValueChanges
+struct RequestActorValueChanges final : RequestMessage, Payloads::ActorValueChanges
 {
-    static constexpr ClientOpcode Opcode = kRequestActorValueChanges;
+    static constexpr RequestOpcode Opcode = kRequestActorValueChanges;
     using Payload = Payloads::ActorValueChanges;
 
     RequestActorValueChanges()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

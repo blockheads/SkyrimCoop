@@ -9,7 +9,7 @@ void TimeScaleRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
 
 void TimeScaleRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Multiplier = TiltedPhoques::Serialization::ReadFloat(aReader);
 }

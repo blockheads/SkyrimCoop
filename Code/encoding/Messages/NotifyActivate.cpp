@@ -9,7 +9,7 @@ void NotifyActivate::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const 
 
 void NotifyActivate::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Id.Deserialize(aReader);
     ActivatorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;

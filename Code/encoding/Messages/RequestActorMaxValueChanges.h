@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct RequestActorMaxValueChanges final : ClientMessage, Payloads::ActorMaxValueChanges
+struct RequestActorMaxValueChanges final : RequestMessage, Payloads::ActorMaxValueChanges
 {
-    static constexpr ClientOpcode Opcode = kRequestActorMaxValueChanges;
+    static constexpr RequestOpcode Opcode = kRequestActorMaxValueChanges;
     using Payload = Payloads::ActorMaxValueChanges;
 
     RequestActorMaxValueChanges()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

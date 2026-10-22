@@ -197,7 +197,7 @@ moved them back to Riverwood, out of the player's sight; as puppets they stayed,
 and every later baseline reset failed. Logged on 2026-10-11: the spawns at 23:18:21.554, 32 ms after
 the client arrived in QASmoke, then Sven's parent cell 9731 → 32AE7 (QASmoke). Neither
 `UpdateCellAttachment` nor `ForcePosition` changed it. A copy of a reference from the game's data now
-goes to its owner's cell (`CharacterSpawnRequest::CellId`). Forcing the race (both games go to
+goes to its owner's cell (`NotifyCharacterSpawn::CellId`). Forcing the race (both games go to
 Riverwood and back after 0.25 s): before, the round whose 24 Riverwood spawns came late left 4 copies
 in QASmoke; after, the round with 24 late spawns left none, in 12 rounds. Actors created for a spawn
 (players, temporary NPCs) still start at the player: no case of theirs was seen.
@@ -405,8 +405,8 @@ with the first update once the id arrives (dropped if the answer gives the actor
 An action carries its target (`TESActionData::target`): the victim of a paired idle such as a kill
 move, the furniture of a sit. The owner recorded it as its own form id, which a copy's game looked up as
 its own: the host's `pa_KillMove1HMWolfB` targeted the wolf `FF001985`, nothing on the client, and the
-wolf's half targeted `14`, the client's own player. An actor target now crosses as its server id + 1
-(`ActionEvent::TargetActor`, 0 none; server ids are EnTT entity ids and use all 32 bits, so they cannot
+wolf's half targeted `14`, the client's own player. An actor target now crosses as its session id + 1
+(`ActionEvent::TargetActor`, 0 none; session ids are EnTT entity ids and use all 32 bits, so they cannot
 share `TargetId`); other references keep their form id, the same in both games, and a temporary one is
 dropped (`AnimationSystem::TargetToNetwork` / `TargetFromNetwork`, on the game thread when the step is
 staged; the replay itself runs in the copy's animation job).
@@ -505,7 +505,7 @@ the owner uses QASmoke's cooking spit and leaves it, the loaded copy follows bot
 graph by project name (`BShkbAnimationGraph::projectName`, 0x1F0): a player has `DefaultMale` and
 `FirstPerson`, its copy only the first, and the manager's own load matches graphs by count and
 order, which would skip both. The owner's state (about 7.5 KB per graph) goes with every spawn
-(`AssignCharacterRequest`, `CharacterSpawnRequest`, and `EnterCellRequest`, so the host's record of a
+(`AssignCharacterRequest`, `NotifyCharacterSpawn`, and `EnterCellRequest`, so the host's record of a
 player is not the one from when it joined). The copy loads it once its graph is ready
 (`AnimationSystem`), and the spawn action then counts as taken instead of being replayed. If the
 load fails, the action is replayed as before (logged).

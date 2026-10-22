@@ -1,6 +1,6 @@
 #include <Services/Host/HostNetwork.h>
 
-#include <Messages/ClientMessageFactory.h>
+#include <Messages/RequestMessageFactory.h>
 #include <Messages/Message.h>
 #include <Packet.hpp>
 
@@ -46,7 +46,7 @@ void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aCo
 {
     TiltedPhoques::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
     Buffer::Reader reader(&buffer);
-    const auto pMessage = ClientMessageFactory{}.Extract(reader);
+    const auto pMessage = RequestMessageFactory{}.Extract(reader);
     if (!pMessage)
     {
         spdlog::error("HostNetwork: could not read a message from {:x}", aConnection);
@@ -56,7 +56,7 @@ void HostNetwork::Receive(const void* apData, uint32_t aSize, ConnectionId_t aCo
         spdlog::debug("HostNetwork: dropped opcode {} from {:x}", uint32_t(pMessage->GetOpcode()), aConnection);
 }
 
-void HostNetwork::Send(ConnectionId_t aConnection, const ServerMessage& acMessage, TiltedPhoques::EPacketFlags aFlags) const noexcept
+void HostNetwork::Send(ConnectionId_t aConnection, const NotifyMessage& acMessage, TiltedPhoques::EPacketFlags aFlags) const noexcept
 {
     Buffer buffer(1 << 20);
     Buffer::Writer writer(&buffer);

@@ -2,11 +2,11 @@
 
 #include "Message.h"
 
-struct NotifyRemoveWaypoint final : ServerMessage
+struct NotifyRemoveWaypoint final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyRemoveWaypoint;
+    static constexpr NotifyOpcode Opcode = kNotifyRemoveWaypoint;
 
-    NotifyRemoveWaypoint() : ServerMessage(Opcode)
+    NotifyRemoveWaypoint() : NotifyMessage(Opcode)
     {
     }
 

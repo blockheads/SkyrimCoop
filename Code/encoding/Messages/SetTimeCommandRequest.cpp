@@ -9,7 +9,7 @@ void SetTimeCommandRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
 
 void SetTimeCommandRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     uint64_t dest = 0;
     aReader.ReadBits(dest, 8);

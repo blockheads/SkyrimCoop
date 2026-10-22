@@ -8,7 +8,7 @@ void SendChatMessageRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
 
 void SendChatMessageRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     MessageType = static_cast<ChatMessageType>(Serialization::ReadVarInt(aReader));
     ChatMessage = Serialization::ReadString(aReader);

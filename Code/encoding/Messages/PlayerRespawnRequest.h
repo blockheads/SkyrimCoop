@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct PlayerRespawnRequest final : ClientMessage
+struct PlayerRespawnRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kPlayerRespawnRequest;
+    static constexpr RequestOpcode Opcode = kPlayerRespawnRequest;
 
     PlayerRespawnRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

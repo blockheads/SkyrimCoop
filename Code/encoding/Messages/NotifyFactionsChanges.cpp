@@ -19,7 +19,7 @@ void NotifyFactionsChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
 
 void NotifyFactionsChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     uint64_t count = Serialization::ReadVarInt(aReader);
 

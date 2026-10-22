@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct SpellCastRequest final : ClientMessage, Payloads::SpellCast
+struct SpellCastRequest final : RequestMessage, Payloads::SpellCast
 {
-    static constexpr ClientOpcode Opcode = kSpellCastRequest;
+    static constexpr RequestOpcode Opcode = kSpellCastRequest;
     using Payload = Payloads::SpellCast;
 
     SpellCastRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

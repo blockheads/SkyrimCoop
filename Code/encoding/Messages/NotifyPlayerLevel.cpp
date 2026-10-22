@@ -8,7 +8,7 @@ void NotifyPlayerLevel::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
 
 void NotifyPlayerLevel::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     NewLevel = Serialization::ReadVarInt(aReader) & 0xFFFF;

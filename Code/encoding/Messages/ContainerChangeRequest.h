@@ -5,12 +5,12 @@
 #include <Structs/GameId.h>
 
 // A guest's container changed (its player took or stored an item): a proposal, as the count it holds now.
-struct ContainerChangeRequest final : ClientMessage
+struct ContainerChangeRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kContainerChangeRequest;
+    static constexpr RequestOpcode Opcode = kContainerChangeRequest;
 
     ContainerChangeRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

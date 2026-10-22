@@ -5,16 +5,16 @@
 namespace Utils
 {
 
-std::optional<uint32_t> GetServerId(entt::entity aEntity) noexcept
+std::optional<uint32_t> GetSessionId(entt::entity aEntity) noexcept
 {
     const auto* pLocalComponent = World::Get().try_get<LocalComponent>(aEntity);
     const auto* pRemoteComponent = World::Get().try_get<RemoteComponent>(aEntity);
 
-    uint32_t serverId = -1;
+    uint32_t sessionId = -1;
     if (pLocalComponent)
-        serverId = pLocalComponent->Id;
+        sessionId = pLocalComponent->Id;
     else if (pRemoteComponent)
-        serverId = pRemoteComponent->Id;
+        sessionId = pRemoteComponent->Id;
     else
     {
         const auto* pFormIdComponent = World::Get().try_get<FormIdComponent>(aEntity);
@@ -22,7 +22,7 @@ std::optional<uint32_t> GetServerId(entt::entity aEntity) noexcept
         return std::nullopt;
     }
 
-    return {serverId};
+    return {sessionId};
 }
 
 void ShowHudMessage(const TiltedPhoques::String& acMessage)

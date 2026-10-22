@@ -5,9 +5,9 @@
 #include <Structs/Mods.h>
 #include <Structs/ServerSettings.h>
 
-struct AuthenticationResponse final : ServerMessage
+struct AuthenticationResponse final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kAuthenticationResponse;
+    static constexpr NotifyOpcode Opcode = kAuthenticationResponse;
 
     enum class ResponseType : uint8_t
     {
@@ -21,7 +21,7 @@ struct AuthenticationResponse final : ServerMessage
     };
 
     AuthenticationResponse()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

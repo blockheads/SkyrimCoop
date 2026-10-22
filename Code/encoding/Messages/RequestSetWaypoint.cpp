@@ -8,7 +8,7 @@ void RequestSetWaypoint::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
 
 void RequestSetWaypoint::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Position.Deserialize(aReader);
     WorldSpaceFormID.Deserialize(aReader);

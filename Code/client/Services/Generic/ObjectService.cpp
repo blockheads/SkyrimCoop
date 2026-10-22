@@ -68,11 +68,11 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     if (pEntity == std::end(view) || !m_world.all_of<LocalComponent>(*pEntity))
         return;
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*pEntity);
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*pEntity);
+    if (!sessionIdRes.has_value())
         return;
 
-    request.ActivatorId = serverIdRes.value();
+    request.ActivatorId = sessionIdRes.value();
     request.PreActivationOpenState = acEvent.PreActivationOpenStateValue;
 
     m_transport.Send(request);
@@ -80,10 +80,10 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
 
 void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
 {
-    const uint32_t cActorFormId = Utils::GetFormIdByServerId(acMessage.ActivatorId);
+    const uint32_t cActorFormId = Utils::GetFormIdBySessionId(acMessage.ActivatorId);
     if (cActorFormId == 0 || !m_actorBridge.ActorExists(cActorFormId))
     {
-        spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.ActivatorId);
+        spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.ActivatorId);
         return;
     }
 

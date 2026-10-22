@@ -7,7 +7,7 @@ void NotifyRespawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const n
 
 void NotifyRespawn::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

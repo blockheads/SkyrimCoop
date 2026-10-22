@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct MountRequest final : ClientMessage, Payloads::Mount
+struct MountRequest final : RequestMessage, Payloads::Mount
 {
-    static constexpr ClientOpcode Opcode = kMountRequest;
+    static constexpr RequestOpcode Opcode = kMountRequest;
     using Payload = Payloads::Mount;
 
     MountRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

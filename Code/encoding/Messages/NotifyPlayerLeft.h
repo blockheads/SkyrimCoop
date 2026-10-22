@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct NotifyPlayerLeft final : ServerMessage
+struct NotifyPlayerLeft final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyPlayerLeft;
+    static constexpr NotifyOpcode Opcode = kNotifyPlayerLeft;
 
     NotifyPlayerLeft()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

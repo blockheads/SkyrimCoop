@@ -1,11 +1,11 @@
 #pragma once
 
-enum ClientOpcode : unsigned char
+enum RequestOpcode : unsigned char
 {
     kAuthenticationRequest = 0,
     kCancelAssignmentRequest,
     kAssignCharacterRequest,
-    kClientReferencesMoveRequest,
+    kReferencesMoveRequest,
     kRequestFactionsChanges,
     kRequestActorValueChanges,
     kRequestActorMaxValueChanges,
@@ -47,16 +47,16 @@ enum ClientOpcode : unsigned char
     kDialogueExperienceRequest,
     kContainerChangeRequest,
     kCellStateRequest,
-    kClientOpcodeMax
+    kRequestOpcodeMax
 };
 
-enum ServerOpcode : unsigned char
+enum NotifyOpcode : unsigned char
 {
     kAuthenticationResponse = 0,
     kAssignCharacterResponse,
-    kServerReferencesMoveRequest,
-    kServerTimeSettings,
-    kCharacterSpawnRequest,
+    kNotifyReferencesMove,
+    kNotifyTimeSettings,
+    kNotifyCharacterSpawn,
     kNotifyFactionsChanges,
     kNotifyRemoveCharacter,
     kNotifyActorValueChanges,
@@ -90,7 +90,7 @@ enum ServerOpcode : unsigned char
     kNotifySetWaypoint,
     kNotifyRemoveWaypoint,
     kNotifySetTimeResult,
-    kWorldStateSync,
+    kNotifyWorldState,
     kNotifyEquipmentSnapshot,
     kNotifyActiveEffects,
     kNotifyTimeScale,
@@ -104,5 +104,5 @@ enum ServerOpcode : unsigned char
     kNotifyGlobals,
     kNotifyQuests,
     kNotifyObjectChanges,
-    kServerOpcodeMax
+    kNotifyOpcodeMax
 };

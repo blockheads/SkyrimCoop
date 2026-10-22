@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyRemoveSpell final : ServerMessage, Payloads::RemoveSpell
+struct NotifyRemoveSpell final : NotifyMessage, Payloads::RemoveSpell
 {
-    static constexpr ServerOpcode Opcode = kNotifyRemoveSpell;
+    static constexpr NotifyOpcode Opcode = kNotifyRemoveSpell;
     using Payload = Payloads::RemoveSpell;
 
     NotifyRemoveSpell()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyInterruptCast final : ServerMessage, Payloads::InterruptCast
+struct NotifyInterruptCast final : NotifyMessage, Payloads::InterruptCast
 {
-    static constexpr ServerOpcode Opcode = kNotifyInterruptCast;
+    static constexpr NotifyOpcode Opcode = kNotifyInterruptCast;
     using Payload = Payloads::InterruptCast;
 
     NotifyInterruptCast()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

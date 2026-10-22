@@ -7,11 +7,11 @@
 
 // The party tether: a player travelled by itself (EnterCellRequest::Travel::kOwn) and everyone else goes where it
 // arrived. A game already there stays.
-struct NotifyPartyTravel final : ServerMessage
+struct NotifyPartyTravel final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyPartyTravel;
+    static constexpr NotifyOpcode Opcode = kNotifyPartyTravel;
 
-    NotifyPartyTravel() : ServerMessage(Opcode)
+    NotifyPartyTravel() : NotifyMessage(Opcode)
     {
     }
 

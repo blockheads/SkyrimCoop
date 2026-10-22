@@ -11,7 +11,7 @@ struct ActionEvent
     uint32_t ActorId{0};
     uint32_t ActionId{0};
     uint32_t TargetId{0};
-    // An actor target between games: its server id + 1 (0 none), as its form id names nothing in the other game.
+    // An actor target between games: its session id + 1 (0 none), as its form id names nothing in the other game.
     uint32_t TargetActor{0};
     uint32_t IdleId{0};
     uint32_t State1{0};

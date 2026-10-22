@@ -17,7 +17,7 @@ void RequestFactionsChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
 
 void RequestFactionsChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     uint64_t count = 0;
     aReader.ReadBits(count, 8);

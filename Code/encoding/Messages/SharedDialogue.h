@@ -8,22 +8,22 @@
 // Conversation ids count from 1; steps count picks from 1.
 
 // A game's player started talking to a copy: the host's game should start it with the real NPC.
-struct DialogueStartRequest final : ClientMessage
+struct DialogueStartRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialogueStartRequest;
-    DialogueStartRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueStartRequest;
+    DialogueStartRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
-    uint32_t NpcId{}; // server id
+    uint32_t NpcId{}; // session id
 };
 
 // The host's game: its player's dialogue menu opened with this NPC.
-struct DialogueOpenedRequest final : ClientMessage
+struct DialogueOpenedRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialogueOpenedRequest;
-    DialogueOpenedRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueOpenedRequest;
+    DialogueOpenedRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -33,10 +33,10 @@ struct DialogueOpenedRequest final : ClientMessage
 
 // The host's game's options for a step, after every change (Choices: the last line's choices, not the speaker's
 // topics).
-struct DialogueOptionsRequest final : ClientMessage
+struct DialogueOptionsRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialogueOptionsRequest;
-    DialogueOptionsRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueOptionsRequest;
+    DialogueOptionsRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -49,10 +49,10 @@ struct DialogueOptionsRequest final : ClientMessage
 
 // A game's player picked a topic of the step: Info is the line its own game gives its player for it (empty: none),
 // the one said; Text, the option as its menu showed it.
-struct DialoguePickRequest final : ClientMessage
+struct DialoguePickRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialoguePickRequest;
-    DialoguePickRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialoguePickRequest;
+    DialoguePickRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -66,10 +66,10 @@ struct DialoguePickRequest final : ClientMessage
 
 // A game's player left the conversation (its menu closed); it ends once nobody is in it. From the host's game
 // with Ended: its conversation ended (a goodbye, the NPC walking off), so it ends for everyone.
-struct DialogueCloseRequest final : ClientMessage
+struct DialogueCloseRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialogueCloseRequest;
-    DialogueCloseRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueCloseRequest;
+    DialogueCloseRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -80,10 +80,10 @@ struct DialogueCloseRequest final : ClientMessage
 
 // A game's player joined the conversation (its menu opened on the NPC, or its copy). The player who asked for it
 // is in it from the start.
-struct DialogueJoinRequest final : ClientMessage
+struct DialogueJoinRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialogueJoinRequest;
-    DialogueJoinRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueJoinRequest;
+    DialogueJoinRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -93,10 +93,10 @@ struct DialogueJoinRequest final : ClientMessage
 
 // The host's game: its player would have gained Speech experience from a line another player picked (a
 // persuade's script runs there); it goes to that player.
-struct DialogueExperienceRequest final : ClientMessage
+struct DialogueExperienceRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kDialogueExperienceRequest;
-    DialogueExperienceRequest() : ClientMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueExperienceRequest;
+    DialogueExperienceRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -105,10 +105,10 @@ struct DialogueExperienceRequest final : ClientMessage
 };
 
 // To the host's game: start its player's conversation with this NPC.
-struct NotifyDialogueStart final : ServerMessage
+struct NotifyDialogueStart final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialogueStart;
-    NotifyDialogueStart() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueStart;
+    NotifyDialogueStart() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -118,10 +118,10 @@ struct NotifyDialogueStart final : ServerMessage
 
 // A conversation opened: the player who asked opens its menu on its copy (others join by talking to it); the
 // host's game learns its id.
-struct NotifyDialogueOpen final : ServerMessage
+struct NotifyDialogueOpen final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialogueOpen;
-    NotifyDialogueOpen() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueOpen;
+    NotifyDialogueOpen() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -132,10 +132,10 @@ struct NotifyDialogueOpen final : ServerMessage
 
 // The host's options for a step: each game's menu shows their topics with its own player's lines (Choices: a
 // line's choices, nothing else to say).
-struct NotifyDialogueList final : ServerMessage
+struct NotifyDialogueList final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialogueList;
-    NotifyDialogueList() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueList;
+    NotifyDialogueList() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -148,10 +148,10 @@ struct NotifyDialogueList final : ServerMessage
 
 // A topic was picked: the host's game says Info (the picker's line, else the host's); every other menu shows the
 // pick and waits for the next step's list.
-struct NotifyDialoguePicked final : ServerMessage
+struct NotifyDialoguePicked final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialoguePicked;
-    NotifyDialoguePicked() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialoguePicked;
+    NotifyDialoguePicked() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -164,10 +164,10 @@ struct NotifyDialoguePicked final : ServerMessage
 };
 
 // The conversation ended: every game closes its menu, the host's ends its conversation.
-struct NotifyDialogueClosed final : ServerMessage
+struct NotifyDialogueClosed final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialogueClosed;
-    NotifyDialogueClosed() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueClosed;
+    NotifyDialogueClosed() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -176,10 +176,10 @@ struct NotifyDialogueClosed final : ServerMessage
 };
 
 // Speech experience from a line this player picked: its player gains it.
-struct NotifyDialogueExperience final : ServerMessage
+struct NotifyDialogueExperience final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialogueExperience;
-    NotifyDialogueExperience() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueExperience;
+    NotifyDialogueExperience() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;

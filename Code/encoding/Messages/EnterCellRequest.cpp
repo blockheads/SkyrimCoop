@@ -14,7 +14,7 @@ void EnterCellRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) cons
 
 void EnterCellRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     CellId.Deserialize(aReader);
     WorldSpaceId.Deserialize(aReader);

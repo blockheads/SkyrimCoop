@@ -7,7 +7,7 @@ void CancelAssignmentRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWrite
 
 void CancelAssignmentRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Cookie = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

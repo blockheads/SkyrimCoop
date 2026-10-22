@@ -41,13 +41,13 @@ TEST_CASE("Equipment snapshot: relayed from the owner only", "[Bridge][Inventory
     const uint32_t cHostNpc = session.Character(kHost);
 
     RequestEquipmentSnapshot snapshot;
-    snapshot.ServerId = cHostNpc;
+    snapshot.SessionId = cHostNpc;
     session.Receive(kPeer, snapshot);
     CHECK(session.SentTo<NotifyEquipmentSnapshot>(kOtherPeer).empty());
 
     session.Receive(kHost, snapshot);
     REQUIRE(session.SentTo<NotifyEquipmentSnapshot>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kPeer)[0]->ServerId == cHostNpc);
+    CHECK(session.SentTo<NotifyEquipmentSnapshot>(kPeer)[0]->SessionId == cHostNpc);
     CHECK(session.SentTo<NotifyEquipmentSnapshot>(kHost).empty());
 }
 
@@ -57,7 +57,7 @@ TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[Bri
     const uint32_t cHostNpc = session.Character(kHost);
 
     RequestActiveEffects effects;
-    effects.ServerId = cHostNpc;
+    effects.SessionId = cHostNpc;
     effects.EffectIds = {GameId(0, 0x12F03)};
     session.Receive(kPeer, effects);
     CHECK(session.SentTo<NotifyActiveEffects>(kOtherPeer).empty());
@@ -75,7 +75,7 @@ TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[
     const uint32_t cHostNpc = session.Character(kHost);
 
     RequestInventoryChanges change;
-    change.ServerId = cHostNpc;
+    change.SessionId = cHostNpc;
     change.Item.BaseId = GameId(0, 0x12EB7);
     change.Item.Count = 1;
     change.Drop = true;
@@ -84,7 +84,7 @@ TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[
 
     const auto cToHost = session.SentTo<NotifyInventoryChanges>(kHost);
     REQUIRE(cToHost.size() == 1);
-    CHECK(cToHost[0]->ServerId == cHostNpc);
+    CHECK(cToHost[0]->SessionId == cHostNpc);
     CHECK(cToHost[0]->Item.Count == 1);
     CHECK_FALSE(cToHost[0]->Drop); // dropped items are not synced
     CHECK(session.SentTo<NotifyInventoryChanges>(kOtherPeer).size() == 1);
@@ -102,7 +102,7 @@ TEST_CASE("Equipment: a change reaches everyone else", "[Bridge][Inventory]")
     const uint32_t cActor = session.Character(kPeer);
 
     RequestEquipmentChanges change;
-    change.ServerId = cActor;
+    change.SessionId = cActor;
     change.ItemId = GameId(0, 0x12EB7);
     change.Count = 1;
     session.Receive(kPeer, change);
@@ -275,7 +275,7 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifyMount>(kHost)[0]->MountId == cHorse);
 
     SubtitleRequest subtitle;
-    subtitle.ServerId = cHostNpc;
+    subtitle.SessionId = cHostNpc;
     subtitle.Text = "Let me guess...";
     subtitle.TopicFormId = 0x1234;
     subtitle.Force = true;

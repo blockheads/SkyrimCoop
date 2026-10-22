@@ -3,12 +3,12 @@
 #include "Message.h"
 #include <Structs/GameId.h>
 
-struct PlayerLevelRequest final : ClientMessage
+struct PlayerLevelRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kPlayerLevelRequest;
+    static constexpr RequestOpcode Opcode = kPlayerLevelRequest;
 
     PlayerLevelRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

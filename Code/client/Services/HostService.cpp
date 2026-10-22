@@ -63,8 +63,8 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
 
     m_pEngine = std::make_unique<HostEngine>(m_world.GetModSystem());
     HostGame game;
-    game.OwnSpawns = [this](uint32_t aExcludedServerId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedServerId); };
-    game.ReadCopy = [this](uint32_t aServerId, CharacterSpawnRequest& aSpawn) { return m_world.GetCharacterService().ReadCopy(aServerId, aSpawn); };
+    game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
+    game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.ReadTime = [this] { return m_world.ctx().at<IWorldBridge&>().GetGameTime(); };
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };

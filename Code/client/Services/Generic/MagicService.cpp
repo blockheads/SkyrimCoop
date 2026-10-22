@@ -106,11 +106,11 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcep
 
         if (targetEntityIt != std::end(targetView))
         {
-            auto desiredTargetIdRes = Utils::GetServerId(*targetEntityIt);
+            auto desiredTargetIdRes = Utils::GetSessionId(*targetEntityIt);
             if (desiredTargetIdRes.has_value())
                 request.DesiredTarget = desiredTargetIdRes.value();
             else
-                spdlog::error("{}: failed to find server id", __FUNCTION__);
+                spdlog::error("{}: failed to find session id", __FUNCTION__);
         }
     }
 
@@ -121,7 +121,7 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcep
 
 void MagicService::OnNotifySpellCast(const NotifySpellCast& acMessage) const noexcept
 {
-    const uint32_t cFormId = Utils::GetFormIdByServerId(acMessage.CasterId);
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.CasterId);
     if (!cFormId)
     {
         spdlog::warn("Caster with remote id {:X} not found.", acMessage.CasterId);
@@ -163,7 +163,7 @@ void MagicService::OnNotifySpellCast(const NotifySpellCast& acMessage) const noe
     uint32_t desiredTargetFormId = 0;
     if (acMessage.DesiredTarget != 0)
     {
-        desiredTargetFormId = Utils::GetFormIdByServerId(acMessage.DesiredTarget);
+        desiredTargetFormId = Utils::GetFormIdBySessionId(acMessage.DesiredTarget);
     }
 
     ScopedSpellCastOverride _;
@@ -208,7 +208,7 @@ void MagicService::OnNotifyInterruptCast(const NotifyInterruptCast& acMessage) c
         return;
     }
 
-    const uint32_t cFormId = Utils::GetFormIdByServerId(acMessage.CasterId);
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.CasterId);
     if (!cFormId)
     {
         spdlog::warn("Caster with remote id {:X} not found.", acMessage.CasterId);
@@ -263,15 +263,15 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
         return;
     }
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*it);
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*it);
+    if (!sessionIdRes.has_value())
     {
         MagicQueue::Spdlog("{}: server ID for target formID not found, formID: {:X}, queueing", __FUNCTION__, acEvent.TargetID);
         m_queuedEffects.push(MagicAddTargetEventQueue(acEvent));
         return;
     }
 
-    request.TargetId = serverIdRes.value();
+    request.TargetId = sessionIdRes.value();
 
     if (acEvent.CasterID)
     {
@@ -284,15 +284,15 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
             return;
         }
 
-        serverIdRes = Utils::GetServerId(*casterIt);
-        if (!serverIdRes.has_value())
+        sessionIdRes = Utils::GetSessionId(*casterIt);
+        if (!sessionIdRes.has_value())
         {
             MagicQueue::Spdlog("{}: server ID for caster formID not found, formID: {:X}, queueing", __FUNCTION__, acEvent.CasterID);
             m_queuedEffects.push(MagicAddTargetEventQueue(acEvent));
             return;
         }
 
-        request.CasterId = serverIdRes.value();
+        request.CasterId = sessionIdRes.value();
     }
 
     request.IsDualCasting = acEvent.IsDualCasting;
@@ -326,7 +326,7 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
         return;
     }
 
-    const uint32_t cTargetFormId = Utils::GetFormIdByServerId(acMessage.TargetId);
+    const uint32_t cTargetFormId = Utils::GetFormIdBySessionId(acMessage.TargetId);
     if (!cTargetFormId)
     {
         MagicQueue::Spdlog("{}: could not find targeted Actor for serverID {:X}, queueing", __FUNCTION__, acMessage.TargetId);
@@ -337,7 +337,7 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
     uint32_t cCasterFormId = 0;
     if (acMessage.CasterId)
     {
-        cCasterFormId = Utils::GetFormIdByServerId(acMessage.CasterId);
+        cCasterFormId = Utils::GetFormIdBySessionId(acMessage.CasterId);
         if (!cCasterFormId)
         {
             MagicQueue::Spdlog("{}: could not find caster Actor for serverID {:X}, queueing", __FUNCTION__, acMessage.CasterId);
@@ -388,24 +388,24 @@ void MagicService::OnRemoveSpellEvent(const RemoveSpellEvent& acEvent) noexcept
         return;
     }
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*it);
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*it);
+    if (!sessionIdRes.has_value())
     {
-        spdlog::warn("Server id not found for magic remove target, form id: {:X}", acEvent.TargetId);
+        spdlog::warn("Session id not found for magic remove target, form id: {:X}", acEvent.TargetId);
         return;
     }
 
-    request.TargetId = serverIdRes.value();
+    request.TargetId = sessionIdRes.value();
 
     m_transport.Send(request);
 }
 
 void MagicService::OnNotifyRemoveSpell(const NotifyRemoveSpell& acMessage) noexcept
 {
-    const uint32_t cTargetFormId = Utils::GetFormIdByServerId(acMessage.TargetId);
+    const uint32_t cTargetFormId = Utils::GetFormIdBySessionId(acMessage.TargetId);
     if (!cTargetFormId)
     {
-        spdlog::warn("{}: : could not find actor server id {:X}", __FUNCTION__, acMessage.TargetId);
+        spdlog::warn("{}: : could not find actor session id {:X}", __FUNCTION__, acMessage.TargetId);
         return;
     }
 
@@ -455,8 +455,8 @@ void MagicService::ApplyQueuedEffects() noexcept
             }
 
             entt::entity entity = *it;
-            std::optional<uint32_t> serverIdRes = Utils::GetServerId(entity);
-            if (!serverIdRes.has_value())
+            std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
+            if (!sessionIdRes.has_value())
             {
                 spdlog::debug("{}: serverID for AddTargetEvent target formID still not found: caster {:X}, spell {:X}, effect {:X}, target {:X}",
                               __FUNCTION__, target.CasterID, target.SpellID, target.EffectID, target.TargetID);
@@ -474,8 +474,8 @@ void MagicService::ApplyQueuedEffects() noexcept
                     break;
                 }
 
-                serverIdRes = Utils::GetServerId(*casterIt);
-                if (!serverIdRes.has_value())
+                sessionIdRes = Utils::GetSessionId(*casterIt);
+                if (!sessionIdRes.has_value())
                 {
                     spdlog::debug("{}: serverID for AddTargetEvent caster formID still not found: caster {:X}, spell {:X}, effect {:X}, target {:X}",
                                   __FUNCTION__, target.CasterID, target.SpellID, target.EffectID, target.TargetID);
@@ -495,8 +495,8 @@ void MagicService::ApplyQueuedEffects() noexcept
     while (!m_queuedRemoteEffects.empty())
     {
         NotifyAddTarget target = m_queuedRemoteEffects.front().Target();
-        const uint32_t cTargetFormId = Utils::GetFormIdByServerId(target.TargetId);
-        const uint32_t cCasterFormId = Utils::GetFormIdByServerId(target.CasterId);
+        const uint32_t cTargetFormId = Utils::GetFormIdBySessionId(target.TargetId);
+        const uint32_t cCasterFormId = Utils::GetFormIdBySessionId(target.CasterId);
 
         if (m_queuedRemoteEffects.front().Expired())
             MagicQueue::Spdlog("{}: removing expired NotifyAddTarget event from queue: caster {:X}, spell {:X}, effect {:X}, target {:X}",

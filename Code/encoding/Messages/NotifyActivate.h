@@ -4,11 +4,11 @@
 
 #include <Structs/GameId.h>
 
-struct NotifyActivate final : ServerMessage
+struct NotifyActivate final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyActivate;
+    static constexpr NotifyOpcode Opcode = kNotifyActivate;
     NotifyActivate()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

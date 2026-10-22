@@ -4,12 +4,12 @@
 
 #include <Structs/GameId.h>
 
-struct NotifyEquipmentChanges final : ServerMessage
+struct NotifyEquipmentChanges final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyEquipmentChanges;
+    static constexpr NotifyOpcode Opcode = kNotifyEquipmentChanges;
 
     NotifyEquipmentChanges()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 
@@ -18,10 +18,10 @@ struct NotifyEquipmentChanges final : ServerMessage
 
     bool operator==(const NotifyEquipmentChanges& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && ServerId == acRhs.ServerId && ItemId == acRhs.ItemId && EquipSlotId == acRhs.EquipSlotId && Count == acRhs.Count && Unequip == acRhs.Unequip && IsSpell == acRhs.IsSpell && IsShout == acRhs.IsShout;
+        return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ItemId == acRhs.ItemId && EquipSlotId == acRhs.EquipSlotId && Count == acRhs.Count && Unequip == acRhs.Unequip && IsSpell == acRhs.IsSpell && IsShout == acRhs.IsShout;
     }
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     GameId ItemId{};
     GameId EquipSlotId{};
     uint32_t Count{};

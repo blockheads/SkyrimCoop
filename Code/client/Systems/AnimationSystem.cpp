@@ -11,7 +11,7 @@
 #include <AI/AIProcess.h>
 #include <Misc/MiddleProcess.h>
 
-#include <Messages/ClientReferencesMoveRequest.h>
+#include <Messages/ReferencesMoveRequest.h>
 
 #include <Components.h>
 #include <World.h>
@@ -173,16 +173,16 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
 void AnimationSystem::TargetToNetwork(ActionEvent& aAction) noexcept
 {
-    const auto cServerId = Utils::GetServerIdByFormId(aAction.TargetId);
-    aAction.TargetActor = cServerId ? *cServerId + 1 : 0;
-    if (cServerId || (aAction.TargetId >> 24) == 0xFF)
+    const auto cSessionId = Utils::GetSessionIdByFormId(aAction.TargetId);
+    aAction.TargetActor = cSessionId ? *cSessionId + 1 : 0;
+    if (cSessionId || (aAction.TargetId >> 24) == 0xFF)
         aAction.TargetId = 0;
 }
 
 void AnimationSystem::TargetFromNetwork(ActionEvent& aAction) noexcept
 {
     if (aAction.TargetActor)
-        aAction.TargetId = Utils::GetFormIdByServerId(aAction.TargetActor - 1);
+        aAction.TargetId = Utils::GetFormIdBySessionId(aAction.TargetActor - 1);
 }
 
 bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::ReplayStep& acStep) noexcept
@@ -267,7 +267,7 @@ void AnimationSystem::AddAction(RemoteAnimationComponent& aAnimationComponent, c
     aAnimationComponent.TimePoints.push_back(lastProcessedAction);
 }
 
-void AnimationSystem::Serialize(World& aWorld, ClientReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent)
+void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent)
 {
     const auto pForm = TESForm::GetById(formIdComponent.Id);
     const auto pActor = Cast<Actor>(pForm);

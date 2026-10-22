@@ -4,12 +4,12 @@
 
 #include <Structs/GameId.h>
 
-struct NotifyWeatherChange final : ServerMessage
+struct NotifyWeatherChange final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyWeatherChange;
+    static constexpr NotifyOpcode Opcode = kNotifyWeatherChange;
 
     NotifyWeatherChange()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

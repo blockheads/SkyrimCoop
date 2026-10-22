@@ -2,12 +2,12 @@
 
 void NotifyRelinquishControl::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
 }
 
 void NotifyRelinquishControl::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

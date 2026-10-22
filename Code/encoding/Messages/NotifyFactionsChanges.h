@@ -3,12 +3,12 @@
 #include "Message.h"
 #include <Structs/Factions.h>
 
-struct NotifyFactionsChanges final : ServerMessage
+struct NotifyFactionsChanges final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyFactionsChanges;
+    static constexpr NotifyOpcode Opcode = kNotifyFactionsChanges;
 
     NotifyFactionsChanges()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

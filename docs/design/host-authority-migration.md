@@ -1,9 +1,9 @@
 # Host authority migration
 
 Plan for removing the embedded server from the host: the host's Skyrim is the only authority, the
-host has one `World`, and a bridge on the host talks to peers directly. Background and the reasons
-are in `WHY_DIRECT_AUTHORITY_IS_REQUIRED.md`, `P2P_ARCHITECTURE.md` and Phase 4 of
-`DIRECT_AUTHORITY_REFACTOR_STRATEGY.md`. This document is the concrete path from today's code.
+host has one `World`, and a bridge on the host talks to peers directly. (The earlier root planning docs,
+`WHY_DIRECT_AUTHORITY_IS_REQUIRED.md`, `P2P_ARCHITECTURE.md` and `DIRECT_AUTHORITY_REFACTOR_STRATEGY.md`, were
+deleted on 2026-10-21; they are in git history before that.) This document is the concrete path from today's code.
 
 ## Why
 
@@ -45,7 +45,7 @@ Host Skyrim.exe                                   Peer Skyrim.exe
   host mode, `TransportService` hands it to the bridge in-process instead of to a socket. The bridge
   runs the same rule it runs for a peer's request, with the host as the sender. This keeps
   "if hosting" checks out of the services.
-- **The host assigns server ids** from its own `World`. Its own actors get an id when they are
+- **The host assigns session ids** from its own `World`. Its own actors get an id when they are
   discovered, with no round-trip. A peer's player gets one when the peer asks.
 - **Late joiners are served from live state:** what the host's engine shows (its own actors, and
   its copies of peers' players), plus small records in the host's `World` for what a copy cannot
@@ -95,9 +95,9 @@ migration):
 | Echo | What depends on it |
 |---|---|
 | `AuthenticationResponse` | The host's player id, server settings and mod list (`ConnectedEvent`) |
-| `AssignCharacterResponse` | The server ids of the host's own actors, and that the host owns them |
-| `AssignObjectsResponse` | The server ids of the host's objects (containers, doors) |
-| `ServerTimeSettings` | **The host's game clock is switched off and driven by the server's clock** (`CalendarService::OnTimeUpdate`). The host is not the authority on time today. |
+| `AssignCharacterResponse` | The session ids of the host's own actors, and that the host owns them |
+| `AssignObjectsResponse` | The session ids of the host's objects (containers, doors) |
+| `NotifyTimeSettings` | **The host's game clock is switched off and driven by the server's clock** (`CalendarService::OnTimeUpdate`). The host is not the authority on time today. |
 | Party messages | Whether the host is the leader, which decides who sends weather. Today nobody is in a party (status shows `in_party: false` on both games), so nobody leads. |
 | `StringCacheUpdate` | The host's string ids come back from the server |
 | Chat (`NotifyChatMessageBroadcast`) | The sender sees its own message only because the server echoes it |
@@ -133,14 +133,14 @@ lookup is left to change.
   `GameServer::OnConsume`: a message the bridge has a rule for is handled there, everything else by
   the old services. A relay rule is "forward as a notification to everyone but the sender". The
   host is one of the recipients: its copy gets the change through the in-process route like any
-  peer. Ownership checks go through one bridge function (`OwnerOf(serverId)`), which reads the
+  peer. Ownership checks go through one bridge function (`OwnerOf(sessionId)`), which reads the
   server `World` until phase 3b.
-- **2b. Movement.** `ClientReferencesMoveRequest` is forwarded straight to the other players as
-  `ServerReferencesMoveRequest` (unreliable), instead of being stored in the server's
-  `MovementComponent` and batched at 50Hz. `WorldStateSync` is deleted: it was broadcast every
+- **2b. Movement.** `ReferencesMoveRequest` is forwarded straight to the other players as
+  `NotifyReferencesMove` (unreliable), instead of being stored in the server's
+  `MovementComponent` and batched at 50Hz. `NotifyWorldState` is deleted: it was broadcast every
   second, and no client ever handled it.
 - **2c. Late join from live state.** When a peer's player enters, the host builds a
-  `CharacterSpawnRequest` for every character it knows. Its own actors are read from its engine;
+  `NotifyCharacterSpawn` for every character it knows. Its own actors are read from its engine;
   copies of other peers' players combine a small record kept when they spawned (appearance, face
   tints, base) with the copy's live state. The server's records (`Serialize`) are no longer used for
   this. `late-join-client` guards it.
@@ -149,7 +149,7 @@ lookup is left to change.
   does that). `host-rejoins` checks that a host who hosts again still owns its NPCs.
 
 Done (2a-2c): `HostAuthority` with the movement rule and the late-join handler. The server's movement
-handler, its 50Hz batching and `WorldStateSync` are deleted.
+handler, its 50Hz batching and `NotifyWorldState` are deleted.
 
 Found on the way: both `World`s keep their services in the registry's context, which outlives the
 `World`'s own dispatcher, so the services' event connections were released against a destroyed
@@ -305,7 +305,7 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   talking to a quest NPC is the host's player talking.
 - Objects: activation, locks and script animations. The host applies them in its engine and the
   result reaches peers. With the party tether, only the host's loaded cells matter. They go by form
-  id, so objects need no server ids: `AssignObjectsRequest` had no sender since `ec7d02d1` (the cell
+  id, so objects need no session ids: `AssignObjectsRequest` had no sender since `ec7d02d1` (the cell
   change that sent it was removed), and its leftovers (the server's `ObjectService`, the client's
   `ObjectComponent` and response handler) were deleted 2026-10-13. Container contents are not synced.
 - Party: done, as no party at all: being connected is being in the session (see Decisions).
@@ -513,7 +513,7 @@ Built on the bridge's unreliable channel:
 | GameServer | `AuthenticationRequest`, connect/disconnect | Session |
 | StringCacheService | (dirty-cache broadcast) | Session |
 | PlayerService | `PlayerLevelRequest`, `PlayerRespawnRequest` | Relay (done: bridge rules, service deleted) |
-| CharacterService | `AssignCharacterRequest`, `ClientReferencesMoveRequest`, `RequestRemoveCharacter`, `RequestRespawn` | Characters |
+| CharacterService | `AssignCharacterRequest`, `ReferencesMoveRequest`, `RequestRemoveCharacter`, `RequestRespawn` | Characters |
 | CharacterService | `RequestFactionsChanges`, `MountRequest`, `NewPackageRequest`, `DialogueRequest`, `SubtitleRequest`, `SyncExperienceRequest` | Relay |
 | InventoryService | `RequestInventoryChanges`, `RequestEquipmentChanges`, `RequestEquipmentSnapshot`, `DrawWeaponRequest` | Relay |
 | ActorValueService | `RequestActorValueChanges`, `RequestActorMaxValueChanges`, `RequestHealthChangeBroadcast`, `RequestDeathStateChange` | Relay |

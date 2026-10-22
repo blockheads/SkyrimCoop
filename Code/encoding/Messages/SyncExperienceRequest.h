@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct SyncExperienceRequest final : ClientMessage, Payloads::SyncExperience
+struct SyncExperienceRequest final : RequestMessage, Payloads::SyncExperience
 {
-    static constexpr ClientOpcode Opcode = kSyncExperienceRequest;
+    static constexpr RequestOpcode Opcode = kSyncExperienceRequest;
     using Payload = Payloads::SyncExperience;
 
     SyncExperienceRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

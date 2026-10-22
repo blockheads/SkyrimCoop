@@ -3,7 +3,7 @@
 
 void RequestInventoryChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Item.Serialize(aWriter);
     Serialization::WriteBool(aWriter, Drop);
     Serialization::WriteBool(aWriter, UpdateClients);
@@ -11,9 +11,9 @@ void RequestInventoryChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWrite
 
 void RequestInventoryChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Item.Deserialize(aReader);
     Drop = Serialization::ReadBool(aReader);
     UpdateClients = Serialization::ReadBool(aReader);

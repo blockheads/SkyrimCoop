@@ -34,17 +34,14 @@ game and a copy (an other player) on the host and the other guests.
 
 | Word | Means | In code |
 |---|---|---|
-| **request** | A message to the host | `Request*`, `*Request`, `ClientMessage` |
-| **notify** | A message from the host | `Notify*`, `ServerMessage` |
-| **server id** | The id the host gives each synced actor, the same on every game | `ServerId` |
+| **request** | A message to the host | `Request*`, `*Request`, `RequestMessage` (`RequestOpcode`) |
+| **notify** | A message from the host (a reply to a request is a `*Response`) | `Notify*`, `*Response`, `NotifyMessage` (`NotifyOpcode`) |
+| **session id** | The id the host gives each synced actor, the same on every game (from 1; 0 is none) | `SessionId` |
 
 ## Old words still in code
 
 | In code | Now means | Goes |
 |---|---|---|
 | `RemoteComponent` | a copy (the ECS component; kept, alongside `LocalComponent`) | stays |
-| `ClientMessage` / `ServerMessage` | request / notify | with migration phase 5 |
-| `ServerId` | server id (above) | with migration phase 5 |
-| `Code/server/`, `GameServer` | the upstream server, still embedded in the host | deleted in migration phase 5 |
 | `Code/client/`, `TiltedPhoques::Client`, "client" in build targets | the plugin and its transport, on the host and guests alike | stays; never means a guest |
 | "peer", "client", "remote player", "member" in older docs | guest, guest, other player, player | as docs are touched |

@@ -5,7 +5,7 @@
 
 struct World;
 struct Actor;
-struct ClientReferencesMoveRequest;
+struct ReferencesMoveRequest;
 
 /**
  * @brief Applies animations coming from remote actors.
@@ -47,11 +47,11 @@ struct AnimationSystem
      * @param aWorld The registry where the actor in question lives.
      * @param aMovementSnapshot The output of the animation data.
      * @param localComponent The local component of the actor whose data is to be serialized.
-     * @param animationComponent The local animation component of the actor, used to give the output the server id of the actor.
+     * @param animationComponent The local animation component of the actor, used to give the output the session id of the actor.
      * @param formIdComponent The form id component of the actor, used to fetch the actor pointer.
      */
-    static void Serialize(World& aWorld, ClientReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent);
-    // An action's target between games: an actor by its server id (ActionEvent::TargetActor), any other reference
+    static void Serialize(World& aWorld, ReferencesMoveRequest& aMovementSnapshot, LocalComponent& localComponent, LocalAnimationComponent& animationComponent, FormIdComponent& formIdComponent);
+    // An action's target between games: an actor by its session id (ActionEvent::TargetActor), any other reference
     // by its form id (the same in both games; a temporary one names nothing there and is dropped). Game thread.
     static void TargetToNetwork(ActionEvent& aAction) noexcept;
     static void TargetFromNetwork(ActionEvent& aAction) noexcept;

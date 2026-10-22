@@ -189,7 +189,7 @@ what stays is `player_probe`, `player_probe_read`, `story_trace`, `story_raise_l
   `KILL` / `ASSU` on both games: on the host with the copy as killer, on the client for its own copy's
   death.
 - **Ids.** The client's events name its own ids: its copy of a host NPC is a created form (`FF00081F`),
-  so forwarding maps ids through the existing server ids.
+  so forwarding maps ids through the existing session ids.
 
 ### Spike 2: a lever, a trigger, a stored player (done)
 

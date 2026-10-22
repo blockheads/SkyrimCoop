@@ -11,7 +11,7 @@ void ContainerChangeRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
 
 void ContainerChangeRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Container.Deserialize(aReader);
     Item.Deserialize(aReader);

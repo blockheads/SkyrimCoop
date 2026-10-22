@@ -15,7 +15,7 @@ void RequestRespawn::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const 
 
 void RequestRespawn::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     AppearanceBuffer = Serialization::ReadString(aReader);

@@ -190,41 +190,41 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
     if (m_world.all_of<LocalComponent>(*hitteeIt))
         return;
 
-    std::optional<uint32_t> serverIdRes = Utils::GetServerId(*hitteeIt);
-    if (!serverIdRes.has_value())
+    std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*hitteeIt);
+    if (!sessionIdRes.has_value())
     {
-        spdlog::error("{}: failed to find server id", __FUNCTION__);
+        spdlog::error("{}: failed to find session id", __FUNCTION__);
         return;
     }
 
-    uint32_t serverId = serverIdRes.value();
+    uint32_t sessionId = sessionIdRes.value();
 
     if (acEvent.DeltaHealth > -1.0f && acEvent.DeltaHealth < 1.0f)
     {
-        if (m_smallHealthChanges.find(serverId) == m_smallHealthChanges.end())
-            m_smallHealthChanges[serverId] = acEvent.DeltaHealth;
+        if (m_smallHealthChanges.find(sessionId) == m_smallHealthChanges.end())
+            m_smallHealthChanges[sessionId] = acEvent.DeltaHealth;
         else
-            m_smallHealthChanges[serverId] += acEvent.DeltaHealth;
+            m_smallHealthChanges[sessionId] += acEvent.DeltaHealth;
         return;
     }
 
     RequestHealthChangeBroadcast requestHealthChange;
-    requestHealthChange.Id = serverId;
+    requestHealthChange.Id = sessionId;
     requestHealthChange.DeltaHealth = acEvent.DeltaHealth;
     if (acEvent.AttackerId)
     {
         const auto attackerIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.AttackerId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
         if (attackerIt != std::end(view))
-            if (const auto cAttackerServerId = Utils::GetServerId(*attackerIt))
+            if (const auto cAttackerSessionId = Utils::GetSessionId(*attackerIt))
             {
                 requestHealthChange.HasAttacker = true;
-                requestHealthChange.AttackerId = *cAttackerServerId;
+                requestHealthChange.AttackerId = *cAttackerSessionId;
             }
     }
 
     m_transport.Send(requestHealthChange);
 
-    spdlog::debug("Sent out delta health through collection: {:X}:{:f}", serverId, acEvent.DeltaHealth);
+    spdlog::debug("Sent out delta health through collection: {:X}:{:f}", sessionId, acEvent.DeltaHealth);
 }
 
 void ActorValueService::RunSmallHealthUpdates() noexcept
@@ -347,10 +347,10 @@ void ActorValueService::RunActorValuesUpdates() noexcept
 
 void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast& acMessage) const noexcept
 {
-    const uint32_t formId = Utils::GetFormIdByServerId(acMessage.Id);
+    const uint32_t formId = Utils::GetFormIdBySessionId(acMessage.Id);
     if (formId == 0)
     {
-        spdlog::error("{}: could not find actor server id {:X}", __FUNCTION__, acMessage.Id);
+        spdlog::error("{}: could not find actor session id {:X}", __FUNCTION__, acMessage.Id);
         return;
     }
 
@@ -358,7 +358,7 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     if (m_actorBridge.IsActorCopy(formId))
         return;
 
-    const uint32_t cAttackerFormId = acMessage.HasAttacker ? Utils::GetFormIdByServerId(acMessage.AttackerId) : 0;
+    const uint32_t cAttackerFormId = acMessage.HasAttacker ? Utils::GetFormIdBySessionId(acMessage.AttackerId) : 0;
     if (acMessage.DeltaHealth < 0.f)
     {
         // As the engine's own hit takes it: its death rules, death animation and kill credit.
@@ -454,14 +454,14 @@ void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessa
 void ActorValueService::ApplyPendingDeathStates() noexcept
 {
     Vector<uint32_t> done;
-    for (const auto& [cServerId, cIsDead] : m_pendingDeathStates)
+    for (const auto& [cSessionId, cIsDead] : m_pendingDeathStates)
     {
-        const uint32_t cFormId = Utils::GetFormIdByServerId(cServerId);
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(cSessionId);
         // Gone, not a copy, or a player (players are never killed): nothing to apply.
         if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId) ||
             m_actorBridge.IsOtherPlayer(cFormId) || m_actorBridge.IsActorDead(cFormId) == cIsDead)
         {
-            done.push_back(cServerId);
+            done.push_back(cSessionId);
             continue;
         }
 
@@ -470,6 +470,6 @@ void ActorValueService::ApplyPendingDeathStates() noexcept
         else
             m_actorBridge.ResurrectActor(cFormId);
     }
-    for (const uint32_t cServerId : done)
-        m_pendingDeathStates.erase(cServerId);
+    for (const uint32_t cSessionId : done)
+        m_pendingDeathStates.erase(cSessionId);
 }

@@ -17,7 +17,7 @@ void DialogueStartRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void DialogueStartRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
 }
 
@@ -28,7 +28,7 @@ void DialogueOpenedRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter)
 
 void DialogueOpenedRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
 }
 
@@ -42,7 +42,7 @@ void DialogueOptionsRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter
 
 void DialogueOptionsRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     Step = ReadId(aReader);
     Choices = Serialization::ReadBool(aReader);
@@ -60,7 +60,7 @@ void DialoguePickRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void DialoguePickRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     Step = ReadId(aReader);
     Topic.Deserialize(aReader);
@@ -76,7 +76,7 @@ void DialogueCloseRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void DialogueCloseRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     Ended = Serialization::ReadBool(aReader);
 }
@@ -88,7 +88,7 @@ void DialogueJoinRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void DialogueJoinRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
 }
 
@@ -99,7 +99,7 @@ void NotifyDialogueStart::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void NotifyDialogueStart::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
 }
 
@@ -111,7 +111,7 @@ void NotifyDialogueOpen::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
 
 void NotifyDialogueOpen::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     NpcId = ReadId(aReader);
 }
@@ -126,7 +126,7 @@ void NotifyDialogueList::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) co
 
 void NotifyDialogueList::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     Step = ReadId(aReader);
     Choices = Serialization::ReadBool(aReader);
@@ -144,7 +144,7 @@ void NotifyDialoguePicked::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void NotifyDialoguePicked::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     Step = ReadId(aReader);
     Topic.Deserialize(aReader);
@@ -159,7 +159,7 @@ void NotifyDialogueClosed::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) 
 
 void NotifyDialogueClosed::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
 }
 
@@ -170,7 +170,7 @@ void DialogueExperienceRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWri
 
 void DialogueExperienceRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
     Experience = Serialization::ReadFloat(aReader);
 }
 
@@ -181,6 +181,6 @@ void NotifyDialogueExperience::SerializeRaw(TiltedPhoques::Buffer::Writer& aWrit
 
 void NotifyDialogueExperience::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
     Experience = Serialization::ReadFloat(aReader);
 }

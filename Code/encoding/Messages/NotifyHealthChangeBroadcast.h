@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyHealthChangeBroadcast final : ServerMessage, Payloads::HealthChange
+struct NotifyHealthChangeBroadcast final : NotifyMessage, Payloads::HealthChange
 {
-    static constexpr ServerOpcode Opcode = kNotifyHealthChangeBroadcast;
+    static constexpr NotifyOpcode Opcode = kNotifyHealthChangeBroadcast;
     using Payload = Payloads::HealthChange;
 
     NotifyHealthChangeBroadcast()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

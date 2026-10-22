@@ -43,14 +43,14 @@ bool ModSystem::GetServerModId(const uint32_t aGameId, uint32_t& aModId, uint32_
     return true;
 }
 
-bool ModSystem::GetServerModId(uint32_t aGameId, GameId& aServerId) const noexcept
+bool ModSystem::GetServerModId(uint32_t aGameId, GameId& aSessionId) const noexcept
 {
-    return GetServerModId(aGameId, aServerId.ModId, aServerId.BaseId);
+    return GetServerModId(aGameId, aSessionId.ModId, aSessionId.BaseId);
 }
 
-uint32_t ModSystem::GetGameId(uint32_t aServerId, uint32_t aFormId) const noexcept
+uint32_t ModSystem::GetGameId(uint32_t aSessionId, uint32_t aFormId) const noexcept
 {
-    auto itor = m_serverToGame.find(aServerId);
+    auto itor = m_serverToGame.find(aSessionId);
     if (itor != std::end(m_serverToGame))
     {
         if (itor->second.isLite)

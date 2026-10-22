@@ -83,9 +83,9 @@ void DebugService::DrawComponentDebugView()
             ImGui::SetNextWindowPos(screenPos);
             ImGui::Begin("Component debug");
 
-            if (auto serverIdRes = Utils::GetServerId(entity))
+            if (auto sessionIdRes = Utils::GetSessionId(entity))
             {
-                ImGui::InputScalar("Server ID", ImGuiDataType_U32, &(*serverIdRes), 0, 0, "%" PRIx32, ImGuiInputTextFlags_CharsHexadecimal);
+                ImGui::InputScalar("Server ID", ImGuiDataType_U32, &(*sessionIdRes), 0, 0, "%" PRIx32, ImGuiInputTextFlags_CharsHexadecimal);
             }
 
             if (auto* pComponent = m_world.try_get<ActorValuesComponent>(entity))

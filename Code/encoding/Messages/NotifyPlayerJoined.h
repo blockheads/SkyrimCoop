@@ -4,12 +4,12 @@
 
 #include <Structs/GameId.h>
 
-struct NotifyPlayerJoined final : ServerMessage
+struct NotifyPlayerJoined final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyPlayerJoined;
+    static constexpr NotifyOpcode Opcode = kNotifyPlayerJoined;
 
     NotifyPlayerJoined()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

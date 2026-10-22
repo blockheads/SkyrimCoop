@@ -4,7 +4,7 @@
 #include <Services/Host/HostAuthority.h>
 
 #include <Messages/NotifySetTimeResult.h>
-#include <Messages/ServerTimeSettings.h>
+#include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
 
 #include <cmath>
@@ -52,14 +52,14 @@ void HostClock::Update(uint64_t aTick) noexcept
 
     m_peersClock = cHostClock;
     m_peersClockTick = aTick;
-    ServerTimeSettings time;
+    NotifyTimeSettings time;
     time.timeModel = cHostClock.m_timeModel;
     m_players.SendToOthers(time, m_players.Host(), TiltedPhoques::kReliable);
 }
 
 void HostClock::SendTime(ConnectionId_t aPlayer) const noexcept
 {
-    ServerTimeSettings time;
+    NotifyTimeSettings time;
     time.timeModel = m_game.ReadTime();
     m_network.Send(aPlayer, time);
 }

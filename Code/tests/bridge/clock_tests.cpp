@@ -11,7 +11,7 @@ TEST_CASE("Time: a joining player gets the host's clock", "[Bridge][Time]")
     AssignCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
     session.Receive(kPeer, announce);
-    const auto cTimes = session.SentTo<ServerTimeSettings>(kPeer);
+    const auto cTimes = session.SentTo<NotifyTimeSettings>(kPeer);
     REQUIRE(cTimes.size() == 1);
     CHECK(cTimes[0]->timeModel == session.HostClock);
 }
@@ -22,8 +22,8 @@ TEST_CASE("Time: peers follow the host's clock when it jumps, not while it runs"
     session.HostClock.TimeScale = 20.f;
     session.HostClock.Time = 10.f;
     session.Frame(1000);
-    REQUIRE(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
-    CHECK(session.SentTo<ServerTimeSettings>(kHost).empty());
+    REQUIRE(session.SentTo<NotifyTimeSettings>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTimeSettings>(kHost).empty());
 
     // A real minute at 20x: 20 game minutes, as peers run it themselves.
     session.Outbox.clear();
@@ -34,22 +34,22 @@ TEST_CASE("Time: peers follow the host's clock when it jumps, not while it runs"
     // Waiting 6 hours.
     session.HostClock.Time += 6.f;
     session.Frame(62000);
-    REQUIRE(session.SentTo<ServerTimeSettings>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<ServerTimeSettings>(kOtherPeer)[0]->timeModel.Time == session.HostClock.Time);
+    REQUIRE(session.SentTo<NotifyTimeSettings>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTimeSettings>(kOtherPeer)[0]->timeModel.Time == session.HostClock.Time);
 
     // Sleeping a whole day lands on the same hour: still a jump, days passed with it.
     session.Outbox.clear();
     session.HostClock.Day += 1;
     session.HostClock.DaysPassed += 1;
     session.Frame(62000);
-    REQUIRE(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
-    CHECK(session.SentTo<ServerTimeSettings>(kPeer)[0]->timeModel.DaysPassed == session.HostClock.DaysPassed);
+    REQUIRE(session.SentTo<NotifyTimeSettings>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTimeSettings>(kPeer)[0]->timeModel.DaysPassed == session.HostClock.DaysPassed);
 
     // The clock's speed changing.
     session.Outbox.clear();
     session.HostClock.TimeScale = 6.f;
     session.Frame(62000);
-    CHECK(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTimeSettings>(kPeer).size() == 1);
 }
 
 TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
@@ -65,8 +65,8 @@ TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
 
     // Peers then follow it like any jump of the host's clock.
     session.Frame(1000);
-    REQUIRE(session.SentTo<ServerTimeSettings>(kOtherPeer).size() == 1);
-    CHECK(session.SentTo<ServerTimeSettings>(kOtherPeer)[0]->timeModel.Time == Approx(21.5f));
+    REQUIRE(session.SentTo<NotifyTimeSettings>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTimeSettings>(kOtherPeer)[0]->timeModel.Time == Approx(21.5f));
 
     session.Outbox.clear();
     command.Hours = 24; // not an hour
@@ -101,6 +101,6 @@ TEST_CASE("Time: peers' clocks count the days passed at midnight themselves", "[
     session.HostClock.Day = 2;
     session.HostClock.DaysPassed = 302;
     session.Frame(61500);
-    REQUIRE(session.SentTo<ServerTimeSettings>(kPeer).size() == 1);
-    CHECK(session.SentTo<ServerTimeSettings>(kPeer)[0]->timeModel.DaysPassed == 302);
+    REQUIRE(session.SentTo<NotifyTimeSettings>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyTimeSettings>(kPeer)[0]->timeModel.DaysPassed == 302);
 }

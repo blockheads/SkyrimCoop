@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyNewPackage final : ServerMessage, Payloads::NewPackage
+struct NotifyNewPackage final : NotifyMessage, Payloads::NewPackage
 {
-    static constexpr ServerOpcode Opcode = kNotifyNewPackage;
+    static constexpr NotifyOpcode Opcode = kNotifyNewPackage;
     using Payload = Payloads::NewPackage;
 
     NotifyNewPackage()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

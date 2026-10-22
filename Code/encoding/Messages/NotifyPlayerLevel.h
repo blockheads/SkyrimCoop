@@ -4,12 +4,12 @@
 
 #include <Structs/GameId.h>
 
-struct NotifyPlayerLevel final : ServerMessage
+struct NotifyPlayerLevel final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyPlayerLevel;
+    static constexpr NotifyOpcode Opcode = kNotifyPlayerLevel;
 
     NotifyPlayerLevel()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

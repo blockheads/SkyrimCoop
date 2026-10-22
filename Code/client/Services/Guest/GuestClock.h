@@ -4,7 +4,7 @@
 
 struct World;
 struct UpdateEvent;
-struct ServerTimeSettings;
+struct NotifyTimeSettings;
 class GuestEngine;
 
 /**
@@ -25,7 +25,7 @@ struct GuestClock
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
 
 private:
-    void OnTimeSettings(const ServerTimeSettings& acMessage) noexcept;
+    void OnTimeSettings(const NotifyTimeSettings& acMessage) noexcept;
     // The hour shown while fading from the game's own to the host's.
     float FadedHour() const noexcept;
 

@@ -14,7 +14,7 @@
 #include <Bridges/IWorldBridge.h>
 
 #include <Messages/AuthenticationRequest.h>
-#include <Messages/ServerMessageFactory.h>
+#include <Messages/NotifyMessageFactory.h>
 #include <Services/Host/HostNetwork.h>
 #include <Messages/NotifySettingsChange.h>
 #include <Packet.hpp>
@@ -44,7 +44,7 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     {
         using T = typename std::remove_reference_t<decltype(x)>::Type;
 
-        m_messageHandlers[T::Opcode] = [this](UniquePtr<ServerMessage>& apMessage)
+        m_messageHandlers[T::Opcode] = [this](UniquePtr<NotifyMessage>& apMessage)
         {
             const auto pRealMessage = TiltedPhoques::CastUnique<T>(std::move(apMessage));
             m_dispatcher.trigger(*pRealMessage);
@@ -53,10 +53,10 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
         return false;
     };
 
-    ServerMessageFactory::Visit(handlerGenerator);
+    NotifyMessageFactory::Visit(handlerGenerator);
 
     // Override authentication response
-    m_messageHandlers[AuthenticationResponse::Opcode] = [this](UniquePtr<ServerMessage>& apMessage)
+    m_messageHandlers[AuthenticationResponse::Opcode] = [this](UniquePtr<NotifyMessage>& apMessage)
     {
         const auto pRealMessage = TiltedPhoques::CastUnique<AuthenticationResponse>(std::move(apMessage));
         HandleAuthenticationResponse(*pRealMessage);
@@ -116,7 +116,7 @@ uint64_t TransportService::GetTick() const noexcept
     return m_pHostNetwork ? m_pHostNetwork->GetTick() : GetClock().GetCurrentTick();
 }
 
-bool TransportService::Send(const ClientMessage& acMessage) const noexcept
+bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 {
     static thread_local ScratchAllocator s_allocator(1 << 18);
 
@@ -164,7 +164,7 @@ bool TransportService::Send(const ClientMessage& acMessage) const noexcept
 
 void TransportService::OnConsume(const void* apData, uint32_t aSize)
 {
-    ServerMessageFactory factory;
+    NotifyMessageFactory factory;
     TiltedPhoques::ViewBuffer buf((uint8_t*)apData, aSize);
     Buffer::Reader reader(&buf);
 

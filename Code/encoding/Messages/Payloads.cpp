@@ -7,13 +7,13 @@ namespace Payloads
 {
 void EquipmentSnapshot::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Equipment.Serialize(aWriter);
 }
 
 void EquipmentSnapshot::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Equipment.Deserialize(aReader);
 }
 
@@ -269,19 +269,19 @@ void NewPackage::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noex
 
 void Dialogue::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteString(aWriter, SoundFilename);
 }
 
 void Dialogue::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     SoundFilename = Serialization::ReadString(aReader);
 }
 
 void Subtitle::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteString(aWriter, Text);
     Serialization::WriteVarInt(aWriter, TopicFormId);
     Serialization::WriteBool(aWriter, Force);
@@ -289,7 +289,7 @@ void Subtitle::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const no
 
 void Subtitle::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Text = Serialization::ReadString(aReader);
     TopicFormId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Force = Serialization::ReadBool(aReader);
@@ -307,7 +307,7 @@ void SyncExperience::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) 
 
 void ActiveEffects::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteVarInt(aWriter, EffectIds.size());
     for (const auto& cEffectId : EffectIds)
         cEffectId.Serialize(aWriter);
@@ -315,7 +315,7 @@ void ActiveEffects::SerializePayload(TiltedPhoques::Buffer::Writer& aWriter) con
 
 void ActiveEffects::DeserializePayload(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     const auto cCount = Serialization::ReadVarInt(aReader);
     EffectIds.clear();
     for (uint64_t i = 0; i < cCount && i < 256; ++i)

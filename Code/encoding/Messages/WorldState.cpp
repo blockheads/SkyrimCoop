@@ -100,7 +100,7 @@ void NotifyGlobals::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const n
 
 void NotifyGlobals::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     const uint64_t cCount = Serialization::ReadVarInt(aReader);
     if (cCount > kMaxGlobals)
@@ -123,7 +123,7 @@ void NotifyQuests::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const no
 
 void NotifyQuests::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Join = Serialization::ReadBool(aReader);
     const uint64_t cCount = Serialization::ReadVarInt(aReader);
@@ -169,7 +169,7 @@ void NotifyObjectChanges::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void NotifyObjectChanges::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Cell.Deserialize(aReader);
     const uint64_t cCount = Serialization::ReadVarInt(aReader);

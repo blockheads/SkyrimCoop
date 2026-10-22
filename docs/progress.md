@@ -175,6 +175,13 @@ the never-implemented `IEventBridge`, upstream's CEF UI and launcher (`skyrim_ui
 scripts (`tests/`, `deploy_and_test.sh`, `fix_ptrace.sh`, `scripts/smoke_test.sh`). The Linux build is clang 18 now
 (sol2 had kept it on GCC), and `scripts/compile_commands.sh` gives clangd both builds.
 
+Then (2026-10-21): the upstream root files went too (CI workflows, release config, msvc-wine and Docker scripts,
+Windows batch files, the old planning docs, `Tools/`), and the glossary's renames were made: `ServerId` →
+`SessionId` (status key `session_id`), `ClientMessage`/`ServerMessage` → `RequestMessage`/`NotifyMessage` (with
+their opcodes and factories), and the host → game messages named as requests became notifies
+(`NotifyCharacterSpawn`, `NotifyReferencesMove`, `NotifyTimeSettings`, `NotifyWorldState`; the guest's move is
+`ReferencesMoveRequest`). Merging the actors' session ids with created objects' ids: `docs/ideas.md`.
+
 ## Sync by system
 
 Each verified system has a two-game scenario (`scripts/coop_test.py scenario <name>`).
@@ -301,7 +308,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   the host (distance, bearing and heading within 15 units/degrees, both kill-move variants), at the same
   pace (the blow within 350 ms of the host's, counted from each start), the wolf's copy dying within
   350 ms of its blow, and the client's own player untouched. Three fixes:
-  - Action targets go as server ids (`ActionEvent::TargetActor`): the target was the owner's form id, so
+  - Action targets go as session ids (`ActionEvent::TargetActor`): the target was the owner's form id, so
     the wolf's copy paired with the client's own player (form id 14) and the player's copy with nothing.
   - One clock for everyone: a game slowing its clock slows every game's (`HookSetGlobalTimeMultiplier` in
     `BSTimer.cpp`, the host's `HostTimeScale`; each game runs at the slower of its own and the others'

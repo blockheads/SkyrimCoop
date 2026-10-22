@@ -25,10 +25,10 @@ struct HostGlobal
 };
 
 // The host's global variables that changed; a joining player gets all of them.
-struct NotifyGlobals final : ServerMessage
+struct NotifyGlobals final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyGlobals;
-    NotifyGlobals() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyGlobals;
+    NotifyGlobals() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -96,10 +96,10 @@ struct QuestState
 };
 
 // The host's quests that changed; a joining player gets every quest (Join: applied as a save load does).
-struct NotifyQuests final : ServerMessage
+struct NotifyQuests final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyQuests;
-    NotifyQuests() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyQuests;
+    NotifyQuests() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
@@ -239,10 +239,10 @@ struct ObjectChange
 
 // The host's world objects' changes since the last, in the order its game had them; or, with Cell, the state of that
 // cell's references a guest asked for when it loaded (CellStateRequest).
-struct NotifyObjectChanges final : ServerMessage
+struct NotifyObjectChanges final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyObjectChanges;
-    NotifyObjectChanges() : ServerMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyObjectChanges;
+    NotifyObjectChanges() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;

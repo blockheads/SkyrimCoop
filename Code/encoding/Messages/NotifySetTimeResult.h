@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct NotifySetTimeResult final : ServerMessage
+struct NotifySetTimeResult final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifySetTimeResult;
+    static constexpr NotifyOpcode Opcode = kNotifySetTimeResult;
 
     NotifySetTimeResult()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

@@ -166,6 +166,14 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   - What it gains: one declaration per method instead of two, no virtual calls, no guessing which interface a
     method belongs on (`GetModCount` is on both `IFormBridge` and `IWorldBridge`).
   - Not a reason to keep them: a second game or platform (Skyrim only; the Linux tools use no client service).
+- **One id scheme for references.** Two today: actors travel by a session id the host hands out (`SessionId`,
+  `HostCharacters`), created objects by a `GameId` under `ObjectChange::kCreatedModId` (`HostEngine`'s
+  `m_created`, `GuestEngine`'s twins). Only references whose form id differs between games need a session id:
+  each player's character (`0x14` in its own game, a created copy elsewhere) and anything a game creates (summons,
+  spawned NPCs, dropped items). A placed NPC (Lydia, `A2C94`) is the same form in every game and could travel by
+  `GameId` like a placed object. Unified: a reference's id is its `GameId`, and the session-id space covers only
+  the per-game ones, actors and objects alike. About 40 messages carry actor ids, and `CharacterService` keys its
+  maps by them; its own refactor, after the `SessionId` → `SessionId` rename (2026-10-21).
 - **Modern C++ over `TiltedPhoques`.** A track of its own now the server is gone (phase 5, 2026-10-21). What is
   left of `TiltedPhoques`: `TiltedCore`, `libraries/networking` (the enet transport under `HostNetwork` and a
   guest's `TransportService`), `libraries/hooks` and `libraries/reverse`.

@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct DrawWeaponRequest final : ClientMessage, Payloads::DrawWeapon
+struct DrawWeaponRequest final : RequestMessage, Payloads::DrawWeapon
 {
-    static constexpr ClientOpcode Opcode = kDrawWeaponRequest;
+    static constexpr RequestOpcode Opcode = kDrawWeaponRequest;
     using Payload = Payloads::DrawWeapon;
 
     DrawWeaponRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

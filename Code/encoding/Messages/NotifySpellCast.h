@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifySpellCast final : ServerMessage, Payloads::SpellCast
+struct NotifySpellCast final : NotifyMessage, Payloads::SpellCast
 {
-    static constexpr ServerOpcode Opcode = kNotifySpellCast;
+    static constexpr NotifyOpcode Opcode = kNotifySpellCast;
     using Payload = Payloads::SpellCast;
 
     NotifySpellCast()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

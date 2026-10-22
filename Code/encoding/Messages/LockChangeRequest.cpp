@@ -10,7 +10,7 @@ void LockChangeRequest::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
 
 void LockChangeRequest::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ClientMessage::DeserializeRaw(aReader);
+    RequestMessage::DeserializeRaw(aReader);
 
     Id.Deserialize(aReader);
     CellId.Deserialize(aReader);

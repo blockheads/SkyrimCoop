@@ -5,7 +5,7 @@ using TiltedPhoques::Serialization;
 
 bool ObjectData::operator==(const ObjectData& acRhs) const noexcept
 {
-    return ServerId == acRhs.ServerId && Id == acRhs.Id && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && CurrentCoords == acRhs.CurrentCoords && CurrentLockData == acRhs.CurrentLockData && CurrentInventory == acRhs.CurrentInventory && IsSenderFirst == acRhs.IsSenderFirst;
+    return SessionId == acRhs.SessionId && Id == acRhs.Id && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && CurrentCoords == acRhs.CurrentCoords && CurrentLockData == acRhs.CurrentLockData && CurrentInventory == acRhs.CurrentInventory && IsSenderFirst == acRhs.IsSenderFirst;
 }
 
 bool ObjectData::operator!=(const ObjectData& acRhs) const noexcept
@@ -15,7 +15,7 @@ bool ObjectData::operator!=(const ObjectData& acRhs) const noexcept
 
 void ObjectData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ServerId);
+    Serialization::WriteVarInt(aWriter, SessionId);
     Id.Serialize(aWriter);
     CellId.Serialize(aWriter);
     WorldSpaceId.Serialize(aWriter);
@@ -27,7 +27,7 @@ void ObjectData::Serialize(TiltedPhoques::Buffer::Writer& aWriter) const noexcep
 
 void ObjectData::Deserialize(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Id.Deserialize(aReader);
     CellId.Deserialize(aReader);
     WorldSpaceId.Deserialize(aReader);

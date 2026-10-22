@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NewPackageRequest final : ClientMessage, Payloads::NewPackage
+struct NewPackageRequest final : RequestMessage, Payloads::NewPackage
 {
-    static constexpr ClientOpcode Opcode = kNewPackageRequest;
+    static constexpr RequestOpcode Opcode = kNewPackageRequest;
     using Payload = Payloads::NewPackage;
 
     NewPackageRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

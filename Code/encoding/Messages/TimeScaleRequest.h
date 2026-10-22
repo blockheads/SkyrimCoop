@@ -3,12 +3,12 @@
 #include "Message.h"
 
 // How fast a player's game wants its clock to run (1 normal; a kill cam, Slow Time or a bow zoom slow it).
-struct TimeScaleRequest final : ClientMessage
+struct TimeScaleRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kTimeScaleRequest;
+    static constexpr RequestOpcode Opcode = kTimeScaleRequest;
 
     TimeScaleRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

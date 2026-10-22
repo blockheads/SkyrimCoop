@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct DialogueRequest final : ClientMessage, Payloads::Dialogue
+struct DialogueRequest final : RequestMessage, Payloads::Dialogue
 {
-    static constexpr ClientOpcode Opcode = kDialogueRequest;
+    static constexpr RequestOpcode Opcode = kDialogueRequest;
     using Payload = Payloads::Dialogue;
 
     DialogueRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 

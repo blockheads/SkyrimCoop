@@ -7,7 +7,7 @@ void NotifyWeatherChange::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) c
 
 void NotifyWeatherChange::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     Id.Deserialize(aReader);
 }

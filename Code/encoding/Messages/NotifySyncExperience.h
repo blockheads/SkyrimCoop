@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifySyncExperience final : ServerMessage, Payloads::SyncExperience
+struct NotifySyncExperience final : NotifyMessage, Payloads::SyncExperience
 {
-    static constexpr ServerOpcode Opcode = kNotifySyncExperience;
+    static constexpr NotifyOpcode Opcode = kNotifySyncExperience;
     using Payload = Payloads::SyncExperience;
 
     NotifySyncExperience()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

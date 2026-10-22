@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct NotifyPlayerRespawn final : ServerMessage
+struct NotifyPlayerRespawn final : NotifyMessage
 {
-    static constexpr ServerOpcode Opcode = kNotifyPlayerRespawn;
+    static constexpr NotifyOpcode Opcode = kNotifyPlayerRespawn;
 
     NotifyPlayerRespawn()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

@@ -10,7 +10,7 @@ void NotifyPartyTravel::SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) con
 
 void NotifyPartyTravel::DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept
 {
-    ServerMessage::DeserializeRaw(aReader);
+    NotifyMessage::DeserializeRaw(aReader);
 
     CellId.Deserialize(aReader);
     WorldSpaceId.Deserialize(aReader);

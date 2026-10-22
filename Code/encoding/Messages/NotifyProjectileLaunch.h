@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyProjectileLaunch final : ServerMessage, Payloads::ProjectileLaunch
+struct NotifyProjectileLaunch final : NotifyMessage, Payloads::ProjectileLaunch
 {
-    static constexpr ServerOpcode Opcode = kNotifyProjectileLaunch;
+    static constexpr NotifyOpcode Opcode = kNotifyProjectileLaunch;
     using Payload = Payloads::ProjectileLaunch;
 
     NotifyProjectileLaunch()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

@@ -3,13 +3,13 @@
 #include "Message.h"
 #include "Payloads.h"
 
-struct NotifyDialogue final : ServerMessage, Payloads::Dialogue
+struct NotifyDialogue final : NotifyMessage, Payloads::Dialogue
 {
-    static constexpr ServerOpcode Opcode = kNotifyDialogue;
+    static constexpr NotifyOpcode Opcode = kNotifyDialogue;
     using Payload = Payloads::Dialogue;
 
     NotifyDialogue()
-        : ServerMessage(Opcode)
+        : NotifyMessage(Opcode)
     {
     }
 

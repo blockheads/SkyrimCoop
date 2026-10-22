@@ -17,7 +17,7 @@ namespace TestHarness
 {
 namespace
 {
-bool SaveMessage(const std::filesystem::path& path, const ClientMessage& message)
+bool SaveMessage(const std::filesystem::path& path, const RequestMessage& message)
 {
     TiltedPhoques::Buffer buffer(1 << 20);
     TiltedPhoques::Buffer::Writer writer(&buffer);

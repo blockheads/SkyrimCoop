@@ -67,7 +67,7 @@ namespace
 NotifyInventoryChanges ToNotify(const RequestInventoryChanges& acRequest)
 {
     NotifyInventoryChanges notify;
-    notify.ServerId = acRequest.ServerId;
+    notify.SessionId = acRequest.SessionId;
     notify.Item = acRequest.Item;
     notify.Drop = false; // Dropped items are not synced this way (upstream's experimental item drops).
     return notify;
@@ -77,7 +77,7 @@ NotifyEquipmentChanges ToNotify(const RequestEquipmentChanges& acRequest)
 {
     // Without the sender's whole equipment: copies get that from the owner's snapshots.
     NotifyEquipmentChanges notify;
-    notify.ServerId = acRequest.ServerId;
+    notify.SessionId = acRequest.SessionId;
     notify.ItemId = acRequest.ItemId;
     notify.EquipSlotId = acRequest.EquipSlotId;
     notify.Count = acRequest.Count;
@@ -126,7 +126,7 @@ template <class TRequest, class TNotify> TNotify ToNotify(const TRequest& acRequ
 
 template <class TRequest, class TNotify> void HostAuthority::Relay(Delivery aDelivery, uint32_t TRequest::*apActor) noexcept
 {
-    m_rules[TRequest::Opcode] = [this, aDelivery, apActor](const ClientMessage& acMessage, ConnectionId_t aSender) {
+    m_rules[TRequest::Opcode] = [this, aDelivery, apActor](const RequestMessage& acMessage, ConnectionId_t aSender) {
         const auto& cRequest = static_cast<const TRequest&>(acMessage);
         Deliver(ToNotify<TRequest, TNotify>(cRequest), aDelivery, apActor ? cRequest.*apActor : 0, aSender);
     };
@@ -160,7 +160,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Inventory and hands
     On(*this, &HostAuthority::OnInventoryChanges);
     Relay<RequestEquipmentChanges, NotifyEquipmentChanges>(FromAnyone); // like items: a peer can dress the host's follower
-    Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::ServerId);
+    Relay<RequestEquipmentSnapshot, NotifyEquipmentSnapshot>(FromOwner, &RequestEquipmentSnapshot::SessionId);
     Relay<DrawWeaponRequest, NotifyDrawWeapon>(FromOwner, &DrawWeaponRequest::Id);
 
     // Actor values: a hit lands in its owner's game, which then reports the resulting values.
@@ -176,7 +176,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
-    Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::ServerId);
+    Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::SessionId);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);
@@ -188,7 +188,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RequestRemoveWaypoint, NotifyRemoveWaypoint>(FromAnyone);
     On(*this, &HostAuthority::OnChatMessage);
 
-    m_network.SetFrontDoor([this](const ClientMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
+    m_network.SetFrontDoor([this](const RequestMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
     m_network.SetDisconnectionHandler([this](ConnectionId_t aConnection) {
         if (!m_players.IsPlayer(aConnection))
@@ -215,16 +215,16 @@ void HostAuthority::Kick(uint32_t aPlayerId) noexcept
     m_players.Kick(aPlayerId);
 }
 
-void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterServerId) noexcept
+void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept
 {
     m_clock.SendTime(aPlayer);
     m_weather.SendWeather(aPlayer);
     m_worldState.SendWorldState(aPlayer);
     m_timeScale.SendTimeScale(aPlayer);
-    m_characters.SendExistingCharacters(aPlayer, aCharacterServerId);
+    m_characters.SendExistingCharacters(aPlayer, aCharacterSessionId);
 }
 
-bool HostAuthority::Handle(const ClientMessage& acMessage, ConnectionId_t aSender) noexcept
+bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
     // A game that is not a player may only ask to join; anything else from it is dropped.
@@ -260,9 +260,9 @@ void HostAuthority::OnContainerChange(const ContainerChangeRequest& acRequest, C
 void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
     NotifyFactionsChanges notify;
-    for (const auto& [cServerId, cFactions] : acRequest.Changes)
-        if (m_characters.OwnerOf(cServerId) == aSender)
-            notify.Changes[cServerId] = cFactions;
+    for (const auto& [cSessionId, cFactions] : acRequest.Changes)
+        if (m_characters.OwnerOf(cSessionId) == aSender)
+            notify.Changes[cSessionId] = cFactions;
     if (!notify.Changes.empty())
         m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
@@ -297,7 +297,7 @@ void HostAuthority::OnPlayerLevel(const PlayerLevelRequest& acRequest, Connectio
     m_players.SendToOthers(notify, aSender, TiltedPhoques::kReliable);
 }
 
-void HostAuthority::Deliver(const ServerMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
+void HostAuthority::Deliver(const NotifyMessage& acNotify, Delivery aDelivery, uint32_t aActor, ConnectionId_t aSender) const noexcept
 {
     switch (aDelivery)
     {

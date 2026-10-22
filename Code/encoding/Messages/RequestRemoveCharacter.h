@@ -2,12 +2,12 @@
 
 #include "Message.h"
 
-struct RequestRemoveCharacter final : ClientMessage
+struct RequestRemoveCharacter final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kRequestRemoveCharacter;
+    static constexpr RequestOpcode Opcode = kRequestRemoveCharacter;
 
     RequestRemoveCharacter()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 
@@ -16,7 +16,7 @@ struct RequestRemoveCharacter final : ClientMessage
     void SerializeRaw(TiltedPhoques::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(TiltedPhoques::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const RequestRemoveCharacter& achRhs) const noexcept { return ServerId == achRhs.ServerId && GetOpcode() == achRhs.GetOpcode(); }
+    bool operator==(const RequestRemoveCharacter& achRhs) const noexcept { return SessionId == achRhs.SessionId && GetOpcode() == achRhs.GetOpcode(); }
 
-    uint32_t ServerId;
+    uint32_t SessionId;
 };

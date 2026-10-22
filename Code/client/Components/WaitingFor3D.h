@@ -4,14 +4,14 @@
 #error Include Components.h instead
 #endif
 
-#include <Messages/CharacterSpawnRequest.h>
+#include <Messages/NotifyCharacterSpawn.h>
 
 struct WaitingFor3D
 {
-    WaitingFor3D(const CharacterSpawnRequest& aSpawnRequest)
+    WaitingFor3D(const NotifyCharacterSpawn& aSpawnRequest)
         : SpawnRequest(aSpawnRequest)
     {
     }
 
-    CharacterSpawnRequest SpawnRequest{};
+    NotifyCharacterSpawn SpawnRequest{};
 };

@@ -59,7 +59,7 @@ void HostPlayers::SetLevel(ConnectionId_t aConnection, uint16_t aLevel) noexcept
         it.value().Level = aLevel;
 }
 
-void HostPlayers::SendToOthers(const ServerMessage& acMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const noexcept
+void HostPlayers::SendToOthers(const NotifyMessage& acMessage, ConnectionId_t aExcluded, TiltedPhoques::EPacketFlags aFlags) const noexcept
 {
     for (const auto& [cConnection, cPlayer] : m_players)
         if (cConnection != aExcluded)

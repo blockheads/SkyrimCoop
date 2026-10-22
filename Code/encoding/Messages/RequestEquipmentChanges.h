@@ -4,12 +4,12 @@
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 
-struct RequestEquipmentChanges final : ClientMessage
+struct RequestEquipmentChanges final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kRequestEquipmentChanges;
+    static constexpr RequestOpcode Opcode = kRequestEquipmentChanges;
 
     RequestEquipmentChanges()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 
@@ -20,11 +20,11 @@ struct RequestEquipmentChanges final : ClientMessage
 
     bool operator==(const RequestEquipmentChanges& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && ServerId == acRhs.ServerId && ItemId == acRhs.ItemId && EquipSlotId == acRhs.EquipSlotId && Count == acRhs.Count && Unequip == acRhs.Unequip && IsSpell == acRhs.IsSpell && IsShout == acRhs.IsShout && IsAmmo == acRhs.IsAmmo &&
+        return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ItemId == acRhs.ItemId && EquipSlotId == acRhs.EquipSlotId && Count == acRhs.Count && Unequip == acRhs.Unequip && IsSpell == acRhs.IsSpell && IsShout == acRhs.IsShout && IsAmmo == acRhs.IsAmmo &&
                CurrentInventory == acRhs.CurrentInventory;
     }
 
-    uint32_t ServerId{};
+    uint32_t SessionId{};
     GameId ItemId{};
     GameId EquipSlotId{};
     uint32_t Count{};

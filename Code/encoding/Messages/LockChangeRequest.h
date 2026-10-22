@@ -4,12 +4,12 @@
 
 #include <Structs/GameId.h>
 
-struct LockChangeRequest final : ClientMessage
+struct LockChangeRequest final : RequestMessage
 {
-    static constexpr ClientOpcode Opcode = kLockChangeRequest;
+    static constexpr RequestOpcode Opcode = kLockChangeRequest;
 
     LockChangeRequest()
-        : ClientMessage(Opcode)
+        : RequestMessage(Opcode)
     {
     }
 
