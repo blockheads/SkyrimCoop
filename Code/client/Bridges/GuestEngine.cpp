@@ -3,6 +3,7 @@
 #include <Bridges/ContainerItems.h>
 #include <Havok/bhkCollision.h>
 #include <NetImmerse/NiNode.h>
+#include <AiStateEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -148,6 +149,7 @@ GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
     : m_mods(acMods)
 {
     ContainerEvents::Start();
+    AiStateEvents::Start();
 }
 
 GuestEngine::~GuestEngine() noexcept
@@ -160,6 +162,7 @@ GuestEngine::~GuestEngine() noexcept
             pMade->SetDelete(true);
         }
     ContainerEvents::Stop();
+    AiStateEvents::Stop();
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept

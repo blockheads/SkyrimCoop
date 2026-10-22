@@ -8,7 +8,7 @@
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/InterruptCastRequest.h>
 #include <Messages/MountRequest.h>
-#include <Messages/NewPackageRequest.h>
+#include <Messages/AiStateRequest.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyActorValueChanges.h>
 #include <Messages/NotifyAddTarget.h>
@@ -20,7 +20,7 @@
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyInterruptCast.h>
 #include <Messages/NotifyMount.h>
-#include <Messages/NotifyNewPackage.h>
+#include <Messages/NotifyAiState.h>
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyRemoveSpell.h>
 #include <Messages/NotifySpellCast.h>
@@ -198,10 +198,13 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         add("Mount", m, (NotifyMount*)nullptr);
     }
     {
-        NewPackageRequest m;
-        m.ActorId = 0x1234;
-        m.PackageId = GameId(0, 0x5432);
-        add("NewPackage", m, (NotifyNewPackage*)nullptr);
+        AiStateRequest m;
+        m.SessionId = 0x1234;
+        m.State.Package = GameId(0, 0x5432);
+        m.State.Combat = 1;
+        m.State.CombatTarget.SessionId = 0x21;
+        m.State.CombatTarget.RefId = GameId(1, 0x803);
+        add("AiState", m, (NotifyAiState*)nullptr);
     }
     {
         DialogueRequest m;
@@ -231,6 +234,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     // {request, notification} payloads, recorded from the messages before they shared payload
     // structs. The opcode byte is left out: opcodes number the messages in Opcodes.h's order.
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
+        {"AiState", {"b424b2a8010000000121831001", "b424b2a8010000000121831001"}}, // replaced NewPackage (2026-10-22)
         {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
         {"ActorValues", {"d668021800004d4219000060c0", "d668021800004d4219000060c0"}},
@@ -242,7 +246,6 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"HealthChange", {"89cf0100004cc135e30300", "89cf0100004cc135e30300"}},
         {"InterruptCast", {"cdd70203", "cdd70203"}},
         {"Mount", {"92e003a302", "92e003a302"}},
-        {"NewPackage", {"b424b2a80100", "b424b2a80100"}},
         {"ProjectileLaunch", {"def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55", "def9020000a03f000020c000609643edf74300b7dd0400fdf204000000003f000080be0000003e3c00cddf040001040000403f0000c03f55"}},
         {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
         {"SpellCast", {"ab9302cddf040102796b0500", "ab9302cddf040102796b0500"}},

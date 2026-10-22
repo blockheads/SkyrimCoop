@@ -34,7 +34,7 @@
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyMount.h>
-#include <Messages/NotifyNewPackage.h>
+#include <Messages/NotifyAiState.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/NotifyEquipmentChanges.h>
@@ -62,7 +62,7 @@ struct NotifyMessageFactory
         auto s_visitor = CreateMessageVisitor<
             AuthenticationResponse, AssignCharacterResponse, NotifyReferencesMove, NotifyTimeSettings, NotifyCharacterSpawn, NotifyInventoryChanges, NotifyFactionsChanges, NotifyRemoveCharacter,
             NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifyActivate, NotifyDeathStateChange, NotifySpellCast,
-            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyDialogue,
+            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyAiState, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyDialogue,
             NotifySubtitle, NotifyPlayerLeft, NotifyPlayerJoined, NotifyPlayerLevel, NotifySettingsChange,
             NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifyRemoveSpell, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
             NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyDialogueExperience, NotifyGlobals, NotifyQuests, NotifyObjectChanges>;

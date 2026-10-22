@@ -255,16 +255,16 @@ void Mount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     MountId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
-void NewPackage::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+void AiState::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, ActorId);
-    PackageId.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, SessionId);
+    State.Serialize(aWriter);
 }
 
-void NewPackage::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+void AiState::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
-    ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    PackageId.Deserialize(aReader);
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    State.Deserialize(aReader);
 }
 
 void Dialogue::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

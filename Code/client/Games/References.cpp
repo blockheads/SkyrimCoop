@@ -20,7 +20,6 @@
 #include <Magic/MagicCaster.h>
 #include <Sky/Sky.h>
 
-#include <Events/InitPackageEvent.h>
 
 #include <Wire/Serialization.h>
 
@@ -81,20 +80,25 @@ void FadeOutGame(bool aFadingOut, bool aBlackFade, float aFadeDuration, bool aRe
     fadeOutGame.Get()(aFadingOut, aBlackFade, aFadeDuration, aRemainVisible, aSecondsToFade);
 }
 
-// Disable AI sync for now, experiment didn't work, code might be useful later on though.
-#define AI_SYNC 0
-
 using TCheckForNewPackage = bool(void*, Actor* apActor, uint64_t aUnk1);
 static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 
-// A copy runs no packages (copy contract) but holds the engine's do-nothing one, so the engine treats it
-// like any NPC with a package; HookUpdateAI keeps it from running.
+// A copy picks no packages (copy contract): it holds its owner's (SetCopyAiFields), else the engine's do-nothing one,
+// so the engine treats it like any NPC with a package; HookUpdateAI keeps it from running.
 bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
 {
     if (apActor && apActor->GetExtension()->IsCopy())
     {
         const AIProcess* pProcess = apActor->currentProcess;
-        if (pProcess && !(pProcess->package && pProcess->package->packType == TESPackage::kDoNothing))
+        const TESPackage* pPackage = pProcess ? pProcess->currentPackage.package : nullptr;
+        const uint32_t cOwnerPackageId = apActor->GetExtension()->OwnerPackageId;
+        auto* pOwnerPackage = cOwnerPackageId ? Cast<TESPackage>(TESForm::GetById(cOwnerPackageId)) : nullptr;
+        if (pProcess && pOwnerPackage)
+        {
+            if (pPackage != pOwnerPackage)
+                apActor->PutOwnerPackage(pOwnerPackage);
+        }
+        else if (pProcess && !(pPackage && pPackage->packType == TESPackage::kDoNothing))
             apActor->InitiateDoNothingPackage();
         return false;
     }
@@ -117,6 +121,23 @@ void HookPutCreatedPackage(Actor* apThis, TESPackage* apPackage, bool aRunOnce, 
     RealPutCreatedPackage(apThis, apPackage, aRunOnce, aUnk);
 }
 
+// Actor::GetCurrentPackage (37399): what GetIsCurrentPackage (21529) and Papyrus read.
+TESPackage* Actor::GetCurrentPackage() const noexcept
+{
+    using TGetCurrentPackage = TESPackage*(const Actor*);
+    POINTER_SKYRIMSE(TGetCurrentPackage, s_getCurrentPackage, 37399);
+    return s_getCurrentPackage(this);
+}
+
+// ActorPackage::InitFromPackage (38959): ends the old package's data, makes the new one's; runs nothing.
+void Actor::PutOwnerPackage(TESPackage* apPackage) noexcept
+{
+    using TInitFromPackage = void(ActorPackage*, TESPackage*, TESObjectREFR* apTarget, Actor*);
+    POINTER_SKYRIMSE(TInitFromPackage, s_initFromPackage, 38959);
+    if (currentProcess && apPackage)
+        s_initFromPackage(&currentProcess->currentPackage, apPackage, nullptr, this);
+}
+
 // Actor::InitiateDoNothingPackage (37402): only in high or middle-high process.
 void Actor::InitiateDoNothingPackage() noexcept
 {
@@ -126,26 +147,6 @@ void Actor::InitiateDoNothingPackage() noexcept
     s_copyPackage = true;
     s_initiateDoNothingPackage(this);
     s_copyPackage = false;
-}
-
-using TInitFromPackage = void(void*, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor);
-static TInitFromPackage* RealInitFromPackage = nullptr;
-
-void HookInitFromPackage(void* apThis, TESPackage* apPackage, TESObjectREFR* apTarget, Actor* arActor)
-{
-#if AI_SYNC
-    // This guard is here for when the client sets the package based on a remote message
-    if (s_execInitPackage)
-        return RealInitFromPackage(apThis, apPackage, apTarget, arActor);
-
-    if (arActor && arActor->GetExtension()->IsCopy())
-        return;
-
-    if (arActor && apPackage)
-        World::Get().GetRunner().Trigger(InitPackageEvent(arActor->formID, apPackage->formID));
-
-#endif
-    return RealInitFromPackage(apThis, apPackage, apTarget, arActor);
 }
 
 using TSetCurrentPickREFR = void(Console*, BSPointerHandle<TESObjectREFR>* apRefr);
@@ -169,16 +170,13 @@ static Hooks::Initializer s_referencesHooks(
     {
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TCheckForNewPackage, s_checkForNewPackage, 39114);
-        POINTER_SKYRIMSE(TInitFromPackage, s_initFromPackage, 38959);
         POINTER_SKYRIMSE(TSetCurrentPickREFR, s_setCurrentPickREFR, 51093);
         POINTER_SKYRIMSE(TPutCreatedPackage, s_putCreatedPackage, 37570);
 
         RealCheckForNewPackage = s_checkForNewPackage.Get();
-        RealInitFromPackage = s_initFromPackage.Get();
         RealSetCurrentPickREFR = s_setCurrentPickREFR.Get();
 
         HOOK(&RealCheckForNewPackage, HookCheckForNewPackage);
-        HOOK(&RealInitFromPackage, HookInitFromPackage);
         HOOK(&RealSetCurrentPickREFR, HookSetCurrentPickREFR);
 
         RealPutCreatedPackage = s_putCreatedPackage.Get();

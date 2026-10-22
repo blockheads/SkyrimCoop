@@ -20,6 +20,7 @@
 #include <Forms/ActorValueInfo.h>
 #include <Forms/SpellItem.h>
 #include <Games/ActorExtension.h>
+#include <Games/CopyAiState.h>
 #include <Games/EngineNames.h>
 #include <Games/Overrides.h>
 #include <Games/References.h>
@@ -1693,15 +1694,53 @@ uint32_t SkyrimBridge::GetActorCommandingActorFormId(uint32_t aFormId) const noe
     return handle->formID;
 }
 
-void SkyrimBridge::SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept
+ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
 {
-    Breadcrumbs::Record("SetActorPackage", aFormId, aPackageFormId);
+    ActorAiFields fields;
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->currentProcess)
+        return fields;
+    if (const TESPackage* pPackage = pActor->GetCurrentPackage())
+        fields.PackageId = pPackage->formID;
+    if (const BGSScene* pScene = pActor->GetOwnCurrentScene())
+        fields.SceneId = pScene->formID;
+    fields.CombatState = pActor->GetOwnCombatState();
+    if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
+        fields.CombatTargetId = pTarget->formID;
+    return fields;
+}
+
+void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept
+{
     Actor* pActor = GetActor(aFormId);
-    if (!pActor)
+    if (!pActor || !pActor->GetExtension()->IsCopy())
         return;
-    TESPackage* pPkg = Cast<TESPackage>(TESForm::GetById(aPackageFormId));
-    if (pPkg)
-        pActor->SetPackage(pPkg);
+    pActor->GetExtension()->OwnerPackageId = acFields.PackageId;
+    pActor->GetExtension()->OwnerSceneId = acFields.SceneId;
+    pActor->GetExtension()->OwnerCombatState = acFields.CombatState;
+    // Actor::currentCombatTarget: written only by a combat controller, which a copy never has.
+    auto* pTarget = acFields.CombatTargetId ? Cast<TESObjectREFR>(TESForm::GetById(acFields.CombatTargetId)) : nullptr;
+    const uint32_t cTargetHandle = pTarget ? pTarget->GetHandle().handle.iBits : *TESObjectREFR::GetNullHandle();
+    if (pActor->combatHandle != cTargetHandle)
+        pActor->combatHandle = cTargetHandle;
+    if (!pActor->currentProcess)
+        return;
+    // The owner's package in the running slot, read by conditions, Papyrus and plugins as for any NPC. No target: the
+    // engine's Disable cleanup acts on a package aimed at another actor (actor-ai-and-copies.md).
+    const ActorPackage& cRunning = pActor->currentProcess->currentPackage;
+    auto* pPackage = acFields.PackageId ? Cast<TESPackage>(TESForm::GetById(acFields.PackageId)) : nullptr;
+    if (pPackage && cRunning.package != pPackage)
+    {
+        Breadcrumbs::Record("PutOwnerPackage", aFormId, acFields.PackageId);
+        pActor->PutOwnerPackage(pPackage);
+    }
+    else if (!pPackage && !(cRunning.package && cRunning.package->packType == TESPackage::kDoNothing))
+        pActor->InitiateDoNothingPackage();
+}
+
+void SkyrimBridge::SetCopiesFightingPlayer(uint32_t aCount) noexcept
+{
+    CopyAiState::SetCopiesFightingPlayer(aCount);
 }
 
 void SkyrimBridge::ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept

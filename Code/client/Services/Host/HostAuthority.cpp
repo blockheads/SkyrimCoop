@@ -15,7 +15,7 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/MountRequest.h>
-#include <Messages/NewPackageRequest.h>
+#include <Messages/AiStateRequest.h>
 #include <Messages/PlayerLevelRequest.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
@@ -33,7 +33,7 @@
 #include <Messages/NotifyInterruptCast.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyMount.h>
-#include <Messages/NotifyNewPackage.h>
+#include <Messages/NotifyAiState.h>
 #include <Messages/NotifyPlayerLevel.h>
 #include <Messages/NotifyProjectileLaunch.h>
 #include <Messages/NotifyRemoveSpell.h>
@@ -152,7 +152,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
     Relay<MountRequest, NotifyMount>(FromAnyone);
-    Relay<NewPackageRequest, NotifyNewPackage>(FromAnyone);
+    // What its AI is doing: its owner's, read 1:1 on every game (copy-contract.md, "AI state").
+    Relay<AiStateRequest, NotifyAiState>(FromOwner, &AiStateRequest::SessionId);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
     Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);
     Relay<SyncExperienceRequest, NotifySyncExperience>(FromAnyone); // everyone is in the host's party

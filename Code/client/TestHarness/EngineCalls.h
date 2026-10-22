@@ -307,6 +307,30 @@ VoiceSound GetVoiceSound(uint32_t aFormId) noexcept;
 bool IsProcessMe(uint32_t aFormId) noexcept;
 // The type of the actor's current package (TESPackage::packType: 27 do-nothing), -1 without one.
 int32_t GetPackageType(uint32_t aFormId) noexcept;
+// The form id of the package in the actor's running slot, as plugins read it inline (0: none).
+uint32_t GetRunningPackage(uint32_t aFormId) noexcept;
+// An actor's AI state as conditions and Papyrus read it (a copy answers its owner's), form ids, 0 for none.
+struct AiReadout
+{
+    uint32_t Package = 0;       // Actor::GetCurrentPackage (37399)
+    uint32_t PackageTarget = 0; // the running package's
+    uint32_t Scene = 0;         // Actor::GetCurrentScene (37247)
+    uint32_t Furniture = 0;     // MiddleProcess::occupiedFurniture
+    uint32_t FollowTarget = 0;  // AIProcess::followTarget
+    uint32_t Combat = 0;        // the condition GetCombatState (21740)
+    uint32_t CombatTarget = 0;  // Actor::currentCombatTarget
+};
+AiReadout GetAiReadout(uint32_t aFormId) noexcept;
+// Puts the package in the actor's running slot and sends its package event, as package evaluation would
+// (ActorPackage::InitFromPackage 38959, TESPackageEvent): staging on the owner, with the actor frozen so evaluation
+// does not replace it.
+bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
+// Actor::IsTalking (37266): what the condition IsTalking and the dialogue menu read.
+bool IsTalking(uint32_t aFormId) noexcept;
+// The condition IsInCombat on the actor (21576), as a dialogue line reads it: a copy answers its owner's.
+bool IsInCombat(uint32_t aFormId) noexcept;
+// The condition GetIsCurrentPackage (21529) on the actor: what dialogue lines read.
+std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
 // The actor's sneaking flag (ActorState1::sneaking), what detection reads; false without the actor.
 bool IsSneaking(uint32_t aFormId) noexcept;
 // ActorState1::sitSleepState: 0 normal, 3 sitting, 7 sleeping (CommonLibSSE-NG SIT_SLEEP_STATE).

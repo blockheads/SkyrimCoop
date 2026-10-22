@@ -31,8 +31,6 @@ struct ProjectileLaunchedEvent;
 struct NotifyProjectileLaunch;
 struct MountEvent;
 struct NotifyMount;
-struct InitPackageEvent;
-struct NotifyNewPackage;
 struct NotifyRespawn;
 struct BeastFormChangeEvent;
 struct AddExperienceEvent;
@@ -77,8 +75,6 @@ struct CharacterService
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept;
     void OnMountEvent(const MountEvent& acEvent) const noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) const noexcept;
-    void OnInitPackageEvent(const InitPackageEvent& acEvent) const noexcept;
-    void OnNotifyNewPackage(const NotifyNewPackage& acMessage) const noexcept;
     void OnNotifyRespawn(const NotifyRespawn& acMessage) const noexcept;
     void OnBeastFormChange(const BeastFormChangeEvent& acEvent) const noexcept;
     void OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept;
@@ -168,8 +164,6 @@ private:
     entt::scoped_connection m_referenceMovementSnapshotConnection;
     entt::scoped_connection m_mountConnection;
     entt::scoped_connection m_notifyMountConnection;
-    entt::scoped_connection m_initPackageConnection;
-    entt::scoped_connection m_newPackageConnection;
     entt::scoped_connection m_notifyRespawnConnection;
     entt::scoped_connection m_playerArrivedConnection;
     entt::scoped_connection m_beastFormChangeConnection;

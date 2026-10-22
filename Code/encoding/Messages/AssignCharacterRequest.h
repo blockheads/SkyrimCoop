@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <Structs/ActorAiState.h>
 #include <Structs/GameId.h>
 #include <Structs/GridCellCoords.h>
 #include <Structs/ActionEvent.h>
@@ -28,7 +29,7 @@ struct AssignCharacterRequest final : RequestMessage
     bool operator==(const AssignCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && Cookie == acRhs.Cookie && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && FaceTints == acRhs.FaceTints && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
+               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && FaceTints == acRhs.FaceTints && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
     }
 
     uint32_t Cookie{};
@@ -44,6 +45,8 @@ struct AssignCharacterRequest final : RequestMessage
     ActionEvent LatestAction{};
     // The behaviour graphs' state, as a savegame keeps it: what a copy's fresh graph loads.
     std::string GraphState{};
+    // What its AI is doing, for the copy to hold from the start (AiStateService).
+    ActorAiState AiState{};
     Tints FaceTints{};
     bool IsDragon{};
     bool IsMount{};

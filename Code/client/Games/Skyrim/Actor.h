@@ -226,8 +226,17 @@ struct Actor : TESObjectREFR
     void SetFactionRank(const TESFaction* apFaction, int8_t aRank) noexcept;
     void ForcePosition(const NiPoint3& acPosition) noexcept;
     void SetWeaponDrawnEx(bool aDraw) noexcept;
-    void SetPackage(TESPackage* apPackage) noexcept;
     void InitiateDoNothingPackage() noexcept;
+    // The package conditions and Papyrus see (37399): the running one, or for an engine-made one the form package
+    // under it (ExtraPackage).
+    [[nodiscard]] TESPackage* GetCurrentPackage() const noexcept;
+    // A copy: holds its owner's package in its running slot, without a target; UpdateAI, which runs it, is cut.
+    void PutOwnerPackage(TESPackage* apPackage) noexcept;
+    // The scene it plays a part in, as this game runs it (Actor::GetCurrentScene 37247, not a copy's owner's).
+    [[nodiscard]] struct BGSScene* GetOwnCurrentScene() const noexcept;
+    // Its combat state as this game runs it (Actor::GetCombatState 38556: 0 none, 1 fighting, 2 searching), not a
+    // copy's owner's.
+    [[nodiscard]] uint8_t GetOwnCombatState() const noexcept;
     void SetActorInventory(const Inventory& aInventory) noexcept;
     void SetMagicEquipment(const MagicEquipment& acEquipment) noexcept;
     void SetEssentialEx(bool aSet) noexcept;
@@ -386,6 +395,7 @@ public:
 };
 
 static_assert(offsetof(Actor, currentProcess) == 0xF8);
+static_assert(offsetof(Actor, combatHandle) == 0x104); // currentCombatTarget, what GetCombatTarget reads (54680, 22318)
 static_assert(offsetof(Actor, flags1) == 0xE8);
 static_assert(offsetof(Actor, actorValueOwner) == 0xB8);
 static_assert(offsetof(Actor, actorState) == 0xC0);

@@ -4,12 +4,12 @@
 #include "Payloads.h"
 #include <Wire/Buffer.h>
 
-struct NotifyNewPackage final : NotifyMessage, Payloads::NewPackage
+struct NotifyAiState final : NotifyMessage, Payloads::AiState
 {
-    static constexpr NotifyOpcode Opcode = kNotifyNewPackage;
-    using Payload = Payloads::NewPackage;
+    static constexpr NotifyOpcode Opcode = kNotifyAiState;
+    using Payload = Payloads::AiState;
 
-    NotifyNewPackage()
+    NotifyAiState()
         : NotifyMessage(Opcode)
     {
     }
@@ -17,5 +17,5 @@ struct NotifyNewPackage final : NotifyMessage, Payloads::NewPackage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override { Payload::SerializePayload(aWriter); }
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override { Payload::DeserializePayload(aReader); }
 
-    bool operator==(const NotifyNewPackage& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
+    bool operator==(const NotifyAiState& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Payload::operator==(acRhs); }
 };

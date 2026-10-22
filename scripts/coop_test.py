@@ -2166,13 +2166,15 @@ def scenario_copy_ends_voice_line():
     """The host player talks to its NPC: she greets him, and the client's copy plays the same line
     (NotifyDialogue) with the same subtitle (NotifySubtitle) and ends it, as the host's NPC does. SpeakSound only queues a line; the engine's
     voice upkeep in Character::UpdateAI starts and ends it (Actor::UpdateSoundCallback,
-    Character::UpdateVoiceTimer), which copies run from HookUpdateAI. A copy holds the engine's do-nothing
-    package (HookCheckForNewPackage): an actor without one gets no UpdateAI once its 3D is far enough from
-    the camera to fade (Character::ShouldOnlyCheckPackage)."""
+    Character::UpdateVoiceTimer), which copies run from HookUpdateAI. A copy holds a package, its owner's
+    (AiStateService) or the engine's do-nothing one (HookCheckForNewPackage): an actor without one gets no
+    UpdateAI once its 3D is far enough from the camera to fade (Character::ShouldOnlyCheckPackage)."""
     npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
     try:
-        wait_for(f"[client] copy {copy:08X} holds the do-nothing package",
-                 lambda: package_type("client", copy) == DO_NOTHING_PACKAGE, 5)
+        wait_for(f"[client] copy {copy:08X} holds its owner's package or the do-nothing one",
+                 lambda: package_type("client", copy) == DO_NOTHING_PACKAGE
+                 or (package_type("client", copy) not in (None, -1)
+                     and ai_state("client", copy).get("package") == ai_state("", npc).get("package")), 5)
         place_before("", npc, 100)
         activate_on("", npc)
         wait_for("[host] NPC's line plays", lambda: line_playing("", npc), 10)
@@ -3687,6 +3689,100 @@ def scenario_host_npc_leaves_copy_follows():
             console_on("", f"{VILKAS:X}.enable")
         if host_npc_state(VILKAS) or actor_place("", VILKAS).get("cell") == actor_place("", 0x14).get("cell"):
             release_host_npc(VILKAS)
+
+
+# Skyrim.esm packages: DefaultSandboxCurrentLocation256 and DefaultSandboxCurrentLocation1024.
+SANDBOX_256, SANDBOX_1024 = 0x956B8, 0xBFB6B
+
+
+def is_current_package(instance, actor, package):
+    """The condition GetIsCurrentPackage on the actor in that game, as a dialogue line reads it."""
+    select_instance(instance)
+    return (rpc({"cmd": "is_current_package", "actor": actor, "package": package}) or {}).get("result")
+
+
+def ai_state(instance, actor):
+    select_instance(instance)
+    return (((read_status() or {}).get("world") or {}).get(str(actor)) or {}).get("ai_state") or {}
+
+
+def running_package(instance, actor):
+    select_instance(instance)
+    return ((((read_status() or {}).get("world") or {}).get(str(actor)) or {}).get("ai") or {}).get("running_package", 0)
+
+
+def scenario_copy_runs_owners_package():
+    """The host's Vilkas runs one package, then another (staged: frozen, the package put in place as his evaluation
+    would). The client's copy runs the same one each time: its package field and the condition GetIsCurrentPackage,
+    which dialogue lines read on the speaker, answer as on the host, and its running slot, which plugins (Open
+    Animation Replacer) read inline, holds it (copy-contract.md, "AI state")."""
+    try:
+        stage_host_npc(VILKAS)
+        for package in (SANDBOX_256, SANDBOX_1024):
+            player_command("", {"cmd": "put_package", "actor": VILKAS, "package": package})
+            if not is_current_package("", VILKAS, package):
+                raise TestFailure(f"[host] Vilkas does not run {package:X} after it was put in place")
+            try:
+                wait_for(f"[client] its Vilkas runs {package:X}", lambda: ai_state("client", VILKAS).get("package") == package
+                         and is_current_package("client", VILKAS, package) and running_package("client", VILKAS) == package, 3)
+            except TestFailure:
+                raise TestFailure(f"[client] its Vilkas does not run the host's {package:X}: package "
+                                  f"{ai_state('client', VILKAS).get('package', 0):X}, GetIsCurrentPackage "
+                                  f"{is_current_package('client', VILKAS, package)}, running slot "
+                                  f"{running_package('client', VILKAS):X}")
+    finally:
+        release_host_npc(VILKAS)
+
+
+def scenario_copy_in_owners_combat():
+    """The host's Vilkas (staged, his AI on: combat needs it) starts combat with the host's player, then stops. On the client his copy, which has no combat controller, answers IsInCombat and GetCombatState
+    as the host's Vilkas does (copy-contract.md, "AI state"). Its combat target is not checked: the engine clears the
+    field on a copy, which its own callers see out of combat (progress.md, overnight slice 3)."""
+    try:
+        stage_host_npc(VILKAS)
+        freeze("", VILKAS, False)  # combat needs his AI (restrained, he does not start it either)
+        console_on("", f"{VILKAS:X}.startcombat player")
+        wait_for("[host] Vilkas is in combat", lambda: ai_state("", VILKAS).get("in_combat"), 5)
+        host_player = other_player(actors_on("client"))
+        try:
+            wait_for("[client] its Vilkas is in combat with the host's character",
+                     lambda: (s := ai_state("client", VILKAS)).get("in_combat") and s.get("combat") == ai_state("", VILKAS).get("combat"), 3)
+        except TestFailure:
+            raise TestFailure(f"[client] its Vilkas is not in the host's combat: {ai_state('client', VILKAS)} "
+                              f"(host {ai_state('', VILKAS)}, the host's character here {host_player:X})")
+        console_on("", f"{VILKAS:X}.stopcombat")
+        wait_for("[host] Vilkas is out of combat", lambda: not ai_state("", VILKAS).get("in_combat"), 5)
+        wait_for("[client] its Vilkas is out of combat", lambda: not ai_state("client", VILKAS).get("in_combat"), 3)
+    finally:
+        for command in (f"{VILKAS:X}.stopcombat", "player.stopcombat"):
+            console_on("", command)
+        freeze("", VILKAS)
+        release_host_npc(VILKAS)
+
+
+def scenario_guest_player_in_hosts_combat():
+    """The host's Vilkas (staged, his AI on) starts combat with the client's character, then stops. The client's
+    player counts as in combat while he fights it, as a player does from the combat groups targeting it (41238):
+    the host's NPCs are copies on the client, with no combat groups, so their AI state counts instead."""
+    try:
+        stage_host_npc(VILKAS)
+        freeze("", VILKAS, False)
+        client_character = client_on_host()
+        console_on("", f"{VILKAS:X}.startcombat {client_character:X}")
+        wait_for("[host] Vilkas fights the client's character",
+                 lambda: ai_state("", VILKAS).get("combat_target") == client_character, 5)
+        try:
+            wait_for("[client] the player is in combat", lambda: ai_state("client", 0x14).get("in_combat"), 3)
+        except TestFailure:
+            raise TestFailure(f"[client] the player is not in combat: its Vilkas {ai_state('client', VILKAS)}")
+        console_on("", f"{VILKAS:X}.stopcombat")
+        wait_for("[client] the player is out of combat", lambda: not ai_state("client", 0x14).get("in_combat"), 5)
+    finally:
+        for command in (f"{VILKAS:X}.stopcombat", "player.stopcombat"):
+            console_on("", command)
+        console_on("client", "player.stopcombat")
+        freeze("", VILKAS)
+        release_host_npc(VILKAS)
 
 
 def scenario_lock_reaches_others():
@@ -5284,6 +5380,9 @@ SCENARIOS = {
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
     "host-npc-leaves-copy-follows": scenario_host_npc_leaves_copy_follows,
+    "copy-runs-owners-package": scenario_copy_runs_owners_package,
+    "copy-in-owners-combat": scenario_copy_in_owners_combat,
+    "guest-player-in-hosts-combat": scenario_guest_player_in_hosts_combat,
     "client-beast-form-stays-client": scenario_client_beast_form_stays_client,
     # chat
     "chat-reaches-everyone": scenario_chat_reaches_everyone,
@@ -5385,6 +5484,9 @@ TAGS = {
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
     "host-npc-leaves-copy-follows": {'spawn'},
+    "copy-runs-owners-package": {'spawn', 'ai'},
+    "copy-in-owners-combat": {'combat', 'ai'},
+    "guest-player-in-hosts-combat": {'combat', 'ai'},
     "client-beast-form-stays-client": {'scripts', 'magic', 'spawn', 'quests'},
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},
@@ -5476,6 +5578,10 @@ def compare_field(field, owner, copy, owner_snapshot):
     if field.startswith(("mod.", "ai.", "graph")) or field in ("role", "identity.template_base", "identity.temporary_base"):
         return None  # bookkeeping (Local vs Remote) and AI (owner only) differ by design; the live
                      # graph changes every frame (compared over time by `coop_test.py graph`)
+    if field == "ai_state.combat_target":
+        return None  # each game's own form id for the target (a player is 14 on its own game): copy-in-owners-combat
+    if field == "ai_state.package" and (owner or 0) >= 0xFF000000:
+        return None  # a package the engine made has no id the other game shares: the copy holds do-nothing
     if field == "effects":
         return None  # copies never hold effects (their owner applies them); what shows is "visuals"
     if field == "visuals":

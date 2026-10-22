@@ -421,6 +421,15 @@ nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
             {"copy", actors.IsActorCopy(cActor)}};
 }
 
+// {"cmd": "is_current_package", "actor": id, "package": id}: the condition GetIsCurrentPackage on the actor here.
+nlohmann::json IsCurrentPackage(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cResult = EngineCalls::IsCurrentPackage(acRequest.value("actor", 0u), acRequest.value("package", 0u));
+    if (!cResult)
+        return Error("no such actor or package");
+    return {{"ok", true}, {"result", *cResult}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -502,6 +511,7 @@ constexpr Command cCommands[] = {
     {"menu_var", true, &MenuVar},
     {"ref_enabled", true, &RefEnabled},
     {"actor_place", true, &ActorPlace},
+    {"is_current_package", true, &IsCurrentPackage},
     {"activate", true, &Activate},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},

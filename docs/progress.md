@@ -179,6 +179,88 @@ Decisions made without the user are marked **Decided**.
     `kPackage`, in one sample under water), then 3 of 3. Not traced; the copy is a player's (a temporary
     reference), which this slice does not touch.
 
+- **1. AI state on copies, the package: done.** `AiStateService` (owner sends `AiStateRequest` when it changes, event-driven
+  since the cleanup below; `HostAuthority` relays it from the owner only, bridge case "AI state: the owner's reaches everyone else";
+  wire bytes pinned); the copy held its owner's form package (`ActorPackage::InitFromPackage` 38959; changed after the
+  suite to answered, not run, then back the same day, below). Upstream's package relay is deleted (`NewPackageRequest`/`NotifyNewPackage`
+  became `AiStateRequest`/`NotifyAiState`, `AI_SYNC`, `InitPackageEvent`, `HookInitFromPackage`, `SetActorPackage`).
+  `AIProcess` now has CommonLib's `ActorPackage currentPackage` (`+0x18`) and `followTarget` (`+0x110`), asserted.
+  Harness: status `ai_state` (compared by the desync check), `put_package`, `is_current_package` (the condition
+  21529 itself). Scenario `copy-runs-owners-package` (two packages put in place on the host's frozen Vilkas; the
+  copy's field and `GetIsCurrentPackage`) fails before (package 0, condition false) and passes after; seen live too:
+  the copy followed Vilkas's own evaluation back to his package.
+  - **Decided:** the owner sends what conditions read (`Actor::GetCurrentPackage` 37399: for an engine-made package,
+    the form package under it); an engine-made package itself (no id shared by the games) leaves the copy on the
+    do-nothing one, so `GetAlarmed` (an engine-made alarm package) answers no on a copy (27 menu lines; open).
+  - **Decided:** the package target is not written into the copy (no condition in the menus reads it; a copy's
+    package aimed at another actor is what the engine's Disable cleanup acts on, the 2026-10-10 deadlock). Since
+    the cleanup it is not sent either.
+  - `copy-ends-voice-line` asserted the do-nothing package on the copy; it now accepts the owner's package (what
+    matters there is that the copy holds one, for `UpdateAI`'s upkeep).
+- **2. Sit/sleep, furniture, scene, talking, follow target: partly.** Sit/sleep state (`GetSitting`, `GetSleeping`)
+  and talking (`IsTalking`) are the owner's already (replayed actions, the copy's own voice line); `ai_state.talking`
+  is compared. Scene: `Actor::GetCurrentScene` (37247) hooked for copies (`Games/Skyrim/CopyAiState.cpp`), compared
+  as `ai_state.scene`; **no scenario** (no lever to put a host NPC in a scene without a quest: a stall, left). The
+  occupied furniture and follow target travel but are not written (**Decided:** no vanilla dialogue condition reads
+  them; writing the furniture handle would hand a copy to the engine's furniture exit code). Greeting
+  (`HighProcessData::greetingPlayer`) is not carried (**Decided:** it means "this game's player", which differs per
+  game). No host NPC could be seated in QASmoke by the console (`<furniture>.activate <npc>` did nothing), so no
+  NPC sit scenario; players' copies are covered by `furniture-*`.
+- **3. Combat state on copies: done.** Audit of the 22 `IsInCombat` callers touching `+0x160` written in
+  `actor-ai-and-copies.md`: 4 use the controller after a yes unchecked, 3 start or stop combat; the hook answers the
+  owner's everywhere else (by return address). `GetCombatState` hooked; `currentCombatTarget` (`+0x104`) written.
+  Scenario `copy-in-owners-combat` (Vilkas, AI on, `startcombat player`: the copy's `IsInCombat`, `GetCombatState`
+  and combat target = the client's copy of the host's character; then out of combat) fails before and passes after.
+  A frozen or restrained actor does not start combat; the scenario thaws Vilkas, who swings at the host's player.
+- **4. A guest's player in combat: done.** `HookCountCombatTargetingPlayer` (41261) adds the copies in combat with
+  this game's player. **Decided:** counted on the guest from the combatants' AI state, not a count sent by the host
+  (the state already says whom each fights). Scenario `guest-player-in-hosts-combat` (Vilkas fights the client's
+  character: the client's player is in combat, then out) fails before and passes after. Closes the loose end "A
+  guest's player is never in combat"; combat music and wait/save blocking follow from the same flag, not checked.
+
+- **Combat target on copies (found while running the suite):** writing `currentCombatTarget` works only while the
+  engine's own callers see the copy in combat; with the allowlist below they see it out of combat and something
+  clears the field again (not traced). `copy-in-owners-combat` no longer checks it. Open.
+- **Combat state allowlist (crash found by the suite, fixed):** the first hook answered the owner's state to every
+  caller but the 9 audited sites; the client crashed in `cast-host-player` (`MagicCaster` 34450 through
+  `Actor::EngagingInCombat` 38563 reads the controller at `+0x160`; 23 callers of that wrapper, none in the audit of
+  direct callers). **Decided:** a copy answers its owner's combat state only to the condition functions (21576,
+  21740) and to plugins (callers outside the game's image); the engine's own callers get the copy's own answer. Papyrus
+  `IsInCombat`/`GetCombatState` tail-jump into the vfunc from the VM and get the copy's own (open).
+- **A copy's package: held in its slot again (2026-10-22, after review).** Overnight it was changed to "answered, not
+  run" (do-nothing in the slot, 37399 hooked) after a lock-order report blamed on a copy running `BGSProcedureSleep`.
+  Wrong diagnosis: the stack runs through `HookUpdateAI`'s pass-through (`RealUpdateAI`), so the sleeper was not a
+  copy but an NPC of the guest's own, 10 ms after the guest left the host for a late join (same report with the
+  do-nothing version; `late-join-gets-ring-pose` passed on rerun, open as a vanilla race on load). **Decided:** the
+  copy holds its owner's form package in its running slot, without a target (`Actor::PutOwnerPackage`, 38959;
+  `HookCheckForNewPackage` keeps it); the 37399 hook is deleted. Inline readers (Open Animation Replacer) now see the
+  owner's package. `copy-runs-owners-package` also checks the slot (new readout `ai.running_package`): fails with the
+  do-nothing version (slot FF000EAD), passes now; package, combat, furniture, sneak, late-join and all dialogue
+  scenarios pass (dialogue-three-players needs a third game, not run). `ai_state.talking` is no longer compared (a copy's own voice state
+  trails its owner's; `vilkas-counts-client-hits` failed on it once).
+- `guest-player-in-hosts-combat` failed after the full suite on the same duo (Vilkas's `startcombat` on the client's
+  character did nothing, target 0), passes on a fresh duo. Not traced.
+- **AI state at spawn (found by the suite, fixed):** `late-join-client` failed on a copy made after the rejoin
+  holding no package for up to 2 s; the spawn now carries the AI state (`AssignCharacterRequest`/`NotifyCharacterSpawn`
+  `AiState`, `AiStateService::ReadState`).
+- **AI state cleanup (2026-10-22, the user's review: "this clearly isn't clean code"; "events over polling").**
+  - Event-driven: `AiStateEvents` (Games/Skyrim) sinks `TESPackageEvent`, `TESCombatEvent`, `TESDeathEvent` and
+    `TESSceneEvent` and queues `AiStateChangeEvent`; the owner reads and sends only on those, if changed. The 250 ms
+    check and the 2 s full resend are gone. `put_package` sends the package event as evaluation does.
+  - The wire state is what a copy applies: package, scene, combat state and target (package target, furniture and
+    follow target dropped; the status still shows them from `EngineCalls::GetAiReadout`). Wire bytes re-pinned.
+  - `GetActorAiFields` is one engine read of an owned actor (no copy branches); the status reads what conditions see
+    through the harness instead. The fighting-player count goes through `IActorBridge::SetCopiesFightingPlayer`, not
+    from the service into the hooks. Target lookups use `Utils::GetFormIdBySessionId`/`GetSessionIdByFormId`.
+  - Found by its run: a death clears the package with no package event (`death-stage-runs-once`: the copy kept
+    Valdr's); `TESDeathEvent` added. Open: a combat target switch inside one fight has no event.
+  - Runs: BridgeTests 110 cases pass. AI scenarios, `late-join-client`, `host-npc-leaves-copy-follows`,
+    `furniture-host-player`, `sneak-client-player` pass; `--tag combat --tag spawn` 27 pass, 2 fail:
+    `death-stage-runs-once` (above, fixed, then passed) and `party-fast-travels` (the guest crashed in the engine's
+    `QueuedPromoteLargeReferencesTask`, 18902+0x80, null `rcx`, ref 190E5, no frame of ours; new, not traced; passed on
+    fresh games). After those, `guest-player-in-hosts-combat` failed on the host's own `startcombat` (target never
+    set), the known "fails on a used duo" item above; it passed on fresh games earlier.
+
 ### Phase 5: the server is gone (2026-10-21, uncommitted)
 
 Every message a game sends had a host rule; the two without one were dead (upstream's `RequestQuestUpdate`,
@@ -318,11 +400,11 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   - An owner's actions before its id arrives are kept (NPCs falling after `placeatme`).
 - Next audits: combat, detection, magic/magicka; then one copy update in place of scattered
   `IsCopy()` checks.
-- Planned (2026-10-19, revised 2026-10-20): copies carry their owner's AI state (current package, sitting,
-  sleeping, scene, combat state and targets), simulated only by the owner, read 1:1 by anything that asks:
-  written into the fields readers read, `IsInCombat`/`GetCombatState` hooked (`copy-contract.md`, "AI state";
-  IDA notes in `actor-ai-and-copies.md`, "Combat state and its readers"). First for shared dialogue's step
-  sync (above). Built for vanilla; graph events from outside the actions wait for mods.
+- Built 2026-10-22: copies carry their owner's AI state (package, scene, combat state and target; sitting,
+  sleeping and talking by replay), simulated only by the owner, read 1:1 by anything that asks
+  (`copy-contract.md`, "AI state"; `actor-ai-and-copies.md`, "Combat state and its readers"). Open: alarmed
+  (engine-made packages), the scene's own state (`IsScenePlaying`, quest sync), furniture and follow target
+  written. Graph events from outside the actions wait for mods.
 
 ## Test suite
 
@@ -534,11 +616,9 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
-- **A guest's player is never in combat** (2026-10-20, read in IDA, not seen in a game yet): the engine counts it
-  in combat from the combat groups targeting it (41238, 41261), and the host's NPCs on a guest are copies with
-  none. Expected in play: no combat music on a guest and nothing stopping a wait or save mid-fight (the
-  checks reading the flag not traced). Fix planned with AI state on copies (`copy-contract.md`, "AI state").
 - **Done 2026-10-22: a host NPC leaving no longer leaves a ghost on the guest.** The removal carries where the host's actor went; the guest's reference follows it (moved, disabled or deleted) and stays a copy until the host spawns it again (`docs/design/copy-contract.md`, "When the owner's actor goes away"; `host-npc-leaves-copy-follows`). Still open: a guest's non-persistent references are made anew when it loads their cell, unflagged, so they run their own AI until the host's spawn arrives (not measured).
+- **Done 2026-10-22: a guest's player is in combat when the host's NPCs fight it** (`guest-player-in-hosts-combat`;
+  above, overnight slice 4). Not checked: combat music and the wait/save block on a guest.
 - **A copy's spawn writes its NPC base's factions** (2026-10-19): `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`) changes the shared `TESNPC`, so the client records `NPC_ Factions` change forms the host never did (168 in one fast travel). Harmless while the values match the host's; it is client-made world state in its save (`docs/research/world-state-drift.md`).
 - **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
   owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the

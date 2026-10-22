@@ -346,3 +346,26 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     session.Receive(kHost, items);
     CHECK(session.ItemsSet.size() == 1);
 }
+
+TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "[Bridge][AiState]")
+{
+    Session session;
+    const uint32_t cHostNpc = session.Character(kHost);
+
+    AiStateRequest state;
+    state.SessionId = cHostNpc;
+    state.State.Package = GameId(0, 0x1A6A5);
+    state.State.CombatTarget.SessionId = 7;
+    session.Receive(kPeer, state); // not its
+    CHECK(session.Outbox.empty());
+
+    session.Receive(kHost, state);
+    for (const auto cTo : {kPeer, kOtherPeer})
+    {
+        const auto cNotifies = session.SentTo<NotifyAiState>(cTo);
+        REQUIRE(cNotifies.size() == 1);
+        CHECK(cNotifies[0]->SessionId == cHostNpc);
+        CHECK(cNotifies[0]->State == state.State);
+    }
+    CHECK(session.SentTo<NotifyAiState>(kHost).empty());
+}

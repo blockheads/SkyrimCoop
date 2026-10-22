@@ -568,19 +568,74 @@ meh321 where they have one, ours otherwise.
   group `+0x20`, count `+0x30`). `UpdateCombat` updates the controller, its target and the behaviour tree.
   So an actor with a controller in a group gets combat AI whatever `HookUpdateAI` does: a copy must never be
   given either.
-- **`IsInCombat`'s callers:** 127 virtual call sites in 100 functions (a scan for `call [reg+718h]`). 22 of
-  them also touch a `+0x160` field (the combat controller when the object is an actor): `Actor::Update`,
-  `Actor::StartCombat`, `Actor::StopCombat`, `Actor::UpdateCombat`, `Actor::CalculateDetection`,
-  `Actor::CheckValidTarget`, `Actor::PickUpObject`, `Actor::RemoveItem`, `TESObjectREFR::RemoveItem`,
-  `TESNPC::Activate`, `Projectile` construction, the `GetShouldAttack` condition, 41261 and 9 unnamed. A hook
-  answering "in combat" for a copy with no controller must not reach one that then uses the controller.
-  Not checked one by one yet.
+- **`IsInCombat`'s callers:** 127 virtual call sites in 100 functions (a scan for `call [reg+718h]`; the function is
+  reached only through the Actor and Character vtables, never called directly). 22 of them also touch a `+0x160`
+  field (the combat controller when the object is an actor). A hook answering "in combat" for a copy with no
+  controller must not reach one that then uses the controller.
+- **The audit of those 22 (2026-10-22, IDA):**
+  - **Use the controller after a yes, unchecked** (a copy answering yes would crash there): `Actor::Update` (37348,
+    reads controller `+0x34`), `Actor::CheckValidTarget` (38560, `+0x42`), 38627 (a hit's reaction: passes the
+    controller to 0x140559260, which dereferences it), 41261 (the count of combat targeting the player: `+0x8` for
+    the barter menu's target).
+  - **Start or stop combat** on a yes: `Actor::StartCombat` (38561: in combat after it, the actor leaves its scene,
+    `GetCurrentScene` then 0x1403A0D20), `Actor::UpdateCombat` (38565), `Actor::StopCombat` (38566, three calls).
+  - **Check the controller before using it, or touch another object's `+0x160`** (safe): the `GetShouldAttack`
+    condition (21471, checks it), `Actor::PickUpObject`, `Actor::RemoveItem`, `TESObjectREFR::RemoveItem`
+    (the UI's `+0x160`), 37239, `Actor::CalculateDetection` (checks both actors' and reads a worldspace's),
+    `fUnk_Attacked` (38626, checks it), 0x1406F10D0 and 0x1406F20A0 (check it), 0x14071C020 (checks it), `Projectile`
+    construction (the projectile's own `+0x160`); `TESNPC::Activate`, 0x140464EC0 and 42571 do not read it;
+    `PlayerCharacter` 37273 runs for the player only.
+  - A first hook answered a copy's owner's state everywhere but at those 9 call sites: the client crashed casting
+    (`MagicCaster` 34450 → `Actor::EngagingInCombat` 38563, then the controller at `+0x160`). `EngagingInCombat` wraps
+    `IsInCombat` for 23 more functions (weapon fire, spell casting, 37410, 39753, combat code), outside a scan of
+    direct callers. So `HookIsInCombat` and `HookGetCombatState` (`Games/Skyrim/CopyAiState.cpp`) answer the owner's
+    state only to the condition functions (21576 and 21740, by return address: Address Library ID plus offset) and to
+    plugins (callers outside the game's image); every engine caller gets the copy's own answer (no controller: no).
+    Papyrus `IsInCombat` (54945) and `GetCombatState` (54679) tail-jump from the VM's call and get the copy's own.
 - **A player's own combat flag:** `PlayerCharacter::IsInCombat` (41024) reads `+0xBE3` bit 0x20.
   `PlayerCharacter::UpdateInCombat` (41238, ours) sets it each update when 41261 (ours,
   `CombatManager::CountGroupsTargetingPlayer`) counts a combat group targeting the player (the members in
   the high dword), and clears it otherwise, with a regen delay. 41261 also adds every enemy the player
   detects to the player's own combat group (`+0x9D8`). On a guest the host's NPCs are copies with no combat
-  groups, so the count is 0 and the guest's player is never in combat.
+  groups, so the count was 0 and the guest's player never in combat. Since 2026-10-22 `HookCountCombatTargetingPlayer`
+  adds the copies whose owner's AI state is in combat with this game's player (`AiStateService`).
+- **The combat target** (`Actor::currentCombatTarget`, `+0x104` in 1.6.1170, CommonLib's `0xFC` is SE): what the
+  `GetCombatTarget` condition (22318) and Papyrus `GetCombatTarget` (54680) read. Written by the combat controller
+  only; a copy's is written with its owner's (`SkyrimBridge::SetCopyAiFields`).
+
+### The package and the other AI state fields (2026-10-22)
+
+- **Package.** Conditions (`GetIsCurrentPackage` 21529) and Papyrus read `Actor::GetCurrentPackage` (37399):
+  `AIProcess::currentPackage.package` (`+0x18 + 0x8`), or, for the engine-made procedure types 0x14-0x26 but 0x1A
+  and 0x1E (`TESPackage` 29581: alarm, flee, dialogue, do-nothing...), the form package under it (`ExtraPackage`).
+  Open Animation Replacer reads the field inline. The copy holds the owner's form package in that slot,
+  put by `ActorPackage::InitFromPackage` (38959: ends the old package's data and refcount, makes the new one's data,
+  sets the target; no package begin/end events) without a target, and by `HookCheckForNewPackage` when the engine asks
+  for a new one. Nothing runs it: package procedures run only from `AIProcess::UpdateHighProcessAI` (39637, whose only
+  caller is `UpdatePackageAndProcess` 39108, whose only caller is `UpdateAI` 37347, cut for copies). For a day it was
+  answered instead (do-nothing in the slot, 37399 hooked for conditions, Papyrus and plugins) after a lock-order report
+  blamed on a copy running `BGSProcedureSleep`; that report's stack runs through `HookUpdateAI`'s pass-through
+  (`RealUpdateAI`), so the actor was not a copy: an NPC of the guest's own sleeping just after the guest left the host
+  to load for a late join, while the main thread loads cells (seen with either version, `late-join-gets-ring-pose`).
+  The engine's other readers of the slot (Wait, StopWaiting, the sneak decision 40492's always-sneak flag,
+  0x140701B60, 0x14076D520) now see the owner's package; the sneak toggle a copy would make is refused
+  (`HookPerformAction`).
+- **Sit/sleep state** (`actorState1` bits `0x3C000`, `GetSitting` 21441, `GetSleeping` 21440): a copy already gets
+  its owner's from the replayed furniture actions (`furniture-*`) and the graph state at spawn; nothing written.
+- **Occupied furniture** (`MiddleHighProcessData +0x208`, `IsCurrentFurnitureRef` 21442 through 0x1407127C0) and
+  **follow target** (`AIProcess +0x110`): not sent (no vanilla dialogue line reads them; the furniture field stays
+  set after the actor leaves the furniture, e.g. Vilkas's bed in QASmoke); the status shows them.
+- **When it changes.** `TESPackageEvent` (actor `+0`, package form id `+8`, type `+0xC`: 0 start, 1 end, 2 change, as
+  the VM's sink 53984 reads it; sent by 39434-39436 through `BSTEventSource<TESPackageEvent>::SendEvent` 39769, from
+  `Actor::EvaluatePackage`, the procedures and scene actions, some on the AI's job threads), `TESCombatEvent`
+  (CommonLibSSE-NG: actor, target, new state; not sent for a target switch alone), `TESDeathEvent` (a death clears
+  the package with no package event: `death-stage-runs-once` caught a copy keeping Valdr's), `TESSceneEvent`.
+- **Scene.** `IsInScene` (21682) and Papyrus ask `Actor::GetCurrentScene` (37247, vfunc 0x4A: `boolBits & 8`, then
+  the reference's scene data): hooked for copies (the owner's scene).
+- **Talking.** `IsTalking` (37266, read by the condition 21519 and the dialogue menu 35283/35290/35294): `boolBits &
+  0x180` and the voice timer, which a copy's played voice line sets. Compared (`ai_state.talking`), nothing written.
+- **Alarmed** (`GetAlarmed` 21452: the running package's type is 21, an engine-made alarm package): not carried; a
+  copy answers no.
 - **Every event sent to a graph:** `IAnimationGraphManagerHolder::NotifyAnimationGraph` (32901), called only
   through vtables (25 holder vtables, one implementation), hands it to `BSAnimationGraphManager` 63362. Actions,
   Papyrus `SendAnimationEvent` and SKSE plugins (`NotifyAnimationGraph`) all pass there; a graph's own

@@ -27,7 +27,7 @@
 #include <Messages/ProjectileLaunchRequest.h>
 #include <Messages/DrawWeaponRequest.h>
 #include <Messages/MountRequest.h>
-#include <Messages/NewPackageRequest.h>
+#include <Messages/AiStateRequest.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/SyncExperienceRequest.h>
 #include <Messages/RequestEquipmentChanges.h>
@@ -52,7 +52,7 @@ struct RequestMessageFactory
         auto s_visitor = CreateMessageVisitor<
             AuthenticationRequest, AssignCharacterRequest, CancelAssignmentRequest, ReferencesMoveRequest, RequestInventoryChanges, RequestFactionsChanges,
             RequestActorValueChanges, RequestActorMaxValueChanges, RequestHealthChangeBroadcast, ActivateRequest, LockChangeRequest, RequestDeathStateChange, 
-            SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, DrawWeaponRequest, MountRequest, NewPackageRequest, RequestRespawn, SyncExperienceRequest,
+            SpellCastRequest, ProjectileLaunchRequest, InterruptCastRequest, AddTargetRequest, DrawWeaponRequest, MountRequest, AiStateRequest, RequestRespawn, SyncExperienceRequest,
             RequestEquipmentChanges, SendChatMessageRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerLevelRequest, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot, EnterCellRequest, RequestActiveEffects, TimeScaleRequest,
             DialogueStartRequest, DialogueOpenedRequest, DialogueOptionsRequest, DialoguePickRequest, DialogueCloseRequest,

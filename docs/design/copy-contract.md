@@ -28,8 +28,8 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Animation graph state at spawn | the owner's | the owner's graph state (as a savegame keeps it) goes with the spawn; the copy's fresh graph loads it instead of replaying the owner's last action (`AnimationGraphState`, actor-ai-and-copies.md) |
 | Graph variables | inputs only, latest by owner tick | the variables the graph writes itself are not synced (`currentDefaultState`, `NotCasting`; see actor-ai-and-copies.md) |
 | AI packages (picked or engine-created) | no | `HookCheckForNewPackage` and `HookPutCreatedPackage` (References.cpp) |
-| Package sync from the owner | no | `AI_SYNC` stays 0 (References.cpp) |
-| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's, planned | decided 2026-10-19, revised 2026-10-20 (fields and getters, not condition functions), not built: below, "AI state" |
+| The owner's package | held, never run | the owner's form package in the copy's running slot, no target (`Actor::PutOwnerPackage`, `ActorPackage::InitFromPackage` 38959), so conditions, Papyrus and plugins reading the slot inline see it; `UpdateAI`, which runs packages, is cut; none or an engine-made one: the do-nothing package. Upstream's package relay (`AI_SYNC`, `NewPackageRequest`) is deleted |
+| AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's | built 2026-10-22 (`AiStateService`, `Games/Skyrim/CopyAiState.cpp`): package, scene, combat state and target; sitting and sleeping by replay; alarmed not yet. Below, "AI state" |
 | Combat controller, combat group membership | no | never given to a copy: `CombatUpdateJob` (46902) would run its combat AI (below, "AI state") |
 | Applying spell effects locally | no | the owner applies them (MagicTarget.cpp); on the host, the world's spells on a guest's character (a statue, a trap, a script making the copy cast) are sent to its owner too (`docs/re/systems/guest-world-events.md`) |
 | Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects with visuals; the copy plays just their hit shader and art while listed (EffectVisualsService) |
@@ -118,7 +118,7 @@ Full map: `docs/re/systems/actor-ai-and-copies.md`. In short:
 - Prior art does not cut the AI: SkyMP keeps it on and overrides `DrawWeaponMagicHands`' argument
   (a symptom filter like the reverted one); upstream Tilted Online skipped only `ApplyMovement`.
 
-## AI state: the owner's, for anything that asks (decided 2026-10-19, revised 2026-10-20, not built)
+## AI state: the owner's, for anything that asks (decided 2026-10-19, revised 2026-10-20, built 2026-10-22)
 
 A copy runs no AI, but whatever asks about the actor must get the owner's answer, the same as on the owner's
 game: a dialogue line's conditions on its speaker, a quest script, the engine itself, and later mods (Open
@@ -149,10 +149,48 @@ get the copy's own answer.
   controller field, and each must be checked not to use it after a "yes" (actor-ai-and-copies.md,
   "Combat state and its readers").
 - **The host's AI aimed at a guest's player.** A guest's own player counts as in combat from the combat groups
-  targeting it (41238, from 41261). On a guest those are copies with no groups, so the guest's player is never
-  in combat. The host sends each guest how many of its combatants target that guest's character, and the
-  guest's count uses it.
+  targeting it (41238, from 41261). On a guest those are copies with no groups, so the guest's player was never
+  in combat. Built 2026-10-22, not as first planned (a count sent by the host): each combatant's AI state already
+  says it fights that guest's character, so the guest counts its copies in combat with its player.
 - **Forms go by id** (packages, furniture, scenes), so a mod's package travels as a vanilla one does.
+
+**As built (2026-10-22).** `AiStateService` (every game), event-driven: the engine's package, combat, death and
+scene events (`Games/Skyrim/AiStateEvents.cpp`) mark an owned actor changed; its state is read on the main thread and
+sent (`AiStateRequest`) when it differs from the last sent. A spawn carries it. The host relays it from the owner only
+(`NotifyAiState`). No timed check, no periodic resend. The copy's side, `IActorBridge::SetCopyAiFields` and
+`Games/Skyrim/CopyAiState.cpp`:
+
+```
+owner's game                              copy's game
+TESPackageEvent / TESCombatEvent /        NotifyAiState, or the spawn's AiState
+TESDeathEvent / TESSceneEvent (any          -> SetCopyAiFields:
+  thread) -> AiStateChangeEvent (queued)       package  -> running slot
+  -> read (main thread), send if changed      scene, combat -> ActorExtension, answered
+                                              combat target -> combatHandle
+                                            -> SetCopiesFightingPlayer(count)
+```
+
+
+```
+package          the owner's form package in the running slot (InitFromPackage 38959), no target;
+                 nothing runs it (UpdateAI is cut). Every reader sees it, inline ones too (OAR)
+scene            Actor::GetCurrentScene (37247) hooked: the owner's
+combat state     IsInCombat (38562) and GetCombatState (38556) hooked: the owner's to the condition
+                 functions and plugins; the engine's own callers (which use the controller after a yes,
+                 often through EngagingInCombat 38563) get the copy's own
+combat target    Actor::currentCombatTarget (+0x104) written; the engine clears it again (open)
+player in combat 41261 hooked: copies fighting this game's player count as combat-group members
+furniture, follow target   not sent (no vanilla reader found); shown in the status's `ai`
+sit/sleep, talking         the owner's already, by replay
+alarmed          not carried (an engine-made package)
+```
+
+Readouts: the status's `ai_state` (package, scene, combat, combat target, in combat; `EngineCalls::GetAiReadout`, as
+conditions read them), compared by the desync check; harness `is_current_package`, `put_package` (which sends the
+package event, as evaluation does). Open: a combat target switch inside one fight has no event (the target travels
+with combat state changes only). Scenarios `copy-runs-owners-package`,
+`copy-in-owners-combat`, `guest-player-in-hosts-combat`. Details and the audit:
+`docs/re/systems/actor-ai-and-copies.md`, "Combat state and its readers".
 
 First user: shared dialogue syncing the step (`shared-dialogue.md`, "Next"), where each game judges its menu's
 topics against the NPC's copy. Measured on Skyrim and its DLC: about 200 of 15,449 menu lines test it,

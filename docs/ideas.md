@@ -126,6 +126,27 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Code cleanup
 
+- **Events over polling** (user, 2026-10-22: "we always want to use events over polling if possible"). Discrete
+  state should go out when an engine event or hook says it changed, not from a timer that re-reads it.
+  Continuous state (movement, animation variables) on the tick is fine. The timed reads left, mostly upstream's,
+  with the event or hook that could replace each (not checked in IDA unless said):
+  - `ActorValueService`: small health changes (250 ms), pools (100 ms), death states (250 ms, plus a 500 ms
+    retry), all actor values (1 s): `TESDeathEvent`, hooks on the actor value modifiers (`DamageActorValue`,
+    `RestoreActorValue`, `SetBase`).
+  - `CharacterService`: factions (2 s): hooks on `SetFactionRank`/`RemoveFromFaction`; experience (1 s): the skill
+    use hook it already has; actor discovery (each frame over every loaded actor): `TESCellAttachDetachEvent`,
+    `TESObjectLoadedEvent`; presence (2 s retry).
+  - `InventoryService`: weapon state (each frame), equipment snapshots (3 s), the naked NPC check (1 s):
+    `TESEquipEvent`, the draw/sheathe actions it already hooks.
+  - `PlayerService`: level (1 s, "the LevelUp hook is kinda weird"), beast form (250 ms, the race):
+    `TESSwitchRaceCompleteEvent`; difficulty (each frame): the settings write.
+  - `EffectVisualsService`: 250 ms checks and a full send every 2 s: `TESActiveEffectApplyRemove`.
+  - `DialogueService`: menu open and speaker each frame: `MenuOpenCloseEvent` (the archive's client had it).
+  - `HostWorldState`: globals and quests on intervals: `TESQuestStageEvent`, `TESQuestStartStopEvent`; globals
+    have no event (a hook on the global's value write).
+  - Done: `AiStateService` (2026-10-22, `TESPackageEvent`, `TESCombatEvent`, `TESSceneEvent`).
+  Per service, with its scenarios; drop any periodic full resend once the spawn or join carries the state.
+
 - **Rename `BridgeTests` to `HostAuthorityTests`** (2026-10-20). `HostBridge` became `HostAuthority`, but
   its tests are still the `BridgeTests` target in `Code/tests/bridge/` (`[Bridge]` tags, `BridgeTest`
   namespace). Rename the target, folder and tags together with every doc and script that names them

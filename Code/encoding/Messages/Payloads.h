@@ -4,6 +4,7 @@
 // host's authority, Code/client/Services/Host/HostAuthority.cpp). Both messages inherit the payload, so its
 // fields and their bytes are written once.
 
+#include <Structs/ActorAiState.h>
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 #include <Wire/Buffer.h>
@@ -176,15 +177,16 @@ struct Mount
     uint32_t MountId{};
 };
 
-struct NewPackage
+// An actor's AI state, when its owner's changed.
+struct AiState
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
-    bool operator==(const NewPackage&) const noexcept = default;
+    bool operator==(const AiState&) const noexcept = default;
 
-    uint32_t ActorId{};
-    GameId PackageId{};
+    uint32_t SessionId{};
+    ActorAiState State{};
 };
 
 struct Dialogue

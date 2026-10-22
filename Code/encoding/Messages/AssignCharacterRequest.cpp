@@ -19,6 +19,7 @@ void AssignCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const n
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     CurrentActorData.Serialize(aWriter);
     Serialization::WriteString(aWriter, GraphState);
+    AiState.Serialize(aWriter);
 }
 
 void AssignCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -53,4 +54,5 @@ void AssignCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
 
     CurrentActorData.Deserialize(aReader);
     GraphState = Serialization::ReadString(aReader);
+    AiState.Deserialize(aReader);
 }

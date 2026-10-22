@@ -15,7 +15,9 @@ struct MiddleProcess
     float direction; // B8
     uint8_t padBC[0x1A0 - 0xBC];
     GameList<ActiveEffect>* ActiveEffects;
-    uint8_t pad1A8[0x218 - 0x1A8];
+    uint8_t pad1A8[0x208 - 0x1A8];
+    uint32_t occupiedFurniture; // 208 ObjectRefHandle (CommonLib MiddleHighProcessData)
+    uint8_t pad20C[0x218 - 0x20C];
     BSPointerHandle<TESObjectREFR> commandingActor;
     uint8_t pad21C[0x220 - 0x21C];
     InventoryEntry* leftEquippedObject;
@@ -30,6 +32,7 @@ struct MiddleProcess
 };
 
 static_assert(offsetof(MiddleProcess, direction) == 0xB8);
+static_assert(offsetof(MiddleProcess, occupiedFurniture) == 0x208);
 static_assert(offsetof(MiddleProcess, leftEquippedObject) == 0x220);
 static_assert(offsetof(MiddleProcess, charController) == 0x250);
 static_assert(offsetof(MiddleProcess, rightEquippedObject) == 0x260);

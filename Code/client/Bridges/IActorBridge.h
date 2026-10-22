@@ -16,6 +16,17 @@
 /// Implementations must NOT leak any SKSE type into the return type or
 /// parameter list — only primitives, std::string, std::vector<T>, and
 /// Structs/ types (which have no SKSE dependency).
+// An actor's AI state (copy-contract.md, "AI state"): this game's form ids, 0 for none.
+struct ActorAiFields
+{
+    bool operator==(const ActorAiFields&) const noexcept = default;
+
+    uint32_t PackageId{};      // Actor::GetCurrentPackage
+    uint32_t SceneId{};        // Actor::GetCurrentScene
+    uint8_t CombatState{};     // Actor::GetCombatState
+    uint32_t CombatTargetId{}; // Actor::currentCombatTarget
+};
+
 class IActorBridge
 {
 public:
@@ -169,7 +180,14 @@ public:
     virtual uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept = 0;
 
     // --- AI / packages ---
-    virtual void SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept = 0;
+
+    // --- AI state ---
+    // One of this game's own actors, as its AI runs it.
+    virtual ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept = 0;
+    // A copy: holds its owner's AI state.
+    virtual void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept = 0;
+    // The copies fighting this game's player: it counts as in combat from them.
+    virtual void SetCopiesFightingPlayer(uint32_t aCount) noexcept = 0;
 
     // --- Animation variables ---
     virtual void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept = 0;

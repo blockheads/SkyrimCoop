@@ -182,6 +182,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     mod["water"] = {{"submerged", cWater.Submerged}, {"swimming", cWater.Swimming}, {"head_under", cWater.HeadUnder},
                     {"seconds_under", cWater.SecondsUnder}};
 
+    const auto cAi = EngineCalls::GetAiReadout(aFormId);
     return {
         {"identity", {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
                       {"race", actors.GetActorRaceFormId(aFormId)},
@@ -213,7 +214,14 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         {"graph", GraphVariables(aFormId)},
         {"mod", mod},
         // AI runs only on the owner (a copy's is disabled), so this is shown, not compared.
-        {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}, {"killer", actors.GetKillerFormId(aFormId)}}},
+        {"ai", {{"combat_target", actors.GetCombatTargetFormId(aFormId)}, {"killer", actors.GetKillerFormId(aFormId)},
+                {"running_package", EngineCalls::GetRunningPackage(aFormId)}, {"package_target", cAi.PackageTarget}, {"furniture", cAi.Furniture}, {"follow_target", cAi.FollowTarget},
+                // A copy's own voice line state, which trails its owner's (not compared).
+                {"talking", EngineCalls::IsTalking(aFormId)}}},
+        // The AI state every game reads 1:1: a copy holds its owner's (AiStateService), compared.
+        {"ai_state", {{"package", cAi.Package}, {"scene", cAi.Scene},
+                      {"combat", cAi.Combat}, {"combat_target", cAi.CombatTarget},
+                      {"in_combat", EngineCalls::IsInCombat(aFormId)}}},
     };
 }
 

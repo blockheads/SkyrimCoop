@@ -1,6 +1,7 @@
 #include <Bridges/HostEngine.h>
 
 #include <Bridges/ContainerItems.h>
+#include <AiStateEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -176,6 +177,7 @@ HostEngine::HostEngine(const ModSystem& acMods) noexcept
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
     ContainerEvents::Start();
+    AiStateEvents::Start();
     ModManager::WatchCreated(&OnCreated);
 }
 
@@ -185,6 +187,7 @@ HostEngine::~HostEngine() noexcept
     FormChanges::Unwatch(&OnFormChange);
     s_log.Take();
     ContainerEvents::Stop();
+    AiStateEvents::Stop();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept

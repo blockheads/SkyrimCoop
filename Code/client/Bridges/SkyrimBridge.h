@@ -99,7 +99,9 @@ public:
     void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override;
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
     uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;
-    void SetActorPackage(uint32_t aFormId, uint32_t aPackageFormId) noexcept override;
+    ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override;
+    void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override;
+    void SetCopiesFightingPlayer(uint32_t aCount) noexcept override;
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override;
     void ActorSaveAnimationVariables(uint32_t aFormId, AnimationVariables& aVars) const noexcept override;
     std::string SaveActorGraphState(uint32_t aFormId) const noexcept override;

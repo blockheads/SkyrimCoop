@@ -17,6 +17,7 @@
 #include <Services/ActorValueService.h>
 #include <Services/InventoryService.h>
 #include <Services/EffectVisualsService.h>
+#include <Services/AiStateService.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/TimeScaleService.h>
@@ -84,6 +85,7 @@ World::World()
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport,
                                ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
@@ -107,6 +109,7 @@ World::~World()
     ctx().erase<CombatService>();
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
+    ctx().erase<AiStateService>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
     ctx().erase<InventoryService>();

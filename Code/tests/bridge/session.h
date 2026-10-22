@@ -10,6 +10,8 @@
 #include <Services/Host/HostNetwork.h>
 
 #include <Messages/AddTargetRequest.h>
+#include <Messages/AiStateRequest.h>
+#include <Messages/NotifyAiState.h>
 #include <Messages/ActivateRequest.h>
 #include <Messages/LockChangeRequest.h>
 #include <Messages/ContainerChangeRequest.h>

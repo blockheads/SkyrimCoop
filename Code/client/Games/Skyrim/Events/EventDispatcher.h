@@ -73,9 +73,14 @@ struct TESCellFullyLoadedEvent
     TESObjectCELL* cell;
 };
 
+// CommonLibSSE-NG TESCombatEvent: an actor's combat state changed (not its target alone).
 struct TESCombatEvent
 {
+    TESObjectREFR* actor;       // 00 (NiPointer)
+    TESObjectREFR* targetActor; // 08 (NiPointer)
+    uint32_t newState;          // 10, 0 none, 1 combat, 2 searching
 };
+static_assert(offsetof(TESCombatEvent, newState) == 0x10);
 
 // Sent by InventoryChanges::SendContainerChangedEvent (16149) on every add and remove but a leveled roll.
 struct TESContainerChangedEvent
@@ -190,9 +195,21 @@ struct TESOpenCloseEvent
 };
 static_assert(offsetof(TESOpenCloseEvent, opened) == 0x10);
 
+// An actor's package started, ended or changed (sent by 39434-39436; read as the VM's sink 53984 reads it).
 struct TESPackageEvent
 {
+    enum Type : uint32_t
+    {
+        kStart = 0, // OnPackageStart
+        kEnd = 1,   // OnPackageEnd
+        kChange = 2 // OnPackageChange
+    };
+
+    TESObjectREFR* actor; // 00 (NiPointer)
+    uint32_t package;     // 08, form id
+    Type type;            // 0C
 };
+static_assert(offsetof(TESPackageEvent, type) == 0xC);
 
 struct TESInitScriptEvent
 {

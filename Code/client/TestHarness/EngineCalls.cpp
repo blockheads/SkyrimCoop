@@ -18,6 +18,7 @@
 #include <Forms/TESWorldSpace.h>
 #include <Games/FormState.h>
 #include <Games/Misc/SubtitleManager.h>
+#include <Games/Skyrim/Events/EventDispatcher.h>
 #include <Games/Overrides.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Games/TES.h>
@@ -748,9 +749,105 @@ bool IsProcessMe(uint32_t aFormId) noexcept
 int32_t GetPackageType(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
-    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->package)
+    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->currentPackage.package)
         return -1;
-    return pActor->currentProcess->package->packType;
+    return pActor->currentProcess->currentPackage.package->packType;
+}
+
+uint32_t GetRunningPackage(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->currentProcess || !pActor->currentProcess->currentPackage.package)
+        return 0;
+    return pActor->currentProcess->currentPackage.package->formID;
+}
+
+bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
+{
+    using TInitFromPackage = void(ActorPackage*, TESPackage*, TESObjectREFR* apTarget, Actor*);
+    POINTER_SKYRIMSE(TInitFromPackage, s_initFromPackage, 38959);
+    Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    auto* pPackage = Cast<TESPackage>(TESForm::GetById(aPackageId));
+    if (!pActor || !pActor->currentProcess || !pPackage)
+        return false;
+    s_initFromPackage(&pActor->currentProcess->currentPackage, pPackage, nullptr, pActor);
+    // BSTEventSource<TESPackageEvent>::SendEvent (39769), as the package senders (39434-39436) call it.
+    using TSendPackageEvent = void(EventDispatcher<TESPackageEvent>*, const TESPackageEvent*);
+    POINTER_SKYRIMSE(TSendPackageEvent, s_sendPackageEvent, 39769);
+    if (auto* pEvents = EventDispatcherManager::Get())
+    {
+        const TESPackageEvent cEvent{pActor, pPackage->formID, TESPackageEvent::kStart};
+        s_sendPackageEvent(&pEvents->packageEvent, &cEvent);
+    }
+    return true;
+}
+
+AiReadout GetAiReadout(uint32_t aFormId) noexcept
+{
+    AiReadout readout;
+    Actor* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor || !pActor->currentProcess)
+        return readout;
+    const TESPackage* pPackage = pActor->GetCurrentPackage();
+    readout.Package = pPackage ? pPackage->formID : 0;
+    const ActorPackage& cRunning = pActor->currentProcess->currentPackage;
+    if (pPackage && cRunning.package == pPackage)
+        if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(cRunning.target))
+            readout.PackageTarget = pTarget->formID;
+    // Through the hooked function: a copy answers its owner's.
+    using TGetCurrentScene = TESForm*(Actor*);
+    POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
+    if (const TESForm* pScene = s_getCurrentScene(pActor))
+        readout.Scene = pScene->formID;
+    if (const MiddleProcess* pMiddle = pActor->currentProcess->middleProcess)
+        if (const TESObjectREFR* pFurniture = TESObjectREFR::GetByHandle(pMiddle->occupiedFurniture))
+            readout.Furniture = pFurniture->formID;
+    if (const TESObjectREFR* pFollowed = TESObjectREFR::GetByHandle(pActor->currentProcess->followTarget))
+        readout.FollowTarget = pFollowed->formID;
+    // GameFunc::native::GetCombatState (subject, two parameters, the result), as a dialogue line reads it.
+    using TCondition = bool(TESObjectREFR*, void*, void*, double*);
+    POINTER_SKYRIMSE(TCondition, s_getCombatState, 21740);
+    double combat = 0.0;
+    s_getCombatState(pActor, nullptr, nullptr, &combat);
+    readout.Combat = static_cast<uint32_t>(combat);
+    if (const TESObjectREFR* pTarget = TESObjectREFR::GetByHandle(pActor->combatHandle))
+        readout.CombatTarget = pTarget->formID;
+    return readout;
+}
+
+bool IsTalking(uint32_t aFormId) noexcept
+{
+    using TIsTalking = bool(Actor*);
+    POINTER_SKYRIMSE(TIsTalking, s_isTalking, 37266);
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    return pActor && s_isTalking(pActor);
+}
+
+bool IsInCombat(uint32_t aFormId) noexcept
+{
+    // The condition IsInCombat (21576: subject, two parameters, the result), which reads the actor's vfunc 0xE3.
+    using TCondition = bool(TESObjectREFR*, void*, void*, double*);
+    POINTER_SKYRIMSE(TCondition, s_isInCombat, 21576);
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    if (!pActor)
+        return false;
+    double result = 0.0;
+    s_isInCombat(pActor, nullptr, nullptr, &result);
+    return result == 1.0;
+}
+
+std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
+{
+    // GameFunc::native::GetIsCurrentPackage (subject, the package parameter, unused, the result).
+    using TCondition = bool(TESObjectREFR*, TESForm*, void*, double*);
+    POINTER_SKYRIMSE(TCondition, s_getIsCurrentPackage, 21529);
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    auto* pPackage = Cast<TESPackage>(TESForm::GetById(aPackageId));
+    if (!pActor || !pPackage)
+        return std::nullopt;
+    double result = 0.0;
+    s_getIsCurrentPackage(pActor, pPackage, nullptr, &result);
+    return result == 1.0;
 }
 
 Water GetWater(uint32_t aFormId) noexcept

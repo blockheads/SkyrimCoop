@@ -24,6 +24,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAssignment(const AssignCharacterR
     spawn.FactionsContent = acAssignment.FactionsContent;
     spawn.LatestAction = acAssignment.LatestAction;
     spawn.GraphState = acAssignment.GraphState;
+    spawn.AiState = acAssignment.AiState;
     spawn.FaceTints = acAssignment.FaceTints;
     spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
@@ -55,6 +56,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteBool(aWriter, IsWeaponDrawn);
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     Serialization::WriteString(aWriter, GraphState);
+    AiState.Serialize(aWriter);
 }
 
 void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -91,4 +93,5 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     IsWeaponDrawn = Serialization::ReadBool(aReader);
     IsPlayerSummon = Serialization::ReadBool(aReader);
     GraphState = Serialization::ReadString(aReader);
+    AiState.Deserialize(aReader);
 }

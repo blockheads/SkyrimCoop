@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <Structs/ActorAiState.h>
 #include <Structs/GameId.h>
 #include <Structs/ActionEvent.h>
 #include <Structs/Tints.h>
@@ -32,7 +33,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     {
         return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
                InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
-               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && GetOpcode() == acRhs.GetOpcode();
+               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && AiState == acRhs.AiState && GetOpcode() == acRhs.GetOpcode();
     }
 
     uint32_t SessionId{};
@@ -48,6 +49,8 @@ struct NotifyCharacterSpawn final : NotifyMessage
     ActionEvent LatestAction{};
     // The owner's behaviour graphs' state: the copy's fresh graph loads it instead of replaying LatestAction.
     std::string GraphState{};
+    // What its AI is doing, for the copy to hold from the start (AiStateService).
+    ActorAiState AiState{};
     Tints FaceTints{};
     ActorValues InitialActorValues{};
     uint32_t PlayerId{};

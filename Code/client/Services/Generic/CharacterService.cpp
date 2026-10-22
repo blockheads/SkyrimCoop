@@ -10,7 +10,6 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/MountEvent.h>
-#include <Events/InitPackageEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/DialogueEvent.h>
@@ -31,13 +30,12 @@
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyMount.h>
-#include <Messages/NewPackageRequest.h>
-#include <Messages/NotifyNewPackage.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyRespawn.h>
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
+#include <Services/AiStateService.h>
 #include <Messages/SyncExperienceRequest.h>
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/DialogueRequest.h>
@@ -86,8 +84,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_mountConnection = m_dispatcher.sink<MountEvent>().connect<&CharacterService::OnMountEvent>(this);
     m_notifyMountConnection = m_dispatcher.sink<NotifyMount>().connect<&CharacterService::OnNotifyMount>(this);
 
-    m_initPackageConnection = m_dispatcher.sink<InitPackageEvent>().connect<&CharacterService::OnInitPackageEvent>(this);
-    m_newPackageConnection = m_dispatcher.sink<NotifyNewPackage>().connect<&CharacterService::OnNotifyNewPackage>(this);
 
     m_notifyRespawnConnection = m_dispatcher.sink<NotifyRespawn>().connect<&CharacterService::OnNotifyRespawn>(this);
     m_playerArrivedConnection =
@@ -872,58 +868,6 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
         m_actorBridge.ActorInitiateMountPackage(cRiderFormId, mountFormId);
 }
 
-void CharacterService::OnInitPackageEvent(const InitPackageEvent& acEvent) const noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-
-    auto view = m_world.view<FormIdComponent>();
-
-    const auto actorIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.ActorId, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
-
-    if (actorIt == std::end(view))
-        return;
-
-    const entt::entity cActorEntity = *actorIt;
-
-    std::optional<uint32_t> actorSessionIdRes = Utils::GetSessionId(cActorEntity);
-    if (!actorSessionIdRes.has_value())
-    {
-        spdlog::error("{}: failed to find session id", __FUNCTION__);
-        return;
-    }
-
-    NewPackageRequest request;
-    request.ActorId = actorSessionIdRes.value();
-    if (!m_world.GetModSystem().GetServerModId(acEvent.PackageId, request.PackageId.ModId, request.PackageId.BaseId))
-        return;
-
-    m_transport.Send(request);
-}
-
-void CharacterService::OnNotifyNewPackage(const NotifyNewPackage& acMessage) const noexcept
-{
-    auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
-    const auto remoteIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.ActorId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
-
-    if (remoteIt == std::end(remoteView))
-    {
-        spdlog::warn("Actor for package with remote id {:X} not found.", acMessage.ActorId);
-        return;
-    }
-
-    auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
-
-    const uint32_t cPackageFormId = World::Get().GetModSystem().GetGameId(acMessage.PackageId);
-    if (!cPackageFormId)
-    {
-        spdlog::warn("Actor package not found, base id: {:X}, mod id: {:X}", acMessage.PackageId.BaseId, acMessage.PackageId.ModId);
-        return;
-    }
-
-    m_actorBridge.SetActorPackage(formIdComponent.Id, cPackageFormId);
-}
-
 void CharacterService::OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept
 {
     m_cachedExperience += acEvent.Experience;
@@ -1109,6 +1053,8 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
     message.CurrentActorData = cState.Data;
     message.LatestAction = cState.LatestAction;
     message.GraphState = cState.GraphState;
+    if (const auto* pAiState = m_world.ctx().find<AiStateService>())
+        message.AiState = pAiState->ReadState(formIdComponent.Id);
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);

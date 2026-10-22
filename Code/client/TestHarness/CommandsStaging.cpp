@@ -73,6 +73,12 @@ nlohmann::json MoveActor(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::MoveActorToPlayer(cActor, cSpot) ? Ok() : Error("no such actor");
 }
 
+// {"cmd": "put_package", "actor": id, "package": id}: the actor runs that package (EngineCalls::PutPackage). This game only.
+nlohmann::json PutPackage(Harness&, const nlohmann::json& acRequest)
+{
+    return EngineCalls::PutPackage(acRequest.value("actor", 0u), acRequest.value("package", 0u)) ? Ok() : Error("no such actor or package, or no AI process");
+}
+
 // {"cmd": "face", "target": id}: the player turns toward the actor (yaw and pitch).
 nlohmann::json Face(Harness&, const nlohmann::json& acRequest)
 {
@@ -98,7 +104,7 @@ nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 constexpr Command cCommands[] = {
     {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
-    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"clear_map_marker", true, &ClearMapMarker},
+    {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"clear_map_marker", true, &ClearMapMarker},
 };
 } // namespace
 
