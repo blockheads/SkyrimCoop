@@ -3,7 +3,7 @@
 target("coop_peer")
     set_kind("binary")
     set_group("Tests")
-    set_languages("cxx20")
+    set_languages("cxx23")
     add_files("coop_peer.cpp")
     add_deps("SkyrimEncoding", "SkyrimCoopNetworking", "CommonLib")
     add_packages("glm", "spdlog", "hopscotch-map", "rpmalloc", "enet6", "snappy", "libuv")

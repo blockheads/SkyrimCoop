@@ -3,7 +3,7 @@
 target("BridgeTests")
     set_kind("binary")
     set_group("Tests")
-    set_languages("cxx20")
+    set_languages("cxx23")
     set_pcxxheader("Pch.h")
     add_files("*.cpp", "../../client/Services/Host/*.cpp")
     add_includedirs(".", "../../client")

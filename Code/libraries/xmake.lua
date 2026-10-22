@@ -2,7 +2,7 @@
 -- This file consolidates TiltedConnect, TiltedHooks and TiltedReverse
 -- into the main SkyrimCoop repository for easier debugging and maintenance
 
-set_languages("cxx20")
+set_languages("cxx23")
 
 -- Networking (formerly TiltedConnect): the enet transport, the host's listener and a guest's connection
 target("SkyrimCoopNetworking")

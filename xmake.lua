@@ -13,7 +13,7 @@ if set_policy ~= nil then
 end
 
 -- c code will use c99,
-set_languages("c99", "cxx20")
+set_languages("c99", "cxx23")
 
 
 if is_plat("linux") then
