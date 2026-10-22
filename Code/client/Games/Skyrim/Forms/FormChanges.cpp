@@ -42,18 +42,20 @@ uint64_t TP_MAKE_THISCALL(HookAddChangeForced, TESForm, uint32_t aFlags)
     return cResult;
 }
 
-// Its return is not a result. Recorded: the change record held a flag before and not after (none drop while a
-// load runs).
-TP_THIS_FUNCTION(TRemoveChange, uint64_t, TESForm, uint32_t);
-TRemoveChange* RealRemoveChange = nullptr;
+// The change records' own remove (35511, (map, form id, flags)): TESForm::RemoveChange (14609) calls it, and so does
+// StoreChangesOnUnload (35570) for the flags a reference it stores or demotes does not keep. Recorded: the record held
+// a flag before and not after.
+TP_THIS_FUNCTION(TRemoveFlags, bool, void, uint32_t, uint32_t);
+TRemoveFlags* RealRemoveFlags = nullptr;
 
-uint64_t TP_MAKE_THISCALL(HookRemoveChange, TESForm, uint32_t aFlags)
+bool TP_MAKE_THISCALL(HookRemoveFlags, void, uint32_t aFormId, uint32_t aFlags)
 {
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
-    const bool cHeld = apThis && pSaveLoad && pSaveLoad->HasChange(*apThis, aFlags);
-    const uint64_t cResult = TiltedPhoques::ThisCall(RealRemoveChange, apThis, aFlags);
+    const TESForm* pForm = TESForm::GetById(aFormId);
+    const bool cHeld = pForm && pSaveLoad && pSaveLoad->HasChange(*pForm, aFlags);
+    const bool cResult = TiltedPhoques::ThisCall(RealRemoveFlags, apThis, aFormId, aFlags);
     if (cHeld)
-        Notify(apThis, aFlags, false, !pSaveLoad->HasChange(*apThis, aFlags));
+        Notify(pForm, aFlags, false, !pSaveLoad->HasChange(*pForm, aFlags));
     return cResult;
 }
 
@@ -63,13 +65,13 @@ TiltedPhoques::Initializer s_formChangesHooks(
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TAddChange, s_addChange, 14607);
         POINTER_SKYRIMSE(TAddChangeForced, s_addChangeForced, 14608);
-        POINTER_SKYRIMSE(TRemoveChange, s_removeChange, 14609);
+        POINTER_SKYRIMSE(TRemoveFlags, s_removeFlags, 35511);
         RealAddChange = s_addChange.Get();
         RealAddChangeForced = s_addChangeForced.Get();
-        RealRemoveChange = s_removeChange.Get();
+        RealRemoveFlags = s_removeFlags.Get();
         TP_HOOK(&RealAddChange, HookAddChange);
         TP_HOOK(&RealAddChangeForced, HookAddChangeForced);
-        TP_HOOK(&RealRemoveChange, HookRemoveChange);
+        TP_HOOK(&RealRemoveFlags, HookRemoveFlags);
     });
 } // namespace
 

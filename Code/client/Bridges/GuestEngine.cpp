@@ -1,7 +1,8 @@
 #include <Bridges/GuestEngine.h>
 
 #include <Bridges/ContainerItems.h>
-#include <CellEvents.h>
+#include <Havok/bhkCollision.h>
+#include <NetImmerse/NiNode.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -13,6 +14,7 @@
 #include <Forms/TESGlobal.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESQuest.h>
+#include <Forms/TESWorldSpace.h>
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
 #include <Papyrus/WorldEvents.h>
@@ -21,6 +23,7 @@
 #include <Actor.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
+
 
 namespace
 {
@@ -148,13 +151,18 @@ GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
     : m_mods(acMods)
 {
     ContainerEvents::Start();
-    CellEvents::Start();
 }
 
 GuestEngine::~GuestEngine() noexcept
 {
+    // The host's created objects go with the session: a next one makes them again.
+    for (const auto& [cHostId, cHandle] : m_created)
+        if (TESObjectREFR* pMade = TESObjectREFR::GetByHandle(cHandle); pMade && !pMade->IsDeleted())
+        {
+            pMade->DisableImpl();
+            pMade->SetDelete(true);
+        }
     ContainerEvents::Stop();
-    CellEvents::Stop();
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
@@ -237,6 +245,7 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     BGSStoryManager::SetPicksQuests(aOn);
     WorldEvents::SetDelivered(aOn);
     ExtraContainerChanges::Data::SetRollsWorldContainers(aOn);
+    TESObjectREFR::SetPicksLeveledBases(aOn);
 }
 
 std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
@@ -244,30 +253,73 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
     return ::ReadContainerItems(m_mods, aObjectFormId, aItemFormId);
 }
 
+TESObjectREFR* GuestEngine::FindReference(const GameId& acId) const noexcept
+{
+    if (acId.ModId != ObjectChange::kCreatedModId)
+        return ::FindReference(acId, m_mods);
+    const auto it = m_created.find(acId.BaseId);
+    return it != m_created.end() ? TESObjectREFR::GetByHandle(it->second) : nullptr;
+}
+
+bool GuestEngine::Create(const ObjectChange& acChange) noexcept
+{
+    if (const TESObjectREFR* pMade = FindReference(acChange.Object); pMade && !pMade->IsDeleted())
+        return true;
+    ObjectChange::Placement placement;
+    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));
+    if (!pBase || !ObjectChange::UnpackPlacement(acChange.Data, placement))
+        return false;
+    auto* pCell = placement.Cell ? Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(placement.Cell))) : nullptr;
+    auto* pWorldSpace = placement.WorldSpace ? Cast<TESWorldSpace>(TESForm::GetById(m_mods.GetGameId(placement.WorldSpace))) : nullptr;
+    ModManager* pManager = ModManager::Get();
+    if ((!pCell && !pWorldSpace) || !pManager)
+        return false;
+    const NiPoint3 cPosition(glm::vec3(placement.Position[0], placement.Position[1], placement.Position[2]));
+    const NiPoint3 cRotation(glm::vec3(placement.Rotation[0], placement.Rotation[1], placement.Rotation[2]));
+    const uint32_t cHandle = pManager->CreateReference(pBase, cPosition, cRotation, pCell, pWorldSpace);
+    if (!TESObjectREFR::GetByHandle(cHandle))
+        return false;
+    m_created[acChange.Object.BaseId] = cHandle;
+    return true;
+}
+
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
 {
-    auto* pObject = FindReference(acChange.Object, m_mods);
+    // The host's change, already sent: our hooks raise no events for it, so nothing goes back.
+    ScopedHostChangeOverride _;
+    if (acChange.Type == ObjectChange::Kind::kCreate)
+        return Create(acChange);
+    auto* pObject = FindReference(acChange.Object);
     if (!pObject)
         return false;
     if (aLoad && ReferenceStates::Matches(*pObject, acChange, m_mods))
         return true;
-    // The host's change, already sent: our hooks raise no events for it, so nothing goes back.
-    ScopedHostChangeOverride _;
-    if (acChange.Type == ObjectChange::Kind::kActivate)
-        return ActivateDoor(*pObject, acChange, m_mods);
-    if (acChange.Type == ObjectChange::Kind::kAnimation)
+    switch (acChange.Type)
     {
-        PlayAnimation(*pObject, acChange);
+    case ObjectChange::Kind::kMove: return PlaceAtHostRest(*pObject, acChange);
+    case ObjectChange::Kind::kActivate: return ActivateDoor(*pObject, acChange, m_mods);
+    case ObjectChange::Kind::kAnimation: PlayAnimation(*pObject, acChange); return true;
+    case ObjectChange::Kind::kRecord:
+        ReferenceStates::RecordRows(*pObject, acChange.Value);
         return true;
-    }
-    if (acChange.Type == ObjectChange::Kind::kContents)
-        return ApplyContainerContents(m_mods, *pObject, acChange);
-    if (acChange.Type == ObjectChange::Kind::kItems)
+    case ObjectChange::Kind::kContents: return ApplyContainerContents(m_mods, *pObject, acChange);
+    case ObjectChange::Kind::kItems:
     {
         auto* pItem = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));
         return !Cast<Actor>(pObject) && pObject->SetContainerCount(pItem, static_cast<int32_t>(acChange.Value));
     }
-    return ReferenceStates::Apply(*pObject, acChange, m_mods);
+    default: return ReferenceStates::Apply(*pObject, acChange, m_mods);
+    }
+}
+
+bool GuestEngine::PlaceAtHostRest(TESObjectREFR& aObject, const ObjectChange& acMove) noexcept
+{
+    if (!ReferenceStates::Apply(aObject, acMove, m_mods))
+        return false;
+    // This game's own flight of it ends there, and stays: its physics no longer moves it.
+    if (NiNode* p3D = aObject.GetNiNode())
+        HoldBodies(*p3D);
+    return true;
 }
 
 TiltedPhoques::Vector<uint32_t> GuestEngine::AttachedCells() const noexcept
@@ -275,7 +327,8 @@ TiltedPhoques::Vector<uint32_t> GuestEngine::AttachedCells() const noexcept
     TiltedPhoques::Vector<uint32_t> cells;
     if (const TES* pTes = TES::Get())
         for (const TESObjectCELL* pCell : pTes->AttachedCells())
-            cells.push_back(pCell->formID);
+            if (pCell->IsFullyLoaded())
+                cells.push_back(pCell->formID);
     return cells;
 }
 

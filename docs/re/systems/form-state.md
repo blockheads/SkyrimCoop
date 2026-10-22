@@ -112,3 +112,9 @@ What the change funnel (`AddChangeFlags`) does and does not see of a reference, 
   Inn): `TESForm::GetById` finds them, and a change applied while unloaded is there when the cell loads again.
 - **Opening a door with lock data re-sets its lock** (the console's `SetOpenState`): an `AddLockChange` and a
   `TESLockChangedEvent` with the lock unchanged.
+- **A placed leveled item picks its base once** (`TESObjectREFR::PickLeveledBase`, 20232, our name): for a
+  reference with `ExtraLeveledItemBase` (0x90, `XLIB`), rolls the list at `GetCalcLevel` (`TESLeveledList` 14752),
+  and with a pick: vfunc 0x84 (`SetObjectReference` 19785: the base at +0x40 and its destructible flag), records
+  `0x80`, then `sub_19671`. Called from the cell's reference loads (`sub_1402C9990`, `sub_1402CC7F0`, both under
+  `TESObjectCELL` 19084). The pick is per game: two games show different books.
+

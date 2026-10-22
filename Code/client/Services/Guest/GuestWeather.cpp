@@ -8,7 +8,6 @@ GuestWeather::GuestWeather(entt::dispatcher& aDispatcher, GuestEngine& aEngine) 
     : m_engine(aEngine)
 {
     m_weatherConnection = aDispatcher.sink<NotifyWeatherChange>().connect<&GuestWeather::OnWeatherChange>(this);
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&GuestWeather::OnUpdate>(this);
 }
 
 GuestWeather::~GuestWeather() noexcept

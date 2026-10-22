@@ -30,15 +30,18 @@ struct BGSLoadFormBuffer;
 
 struct TESForm : BaseFormComponent
 {
+    // A change record's entry (35503): its flags, and the buffer its changes went to when it unloaded or was
+    // demoted (StoreChangesOnUnload 35570), its live flags then cleared.
     struct ChangeFlags
     {
         uint32_t flags{};
-        uint64_t unk4{};
+        uint64_t storedBuffer{};
         uint32_t unkC{};
     };
 
     enum FormFlags
     {
+        DELETED = 1 << 0x5,
         PERSISTENT = 1 << 0xA, // TESForm::IsPersistent (19593): a reference the engine keeps when its cell unloads
         DISABLED = 1 << 0xB,
         IGNORE_FRIENDLY_HITS = 1 << 0x14,
@@ -77,7 +80,8 @@ struct TESForm : BaseFormComponent
     virtual void sub_20();
     virtual void sub_21();
     virtual void sub_22();
-    virtual void sub_23();
+    // 14636 (TESObjectREFR's 19565): the deleted flag, recorded as form flags (AddChange 1); returns the old one.
+    virtual bool SetDelete(bool aSet);
     virtual void sub_24();
     virtual void sub_25();
     virtual void sub_26();
@@ -107,6 +111,8 @@ struct TESForm : BaseFormComponent
     void Save_Reversed(uint32_t aChangeFlags, Buffer::Writer& aWriter);
     void SetSkipSaveFlag(bool aSet) noexcept;
     uint32_t GetChangeFlags() const noexcept;
+    // Its changes sit in a stored buffer (StoreChangesOnUnload): kept, though no live flag shows them.
+    bool HasStoredChanges() const noexcept;
 
     bool GetIgnoreFriendlyHit() const noexcept { return (flags & IGNORE_FRIENDLY_HITS) != 0; }
     void SetIgnoreFriendlyHit(bool aSet) noexcept
@@ -118,6 +124,7 @@ struct TESForm : BaseFormComponent
     }
 
     bool IsDisabled() const noexcept { return (flags & DISABLED) != 0; }
+    bool IsDeleted() const noexcept { return (flags & DELETED) != 0; }
     void SetPersistent() noexcept { flags |= PERSISTENT; }
     bool IsTemporary() const noexcept { return formID >= 0xFF000000; }
     bool IsConsumable() const noexcept { return formType == FormType::Ingredient || formType == FormType::Alchemy; }

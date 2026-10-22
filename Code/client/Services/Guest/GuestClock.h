@@ -21,9 +21,11 @@ struct GuestClock
     // False while a guest runs the host's clock: the engine's own (Calendar::Update) then stays off.
     static bool GameClockRuns() noexcept { return !s_hostClock; }
 
+    // Each frame, from GuestService (the parts subscribe to no update: they come and go inside one).
+    void OnUpdate(const UpdateEvent& acEvent) noexcept;
+
 private:
     void OnTimeSettings(const ServerTimeSettings& acMessage) noexcept;
-    void OnUpdate(const UpdateEvent& acEvent) noexcept;
     // The hour shown while fading from the game's own to the host's.
     float FadedHour() const noexcept;
 
@@ -38,5 +40,4 @@ private:
     uint64_t m_lastTick = 0;
 
     entt::scoped_connection m_timeConnection;
-    entt::scoped_connection m_updateConnection;
 };

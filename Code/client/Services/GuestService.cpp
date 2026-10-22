@@ -3,6 +3,7 @@
 #include <Bridges/GuestEngine.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
+#include <Events/UpdateEvent.h>
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
@@ -32,6 +33,7 @@ GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcep
 {
     m_connectedConnection = aDispatcher.sink<ConnectedEvent>().connect<&GuestService::OnConnected>(this);
     m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&GuestService::OnDisconnected>(this);
+    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&GuestService::OnUpdate>(this);
 }
 
 GuestService::~GuestService() noexcept = default;
@@ -46,4 +48,13 @@ void GuestService::OnConnected(const ConnectedEvent&) noexcept
 void GuestService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_pGuest.reset();
+}
+
+void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
+{
+    if (!m_pGuest)
+        return;
+    m_pGuest->Clock.OnUpdate(acEvent);
+    m_pGuest->Weather.OnUpdate(acEvent);
+    m_pGuest->WorldState.OnUpdate(acEvent);
 }

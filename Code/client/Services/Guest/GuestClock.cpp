@@ -18,7 +18,6 @@ GuestClock::GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine
     , m_engine(aEngine)
 {
     m_timeConnection = aDispatcher.sink<ServerTimeSettings>().connect<&GuestClock::OnTimeSettings>(this);
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&GuestClock::OnUpdate>(this);
 }
 
 GuestClock::~GuestClock() noexcept

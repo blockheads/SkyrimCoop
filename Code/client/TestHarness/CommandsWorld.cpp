@@ -224,6 +224,8 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
             ref["changes"] = cRef.Changes;
         if (cRef.Leveled)
             ref["leveled"] = cRef.Leveled;
+        if (cRef.Stored)
+            ref["stored"] = true;
         if (cRef.Items)
         {
             auto items = nlohmann::json::object();

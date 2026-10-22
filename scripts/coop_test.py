@@ -3786,9 +3786,11 @@ POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE = 1.0, 0.01, 2.0
 CREATED_ID = 0xFF000000  # references a game made itself, numbered per game
 FORM_DISABLED = 0x800
 FORM_ALTERED = 0x2  # TESForm kAltered: the engine's "has changes" bookkeeping, not the world's state
+FORM_HEADING_TARGET = 0x40000  # has an ExtraHeadingTarget (19584, from SetHeadingTargetRefHandle): look-at bookkeeping
 # Change record bits each game keeps for itself: ANIMATION (a graph's state, e.g. furniture someone used),
 # PROMOTED (a reference its player touched made persistent) and GAME_ONLY_EXTRA (runtime bookkeeping, never sent).
 CHANGES_OWN = 0x10000000 | 0x2000000 | 0x80000000
+CHANGES_MOVED, CHANGES_HAVOK_MOVED = 0x2, 0x4
 
 
 def world_state(instance, ids=None):
@@ -3878,9 +3880,11 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
         if field == "lock":  # no lock reads as unlocked at level 0, as the lock row does
             a, b = (v or {"level": 0, "locked": False} for v in (a, b))
         if field == "flags" and a is not None and b is not None:
-            a, b = a & ~FORM_ALTERED, b & ~FORM_ALTERED
+            a, b = a & ~(FORM_ALTERED | FORM_HEADING_TARGET), b & ~(FORM_ALTERED | FORM_HEADING_TARGET)
         if field == "changes":
             a, b = (a or 0) & ~CHANGES_OWN or None, (b or 0) & ~CHANGES_OWN or None
+            # Moved by a call or by physics: either way its position is what a save keeps.
+            a, b = ((v | CHANGES_MOVED) & ~CHANGES_HAVOK_MOVED if v and v & CHANGES_HAVOK_MOVED else v for v in (a, b))
         if field in WORLD_TOLERANCES and a is not None and b is not None:
             same = near(a, b, WORLD_TOLERANCES[field], angle=field == "rotation")
         else:
@@ -3937,11 +3941,11 @@ def world_differences(host, guest, host_again=(), guest_again=()):
 IDLE_SAMPLES, IDLE_INTERVAL = 3, 0.3  # host samples a second apart: what moved between them animates on its own
 
 
-def sample_worlds():
+def sample_worlds(idle_samples=IDLE_SAMPLES):
     """Both games' worlds, and each again over a second: (host, guest, [host again], [guest again])."""
     host, guest = world_state(""), world_state("client")
     host_again, guest_again = [], []
-    for _ in range(IDLE_SAMPLES):
+    for _ in range(idle_samples):
         time.sleep(IDLE_INTERVAL)
         host_again.append(world_state(""))
         guest_again.append(world_state("client"))
@@ -3951,9 +3955,9 @@ def sample_worlds():
 WORLD_WINDOW = 3.0  # seconds a world difference must last to count: the guest applies a change a frame or more later
 
 
-def shared_world_differences():
+def shared_world_differences(idle_samples=IDLE_SAMPLES):
     """world_differences over the cells both games have loaded (the exterior grids around two players differ)."""
-    worlds = sample_worlds()
+    worlds = sample_worlds(idle_samples)
     cells = {r["cell"] for r in worlds[0].values()} & {r["cell"] for r in worlds[1].values()}
     def cut(world):
         return {i: r for i, r in world.items() if r["cell"] in cells}
@@ -3963,6 +3967,11 @@ def shared_world_differences():
 def check_world(known=frozenset(), window=WORLD_WINDOW):
     """The world differences that last the whole window, without the (reference, field) pairs in `known` (already
     different before): {reference: {field: 'host vs guest'}}."""
+    def new(differences):
+        return any((label, f) not in known for label, fields in differences.items() for f in fields)
+    # One quick look first: the idle samples only take differences away, so none here is none.
+    if not new(shared_world_differences(idle_samples=0)):
+        return {}
     deadline = time.monotonic() + window
     persistent = None
     while True:
@@ -4130,12 +4139,31 @@ def world_change_reaches_guest(name, pick, stage, change, undo, refs):
             wait_for(f"[both] {ref:X}'s events alike", lambda: object_events("", since[""], ref) == object_events("client", since["client"], ref), 3)
 
 
+def settled(ref, still_for=1.0, timeout=30):
+    """Waits until the host's physics object stays within half a unit and 0.005 rad of one spot for still_for
+    seconds (HostEngine's rest rule)."""
+    anchor = {}
+    def still():
+        now = world_state("", [ref]).get(ref)
+        if now is None:
+            return False
+        if not anchor or not near(anchor["position"], now["position"], 0.5) or not near(anchor["rotation"], now["rotation"], 0.005, angle=True):
+            anchor.update(position=now["position"], rotation=now["rotation"], since=time.monotonic())
+            return False
+        return time.monotonic() - anchor["since"] >= still_for
+    wait_for(f"[host] {ref:X} comes to rest", still, timeout)
+
+
 def created_reaches_guest(refs, base):
     """The host places a new object: the client shows one like it. Deleted again in both games."""
     before = {game: set(world_state(game)) for game in ("", "client")}
     console_on("", f"player.placeatme {base:X} 1")
     try:
         made = wait_for("[host] the new object", lambda: set(world_state("")) - before[""], 3)
+        # It drops and rolls (a ladle rocks for 20s): compared where the host's comes to rest (each game simulates
+        # the fall, the host's rest goes out).
+        for ref in made:
+            settled(ref)
         missing = {}
         def twin_shown():
             host, guest = world_state(""), world_state("client")
@@ -4231,6 +4259,47 @@ def scenario_guest_opens_hosts_roll():
             raise TestFailure(f"[client] opened {chest:X} holding its own roll: " + item_differences(host, theirs, "host", "client"))
         rpc({"cmd": "menu", "name": "ContainerMenu", "show": False})
         wait_for("[client] the menu closed", lambda: takes_input("client"), 5)
+    finally:
+        both_go(HOME_CELL)
+
+
+SINKHOLE = "SoljundsSinkhole01"
+BASE_PICKED = 0x80  # change record: the base object, e.g. a placed leveled item's pick
+
+
+def scenario_placed_leveled_items_are_hosts():
+    """A reference placed with a leveled base picks it when its cell first loads (Soljund's Sinkhole's clutter book:
+    `DummyBook` with XLIB `LItemBookClutter`, 124 books): the client's is the host's pick, its 3D the new base's.
+    Where it rests is step 5's (physics), not checked here."""
+    try:
+        both_go(SINKHOLE)
+        refs = world_state("")
+        picked = sorted(i for i, r in refs.items() if (r.get("changes") or 0) & BASE_PICKED and i < CREATED_ID)
+        if not picked:
+            raise TestFailure(f"[host] nothing in {SINKHOLE} picked its base: the test shows nothing")
+        def differences():
+            host, guest = world_state("", picked), world_state("client", picked)
+            found = {}
+            for ref in picked:
+                a, b = host[ref], guest.get(ref)
+                if b is None:
+                    found[ref] = "client lacks it"
+                elif a["base"] != b["base"]:
+                    found[ref] = f"base {a['base']:X} vs {b['base']:X}"
+                elif (a["has_3d"], a.get("hidden")) != (b["has_3d"], b.get("hidden")):
+                    found[ref] = f"3D {a['has_3d']}/{a.get('hidden')} vs {b['has_3d']}/{b.get('hidden')}"
+                elif sorted(a.get("pose") or {}) != sorted(b.get("pose") or {}):
+                    found[ref] = f"model nodes {sorted(a.get('pose') or {})} vs {sorted(b.get('pose') or {})}"
+            return found
+        left = {}
+        def matches():
+            left.clear()
+            left.update(differences())
+            return not left
+        with contextlib.suppress(TestFailure):
+            wait_for(f"[client] {len(picked)} picked bases as the host's", matches, 5)
+        if left:
+            raise TestFailure("[client] picked its own: " + "; ".join(f"{ref:X} {text}" for ref, text in left.items()))
     finally:
         both_go(HOME_CELL)
 
@@ -5132,6 +5201,7 @@ SCENARIOS = {
     "world-changes-reach-guest": scenario_world_changes_reach_guest,
     "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
     "guest-opens-hosts-roll": scenario_guest_opens_hosts_roll,
+    "placed-leveled-items-are-hosts": scenario_placed_leveled_items_are_hosts,
     # input (real keyboard and mouse; only when named or tagged)
     "input-keyboard-draw": scenario_input_keyboard_draw,
     "input-mouse-cast": scenario_input_mouse_cast,
@@ -5225,6 +5295,7 @@ TAGS = {
     "world-changes-reach-guest": {'world', 'objects', 'inventory'},
     "late-join-gets-cell-state": {'world', 'objects', 'session'},
     "guest-opens-hosts-roll": {'world', 'objects', 'inventory', 'cells'},
+    "placed-leveled-items-are-hosts": {'world', 'objects', 'cells'},
     "input-keyboard-draw": {'input', 'hands'},
     "input-mouse-cast": {'input', 'hands', 'magic'},
 }

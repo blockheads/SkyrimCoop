@@ -475,6 +475,7 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
             {
                 state.Items = GetContainerItems(pRef->formID);
                 state.Leveled = pRef->CountLeveledEntries();
+                state.Stored = pRef->HasStoredChanges();
             }
             if (const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get())
                 for (uint32_t bit = 0; bit < 32; ++bit)

@@ -68,7 +68,10 @@ void TESForm::SetSkipSaveFlag(bool aSet) noexcept
         flags &= ~flag;*/
 }
 
-uint32_t TESForm::GetChangeFlags() const noexcept
+namespace
+{
+// Its entry in the change records (internalGetChangeFlags 35503); false for none.
+bool ReadChangeEntry(uint32_t aFormId, TESForm::ChangeFlags& aEntry) noexcept
 {
     struct Unk
     {
@@ -76,20 +79,27 @@ uint32_t TESForm::GetChangeFlags() const noexcept
         void* unk330;
     };
 
-    TP_THIS_FUNCTION(InternalGetChangeFlags, bool, void, uint32_t formId, ChangeFlags& changeFlags);
+    TP_THIS_FUNCTION(InternalGetChangeFlags, bool, void, uint32_t formId, TESForm::ChangeFlags& changeFlags);
 
     POINTER_SKYRIMSE(InternalGetChangeFlags, internalGetChangeFlags, 35503);
 
     POINTER_SKYRIMSE(Unk*, s_singleton, 403330);
 
     const auto pUnk = *(s_singleton.Get());
+    return TiltedPhoques::ThisCall(internalGetChangeFlags, pUnk->unk330, aFormId, aEntry);
+}
+} // namespace
 
+uint32_t TESForm::GetChangeFlags() const noexcept
+{
     ChangeFlags changeFlags;
-    const auto cResult = TiltedPhoques::ThisCall(internalGetChangeFlags, pUnk->unk330, formID, changeFlags);
-    if (!cResult)
-        return 0;
+    return ReadChangeEntry(formID, changeFlags) ? changeFlags.flags : 0;
+}
 
-    return changeFlags.flags;
+bool TESForm::HasStoredChanges() const noexcept
+{
+    ChangeFlags changeFlags;
+    return ReadChangeEntry(formID, changeFlags) && changeFlags.storedBuffer != 0;
 }
 
 TESNPC* TESNPC::Create(const String& acBuffer, const uint32_t aChangeFlags) noexcept

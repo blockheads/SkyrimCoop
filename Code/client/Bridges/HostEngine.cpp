@@ -9,15 +9,18 @@
 #include <Forms/FormChanges.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESWorldSpace.h>
 #include <Forms/TESQuest.h>
 #include <Forms/TESWeather.h>
 #include <Games/ReferenceStates.h>
 #include <Games/TES.h>
+#include <SaveLoad.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iterator>
 #include <mutex>
@@ -54,37 +57,88 @@ QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMo
     return quest;
 }
 
-// The references the funnel saw change, each once with its flags merged (each state goes as it is when taken, so
-// their order does not matter). Filled on the engine's threads; the lock is a leaf (nothing is taken under it).
-struct ChangedReferences
+// What the engine did to references since the last update, filled on its threads (the change funnel and the
+// created-reference hook); one HostEngine at a time. The lock is a leaf.
+struct EngineLog
 {
-    void Add(uint32_t aFormId, uint32_t aFlags) noexcept
+    struct Taken
+    {
+        TiltedPhoques::Vector<uint32_t> Created;          // in order
+        TiltedPhoques::Map<uint32_t, uint32_t> Changed;   // form id: change flags, merged
+        TiltedPhoques::Set<uint32_t> Removed;             // records that lost flags
+    };
+
+    void Created(uint32_t aFormId) noexcept
     {
         std::scoped_lock _(m_lock);
-        m_changed[aFormId] |= aFlags;
+        m_taken.Created.push_back(aFormId);
     }
 
-    TiltedPhoques::Map<uint32_t, uint32_t> Take() noexcept
+    void Changed(uint32_t aFormId, uint32_t aFlags, bool aRemoved) noexcept
     {
         std::scoped_lock _(m_lock);
-        return std::exchange(m_changed, {});
+        m_taken.Changed[aFormId] |= aFlags;
+        if (aRemoved)
+            m_taken.Removed.insert(aFormId);
+    }
+
+    Taken Take() noexcept
+    {
+        std::scoped_lock _(m_lock);
+        return std::exchange(m_taken, {});
     }
 
 private:
     std::mutex m_lock;
-    TiltedPhoques::Map<uint32_t, uint32_t> m_changed; // form id: change flags
+    Taken m_taken;
 };
 
-// One for the funnel's watcher, a plain function: only one HostEngine lives at a time.
-ChangedReferences s_changed;
+EngineLog s_log;
 
-// A world reference changed live: not an actor (its owner's), not one the game created (an id of its own), not
-// by a load. Its flags worth sending (ReferenceStates).
+void OnCreated(uint32_t aFormId) noexcept
+{
+    s_log.Created(aFormId);
+}
+
+// A world reference's recorded change (not an actor's, not a load's forced one). Removed: the record lost the flags
+// (a state back to its default, or the engine dropping changes on a long wait).
 void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRecorded) noexcept
 {
     const uint32_t cFlags = aFlags & ReferenceStates::SentFlags();
-    if (cFlags && aRecorded && !aForced && acForm.formType == FormType::Reference && acForm.formID < 0xFF000000)
-        s_changed.Add(acForm.formID, cFlags);
+    if (!cFlags || !aRecorded || aForced || acForm.formType != FormType::Reference)
+        return;
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    s_log.Changed(acForm.formID, cFlags, pSaveLoad && !pSaveLoad->HasChange(acForm, cFlags));
+}
+
+// A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs.
+std::optional<ObjectChange> ReadCreate(const TESObjectREFR& acRef, const ModSystem& acMods) noexcept
+{
+    ObjectChange change{ObjectChange::Kind::kCreate};
+    const TESObjectCELL* pCell = acRef.GetParentCellEx();
+    if (acRef.formType != FormType::Reference || acRef.IsDeleted() || !acRef.baseForm || !Cast<TESBoundObject>(acRef.baseForm) || !pCell ||
+        !acMods.GetServerModId(acRef.formID, change.Object) || !acMods.GetServerModId(acRef.baseForm->formID, change.Item))
+        return std::nullopt;
+    ObjectChange::Placement placement;
+    if (pCell->worldspace)
+        acMods.GetServerModId(pCell->worldspace->formID, placement.WorldSpace);
+    else
+        acMods.GetServerModId(pCell->formID, placement.Cell);
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        placement.Position[axis] = acRef.position[axis];
+        placement.Rotation[axis] = acRef.rotation[axis];
+    }
+    change.Data = ObjectChange::PackPlacement(placement);
+    return change;
+}
+
+// The rows the host's record holds: a guest's record is made the same.
+ObjectChange ReadRecord(const TESObjectREFR& acRef, const GameId& acId) noexcept
+{
+    ObjectChange record{ObjectChange::Kind::kRecord, acId};
+    record.Value = ReferenceStates::RecordedRows(acRef);
+    return record;
 }
 } // namespace
 
@@ -94,12 +148,14 @@ HostEngine::HostEngine(const ModSystem& acMods) noexcept
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
     ContainerEvents::Start();
+    ModManager::WatchCreated(&OnCreated);
 }
 
 HostEngine::~HostEngine() noexcept
 {
+    ModManager::WatchCreated(nullptr);
     FormChanges::Unwatch(&OnFormChange);
-    s_changed.Take();
+    s_log.Take();
     ContainerEvents::Stop();
 }
 
@@ -203,25 +259,58 @@ void HostEngine::SetItems(const GameId& acObject, const GameId& acItem, uint32_t
 
 TiltedPhoques::Vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
 {
-    // State first, then the events: an object a script enabled and then animated is enabled for the animation.
+    auto [created, changed, removed] = s_log.Take();
     TiltedPhoques::Vector<ObjectChange> changes;
-    for (const auto& [cFormId, cFlags] : s_changed.Take())
+    // Created first: the changes after refer to them.
+    for (const uint32_t cFormId : created)
+    {
+        const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
+        if (auto create = pObject ? ReadCreate(*pObject, m_mods) : std::nullopt)
+        {
+            m_created.insert(cFormId);
+            m_rests.Forget(cFormId); // an id used before: the old one's rest is not this one's
+            changes.push_back(std::move(*create));
+        }
+    }
+    // Then the states, each as it is now.
+    for (const auto& [cFormId, cFlags] : changed)
     {
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
         GameId id;
-        if (pObject && m_mods.GetServerModId(cFormId, id))
-            ReferenceStates::Read(*pObject, id, cFlags, m_mods, changes);
+        if (!pObject || !IsShared(cFormId) || !m_mods.GetServerModId(cFormId, id))
+            continue;
+        // A physics move goes out once it rests (m_rests): each game simulates the flight.
+        ReferenceStates::Read(*pObject, id, cFlags & ~TESObjectREFR::CHANGE_REFR_HAVOK_MOVE, m_mods, changes);
     }
+    for (const uint32_t cFormId : m_rests.TakeRested())
+        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
+            if (GameId id; IsShared(cFormId) && m_mods.GetServerModId(cFormId, id))
+                ReferenceStates::Read(*pObject, id, TESObjectREFR::CHANGE_REFR_MOVE, m_mods, changes);
+    // Records that lost rows: the guests drop theirs too.
+    for (const uint32_t cFormId : removed)
+        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
+            if (GameId id; IsShared(cFormId) && m_mods.GetServerModId(cFormId, id))
+                changes.push_back(ReadRecord(*pObject, id));
+    // A deleted created one's id is the game's to use again.
+    for (const auto& [cFormId, cFlags] : changed)
+        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); m_created.count(cFormId) && (!pObject || pObject->IsDeleted()))
+            m_created.erase(cFormId);
+    // Events last: an object a script enabled and then animated is enabled for the animation.
     changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
     m_events.clear();
     return changes;
+}
+
+bool HostEngine::IsShared(uint32_t aFormId) const noexcept
+{
+    return aFormId < 0xFF000000 || m_created.count(aFormId);
 }
 
 std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(const GameId& acCell,
                                                                              const TiltedPhoques::Vector<ChangedReference>& acChanged) const noexcept
 {
     auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(acCell)));
-    if (!pCell || !pCell->IsValid())
+    if (!pCell || !pCell->IsFullyLoaded())
         return std::nullopt;
     TiltedPhoques::Map<uint32_t, uint32_t> guestRows;
     for (const auto& cRef : acChanged)
@@ -229,19 +318,35 @@ std::optional<TiltedPhoques::Vector<ObjectChange>> HostEngine::ReadCellState(con
             guestRows[cFormId] |= cRef.Flags;
     TiltedPhoques::Vector<ObjectChange> changes;
     const auto cReferences = pCell->GetReferences();
+    // The host's created ones there first, so the guest makes its own, with their rows.
     for (const TESObjectREFR* pRef : cReferences)
     {
-        uint32_t rows = ReferenceStates::ChangedRows(*pRef);
-        if (const auto it = guestRows.find(pRef->formID); it != guestRows.end() && pRef->formType == FormType::Reference)
-            rows |= it->second & ReferenceStates::RowFlags();
+        if (!pRef->IsTemporary() || !IsShared(pRef->formID))
+            continue;
         GameId id;
-        if (rows && m_mods.GetServerModId(pRef->formID, id))
-            ReferenceStates::Read(*pRef, id, rows, m_mods, changes);
+        auto create = ReadCreate(*pRef, m_mods);
+        if (create && m_mods.GetServerModId(pRef->formID, id))
+        {
+            changes.push_back(std::move(*create));
+            ReferenceStates::Read(*pRef, id, ReferenceStates::RecordedRows(*pRef), m_mods, changes);
+        }
+    }
+    // Then the rows this game or the guest changed, and the host's record of them.
+    for (const TESObjectREFR* pRef : cReferences)
+    {
+        const auto cGuest = guestRows.find(pRef->formID);
+        const bool cGuestChanged = cGuest != guestRows.end() && pRef->formType == FormType::Reference;
+        const uint32_t cRows = ReferenceStates::ChangedRows(*pRef) | (cGuestChanged ? cGuest->second & ReferenceStates::RowFlags() : 0);
+        GameId id;
+        if (!cRows || !m_mods.GetServerModId(pRef->formID, id))
+            continue;
+        ReferenceStates::Read(*pRef, id, cRows, m_mods, changes);
+        changes.push_back(ReadRecord(*pRef, id));
     }
     // Containers last: the host's roll of their leveled entries, then all they hold.
     for (TESObjectREFR* pRef : cReferences)
     {
-        if (pRef->formType != FormType::Reference || pRef->formID >= 0xFF000000 || !pRef->GetContainer())
+        if (pRef->formType != FormType::Reference || pRef->IsTemporary() || !pRef->GetContainer())
             continue;
         pRef->InitInventoryIfRequired();
         if (auto contents = ReadContainerContents(m_mods, *pRef))

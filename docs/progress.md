@@ -108,22 +108,24 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
    while it was away. 2b, leveled containers, built 2026-10-21: the host rolls each container of a guest's
    loaded cell (16038) and sends all it holds (`kContents`); a guest's game rolls no world container's leveled
    entries (16129 skipped). Scenario `guest-opens-hosts-roll` (fails with the two lines off: the client's own
-   roll). Left for 2c: base object `0x80` is a reference picking its own base at its cell's first load, per game
-   (Soljund's Sinkhole's book `E95D1`: `ED5F7` on the host, `E2FC5` on the client). In Skyrim.esm it is placed as
-   `DummyBook` (`D7866`) with `XLIB` (leveled item base) `LItemBookClutter` (`D9F89`, 124 books, chance none 0):
-   each game rolls the list once and swaps the base. Setting it on the guest is
-   `SetObjectReference` (19785, vfunc 0x84: the base only) and its 3D again. The engine's pick was not found
-   (not a `SetObjectReference` caller). Encounter zone `0x20000000` (`664DE`) not identified: not in memory
-   since. The world check after each scenario sees only where the scenario ends, so the book was not flagged.
+   roll). 2c, placed leveled items, built 2026-10-21: a reference placed with a leveled base (`XLIB`, e.g. Soljund's
+   Sinkhole's clutter books: `DummyBook` `D7866` with `LItemBookClutter` `D9F89`, 124 books) rolls the list once at
+   its cell's first load in `TESObjectREFR::PickLeveledBase` (20232, our name; called from the cell's reference
+   loads), takes the pick as its base (19785) and records `0x80`. A guest's game skips the pick (hooked, with the
+   story manager's switch); the host's pick goes as a `kBase` row (live, and in the cell's state), applied with
+   `SetObjectReference` and the 3D dropped and loaded again (Disable/Enable, the form-flags record left as it
+   was). Scenario `placed-leveled-items-are-hosts` (failed on the 2b build: 13 books each game's own). Encounter
+   zone `0x20000000` (`664DE`) not identified: not in memory since.
 3. **Created objects** (`0xFF` ids, each game's own): dropped items, placed objects, loot. A mapping between the
    host's and each guest's ids, made when the host creates one; also what quest fills of created objects need
    (loose ends, "Created objects in quest alias fills").
 4. **The rest of `unsynced`:** animation `0x10000000` (or covered by the animation events), activating children
    `0x4000000`; each a row or noted as covered.
 5. **Physics objects' rest positions.** Havok moved `0x4`: when the host's body comes to rest (deactivated), its
-   position and angle go out through the move row; a guest's own push (its player bumping it) is a proposal of
-   the rest position the host's game takes. Each game simulates the flight its own way, then the host's resting
-   spot wins. Comes after 3 (a dropped item is created and physics both).
+   position and angle go out through the move row. Each game simulates the flight its own way, then the host's
+   resting spot wins. Built 2026-10-21 (`Bridges/PhysicsRests`); a guest's own push is not sent (its cell's next
+   load puts the object back at the host's): guest proposals were built and removed the same day, live physics
+   sends a push as an impulse instead (`docs/design/world-state-sync.md`, "Physics objects' rest").
 
 World sync is then done: every object ends where the host's is. Live physics (the flight itself, ragdolls, a guest's
 push as an impulse) is its own plan after phase 5 (`docs/design/host-authority-migration.md`, "After: physics sync").
@@ -525,12 +527,13 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Engine threading and crashes
 
-- **Hot reload and log rotation** (2026-10-21): twice today a guest went wrong right after its log reached
-  5 MB in a game that had been hot-reloaded: a crash in `GuestWeather::OnUpdate` → `GuestEngine::HoldWeather`
-  → `ModSystem::GetGameId` with a bad map (`crash-2026-10-21-15-50-41.log`, client prefix), and a deadlock (every
-  thread asleep, the harness silent) as `host-rejoins` ended the session. Both games' rotated `.1` logs are
-  missing and the current one was cut to 0 bytes: rotation fails. Guess, not checked: an earlier reload's
-  logger still holds the file (Windows refuses the rename). Never on a fresh duo (18 of 18 join scenarios).
+- **Done 2026-10-21: the guest crash and deadlock blamed on hot reload and log rotation** (a crash in
+  `GuestWeather::OnUpdate` → `GuestEngine::HoldWeather` → `ModSystem::GetGameId` with a bad map,
+  `crash-2026-10-21-15-50-41.log`, and a deadlock as `host-rejoins` ended the session) were the guest services'
+  `UpdateEvent` handlers connected and dropped during the dispatcher's own dispatch (entt 3.10 iterates its
+  handlers in place): `GuestService` now forwards the update to them. Rotation works (`tp_client.1.log`,
+  `.2.log` in the game's `Data/SKSE/Plugins/logs`); a run folder's copy of the logs is taken at the duo's start,
+  so a live report is read from the game's own log.
 
 - **Host crash in `TaskQueue::Drain`, 2 s after a save** (2026-10-19): the Runner queue looked overwritten; not reproduced in six more saves (`docs/re/crashes/2026-10-19-runner-queue-after-save.md`).
 - **Our client update runs on a job thread** inside `HookVMUpdate`. Which AI stage jobs run beside it,
@@ -575,8 +578,25 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- `dive-host-player` failed 1 of 2 on a fresh duo (2026-10-21): the copy's animation event `SwimStart` vs the
+  owner's `swimStop`; once left the copy showing visual `77785`. Actor sync, not followed up.
 - `late-join-client` failed once on a fresh duo (2026-10-21): the client's copy of the host's player kept the
   baseline heading (4.71 vs the host's 2.55); passed 3 of 3 after.
+- `late-join-gets-cell-state` failed once on a fresh duo (2026-10-21): the same copy heading (the host's player
+  at 1.66 vs 4.73), then 4 of 4.
+- A placed iron ingot (`created_reaches_guest` with `5ACE4`, by hand) came to rest with changes `0x3` on the
+  host and `0x2` on the guest (2026-10-21): a form-flags record (`0x1`) the guest's twin lacks. Not followed
+  up; the scenario places the cell's ladle, which never showed it.
+- Scenario time (2026-10-21): the world check after each scenario and after its reset looks once before
+  sampling the idle animations (about 0.1 s instead of 1.3 s or more), so a trivial scenario takes 1 s, not
+  3.5. The long ones are game time: `late-join-gets-calendar`'s waits (the Wait menu passes about an hour a
+  second, 36 h in all, ~40 s; its 24 h wait found the demotion record gap) and `world-changes-reach-guest`'s
+  placed ladle rocking ~20 s before it rests.
+- Done 2026-10-21: `vilkas-counts-client-hits` failed on a lock-order report marked ours (twice, then passed:
+  a report fails only the first scenario to hit it in a game's life). Both stacks read (the live log keeps
+  them; the run folder's copy is taken at the duo's start): an engine inversion between a quest alias fill
+  adding a spell (the VM relays the magic event under the alias array's lock) and the Wait menu's autosave,
+  with only our pass-through hooks on the stack. In `scripts/lock_order_known.txt`.
 - `party-stacks-on-arrival` fails every run (2026-10-21): "[client] came within 9 units of the other player: it
   walked through it". Not followed up.
 

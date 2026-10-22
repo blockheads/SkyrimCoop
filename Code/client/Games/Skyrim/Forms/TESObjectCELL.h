@@ -17,6 +17,8 @@ struct TESObjectCELL : TESForm
     void GetCOCPlacementInfo(NiPoint3* aOutPos, NiPoint3* aOutRot, bool aAllowCellLoad) noexcept;
 
     bool IsValid() const { return cellFlags[4] == 7; }
+    // Attached and done loading (a reset included): what its references hold is this game's state.
+    bool IsFullyLoaded() const { return IsValid() && loadedCellData && loadedCellData->fullyLoaded; }
 
     struct ReferenceData
     {
@@ -45,8 +47,11 @@ struct TESObjectCELL : TESForm
     {
         uint8_t pad0[0x160];
         BGSEncounterZone* encounterZone;
+        uint8_t pad168[0x17C - 0x168];
+        bool fullyLoaded; // 17C: TESCellFullyLoadedEvent sent (sub_1402C3830), its references all in
     };
     SKYRIM_STRUCT_ASSERT(offsetof(LoadedCellData, encounterZone) == 0x160);
+    SKYRIM_STRUCT_ASSERT(offsetof(LoadedCellData, fullyLoaded) == 0x17C);
 
     uint8_t pad20[0x40 - 0x20];
     uint8_t cellFlags[5];

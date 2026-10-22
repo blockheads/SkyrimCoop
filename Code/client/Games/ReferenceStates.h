@@ -15,9 +15,14 @@ namespace ReferenceStates
 uint32_t SentFlags() noexcept;
 // The change flags a row takes (not the save-data row): what a cell's state is read for.
 uint32_t RowFlags() noexcept;
-// The row flags the reference's change record holds in this game; none for an actor (its owner's) or a reference
-// the game created (an id of its own).
+// The row flags the reference's change record holds in this game (what a save keeps), a physics move counted as
+// the move row; none for an actor (its owner's).
+uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept;
+// The same, none for a reference the game created (an id of its own): what a cell's state names.
 uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept;
+// Makes its change record hold exactly these rows (RecordedRows): the others dropped, a physics move with the move
+// row, the missing ones marked.
+void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept;
 // The reference's state now for aFlags: a change for each row that takes any of them.
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
           TiltedPhoques::Vector<ObjectChange>& aChanges) noexcept;

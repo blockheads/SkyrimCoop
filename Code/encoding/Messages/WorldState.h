@@ -119,7 +119,46 @@ struct ObjectChange
         kScale,     // Value: percent
         kOwner,     // Item: the owner, none for no owner
         kContents,  // Data: every item a container holds (ItemCount each, PackContents), the host's leveled roll
+        kBase,      // Item: its base, the host's pick for one placed with a leveled base
+        kCreate,    // the host's game made Object (kCreatedModId): Item its base, Data where (PackPlacement)
+        kRecord,    // Value: the row flags the host's change record holds; a guest's record is made the same
     };
+
+    // The mod id of a reference the host's game created (its 0xFF id's low bits as the base id): each game makes its
+    // own, mapped by the guest.
+    static constexpr uint32_t kCreatedModId = 0xFFFFFFFF;
+
+    // Where a created reference goes: its cell, or its worldspace outdoors (either may be none), position and angle.
+    struct Placement
+    {
+        GameId Cell{};
+        GameId WorldSpace{};
+        float Position[3]{};
+        float Rotation[3]{};
+    };
+
+    static TiltedPhoques::String PackPlacement(const Placement& acPlacement) noexcept
+    {
+        const uint32_t cIds[4] = {acPlacement.Cell.ModId, acPlacement.Cell.BaseId, acPlacement.WorldSpace.ModId, acPlacement.WorldSpace.BaseId};
+        TiltedPhoques::String data(sizeof(cIds) + 6 * sizeof(float), '\0');
+        std::memcpy(data.data(), cIds, sizeof(cIds));
+        std::memcpy(data.data() + sizeof(cIds), acPlacement.Position, sizeof(acPlacement.Position));
+        std::memcpy(data.data() + sizeof(cIds) + sizeof(acPlacement.Position), acPlacement.Rotation, sizeof(acPlacement.Rotation));
+        return data;
+    }
+
+    static bool UnpackPlacement(const TiltedPhoques::String& acData, Placement& aPlacement) noexcept
+    {
+        uint32_t ids[4];
+        if (acData.size() != sizeof(ids) + 6 * sizeof(float))
+            return false;
+        std::memcpy(ids, acData.data(), sizeof(ids));
+        aPlacement.Cell = GameId(ids[0], ids[1]);
+        aPlacement.WorldSpace = GameId(ids[2], ids[3]);
+        std::memcpy(aPlacement.Position, acData.data() + sizeof(ids), sizeof(aPlacement.Position));
+        std::memcpy(aPlacement.Rotation, acData.data() + sizeof(ids) + sizeof(aPlacement.Position), sizeof(aPlacement.Rotation));
+        return true;
+    }
 
     // A container's item and how many it holds.
     struct ItemCount
@@ -157,8 +196,14 @@ struct ObjectChange
     }
 
     // The kinds that carry Data, and those that carry Item.
-    static bool HasData(Kind aKind) noexcept { return aKind == Kind::kSaveData || aKind == Kind::kMove || aKind == Kind::kContents; }
-    static bool HasItem(Kind aKind) noexcept { return aKind == Kind::kItems || aKind == Kind::kOwner; }
+    static bool HasData(Kind aKind) noexcept
+    {
+        return aKind == Kind::kSaveData || aKind == Kind::kMove || aKind == Kind::kContents || aKind == Kind::kCreate;
+    }
+    static bool HasItem(Kind aKind) noexcept
+    {
+        return aKind == Kind::kItems || aKind == Kind::kOwner || aKind == Kind::kBase || aKind == Kind::kCreate;
+    }
 
     Kind Type{};
     GameId Object{};
@@ -166,7 +211,7 @@ struct ObjectChange
     uint8_t OpenState{};             // kActivate: the door's open state before
     TiltedPhoques::String Animation; // kAnimation: PlayAnimationAndWait's, empty for PlayAnimation
     TiltedPhoques::String Event;     // kAnimation
-    GameId Item{};                   // kItems: the base item; kOwner: the owner
+    GameId Item{};                   // kItems: the base item; kOwner: the owner; kBase: the base
     uint32_t Value{};                // a state's; kItems: the count
     TiltedPhoques::String Data;      // kSaveData, kMove, kContents
 

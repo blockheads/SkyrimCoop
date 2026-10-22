@@ -1,6 +1,8 @@
 #include <TiltedOnlinePCH.h>
 #include <Havok/AnimationGraphState.h>
+#include <atomic>
 #include <cstring>
+#include <SaveLoad.h>
 #include <HookSwitch.h>
 
 #include <Games/References.h>
@@ -620,6 +622,23 @@ bool TESObjectREFR::InitInventoryIfRequired() noexcept
     TP_THIS_FUNCTION(TInitInventoryIfRequired, bool, TESObjectREFR, bool);
     POINTER_SKYRIMSE(TInitInventoryIfRequired, s_initInventoryIfRequired, 16038);
     return TiltedPhoques::ThisCall(s_initInventoryIfRequired, this, false);
+}
+
+void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
+{
+    TP_THIS_FUNCTION(TSetObjectReference, void, TESObjectREFR, TESBoundObject*);
+    POINTER_SKYRIMSE(TSetObjectReference, s_setObjectReference, 19785);
+    TiltedPhoques::ThisCall(s_setObjectReference, this, apBase);
+    MarkChanged(CHANGE_REFR_BASEOBJECT);
+    if (!GetNiNode() || IsDisabled())
+        return;
+    // The 3D is the old base's: dropped and loaded again as Disable and Enable do, leaving no form-flags record.
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    const bool cRecorded = pSaveLoad && pSaveLoad->HasChange(*this, CHANGE_FORM_FLAGS);
+    DisableImpl();
+    EnableImpl();
+    if (!cRecorded)
+        UnsetChanged(CHANGE_FORM_FLAGS);
 }
 
 TESObjectCELL* TESObjectREFR::GetParentCellEx() const noexcept
@@ -1305,6 +1324,24 @@ void TP_MAKE_THISCALL(HookSetAngle, TESObjectREFR, const NiPoint3& acAngle)
     apThis->RecordMove(apThis->rotation != cBefore);
 }
 
+// TESObjectREFR::PickLeveledBase (20232, our name): at its cell's load, a reference placed with ExtraLeveledItemBase rolls
+// the list, takes the pick as its base (19785) and records it (0x80).
+static std::atomic<bool> s_picksLeveledBases{true};
+TP_THIS_FUNCTION(TPickLeveledBase, void*, TESObjectREFR);
+static TPickLeveledBase* RealPickLeveledBase = nullptr;
+
+void* TP_MAKE_THISCALL(HookPickLeveledBase, TESObjectREFR)
+{
+    if (!s_picksLeveledBases.load(std::memory_order_relaxed))
+        return nullptr;
+    return TiltedPhoques::ThisCall(RealPickLeveledBase, apThis);
+}
+
+void TESObjectREFR::SetPicksLeveledBases(bool aPicks) noexcept
+{
+    s_picksLeveledBases.store(aPicks, std::memory_order_relaxed);
+}
+
 static TiltedPhoques::Initializer s_objectReferencesHooks(
     []()
     {
@@ -1344,4 +1381,7 @@ static TiltedPhoques::Initializer s_objectReferencesHooks(
         TP_HOOK(&RealLockpickUnlock, HookLockpickUnlock);
         RealSetAngle = s_setAngle.Get();
         TP_HOOK(&RealSetAngle, HookSetAngle);
+        POINTER_SKYRIMSE(TPickLeveledBase, s_pickLeveledBase, 20232);
+        RealPickLeveledBase = s_pickLeveledBase.Get();
+        TP_HOOK(&RealPickLeveledBase, HookPickLeveledBase);
     });

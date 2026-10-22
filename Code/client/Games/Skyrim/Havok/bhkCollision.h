@@ -24,6 +24,13 @@ struct bhkNiCollisionObject
     bhkWorldObject* body; // 20 (NiPointer)
 };
 
+struct NiAVObject;
+
+// Every physics body under the 3D comes to a stop (bhkRigidBody::SetLinearVelocity 78089, SetAngularVelocity 78090)
+// and stays there: keyframed (NiAVObject::SetMotionType 77866, as Papyrus SetMotionType(Motion_Keyframed)), moved only
+// by its reference's position.
+void HoldBodies(NiAVObject& aRoot) noexcept;
+
 // Havok's units to the game's (bhkWorld's scale, 0.0142875).
 constexpr float cHavokToGame = 1.f / 0.0142875f;
 

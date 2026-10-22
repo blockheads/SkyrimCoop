@@ -18,13 +18,14 @@ struct GuestWeather
 
     TP_NOCOPYMOVE(GuestWeather);
 
+    // Each frame, from GuestService (the parts subscribe to no update: they come and go inside one).
+    void OnUpdate(const UpdateEvent& acEvent) noexcept;
+
 private:
     void OnWeatherChange(const NotifyWeatherChange& acMessage) noexcept;
-    void OnUpdate(const UpdateEvent& acEvent) noexcept;
 
     GuestEngine& m_engine;
     std::optional<GameId> m_hostWeather;
 
     entt::scoped_connection m_weatherConnection;
-    entt::scoped_connection m_updateConnection;
 };

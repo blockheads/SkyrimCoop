@@ -2,7 +2,7 @@
 
 #include <Bridges/GuestEngine.h>
 #include <Messages/WorldState.h>
-#include <Events/CellLoadedEvent.h>
+#include <Events/UpdateEvent.h>
 #include <Events/ContainerChangeEvent.h>
 #include <Events/LockChangeEvent.h>
 #include <Messages/CellStateRequest.h>
@@ -21,13 +21,9 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
     m_objectChangesConnection = aDispatcher.sink<NotifyObjectChanges>().connect<&GuestWorldState::OnObjectChanges>(this);
     m_lockChangeConnection = aDispatcher.sink<LockChangeEvent>().connect<&GuestWorldState::OnLockChange>(this);
     m_containerChangeConnection = aDispatcher.sink<ContainerChangeEvent>().connect<&GuestWorldState::OnContainerChange>(this);
-    m_cellLoadedConnection = aDispatcher.sink<CellLoadedEvent>().connect<&GuestWorldState::OnCellLoaded>(this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);
-    // The cells loaded before joining: no load event comes for them.
-    for (const uint32_t cCell : m_engine.AttachedCells())
-        AskCellState(cCell);
 }
 
 GuestWorldState::~GuestWorldState() noexcept
@@ -77,11 +73,6 @@ void GuestWorldState::OnObjectChanges(const NotifyObjectChanges& acMessage) noex
         spdlog::info("GuestWorldState: applied {} of the host's object changes: {}", applied.size(), WorldStateLog::List(applied, &WorldStateLog::Describe, 16));
 }
 
-void GuestWorldState::OnCellLoaded(const CellLoadedEvent& acEvent) noexcept
-{
-    AskCellState(acEvent.CellId);
-}
-
 void GuestWorldState::AskCellState(uint32_t aCellFormId) noexcept
 {
     const auto cRequest = m_engine.ReadCellChanges(aCellFormId);
@@ -117,4 +108,13 @@ void GuestWorldState::OnContainerChange(const ContainerChangeEvent& acEvent) noe
     request.Count = cChange->Value;
     spdlog::info("GuestWorldState: proposed {}", WorldStateLog::Describe(*cChange));
     m_world.GetTransport().Send(request);
+}
+
+void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
+{
+    auto cells = m_engine.AttachedCells();
+    for (const uint32_t cCell : cells)
+        if (std::ranges::find(m_cells, cCell) == m_cells.end())
+            AskCellState(cCell);
+    m_cells = std::move(cells);
 }

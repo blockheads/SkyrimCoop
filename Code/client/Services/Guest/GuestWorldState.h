@@ -5,7 +5,7 @@ struct NotifyQuests;
 struct NotifyObjectChanges;
 struct LockChangeEvent;
 struct ContainerChangeEvent;
-struct CellLoadedEvent;
+struct UpdateEvent;
 struct World;
 class GuestEngine;
 
@@ -23,6 +23,10 @@ struct GuestWorldState
 
     TP_NOCOPYMOVE(GuestWorldState);
 
+    // Each frame, from GuestService: each cell newly attached here (a load or back from the cell buffer, which raises
+    // no load event) asks for the host's state there.
+    void OnUpdate(const UpdateEvent& acEvent) noexcept;
+
 private:
     void OnGlobals(const NotifyGlobals& acMessage) noexcept;
     void OnQuests(const NotifyQuests& acMessage) noexcept;
@@ -31,17 +35,16 @@ private:
     void OnLockChange(const LockChangeEvent& acEvent) noexcept;
     // This game's container changed (its player took or stored an item): its count now proposed to the host.
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
-    // A cell loaded here: the host's state of its references asked for.
-    void OnCellLoaded(const CellLoadedEvent& acEvent) noexcept;
     void AskCellState(uint32_t aCellFormId) noexcept;
 
     World& m_world;
     GuestEngine& m_engine;
+    // The attached cells already asked for.
+    TiltedPhoques::Vector<uint32_t> m_cells;
 
     entt::scoped_connection m_globalsConnection;
     entt::scoped_connection m_questsConnection;
     entt::scoped_connection m_objectChangesConnection;
     entt::scoped_connection m_lockChangeConnection;
     entt::scoped_connection m_containerChangeConnection;
-    entt::scoped_connection m_cellLoadedConnection;
 };

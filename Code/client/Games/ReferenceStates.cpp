@@ -14,16 +14,26 @@ namespace ReferenceStates
 {
 namespace
 {
-// Enable and Disable (19800, 19801) flip the disabled flag through TESForm::SetDisabled (14646). 1: enabled.
+// Enable and Disable (19800, 19801) flip the disabled flag through TESForm::SetDisabled (14646), SetDelete (19565)
+// the deleted one; both are form flags. 1: enabled; kDeleted: deleted.
+constexpr uint32_t kDeleted = 2;
+
 bool ReadEnabled(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
 {
-    aChange.Value = !acObject.IsDisabled();
+    aChange.Value = (acObject.IsDisabled() ? 0 : 1) | (acObject.IsDeleted() ? kDeleted : 0);
     return true;
 }
 
 // At once, no fade: the host's fade already played.
 bool ApplyEnabled(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
 {
+    if (acChange.Value & kDeleted)
+    {
+        if (!aObject.IsDisabled())
+            aObject.DisableImpl();
+        aObject.SetDelete(true);
+        return true;
+    }
     if (acChange.Value && aObject.IsDisabled())
         aObject.EnableImpl();
     else if (!acChange.Value && !aObject.IsDisabled())
@@ -129,6 +139,22 @@ bool ApplyOwner(TESObjectREFR& aObject, const ObjectChange& acChange, const ModS
     return true;
 }
 
+bool ReadBase(const TESObjectREFR& acObject, uint32_t, const ModSystem& acMods, ObjectChange& aChange) noexcept
+{
+    return acObject.baseForm && acMods.GetServerModId(acObject.baseForm->formID, aChange.Item);
+}
+
+// A placed leveled item's pick: the host's base, its 3D loaded again.
+bool ApplyBase(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+{
+    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(acMods.GetGameId(acChange.Item)));
+    if (!pBase)
+        return false;
+    if (aObject.baseForm != pBase)
+        aObject.SetBaseObject(pBase);
+    return true;
+}
+
 // Every flag no row above takes, as its save data. Nothing saved, nothing sent (a havok move: its position is in the
 // location header FormState skips).
 bool ReadSaveData(const TESObjectREFR& acObject, uint32_t aFlags, const ModSystem&, ObjectChange& aChange) noexcept
@@ -162,6 +188,7 @@ constexpr ReferenceState cStates[] = {
     {ObjectChange::Kind::kMove, TESObjectREFR::CHANGE_REFR_MOVE, &ReadMove, &ApplyMove},
     {ObjectChange::Kind::kScale, TESObjectREFR::CHANGE_REFR_SCALE, &ReadScale, &ApplyScale},
     {ObjectChange::Kind::kOwner, TESObjectREFR::CHANGE_REFR_EXTRA_OWNERSHIP, &ReadOwner, &ApplyOwner},
+    {ObjectChange::Kind::kBase, TESObjectREFR::CHANGE_REFR_BASEOBJECT, &ReadBase, &ApplyBase},
     {ObjectChange::Kind::kSaveData, ~0u, &ReadSaveData, &ApplySaveData},
 };
 
@@ -190,12 +217,32 @@ uint32_t RowFlags() noexcept
     return flags;
 }
 
+uint32_t RecordedRows(const TESObjectREFR& acObject) noexcept
+{
+    constexpr uint32_t cHavokMove = TESObjectREFR::CHANGE_REFR_HAVOK_MOVE;
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    if (!pSaveLoad || acObject.formType != FormType::Reference)
+        return 0;
+    const uint32_t cFlags = pSaveLoad->ChangeFlags(acObject, RowFlags() | cHavokMove);
+    return (cFlags & ~cHavokMove) | (cFlags & cHavokMove ? TESObjectREFR::CHANGE_REFR_MOVE : 0);
+}
+
 uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept
 {
-    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
-    if (!pSaveLoad || acObject.formType != FormType::Reference || acObject.formID >= 0xFF000000)
-        return 0;
-    return pSaveLoad->ChangeFlags(acObject, RowFlags());
+    return acObject.IsTemporary() ? 0 : RecordedRows(acObject);
+}
+
+void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept
+{
+    aRows &= RowFlags();
+    const uint32_t cHeld = RecordedRows(aObject);
+    uint32_t extra = cHeld & ~aRows;
+    if (extra & TESObjectREFR::CHANGE_REFR_MOVE)
+        extra |= TESObjectREFR::CHANGE_REFR_HAVOK_MOVE;
+    if (extra)
+        aObject.UnsetChanged(extra);
+    if (const uint32_t cMissing = aRows & ~cHeld)
+        aObject.MarkChanged(cMissing);
 }
 
 void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,

@@ -118,6 +118,12 @@ struct ModManager
     static ModManager* Get() noexcept;
 
     uint32_t Spawn(NiPoint3& aPosition, NiPoint3& aRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apCharacter) noexcept;
+    // A new reference of apBase there (CreateReferenceAtLocation 13723), its handle; no watcher hears of it.
+    uint32_t CreateReference(TESBoundObject* apBase, const NiPoint3& acPosition, const NiPoint3& acRotation, TESObjectCELL* apCell,
+                             TESWorldSpace* apWorldSpace) noexcept;
+    // Told the form id of each reference the game creates (13723: PlaceAtMe, drops, quests', ash piles), on the
+    // engine's threads; none while a save loads. One watcher; null stops.
+    static void WatchCreated(void (*apWatcher)(uint32_t aFormId)) noexcept;
     Mod* GetByName(const char* acpName) const noexcept;
     TESObjectCELL* GetCellFromCoordinates(int32_t aX, int32_t aY, TESWorldSpace* aWorldSpace, bool aSpawnCell) noexcept;
 

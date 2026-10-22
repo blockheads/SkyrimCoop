@@ -114,7 +114,8 @@ The world desync check (step 7) compares the two games in the scenarios.
 ```
 host game
   TESForm::AddChange (14607), forced (14608),      hooks: Games/FormChanges
-  RemoveChange (14609: a state back to its default)
+  the change map's remove (35511: RemoveChange 14609,
+    a state back to its default; a demotion on a wait)
   + a non-actor's repeat moves, marked again       (TESObjectREFR::RecordMove)
     -> watchers, on the engine's threads (fixed slots)
        HostEngine's: a REFR (not created, not forced), recorded, every flag
@@ -131,8 +132,10 @@ guest: GuestEngine::ApplyObjectChange; save data loaded, then its flags marked
 guest: a cell loads (TESCellFullyLoadedEvent; each loaded cell on joining)
   -> CellStateRequest {cell, [ref, row flags its record holds]}
 host HostWorldState: cell attached here? no -> kept, retried each update
-  HostEngine::ReadCellState: each ref with row changes in either game ->
-    every row it holds; then each container: rolled here (16038), kContents
+  HostEngine::ReadCellState: the host's created refs (kCreate, rows); each
+    ref with row changes in either game -> its rows and kRecord (the rows
+    the host's record holds: the guest's is made the same); then each
+    container: rolled here (16038), kContents
     -> NotifyObjectChanges {Cell} to that guest
 guest: rolls no world container's leveled entries (16129 skipped)
 guest: a state already as the host's is skipped (a load raises no events)
@@ -149,6 +152,7 @@ Rows (2026-10-21, `Games/ReferenceStates.cpp`):
 
 | scale `0x10` | `kScale` | `SetScale` (19665): the 3D and collision follow |
 | owner `0x40` | `kOwner` | `SetOwner` (20198), the owner as a `GameId` |
+| base object `0x80` | `kBase` | `SetObjectReference` (19785), then the 3D again: a placed leveled item's pick (a guest picks none, 20232 skipped) |
 | every other flag | `kSaveData` | the last row: `FormState::Load`, then the flags marked. **Off** (`cSaveDataFallback`) |
 
 Containers' items go as `kItems` events (the container event), so inventory `0x20` is not a row. Not sent:
@@ -200,6 +204,27 @@ the host's game raised (opening a door re-sets its lock: `lock_changed` on both)
   rows start appearing whose engine call does nothing `Load` would not (locks are the one so far: their save
   data round-trips, `form-state-round-trips`). Entry: `docs/ideas.md`, "Mods' world state through the save
   system".
+
+**Physics objects' rest (2026-10-21).** Each game simulates a flight itself; where it ends is the host's.
+
+```
+host: PhysicsRests (Bridges/)
+  funnel's havok move 0x4 on a REFR -> noted (engine threads; the flag
+    comes every frame while a body is awake, at rest too)
+  each update: watched from where its physics took it until it stays within
+    0.5 units and 0.005 rad for 15 updates; reported only if it rests away
+    from where it started (a settle in place, as every body at a cell
+    load, is none) -> its move row goes out (HostEngine::TakeObjectChanges)
+guest: the host's move -> placed there, bodies held (zero velocity, then
+       keyframed: 78089, 78090, 77866)
+```
+
+A physics move counts as a move in a reference's record (`ReferenceStates::RecordedRows`): a save keeps its
+position either way. A guest's own push is not sent (decided 2026-10-21): what its player knocks over stays
+where it fell on that guest until its cell loads again, when the cell-state answer puts it at the host's
+(the guest names it as changed). Guest proposals were built and removed the same day: live physics replaces
+them (a push as an impulse to the host), and a held object could not be pushed on the guest anyway. Live
+physics also replaces this rest detection (the stream's last frame is the rest).
 
 Excluded: what is already synced live (actor positions, actor values, equipment), actors (`ACHR`), and the
 clock's globals (`HostClock`: hour, date, days passed).

@@ -530,6 +530,18 @@ TEST_CASE("Packets", "[encoding.packets]")
         contents.Data = ObjectChange::PackContents(cItems);
         REQUIRE(ObjectChange::UnpackContents(contents.Data) == cItems);
         sendMessage.Changes.push_back(contents);
+        ObjectChange base{ObjectChange::Kind::kBase, GameId(0, 0xE95D1)};
+        base.Item = GameId(0, 0xED5F7);
+        sendMessage.Changes.push_back(base);
+        ObjectChange create{ObjectChange::Kind::kCreate, GameId(ObjectChange::kCreatedModId, 0x1470)};
+        create.Item = GameId(0, 0x319E5);
+        ObjectChange::Placement placement{GameId(0, 0x32AE7), {}, {-383.f, 2093.f, 6980.f}, {0.f, 0.f, 1.5f}};
+        create.Data = ObjectChange::PackPlacement(placement);
+        ObjectChange::Placement unpacked;
+        REQUIRE(ObjectChange::UnpackPlacement(create.Data, unpacked));
+        CHECK(unpacked.Cell == placement.Cell);
+        CHECK(unpacked.Position[1] == 2093.f);
+        sendMessage.Changes.push_back(create);
         sendMessage.Changes.push_back({ObjectChange::Kind::kActivate, GameId(0, 0xC149D), GameId(0, 0xA05C4), 3, {}, {}});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D3), {}, 0, {}, "Turn01"});
         sendMessage.Changes.push_back({ObjectChange::Kind::kAnimation, GameId(0, 0x847D6), {}, 0, "Trigger01", "Done"});

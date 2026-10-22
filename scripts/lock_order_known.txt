@@ -96,3 +96,11 @@ SkyrimSE.exe+0x1b064a > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16abbd > SkyrimS
 # lock), against Job_Quest_for_events -> TESQuest 25049 -> BGSRefAlias 24012 -> ExtraAliasInstanceArray 12719. The
 # sibling of the 1823d0 load lines above. Both stacks read; vanilla.
 SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d4cb > SkyrimSE.exe+0x182241
+
+# A quest's alias fill adding a spell on an IO job (BGSRefAlias::InitializeRefAlias -> Actor::AddSpell ->
+# MagicCaster::FindTargets -> MagicTarget -> TESMagicEffectApplyEvent -> SkyrimVM::RelayEvent under the alias
+# array's lock 12720 -> VM SendEvent -> GetExtraData on the actor) against the Wait menu's autosave
+# (PlayerCharacter::StartWaiting -> Save_Impl -> TESObjectREFR::SaveGame: reference lock, then the alias array
+# 12729). Ours on the stack: the pass-throughs HookFindTargets, HookAddTarget (an owned actor, our caster) and
+# HookSendEvent (host). Seen in vilkas-counts-client-hits after a wait scenario; both stacks read on 2026-10-21.
+SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16f48b > SkyrimSE.exe+0x182f95

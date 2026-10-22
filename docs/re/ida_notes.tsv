@@ -170,3 +170,4 @@ id	rva	name	comment
 22054	0x34a3e0	TESObjectREFR::SetRotation	(ref, axis, degrees): angle on one axis and the 3D's local rotation, no NiAVObject::Update; console SetAngle, Papyrus SetAngle
 78383	0xea5980	BSFadeNode::UpdateCollisionObject	(node, bool): moves the 3D's collision to its transform
 70251	0xd1bf70	NiAVObject::Update	(object, NiUpdateData*): world transforms down the tree
+20232	0x2fb150	TESObjectREFR::PickLeveledBase	(ref): a reference placed with ExtraLeveledItemBase rolls it (14752) at its cell's load and takes the pick as its base (19785), records 0x80. Hooked: a guest picks none

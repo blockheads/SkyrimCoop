@@ -4,6 +4,10 @@
 #include <Games/TES.h>
 
 #include <Actor.h>
+#include <SaveLoad.h>
+#include <TESObjectREFR.h>
+
+#include <atomic>
 
 ModManager* ModManager::Get() noexcept
 {
@@ -32,11 +36,33 @@ uint32_t Mod::GetFormId(uint32_t aBaseId) const noexcept
 TP_THIS_FUNCTION(TSpawnNewREFR, uint32_t&, ModManager, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12);
 TSpawnNewREFR* RealSpawnNewREFR;
 
+static std::atomic<void (*)(uint32_t)> s_createdWatcher{nullptr};
+
 uint32_t& TP_MAKE_THISCALL(SpawnNewREFR, ModManager, uint32_t& aRefHandleOut, TESForm* apBaseForm, NiPoint3* apPosition, NiPoint3* apRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apActor, uintptr_t a9, uintptr_t a10, char aForcePersist, char a12)
 {
-    TP_EMPTY_HOOK_PLACEHOLDER;
+    uint32_t& handle = TiltedPhoques::ThisCall(RealSpawnNewREFR, apThis, aRefHandleOut, apBaseForm, apPosition, apRotation, apParentCell, apWorldSpace, apActor, a9, a10, aForcePersist, a12);
+    const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
+    if (const auto cWatcher = s_createdWatcher.load(std::memory_order_acquire); cWatcher && pSaveLoad && !pSaveLoad->IsSavingOrLoading())
+        if (const TESObjectREFR* pRef = TESObjectREFR::GetByHandle(handle))
+            cWatcher(pRef->formID);
+    return handle;
+}
 
-    return TiltedPhoques::ThisCall(RealSpawnNewREFR, apThis, aRefHandleOut, apBaseForm, apPosition, apRotation, apParentCell, apWorldSpace, apActor, a9, a10, aForcePersist, a12);
+uint32_t ModManager::CreateReference(TESBoundObject* apBase, const NiPoint3& acPosition, const NiPoint3& acRotation, TESObjectCELL* apCell,
+                                     TESWorldSpace* apWorldSpace) noexcept
+{
+    uint32_t handle = 0;
+    NiPoint3 position = acPosition;
+    NiPoint3 rotation = acRotation;
+    uint32_t noRoom = 0;
+    TiltedPhoques::ThisCall(RealSpawnNewREFR, this, handle, apBase, &position, &rotation, apCell, apWorldSpace, nullptr, 0,
+                            reinterpret_cast<uintptr_t>(&noRoom), static_cast<char>(0), static_cast<char>(1));
+    return handle;
+}
+
+void ModManager::WatchCreated(void (*apWatcher)(uint32_t aFormId)) noexcept
+{
+    s_createdWatcher.store(apWatcher, std::memory_order_release);
 }
 
 uint32_t ModManager::Spawn(NiPoint3& aPosition, NiPoint3& aRotation, TESObjectCELL* apParentCell, TESWorldSpace* apWorldSpace, Actor* apCharacter) noexcept
@@ -79,5 +105,5 @@ static TiltedPhoques::Initializer s_tesHooks(
 
         RealSpawnNewREFR = s_realSpawnNewREFR.Get();
 
-        // TP_HOOK(&RealSpawnNewREFR, SpawnNewREFR);
+        TP_HOOK(&RealSpawnNewREFR, SpawnNewREFR);
     });

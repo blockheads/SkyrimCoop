@@ -61,6 +61,9 @@ struct TESObjectREFR : TESForm
     };
 
     static TESObjectREFR* GetByHandle(uint32_t aHandle) noexcept;
+    // Off: a reference placed with a leveled base (ExtraLeveledItemBase, XLIB) keeps its placeholder when its cell
+    // loads (the pick, 20232, skipped), its base coming from the host's pick.
+    static void SetPicksLeveledBases(bool aPicks) noexcept;
     static uint32_t* GetNullHandle() noexcept;
 
     static void GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataList* apExtraDataList) noexcept;
@@ -187,6 +190,9 @@ struct TESObjectREFR : TESForm
     [[nodiscard]] uint32_t CountLeveledEntries() const noexcept;
     // Rolls its leveled entries as opening it does (InitInventoryIfRequired 16038); false for none to roll.
     bool InitInventoryIfRequired() noexcept;
+    // Its base swapped (SetObjectReference 19785) and recorded as the engine's pick records it (0x80); a loaded,
+    // enabled reference's 3D loaded again for it.
+    void SetBaseObject(TESBoundObject* apBase) noexcept;
     TESObjectCELL* GetParentCellEx() const noexcept;
 
     void SaveAnimationVariables(AnimationVariables& aWriter) const noexcept;
