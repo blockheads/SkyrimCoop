@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-21 (phase 5).
+Last updated 2026-10-22 (overnight: ghost NPCs, AI state on copies).
 
 ## Direct authority migration
 
@@ -152,6 +152,32 @@ with its scenarios.
 4. **Quest topics on peers:** follow from quest sync (missing on a peer's menu until then).
 5. **If step sync waits:** list updates event-driven, not checked every update (`DialogueService::ShowOwnLines`
    on the host's list arriving, the peer's engine building its list, a new step).
+
+### Overnight 2026-10-22: ghost NPCs, AI state on copies, step sync (uncommitted)
+
+Order: (0) ghost NPCs, (1) AI state on copies (package, sit/sleep, scene, combat), (2) dialogue's step sync.
+Decisions made without the user are marked **Decided**.
+
+- **0. Ghost NPCs: done.** `ActorWhereabouts` on `RequestRemoveCharacter`/`NotifyRemoveCharacter` (host rule
+  `HostCharacters::OnRemoveCharacter` passes it on; bridge case "the owner's removal says where its actor went";
+  TPTests round trip); the guest's `CharacterService::FollowOwner`; harness `actor_place`. Scenario
+  `host-npc-leaves-copy-follows` (send home, stage again, disable, enable) fails before (the client's Vilkas left
+  on the stage) and passes after; `release_host_npc` lost its client half. Passed with it: `vilkas-counts-client-hits`,
+  `remove-host-npc`, `death-host-npc`, `move-host-npc`, the `cells`, `session` and `spawn` tags but the known
+  `party-stacks-on-arrival` and `form-state-round-trips` (loose ends) and `dive-host-player` once (below).
+  - **Decided:** the host's deleted NPC is disabled and marked deleted on the guest (as the world state's enabled
+    row deletes a reference); its entity goes.
+  - **Decided:** a guest's game reference stays flagged a copy after its copy entity is dropped (removal, an
+    arrival leaving it behind, a respawn request) for the rest of the session (`HeldCopyComponent`); the flag
+    is cleared when the session ends. Before, an arrival cleared it and the guest ran that NPC's AI.
+  - **Decided:** the guest skips the move when its reference is in the target cell within 64 units (a host that
+    travelled away sends removals of actors that did not move).
+  - `release_host_npc` sends the host's NPC home while it is still frozen and thaws it there: thawed and
+    unloaded, Vilkas's AI walked him on ~300 units a second (`actor_place` on the host), which a copy does not
+    follow (it goes where the actor was at removal).
+  - `dive-host-player` failed once in the tag run (the host's copy on the client had a package of type 18,
+    `kPackage`, in one sample under water), then 3 of 3. Not traced; the copy is a player's (a temporary
+    reference), which this slice does not touch.
 
 ### Phase 5: the server is gone (2026-10-21, uncommitted)
 
@@ -508,11 +534,11 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
-- **A host NPC leaving the cell leaves the client's copy behind as the client's own actor** (2026-10-20): a copy of a placed NPC is the client's own reference; when the host's NPC goes, the client keeps it where it stood and treats it as its own (a ghost, and a client running a host NPC). Cause, cases, repro and options: `docs/design/copy-contract.md`, "When the owner's actor goes away". Only the test works around it (`release_host_npc`).
 - **A guest's player is never in combat** (2026-10-20, read in IDA, not seen in a game yet): the engine counts it
   in combat from the combat groups targeting it (41238, 41261), and the host's NPCs on a guest are copies with
   none. Expected in play: no combat music on a guest and nothing stopping a wait or save mid-fight (the
   checks reading the flag not traced). Fix planned with AI state on copies (`copy-contract.md`, "AI state").
+- **Done 2026-10-22: a host NPC leaving no longer leaves a ghost on the guest.** The removal carries where the host's actor went; the guest's reference follows it (moved, disabled or deleted) and stays a copy until the host spawns it again (`docs/design/copy-contract.md`, "When the owner's actor goes away"; `host-npc-leaves-copy-follows`). Still open: a guest's non-persistent references are made anew when it loads their cell, unflagged, so they run their own AI until the host's spawn arrives (not measured).
 - **A copy's spawn writes its NPC base's factions** (2026-10-19): `SetActorFactions` (`RemoveFromAllFactions`, then `SetFactionRank`) changes the shared `TESNPC`, so the client records `NPC_ Factions` change forms the host never did (168 in one fast travel). Harmless while the values match the host's; it is client-made world state in its save (`docs/research/world-state-drift.md`).
 - **The wolf's copy holds its last pose ~0.6 s after a client's kill move** (2026-10-13): it dies with its
   owner's death action, which comes the host's pair lag (~0.35 s) plus the interpolation delay after the

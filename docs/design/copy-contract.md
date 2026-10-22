@@ -170,9 +170,9 @@ until mods are taken on, measured on a modded setup first:
 - **Mods' private per-actor state** (poise, custom stamina): its effects arrive as actions, values and events;
   a query of it on a guest gets the guest's answer.
 
-## When the owner's actor goes away (open, found 2026-10-20)
+## When the owner's actor goes away (found 2026-10-20, decided 2026-10-22: the copy follows its owner)
 
-A copy of one of the game's own NPCs outlives its owner's actor.
+A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-22, below).
 
 - **What happens.** The host's NPC leaves the host's game (walks out of the loaded area, is moved away, is
   disabled): the server removes it, and each client's `CharacterService::OnRemoveCharacter` deletes the copy
@@ -190,11 +190,19 @@ A copy of one of the game's own NPCs outlives its owner's actor.
 - **Repro.** `vilkas-counts-client-hits` without the client's half of `release_host_npc` (coop_test.py): stage
   Vilkas, then send only the host's Vilkas home (`move_actor` with `home`); the client's Vilkas stays on the
   stage as its own.
-- **Not decided.** A placed NPC's copy could follow its owner on removal (to where the host's went, or out of
-  the client's world until the host has it again), or stay a copy until the client's own cell unloads.
-  World state sync (`docs/design/world-state-sync.md`: placed references' positions travel as change forms)
-  may cover where it ends up; what must not happen is the client running it.
-- **Today.** Only the test works around it: `release_host_npc` sends the client's reference home too.
+- **Decided (2026-10-22): the copy does what its owner does.** The removal carries where the host's NPC is
+  now (its cell or worldspace and position, or that it was disabled or deleted); the guest moves its reference
+  there (or disables it), still a copy with no AI of its own, and the host's next spawn of it takes over. A
+  guest never runs a host NPC.
+- **Built (2026-10-22).** The host's game reads where its actor is as it stops simulating it
+  (`CharacterService::ReadWhereabouts`: cell, worldspace, position and heading, or disabled, or deleted) and sends
+  it with the removal (`RequestRemoveCharacter`/`NotifyRemoveCharacter::Whereabouts`, `ActorWhereabouts`). The
+  guest's `FollowOwner` moves its reference there (skipped within 64 units in the same cell), or disables it
+  (deleted: disabled and marked deleted), and keeps it flagged a copy (`HeldCopyComponent`) until the host's next
+  spawn of it or the session's end. A game reference dropped on an arrival is held the same way: before, it lost
+  its copy flag and the guest ran that NPC's AI wherever it was left. The copy follows where the host's actor was
+  at removal; an unloaded host NPC walking on (its schedule) is not followed until it is spawned again.
+  Scenario `host-npc-leaves-copy-follows`; `release_host_npc` no longer touches the client.
 
 ## When syncing a new system
 

@@ -4,6 +4,7 @@
 #include "Status.h"
 
 #include <World.h>
+#include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 
 // Reading the world, and the player acting on its objects.
@@ -401,6 +402,25 @@ nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"enabled", *cEnabled}};
 }
 
+// {"cmd": "actor_place", "actor": id}: where this game has the actor, loaded or not, and whether it is a copy here.
+nlohmann::json ActorPlace(Harness&, const nlohmann::json& acRequest)
+{
+    auto& actors = World::Get().GetActorBridge();
+    const uint32_t cActor = acRequest.value("actor", 0u);
+    if (!actors.ActorExists(cActor))
+        return Error("no such actor");
+    float position[3]{};
+    actors.GetActorPosition(cActor, position[0], position[1], position[2]);
+    return {{"ok", true},
+            {"cell", actors.GetActorParentCellFormId(cActor)},
+            {"worldspace", actors.GetActorWorldSpaceFormId(cActor)},
+            {"position", {position[0], position[1], position[2]}},
+            {"has_3d", actors.ActorHas3D(cActor)},
+            {"disabled", actors.IsActorDisabled(cActor)},
+            {"deleted", actors.IsActorDeleted(cActor)},
+            {"copy", actors.IsActorCopy(cActor)}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -481,6 +501,7 @@ constexpr Command cCommands[] = {
     {"container_items", true, &ContainerItems},
     {"menu_var", true, &MenuVar},
     {"ref_enabled", true, &RefEnabled},
+    {"actor_place", true, &ActorPlace},
     {"activate", true, &Activate},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},

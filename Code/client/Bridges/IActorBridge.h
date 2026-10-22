@@ -151,7 +151,10 @@ public:
     virtual bool IsActorDragon(uint32_t aFormId) const noexcept = 0;
     virtual bool IsActorVampireLord(uint32_t aFormId) const noexcept = 0;
     virtual bool IsActorDisabled(uint32_t aFormId) const noexcept = 0;
+    virtual bool IsActorDeleted(uint32_t aFormId) const noexcept = 0;
     virtual void EnableActor(uint32_t aFormId) noexcept = 0;
+    // At once, no fade; aDelete also marks it deleted.
+    virtual void DisableActor(uint32_t aFormId, bool aDelete) noexcept = 0;
 
     // --- Dialogue / sound ---
     virtual void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept = 0;

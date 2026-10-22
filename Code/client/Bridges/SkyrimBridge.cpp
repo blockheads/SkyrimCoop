@@ -1606,12 +1606,31 @@ bool SkyrimBridge::IsActorDisabled(uint32_t aFormId) const noexcept
     return pActor->IsDisabled();
 }
 
+bool SkyrimBridge::IsActorDeleted(uint32_t aFormId) const noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->IsDeleted();
+}
+
 void SkyrimBridge::EnableActor(uint32_t aFormId) noexcept
 {
     Breadcrumbs::Record("EnableActor", aFormId);
     Actor* pActor = GetActor(aFormId);
     if (pActor)
         pActor->EnableImpl();
+}
+
+void SkyrimBridge::DisableActor(uint32_t aFormId, bool aDelete) noexcept
+{
+    Breadcrumbs::Record("DisableActor", aFormId, static_cast<uint32_t>(aDelete));
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return;
+    // TESObjectREFR::Disable (19801, vfunc DisableImpl), as the world state's enabled row applies it.
+    if (!pActor->IsDisabled())
+        pActor->DisableImpl();
+    if (aDelete)
+        pActor->SetDelete(true);
 }
 
 void SkyrimBridge::ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept

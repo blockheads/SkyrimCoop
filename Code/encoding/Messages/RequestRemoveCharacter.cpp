@@ -3,6 +3,7 @@
 void RequestRemoveCharacter::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
+    Whereabouts.Serialize(aWriter);
 }
 
 void RequestRemoveCharacter::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -10,4 +11,5 @@ void RequestRemoveCharacter::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
     RequestMessage::DeserializeRaw(aReader);
 
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Whereabouts.Deserialize(aReader);
 }

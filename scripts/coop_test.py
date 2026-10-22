@@ -1191,15 +1191,37 @@ def stage_host_npc(npc):
 
 
 def release_host_npc(npc):
-    """Thaws a staged NPC and sends it back where the game placed it, on both games: the client's copy is the
-    client's own reference, which stays on the stage otherwise (and the baseline clears the home cell)."""
-    freeze("", npc, False)
+    """Sends a staged NPC back where the game placed it and thaws it; the client's (its own reference, shown as a
+    copy) follows the host's there. Thawed once there: an unloaded actor's AI walks it on in jumps."""
     player_command("", {"cmd": "move_actor", "actor": npc, "home": True})
     wait_for(f"[host] {npc:X} has gone home", lambda: not host_npc_state(npc), 10)
-    # The host's NPC leaving turns the client's copy back into the client's own reference, still on the stage.
-    wait_for(f"[client] {npc:X} is no copy any more", lambda: str(npc) not in actors_on("client"), 10)
-    player_command("client", {"cmd": "move_actor", "actor": npc, "home": True})
-    wait_for(f"[client] {npc:X} has gone home", lambda: str(npc) not in local_player("client").get("local_actors", {}), 10)
+    try:
+        copy_follows_host(npc, "goes home with the host's")
+    finally:
+        freeze("", npc, False)
+
+
+def actor_place(instance, actor):
+    """Where that game has the actor, loaded or not ({} if it has none): cell, worldspace, position, has_3d,
+    disabled, deleted, and whether it is a copy there."""
+    select_instance(instance)
+    response = rpc({"cmd": "actor_place", "actor": actor}) or {}
+    return response if response.get("ok") else {}
+
+
+def copy_follows_host(npc, what, timeout=10):
+    """The client's reference of the host's NPC is where the host's is (its cell, within 64 units) and as enabled,
+    and still a copy: never left behind as the client's own (copy-contract.md, "When the owner's actor goes away")."""
+    def follows():
+        host, client = actor_place("", npc), actor_place("client", npc)
+        return (host and client and client["copy"] and client["cell"] == host["cell"]
+                and distance(client["position"], host["position"]) < 64 and client["disabled"] == host["disabled"]
+                and client)
+    try:
+        return wait_for(f"[client] its {npc:X} {what}", follows, timeout)
+    except TestFailure:
+        raise TestFailure(f"[client] its {npc:X} did not follow the host's ({what}): host {actor_place('', npc)}, "
+                          f"client {actor_place('client', npc)}")
 
 
 def remove_host_npc(npc):
@@ -3641,6 +3663,32 @@ def scenario_vilkas_counts_client_hits():
             console_on("", command)
 
 
+def scenario_host_npc_leaves_copy_follows():
+    """The host's Vilkas leaves (sent home), comes back, is disabled and enabled. The client's Vilkas, its own
+    placed reference shown as a copy, follows each time: home with the host's, disabled with it, and the host's
+    spawn takes it over again when the host has it here. It never stays behind as the client's own actor."""
+    try:
+        stage_host_npc(VILKAS)
+        release_host_npc(VILKAS)
+        if str(VILKAS) in local_player("client").get("local_actors", {}):
+            raise TestFailure(f"[client] {VILKAS:X} runs as the client's own actor")
+        stage_host_npc(VILKAS)  # the host's spawn takes the client's over again
+        console_on("", f"{VILKAS:X}.disable")
+        wait_for("[host] Vilkas is gone", lambda: not host_npc_state(VILKAS), 10)
+        copy_follows_host(VILKAS, "is disabled with the host's")
+        console_on("", f"{VILKAS:X}.enable")
+        session_id = wait_for("[host] Vilkas is back with a session id",
+                              lambda: (sid := host_npc_state(VILKAS).get("session_id")) is not None and sid >= 0 and (sid,), 10)[0]
+        if copy_of("client", session_id) != VILKAS:
+            raise TestFailure(f"[client] the host's Vilkas is not shown by the client's own {VILKAS:X}")
+        copy_follows_host(VILKAS, "is back with the host's")
+    finally:
+        if ref_enabled("", VILKAS) is False:
+            console_on("", f"{VILKAS:X}.enable")
+        if host_npc_state(VILKAS) or actor_place("", VILKAS).get("cell") == actor_place("", 0x14).get("cell"):
+            release_host_npc(VILKAS)
+
+
 def scenario_lock_reaches_others():
     """The host locks a door: the client's door is locked too, at the same level. The client
     unlocks it: the host's is unlocked."""
@@ -5235,6 +5283,7 @@ SCENARIOS = {
     "keyhole-asks-client": scenario_keyhole_asks_client,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
+    "host-npc-leaves-copy-follows": scenario_host_npc_leaves_copy_follows,
     "client-beast-form-stays-client": scenario_client_beast_form_stays_client,
     # chat
     "chat-reaches-everyone": scenario_chat_reaches_everyone,
@@ -5335,6 +5384,7 @@ TAGS = {
     "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
+    "host-npc-leaves-copy-follows": {'spawn'},
     "client-beast-form-stays-client": {'scripts', 'magic', 'spawn', 'quests'},
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},

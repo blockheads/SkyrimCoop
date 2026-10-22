@@ -657,6 +657,6 @@ more for the controller it has by then.
 
 Seen while building it: a frozen actor still takes a melee hit's knockback (about 8 units), and an NPC heals
 between hits, so a scenario steps up before each swing and judges each hit against full health. A host NPC
-that leaves the cell turns the client's copy of it (the client's own persistent reference) back into the
-client's own actor, still where the copy stood: `release_host_npc` sends that one home too. In play that is
-a sync gap: `docs/design/copy-contract.md`, "When the owner's actor goes away".
+that leaves the cell takes the client's copy of it (the client's own persistent reference) along, still a copy
+(`docs/design/copy-contract.md`, "When the owner's actor goes away"). `release_host_npc` sends the host's home
+while still frozen: thawed and unloaded, its AI walks it on in jumps of ~300 units, which the copy does not follow.

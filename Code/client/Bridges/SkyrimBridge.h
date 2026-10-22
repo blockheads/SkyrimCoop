@@ -89,7 +89,9 @@ public:
     bool IsActorDragon(uint32_t aFormId) const noexcept override;
     bool IsActorVampireLord(uint32_t aFormId) const noexcept override;
     bool IsActorDisabled(uint32_t aFormId) const noexcept override;
+    bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
+    void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
     void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override;
     void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;
     void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId, bool aForce) noexcept override;

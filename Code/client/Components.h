@@ -17,3 +17,4 @@
 #include <Components/CombatComponent.h>
 #include <Components/SpawnGraphStateComponent.h>
 #include <Components/OwnerPlaceComponent.h>
+#include <Components/HeldCopyComponent.h>

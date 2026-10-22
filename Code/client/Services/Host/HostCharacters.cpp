@@ -126,7 +126,7 @@ void HostCharacters::OnCancelAssignment(const CancelAssignmentRequest& acRequest
 void HostCharacters::OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept
 {
     if (OwnerOf(acRequest.SessionId) == aSender)
-        RemoveCharacter(acRequest.SessionId);
+        RemoveCharacter(acRequest.SessionId, acRequest.Whereabouts);
 }
 
 void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept
@@ -359,7 +359,7 @@ void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOw
     spdlog::info("HostCharacters: {} characters for the player who joined ({:x})", count, aPlayer);
 }
 
-void HostCharacters::RemoveCharacter(uint32_t aSessionId) noexcept
+void HostCharacters::RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts& acWhereabouts) noexcept
 {
     const auto it = m_characters.find(aSessionId);
     if (it == m_characters.end())
@@ -367,6 +367,7 @@ void HostCharacters::RemoveCharacter(uint32_t aSessionId) noexcept
 
     NotifyRemoveCharacter notify;
     notify.SessionId = aSessionId;
+    notify.Whereabouts = acWhereabouts;
     m_players.SendToOthers(notify, it->second.Owner, Net::kReliable);
 
     m_characters.erase(it);

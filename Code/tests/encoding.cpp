@@ -442,6 +442,36 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
+    SECTION("RequestRemoveCharacter and NotifyRemoveCharacter")
+    {
+        Buffer buff(1000);
+
+        RequestRemoveCharacter sendRequest, recvRequest;
+        sendRequest.SessionId = 42;
+        sendRequest.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
+        sendRequest.Whereabouts.CellId = GameId(0, 0x3C);
+        sendRequest.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
+        sendRequest.Whereabouts.Position = {1000.f, -2000.f, 300.f};
+        sendRequest.Whereabouts.Heading = 2.25f;
+        NotifyRemoveCharacter sendNotify, recvNotify;
+        sendNotify.SessionId = 43;
+        sendNotify.Whereabouts.Where = ActorWhereabouts::State::kDeleted;
+
+        Buffer::Writer writer(&buff);
+        sendRequest.Serialize(writer);
+        sendNotify.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvRequest.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvNotify.DeserializeRaw(reader);
+
+        REQUIRE(sendRequest == recvRequest);
+        REQUIRE(sendNotify == recvNotify);
+    }
+
     SECTION("RequestRespawn")
     {
         for (const bool cHasState : {false, true})

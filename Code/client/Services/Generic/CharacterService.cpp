@@ -286,6 +286,15 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 {
     // The session's copies go: the ones we spawned are deleted, the game's own actors are its own again.
     DropCopies([](uint32_t) { return true; });
+    const auto cHeld = m_world.view<HeldCopyComponent>();
+    for (const auto cEntity : std::vector<entt::entity>(cHeld.begin(), cHeld.end()))
+    {
+        if (const auto* pFormId = m_world.try_get<FormIdComponent>(cEntity); pFormId && m_actorBridge.IsActorCopy(pFormId->Id))
+            m_actorBridge.SetActorCopy(pFormId->Id, false);
+        m_world.remove<HeldCopyComponent, FormIdComponent>(cEntity);
+        if (m_world.orphan(cEntity))
+            m_world.destroy(cEntity);
+    }
     m_world.clear<WaitingForAssignmentComponent, LocalComponent>();
 }
 
@@ -491,6 +500,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
     }
 
     m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
+    m_world.remove<HeldCopyComponent>(*entity);
     // Link the engine actor now: DiscoveryService (removed in ec7d02d1) used to do this when the
     // actor entered a loaded cell, via ActorAddedEvent -> OnActorAdded. Without the link,
     // RunRemoteUpdates has no actor to apply interpolated movement to.
@@ -605,34 +615,99 @@ void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage)
 
     const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.SessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
 
-    if (itor != std::end(view))
-    {
-        const entt::entity cEntity = *itor;
-        bool deleted = false;
-        if (auto* pFormIdComponent = m_world.try_get<FormIdComponent>(cEntity))
-        {
-            const uint32_t cFormId = pFormIdComponent->Id;
-            // A copy we spawned (temporary reference) goes with its owner's actor. Checking only for a
-            // temporary *base* kept copies of real NPC bases (e.g. a placed chicken) as frozen leftovers.
-            if (m_actorBridge.IsActorTemporary(cFormId) || m_actorBridge.IsActorNpcTemporary(cFormId))
-            {
-                m_actorBridge.DeleteActor(cFormId);
-                deleted = true;
-                spdlog::info("\tDeleted actor {:X}", cFormId);
-            }
-        }
+    if (itor == std::end(view))
+        return;
 
-        DeleteRemoteEntityComponents(cEntity);
-        // The engine reuses a deleted copy's form id for the next one: an entity left holding it
-        // shadowed the new copy in form id lookups (its hits were dropped). Peers never see actor
-        // discovery remove a copy, so this is the only place it goes.
-        if (deleted)
-        {
-            m_world.remove<FormIdComponent>(cEntity);
-            if (m_world.orphan(cEntity))
-                m_world.destroy(cEntity);
-        }
+    const entt::entity cEntity = *itor;
+    const auto* pFormIdComponent = m_world.try_get<FormIdComponent>(cEntity);
+    const uint32_t cFormId = pFormIdComponent ? pFormIdComponent->Id : 0;
+    // A copy we spawned (temporary reference) goes with its owner's actor. Checking only for a temporary *base*
+    // kept copies of real NPC bases (e.g. a placed chicken) as frozen leftovers.
+    bool deleted = false;
+    if (cFormId && (m_actorBridge.IsActorTemporary(cFormId) || m_actorBridge.IsActorNpcTemporary(cFormId)))
+    {
+        m_actorBridge.DeleteActor(cFormId);
+        deleted = true;
+        spdlog::info("\tDeleted actor {:X}", cFormId);
     }
+    else if (cFormId && m_actorBridge.IsActorCopy(cFormId))
+        deleted = FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
+
+    DeleteRemoteEntityComponents(cEntity);
+    // The engine reuses a deleted copy's form id for the next one: an entity left holding it
+    // shadowed the new copy in form id lookups (its hits were dropped). Peers never see actor
+    // discovery remove a copy, so this is the only place it goes.
+    if (deleted)
+    {
+        m_world.remove<FormIdComponent, HeldCopyComponent>(cEntity);
+        if (m_world.orphan(cEntity))
+            m_world.destroy(cEntity);
+    }
+}
+
+bool CharacterService::FollowOwner(entt::entity aEntity, uint32_t aFormId, const ActorWhereabouts& acWhereabouts) const noexcept
+{
+    // Still a copy: a guest never runs a host NPC (copy-contract.md, "When the owner's actor goes away").
+    m_world.emplace_or_replace<HeldCopyComponent>(aEntity);
+    switch (acWhereabouts.Where)
+    {
+    case ActorWhereabouts::State::kPlaced:
+    {
+        const uint32_t cCellId = m_world.GetTravelService().CellAt(acWhereabouts.WorldSpaceId, acWhereabouts.CellId, acWhereabouts.Position);
+        if (!cCellId)
+        {
+            spdlog::warn("Copy {:X}: its owner's actor went to cell {:X} (worldspace {:X}), which this game lacks", aFormId,
+                         acWhereabouts.CellId.BaseId, acWhereabouts.WorldSpaceId.BaseId);
+            return false;
+        }
+        float x = 0.f, y = 0.f, z = 0.f;
+        m_actorBridge.GetActorPosition(aFormId, x, y, z);
+        const glm::vec3 cHere{x, y, z};
+        if (m_actorBridge.GetActorParentCellFormId(aFormId) == cCellId && glm::distance(cHere, glm::vec3(acWhereabouts.Position)) < 64.f)
+            return false;
+        spdlog::info("Copy {:X} follows its owner's actor to cell {:X}", aFormId, cCellId);
+        m_actorBridge.MoveActorTo(aFormId, cCellId, acWhereabouts.Position.x, acWhereabouts.Position.y, acWhereabouts.Position.z);
+        m_actorBridge.SetActorRotation(aFormId, 0.f, acWhereabouts.Heading);
+        return false;
+    }
+    case ActorWhereabouts::State::kDisabled:
+    case ActorWhereabouts::State::kDeleted:
+    {
+        const bool cDelete = acWhereabouts.Where == ActorWhereabouts::State::kDeleted;
+        spdlog::info("Copy {:X}: its owner's actor was {}", aFormId, cDelete ? "deleted" : "disabled");
+        m_actorBridge.DisableActor(aFormId, cDelete);
+        return cDelete;
+    }
+    default:
+        return false;
+    }
+}
+
+ActorWhereabouts CharacterService::ReadWhereabouts(uint32_t aFormId) const noexcept
+{
+    ActorWhereabouts where;
+    if (!m_actorBridge.ActorExists(aFormId))
+        return where;
+    if (m_actorBridge.IsActorDeleted(aFormId))
+        where.Where = ActorWhereabouts::State::kDeleted;
+    else if (m_actorBridge.IsActorDisabled(aFormId))
+        where.Where = ActorWhereabouts::State::kDisabled;
+    else
+    {
+        auto& modSystem = m_world.GetModSystem();
+        const uint32_t cCellId = m_actorBridge.GetActorParentCellFormId(aFormId);
+        const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(aFormId);
+        if (!cCellId || !modSystem.GetServerModId(cCellId, where.CellId) ||
+            (cWorldSpaceId && !modSystem.GetServerModId(cWorldSpaceId, where.WorldSpaceId)))
+            return {};
+        float x = 0.f, y = 0.f, z = 0.f;
+        m_actorBridge.GetActorPosition(aFormId, x, y, z);
+        where.Position = {x, y, z};
+        m_actorBridge.GetActorRotation(aFormId, x, y, z);
+        where.Heading = z;
+        where.Where = ActorWhereabouts::State::kPlaced;
+    }
+    return where;
 }
 
 void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) const noexcept
@@ -653,8 +728,7 @@ void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) co
 {
     CancelServerAssignment(aEntity, m_world.get<FormIdComponent>(aEntity).Id);
 
-    if (m_world.all_of<FormIdComponent>(aEntity))
-        m_world.remove<FormIdComponent>(aEntity);
+    m_world.remove<FormIdComponent, HeldCopyComponent>(aEntity);
 
     if (m_world.orphan(aEntity))
         m_world.destroy(aEntity);
@@ -1158,10 +1232,10 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
                 spdlog::info("Temporary Remote Deleted {:X}", aFormId);
                 m_actorBridge.DeleteActor(aFormId);
             }
+            else if (m_transport.IsOnline())
+                m_world.emplace_or_replace<HeldCopyComponent>(aEntity); // stays a copy while the session lasts
             else
-            {
                 m_actorBridge.SetActorCopy(aFormId, false);
-            }
         }
 
         DeleteRemoteEntityComponents(aEntity);
@@ -1174,6 +1248,7 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
     {
         RequestRemoveCharacter message;
         message.SessionId = pLocalComponent->Id;
+        message.Whereabouts = ReadWhereabouts(aFormId);
         m_transport.Send(message);
 
         m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
@@ -1514,6 +1589,8 @@ void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldD
         CancelServerAssignment(entity, cFormId);
         // Gone without discovery noticing: it must not report it removed later.
         m_discoveredActors.erase(cFormId);
+        if (m_world.all_of<HeldCopyComponent>(entity))
+            continue;
         if (m_world.all_of<FormIdComponent>(entity))
             m_world.remove<FormIdComponent>(entity);
         if (m_world.orphan(entity))

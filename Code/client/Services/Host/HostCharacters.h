@@ -3,6 +3,7 @@
 #include <network/ENetInterface.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyPartyTravel.h>
+#include <Structs/ActorWhereabouts.h>
 
 #include <optional>
 #include <NoCopyMove.h>
@@ -54,7 +55,7 @@ private:
     void OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
     // The owner dropped an announcement it is still waiting on.
     void OnCancelAssignment(const CancelAssignmentRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // The owner stopped simulating the actor.
+    // The owner stopped simulating the actor; its copies go where it went.
     void OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept;
     // The owner respawns its actor everywhere (a new appearance after a beast form); anyone else
     // lost its copy and asks for a fresh spawn.
@@ -76,7 +77,8 @@ private:
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
     // record and the host's copy.
     [[nodiscard]] std::optional<NotifyCharacterSpawn> BuildSpawn(uint32_t aSessionId) const noexcept;
-    void RemoveCharacter(uint32_t aSessionId) noexcept;
+    // Its copies follow aWhereabouts (where the owner's actor went).
+    void RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
 
     struct Character
     {

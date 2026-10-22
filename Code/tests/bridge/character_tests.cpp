@@ -93,6 +93,44 @@ TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving
     CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->SessionId == cPeerPlayer);
 }
 
+TEST_CASE("Characters: the owner's removal says where its actor went, for the copies to follow", "[Bridge][Characters]")
+{
+    Session session;
+    const uint32_t cMoved = session.Character(kHost);
+    const uint32_t cDisabled = session.Character(kHost);
+
+    RequestRemoveCharacter removal;
+    removal.SessionId = cMoved;
+    removal.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
+    removal.Whereabouts.CellId = GameId(0, 0x165A7); // an interior: no worldspace
+    removal.Whereabouts.Position = {100.f, -200.f, 64.f};
+    removal.Whereabouts.Heading = 1.5f;
+    session.Receive(kHost, removal);
+    removal.SessionId = cDisabled;
+    removal.Whereabouts = {};
+    removal.Whereabouts.Where = ActorWhereabouts::State::kDisabled;
+    session.Receive(kHost, removal);
+
+    const auto cSent = session.SentTo<NotifyRemoveCharacter>(kPeer);
+    REQUIRE(cSent.size() == 2);
+    CHECK(cSent[0]->SessionId == cMoved);
+    CHECK(cSent[0]->Whereabouts.Where == ActorWhereabouts::State::kPlaced);
+    CHECK(cSent[0]->Whereabouts.CellId == GameId(0, 0x165A7));
+    CHECK(cSent[0]->Whereabouts.WorldSpaceId == GameId{});
+    CHECK(cSent[0]->Whereabouts.Position.x == 100.f);
+    CHECK(cSent[0]->Whereabouts.Heading == 1.5f);
+    CHECK(cSent[1]->Whereabouts.Where == ActorWhereabouts::State::kDisabled);
+
+    // A player leaving: nothing to follow, its copies go.
+    session.Outbox.clear();
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    session.Outbox.clear();
+    session.Leave(kPeer);
+    REQUIRE(session.SentTo<NotifyRemoveCharacter>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->SessionId == cPeerPlayer);
+    CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->Whereabouts.Where == ActorWhereabouts::State::kUnknown);
+}
+
 TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn", "[Bridge][Characters]")
 {
     Session session;
