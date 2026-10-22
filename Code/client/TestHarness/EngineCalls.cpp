@@ -15,7 +15,10 @@
 #include <Forms/TESPackage.h>
 #include <Forms/BGSLocation.h>
 #include <Forms/TESQuest.h>
+#include <Forms/TESQuest.h>
+#include <Forms/TESTopicInfo.h>
 #include <Forms/TESWorldSpace.h>
+#include <Games/Misc/MenuTopicManager.h>
 #include <Games/FormState.h>
 #include <Games/Misc/SubtitleManager.h>
 #include <Games/Skyrim/Events/EventDispatcher.h>
@@ -25,6 +28,9 @@
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
+#include <Interface/FxDelegateArgs.h>
+#include <Interface/GFxMovie.h>
+#include <Interface/IMenu.h>
 #include <Havok/hkbBehaviorGraph.h>
 #include <Havok/hkbVariableValueSet.h>
 #include <Havok/BShkbHkxDB.h>
@@ -877,6 +883,15 @@ std::string GetSubtitle(uint32_t aFormId) noexcept
     return {};
 }
 
+uint32_t GetSubtitleOnScreen() noexcept
+{
+    SubtitleManager* pManager = SubtitleManager::Get();
+    if (!pManager)
+        return 0;
+    const TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(pManager->currentSpeakerHandle);
+    return pSpeaker ? pSpeaker->formID : 0;
+}
+
 uint8_t GetSitSleepState(uint32_t aFormId) noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -1041,6 +1056,99 @@ int32_t GetCharacterState(uint32_t aFormId) noexcept
     const uint8_t* pController = (s_getCharacterController.Get())(pActor);
     // bhkCharacterController::context (hkpCharacterContext) at 0x1E0, its currentState at +0x20 (CommonLibSSE-NG).
     return pController ? *reinterpret_cast<const int32_t*>(pController + 0x1E0 + 0x20) : -1;
+}
+
+DialogueState GetDialogue() noexcept
+{
+    DialogueState state;
+    MenuTopicManager* pManager = MenuTopicManager::Get();
+    if (!pManager)
+        return state;
+    state.MenuOpen = pManager->menuOpen;
+    state.SkipHead = pManager->skipHeadResponse;
+    state.CurrentInfo = pManager->currentTopicInfo ? pManager->currentTopicInfo->formID : 0;
+    state.LastInfo = pManager->lastTopicInfo ? pManager->lastTopicInfo->formID : 0;
+    if (TESObjectREFR* pSpeaker = TESObjectREFR::GetByHandle(pManager->speaker))
+        state.Speaker = pSpeaker->formID;
+    for (const MenuTopicManager::Dialogue* pDialogue : pManager->Options())
+    {
+        DialogueOption& option = state.Options.emplace_back();
+        option.Text = pDialogue->topicText.AsAscii() ? pDialogue->topicText.AsAscii() : "";
+        option.Topic = pDialogue->parentTopic ? pDialogue->parentTopic->formID : 0;
+        option.Info = pDialogue->parentTopicInfo ? pDialogue->parentTopicInfo->formID : 0;
+        option.Quest = pDialogue->parentQuest ? pDialogue->parentQuest->formID : 0;
+    }
+    UI* pUI = UI::Get();
+    IMenu* pMenu = pUI && pUI->GetMenuOpen("Dialogue Menu") ? pUI->FindMenuByName("Dialogue Menu") : nullptr;
+    if (pMenu && pMenu->uiMovie)
+    {
+        const auto cRead = [pMenu](const char* acpPath) -> int32_t {
+            GFxValue value{};
+            if (!pMenu->uiMovie->GetVariable(&value, acpPath))
+                return -1;
+            const uint32_t cType = value.type & GFxValue::kTypeMask;
+            return cType == GFxValue::kBoolean ? int32_t(value.value.boolean)
+                   : cType == GFxValue::kNumber ? int32_t(value.value.number) : -1;
+        };
+        state.AllowProgress = cRead("_root.DialogueMenu_mc.bAllowProgress");
+        state.SwfState = cRead("_root.DialogueMenu_mc.eMenuState");
+        state.Selected = cRead("_root.DialogueMenu_mc.TopicList.selectedIndex");
+        const int32_t cCursor = cRead("_root.DialogueMenu_mc.TopicList.selectedEntry.topicIndex");
+        if (cCursor >= 0 && static_cast<size_t>(cCursor) < state.Options.size())
+            state.CursorTopic = state.Options[cCursor].Topic;
+    }
+    return state;
+}
+
+bool PickDialogue(uint32_t aIndex) noexcept
+{
+    MenuTopicManager* pManager = MenuTopicManager::Get();
+    if (!pManager || !TESObjectREFR::GetByHandle(pManager->speaker))
+        return false;
+    pManager->Pick(aIndex);
+    return true;
+}
+
+bool ForceGreet(uint32_t aActorFormId) noexcept
+{
+    using TSetDialogueWithPlayer = bool(Actor*, bool aStart, bool aForceGreet, TESTopicInfo* apTopic);
+    POINTER_SKYRIMSE(TSetDialogueWithPlayer, s_setDialogueWithPlayer, 37200);
+    Actor* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    return pActor && s_setDialogueWithPlayer.Get()(pActor, true, true, nullptr);
+}
+
+std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept
+{
+    auto* pInfo = Cast<TESTopicInfo>(TESForm::GetById(aInfo));
+    if (!pInfo)
+        return std::nullopt;
+    if (aSaid)
+        pInfo->saidOnce = *aSaid;
+    return pInfo->saidOnce;
+}
+
+float GetPlayerActorValue(uint32_t aIndex) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    return pPlayer ? pPlayer->GetActorValue(aIndex) : 0.f;
+}
+
+float GetPlayerSkillExperience(uint32_t aIndex) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    return pPlayer ? pPlayer->GetSkillExperience(Skills::GetSkillFromActorValue(static_cast<int32_t>(aIndex))) : 0.f;
+}
+
+uint32_t GetPlayerTrainings() noexcept
+{
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    return pPlayer ? pPlayer->skillTrainingsThisLevel : 0;
+}
+
+void SetPlayerTrainings(uint32_t aCount) noexcept
+{
+    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
+        pPlayer->skillTrainingsThisLevel = aCount;
 }
 
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept

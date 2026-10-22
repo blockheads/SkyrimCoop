@@ -56,7 +56,7 @@ struct RequestMessageFactory
             RequestEquipmentChanges, SendChatMessageRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerLevelRequest, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot, EnterCellRequest, RequestActiveEffects, TimeScaleRequest,
             DialogueStartRequest, DialogueOpenedRequest, DialogueOptionsRequest, DialoguePickRequest, DialogueCloseRequest,
-            DialogueJoinRequest, DialogueExperienceRequest, ContainerChangeRequest, CellStateRequest>;
+            DialogueJoinRequest, ContainerChangeRequest, CellStateRequest, DialogueStartFailedRequest>;
 
         return s_visitor(std::forward<T>(func));
     }

@@ -112,6 +112,10 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 - **Stress tests with more players:** 3-4 games (or bots) in one session, and headless games if Skyrim
   can run without rendering.
+- **A three-game duo** (`duo --players 3`, a second client `client2` on display :101). The archive's version
+  (tag `archive/shared-dialogue-client`: `third_game()`, `games()`, the desync check skipping the second client's
+  own actors, `dialogue-three-players`) did not apply on today's duo and its half was removed 2026-10-22; port it
+  whole, `command_duo` and `reload_games` included, when a scenario needs a third player.
 
 - **Animation trace, next steps.** The trace (`AnimTrace`, `docs/progress.md`) runs inside scenarios.
   Next: a `coop_test.py trace --seconds N` for the running games without a scenario (both players and

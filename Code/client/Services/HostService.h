@@ -13,6 +13,7 @@ struct ContainerChangeEvent;
 struct HostAuthority;
 struct HostNetwork;
 class HostEngine;
+struct HostConversation;
 
 /**
  * @brief Hosting a session: the listener the other players' games join (HostNetwork), the host's
@@ -52,6 +53,8 @@ private:
     std::unique_ptr<HostEngine> m_pEngine;
     std::unique_ptr<HostAuthority> m_pAuthority;
     std::unique_ptr<HostNetwork> m_pNetwork;
+    // The host's game in the party's conversation.
+    std::unique_ptr<HostConversation> m_pConversation;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_activateConnection;

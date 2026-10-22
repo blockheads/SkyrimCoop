@@ -24,12 +24,14 @@ void DialogueStartRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
 void DialogueOpenedRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteBool(aWriter, Everyone);
 }
 
 void DialogueOpenedRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
+    Everyone = Serialization::ReadBool(aReader);
 }
 
 void DialogueOptionsRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
@@ -107,6 +109,7 @@ void NotifyDialogueOpen::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexc
 {
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, NpcId);
+    Serialization::WriteBool(aWriter, Everyone);
 }
 
 void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -114,6 +117,7 @@ void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     NotifyMessage::DeserializeRaw(aReader);
     Conversation = ReadId(aReader);
     NpcId = ReadId(aReader);
+    Everyone = Serialization::ReadBool(aReader);
 }
 
 void NotifyDialogueList::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
@@ -163,24 +167,25 @@ void NotifyDialogueClosed::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     Conversation = ReadId(aReader);
 }
 
-void DialogueExperienceRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
+void DialogueStartFailedRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteFloat(aWriter, Experience);
+    Serialization::WriteVarInt(aWriter, NpcId);
 }
 
-void DialogueExperienceRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
+void DialogueStartFailedRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
-    Experience = Serialization::ReadFloat(aReader);
+    NpcId = ReadId(aReader);
 }
 
-void NotifyDialogueExperience::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
+void NotifyDialogueRefused::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteFloat(aWriter, Experience);
+    Serialization::WriteVarInt(aWriter, NpcId);
 }
 
-void NotifyDialogueExperience::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
+void NotifyDialogueRefused::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
-    Experience = Serialization::ReadFloat(aReader);
+    NpcId = ReadId(aReader);
 }
+

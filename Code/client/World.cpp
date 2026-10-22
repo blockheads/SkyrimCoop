@@ -18,6 +18,8 @@
 #include <Services/InventoryService.h>
 #include <Services/EffectVisualsService.h>
 #include <Services/AiStateService.h>
+#include <Services/DialogueService.h>
+#include <Bridges/DialogueBridge.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/TimeScaleService.h>
@@ -61,6 +63,7 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
 
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this))
+    , m_pDialogueBridge(std::make_unique<DialogueBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_modSystem(m_dispatcher)
@@ -86,6 +89,7 @@ World::World()
                                ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
@@ -109,6 +113,7 @@ World::~World()
     ctx().erase<CombatService>();
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
+    ctx().erase<DialogueService>();
     ctx().erase<AiStateService>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();

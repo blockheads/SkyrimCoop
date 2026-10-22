@@ -3,6 +3,7 @@
 #include "Message.h"
 
 #include <Structs/DialogueOption.h>
+#include <Structs/GameId.h>
 
 // Shared dialogue: one conversation for the party, run by the host's game (docs/design/shared-dialogue.md).
 // Conversation ids count from 1; steps count picks from 1.
@@ -19,7 +20,7 @@ struct DialogueStartRequest final : RequestMessage
     uint32_t NpcId{}; // session id
 };
 
-// The host's game: its player's dialogue menu opened with this NPC.
+// The host's game: its player's dialogue menu opened with this NPC (Everyone: the NPC started it, a force greet).
 struct DialogueOpenedRequest final : RequestMessage
 {
     static constexpr RequestOpcode Opcode = kDialogueOpenedRequest;
@@ -29,10 +30,10 @@ struct DialogueOpenedRequest final : RequestMessage
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
     uint32_t NpcId{};
+    bool Everyone{};
 };
 
-// The host's game's options for a step, after every change (Choices: the last line's choices, not the speaker's
-// topics).
+// The host's game showed a step's list: its options in menu order (Choices: a line's choices).
 struct DialogueOptionsRequest final : RequestMessage
 {
     static constexpr RequestOpcode Opcode = kDialogueOptionsRequest;
@@ -47,8 +48,7 @@ struct DialogueOptionsRequest final : RequestMessage
     DialogueOptions Options{};
 };
 
-// A game's player picked a topic of the step: Info is the line its own game gives its player for it (empty: none),
-// the one said; Text, the option as its menu showed it.
+// A game's player picked an option of the step's list (its topic and line); Text, as its menu showed it.
 struct DialoguePickRequest final : RequestMessage
 {
     static constexpr RequestOpcode Opcode = kDialoguePickRequest;
@@ -91,17 +91,16 @@ struct DialogueJoinRequest final : RequestMessage
     uint32_t Conversation{};
 };
 
-// The host's game: its player would have gained Speech experience from a line another player picked (a
-// persuade's script runs there); it goes to that player.
-struct DialogueExperienceRequest final : RequestMessage
+// The host's game could not start the conversation a guest asked for (its player busy, the engine refused).
+struct DialogueStartFailedRequest final : RequestMessage
 {
-    static constexpr RequestOpcode Opcode = kDialogueExperienceRequest;
-    DialogueExperienceRequest() : RequestMessage(Opcode) {}
+    static constexpr RequestOpcode Opcode = kDialogueStartFailedRequest;
+    DialogueStartFailedRequest() : RequestMessage(Opcode) {}
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    float Experience{};
+    uint32_t NpcId{};
 };
 
 // To the host's game: start its player's conversation with this NPC.
@@ -116,8 +115,8 @@ struct NotifyDialogueStart final : NotifyMessage
     uint32_t NpcId{};
 };
 
-// A conversation opened: the player who asked opens its menu on its copy (others join by talking to it); the
-// host's game learns its id.
+// A conversation opened: the player who asked opens its menu on its copy, every player when the NPC started it
+// (Everyone); others join by talking to it. The host's game learns its id.
 struct NotifyDialogueOpen final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyDialogueOpen;
@@ -128,10 +127,10 @@ struct NotifyDialogueOpen final : NotifyMessage
 
     uint32_t Conversation{};
     uint32_t NpcId{};
+    bool Everyone{};
 };
 
-// The host's options for a step: each game's menu shows their topics with its own player's lines (Choices: a
-// line's choices, nothing else to say).
+// The host's list for a step: every game's menu shows these options (Choices: a line's choices).
 struct NotifyDialogueList final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyDialogueList;
@@ -146,8 +145,8 @@ struct NotifyDialogueList final : NotifyMessage
     DialogueOptions Options{};
 };
 
-// A topic was picked: the host's game says Info (the picker's line, else the host's); every other menu shows the
-// pick and waits for the next step's list.
+// An option of the step was picked: the host's game says it as if its player had; every other menu waits for the
+// next step's list.
 struct NotifyDialoguePicked final : NotifyMessage
 {
     static constexpr NotifyOpcode Opcode = kNotifyDialoguePicked;
@@ -175,14 +174,14 @@ struct NotifyDialogueClosed final : NotifyMessage
     uint32_t Conversation{};
 };
 
-// Speech experience from a line this player picked: its player gains it.
-struct NotifyDialogueExperience final : NotifyMessage
+// The conversation this game asked for will not start.
+struct NotifyDialogueRefused final : NotifyMessage
 {
-    static constexpr NotifyOpcode Opcode = kNotifyDialogueExperience;
-    NotifyDialogueExperience() : NotifyMessage(Opcode) {}
+    static constexpr NotifyOpcode Opcode = kNotifyDialogueRefused;
+    NotifyDialogueRefused() : NotifyMessage(Opcode) {}
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    float Experience{};
+    uint32_t NpcId{};
 };

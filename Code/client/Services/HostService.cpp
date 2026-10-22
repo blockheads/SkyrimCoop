@@ -1,4 +1,6 @@
 #include <Services/HostService.h>
+#include <Services/DialogueService.h>
+#include <Services/Host/HostConversation.h>
 
 #include <Events/ActivateEvent.h>
 #include <Events/ContainerChangeEvent.h>
@@ -80,6 +82,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
+    m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
 
     spdlog::info("HostService: hosting on port {}", m_pNetwork->GetPort());
     return true;
@@ -92,6 +95,7 @@ void HostService::StopHosting() noexcept
     // Our own in-process connection goes through it.
     if (m_world.GetTransport().IsConnectedLocally())
         m_world.GetTransport().Close();
+    m_pConversation.reset();
     m_pNetwork.reset();
     m_pAuthority.reset();
     m_pEngine.reset();

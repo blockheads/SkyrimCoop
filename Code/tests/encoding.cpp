@@ -442,6 +442,48 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
     }
 
+    SECTION("DialogueOptionsRequest, NotifyDialogueList and NotifyDialogueOpen")
+    {
+        Buffer buff(1000);
+
+        DialogueOption option;
+        option.Topic = GameId(0, 0x1F4E2);
+        option.Info = GameId(2, 0x803);
+        option.Quest = GameId(0, 0x46F20);
+        option.Text = "(Persuade) Surely you can help.";
+        DialogueOptionsRequest sendRequest, recvRequest;
+        sendRequest.Conversation = 3;
+        sendRequest.Step = 7;
+        sendRequest.Choices = true;
+        sendRequest.Options = {option, option};
+        NotifyDialogueList sendList, recvList;
+        sendList.Conversation = 3;
+        sendList.Step = 8;
+        sendList.Options = {option};
+        NotifyDialogueOpen sendOpen, recvOpen;
+        sendOpen.Conversation = 4;
+        sendOpen.NpcId = 0x21;
+        sendOpen.Everyone = true;
+
+        Buffer::Writer writer(&buff);
+        sendRequest.Serialize(writer);
+        sendList.Serialize(writer);
+        sendOpen.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvRequest.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvList.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvOpen.DeserializeRaw(reader);
+
+        CHECK((recvRequest.Conversation == 3 && recvRequest.Step == 7 && recvRequest.Choices && recvRequest.Options == sendRequest.Options));
+        CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
+        CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
+    }
+
     SECTION("RequestRemoveCharacter and NotifyRemoveCharacter")
     {
         Buffer buff(1000);

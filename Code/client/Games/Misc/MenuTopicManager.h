@@ -34,8 +34,6 @@ struct MenuTopicManager
     // The options in menu order, as SelectDialogue (35269) counts them. Valid until the engine rebuilds the list:
     // use them on the main thread (where the engine builds and picks), within the frame.
     [[nodiscard]] std::vector<Dialogue*> Options() noexcept;
-    // The option's index (-1: not in the list).
-    [[nodiscard]] int32_t IndexOf(const Dialogue* apOption) noexcept;
     // Whether there is an option to show (35267, as the menu asks before filling its list).
     [[nodiscard]] bool HasOptions() noexcept;
 

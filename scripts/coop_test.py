@@ -75,7 +75,7 @@ GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
 PROTON = Path(os.environ.get("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
 RUNTIME = Path(os.environ.get("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
 STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".steam/steam"))
-TEST_HOME = ROOT / "build/coop-test"
+TEST_HOME = (ROOT / "build/coop-test").resolve()  # one name for the games, from any checkout or worktree
 PREFIX = TEST_HOME / "prefix-host"
 DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"))
 # Resident SKSE plugin that loads the client from a copy, so `reload` can swap in a rebuild
@@ -2184,9 +2184,151 @@ def scenario_copy_ends_voice_line():
         wait_for("[host] NPC's line ends", lambda: line_over("", npc), 30)
         wait_for(f"[client] copy {copy:08X}'s line ends", lambda: line_over("client", copy), 5)
     finally:
-        select_instance("")
-        rpc({"cmd": "menu", "name": "Dialogue Menu", "show": False})
+        close_dialogues()
     hold()
+
+
+TAB_KEY = 0x0F  # leaves the dialogue menu
+ACTIVATE_KEY = 0x12  # E: says the selected option (the menu's Accept; Enter does not)
+UP_KEY, DOWN_KEY = 0x11, 0x1F  # W, S: move the highlight (the arrows' scan codes do not, sent by the harness)
+HULDA = "00013BA3"  # the Bannered Mare's innkeeper: three options (a room, rumors, magic)
+BRENUIN = "00013BA7"  # Whiterun's beggar: "Here. Have a gold piece." only for a player carrying gold
+GOLD = 0xF
+GIVE_COIN_TOPIC = 0x6001F  # FavorJobsBeggarsGiveMoneyTopic
+GIVE_COIN_INFO = 0x60022   # its line: the beggar thanks the player
+RENT_ROOM_TOPIC = 0x9CC92  # its info: the player pays 10 gold for the room, or, without it, cannot afford it
+RENT_ROOM_NO_GOLD_INFO = 0x9CC95  # Hulda's line to a player without the gold
+
+
+def dialogue(instance):
+    """That game's conversation: {"menu": the Dialogue Menu shows, "speaker", "options": [...]}."""
+    return player_command(instance, {"cmd": "dialogue"})
+
+
+def talking_to(instance, speaker):
+    """That game's dialogue menu shows, with its player talking to `speaker`."""
+    state = dialogue(instance)
+    return state.get("menu") and state.get("speaker") == speaker
+
+
+def menu_closed(instance):
+    return not dialogue(instance).get("menu")
+
+
+def list_shown(instance):
+    """That game's dialogue menu shows its list: the arrow keys move the highlight (eMenuState TOPIC_LIST_SHOWN)."""
+    return (dialogue(instance).get("swf") or {}).get("state") == 1
+
+
+def cursor(instance):
+    """The topic highlighted in that game's dialogue menu (0: none)."""
+    return (dialogue(instance).get("swf") or {}).get("cursor") or 0
+
+
+def lists_topic(instance, topic):
+    """That game's conversation lists the topic (its own option, or another player's added to it)."""
+    return topic in [o["topic"] for o in dialogue(instance).get("options", [])]
+
+
+def topics_shown(instance):
+    """The topics that game's conversation lists, in order."""
+    return [o["topic"] for o in dialogue(instance).get("options", [])]
+
+
+def options_shown(instance):
+    """That game's dialogue list as (topic, line, text), in menu order."""
+    return [(o["topic"], o["info"], o["text"]) for o in dialogue(instance).get("options", [])]
+
+
+def client_shows_hosts_list(what, timeout=10):
+    """The client's menu shows exactly the host's list: its topics, lines and texts, in its order (every game's menu
+    shows the host's game's list; docs/design/shared-dialogue.md). Returns it."""
+    def same():
+        host = options_shown("")
+        return host and options_shown("client") == host and host
+    try:
+        return wait_for(f"[client] the menu shows the host's list {what}", same, timeout)
+    except TestFailure:
+        raise TestFailure(f"[client] the menu does not show the host's list {what}: client {options_shown('client')}, "
+                          f"host {options_shown('')}")
+
+
+def info_shown(instance, topic):
+    """The line that game's conversation has for the topic (0: not listed)."""
+    return next((o["info"] for o in dialogue(instance).get("options", []) if o["topic"] == topic), 0)
+
+
+def menu_takes_pick(instance):
+    """That game's dialogue menu shows its list and takes a pick: the SWF's bAllowProgress, set 750 ms after the
+    line's voice is ready, and its list shown (DialogueMenu.as eMenuState TOPIC_LIST_SHOWN)."""
+    swf = dialogue(instance).get("swf") or {}
+    return swf.get("allow_progress") == 1 and swf.get("state") == 1
+
+
+def close_dialogues():
+    """Every open conversation ends as its players leave it (Tab): a menu hidden from outside skips the SWF's close,
+    which gives the HUD its subtitles back (DialogueMenu 51511). The last one out ends the host's, which may run
+    without its menu."""
+    for instance in ("client", ""):
+        if dialogue(instance).get("menu"):
+            tap_key(instance, TAB_KEY)
+            wait_for(f"[{instance or 'host'}] the menu closes", lambda instance=instance: menu_closed(instance), 10)
+    wait_for("[host] its conversation ends", lambda: not dialogue("").get("speaker"), 10)
+
+
+def scenario_dialogue_peer_starts():
+    """The client talks to its copy of the host's NPC: the host's player is the one talking (its game runs the
+    conversation with the real NPC, without its menu: the host plays on), and the client's menu opens on the copy
+    with the host's list: its topics, lines and texts, in its order (docs/design/shared-dialogue.md)."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 110)
+        place_before("client", copy, 110)
+        look_apart()
+        activate_on("client", copy)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[host] the conversation lists options", lambda: topics_shown(""), 5)
+        client_shows_hosts_list("at the open")
+        if dialogue("").get("menu"):
+            raise TestFailure("[host] the dialogue menu opened for a conversation it did not start")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+
+
+def scenario_dialogue_last_one_out_ends_it():
+    """A player leaving (Tab) leaves the conversation on for the others; the last one out ends it. The host talks
+    and the client joins by talking to its copy; the client leaves, the host's stays, and the host's Tab ends it.
+    Then the other way round: the host leaves first and its conversation goes on without its menu, until the
+    client leaves too."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 110)
+        place_before("client", copy, 110)
+        for first, last in (("client", ""), ("", "client")):
+            activate_on("", npc)
+            wait_for(f"[host] the player talks to {npc:08X}", lambda: talking_to("", npc), 10)
+            if dialogue("client").get("menu"):
+                raise TestFailure("[client] the host's conversation opened its menu: joining is by talking")
+            activate_on("client", copy)
+            wait_for(f"[client] talking to copy {copy:08X} joins", lambda: talking_to("client", copy), 10)
+            tap_key(first, TAB_KEY)
+            wait_for(f"[{first or 'host'}] Tab closes its menu", lambda: menu_closed(first), 10)
+            frame = game_frame("")
+            def stays():
+                if not talking_to(last, copy if last else npc) or not in_conversation("", npc):
+                    raise TestFailure(f"[{first or 'host'}] leaving ended the conversation for the other player")
+                return game_frame("") > frame + 120
+            wait_for(f"[{last or 'host'}] the conversation goes on", stays, 10)
+            tap_key(last, TAB_KEY)
+            wait_for(f"[{last or 'host'}] Tab closes its menu", lambda: menu_closed(last), 10)
+            wait_for("[host] the last one out ends the conversation", lambda: not dialogue("").get("speaker"), 10)
+            hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
 
 
 def on_other_player(instance, within=30):
@@ -2290,6 +2432,792 @@ def bumps_into_other(walker):
         raise TestFailure(f"[{walker or 'host'}] came within {seen['closest']:.0f} units of the other player: it walked "
                           "through it (collision should be back off the stack)")
     log(f"[{walker or 'host'}] came no closer than {seen['closest']:.0f} units to the other player")
+
+
+def subtitle_on_screen(instance):
+    """Whose subtitle that game's HUD shows now (SubtitleManager's current speaker), 0 for none."""
+    select_instance(instance)
+    return (read_status() or {}).get("subtitle_on_screen") or 0
+
+
+def scenario_dialogue_nobody_moves():
+    """The client talks to its copy while the host stands 1500 units off: the host's player is the one talking
+    (its game runs the conversation from where it stands, without its menu), and neither player is moved for it.
+    The client's menu lists the options and stays open; its Tab, the last one out, ends it."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 1500, 90)
+        place_before("client", copy, 110)
+        spots = {name: my_position(name) for name in ("", "client")}
+        activate_on("client", copy)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[client] the menu lists options",
+                 lambda: talking_to("client", copy) and dialogue("client").get("options"), 10)
+        for name in ("", "client"):
+            if distance(my_position(name)[:2], spots[name][:2]) > 5:
+                raise TestFailure(f"[{name or 'host'}] the player was moved for the conversation")
+        hold()
+        tap_key("client", TAB_KEY)
+        wait_for("[client] the menu closes", lambda: menu_closed("client"), 10)
+        wait_for("[host] its conversation ends", lambda: not in_conversation("", npc), 10)
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+
+
+def scenario_dialogue_join_by_talking():
+    """The host talks to its NPC with the client 2000 units off: the client stays out of it (no menu) and reads
+    her line on its screen (relayed with the engine's force flag, so at any distance). Coming up to her copy and
+    talking to it, the client joins: its menu opens on the copy, the host's conversation goes on."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("client", copy, 2000, 90)
+        place_before("", npc, 110)
+        activate_on("", npc)
+        wait_for(f"[host] the player talks to {npc:08X}", lambda: talking_to("", npc), 10)
+        wait_for(f"[client] the HUD shows copy {copy:08X}'s line", lambda: subtitle_on_screen("client") == copy, 10)
+        place_before("client", copy, 110, 90)
+        if dialogue("client").get("menu"):
+            raise TestFailure("[client] near her copy, the menu opened without talking to it")
+        activate_on("client", copy)
+        wait_for(f"[client] talking to copy {copy:08X} joins", lambda: talking_to("client", copy), 10)
+        wait_for("[client] the menu lists options", lambda: talking_to("client", copy) and dialogue("client").get("options"), 10)
+        if not talking_to("", npc):
+            raise TestFailure("[host] the client joining ended the host's conversation")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+
+
+def in_conversation(instance, speaker):
+    """That game's player talks to `speaker`, with its menu open or not (MenuTopicManager's speaker)."""
+    return dialogue(instance).get("speaker") == speaker
+
+
+def scenario_dialogue_host_in_background():
+    """The client talks to its copy with the host 800 units off: the host's game runs the conversation in the
+    background (no menu, its player not turned, free to move) and shows her line on its HUD, while the client's
+    menu opens. The host walks off and the conversation waits for a pick; walking back and talking to her, the
+    host joins: its menu opens on the conversation under way. Then the
+    host leaves it (Tab ends it for both), the client talks again, and a pick in the host's background
+    conversation says her line: the follower line ends it for both."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[host] the conversation lists options", lambda: dialogue("").get("options"), 10)
+        if dialogue("").get("menu"):
+            raise TestFailure("[host] 800 units off, the dialogue menu opened")
+        wait_for(f"[host] the HUD shows {npc:08X}'s line", lambda: subtitle_on_screen("") == npc, 10)
+        start = my_position("")
+        console_on("", "player.setangle z 90")  # away from her: the host stands east of her
+        press("", "forward")  # the host takes input: no menu
+        try:
+            wait_for("[host] walks away from her", lambda: distance(my_position("")[:2], start[:2]) > 200, 10)
+        finally:
+            release("", "forward")
+        # Waiting for a pick, with no menu: the conversation stays (600 frames, about 10 s).
+        frame = game_frame("")
+        def waited():
+            if not in_conversation("", npc) or not talking_to("client", copy):
+                raise TestFailure("[host] waiting for a pick without the menu, the conversation ended")
+            return game_frame("") > frame + 600
+        wait_for("[host] the conversation waits for a pick", waited, 30)
+        face("", npc)
+        press("", "forward")
+        try:
+            wait_for("[host] walks back to her", lambda: distance(my_position("")[:2], start[:2]) < 300, 10)
+        finally:
+            release("", "forward")
+        if dialogue("").get("menu"):
+            raise TestFailure("[host] near her, the menu opened without talking to her")
+        activate_on("", npc)
+        wait_for(f"[host] talking to {npc:08X} joins: the menu opens", lambda: talking_to("", npc), 10)
+        wait_for("[host] the menu lists options", lambda: dialogue("").get("options"), 10)
+        hold()
+        close_dialogues()
+
+        place_before("", npc, 800, 90)
+        activate_on("client", copy)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        options = wait_for("[host] the conversation lists options", lambda: dialogue("").get("options"), 10)
+        log(f"[host] options: {[o['text'] for o in options]}")
+        player_command("", {"cmd": "dialogue_pick", "index": 0})
+        wait_for("[host] her line (a goodbye) ends the conversation", lambda: not in_conversation("", npc), 20)
+        wait_for("[client] the menu closes", lambda: menu_closed("client"), 10)
+        if not takes_input(""):
+            raise TestFailure(f"[host] after the conversation, a menu is open: {(read_status() or {}).get('menus')}")
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+
+
+def scenario_dialogue_options_are_the_hosts():
+    """Every menu shows the host's list, judged for the host's player: Brenuin offers "Here. Have a gold piece." only
+    to a player carrying gold. The host carries gold, the client none: the client talks to him (the host's game in
+    the background) and its menu lists the coin anyway. Given gold, the client picks it: the host's game says
+    Brenuin's answer, its script runs for the client (party-model.md, rule 2) and takes the client's coin, not the
+    host's; the chat on both games names who said it. Then the other way round (the client carrying gold, the host
+    none): nobody's menu lists the coin."""
+    gold = {name: item_count(name, 0x14, GOLD) for name in ("", "client")}
+    npc, _, copy = spawn_host_npc(BRENUIN, restrained=True)
+    def set_gold(name, count, wait=True):
+        have = item_count(name, 0x14, GOLD)
+        if have != count:
+            console_on(name, f"player.{'additem' if count > have else 'removeitem'} f {abs(count - have)}")
+        if wait:
+            wait_for(f"[{name or 'host'}] carries {count} gold", lambda: item_count(name, 0x14, GOLD) == count, 5)
+    try:
+        # The coin's line comes back 4 hours after it is said (an earlier run said it).
+        console_on("", "set gamehour to gamehour + 5")
+        set_gold("", 10)
+        set_gold("client", 0)
+        names = [name for name, host in session_players("").items() if not host]
+        if len(names) != 1:
+            raise TestFailure(f"[host] lists {names} as the other players, the scenario needs the client alone")
+        place_before("", npc, 110)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for("[host] its list has the coin", lambda: lists_topic("", GIVE_COIN_TOPIC), 30)
+        client_shows_hosts_list("with the coin, though the client carries no gold")
+        text = next(o["text"] for o in dialogue("client")["options"] if o["topic"] == GIVE_COIN_TOPIC)
+        set_gold("client", 10)
+        character = client_on_host()
+        def copy_carries_it():
+            if item_count("client", 0x14, GOLD) != 10:
+                raise TestFailure(f"[client] its gold changed to {item_count('client', 0x14, GOLD)} before the pick")
+            return item_count("", character, GOLD) == 10
+        try:
+            wait_for("[host] the client's character carries its gold", copy_carries_it, 5)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: the copy {character:08X} carries {item_count('', character, GOLD)}") from error
+        pick_with_keys("client", GIVE_COIN_TOPIC)
+        wait_for(f"[host] {npc:08X} says his answer to the coin",
+                 lambda: dialogue("").get("current_info") == GIVE_COIN_INFO, 10)
+        wait_for(f"[client] copy {copy:08X} voices it", lambda: line_playing("client", copy), 5)
+        wait_for("[client] its player gave the coin", lambda: item_count("client", 0x14, GOLD) == 9, 10)
+        if item_count("", 0x14, GOLD) != 10:
+            raise TestFailure(f"[host] its player paid the client's coin: {item_count('', 0x14, GOLD)} gold")
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the chat reads {names[0]}: {text}",
+                     lambda name=name: chat_has(name, names[0], text), 5)
+        close_dialogues()
+
+        console_on("", "set gamehour to gamehour + 5")
+        set_gold("", 0)
+        set_gold("client", 10)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X} again", lambda: talking_to("client", copy), 10)
+        wait_for("[client] the menu shows its list", lambda: list_shown("client"), 30)
+        client_shows_hosts_list("without the coin")
+        if lists_topic("client", GIVE_COIN_TOPIC):
+            raise TestFailure("[client] its menu lists the coin, which the host's player cannot give")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        for name in ("", "client"):
+            console_on(name, f"player.dispel {GIFT_OF_CHARITY:X}")  # the coin's blessing on the giver
+        for name in ("", "client"):
+            set_gold(name, gold[name], wait=False)
+
+
+# The quest of Brenuin's coin topic (FavorJobsBeggars): running in a game is what lets its engine offer the topic.
+BEGGARS_QUEST = "FavorJobsBeggars"
+GIFT_OF_CHARITY = 0xEEF58  # the blessing a beggar's coin gives the giver (an hour of +10 Speech)
+
+
+def quest_running(instance, quest_id):
+    select_instance(instance)
+    return bool((rpc({"cmd": "quest", "quest": quest_id}) or {}).get("flags", 0) & 1)
+
+
+def quest_stage(instance, quest_id):
+    select_instance(instance)
+    return (rpc({"cmd": "quest", "quest": quest_id}) or {}).get("current_stage")
+
+
+def scenario_dialogue_quest_option_from_host():
+    """A guest's menu lists what the host's quests offer, whatever its own quest state: the client's game stops
+    Brenuin's coin quest (its own copy of it; a guest runs no quests and keeps what the save had), so its engine would
+    offer no coin. The host's quest runs and its player carries gold: the client talks to Brenuin and its menu lists
+    the coin, the host's list. The quest is started again on the client afterwards."""
+    host_gold = item_count("", 0x14, GOLD)
+    npc, _, copy = spawn_host_npc(BRENUIN, restrained=True)
+    quest = 0
+    try:
+        console_on("", "set gamehour to gamehour + 5")
+        if host_gold < 10:
+            console_on("", f"player.additem f {10 - host_gold}")
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[host] its list has the coin", lambda: lists_topic("", GIVE_COIN_TOPIC), 30)
+        quest = next(o["quest"] for o in dialogue("")["options"] if o["topic"] == GIVE_COIN_TOPIC)
+        close_dialogues()
+        if not quest or not quest_running("", quest):
+            raise TestFailure(f"[host] the coin's quest {quest:X} does not run")
+        console_on("client", f"stopquest {BEGGARS_QUEST}")
+        wait_for(f"[client] its quest {quest:X} has stopped", lambda: not quest_running("client", quest), 5)
+
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X} again", lambda: talking_to("client", copy), 10)
+        wait_for("[client] the menu shows its list", lambda: list_shown("client"), 30)
+        client_shows_hosts_list("with the coin, its own quest stopped")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        if quest and not quest_running("client", quest):
+            console_on("client", f"startquest {BEGGARS_QUEST}")
+        change = host_gold - item_count("", 0x14, GOLD)
+        if change:
+            console_on("", f"player.{'additem' if change > 0 else 'removeitem'} f {abs(change)}")
+
+
+def scenario_dialogue_said_line_waits():
+    """A line with reset hours is not offered again until they pass, on every game: the client gives Brenuin a
+    coin (its line comes back after 4 hours), leaves, and talks to him again: its menu no longer lists the coin,
+    as the host's game, which said the line, does not."""
+    gold = item_count("", 0x14, GOLD)
+    npc, _, copy = spawn_host_npc(BRENUIN, restrained=True)
+    try:
+        console_on("", "set gamehour to gamehour + 5")
+        console_on("", "player.additem f 10")
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[client] its menu lists the coin", lambda: lists_topic("client", GIVE_COIN_TOPIC), 10)
+        pick_with_keys("client", GIVE_COIN_TOPIC)
+        wait_for(f"[host] {npc:08X} says his answer to the coin",
+                 lambda: dialogue("").get("current_info") == GIVE_COIN_INFO, 10)
+        close_dialogues()
+
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X} again", lambda: talking_to("client", copy), 10)
+        wait_for("[client] the menu shows its list", lambda: list_shown("client"), 30)
+        if lists_topic("client", GIVE_COIN_TOPIC):
+            raise TestFailure("[client] its menu offers the coin again within its reset hours")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        for name in ("", "client"):
+            console_on(name, f"player.dispel {GIFT_OF_CHARITY:X}")  # the coin's blessing on the giver
+        change = gold - item_count("", 0x14, GOLD)
+        if change:
+            console_on("", f"player.{'additem' if change > 0 else 'removeitem'} f {abs(change)}")
+
+
+def pick_with_keys(instance, topic):
+    """That game's player moves the highlight to the topic (W, S) and picks it (E), once the menu takes a pick."""
+    wait_for(f"[{instance or 'host'}] the menu takes a pick", lambda: menu_takes_pick(instance), 10)
+    while cursor(instance) != topic:
+        here = cursor(instance)
+        topics = [o["topic"] for o in dialogue(instance).get("options", [])]
+        tap_key(instance, DOWN_KEY if topics.index(here) < topics.index(topic) else UP_KEY)
+        wait_for(f"[{instance or 'host'}] the key moves the highlight", lambda: cursor(instance) != here, 5)
+    log(f"[{instance or 'host'}] picks {topic:X}")
+    tap_key(instance, ACTIVATE_KEY)
+
+
+def scenario_dialogue_pick_says_the_hosts_line():
+    """A topic with a different line per player is said with the host's: Hulda's "rent a room" is the room for 10
+    gold for a player with the gold, "cannot afford it" for one without. The host carries gold, the client none:
+    the client's menu shows the host's line, the client picks it, and the host's game says it: the room. Its script
+    runs for the client (party-model.md, rule 2), so the host's gold is not taken; the client, judged by the host's
+    list, has none to give (the conditions gap, party-model.md "Items and gold"). Then both menus show the host's
+    next list."""
+    gold = {name: item_count(name, 0x14, GOLD) for name in ("", "client")}
+    npc, _, copy = spawn_host_npc(HULDA, restrained=True)
+    try:
+        if gold["client"]:
+            console_on("client", f"player.removeitem f {gold['client']}")
+        if gold[""] < 10:
+            console_on("", f"player.additem f {10 - gold['']}")
+        place_before("", npc, 110)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        host_info = wait_for("[host] its list has rent a room", lambda: info_shown("", RENT_ROOM_TOPIC), 30)
+        if host_info == RENT_ROOM_NO_GOLD_INFO:
+            raise TestFailure(f"[host] carrying gold, its line for rent a room is the one without ({host_info:X})")
+        client_shows_hosts_list("with the host's line for rent a room")
+        host_gold = item_count("", 0x14, GOLD)
+        pick_with_keys("client", RENT_ROOM_TOPIC)
+        wait_for(f"[host] {npc:08X} says the host's line {host_info:X}", lambda: dialogue("").get("current_info") == host_info, 10)
+        wait_for(f"[client] copy {copy:08X} voices it", lambda: line_playing("client", copy), 5)
+        wait_for("[client] the menu shows the next list", lambda: list_shown("client"), 30)
+        client_shows_hosts_list("after the pick")
+        if item_count("", 0x14, GOLD) != host_gold:
+            raise TestFailure(f"[host] its player paid for the client's room: {host_gold} -> {item_count('', 0x14, GOLD)} gold")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        for name in ("", "client"):
+            change = gold[name] - item_count(name, 0x14, GOLD)
+            if change:
+                console_on(name, f"player.{'additem' if change > 0 else 'removeitem'} f {abs(change)}")
+
+
+SPEECH_SKILL = 17  # ActorValueInfo::kSpeechcraft
+
+
+def skill(instance, index):
+    """That game's player's skill: (level, experience toward the next level)."""
+    s = player_command(instance, {"cmd": "skill", "index": index})
+    return s["level"], s["experience"]
+
+
+UNGRIEN = "0001337E"  # Riften's Black-Briar Meadery: his Black-Briar topic (DialogueRiften, running) has a persuade
+UNGRIEN_TOPIC = 0x369D2  # its branch's first topic; his answer's choices follow
+UNGRIEN_PERSUADE_TOPIC = 0x369D1  # needs the player's Speech at SpeechEasy (25); its script persuades him
+
+
+def scenario_dialogue_picker_gets_speech_experience():
+    """A persuade's Speech experience is the picker's: the host's game says every line and runs its script for the
+    player who picked it (party-model.md, rule 2), and the Game.AdvanceSkill in it runs on that player's game. The
+    client talks to Ungrien's copy, asks about the Black-Briars and persuades him (FavorDialogueScript.Persuade; the
+    host's list, judged for the host's Speech, set to 30): the client's Speech gains experience, the host's does
+    not. Then the host persuades another Ungrien itself (his topic is gone once he is persuaded): its own Speech
+    gains it, the client's not."""
+    speech = skill("", SPEECH_SKILL)[0]
+    npc, _, copy = spawn_host_npc(UNGRIEN, restrained=True)
+    def persuade(name, talk_to):
+        other = "client" if name == "" else ""
+        place_before(name, talk_to, 110)
+        activate_on(name, talk_to)
+        wait_for(f"[{name or 'host'}] the menu opens on {talk_to:08X}", lambda: talking_to(name, talk_to), 10)
+        wait_for(f"[{name or 'host'}] its menu lists the Black-Briars", lambda: lists_topic(name, UNGRIEN_TOPIC), 30)
+        pick_with_keys(name, UNGRIEN_TOPIC)
+        wait_for(f"[{name or 'host'}] its menu lists the persuade", lambda: lists_topic(name, UNGRIEN_PERSUADE_TOPIC), 30)
+        before = {player: skill(player, SPEECH_SKILL) for player in ("", "client")}
+        pick_with_keys(name, UNGRIEN_PERSUADE_TOPIC)
+        wait_for(f"[{name or 'host'}] its Speech gains the persuade's experience", lambda: skill(name, SPEECH_SKILL) > before[name], 30)
+        frame = game_frame("")
+        def other_unchanged():
+            if skill(other, SPEECH_SKILL) != before[other]:
+                raise TestFailure(f"[{other or 'host'}] its Speech gained the persuade of {name or 'the host'}: "
+                                  f"{before[other]} -> {skill(other, SPEECH_SKILL)}")
+            return game_frame("") > frame + 120
+        wait_for(f"[{other or 'host'}] its Speech stays as it was", other_unchanged, 10)
+        close_dialogues()
+    try:
+        console_on("", "player.setav speechcraft 30")
+        place_before("", npc, 800, 90)
+        persuade("client", copy)
+        remove_host_npc(npc)
+        npc, _, copy = spawn_host_npc(UNGRIEN, restrained=True)
+        place_before("client", copy, 800, 90)
+        persuade("", npc)
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        console_on("", f"player.setav speechcraft {speech:.0f}")
+
+
+def scenario_dialogue_refused_start():
+    """A conversation the host's game cannot start is refused to the peer who asked: the client talks to the copy
+    of an NPC that is fighting, its menu does not open and its chat says why. Once the fight is over, the host
+    talks to that NPC itself: the client's menu stays closed (the refused ask is forgotten), and the client can
+    then join by talking to the copy as usual."""
+    npc, _, copy = spawn_host_npc(LYDIA)
+    foe, _, _ = spawn_host_npc(BRENUIN)
+    try:
+        place_before("", npc, 300)
+        place_before("client", copy, 110)
+        console_on("", f"{foe:08X}.setav health 100000")
+        console_on("", f"{npc:08X}.startcombat {foe:08X}")
+        lines = len(chat("client").get("lines", []))
+        activate_on("client", copy)
+        wait_for("[client] its chat says the host can't talk to them",
+                 lambda: any(l["system"] and "can't talk" in l["text"] for l in chat("client").get("lines", [])[lines:]), 10)
+        if dialogue("client").get("menu") or dialogue("").get("speaker"):
+            raise TestFailure("[client] a conversation opened with an NPC in combat")
+        console_on("", f"{npc:08X}.stopcombat")
+        console_on("", f"{foe:08X}.stopcombat")
+        remove_host_npc(foe)
+        foe = None
+        place_before("", npc, 110)
+        activate_on("", npc)
+        wait_for(f"[host] the player talks to {npc:08X}", lambda: talking_to("", npc), 10)
+        frame = game_frame("client")
+        def client_stays_out():
+            if dialogue("client").get("menu"):
+                raise TestFailure("[client] its menu opened for the host's conversation: the refused ask was kept")
+            return game_frame("client") > frame + 60
+        wait_for("[client] its menu stays closed", client_stays_out, 10)
+        activate_on("client", copy)
+        wait_for(f"[client] talking to copy {copy:08X} joins: the menu opens", lambda: talking_to("client", copy), 10)
+        hold()
+    finally:
+        close_dialogues()
+        if foe:
+            remove_host_npc(foe)
+        remove_host_npc(npc)
+
+
+def scenario_dialogue_ends_on_travel():
+    """Walking off does not end a conversation (the host talks from anywhere), travel does: the client talks to
+    Lydia's copy (the host's game in the background) and the host takes the party to the inn. The host's
+    conversation ends and the client's menu closes. Back home, the next conversation runs as usual: the host
+    talks to a new Lydia, the client's HUD shows her line and the client joins by talking to her copy (its copy of
+    the first Lydia was deleted mid-conversation, which left its game unable to talk to anyone)."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        both_go(INN)
+        wait_for("[host] its conversation ended", lambda: not dialogue("").get("speaker"), 10)
+        wait_for("[client] its menu closed", lambda: menu_closed("client"), 10)
+        both_go(HOME_CELL)
+        remove_host_npc(npc)
+        npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+        place_before("", npc, 110)
+        place_before("client", copy, 300)
+        activate_on("", npc)
+        wait_for(f"[host] the player talks to {npc:08X}", lambda: talking_to("", npc), 10)
+        wait_for(f"[client] the HUD shows copy {copy:08X}'s line", lambda: subtitle_on_screen("client") == copy, 10)
+        activate_on("client", copy)
+        wait_for(f"[client] talking to copy {copy:08X} joins: the menu opens", lambda: talking_to("client", copy), 10)
+        hold()
+    finally:
+        close_dialogues()
+        if player_cell("") != player_cell("client") or not player_cell(""):
+            both_go(HOME_CELL)
+        remove_host_npc(npc)
+
+
+def scenario_dialogue_npc_removed():
+    """The NPC goes away mid-conversation (the host's game deletes it): the client's menu on its copy closes, and
+    the client can talk to the next NPC (a copy deleted while its game talks to it left that game unable to start
+    another conversation)."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        remove_host_npc(npc)
+        wait_for("[client] its menu closes", lambda: menu_closed("client"), 10)
+        npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] talking to the new copy {copy:08X} opens the menu", lambda: talking_to("client", copy), 10)
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+
+
+def force_greet(instance, actor):
+    """The actor starts a conversation with that game's player, as its ForceGreet package does."""
+    return player_command(instance, {"cmd": "force_greet", "actor": actor})["started"]
+
+
+def scenario_dialogue_npc_starts():
+    """An NPC starts the conversation (a force greet; NPCs run their AI on the host's game, so it greets the host's
+    player): it greets the party, every game's menu opens on it (the clients' on their copies), with the host's
+    topics, without anyone talking to it. While the client's conversation with another NPC runs in the
+    background, a force greet waits: the host's game stays in the client's conversation."""
+    npc, server_id, copy = spawn_host_npc(LYDIA, restrained=True)
+    other, _, other_copy = spawn_host_npc(HULDA, restrained=True)
+    try:
+        place_before("", npc, 110)
+        place_before("client", copy, 110)
+        if not force_greet("", npc):
+            raise TestFailure(f"[host] {npc:08X}'s force greet did not start")
+        wait_for(f"[host] the menu opens on {npc:08X}", lambda: talking_to("", npc), 10)
+        host_topics = wait_for("[host] the conversation lists options", lambda: topics_shown(""), 5)
+        wait_for(f"[client] greeted too: the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[client] the menu shows the host's topics",
+                 lambda: topics_shown("client")[:len(host_topics)] == host_topics, 10)
+        close_dialogues()
+
+        place_before("client", other_copy, 110)
+        activate_on("client", other_copy)
+        wait_for(f"[client] the menu opens on copy {other_copy:08X}", lambda: talking_to("client", other_copy), 10)
+        wait_for(f"[host] the player talks to {other:08X} in the background", lambda: in_conversation("", other), 10)
+        if force_greet("", npc):
+            raise TestFailure(f"[host] {npc:08X}'s force greet started during the client's conversation")
+        frame = game_frame("")
+        def stays():
+            if not in_conversation("", other) or not talking_to("client", other_copy):
+                raise TestFailure("the client's conversation did not survive the force greet")
+            return game_frame("") > frame + 60
+        wait_for("[host] its game stays in the client's conversation", stays, 10)
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        remove_host_npc(other)
+
+
+ANDURS = "00013BA8"  # Whiterun's priest of Arkay: a question, its follow-up, then the amulet's choices
+ANDURS_KNOW_ARKAY = 0xD74C1  # "The god of death? I know him well." (his greeting's choices)
+ANDURS_WHAT_LOST = 0x94E32  # "What did you lose?"
+ANDURS_AMULET = {0xD3D5D, 0xD3D5C}  # the amulet's choices
+
+
+def scenario_dialogue_several_questions_deep():
+    """A conversation three questions deep, picked by turns: Andurs greets with a question; the client answers,
+    the host (joined by talking) asks the follow-up, the client answers the last one. After each pick both
+    menus show the host's next list (topics, lines, texts), the line's choices only, and a peer's not before the NPC
+    has answered."""
+    npc, _, copy = spawn_host_npc(ANDURS, restrained=True)
+    def next_list(what, topics):
+        def shows(name):
+            shown = set(topics_shown(name)) if list_shown(name) else None
+            if shown == topics and name and line_playing("", npc):
+                raise TestFailure(f"[{name}] the menu offers {what} while the host's NPC still answers")
+            return shown == topics
+        for name in ("client", ""):
+            wait_for(f"[{name or 'host'}] the menu shows {what}", lambda name=name: shows(name) and shows("client"), 60)
+    try:
+        place_before("", npc, 110)
+        place_before("client", copy, 300)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        activate_on("", npc)
+        wait_for(f"[host] talking to {npc:08X} joins: the menu opens", lambda: talking_to("", npc), 10)
+        wait_for("[client] the menu lists Andurs' question", lambda: lists_topic("client", ANDURS_KNOW_ARKAY), 30)
+        client_shows_hosts_list("at his question")
+        pick_with_keys("client", ANDURS_KNOW_ARKAY)
+        next_list("the follow-up", {ANDURS_WHAT_LOST})
+        client_shows_hosts_list("at the follow-up")
+        pick_with_keys("", ANDURS_WHAT_LOST)
+        next_list("the amulet's choices", ANDURS_AMULET)
+        client_shows_hosts_list("at the amulet's choices")
+        pick_with_keys("client", topics_shown("client")[0])
+        wait_for(f"[host] {npc:08X} says the last answer", lambda: line_playing("", npc), 10)
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+
+
+HULDA_COLLEGE_TOPIC = 0x1F80E  # MG01InitialBranchTopic: Hulda on the College, a say-once line
+HULDA_COLLEGE_LINES = (0x8EC38, 0x8EC39)  # one for elves, one for the other races
+
+
+def info_said(instance, info, said=None):
+    """Whether that game marks the line said; with said, set back to it first (test setup only)."""
+    return player_command(instance, {"cmd": "info_said", "info": info, **({} if said is None else {"said": said})})["said"]
+
+
+def scenario_dialogue_said_once_line():
+    """A say-once line is not said again once said, on any game: the client asks Hulda about the College (one of
+    her two say-once lines), leaves and talks to her again: its menu, as the host's (joined by talking), offers
+    the topic with her other line, not the one said. Both lines are marked unsaid on both games before and
+    after (they stay said in a game otherwise)."""
+    def unsay():
+        for name in ("", "client"):
+            for line in HULDA_COLLEGE_LINES:
+                info_said(name, line, False)
+    npc, _, copy = spawn_host_npc(HULDA, restrained=True)
+    try:
+        unsay()
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[client] its menu offers the College", lambda: lists_topic("client", HULDA_COLLEGE_TOPIC), 10)
+        pick_with_keys("client", HULDA_COLLEGE_TOPIC)
+        said = wait_for(f"[host] {npc:08X} says a College line",
+                        lambda: (info := dialogue("").get("current_info")) in HULDA_COLLEGE_LINES and info, 10)
+        close_dialogues()
+
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X} again", lambda: talking_to("client", copy), 10)
+        place_before("", npc, 110)
+        activate_on("", npc)
+        wait_for(f"[host] talking to {npc:08X} joins: the menu opens", lambda: talking_to("", npc), 10)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the menu shows its list", lambda name=name: list_shown(name), 30)
+        lines = {name or "host": info_shown(name, HULDA_COLLEGE_TOPIC) for name in ("", "client")}
+        if said in lines.values() or lines["host"] != lines["client"]:
+            raise TestFailure(f"after line {said:X} was said, the College lines offered are {lines}: the said one "
+                              f"again, or not the host's")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        unsay()
+
+
+ONMUND = "0001C194"  # the College's Nord student; greets with a question
+ONMUND_FEW_NORDS = 0x8B58D  # "Why aren't there many Nords at the College?" (his greeting's choices)
+ONMUND_NOT_A_NORD = 0x66963  # its only answer, for a player who is not a Nord
+ONMUND_NOT_A_NORD_LINE = 0x6696E
+ONMUND_GREETINGS = (0x66973, 0x66974)  # his say-once greetings that ask the question (Nord, not a Nord)
+NORD_RACE = 0x13746
+
+
+def player_race_on_host(instance):
+    """The race of that game's player, as the host's copy of it shows it."""
+    select_instance(instance)
+    sid = next(s["mod"]["session_id"] for s in ((read_status() or {}).get("world") or {}).values()
+               if s.get("role") == "own" and s.get("mod", {}).get("session_id") is not None and (s.get("identity") or {}).get("base") == 7)
+    select_instance("")
+    return next(((s.get("identity") or {}).get("race") for s in ((read_status() or {}).get("world") or {}).values()
+                 if s.get("role") == "copy" and s.get("mod", {}).get("session_id") == sid), None)
+
+
+def scenario_dialogue_unanswered_question_ends_it():
+    """A question the host's player cannot answer ends the conversation for everyone, as it does in the game: the
+    list is the host's. Onmund's "Why aren't there many Nords at the College?" has one answer, for a player who is
+    not a Nord; the host is a Nord, the client a Breton for the scenario. The client asks it, the host joined by
+    talking: the host's engine has nothing to say, the conversation ends, and both menus close. His greetings, said
+    once in a game, are marked unsaid on both games before and after."""
+    def unsay():
+        for name in ("", "client"):
+            for line in ONMUND_GREETINGS:
+                info_said(name, line, False)
+    npc, _, copy = spawn_host_npc(ONMUND, restrained=True)
+    try:
+        unsay()
+        console_on("client", "player.setrace BretonRace")
+        place_before("", npc, 110, 90)
+        place_before("client", copy, 110, 270)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for("[client] his greeting is over: the menu shows his question's answers",
+                 lambda: list_shown("client") and lists_topic("client", ONMUND_FEW_NORDS), 30)
+        activate_on("", npc)
+        wait_for(f"[host] talking to {npc:08X} joins: the menu opens", lambda: talking_to("", npc), 10)
+        pick_with_keys("client", ONMUND_FEW_NORDS)
+        wait_for("[host] nobody it lists can answer: the conversation ends", lambda: not dialogue("").get("speaker"), 60)
+        wait_for("[client] its menu closes", lambda: menu_closed("client"), 10)
+        if lists_topic("client", ONMUND_NOT_A_NORD):
+            raise TestFailure("[client] its menu offered its own player's answer, not the host's list")
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
+        unsay()
+        console_on("client", "player.setrace NordRace")
+        wait_for("[host] shows the client a Nord again", lambda: player_race_on_host("client") == NORD_RACE, 30)
+
+
+AMREN = "00013BAA"  # Whiterun's one-handed trainer (journeyman)
+TRAINING_TOPIC = 0xE3A35  # OffersTrainingTopic (DialogueTrainers): its line opens the training menu
+ONE_HANDED_SKILL = 6  # ActorValueInfo::kOneHanded
+TRAINING_MENU = "Training Menu"
+
+
+def trainings(instance, count=None):
+    """How many times that game's player trained this level (five allowed); with count, set back to it first."""
+    return player_command(instance, {"cmd": "trainings", **({} if count is None else {"set": count})})["count"]
+
+
+def scenario_dialogue_picker_trains():
+    """A trainer's menu opens on the game of whoever picked its line: the client talks to Amren's copy and picks
+    training. The host's game says the line and runs its script for the client (party-model.md, rule 2), whose
+    Game.ShowTrainingMenu runs on the client's game, with the copy, over its dialogue menu as in single player; the
+    host's game opens nothing. The client trains once: its One-handed goes up and its gold down, the host's stay as
+    they were. Leaving the training menu, the client is back in the conversation, as in single player."""
+    gold = {name: item_count(name, 0x14, GOLD) for name in ("", "client")}
+    trained = {name: (skill(name, ONE_HANDED_SKILL)[0], trainings(name)) for name in ("", "client")}
+    npc, _, copy = spawn_host_npc(AMREN, restrained=True)
+    try:
+        console_on("client", "player.additem f 2000")
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for(f"[host] {npc:08X}'s greeting is over", lambda: line_over("", npc), 30)
+        wait_for("[client] its menu lists training", lambda: lists_topic("client", TRAINING_TOPIC), 5)
+        before = {name: (skill(name, ONE_HANDED_SKILL), item_count(name, 0x14, GOLD)) for name in ("", "client")}
+        pick_with_keys("client", TRAINING_TOPIC)
+        wait_for(f"[host] {npc:08X} says the training line", lambda: line_playing("", npc), 10)
+        wait_for("[client] the training menu opens", lambda: TRAINING_MENU in menus("client"), 30)
+        frame = game_frame("")
+        def host_has_none():
+            if TRAINING_MENU in menus(""):
+                raise TestFailure("[host] the training menu opened on the host's game")
+            return game_frame("") > frame + 60
+        wait_for("[host] no training menu", host_has_none, 10)
+        tap_key("client", ACTIVATE_KEY)
+        wait_for("[client] its One-handed goes up a level",
+                 lambda: skill("client", ONE_HANDED_SKILL)[0] == before["client"][0][0] + 1, 10)
+        if item_count("client", 0x14, GOLD) >= before["client"][1]:
+            raise TestFailure(f"[client] training cost nothing: {before['client'][1]} gold before, {item_count('client', 0x14, GOLD)} after")
+        if (skill("", ONE_HANDED_SKILL), item_count("", 0x14, GOLD)) != before[""]:
+            raise TestFailure(f"[host] its One-handed or gold changed: {before['']} -> "
+                              f"{(skill('', ONE_HANDED_SKILL), item_count('', 0x14, GOLD))}")
+        tap_key("client", TAB_KEY)
+        wait_for("[client] the training menu closes", lambda: TRAINING_MENU not in menus("client"), 10)
+        if not talking_to("client", copy):
+            raise TestFailure("[client] left the conversation with the training menu")
+        hold()
+    finally:
+        if TRAINING_MENU in menus("client"):
+            tap_key("client", TAB_KEY)
+            wait_for("[client] the training menu closes", lambda: TRAINING_MENU not in menus("client"), 10)
+        close_dialogues()
+        remove_host_npc(npc)
+        for name in ("", "client"):
+            change = gold[name] - item_count(name, 0x14, GOLD)
+            if change:
+                console_on(name, f"player.{'additem' if change > 0 else 'removeitem'} f {abs(change)}")
+            level, count = trained[name]
+            if skill(name, ONE_HANDED_SKILL)[0] != level:
+                console_on(name, f"player.setav onehanded {level:.0f}")
+            trainings(name, count)
+
+
+def scenario_dialogue_pick_reaches_host():
+    """The client talks to its copy (the host's game runs it in the background, the host 800 units off) and picks
+    an option with its keys: the client's menu does not say it, the host's game does (her line on the host's NPC,
+    voiced on the client's copy), and both games follow it: a goodbye ends the conversation for both, any other
+    line leads both to the same next list."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    try:
+        place_before("", npc, 800, 90)
+        place_before("client", copy, 110)
+        activate_on("client", copy)
+        wait_for(f"[host] the player talks to {npc:08X} in the background", lambda: in_conversation("", npc), 10)
+        wait_for(f"[client] the menu opens on copy {copy:08X}", lambda: talking_to("client", copy), 10)
+        options = wait_for("[client] the menu lists options",
+                           lambda: talking_to("client", copy) and dialogue("client").get("options"), 10)
+        before = [o["topic"] for o in dialogue("").get("options", [])]
+        wait_for("[host] its NPC's greeting is over", lambda: line_over("", npc), 30)
+        wait_for("[client] the menu takes a pick", lambda: menu_takes_pick("client"), 10)
+        log(f"[client] picks {options[0]['text']!r}")
+        tap_key("client", ACTIVATE_KEY)
+        wait_for(f"[host] {npc:08X} says the picked line", lambda: line_playing("", npc), 10)
+        wait_for(f"[client] copy {copy:08X} voices it", lambda: line_playing("client", copy), 5)
+        def followed():
+            host, client = dialogue(""), dialogue("client")
+            if not host.get("speaker"):
+                return client_closed or not client.get("menu")
+            topics = [o["topic"] for o in host.get("options", [])]
+            return topics and topics != before and [o["topic"] for o in client.get("options", [])] == topics
+        client_closed = False
+        wait_for("[both] the conversation follows the pick (ended for both, or the same next list)", followed, 30)
+        hold()
+    finally:
+        close_dialogues()
+        remove_host_npc(npc)
 
 
 def scenario_remove_host_npc():
@@ -5321,6 +6249,25 @@ SCENARIOS = {
     "move-host-npc": scenario_move_host_npc,
     "remove-host-npc": scenario_remove_host_npc,
     "copy-ends-voice-line": scenario_copy_ends_voice_line,
+    "dialogue-peer-starts": scenario_dialogue_peer_starts,
+    "dialogue-last-one-out-ends-it": scenario_dialogue_last_one_out_ends_it,
+    "dialogue-nobody-moves": scenario_dialogue_nobody_moves,
+    "dialogue-join-by-talking": scenario_dialogue_join_by_talking,
+    "dialogue-host-in-background": scenario_dialogue_host_in_background,
+    "dialogue-pick-reaches-host": scenario_dialogue_pick_reaches_host,
+    "dialogue-options-are-the-hosts": scenario_dialogue_options_are_the_hosts,
+    "dialogue-quest-option-from-host": scenario_dialogue_quest_option_from_host,
+    "dialogue-pick-says-the-hosts-line": scenario_dialogue_pick_says_the_hosts_line,
+    "dialogue-picker-gets-speech-experience": scenario_dialogue_picker_gets_speech_experience,
+    "dialogue-picker-trains": scenario_dialogue_picker_trains,
+    "dialogue-refused-start": scenario_dialogue_refused_start,
+    "dialogue-said-line-waits": scenario_dialogue_said_line_waits,
+    "dialogue-ends-on-travel": scenario_dialogue_ends_on_travel,
+    "dialogue-said-once-line": scenario_dialogue_said_once_line,
+    "dialogue-unanswered-question-ends-it": scenario_dialogue_unanswered_question_ends_it,
+    "dialogue-npc-removed": scenario_dialogue_npc_removed,
+    "dialogue-npc-starts": scenario_dialogue_npc_starts,
+    "dialogue-several-questions-deep": scenario_dialogue_several_questions_deep,
     "teleport-keeps-copies": scenario_teleport_keeps_copies,
     "party-changes-cells": scenario_party_changes_cells,
     "party-stacks-on-arrival": scenario_party_stacks_on_arrival,
@@ -5431,6 +6378,25 @@ TAGS = {
     "move-host-npc": {'movement'},
     "remove-host-npc": {'spawn'},
     "copy-ends-voice-line": {'dialogue', 'ai'},
+    "dialogue-peer-starts": {'dialogue', 'spawn'},
+    "dialogue-last-one-out-ends-it": {'dialogue', 'spawn'},
+    "dialogue-nobody-moves": {'dialogue', 'spawn'},
+    "dialogue-join-by-talking": {'dialogue', 'spawn'},
+    "dialogue-host-in-background": {'dialogue', 'spawn'},
+    "dialogue-pick-reaches-host": {'dialogue', 'spawn'},
+    "dialogue-quest-option-from-host": {'dialogue', 'spawn', 'quests'},
+    "dialogue-options-are-the-hosts": {'dialogue', 'spawn'},
+    "dialogue-pick-says-the-hosts-line": {'dialogue', 'spawn'},
+    "dialogue-picker-gets-speech-experience": {'dialogue', 'spawn'},
+    "dialogue-picker-trains": {'dialogue', 'spawn'},
+    "dialogue-refused-start": {'dialogue', 'spawn'},
+    "dialogue-said-line-waits": {'dialogue', 'spawn'},
+    "dialogue-ends-on-travel": {'dialogue', 'spawn', 'travel'},
+    "dialogue-said-once-line": {'dialogue', 'spawn'},
+    "dialogue-unanswered-question-ends-it": {'dialogue', 'spawn'},
+    "dialogue-npc-removed": {'dialogue', 'spawn'},
+    "dialogue-npc-starts": {'dialogue', 'spawn'},
+    "dialogue-several-questions-deep": {'dialogue', 'spawn'},
     "teleport-keeps-copies": {'spawn', 'movement', 'cells'},
     "party-changes-cells": {'spawn', 'cells'},
     "party-stacks-on-arrival": {'cells'},
@@ -6453,3 +7419,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

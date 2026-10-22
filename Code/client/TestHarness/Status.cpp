@@ -386,6 +386,7 @@ nlohmann::json BuildStatus(const Harness& acHarness)
             {"world", WorldSnapshot()},
             {"game", GameStatus()},
             {"menus", EngineCalls::GetOpenMenus()},
+            {"subtitle_on_screen", EngineCalls::GetSubtitleOnScreen()},
             {"kill_cam", EngineCalls::IsKillCamPlaying()},
             {"clock_speed", EngineCalls::GetGlobalTimeMultiplier()},
             {"lock_order", LockOrderStatus()},

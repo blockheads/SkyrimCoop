@@ -44,9 +44,9 @@ enum RequestOpcode : unsigned char
     kDialoguePickRequest,
     kDialogueCloseRequest,
     kDialogueJoinRequest,
-    kDialogueExperienceRequest,
     kContainerChangeRequest,
     kCellStateRequest,
+    kDialogueStartFailedRequest,
     kRequestOpcodeMax
 };
 
@@ -95,9 +95,9 @@ enum NotifyOpcode : unsigned char
     kNotifyDialogueList,
     kNotifyDialoguePicked,
     kNotifyDialogueClosed,
-    kNotifyDialogueExperience,
     kNotifyGlobals,
     kNotifyQuests,
     kNotifyObjectChanges,
+    kNotifyDialogueRefused,
     kNotifyOpcodeMax
 };

@@ -2,6 +2,7 @@
 
 #include <network/ENetInterface.h>
 #include <Structs/DialogueOption.h>
+#include <Structs/GameId.h>
 
 #include <algorithm>
 #include <optional>
@@ -16,16 +17,16 @@ struct DialogueOptionsRequest;
 struct DialoguePickRequest;
 struct DialogueCloseRequest;
 struct DialogueJoinRequest;
-struct DialogueExperienceRequest;
+struct DialogueStartFailedRequest;
 
 struct HostNetwork;
 
 /**
  * @brief One conversation for the party, run by the host's game: whoever starts it, the host's game says its
- * lines. The step's list is the host's options; each game's menu shows their topics with its own player's lines.
- * A pick is said with the picker's own line, and the chat names who picked what; the Speech experience its script
- * gives is the picker's. Games report their options, picks, joins and exits; this decides the list, which pick
- * is said and when it ends: once nobody is in it (docs/design/shared-dialogue.md).
+ * lines and builds each step's list, which every game's menu shows. Any player picks from it: the host's game says
+ * that option as if its player had, and the chat names who picked what (its script runs for the picker:
+ * party-model.md, rule 2). Games report lists, picks, joins and exits; this decides which pick is said
+ * and when it ends: once nobody is in it (docs/design/shared-dialogue.md).
  */
 struct HostDialogue
 {
@@ -42,7 +43,7 @@ struct HostDialogue
     void OnPick(const DialoguePickRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnClose(const DialogueCloseRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void OnExperience(const DialogueExperienceRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept;
     // After the player is off the list: it leaves the conversation.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
@@ -54,8 +55,9 @@ private:
         uint32_t Step = 1;
         // The games in it, in the order they joined: whose menu is open on it, and the peer who asked for it.
         std::vector<ConnectionId_t> Players;
-        // The host's game's options for this step (none yet after a pick).
-        std::optional<DialogueOptions> HostOptions;
+        // The host's game's list for this step; none yet after a pick.
+        std::optional<DialogueOptions> Options;
+        bool Choices{};
 
         [[nodiscard]] bool Has(ConnectionId_t aPlayer) const noexcept
         {
@@ -73,6 +75,10 @@ private:
     // The conversation that request is for (null: none open, or another one or step).
     [[nodiscard]] Conversation* Current(uint32_t aId) noexcept;
     [[nodiscard]] Conversation* Current(uint32_t aId, uint32_t aStep) noexcept;
+    // The start that player asked for will not happen; a chat line says why, when given.
+    void Refuse(ConnectionId_t aPlayer, uint32_t aNpcId, const char* acpWhy) noexcept;
+    // The step's list to that game, once the host's game has shown it.
+    void SendList(ConnectionId_t aPlayer) noexcept;
     // Ends it, telling every game but aExcept (0: all of them).
     void End(ConnectionId_t aExcept = 0) noexcept;
     // The player is out of it: the conversation ends when it was the last one in it.
@@ -84,6 +90,4 @@ private:
     std::optional<Conversation> m_conversation;
     uint32_t m_lastId = 0;
     std::optional<Asked> m_asked;
-    // Who picked last in the latest conversation: the Speech experience of the lines said is theirs.
-    ConnectionId_t m_talker{};
 };

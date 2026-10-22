@@ -65,7 +65,8 @@ struct NotifyMessageFactory
             NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyAiState, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyDialogue,
             NotifySubtitle, NotifyPlayerLeft, NotifyPlayerJoined, NotifyPlayerLevel, NotifySettingsChange,
             NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifyRemoveSpell, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
-            NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyDialogueExperience, NotifyGlobals, NotifyQuests, NotifyObjectChanges>;
+            NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyGlobals, NotifyQuests, NotifyObjectChanges,
+            NotifyDialogueRefused>;
 
         return s_visitor(std::forward<T>(func));
     }

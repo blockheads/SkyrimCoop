@@ -5,16 +5,6 @@
 
 namespace
 {
-DialogueOption Option(uint32_t aTopic, uint32_t aInfo, const char* acpText)
-{
-    DialogueOption option;
-    option.Topic = GameId(0, aTopic);
-    option.Info = GameId(0, aInfo);
-    option.Quest = GameId(0, 0x5A6DC);
-    option.Text = acpText;
-    return option;
-}
-
 // The host's NPC and a conversation open with it (the host's menu opened); what that sent is cleared.
 struct Talking
 {
@@ -34,18 +24,34 @@ struct Talking
         return cId;
     }
 
-    void Options(ConnectionId_t aFrom, uint32_t aStep, DialogueOptions aOptions, bool aChoices = false)
+    // The host's game's list in these tests: four topics, each with one line (topic T says line T1).
+    static DialogueOptions Options()
     {
-        DialogueOptionsRequest options;
-        options.Conversation = Id;
-        options.Step = aStep;
-        options.Choices = aChoices;
-        options.Options = std::move(aOptions);
-        session.Receive(aFrom, options);
+        DialogueOptions options;
+        for (const auto& [cTopic, cpText] : {std::pair{0xAu, "Tell me about A."}, std::pair{0xBu, "(Persuade) B?"},
+                                             std::pair{0xCu, "Here. Have a gold piece."}, std::pair{0xEu, "Goodbye."}})
+        {
+            DialogueOption& option = options.emplace_back();
+            option.Topic = GameId(0, cTopic);
+            option.Info = GameId(0, cTopic * 0x10 + 1);
+            option.Text = cpText;
+        }
+        return options;
     }
 
-    // A pick from that game's menu, which joined it.
-    void Pick(ConnectionId_t aFrom, uint32_t aStep, uint32_t aTopic, GameId aInfo = {}, const char* acpText = "")
+    // That game showed the step's list (aChoices: a line's choices).
+    void List(ConnectionId_t aFrom, uint32_t aStep, bool aChoices = false, DialogueOptions aOptions = Options())
+    {
+        DialogueOptionsRequest list;
+        list.Conversation = Id;
+        list.Step = aStep;
+        list.Choices = aChoices;
+        list.Options = std::move(aOptions);
+        session.Receive(aFrom, list);
+    }
+
+    // A pick from that game's menu, which joined it: topic T with line T1 unless told otherwise.
+    void Pick(ConnectionId_t aFrom, uint32_t aStep, uint32_t aTopic, std::optional<GameId> aInfo = {}, const char* acpText = "")
     {
         DialogueJoinRequest join;
         join.Conversation = Id;
@@ -54,18 +60,9 @@ struct Talking
         pick.Conversation = Id;
         pick.Step = aStep;
         pick.Topic = GameId(0, aTopic);
-        pick.Info = aInfo;
+        pick.Info = aInfo.value_or(GameId(0, aTopic * 0x10 + 1));
         pick.Text = acpText;
         session.Receive(aFrom, pick);
-    }
-
-    // The texts of the last list sent to that game.
-    std::vector<std::string> Texts(ConnectionId_t aTo)
-    {
-        std::vector<std::string> texts;
-        for (const auto& cOption : LastList(aTo).Options)
-            texts.push_back(cOption.Text);
-        return texts;
     }
 
     const NotifyDialogueList& LastList(ConnectionId_t aTo)
@@ -97,8 +94,6 @@ DialogueJoinRequest Join(uint32_t aConversation)
     join.Conversation = aConversation;
     return join;
 }
-
-const DialogueOptions kHostOptions = {Option(0xA, 0xA1, "Follow me."), Option(0xB, 0xB1, "What news?")};
 } // namespace
 
 TEST_CASE("Dialogue: a peer talking to a copy starts the host's conversation", "[Bridge][Dialogue]")
@@ -326,51 +321,65 @@ TEST_CASE("Dialogue: the host talking to another NPC ends the first conversation
     CHECK(cOpen[0]->Conversation != cFirst);
 }
 
-TEST_CASE("Dialogue: the host's options are the step's list, for every game", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the host's game's list reaches the games in the conversation", "[Bridge][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
-    talking.Options(kHost, 1, kHostOptions);
-    for (const auto cTo : {kHost, kPeer, kOtherPeer})
-    {
-        const auto& cList = talking.LastList(cTo);
-        CHECK(cList.Conversation == talking.Id);
-        CHECK(cList.Step == 1);
-        CHECK(!cList.Choices);
-        CHECK(cList.Options == kHostOptions);
-    }
-
-    // A line's choices say so; a peer's game sends no list.
-    session.Outbox.clear();
-    talking.Options(kHost, 1, {Option(0xE, 0xE1, "Yes."), Option(0xF, 0xF1, "No.")}, true);
-    CHECK(talking.LastList(kPeer).Choices);
-    session.Outbox.clear();
     session.Receive(kPeer, Join(talking.Id));
-    talking.Options(kPeer, 1, {Option(0xC, 0xC1, "For the Companions.")});
+    talking.List(kHost, 1);
+    const auto& cList = talking.LastList(kPeer);
+    CHECK(cList.Conversation == talking.Id);
+    CHECK(cList.Step == 1);
+    CHECK_FALSE(cList.Choices);
+    CHECK(cList.Options == Talking::Options()); // in the host's menu order, its lines and texts
+    // Not the host's own game (its engine built it), nor a game not in it.
+    CHECK(session.SentTo<NotifyDialogueList>(kHost).empty());
     CHECK(session.SentTo<NotifyDialogueList>(kOtherPeer).empty());
+
+    // A line's choices.
+    session.Outbox.clear();
+    talking.List(kHost, 1, true);
+    CHECK(talking.LastList(kPeer).Choices);
+
+    // A guest's game sends none.
+    session.Outbox.clear();
+    talking.List(kPeer, 1);
+    CHECK(session.SentTo<NotifyDialogueList>(kPeer).empty());
+}
+
+TEST_CASE("Dialogue: a game joining gets the current list", "[Bridge][Dialogue]")
+{
+    Talking talking;
+    auto& session = talking.session;
+    talking.List(kHost, 1, true);
+    CHECK(session.SentTo<NotifyDialogueList>(kOtherPeer).empty());
+    session.Receive(kOtherPeer, Join(talking.Id));
+    CHECK(talking.LastList(kOtherPeer).Options == Talking::Options());
+    CHECK(talking.LastList(kOtherPeer).Choices);
 }
 
 TEST_CASE("Dialogue: a list for another step or conversation is dropped", "[Bridge][Dialogue]")
 {
     Talking talking;
+    talking.session.Receive(kPeer, Join(talking.Id));
 
-    talking.Options(kHost, 2, kHostOptions);
-    CHECK(talking.session.SentTo<NotifyDialogueList>(kHost).empty());
+    talking.List(kHost, 2);
+    CHECK(talking.session.SentTo<NotifyDialogueList>(kPeer).empty());
     talking.Id += 1;
-    talking.Options(kHost, 1, kHostOptions);
-    CHECK(talking.session.SentTo<NotifyDialogueList>(kHost).empty());
+    talking.List(kHost, 1);
+    CHECK(talking.session.SentTo<NotifyDialogueList>(kPeer).empty());
 }
 
 TEST_CASE("Dialogue: the first pick of a step wins, and every game hears it", "[Bridge][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
-    talking.Options(kHost, 1, kHostOptions);
+    talking.List(kHost, 1);
     session.Outbox.clear();
 
-    talking.Pick(kPeer, 1, 0xA, GameId(0, 0xA1));
-    talking.Pick(kOtherPeer, 1, 0xB, GameId(0, 0xB1));
-    talking.Pick(kHost, 1, 0xB, GameId(0, 0xB1));
+    talking.Pick(kPeer, 1, 0xA);
+    talking.Pick(kOtherPeer, 1, 0xB);
+    talking.Pick(kHost, 1, 0xB);
     // The host's game too: it says it (unless its own menu did).
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
     {
@@ -388,10 +397,10 @@ TEST_CASE("Dialogue: only a player in the conversation picks", "[Bridge][Dialogu
 {
     Talking talking;
     auto& session = talking.session;
-    talking.Options(kHost, 1, kHostOptions);
+    talking.List(kHost, 1);
     session.Outbox.clear();
 
-    // Far away, it has the list but no menu.
+    // Far away, with no menu on it.
     DialoguePickRequest pick;
     pick.Conversation = talking.Id;
     pick.Step = 1;
@@ -405,33 +414,54 @@ TEST_CASE("Dialogue: only a player in the conversation picks", "[Bridge][Dialogu
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: a pick says the picker's own line, else the host's", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a pick is one of the host's options, or nothing is said", "[Bridge][Dialogue]")
 {
-    // B is a Speech check the host's player fails (B1) and the peer's passes (B2). C is a topic the host's player
-    // does not get at all.
-    const auto pick = [](ConnectionId_t aPicker, uint32_t aTopic, GameId aInfo) {
-        Talking talking;
-        talking.Options(kHost, 1, {Option(0xA, 0xA1, "Follow me."), Option(0xB, 0xB1, "(Persuade)")});
-        talking.Pick(aPicker, 1, aTopic, aInfo);
-        const auto cPicked = talking.session.SentTo<NotifyDialoguePicked>(kOtherPeer);
-        return cPicked.empty() ? std::optional<GameId>{} : std::optional(cPicked[0]->Info);
-    };
+    // Every menu shows the host's list; a pick that is not in it (a topic only the guest's engine offered, another
+    // line for a listed topic, a list its menu showed before the host's arrived) is not said, and the picker's menu
+    // gets the host's list again.
+    Talking talking;
+    auto& session = talking.session;
+    session.Receive(kPeer, Join(talking.Id));
+    talking.List(kHost, 1);
+    session.Outbox.clear();
 
-    CHECK(pick(kPeer, 0xB, GameId(0, 0xB2)) == GameId(0, 0xB2));
-    CHECK(pick(kPeer, 0xC, GameId(0, 0xC1)) == GameId(0, 0xC1));
-    // No line of its own for the topic: the host's; for a topic the host lacks too, nothing to say.
-    CHECK(pick(kPeer, 0xB, {}) == GameId(0, 0xB1));
-    CHECK(pick(kPeer, 0xC, {}) == std::nullopt);
+    talking.Pick(kPeer, 1, 0xD);                    // not a topic of the host's list
+    talking.Pick(kPeer, 1, 0xB, GameId(0, 0xB2));   // the host's topic, another line
+    talking.Pick(kPeer, 1, 0xA, GameId{});          // no line
+    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
+    CHECK(session.SentTo<NotifyDialoguePicked>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyDialogueList>(kPeer).size() == 3);
+    CHECK(talking.LastList(kPeer).Step == 1);
+
+    talking.Pick(kPeer, 1, 0xB);
+    const auto cPicked = session.SentTo<NotifyDialoguePicked>(kOtherPeer);
+    REQUIRE(cPicked.size() == 1);
+    CHECK(cPicked[0]->Info == GameId(0, 0xB1));
+}
+
+TEST_CASE("Dialogue: a pick before the host's list is not said", "[Bridge][Dialogue]")
+{
+    // The guest's menu opens on its own engine's list before the host's arrives.
+    Talking talking;
+    auto& session = talking.session;
+    talking.Pick(kPeer, 1, 0xA);
+    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
+    CHECK(session.SentTo<NotifyDialogueList>(kPeer).empty()); // nothing to send yet; it comes with the host's
+
+    talking.List(kHost, 1);
+    CHECK(talking.LastList(kPeer).Step == 1);
+    talking.Pick(kPeer, 1, 0xA);
+    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
 TEST_CASE("Dialogue: a pick shows in everyone's chat as who said what", "[Bridge][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
-    talking.Options(kHost, 1, kHostOptions);
+    talking.List(kHost, 1);
     session.Outbox.clear();
 
-    talking.Pick(kPeer, 1, 0xC, GameId(0, 0xC1), "Here. Have a gold piece.");
+    talking.Pick(kPeer, 1, 0xC, {}, "Here. Have a gold piece.");
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
     {
         const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(cTo);
@@ -446,52 +476,72 @@ TEST_CASE("Dialogue: after a pick, the next list waits for the host's game", "[B
 {
     Talking talking;
     auto& session = talking.session;
-    talking.Options(kHost, 1, {Option(0xA, 0xA1, "Follow me.")});
-    talking.Pick(kHost, 1, 0xA, GameId(0, 0xA1));
+    session.Receive(kPeer, Join(talking.Id));
+    talking.List(kHost, 1);
+    talking.Pick(kHost, 1, 0xA);
     session.Outbox.clear();
 
-    // While the NPC answers: a late host list for the step picked is dropped, a pick for it too.
-    talking.Options(kHost, 1, {Option(0xA, 0xA1, "Follow me.")});
-    talking.Pick(kOtherPeer, 1, 0xA, GameId(0, 0xA1));
-    // Before the host's next list, nothing to fall back on: a pick without a line of its own is dropped.
+    // While the NPC answers: a late host list for the step picked is dropped, a pick for it too, and a pick for the
+    // next step before the host's game showed its list.
+    talking.List(kHost, 1);
+    talking.Pick(kOtherPeer, 1, 0xA);
     talking.Pick(kOtherPeer, 2, 0xE);
-    CHECK(session.SentTo<NotifyDialogueList>(kHost).empty());
+    CHECK(session.SentTo<NotifyDialogueList>(kPeer).empty());
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
 
-    talking.Options(kHost, 2, {Option(0xE, 0xE1, "Wait here.")});
+    DialogueOptions choices(1);
+    choices[0].Topic = GameId(0, 0xF);
+    choices[0].Info = GameId(0, 0xF1);
+    talking.List(kHost, 2, true, choices);
     CHECK(talking.LastList(kPeer).Step == 2);
-    CHECK(talking.Texts(kPeer) == std::vector<std::string>{"Wait here."});
+    CHECK(talking.LastList(kPeer).Options == choices);
+    talking.Pick(kOtherPeer, 2, 0xE); // the last step's option, not this one's
+    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).empty());
+    talking.Pick(kOtherPeer, 2, 0xF);
+    CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: Speech experience from a line goes to whoever picked it", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a start that cannot happen is refused, with why", "[Bridge][Dialogue]")
 {
-    Talking talking;
-    auto& session = talking.session;
-    talking.Options(kHost, 1, kHostOptions);
-    const auto experience = [&session](ConnectionId_t aFrom) {
-        session.Outbox.clear();
-        DialogueExperienceRequest request;
-        request.Experience = 7.2f;
-        session.Receive(aFrom, request);
-    };
-    const auto gained = [&session](ConnectionId_t aTo) {
-        const auto cSent = session.SentTo<NotifyDialogueExperience>(aTo);
-        return cSent.size() == 1 && cSent[0]->Experience == 7.2f;
-    };
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
 
-    // The peer's pick: its player's, nobody else's.
-    talking.Pick(kPeer, 1, 0xA, GameId(0, 0xA1));
-    experience(kHost);
-    CHECK(gained(kPeer));
-    CHECK(session.SentTo<NotifyDialogueExperience>(kHost).empty());
-    CHECK(session.SentTo<NotifyDialogueExperience>(kOtherPeer).empty());
+    // Not one of the host's NPCs: refused, no line.
+    session.Receive(kOtherPeer, Start(cPeerPlayer));
+    REQUIRE(session.SentTo<NotifyDialogueRefused>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyChatMessageBroadcast>(kOtherPeer).empty());
 
-    // Only the host's game says lines.
-    experience(kOtherPeer);
-    CHECK(session.SentTo<NotifyDialogueExperience>(kPeer).empty());
+    // The host's game could not start it: the asker hears why, and the next start goes through.
+    session.Outbox.clear();
+    session.Receive(kPeer, Start(cNpc));
+    DialogueStartFailedRequest failed;
+    failed.NpcId = cNpc;
+    session.Receive(kOtherPeer, failed); // not the host's game
+    CHECK(session.SentTo<NotifyDialogueRefused>(kPeer).empty());
+    session.Receive(kHost, failed);
+    const auto cRefused = session.SentTo<NotifyDialogueRefused>(kPeer);
+    REQUIRE(cRefused.size() == 1);
+    CHECK(cRefused[0]->NpcId == cNpc);
+    CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).size() == 1);
+}
 
-    // The picker gone: the host's player keeps it.
-    session.Leave(kPeer);
-    experience(kHost);
-    CHECK(gained(kHost));
+TEST_CASE("Dialogue: an NPC greeting the party puts every player in it", "[Bridge][Dialogue]")
+{
+    Session session;
+    const uint32_t cNpc = session.Character(kHost);
+    DialogueOpenedRequest opened;
+    opened.NpcId = cNpc;
+    opened.Everyone = true;
+    session.Receive(kHost, opened);
+    const auto cOpen = session.SentTo<NotifyDialogueOpen>(kPeer);
+    REQUIRE(cOpen.size() == 1);
+    CHECK(cOpen[0]->Everyone);
+    const uint32_t cId = cOpen[0]->Conversation;
+
+    // Each guest is in it: the conversation ends once both have left.
+    session.Receive(kPeer, Close(cId));
+    CHECK(session.SentTo<NotifyDialogueClosed>(kHost).empty());
+    session.Receive(kOtherPeer, Close(cId));
+    CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }

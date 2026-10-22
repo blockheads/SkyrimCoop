@@ -44,13 +44,6 @@ std::vector<MenuTopicManager::Dialogue*> MenuTopicManager::Options() noexcept
     return options;
 }
 
-int32_t MenuTopicManager::IndexOf(const Dialogue* apOption) noexcept
-{
-    const std::vector<Dialogue*> cOptions = Options();
-    const auto cIt = std::ranges::find(cOptions, apOption);
-    return cIt == cOptions.end() ? -1 : static_cast<int32_t>(cIt - cOptions.begin());
-}
-
 bool MenuTopicManager::HasOptions() noexcept
 {
     using TFirstOption = bool(MenuTopicManager*, bool aSkipHidden);

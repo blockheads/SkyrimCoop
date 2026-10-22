@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Bridges/IDialogueBridge.h>
+
 #include <memory>
 
 #include <Services/RunnerService.h>
@@ -79,6 +81,7 @@ private:
     entt::dispatcher m_dispatcher;
     // Must exist before TransportService looks up its bridge references.
     std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
+    std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
     RunnerService m_runner;
     TransportService m_transport;
     ModSystem m_modSystem;

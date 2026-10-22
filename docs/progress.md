@@ -139,6 +139,9 @@ Decided 2026-10-19 (`docs/design/shared-dialogue.md`, "Next"; `docs/design/copy-
 game's engine builds its own list from the host's step, against world and AI state that is the host's. Each step
 with its scenarios.
 
+Steps 1-3 done 2026-10-22 (overnight slice 5, below), then replaced the same day by the host's list for every menu
+("Dialogue: the host's list" below; `shared-dialogue.md`, "Decided 2026-10-22").
+
 1. **Spike:** on the client, set the conversation's line to the host's step and call the engine's build and show
    (35287, 52857); compare with the host's list, list what else 35287 reads.
 2. **AI state on copies** (revised 2026-10-20, `copy-contract.md`, "AI state"): the owner sends current package,
@@ -218,6 +221,34 @@ Decisions made without the user are marked **Decided**.
   character: the client's player is in combat, then out) fails before and passes after. Closes the loose end "A
   guest's player is never in combat"; combat music and wait/save blocking follow from the same flag, not checked.
 
+- **5. Dialogue step sync: done (steps 1 and 3; 2 is slices 1-4), replaced the same day (below).** The archive's client (tag
+  `archive/shared-dialogue-client`) redone as step sync on today's tree:
+  - Step 1 (spike, IDA): the list build 35287 takes the picked node's option, else `lastSelectedDialogue` (+0x38,
+    which it owns); an option whose info has choices (the constructor 35254 sets +0x10 from 25659) makes
+    `rootTopicInfo` that info and the list its choices, else the speaker's topics (35276). A game builds a step's list
+    by making the said line's option (`BuildOption`) the `lastSelectedDialogue` with no picked node and calling 35287
+    (`MenuTopicManager::BuildStep`); the host's step is its `rootTopicInfo` after each list (`DialogueBridge::GetStep`).
+    Seen in the games' logs: steps of the speaker's topics and of a line's choices (Andurs, three questions deep).
+  - Step 3: `DialogueStepRequest`/`NotifyDialogueStep` (the said line, empty for the speaker's topics) replace
+    `DialogueOptionsRequest`/`NotifyDialogueList`; deleted with them: `DialogueOption(s)`, the archive's `OwnLines`,
+    `ShowOptions` building options, the added-options record, `SendOptions`, the `List` filter, `GetLine`/`GetChoices`.
+    `HostDialogue` sends the step to the games in the conversation and to a joiner and takes a pick only with the
+    picker's own line. Ported from the archive: refusals, training, force greets (`DialogueStartFailedRequest`,
+    `DialogueTrainingRequest`, `NotifyDialogueRefused`, `NotifyDialogueTraining`, `Everyone`), Speech experience to the
+    picker (`PlayerCharacter::GainSkillExperience`, `SetSpeechExperienceFilter`), the copy-speaker guard on
+    `TESTopicInfo::Begin` (25616), the dialogue hooks (`Bridges/DialogueBridge.cpp`), the harness (`dialogue`,
+    `dialogue_pick`, `skill`, `force_greet`, `info_said`, `trainings`; `item_count` takes `form` alone for the
+    player) and the scenarios. `dialogue_tests.cpp` rewritten for steps (27 cases); TPTests round trip.
+  - **Decided:** the game side splits by role, per the rules: a shared `DialogueService` (joins, leaves, picks, the
+    picker's training and Speech; `Services/Generic`), the host's part `Services/Host/HostConversation` (made by
+    `HostService` while hosting) and a guest's `Services/Guest/GuestDialogue` (made by `GuestService`), each plugging
+    in as `DialogueService::Role`; not the archive's one service with `IsHost()` branches.
+  - **Decided:** a guest with no answer to a line's choices leaves (its menu closes), as the archive did; the host's
+    held choices (`HoldChoices`) stay.
+  - The 18 two-game dialogue scenarios pass (`--tag dialogue`, first run). The archive's three-player duo did not
+    apply on the changed duo code; its half (a `--players` flag `duo` ignored, `client2`, `dialogue-three-players`)
+    was removed at review (`docs/ideas.md`, Testing). Steps 4 (quest topics on guests) and 5 (event-driven lists)
+    not done; step 5 is moot (step sync has no polled list).
 - **Combat target on copies (found while running the suite):** writing `currentCombatTarget` works only while the
   engine's own callers see the copy in combat; with the allowlist below they see it out of combat and something
   clears the field again (not traced). `copy-in-owners-combat` no longer checks it. Open.
@@ -240,6 +271,14 @@ Decisions made without the user are marked **Decided**.
   trails its owner's; `vilkas-counts-client-hits` failed on it once).
 - `guest-player-in-hosts-combat` failed after the full suite on the same duo (Vilkas's `startcombat` on the client's
   character did nothing, target 0), passes on a fresh duo. Not traced.
+- **Full suite at the end (fresh duo, final build except the revert below, 935 s): 107 pass, 3 fail.**
+  `flames-client-hits-host-npc` (each game's own fire hazard, the `burning-shows-on-copy` loose end);
+  `dialogue-pick-reaches-host` (the client's E press in its menu sent no pick: no log line of one; passed 3 of 3
+  on rerun and in the dialogue run); `host-kill-move` (the client's blow 176 ms ahead of the host's; 2 of 2 on
+  rerun). The run before the package change: 104 pass, 6 fail (the hazard twice, `party-stacks-on-arrival`, the two
+  lock reports and `ai_state.talking`, all handled above). Tried for the pick: skipping the guest's redraw of step 1
+  (the speaker's topics its engine built at the open) made two other picks fail; reverted. Not explained: the
+  guest's step-1 redraw may reset the SWF as a pick lands.
 - **AI state at spawn (found by the suite, fixed):** `late-join-client` failed on a copy made after the rejoin
   holding no package for up to 2 s; the spawn now carries the AI state (`AssignCharacterRequest`/`NotifyCharacterSpawn`
   `AiState`, `AiStateService::ReadState`).
@@ -260,6 +299,40 @@ Decisions made without the user are marked **Decided**.
     `QueuedPromoteLargeReferencesTask`, 18902+0x80, null `rcx`, ref 190E5, no frame of ours; new, not traced; passed on
     fresh games). After those, `guest-player-in-hosts-combat` failed on the host's own `startcombat` (target never
     set), the known "fails on a used duo" item above; it passed on fresh games earlier.
+
+- **Dialogue: the host's list (2026-10-22, the user's review: "is there a simpler way?").** Step sync replaced:
+  every menu shows the host's engine's list (judged for the host's player, with the real quests and aliases), and a
+  pick is an option of that list, which the host's game says as a click. Messages back to `DialogueOptionsRequest`/
+  `NotifyDialogueList` (HEAD's, with `Structs/DialogueOption`); `HostDialogue` keeps the step's list, sends it to
+  the games in the conversation and to joiners, and takes only a pick in it. Deleted: the guest's list build
+  (`MenuTopicManager::BuildStep`, `IDialogueBridge::Line`, `GetStep`, `ShowStep`), `HoldChoices` and the guest
+  leaving with no answer, `PickTopic`'s say-any-line, `MarkSaid` on guests. Added: `DialogueBridge::ShowList`,
+  `PickOption`, `IsChoices`. BridgeTests: the list cases rewritten, new "a pick is one of the host's options" and
+  "a pick before the host's list is not said" (111 cases pass); TPTests round trip for the lists.
+  Scenarios: `client_shows_hosts_list` (topics, lines, texts equal, in order) in `dialogue-peer-starts` and each
+  step of `dialogue-several-questions-deep`; `dialogue-peer-only-option` → `dialogue-options-are-the-hosts`,
+  `dialogue-picker-says-its-line` → `dialogue-pick-says-the-hosts-line`, `dialogue-answer-only-a-peer-has` →
+  `dialogue-unanswered-question-ends-it`; new `dialogue-quest-option-from-host` (the guest's own beggar quest
+  stopped, its menu still lists the coin).
+  - Found by the runs and fixed: (1) the guest's engine builds and shows a list of its own after the host's
+    arrived (at the menu's open, after its greeting): the host's list now goes in its place at the engine's show
+    (`HookShowList`, the `List` filter, `GuestDialogue::ListToShow`); this was what the said-once, reset-hours and
+    quest cases caught. (2) The host's list built again within a step (a topic with random lines, Lydia's): a pick
+    falls back to the topic's option (`PickOption`). (3) A menu filled again with the list it already shows takes
+    no pick for 750 ms (voice ready 52858): a guest's E press in that window was lost (`dialogue-pick-reaches-host`,
+    the intermittent failure of the night before); a refill that changes nothing is skipped. Logs added for a pick
+    sent and a pick not said, with why.
+  - Not dialogue: after a beggar's coin the host's player has Gift of Charity (`EEF58`), whose effect shader stayed
+    on the guest's copy forever (copies held every hit shader; the owner only FX Persist ones): found by
+    `dialogue-options-are-the-hosts`' desync check; fixed by the polling agent's EffectVisuals change (in its
+    worktree), the coin scenarios dispel the blessing meanwhile.
+  - Runs: BridgeTests 111 pass, TPTests pass; `--tag dialogue` 22 of 22, twice in a row on one duo.
+  The half-ported three-player duo and `dialogue-three-players` are removed (`docs/ideas.md`, Testing).
+  - Bridge cleanup (the user's review: "dialoguebridge is large"): `Redraw`, `Pick(index)` and
+    `MenuTopicManager::IndexOf` were dead; one "already shown" check (the bridge's `ShowList`, not also
+    `GuestDialogue`), cleared when the engine shows its own list (a stale record could skip a needed refill); the
+    host sends a step's list when its engine builds one (the `List` filter as the event) instead of counting lists
+    every frame (`GetListsShown`, `m_listsAtPick`, `m_stepSent`).
 
 ### Phase 5: the server is gone (2026-10-21, uncommitted)
 

@@ -7,6 +7,7 @@
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
+#include <Services/Guest/GuestDialogue.h>
 #include <Services/HostService.h>
 #include <World.h>
 
@@ -18,6 +19,7 @@ struct GuestService::Guest
         , Clock(aWorld, aDispatcher, Engine)
         , Weather(aDispatcher, Engine)
         , WorldState(aWorld, aDispatcher, Engine)
+        , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
     {
     }
 
@@ -25,6 +27,7 @@ struct GuestService::Guest
     GuestClock Clock;
     GuestWeather Weather;
     GuestWorldState WorldState;
+    GuestDialogue Dialogue;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept

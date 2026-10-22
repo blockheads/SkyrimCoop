@@ -22,7 +22,7 @@ HostDialogue::HostDialogue(HostAuthority& aAuthority, HostNetwork& aNetwork, con
     aAuthority.On(*this, &HostDialogue::OnPick);
     aAuthority.On(*this, &HostDialogue::OnClose);
     aAuthority.On(*this, &HostDialogue::OnJoin);
-    aAuthority.On(*this, &HostDialogue::OnExperience);
+    aAuthority.On(*this, &HostDialogue::OnStartFailed);
 }
 
 void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -31,18 +31,14 @@ void HostDialogue::OnStart(const DialogueStartRequest& acRequest, ConnectionId_t
     if (!cHost || m_characters.OwnerOf(acRequest.NpcId) != cHost)
     {
         spdlog::debug("HostDialogue: {:x} asked to talk to {:x}, not the host's", aSender, acRequest.NpcId);
+        Refuse(aSender, acRequest.NpcId, nullptr);
         return;
     }
     // Talking to the NPC of the conversation under way joins it (its game opens its menu itself).
     if (m_conversation)
     {
         if (m_conversation->NpcId != acRequest.NpcId)
-        {
-            NotifyChatMessageBroadcast line;
-            line.MessageType = kSystemMessage;
-            line.ChatMessage = "Someone else is in a conversation already.";
-            m_network.Send(aSender, line);
-        }
+            Refuse(aSender, acRequest.NpcId, "Someone else is in a conversation already.");
         return;
     }
 
@@ -67,15 +63,22 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
     m_conversation = Conversation{};
     m_conversation->Id = ++m_lastId;
     m_conversation->NpcId = acRequest.NpcId;
-    m_talker = 0;
-    // Asking for it is joining it: its game leaves it if its menu does not open.
-    if (m_asked && m_asked->NpcId == acRequest.NpcId)
+    // Asking for it is joining it, and an NPC greeting the party puts every other player in it: each game leaves it
+    // if its menu does not open.
+    if (acRequest.Everyone)
+    {
+        for (const ConnectionId_t cPlayer : m_players.Connections())
+            if (cPlayer != aSender)
+                m_conversation->Players.push_back(cPlayer);
+    }
+    else if (m_asked && m_asked->NpcId == acRequest.NpcId)
         m_conversation->Players.push_back(m_asked->Player);
     m_asked.reset();
 
     NotifyDialogueOpen open;
     open.Conversation = m_conversation->Id;
     open.NpcId = acRequest.NpcId;
+    open.Everyone = acRequest.Everyone;
     m_players.SendToAll(open);
 }
 
@@ -84,32 +87,31 @@ void HostDialogue::OnOptions(const DialogueOptionsRequest& acRequest, Connection
     Conversation* pConversation = Current(acRequest.Conversation, acRequest.Step);
     if (!pConversation || aSender != m_players.Host())
         return;
-    pConversation->HostOptions = acRequest.Options;
-
-    NotifyDialogueList list;
-    list.Conversation = pConversation->Id;
-    list.Step = pConversation->Step;
-    list.Choices = acRequest.Choices;
-    list.Options = acRequest.Options;
-    m_players.SendToAll(list);
+    pConversation->Options = acRequest.Options;
+    pConversation->Choices = acRequest.Choices;
+    for (const ConnectionId_t cPlayer : pConversation->Players)
+        SendList(cPlayer);
 }
 
 void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     Conversation* pConversation = Current(acRequest.Conversation, acRequest.Step);
-    if (!pConversation || !pConversation->HostOptions || !pConversation->Has(aSender))
-        return;
-    // The picker's own line for the topic (its Speech, its perks, its race), else the host's: a topic of its own
-    // that the host lacks comes with its line.
-    GameId info = acRequest.Info;
-    if (!info)
+    // A pick that is not said (another player picked first, the list not shown yet, not one of its options): the
+    // picker's menu shows the current list again. While the NPC answers, the next list comes anyway.
+    const auto cIsListed = [&acRequest](const DialogueOption& acOption) {
+        return acOption.Topic == acRequest.Topic && acOption.Info == acRequest.Info;
+    };
+    if (!pConversation || !pConversation->Options || !pConversation->Has(aSender) ||
+        std::ranges::none_of(*pConversation->Options, cIsListed))
     {
-        const auto& cOptions = *pConversation->HostOptions;
-        const auto cHost = std::ranges::find(cOptions, acRequest.Topic, &DialogueOption::Topic);
-        if (cHost == cOptions.end())
-            return;
-        info = cHost->Info;
+        spdlog::info("HostDialogue: {:x}'s pick of {:X} at step {} is not said ({})", aSender, acRequest.Topic.BaseId,
+                     acRequest.Step, !pConversation ? "another step or conversation" : !pConversation->Options ? "no list yet"
+                     : !pConversation->Has(aSender) ? "not in it" : "not in the list");
+        if (Conversation* pOpen = Current(acRequest.Conversation); pOpen && pOpen->Has(aSender))
+            SendList(aSender);
+        return;
     }
+    const GameId info = acRequest.Info;
 
     NotifyDialoguePicked picked;
     picked.Conversation = pConversation->Id;
@@ -120,8 +122,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
 
     // The next step's list is the host's game's once the NPC has answered.
     pConversation->Step = picked.Step;
-    m_talker = aSender;
-    pConversation->HostOptions.reset();
+    pConversation->Options.reset();
 
     // Every game, the host's too: its game says it unless its own menu did.
     m_players.SendToAll(picked);
@@ -149,29 +150,49 @@ void HostDialogue::OnClose(const DialogueCloseRequest& acRequest, ConnectionId_t
 void HostDialogue::OnJoin(const DialogueJoinRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     if (Conversation* pConversation = Current(acRequest.Conversation); pConversation && !pConversation->Has(aSender))
+    {
         pConversation->Players.push_back(aSender);
+        SendList(aSender);
+    }
 }
 
-void HostDialogue::OnExperience(const DialogueExperienceRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostDialogue::OnStartFailed(const DialogueStartFailedRequest& acRequest, ConnectionId_t aSender) noexcept
 {
-    const ConnectionId_t cHost = m_players.Host();
-    if (aSender != cHost)
-    {
-        spdlog::warn("HostDialogue: {:x} is not the host and sent dialogue experience", aSender);
+    if (aSender != m_players.Host() || !m_asked || m_asked->NpcId != acRequest.NpcId)
         return;
-    }
-    // The last picker's; the host's own when it picked or that player left.
-    NotifyDialogueExperience experience;
-    experience.Experience = acRequest.Experience;
-    m_network.Send(m_talker && m_players.IsPlayer(m_talker) ? m_talker : cHost, experience);
+    Refuse(m_asked->Player, acRequest.NpcId, "The host can't talk to them right now.");
+    m_asked.reset();
+}
+
+void HostDialogue::Refuse(ConnectionId_t aPlayer, uint32_t aNpcId, const char* acpWhy) noexcept
+{
+    NotifyDialogueRefused refused;
+    refused.NpcId = aNpcId;
+    m_network.Send(aPlayer, refused);
+    if (!acpWhy)
+        return;
+    NotifyChatMessageBroadcast line;
+    line.MessageType = kSystemMessage;
+    line.ChatMessage = acpWhy;
+    m_network.Send(aPlayer, line);
+}
+
+void HostDialogue::SendList(ConnectionId_t aPlayer) noexcept
+{
+    if (!m_conversation || !m_conversation->Options || aPlayer == m_players.Host())
+        return;
+    NotifyDialogueList list;
+    list.Conversation = m_conversation->Id;
+    list.Step = m_conversation->Step;
+    list.Choices = m_conversation->Choices;
+    list.Options = *m_conversation->Options;
+    m_network.Send(aPlayer, list);
 }
 
 void HostDialogue::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     if (m_asked && m_asked->Player == aPlayer)
         m_asked.reset();
-    if (m_talker == aPlayer)
-        m_talker = 0;
     if (m_conversation)
         Leave(aPlayer);
 }
