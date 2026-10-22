@@ -69,9 +69,6 @@ public:
     virtual int32_t GetActorValueCount() const noexcept = 0;
 
     // --- Equipment / weapon ---
-    virtual void EquipItem(uint32_t aActorFormId, uint32_t aItemFormId, bool aUnequipSlot) noexcept = 0;
-    virtual void UnequipItem(uint32_t aActorFormId, uint32_t aItemFormId) noexcept = 0;
-    virtual void DrawWeapon(uint32_t aFormId, bool aDraw) noexcept = 0;
     virtual bool IsWeaponDrawn(uint32_t aFormId) const noexcept = 0;
     virtual uint32_t GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept = 0;
     virtual void ActorEquipSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aSlot) noexcept = 0;
@@ -92,8 +89,6 @@ public:
     /// Spell currently being cast from that source (0 if none).
     virtual uint32_t GetCastingSpellFormId(uint32_t aFormId, uint32_t aCastingSource) const noexcept = 0;
     virtual void RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noexcept = 0;
-    virtual void AddMagicTarget(uint32_t aActorFormId, uint32_t aCasterFormId, uint32_t aTargetFormId,
-                                 bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept = 0;
 
     // --- Inventory ---
     virtual bool IsBleedingOut(uint32_t aFormId) const noexcept = 0;
@@ -227,9 +222,6 @@ public:
     /// Run facegen update for a remote actor.
     virtual void ActorUpdateFaceGen(uint32_t aFormId) noexcept = 0;
 
-    // --- Reveal effect (SkyrimTogether.esp reveal) ---
-    /// Apply the reveal detect effect to a remote player actor.
-    virtual void ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept = 0;
 
     // --- Player-specific (knockdown) ---
     virtual void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept = 0;

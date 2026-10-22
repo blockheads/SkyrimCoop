@@ -254,9 +254,6 @@ void AnimationSystem::Clean(World& aWorld, const entt::entity aEntity) noexcept
 
 void AnimationSystem::AddAction(RemoteAnimationComponent& aAnimationComponent, const std::string& acActionDiff) noexcept
 {
-    auto itor = std::begin(aAnimationComponent.TimePoints);
-    const auto end = std::cend(aAnimationComponent.TimePoints);
-
     auto& lastProcessedAction = aAnimationComponent.LastProcessedAction;
 
     TiltedPhoques::ViewBuffer buffer((uint8_t*)acActionDiff.data(), acActionDiff.size());

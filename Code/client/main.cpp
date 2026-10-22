@@ -2,34 +2,18 @@
 #include <TiltedOnlineApp.h>
 #include <TiltedOnlinePCH.h>
 
-#include <commctrl.h>
 #include <windows.h>
 #include <shellapi.h>
 
-#include <base/dialogues/win/TaskDialog.h>
-
 std::unique_ptr<TiltedOnlineApp> g_appInstance{nullptr};
-
-extern HICON g_SharedWindowIcon;
 
 static void ShowAddressLibraryError(const wchar_t* apGamePath)
 {
-    auto errorDetail = fmt::format(L"Looking for it here: {}\\Data\\SKSE\\Plugins", apGamePath);
-
-    Base::TaskDialog dia(g_SharedWindowIcon, L"Error", L"Failed to load Skyrim Address Library", L"Make sure to use \"All in one (1.6.X)\"", errorDetail.c_str());
-
-    dia.AppendButton(0xBEED, L"Visit troubleshooting page on wiki.tiltedphoques.com");
-    dia.AppendButton(0xBEEF, L"Visit Address Library modpage on nexusmods.com");
-    const int result = dia.Show();
-    if (result == 0xBEEF)
-    {
+    const auto cMessage = fmt::format(L"Failed to load the Skyrim Address Library (\"All in one (1.6.X)\").\n"
+                                      L"Looking for it here: {}\\Data\\SKSE\\Plugins\n\nOpen its Nexus page?",
+                                      apGamePath);
+    if (MessageBoxW(nullptr, cMessage.c_str(), L"SkyrimCoop", MB_YESNO | MB_ICONERROR) == IDYES)
         ShellExecuteW(nullptr, L"open", LR"(https://www.nexusmods.com/skyrimspecialedition/mods/32444?tab=files)", nullptr, nullptr, SW_SHOWNORMAL);
-    }
-    else if (result == 0xBEED)
-    {
-        ShellExecuteW(nullptr, L"open", LR"(https://wiki.tiltedphoques.com/tilted-online/guides/troubleshooting/address-library-error)", nullptr, nullptr, SW_SHOWNORMAL);
-    }
-
     exit(4);
 }
 

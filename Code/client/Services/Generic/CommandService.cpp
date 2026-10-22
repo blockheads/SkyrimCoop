@@ -10,9 +10,8 @@
 #include "Messages/SetTimeCommandRequest.h"
 
 
-CommandService::CommandService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher)
-    : m_world(aWorld)
-    , m_transport(aTransport)
+CommandService::CommandService(TransportService& aTransport, entt::dispatcher& aDispatcher)
+    : m_transport(aTransport)
 {
     m_setTimeConnection = aDispatcher.sink<SetTimeCommandEvent>().connect<&CommandService::OnSetTimeCommand>(this);
 }

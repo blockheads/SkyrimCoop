@@ -1,5 +1,3 @@
-#pragma once
-
 #include <Messages/RequestMessageFactory.h>
 
 static std::function<UniquePtr<RequestMessage>(TiltedPhoques::Buffer::Reader& aReader)> s_clientMessageExtractor[kRequestOpcodeMax];

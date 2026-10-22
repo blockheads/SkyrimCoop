@@ -14,7 +14,7 @@ auto CreateMessageVisitor = [](auto&& f) mutable
 {
     auto expender = [f](auto&&... xs)
     {
-        (... && !f(xs));
+        (void)(... && !f(xs));
     };
 
     expender(::details::MetaMessage<T>{}...);

@@ -182,6 +182,13 @@ their opcodes and factories), and the host → game messages named as requests b
 (`NotifyCharacterSpawn`, `NotifyReferencesMove`, `NotifyTimeSettings`, `NotifyWorldState`; the guest's move is
 `ReferencesMoveRequest`). Merging the actors' session ids with created objects' ids: `docs/ideas.md`.
 
+Dead code after that (2026-10-21): `Code/base`'s unused parts (SimpleIni, `fast_queue`, `Check.h`, `Testing.h`, the
+task dialog: the Address Library error is a message box now), `SkyrimBridge`'s never-implemented stubs (14, none
+called), upstream's F4 "reveal other players" (needed `SkyrimTogether.esp`), `BGSSaveLoadManager`, `MenuControls`,
+`Overrides.cpp` (the counters are inline). The DLL builds with no unused-code warnings; `offsetof` on engine structs
+and clang-cl's PCH include rule are silenced as expected. The one stub something called, `SetActorRotation`, is
+implemented: a copy now spawns facing its owner's way (it kept its created heading until the owner's next move).
+
 ## Sync by system
 
 Each verified system has a two-game scenario (`scripts/coop_test.py scenario <name>`).
@@ -632,8 +639,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - `difficulty-follows-host` failed 2 of 8 on the phase 5 build (2026-10-21), always after other scenarios: the
   client's copy of the host's player kept the baseline heading after the two quick rejoins (the late-join facing
   entries above). `HEAD` before phase 5 passed 6 of 6, the same orders included; not settled whether phase 5 makes
-  it likelier.
-- `party-stacks-on-arrival` fails every run (2026-10-21): "[client] came within 9 units of the other player: it
+  it likelier. Likely the spawn heading: `SetActorRotation` was a stub, so a copy kept its created heading until its
+  owner moved; implemented the same day, then 3 of 3 passed right after the scenarios that had tripped it.
+- `party-stacks-on-arrival` fails every run (2026-10-21; with copies spawning at their owner's heading, 2 of 4 passed): "[client] came within 9 units of the other player: it
   walked through it". Not followed up.
 
 - Rule 2 through `SetStage` has no scenario (2026-10-20): `vilkas-counts-client-hits` now claims rule 1 only (the trial's sword is given at stage 200, from dialogue). Candidate: Northwatch Keep's `MS09NonCombatTrigger1Script` (`OnTriggerEnter`: `Game.GetPlayer().SetFactionRank`, then MS09 stage 55, whose fragment ranks `Game.GetPlayer()` too); needs a faction readout and MS09 staged at 40. `statue-fires-at-client` checks the host's own hits now and fails with rule 2 off (`docs/re/systems/papyrus-guest-scripts.md`, "Rule 2 never ran").

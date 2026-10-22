@@ -6,7 +6,8 @@ ExtraDataList* ExtraDataList::New() noexcept
 {
     ExtraDataList* pExtraDataList = Memory::Allocate<ExtraDataList>();
     pExtraDataList->data = nullptr;
-    pExtraDataList->lock.m_lockCount = pExtraDataList->lock.m_writerThread = 0;
+    pExtraDataList->lock.m_lockCount = 0;
+    pExtraDataList->lock.m_writerThread = 0;
     pExtraDataList->bitfield = Memory::Allocate<ExtraDataList::Bitfield>();
     memset(pExtraDataList->bitfield, 0, 0x18);
     return pExtraDataList;

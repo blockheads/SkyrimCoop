@@ -12,7 +12,7 @@ struct SetTimeCommandEvent;
 struct CommandService
 {
 public:
-    CommandService(World& aWorld, TransportService& aTransport, entt::dispatcher& aDispatcher);
+    CommandService(TransportService& aTransport, entt::dispatcher& aDispatcher);
     ~CommandService() noexcept = default;
 
     TP_NOCOPYMOVE(CommandService);
@@ -21,7 +21,6 @@ protected:
     void OnSetTimeCommand(const SetTimeCommandEvent&) const noexcept;
 
 private:
-    World& m_world;
     TransportService& m_transport;
 
     entt::scoped_connection m_setTimeConnection;

@@ -1,5 +1,3 @@
-#pragma once
-
 #include <Messages/NotifyMessageFactory.h>
 
 static std::function<UniquePtr<NotifyMessage>(TiltedPhoques::Buffer::Reader& aReader)> s_serverMessageExtractor[kNotifyOpcodeMax];

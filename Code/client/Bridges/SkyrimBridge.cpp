@@ -215,8 +215,8 @@ void SkyrimBridge::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, flo
 void SkyrimBridge::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept
 {
     Breadcrumbs::Record("SetActorRotation", aFormId);
-    // TODO(02.5-02): implement via actor rotation fields
-    spdlog::warn("SkyrimBridge::SetActorRotation not yet implemented for {:X}", aFormId);
+    if (auto* pActor = GetActor(aFormId))
+        pActor->SetRotation(aX, 0.f, aZ);
 }
 
 bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
@@ -288,27 +288,6 @@ void SkyrimBridge::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t
 int32_t SkyrimBridge::GetActorValueCount() const noexcept
 {
     return ActorValueInfo::kActorValueCount;
-}
-
-void SkyrimBridge::EquipItem(uint32_t aActorFormId, uint32_t aItemFormId, bool aUnequipSlot) noexcept
-{
-    Breadcrumbs::Record("EquipItem", aActorFormId, aItemFormId);
-    // TODO(02.5-02): implement via EquipManager
-    spdlog::warn("SkyrimBridge::EquipItem not yet implemented");
-}
-
-void SkyrimBridge::UnequipItem(uint32_t aActorFormId, uint32_t aItemFormId) noexcept
-{
-    Breadcrumbs::Record("UnequipItem", aActorFormId, aItemFormId);
-    // TODO(02.5-02): implement via EquipManager
-    spdlog::warn("SkyrimBridge::UnequipItem not yet implemented");
-}
-
-void SkyrimBridge::DrawWeapon(uint32_t aFormId, bool aDraw) noexcept
-{
-    Breadcrumbs::Record("DrawWeapon", aFormId, static_cast<uint32_t>(aDraw));
-    // TODO(02.5-02): implement
-    spdlog::warn("SkyrimBridge::DrawWeapon not yet implemented");
 }
 
 bool SkyrimBridge::IsWeaponDrawn(uint32_t aFormId) const noexcept
@@ -411,14 +390,6 @@ void SkyrimBridge::RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noe
     MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById(aSpellFormId));
     if (pSpell)
         pActor->RemoveSpell(pSpell);
-}
-
-void SkyrimBridge::AddMagicTarget(uint32_t aActorFormId, uint32_t aCasterFormId, uint32_t aTargetFormId,
-                                    bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept
-{
-    Breadcrumbs::Record("AddMagicTarget", aActorFormId, aCasterFormId);
-    // TODO(02.5-02): implement via magicTarget.AddTarget
-    spdlog::warn("SkyrimBridge::AddMagicTarget not yet implemented");
 }
 
 bool SkyrimBridge::IsBleedingOut(uint32_t aFormId) const noexcept
@@ -648,12 +619,6 @@ uint8_t SkyrimBridge::GetFormType(uint32_t aFormId) const noexcept
     return 0;
 }
 
-std::string SkyrimBridge::GetFormEditorId(uint32_t aFormId) const noexcept
-{
-    // TODO(02.5-02): implement
-    return {};
-}
-
 std::string SkyrimBridge::GetFormName(uint32_t aFormId) const noexcept
 {
     if (TESForm* pForm = TESForm::GetById(aFormId))
@@ -689,18 +654,6 @@ uint32_t SkyrimBridge::LookupWorldSpaceByFormId(uint32_t aFormId) const noexcept
     // WorldSpace lookup by form ID is identity — the form IS the worldspace
     TESWorldSpace* pWS = Cast<TESWorldSpace>(TESForm::GetById(aFormId));
     return pWS ? pWS->formID : 0;
-}
-
-uint32_t SkyrimBridge::GetParentCellFormId(uint32_t aObjectFormId) const noexcept
-{
-    // TODO(02.5-02): implement via TESObjectREFR::parentCell
-    return 0;
-}
-
-uint32_t SkyrimBridge::GetParentWorldSpaceFormId(uint32_t aObjectFormId) const noexcept
-{
-    // TODO(02.5-02): implement
-    return 0;
 }
 
 bool SkyrimBridge::QuestExists(uint32_t aFormId) const noexcept
@@ -778,24 +731,6 @@ uint32_t SkyrimBridge::FindQuestByNameId(const std::string& aNameId) const noexc
 uint32_t SkyrimBridge::GetModCount() const noexcept
 {
     return static_cast<uint32_t>(ModManager::Get()->mods.Size());
-}
-
-std::string SkyrimBridge::GetModNameByIndex(uint32_t aIndex) const noexcept
-{
-    // TODO(02.5-02): implement via ModManager mod list
-    return {};
-}
-
-uint32_t SkyrimBridge::GetModStandardId(const std::string& aModName) const noexcept
-{
-    // TODO(02.5-02): implement
-    return 0;
-}
-
-std::vector<std::string> SkyrimBridge::GetAllModNames() const noexcept
-{
-    // TODO(02.5-02): implement
-    return {};
 }
 
 std::vector<IFormBridge::ModEntry> SkyrimBridge::GetLoadedMods() const noexcept
@@ -1275,12 +1210,6 @@ bool SkyrimBridge::IsPlayerBleedingOut() const noexcept
     return false;
 }
 
-bool SkyrimBridge::IsPlayerInGodMode() const noexcept
-{
-    // TODO(02.5-02): implement via PlayerCharacter god mode flag
-    return false;
-}
-
 void SkyrimBridge::SetPlayerGodMode(bool aEnable) noexcept
 {
     Breadcrumbs::Record("SetPlayerGodMode", static_cast<uint32_t>(aEnable));
@@ -1517,27 +1446,6 @@ uint32_t SkyrimBridge::GetCurrentWeatherId() const noexcept
     return pWeather ? pWeather->formID : 0;
 }
 
-uint32_t SkyrimBridge::GetLastWeatherId() const noexcept
-{
-    // TODO(02.5-02): implement via Sky::lastWeather
-    return 0;
-}
-
-
-
-std::string SkyrimBridge::GetModName(uint32_t aIndex) const noexcept
-{
-    // TODO(02.5-02): implement via Sky/ModManager
-    return {};
-}
-
-void SkyrimBridge::SetGameWeatherSystemEnabled(bool aEnable) noexcept
-{
-    Breadcrumbs::Record("SetGameWeatherSystemEnabled", static_cast<uint32_t>(aEnable));
-    // TODO(02.5-02): implement via Sky toggle
-    spdlog::warn("SkyrimBridge::SetGameWeatherSystemEnabled({}) not yet implemented", aEnable);
-}
-
 float SkyrimBridge::GetGameTimeHours() const noexcept
 {
     if (TimeData* pTime = TimeData::Get())
@@ -1549,7 +1457,6 @@ void SkyrimBridge::SetSharedTimeScale(float aMultiplier) noexcept
 {
     BSTimer::SetSharedMultiplier(aMultiplier);
 }
-
 
 float SkyrimBridge::GetGameTimeScale() const noexcept
 {
@@ -1593,8 +1500,6 @@ TimeModel SkyrimBridge::GetGameTime() const noexcept
     time.DaysPassed = static_cast<uint32_t>(pTime->rawDaysPassed);
     return time;
 }
-
-
 
 // ---------------------------------------------------------------------------
 // IActorBridge — extended (Plan 03)
@@ -2012,31 +1917,6 @@ void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
             FaceGenSystem::Update(world, pActor, view.get<FaceGenComponent>(entity));
 }
 
-void SkyrimBridge::ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept
-{
-    Breadcrumbs::Record("ApplyRevealEffect", aFormId);
-    // Apply SkyrimTogether.esp detect effect to a remote player
-    Mod* pSkyrimTogether = ModManager::Get()->GetByName("SkyrimTogether.esp");
-    if (!pSkyrimTogether)
-        return;
-    MagicItem* pSpell = Cast<MagicItem>(TESForm::GetById((pSkyrimTogether->standardId << 24) | 0x1825));
-    if (!pSpell)
-        return;
-
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return;
-
-    MagicTarget::AddTargetData data{};
-    data.pSpell = pSpell;
-    data.pEffectItem = pSpell->GetEffect((pSkyrimTogether->standardId << 24) | 0x1824);
-    data.fMagnitude = aMagnitude;
-    data.fUnkFloat1 = 1.f;
-    data.eCastingSource = MagicSystem::CastingSource::CASTING_SOURCE_COUNT;
-
-    pActor->magicTarget.AddTarget(data, false, false);
-}
-
 namespace
 {
 // EffectSetting (1.6.1170, CommonLibSSE): EffectSettingData at +0x68; flags +0x00, effectShader
@@ -2058,7 +1938,6 @@ HitVisuals GetHitVisuals(uint32_t aEffectFormId) noexcept
         return {};
     return {*reinterpret_cast<TESForm* const*>(pData + 0x30), *reinterpret_cast<TESForm* const*>(pData + 0x88)};
 }
-
 
 } // namespace
 

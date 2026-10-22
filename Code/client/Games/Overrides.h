@@ -11,7 +11,7 @@ template <class T> struct ScopedOverride
     static bool IsOverriden() { return s_refCount > 0; }
 
 private:
-    static thread_local uint32_t s_refCount;
+    static inline thread_local uint32_t s_refCount = 0;
 };
 
 namespace details

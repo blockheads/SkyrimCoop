@@ -200,8 +200,8 @@ namespace
 // A stage item's callback (StageItemFinishedCallback): slot 1 sends TESQuestStageItemDoneEvent (25234).
 struct StageItemCallback
 {
-    virtual void Destroy(bool aFree);
-    virtual void Run();
+    virtual void Destroy(bool aFree) = 0;
+    virtual void Run() = 0;
 };
 
 // The Papyrus VM's TESQuestStageEvent sink (53987): runs the item's fragment, then its callback; an item

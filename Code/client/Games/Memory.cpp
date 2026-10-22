@@ -5,7 +5,6 @@
 #include <Games/Memory.h>
 #include <Games/References.h>
 
-#include <TiltedCore/RpmallocAllocator.hpp>
 #include <rpmalloc.h>
 
 #pragma optimize("", off)
@@ -27,8 +26,6 @@ TP_THIS_FUNCTION(TFormReallocate, void*, GameHeap, void* apOld, size_t aSize, ui
 TFormAllocate* RealFormAllocate = nullptr;
 TFormFree* RealFormFree = nullptr;
 TFormReallocate* RealFormReallocate = nullptr;
-
-static TiltedPhoques::RpmallocAllocator s_allocator;
 
 void* TP_MAKE_THISCALL(HookFormAllocate, GameHeap, size_t aSize, size_t aAlignment, bool aAligned)
 {

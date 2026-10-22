@@ -82,7 +82,7 @@ World::World()
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport,
                                ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
-    ctx().emplace<CommandService>(*this, m_transport, m_dispatcher);
+    ctx().emplace<CommandService>(m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
                                   ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),

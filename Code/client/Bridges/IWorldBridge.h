@@ -16,17 +16,10 @@ public:
 
     // --- Weather ---
     virtual uint32_t GetCurrentWeatherId() const noexcept = 0;
-    virtual uint32_t GetLastWeatherId() const noexcept = 0;
 
     // --- Mod registry ---
     virtual uint32_t GetModCount() const noexcept = 0;
-    virtual std::string GetModName(uint32_t aIndex) const noexcept = 0;
-    virtual std::vector<std::string> GetAllModNames() const noexcept = 0;
 
-    // --- Toggle game systems ---
-    /// Enable or disable the game's own weather update system
-    /// (unused: a guest holds the host's weather instead, GuestEngine::HoldWeather).
-    virtual void SetGameWeatherSystemEnabled(bool aEnable) noexcept = 0;
 
     // --- Time ---
     /// Game time as hours (0.0 – 24.0).

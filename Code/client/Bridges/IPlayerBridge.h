@@ -37,7 +37,6 @@ public:
     // --- State ---
     virtual bool IsPlayerAlive() const noexcept = 0;
     virtual bool IsPlayerBleedingOut() const noexcept = 0;
-    virtual bool IsPlayerInGodMode() const noexcept = 0;
     virtual void SetPlayerGodMode(bool aEnable) noexcept = 0;
     virtual void SetPlayerRespawnMode(bool aEnable) noexcept = 0;
     virtual void RespawnPlayer() noexcept = 0;

@@ -19,8 +19,6 @@ RenderSystemD3D11::RenderSystemD3D11(ImguiService& aImguiService)
 
     m_createConnection = d3d11.OnCreate.Connect([this](IDXGISwapChain* apSwapChain) { OnDeviceCreation(apSwapChain); });
     m_resetConnection = d3d11.OnLost.Connect(std::bind(&RenderSystemD3D11::OnReset, this, std::placeholders::_1));
-
-    // m_renderConnection = d3d11.OnPresent.Connect(std::bind(&RenderSystemD3D11::OnRender, this, std::placeholders::_1));
 }
 
 RenderSystemD3D11::~RenderSystemD3D11()
@@ -28,7 +26,6 @@ RenderSystemD3D11::~RenderSystemD3D11()
     auto& d3d11 = TiltedPhoques::D3D11Hook::Get();
 
     d3d11.OnCreate.Disconnect(m_createConnection);
-    // d3d11.OnPresent.Disconnect(m_renderConnection);
     d3d11.OnLost.Disconnect(m_resetConnection);
 }
 

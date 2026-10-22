@@ -1,42 +1,5 @@
 #pragma once
 
-#pragma pack(push, 1)
-
-struct BGSSaveLoadManager
-{
-    virtual ~BGSSaveLoadManager();
-
-    struct SaveData
-    {
-        void* unk0;           // maybe vtable
-        uint32_t someCounter; // 0x8
-        uint32_t unkC;
-        void* unk10;        // 0x10
-        void* someFunction; // 0x18
-
-        uint32_t unk58; // 0x58
-
-        uint32_t flags; // 0x340
-
-        char* saveName; // 0xBB0
-    };
-
-    void Save(SaveData* apData);
-
-    struct Struct330
-    {
-        void* unk0; // 0
-        void* data; // 8
-    };
-
-    uint8_t pad8[0x330 - 0x8];
-    Struct330* struct330; // 330
-};
-
-static_assert(offsetof(BGSSaveLoadManager::SaveData, someFunction) == 0x18);
-
-#pragma pack(pop)
-
 struct TESForm;
 
 // A form's save data as TESForm::SaveGame writes it (CommonLibSSE-NG BGSSaveFormBuffer.h; checked in IDA).

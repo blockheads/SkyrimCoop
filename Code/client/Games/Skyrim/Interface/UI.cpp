@@ -47,7 +47,7 @@ IMenu* UI::FindMenuByName(const BSFixedString& acName)
 {
     for (const auto& it : menuMap)
     {
-        if (it.key == acName)
+        if (it.key == acName.AsAscii())
             return it.value.spMenu;
     }
     return nullptr;

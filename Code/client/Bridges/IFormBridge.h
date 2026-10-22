@@ -25,7 +25,6 @@ public:
     // --- Generic form queries ---
     virtual bool FormExists(uint32_t aFormId) const noexcept = 0;
     virtual uint8_t GetFormType(uint32_t aFormId) const noexcept = 0;
-    virtual std::string GetFormEditorId(uint32_t aFormId) const noexcept = 0;
     virtual std::string GetFormName(uint32_t aFormId) const noexcept = 0;
 
     // --- TESGlobal ---
@@ -35,8 +34,6 @@ public:
     // --- Cell / world ---
     virtual uint32_t LookupCellByCoords(uint32_t aWorldSpaceFormId, int32_t aX, int32_t aY) const noexcept = 0;
     virtual uint32_t LookupWorldSpaceByFormId(uint32_t aFormId) const noexcept = 0;
-    virtual uint32_t GetParentCellFormId(uint32_t aObjectFormId) const noexcept = 0;
-    virtual uint32_t GetParentWorldSpaceFormId(uint32_t aObjectFormId) const noexcept = 0;
 
     // --- Quest ---
     virtual bool QuestExists(uint32_t aFormId) const noexcept = 0;
@@ -55,9 +52,6 @@ public:
 
     // --- Mod registry ---
     virtual uint32_t GetModCount() const noexcept = 0;
-    virtual std::string GetModNameByIndex(uint32_t aIndex) const noexcept = 0;
-    virtual uint32_t GetModStandardId(const std::string& aModName) const noexcept = 0;
-    virtual std::vector<std::string> GetAllModNames() const noexcept = 0;
     virtual uint32_t GetModFormIdBySpellId(uint32_t aModStandardId, uint32_t aSpellLocalId) const noexcept = 0;
     /// Returns a flat list of all currently loaded mods (IsLoaded() == true).
     /// Used by TransportService to build the authentication mod list without touching ModManager directly.

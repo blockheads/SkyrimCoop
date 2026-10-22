@@ -51,9 +51,6 @@ public:
     void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
     void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
     int32_t GetActorValueCount() const noexcept override;
-    void EquipItem(uint32_t aActorFormId, uint32_t aItemFormId, bool aUnequipSlot) noexcept override;
-    void UnequipItem(uint32_t aActorFormId, uint32_t aItemFormId) noexcept override;
-    void DrawWeapon(uint32_t aFormId, bool aDraw) noexcept override;
     bool IsWeaponDrawn(uint32_t aFormId) const noexcept override;
     uint32_t GetEquippedWeaponFormId(uint32_t aActorFormId, uint32_t aSlot) const noexcept override;
     uint64_t GetAnimationGraphDescriptorHash(uint32_t aFormId) const noexcept override;
@@ -65,8 +62,6 @@ public:
     void InterruptCast(uint32_t aFormId, uint32_t aCastingSource) noexcept override;
     uint32_t GetCastingSpellFormId(uint32_t aFormId, uint32_t aCastingSource) const noexcept override;
     void RemoveSpell(uint32_t aActorFormId, uint32_t aSpellFormId) noexcept override;
-    void AddMagicTarget(uint32_t aActorFormId, uint32_t aCasterFormId, uint32_t aTargetFormId,
-                         bool aApplyHealPerkBonus, bool aApplyStaminaPerkBonus) noexcept override;
     bool IsBleedingOut(uint32_t aFormId) const noexcept override;
     void PayCrimeGoldToAllFactions(uint32_t aFormId) noexcept override;
     uint32_t GetEquippedShoutFormId(uint32_t aFormId) const noexcept override;
@@ -126,7 +121,6 @@ public:
     void ActorUpdateInterpolation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept override;
     void ActorUpdateFaceGen(uint32_t aFormId) noexcept override;
-    void ApplyRevealEffect(uint32_t aFormId, float aMagnitude) noexcept override;
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override;
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
@@ -138,14 +132,11 @@ public:
     // -----------------------------------------------------------------
     bool FormExists(uint32_t aFormId) const noexcept override;
     uint8_t GetFormType(uint32_t aFormId) const noexcept override;
-    std::string GetFormEditorId(uint32_t aFormId) const noexcept override;
     std::string GetFormName(uint32_t aFormId) const noexcept override;
     float GetGlobalValue(uint32_t aFormId) const noexcept override;
     void SetGlobalValue(uint32_t aFormId, float aValue) noexcept override;
     uint32_t LookupCellByCoords(uint32_t aWorldSpaceFormId, int32_t aX, int32_t aY) const noexcept override;
     uint32_t LookupWorldSpaceByFormId(uint32_t aFormId) const noexcept override;
-    uint32_t GetParentCellFormId(uint32_t aObjectFormId) const noexcept override;
-    uint32_t GetParentWorldSpaceFormId(uint32_t aObjectFormId) const noexcept override;
     bool QuestExists(uint32_t aFormId) const noexcept override;
     uint32_t GetQuestStage(uint32_t aFormId) const noexcept override;
     bool IsQuestStopped(uint32_t aFormId) const noexcept override;
@@ -157,9 +148,6 @@ public:
     void SetQuestStopped(uint32_t aFormId) noexcept override;
     bool IsQuestStagesEmpty(uint32_t aFormId) const noexcept override;
     uint32_t GetModCount() const noexcept override;
-    std::string GetModNameByIndex(uint32_t aIndex) const noexcept override;
-    uint32_t GetModStandardId(const std::string& aModName) const noexcept override;
-    std::vector<std::string> GetAllModNames() const noexcept override;
     uint32_t GetModFormIdBySpellId(uint32_t aModStandardId, uint32_t aSpellLocalId) const noexcept override;
     std::vector<ModEntry> GetLoadedMods() const noexcept override;
     bool IsSpellItem(uint32_t aFormId) const noexcept override;
@@ -232,7 +220,6 @@ public:
     std::string GetPlayerWorldSpaceName() const noexcept override;
     bool IsPlayerAlive() const noexcept override;
     bool IsPlayerBleedingOut() const noexcept override;
-    bool IsPlayerInGodMode() const noexcept override;
     void SetPlayerGodMode(bool aEnable) noexcept override;
     void SetPlayerRespawnMode(bool aEnable) noexcept override;
     void RespawnPlayer() noexcept override;
@@ -270,13 +257,9 @@ public:
 
     // -----------------------------------------------------------------
     // IWorldBridge
-    // (GetModCount and GetAllModNames are shared with IFormBridge;
-    //  a single override satisfies both interfaces.)
+    // (GetModCount is shared with IFormBridge; a single override satisfies both interfaces.)
     // -----------------------------------------------------------------
     uint32_t GetCurrentWeatherId() const noexcept override;
-    uint32_t GetLastWeatherId() const noexcept override;
-    std::string GetModName(uint32_t aIndex) const noexcept override;
-    void SetGameWeatherSystemEnabled(bool aEnable) noexcept override;
     float GetGameTimeHours() const noexcept override;
     void SetSharedTimeScale(float aMultiplier) noexcept override;
     float GetGameTimeScale() const noexcept override;

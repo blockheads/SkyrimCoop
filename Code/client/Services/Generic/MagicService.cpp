@@ -46,8 +46,6 @@ void MagicService::OnUpdate(const UpdateEvent& acEvent) noexcept
         return;
 
     ApplyQueuedEffects();
-
-    UpdateRevealOtherPlayersEffect();
 }
 
 void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcept
@@ -522,61 +520,5 @@ void MagicService::ApplyQueuedEffects() noexcept
             OnNotifyAddTarget(target);
         }
         m_queuedRemoteEffects.pop();
-    }
-}
-
-void MagicService::StartRevealingOtherPlayers() noexcept
-{
-    UpdateRevealOtherPlayersEffect(/*forceTrigger=*/true);
-}
-
-void MagicService::UpdateRevealOtherPlayersEffect(bool aForceTrigger) noexcept
-{
-    constexpr auto cRevealDuration = 10s;
-    constexpr auto cDelayBetweenUpdates = 2s;
-    constexpr float cRevealMagnitude = 1.f;
-
-    // Effect's activation and lifecycle
-
-    static std::chrono::steady_clock::time_point revealStartTimePoint;
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-
-    const bool shouldActivate = aForceTrigger || GetAsyncKeyState(VK_F4) & 0x01;
-
-    if (shouldActivate && !m_revealingOtherPlayers)
-    {
-        m_revealingOtherPlayers = true;
-        revealStartTimePoint = std::chrono::steady_clock::now();
-    }
-
-    if (!m_revealingOtherPlayers)
-        return;
-
-    const auto now = std::chrono::steady_clock::now();
-
-    if (now - revealStartTimePoint > cRevealDuration)
-    {
-        m_revealingOtherPlayers = false;
-        return;
-    }
-
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
-        return;
-
-    lastSendTimePoint = now;
-
-    // When active — use mod registry to find the SkyrimTogether.esp detect spell
-    const uint32_t cModStdId = m_formBridge.GetModStandardId("SkyrimTogether.esp");
-    if (cModStdId == 0xFFFFFFFF || cModStdId == 0)
-        return;
-
-    auto view = World::Get().view<FormIdComponent, PlayerComponent>();
-    for (const auto entity : view)
-    {
-        auto& formIdComponent = view.get<FormIdComponent>(entity);
-        if (formIdComponent.Id == 0x14)
-            continue;
-
-        m_actorBridge.ApplyRevealEffect(formIdComponent.Id, cRevealMagnitude);
     }
 }

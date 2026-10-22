@@ -331,7 +331,7 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
 
         m_world.emplace_or_replace<LocalComponent>(cEntity, acMessage.SessionId);
         // Its actions since the request are queued already (RequestServerAssignment).
-        m_world.get_or_emplace<LocalAnimationComponent>(cEntity);
+        (void)m_world.get_or_emplace<LocalAnimationComponent>(cEntity);
 
         m_actorBridge.SetActorCopy(formIdComponent->Id, false);
 
@@ -491,7 +491,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
         m_actorBridge.SetActorCommandingActor(actorFormId, cPlayerId);
     }
 
-    auto& remoteComponent = m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
+    m_world.emplace_or_replace<RemoteComponent>(*entity, acMessage.SessionId, actorFormId);
     // Link the engine actor now: DiscoveryService (removed in ec7d02d1) used to do this when the
     // actor entered a loaded cell, via ActorAddedEvent -> OnActorAdded. Without the link,
     // RunRemoteUpdates has no actor to apply interpolated movement to.
@@ -1401,7 +1401,6 @@ void CharacterService::RunRemoteUpdates() noexcept
 
     for (auto entity : animatedView)
     {
-        auto& animationComponent = animatedView.get<RemoteAnimationComponent>(entity);
         auto& formIdComponent = animatedView.get<FormIdComponent>(entity);
 
         m_actorBridge.ActorUpdateAnimation(formIdComponent.Id, tick);

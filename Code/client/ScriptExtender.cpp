@@ -141,7 +141,7 @@ void LoadScriptExender()
         return;
     }
 
-    if (g_SKSEModuleHandle = LoadLibraryW(needle->c_str()))
+    if ((g_SKSEModuleHandle = LoadLibraryW(needle->c_str())))
     {
         if (auto* pStartSKSE = reinterpret_cast<void (*)()>(GetProcAddress(g_SKSEModuleHandle, kScriptExtenderEntrypoint)))
         {

@@ -28,7 +28,6 @@ private:
     IDXGISwapChain* m_pSwapChain;
     ImguiService& m_imguiService;
     size_t m_createConnection;
-    size_t m_renderConnection;
     size_t m_resetConnection;
 };
 
