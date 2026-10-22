@@ -70,7 +70,7 @@ static void DrawBuildTag()
 {
     auto* pWindow = BSGraphics::GetMainWindow();
     const ImVec2 coord{50.f, static_cast<float>((pWindow->uiWindowHeight + 25) - 100)};
-    static const std::string cBuildTag = fmt::format("Build: {} {} EVO\nBuilt: " __TIMESTAMP__, BuildCommit(), BuildBranch());
+    static const std::string cBuildTag = std::format("Build: {} {} EVO\nBuilt: " __TIMESTAMP__, BuildCommit(), BuildBranch());
     ImGui::GetBackgroundDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), coord, ImColor(255.f, 0.f, 0.f), cBuildTag.c_str());
 }
 

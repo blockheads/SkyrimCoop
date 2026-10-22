@@ -230,7 +230,7 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
             auto items = nlohmann::json::object();
             for (const auto& [cItem, cCount] : *cRef.Items)
                 if (cCount)
-                    items[fmt::format("{:X}", cItem)] = cCount;
+                    items[std::format("{:X}", cItem)] = cCount;
             ref["items"] = items;
         }
         if (!cRef.Pose.empty())
@@ -241,7 +241,7 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
                 // A name met again gets its number: "Door", "Door#2".
                 std::string key = cNode.Name;
                 for (int n = 2; pose.contains(key); ++n)
-                    key = fmt::format("{}#{}", cNode.Name, n);
+                    key = std::format("{}#{}", cNode.Name, n);
                 pose[key] = {{"position", cNode.Position}, {"rotate", cNode.Rotate}};
             }
             ref["pose"] = pose;

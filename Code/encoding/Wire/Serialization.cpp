@@ -8,7 +8,7 @@ namespace Wire
 
         const uint16_t len = ReadVarInt(aReader) & 0xFFFF;
         result.resize(len);
-        aReader.ReadBytes(reinterpret_cast<uint8_t*>(result.data()), len);
+        aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(result.data()), len));
 
         return result;
     }
@@ -18,7 +18,7 @@ namespace Wire
         const uint16_t len = acString.size() & 0xFFFF;
 
         WriteVarInt(aWriter, len);
-        aWriter.WriteBytes(reinterpret_cast<const uint8_t*>(acString.data()), len);
+        aWriter.WriteBytes(std::span(reinterpret_cast<const uint8_t*>(acString.data()), len));
     }
 
     uint64_t Serialization::ReadVarInt(Buffer::Reader& aReader)
@@ -69,26 +69,26 @@ namespace Wire
     double Serialization::ReadDouble(Buffer::Reader& aReader)
     {
         double value = 0;
-        aReader.ReadBytes(reinterpret_cast<uint8_t*>(&value), sizeof(value));
+        aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(&value), sizeof(value)));
 
         return value;
     }
 
     void Serialization::WriteDouble(Buffer::Writer& aWriter, double aValue)
     {
-        aWriter.WriteBytes(reinterpret_cast<const uint8_t*>(&aValue), sizeof(aValue));
+        aWriter.WriteBytes(std::span(reinterpret_cast<const uint8_t*>(&aValue), sizeof(aValue)));
     }
 
     float Serialization::ReadFloat(Buffer::Reader& aReader)
     {
         float value = 0;
-        aReader.ReadBytes(reinterpret_cast<uint8_t*>(&value), sizeof(value));
+        aReader.ReadBytes(std::span(reinterpret_cast<uint8_t*>(&value), sizeof(value)));
 
         return value;
     }
 
     void Serialization::WriteFloat(Buffer::Writer& aWriter, float aValue)
     {
-        aWriter.WriteBytes(reinterpret_cast<const uint8_t*>(&aValue), sizeof(aValue));
+        aWriter.WriteBytes(std::span(reinterpret_cast<const uint8_t*>(&aValue), sizeof(aValue)));
     }
 }

@@ -21,7 +21,6 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <BuildVersion.h>
-#include <Wire/ViewBuffer.h>
 
 // #include <imgui_internal.h>
 
@@ -150,8 +149,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 void TransportService::OnConsume(const void* apData, uint32_t aSize)
 {
     NotifyMessageFactory factory;
-    Wire::ViewBuffer buf((uint8_t*)apData, aSize);
-    Wire::Buffer::Reader reader(&buf);
+    Wire::Buffer::Reader reader(std::span(static_cast<const uint8_t*>(apData), aSize));
 
     auto pMessage = factory.Extract(reader);
     if (!pMessage)
@@ -207,7 +205,7 @@ void TransportService::OnDisconnected(EDisconnectReason aReason)
     if (m_joinStatus.Current != JoinStatus::State::kRefused)
         m_joinStatus = {};
 
-    spdlog::warn("Disconnected from server {}", aReason);
+    spdlog::warn("Disconnected from server {}", std::to_underlying(aReason));
 
     m_dispatcher.trigger(DisconnectedEvent());
 }

@@ -2,7 +2,7 @@
 
 ## Language
 
-We are using C++23: clang-cl with the MSVC STL 14.44 (`/std:c++latest`) for the plugin, clang 18 with libstdc++ 12 for the Linux tests. Use what both have (`std::expected` yes; check newer library features against libstdc++ 12).
+We are using C++23: clang-cl with the MSVC STL 14.44 (`/std:c++latest`) for the plugin, clang 18 with libstdc++ 13 for the Linux tests. Use what both have (`std::expected` and `std::format` yes; `std::ranges::to` only in Windows-only code; check newer library features against libstdc++ 13).
 
 Please try to use templates responsibly, we don't want compilation times to explode and to deal with bloated binaries.
 

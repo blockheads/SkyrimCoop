@@ -20,7 +20,6 @@
 #include <DefaultObjectManager.h>
 #include <RTTI.h>
 #include <Wire/Buffer.h>
-#include <Wire/ViewBuffer.h>
 
 namespace
 {
@@ -257,8 +256,7 @@ void AnimationSystem::AddAction(RemoteAnimationComponent& aAnimationComponent, c
 {
     auto& lastProcessedAction = aAnimationComponent.LastProcessedAction;
 
-    Wire::ViewBuffer buffer((uint8_t*)acActionDiff.data(), acActionDiff.size());
-    Buffer::Reader reader(&buffer);
+    Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(acActionDiff.data()), acActionDiff.size()));
 
     lastProcessedAction.ApplyDifferential(reader);
 
@@ -319,11 +317,10 @@ bool AnimationSystem::Serialize(World& aWorld, const ActionEvent& aActionEvent, 
         return false;
 
     uint8_t scratch[1 << 14];
-    Wire::ViewBuffer buffer(scratch, std::size(scratch));
-    Buffer::Writer writer(&buffer);
+    Wire::Buffer::Writer writer{std::span(scratch)};
     aActionEvent.GenerateDifferential(aLastProcessedAction, writer);
 
-    apData->assign(buffer.GetData(), buffer.GetData() + writer.Size());
+    apData->assign(scratch, scratch + writer.Size());
 
     return true;
 }

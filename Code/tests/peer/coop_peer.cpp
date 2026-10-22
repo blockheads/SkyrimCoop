@@ -21,7 +21,6 @@
 #include <vector>
 #include <Wire/Buffer.h>
 #include <Wire/Serialization.h>
-#include <Wire/ViewBuffer.h>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
@@ -94,8 +93,7 @@ struct RefusingHost final : Net::Server
 
     void OnConsume(const void* apData, uint32_t aSize, ConnectionId_t aConnection) override
     {
-        Wire::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
-        Wire::Buffer::Reader reader(&buffer);
+        Wire::Buffer::Reader reader(std::span(static_cast<const uint8_t*>(apData), aSize));
         const auto pMessage = RequestMessageFactory{}.Extract(reader);
         if (!pMessage || pMessage->GetOpcode() != kAuthenticationRequest)
             return;
@@ -126,8 +124,7 @@ struct JoiningGame final : Net::Client
 
     void OnConsume(const void* apData, uint32_t aSize) override
     {
-        Wire::ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
-        Wire::Buffer::Reader reader(&buffer);
+        Wire::Buffer::Reader reader(std::span(static_cast<const uint8_t*>(apData), aSize));
         const auto pMessage = NotifyMessageFactory{}.Extract(reader);
         if (pMessage && pMessage->GetOpcode() == kAuthenticationResponse)
             Answer = static_cast<const AuthenticationResponse&>(*pMessage).Type;

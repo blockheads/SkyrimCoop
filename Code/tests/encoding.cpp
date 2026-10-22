@@ -28,6 +28,38 @@
 
 using namespace Wire;
 
+TEST_CASE("Buffer", "[encoding.buffer]")
+{
+    SECTION("A writer grows its buffer")
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        Serialization::WriteString(writer, std::string(3000, 'a'));
+        Buffer::Reader reader(&buffer);
+        CHECK(Serialization::ReadString(reader) == std::string(3000, 'a'));
+    }
+
+    SECTION("A writer into fixed bytes stops at their end")
+    {
+        uint8_t bytes[4]{};
+        Buffer::Writer writer{std::span(bytes)};
+        CHECK(writer.WriteBits(0xABCDEF, 24));
+        CHECK_FALSE(writer.WriteBits(0x1234, 16));
+        CHECK(writer.Size() == 3);
+    }
+
+    SECTION("A reader stops at the end of its bytes")
+    {
+        const uint8_t bytes[2]{0x34, 0x12};
+        Buffer::Reader reader{std::span(bytes)};
+        uint64_t value = 0;
+        CHECK(reader.ReadBits(value, 16));
+        CHECK(value == 0x1234);
+        CHECK(reader.Eof());
+        CHECK_FALSE(reader.ReadBits(value, 1));
+    }
+}
+
 TEST_CASE("Encoding factory", "[encoding.factory]")
 {
     Buffer buff(1000);

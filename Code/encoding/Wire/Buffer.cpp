@@ -1,200 +1,40 @@
 #include "Buffer.h"
+
 #include <algorithm>
 
 namespace Wire
 {
-    Buffer::Buffer() noexcept
-        : m_pData(nullptr)
-        , m_size(0)
+    namespace
     {
-
-    }
-
-    Buffer::Buffer(const size_t aSize) noexcept
-        : m_pData(nullptr)
-        , m_size(aSize)
-    {
-        if (m_size > 0)
-            m_pData = new uint8_t[m_size];
-    }
-
-    Buffer::Buffer(const uint8_t* apData, size_t aSize) noexcept
-        : m_pData(nullptr)
-        , m_size(aSize)
-    {
-        if (m_size > 0)
-            m_pData = new uint8_t[m_size];
-
-        std::copy(apData, apData + aSize, m_pData);
-    }
-
-    Buffer::Buffer(const Buffer& acBuffer) noexcept
-        : Buffer(acBuffer.m_size)
-    {
-        if (m_pData && acBuffer.GetData())
-            std::copy(acBuffer.GetData(), acBuffer.GetData() + m_size, m_pData);
-    }
-
-    Buffer::Buffer(Buffer&& aBuffer) noexcept
-    {
-        m_pData = aBuffer.m_pData;
-        m_size = aBuffer.m_size;
-
-        aBuffer.m_pData = nullptr;
-        aBuffer.m_size = 0;
-    }
-
-    Buffer::~Buffer()
-    {
-        if(m_pData)
-            delete[] m_pData;
-    }
-
-    uint8_t Buffer::operator[](const size_t aIndex) const noexcept
-    {
-        return m_pData[aIndex];
-    }
-
-    uint8_t& Buffer::operator[](const size_t aIndex) noexcept
-    {
-        return m_pData[aIndex];
-    }
-
-    Buffer& Buffer::operator=(const Buffer& acBuffer) noexcept
-    {
-        this->~Buffer();
-        new (this) Buffer(acBuffer);
-
-        return *std::launder(this);
-    }
-
-    Buffer& Buffer::operator=(Buffer&& aBuffer) noexcept
-    {
-        std::swap(aBuffer.m_pData, m_pData);
-        std::swap(aBuffer.m_size, m_size);
-
-        return *this;
-    }
-
-    size_t Buffer::GetSize() const noexcept
-    {
-        return m_size;
-    }
-
-    bool Buffer::Resize(size_t aSize) noexcept
-    {
-        const auto pData = new (std::nothrow) uint8_t[aSize];
-        if (!pData)
-            return false;
-        std::copy_n(m_pData, m_size, pData);
-
-        delete[] m_pData;
-        m_pData = pData;
-        m_size = aSize;
-
-        return true;
-    }
-
-    const uint8_t* Buffer::GetData() const noexcept
-    {
-        return m_pData;
-    }
-
-    uint8_t* Buffer::GetWriteData() const noexcept
-    {
-        return m_pData;
-    }
-
-    Buffer::Cursor::Cursor(Buffer* apBuffer)
-        : m_bitPosition(0)
-        , m_pBuffer(apBuffer)
-    {
-
-    }
-
-    void Buffer::Cursor::Advance(size_t aByteCount)
-    {
-        m_bitPosition += aByteCount * 8;
-    }
-
-    void Buffer::Cursor::Reverse(size_t aByteCount)
-    {
-        if (aByteCount * 8 <= m_bitPosition)
+        // Whole bytes from the current bit to aCount bits further.
+        size_t BytesSpanned(size_t aBitPosition, size_t aCount) noexcept
         {
-            m_bitPosition -= aByteCount * 8;
+            return ((aBitPosition & 0x7) + aCount + 7) / 8;
         }
-    }
 
-    void Buffer::Cursor::Reset()
-    {
-        m_bitPosition = 0;
-    }
-
-    bool Buffer::Cursor::Eof() const
-    {
-        return m_bitPosition >= m_pBuffer->GetSize() * 8;
-    }
-
-    size_t Buffer::Cursor::GetBitPosition() const
-    {
-        return m_bitPosition;
-    }
-
-    size_t Buffer::Cursor::GetBytePosition() const
-    {
-        return m_bitPosition / 8;
-    }
-
-    size_t Buffer::Cursor::Size() const noexcept
-    {
-        auto bitPosition = (m_bitPosition & ~0x7) + ((m_bitPosition & 0x7) != 0 ? 8 : 0);
-
-        return bitPosition / 8;
-    }
-
-    Buffer* Buffer::Cursor::GetBuffer() const noexcept
-    {
-        return m_pBuffer;
-    }
-
-    uint8_t* Buffer::Cursor::GetDataAtPosition() const noexcept
-    {
-        return m_pBuffer->GetWriteData() + GetBytePosition();
-    }
-
-    Buffer::Reader::Reader(Buffer* apBuffer)
-        : Cursor(apBuffer)
-    {
-
+        size_t NextWholeByte(size_t aBitPosition) noexcept
+        {
+            return (aBitPosition + 7) & ~size_t(0x7);
+        }
     }
 
     bool Buffer::Reader::ReadBits(uint64_t& aDestination, size_t aCount)
     {
         aDestination = 0;
 
-        // Number of bits to read in the current byte
         const auto bitIndex = m_bitPosition & 0x7;
-        size_t bitsToRead = 0;
-
-        const auto countOffset = aCount + bitIndex;
-        // Compute how many bytes we will end up reading
-        auto bytesToRead = ((countOffset & ~0x7) + ((countOffset & 0x7) != 0 ? 8 : 0)) >> 3;
-        if (bytesToRead + GetBytePosition() > m_pBuffer->GetSize())
-        {
+        auto bytesToRead = BytesSpanned(m_bitPosition, aCount);
+        if (bytesToRead + GetBytePosition() > m_data.size())
             return false;
-        }
 
+        const uint8_t* pLocation = m_data.data() + GetBytePosition();
+        size_t bitsToRead = 0;
         uint64_t endBits = 0;
 
-        auto* pLocation = m_pBuffer->GetData() + GetBytePosition();
-
+        // The rest of a partly read byte first.
         if (bitIndex != 0)
         {
-            bitsToRead = 8 - bitIndex;
-
-            // If we are requesting less bits that what is available
-            bitsToRead = bitsToRead > aCount ? aCount : bitsToRead;
-
+            bitsToRead = std::min<size_t>(8 - bitIndex, aCount);
             endBits = ((*pLocation) >> bitIndex) & ((1 << bitsToRead) - 1);
 
             pLocation++;
@@ -206,102 +46,71 @@ namespace Wire
         aDestination |= endBits;
 
         if (aCount < 64)
-            aDestination &= ((uint64_t(1) << aCount) - 1);
+            aDestination &= (uint64_t(1) << aCount) - 1;
 
         m_bitPosition += aCount;
-
         return true;
     }
 
-    bool Buffer::Reader::ReadBytes(uint8_t* apDestination, size_t aCount)
+    bool Buffer::Reader::ReadBytes(std::span<uint8_t> aDestination)
     {
-        // Fix m_bitPosition to be at the start of the next full byte
-        m_bitPosition = (m_bitPosition & ~0x7) + ((m_bitPosition & 0x7) != 0 ? 8 : 0);
+        m_bitPosition = NextWholeByte(m_bitPosition);
+        if (aDestination.size() + GetBytePosition() > m_data.size())
+            return false;
 
-        if (aCount + GetBytePosition() <= m_pBuffer->GetSize())
-        {
-            std::copy(m_pBuffer->GetData() + GetBytePosition(), m_pBuffer->GetData() + GetBytePosition() + aCount, apDestination);
-
-            Advance(aCount);
-
-            return true;
-        }
-
-        return false;
+        std::copy_n(m_data.data() + GetBytePosition(), aDestination.size(), aDestination.data());
+        m_bitPosition += aDestination.size() * 8;
+        return true;
     }
 
-    Buffer::Writer::Writer(Buffer* apBuffer)
-        : Cursor(apBuffer)
+    bool Buffer::Writer::Reserve(size_t aBytes)
     {
-
+        const size_t cNeeded = GetBytePosition() + aBytes;
+        if (!m_pBuffer)
+            return cNeeded <= m_fixed.size();
+        if (cNeeded > m_pBuffer->GetSize())
+            m_pBuffer->Resize(m_pBuffer->GetSize() + std::max<size_t>(aBytes, 2048));
+        return true;
     }
 
     bool Buffer::Writer::WriteBits(uint64_t aData, size_t aCount)
     {
-        // Number of bits to write in the current byte
         const auto bitIndex = m_bitPosition & 0x7;
+        auto bytesToWrite = BytesSpanned(m_bitPosition, aCount);
+        if (!Reserve(bytesToWrite))
+            return false;
 
-        const auto countOffset = aCount + bitIndex;
-        // Compute how many bytes we will end up writing
-        auto bytesToWrite = ((countOffset & ~0x7) + ((countOffset & 0x7) != 0 ? 8 : 0)) >> 3;
+        uint8_t* pLocation = Data() + GetBytePosition();
 
-        if (bytesToWrite + GetBytePosition() > m_pBuffer->GetSize())
-        {
-            const auto growth = bytesToWrite > 2048 ? bytesToWrite : 2048;
-
-            if (!m_pBuffer->Resize(m_pBuffer->GetSize() + growth))
-                return false;
-        }
-
-        auto* pLocation = m_pBuffer->GetWriteData() + GetBytePosition();
-
+        // Fill the rest of a partly written byte first, keeping its written bits.
         if (bitIndex != 0)
         {
-            auto bitsToWrite = 8 - bitIndex;
+            const auto bitsToWrite = std::min<size_t>(8 - bitIndex, aCount);
+            const uint8_t cKept = *pLocation & ((1 << bitIndex) - 1);
 
-            // If we are requesting less bits that what is available
-            bitsToWrite = bitsToWrite > aCount ? aCount : bitsToWrite;
-
-            // Select the data we want to keep
-            auto workByte = *pLocation;
-            const auto workByteMask = ((1 << bitIndex) - 1);
-            workByte &= workByteMask;
-
-            // Write the part we want
             *pLocation = (static_cast<uint8_t>(aData & 0xFF) & ((1 << bitsToWrite) - 1)) << bitIndex;
-            *pLocation |= workByte;
+            *pLocation |= cKept;
 
             pLocation++;
             bytesToWrite--;
-
             aData >>= bitsToWrite;
         }
 
-        const auto pDirectAccess = reinterpret_cast<uint8_t*>(&aData);
-        std::copy(pDirectAccess, pDirectAccess + bytesToWrite, pLocation);
+        const auto* pBytes = reinterpret_cast<const uint8_t*>(&aData);
+        std::copy(pBytes, pBytes + bytesToWrite, pLocation);
 
         m_bitPosition += aCount;
-
         return true;
     }
 
-    bool Buffer::Writer::WriteBytes(const uint8_t* apSource, size_t aCount)
+    bool Buffer::Writer::WriteBytes(std::span<const uint8_t> aSource)
     {
-        // Fix m_bitPosition to be at the start of the next full byte
-        m_bitPosition = (m_bitPosition & ~0x7) + ((m_bitPosition & 0x7) != 0 ? 8 : 0);
+        m_bitPosition = NextWholeByte(m_bitPosition);
+        if (!Reserve(aSource.size()))
+            return false;
 
-        if (aCount + GetBytePosition() > m_pBuffer->GetSize())
-        {
-            const auto growth = aCount > 2048 ? aCount : 2048;
-
-            if(!m_pBuffer->Resize(m_pBuffer->GetSize() + growth))
-                return false;
-        }
-
-        std::copy(apSource, apSource + aCount, m_pBuffer->GetWriteData() + GetBytePosition());
-
-        Advance(aCount);
-
+        std::copy(aSource.begin(), aSource.end(), Data() + GetBytePosition());
+        m_bitPosition += aSource.size() * 8;
         return true;
     }
 }

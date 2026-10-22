@@ -253,10 +253,10 @@ void RecordEdge(const Held& acOuter, const void* apInner, uint8_t aInnerMode, ui
 std::string FormatAddress(uint64_t aAddress)
 {
     if (aAddress >= s_engineBase && aAddress < s_engineEnd)
-        return fmt::format("SkyrimSE.exe+{:#x}", aAddress - s_engineBase);
+        return std::format("SkyrimSE.exe+{:#x}", aAddress - s_engineBase);
     if (aAddress >= s_ourBase && aAddress < s_ourEnd)
-        return fmt::format("SkyrimTogetherClient.dll+{:#x}", aAddress - s_ourBase);
-    return fmt::format("{:#x}", aAddress);
+        return std::format("SkyrimTogetherClient.dll+{:#x}", aAddress - s_ourBase);
+    return std::format("{:#x}", aAddress);
 }
 
 std::string DescribeLock(const void* apLock)
@@ -264,8 +264,8 @@ std::string DescribeLock(const void* apLock)
     char name[96];
     if (auto* pDescribe = s_describe.load(std::memory_order_acquire))
         if (pDescribe(apLock, name, sizeof(name)))
-            return fmt::format("{} ({})", fmt::ptr(apLock), name);
-    return fmt::format("{}", fmt::ptr(apLock));
+            return std::format("{} ({})", static_cast<const void*>(apLock), name);
+    return std::format("{}", static_cast<const void*>(apLock));
 }
 
 // aPattern identifies the call sites involved; each pattern is reported once. Reports with our
@@ -290,7 +290,7 @@ void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherSta
             const bool cOurFrame = cFrame >= s_ourBase && cFrame < s_ourEnd;
             belowEngine |= !cOurFrame;
             ours |= belowEngine && cOurFrame;
-            stack += fmt::format("\n  backtrace #{:02} {}", i, FormatAddress(cFrame));
+            stack += std::format("\n  backtrace #{:02} {}", i, FormatAddress(cFrame));
         }
         if (ours)
             aMessage = "[ours] " + aMessage;
@@ -298,7 +298,7 @@ void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherSta
         {
             stack += "\n  the other thread, when it first took this pair of locks:";
             for (uint16_t i = 0; i < apOtherStack->Count; ++i)
-                stack += fmt::format("\n  backtrace #{:02} {}", i, FormatAddress(apOtherStack->Frames[i]));
+                stack += std::format("\n  backtrace #{:02} {}", i, FormatAddress(apOtherStack->Frames[i]));
         }
         spdlog::error("LockOrder: {}{}", aMessage, stack);
         spdlog::default_logger()->flush();
@@ -346,7 +346,7 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
             {
                 if (aMode == cWrite && cHeld.Mode == cRead)
                     Report(EdgeKey(reinterpret_cast<const void*>(cHeld.Caller), reinterpret_cast<const void*>(aCaller)),
-                           fmt::format("self-deadlock [{} > {}]: thread {} asks for the write lock on {} while it "
+                           std::format("self-deadlock [{} > {}]: thread {} asks for the write lock on {} while it "
                                        "holds the read lock",
                                        FormatAddress(cHeld.Caller), FormatAddress(aCaller), cThreadId,
                                        DescribeLock(apLock)));
@@ -375,7 +375,7 @@ int BeginAcquire(const void* apLock, uint8_t aMode, uint64_t aCaller)
                         EdgeKey(reinterpret_cast<const void*>(cHeld.Caller), reinterpret_cast<const void*>(aCaller)) ^
                         _rotl64(EdgeKey(reinterpret_cast<const void*>(pReverse->OuterCaller),
                                         reinterpret_cast<const void*>(pReverse->InnerCaller)), 17);
-                    Report(cPattern, fmt::format(
+                    Report(cPattern, std::format(
                         "lock order inversion [{} > {} vs {} > {}]: thread {} holds {} for {} (taken by {}) and asks "
                         "for {} for {} (by {}); thread {} held {} for {} (taken by {}) and asked for {} for {} (by {})",
                         FormatAddress(cHeld.Caller), FormatAddress(aCaller), FormatAddress(pReverse->OuterCaller),
@@ -552,7 +552,7 @@ void LogHeldLocks() noexcept
             const auto* pWords = static_cast<const volatile uint32_t*>(cHeld.Lock);
             spdlog::error("  {} {} {} for {}ms, taken by {} (lock: writer thread {}, word {:#x})",
                           cHeld.Acquired ? "holds" : "WAITS FOR", ModeName(cHeld.Mode), DescribeLock(cHeld.Lock),
-                          cNow - cHeld.SinceMs, FormatAddress(cHeld.Caller), pWords[0], pWords[1]);
+                          cNow - cHeld.SinceMs, FormatAddress(cHeld.Caller), uint32_t(pWords[0]), uint32_t(pWords[1]));
         }
     }
     spdlog::error("LockOrder: (end of held locks; {} edges, {} reports)", s_edgeCount.load(), s_reportCount.load());

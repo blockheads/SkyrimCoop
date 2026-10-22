@@ -229,6 +229,19 @@ It now holds third-party, standard and rarely edited headers of ours (`RTTI.h`, 
 a component header 20.5 s → 7.2 s, a service header 21.8 s → 4.7 s, `Actor.h` 22 s → 6.7 s. Also deleted:
 upstream's `SAVE_STUFF` blocks and `Save_Reversed` (never compiled).
 
+`Wire` with spans (2026-10-22): `Buffer` owns a `std::vector`; `Buffer::Reader` reads a `std::span<const uint8_t>`
+(received packets are read in place, no `const_cast`), `Buffer::Writer` grows a `Buffer` or writes into a fixed
+span and fails past its end (`ViewBuffer`, deleted, grew by freeing memory it did not own). Byte reads and writes
+and `vp::ScopedContext::WriteBuffer` take spans; the unused `vp::Put` (no return) and `vp::Nop` are gone. The
+wire bytes are unchanged (`wire_tests`); `encoding.cpp` checks growth and both ends.
+
+`std::format` (2026-10-22): `fmt::` is gone from our code and spdlog formats with `std::format` (package config
+`std_format`); the Linux build takes libstdc++ 13 (GCC 13 headers from the `ubuntu-toolchain-r/test` PPA), the
+first with `<format>`. Format strings are checked at compile time again (`FMT_CONSTEVAL=` had switched fmt's
+checks off), which found seven calls fmt formatted wrong or by accident: `MagicService` logged every `GameId`
+(spell, effect) as `1` through its `operator bool`, now `LogFormat()`; enums and `volatile` lock words are
+converted, `BSFixedString` passes its text. `fmt::join` is `views::join_with | ranges::to`.
+
 ## Sync by system
 
 Each verified system has a two-game scenario (`scripts/coop_test.py scenario <name>`).
@@ -715,6 +728,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - A stuck `LoadWaitSpinner` once kept the host from taking input (2026-10-13, a fresh game): the first
   `cow` to the river took over `both_go`'s 10 s fade wait on the client, and the cleanup `coc` ran while
   the host's spinner was up; it stayed through later cell changes until a restart. Not reproduced.
+- `party-uses-door` once saw the host's activation of the inn door (13419) do nothing for 60 s, with no log line
+  on either game during the step (2026-10-22, after a hot reload); it passed twice right after. Unexplained.
 - The stuck `LoadWaitSpinner` happened again (2026-10-13, host, the first `both_go` to Riverwood on a fresh
   duo); a restart cleared it. Third time 2026-10-21 on the client, from `host-kicks-client`'s rejoin onward
   (every later step waiting for input timed out); a fresh duo ran kick, late join and the failed scenarios

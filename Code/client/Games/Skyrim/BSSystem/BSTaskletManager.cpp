@@ -24,7 +24,7 @@ static void Hook_Construct_TaskletManager(BSTaskletManager* apSelf)
         if (!apSelf->threadHandles[i])
             continue;
 
-        auto name = fmt::format("TaskletThread{}", i);
+        auto name = std::format("TaskletThread{}", i);
         Base::SetThreadName(apSelf->threadHandles[i], name.c_str());
     }
 }

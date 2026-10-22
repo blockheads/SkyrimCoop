@@ -501,25 +501,25 @@ void MagicService::ApplyQueuedEffects() noexcept
 
         if (m_queuedRemoteEffects.front().Expired())
             MagicQueue::Spdlog("{}: removing expired NotifyAddTarget event from queue: caster {:X}, spell {:X}, effect {:X}, target {:X}",
-                               __FUNCTION__, target.CasterId, target.SpellId, target.EffectId, target.TargetId);
+                               __FUNCTION__, target.CasterId, target.SpellId.LogFormat(), target.EffectId.LogFormat(), target.TargetId);
         else
         {
             if (!cTargetFormId)
             {
                 spdlog::debug("{}: Actor for target serverID still not found for NotifyAddTarget: caster {:X}, spell {:X}, effect {:X}, target {:X}",
-                              __FUNCTION__, target.CasterId, target.SpellId, target.EffectId, target.TargetId);
+                              __FUNCTION__, target.CasterId, target.SpellId.LogFormat(), target.EffectId.LogFormat(), target.TargetId);
                 break;
             }
 
             if (target.CasterId && !cCasterFormId)
             {
                 spdlog::debug("{}: Actor for caster serverID still not found for NotifyAddTarget: caster {:X}, spell {:X}, effect {:X}, target {:X}",
-                              __FUNCTION__, target.CasterId, target.SpellId, target.EffectId, target.TargetId);
+                              __FUNCTION__, target.CasterId, target.SpellId.LogFormat(), target.EffectId.LogFormat(), target.TargetId);
                 break;
             }
 
             MagicQueue::Spdlog("{}: retrying NotifyAddTarget for caster {:X}, spell {:X}, effect {:X}, target {:X}",
-                               __FUNCTION__, target.CasterId, target.SpellId, target.EffectId, target.TargetId);
+                               __FUNCTION__, target.CasterId, target.SpellId.LogFormat(), target.EffectId.LogFormat(), target.TargetId);
             OnNotifyAddTarget(target);
         }
         m_queuedRemoteEffects.pop();

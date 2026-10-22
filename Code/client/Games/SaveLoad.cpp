@@ -11,11 +11,9 @@
 #include <Wire/Buffer.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
-#include <Wire/ViewBuffer.h>
 #include <VersionDb.h>
 
 using Wire::Serialization;
-using Wire::ViewBuffer;
 
 BGSSaveFormBuffer::BGSSaveFormBuffer() noexcept
 {
@@ -56,8 +54,7 @@ void BGSSaveFormBuffer::WriteId(uint32_t aId) noexcept
 
     constexpr uint32_t cMaxVarInts = 20; // two var ints of up to 10 bytes
     Reserve(position + cMaxVarInts);
-    ViewBuffer view(reinterpret_cast<uint8_t*>(buffer + position), capacity - position);
-    Wire::Buffer::Writer writer(&view);
+    Wire::Buffer::Writer writer(std::span(reinterpret_cast<uint8_t*>(buffer + position), capacity - position));
     Serialization::WriteVarInt(writer, modId);
     Serialization::WriteVarInt(writer, baseId);
     position += writer.Size() & 0xFFFFFFFF;
@@ -164,10 +161,7 @@ bool BGSLoadFormBuffer_LoadFormId(BGSLoadFormBuffer* apThis, uint32_t& aFormId)
         return RealBGSLoadFormBuffer_ReadFormId(apThis, aFormId);
     }
 
-    uint8_t* pReadLocation = (uint8_t*)(apThis->buffer + apThis->position);
-
-    ViewBuffer buffer(pReadLocation, apThis->size - apThis->position);
-    ViewBuffer::Reader reader(&buffer);
+    Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(apThis->buffer + apThis->position), apThis->size - apThis->position));
 
     const uint32_t modId = Serialization::ReadVarInt(reader) & 0xFFFFFFFF;
     const uint32_t baseId = Serialization::ReadVarInt(reader) & 0xFFFFFFFF;

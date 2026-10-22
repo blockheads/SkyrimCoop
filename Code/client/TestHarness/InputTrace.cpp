@@ -49,7 +49,7 @@ const char* DeviceName(uint32_t aDevice) noexcept
 std::string Describe(const ButtonEvent& acEvent)
 {
     const char* pUserEvent = acEvent.userEvent.AsAscii();
-    std::string line = fmt::format("Input: {} 0x{:X} '{}' {}", DeviceName(acEvent.header.device), acEvent.idCode, pUserEvent ? pUserEvent : "",
+    std::string line = std::format("Input: {} 0x{:X} '{}' {}", DeviceName(acEvent.header.device), acEvent.idCode, pUserEvent ? pUserEvent : "",
                                    acEvent.IsPress() ? "press" : "release");
     const auto cMenus = EngineCalls::GetOpenMenus();
     std::string menus;
@@ -60,7 +60,7 @@ std::string Describe(const ButtonEvent& acEvent)
     // InventoryLists.as: 1 one panel, 2 two panels; the others slide them, and keys are dropped meanwhile.
     for (const char* pMenu : cItemMenus)
         if (const auto cState = EngineCalls::GetMenuVariable(pMenu, "_root.Menu_mc.InventoryLists_mc.currentState"))
-            line += fmt::format(" ({} lists {})", pMenu, *cState);
+            line += std::format(" ({} lists {})", pMenu, *cState);
     return line;
 }
 
@@ -81,7 +81,7 @@ uint32_t WrappedProcessEvent(void* apSink, InputEvent* const* appChain, void* ap
         auto seen = std::ranges::find(s_seen, pButton, &Seen::pEvent);
         if (seen == s_seen.end())
             seen = s_seen.insert(s_seen.end(), {pButton, Describe(*pButton), {}});
-        seen->Sinks += fmt::format("{}{} {}", seen->Sinks.empty() ? "" : ", ", cWrap->Name, cResult ? "stop" : "continue");
+        seen->Sinks += std::format("{}{} {}", seen->Sinks.empty() ? "" : ", ", cWrap->Name, cResult ? "stop" : "continue");
     }
     return cResult;
 }

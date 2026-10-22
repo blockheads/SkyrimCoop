@@ -38,7 +38,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 
 ## Build
 
-XMake 2.8.5+, C++23 (the Linux build needs `libstdc++-12-dev`). Two configurations, each with its own config directory, one target per build, `-j8`
+XMake 2.8.5+, C++23 (the Linux build needs `libstdc++-13-dev`, from the `ubuntu-toolchain-r/test` PPA on 22.04). Two configurations, each with its own config directory, one target per build, `-j8`
 (`-j16` has crashed clang-cl and the linker with the duo running).
 
 ```bash
@@ -141,4 +141,5 @@ Code:
 - Include what a file uses. `Code/client/ClientPch.h` is forced into every client file and holds only third-party,
   standard and rarely edited headers of ours (editing one rebuilds the whole plugin); never add a service,
   component or engine struct there
-- Log with spdlog (`spdlog::info/warn/error/debug`)
+- Log with spdlog (`spdlog::info/warn/error/debug`), which formats with `std::format` (format strings checked at compile
+  time); `std::format` for strings, never `fmt::`

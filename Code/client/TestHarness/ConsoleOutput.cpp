@@ -10,6 +10,7 @@
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
 #include <VersionDb.h>
+#include <ranges>
 
 namespace TestHarness::ConsoleOutput
 {
@@ -71,7 +72,7 @@ void HookCompileAndRun(Script* apThis, void* apCompiler, uint32_t aCompilerName,
     if (ticket.Target)
         pTarget = Cast<TESObjectREFR>(TESForm::GetById(ticket.Target));
     if (!pTarget && ticket.Target)
-        ticket.Output.push_back(fmt::format("Reference {:X} not found (harness target): not run.", ticket.Target));
+        ticket.Output.push_back(std::format("Reference {:X} not found (harness target): not run.", ticket.Target));
     else
     {
         t_pCurrent = &ticket;
@@ -79,7 +80,8 @@ void HookCompileAndRun(Script* apThis, void* apCompiler, uint32_t aCompilerName,
         t_pCurrent = nullptr;
     }
     if (!ticket.Output.empty())
-        spdlog::info("Console '{}' printed: {}", ticket.Line, fmt::join(ticket.Output, " | "));
+        spdlog::info("Console '{}' printed: {}", ticket.Line,
+                     ticket.Output | std::views::join_with(std::string_view(" | ")) | std::ranges::to<std::string>());
     s_ran[ticket.Id] = std::move(ticket.Output);
     while (s_ran.size() > 256)
         s_ran.erase(s_ran.begin());

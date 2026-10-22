@@ -198,8 +198,7 @@ struct Session
 private:
     void Capture(ConnectionId_t aTo, const void* apData, uint32_t aSize)
     {
-        ViewBuffer buffer(static_cast<uint8_t*>(const_cast<void*>(apData)), aSize);
-        Buffer::Reader reader(&buffer);
+        Buffer::Reader reader(std::span(static_cast<const uint8_t*>(apData), aSize));
         if (auto pMessage = NotifyMessageFactory{}.Extract(reader))
             Outbox.push_back({aTo, std::move(pMessage)});
     }

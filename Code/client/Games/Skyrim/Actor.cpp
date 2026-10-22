@@ -1475,7 +1475,7 @@ static void LogHeldReferenceLocks()
         {
             const auto* pLock = reinterpret_cast<const volatile uint32_t*>(reinterpret_cast<const uint8_t*>(pActor) + 0x88);
             if (pLock[0] || pLock[1])
-                spdlog::error("HangWatchdog: actor {:X} reference lock held: writer thread {}, lock word {:#x}", pActor->formID, pLock[0], pLock[1]);
+                spdlog::error("HangWatchdog: actor {:X} reference lock held: writer thread {}, lock word {:#x}", pActor->formID, uint32_t(pLock[0]), uint32_t(pLock[1]));
         }
     spdlog::error("HangWatchdog: (end of held reference locks)");
     LockOrder::LogHeldLocks();
@@ -1487,7 +1487,7 @@ static bool DescribeReferenceLock(const void* apLock, char* apBuffer, size_t aSi
         if (Actor* pActor = slot.load())
             if (reinterpret_cast<const uint8_t*>(pActor) + 0x88 == apLock)
             {
-                *fmt::format_to_n(apBuffer, aSize - 1, "actor {:X} reference lock", pActor->formID).out = '\0';
+                *std::format_to_n(apBuffer, aSize - 1, "actor {:X} reference lock", pActor->formID).out = '\0';
                 return true;
             }
     return false;

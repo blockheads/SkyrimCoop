@@ -1,49 +1,49 @@
 #pragma once
 
 #include <windows.h>
+#include <algorithm>
 #include <cstdlib>
+#include <span>
 
 #include <mem/mem.h>
-#include <mem/module.h>
-#include <mem/protect.h>
 
 namespace Hooks::vp
 {
+    // Makes code or data writable while it lives, then restores its protection and flushes the instruction cache.
     class ScopedContext
     {
     public:
-        inline ScopedContext(const mem::pointer aEa, size_t aSize) noexcept;
-        inline ~ScopedContext();
-
-        template<class T>
-        bool Write(const T& acData, const size_t aOffset = 0) const noexcept
+        ScopedContext(const mem::pointer aEa, size_t aSize) noexcept
+            : m_size(aSize)
+            , m_ea(aEa)
         {
-            return WriteBuffer(reinterpret_cast<const unsigned char*>(&acData), sizeof(T), aOffset);
+            if (!VirtualProtect(aEa.as<void*>(), m_size, PAGE_EXECUTE_READWRITE, reinterpret_cast<DWORD*>(&m_oldProtect)))
+                std::abort();
         }
 
-        inline bool WriteBuffer(const uint8_t* acpData, size_t aSize, size_t aOffset) const noexcept;
+        ~ScopedContext()
+        {
+            FlushInstructionCache(GetCurrentProcess(), m_ea.as<void*>(), m_size);
+            if (!VirtualProtect(m_ea.as<void*>(), m_size, m_oldProtect, reinterpret_cast<DWORD*>(&m_oldProtect)))
+                std::abort();
+        }
+
+        template <class T> bool Write(const T& acData, const size_t aOffset = 0) const noexcept
+        {
+            return WriteBuffer(std::span(reinterpret_cast<const uint8_t*>(&acData), sizeof(T)), aOffset);
+        }
+
+        bool WriteBuffer(std::span<const uint8_t> aData, size_t aOffset) const noexcept
+        {
+            if (aData.size() + aOffset > m_size)
+                return false;
+            std::ranges::copy(aData, (m_ea + aOffset).as<uint8_t*>());
+            return true;
+        }
 
     private:
         size_t m_size;
-        uint32_t m_oldProtect;
+        uint32_t m_oldProtect = 0;
         mem::pointer m_ea;
     };
-
-    MEM_STRONG_INLINE void Nop(const mem::pointer acAddress, size_t aLength) noexcept
-    {
-        const ScopedContext ctx(acAddress, aLength);
-        std::memset(acAddress.as<void*>(), 0x90, aLength);
-    }
-
-    template<typename T>
-    MEM_STRONG_INLINE bool Put(const mem::pointer aEa, const T acVal, const size_t acOffset = 0) noexcept
-    {
-        // https://github.com/0x1F9F1/Open1560/blob/ff7a5695f038867605345d933cb3e2cd6e9623b0/code/midtown/core/hooking.cpp
-        mem::protect({ aEa, sizeof(T) }).copy(acVal);
-    }
 }
-
-#if defined(_WIN32)
-#include <Hooks/Memory_Win.inl>
-#endif
-// TODO: maybe Linux?

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -57,7 +58,6 @@ using namespace std::chrono_literals;
 #include <Games/Primitives.h>
 #include <RTTI.h>
 #include <Wire/Buffer.h>
-#include <Wire/ViewBuffer.h>
 #include <Wire/Serialization.h>
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>

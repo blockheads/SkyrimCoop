@@ -17,7 +17,6 @@
 #include <Bridges/IActorBridge.h>
 
 #include <spdlog/spdlog.h>
-#include <spdlog/fmt/fmt.h>
 #include <Services/HostService.h>
 
 // ActorValueInfo::kHealth = 24 (Skyrim SE enum value)

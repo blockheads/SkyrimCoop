@@ -149,7 +149,7 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
 
     // An action the graph took (an owner's own, a copy's replay), as the mod last recorded it.
     const ActionEvent cLatest = actors.GetActorLatestAnimation(aFormId);
-    std::string action = fmt::format("{:X} '{}' idle {:X} target {:X} tick {}", cLatest.ActionId, cLatest.EventName.c_str(),
+    std::string action = std::format("{:X} '{}' idle {:X} target {:X} tick {}", cLatest.ActionId, cLatest.EventName.c_str(),
                                      cLatest.IdleId, cLatest.TargetId, cLatest.Tick);
     if (action != aWatched.Action)
     {

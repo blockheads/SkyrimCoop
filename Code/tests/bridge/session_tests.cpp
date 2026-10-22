@@ -107,7 +107,7 @@ TEST_CASE("Join: a game on another build is refused, told the host's build, and 
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
 
     // The host's chat says who could not join and why; nobody else hears of it.
-    CHECK(HostChat(session) == std::vector<std::string>{fmt::format("Serana couldn't join: they run SkyrimCoop v1.0.0-0-gdeadbeef, you run {}.", BuildCommit())});
+    CHECK(HostChat(session) == std::vector<std::string>{std::format("Serana couldn't join: they run SkyrimCoop v1.0.0-0-gdeadbeef, you run {}.", BuildCommit())});
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).empty());
 }
 

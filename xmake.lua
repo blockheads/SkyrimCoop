@@ -35,9 +35,6 @@ if is_plat("windows") then
     -- struct layouts right (see docs/re/systems/compiler-abi.md).
     set_arch("x64")
     add_defines("_WIN32_WINNT=0x0A00", "WINVER=0x0A00", "NOMINMAX")
-    -- spdlog 1.13's bundled fmt trips newer Clang's consteval checks; disable fmt's
-    -- compile-time format-string validation (formatting itself is unchanged).
-    add_defines("FMT_CONSTEVAL=")
     -- Static CRT like upstream: the plugin carries no VC++ runtime DLL dependency.
     set_runtimes("MT")
     set_exceptions("cxx")
@@ -71,7 +68,7 @@ end
 -- direct dependencies version pinning
 add_requires(
     "entt v3.10.0",
-    "spdlog v1.13.0",
+    "spdlog v1.13.0", -- on std::format (std_format below)
     "glm 0.9.9+8",
     "rpmalloc",
     "snappy 1.1.10",
@@ -95,6 +92,9 @@ end
 if is_plat("linux") then
     add_requires("catch2 2.13.9")
 end
+
+-- spdlog formats with std::format, not its bundled fmt.
+add_requireconfs("spdlog", {configs = {std_format = true}})
 
 -- dependencies' dependencies version pinning
 add_requireconfs("*.rpmalloc", { override = true })

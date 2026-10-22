@@ -13,7 +13,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <Wire/ViewBuffer.h>
 
 #include <chrono>
 #include <cstdint>
@@ -28,4 +27,3 @@
 using namespace std::chrono_literals;
 
 using Net::ConnectionId_t;
-using Wire::ViewBuffer;

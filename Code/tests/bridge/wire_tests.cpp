@@ -50,7 +50,7 @@ template <class TMessage> std::string Hex(const TMessage& acMessage)
     acMessage.Serialize(writer);
     std::string hex;
     for (size_t i = 0; i < writer.Size(); ++i)
-        hex += fmt::format("{:02x}", buffer.GetWriteData()[i]);
+        hex += std::format("{:02x}", buffer.GetWriteData()[i]);
     return hex;
 }
 
@@ -60,8 +60,7 @@ template <class TNotify, class TRequest> TNotify FromRequestBytes(const TRequest
     Buffer buffer(1 << 14);
     Buffer::Writer writer(&buffer);
     acRequest.Serialize(writer);
-    ViewBuffer view(buffer.GetWriteData() + 1, writer.Size() - 1);
-    Buffer::Reader reader(&view);
+    Buffer::Reader reader(std::span(buffer.GetData() + 1, writer.Size() - 1));
     TNotify notify;
     notify.DeserializeRaw(reader);
     return notify;

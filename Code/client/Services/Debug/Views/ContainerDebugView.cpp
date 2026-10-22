@@ -43,7 +43,7 @@ void DebugService::DrawContainerDebugView()
 
         for (Inventory::Entry& entry : inventory.Entries)
         {
-            std::string itemLabel = fmt::format("{:X}", entry.BaseId.BaseId + entry.BaseId.ModId);
+            std::string itemLabel = std::format("{:X}", entry.BaseId.BaseId + entry.BaseId.ModId);
             if (!ImGui::CollapsingHeader(itemLabel.c_str()))
                 continue;
 
@@ -109,7 +109,7 @@ void DebugService::DrawContainerDebugView()
             {
                 for (Inventory::EffectItem& effect : entry.EnchantData.Effects)
                 {
-                    std::string effectLabel = fmt::format("{:X}", effect.EffectId.BaseId + effect.EffectId.ModId);
+                    std::string effectLabel = std::format("{:X}", effect.EffectId.BaseId + effect.EffectId.ModId);
                     if (!ImGui::CollapsingHeader(effectLabel.c_str()))
                         continue;
 

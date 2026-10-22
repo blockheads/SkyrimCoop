@@ -74,7 +74,7 @@ void HostWorldState::UpdateGlobals() noexcept
     if (changed.Values.empty())
         return;
     spdlog::info("HostWorldState: sent {} globals: {}", changed.Values.size(), WorldStateLog::List(changed.Values, [](const GlobalValue& acValue) {
-                     return fmt::format("{:X}={}", acValue.Id.LogFormat(), acValue.Value);
+                     return std::format("{:X}={}", acValue.Id.LogFormat(), acValue.Value);
                  }));
     m_players.SendToOthers(changed, cHost, Net::kReliable);
 }
@@ -103,7 +103,7 @@ void HostWorldState::UpdateQuests() noexcept
         return;
     spdlog::info("HostWorldState: sent {} quests{}: {}", changed.Quests.size(), changed.Join ? " (as a load)" : "",
                  WorldStateLog::List(changed.Quests, [](const QuestState& acQuest) {
-                     return fmt::format("{:X} stage {} flags {:X}", acQuest.Id.LogFormat(), acQuest.CurrentStage, acQuest.Flags);
+                     return std::format("{:X} stage {} flags {:X}", acQuest.Id.LogFormat(), acQuest.CurrentStage, acQuest.Flags);
                  }));
     m_players.SendToOthers(changed, cHost, Net::kReliable);
 }
