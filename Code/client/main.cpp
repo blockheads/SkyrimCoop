@@ -1,11 +1,11 @@
 
-#include <TiltedOnlineApp.h>
-#include <TiltedOnlinePCH.h>
+#include <Plugin.h>
+#include <ClientPch.h>
 
 #include <windows.h>
 #include <shellapi.h>
 
-std::unique_ptr<TiltedOnlineApp> g_appInstance{nullptr};
+std::unique_ptr<Plugin> g_plugin{nullptr};
 
 static void ShowAddressLibraryError(const wchar_t* apGamePath)
 {
@@ -17,22 +17,20 @@ static void ShowAddressLibraryError(const wchar_t* apGamePath)
     exit(4);
 }
 
-void RunTiltedInit(const std::filesystem::path& acGamePath, const std::string& aExeVersion)
+void InitPlugin(const std::filesystem::path& acGamePath, const std::string& aExeVersion)
 {
     if (!VersionDb::Get().Load(acGamePath, aExeVersion))
     {
         ShowAddressLibraryError(acGamePath.c_str());
     }
 
-    // VersionDb::Get().DumpToTextFile(R"(S:\Work\Tilted\fallout\_addresslib.txt)");
+    g_plugin = std::make_unique<Plugin>();
 
-    g_appInstance = std::make_unique<TiltedOnlineApp>();
-
-    TiltedOnlineApp::InstallHooks();
+    Plugin::InstallHooks();
     HOOK_COMMIT;
 }
 
-void RunTiltedApp()
+void StartPlugin()
 {
-    g_appInstance->Start();
+    g_plugin->Start();
 }

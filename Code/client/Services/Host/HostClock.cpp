@@ -3,7 +3,6 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 
-#include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
 
@@ -64,15 +63,9 @@ void HostClock::SendTime(ConnectionId_t aPlayer) const noexcept
     m_network.Send(aPlayer, time);
 }
 
-void HostClock::OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t aSender) const noexcept
+
+void HostClock::OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t) const noexcept
 {
-    NotifySetTimeResult result;
     if (acRequest.Hours < 24 && acRequest.Minutes < 60)
-    {
         m_game.SetHour(static_cast<float>(acRequest.Hours) + static_cast<float>(acRequest.Minutes) / 60.f);
-        result.Result = NotifySetTimeResult::SetTimeResult::kSuccess;
-    }
-    else
-        result.Result = NotifySetTimeResult::SetTimeResult::kNoPermission;
-    m_network.Send(aSender, result);
 }

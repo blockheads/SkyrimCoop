@@ -80,21 +80,6 @@ namespace Hooks
             Add(FunctionHook(reinterpret_cast<void**>(aSystemFunction), reinterpret_cast<void*>(aHookFunction), acpName), aDelayed);
         }
 
-        template<class T>
-        void* AddSystem(const std::string& acLibraryName, const std::string& acFunctionName, T* apFunction) noexcept
-        {
-            const auto module = LoadLibraryA(acLibraryName.c_str());
-            if (module != nullptr)
-            {
-                auto pSystemFunction = reinterpret_cast<void*>(GetProcAddress(module, acFunctionName.c_str()));
-                Add(&pSystemFunction, apFunction, false);
-
-                return pSystemFunction;
-            }
-
-            return nullptr;
-        }
-
         static FunctionHookManager& GetInstance() noexcept
         {
             static FunctionHookManager s_instance;
@@ -130,12 +115,9 @@ namespace Hooks
 #define HOOK(systemFunction, hookFunction) Hooks::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, true, #hookFunction)
 #define HOOK_IMMEDIATE(systemFunction, hookFunction) Hooks::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, false, #hookFunction)
 
-#define HOOK_SYSTEM(libraryName, functionName, hookFunction) Hooks::FunctionHookManager::GetInstance().AddSystem(libraryName, functionName, hookFunction)
 #define HOOK_IAT(functionName, libraryName) Real ##functionName = (T ##functionName)Hooks::FunctionHookManager::GetInstance().Add(Hook ## functionName, libraryName, #functionName)
-#define HOOK_IAT2(libraryName, functionName, hook) Hooks::FunctionHookManager::GetInstance().Add(reinterpret_cast<void*>(&hook), libraryName, functionName)
 
 #define HOOK_COMMIT Hooks::FunctionHookManager::GetInstance().InstallDelayedHooks();
-
 
 #define EMPTY_HOOK_PLACEHOLDER \
 __nop(); \

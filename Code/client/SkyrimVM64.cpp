@@ -1,12 +1,12 @@
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 #include <HookSwitch.h>
-#include "TiltedOnlineApp.h"
+#include "Plugin.h"
 #include "CrashHandler.h"
 #if COOP_TEST_HARNESS
 #include "TestHarness/TestHarness.h"
 #endif
 
-extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
+extern std::unique_ptr<Plugin> g_plugin;
 
 
 struct Main;
@@ -32,7 +32,7 @@ int HookVMUpdate(VMContext* apThis, float a2)
         spdlog::info("Papyrus VM update: client update loop running");
     }
 
-    g_appInstance->Update();
+    g_plugin->Update();
 
     return VMUpdate(apThis, a2);
 }

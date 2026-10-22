@@ -14,7 +14,6 @@ struct ConnectedEvent;
 struct DisconnectedEvent;
 struct ServerSettings;
 
-struct NotifyPlayerRespawn;
 
 /**
  * @brief Handles logic related to the local player.
@@ -32,7 +31,6 @@ protected:
     void OnConnected(const ConnectedEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
     void OnServerSettingsReceived(const ServerSettings& acSettings) noexcept;
-    void OnNotifyPlayerRespawn(const NotifyPlayerRespawn& acMessage) const noexcept;
 
 private:
     /**
@@ -77,5 +75,4 @@ private:
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_settingsConnection;
-    entt::scoped_connection m_notifyRespawnConnection;
 };

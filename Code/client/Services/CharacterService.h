@@ -19,7 +19,6 @@ struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
 struct NotifyRemoveCharacter;
 struct PlayerArrivedEvent;
-struct NotifySpawnData;
 struct SpellCastEvent;
 struct NotifySpellCast;
 struct InterruptCastEvent;
@@ -40,7 +39,6 @@ struct DialogueEvent;
 struct NotifyDialogue;
 struct SubtitleEvent;
 struct NotifySubtitle;
-struct NotifyRelinquishControl;
 
 class IActorBridge;
 class IFormBridge;
@@ -75,7 +73,6 @@ struct CharacterService
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept;
-    void OnRemoteSpawnDataReceived(const NotifySpawnData& acEvent) noexcept;
     void OnMountEvent(const MountEvent& acEvent) const noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) const noexcept;
     void OnInitPackageEvent(const InitPackageEvent& acEvent) const noexcept;
@@ -88,7 +85,6 @@ struct CharacterService
     void OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept;
     void OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept;
     void OnNotifySubtitle(const NotifySubtitle& acMessage) noexcept;
-    void OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept;
     // The player arrived somewhere new (TravelService): drops the copies the old cell took and tells the host.
     void OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexcept;
 
@@ -163,7 +159,6 @@ private:
     entt::scoped_connection m_assignCharacterConnection;
     entt::scoped_connection m_characterSpawnConnection;
     entt::scoped_connection m_referenceMovementSnapshotConnection;
-    entt::scoped_connection m_remoteSpawnDataReceivedConnection;
     entt::scoped_connection m_mountConnection;
     entt::scoped_connection m_notifyMountConnection;
     entt::scoped_connection m_initPackageConnection;
@@ -177,5 +172,4 @@ private:
     entt::scoped_connection m_dialogueSyncConnection;
     entt::scoped_connection m_subtitleEventConnection;
     entt::scoped_connection m_subtitleSyncConnection;
-    entt::scoped_connection m_relinquishConnection;
 };

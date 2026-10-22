@@ -82,12 +82,12 @@ is structural: test code gets its own home and its own build switch, so it can't
 | `Runtime.cpp` held buttons + equip-animation counter in `Poll` | Per-frame parts of the input injector | test harness |
 | `PluginUnload.cpp`, `Handoff.{h,cpp}` | Swapping a rebuilt DLL into a running game (`coop_test.py reload`, with `Code/hotreload/Loader.cpp`, the `SkyrimCoopLoader` resident plugin) | dev reload, same build switch |
 | `Runtime::Evaluate/Observe`, `MovementLoader` (`Code/hotreload/MovementLoader.cpp`, compiled into the client), `Code/hotreload/MovementCore.cpp`/`MovementMath.h`/`MovementApi.h`, target `SkyrimCoopMovementCore`, `scripts/hot_reload.py`, `request.txt` module names | The original hot-reloadable movement module. **The reload part appears unused**: the harness only writes `request.txt = builtin`, to switch on the status file. Verify, then delete the reload and call the movement code directly | production movement (direct) + delete the reload |
-| `Runtime::PluginDirectory()`, `CoopReload::InstanceSuffix()` | Plugin paths; used for the log (`TiltedOnlineApp.cpp:40,45`) | production: a small plugin-paths utility |
+| `Runtime::PluginDirectory()`, `CoopReload::InstanceSuffix()` | Plugin paths; used for the log (`Plugin.cpp:40,45`) | production: a small plugin-paths utility |
 
 Production call sites into all of this (find them with `grep -rn "CoopReload::" Code/client | grep -v HotReload/`):
 - `skse_entry.cpp:135` `Runtime::Configure`, `:144` `SetUITaskQueue`
 - `SkyrimVM64.cpp:46` `Runtime::Poll` (each frame)
-- `TiltedOnlineApp.cpp:40,45` paths and log name, `:93` `Runtime::Shutdown`
+- `Plugin.cpp:40,45` paths and log name, `:93` `Runtime::Shutdown`
 - `Services/Generic/CharacterService.cpp` ~1446 `Evaluate`/`Observe`/`ValidMovement`
 - `Services/Generic/PapyrusService.cpp` and `Games/Skyrim/BSCore/LockOrder.cpp`: `TakeHandoff`/`HandOff`
   (they keep state across a DLL swap; in a release build these become no-ops or go away)
@@ -145,7 +145,7 @@ service.
    the failures are real bugs listed below. That list is the reference: the restructure must not
    change it.
 2. **Plugin paths.** Move `PluginDirectory`/`InstanceSuffix` out of `Runtime` into
-   `PluginPaths`, and update `TiltedOnlineApp.cpp` and `skse_entry.cpp`.
+   `PluginPaths`, and update `Plugin.cpp` and `skse_entry.cpp`.
 3. **Movement reload.** Confirm nothing uses the movement-module reload: grep `scripts/` for
    `request.txt` writes other than `builtin`, and for `hot_reload.py` users; ask the user if
    unsure. Then `CharacterService` calls the built-in movement (`MovementCore`) directly. Delete

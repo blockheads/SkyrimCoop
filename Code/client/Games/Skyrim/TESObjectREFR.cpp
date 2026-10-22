@@ -1,4 +1,4 @@
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 #include <Games/Memory.h>
 #include <Havok/AnimationGraphState.h>
 #include <atomic>
@@ -494,19 +494,6 @@ void TESObjectREFR::RecordMove(bool aMoved) noexcept
         MarkChanged(CHANGE_REFR_MOVE);
 }
 
-void TESObjectREFR::PayGold(int32_t aAmount) noexcept
-{
-    ScopedInventoryOverride _;
-    PayGoldToContainer(nullptr, aAmount);
-}
-
-void TESObjectREFR::PayGoldToContainer(TESObjectREFR* pContainer, int32_t aAmount) noexcept
-{
-    using TPayGoldToContainer = void(TESObjectREFR*, TESObjectREFR*, int32_t);
-    POINTER_SKYRIMSE(TPayGoldToContainer, s_payGoldToContainer, 37511);
-    s_payGoldToContainer(this, pContainer, aAmount);
-}
-
 Lock* TESObjectREFR::GetLock() const noexcept
 {
     using TGetLock = Lock*(const TESObjectREFR*);
@@ -708,7 +695,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
 
     if (ExtraEnchantment* pExtraEnchantment = Cast<ExtraEnchantment>(apExtraDataList->GetByType(ExtraDataType::Enchantment)))
     {
-        TP_ASSERT(pExtraEnchantment->pEnchantment, "Null enchantment in ExtraEnchantment");
+        Utils::Assert(pExtraEnchantment->pEnchantment, "Null enchantment in ExtraEnchantment");
 
         modSystem.GetServerModId(pExtraEnchantment->pEnchantment->formID, arEntry.ExtraEnchantId);
 
@@ -716,7 +703,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         {
             for (EffectItem* pEffectItem : pExtraEnchantment->pEnchantment->listOfEffects)
             {
-                TP_ASSERT(pEffectItem, "pEffectItem is null.");
+                Utils::Assert(pEffectItem, "pEffectItem is null.");
                 if (!pEffectItem)
                     continue;
 
@@ -746,7 +733,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
 
     if (ExtraPoison* pExtraPoison = Cast<ExtraPoison>(apExtraDataList->GetByType(ExtraDataType::Poison)))
     {
-        TP_ASSERT(pExtraPoison->pPoison, "Null poison in ExtraPoison");
+        Utils::Assert(pExtraPoison->pPoison, "Null poison in ExtraPoison");
         if (pExtraPoison && pExtraPoison->pPoison)
         {
             modSystem.GetServerModId(pExtraPoison->pPoison->formID, arEntry.ExtraPoisonId);
@@ -804,7 +791,7 @@ ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEnt
             pEnchantment = Cast<EnchantmentItem>(TESForm::GetById(enchantId));
         }
 
-        TP_ASSERT(pEnchantment, "No Enchantment created or found.");
+        Utils::Assert(pEnchantment, "No Enchantment created or found.");
 
         pExtraDataList->SetEnchantmentData(pEnchantment, arEntry.ExtraEnchantCharge, arEntry.ExtraEnchantRemoveUnequip);
     }
@@ -813,7 +800,7 @@ ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEnt
     {
         // TODO: does poison have the same temp problem as enchants?
         // doesn't seem to be the case, there are only like 3 poisons, and no custom ones
-        TP_ASSERT(arEntry.ExtraPoisonId.ModId != 0xFFFFFFFF, "Poison is sent as temp!");
+        Utils::Assert(arEntry.ExtraPoisonId.ModId != 0xFFFFFFFF, "Poison is sent as temp!");
 
         uint32_t poisonId = modSystem.GetGameId(arEntry.ExtraPoisonId);
         if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(poisonId)))

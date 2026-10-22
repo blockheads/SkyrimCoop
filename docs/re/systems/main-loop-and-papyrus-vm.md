@@ -7,7 +7,7 @@ How the client gets a per-frame tick, and what it does inside the Papyrus VM.
 | ID | Engine function | Our hook | Notes |
 |---|---|---|---|
 | 36564 | `Main::Update` | `HookMainLoop` | Calls `BeginMain`/`EndMain` on the app. **SKSE hooks this too** (`Hooks_SaveLoad.cpp: ProcessEvents_Enter`). |
-| 53926 | `SkyrimVM::ProcessRegisteredUpdates` | `HookVMUpdate` | Drives `TiltedOnlineApp::Update()` → `World::Update()`: **the whole client ticks here.** |
+| 53926 | `SkyrimVM::ProcessRegisteredUpdates` | `HookVMUpdate` | Drives `Plugin::Update()` → `World::Update()`: **the whole client ticks here.** |
 | 40412 | `PlayerCharacter::dtor_impl` | `HookVMDestructor` | Named "VM destructor" in our code, but it is the player character's destructor; used as a shutdown signal. |
 
 - `HookVMUpdate` only ticks when the VM is active: `SkyrimVM::inactive` (`int32` at

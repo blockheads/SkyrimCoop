@@ -2,17 +2,12 @@
 
 #include <new>
 #include <optional>
+#include <source_location>
+#include <string_view>
 #include "VersionDb.h"
 #include "World.h"
 
 #define POINTER_SKYRIMSE(className, variableName, ...) static VersionDbPtr<className> variableName(__VA_ARGS__)
-
-// TODO: should this be debug only? I removed the check since debug is broken, can only use releasedbg
-#define TP_ASSERT(Expr, Msg, ...)                                    \
-    if (!(Expr))                                                     \
-    {                                                                \
-        Utils::Assert(#Expr, fmt::format(Msg, ##__VA_ARGS__).c_str()); \
-    }
 
 struct TESForm;
 
@@ -29,10 +24,12 @@ template <class T> [[nodiscard]] T& EngineVirtual(T& aObject) noexcept
 namespace Utils
 {
 
-static void Assert(const char* apExpression, const char* apMessage)
+// Logs a broken expectation and breaks into an attached debugger; the caller goes on.
+inline void Assert(bool aCondition, std::string_view aMessage, std::source_location aWhere = std::source_location::current()) noexcept
 {
-    spdlog::critical("Assertion failed ({}): {}", apExpression, apMessage);
-
+    if (aCondition)
+        return;
+    spdlog::critical("Assertion failed ({}:{}): {}", aWhere.file_name(), aWhere.line(), aMessage);
     if (IsDebuggerPresent())
         __debugbreak();
 }

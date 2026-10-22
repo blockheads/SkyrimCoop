@@ -1,6 +1,6 @@
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 
-#include <TiltedOnlineApp.h>
+#include <Plugin.h>
 #include <Breadcrumbs.h>
 #include <VersionDb.h>
 
@@ -8,7 +8,6 @@
 #include <Hooks/FunctionHook.h>
 
 #include <Hooks/DInputHook.h>
-#include <Hooks/WindowsHook.h>
 
 #include <World.h>
 #include <PluginPaths.h>
@@ -26,7 +25,7 @@
 
 #include <NvidiaUtil.h>
 
-TiltedOnlineApp::TiltedOnlineApp()
+Plugin::Plugin()
 {
     // Set console code page to UTF-8 so console known how to interpret string data
     SetConsoleOutputCP(CP_UTF8);
@@ -52,9 +51,9 @@ TiltedOnlineApp::TiltedOnlineApp()
     spdlog::flush_every(std::chrono::seconds(1));
 }
 
-TiltedOnlineApp::~TiltedOnlineApp() = default;
+Plugin::~Plugin() = default;
 
-void TiltedOnlineApp::Start()
+void Plugin::Start()
 {
     World::Create();
     World::Get().ctx().emplace<RenderSystemD3D11>(World::Get().ctx().at<ImguiService>());
@@ -64,7 +63,7 @@ void TiltedOnlineApp::Start()
         ApplyNvidiaFix();
 }
 
-void TiltedOnlineApp::Update()
+void Plugin::Update()
 {
     // Reverting a change that used to be here to disable bUseFaceGenPreprocessedHeads==true (which is
     // the default) handling. Extensive testing over months by multiple parties showed that enabling
@@ -110,7 +109,7 @@ static void InstallProbes()
     }
 }
 
-void TiltedOnlineApp::InstallHooks()
+void Plugin::InstallHooks()
 {
     // Before any hook is added: each is wrapped so that its calls leave crash breadcrumbs.
     Hooks::SetHookObserver(&Breadcrumbs::RecordHook, &Breadcrumbs::ObservesHook);
@@ -120,7 +119,7 @@ void TiltedOnlineApp::InstallHooks()
     Hooks::DInputHook::Install();
 }
 
-void TiltedOnlineApp::ApplyNvidiaFix() noexcept
+void Plugin::ApplyNvidiaFix() noexcept
 {
     auto d3dFeatureLevelOut = D3D_FEATURE_LEVEL_11_0;
     HRESULT hr = CreateEarlyDxDevice(&m_pDevice, &d3dFeatureLevelOut);

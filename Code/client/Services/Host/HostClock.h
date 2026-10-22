@@ -31,7 +31,7 @@ struct HostClock
 
 private:
     // Any player's: sets the host's clock, which everyone else then follows.
-    void OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t) const noexcept;
 
     HostNetwork& m_network;
     const HostPlayers& m_players;

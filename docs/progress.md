@@ -158,7 +158,7 @@ with its scenarios.
 Every message a game sends had a host rule; the two without one were dead (upstream's `RequestQuestUpdate`,
 never sent, and `AssignObjectsRequest`). What the host still took from `GameServer` moved:
 
-- **`HostNetwork`** (`Services/Host/`): the enet listener (`TiltedPhoques::Server`), each message to the front door
+- **`HostNetwork`** (`Services/Host/`): the enet listener (`Net::Server`), each message to the front door
   (`HostAuthority::Handle`), and in-process routes: the host's own game (the transport's local connection) and, in
   `BridgeTests`, every test game. A route carries plain messages (no packet type byte). Ports from 10578 upward.
 - **Character ids**: `HostCharacters` counts them from 1, never reused in a session; 0 is no character (the server
@@ -189,7 +189,7 @@ called), upstream's F4 "reveal other players" (needed `SkyrimTogether.esp`), `BG
 and clang-cl's PCH include rule are silenced as expected. The one stub something called, `SetActorRotation`, is
 implemented: a copy now spawns facing its owner's way (it kept its created heading until the owner's next move).
 
-Leaving `TiltedPhoques` (2026-10-21, `docs/ideas.md`, "Modern C++ over `TiltedPhoques`"), steps 1-3 of 4:
+Leaving `TiltedPhoques` (2026-10-21, `docs/ideas.md`, "Modern C++ over `TiltedPhoques`"), all four steps:
 1. No scoped allocators (the transport's send, the enet clock sync, a debug view): every allocation is rpmalloc
    through global `new`.
 2. Containers are `std`: `std::vector`, `std::string`, `std::unordered_map`/`set`, `std::unique_ptr`; the hopscotch
@@ -203,9 +203,22 @@ Leaving `TiltedPhoques` (2026-10-21, `docs/ideas.md`, "Modern C++ over `TiltedPh
    `Net::Client`), the MinHook wrapper, patch helpers and D3D11/input hooks `Code/client/Hooks` (`Hooks::`, `HOOK`,
    `Hooks::Initializer`), `TaskQueue` the client's own, the CRC64 of animation descriptors `Games/Crc64`, and global
    `new`/`delete` call rpmalloc directly (`Code/base/allocator`). The `App`/`Entry` framework, its WinMain hooks and
-   the SKSE loader went (`TiltedOnlineApp` is a plain class: `InstallHooks`, `Start`, `Update`). Found on the way:
+   the SKSE loader went (`Plugin` is a plain class: `InstallHooks`, `Start`, `Update`). Found on the way:
    a bridge test read a message after freeing the outbox that held it (`dialogue_tests.cpp`, `Talking::Open`);
-   the custom allocator had hidden it.
+   the custom allocator had hidden it. `scripts/re/build_re_data.py` finds hooks by `HOOK` now (124 hooks).
+   Checked on a fresh duo: 24 scenarios across sessions, combat, magic, doors, travel, quests and the world pass
+   (12 first failed behind a stuck `LoadWaitSpinner`, loose ends), and a hot reload.
+
+Dead code after `TiltedPhoques` (2026-10-22): four notifications nothing ever sent, not even upstream's
+server (`NotifySpawnData`, `NotifyPlayerRespawn`, `NotifyRelinquishControl`, `NotifyWorldState`), and their
+handlers; `NotifySetTimeResult` (a guest never read it; the host ignores an hour that does not exist);
+unpublished or unheard events (`ActorSpawnedEvent`, `ConnectionErrorEvent`, `PreUpdateEvent`); 20 headers
+nothing included (`Differential.h`, engine structs never used); `WindowsHook` (never installed); upstream's
+release-branch flag `IS_MASTER` (`BranchInfo.h`); the CRT heap swap and the EngineFixes rehook in
+`Games/Memory.cpp`, both only ever called by upstream's launcher. Renamed: `TiltedOnlineApp` is `Plugin`,
+`TiltedOnlinePCH.h` is `ClientPch.h`, `TP_ASSERT` is `Utils::Assert` (a function, `std::source_location`),
+and the components' include guard is gone. 11 scenarios pass on a fresh duo (sessions, time, combat,
+magic, chat).
 
 ## Sync by system
 
@@ -441,6 +454,12 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 Everything known to be unfinished, unverified or unexplained. Close an entry by fixing it, proving it
 harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details are in the doc named.
+
+### Mods
+
+- **EngineFixes and our `FormAllocate` hook** (2026-10-22): upstream rehooked it when EngineFixes replaced
+  it, but only from its own launcher, so under SKSE the rehook never ran and is deleted. Whether
+  EngineFixes' allocator patch overwrites our hook (the heap history and form allocation) is untested.
 
 ### World state
 
@@ -688,7 +707,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `cow` to the river took over `both_go`'s 10 s fade wait on the client, and the cleanup `coc` ran while
   the host's spinner was up; it stayed through later cell changes until a restart. Not reproduced.
 - The stuck `LoadWaitSpinner` happened again (2026-10-13, host, the first `both_go` to Riverwood on a fresh
-  duo); a restart cleared it.
+  duo); a restart cleared it. Third time 2026-10-21 on the client, from `host-kicks-client`'s rejoin onward
+  (every later step waiting for input timed out); a fresh duo ran kick, late join and the failed scenarios
+  clean. A harness readout of what opened the spinner would catch it next time.
 - The map's fast travel UI (open the map, pick a marker, confirm) is not driven; `party-fast-travels` uses
   the console's `FastTravel`, which queues the same move (`docs/re/systems/player-travel.md`).
 - The `duo` harness process once segfaulted on exit after a pass.

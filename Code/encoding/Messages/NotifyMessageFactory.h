@@ -25,7 +25,6 @@
 #include <Messages/NotifyActorValueChanges.h>
 #include <Messages/NotifyActorMaxValueChanges.h>
 #include <Messages/NotifyHealthChangeBroadcast.h>
-#include <Messages/NotifySpawnData.h>
 #include <Messages/NotifyActivate.h>
 #include <Messages/NotifyDeathStateChange.h>
 #include <Messages/NotifySpellCast.h>
@@ -40,10 +39,8 @@
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
-#include <Messages/NotifyPlayerRespawn.h>
 #include <Messages/NotifyDialogue.h>
 #include <Messages/NotifySubtitle.h>
-#include <Messages/NotifyRelinquishControl.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLevel.h>
@@ -55,8 +52,6 @@
 #include <Messages/WorldState.h>
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifyRemoveWaypoint.h>
-#include <Messages/NotifySetTimeResult.h>
-#include <Messages/NotifyWorldState.h>
 
 struct NotifyMessageFactory
 {
@@ -66,10 +61,10 @@ struct NotifyMessageFactory
     {
         auto s_visitor = CreateMessageVisitor<
             AuthenticationResponse, AssignCharacterResponse, NotifyReferencesMove, NotifyTimeSettings, NotifyCharacterSpawn, NotifyInventoryChanges, NotifyFactionsChanges, NotifyRemoveCharacter,
-            NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifySpawnData, NotifyActivate, NotifyDeathStateChange, NotifySpellCast,
-            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyPlayerRespawn, NotifyDialogue,
-            NotifySubtitle, NotifyRelinquishControl, NotifyPlayerLeft, NotifyPlayerJoined, NotifyDialogue, NotifySubtitle, NotifyPlayerLevel, NotifySettingsChange,
-            NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifySetTimeResult, NotifyRemoveSpell, NotifyWorldState, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
+            NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifyActivate, NotifyDeathStateChange, NotifySpellCast,
+            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyNewPackage, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyDialogue,
+            NotifySubtitle, NotifyPlayerLeft, NotifyPlayerJoined, NotifyPlayerLevel, NotifySettingsChange,
+            NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifyRemoveSpell, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
             NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyDialogueExperience, NotifyGlobals, NotifyQuests, NotifyObjectChanges>;
 
         return s_visitor(std::forward<T>(func));

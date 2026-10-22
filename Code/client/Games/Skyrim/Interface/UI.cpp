@@ -2,7 +2,7 @@
 #include <HookSwitch.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <Misc/BSFixedString.h>
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 
 #include <World.h>
 

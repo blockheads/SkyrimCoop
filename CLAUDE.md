@@ -137,5 +137,5 @@ Code:
 
 - No exceptions: return `bool` or result values, `noexcept` where possible, `[[nodiscard]]` on results that matter
 - Pass complex objects by const reference (`const AuthenticationResponse& acMessage`)
-- `struct` for most types; `TP_NOCOPYMOVE` in services; `#pragma once` in every header
+- `struct` for most types; `NO_COPY_MOVE` in services; `#pragma once` in every header
 - Log with spdlog (`spdlog::info/warn/error/debug`)

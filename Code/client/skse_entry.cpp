@@ -1,5 +1,5 @@
 // skse_entry.cpp — the DLL entry points SKSE loads the plugin through
-// Bridges SKSE's plugin interface to the client's RunTiltedInit/RunTiltedApp
+// Bridges SKSE's plugin interface to the client's InitPlugin/StartPlugin
 #include <windows.h>
 #include <cstdint>
 #include <cstring>
@@ -74,8 +74,8 @@ const SKSEPluginVersionData SKSEPlugin_Version = {
     0,
 };
 
-extern void RunTiltedInit(const std::filesystem::path& acGamePath, const std::string& aExeVersion);
-extern void RunTiltedApp();
+extern void InitPlugin(const std::filesystem::path& acGamePath, const std::string& aExeVersion);
+extern void StartPlugin();
 
 // The resident hot-reload loader (Code/loader) loads a copy of this DLL from elsewhere and tells it
 // where the SKSE plugin directory is.
@@ -159,8 +159,8 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
 
     std::string exeVersion("1.6.1170.0");
 
-    RunTiltedInit(gamePath, exeVersion);
-    RunTiltedApp();
+    InitPlugin(gamePath, exeVersion);
+    StartPlugin();
 
     return true;
 }

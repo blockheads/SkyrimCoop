@@ -5,15 +5,15 @@
 #include "CrashHandler.h"
 
 // The plugin's lifetime: logging and the crash handler from SKSE's load, the world once the game runs.
-struct TiltedOnlineApp final
+struct Plugin final
 {
-    TiltedOnlineApp();
-    ~TiltedOnlineApp();
+    Plugin();
+    ~Plugin();
 
-    TiltedOnlineApp(TiltedOnlineApp&&) = delete;
-    TiltedOnlineApp(const TiltedOnlineApp&) = delete;
-    TiltedOnlineApp& operator=(TiltedOnlineApp&&) = delete;
-    TiltedOnlineApp& operator=(const TiltedOnlineApp&) = delete;
+    Plugin(Plugin&&) = delete;
+    Plugin(const Plugin&) = delete;
+    Plugin& operator=(Plugin&&) = delete;
+    Plugin& operator=(const Plugin&) = delete;
 
     // Every hook the plugin's files registered (Initializer), installed at SKSE's load.
     static void InstallHooks();

@@ -226,7 +226,6 @@ public:
     void KnockdownPlayer(float aForce) noexcept override;
     void FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration,
                      bool aWithSound, float aDelay) noexcept override;
-    void PlayerPayGold(uint32_t aAmount) noexcept override;
     void PlayerPayCrimeGoldToAllFactions() noexcept override;
     uint32_t GetDifficulty() const noexcept override;
     void SetDifficulty(uint32_t aDifficulty) noexcept override;

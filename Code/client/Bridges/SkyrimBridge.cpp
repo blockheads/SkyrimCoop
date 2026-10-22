@@ -1244,13 +1244,6 @@ void SkyrimBridge::FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration,
     FadeOutGame(aFadeOut, aToBlack, aFadeDuration, aWithSound, aDelay);
 }
 
-void SkyrimBridge::PlayerPayGold(uint32_t aAmount) noexcept
-{
-    Breadcrumbs::Record("PlayerPayGold", aAmount);
-    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
-        pPlayer->PayGold(static_cast<int32_t>(aAmount));
-}
-
 void SkyrimBridge::PlayerPayCrimeGoldToAllFactions() noexcept
 {
     Breadcrumbs::Record("PlayerPayCrimeGoldToAllFactions", 0);

@@ -43,5 +43,5 @@ game and a copy (an other player) on the host and the other guests.
 | In code | Now means | Goes |
 |---|---|---|
 | `RemoteComponent` | a copy (the ECS component; kept, alongside `LocalComponent`) | stays |
-| `Code/client/`, `TiltedPhoques::Client`, "client" in build targets | the plugin and its transport, on the host and guests alike | stays; never means a guest |
+| `Code/client/`, `Net::Client`, "client" in build targets | the plugin and its transport, on the host and guests alike | stays; never means a guest |
 | "peer", "client", "remote player", "member" in older docs | guest, guest, other player, player | as docs are touched |

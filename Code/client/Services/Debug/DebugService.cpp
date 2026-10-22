@@ -1,4 +1,3 @@
-#include <BranchInfo.h>
 
 #include <Havok/hkbStateMachine.h>
 #include <Structs/AnimationGraphDescriptorManager.h>
@@ -16,7 +15,6 @@
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
 #include <Events/MoveActorEvent.h>
-#include <Events/ConnectionErrorEvent.h>
 
 #include <Games/References.h>
 
@@ -165,7 +163,6 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
         m_showDebugStuff = !m_showDebugStuff;
     }
 
-#if (!IS_MASTER)
     if (GetAsyncKeyState(VK_F6))
     {
         if (!s_f6Pressed)
@@ -228,7 +225,6 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     }
     else
         s_f8Pressed = false;
-#endif
 }
 
 static bool g_enableServerWindow{false};
@@ -309,7 +305,6 @@ void DebugService::OnDraw() noexcept
         }
         ImGui::EndMenu();
     }
-#if (!IS_MASTER)
 
     if (ImGui::BeginMenu("Components"))
     {
@@ -336,7 +331,6 @@ void DebugService::OnDraw() noexcept
 
         ImGui::EndMenu();
     }
-#endif
     if (ImGui::BeginMenu("Debuggers"))
     {
         ImGui::MenuItem("Quests", nullptr, &g_enableQuestWindow);
@@ -345,7 +339,6 @@ void DebugService::OnDraw() noexcept
         ImGui::MenuItem("Session", nullptr, &g_enableSessionWindow);
         ImGui::MenuItem("Dragon spawner", nullptr, &g_enableDragonSpawnerWindow);
 
-#if (!IS_MASTER)
         ImGui::MenuItem("Network", nullptr, &g_enableNetworkWindow);
         ImGui::MenuItem("Forms", nullptr, &g_enableFormsWindow);
         ImGui::MenuItem("Inventory", nullptr, &g_enableInventoryWindow);
@@ -357,7 +350,6 @@ void DebugService::OnDraw() noexcept
         ImGui::MenuItem("Weather", nullptr, &g_enableWeatherWindow);
         ImGui::MenuItem("Combat", nullptr, &g_enableCombatWindow);
         ImGui::MenuItem("Calendar", nullptr, &g_enableCalendarWindow);
-#endif
 
         ImGui::EndMenu();
     }
@@ -365,16 +357,9 @@ void DebugService::OnDraw() noexcept
     {
         if (ImGui::Button("Crash Client"))
         {
-#if (!IS_MASTER)
             spdlog::error("Crash client");
             int* m = 0;
             *m = 1338;
-#else
-            ConnectionErrorEvent errorEvent{};
-            errorEvent.ErrorDetail = "Skyrim Together never crashes ;)  With love, Yamashi, Force, Dragonisser, Cosideci.";
-
-            m_world.GetRunner().Trigger(errorEvent);
-#endif
         }
         ImGui::EndMenu();
     }
@@ -391,7 +376,6 @@ void DebugService::OnDraw() noexcept
     if (g_enableDragonSpawnerWindow)
         DrawDragonSpawnerView();
 
-#if (!IS_MASTER)
     if (g_enableNetworkWindow)
         DrawNetworkView();
     if (g_enableFormsWindow)
@@ -419,7 +403,6 @@ void DebugService::OnDraw() noexcept
 
     if (m_drawComponentsInWorldSpace)
         DrawComponentDebugView();
-#endif
 
     if (m_showBuildTag)
         DrawBuildTag();
@@ -429,7 +412,6 @@ void DebugService::ArrangeGameWindows(HWND aThisWindow) noexcept
 {
     // This function conveniently arranges multiple game windows (multi-monitor window rearrangement is
     // not implemented)
-#if (!IS_MASTER)
     const uint32_t screenWidth = GetSystemMetrics(SM_CXSCREEN);
     const uint32_t screenHeight = GetSystemMetrics(SM_CYSCREEN);
     RECT rect{};
@@ -459,5 +441,4 @@ void DebugService::ArrangeGameWindows(HWND aThisWindow) noexcept
         const uint32_t y = arrangeSideBySide ? 0 : (screenHeight - gameWindowHeight - 48);
         SetWindowPos(aThisWindow, nullptr, x, y, 0, 0, SWP_NOSIZE);
     }
-#endif
 }

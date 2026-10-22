@@ -221,13 +221,13 @@ def scan_our_code():
                 type_name, var, ident = match.group(1), match.group(2), int(match.group(3))
                 real = re.findall(rf"(\w+)\s*=\s*{var}\.Get\(\)", text)
                 hook = next((m.group(1) for r in real for m in
-                             re.finditer(rf"TP_HOOK(?:_IMMEDIATE)?\(\s*&\s*{r}\s*,\s*&?(\w+)", text)), None)
+                             re.finditer(rf"\bHOOK(?:_IMMEDIATE)?\(\s*&\s*{r}\s*,\s*&?(\w+)", text)), None)
                 if hook:
                     kind = "hook"
                 elif re.search(rf"\b(?:Put\w*|Nop|vp::Put\w*|JitAssembly\w*)\s*\([^;]*\b{var}\b", text):
                     kind = "patch"
-                elif re.search(rf"ThisCall\(\s*{var}\b|\b{var}\.Get\(\)\s*\(|\b{var}\s*\(", text) or \
-                        any(re.search(rf"ThisCall\(\s*{r}\b|\b{r}\s*\(", text) for r in real):
+                elif re.search(rf"\b{var}\.Get\(\)\s*\(|\b{var}\s*\(", text) or \
+                        any(re.search(rf"\b{r}\s*\(", text) for r in real):
                     kind = "call"
                 else:
                     kind = "data"

@@ -1,6 +1,6 @@
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 
-#include <TiltedOnlineApp.h>
+#include <Plugin.h>
 #include <World.h>
 #include <Components.h>
 #include <TestHarness/TestHarness.h>
@@ -12,7 +12,7 @@
 #include <Hooks/FunctionHook.h>
 #include <SkseRipAllocator.h>
 
-extern std::unique_ptr<TiltedOnlineApp> g_appInstance;
+extern std::unique_ptr<Plugin> g_plugin;
 
 // Hot reload (scripts/coop_test.py reload), test builds only: the resident loader
 // (Code/hotreload/Loader.cpp) calls these to swap this DLL inside a running game. Unload runs on
@@ -66,7 +66,7 @@ extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
     CoopSkse::HandOffJit(); // Only the patches just restored branched into it.
 
     // Our threads: the hang watchdog (crash handler), the network library's, spdlog's flusher.
-    g_appInstance.reset();
+    g_plugin.reset();
     Net::ShutdownNetworkWorkers();
     spdlog::info("Hot reload: unloaded");
     spdlog::shutdown();

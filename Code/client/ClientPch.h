@@ -35,7 +35,7 @@
 #include <Hooks/Initializer.h>
 #include <Wire/Serialization.h>
 
-// TiltedReverse
+// Hooks
 #include <Hooks/FunctionHook.h>
 
 extern void* RipAllocateN(size_t blockLength);

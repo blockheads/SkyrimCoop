@@ -15,7 +15,6 @@
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/NotifyActivate.h>
-#include <Messages/NotifySetTimeResult.h>
 #include <Messages/NotifyWeatherChange.h>
 #include <Messages/WorldState.h>
 #include <Messages/NotifyTimeSettings.h>

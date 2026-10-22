@@ -1,8 +1,5 @@
 #pragma once
 
-// This makes sure we can't include components any other way than by including this file
-#define TP_INTERNAL_COMPONENTS_GUARD
-
 #include <Components/LocalAnimationComponent.h>
 #include <Components/RemoteAnimationComponent.h>
 #include <Components/FormIdComponent.h>
@@ -20,5 +17,3 @@
 #include <Components/CombatComponent.h>
 #include <Components/SpawnGraphStateComponent.h>
 #include <Components/OwnerPlaceComponent.h>
-
-#undef TP_INTERNAL_COMPONENTS_GUARD

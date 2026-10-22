@@ -1,4 +1,4 @@
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 
 #include "World.h"
 
@@ -28,7 +28,6 @@
 #include <Services/MapService.h>
 #include <Services/HostService.h>
 
-#include <Events/PreUpdateEvent.h>
 #include <Events/UpdateEvent.h>
 
 #include <ModCompat/BehaviorVar.h>  
@@ -135,8 +134,6 @@ void World::Update() noexcept
         ++m_frameStats.Stalls;
         spdlog::warn("Frame stalled: {:.0f}ms since the last one (our last update took {:.1f}ms)", cFrameMs, m_lastUpdateMs);
     }
-
-    m_dispatcher.trigger(PreUpdateEvent(cDeltaSeconds));
 
     // Force run this before so we get the tasks scheduled to run
     m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));

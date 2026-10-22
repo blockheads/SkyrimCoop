@@ -29,7 +29,6 @@
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/RequestRemoveCharacter.h>
-#include <Messages/NotifySpawnData.h>
 #include <Messages/MountRequest.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NewPackageRequest.h>
@@ -45,7 +44,6 @@
 #include <Messages/NotifyDialogue.h>
 #include <Messages/SubtitleRequest.h>
 #include <Messages/NotifySubtitle.h>
-#include <Messages/NotifyRelinquishControl.h>
 
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -81,7 +79,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_referenceMovementSnapshotConnection = m_dispatcher.sink<NotifyReferencesMove>().connect<&CharacterService::OnReferencesMoveRequest>(this);
     m_factionsConnection = m_dispatcher.sink<NotifyFactionsChanges>().connect<&CharacterService::OnFactionsChanges>(this);
     m_removeCharacterConnection = m_dispatcher.sink<NotifyRemoveCharacter>().connect<&CharacterService::OnRemoveCharacter>(this);
-    m_remoteSpawnDataReceivedConnection = m_dispatcher.sink<NotifySpawnData>().connect<&CharacterService::OnRemoteSpawnDataReceived>(this);
 
     m_mountConnection = m_dispatcher.sink<MountEvent>().connect<&CharacterService::OnMountEvent>(this);
     m_notifyMountConnection = m_dispatcher.sink<NotifyMount>().connect<&CharacterService::OnNotifyMount>(this);
@@ -103,7 +100,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_subtitleEventConnection = m_dispatcher.sink<SubtitleEvent>().connect<&CharacterService::OnSubtitleEvent>(this);
     m_subtitleSyncConnection = m_dispatcher.sink<NotifySubtitle>().connect<&CharacterService::OnNotifySubtitle>(this);
 
-    m_relinquishConnection = m_dispatcher.sink<NotifyRelinquishControl>().connect<&CharacterService::OnNotifyRelinquishControl>(this);
 
 }
 
@@ -528,50 +524,6 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
                  acMessage.CellId.BaseId);
 }
 
-void CharacterService::OnRemoteSpawnDataReceived(const NotifySpawnData& acMessage) noexcept
-{
-    auto view = m_world.view<FormIdComponent>();
-
-    const auto itor = std::find_if(
-        std::begin(view), std::end(view),
-        [view, id = acMessage.Id](auto entity)
-        {
-            if (auto sessionId = Utils::GetSessionId(entity))
-            {
-                if (*sessionId == id)
-                    return true;
-            }
-            return false;
-        });
-
-    if (itor == std::end(view))
-        return;
-
-    if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(*itor))
-    {
-        pWaitingFor3D->SpawnRequest.InitialActorValues = acMessage.NewActorData.InitialActorValues;
-        pWaitingFor3D->SpawnRequest.InventoryContent = acMessage.NewActorData.InitialInventory;
-        pWaitingFor3D->SpawnRequest.IsDead = acMessage.NewActorData.IsDead;
-        pWaitingFor3D->SpawnRequest.IsWeaponDrawn = acMessage.NewActorData.IsWeaponDrawn;
-    }
-
-    auto& formIdComponent = view.get<FormIdComponent>(*itor);
-
-    if (!m_actorBridge.ActorExists(formIdComponent.Id))
-        return;
-
-    m_actorBridge.SetActorValues(formIdComponent.Id, acMessage.NewActorData.InitialActorValues);
-    m_actorBridge.SetActorInventory(formIdComponent.Id, acMessage.NewActorData.InitialInventory);
-    if (m_world.all_of<RemoteComponent>(*itor))
-        m_world.emplace_or_replace<RemoteWeaponDrawComponent>(*itor, acMessage.NewActorData.IsWeaponDrawn);
-
-    const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent.Id);
-    if (cIsDead != acMessage.NewActorData.IsDead)
-        acMessage.NewActorData.IsDead ? m_actorBridge.KillActor(formIdComponent.Id) : m_actorBridge.RespawnActor(formIdComponent.Id);
-
-    spdlog::info("Applied remote spawn data, actor form id: {:X}", formIdComponent.Id);
-}
-
 void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept
 {
     auto view = m_world.view<RemoteComponent, InterpolationComponent, RemoteAnimationComponent>();
@@ -808,7 +760,6 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
     auto formView = m_world.view<FormIdComponent>();
     std::vector<entt::entity> entities(formView.begin(), formView.end());
 
-    // TODO(cosideci): remove this, cause of NotifyRelinquishControl?
     for (auto entity : entities)
     {
         std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
@@ -994,54 +945,6 @@ void CharacterService::OnNotifySubtitle(const NotifySubtitle& acMessage) noexcep
 
     // The owner's subtitle text over the copy (its voice comes through NotifyDialogue).
     m_actorBridge.ActorShowSubtitle(formIdComponent.Id, std::string(acMessage.Text.c_str()), acMessage.TopicFormId, acMessage.Force);
-}
-
-void CharacterService::OnNotifyRelinquishControl(const NotifyRelinquishControl& acMessage) noexcept
-{
-    auto formView = m_world.view<FormIdComponent>();
-    std::vector<entt::entity> entities(formView.begin(), formView.end());
-
-    // TODO(cosideci): this entity iteration shouldn't technically be necessary, just look for the local component
-    for (auto entity : entities)
-    {
-        std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(entity);
-        if (!sessionIdRes.has_value())
-        {
-            spdlog::error("{}: : failed to find session id for entity", __FUNCTION__);
-            continue;
-        }
-
-        uint32_t sessionId = sessionIdRes.value();
-
-        if (sessionId == acMessage.SessionId)
-        {
-            auto& formIdComponent = m_world.get<FormIdComponent>(entity);
-
-            if (m_world.all_of<LocalComponent>(entity))
-            {
-                m_world.remove<LocalAnimationComponent, LocalComponent>(entity);
-                m_world.emplace_or_replace<RemoteComponent>(entity, acMessage.SessionId, formIdComponent.Id);
-            }
-
-            if (!m_actorBridge.ActorExists(formIdComponent.Id))
-            {
-                // Probably left the room and/or temporary.
-                spdlog::info("{}: : no local Actor for sessionId {:X} to relinquish", __FUNCTION__, sessionId);
-                continue;
-            }
-
-            m_actorBridge.SetActorCopy(formIdComponent.Id, true);
-
-            InterpolationSystem::Setup(m_world, entity);
-            AnimationSystem::Setup(m_world, entity);
-
-            spdlog::info("{}: : relinquished control of actor {:X} with session id {:X}", __FUNCTION__, formIdComponent.Id, acMessage.SessionId);
-
-            return;
-        }
-    }
-
-    spdlog::error("Did not find actor to relinquish control of, session id {:X}", acMessage.SessionId);
 }
 
 void CharacterService::MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept

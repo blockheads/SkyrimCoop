@@ -22,9 +22,9 @@ With clang-cl all 199 struct-layout asserts pass, and the vtable layout is MSVC'
 These were written as `#ifdef __MINGW32__` but are really "loaded by SKSE" concerns, so they now
 apply to every Windows build:
 
-- `Code/libraries/reverse/Memory.hpp`: unprotect game code pages before patching, and branch through
+- `Code/client/Hooks/Memory.h`: unprotect game code pages before patching, and branch through
   SKSE trampolines (our DLL can be >2 GB from the game).
-- `Code/TiltedCore/RpmallocAllocator.cpp`: lazy rpmalloc init (static initializers run before
+- `Code/base/allocator/AllocatorSymbolOverride.cpp`: lazy rpmalloc init (static initializers run before
   `rpmalloc_initialize`; error 998 on load).
-- `Code/client/Games/Memory.cpp`: the CRT heap swap only works under the original launcher
-  (`TP_ORIGINAL_LAUNCHER`, never defined).
+- The game's CRT heap stays its own: upstream's launcher swapped it for rpmalloc before the game
+  allocated, but SKSE loads us after CRT startup (the swap is deleted, 2026-10-22).

@@ -1,6 +1,6 @@
 #include <NetImmerse/NiCamera.h>
 #include <HookSwitch.h>
-#include <TiltedOnlinePCH.h>
+#include <ClientPch.h>
 
 using TWorldPtToScreenPt3 = bool(float*, const NiRect<float>*, const NiPoint3*, float*, float*, float*, float);
 static TWorldPtToScreenPt3* s_WorldPtToScreenPt3;

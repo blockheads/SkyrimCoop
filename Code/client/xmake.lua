@@ -12,7 +12,7 @@ target(name)
     set_kind("object")
     set_group("Client")
     add_includedirs(".","../external/")
-    set_pcxxheader("TiltedOnlinePCH.h")
+    set_pcxxheader("ClientPch.h")
     -- offsetof checks on engine structs (non-standard layout by design) and clang-cl's PCH include rule: expected.
     add_cxflags("-Wno-invalid-offsetof", "-Wno-microsoft-include", {tools = {"clang_cl"}})
 

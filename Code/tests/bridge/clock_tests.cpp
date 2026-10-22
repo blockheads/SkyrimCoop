@@ -59,8 +59,6 @@ TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
     command.Hours = 21;
     command.Minutes = 30;
     session.Receive(kPeer, command);
-    REQUIRE(session.SentTo<NotifySetTimeResult>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifySetTimeResult>(kPeer)[0]->Result == NotifySetTimeResult::SetTimeResult::kSuccess);
     CHECK(session.HostClock.Time == Approx(21.5f));
 
     // Peers then follow it like any jump of the host's clock.
@@ -71,7 +69,6 @@ TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
     session.Outbox.clear();
     command.Hours = 24; // not an hour
     session.Receive(kHost, command);
-    CHECK(session.SentTo<NotifySetTimeResult>(kHost)[0]->Result == NotifySetTimeResult::SetTimeResult::kNoPermission);
     CHECK(session.HostClock.Time == Approx(21.5f));
 }
 

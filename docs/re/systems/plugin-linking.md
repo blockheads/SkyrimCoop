@@ -3,7 +3,7 @@
 Most hooks register themselves from a file-scope initializer:
 
 ```cpp
-static TiltedPhoques::Initializer s_hooks([]() { TP_HOOK(&RealX, HookX); });
+static Hooks::Initializer s_hooks([]() { HOOK(&RealX, HookX); });
 ```
 
 Nothing references these files' symbols, so **a static-archive link drops them**: the linker

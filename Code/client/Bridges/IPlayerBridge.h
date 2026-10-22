@@ -45,7 +45,6 @@ public:
                              bool aWithSound, float aDelay) noexcept = 0;
 
     // --- Economy ---
-    virtual void PlayerPayGold(uint32_t aAmount) noexcept = 0;
     virtual void PlayerPayCrimeGoldToAllFactions() noexcept = 0;
 
     // --- Difficulty / settings ---

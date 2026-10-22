@@ -1,4 +1,3 @@
-#include <BranchInfo.h>
 #include "CrashHandler.h"
 #include "Breadcrumbs.h"
 #include "HeapHistory.h"
@@ -107,11 +106,7 @@ LONG WINAPI VectoredExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo)
         HeapHistory::Dump(*pExceptionInfo->ContextRecord, pExceptionInfo->ExceptionRecord->ExceptionInformation[1]);
         spdlog::default_logger()->flush();
 
-#if (IS_MASTER)
-        volatile static bool bMiniDump = false;
-#else
         volatile static bool bMiniDump = true;
-#endif
         // CrashLoggerSSE (deployed by the test harness) writes the full report, and a dump when asked:
         // ours would only race it, and MiniDumpWriteDump can deadlock under Wine (it suspends every
         // thread, one of which may hold a lock it needs), which then keeps CrashLogger from running.
