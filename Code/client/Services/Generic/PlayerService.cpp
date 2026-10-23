@@ -104,8 +104,6 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
     if (!m_isDeathSystemEnabled)
         return;
 
-    static bool s_startTimer = false;
-
     const uint32_t cPlayerId = m_playerBridge.GetPlayerFormId();
 
     if (!m_playerBridge.IsPlayerBleedingOut())
@@ -114,13 +112,13 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
         m_cachedSecondarySpellId = m_playerBridge.GetPlayerActiveMagicItemFormId(1);
         m_cachedPowerId = m_playerBridge.GetPlayerEquippedShoutFormId();
 
-        s_startTimer = false;
+        m_respawnStarted = false;
         return;
     }
 
-    if (!s_startTimer)
+    if (!m_respawnStarted)
     {
-        s_startTimer = true;
+        m_respawnStarted = true;
         m_respawnTimer = 5.0;
         m_playerBridge.FadeScreen(true, true, 3.0f, true, 2.0f);
 
@@ -143,7 +141,7 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
 
         m_transport.Send(PlayerRespawnRequest());
 
-        s_startTimer = false;
+        m_respawnStarted = false;
 
         if (m_cachedMainSpellId)
             m_actorBridge.ActorEquipSpell(cPlayerId, m_cachedMainSpellId, 0);

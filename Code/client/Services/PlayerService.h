@@ -57,6 +57,7 @@ private:
     IActorBridge& m_actorBridge;
 
     double m_respawnTimer = 0.0;
+    bool m_respawnStarted = false; // the player is down and its respawn timer runs
     // The host's difficulty while in a session (a friend's game), and the game's own from before it.
     std::optional<uint32_t> m_serverDifficulty;
     std::optional<uint32_t> m_previousDifficulty;

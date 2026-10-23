@@ -7,9 +7,11 @@
 
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
+#include <Services/ActorValueService.h>
 #include <Services/CharacterService.h>
 #include <Services/CutsceneService.h>
 #include <Services/HostService.h>
+#include <Services/PlayerService.h>
 #include <Services/TravelService.h>
 #include <Services/RunnerService.h>
 #include <Structs/GameVersions.h>
@@ -53,7 +55,10 @@ World::World()
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                     ctx().at<IPlayerBridge&>());
+    ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(),
+                                 ctx().at<IActorBridge&>());
     ctx().emplace<HostService>(*this, m_dispatcher);
     ctx().emplace<GuestSeam>(*this);
 }
@@ -63,7 +68,9 @@ World::~World()
 {
     ctx().erase<GuestSeam>();
     ctx().erase<HostService>();
+    ctx().erase<PlayerService>();
     ctx().erase<CutsceneService>();
+    ctx().erase<ActorValueService>();
     ctx().erase<CharacterService>();
     ctx().erase<TravelService>();
 }

@@ -1,7 +1,7 @@
 #include <Services/ActorValueService.h>
 #include <World.h>
 #include <Components.h>
-#include <Utils.h>
+#include <SessionIds.h>
 
 #include <Events/UpdateEvent.h>
 #include <Events/ActorRemovedEvent.h>
@@ -227,14 +227,13 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
 
 void ActorValueService::RunSmallHealthUpdates() noexcept
 {
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
     constexpr auto cDelayBetweenUpdates = 250ms;
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
+    if (now - m_lastSmallHealthSend < cDelayBetweenUpdates)
         return;
 
-    lastSendTimePoint = now;
+    m_lastSmallHealthSend = now;
 
     if (!m_smallHealthChanges.empty())
     {
@@ -260,11 +259,10 @@ void ActorValueService::RunPoolUpdates() noexcept
     if (!m_transport.IsConnected())
         return;
 
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
     const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < 100ms)
+    if (now - m_lastPoolSend < 100ms)
         return;
-    lastSendTimePoint = now;
+    m_lastPoolSend = now;
 
     auto view = m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>();
     for (auto entity : view)
@@ -293,14 +291,13 @@ void ActorValueService::RunPoolUpdates() noexcept
 
 void ActorValueService::RunDeathStateUpdates() noexcept
 {
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
     constexpr auto cDelayBetweenUpdates = 250ms;
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
+    if (now - m_lastDeathStateSend < cDelayBetweenUpdates)
         return;
 
-    lastSendTimePoint = now;
+    m_lastDeathStateSend = now;
 
     auto localView = m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>();
 
@@ -331,14 +328,13 @@ void ActorValueService::RunDeathStateUpdates() noexcept
 
 void ActorValueService::RunActorValuesUpdates() noexcept
 {
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
     constexpr auto cDelayBetweenUpdates = 1000ms;
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
+    if (now - m_lastValuesSend < cDelayBetweenUpdates)
         return;
 
-    lastSendTimePoint = now;
+    m_lastValuesSend = now;
 
     BroadcastActorValues();
 }

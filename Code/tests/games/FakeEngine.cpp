@@ -152,9 +152,17 @@ void FakeEngine::LoadCell(uint32_t aCell)
     InMemory.insert(aCell);
 }
 
+// An actor Actor::Create made goes with it, unless persistent (copy-contract.md, "Players' copies"); a placeatme
+// reference stays.
 void FakeEngine::UnloadCell(uint32_t aCell)
 {
     Attached.erase(aCell);
+    std::vector<uint32_t> left;
+    for (const auto& [cId, cActor] : Actors)
+        if (cActor.Created && cActor.Cell == aCell && !cActor.Persistent)
+            left.push_back(cId);
+    for (const uint32_t cId : left)
+        DeleteActor(cId);
 }
 
 void FakeEngine::PlayerSetsLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
@@ -253,17 +261,47 @@ std::optional<CellStateRequest> FakeEngine::CellChanges(uint32_t aCell) const
     return request;
 }
 
-namespace
+ActorValues FakeEngine::FullValues()
 {
-// The engine's temporary forms (a reference placed at run time, a copy's NPC): 0xFF ids, counted up.
-uint32_t s_nextTemporary = 0xFF000800;
-} // namespace
+    ActorValues values;
+    for (const uint32_t cIndex : {kHealth, kMagicka, kStamina})
+        values.ActorValuesList[cIndex] = values.ActorMaxValuesList[cIndex] = 100.f;
+    return values;
+}
 
-uint32_t FakeEngine::LoadNpc(uint32_t aBase, uint32_t aCell)
+// The engine's temporary forms (a reference placed at run time, a copy's NPC): 0xFF ids; a deleted one's id goes to
+// the next (docs/re/crashes/2026-10-14-reused-copy-form-id.md).
+uint32_t FakeEngine::NewTemporary() noexcept
 {
-    const uint32_t cId = s_nextTemporary++;
-    Actors[cId] = Actor{.Base = aBase, .Cell = aCell};
+    ++m_made;
+    if (m_freedTemporary.empty())
+        return m_nextTemporary++;
+    return m_freedTemporary.extract(m_freedTemporary.begin()).value();
+}
+
+uint32_t FakeEngine::LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition)
+{
+    const uint32_t cId = NewTemporary();
+    Actors[cId] =
+        Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z}, .Made = m_made};
     return cId;
+}
+
+void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition)
+{
+    Actors[aFormId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z}};
+}
+
+void FakeEngine::CheckHealth(Actor& aActor) noexcept
+{
+    if (aActor.Copy || aActor.Dead || aActor.Values.ActorValuesList[kHealth] > 0.f)
+        return;
+    (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
+}
+
+void FakeEngine::Hit(uint32_t aFormId, float aDamage)
+{
+    DamageActorHealth(aFormId, 0, aDamage);
 }
 
 std::vector<uint32_t> FakeEngine::CopiesOf(uint32_t aBase) const
@@ -359,13 +397,113 @@ bool FakeEngine::IsActorDead(uint32_t aFormId) const noexcept
 void FakeEngine::KillActor(uint32_t aFormId) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
         it->second.Dead = true;
+        it->second.Bleeding = false;
+    }
 }
 
+// Actor::Respawn: alive again, values restored.
 void FakeEngine::RespawnActor(uint32_t aFormId) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Dead = false;
+    {
+        it->second.Dead = it->second.Bleeding = false;
+        it->second.Values = FullValues();
+    }
+}
+
+void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
+{
+    RespawnActor(aFormId);
+}
+
+bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t, float aDamage) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return false;
+    it->second.Values.ActorValuesList[kHealth] -= aDamage;
+    CheckHealth(it->second);
+    return true;
+}
+
+bool FakeEngine::IsBleedingOut(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.Bleeding;
+}
+
+bool FakeEngine::IsOtherPlayer(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.Copy && it->second.Player;
+}
+
+void FakeEngine::SetActorPersistent(uint32_t aFormId) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.Persistent = true;
+}
+
+void FakeEngine::SetActorPlayerRespawnMode(uint32_t aFormId) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.Essential = true;
+}
+
+// ForcePosition and SetRotation; the graph's variables are not modelled.
+bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float,
+                                     const AnimationVariables&) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return false;
+    std::copy_n(aPosition, 3, it->second.Position);
+    std::copy_n(aRotation, 3, it->second.Rotation);
+    return true;
+}
+
+float FakeEngine::GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return 0.f;
+    const auto& cValues = it->second.Values.ActorValuesList;
+    const auto cValue = cValues.find(static_cast<uint32_t>(aIndex));
+    return cValue != cValues.end() ? cValue->second : 0.f;
+}
+
+float FakeEngine::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return 0.f;
+    const auto& cValues = it->second.Values.ActorMaxValuesList;
+    const auto cValue = cValues.find(static_cast<uint32_t>(aIndex));
+    return cValue != cValues.end() ? cValue->second : 0.f;
+}
+
+void FakeEngine::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.Values.ActorValuesList[static_cast<uint32_t>(aIndex)] = aValue;
+}
+
+// ForceMode PERMANENT (0) sets the maximum, DAMAGE (2) the current value up to it; at 0 health, as a hit.
+void FakeEngine::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    auto& values = it->second.Values;
+    const auto cIndex = static_cast<uint32_t>(aIndex);
+    if (aForceMode == 0)
+        values.ActorMaxValuesList[cIndex] = aValue;
+    else if (aForceMode == 2)
+        values.ActorValuesList[cIndex] = std::min(aValue, values.ActorMaxValuesList[cIndex]);
+    if (cIndex == kHealth)
+        CheckHealth(it->second);
 }
 
 bool FakeEngine::IsActorDisabled(uint32_t aFormId) const noexcept
@@ -374,25 +512,41 @@ bool FakeEngine::IsActorDisabled(uint32_t aFormId) const noexcept
     return it != Actors.end() && it->second.Disabled;
 }
 
+bool FakeEngine::IsActorDeleted(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() && it->second.Deleted;
+}
+
 void FakeEngine::EnableActor(uint32_t aFormId) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
         it->second.Disabled = false;
 }
 
+void FakeEngine::DisableActor(uint32_t aFormId, bool aDelete) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        it->second.Disabled = true;
+        it->second.Deleted |= aDelete;
+    }
+}
+
 // A copy: a new temporary actor of that NPC, where this game's player is (as PlaceAtMe from the player).
 uint32_t FakeEngine::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 {
-    const uint32_t cId = s_nextTemporary++;
-    Actors[cId] = Actor{.Base = aNpcFormId, .Cell = Actors.at(kPlayer).Cell, .WorldSpace = Actors.at(kPlayer).WorldSpace};
+    ++Spawned[aNpcFormId];
+    const uint32_t cId = NewTemporary();
+    Actors[cId] = Actor{.Base = aNpcFormId, .Cell = Actors.at(kPlayer).Cell, .WorldSpace = Actors.at(kPlayer).WorldSpace,
+                        .Created = true, .Made = m_made};
     return cId;
 }
 
 // A player's copy: a temporary NPC made from their appearance, and an actor of it.
 uint32_t FakeEngine::CreateCustomActor(const std::string&, uint32_t) noexcept
 {
-    const uint32_t cNpc = s_nextTemporary++;
-    return SpawnActorFromNpc(cNpc);
+    return SpawnActorFromNpc(NewTemporary());
 }
 
 // The player's is a travel (MoveTo_Impl queues it as a door's): the cells load and unload, a teleport is reported.
@@ -424,10 +578,12 @@ void FakeEngine::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept
     }
 }
 
+// As SkyrimBridge's: only a reference made at run time is deleted, never the plugins' or the player.
 void FakeEngine::DeleteActor(uint32_t aFormId) noexcept
 {
-    if (aFormId != kPlayer)
-        Actors.erase(aFormId);
+    if (!IsActorTemporary(aFormId) || !Actors.erase(aFormId))
+        return;
+    m_freedTemporary.insert(aFormId);
 }
 
 bool FakeEngine::IsActorNpcTemporary(uint32_t aFormId) const noexcept
@@ -453,10 +609,27 @@ ActorValues FakeEngine::GetActorEssentialValues(uint32_t aFormId) const noexcept
     return it != Actors.end() ? it->second.Values : ActorValues{};
 }
 
+// Each value listed; the others stay.
 void FakeEngine::SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept
 {
-    if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Values = acValues;
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return;
+    for (const auto& [cIndex, cValue] : acValues.ActorMaxValuesList)
+        it->second.Values.ActorMaxValuesList[cIndex] = cValue;
+    for (const auto& [cIndex, cValue] : acValues.ActorValuesList)
+        it->second.Values.ActorValuesList[cIndex] = cValue;
+}
+
+// PlayerCharacter::RespawnPlayer: up from bleedout, health restored, moved to its cell's COC marker (an interior's).
+void FakeEngine::RespawnPlayer() noexcept
+{
+    auto& player = Actors.at(kPlayer);
+    player.Bleeding = false;
+    ForceActorValue(kPlayer, 2, kHealth, 1000000.f);
+    const auto cMarker = CocMarkers.find(player.Cell);
+    const glm::vec3 cTo = cMarker != CocMarkers.end() ? cMarker->second : glm::vec3{};
+    MoveActorTo(kPlayer, player.Cell, cTo.x, cTo.y, cTo.z);
 }
 
 // PartyNatives' entry points (Papyrus/PartyNatives.h) on the current game's fake engine.

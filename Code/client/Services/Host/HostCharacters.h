@@ -47,7 +47,7 @@ struct HostCharacters
     // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
-    void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) const noexcept;
+    void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
     // Its characters leave with it.
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
@@ -70,8 +70,13 @@ private:
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
+    // A player that joined where the host is not goes there (the party tether).
+    void BringToParty(ConnectionId_t aPlayer) const noexcept;
     // The host's actors (not its player, whose copy travels with the party) to one player.
-    void SendHostActors(ConnectionId_t aPlayer) const noexcept;
+    void SendHostActors(ConnectionId_t aPlayer) noexcept;
+    // The host's game's spawns of its actors but aExcludedSessionId, to aPlayer; one it announced but has not moved
+    // yet (it handles its id on its next update) goes once it moves it. How many went.
+    size_t SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcludedSessionId) noexcept;
     void SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, ConnectionId_t aSender) const noexcept;
 
     // A spawn of the character as it is now: the host's actor from its engine, a player's from its
@@ -86,6 +91,9 @@ private:
         uint32_t Cookie{}; // of the owner's announcement
         // A player's: what is needed to spawn it again, kept current with its movement.
         std::optional<NotifyCharacterSpawn> PlayerRecord;
+        // Its owner's game moved it: it has handled its id. Before, the players waiting for its spawn.
+        bool Moved{};
+        std::vector<ConnectionId_t> Waiting;
     };
 
     HostAuthority& m_authority;

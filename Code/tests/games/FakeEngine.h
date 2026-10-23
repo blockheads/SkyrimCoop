@@ -1,8 +1,9 @@
 #pragma once
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
-// running Game.DisablePlayerControls / EnablePlayerControls through what PartyNatives' glue does around them, and the
-// world's references (locks, containers' items) with the change records the engine keeps.
+// running Game.DisablePlayerControls / EnablePlayerControls through what PartyNatives' glue does around them, the
+// world's references (locks, containers' items) with the change records the engine keeps, and the actors (the
+// player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
 
 #include <Messages/CellStateRequest.h>
@@ -81,6 +82,13 @@ struct FakeEngine : StillBridges
     // One load order: every form is in every game.
     bool FormExists(uint32_t aFormId) const noexcept override { return aFormId != 0; }
 
+    // ActorValueInfo's health, magicka and stamina; the fake keeps no other values.
+    static constexpr uint32_t kHealth = 24;
+    static constexpr uint32_t kMagicka = 25;
+    static constexpr uint32_t kStamina = 26;
+    // Health, magicka and stamina at 100 of 100.
+    [[nodiscard]] static ActorValues FullValues();
+
     // The engine's actors: this game's player (0x14), the NPCs its cells loaded, the copies its services made.
     struct Actor
     {
@@ -90,12 +98,18 @@ struct FakeEngine : StillBridges
         float Position[3]{};
         float Rotation[3]{};
         bool Dead = false;
+        bool Bleeding = false; // essential and down (ActorState's bleedout)
         bool Disabled = false;
+        bool Deleted = false;    // marked deleted (DisableActor's aDelete)
+        bool Created = false;    // made by Actor::Create (a copy): deleted with its cell unless persistent
+        bool Persistent = false; // kept when its cell unloads (SetActorPersistent)
+        bool Essential = false;  // goes down at 0 health instead of dying (SetPlayerRespawnMode)
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Loaded = true;  // its 3D is loaded (in the process lists)
-        ActorValues Values;
+        ActorValues Values = FullValues();
         Inventory Items;
+        uint32_t Made = 0; // which actor at this form id: a reused id is a new one (a fresh ActorExtension)
     };
     std::map<uint32_t, Actor> Actors{{kPlayer, Actor{.Base = 0x7, .Player = true}}};
     static constexpr uint32_t kPlayer = 0x14;
@@ -105,9 +119,18 @@ struct FakeEngine : StillBridges
     void PlayerTravels(uint32_t aCell, const glm::vec3& acPosition);
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
+    // Each interior's COC marker (TESObjectCELL::GetCOCPlacementInfo), where a respawn puts the player.
+    std::map<uint32_t, glm::vec3> CocMarkers;
 
     // An NPC this game's cell loads (as `placeatme`: a temporary reference of aBase); its form id.
-    uint32_t LoadNpc(uint32_t aBase, uint32_t aCell);
+    uint32_t LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition = {});
+    // An NPC placed in the plugins (the same form id in every game), in aCell at acPosition.
+    void PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition);
+    // A hit of aDamage on an actor, as the engine's: at 0 health it dies, or goes down if essential; a copy is in
+    // deferred kill and does neither (actor-ai-and-copies.md, "A copy is in deferred kill").
+    void Hit(uint32_t aFormId, float aDamage);
+    // How many actors of each NPC base this game has made (SpawnActorFromNpc), ever.
+    std::map<uint32_t, size_t> Spawned;
     // The actors that are copies of aBase here (0 for any base), by form id.
     [[nodiscard]] std::vector<uint32_t> CopiesOf(uint32_t aBase = 0) const;
 
@@ -126,8 +149,25 @@ struct FakeEngine : StillBridges
     bool IsActorDead(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;
     void RespawnActor(uint32_t aFormId) noexcept override;
+    void ResurrectActor(uint32_t aFormId) noexcept override;
+    bool DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept override;
+    bool IsBleedingOut(uint32_t aFormId) const noexcept override;
+    bool IsActorBleedingOut(uint32_t aFormId) const noexcept override { return IsBleedingOut(aFormId); }
+    bool IsOtherPlayer(uint32_t aFormId) const noexcept override;
+    bool IsTemporaryActor(uint32_t aFormId) const noexcept override { return IsActorTemporary(aFormId); }
+    void SetActorPersistent(uint32_t aFormId) noexcept override;
+    void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override;
+    bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
+                             const AnimationVariables& aVariables) noexcept override;
+    float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
+    float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
+    void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
+    void ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept override;
+    int32_t GetActorValueCount() const noexcept override { return 164; } // ActorValueInfo::kActorValueCount
     bool IsActorDisabled(uint32_t aFormId) const noexcept override;
+    bool IsActorDeleted(uint32_t aFormId) const noexcept override;
     void EnableActor(uint32_t aFormId) noexcept override;
+    void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
     uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
@@ -149,6 +189,14 @@ struct FakeEngine : StillBridges
     float GetPlayerHeading() const noexcept override { return Heading; }
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }
+    bool IsPlayerBleedingOut() const noexcept override { return Actors.at(kPlayer).Bleeding; }
+    float GetPlayerActorValue(int32_t aIndex) const noexcept override { return GetActorValue(kPlayer, aIndex); }
+    void ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept override
+    {
+        ForceActorValue(kPlayer, aForceMode, aIndex, aValue);
+    }
+    void SetPlayerRespawnMode(bool aEnable) noexcept override { Actors.at(kPlayer).Essential = aEnable; }
+    void RespawnPlayer() noexcept override;
 
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept
     {
@@ -159,7 +207,15 @@ struct FakeEngine : StillBridges
     static FakeEngine& Current() noexcept;
 
   private:
+    // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
+    uint32_t NewTemporary() noexcept;
+    // At 0 health: dead, or down if essential; a copy is in deferred kill.
+    void CheckHealth(Actor& aActor) noexcept;
+
     std::deque<std::pair<LocalCall, uint32_t>> m_queued;
+    uint32_t m_nextTemporary = 0xFF000800;
+    uint32_t m_made = 0;
+    std::set<uint32_t> m_freedTemporary;
 };
 
 // Game.DisablePlayerControls / EnablePlayerControls with Papyrus' defaults for the rest: movement, fighting, camera

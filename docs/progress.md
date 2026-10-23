@@ -698,6 +698,16 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   Travel flows (`travel_flows.cpp`): the tether both ways, players' copies coming along, NPCs staying with their
   cells; `RunLocalUpdates`' snapshot throttle is per service now (was a function static). New rule in CLAUDE.md:
   every bug gets a test in the fastest tier that can show it.
+  Tier 2 actors (2026-10-23): an actor checksum (`Party::Agree`: each owned actor's one copy everywhere, its cell,
+  position within 64, dead, enabled, copy flag; held copies as the host's references), `ActorValueService` and
+  `PlayerService` in every game, the fake's placed NPCs, health, death, bleedout, respawn and created actors deleted
+  with their cell; flows for late join, a host NPC going away (moved, disabled, deleted, back), death and a
+  guest's respawn, a placed NPC the party leaves and returns to, an NPC loading as a follower arrives; 23 flows,
+  7.7 s; each new flow failed with its covered line broken. Found and fixed: a guest joining elsewhere was never
+  brought to the party; an NPC announced in the frame a follower's arrival reached the host's rules never reached
+  that follower; the host's arrival sent a guest ahead of it the NPCs of the cell it left; `ActorValueService`'s
+  send timers and `PlayerService`'s respawn flag were statics two games shared (`docs/design/testing.md`, tier 2;
+  `copy-contract.md`, "Arrival races"). The fake's unmeasured assumptions are listed for the Skyrim side.
 - Beast form (2026-10-20, `docs/re/systems/papyrus-guest-scripts.md`, "Beast form"): `client-beast-form-stays-client`
   (3 of 3) shows upstream's beast form bug gone: the change runs on the guest's game only. Fixed on the way:
   a copy respawned for a race change started from the host's record of its owner's last cell entry (stale
@@ -1061,7 +1071,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
     again before the others got there is handled (`party-quick-travel`).
   - A follower whose tether move never arrives stays "following" for 60 s: a travel of its own in that
     time does not lead.
-  - A player joining somewhere else is neither pulled nor pulls (joining goes through the join flow).
+  - A player joining somewhere else is pulled to the host's player and pulls nobody (2026-10-23,
+    `HostCharacters::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
   - Not tried: a follower in a menu, in dialogue, dead or mounted; three players.
 - **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are still in the tree**, compiled out of the
   Windows build: the RmlUi panels replace them (party, chat).

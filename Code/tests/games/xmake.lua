@@ -11,7 +11,8 @@ target("GameTests")
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",
               "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp",
               "../../client/Services/Generic/CharacterService.cpp", "../../client/Services/Generic/TravelService.cpp",
-              "../../client/Services/Generic/SessionService.cpp",
+              "../../client/Services/Generic/SessionService.cpp", "../../client/Services/Generic/ActorValueService.cpp",
+              "../../client/Services/Generic/PlayerService.cpp",
               "../../client/Systems/InterpolationSystem.cpp", "../../client/Systems/ModSystem.cpp",
               "../../client/Services/Guest/GuestWorldState.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp")

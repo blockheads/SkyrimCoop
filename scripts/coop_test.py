@@ -4853,32 +4853,6 @@ def party_controls(state, what):
                  lambda name=name: (screen(name)["controls"] != ALL_CONTROLS) if state is None else screen(name)["controls"] == state, 5)
 
 
-def scenario_cutscene_controls_reach_party():
-    """A script on the host takes its player's controls (Game.DisablePlayerControls, as a cutscene does): the client's
-    are taken too, the same ones, and come back with the host's (PartyNatives). Then the host takes them again and the
-    client leaves mid-cutscene: its game gives its own back."""
-    try:
-        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        party_controls(None, "taken by the host's cutscene")
-        if screen("client")["controls"] != screen("")["controls"]:
-            raise TestFailure(f"[client] controls {screen('client')['controls']:X}, the host's {screen('')['controls']:X}")
-        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "back")
-
-        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        party_controls(None, "taken again")
-        disconnect_client()
-        wait_for("[client] its controls come back as it leaves", lambda: screen("client")["controls"] == ALL_CONTROLS, 5)
-        rejoin_client()
-        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "back at the end")
-    finally:
-        for name in ("", "client"):
-            script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        if game_state("client").get("online") is False:
-            rejoin_client()
-
-
 def scenario_cutscene_fade_reaches_party():
     """In the host's cutscene (controls taken) its script fades to black (ImageSpaceModifier.Apply on FadeToBlackImod)
     and shakes the camera: the client's screen fades and shakes too, and clears with the host's; the controls come
@@ -4919,7 +4893,6 @@ def scenario_guest_cutscene_reaches_host():
         script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
 
 
-FIGHTING_ONLY = [False, True, False, False, False, False, False, False, 0]  # DisablePlayerControls: fighting, movement left
 MONK_SCENE_QUEST = 0x76F39  # MG04MonkSceneQuest: stage 0 applies its intro, then its loop; stage 200 pops to its outro
 MONK_INTRO_IMOD, MONK_LOOP_IMOD, MONK_OUTRO_IMOD = 0xEF960, 0xEF95F, 0xEF961
 
@@ -4947,20 +4920,6 @@ def scenario_player_moment_stays_theirs():
             for name in ("", "client"):
                 player_script_call(name, "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
                 player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
-
-
-def scenario_restriction_stays_with_game():
-    """A script with no player behind it turns off fighting only, movement left (Esbern's door, the Volkihar banquet):
-    a restriction, not a cutscene, so it stays with its game's player and the client's controls stay all on."""
-    try:
-        script_call("", "Game", "DisablePlayerControls", FIGHTING_ONLY)
-        wait_for("[host] fighting is off", lambda: screen("")["controls"] != ALL_CONTROLS, 5)
-        screen_marker("", "client")
-        if screen("client")["controls"] != ALL_CONTROLS:
-            raise TestFailure(f"[client] its controls are {screen('client')['controls']:X}: the host's restriction reached it")
-    finally:
-        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "back")
 
 
 def scenario_player_stage_cutscene_reaches_party():
@@ -4992,53 +4951,6 @@ def scenario_player_stage_cutscene_reaches_party():
             wait_for(f"[{name or 'host'}] its screen clears", lambda name=name: not screen(name)["imods"], 5)
         console_on("", "resetquest MG04MonkSceneQuest")
         client_quest_matches(MONK_SCENE_QUEST, "the monks' scene is reset")
-
-
-def scenario_overlapping_cutscenes_keep_controls():
-    """Two cutscenes at once on the client: the host's (shared) and the client player's own moment. Whichever gives
-    its controls back first gives back only what the other does not hold (PartyNatives' holds), in both orders."""
-    try:
-        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        party_controls(None, "taken by the host's cutscene")
-        player_script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        player_script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        player_script_call("client", "Game", "ShakeCamera", [None, 0.5, 2.0])  # after its give-back, on its VM
-        wait_for("[client] its own moment's give-back has run", lambda: screen("client")["shake"]["seconds"] > 0, 5)
-        if screen("client")["controls"] == ALL_CONTROLS:
-            raise TestFailure("[client] its own moment gave back the controls the host's cutscene holds")
-        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "back with the host's cutscene")
-
-        player_script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        wait_for("[client] its own moment takes its controls", lambda: screen("client")["controls"] != ALL_CONTROLS, 5)
-        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        screen_marker("", "client")
-        if screen("client")["controls"] == ALL_CONTROLS:
-            raise TestFailure("[client] the host's cutscene gave back the controls the client's own moment holds")
-        player_script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "back with the client's own moment")
-    finally:
-        for name in ("", "client"):
-            player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "all back")
-
-
-def scenario_leaver_cutscene_gives_back():
-    """The client's script (no player behind it) takes the controls, so the host's are taken too; the client leaves
-    mid-cutscene: the host gets back what that cutscene held (NotifyPlayerLeft)."""
-    try:
-        script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
-        party_controls(None, "taken by the client's cutscene")
-        disconnect_client()
-        wait_for("[host] its controls come back as the client leaves", lambda: screen("")["controls"] == ALL_CONTROLS, 5)
-    finally:
-        if game_state("client").get("online") is False:
-            rejoin_client()
-        for name in ("", "client"):
-            player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
-        party_controls(ALL_CONTROLS, "all back")
 
 
 def scenario_screen_reaches_party():
@@ -5367,21 +5279,6 @@ def scenario_copy_holds_owners_factions():
         release_host_npc(VILKAS)
 
 
-def scenario_lock_reaches_others():
-    """The host locks a door: the client's door is locked too, at the same level. The client
-    unlocks it: the host's is unlocked."""
-    door = inner_door()
-    try:
-        lock_on("", door, True, 50)
-        wait_for(f"[client] door {door:X} is locked at 50", lambda: door_lock("client", door) == (True, 50), 10)
-        lock_on("client", door, False, 50)
-        wait_for(f"[host] door {door:X} is unlocked", lambda: not door_lock("", door)[0], 10)
-    finally:
-        for name in ("", "client"):
-            if door_lock(name, door)[0]:
-                lock_on(name, door, False)
-
-
 # A QASmoke chest of 17 stacks; the container menu's Take All (R, the game's controlmap.txt) takes them all and closes it.
 SMALL_CHEST, SWEETROLL, TAKE_ALL_KEY = 0xC2CE8, 0x64B3D, 0x13
 # The menu's lists (InventoryLists.as): 1 one panel, 2 two panels; the others are transitions, which drop input.
@@ -5416,11 +5313,9 @@ def take_all(instance, chest):
     wait_for(f"{who} the menu closed", lambda: takes_input(instance), 5)
 
 
-def scenario_chest_take_reaches_others():
-    """A chest's items are the host's world (world-state sync step 6). The host puts two sweetrolls in a
-    chest: the client's chest holds them too. The client takes everything: the host's chest is as the
-    client's, without sweetrolls, and the client's player holds them once. The host puts one back and
-    takes everything: the client's chest follows."""
+def scenario_chest_take_all():
+    """Both players use Take All: items reach the acting player and its copy.
+    The other game keeps its menu closed and its own player's inventory unchanged."""
     chest = SMALL_CHEST
     before = container_items("", chest)
     held = {name: {item: item_count(name, 0x14, item) or 0 for item in [*before, SWEETROLL]} for name in ("", "client")}
@@ -5447,12 +5342,21 @@ def scenario_chest_take_reaches_others():
             raise TestFailure(f"{error}: {item_differences(container_items('', chest), left, 'host', 'client')}") from None
         copy = client_on_host()
         wait_for("[host] the client's character holds the sweetrolls", lambda: item_count("", copy, SWEETROLL) == 2, 5)
+        if item_count("", 0x14, SWEETROLL) != held[""][SWEETROLL]:
+            raise TestFailure("[host] the guest's Take All changed the host player's inventory")
         if (rolls := item_count("client", 0x14, SWEETROLL)) != held["client"][SWEETROLL] + 2:
             raise TestFailure(f"[client] the player holds {rolls} sweetrolls, not {held['client'][SWEETROLL] + 2}")
         # The other way: the host's own take empties the client's chest of it.
         console_on("", f"{chest:X}.additem {SWEETROLL:X} 1")
         wait_for("[client] the sweetroll is in its chest", lambda: item_count("client", chest, SWEETROLL) == 1, 5)
         take_all("", chest)
+        if "ContainerMenu" in menus("client"):
+            raise TestFailure("[guest] the host's Take All opened the guest's container menu")
+        wait_for("[host] Take All puts the sweetroll in the host player's inventory",
+                 lambda: item_count("", 0x14, SWEETROLL) == held[""][SWEETROLL] + 1, 5)
+        copy = other_player(actors_on("client"))
+        wait_for("[guest] the host player's copy holds the sweetroll",
+                 lambda: item_count("client", copy, SWEETROLL) == held[""][SWEETROLL] + 1, 5)
         wait_for(f"[client] chest {chest:X} holds no sweetroll", lambda: item_count("client", chest, SWEETROLL) == 0, 5)
         if container_items("client", chest) != container_items("", chest):
             raise TestFailure(f"[client] chest {chest:X} holds other items than the host's")
@@ -5461,6 +5365,10 @@ def scenario_chest_take_reaches_others():
     finally:
         passed = sys.exc_info()[0] is None  # a failed step's name is the failure, not the clean-up's
         for name in ("", "client"):
+            if "ContainerMenu" in menus(name):
+                player_command(name, {"cmd": "menu", "name": "ContainerMenu", "show": False})
+                wait_for(f"[{'guest' if name else 'host'}] the container menu is closed after cleanup",
+                         lambda name=name: "ContainerMenu" not in menus(name), 5)
             for item, count in held[name].items():
                 if (taken := (item_count(name, 0x14, item) or 0) - count) > 0:
                     console_on(name, f"player.removeitem {item:X} {taken}")
@@ -7025,8 +6933,7 @@ SCENARIOS = {
     "copy-flashes-one-shot-effects": scenario_copy_flashes_one_shot_effects,
     # objects
     "door-opens-for-both": scenario_door_opens_for_both,
-    "lock-reaches-others": scenario_lock_reaches_others,
-    "chest-take-reaches-others": scenario_chest_take_reaches_others,
+    "chest-take-all": scenario_chest_take_all,
     "guest-loads-propose-no-locks": scenario_guest_loads_propose_no_locks,
     "load-door-not-replayed": scenario_load_door_not_replayed,
     "plate-counts-client": scenario_plate_counts_client,
@@ -7037,15 +6944,11 @@ SCENARIOS = {
     "keyhole-asks-client": scenario_keyhole_asks_client,
     "relief-takes-client-relics": scenario_relief_takes_client_relics,
     "words-reach-client": scenario_words_reach_client,
-    "cutscene-controls-reach-party": scenario_cutscene_controls_reach_party,
     "cutscene-fade-reaches-party": scenario_cutscene_fade_reaches_party,
     "guest-cutscene-reaches-host": scenario_guest_cutscene_reaches_host,
     "screen-reaches-party": scenario_screen_reaches_party,
     "player-moment-stays-theirs": scenario_player_moment_stays_theirs,
-    "restriction-stays-with-game": scenario_restriction_stays_with_game,
     "player-stage-cutscene-reaches-party": scenario_player_stage_cutscene_reaches_party,
-    "overlapping-cutscenes-keep-controls": scenario_overlapping_cutscenes_keep_controls,
-    "leaver-cutscene-gives-back": scenario_leaver_cutscene_gives_back,
     "guest-script-stage-reaches-host": scenario_guest_script_stage_reaches_host,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
@@ -7167,8 +7070,7 @@ TAGS = {
     "copy-made-later-shows-effects": {'magic', 'spawn'},
     "copy-flashes-one-shot-effects": {'magic', 'spawn'},
     "door-opens-for-both": {'objects'},
-    "lock-reaches-others": {'objects'},
-    "chest-take-reaches-others": {'objects', 'inventory'},
+    "chest-take-all": {'objects', 'inventory'},
     "guest-loads-propose-no-locks": {'objects', 'cells'},
     "load-door-not-replayed": {'objects', 'cells'},
     "plate-counts-client": {'objects', 'scripts', 'cells'},
@@ -7179,15 +7081,11 @@ TAGS = {
     "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
     "relief-takes-client-relics": {'objects', 'scripts', 'cells', 'inventory'},
     "words-reach-client": {'objects', 'scripts'},
-    "cutscene-controls-reach-party": {'scripts', 'session'},
     "cutscene-fade-reaches-party": {'scripts'},
     "guest-cutscene-reaches-host": {'scripts'},
     "screen-reaches-party": {'scripts'},
     "player-moment-stays-theirs": {'scripts'},
-    "restriction-stays-with-game": {'scripts'},
     "player-stage-cutscene-reaches-party": {'scripts', 'quests'},
-    "overlapping-cutscenes-keep-controls": {'scripts'},
-    "leaver-cutscene-gives-back": {'scripts', 'session'},
     "guest-script-stage-reaches-host": {'scripts', 'quests', 'world'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
@@ -8697,6 +8595,9 @@ def command_soak(args):
 def main():
     from coop_specs import register
     register(SCENARIOS, TAGS)
+    for name in ("spec:cutscene-controls-reach-party", "spec:leaver-cutscene-gives-back"):
+        if name in TAGS:
+            TAGS[name].add("session")
     try:
         validate_source_tags()
     except TestFailure as error:

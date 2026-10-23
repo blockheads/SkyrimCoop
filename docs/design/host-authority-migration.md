@@ -259,7 +259,8 @@ Still on the server, reading positions that had been stale since phase 2: telepo
   others move their player there with `MoveTo` (`TESObjectREFR::MoveTo_Impl` 56626), the same queued
   travel a door makes, loading screen and all. That arrival is sent with `Leads` false (it went where the
   tether sent it), so a follower never pulls anyone and the party cannot loop; a travel from before
-  joining leads nobody either. A party that travels again before a follower got there (out of a door and
+  joining leads nobody either. A player whose game joins away from the host is sent to the host's player
+  (2026-10-23, `HostCharacters::BringToParty`). A party that travels again before a follower got there (out of a door and
   straight back in, a follower's game stalled or still loading): until the follower reaches the latest
   place it was sent to, every arrival on the way is following too, and a new travel always moves it, even
   to where it still stands (its pending move would take it away; the engine keeps only the latest queued

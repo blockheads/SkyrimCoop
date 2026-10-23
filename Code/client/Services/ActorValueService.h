@@ -126,4 +126,9 @@ private:
     // a copy does not always take (e.g. resurrect while the death is still playing), so retry.
     std::unordered_map<uint32_t, bool> m_pendingDeathStates;
     std::chrono::steady_clock::time_point m_nextDeathStateRetry;
+    // When each kind of update last went out (members: two games in one process each send their own).
+    std::chrono::steady_clock::time_point m_lastSmallHealthSend;
+    std::chrono::steady_clock::time_point m_lastPoolSend;
+    std::chrono::steady_clock::time_point m_lastDeathStateSend;
+    std::chrono::steady_clock::time_point m_lastValuesSend;
 };

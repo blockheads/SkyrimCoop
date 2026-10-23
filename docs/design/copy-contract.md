@@ -79,6 +79,16 @@ in the session and travels with it, never with a cell. NPC copies (the host's ac
   `RunPresence` moves each to where its owner says it is, at once after an arrival. The host sends an
   arriving player the host's actors there, never players' characters (`HostCharacters::OnEnterCell`); a
   player that arrived ahead of the host gets them when the host arrives.
+- **Arrival races (found 2026-10-23 by tier 2, `travel_flows.cpp`).** An NPC the host's game announced in the frame
+  a following player's arrival reached the host's rules was in neither the announcement (that player was not with
+  the host yet) nor the arrival's spawns (the host's game handles its id on its next update): that player never
+  got its copy. Now the arrival leaves the player waiting on any host actor its game has not moved yet, and its
+  first movement sends it the spawn. And the host's own arrival sent a player ahead of it the NPCs of the cell the
+  host had just left (discovery drops them on its next update): a held reference was flagged a copy again, a
+  placeatme NPC's copy made in the guest's cell. `BuildSpawnRequests` skips an NPC without 3D.
+- **Joining elsewhere (2026-10-23).** A guest whose player announces itself away from the host's is sent to it
+  (`NotifyPartyTravel`, `HostCharacters::BringToParty`); the copies it got on joining that landed in its own cell
+  go with its arrival, and the host sends it the actors there.
 - **No inventory reset:** enabling an actor (`TESObjectREFR::Enable` 19800, which a 3D reload goes through)
   resets its inventory to its base's template (`Actor::ResetInventory` 37322 → `InitInventoryIfRequired`
   16038 → `Actor::RemoveOutfitItems` 19690): the outfit is removed and put on again, which the equip hook

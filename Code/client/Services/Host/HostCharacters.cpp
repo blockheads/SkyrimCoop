@@ -53,6 +53,11 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
             continue;
         }
         notify.Updates[cSessionId] = cUpdate;
+        if (!std::exchange(it->second.Moved, true))
+            for (const ConnectionId_t cPlayer : std::exchange(it->second.Waiting, {}))
+                if (m_players.IsPlayer(cPlayer) && WithHost(cPlayer))
+                    if (const auto cSpawn = BuildSpawn(cSessionId))
+                        m_network.Send(cPlayer, *cSpawn);
         if (auto& record = it->second.PlayerRecord)
         {
             record->CellId = cUpdate.UpdatedMovement.CellId;
@@ -97,7 +102,11 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
         m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
         character.PlayerRecord = cSpawn;
         if (aSender != m_players.Host())
+        {
             m_authority.PlayerEntered(aSender, cSessionId);
+            if (!WithHost(aSender))
+                BringToParty(aSender);
+        }
     }
 
     AssignCharacterResponse response;
@@ -278,15 +287,42 @@ uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcep
     return cNoCharacter;
 }
 
-void HostCharacters::SendHostActors(ConnectionId_t aPlayer) const noexcept
+void HostCharacters::BringToParty(ConnectionId_t aPlayer) const noexcept
 {
-    uint32_t count = 0;
-    for (const auto& cSpawn : m_game.OwnSpawns(PlayerCharacterOf(m_players.Host())))
-    {
+    const ConnectionId_t cHost = m_players.Host();
+    const auto cHostCharacter = m_characters.find(PlayerCharacterOf(cHost));
+    const auto cHostPlace = m_places.find(cHost);
+    if (cHostCharacter == m_characters.end() || cHostPlace == m_places.end())
+        return;
+    // Where the host's player is now (its record follows its movement).
+    const auto& cRecord = *cHostCharacter->second.PlayerRecord;
+    NotifyPartyTravel travel;
+    travel.CellId = cRecord.CellId;
+    travel.WorldSpaceId = cHostPlace->second.WorldSpaceId;
+    travel.Position = cRecord.Position;
+    travel.Heading = cRecord.Rotation.y;
+    m_network.Send(aPlayer, travel, Net::kReliable);
+    spdlog::info("HostCharacters: {:x} joined away from the host: sent to {:x}:{:x}", aPlayer, travel.CellId.ModId,
+                 travel.CellId.BaseId);
+}
+
+void HostCharacters::SendHostActors(ConnectionId_t aPlayer) noexcept
+{
+    const size_t cCount = SendHostSpawns(aPlayer, PlayerCharacterOf(m_players.Host()));
+    spdlog::info("HostCharacters: sent {:x} the host's {} actors where it arrived", aPlayer, cCount);
+}
+
+size_t HostCharacters::SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcludedSessionId) noexcept
+{
+    const auto cSpawns = m_game.OwnSpawns(aExcludedSessionId);
+    for (const auto& cSpawn : cSpawns)
         m_network.Send(aPlayer, cSpawn);
-        ++count;
-    }
-    spdlog::info("HostCharacters: sent {:x} the host's {} actors where it arrived", aPlayer, count);
+    const ConnectionId_t cHost = m_players.Host();
+    for (auto& [cSessionId, character] : m_characters)
+        if (character.Owner == cHost && !character.Moved && !character.PlayerRecord &&
+            std::ranges::none_of(cSpawns, [cSessionId](const auto& acSpawn) { return acSpawn.SessionId == cSessionId; }))
+            character.Waiting.push_back(aPlayer);
+    return cSpawns.size();
 }
 
 HostCharacters::Place HostCharacters::PlaceOf(GameId aCellId, GameId aWorldSpaceId) noexcept
@@ -337,15 +373,10 @@ std::optional<NotifyCharacterSpawn> HostCharacters::BuildSpawn(uint32_t aSession
     return std::nullopt;
 }
 
-void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) const noexcept
+void HostCharacters::SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
-    uint32_t count = 0;
-    for (const auto& cSpawn : m_game.OwnSpawns(aOwnSessionId))
-    {
-        m_network.Send(aPlayer, cSpawn);
-        ++count;
-    }
+    size_t count = SendHostSpawns(aPlayer, aOwnSessionId);
     for (const auto& [cSessionId, cCharacter] : m_characters)
     {
         if (cSessionId == aOwnSessionId || cCharacter.Owner == cHost || !cCharacter.PlayerRecord || !WithHost(cCharacter.Owner))

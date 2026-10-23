@@ -340,6 +340,38 @@ TEST_CASE("Arriving: a peer ahead of the host gets the host's actors when the ho
     (void)cPeerPlayer;
 }
 
+TEST_CASE("Arriving: an actor the host's game announced but does not own yet reaches the arriving player once it does",
+          "[Bridge][Characters]")
+{
+    Session session;
+    BothInQASmoke(session);
+    session.Receive(kHost, Arrival(0x200, 0, {}, EnterCellRequest::Travel::kOwn));
+    session.Outbox.clear();
+
+    // The host's game announces two NPCs while the peer is on its way; its spawns lack them until it handles the
+    // answers, on its next update.
+    const uint32_t cNpc = session.Character(kHost);
+    const uint32_t cGone = session.Character(kHost);
+    session.Receive(kPeer, Arrival(0x200, 0, {}, EnterCellRequest::Travel::kTether));
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kPeer).empty());
+
+    // It owns the first and moves it: the peer gets it then, once. The other went before (its removal): nothing.
+    NotifyCharacterSpawn npc;
+    npc.SessionId = cNpc;
+    session.Spawns.push_back(npc);
+    RequestRemoveCharacter removal;
+    removal.SessionId = cGone;
+    session.Receive(kHost, removal);
+    session.Outbox.clear();
+    ReferencesMoveRequest moved;
+    moved.Updates[cNpc] = {};
+    session.Receive(kHost, moved);
+    session.Receive(kHost, moved);
+    const auto cToPeer = session.SentTo<NotifyCharacterSpawn>(kPeer);
+    REQUIRE(cToPeer.size() == 1);
+    CHECK(cToPeer[0]->SessionId == cNpc);
+}
+
 TEST_CASE("Party tether: a player's own travel takes everyone else along, the host too", "[Bridge][Characters]")
 {
     Session session;
@@ -368,6 +400,35 @@ TEST_CASE("Party tether: a player's own travel takes everyone else along, the ho
         CHECK(cTravels[0]->CellId == GameId(0, 0x200));
         CHECK(!cTravels[0]->WorldSpaceId);
     }
+}
+
+TEST_CASE("Party tether: a player joining away from the host is sent to it", "[Bridge][Characters]")
+{
+    Session session;
+    AssignCharacterRequest host;
+    host.Cookie = 1;
+    host.ReferenceId = GameId(0, 0x14);
+    host.CellId = GameId(0, 0x32AE7);
+    host.Position = glm::vec3(1.f, 2.f, 3.f);
+    host.Rotation.y = 0.5f;
+    session.Receive(kHost, host);
+
+    // One joins in Riverwood: it is sent to the host's player in QASmoke, facing the way it does.
+    AssignCharacterRequest away = host;
+    away.CellId = GameId(0, 0x9732);
+    away.WorldSpaceId = GameId(0, 0x3C);
+    session.Receive(kPeer, away);
+    const auto cTravels = session.SentTo<NotifyPartyTravel>(kPeer);
+    REQUIRE(cTravels.size() == 1);
+    CHECK(cTravels[0]->CellId == GameId(0, 0x32AE7));
+    CHECK(!cTravels[0]->WorldSpaceId);
+    CHECK(cTravels[0]->Position == glm::vec3(1.f, 2.f, 3.f));
+    CHECK(cTravels[0]->Heading == Approx(0.5f).margin(0.001f)); // quantized on the wire
+    CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
+
+    // One joining where the host is stays.
+    session.Receive(kOtherPeer, host);
+    CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
 }
 
 TEST_CASE("Party tether: a follower's arrival takes nobody along", "[Bridge][Characters]")

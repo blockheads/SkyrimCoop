@@ -1163,6 +1163,10 @@ std::vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t 
         const uint32_t cSessionId = m_world.get<LocalComponent>(cEntity).Id;
         if (cSessionId == aExcludedSessionId)
             continue;
+        // An NPC whose cell just unloaded is gone (discovery drops it on its next update).
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        if (cFormId != m_playerBridge.GetPlayerFormId() && !m_actorBridge.ActorHas3D(cFormId))
+            continue;
         if (const auto cAssignment = BuildAssignment(cEntity))
             spawns.push_back(NotifyCharacterSpawn::FromAssignment(*cAssignment, cSessionId, m_transport.GetLocalPlayerId()));
     }

@@ -38,7 +38,8 @@ Skyrim's scenarios are not in it.
 - `ClientTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
 - `BridgeTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (115 cases)
 - `TPTests`: build 1.9 s; run under 0.01 s
-- `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 2.1 s (11 flows, 2-3 games each)
+- `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 7.7 s (23 flows, 2-3 games each;
+  8 s with the duo running), 0.9 s of it each death flow (the services' real-time timers)
 - Duo boot (`stop`, then `duo --keep-running`): 22.6 s, both games connected and the baseline recorded
 - `reload` (swap a rebuild into the running duo): 2.2 s
 - One scenario (`cutscene-controls-reach-party`): 1.6 s, 2.6 s with the command's start
@@ -79,12 +80,13 @@ Scripts that edit and build in a loop wait a second first.
 ## Tier 2: integration
 
 - **For:** whole games in-process (the real client services and the host's rules) against a fake engine, 2-4
-  games, given/when/then flows. The checksum is `Party::Differences()`: every reference in a cell two games have
-  loaded is the same.
+  games, given/when/then flows. Two checksums: `Party::Differences()` (every reference in a cell two games have
+  loaded is the same) and `Party::Agree()` (the games agree on every actor, below).
 - **Where:** `Code/tests/games/` (`GameTests`).
 - **Run:** `scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests`
-- **When:** every change. **Budget:** seconds. Today: build 2.5-4.5 s (one service), run 2.1 s for 11 flows.
-  Most of the run is enet's loopback handshakes and `Net::Client::Close`'s 100 ms wait per leave.
+- **When:** every change. **Budget:** seconds. Today: build 2.5-4.5 s (one service), run 7.7 s for 23 flows.
+  Most of the run is enet's loopback handshakes, `Net::Client::Close`'s 100 ms wait per leave, and the death
+  flows' waits on `ActorValueService`'s timers (250 ms death state, 500 ms before a copy dies).
 
 ```
 one process
@@ -93,17 +95,19 @@ one process
     World "Dovahkiin" (the host's game)    TransportService::ConnectLocal (in-process, as in Skyrim)
     World "Lydia" (a guest)                TransportService::Connect 127.0.0.1 (enet, as from another machine)
   each World (Seams.cpp): the services a flow needs, real
-    TransportService, CutsceneService, RunnerService, CharacterService, TravelService, ModSystem, HostService
+    TransportService, CutsceneService, RunnerService, CharacterService, TravelService, ActorValueService,
+    PlayerService, ModSystem, HostService
     (HostSeams.cpp: hosting as in Skyrim, its reads from the fake world and CharacterService);
     on a guest GuestWorldState (GuestSeams.cpp, as it joins)
     SkyrimBridge = FakeEngine: StillBridges (every bridge call answers nothing) + ControlMap's mask + a script VM
                    + the world's references (locks, containers' items, change records, loaded cells)
-                   + the actors (the player 0x14, NPCs its cells load, copies; temporary ids as placeatme's)
+                   + the actors (the player 0x14, placed and placeatme NPCs, copies; temporary ids reused;
+                     where, health, death, bleedout, enabled; respawn at a cell's COC marker)
   World::Get() is the game being stepped (Party::As)
 ```
 
 Real code in it: `TransportService`, `CutsceneService`, `RunnerService`, `CharacterService`, `TravelService`,
-`InterpolationSystem`, `ModSystem`, `GuestWorldState`, the script value conversions (`ScriptValues.cpp`) and
+`ActorValueService`, `PlayerService`, `InterpolationSystem`, `ModSystem`, `GuestWorldState`, the script value conversions (`ScriptValues.cpp`) and
 session ids (`SessionIds.cpp`), `HostNetwork`, `HostAuthority` and its rules (`HostWorldState` included),
 `PartyRules`, the encoding and the network. Fake (link seams, no production interface widened): `World`'s
 constructor (the services above, in the real order, destroyed first), `SkyrimBridge`, `RunningGame`,
@@ -133,6 +137,54 @@ that frame was dropped by `OnAssignCharacter` without telling the host, and the 
 Fixed (`CharacterService::OnAssignCharacter` sends `RequestRemoveCharacter` for it); without the fix the race case
 fails.
 
+The actor checksum, `Party::Agree()` (`ActorDifferences`): every actor a game owns in the session (its
+`LocalComponent`) has exactly one copy on every other game, flagged a copy, in the owner's cell within 64 units
+(`FollowOwner` leaves a copy that near where it is), dead or alive and enabled or disabled as the owner's actor; a
+guest's reference held for a host NPC that went (`HeldCopyComponent`) matches the host's reference the same way;
+no other actor anywhere is flagged a copy. It waits for agreement (copies trail their owner by the interpolation's
+300 ms) and fails listing what differs. The copy, travel and death flows end with it.
+
+The flows added with it (2026-10-23), each checked by breaking the line it covers (rebuilt, the flow fails,
+restored):
+
+- `copy_flows.cpp`, "the host's NPC goes away": a quest moves the host's placed Vilkas to an unloaded cell and the
+  guest's Vilkas follows there, held as a copy (without `FollowOwner`'s move, its hold, or `ReadWhereabouts`, it
+  fails); he comes back and is the host's copy again (without the spawn dropping the hold); he is disabled and so is
+  the guest's (without `DisableActor`); a placeatme guard walks out and its copy is deleted (without
+  `OnRemoveCharacter`'s delete).
+- `copy_flows.cpp`, late join: the host's game in the sinkhole with Aela and a dead guard, the guest's in QASmoke;
+  the guest joins, is brought to the party and gets every copy, the guard dead. It failed first: nothing brought a
+  guest joining elsewhere (the bug below). Without the pull, or the host's actors sent on its arrival, it fails.
+- `death_flows.cpp`: the host's player kills a guard; the copy shows its health at -100 and stays alive (deferred
+  kill), then dies with the owner's death state (without the relay, or `ApplyPendingDeathStates`' kill, it fails).
+  A guest's player takes a deadly hit, goes down (the session's death system makes it essential), gets up at
+  QASmoke's COC marker after `PlayerService`'s 5 s, and the host spawns its copy again (without
+  `PlayerRespawnRequest`, or the copy's `RequestRespawn`, it fails). Tier 2 has no animation replay, so the copy
+  never goes down itself; the check is that it is a new actor (`FakeEngine::Actor::Made`, a fresh extension in
+  Skyrim), as the respawn is what ends a copy's replayed bleedout there.
+- `travel_flows.cpp`: a placed NPC stays with its cell, held as a copy, when the host leads away, and when the guest
+  leads (its arrival drops its copies first; without `CancelServerAssignment`'s hold it fails), and is the host's
+  copy again on the party's return; an NPC the host's game loads in the frame a following guest's arrival reaches
+  the host's rules (stepped one game at a time, `Party::Step`) reaches the guest. Without `SetActorPersistent` on
+  players' copies the host-travels flow fails (the fake deletes a created actor with its cell).
+
+Bugs they found, each fixed with the flow failing without the fix (and a `BridgeTests` case for the host's rules):
+
+1. **A guest joining away from the host stayed there** (the known gap "neither pulled nor pulls"):
+   `HostCharacters::OnAssignCharacter` now sends a player whose game announces itself elsewhere a
+   `NotifyPartyTravel` to the host's player (`BringToParty`), and the tether does the rest.
+2. **An NPC the host's game announced as a following guest arrived never reached it.** The announcement skips a
+   player not with the host; its arrival sends the host's actors from the host's game, which handles its answer
+   only on its next update, so one announced in that frame was in neither. Now a host actor its game has not moved
+   yet keeps the players that arrived meanwhile, and its first movement sends them its spawn.
+3. **A guest that led got spawns of what the host left behind.** The host's arrival sends the players ahead of it
+   the host's actors in the same frame, before discovery drops the NPCs of the cell it left; a placed NPC's spawn
+   re-flagged the guest's held reference, a placeatme NPC's made a copy in the guest's cell at the old cell's
+   position. `BuildSpawnRequests` skips an NPC with no 3D now.
+4. **Statics shared by the two games:** `ActorValueService`'s four send timers (the guest's sends took the host's
+   turn, so the host's NPC's health and death never went out) and `PlayerService`'s respawn flag (the host, not
+   down, cleared it every frame, so a guest's respawn never came). Members now.
+
 The travel flows (`travel_flows.cpp`): the host travels and the guest follows (the tether), the players' copies
 coming along; a guest travels and the host and the other guest follow; an NPC stays with its cell when the party
 leaves it, and one loading where the party is now gets a copy there. The check is that every game sees the party
@@ -150,12 +202,26 @@ a form's being in this game is `IFormBridge::FormExists`); `ModSystem` reads the
 and `GuestWorldState`, three header changes:
 `Papyrus/PartyNatives.h` has no engine types (its `Scope` moved to `PartyNativesScope.h`), the script value
 conversions moved out of `Utils.h` into `ScriptValues.h`, and `GuestEngine.h` no longer includes
-`Papyrus/GlobalCall.h` (it names the callback's `std::function` itself).
+`Papyrus/GlobalCall.h` (it names the callback's `std::function` itself). `ActorValueService` includes
+`SessionIds.h` in place of `Utils.h` (the session-id lookups were all it used).
 
 What the fake world assumes, from the engine (`docs/design/world-state-sync.md`): a cell's references are in
 memory once it loaded and stay after it unloads, so a change to a cell a guest never loaded cannot apply there; a
 guest's game raises its player's lock and container changes as events and applies the host's without raising
 any; the host's game records each change it takes as its own.
+
+What the fake's actors assume (each to check in Skyrim unless marked measured):
+
+- An actor `Actor::Create` made (a copy) is deleted with its cell unless persistent, and its form id goes to the
+  next reference made (measured: `docs/re/crashes/2026-10-14-reused-copy-form-id.md`). A placeatme NPC stays in its
+  unloaded cell (not measured).
+- A copy at or below 0 health neither dies nor goes down (measured: actor-ai-and-copies.md, "A copy is in deferred
+  kill"); a non-copy dies at 0 health, or goes down if essential (`SetPlayerRespawnMode`).
+- `PlayerCharacter::RespawnPlayer` in an interior ends the bleedout, restores health and moves the player to the
+  cell's COC marker, a travel the engine reports (`ConsumeTeleported`), so a respawning guest's arrival leads
+  (`kOwn`) and the others, in the same interior, stay (read from our `RespawnPlayer`; not measured).
+- `DisableActor` takes 3D away (out of the process lists); `ApplyRemoteMovement` puts the actor at the position.
+- An NPC placed in the plugins is in every game, its 3D loaded while its cell is.
 
 ### What Skyrim taught the fake
 
@@ -170,8 +236,8 @@ The first fake had movement as `0x1` only.
 
 ### Growing it: blockers, and the size of each
 
-Today 12 of the 26 service files build natively (`CharacterService`, `CommandService`, `CutsceneService`,
-`GuestWorldState`, `MapService`, `PlayerService`, `RunnerService`, `SessionService`, `TimeScaleService`,
+Today 13 of the 26 service files build natively (`ActorValueService`, `CharacterService`, `CommandService`,
+`CutsceneService`, `GuestWorldState`, `MapService`, `PlayerService`, `RunnerService`, `SessionService`, `TimeScaleService`,
 `TransportService`, `TravelService`, and `ModSystem` among the systems). What stopped the rest, first error each
 (`CharacterService` was only three unused or misplaced includes):
 
@@ -179,7 +245,7 @@ Today 12 of the 26 service files build natively (`CharacterService`, `CommandSer
    `HostService`): `Games/Primitives.h` fails its own `static_assert` (`sizeof(NiRefObject)`), as
    it should: the engine's layout is the MSVC ABI's (`long` is 4 bytes there, 8 on Linux). They can never build
    natively; their engine calls go behind a bridge first. Large: one service at a time, as a flow needs it.
-2. **`VersionDb.h` / `intrin.h` through the Papyrus and engine helpers** (`ActorValueService`, `AiStateService`,
+2. **`VersionDb.h` / `intrin.h` through the Papyrus and engine helpers** (`AiStateService`,
    `DialogueService`, `EffectVisualsService`, `PapyrusService`, every `Guest/` service, `GuestService`): Address
    Library pointers and intrinsics, reached through headers like `Utils.h` and `Papyrus/*.h`. Medium: often only
    a header that declares too much (as `PartyNatives.h` and `Utils.h` did); split the declarations a service uses
@@ -188,8 +254,9 @@ Today 12 of the 26 service files build natively (`CharacterService`, `CommandSer
    time in `Seams.cpp` / `FakeEngine.cpp`. Small each; keep each fake as thin as its glue.
 4. **`HostService`'s hosting**: done as a seam (`HostSeams.cpp`). Splitting the real one (network, authority and
    `HostGame` from bridges, apart from `HostEngine`'s reads) would put its wiring under test too. Medium.
-5. **The checksum:** `Party::Differences()` compares the fake worlds' references (locks, items). It grows with the
-   fake: doors' open state, enabled, globals and quests next.
+5. **The checksums:** `Party::Differences()` compares the fake worlds' references (locks, items), `Party::Agree()`
+   their actors (cell, position, dead, enabled, copy flag). They grow with the fake: doors' open state, enabled,
+   globals and quests next; an actor's values, bleedout and AI state once a flow needs them.
 6. **One `World` per game in one process:** handled. `World::Get()` is the game being stepped; the fake engine's
    state is per game. Real glue keeps module statics (`PartyNatives`' holds), which is fine because the fake
    replaces the glue, but pure rules must be instance state (`ControlHolds` is).
@@ -229,11 +296,32 @@ The shared specs in section (c) register automatically as `spec:<name>`, tagged 
 changing shared data selects the `spec` tag, while changes to the fake's runner still stay in tiers 1-2. Run
 `python3 scripts/coop_specs.py` or `coop_test.py scenario --tag spec` to check the same contracts in Skyrim.
 
+The four cutscene twins and `lock-reaches-others` now run only as shared specs. Their old Python functions and
+registry entries are retired; the two leaving/control specs retain the `session` tag as well as `scripts`.
+`chest-take-reaches-others` is retired as a name, but its unique UI checks remain as `chest-take-all`: both players
+use the container menu's Take All, items reach the acting player and its copy, and the other game's menu and
+own player inventory stay unchanged. The chest spec covers count changes/proposals without driving that UI,
+so it does not replace this input/ownership contract.
+
+The retained UI check found a real distinction on pinned build `ff3bad3f7834`: when the host took the chest,
+the guest's `ContainerMenu` opened (the guest-to-host direction did not). The named test failed in 7.8 s while
+all six count/lock/cutscene specs passed again. This remains an activation/UI isolation handoff; the test keeps
+the assertion and closes any container menu during cleanup so the failure does not contaminate later cases.
+
 Validated 2026-10-23 on the running duo: `guest-spawns-no-critters` (6.7 s), `weather-follows-host` (14.2 s), the
 25 hand-written `world` scenarios (241.3 s), and the 24 hand-written `scripts` scenarios (185.7 s), all passing.
 The six shared specs then present also passed in Skyrim (21.5 s), including all four cutscene contracts and the
 new lock/container contracts. Deliberate rain, date/hour, maximum-health and depleted-stamina drift reset in
 1.16 s in one application of the fixture, with both games checked afterward.
+
+A later full check pinned DLL `ff3bad3f7834` and verified each game's active generation by SHA256 (hot reload's
+retained old mappings are not proof of the active build). Its captured ModSystem, Utils and CharacterService
+sources match `0e6ade88`. All 41 spawn-tag cases passed within the full run; the full run passed 137/138 in
+1100.9 s, or 1168.9 s including its fresh boot. `firebolt-client-hits-host-npc` failed the final checksum: the
+owner's cached `JumpLand` fields differed from its copy's zero fields, after the spell/health checks had passed.
+This remains C++ regression work for tiers 1-2, not a green full suite. Evidence and the exact source hashes are in
+`build/coop-test/validation/pinned-ff3bad3f7834/`. Later ActorValue/Player/HostCharacters work in the shared tree
+was not silently substituted into that run.
 
 ## Tier 4: soak
 
@@ -244,8 +332,9 @@ new lock/container contracts. Deliberate rain, date/hour, maximum-health and dep
   runs the full suite, including input, restart scenarios and shared specs. `--tag scripts --rounds 2` is a smoke
   test of the soak runner, not evidence that the full suite soaked. `--dry-run` inspects scope without games.
 - **When:** before a release, unattended. **Budget:** hours.
-- **Cost:** the measured 132-scenario suite takes over 10 minutes, plus roughly 23 seconds for each fresh boot;
-  a full round therefore exceeds 10.4 minutes, before additional shared specs and recording overhead.
+- **Cost:** the older 132-scenario suite exceeded 10 minutes. The later explicit 138-case pinned run (input,
+  restart and six specs included) took 1100.9 s for scenarios and 1168.9 s with its fresh boot: budget roughly
+  20 minutes at that scope. The retirement removes five duplicate bodies; cold boots can still add minutes.
 
 ## How a feature moves down the tiers
 
