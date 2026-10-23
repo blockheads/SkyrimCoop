@@ -24,11 +24,11 @@ CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::
     , m_actorBridge(aActorBridge)
     , m_playerBridge(aPlayerBridge)
 {
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&CombatService::OnUpdate>(this);
-    m_hitConnection = aDispatcher.sink<HitEvent>().connect<&CombatService::OnHitEvent>(this);
-    m_localComponentRemoved = m_world.on_destroy<LocalComponent>().connect<&CombatService::OnLocalComponentRemoved>(this);
-    m_projectileLaunchedConnection = aDispatcher.sink<ProjectileLaunchedEvent>().connect<&CombatService::OnProjectileLaunchedEvent>(this);
-    m_projectileLaunchConnection = aDispatcher.sink<NotifyProjectileLaunch>().connect<&CombatService::OnNotifyProjectileLaunch>(this);
+    Listen<UpdateEvent, &CombatService::OnUpdate>(m_connections, aDispatcher, this);
+    Listen<HitEvent, &CombatService::OnHitEvent>(m_connections, aDispatcher, this);
+    Listen<&CombatService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<ProjectileLaunchedEvent, &CombatService::OnProjectileLaunchedEvent>(m_connections, aDispatcher, this);
+    Listen<NotifyProjectileLaunch, &CombatService::OnNotifyProjectileLaunch>(m_connections, aDispatcher, this);
 }
 
 void CombatService::OnUpdate(const UpdateEvent& acEvent) noexcept

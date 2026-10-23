@@ -71,7 +71,7 @@ game_tests() {
 }
 
 echo "check: tiers 1-2"
-for target in ClientTests BridgeTests TPTests GameTests; do
+for target in ClientTests HostAuthorityTests TPTests GameTests; do
     step "build $target" scripts/xmake-linux.sh build -j8 "$target"
     [[ " ${FAILED[*]-} " == *" build $target "* ]] && continue
     if [[ $target == GameTests ]]; then

@@ -64,16 +64,8 @@ static Hooks::Initializer s_mainHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TMainLoop, cMainLoop, 36564);
-        POINTER_SKYRIMSE(TVMUpdate, cVMUpdate, 53926);
-        POINTER_SKYRIMSE(TVMDestructor, cVMDestructor, 40412);
-
-        VMUpdate = cVMUpdate.Get();
-        MainLoop = cMainLoop.Get();
-        VMDestructor = cVMDestructor.Get();
-
-        HOOK(&VMUpdate, HookVMUpdate);
-        HOOK(&MainLoop, HookMainLoop);
-        HOOK(&VMDestructor, HookVMDestructor);
+        HOOK_ID(53926, &VMUpdate, HookVMUpdate);
+        HOOK_ID(36564, &MainLoop, HookMainLoop);
+        HOOK_ID(40412, &VMDestructor, HookVMDestructor);
     });
 

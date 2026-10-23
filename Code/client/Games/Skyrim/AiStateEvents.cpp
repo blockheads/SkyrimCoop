@@ -100,12 +100,8 @@ Hooks::Initializer s_aiStateHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetCombatTarget, s_setCombatTarget, 33235);
-        POINTER_SKYRIMSE(TUpdatePlayerInCombat, s_updatePlayerInCombat, 41238);
-        RealSetCombatTarget = s_setCombatTarget.Get();
-        RealUpdatePlayerInCombat = s_updatePlayerInCombat.Get();
-        HOOK(&RealSetCombatTarget, HookSetCombatTarget);
-        HOOK(&RealUpdatePlayerInCombat, HookUpdatePlayerInCombat);
+        HOOK_ID(33235, &RealSetCombatTarget, HookSetCombatTarget);
+        HOOK_ID(41238, &RealUpdatePlayerInCombat, HookUpdatePlayerInCombat);
     });
 } // namespace
 

@@ -30,9 +30,5 @@ static Hooks::Initializer s_invisibilityEffectsHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TFinish, s_finish, 34370);
-
-        RealFinish = s_finish.Get();
-
-        HOOK(&RealFinish, HookFinish);
+        HOOK_ID(34370, &RealFinish, HookFinish);
     });

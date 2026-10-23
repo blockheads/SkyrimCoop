@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 struct World;
@@ -33,9 +34,5 @@ private:
     World& m_world;
     TransportService& m_transport;
 
-    entt::scoped_connection m_connectedConnection;
-    entt::scoped_connection m_disconnectedConnection;
-    entt::scoped_connection m_partyNativeConnection;
-    entt::scoped_connection m_notifyConnection;
-    entt::scoped_connection m_playerLeftConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

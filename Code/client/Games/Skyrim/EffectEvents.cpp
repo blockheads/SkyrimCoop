@@ -69,12 +69,8 @@ Hooks::Initializer s_effectHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TActiveEffectVisuals, s_startHitEffects, 34094);
-        POINTER_SKYRIMSE(TActiveEffectVisuals, s_stopHitEffects, 34050);
-        RealStartHitEffects = s_startHitEffects.Get();
-        RealStopHitEffects = s_stopHitEffects.Get();
-        HOOK(&RealStartHitEffects, HookStartHitEffects);
-        HOOK(&RealStopHitEffects, HookStopHitEffects);
+        HOOK_ID(34094, &RealStartHitEffects, HookStartHitEffects);
+        HOOK_ID(34050, &RealStopHitEffects, HookStopHitEffects);
     });
 } // namespace
 

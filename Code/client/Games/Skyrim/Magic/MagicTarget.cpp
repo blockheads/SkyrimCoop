@@ -245,24 +245,14 @@ uint8_t HookGetPerkRank(Actor* apThis, TESForm* apPerk)
 
 static Hooks::Initializer s_magicTargetHooks([]() {
     const HookGate cGate(__FILE__);
-    POINTER_SKYRIMSE(TAddTarget, addTarget, 34526);
-    POINTER_SKYRIMSE(TCheckAddEffectTargetData, checkAddEffectTargetData, 34525);
-    POINTER_SKYRIMSE(TFindTargets, findTargets, 34410);
-    POINTER_SKYRIMSE(TAdjustForPerks, adjustForPerks, 34053);
-    POINTER_SKYRIMSE(THasPerk, hasPerk, 21622);
     POINTER_SKYRIMSE(TGetPerkRank, getPerkRank, 37698);
 
-    RealAddTarget = addTarget.Get();
-    RealCheckAddEffectTargetData = checkAddEffectTargetData.Get();
-    RealFindTargets = findTargets.Get();
-    RealAdjustForPerks = adjustForPerks.Get();
-    RealHasPerk = hasPerk.Get();
     RealGetPerkRank = getPerkRank.Get();
 
-    HOOK(&RealAddTarget, HookAddTarget);
-    HOOK(&RealCheckAddEffectTargetData, HookCheckAddEffectTargetData);
-    HOOK(&RealFindTargets, HookFindTargets);
-    HOOK(&RealAdjustForPerks, HookAdjustForPerks);
-    HOOK(&RealHasPerk, HookHasPerk);
+    HOOK_ID(34526, &RealAddTarget, HookAddTarget);
+    HOOK_ID(34525, &RealCheckAddEffectTargetData, HookCheckAddEffectTargetData);
+    HOOK_ID(34410, &RealFindTargets, HookFindTargets);
+    HOOK_ID(34053, &RealAdjustForPerks, HookAdjustForPerks);
+    HOOK_ID(21622, &RealHasPerk, HookHasPerk);
     //HOOK(&RealGetPerkRank, HookGetPerkRank);
 });

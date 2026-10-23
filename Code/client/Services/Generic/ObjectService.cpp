@@ -22,8 +22,8 @@ ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     , m_formBridge(aFormBridge)
     , m_actorBridge(aActorBridge)
 {
-    m_onActivateConnection = aDispatcher.sink<ActivateEvent>().connect<&ObjectService::OnActivate>(this);
-    m_activateConnection = aDispatcher.sink<NotifyActivate>().connect<&ObjectService::OnActivateNotify>(this);
+    Listen<ActivateEvent, &ObjectService::OnActivate>(m_connections, aDispatcher, this);
+    Listen<NotifyActivate, &ObjectService::OnActivateNotify>(m_connections, aDispatcher, this);
 }
 
 void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept

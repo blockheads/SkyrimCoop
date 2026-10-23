@@ -151,12 +151,13 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 - ~~One template for relayed messages~~ (done 2026-10-23, progress.md "Test suite"). Left: the three payload
   messages with fields or bytes of their own (`NotifyPartyNative`, `PlayerNativeResultRequest`,
   `NotifyPlayerNativeResult`) stay structs; a new message's header is still included in its factory by hand.
-- **One line per hook** (2026-10-22). 127 hooks repeat `POINTER_SKYRIMSE`, `Real = .Get()` and `HOOK` in their
-  initializer, plus a function-pointer global each. A helper (`Hook<ID>(&Real, &HookFn)`) makes it one line; the
-  signature check against the community name and IDA stays. When a file is touched anyway.
-- **Event connections without a member each** (2026-10-22). 109 `entt::scoped_connection` members, each with its
-  connect line (`DialogueService` has 7). A `std::vector<entt::scoped_connection>` filled by one
-  `Listen<&T::OnX>()` helper drops the members. When a file is touched anyway.
+- ~~One line per hook~~ (done 2026-10-23). `HOOK_ID(ID, &Real, HookFn)` replaces 122 initializer triples;
+  a thin macro supplies the breadcrumb name to `Hooks::Hook`, and `HOOK_ID_IMMEDIATE` selects immediate
+  installation. All verified function types and globals stay, including originals called outside their hooks.
+  Left unchanged: 24 installs with setup in between, reused relocation names or another target form (listed in
+  progress.md, "Test suite"). IAT, vtable and raw patches stay as they were.
+- ~~Event connections without a member each~~ (done 2026-10-23, progress.md "Test suite"): `Events/Listen.h`, 123
+  connections in 26 vectors.
 - **Events over polling** (user, 2026-10-22: "we always want to use events over polling if possible"). Discrete
   state should go out when an engine event or hook says it changed, not from a timer that re-reads it.
   Continuous state (movement, animation variables) on the tick is fine. What each engine event covers and misses:
@@ -189,10 +190,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
     switches, the player's combat flag), `EffectVisualsService`, `PlayerService` race and level, `CharacterService`
     factions and experience (progress.md, "Events over polling").
 
-- **Rename `BridgeTests` to `HostAuthorityTests`** (2026-10-20). `HostBridge` became `HostAuthority`, but
-  its tests are still the `BridgeTests` target in `Code/tests/bridge/` (`[Bridge]` tags, `BridgeTest`
-  namespace). Rename the target, folder and tags together with every doc and script that names them
-  (`CLAUDE.md`, `progress.md`, the design docs).
+- ~~Rename `BridgeTests` to `HostAuthorityTests`~~ (done 2026-10-23, progress.md "Test suite").
 - ~~One call for a form's session id~~ (done 2026-10-23 as no translation at all, progress.md "Test suite"). Left:
   `AnimationSystem::Serialize` maps an action's form and target only to drop an action on a created form, and
   sends neither.
@@ -231,7 +229,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   services-only target that never compiled and `SkyrimBridge`'s recording were deleted 2026-10-20. Today
   each interface is a second copy of every declaration with one implementation.
   - The plan: services hold the concrete bridge; a service with logic worth testing headless gets a narrow
-    seam of its own where it needs one (callbacks, as `HostGame` gives the bridge's rules to `BridgeTests`),
+    seam of its own where it needs one (callbacks, as `HostGame` gives the bridge's rules to `HostAuthorityTests`),
     not a fake of the whole engine. If `SkyrimBridge` (~1700 lines, every area) is too big to hold whole, split
     it into concrete per-area classes (`ActorBridge`, `WorldBridge`...) without the virtual layer.
   - What it costs: a fake engine for services is no longer an option (nobody uses one); an edit to the bridge's

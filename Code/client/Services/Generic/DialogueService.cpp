@@ -15,11 +15,11 @@ DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, T
     , m_transport(aTransport)
     , m_bridge(aBridge)
 {
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&DialogueService::OnUpdate>(this);
-    m_disconnectConnection = aDispatcher.sink<DisconnectedEvent>().connect<&DialogueService::OnDisconnected>(this);
-    m_openConnection = aDispatcher.sink<NotifyDialogueOpen>().connect<&DialogueService::OnOpen>(this);
-    m_pickedConnection = aDispatcher.sink<NotifyDialoguePicked>().connect<&DialogueService::OnPicked>(this);
-    m_closedConnection = aDispatcher.sink<NotifyDialogueClosed>().connect<&DialogueService::OnClosed>(this);
+    Listen<UpdateEvent, &DialogueService::OnUpdate>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &DialogueService::OnDisconnected>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueOpen, &DialogueService::OnOpen>(m_connections, aDispatcher, this);
+    Listen<NotifyDialoguePicked, &DialogueService::OnPicked>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueClosed, &DialogueService::OnClosed>(m_connections, aDispatcher, this);
 }
 
 DialogueService::~DialogueService() noexcept

@@ -15,11 +15,11 @@ CutsceneService::CutsceneService(World& aWorld, entt::dispatcher& aDispatcher, T
     : m_world(aWorld)
     , m_transport(aTransport)
 {
-    m_connectedConnection = aDispatcher.sink<ConnectedEvent>().connect<&CutsceneService::OnConnected>(this);
-    m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&CutsceneService::OnDisconnected>(this);
-    m_partyNativeConnection = aDispatcher.sink<PartyNativeEvent>().connect<&CutsceneService::OnPartyNative>(this);
-    m_notifyConnection = aDispatcher.sink<NotifyPartyNative>().connect<&CutsceneService::OnNotifyPartyNative>(this);
-    m_playerLeftConnection = aDispatcher.sink<NotifyPlayerLeft>().connect<&CutsceneService::OnPlayerLeft>(this);
+    Listen<ConnectedEvent, &CutsceneService::OnConnected>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &CutsceneService::OnDisconnected>(m_connections, aDispatcher, this);
+    Listen<PartyNativeEvent, &CutsceneService::OnPartyNative>(m_connections, aDispatcher, this);
+    Listen<NotifyPartyNative, &CutsceneService::OnNotifyPartyNative>(m_connections, aDispatcher, this);
+    Listen<NotifyPlayerLeft, &CutsceneService::OnPlayerLeft>(m_connections, aDispatcher, this);
 }
 
 void CutsceneService::OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept

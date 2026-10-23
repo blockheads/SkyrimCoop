@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
 
@@ -47,9 +48,5 @@ private:
     };
     std::unordered_map<uint32_t, RecentHit> m_recentHits;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_localComponentRemoved;
-    entt::scoped_connection m_projectileLaunchedConnection;
-    entt::scoped_connection m_projectileLaunchConnection;
-    entt::scoped_connection m_hitConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

@@ -240,7 +240,5 @@ static Hooks::Initializer s_questInitHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TQuestStageEventSink, s_questStageEventSink, 53987);
-        RealQuestStageEventSink = s_questStageEventSink.Get();
-        HOOK(&RealQuestStageEventSink, HookQuestStageEventSink);
+        HOOK_ID(53987, &RealQuestStageEventSink, HookQuestStageEventSink);
     });

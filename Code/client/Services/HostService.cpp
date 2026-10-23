@@ -27,13 +27,13 @@
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&HostService::OnUpdate>(this);
-    m_activateConnection = m_dispatcher.sink<ActivateEvent>().connect<&HostService::OnActivate>(this);
-    m_scriptAnimationConnection = m_dispatcher.sink<ScriptAnimationEvent>().connect<&HostService::OnScriptAnimation>(this);
-    m_containerChangeConnection = m_dispatcher.sink<ContainerChangeEvent>().connect<&HostService::OnContainerChange>(this);
-    m_playerNativeConnection = m_dispatcher.sink<PlayerNativeEvent>().connect<&HostService::OnPlayerNative>(this);
-    m_playerNativeResultConnection = m_dispatcher.sink<NotifyPlayerNativeResult>().connect<&HostService::OnPlayerNativeResult>(this);
-    m_worldCallConnection = m_dispatcher.sink<NotifyWorldCall>().connect<&HostService::OnWorldCall>(this);
+    Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<ActivateEvent, &HostService::OnActivate>(m_connections, m_dispatcher, this);
+    Listen<ScriptAnimationEvent, &HostService::OnScriptAnimation>(m_connections, m_dispatcher, this);
+    Listen<ContainerChangeEvent, &HostService::OnContainerChange>(m_connections, m_dispatcher, this);
+    Listen<PlayerNativeEvent, &HostService::OnPlayerNative>(m_connections, m_dispatcher, this);
+    Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
+    Listen<NotifyWorldCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
 }
 
 void HostService::OnActivate(const ActivateEvent& acEvent) noexcept

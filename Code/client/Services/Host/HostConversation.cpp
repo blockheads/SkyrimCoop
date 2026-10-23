@@ -12,7 +12,7 @@ HostConversation::HostConversation(World& aWorld, entt::dispatcher& aDispatcher,
     : m_world(aWorld)
     , m_dialogue(aDialogue)
 {
-    m_startConnection = aDispatcher.sink<NotifyDialogueStart>().connect<&HostConversation::OnStart>(this);
+    Listen<NotifyDialogueStart, &HostConversation::OnStart>(m_connections, aDispatcher, this);
     m_dialogue.SetRole(this);
 }
 

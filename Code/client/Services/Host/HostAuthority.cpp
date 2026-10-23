@@ -1,4 +1,4 @@
-// No game or client World here: tests build it with in-process games (Code/tests/bridge).
+// No game or client World here: tests build it with in-process games (Code/tests/host_authority).
 #include <Services/Host/HostAuthority.h>
 
 #include <Services/Host/HostNetwork.h>

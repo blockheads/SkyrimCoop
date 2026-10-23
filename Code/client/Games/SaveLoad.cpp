@@ -180,15 +180,7 @@ static Hooks::Initializer s_saveLoadHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TBGSLoadFormBuffer_ReadFormId, s_readFormId, 36000);
-        POINTER_SKYRIMSE(TBGSSaveFormBuffer_WriteFormId, s_writeFormId, 36048);
-        POINTER_SKYRIMSE(TBGSSaveFormBuffer_WriteId, s_writeId, 36047);
-
-        RealBGSLoadFormBuffer_ReadFormId = s_readFormId.Get();
-        RealBGSSaveFormBuffer_WriteFormId = s_writeFormId.Get();
-        RealBGSSaveFormBuffer_WriteId = s_writeId.Get();
-
-        HOOK(&RealBGSLoadFormBuffer_ReadFormId, BGSLoadFormBuffer_LoadFormId);
-        HOOK(&RealBGSSaveFormBuffer_WriteFormId, BGSSaveFormBuffer_WriteFormId);
-        HOOK(&RealBGSSaveFormBuffer_WriteId, BGSSaveFormBuffer_WriteId);
+        HOOK_ID(36000, &RealBGSLoadFormBuffer_ReadFormId, BGSLoadFormBuffer_LoadFormId);
+        HOOK_ID(36048, &RealBGSSaveFormBuffer_WriteFormId, BGSSaveFormBuffer_WriteFormId);
+        HOOK_ID(36047, &RealBGSSaveFormBuffer_WriteId, BGSSaveFormBuffer_WriteId);
     });

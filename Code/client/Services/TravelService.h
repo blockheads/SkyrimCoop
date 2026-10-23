@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Structs/GameId.h>
 
 #include <optional>
@@ -87,6 +88,5 @@ struct TravelService
     };
     std::optional<Stack> m_stack;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_partyTravelConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

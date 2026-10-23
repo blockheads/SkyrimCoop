@@ -90,15 +90,9 @@ void HookCompileAndRun(Script* apThis, void* apCompiler, uint32_t aCompilerName,
 Hooks::Initializer s_consoleOutputHooks(
     []()
     {
-        POINTER_SKYRIMSE(TVPrint, s_vprint, 51110);                 // ConsoleLog::VPrint
-        POINTER_SKYRIMSE(TRunQueued, s_runQueued, 442673);          // Console::RunQueuedCommands
-        POINTER_SKYRIMSE(TCompileAndRun, s_compileAndRun, 441582);  // Script::CompileAndRun_Impl
-        RealVPrint = s_vprint.Get();
-        RealRunQueued = s_runQueued.Get();
-        RealCompileAndRun = s_compileAndRun.Get();
-        HOOK(&RealVPrint, HookVPrint);
-        HOOK(&RealRunQueued, HookRunQueued);
-        HOOK(&RealCompileAndRun, HookCompileAndRun);
+        HOOK_ID(51110, &RealVPrint, HookVPrint); // ConsoleLog::VPrint
+        HOOK_ID(442673, &RealRunQueued, HookRunQueued); // Console::RunQueuedCommands
+        HOOK_ID(441582, &RealCompileAndRun, HookCompileAndRun); // Script::CompileAndRun_Impl
     });
 } // namespace
 

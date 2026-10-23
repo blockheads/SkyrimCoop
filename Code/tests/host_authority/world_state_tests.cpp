@@ -18,7 +18,7 @@ float ValueOf(const NotifyGlobals& acNotify, const GameId& acId)
 }
 } // namespace
 
-TEST_CASE("World state: a changed global reaches the others, not the host", "[Bridge][WorldState]")
+TEST_CASE("World state: a changed global reaches the others, not the host", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Globals = {{kFriendsCountRift, 0.f}, {kWEEnabled, 1.f}};
@@ -38,7 +38,7 @@ TEST_CASE("World state: a changed global reaches the others, not the host", "[Br
     CHECK(session.SentTo<NotifyGlobals>(kHost).empty());
 }
 
-TEST_CASE("World state: the clock's globals are never sent", "[Bridge][WorldState]")
+TEST_CASE("World state: the clock's globals are never sent", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Globals = {{kFriendsCountRift, 0.f}, {kGameHour, 10.f, true}, {kGameDaysPassed, 3.4f, true}};
@@ -62,7 +62,7 @@ TEST_CASE("World state: the clock's globals are never sent", "[Bridge][WorldStat
     CHECK(session.SentTo<NotifyGlobals>(kPeer)[0]->Values.size() == 1);
 }
 
-TEST_CASE("World state: an unchanged global is not sent again", "[Bridge][WorldState]")
+TEST_CASE("World state: an unchanged global is not sent again", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Globals = {{kFriendsCountRift, 0.f}, {kWEEnabled, std::numeric_limits<float>::quiet_NaN()}};
@@ -74,7 +74,7 @@ TEST_CASE("World state: an unchanged global is not sent again", "[Bridge][WorldS
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("World state: globals are compared a few times a second", "[Bridge][WorldState]")
+TEST_CASE("World state: globals are compared a few times a second", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Globals = {{kFriendsCountRift, 0.f}};
@@ -88,7 +88,7 @@ TEST_CASE("World state: globals are compared a few times a second", "[Bridge][Wo
     CHECK(session.SentTo<NotifyGlobals>(kPeer).size() == 1);
 }
 
-TEST_CASE("World state: a joining player gets every global", "[Bridge][WorldState]")
+TEST_CASE("World state: a joining player gets every global", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Globals = {{kFriendsCountRift, 3.f}, {kWEEnabled, 1.f}};
@@ -121,7 +121,7 @@ QuestState Quest(const GameId& acId, uint16_t aFlags, uint16_t aStage, std::vect
 }
 } // namespace
 
-TEST_CASE("World state: the first look sends every quest, as a load", "[Bridge][WorldState]")
+TEST_CASE("World state: the first look sends every quest, as a load", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Quests = {Quest(kCorneredRat, 0x1, 10, {5, 10}), Quest(kAlduinsWall, 0x0, 0)};
@@ -132,7 +132,7 @@ TEST_CASE("World state: the first look sends every quest, as a load", "[Bridge][
     CHECK(session.SentTo<NotifyQuests>(kHost).empty());
 }
 
-TEST_CASE("World state: a quest the host's game changes reaches the others, whole, as play", "[Bridge][WorldState]")
+TEST_CASE("World state: a quest the host's game changes reaches the others, whole, as play", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Quests = {Quest(kCorneredRat, 0x1, 10, {5, 10}), Quest(kAlduinsWall, 0x0, 0)};
@@ -158,7 +158,7 @@ TEST_CASE("World state: a quest the host's game changes reaches the others, whol
     CHECK(session.SentTo<NotifyQuests>(kPeer).empty());
 }
 
-TEST_CASE("World state: quests are compared twice a second", "[Bridge][WorldState]")
+TEST_CASE("World state: quests are compared twice a second", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Quests = {Quest(kAlduinsWall, 0x0, 0)};
@@ -172,7 +172,7 @@ TEST_CASE("World state: quests are compared twice a second", "[Bridge][WorldStat
     CHECK(session.SentTo<NotifyQuests>(kPeer).size() == 1);
 }
 
-TEST_CASE("World state: a joining player gets every quest, as a load", "[Bridge][WorldState]")
+TEST_CASE("World state: a joining player gets every quest, as a load", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Quests = {Quest(kCorneredRat, 0x3, 200, {5, 10, 200}), Quest(kAlduinsWall, 0x1, 10, {10})};
@@ -191,7 +191,7 @@ TEST_CASE("World state: a joining player gets every quest, as a load", "[Bridge]
     CHECK(session.SentTo<NotifyQuests>(kOtherPeer).empty());
 }
 
-TEST_CASE("World state: the host's world objects' changes reach the others in order, once", "[Bridge][WorldState]")
+TEST_CASE("World state: the host's world objects' changes reach the others in order, once", "[HostAuthority][WorldState]")
 {
     Session session;
     // The sword in the stone: the box goes, its manager opens the secret door, an animation plays; a chest
@@ -245,7 +245,7 @@ ObjectChange InnDoorLocked()
 }
 } // namespace
 
-TEST_CASE("World state: a guest's loaded cell gets the host's state there, that guest alone", "[Bridge][WorldState]")
+TEST_CASE("World state: a guest's loaded cell gets the host's state there, that guest alone", "[HostAuthority][WorldState]")
 {
     Session session;
     session.LoadedCells[kInn.BaseId] = {InnDoorLocked()};
@@ -262,7 +262,7 @@ TEST_CASE("World state: a guest's loaded cell gets the host's state there, that 
     CHECK(session.SentTo<NotifyObjectChanges>(kHost).empty());
 }
 
-TEST_CASE("World state: a cell with nothing changed is still answered", "[Bridge][WorldState]")
+TEST_CASE("World state: a cell with nothing changed is still answered", "[HostAuthority][WorldState]")
 {
     Session session;
     session.LoadedCells[kInn.BaseId] = {};
@@ -274,7 +274,7 @@ TEST_CASE("World state: a cell with nothing changed is still answered", "[Bridge
     CHECK(cSent[0]->Changes.empty());
 }
 
-TEST_CASE("World state: a guest's cell the host's game has not loaded is answered once it is", "[Bridge][WorldState]")
+TEST_CASE("World state: a guest's cell the host's game has not loaded is answered once it is", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Receive(kPeer, InnLoaded());
@@ -292,7 +292,7 @@ TEST_CASE("World state: a guest's cell the host's game has not loaded is answere
     CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
 }
 
-TEST_CASE("World state: a guest that leaves is not answered for the cells it waited for", "[Bridge][WorldState]")
+TEST_CASE("World state: a guest that leaves is not answered for the cells it waited for", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Receive(kPeer, InnLoaded());
@@ -303,7 +303,7 @@ TEST_CASE("World state: a guest that leaves is not answered for the cells it wai
     CHECK(session.SentTo<NotifyObjectChanges>(kPeer).empty());
 }
 
-TEST_CASE("World state: the host's own cells are not asked for", "[Bridge][WorldState]")
+TEST_CASE("World state: the host's own cells are not asked for", "[HostAuthority][WorldState]")
 {
     Session session;
     session.LoadedCells[kInn.BaseId] = {InnDoorLocked()};
@@ -311,7 +311,7 @@ TEST_CASE("World state: the host's own cells are not asked for", "[Bridge][World
     CHECK(session.SentTo<NotifyObjectChanges>(kHost).empty());
 }
 
-TEST_CASE("World state: a large cell's state goes in several messages", "[Bridge][WorldState]")
+TEST_CASE("World state: a large cell's state goes in several messages", "[HostAuthority][WorldState]")
 {
     Session session;
     std::vector<ObjectChange> state(1500, InnDoorLocked());

@@ -24,11 +24,11 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
     , m_transport(aTransport)
     , m_actorBridge(aActorBridge)
 {
-    m_changeConnection = aDispatcher.sink<AiStateChangeEvent>().connect<&AiStateService::OnAiStateChange>(this);
-    m_notifyConnection = aDispatcher.sink<NotifyAiState>().connect<&AiStateService::OnNotifyAiState>(this);
-    m_spawnConnection = aDispatcher.sink<NotifyCharacterSpawn>().connect<&AiStateService::OnCharacterSpawn>(this);
-    m_removeConnection = aDispatcher.sink<NotifyRemoveCharacter>().connect<&AiStateService::OnRemoveCharacter>(this);
-    m_disconnectConnection = aDispatcher.sink<DisconnectedEvent>().connect<&AiStateService::OnDisconnected>(this);
+    Listen<AiStateChangeEvent, &AiStateService::OnAiStateChange>(m_connections, aDispatcher, this);
+    Listen<NotifyAiState, &AiStateService::OnNotifyAiState>(m_connections, aDispatcher, this);
+    Listen<NotifyCharacterSpawn, &AiStateService::OnCharacterSpawn>(m_connections, aDispatcher, this);
+    Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
 }
 
 ActorAiState AiStateService::ReadState(uint32_t aFormId) const noexcept

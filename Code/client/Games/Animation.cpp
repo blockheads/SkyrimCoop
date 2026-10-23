@@ -248,16 +248,7 @@ static Hooks::Initializer s_animationHook(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TPerformAction, performAction, 38949);
-
-        POINTER_SKYRIMSE(TUpdateAnimationGraphs, updateAnimationGraphs, 20123);
-        POINTER_SKYRIMSE(TUpdateSynchronizedClip, updateSynchronizedClip, 63050); // BSSynchronizedClipGenerator::Update (vtable 5)
-
-        RealPerformAction = performAction.Get();
-        RealUpdateAnimationGraphs = updateAnimationGraphs.Get();
-
-        HOOK(&RealPerformAction, HookPerformAction);
-        RealUpdateSynchronizedClip = updateSynchronizedClip.Get();
-        HOOK(&RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
-        HOOK(&RealUpdateSynchronizedClip, HookUpdateSynchronizedClip);
+        HOOK_ID(38949, &RealPerformAction, HookPerformAction);
+        HOOK_ID(20123, &RealUpdateAnimationGraphs, HookUpdateAnimationGraphs);
+        HOOK_ID(63050, &RealUpdateSynchronizedClip, HookUpdateSynchronizedClip); // BSSynchronizedClipGenerator::Update (vtable 5)
     });

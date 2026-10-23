@@ -11,7 +11,7 @@ PlayerLevelRequest LevelUp(uint16_t aLevel)
 }
 } // namespace
 
-TEST_CASE("Player level: a level-up reaches everyone else under the player's id", "[Bridge][Player]")
+TEST_CASE("Player level: a level-up reaches everyone else under the player's id", "[HostAuthority][Player]")
 {
     Session session;
     const uint32_t cPeerId = session.PlayerId(kPeer);
@@ -27,7 +27,7 @@ TEST_CASE("Player level: a level-up reaches everyone else under the player's id"
     CHECK(session.SentTo<NotifyPlayerLevel>(kPeer).empty());
 }
 
-TEST_CASE("Player level: a player joining later sees each player's level as it is now", "[Bridge][Player]")
+TEST_CASE("Player level: a player joining later sees each player's level as it is now", "[HostAuthority][Player]")
 {
     Session session;
     const uint32_t cPeerId = session.PlayerId(kPeer);
@@ -49,7 +49,7 @@ TEST_CASE("Player level: a player joining later sees each player's level as it i
     CHECK(cAnnounced[0]->Level == 30);
 }
 
-TEST_CASE("Player level: level 0 is refused", "[Bridge][Player]")
+TEST_CASE("Player level: level 0 is refused", "[HostAuthority][Player]")
 {
     Session session;
     session.Receive(kPeer, LevelUp(0));

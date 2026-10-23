@@ -76,21 +76,11 @@ Hooks::Initializer s_factionHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TAddToFaction, s_addToFaction, 37686);
-        POINTER_SKYRIMSE(TRemoveFromFaction, s_removeFromFaction, 37688);
-        POINTER_SKYRIMSE(TSetFactionRank, s_setFactionRank, 37677);
-        POINTER_SKYRIMSE(TRemoveFromFaction, s_setCrimeFaction, 37381);
-        POINTER_SKYRIMSE(TRemoveFromAllFactions, s_removeFromAllFactions, 54735);
-        RealAddToFaction = s_addToFaction.Get();
-        RealRemoveFromFaction = s_removeFromFaction.Get();
-        RealSetFactionRank = s_setFactionRank.Get();
-        RealSetCrimeFaction = s_setCrimeFaction.Get();
-        RealRemoveFromAllFactions = s_removeFromAllFactions.Get();
-        HOOK(&RealAddToFaction, HookAddToFaction);
-        HOOK(&RealRemoveFromFaction, HookRemoveFromFaction);
-        HOOK(&RealSetFactionRank, HookSetFactionRank);
-        HOOK(&RealSetCrimeFaction, HookSetCrimeFaction);
-        HOOK(&RealRemoveFromAllFactions, HookRemoveFromAllFactions);
+        HOOK_ID(37686, &RealAddToFaction, HookAddToFaction);
+        HOOK_ID(37688, &RealRemoveFromFaction, HookRemoveFromFaction);
+        HOOK_ID(37677, &RealSetFactionRank, HookSetFactionRank);
+        HOOK_ID(37381, &RealSetCrimeFaction, HookSetCrimeFaction);
+        HOOK_ID(54735, &RealRemoveFromAllFactions, HookRemoveFromAllFactions);
     });
 } // namespace
 

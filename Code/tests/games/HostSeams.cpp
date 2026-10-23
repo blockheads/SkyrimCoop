@@ -26,7 +26,7 @@
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&HostService::OnUpdate>(this);
+    Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
 }
 
 HostService::~HostService() noexcept

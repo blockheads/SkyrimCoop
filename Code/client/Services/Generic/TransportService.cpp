@@ -34,10 +34,10 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     , m_formBridge(aWorld.ctx().at<IFormBridge&>())
     , m_worldBridge(aWorld.ctx().at<IWorldBridge&>())
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&TransportService::HandleUpdate>(this);
-    m_settingsChangeConnection = m_dispatcher.sink<NotifySettingsChange>().connect<&TransportService::HandleNotifySettingsChange>(this);
-    m_connectedConnection = m_dispatcher.sink<ConnectedEvent>().connect<&TransportService::HandleConnected>(this);
-    m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&TransportService::HandleDisconnected>(this);
+    Listen<UpdateEvent, &TransportService::HandleUpdate>(m_connections, m_dispatcher, this);
+    Listen<NotifySettingsChange, &TransportService::HandleNotifySettingsChange>(m_connections, m_dispatcher, this);
+    Listen<ConnectedEvent, &TransportService::HandleConnected>(m_connections, m_dispatcher, this);
+    Listen<DisconnectedEvent, &TransportService::HandleDisconnected>(m_connections, m_dispatcher, this);
 
     m_connected = false;
 

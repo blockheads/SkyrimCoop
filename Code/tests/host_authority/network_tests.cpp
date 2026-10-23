@@ -42,7 +42,7 @@ std::chrono::milliseconds Timed(const std::function<void()>& acAction)
 }
 } // namespace
 
-TEST_CASE("Network: the host's listener and a guest's connection never block the frame", "[Bridge][Network]")
+TEST_CASE("Network: the host's listener and a guest's connection never block the frame", "[HostAuthority][Network]")
 {
     HostNetwork network;
     REQUIRE(network.Listen(21640));

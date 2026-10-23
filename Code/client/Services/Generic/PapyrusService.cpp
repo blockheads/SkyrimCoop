@@ -10,7 +10,7 @@ static constexpr char kHandoffKey[] = "papyrus_natives";
 
 PapyrusService::PapyrusService(entt::dispatcher& aDispatcher) noexcept
 {
-    m_papyrusFunctionRegisterConnection = aDispatcher.sink<PapyrusFunctionRegisterEvent>().connect<&PapyrusService::HandlePapyrusFunctionEvent>(this);
+    Listen<PapyrusFunctionRegisterEvent, &PapyrusService::HandlePapyrusFunctionEvent>(m_connections, aDispatcher, this);
 
     // "<namespace>::<name> <address>" lines.
     if (const auto cHandoff = CoopReload::TakeHandoff(kHandoffKey))

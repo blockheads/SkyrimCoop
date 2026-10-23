@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# xmake for the native Linux build (BridgeTests, TPTests, coop_peer): clang and lld from LLVM 18. Same
+# xmake for the native Linux build (HostAuthorityTests, TPTests, coop_peer): clang and lld from LLVM 18. Same
 # arguments as xmake; keeps its own configuration so the Windows config is untouched.
 #   scripts/xmake-linux.sh f                     # configure (first time)
-#   scripts/xmake-linux.sh build -j8 BridgeTests && build/linux/x86_64/debug/BridgeTests
+#   scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${LLVM_DIR:-/usr/lib/llvm-18}/bin:$PATH"

@@ -54,9 +54,5 @@ static Hooks::Initializer s_subtitleHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TShowSubtitle, s_showSubtitle, 52626);
-
-        RealShowSubtitle = s_showSubtitle.Get();
-
-        HOOK(&RealShowSubtitle, HookShowSubtitle);
+        HOOK_ID(52626, &RealShowSubtitle, HookShowSubtitle);
     });

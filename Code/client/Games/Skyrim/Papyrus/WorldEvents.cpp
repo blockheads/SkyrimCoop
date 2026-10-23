@@ -57,9 +57,7 @@ Hooks::Initializer s_hooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 104800);
-        RealSendEvent = s_sendEvent.Get();
-        HOOK(&RealSendEvent, HookSendEvent);
+        HOOK_ID(104800, &RealSendEvent, HookSendEvent);
     });
 } // namespace
 

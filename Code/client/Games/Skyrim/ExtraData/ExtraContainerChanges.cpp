@@ -28,9 +28,7 @@ Hooks::Initializer s_leveledItemsHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TInitLeveledItems, s_initLeveledItems, 16129);
-        RealInitLeveledItems = s_initLeveledItems.Get();
-        HOOK(&RealInitLeveledItems, HookInitLeveledItems);
+        HOOK_ID(16129, &RealInitLeveledItems, HookInitLeveledItems);
     });
 } // namespace
 

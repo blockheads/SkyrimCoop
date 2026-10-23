@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Services/DialogueService.h>
 
 #include <chrono>
@@ -63,8 +64,5 @@ private:
     HeardLine m_lastLine;
     HeardLine m_lastSubtitle;
 
-    entt::scoped_connection m_listConnection;
-    entt::scoped_connection m_refusedConnection;
-    entt::scoped_connection m_lineConnection;
-    entt::scoped_connection m_subtitleConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

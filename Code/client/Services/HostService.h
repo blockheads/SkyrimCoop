@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <NoCopyMove.h>
@@ -65,11 +66,5 @@ private:
     // The host's game in the party's conversation.
     std::unique_ptr<HostConversation> m_pConversation;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_activateConnection;
-    entt::scoped_connection m_scriptAnimationConnection;
-    entt::scoped_connection m_containerChangeConnection;
-    entt::scoped_connection m_playerNativeConnection;
-    entt::scoped_connection m_playerNativeResultConnection;
-    entt::scoped_connection m_worldCallConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

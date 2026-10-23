@@ -120,16 +120,8 @@ static Hooks::Initializer s_copyAiStateHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TGetCurrentScene, s_getCurrentScene, 37247);
-        POINTER_SKYRIMSE(TIsInCombat, s_isInCombat, 38562);
-        POINTER_SKYRIMSE(TGetCombatState, s_getCombatState, 38556);
-        POINTER_SKYRIMSE(TCountCombatTargetingPlayer, s_countCombatTargetingPlayer, 41261);
-        RealGetCurrentScene = s_getCurrentScene.Get();
-        RealIsInCombat = s_isInCombat.Get();
-        RealGetCombatState = s_getCombatState.Get();
-        RealCountCombatTargetingPlayer = s_countCombatTargetingPlayer.Get();
-        HOOK(&RealGetCurrentScene, HookGetCurrentScene);
-        HOOK(&RealIsInCombat, HookIsInCombat);
-        HOOK(&RealGetCombatState, HookGetCombatState);
-        HOOK(&RealCountCombatTargetingPlayer, HookCountCombatTargetingPlayer);
+        HOOK_ID(37247, &RealGetCurrentScene, HookGetCurrentScene);
+        HOOK_ID(38562, &RealIsInCombat, HookIsInCombat);
+        HOOK_ID(38556, &RealGetCombatState, HookGetCombatState);
+        HOOK_ID(41261, &RealCountCombatTargetingPlayer, HookCountCombatTargetingPlayer);
     });

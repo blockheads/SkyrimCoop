@@ -25,7 +25,7 @@ scripts/check.sh            # tiers 1-2 and the plugin's build; before every pus
 scripts/check.sh --no-dll   # without the Windows toolchain
 ```
 
-It builds and runs `ClientTests`, `BridgeTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
+It builds and runs `ClientTests`, `HostAuthorityTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
 build at `-j8`. Each step's output is in `build/check/`, and a failure shows its failed checks or compiler errors.
 `GameTests` runs in 8 shards at once (`build/check/GameTests/`), each with its own ports (`GAMETESTS_PORT`): its
 games wait on real timers, not the CPU. The step fails if any case did not run (Catch2 reads a comma in a name as
@@ -38,7 +38,7 @@ Skyrim's scenarios are not in it.
 - DLL, one `.cpp` touched (`PartyNatives.cpp`, `CutsceneService.cpp`, `World.cpp`): 1.8-2.4 s
 - DLL, `World.h` touched (most of the plugin): 12.9 s
 - `ClientTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
-- `BridgeTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (118 cases)
+- `HostAuthorityTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (118 cases)
 - `TPTests`: build 1.9 s; run under 0.01 s
 - `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 14 s (28 flows and spec runs, 2-3 games each;
   8 s with the duo running), 0.9 s of it each death flow (the services' real-time timers); 10.2 s for 24 flows
@@ -62,13 +62,13 @@ Scripts that edit and build in a loop wait a second first.
   - `Code/tests/client/` (`ClientTests`): every game's logic. The pure files are listed one by one in its
     `xmake.lua` (`PartyRules`, `ScriptTags`, `OwnEvents`, and `Games/EngineNames.h`); a file that needs the engine
     doesn't build there, so the Linux build is the purity check.
-  - `Code/tests/bridge/` (`BridgeTests`): the host's rules (`HostAuthority`, `Services/Host/`) against in-process
+  - `Code/tests/host_authority/` (`HostAuthorityTests`): the host's rules (`HostAuthority`, `Services/Host/`) against in-process
     games (`session.h`).
   - `Code/tests/encoding.cpp` (`TPTests`): messages on the wire.
 - **Run:**
   ```bash
   scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
-  scripts/xmake-linux.sh build -j8 BridgeTests && build/linux/x86_64/debug/BridgeTests
+  scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
   scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
   ```
 - **When:** every change. **Budget:** about 10 s build and run, each target.
@@ -175,7 +175,7 @@ restored):
   the host's rules (stepped one game at a time, `Party::Step`) reaches the guest. Without `SetActorPersistent` on
   players' copies the host-travels flow fails (the fake deletes a created actor with its cell).
 
-Bugs they found, each fixed with the flow failing without the fix (and a `BridgeTests` case for the host's rules):
+Bugs they found, each fixed with the flow failing without the fix (and a `HostAuthorityTests` case for the host's rules):
 
 1. **A guest joining away from the host stayed there** (the known gap "neither pulled nor pulls"):
    `HostCharacters::OnAssignCharacter` now sends a player whose game announces itself elsewhere a
@@ -197,18 +197,18 @@ Bugs they found, each fixed with the flow failing without the fix (and a `Bridge
 6. **A guest joining outdoors four cells from the host stayed there** (found in Skyrim, 2026-10-23): outdoors
    the place is the worldspace, so it counted as with the host. A joiner out of the host's player's loaded grid
    is sent to it too now (`HostCharacters::InHostGrid`; flow "A guest joins outdoors four cells from the host",
-   `BridgeTests` "a player joining outdoors out of the host's grid").
+   `HostAuthorityTests` "a player joining outdoors out of the host's grid").
 7. **A guest brought to the party at its join had no copy of the host's player, nor the host of it** (found in
    Skyrim, 2026-10-23, `guest-joins-elsewhere` and the four-cell join). The copies made at the join were lost on
    the way (the host's, made four cells off before it was persistent, deleted that frame; the guest's dropped as
    its travel began), and an arrival sends the host's actors only, players' copies being taken to travel with the
    party. Its arrival now sends the players' characters both ways (`HostCharacters::SendPlayersMet`; a game that
    still has the copy refreshes it). The fake learned the loss first: a created actor moved into a cell not
-   loaded is deleted, which made the flow and the spec fail as in Skyrim. `BridgeTests` "a player brought to the
+   loaded is deleted, which made the flow and the spec fail as in Skyrim. `HostAuthorityTests` "a player brought to the
    party gets the players' characters again". Skyrim then showed the host still without the guest's copy: the
    guest's "where I was as I joined" arrival (`kBeforeJoining`) comes after its assignment and, outdoors in the
    same worldspace, counts as with the host, so the resend went before the travel. Only the arrival by the
-   party's travel (`kTether`) counts now (`BridgeTests` "a player brought to the party outdoors gets them where it
+   party's travel (`kTether`) counts now (`HostAuthorityTests` "a player brought to the party outdoors gets them where it
    arrives"; the fake's guest sends that arrival before its assignment, so tier 2 did not show the order).
 8. **What a player got or equipped before its session id came back was lost** (found under network conditions,
    2026-10-23): `InventoryService` dropped a change for an actor with no session id yet ("failed to find session

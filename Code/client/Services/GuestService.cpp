@@ -41,11 +41,11 @@ GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcep
     : m_world(aWorld)
     , m_dispatcher(aDispatcher)
 {
-    m_connectedConnection = aDispatcher.sink<ConnectedEvent>().connect<&GuestService::OnConnected>(this);
-    m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&GuestService::OnDisconnected>(this);
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&GuestService::OnUpdate>(this);
-    m_playerNativeConnection = aDispatcher.sink<NotifyPlayerNative>().connect<&GuestService::OnPlayerNative>(this);
-    m_worldCallConnection = aDispatcher.sink<WorldCallEvent>().connect<&GuestService::OnWorldCall>(this);
+    Listen<ConnectedEvent, &GuestService::OnConnected>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &GuestService::OnDisconnected>(m_connections, aDispatcher, this);
+    Listen<UpdateEvent, &GuestService::OnUpdate>(m_connections, aDispatcher, this);
+    Listen<NotifyPlayerNative, &GuestService::OnPlayerNative>(m_connections, aDispatcher, this);
+    Listen<WorldCallEvent, &GuestService::OnWorldCall>(m_connections, aDispatcher, this);
 }
 
 GuestService::~GuestService() noexcept = default;

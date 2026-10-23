@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <optional>
 #include <NoCopyMove.h>
 
@@ -77,9 +78,5 @@ private:
     uint16_t m_lastLevel = 0;
     uint32_t m_lastRaceFormId = 0;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_connectedConnection;
-    entt::scoped_connection m_disconnectedConnection;
-    entt::scoped_connection m_settingsConnection;
-    entt::scoped_connection m_formChangeConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

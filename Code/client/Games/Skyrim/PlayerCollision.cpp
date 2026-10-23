@@ -62,9 +62,7 @@ bool HookCompareFilterInfo(void* apThis, uint32_t aFilterA, uint32_t aFilterB)
 
 Hooks::Initializer s_playerCollisionHooks([] {
     const HookGate cGate(__FILE__);
-    POINTER_SKYRIMSE(TCompareFilterInfo, s_compareFilterInfo, 78553);
-    RealCompareFilterInfo = s_compareFilterInfo.Get();
-    HOOK(&RealCompareFilterInfo, HookCompareFilterInfo);
+    HOOK_ID(78553, &RealCompareFilterInfo, HookCompareFilterInfo);
 });
 } // namespace
 

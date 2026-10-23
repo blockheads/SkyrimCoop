@@ -344,24 +344,10 @@ static Hooks::Initializer s_playerCharacterHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TPickUpObject, s_pickUpObject, 40533);
-        POINTER_SKYRIMSE(TSetBeastForm, s_setBeastForm, 55497);
-        POINTER_SKYRIMSE(TAddSkillExperience, s_addSkillExperience, 40488);
-        POINTER_SKYRIMSE(TCalculateExperience, s_calculateExperience, 27244);
-        POINTER_SKYRIMSE(TSetWaypoint, s_setWaypoint, 40535);
-        POINTER_SKYRIMSE(TRemoveWaypoint, s_removeWaypoint, 40536);
-
-        RealPickUpObject = s_pickUpObject.Get();
-        RealSetBeastForm = s_setBeastForm.Get();
-        RealAddSkillExperience = s_addSkillExperience.Get();
-        RealCalculateExperience = s_calculateExperience.Get();
-        RealSetWaypoint = s_setWaypoint.Get();
-        RealRemoveWaypoint = s_removeWaypoint.Get();
-
-        HOOK(&RealPickUpObject, HookPickUpObject);
-        HOOK(&RealSetBeastForm, HookSetBeastForm);
-        HOOK(&RealAddSkillExperience, HookAddSkillExperience);
-        HOOK(&RealCalculateExperience, HookCalculateExperience);
-        HOOK(&RealSetWaypoint, HookSetWaypoint);
-        HOOK(&RealRemoveWaypoint, HookRemoveWaypoint);
+        HOOK_ID(40533, &RealPickUpObject, HookPickUpObject);
+        HOOK_ID(55497, &RealSetBeastForm, HookSetBeastForm);
+        HOOK_ID(40488, &RealAddSkillExperience, HookAddSkillExperience);
+        HOOK_ID(27244, &RealCalculateExperience, HookCalculateExperience);
+        HOOK_ID(40535, &RealSetWaypoint, HookSetWaypoint);
+        HOOK_ID(40536, &RealRemoveWaypoint, HookRemoveWaypoint);
     });

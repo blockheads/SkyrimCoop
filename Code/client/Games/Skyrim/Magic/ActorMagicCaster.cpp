@@ -92,18 +92,8 @@ static Hooks::Initializer s_actorMagicCasterHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSpellCast, s_spellCast, 34144);
-        POINTER_SKYRIMSE(TInterruptCast, s_interruptCast, 34140);
-        POINTER_SKYRIMSE(TCasterUpdate, s_casterUpdate, 34143);
-        POINTER_SKYRIMSE(TCheckCast, s_checkCast, 34145);
-
-        RealSpellCast = s_spellCast.Get();
-        RealInterruptCast = s_interruptCast.Get();
-        RealCasterUpdate = s_casterUpdate.Get();
-        RealCheckCast = s_checkCast.Get();
-
-        HOOK(&RealSpellCast, HookSpellCast);
-        HOOK(&RealInterruptCast, HookInterruptCast);
-        HOOK(&RealCasterUpdate, HookCasterUpdate);
-        HOOK(&RealCheckCast, HookCheckCast);
+        HOOK_ID(34144, &RealSpellCast, HookSpellCast);
+        HOOK_ID(34140, &RealInterruptCast, HookInterruptCast);
+        HOOK_ID(34143, &RealCasterUpdate, HookCasterUpdate);
+        HOOK_ID(34145, &RealCheckCast, HookCheckCast);
     });

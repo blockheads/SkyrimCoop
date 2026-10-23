@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Structs/GameId.h>
 
 #include <optional>
@@ -28,5 +29,5 @@ private:
     GuestEngine& m_engine;
     std::optional<GameId> m_hostWeather;
 
-    entt::scoped_connection m_weatherConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 struct World;
@@ -33,8 +34,5 @@ struct MapService
     TransportService& m_transport;
     IPlayerBridge& m_playerBridge;
 
-    entt::scoped_connection m_playerSetWaypointConnection;
-    entt::scoped_connection m_playerRemoveWaypointConnection;
-    entt::scoped_connection m_playerNotifySetWaypointConnection;
-    entt::scoped_connection m_playerNotifyRemoveWaypointConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

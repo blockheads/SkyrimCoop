@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 #include <Messages/RequestEquipmentChanges.h>
@@ -102,13 +103,5 @@ private:
     std::chrono::steady_clock::time_point m_lastSnapshotSend;
     std::chrono::steady_clock::time_point m_lastNakedCheck;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_inventoryConnection;
-    entt::scoped_connection m_equipmentConnection;
-    entt::scoped_connection m_inventoryChangeConnection;
-    entt::scoped_connection m_equipmentChangeConnection;
-    entt::scoped_connection m_equipmentSnapshotConnection;
-    entt::scoped_connection m_drawWeaponConnection;
-    entt::scoped_connection m_localComponentRemoved;
-    entt::scoped_connection m_remoteComponentRemoved;
+    std::vector<entt::scoped_connection> m_connections;
 };

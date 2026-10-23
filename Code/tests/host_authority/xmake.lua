@@ -1,6 +1,6 @@
 -- The host's authority (HostAuthority, Code/client/Services/Host/) with no game: each rule against in-process
--- games on the host's network. Run: build/linux/x86_64/<mode>/BridgeTests
-target("BridgeTests")
+-- games on the host's network. Run: build/linux/x86_64/<mode>/HostAuthorityTests
+target("HostAuthorityTests")
     set_kind("binary")
     set_group("Tests")
     set_languages("cxx23")

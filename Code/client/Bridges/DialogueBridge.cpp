@@ -235,32 +235,14 @@ Hooks::Initializer s_dialogueHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetDialogueWithPlayer, s_setDialogueWithPlayer, 37200);
-        POINTER_SKYRIMSE(TBeginTopicInfo, s_beginTopicInfo, 25616);
-        POINTER_SKYRIMSE(TNpcActivate, s_npcActivate, 24715);
-        POINTER_SKYRIMSE(TTopicClicked, s_topicClicked, 51509);
-        POINTER_SKYRIMSE(TShowMenu, s_showMenu, 52853);
-        POINTER_SKYRIMSE(TTurnToSpeaker, s_turnToSpeaker, 40496);
-        POINTER_SKYRIMSE(TShowList, s_showList, 52857);
-        POINTER_SKYRIMSE(TMenuOpenClose, s_menuOpenClose, 35272);
-
-        RealSetDialogueWithPlayer = s_setDialogueWithPlayer.Get();
-        RealBeginTopicInfo = s_beginTopicInfo.Get();
-        RealNpcActivate = s_npcActivate.Get();
-        RealTopicClicked = s_topicClicked.Get();
-        RealShowMenu = s_showMenu.Get();
-        RealTurnToSpeaker = s_turnToSpeaker.Get();
-        RealShowList = s_showList.Get();
-        RealMenuOpenClose = s_menuOpenClose.Get();
-
-        HOOK(&RealSetDialogueWithPlayer, HookSetDialogueWithPlayer);
-        HOOK(&RealBeginTopicInfo, HookBeginTopicInfo);
-        HOOK(&RealNpcActivate, HookNpcActivate);
-        HOOK(&RealTopicClicked, HookTopicClicked);
-        HOOK(&RealShowMenu, HookShowMenu);
-        HOOK(&RealTurnToSpeaker, HookTurnToSpeaker);
-        HOOK(&RealShowList, HookShowList);
-        HOOK(&RealMenuOpenClose, HookMenuOpenClose);
+        HOOK_ID(37200, &RealSetDialogueWithPlayer, HookSetDialogueWithPlayer);
+        HOOK_ID(25616, &RealBeginTopicInfo, HookBeginTopicInfo);
+        HOOK_ID(24715, &RealNpcActivate, HookNpcActivate);
+        HOOK_ID(51509, &RealTopicClicked, HookTopicClicked);
+        HOOK_ID(52853, &RealShowMenu, HookShowMenu);
+        HOOK_ID(40496, &RealTurnToSpeaker, HookTurnToSpeaker);
+        HOOK_ID(52857, &RealShowList, HookShowList);
+        HOOK_ID(35272, &RealMenuOpenClose, HookMenuOpenClose);
     });
 } // namespace
 

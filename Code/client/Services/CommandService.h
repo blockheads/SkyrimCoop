@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 struct World;
@@ -25,5 +26,5 @@ protected:
 private:
     TransportService& m_transport;
 
-    entt::scoped_connection m_setTimeConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

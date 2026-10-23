@@ -50,9 +50,7 @@ bool HookQuestStarted(TESQuest* apThis, bool* apResult, bool aNow)
 
 Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
-    POINTER_SKYRIMSE(TQuestStarted, s_questStarted, 25003);
-    RealQuestStarted = s_questStarted.Get();
-    HOOK(&RealQuestStarted, HookQuestStarted);
+    HOOK_ID(25003, &RealQuestStarted, HookQuestStarted);
 });
 
 

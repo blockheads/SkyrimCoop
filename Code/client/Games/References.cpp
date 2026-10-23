@@ -169,16 +169,7 @@ static Hooks::Initializer s_referencesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TCheckForNewPackage, s_checkForNewPackage, 39114);
-        POINTER_SKYRIMSE(TSetCurrentPickREFR, s_setCurrentPickREFR, 51093);
-        POINTER_SKYRIMSE(TPutCreatedPackage, s_putCreatedPackage, 37570);
-
-        RealCheckForNewPackage = s_checkForNewPackage.Get();
-        RealSetCurrentPickREFR = s_setCurrentPickREFR.Get();
-
-        HOOK(&RealCheckForNewPackage, HookCheckForNewPackage);
-        HOOK(&RealSetCurrentPickREFR, HookSetCurrentPickREFR);
-
-        RealPutCreatedPackage = s_putCreatedPackage.Get();
-        HOOK(&RealPutCreatedPackage, HookPutCreatedPackage);
+        HOOK_ID(39114, &RealCheckForNewPackage, HookCheckForNewPackage);
+        HOOK_ID(51093, &RealSetCurrentPickREFR, HookSetCurrentPickREFR);
+        HOOK_ID(37570, &RealPutCreatedPackage, HookPutCreatedPackage);
     });

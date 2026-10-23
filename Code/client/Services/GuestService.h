@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Structs/ScriptValue.h>
 
 #include <memory>
@@ -43,9 +44,5 @@ private:
     entt::dispatcher& m_dispatcher;
     std::unique_ptr<Guest> m_pGuest;
 
-    entt::scoped_connection m_connectedConnection;
-    entt::scoped_connection m_disconnectedConnection;
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_playerNativeConnection;
-    entt::scoped_connection m_worldCallConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

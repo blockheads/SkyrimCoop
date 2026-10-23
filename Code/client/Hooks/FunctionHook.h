@@ -2,9 +2,11 @@
 
 #include <windows.h>
 
+#include <cstdint>
 #include <unordered_map>
 #include <vector>
 #include <Hooks/Memory.h>
+#include <VersionDb.h>
 
 namespace Hooks
 {
@@ -110,10 +112,22 @@ namespace Hooks
 
         return pRealFunction;
     }
+
+    // Resolve an Address Library ID and keep the original hook name for crash breadcrumbs.
+    template<uint32_t Id, class T, class U>
+    void Hook(T** appSystemFunction, U* apHookFunction, const char* acpName, bool aDelayed = true) noexcept
+    {
+        static VersionDbPtr<T> s_function(Id);
+        *appSystemFunction = s_function.Get();
+        FunctionHookManager::GetInstance().Add(appSystemFunction, apHookFunction, aDelayed, acpName);
+    }
 }
 
 #define HOOK(systemFunction, hookFunction) Hooks::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, true, #hookFunction)
 #define HOOK_IMMEDIATE(systemFunction, hookFunction) Hooks::FunctionHookManager::GetInstance().Add(systemFunction, hookFunction, false, #hookFunction)
+
+#define HOOK_ID(id, systemFunction, hookFunction) Hooks::Hook<id>(systemFunction, hookFunction, #hookFunction)
+#define HOOK_ID_IMMEDIATE(id, systemFunction, hookFunction) Hooks::Hook<id>(systemFunction, hookFunction, #hookFunction, false)
 
 #define HOOK_IAT(functionName, libraryName) Real ##functionName = (T ##functionName)Hooks::FunctionHookManager::GetInstance().Add(Hook ## functionName, libraryName, #functionName)
 

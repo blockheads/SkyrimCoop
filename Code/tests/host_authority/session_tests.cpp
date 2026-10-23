@@ -62,7 +62,7 @@ const AuthenticationResponse& OnlyResponse(const Session& acSession, ConnectionI
 }
 } // namespace
 
-TEST_CASE("Join: accepted with a player id, the session's settings and the session's mod ids", "[Bridge][Session]")
+TEST_CASE("Join: accepted with a player id, the session's settings and the session's mod ids", "[HostAuthority][Session]")
 {
     Session session;
     session.Receive(kNewcomer, Join("Serana"));
@@ -89,7 +89,7 @@ TEST_CASE("Join: accepted with a player id, the session's settings and the sessi
     CHECK(HostChat(session).empty());
 }
 
-TEST_CASE("Join: a game on another build is refused, told the host's build, and is not a player", "[Bridge][Session]")
+TEST_CASE("Join: a game on another build is refused, told the host's build, and is not a player", "[HostAuthority][Session]")
 {
     Session session;
     auto join = Join("Serana");
@@ -107,7 +107,7 @@ TEST_CASE("Join: a game on another build is refused, told the host's build, and 
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).empty());
 }
 
-TEST_CASE("Join: a game on another Skyrim or SKSE version is refused and told the host's", "[Bridge][Session]")
+TEST_CASE("Join: a game on another Skyrim or SKSE version is refused and told the host's", "[HostAuthority][Session]")
 {
     auto join = Join("Serana");
     SECTION("Skyrim") { join.Game.Runtime = GameVersions::Pack(1, 6, 640); }
@@ -123,7 +123,7 @@ TEST_CASE("Join: a game on another Skyrim or SKSE version is refused and told th
     CHECK(HostChat(session)[0].starts_with("Serana couldn't join: they run Skyrim 1.6."));
 }
 
-TEST_CASE("Join: the build is checked before the game", "[Bridge][Session]")
+TEST_CASE("Join: the build is checked before the game", "[HostAuthority][Session]")
 {
     Session session;
     auto join = Join("Serana");
@@ -133,7 +133,7 @@ TEST_CASE("Join: the build is checked before the game", "[Bridge][Session]")
     CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kWrongVersion);
 }
 
-TEST_CASE("Join: a game with other plugins is refused and sent the host's", "[Bridge][Session]")
+TEST_CASE("Join: a game with other plugins is refused and sent the host's", "[HostAuthority][Session]")
 {
     Session session;
     auto join = Join("Serana");
@@ -147,7 +147,7 @@ TEST_CASE("Join: a game with other plugins is refused and sent the host's", "[Br
     CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: their plugins differ from yours (1 difference)."});
 }
 
-TEST_CASE("Load order: what differs between the host's plugins and a player's", "[Bridge][Session]")
+TEST_CASE("Load order: what differs between the host's plugins and a player's", "[HostAuthority][Session]")
 {
     using enum LoadOrderDifference::Kind;
     const auto cHost = Plugins({{"Skyrim.esm", false}, {"Update.esm", false}, {"A.esp", false}, {"B.esp", false}, {"Fish.esm", true}});
@@ -173,7 +173,7 @@ TEST_CASE("Load order: what differs between the host's plugins and a player's", 
     }
 }
 
-TEST_CASE("Join: a full session refuses the next game", "[Bridge][Session]")
+TEST_CASE("Join: a full session refuses the next game", "[HostAuthority][Session]")
 {
     Session session;
     // Three are in; five more fill it.
@@ -188,14 +188,14 @@ TEST_CASE("Join: a full session refuses the next game", "[Bridge][Session]")
     CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: the session is full."});
 }
 
-TEST_CASE("Join: a player cannot join again", "[Bridge][Session]")
+TEST_CASE("Join: a player cannot join again", "[HostAuthority][Session]")
 {
     Session session;
     session.Receive(kPeer, Join("Lydia"));
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Join: a game that is not a player can only ask to join", "[Bridge][Session]")
+TEST_CASE("Join: a game that is not a player can only ask to join", "[HostAuthority][Session]")
 {
     Session session;
     SendChatMessageRequest chat;
@@ -205,7 +205,7 @@ TEST_CASE("Join: a game that is not a player can only ask to join", "[Bridge][Se
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Join: a refused game's status has the reason's code and words", "[Bridge][Session]")
+TEST_CASE("Join: a refused game's status has the reason's code and words", "[HostAuthority][Session]")
 {
     using enum AuthenticationResponse::ResponseType;
     AuthenticationResponse refusal;
@@ -245,7 +245,7 @@ TEST_CASE("Join: a refused game's status has the reason's code and words", "[Bri
     CHECK(JoinRefusal::ForHost(kModsMismatch, join, Ours()) == "A player couldn't join: their plugins differ from yours (3 differences).");
 }
 
-TEST_CASE("Settings: the host's difficulty reaches the others when it changes", "[Bridge][Session]")
+TEST_CASE("Settings: the host's difficulty reaches the others when it changes", "[HostAuthority][Session]")
 {
     Session session;
     session.Frame(1);
@@ -272,7 +272,7 @@ TEST_CASE("Settings: the host's difficulty reaches the others when it changes", 
     CHECK(cResponses[0]->Settings.Difficulty == 5);
 }
 
-TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, and they learn it", "[Bridge][Session]")
+TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, and they learn it", "[HostAuthority][Session]")
 {
     Session session;
     const uint32_t cNewcomerId = session.Join(kNewcomer, Join("Serana"));
@@ -298,7 +298,7 @@ TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, a
     }
 }
 
-TEST_CASE("Player list: the others drop a player who leaves; a refused game was never in it", "[Bridge][Session]")
+TEST_CASE("Player list: the others drop a player who leaves; a refused game was never in it", "[HostAuthority][Session]")
 {
     Session session;
     const uint32_t cPeerId = session.PlayerId(kPeer);
@@ -320,7 +320,7 @@ TEST_CASE("Player list: the others drop a player who leaves; a refused game was 
     CHECK(session.SentTo<NotifyPlayerLeft>(kHost).empty());
 }
 
-TEST_CASE("Player list: a player who leaves and joins again gets a new id", "[Bridge][Session]")
+TEST_CASE("Player list: a player who leaves and joins again gets a new id", "[HostAuthority][Session]")
 {
     Session session;
     const uint32_t cFirst = session.PlayerId(kPeer);

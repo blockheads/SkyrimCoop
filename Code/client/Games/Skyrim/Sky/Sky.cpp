@@ -74,15 +74,7 @@ static Hooks::Initializer s_skyHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetWeather, setWeather, 26241);
-        POINTER_SKYRIMSE(TForceWeather, forceWeather, 26243);
-        POINTER_SKYRIMSE(TUpdateWeather, updateWeather, 26231);
-
-        RealSetWeather = setWeather.Get();
-        RealForceWeather = forceWeather.Get();
-        RealUpdateWeather = updateWeather.Get();
-
-        HOOK(&RealSetWeather, HookSetWeather);
-        HOOK(&RealForceWeather, HookForceWeather);
-        HOOK(&RealUpdateWeather, HookUpdateWeather);
+        HOOK_ID(26241, &RealSetWeather, HookSetWeather);
+        HOOK_ID(26243, &RealForceWeather, HookForceWeather);
+        HOOK_ID(26231, &RealUpdateWeather, HookUpdateWeather);
     });

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <Structs/GameId.h>
 #include <Messages/RelayedMessages.h>
@@ -68,11 +69,5 @@ private:
     };
     std::unordered_map<uint32_t, Shown> m_shown;
 
-    entt::scoped_connection m_changeConnection;
-    entt::scoped_connection m_loadedConnection;
-    entt::scoped_connection m_notifyConnection;
-    entt::scoped_connection m_flashConnection;
-    entt::scoped_connection m_spawnConnection;
-    entt::scoped_connection m_removeConnection;
-    entt::scoped_connection m_disconnectConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

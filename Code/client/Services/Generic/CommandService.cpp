@@ -13,7 +13,7 @@
 CommandService::CommandService(TransportService& aTransport, entt::dispatcher& aDispatcher)
     : m_transport(aTransport)
 {
-    m_setTimeConnection = aDispatcher.sink<SetTimeCommandEvent>().connect<&CommandService::OnSetTimeCommand>(this);
+    Listen<SetTimeCommandEvent, &CommandService::OnSetTimeCommand>(m_connections, aDispatcher, this);
 }
 
 void CommandService::OnSetTimeCommand(const SetTimeCommandEvent& acEvent) const noexcept

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Bridges/IDialogueBridge.h>
 
 #include <optional>
@@ -94,9 +95,5 @@ private:
     bool m_menuOpen{};
     bool m_closing{}; // its close asked for, the menu still fading out
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_disconnectConnection;
-    entt::scoped_connection m_openConnection;
-    entt::scoped_connection m_pickedConnection;
-    entt::scoped_connection m_closedConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

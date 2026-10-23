@@ -17,11 +17,11 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
     : m_world(aWorld)
     , m_engine(aEngine)
 {
-    m_globalsConnection = aDispatcher.sink<NotifyGlobals>().connect<&GuestWorldState::OnGlobals>(this);
-    m_questsConnection = aDispatcher.sink<NotifyQuests>().connect<&GuestWorldState::OnQuests>(this);
-    m_objectChangesConnection = aDispatcher.sink<NotifyObjectChanges>().connect<&GuestWorldState::OnObjectChanges>(this);
-    m_lockChangeConnection = aDispatcher.sink<LockChangeEvent>().connect<&GuestWorldState::OnLockChange>(this);
-    m_containerChangeConnection = aDispatcher.sink<ContainerChangeEvent>().connect<&GuestWorldState::OnContainerChange>(this);
+    Listen<NotifyGlobals, &GuestWorldState::OnGlobals>(m_connections, aDispatcher, this);
+    Listen<NotifyQuests, &GuestWorldState::OnQuests>(m_connections, aDispatcher, this);
+    Listen<NotifyObjectChanges, &GuestWorldState::OnObjectChanges>(m_connections, aDispatcher, this);
+    Listen<LockChangeEvent, &GuestWorldState::OnLockChange>(m_connections, aDispatcher, this);
+    Listen<ContainerChangeEvent, &GuestWorldState::OnContainerChange>(m_connections, aDispatcher, this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);

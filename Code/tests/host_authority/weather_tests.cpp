@@ -1,7 +1,7 @@
 // HostWeather: the session's weather is the host's.
 #include "session.h"
 
-TEST_CASE("Weather: peers get the host's weather when it changes", "[Bridge][Weather]")
+TEST_CASE("Weather: peers get the host's weather when it changes", "[HostAuthority][Weather]")
 {
     Session session;
 
@@ -30,7 +30,7 @@ TEST_CASE("Weather: peers get the host's weather when it changes", "[Bridge][Wea
     CHECK(session.SentTo<NotifyWeatherChange>(kPeer)[0]->Id == GameId(0, 0x10A23));
 }
 
-TEST_CASE("Weather: a joining player gets the host's weather", "[Bridge][Weather]")
+TEST_CASE("Weather: a joining player gets the host's weather", "[HostAuthority][Weather]")
 {
     Session session;
     session.Weather = GameId(0, 0x81A);

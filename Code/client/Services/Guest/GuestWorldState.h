@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 struct NotifyGlobals;
@@ -44,9 +45,5 @@ private:
     // The attached cells already asked for.
     std::vector<uint32_t> m_cells;
 
-    entt::scoped_connection m_globalsConnection;
-    entt::scoped_connection m_questsConnection;
-    entt::scoped_connection m_objectChangesConnection;
-    entt::scoped_connection m_lockChangeConnection;
-    entt::scoped_connection m_containerChangeConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

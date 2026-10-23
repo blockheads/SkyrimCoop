@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Events/AddTargetEvent.h>
 #include <Messages/Relayed.h>
 #include <spdlog/spdlog.h>
@@ -91,15 +92,7 @@ struct MagicService
     IActorBridge& m_actorBridge;
     IFormBridge& m_formBridge;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_spellCastEventConnection;
-    entt::scoped_connection m_notifySpellCastConnection;
-    entt::scoped_connection m_interruptCastEventConnection;
-    entt::scoped_connection m_notifyInterruptCastConnection;
-    entt::scoped_connection m_addTargetEventConnection;
-    entt::scoped_connection m_notifyAddTargetConnection;
-    entt::scoped_connection m_removeSpellEventConnection;
-    entt::scoped_connection m_notifyRemoveSpell;
+    std::vector<entt::scoped_connection> m_connections;
 
     /*
      * @brief Queued magic effects.

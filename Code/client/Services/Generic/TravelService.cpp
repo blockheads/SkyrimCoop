@@ -37,8 +37,8 @@ TravelService::TravelService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     : m_world(aWorld), m_dispatcher(aDispatcher), m_transport(aTransport), m_actorBridge(aActorBridge),
       m_formBridge(aFormBridge), m_playerBridge(aPlayerBridge)
 {
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&TravelService::OnUpdate>(this);
-    m_partyTravelConnection = aDispatcher.sink<NotifyPartyTravel>().connect<&TravelService::OnPartyTravel>(this);
+    Listen<UpdateEvent, &TravelService::OnUpdate>(m_connections, aDispatcher, this);
+    Listen<NotifyPartyTravel, &TravelService::OnPartyTravel>(m_connections, aDispatcher, this);
 }
 
 bool TravelService::IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& acCellId,

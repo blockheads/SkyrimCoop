@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 struct NotifyTimeScale;
@@ -26,7 +27,5 @@ private:
     World& m_world;
     TransportService& m_transport;
 
-    entt::scoped_connection m_timeScaleConnection;
-    entt::scoped_connection m_notifyTimeScaleConnection;
-    entt::scoped_connection m_disconnectedConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

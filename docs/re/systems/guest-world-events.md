@@ -182,5 +182,5 @@ console does not reach QASmoke's `04xxxxxx` references (`04026B71.disable` does 
 change; it sees the box and the sword in the stone swap both ways: with the host's recording off, the guest's
 sword never appears, control 2026-10-21), `statue-fires-at-client` (the guest's trigger never polls; the host's
 fire burns its player), `ring-turns-for-client` (the guest's ring script state stays), `shrine-blesses-client`
-(the guest's blessing comes from the host's script), BridgeTests "the host's world objects' changes reach the
+(the guest's blessing comes from the host's script), HostAuthorityTests "the host's world objects' changes reach the
 others in order, once". Harness `ref_enabled` reads a reference's enabled state.

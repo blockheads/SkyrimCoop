@@ -96,7 +96,7 @@ DialogueJoinRequest Join(uint32_t aConversation)
 }
 } // namespace
 
-TEST_CASE("Dialogue: a peer talking to a copy starts the host's conversation", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a peer talking to a copy starts the host's conversation", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);
@@ -110,7 +110,7 @@ TEST_CASE("Dialogue: a peer talking to a copy starts the host's conversation", "
     CHECK(session.SentTo<NotifyDialogueOpen>(kOtherPeer).empty());
 }
 
-TEST_CASE("Dialogue: the peer who asked is in the conversation from the start", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the peer who asked is in the conversation from the start", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);
@@ -129,7 +129,7 @@ TEST_CASE("Dialogue: the peer who asked is in the conversation from the start", 
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: the host talking itself puts nobody in it", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the host talking itself puts nobody in it", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);
@@ -147,7 +147,7 @@ TEST_CASE("Dialogue: the host talking itself puts nobody in it", "[Bridge][Dialo
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: only the host's NPCs talk", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: only the host's NPCs talk", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
@@ -158,7 +158,7 @@ TEST_CASE("Dialogue: only the host's NPCs talk", "[Bridge][Dialogue]")
     CHECK(session.SentTo<NotifyDialogueStart>(kHost).empty());
 }
 
-TEST_CASE("Dialogue: the host's menu opening opens it for everyone", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the host's menu opening opens it for everyone", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);
@@ -180,7 +180,7 @@ TEST_CASE("Dialogue: the host's menu opening opens it for everyone", "[Bridge][D
     }
 }
 
-TEST_CASE("Dialogue: a peer cannot say the host's menu opened", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a peer cannot say the host's menu opened", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);
@@ -191,7 +191,7 @@ TEST_CASE("Dialogue: a peer cannot say the host's menu opened", "[Bridge][Dialog
     CHECK(session.SentTo<NotifyDialogueOpen>(kOtherPeer).empty());
 }
 
-TEST_CASE("Dialogue: one conversation at a time", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: one conversation at a time", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -206,7 +206,7 @@ TEST_CASE("Dialogue: one conversation at a time", "[Bridge][Dialogue]")
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).empty());
 }
 
-TEST_CASE("Dialogue: talking to the NPC of the conversation joins it, no new start", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: talking to the NPC of the conversation joins it, no new start", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -216,7 +216,7 @@ TEST_CASE("Dialogue: talking to the NPC of the conversation joins it, no new sta
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kOtherPeer).empty());
 }
 
-TEST_CASE("Dialogue: a player leaving leaves it on for the others; the last one out ends it", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a player leaving leaves it on for the others; the last one out ends it", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -241,7 +241,7 @@ TEST_CASE("Dialogue: a player leaving leaves it on for the others; the last one 
     CHECK(session.SentTo<NotifyDialogueStart>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: leaving twice, or without joining, ends nothing", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: leaving twice, or without joining, ends nothing", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -254,7 +254,7 @@ TEST_CASE("Dialogue: leaving twice, or without joining, ends nothing", "[Bridge]
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: the host's conversation ending ends it for everyone", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the host's conversation ending ends it for everyone", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -267,7 +267,7 @@ TEST_CASE("Dialogue: the host's conversation ending ends it for everyone", "[Bri
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).empty());
 }
 
-TEST_CASE("Dialogue: only the host's game ends it outright", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: only the host's game ends it outright", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -277,7 +277,7 @@ TEST_CASE("Dialogue: only the host's game ends it outright", "[Bridge][Dialogue]
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).empty());
 }
 
-TEST_CASE("Dialogue: a close for an old conversation is dropped", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a close for an old conversation is dropped", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -291,7 +291,7 @@ TEST_CASE("Dialogue: a close for an old conversation is dropped", "[Bridge][Dial
     CHECK(session.SentTo<NotifyDialogueClosed>(kOtherPeer).empty());
 }
 
-TEST_CASE("Dialogue: a player who disconnects leaves it", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a player who disconnects leaves it", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -301,7 +301,7 @@ TEST_CASE("Dialogue: a player who disconnects leaves it", "[Bridge][Dialogue]")
     CHECK(session.SentTo<NotifyDialogueClosed>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: the host talking to another NPC ends the first conversation", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the host talking to another NPC ends the first conversation", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -321,7 +321,7 @@ TEST_CASE("Dialogue: the host talking to another NPC ends the first conversation
     CHECK(cOpen[0]->Conversation != cFirst);
 }
 
-TEST_CASE("Dialogue: the host's game's list reaches the games in the conversation", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the host's game's list reaches the games in the conversation", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -347,7 +347,7 @@ TEST_CASE("Dialogue: the host's game's list reaches the games in the conversatio
     CHECK(session.SentTo<NotifyDialogueList>(kPeer).empty());
 }
 
-TEST_CASE("Dialogue: a game joining gets the current list", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a game joining gets the current list", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -358,7 +358,7 @@ TEST_CASE("Dialogue: a game joining gets the current list", "[Bridge][Dialogue]"
     CHECK(talking.LastList(kOtherPeer).Choices);
 }
 
-TEST_CASE("Dialogue: a list for another step or conversation is dropped", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a list for another step or conversation is dropped", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     talking.session.Receive(kPeer, Join(talking.Id));
@@ -370,7 +370,7 @@ TEST_CASE("Dialogue: a list for another step or conversation is dropped", "[Brid
     CHECK(talking.session.SentTo<NotifyDialogueList>(kPeer).empty());
 }
 
-TEST_CASE("Dialogue: the first pick of a step wins, and every game hears it", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: the first pick of a step wins, and every game hears it", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -393,7 +393,7 @@ TEST_CASE("Dialogue: the first pick of a step wins, and every game hears it", "[
     }
 }
 
-TEST_CASE("Dialogue: only a player in the conversation picks", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: only a player in the conversation picks", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -414,7 +414,7 @@ TEST_CASE("Dialogue: only a player in the conversation picks", "[Bridge][Dialogu
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: a pick is one of the host's options, or nothing is said", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a pick is one of the host's options, or nothing is said", "[HostAuthority][Dialogue]")
 {
     // Every menu shows the host's list; a pick that is not in it (a topic only the guest's engine offered, another
     // line for a listed topic, a list its menu showed before the host's arrived) is not said, and the picker's menu
@@ -439,7 +439,7 @@ TEST_CASE("Dialogue: a pick is one of the host's options, or nothing is said", "
     CHECK(cPicked[0]->Info == GameId(0, 0xB1));
 }
 
-TEST_CASE("Dialogue: a pick before the host's list is not said", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a pick before the host's list is not said", "[HostAuthority][Dialogue]")
 {
     // The guest's menu opens on its own engine's list before the host's arrives.
     Talking talking;
@@ -454,7 +454,7 @@ TEST_CASE("Dialogue: a pick before the host's list is not said", "[Bridge][Dialo
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: a pick shows in everyone's chat as who said what", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a pick shows in everyone's chat as who said what", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -472,7 +472,7 @@ TEST_CASE("Dialogue: a pick shows in everyone's chat as who said what", "[Bridge
     }
 }
 
-TEST_CASE("Dialogue: after a pick, the next list waits for the host's game", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: after a pick, the next list waits for the host's game", "[HostAuthority][Dialogue]")
 {
     Talking talking;
     auto& session = talking.session;
@@ -501,7 +501,7 @@ TEST_CASE("Dialogue: after a pick, the next list waits for the host's game", "[B
     CHECK(session.SentTo<NotifyDialoguePicked>(kHost).size() == 1);
 }
 
-TEST_CASE("Dialogue: a start that cannot happen is refused, with why", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: a start that cannot happen is refused, with why", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);
@@ -526,7 +526,7 @@ TEST_CASE("Dialogue: a start that cannot happen is refused, with why", "[Bridge]
     CHECK(session.SentTo<NotifyChatMessageBroadcast>(kPeer).size() == 1);
 }
 
-TEST_CASE("Dialogue: an NPC greeting the party puts every player in it", "[Bridge][Dialogue]")
+TEST_CASE("Dialogue: an NPC greeting the party puts every player in it", "[HostAuthority][Dialogue]")
 {
     Session session;
     const uint32_t cNpc = session.Character(kHost);

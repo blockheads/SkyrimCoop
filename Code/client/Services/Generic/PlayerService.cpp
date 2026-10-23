@@ -40,11 +40,11 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     , m_formBridge(aFormBridge)
     , m_actorBridge(aActorBridge)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&PlayerService::OnUpdate>(this);
-    m_connectedConnection = m_dispatcher.sink<ConnectedEvent>().connect<&PlayerService::OnConnected>(this);
-    m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&PlayerService::OnDisconnected>(this);
-    m_settingsConnection = m_dispatcher.sink<ServerSettings>().connect<&PlayerService::OnServerSettingsReceived>(this);
-    m_formChangeConnection = m_dispatcher.sink<PlayerFormChangeEvent>().connect<&PlayerService::OnPlayerFormChange>(this);
+    Listen<UpdateEvent, &PlayerService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<ConnectedEvent, &PlayerService::OnConnected>(m_connections, m_dispatcher, this);
+    Listen<DisconnectedEvent, &PlayerService::OnDisconnected>(m_connections, m_dispatcher, this);
+    Listen<ServerSettings, &PlayerService::OnServerSettingsReceived>(m_connections, m_dispatcher, this);
+    Listen<PlayerFormChangeEvent, &PlayerService::OnPlayerFormChange>(m_connections, m_dispatcher, this);
 }
 
 void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept

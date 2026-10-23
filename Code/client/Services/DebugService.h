@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Actor.h>
 #include <Components/FormIdComponent.h>
 #include <Components/LocalComponent.h>
@@ -85,9 +86,7 @@ private:
     std::string SubtitleText = "";
     uint32_t TopicID = 0;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_drawImGuiConnection;
-    entt::scoped_connection m_dialogueConnection;
+    std::vector<entt::scoped_connection> m_connections;
     bool m_showBuildTag = true;
     bool m_drawComponentsInWorldSpace = false;
 };

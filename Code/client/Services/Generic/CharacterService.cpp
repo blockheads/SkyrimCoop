@@ -61,39 +61,38 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     , m_formBridge(aFormBridge)
     , m_playerBridge(aPlayerBridge)
 {
-    m_referenceAddedConnection = m_dispatcher.sink<ActorAddedEvent>().connect<&CharacterService::OnActorAdded>(this);
-    m_referenceRemovedConnection = m_dispatcher.sink<ActorRemovedEvent>().connect<&CharacterService::OnActorRemoved>(this);
+    Listen<ActorAddedEvent, &CharacterService::OnActorAdded>(m_connections, m_dispatcher, this);
+    Listen<ActorRemovedEvent, &CharacterService::OnActorRemoved>(m_connections, m_dispatcher, this);
 
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&CharacterService::OnUpdate>(this);
-    m_actionConnection = m_dispatcher.sink<ActionEvent>().connect<&CharacterService::OnActionEvent>(this);
+    Listen<UpdateEvent, &CharacterService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<ActionEvent, &CharacterService::OnActionEvent>(m_connections, m_dispatcher, this);
 
-    m_connectedConnection = m_dispatcher.sink<ConnectedEvent>().connect<&CharacterService::OnConnected>(this);
-    m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&CharacterService::OnDisconnected>(this);
+    Listen<ConnectedEvent, &CharacterService::OnConnected>(m_connections, m_dispatcher, this);
+    Listen<DisconnectedEvent, &CharacterService::OnDisconnected>(m_connections, m_dispatcher, this);
 
-    m_assignCharacterConnection = m_dispatcher.sink<AssignCharacterResponse>().connect<&CharacterService::OnAssignCharacter>(this);
-    m_characterSpawnConnection = m_dispatcher.sink<NotifyCharacterSpawn>().connect<&CharacterService::OnCharacterSpawn>(this);
-    m_referenceMovementSnapshotConnection = m_dispatcher.sink<NotifyReferencesMove>().connect<&CharacterService::OnReferencesMoveRequest>(this);
-    m_factionsConnection = m_dispatcher.sink<NotifyFactionsChanges>().connect<&CharacterService::OnFactionsChanges>(this);
-    m_factionsChangeConnection = m_dispatcher.sink<FactionsChangeEvent>().connect<&CharacterService::OnFactionsChange>(this);
-    m_referenceJumpConnection = m_dispatcher.sink<ReferenceJumpEvent>().connect<&CharacterService::OnReferenceJump>(this);
-    m_removeCharacterConnection = m_dispatcher.sink<NotifyRemoveCharacter>().connect<&CharacterService::OnRemoveCharacter>(this);
+    Listen<AssignCharacterResponse, &CharacterService::OnAssignCharacter>(m_connections, m_dispatcher, this);
+    Listen<NotifyCharacterSpawn, &CharacterService::OnCharacterSpawn>(m_connections, m_dispatcher, this);
+    Listen<NotifyReferencesMove, &CharacterService::OnReferencesMoveRequest>(m_connections, m_dispatcher, this);
+    Listen<NotifyFactionsChanges, &CharacterService::OnFactionsChanges>(m_connections, m_dispatcher, this);
+    Listen<FactionsChangeEvent, &CharacterService::OnFactionsChange>(m_connections, m_dispatcher, this);
+    Listen<ReferenceJumpEvent, &CharacterService::OnReferenceJump>(m_connections, m_dispatcher, this);
+    Listen<NotifyRemoveCharacter, &CharacterService::OnRemoveCharacter>(m_connections, m_dispatcher, this);
 
-    m_mountConnection = m_dispatcher.sink<MountEvent>().connect<&CharacterService::OnMountEvent>(this);
-    m_notifyMountConnection = m_dispatcher.sink<NotifyMount>().connect<&CharacterService::OnNotifyMount>(this);
+    Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
 
-    m_notifyRespawnConnection = m_dispatcher.sink<NotifyRespawn>().connect<&CharacterService::OnNotifyRespawn>(this);
-    m_playerArrivedConnection =
-        m_dispatcher.sink<PlayerArrivedEvent>().connect<&CharacterService::OnPlayerArrived>(this);
-    m_beastFormChangeConnection = m_dispatcher.sink<BeastFormChangeEvent>().connect<&CharacterService::OnBeastFormChange>(this);
+    Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
+    Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
+    Listen<BeastFormChangeEvent, &CharacterService::OnBeastFormChange>(m_connections, m_dispatcher, this);
 
-    m_addExperienceEventConnection = m_dispatcher.sink<AddExperienceEvent>().connect<&CharacterService::OnAddExperienceEvent>(this);
-    m_syncExperienceConnection = m_dispatcher.sink<NotifySyncExperience>().connect<&CharacterService::OnNotifySyncExperience>(this);
+    Listen<AddExperienceEvent, &CharacterService::OnAddExperienceEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifySyncExperience, &CharacterService::OnNotifySyncExperience>(m_connections, m_dispatcher, this);
 
-    m_dialogueEventConnection = m_dispatcher.sink<DialogueEvent>().connect<&CharacterService::OnDialogueEvent>(this);
-    m_dialogueSyncConnection = m_dispatcher.sink<NotifyDialogue>().connect<&CharacterService::OnNotifyDialogue>(this);
+    Listen<DialogueEvent, &CharacterService::OnDialogueEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyDialogue, &CharacterService::OnNotifyDialogue>(m_connections, m_dispatcher, this);
 
-    m_subtitleEventConnection = m_dispatcher.sink<SubtitleEvent>().connect<&CharacterService::OnSubtitleEvent>(this);
-    m_subtitleSyncConnection = m_dispatcher.sink<NotifySubtitle>().connect<&CharacterService::OnNotifySubtitle>(this);
+    Listen<SubtitleEvent, &CharacterService::OnSubtitleEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifySubtitle, &CharacterService::OnNotifySubtitle>(m_connections, m_dispatcher, this);
 
 }
 

@@ -29,15 +29,15 @@ MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, Transpo
     , m_actorBridge(aActorBridge)
     , m_formBridge(aFormBridge)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&MagicService::OnUpdate>(this);
-    m_spellCastEventConnection = m_dispatcher.sink<SpellCastEvent>().connect<&MagicService::OnSpellCastEvent>(this);
-    m_notifySpellCastConnection = m_dispatcher.sink<NotifySpellCast>().connect<&MagicService::OnNotifySpellCast>(this);
-    m_interruptCastEventConnection = m_dispatcher.sink<InterruptCastEvent>().connect<&MagicService::OnInterruptCastEvent>(this);
-    m_notifyInterruptCastConnection = m_dispatcher.sink<NotifyInterruptCast>().connect<&MagicService::OnNotifyInterruptCast>(this);
-    m_addTargetEventConnection = m_dispatcher.sink<AddTargetEvent>().connect<&MagicService::OnAddTargetEvent>(this);
-    m_notifyAddTargetConnection = m_dispatcher.sink<NotifyAddTarget>().connect<&MagicService::OnNotifyAddTarget>(this);
-    m_removeSpellEventConnection = m_dispatcher.sink<RemoveSpellEvent>().connect<&MagicService::OnRemoveSpellEvent>(this);
-    m_notifyRemoveSpell = m_dispatcher.sink<NotifyRemoveSpell>().connect<&MagicService::OnNotifyRemoveSpell>(this);
+    Listen<UpdateEvent, &MagicService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<SpellCastEvent, &MagicService::OnSpellCastEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifySpellCast, &MagicService::OnNotifySpellCast>(m_connections, m_dispatcher, this);
+    Listen<InterruptCastEvent, &MagicService::OnInterruptCastEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyInterruptCast, &MagicService::OnNotifyInterruptCast>(m_connections, m_dispatcher, this);
+    Listen<AddTargetEvent, &MagicService::OnAddTargetEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyAddTarget, &MagicService::OnNotifyAddTarget>(m_connections, m_dispatcher, this);
+    Listen<RemoveSpellEvent, &MagicService::OnRemoveSpellEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyRemoveSpell, &MagicService::OnNotifyRemoveSpell>(m_connections, m_dispatcher, this);
 }
 
 void MagicService::OnUpdate(const UpdateEvent& acEvent) noexcept

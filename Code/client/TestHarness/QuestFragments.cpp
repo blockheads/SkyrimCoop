@@ -36,9 +36,7 @@ Hooks::Initializer s_questFragmentHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TFindFragment, s_findFragment, 53429);
-        RealFindFragment = s_findFragment.Get();
-        HOOK(&RealFindFragment, HookFindFragment);
+        HOOK_ID(53429, &RealFindFragment, HookFindFragment);
     });
 
 // {"cmd": "quest_fragments", "quest": id}: fragments the VM went to run for that quest since the last reset.

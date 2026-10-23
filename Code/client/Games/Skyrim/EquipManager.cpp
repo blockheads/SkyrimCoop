@@ -319,22 +319,14 @@ static Hooks::Initializer s_equipmentHooks(
         const HookGate cGate(__FILE__);
         POINTER_SKYRIMSE(TEquip, s_equipFunc, 38929);
         POINTER_SKYRIMSE(TUnEquip, s_unequipFunc, 38934);
-        POINTER_SKYRIMSE(TEquipSpell, s_equipSpellFunc, 38928);
-        POINTER_SKYRIMSE(TUnEquipSpell, s_unequipSpellFunc, 38933);
-        POINTER_SKYRIMSE(TEquipShout, s_equipShoutFunc, 38930);
-        POINTER_SKYRIMSE(TUnEquipShout, s_unequipShoutFunc, 38935);
 
         RealEquip = s_equipFunc.Get();
         RealUnEquip = s_unequipFunc.Get();
-        RealEquipSpell = s_equipSpellFunc.Get();
-        RealUnEquipSpell = s_unequipSpellFunc.Get();
-        RealEquipShout = s_equipShoutFunc.Get();
-        RealUnEquipShout = s_unequipShoutFunc.Get();
 
         HOOK(&RealEquip, EquipHook);
         HOOK(&RealUnEquip, UnEquipHook);
-        HOOK(&RealEquipSpell, EquipSpellHook);
-        HOOK(&RealUnEquipSpell, UnEquipSpellHook);
-        HOOK(&RealEquipShout, EquipShoutHook);
-        HOOK(&RealUnEquipShout, UnEquipShoutHook);
+        HOOK_ID(38928, &RealEquipSpell, EquipSpellHook);
+        HOOK_ID(38933, &RealUnEquipSpell, UnEquipSpellHook);
+        HOOK_ID(38930, &RealEquipShout, EquipShoutHook);
+        HOOK_ID(38935, &RealUnEquipShout, UnEquipShoutHook);
     });

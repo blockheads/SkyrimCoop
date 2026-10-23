@@ -506,20 +506,10 @@ static Hooks::Initializer s_lockOrderHooks([]() {
     ModuleRange(GetModuleHandleW(nullptr), s_engineBase, s_engineEnd);
     ModuleRange(reinterpret_cast<HMODULE>(&__ImageBase), s_ourBase, s_ourEnd);
 
-    POINTER_SKYRIMSE(TLockFunction, lockForRead, 68233);
-    POINTER_SKYRIMSE(TLockFunction, lockForWrite, 68234);
-    POINTER_SKYRIMSE(TLockFunction, unlockForRead, 68239);
-    POINTER_SKYRIMSE(TLockFunction, unlockForWrite, 68240);
-
-    RealLockForRead = lockForRead.Get();
-    RealLockForWrite = lockForWrite.Get();
-    RealUnlockForRead = unlockForRead.Get();
-    RealUnlockForWrite = unlockForWrite.Get();
-
-    HOOK(&RealLockForRead, HookLockForRead);
-    HOOK(&RealLockForWrite, HookLockForWrite);
-    HOOK(&RealUnlockForRead, HookUnlockForRead);
-    HOOK(&RealUnlockForWrite, HookUnlockForWrite);
+    HOOK_ID(68233, &RealLockForRead, HookLockForRead);
+    HOOK_ID(68234, &RealLockForWrite, HookLockForWrite);
+    HOOK_ID(68239, &RealUnlockForRead, HookUnlockForRead);
+    HOOK_ID(68240, &RealUnlockForWrite, HookUnlockForWrite);
     s_enabled = true;
     spdlog::info("LockOrder: tracking BSReadWriteLock at SkyrimSE.exe+{:#x}",
                  reinterpret_cast<uintptr_t>(RealLockForRead) - s_engineBase);

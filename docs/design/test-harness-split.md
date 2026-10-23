@@ -169,7 +169,7 @@ service.
 ## Commands
 
 - Build the client: `scripts/xmake-msvc.sh build -j16 SkyrimTogetherClientDLL`
-- Native bridge tests: `scripts/xmake-linux.sh build -j16 BridgeTests && build/linux/x86_64/debug/BridgeTests`
+- Native host authority tests: `scripts/xmake-linux.sh build -j16 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests`
 - Swap a build into the running games: `scripts/coop_test.py reload`. Memory grows ~70 MB per
   reload; when the games get flaky, run `scripts/coop_test.py stop`, then `scripts/coop_test.py duo --keep-running`.
 - Scenarios: `scripts/coop_test.py scenario [names] [--tag x] [--repeat N --shuffle] [--fail-fast]`.

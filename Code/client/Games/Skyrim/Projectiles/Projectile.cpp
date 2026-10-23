@@ -122,11 +122,7 @@ static Hooks::Initializer s_projectileHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TLaunch, s_launch, 44108);
-
-        RealLaunch = s_launch.Get();
-
-        HOOK(&RealLaunch, HookLaunch);
+        HOOK_ID(44108, &RealLaunch, HookLaunch);
 
         VersionDbPtr<uint8_t> hookLoc(34452);
 

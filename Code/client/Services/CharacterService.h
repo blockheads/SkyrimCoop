@@ -1,4 +1,5 @@
 #pragma once
+#include <Events/Listen.h>
 #include "Structs/Inventory.h"
 #include "Structs/ActorData.h"
 #include <Messages/AssignCharacterRequest.h>
@@ -146,28 +147,5 @@ private:
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
     std::chrono::steady_clock::time_point m_lastSnapshot; // our actors' last movement snapshot sent
 
-    entt::scoped_connection m_referenceAddedConnection;
-    entt::scoped_connection m_referenceRemovedConnection;
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_actionConnection;
-    entt::scoped_connection m_factionsConnection;
-    entt::scoped_connection m_factionsChangeConnection;
-    entt::scoped_connection m_referenceJumpConnection;
-    entt::scoped_connection m_removeCharacterConnection;
-    entt::scoped_connection m_connectedConnection;
-    entt::scoped_connection m_disconnectedConnection;
-    entt::scoped_connection m_assignCharacterConnection;
-    entt::scoped_connection m_characterSpawnConnection;
-    entt::scoped_connection m_referenceMovementSnapshotConnection;
-    entt::scoped_connection m_mountConnection;
-    entt::scoped_connection m_notifyMountConnection;
-    entt::scoped_connection m_notifyRespawnConnection;
-    entt::scoped_connection m_playerArrivedConnection;
-    entt::scoped_connection m_beastFormChangeConnection;
-    entt::scoped_connection m_addExperienceEventConnection;
-    entt::scoped_connection m_syncExperienceConnection;
-    entt::scoped_connection m_dialogueEventConnection;
-    entt::scoped_connection m_dialogueSyncConnection;
-    entt::scoped_connection m_subtitleEventConnection;
-    entt::scoped_connection m_subtitleSyncConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

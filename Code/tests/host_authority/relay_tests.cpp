@@ -1,7 +1,7 @@
 // HostAuthority's relays: who receives each request's notification.
 #include "session.h"
 
-TEST_CASE("Hands: the owner's change reaches everyone else", "[Bridge][Inventory]")
+TEST_CASE("Hands: the owner's change reaches everyone else", "[HostAuthority][Inventory]")
 {
     Session session;
     const uint32_t cActor = session.Character(kPeer);
@@ -21,7 +21,7 @@ TEST_CASE("Hands: the owner's change reaches everyone else", "[Bridge][Inventory
     CHECK(session.SentTo<NotifyDrawWeapon>(kPeer).empty());
 }
 
-TEST_CASE("Hands: only the owner decides", "[Bridge][Inventory]")
+TEST_CASE("Hands: only the owner decides", "[HostAuthority][Inventory]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -35,7 +35,7 @@ TEST_CASE("Hands: only the owner decides", "[Bridge][Inventory]")
     CHECK(session.SentTo<NotifyDrawWeapon>(kOtherPeer).empty());
 }
 
-TEST_CASE("Equipment snapshot: relayed from the owner only", "[Bridge][Inventory]")
+TEST_CASE("Equipment snapshot: relayed from the owner only", "[HostAuthority][Inventory]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -51,7 +51,7 @@ TEST_CASE("Equipment snapshot: relayed from the owner only", "[Bridge][Inventory
     CHECK(session.SentTo<NotifyEquipmentSnapshot>(kHost).empty());
 }
 
-TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[Bridge][Magic]")
+TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[HostAuthority][Magic]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -69,7 +69,7 @@ TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[Bri
     CHECK(session.SentTo<NotifyActiveEffects>(kHost).empty());
 }
 
-TEST_CASE("Effect flashes: relayed from the owner only, to everyone else", "[Bridge][Magic]")
+TEST_CASE("Effect flashes: relayed from the owner only, to everyone else", "[HostAuthority][Magic]")
 {
     Session session;
     EffectFlashRequest flash;
@@ -85,7 +85,7 @@ TEST_CASE("Effect flashes: relayed from the owner only, to everyone else", "[Bri
     CHECK(session.SentTo<NotifyEffectFlash>(kHost).empty());
 }
 
-TEST_CASE("Cutscenes: a game's party call reaches every other game, named as that game's player's", "[Bridge][Scripts]")
+TEST_CASE("Cutscenes: a game's party call reaches every other game, named as that game's player's", "[HostAuthority][Scripts]")
 {
     Session session;
     PartyNativeRequest call;
@@ -108,7 +108,7 @@ TEST_CASE("Cutscenes: a game's party call reaches every other game, named as tha
     CHECK(session.SentTo<NotifyPartyNative>(kPeer).empty());
 }
 
-TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, for that guest", "[Bridge][Scripts]")
+TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, for that guest", "[HostAuthority][Scripts]")
 {
     Session session;
     const uint32_t cCharacter = session.Character(kPeer);
@@ -131,7 +131,7 @@ TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, 
     CHECK(session.SentTo<NotifyWorldCall>(kPeer).empty());
 }
 
-TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[Bridge][Inventory]")
+TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[HostAuthority][Inventory]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -158,7 +158,7 @@ TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Equipment: a change reaches everyone else", "[Bridge][Inventory]")
+TEST_CASE("Equipment: a change reaches everyone else", "[HostAuthority][Inventory]")
 {
     Session session;
     const uint32_t cActor = session.Character(kPeer);
@@ -175,7 +175,7 @@ TEST_CASE("Equipment: a change reaches everyone else", "[Bridge][Inventory]")
     CHECK(session.SentTo<NotifyEquipmentChanges>(kPeer).empty());
 }
 
-TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[Bridge][Values]")
+TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[HostAuthority][Values]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -194,7 +194,7 @@ TEST_CASE("Values: the owner's reach everyone else, nobody else's do", "[Bridge]
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Death: from the owner only", "[Bridge][Values]")
+TEST_CASE("Death: from the owner only", "[HostAuthority][Values]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -210,7 +210,7 @@ TEST_CASE("Death: from the owner only", "[Bridge][Values]")
     CHECK(session.SentTo<NotifyDeathStateChange>(kPeer)[0]->IsDead);
 }
 
-TEST_CASE("Hits: go to the actor's owner alone", "[Bridge][Values]")
+TEST_CASE("Hits: go to the actor's owner alone", "[HostAuthority][Values]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -231,7 +231,7 @@ TEST_CASE("Hits: go to the actor's owner alone", "[Bridge][Values]")
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner only", "[Bridge][Magic]")
+TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner only", "[HostAuthority][Magic]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
@@ -261,7 +261,7 @@ TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner on
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Spell effects: applied by the target's owner alone", "[Bridge][Magic]")
+TEST_CASE("Spell effects: applied by the target's owner alone", "[HostAuthority][Magic]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
@@ -285,7 +285,7 @@ TEST_CASE("Spell effects: applied by the target's owner alone", "[Bridge][Magic]
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Spell removal: reaches everyone else", "[Bridge][Magic]")
+TEST_CASE("Spell removal: reaches everyone else", "[HostAuthority][Magic]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -300,7 +300,7 @@ TEST_CASE("Spell removal: reaches everyone else", "[Bridge][Magic]")
     CHECK(session.SentTo<NotifyRemoveSpell>(kPeer).empty());
 }
 
-TEST_CASE("Factions: each actor's from its owner only", "[Bridge][Characters]")
+TEST_CASE("Factions: each actor's from its owner only", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -323,7 +323,7 @@ TEST_CASE("Factions: each actor's from its owner only", "[Bridge][Characters]")
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Characters]")
+TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -356,7 +356,7 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }
 
-TEST_CASE("Scripts: a native on the player the host's script ran for a guest runs on that guest's game", "[Bridge][Scripts]")
+TEST_CASE("Scripts: a native on the player the host's script ran for a guest runs on that guest's game", "[HostAuthority][Scripts]")
 {
     Session session;
     PlayerNativeRequest request;
@@ -377,7 +377,7 @@ TEST_CASE("Scripts: a native on the player the host's script ran for a guest run
     CHECK(session.SentTo<NotifyPlayerNative>(kOtherPeer).empty());
 }
 
-TEST_CASE("Scripts: a native on the player returning a value answers the host's waiting script", "[Bridge][Scripts]")
+TEST_CASE("Scripts: a native on the player returning a value answers the host's waiting script", "[HostAuthority][Scripts]")
 {
     Session session;
     PlayerNativeRequest request;
@@ -406,7 +406,7 @@ TEST_CASE("Scripts: a native on the player returning a value answers the host's 
     CHECK(session.SentTo<NotifyPlayerNativeResult>(kOtherPeer).empty());
 }
 
-TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script with none", "[Bridge][Scripts]")
+TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script with none", "[HostAuthority][Scripts]")
 {
     Session session;
     PlayerNativeRequest request;
@@ -430,7 +430,7 @@ TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script w
     CHECK((cLater[1]->ReplyId == 79 && std::holds_alternative<std::monostate>(cLater[1]->Result)));
 }
 
-TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and container change are the host's to take", "[Bridge][Objects]")
+TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and container change are the host's to take", "[HostAuthority][Objects]")
 {
     Session session;
     const uint32_t cPlayer = session.Character(kPeer);
@@ -483,7 +483,7 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     CHECK(session.ItemsSet.size() == 1);
 }
 
-TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "[Bridge][AiState]")
+TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "[HostAuthority][AiState]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);

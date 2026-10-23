@@ -101,7 +101,5 @@ static Hooks::Initializer s_portalGraphFix(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetPortalGraph, s_setPortalGraph, 106385);
-        RealSetPortalGraph = s_setPortalGraph.Get();
-        HOOK(&RealSetPortalGraph, HookSetPortalGraph);
+        HOOK_ID(106385, &RealSetPortalGraph, HookSetPortalGraph);
     });

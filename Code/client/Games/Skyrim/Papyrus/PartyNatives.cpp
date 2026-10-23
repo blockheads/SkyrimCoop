@@ -61,9 +61,7 @@ void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEna
 
 Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
-    POINTER_SKYRIMSE(TToggleControls, s_toggleControls, 68545);
-    RealToggleControls = s_toggleControls.Get();
-    HOOK(&RealToggleControls, HookToggleControls);
+    HOOK_ID(68545, &RealToggleControls, HookToggleControls);
 });
 } // namespace
 

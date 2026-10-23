@@ -167,8 +167,8 @@ service and records go. One family per step, with the suite after each:
 3. Magic and combat: spell cast, interrupt, add target, remove spell, projectile launch.
 4. Character extras: factions, mount, AI package, dialogue, subtitle, experience, level, respawn.
 
-Each family's rules have headless tests in `Code/tests/bridge` (`BridgeTests`, native Linux build, GCC
-linked with lld: `scripts/xmake-linux.sh build -j16 BridgeTests && build/linux/x86_64/debug/BridgeTests`). They feed requests into a test-mode
+Each family's rules have headless tests in `Code/tests/host_authority` (`HostAuthorityTests`, native Linux build, GCC
+linked with lld: `scripts/xmake-linux.sh build -j16 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests`). They feed requests into a test-mode
 server as the transport sends them and check who receives what. The bridge needs no client `World`
 for that: the host's game reaches it as a callback (`SpawnSource`, from `CharacterService`).
 
@@ -204,7 +204,7 @@ gets it (`Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest:
 request and its notification inherit one payload struct (`Code/encoding/Messages/Payloads.h`):
 its fields and their bytes are written once, and the relay copies the payload. Such a pair is two
 `using` lines of `Relayed<Payload, Opcode>` (`Messages/RelayedMessages.h`, defined in `Relayed.h`). Only items and
-equipment changes pass on something different (`ToNotify`). `Code/tests/bridge/wire_tests.cpp` pins
+equipment changes pass on something different (`ToNotify`). `Code/tests/host_authority/wire_tests.cpp` pins
 the bytes of every relayed message. Deliveries: `FromOwner` (the actor's owner says it;
 everyone else replays it), `FromAnyone`, and `ToOwner` (done to another's actor; its owner alone
 applies it). Rules with more to them are member functions (`On<...>`): movement, items, factions.

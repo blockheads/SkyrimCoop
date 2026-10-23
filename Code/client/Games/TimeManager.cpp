@@ -33,7 +33,5 @@ static Hooks::Initializer s_loadingScreenHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSimulateTime, s_SimulateTime, 36291);
-        RealSimulateTime = s_SimulateTime.Get();
-        HOOK(&RealSimulateTime, HookSimulateTime);
+        HOOK_ID(36291, &RealSimulateTime, HookSimulateTime);
     });

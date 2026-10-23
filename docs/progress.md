@@ -910,6 +910,20 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   asserted against one); sends that ignored the result carry no id for a created form; guarded ones drop instead
   of sending an id no game finds (a guest's activation, lock or equip of a created form). `ClientTests`
   "[FormIds]". `Inventory.h` includes `<optional>`.
+- One line per hook (2026-10-23, uncommitted, ideas.md "Code cleanup"): `HOOK_ID(ID, &Real, HookFn)` (and
+  `HOOK_ID_IMMEDIATE`, `Hooks/FunctionHook.h`) replaces the `POINTER_SKYRIMSE` / `Real = .Get()` / `HOOK` triple at
+  122 installs in 38 files (266 lines); signatures, ids, breadcrumb names and install order are unchanged. Left as
+  they were (24): setup between resolving and installing (`Memory.cpp`'s two, `Actor.cpp`'s `ApplyMovement`,
+  `ResetInventory`, `UpdateAI`, `GuestScripts.cpp`'s nine), relocation names an engine-call wrapper reuses
+  (`EquipManager.cpp`'s two, `TESObjectREFR.cpp`'s `SetPositionOnAxis`, `SetAngleOnAxis`) and other target forms
+  (`ExitProcess`, DInput's device, four `VersionDbPtr` casts). `build_re_data.py` reads the new form: the same 441
+  ids, 486 uses and 152 hook rows.
+- Event connections in one vector (2026-10-23, uncommitted): `Listen<Event, &T::Handler>(m_connections,
+  m_dispatcher, this)` (`Events/Listen.h`, with a sink overload for the registry's `on_destroy` and the ImGui draw
+  signal) replaces 123 `scoped_connection` members in 26 classes, each vector where its members were (97 fields).
+- `BridgeTests` is `HostAuthorityTests` (2026-10-23, uncommitted): `Code/tests/host_authority/`, `[HostAuthority]`
+  tags, the `HostAuthorityTest` namespace; the gate, `CLAUDE.md` and the design docs follow. Dated entries keep
+  the old name.
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.

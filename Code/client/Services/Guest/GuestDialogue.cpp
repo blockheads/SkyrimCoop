@@ -13,10 +13,10 @@ GuestDialogue::GuestDialogue(World& aWorld, entt::dispatcher& aDispatcher, Dialo
     : m_world(aWorld)
     , m_dialogue(aDialogue)
 {
-    m_listConnection = aDispatcher.sink<NotifyDialogueList>().connect<&GuestDialogue::OnList>(this);
-    m_refusedConnection = aDispatcher.sink<NotifyDialogueRefused>().connect<&GuestDialogue::OnRefused>(this);
-    m_lineConnection = aDispatcher.sink<NotifyDialogue>().connect<&GuestDialogue::OnLine>(this);
-    m_subtitleConnection = aDispatcher.sink<NotifySubtitle>().connect<&GuestDialogue::OnSubtitle>(this);
+    Listen<NotifyDialogueList, &GuestDialogue::OnList>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogueRefused, &GuestDialogue::OnRefused>(m_connections, aDispatcher, this);
+    Listen<NotifyDialogue, &GuestDialogue::OnLine>(m_connections, aDispatcher, this);
+    Listen<NotifySubtitle, &GuestDialogue::OnSubtitle>(m_connections, aDispatcher, this);
     m_dialogue.SetRole(this);
 }
 

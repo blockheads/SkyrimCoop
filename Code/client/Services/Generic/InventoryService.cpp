@@ -33,15 +33,15 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
     , m_actorBridge(aActorBridge)
     , m_formBridge(aFormBridge)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&InventoryService::OnUpdate>(this);
-    m_inventoryConnection = m_dispatcher.sink<InventoryChangeEvent>().connect<&InventoryService::OnInventoryChangeEvent>(this);
-    m_equipmentConnection = m_dispatcher.sink<EquipmentChangeEvent>().connect<&InventoryService::OnEquipmentChangeEvent>(this);
-    m_inventoryChangeConnection = m_dispatcher.sink<NotifyInventoryChanges>().connect<&InventoryService::OnNotifyInventoryChanges>(this);
-    m_equipmentChangeConnection = m_dispatcher.sink<NotifyEquipmentChanges>().connect<&InventoryService::OnNotifyEquipmentChanges>(this);
-    m_equipmentSnapshotConnection = m_dispatcher.sink<NotifyEquipmentSnapshot>().connect<&InventoryService::OnNotifyEquipmentSnapshot>(this);
-    m_drawWeaponConnection = m_dispatcher.sink<NotifyDrawWeapon>().connect<&InventoryService::OnNotifyDrawWeapon>(this);
-    m_localComponentRemoved = m_world.on_destroy<LocalComponent>().connect<&InventoryService::OnLocalComponentRemoved>(this);
-    m_remoteComponentRemoved = m_world.on_destroy<RemoteComponent>().connect<&InventoryService::OnRemoteComponentRemoved>(this);
+    Listen<UpdateEvent, &InventoryService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<InventoryChangeEvent, &InventoryService::OnInventoryChangeEvent>(m_connections, m_dispatcher, this);
+    Listen<EquipmentChangeEvent, &InventoryService::OnEquipmentChangeEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyInventoryChanges, &InventoryService::OnNotifyInventoryChanges>(m_connections, m_dispatcher, this);
+    Listen<NotifyEquipmentChanges, &InventoryService::OnNotifyEquipmentChanges>(m_connections, m_dispatcher, this);
+    Listen<NotifyEquipmentSnapshot, &InventoryService::OnNotifyEquipmentSnapshot>(m_connections, m_dispatcher, this);
+    Listen<NotifyDrawWeapon, &InventoryService::OnNotifyDrawWeapon>(m_connections, m_dispatcher, this);
+    Listen<&InventoryService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+    Listen<&InventoryService::OnRemoteComponentRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
 }
 
 void InventoryService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept

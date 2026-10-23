@@ -1,7 +1,7 @@
 // HostClock: the session's time is the host's clock.
 #include "session.h"
 
-TEST_CASE("Time: a joining player gets the host's clock", "[Bridge][Time]")
+TEST_CASE("Time: a joining player gets the host's clock", "[HostAuthority][Time]")
 {
     Session session;
     session.HostClock.Time = 15.5f;
@@ -16,7 +16,7 @@ TEST_CASE("Time: a joining player gets the host's clock", "[Bridge][Time]")
     CHECK(cTimes[0]->timeModel == session.HostClock);
 }
 
-TEST_CASE("Time: peers follow the host's clock when it jumps, not while it runs", "[Bridge][Time]")
+TEST_CASE("Time: peers follow the host's clock when it jumps, not while it runs", "[HostAuthority][Time]")
 {
     Session session;
     session.HostClock.TimeScale = 20.f;
@@ -52,7 +52,7 @@ TEST_CASE("Time: peers follow the host's clock when it jumps, not while it runs"
     CHECK(session.SentTo<NotifyTimeSettings>(kPeer).size() == 1);
 }
 
-TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
+TEST_CASE("Set time: any player's sets the host's clock", "[HostAuthority][Time]")
 {
     Session session;
     SetTimeCommandRequest command;
@@ -72,7 +72,7 @@ TEST_CASE("Set time: any player's sets the host's clock", "[Bridge][Time]")
     CHECK(session.HostClock.Time == Approx(21.5f));
 }
 
-TEST_CASE("Time: peers' clocks count the days passed at midnight themselves", "[Bridge][Time]")
+TEST_CASE("Time: peers' clocks count the days passed at midnight themselves", "[HostAuthority][Time]")
 {
     Session session;
     session.HostClock.TimeScale = 20.f;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <NoCopyMove.h>
 
 struct World;
@@ -39,8 +40,5 @@ protected:
 private:
     std::unordered_map<uint32_t, Player> m_players;
 
-    entt::scoped_connection m_playerJoinedConnection;
-    entt::scoped_connection m_playerLeftConnection;
-    entt::scoped_connection m_playerLevelConnection;
-    entt::scoped_connection m_disconnectedConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

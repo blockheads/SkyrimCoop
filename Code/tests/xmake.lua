@@ -8,7 +8,7 @@ target("TPTests")
     add_deps("SkyrimEncoding")
     add_packages("catch2", "glm", "spdlog", "rpmalloc")
 
-includes("bridge")
+includes("host_authority")
 includes("client")
 includes("games")
 includes("peer")

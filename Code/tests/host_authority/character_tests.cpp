@@ -4,7 +4,7 @@
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyPartyTravel.h>
 
-TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it everyone else's", "[Bridge][Characters]")
+TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it everyone else's", "[HostAuthority][Characters]")
 {
     Session session;
     for (const uint32_t cSessionId : {100u, 101u})
@@ -50,7 +50,7 @@ TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it 
     }
 }
 
-TEST_CASE("Characters: only the host announces anything but a player's own", "[Bridge][Characters]")
+TEST_CASE("Characters: only the host announces anything but a player's own", "[HostAuthority][Characters]")
 {
     Session session;
     AssignCharacterRequest announce;
@@ -59,7 +59,7 @@ TEST_CASE("Characters: only the host announces anything but a player's own", "[B
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving", "[Bridge][Characters]")
+TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -95,7 +95,7 @@ TEST_CASE("Characters: removed by their owner, a cancel, or their player leaving
     CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->SessionId == cPeerPlayer);
 }
 
-TEST_CASE("Characters: the owner's removal says where its actor went, for the copies to follow", "[Bridge][Characters]")
+TEST_CASE("Characters: the owner's removal says where its actor went, for the copies to follow", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cMoved = session.Character(kHost);
@@ -133,7 +133,7 @@ TEST_CASE("Characters: the owner's removal says where its actor went, for the co
     CHECK(session.SentTo<NotifyRemoveCharacter>(kHost)[0]->Whereabouts.Where == ActorWhereabouts::State::kUnknown);
 }
 
-TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn", "[Bridge][Characters]")
+TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
@@ -162,7 +162,7 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     CHECK(cSpawns[0]->Position == movement.Updates[cPeerPlayer].UpdatedMovement.Position);
 }
 
-TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn, else the host's copy's", "[Bridge][Characters]")
+TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn, else the host's copy's", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
@@ -196,7 +196,7 @@ TEST_CASE("Respawn: the fresh spawn starts from the owner's state at its respawn
     CHECK(cSpawn.InitialActorValues.ActorMaxValuesList.at(24) == 5000.f);
 }
 
-TEST_CASE("Respawn: a peer that lost the host's first character gets it again", "[Bridge][Characters]")
+TEST_CASE("Respawn: a peer that lost the host's first character gets it again", "[HostAuthority][Characters]")
 {
     Session session;
     // The first id handed out (never 0, which means no character): the host's player, whose copy a peer drops
@@ -232,7 +232,7 @@ EnterCellRequest Arrival(uint32_t aCell, uint32_t aWorldSpace = 0, glm::vec3 aPo
 }
 } // namespace
 
-TEST_CASE("Arriving: a player gets the host's actors there; players' copies travel with the party", "[Bridge][Characters]")
+TEST_CASE("Arriving: a player gets the host's actors there; players' copies travel with the party", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
@@ -259,7 +259,7 @@ TEST_CASE("Arriving: a player gets the host's actors there; players' copies trav
     (void)cOtherPlayer;
 }
 
-TEST_CASE("Arriving: the host's actors only go to players with the host", "[Bridge][Characters]")
+TEST_CASE("Arriving: the host's actors only go to players with the host", "[HostAuthority][Characters]")
 {
     Session session;
     session.Character(kPeer);
@@ -301,7 +301,7 @@ uint32_t BothInQASmoke(Session& aSession)
 }
 } // namespace
 
-TEST_CASE("Arriving: the host first, then a peer still on its way", "[Bridge][Characters]")
+TEST_CASE("Arriving: the host first, then a peer still on its way", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = BothInQASmoke(session);
@@ -316,7 +316,7 @@ TEST_CASE("Arriving: the host first, then a peer still on its way", "[Bridge][Ch
     (void)cPeerPlayer;
 }
 
-TEST_CASE("Arriving: a peer ahead of the host gets the host's actors when the host arrives", "[Bridge][Characters]")
+TEST_CASE("Arriving: a peer ahead of the host gets the host's actors when the host arrives", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = BothInQASmoke(session);
@@ -341,7 +341,7 @@ TEST_CASE("Arriving: a peer ahead of the host gets the host's actors when the ho
 }
 
 TEST_CASE("Arriving: an actor the host's game announced but does not own yet reaches the arriving player once it does",
-          "[Bridge][Characters]")
+          "[HostAuthority][Characters]")
 {
     Session session;
     BothInQASmoke(session);
@@ -372,7 +372,7 @@ TEST_CASE("Arriving: an actor the host's game announced but does not own yet rea
     CHECK(cToPeer[0]->SessionId == cNpc);
 }
 
-TEST_CASE("Party tether: a player's own travel takes everyone else along, the host too", "[Bridge][Characters]")
+TEST_CASE("Party tether: a player's own travel takes everyone else along, the host too", "[HostAuthority][Characters]")
 {
     Session session;
     BothInQASmoke(session);
@@ -402,7 +402,7 @@ TEST_CASE("Party tether: a player's own travel takes everyone else along, the ho
     }
 }
 
-TEST_CASE("Party tether: a player joining away from the host is sent to it", "[Bridge][Characters]")
+TEST_CASE("Party tether: a player joining away from the host is sent to it", "[HostAuthority][Characters]")
 {
     Session session;
     AssignCharacterRequest host;
@@ -432,7 +432,7 @@ TEST_CASE("Party tether: a player joining away from the host is sent to it", "[B
 }
 
 TEST_CASE("Party tether: a player brought to the party gets the players' characters again where it arrives",
-          "[Bridge][Characters]")
+          "[HostAuthority][Characters]")
 {
     Session session;
     AssignCharacterRequest host;
@@ -468,7 +468,7 @@ TEST_CASE("Party tether: a player brought to the party gets the players' charact
 }
 
 TEST_CASE("Party tether: a player brought to the party outdoors gets them where it arrives, not where it joined",
-          "[Bridge][Characters]")
+          "[HostAuthority][Characters]")
 {
     Session session;
     AssignCharacterRequest host;
@@ -496,7 +496,7 @@ TEST_CASE("Party tether: a player brought to the party outdoors gets them where 
     CHECK(cToHost[0]->Position == glm::vec3(101.f, 100.f, 0.f));
 }
 
-TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sent to it", "[Bridge][Characters]")
+TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sent to it", "[HostAuthority][Characters]")
 {
     Session session;
     AssignCharacterRequest host;
@@ -524,7 +524,7 @@ TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sen
     CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
 }
 
-TEST_CASE("Party tether: a follower's, a joiner's or a respawn's arrival takes nobody along", "[Bridge][Characters]")
+TEST_CASE("Party tether: a follower's, a joiner's or a respawn's arrival takes nobody along", "[HostAuthority][Characters]")
 {
     Session session;
     BothInQASmoke(session);
@@ -538,7 +538,7 @@ TEST_CASE("Party tether: a follower's, a joiner's or a respawn's arrival takes n
     }
 }
 
-TEST_CASE("Party tether: a follower that arrives where the party is not is sent on", "[Bridge][Characters]")
+TEST_CASE("Party tether: a follower that arrives where the party is not is sent on", "[HostAuthority][Characters]")
 {
     Session session;
     BothInQASmoke(session);
@@ -561,7 +561,7 @@ TEST_CASE("Party tether: a follower that arrives where the party is not is sent 
     CHECK(session.SentTo<NotifyPartyTravel>(kPeer).empty());
 }
 
-TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joined", "[Bridge][Characters]")
+TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joined", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = BothInQASmoke(session);
@@ -587,7 +587,7 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     CHECK(cToHost[0]->IsWeaponDrawn);
 }
 
-TEST_CASE("Player respawn: everyone else respawns its character", "[Bridge][Characters]")
+TEST_CASE("Player respawn: everyone else respawns its character", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
@@ -598,7 +598,7 @@ TEST_CASE("Player respawn: everyone else respawns its character", "[Bridge][Char
     CHECK(session.SentTo<NotifyRespawn>(kPeer).empty());
 }
 
-TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[Bridge][Characters]")
+TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);

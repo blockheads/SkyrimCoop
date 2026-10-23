@@ -162,7 +162,7 @@ HostService& World::GetHostService() noexcept
     return ctx().at<HostService>();
 }
 
-// Skyrim 1.6.1170 with SKSE 2.2.6; Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm (BridgeTests' host).
+// Skyrim 1.6.1170 with SKSE 2.2.6; Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm (HostAuthorityTests' host).
 namespace RunningGame
 {
 const GameVersions& GetVersions()

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 class IFormBridge;
 class IActorBridge;
 
@@ -15,6 +16,9 @@ struct ObjectService
 {
     ObjectService(World&, entt::dispatcher&, TransportService&, IFormBridge&, IActorBridge&);
 
+    ObjectService(const ObjectService&) = delete;
+    ObjectService(ObjectService&&) = default;
+
 private:
     void OnActivate(const ActivateEvent&) noexcept;
     void OnActivateNotify(const NotifyActivate&) noexcept;
@@ -25,6 +29,5 @@ private:
     IFormBridge& m_formBridge;
     IActorBridge& m_actorBridge;
 
-    entt::scoped_connection m_onActivateConnection;
-    entt::scoped_connection m_activateConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

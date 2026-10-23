@@ -12,9 +12,9 @@ TimeScaleService::TimeScaleService(World& aWorld, entt::dispatcher& aDispatcher,
     : m_world(aWorld)
     , m_transport(aTransport)
 {
-    m_timeScaleConnection = aDispatcher.sink<TimeScaleEvent>().connect<&TimeScaleService::OnTimeScale>(this);
-    m_notifyTimeScaleConnection = aDispatcher.sink<NotifyTimeScale>().connect<&TimeScaleService::OnNotifyTimeScale>(this);
-    m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&TimeScaleService::OnDisconnected>(this);
+    Listen<TimeScaleEvent, &TimeScaleService::OnTimeScale>(m_connections, aDispatcher, this);
+    Listen<NotifyTimeScale, &TimeScaleService::OnNotifyTimeScale>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &TimeScaleService::OnDisconnected>(m_connections, aDispatcher, this);
 }
 
 void TimeScaleService::OnTimeScale(const TimeScaleEvent& acEvent) const noexcept

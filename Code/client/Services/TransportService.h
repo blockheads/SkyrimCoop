@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include "Events/ConnectedEvent.h"
 #include "Events/DisconnectedEvent.h"
 #include "Services/JoinStatus.h"
@@ -86,9 +87,6 @@ private:
     uint32_t m_localPlayerId;
     JoinStatus m_joinStatus;
 
-    entt::scoped_connection m_updateConnection;
-    entt::scoped_connection m_settingsChangeConnection;
-    entt::scoped_connection m_connectedConnection;
-    entt::scoped_connection m_disconnectedConnection;
+    std::vector<entt::scoped_connection> m_connections;
     std::function<void(std::unique_ptr<NotifyMessage>&)> m_messageHandlers[kNotifyOpcodeMax];
 };

@@ -17,7 +17,7 @@ GuestClock::GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine
     : m_world(aWorld)
     , m_engine(aEngine)
 {
-    m_timeConnection = aDispatcher.sink<NotifyTimeSettings>().connect<&GuestClock::OnTimeSettings>(this);
+    Listen<NotifyTimeSettings, &GuestClock::OnTimeSettings>(m_connections, aDispatcher, this);
 }
 
 GuestClock::~GuestClock() noexcept

@@ -21,7 +21,7 @@ float LastScale(const Session& acSession, ConnectionId_t aPlayer)
 }
 } // namespace
 
-TEST_CASE("Time scale: a player's slow clock slows the others", "[Bridge][TimeScale]")
+TEST_CASE("Time scale: a player's slow clock slows the others", "[HostAuthority][TimeScale]")
 {
     Session session;
 
@@ -39,7 +39,7 @@ TEST_CASE("Time scale: a player's slow clock slows the others", "[Bridge][TimeSc
     CHECK(LastScale(session, kOtherPeer) == 1.f);
 }
 
-TEST_CASE("Time scale: two slow clocks, the slowest wins", "[Bridge][TimeScale]")
+TEST_CASE("Time scale: two slow clocks, the slowest wins", "[HostAuthority][TimeScale]")
 {
     Session session;
 
@@ -59,7 +59,7 @@ TEST_CASE("Time scale: two slow clocks, the slowest wins", "[Bridge][TimeScale]"
     CHECK(session.SentTo<NotifyTimeScale>(kPeer).empty());
 }
 
-TEST_CASE("Time scale: a player leaving mid kill cam frees the others' clocks", "[Bridge][TimeScale]")
+TEST_CASE("Time scale: a player leaving mid kill cam frees the others' clocks", "[HostAuthority][TimeScale]")
 {
     Session session;
 
@@ -69,7 +69,7 @@ TEST_CASE("Time scale: a player leaving mid kill cam frees the others' clocks", 
     CHECK(LastScale(session, kOtherPeer) == 1.f);
 }
 
-TEST_CASE("Time scale: a joining player gets the slowed clock", "[Bridge][TimeScale]")
+TEST_CASE("Time scale: a joining player gets the slowed clock", "[HostAuthority][TimeScale]")
 {
     Session session;
     session.Receive(kHost, Slow(0.25f));
@@ -86,7 +86,7 @@ TEST_CASE("Time scale: a joining player gets the slowed clock", "[Bridge][TimeSc
     CHECK(LastScale(session, kPeer) == 1.f);
 }
 
-TEST_CASE("Time scale: a player joining mid slowdown is freed when it ends", "[Bridge][TimeScale]")
+TEST_CASE("Time scale: a player joining mid slowdown is freed when it ends", "[HostAuthority][TimeScale]")
 {
     Session session;
     session.Receive(kHost, Slow(0.25f));

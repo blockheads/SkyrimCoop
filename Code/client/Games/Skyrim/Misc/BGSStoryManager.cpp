@@ -28,9 +28,7 @@ Hooks::Initializer s_storyManagerHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TProcessEvent, s_processEvent, 32372);
-        RealProcessEvent = s_processEvent.Get();
-        HOOK(&RealProcessEvent, HookProcessEvent);
+        HOOK_ID(32372, &RealProcessEvent, HookProcessEvent);
     });
 } // namespace
 

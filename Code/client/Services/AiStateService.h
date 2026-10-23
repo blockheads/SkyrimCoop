@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Structs/ActorAiState.h>
 
 #include <NoCopyMove.h>
@@ -58,9 +59,5 @@ private:
     // Per copy (session id): its owner's state.
     std::unordered_map<uint32_t, ActorAiState> m_owners;
 
-    entt::scoped_connection m_changeConnection;
-    entt::scoped_connection m_notifyConnection;
-    entt::scoped_connection m_spawnConnection;
-    entt::scoped_connection m_removeConnection;
-    entt::scoped_connection m_disconnectConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

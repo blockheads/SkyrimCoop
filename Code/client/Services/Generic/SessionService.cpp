@@ -8,10 +8,10 @@
 
 SessionService::SessionService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
 {
-    m_playerJoinedConnection = aDispatcher.sink<NotifyPlayerJoined>().connect<&SessionService::OnPlayerJoined>(this);
-    m_playerLeftConnection = aDispatcher.sink<NotifyPlayerLeft>().connect<&SessionService::OnPlayerLeft>(this);
-    m_playerLevelConnection = aDispatcher.sink<NotifyPlayerLevel>().connect<&SessionService::OnPlayerLevel>(this);
-    m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&SessionService::OnDisconnected>(this);
+    Listen<NotifyPlayerJoined, &SessionService::OnPlayerJoined>(m_connections, aDispatcher, this);
+    Listen<NotifyPlayerLeft, &SessionService::OnPlayerLeft>(m_connections, aDispatcher, this);
+    Listen<NotifyPlayerLevel, &SessionService::OnPlayerLevel>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &SessionService::OnDisconnected>(m_connections, aDispatcher, this);
 }
 
 void SessionService::OnPlayerJoined(const NotifyPlayerJoined& acMessage) noexcept

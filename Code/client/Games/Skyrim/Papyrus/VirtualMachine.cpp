@@ -47,12 +47,6 @@ static Hooks::Initializer s_vmHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TRegisterPapyrusFunction, s_registerPapyrusFunction, 104788);
-        POINTER_SKYRIMSE(TBindEverythingToScript, s_bindEverythingToScript, 55739);
-
-        RealRegisterPapyrusFunction = s_registerPapyrusFunction.Get();
-        RealBindEverythingToScript = s_bindEverythingToScript.Get();
-
-        HOOK(&RealRegisterPapyrusFunction, HookRegisterPapyrusFunction);
-        HOOK(&RealBindEverythingToScript, HookBindEverythingToScript);
+        HOOK_ID(104788, &RealRegisterPapyrusFunction, HookRegisterPapyrusFunction);
+        HOOK_ID(55739, &RealBindEverythingToScript, HookBindEverythingToScript);
     });

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Misc/GameVM.h>
 #include <NoCopyMove.h>
 
@@ -27,7 +28,7 @@ struct PapyrusService
 private:
     std::unordered_map<std::string, void*> m_functions; // by NameKey("Namespace::Name")
 
-    entt::scoped_connection m_papyrusFunctionRegisterConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 template <class Return, class Type, class... Args> struct PapyrusFunction

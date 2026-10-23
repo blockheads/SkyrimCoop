@@ -96,9 +96,9 @@ DebugService::DebugService(entt::dispatcher& aDispatcher, World& aWorld, Transpo
     , m_transport(aTransport)
     , m_world(aWorld)
 {
-    m_updateConnection = m_dispatcher.sink<UpdateEvent>().connect<&DebugService::OnUpdate>(this);
-    m_drawImGuiConnection = aImguiService.OnDraw.connect<&DebugService::OnDraw>(this);
-    m_dialogueConnection = m_dispatcher.sink<DialogueEvent>().connect<&DebugService::OnDialogue>(this);
+    Listen<UpdateEvent, &DebugService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<&DebugService::OnDraw>(m_connections, aImguiService.OnDraw, this);
+    Listen<DialogueEvent, &DebugService::OnDialogue>(m_connections, m_dispatcher, this);
     m_dispatcher.sink<SubtitleEvent>().connect<&DebugService::OnSubtitle>(this);
     m_dispatcher.sink<MoveActorEvent>().connect<&DebugService::OnMoveActor>(this);
 }

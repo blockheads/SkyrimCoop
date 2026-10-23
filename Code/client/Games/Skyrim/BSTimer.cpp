@@ -43,9 +43,5 @@ static Hooks::Initializer s_timerHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetGlobalTimeMultiplier, s_setGlobalTimeMultiplier, 68245); // BSTimer::SetGlobalTimeMultiplier
-
-        RealSetGlobalTimeMultiplier = s_setGlobalTimeMultiplier.Get();
-
-        HOOK(&RealSetGlobalTimeMultiplier, HookSetGlobalTimeMultiplier);
+        HOOK_ID(68245, &RealSetGlobalTimeMultiplier, HookSetGlobalTimeMultiplier); // BSTimer::SetGlobalTimeMultiplier
     });

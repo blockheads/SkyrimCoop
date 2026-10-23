@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <DateTime.h>
 #include <NoCopyMove.h>
 
@@ -42,5 +43,5 @@ private:
     bool m_hasHostTime = false;
     uint64_t m_lastTick = 0;
 
-    entt::scoped_connection m_timeConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

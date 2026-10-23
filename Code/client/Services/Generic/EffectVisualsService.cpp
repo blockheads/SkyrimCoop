@@ -26,13 +26,13 @@ EffectVisualsService::EffectVisualsService(World& aWorld, entt::dispatcher& aDis
     , m_transport(aTransport)
     , m_actorBridge(aActorBridge)
 {
-    m_changeConnection = aDispatcher.sink<EffectVisualsChangeEvent>().connect<&EffectVisualsService::OnEffectVisualsChange>(this);
-    m_loadedConnection = aDispatcher.sink<ReferenceLoadedEvent>().connect<&EffectVisualsService::OnReferenceLoaded>(this);
-    m_notifyConnection = aDispatcher.sink<NotifyActiveEffects>().connect<&EffectVisualsService::OnNotifyActiveEffects>(this);
-    m_flashConnection = aDispatcher.sink<NotifyEffectFlash>().connect<&EffectVisualsService::OnNotifyEffectFlash>(this);
-    m_spawnConnection = aDispatcher.sink<NotifyCharacterSpawn>().connect<&EffectVisualsService::OnCharacterSpawn>(this);
-    m_removeConnection = aDispatcher.sink<NotifyRemoveCharacter>().connect<&EffectVisualsService::OnRemoveCharacter>(this);
-    m_disconnectConnection = aDispatcher.sink<DisconnectedEvent>().connect<&EffectVisualsService::OnDisconnected>(this);
+    Listen<EffectVisualsChangeEvent, &EffectVisualsService::OnEffectVisualsChange>(m_connections, aDispatcher, this);
+    Listen<ReferenceLoadedEvent, &EffectVisualsService::OnReferenceLoaded>(m_connections, aDispatcher, this);
+    Listen<NotifyActiveEffects, &EffectVisualsService::OnNotifyActiveEffects>(m_connections, aDispatcher, this);
+    Listen<NotifyEffectFlash, &EffectVisualsService::OnNotifyEffectFlash>(m_connections, aDispatcher, this);
+    Listen<NotifyCharacterSpawn, &EffectVisualsService::OnCharacterSpawn>(m_connections, aDispatcher, this);
+    Listen<NotifyRemoveCharacter, &EffectVisualsService::OnRemoveCharacter>(m_connections, aDispatcher, this);
+    Listen<DisconnectedEvent, &EffectVisualsService::OnDisconnected>(m_connections, aDispatcher, this);
 }
 
 std::vector<uint32_t> EffectVisualsService::ReadEffectForms(uint32_t aFormId) const noexcept

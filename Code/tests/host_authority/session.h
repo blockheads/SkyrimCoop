@@ -58,7 +58,7 @@
 #include <memory>
 #include <vector>
 
-namespace BridgeTest
+namespace HostAuthorityTest
 {
 constexpr ConnectionId_t kHost = 1;
 constexpr ConnectionId_t kPeer = 2;
@@ -225,7 +225,7 @@ private:
     HostNetwork m_network;
     HostAuthority m_authority;
 };
-} // namespace BridgeTest
+} // namespace HostAuthorityTest
 
-using namespace BridgeTest;
+using namespace HostAuthorityTest;
 

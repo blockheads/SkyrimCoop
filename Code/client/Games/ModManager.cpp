@@ -102,9 +102,5 @@ static Hooks::Initializer s_tesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSpawnNewREFR, s_realSpawnNewREFR, 13723);
-
-        RealSpawnNewREFR = s_realSpawnNewREFR.Get();
-
-        HOOK(&RealSpawnNewREFR, SpawnNewREFR);
+        HOOK_ID(13723, &RealSpawnNewREFR, SpawnNewREFR);
     });

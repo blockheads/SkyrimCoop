@@ -66,15 +66,9 @@ Hooks::Initializer s_formChangesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TAddChange, s_addChange, 14607);
-        POINTER_SKYRIMSE(TAddChangeForced, s_addChangeForced, 14608);
-        POINTER_SKYRIMSE(TRemoveFlags, s_removeFlags, 35511);
-        RealAddChange = s_addChange.Get();
-        RealAddChangeForced = s_addChangeForced.Get();
-        RealRemoveFlags = s_removeFlags.Get();
-        HOOK(&RealAddChange, HookAddChange);
-        HOOK(&RealAddChangeForced, HookAddChangeForced);
-        HOOK(&RealRemoveFlags, HookRemoveFlags);
+        HOOK_ID(14607, &RealAddChange, HookAddChange);
+        HOOK_ID(14608, &RealAddChangeForced, HookAddChangeForced);
+        HOOK_ID(35511, &RealRemoveFlags, HookRemoveFlags);
     });
 } // namespace
 

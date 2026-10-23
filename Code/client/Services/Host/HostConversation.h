@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <Services/DialogueService.h>
 
 #include <atomic>
@@ -55,5 +56,5 @@ private:
     // Picked: the next list the engine builds, once the NPC has answered, is the next step's.
     bool m_awaitingList{};
 
-    entt::scoped_connection m_startConnection;
+    std::vector<entt::scoped_connection> m_connections;
 };

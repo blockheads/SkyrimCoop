@@ -94,7 +94,7 @@ UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept
     : m_world(aWorld)
     , m_actorBridge(aActorBridge)
 {
-    m_chatConnection = aWorld.GetDispatcher().sink<NotifyChatMessageBroadcast>().connect<&UiService::OnChatMessage>(this);
+    Listen<NotifyChatMessageBroadcast, &UiService::OnChatMessage>(m_connections, aWorld.GetDispatcher(), this);
 }
 
 UiService::~UiService() noexcept

@@ -32,7 +32,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add good ones to `scripts/re/fetch_references.sh`.
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
 - **Every bug gets a test in the fastest tier that can show it.** A bug Skyrim finds (a scenario, a soak, play) is
-  fixed with a tier 1 test (`ClientTests`, `BridgeTests`) or tier 2 flow (`GameTests`) that fails without the fix,
+  fixed with a tier 1 test (`ClientTests`, `HostAuthorityTests`) or tier 2 flow (`GameTests`) that fails without the fix,
   unless only Skyrim can show it; then a scenario, and what was learned goes into the fake engine
   (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
@@ -51,7 +51,7 @@ scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
 scripts/xmake-msvc.sh build -j8 SkyrimCoopLoader          # hot reload's resident loader
 
 # Native Linux: clang 18 (first time: scripts/xmake-linux.sh f)
-scripts/xmake-linux.sh build -j8 BridgeTests && build/linux/x86_64/debug/BridgeTests
+scripts/xmake-linux.sh build -j8 HostAuthorityTests && build/linux/x86_64/debug/HostAuthorityTests
 scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
 scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
 scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests
@@ -72,7 +72,7 @@ Targets:
 - `SkyrimTogetherClientDLL` - the SKSE plugin (`SkyrimTogetherClient.dll`), every game's code, the host's rules included
 - `SkyrimCoopLoader` - hot reload's loader (`Code/hotreload`), test builds only
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
-- `BridgeTests` - the host's rules (`HostAuthority`, `Services/Host/`) with in-process games and no Skyrim (Catch2)
+- `HostAuthorityTests` - the host's rules (`HostAuthority`, `Services/Host/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
 - `ClientTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
 - `GameTests` - whole games in-process: real services and the host's rules on a fake engine (Catch2)
@@ -100,7 +100,7 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), bridge/ (BridgeTests), client/ (ClientTests), games/ (GameTests),
+└── tests/               # TPTests (encoding.cpp), host_authority/ (HostAuthorityTests), client/ (ClientTests), games/ (GameTests),
                          # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 
@@ -121,7 +121,7 @@ the host's own game: the same, over an in-process route instead of enet
    `RequestMessage` or `NotifyMessage` with `SerializeRaw`/`DeserializeRaw`), included in `RequestMessageFactory.h` /
    `NotifyMessageFactory.h`
 2. Its name at the end of its list in `Code/encoding/Opcodes.h`: that makes its opcode and its factory entry
-3. The host's rule: a part in `Services/Host/` registered with `HostAuthority::On` (or a `Relay`), with a `BridgeTests` case
+3. The host's rule: a part in `Services/Host/` registered with `HostAuthority::On` (or a `Relay`), with a `HostAuthorityTests` case
 4. Each game's handler: a client service's `m_messageHandlers` entry or dispatcher sink
 5. A round trip in `Code/tests/encoding.cpp`
 

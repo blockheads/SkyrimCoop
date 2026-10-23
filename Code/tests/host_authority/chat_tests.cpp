@@ -1,7 +1,7 @@
 // The map and chat: a player's waypoint and chat lines.
 #include "session.h"
 
-TEST_CASE("Waypoints: a player's reaches everyone else", "[Bridge][Chat]")
+TEST_CASE("Waypoints: a player's reaches everyone else", "[HostAuthority][Chat]")
 {
     Session session;
 
@@ -23,7 +23,7 @@ TEST_CASE("Waypoints: a player's reaches everyone else", "[Bridge][Chat]")
     CHECK(session.SentTo<NotifyRemoveWaypoint>(kPeer).empty());
 }
 
-TEST_CASE("Chat: to everyone, the sender too, under its name and as typed", "[Bridge][Chat]")
+TEST_CASE("Chat: to everyone, the sender too, under its name and as typed", "[HostAuthority][Chat]")
 {
     Session session;
 
@@ -41,7 +41,7 @@ TEST_CASE("Chat: to everyone, the sender too, under its name and as typed", "[Br
     }
 }
 
-TEST_CASE("Chat: players cannot send system messages", "[Bridge][Chat]")
+TEST_CASE("Chat: players cannot send system messages", "[HostAuthority][Chat]")
 {
     Session session;
 
@@ -52,7 +52,7 @@ TEST_CASE("Chat: players cannot send system messages", "[Bridge][Chat]")
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Chat: a line is cut to the chat's length, whole characters, without control characters", "[Bridge][Chat]")
+TEST_CASE("Chat: a line is cut to the chat's length, whole characters, without control characters", "[HostAuthority][Chat]")
 {
     // The chat box shows markup as text: it stays.
     CHECK(ChatText("1 < 2 and <3 >_>") == "1 < 2 and <3 >_>");

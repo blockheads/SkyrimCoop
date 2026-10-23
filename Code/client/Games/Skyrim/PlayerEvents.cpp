@@ -56,9 +56,7 @@ Hooks::Initializer s_playerHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetLevel, s_setLevel, 14385);
-        RealSetLevel = s_setLevel.Get();
-        HOOK(&RealSetLevel, HookSetLevel);
+        HOOK_ID(14385, &RealSetLevel, HookSetLevel);
     });
 } // namespace
 

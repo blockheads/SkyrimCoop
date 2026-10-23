@@ -18,14 +18,10 @@ MapService::MapService(World& aWorld, entt::dispatcher& aDispatcher, TransportSe
     , m_transport(aTransport)
     , m_playerBridge(aWorld.ctx().at<IPlayerBridge&>())
 {
-    m_playerNotifySetWaypointConnection =
-        m_dispatcher.sink<NotifySetWaypoint>().connect<&MapService::OnNotifySetWaypoint>(this);
-    m_playerNotifyRemoveWaypointConnection =
-        m_dispatcher.sink<NotifyRemoveWaypoint>().connect<&MapService::OnNotifyRemoveWaypoint>(this);
-    m_playerSetWaypointConnection =
-        m_dispatcher.sink<SetWaypointEvent>().connect<&MapService::OnSetWaypoint>(this);
-    m_playerRemoveWaypointConnection =
-        m_dispatcher.sink<RemoveWaypointEvent>().connect<&MapService::OnRemoveWaypoint>(this);
+    Listen<NotifySetWaypoint, &MapService::OnNotifySetWaypoint>(m_connections, m_dispatcher, this);
+    Listen<NotifyRemoveWaypoint, &MapService::OnNotifyRemoveWaypoint>(m_connections, m_dispatcher, this);
+    Listen<SetWaypointEvent, &MapService::OnSetWaypoint>(m_connections, m_dispatcher, this);
+    Listen<RemoveWaypointEvent, &MapService::OnRemoveWaypoint>(m_connections, m_dispatcher, this);
 }
 
 void MapService::OnSetWaypoint(const SetWaypointEvent& acMessage) noexcept

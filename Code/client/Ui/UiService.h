@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Events/Listen.h>
 #include <RmlUi/Core/DataModelHandle.h>
 #include <NoCopyMove.h>
 
@@ -106,6 +107,6 @@ private:
     Rml::Vector<ChatLine> m_chatShown;
     Rml::String m_chatDraft;
     bool m_chatOpen = false;
-    entt::scoped_connection m_chatConnection;
+    std::vector<entt::scoped_connection> m_connections;
     bool m_initialized = false;
 };
