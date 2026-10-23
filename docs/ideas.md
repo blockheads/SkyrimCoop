@@ -5,8 +5,18 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 
 ## Gameplay
 
-- **The party is the Dragonborn** (shared gold, quest rewards, quest items, identity; cutscenes for everyone; shared
-  dialogue): decided, `docs/design/party-model.md`; shared dialogue in `docs/design/shared-dialogue.md`.
+- **The party is the Dragonborn** (shared quest rewards and identity; each player's own items and gold; cutscenes for
+  everyone; shared dialogue): decided, `docs/design/party-model.md`; shared dialogue in `docs/design/shared-dialogue.md`.
+- **More natives on the player** (2026-10-22). Rule 2 sends the natives that act on this player (the table in
+  `docs/re/systems/papyrus-guest-scripts.md`, from `scripts/re/papyrus_natives.py`) to the guest's game, values
+  included. Left: the screen's natives (controls, fades, camera, shakes: the cutscene design), member natives that
+  open this player's menus on another actor (`ShowGiftMenu`, `ShowBarterMenu`, `OpenInventory`: a method call on the
+  guest's copy, with barter on the picker's game), `GetPlayerGrabbedRef` (returns an object a `ScriptValue` cannot
+  carry), words of power (the party's: mirror to every game), and a save taken while a script waits for a guest's
+  answer (the wait has nothing to answer it after a load). Also open, a decision: what a guest's script gives the
+  player to own (`party-model.md`, "Items and gold").
+- **Giving items between players** (2026-10-22). Each player has their own inventory: a guest hands a quest item
+  to the host to turn it in (dialogue conditions ask the host's inventory). `party-model.md`, "Items and gold".
 - **Shared dialogue: others' cursors, picks and names on each menu.** Each menu shows only its own player's
   highlight; another player's pick shows in chat, and the menu waits for the next list. Built and dropped
   2026-10-19: a shared cursor, other players' options marked `[Name]`, and showing a pick on every menu with
@@ -130,6 +140,18 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Code cleanup
 
+- **One template for relayed messages** (2026-10-22, the user's review: "too much boilerplate?"). 36 of the 84
+  message headers are a request or notification wrapping a shared payload (`Messages/Payloads.h`), each the same
+  20 lines (756 in all; `PlayerNativeRequest.h` and `NotifyPlayerNative.h` are a pair). A template
+  (`Relayed<Payload, Opcode>`) makes each a `using` line. A new message is also listed by hand in three places
+  (`Opcodes.h`, `RequestMessageFactory.h`, `NotifyMessageFactory.h`): one list could make all three. The bytes stay
+  as `wire_tests.cpp` pins them. Its own commit, repo-wide.
+- **One line per hook** (2026-10-22). 127 hooks repeat `POINTER_SKYRIMSE`, `Real = .Get()` and `HOOK` in their
+  initializer, plus a function-pointer global each. A helper (`Hook<ID>(&Real, &HookFn)`) makes it one line; the
+  signature check against the community name and IDA stays. When a file is touched anyway.
+- **Event connections without a member each** (2026-10-22). 109 `entt::scoped_connection` members, each with its
+  connect line (`DialogueService` has 7). A `std::vector<entt::scoped_connection>` filled by one
+  `Listen<&T::OnX>()` helper drops the members. When a file is touched anyway.
 - **Events over polling** (user, 2026-10-22: "we always want to use events over polling if possible"). Discrete
   state should go out when an engine event or hook says it changed, not from a timer that re-reads it.
   Continuous state (movement, animation variables) on the tick is fine. The timed reads left, mostly upstream's,

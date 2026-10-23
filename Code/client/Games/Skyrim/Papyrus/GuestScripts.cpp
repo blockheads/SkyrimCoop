@@ -1,4 +1,5 @@
 #include <Papyrus/GuestScripts.h>
+#include <Papyrus/PlayerNatives.h>
 
 #include <Actor.h>
 #include <Forms/TESForm.h>
@@ -84,6 +85,11 @@ TCastRun* RealCastRun = nullptr;
 void* s_castRun = nullptr; // the original, as CastFunctor's vtable names it
 BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResult);
 
+// Ownership: ExtraDataList::SetOwnerForm (11609) ignores a temporary form, which a guest's character's base is.
+using TSetOwnerForm = void(void*, TESForm*);
+TSetOwnerForm* RealSetOwnerForm = nullptr;
+void HookSetOwnerForm(void* apThis, TESForm* apOwner);
+
 Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
     POINTER_SKYRIMSE(TCompare, s_compare, 105220);
@@ -94,6 +100,7 @@ Hooks::Initializer s_hooks([]() {
     POINTER_SKYRIMSE(TStackEnded, s_stackEnded, 104480);
     POINTER_SKYRIMSE(TFunctorQueued, s_functorQueued, 53954);
     POINTER_SKYRIMSE(TCastRun, s_castRunPointer, 55744);
+    POINTER_SKYRIMSE(TSetOwnerForm, s_setOwnerForm, 11609);
     RealCompare = s_compare.Get();
     RealGetPlayer = s_getPlayer.Get();
     RealCallQueued = s_callQueued.Get();
@@ -102,6 +109,7 @@ Hooks::Initializer s_hooks([]() {
     RealStackEnded = s_stackEnded.Get();
     RealFunctorQueued = s_functorQueued.Get();
     RealCastRun = s_castRunPointer.Get();
+    RealSetOwnerForm = s_setOwnerForm.Get();
     s_castRun = reinterpret_cast<void*>(RealCastRun);
     HOOK(&RealCompare, HookCompare);
     HOOK(&RealGetPlayer, HookGetPlayer);
@@ -111,6 +119,7 @@ Hooks::Initializer s_hooks([]() {
     HOOK(&RealStackEnded, HookStackEnded);
     HOOK(&RealFunctorQueued, HookFunctorQueued);
     HOOK(&RealCastRun, HookCastRun);
+    HOOK(&RealSetOwnerForm, HookSetOwnerForm);
 });
 
 constexpr uint32_t cPlayerFormId = 0x14;
@@ -155,6 +164,68 @@ uint32_t GuestArgument(const BSScript::Arguments* apArguments) noexcept
     const auto it = std::ranges::find_if(cFormIds, IsGuest);
     return it != cFormIds.end() ? *it : 0;
 }
+
+// --- The player in a native's frame ---
+
+// In a stack run for a guest, the player (0x14) held in a native's frame (its self, its arguments: a PlayerRef
+// property, a stored player) is that guest's character for the call, as Game.GetPlayer() is (rule 2). The call copies
+// what it reads (104651 copies self at its start), so the frame gets its own back after it.
+class PlayerInFrame
+{
+  public:
+    PlayerInFrame(BSScript::IFunction* apFunction, BSScript::StackFrame* apFrame, Actor* apGuest, BSScript::IVirtualMachine* apVm) noexcept
+    {
+        if (!apFrame || !apGuest)
+            return;
+        Take(&apFrame->self, apGuest, apVm);
+        const uint32_t cCount = apFunction->GetParamCount();
+        const uint32_t cPage = cCount ? apFrame->GetPageForFrame() : 0;
+        for (uint32_t i = 0; i < cCount; ++i)
+            Take(apFrame->GetStackFrameVariable(i, cPage), apGuest, apVm);
+    }
+
+    // The frame's player back.
+    ~PlayerInFrame() noexcept
+    {
+        for (uint32_t i = 0; i < m_count; ++i)
+        {
+            BSScript::Variable guest; // takes the guest's character's reference, released as it goes
+            guest.type = m_slots[i].pSlot->type;
+            guest.data = m_slots[i].pSlot->data;
+            m_slots[i].pSlot->type = m_slots[i].Type;
+            m_slots[i].pSlot->data = m_slots[i].Data;
+        }
+    }
+
+    PlayerInFrame(const PlayerInFrame&) = delete;
+    PlayerInFrame& operator=(const PlayerInFrame&) = delete;
+
+  private:
+    static constexpr uint32_t kSlots = 17; // self and 16 arguments
+
+    // A frame's variable that held the player, and that value, kept while the guest's character is in it.
+    struct Slot
+    {
+        BSScript::Variable* pSlot;
+        BSScript::Variable::Type Type;
+        BSScript::Variable::Data Data;
+    };
+
+    void Take(BSScript::Variable* apSlot, Actor* apGuest, BSScript::IVirtualMachine* apVm) noexcept
+    {
+        if (!apSlot || m_count >= kSlots || FormIdOf(*apSlot) != cPlayerFormId)
+            return;
+        m_slots[m_count++] = {apSlot, apSlot->type, apSlot->data};
+        BSScript::Variable guest;
+        guest.SetActor(apGuest, apVm);
+        apSlot->type = guest.type;
+        apSlot->data = guest.data;
+        guest.type = BSScript::Variable::kEmpty; // its reference is the frame's now
+    }
+
+    Slot m_slots[kSlots];
+    uint32_t m_count = 0;
+};
 
 // --- Tags: which guest each call and stack runs for ---
 
@@ -375,21 +446,28 @@ bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall)
     return RealStackCreated(apThis, apStack, appCall);
 }
 
-// While a native runs for a guest, what it queues runs for them too; a timer it sets fires for them.
+// While a native runs for a guest, what it queues runs for them too; a timer it sets fires for them. The player in its
+// frame is the guest's character, and one on the player runs on the guest's game instead (PlayerNatives).
 BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
 {
+    BSScript::Stack* pStack = appStack ? *appStack : nullptr;
     uint32_t guest = 0;
-    if (appStack && *appStack && s_tags.Any())
+    if (pStack && s_tags.Any())
     {
-        guest = GuestOf(*appStack);
+        guest = GuestOf(pStack);
         const char* cpName = apThis->GetName().AsAscii();
-        const BSScript::StackFrame* pTop = (*appStack)->pTop;
+        const BSScript::StackFrame* pTop = pStack->pTop;
         if (const TimerNative* pTimer = cpName ? FindTimerNative(cpName) : nullptr)
             if (auto* pScript = pTop ? pTop->self.GetObject() : nullptr)
                 for (const std::string_view cEvent : pTimer->Events)
                     if (!cEvent.empty())
                         s_tags.SetTimer(pScript->GetHandle(), cEvent, guest, pTimer->Kind);
     }
+    Actor* pGuest = guest ? GuestCharacter(guest) : nullptr;
+    const PlayerInFrame cPlayer(apThis, pGuest ? pStack->pTop : nullptr, pGuest, apVm);
+    if (pGuest)
+        if (const auto cResult = PlayerNatives::SendToGuest(apThis, *pStack, apVm, guest))
+            return *cResult;
     const uint32_t cOuter = t_nativeGuest;
     t_nativeGuest = guest;
     const auto cResult = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
@@ -419,10 +497,25 @@ BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResu
     return pResult;
 }
 
+// A guest's character's base as an owner (a bed rented, a horse bought for Game.GetPlayer()) is the player's base:
+// the party's, each game's own player (docs/design/party-model.md, "Items and gold"). Such a base is a temporary form.
+void HookSetOwnerForm(void* apThis, TESForm* apOwner)
+{
+    constexpr uint32_t cPlayerBaseFormId = 0x7;
+    const auto cIsGuestBase = [apOwner](const std::atomic<uint32_t>& acSlot) {
+        const Actor* pGuest = GuestCharacter(acSlot.load(std::memory_order_relaxed));
+        return pGuest && pGuest->baseForm == apOwner;
+    };
+    if (apOwner && apOwner->formID >= 0xFF000000 && IsHosting() && std::ranges::any_of(s_guests, cIsGuestBase))
+        apOwner = TESForm::GetById(cPlayerBaseFormId);
+    RealSetOwnerForm(apThis, apOwner);
+}
+
 void* HookStackEnded(BSScript::Stack* apThis)
 {
     if (s_tags.Any())
         s_tags.EndStack(apThis->stackId);
+    PlayerNatives::StackEnded(apThis->stackId);
     return RealStackEnded(apThis);
 }
 } // namespace

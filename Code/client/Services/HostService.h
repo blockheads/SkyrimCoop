@@ -9,6 +9,8 @@ struct UpdateEvent;
 struct ActivateEvent;
 struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
+struct PlayerNativeEvent;
+struct NotifyPlayerNativeResult;
 
 struct HostAuthority;
 struct HostNetwork;
@@ -44,6 +46,10 @@ protected:
     void OnActivate(const ActivateEvent& acEvent) noexcept;
     void OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept;
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
+    // A native on "the player" a script ran for a guest: to that guest's game (party-model.md, rule 2).
+    void OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept;
+    // That guest's game answered one returning a value: the script waiting on it goes on.
+    void OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept;
 
 private:
     World& m_world;
@@ -60,4 +66,6 @@ private:
     entt::scoped_connection m_activateConnection;
     entt::scoped_connection m_scriptAnimationConnection;
     entt::scoped_connection m_containerChangeConnection;
+    entt::scoped_connection m_playerNativeConnection;
+    entt::scoped_connection m_playerNativeResultConnection;
 };

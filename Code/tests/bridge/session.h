@@ -36,6 +36,10 @@
 #include <Messages/NotifyMount.h>
 #include <Messages/NotifySubtitle.h>
 #include <Messages/NotifySyncExperience.h>
+#include <Messages/NotifyPlayerNative.h>
+#include <Messages/PlayerNativeRequest.h>
+#include <Messages/PlayerNativeResultRequest.h>
+#include <Messages/NotifyPlayerNativeResult.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/SubtitleRequest.h>
 #include <Messages/SyncExperienceRequest.h>

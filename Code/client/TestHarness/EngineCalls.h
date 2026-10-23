@@ -97,6 +97,9 @@ bool LoadFormState(uint32_t aFormId, uint32_t aChangeFlags, const std::string& a
 // The state a script on that form is in (Object::currentState; "" is the empty state), as the VM binds it
 // (FindBoundObject, its vfunc 0x1C).
 std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScript) noexcept;
+// Puts the script back in a state (Object::currentState, as GotoState leaves it, without its OnEndState and
+// OnBeginState): a scenario's reset of a script that runs once per state.
+bool SetScriptState(uint32_t aFormId, const char* acpScript, const char* acpState) noexcept;
 
 // A script variable's value (an auto property's is "::<Name>_var"). Type is the VM's Variable::Type:
 // 0 none, 1-5 object/string/int/float/bool; an object's is its form (0 for None or an object type's raw value).
@@ -112,6 +115,8 @@ struct ScriptValue
 std::optional<ScriptValue> GetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable) noexcept;
 // Sets an int, float or bool variable, keeping its type (a scenario's control of a script's flag).
 bool SetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable, double aValue) noexcept;
+// Sets an object variable or property to a form (BSScript::Variable::SetForm).
+bool SetScriptVariableForm(uint32_t aFormId, const char* acpScript, const char* acpVariable, uint32_t aValueFormId) noexcept;
 
 // The VM's running stacks (allRunningStacks: running, waiting in a latent call like Utility.Wait, or queued),
 // each as its frames' "Script.Function", innermost first. Read on the game thread outside the VM's update.
@@ -121,6 +126,15 @@ struct ScriptStack
     std::vector<std::string> Frames;
 };
 std::vector<ScriptStack> GetRunningScripts() noexcept;
+
+// A script class's global natives, each with whether it acts on this game's player (NativeReach), as the VM has
+// them (ObjectTypeInfo's global functions); none for a class the VM has not loaded.
+struct GlobalNative
+{
+    std::string Name;
+    bool ReachesThisPlayer{};
+};
+std::optional<std::vector<GlobalNative>> GetGlobalNatives(const char* acpClass) noexcept;
 
 // --- Inventories ---
 
@@ -400,10 +414,18 @@ bool ForceGreet(uint32_t aActorFormId) noexcept;
 std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexcept;
 // The player's actor value (a skill's level) and that skill's experience toward its next level.
 float GetPlayerActorValue(uint32_t aIndex) noexcept;
+// Any actor's (a copy's: what this game's scripts read of it).
+float GetActorValue(uint32_t aActor, uint32_t aIndex) noexcept;
 float GetPlayerSkillExperience(uint32_t aIndex) noexcept;
 // How many times the player trained this level (PlayerCharacter +0x938), and setting it back.
 uint32_t GetPlayerTrainings() noexcept;
 void SetPlayerTrainings(uint32_t aCount) noexcept;
+// The reference's owner (ExtraOwnership), loaded or not; 0: none or no such reference.
+uint32_t GetOwner(uint32_t aRefFormId) noexcept;
+// Whether the player knows the form (a word of power learned: TESForm flag 0x40), and setting it back
+// (TESForm::SetPlayerKnows, 14639).
+std::optional<bool> GetPlayerKnows(uint32_t aFormId) noexcept;
+bool SetPlayerKnows(uint32_t aFormId, bool aKnows) noexcept;
 
 // What the player's camera shows: its mode, where it is and looks (the world camera's transform), what the
 // crosshair is on, and, given an actor, where its head is on screen and how far from the middle of the view.

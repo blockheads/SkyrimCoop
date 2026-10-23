@@ -19,7 +19,9 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESWeather.h>
 #include <Misc/BGSStoryManager.h>
+#include <Papyrus/GlobalCall.h>
 #include <Papyrus/WorldEvents.h>
+#include <Utils.h>
 #include <Games/TES.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
@@ -201,6 +203,19 @@ void GuestEngine::ReleaseWeather() noexcept
     Breadcrumbs::Record("ReleaseWeather", 0);
     if (Sky* pSky = Sky::Get())
         pSky->ReleaseWeatherOverride();
+}
+
+bool GuestEngine::RunPlayerNative(const Payloads::PlayerNative& acCall, GlobalCall::OnReturn aOnReturn) noexcept
+{
+    std::vector<LocalValue> arguments;
+    for (const ScriptValue& cValue : acCall.Arguments)
+    {
+        auto argument = Utils::ToLocalValue(cValue);
+        if (!argument)
+            return false;
+        arguments.push_back(std::move(*argument));
+    }
+    return GlobalCall::Queue(acCall.Class, acCall.Function, arguments, std::move(aOnReturn));
 }
 
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept

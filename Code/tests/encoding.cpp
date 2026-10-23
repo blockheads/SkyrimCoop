@@ -484,6 +484,62 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
     }
 
+    SECTION("PlayerNativeRequest and NotifyPlayerNative")
+    {
+        Buffer buff(1000);
+
+        PlayerNativeRequest sendRequest, recvRequest;
+        sendRequest.SessionId = 0x21;
+        sendRequest.Class = "Game";
+        sendRequest.Function = "AdvanceSkill";
+        sendRequest.Arguments = {std::string("Speechcraft"), 2.5f, int32_t(-3), true, ScriptForm{.SessionId = 0x22},
+                                 ScriptForm{.Form = GameId(1, 0x803)}, std::monostate{}};
+        NotifyPlayerNative sendNotify, recvNotify;
+        static_cast<Payloads::PlayerNative&>(sendNotify) = sendRequest;
+        sendNotify.Function = "QueryStat";
+        sendNotify.ReplyId = 0x4D2;
+
+        Buffer::Writer writer(&buff);
+        sendRequest.Serialize(writer);
+        sendNotify.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvRequest.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvNotify.DeserializeRaw(reader);
+
+        CHECK(recvRequest == sendRequest);
+        CHECK(recvNotify == sendNotify);
+    }
+
+    SECTION("PlayerNativeResultRequest and NotifyPlayerNativeResult")
+    {
+        Buffer buff(1000);
+
+        PlayerNativeResultRequest sendRequest, recvRequest;
+        sendRequest.ReplyId = 0x4D2;
+        sendRequest.Result = int32_t(7);
+        NotifyPlayerNativeResult sendNotify, recvNotify;
+        sendNotify.ReplyId = 0x4D3;
+        sendNotify.Result = ScriptForm{.SessionId = 0x22};
+
+        Buffer::Writer writer(&buff);
+        sendRequest.Serialize(writer);
+        sendNotify.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvRequest.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvNotify.DeserializeRaw(reader);
+
+        CHECK(recvRequest == sendRequest);
+        CHECK(recvNotify == sendNotify);
+    }
+
     SECTION("RequestRemoveCharacter and NotifyRemoveCharacter")
     {
         Buffer buff(1000);

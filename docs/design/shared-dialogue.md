@@ -204,11 +204,12 @@ Hooks, each checked against its community name and IDA:
    the NPC's side sent to the host (What players see).
 2. **Quest scenes** where the player answers inside a scene (the scene runs on the host's game; not tried).
 3. **Per-player effects of a picked line's script:** it runs for the picker (What players see), so what it does
-   to `Game.GetPlayer()` reaches the picker's character. Not covered: a player stored in a property
-   (`PlayerRef.AddItem`), natives on the player outside the five (`Game.QueryStat` reads the host's stats,
-   `AddAchievement` is the host's), and what the copy only stands in for: `RentRoomScript` gives the bed to
-   `Game.GetPlayer().GetActorBase()`, the copy's base on the host's game, and `FavorDialogueScript.Persuade`
-   sizes its experience from the copy's Speech (`GetAv`).
+   to `Game.GetPlayer()` reaches the picker's character, and so does a player the script stored. Natives on this
+   player run on the picker's game, a value they return (`QueryStat`) comes from there, and the picker's character
+   carries the picker's skills (`FavorDialogueScript.Persuade` sizes its Speech experience from them). Open: what
+   the script gives the player to own (`RentRoomScript` gives the bed to the picker's character's base, which the
+   engine refuses as an owner: `party-model.md`, "Items and gold", decision open), and barter, gifts and a
+   follower's inventory (item 1).
 4. **Settled 2026-10-19:** say-once lines, force greets for everyone;
    walking off (no distance rule: travel, the NPC unloading or a goodbye end it), the
    host busy (a menu or combat does not stop a start; a fighting or dead NPC does), a menu that never opens

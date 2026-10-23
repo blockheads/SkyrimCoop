@@ -294,6 +294,81 @@ TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[Bridge][Charac
     CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
 }
 
+TEST_CASE("Scripts: a native on the player the host's script ran for a guest runs on that guest's game", "[Bridge][Scripts]")
+{
+    Session session;
+    PlayerNativeRequest request;
+    request.SessionId = session.Character(kPeer);
+    request.Class = "Game";
+    request.Function = "AdvanceSkill";
+    request.Arguments = {std::string("Speechcraft"), 2.5f};
+
+    // Only the host's game runs scripts for other players.
+    session.Receive(kOtherPeer, request);
+    CHECK(session.SentTo<NotifyPlayerNative>(kPeer).empty());
+
+    session.Receive(kHost, request);
+    const auto cSent = session.SentTo<NotifyPlayerNative>(kPeer);
+    REQUIRE(cSent.size() == 1);
+    CHECK(cSent[0]->Function == "AdvanceSkill");
+    CHECK(cSent[0]->Arguments == request.Arguments);
+    CHECK(session.SentTo<NotifyPlayerNative>(kHost).empty());
+    CHECK(session.SentTo<NotifyPlayerNative>(kOtherPeer).empty());
+}
+
+TEST_CASE("Scripts: a native on the player returning a value answers the host's waiting script", "[Bridge][Scripts]")
+{
+    Session session;
+    PlayerNativeRequest request;
+    request.SessionId = session.Character(kPeer);
+    request.Class = "Game";
+    request.Function = "QueryStat";
+    request.Arguments = {std::string("Bribes")};
+    request.ReplyId = 77;
+    session.Receive(kHost, request);
+    REQUIRE(session.SentTo<NotifyPlayerNative>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyPlayerNative>(kPeer)[0]->ReplyId == 77);
+
+    PlayerNativeResultRequest result;
+    result.ReplyId = 77;
+    result.Result = int32_t(3);
+
+    // Only the game asked answers, once, and only the host's game hears it.
+    session.Receive(kOtherPeer, result);
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kHost).empty());
+    session.Receive(kPeer, result);
+    session.Receive(kPeer, result);
+    const auto cAnswers = session.SentTo<NotifyPlayerNativeResult>(kHost);
+    REQUIRE(cAnswers.size() == 1);
+    CHECK((cAnswers[0]->ReplyId == 77 && cAnswers[0]->Result == result.Result));
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kPeer).empty());
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kOtherPeer).empty());
+}
+
+TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script with none", "[Bridge][Scripts]")
+{
+    Session session;
+    PlayerNativeRequest request;
+    request.SessionId = session.Character(kPeer);
+    request.Class = "Game";
+    request.Function = "QueryStat";
+    request.ReplyId = 78;
+    session.Receive(kHost, request);
+    CHECK(session.SentTo<NotifyPlayerNativeResult>(kHost).empty());
+
+    session.Leave(kPeer);
+    const auto cAnswers = session.SentTo<NotifyPlayerNativeResult>(kHost);
+    REQUIRE(cAnswers.size() == 1);
+    CHECK((cAnswers[0]->ReplyId == 78 && std::holds_alternative<std::monostate>(cAnswers[0]->Result)));
+
+    // Asked after it left: answered at once, with none.
+    request.ReplyId = 79;
+    session.Receive(kHost, request);
+    const auto cLater = session.SentTo<NotifyPlayerNativeResult>(kHost);
+    REQUIRE(cLater.size() == 2);
+    CHECK((cLater[1]->ReplyId == 79 && std::holds_alternative<std::monostate>(cLater[1]->Result)));
+}
+
 TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and container change are the host's to take", "[Bridge][Objects]")
 {
     Session session;

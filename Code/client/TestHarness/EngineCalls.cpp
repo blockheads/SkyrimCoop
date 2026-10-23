@@ -46,6 +46,7 @@
 #include <Misc/BSScript.h>
 #include <Misc/MiddleProcess.h>
 #include <Misc/GameVM.h>
+#include <Papyrus/NativeReach.h>
 #include <NetImmerse/NiCamera.h>
 #include <NetImmerse/NiNode.h>
 #include <PlayerCharacter.h>
@@ -576,6 +577,16 @@ std::optional<std::string> GetScriptState(uint32_t aFormId, const char* acpScrip
     return state;
 }
 
+bool SetScriptState(uint32_t aFormId, const char* acpScript, const char* acpState) noexcept
+{
+    BSScript::Object* pObject = FindScript(aFormId, acpScript);
+    if (!pObject)
+        return false;
+    pObject->currentState.Set(acpState);
+    pObject->DecRef();
+    return true;
+}
+
 std::optional<ScriptValue> GetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable) noexcept
 {
     BSScript::Object* pObject = FindScript(aFormId, acpScript);
@@ -602,6 +613,25 @@ std::optional<ScriptValue> GetScriptVariable(uint32_t aFormId, const char* acpSc
     return value;
 }
 
+std::optional<std::vector<GlobalNative>> GetGlobalNatives(const char* acpClass) noexcept
+{
+    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
+    BSScript::ObjectTypeInfo* pType = nullptr;
+    if (!pVm || !pVm->GetScriptObjectType1(BSFixedString(acpClass), &pType) || !pType)
+        return std::nullopt;
+    // The type's tables in data, in order (CommonLibSSE-NG ObjectTypeInfo): user flags (8 bytes each), variables
+    // (0x10), initial values (0x18), properties (0x48), then the global functions (a BSTSmartPointer<IFunction> each).
+    const size_t cOffset = pType->userFlagCount * 0x8 + pType->variableCount * 0x10 + pType->initialValueCount * 0x18 +
+                           pType->propertyCount * 0x48;
+    auto* const* ppFunctions = reinterpret_cast<BSScript::IFunction* const*>(static_cast<const uint8_t*>(pType->data) + cOffset);
+    std::vector<GlobalNative> natives;
+    for (uint32_t i = 0; i < pType->staticFunctionCount; ++i)
+        if (BSScript::IFunction* pFunction = ppFunctions[i]; pFunction && pFunction->GetIsNative())
+            natives.push_back({pFunction->GetName().AsAscii(), NativeReach::ReachesThisPlayer(pFunction)});
+    _InterlockedDecrement(reinterpret_cast<volatile long*>(pType)); // the lookup's reference (refCount at 00)
+    return natives;
+}
+
 bool SetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpVariable, double aValue) noexcept
 {
     BSScript::Object* pObject = FindScript(aFormId, acpScript);
@@ -617,6 +647,19 @@ bool SetScriptVariable(uint32_t aFormId, const char* acpScript, const char* acpV
         pVariable->data.b = aValue != 0;
     pObject->DecRef();
     return cType == BSScript::Variable::kInteger || cType == BSScript::Variable::kFloat || cType == BSScript::Variable::kBoolean;
+}
+
+bool SetScriptVariableForm(uint32_t aFormId, const char* acpScript, const char* acpVariable, uint32_t aValueFormId) noexcept
+{
+    TESForm* pValue = TESForm::GetById(aValueFormId);
+    BSScript::Object* pObject = pValue ? FindScript(aFormId, acpScript) : nullptr;
+    if (!pObject)
+        return false;
+    BSScript::Variable* pVariable = pObject->GetVariable(acpVariable);
+    if (pVariable)
+        pVariable->SetForm(pValue, GameVM::Get()->virtualMachine);
+    pObject->DecRef();
+    return pVariable && pVariable->GetObject();
 }
 
 std::vector<ScriptStack> GetRunningScripts() noexcept
@@ -1127,6 +1170,12 @@ std::optional<bool> SetInfoSaid(uint32_t aInfo, std::optional<bool> aSaid) noexc
     return pInfo->saidOnce;
 }
 
+float GetActorValue(uint32_t aActor, uint32_t aIndex) noexcept
+{
+    Actor* pActor = GetActor(aActor);
+    return pActor ? pActor->GetActorValue(aIndex) : 0.f;
+}
+
 float GetPlayerActorValue(uint32_t aIndex) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
@@ -1137,6 +1186,29 @@ float GetPlayerSkillExperience(uint32_t aIndex) noexcept
 {
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     return pPlayer ? pPlayer->GetSkillExperience(Skills::GetSkillFromActorValue(static_cast<int32_t>(aIndex))) : 0.f;
+}
+
+uint32_t GetOwner(uint32_t aRefFormId) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aRefFormId));
+    const auto* pOwnership = pRef ? static_cast<ExtraOwnership*>(pRef->extraData.GetByType(ExtraDataType::Ownership)) : nullptr;
+    return pOwnership && pOwnership->owner ? pOwnership->owner->formID : 0;
+}
+
+std::optional<bool> GetPlayerKnows(uint32_t aFormId) noexcept
+{
+    const TESForm* pForm = TESForm::GetById(aFormId);
+    return pForm ? std::optional((pForm->flags & 0x40) != 0) : std::nullopt;
+}
+
+bool SetPlayerKnows(uint32_t aFormId, bool aKnows) noexcept
+{
+    using TSetPlayerKnows = void(TESForm*, bool);
+    POINTER_SKYRIMSE(TSetPlayerKnows, s_setPlayerKnows, 14639);
+    TESForm* pForm = TESForm::GetById(aFormId);
+    if (pForm)
+        s_setPlayerKnows(pForm, aKnows);
+    return pForm != nullptr;
 }
 
 uint32_t GetPlayerTrainings() noexcept

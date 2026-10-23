@@ -1,0 +1,664 @@
+class	name	self	returns	arguments	function	reaches the player
+ActiveMagicEffect	AddInventoryEventFilter	ActiveEffect	void	TESForm	papyrus::ActiveMagicEffect::AddInventoryEventFilter	
+ActiveMagicEffect	Dispel	ActiveEffect	void		papyrus::ActiveMagicEffect::Dispel	screen: menus (UI::singleton): ActiveEffect::Dispel
+ActiveMagicEffect	GetBaseObject	ActiveEffect	EffectSetting		papyrus::ActiveMagicEffect::GetBaseObject	
+ActiveMagicEffect	GetCasterActor	ActiveEffect	Actor		papyrus::ActiveMagicEffect::GetCasterActor	
+ActiveMagicEffect	GetTargetActor	ActiveEffect	Actor		papyrus::ActiveMagicEffect::GetTargetActor	
+ActiveMagicEffect	RegisterForAnimationEvent	ActiveEffect	bool	TESObjectREFR, BSFixedString	papyrus::ActiveMagicEffect::RegisterForAnimationEvent	
+ActiveMagicEffect	RegisterForLOS	ActiveEffect	void	Actor, TESObjectREFR	papyrus::ActiveMagicEffect::RegisterForLOS	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+ActiveMagicEffect	RegisterForSingleLOSGain	ActiveEffect	void	Actor, TESObjectREFR	papyrus::ActiveMagicEffect::RegisterForSingleLOSGain	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+ActiveMagicEffect	RegisterForSingleLOSLost	ActiveEffect	void	Actor, TESObjectREFR	papyrus::ActiveMagicEffect::RegisterForSingleLOSLost	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+ActiveMagicEffect	RegisterForSingleUpdate	ActiveEffect	void	float	papyrus::ActiveMagicEffect::RegisterForSingleUpdate	
+ActiveMagicEffect	RegisterForSingleUpdateGameTime	ActiveEffect	void	float	papyrus::ActiveMagicEffect::RegisterForSingleUpdateGameTime	
+ActiveMagicEffect	RegisterForSleep	ActiveEffect	void		papyrus::ActiveMagicEffect::RegisterForSleep	
+ActiveMagicEffect	RegisterForTrackedStatsEvent	?	?		papyrus::ActiveMagicEffect::RegisterForTrackedStatsEvent	
+ActiveMagicEffect	RegisterForUpdate	ActiveEffect	void	float	papyrus::ActiveMagicEffect::RegisterForUpdate	
+ActiveMagicEffect	RegisterForUpdateGameTime	ActiveEffect	void	float	papyrus::ActiveMagicEffect::RegisterForUpdateGameTime	
+ActiveMagicEffect	RemoveAllInventoryEventFilters	?	?		papyrus::ActiveMagicEffect::RemoveAllInventoryEventFilters	
+ActiveMagicEffect	RemoveInventoryEventFilter	ActiveEffect	void	TESForm	papyrus::ActiveMagicEffect::RemoveInventoryEventFilter	
+ActiveMagicEffect	StartObjectProfiling	?	?		papyrus::ActiveMagicEffect::StartObjectProfiling	
+ActiveMagicEffect	StopObjectProfiling	?	?		papyrus::ActiveMagicEffect::StopObjectProfiling	
+ActiveMagicEffect	UnregisterForAnimationEvent	ActiveEffect	void	TESObjectREFR, BSFixedString	papyrus::ActiveMagicEffect::UnregisterForAnimationEvent	
+ActiveMagicEffect	UnregisterForLOS	ActiveEffect	void	Actor, TESObjectREFR	papyrus::ActiveMagicEffect::UnregisterForLOS	
+ActiveMagicEffect	UnregisterForSleep	?	?		papyrus::ActiveMagicEffect::UnregisterForSleep	
+ActiveMagicEffect	UnregisterForTrackedStatsEvent	?	?		papyrus::ActiveMagicEffect::UnregisterForTrackedStatsEvent	
+ActiveMagicEffect	UnregisterForUpdate	?	?		papyrus::ActiveMagicEffect::UnregisterForUpdate	
+ActiveMagicEffect	UnregisterForUpdateGameTime	?	?		papyrus::ActiveMagicEffect::UnregisterForUpdateGameTime	
+Actor	AddPerk	Actor	void	BGSPerk	papyrus::Actor::AddPerk	
+Actor	AddShout	Actor	bool	TESShout	papyrus::Actor::AddShout	
+Actor	AddSpell	Actor	bool	SpellItem, bool	papyrus::Actor::AddSpell	player (gPlayerCharacter3); player (g_thePlayer); screen: menus (UI::singleton): SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): SendHUDMessage::ShowHUDMessage
+Actor	AllowBleedoutDialogue	Actor	void	bool	papyrus::Actor::AllowBleedoutDialogue	
+Actor	AllowPCDialogue	Actor	void	bool	papyrus::Actor::AllowPCDialogue	
+Actor	AttachAshPile	Actor	void	TESForm	papyrus::Actor::AttachAshPile	player (g_thePlayer): TESObjectREFR::GetCalcLevel
+Actor	CanFlyHere	Actor	bool		papyrus::Actor::CanFlyHere	
+Actor	ClearArrested	Actor	void		papyrus::Actor::ClearArrested	player (gPlayerCharacter3): Actor::EvaluatePackage; player (g_thePlayer): Actor::EvaluatePackage; screen: camera (PlayerCamera::singleton): Actor::EvaluatePackage > Actor::EndInterruptPackage > PlayerCharacter::SetAIDriven; screen: controls (ControlMap::singleton): Actor::EvaluatePackage > sub_140711B60; screen: menus (UI::singleton): ProcessLists::StopCombatAndAlarmOnActor > PlayerCharacter::SetEscaping > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): ProcessLists::StopCombatAndAlarmOnActor > PlayerCharacter::SetEscaping > SendHUDMessage::ShowHUDMessage
+Actor	ClearExpressionOverride	Actor	void		papyrus::Actor::ClearExpressionOverride	
+Actor	ClearExtraArrows	Actor	void		papyrus::Actor::ClearExtraArrows	
+Actor	ClearKeepOffsetFromActor	Actor	void		papyrus::Actor::ClearKeepOffsetFromActor	
+Actor	ClearLookAt	Actor	void		papyrus::Actor::ClearLookAt	
+Actor	DamageActorValue	Actor	void	BSFixedString, float	papyrus::Actor::DamageActorValue	
+Actor	Dismount	Actor	bool		papyrus::Actor::Dismount	player (gPlayerCharacter3): Actor::Dismount; player (g_thePlayer): Actor::Dismount; screen: camera (PlayerCamera::singleton): Actor::Dismount > Actor::EndInterruptPackage > PlayerCharacter::SetAIDriven
+Actor	DispelAllSpells	Actor	void		papyrus::Actor::DispelAllSpells	
+Actor	DispelSpell	Actor	bool	SpellItem	papyrus::Actor::DispelSpell	player (gPlayerCharacter3): sub_140656620 > sub_1406595D0 > BSTaskPool_HandleTask; player (g_thePlayer): sub_140656620 > sub_1406595D0 > BSTaskPool_HandleTask; screen: menus (UIMessageQueue::singleton): sub_140656620 > sub_1406595D0 > BSTaskPool_HandleTask
+Actor	DoCombatSpellApply	Actor	void	SpellItem &, TESObjectREFR	papyrus::Actor::DoCombatSpellApply	player (gPlayerCharacter3): Actor::DoCombatSpellApply; screen: menus (UI::singleton): Actor::DoCombatSpellApply > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::DoCombatSpellApply > SendHUDMessage::ShowHUDMessage
+Actor	DrawWeapon	Actor	void		papyrus::Actor::DrawWeapon	
+Actor	EnableAI	Actor	void	bool	papyrus::Actor::EnableAI	
+Actor	EndDeferredKill	Actor	void		papyrus::Actor::EndDeferredKill	player (g_thePlayer): Actor::EndDeferredKill > sub_140715AE0
+Actor	EquipItem	Actor	void	TESForm, bool, bool	papyrus::Actor::EquipItem	player (gPlayerCharacter3); player (g_thePlayer); screen: controls (PlayerControls::singleton): ActorEquipManager::EquipObject > coop_equipFunc_0 > Character::sub_38543; screen: menus (UI::singleton): sub_140226A20; screen: menus (UIMessageQueue::singleton): ActorEquipManager::EquipObject > coop_equipFunc_0 > SendInventoryUpdateMessage
+Actor	EquipShout	Actor	void	TESShout	papyrus::Actor::EquipShout	player (gPlayerCharacter3): ActorEquipManager::EquipShout > coop_equipShoutFunc; player (g_thePlayer): ActorEquipManager::EquipShout > coop_equipShoutFunc; screen: controls (PlayerControls::singleton): ActorEquipManager::EquipShout > coop_equipShoutFunc > Character::sub_38543
+Actor	EquipSpell	Actor	void	SpellItem, uint	papyrus::Actor::EquipSpell	player (gPlayerCharacter3): coop_equipFunc > ActorEquipManager::EquipSpell > coop_equipSpellFunc; player (g_thePlayer): coop_equipFunc > ActorEquipManager::EquipSpell > coop_equipSpellFunc
+Actor	EvaluatePackage	Actor	void		papyrus::Actor::EvaluatePackage	player (gPlayerCharacter3): Actor::EvaluatePackage; player (g_thePlayer): Actor::EvaluatePackage; screen: camera (PlayerCamera::singleton): Actor::EvaluatePackage > Actor::EndInterruptPackage > PlayerCharacter::SetAIDriven; screen: controls (ControlMap::singleton): Actor::EvaluatePackage > sub_140711B60
+Actor	ForceActorValue	Actor	void	BSFixedString, float	papyrus::Actor::ForceActorValue	
+Actor	GetActorValue	Actor	float	BSFixedString	papyrus::Actor::GetActorValue	
+Actor	GetActorValueMax	Actor	float	BSFixedString	papyrus::Actor::GetActorValueMax	
+Actor	GetActorValuePercentage	Actor	float	BSFixedString	papyrus::Actor::GetActorValuePercentage	
+Actor	GetBaseActorValue	Actor	float	BSFixedString	papyrus::Actor::GetBaseActorValue	
+Actor	GetBribeAmount	Actor	uint		papyrus::Actor::GetBribeAmount	player (g_thePlayer): Actor::GetBribeAmount
+Actor	GetCombatState	Actor	uint		papyrus::Actor::GetCombatState	
+Actor	GetCombatTarget	Actor	Actor		papyrus::Actor::GetCombatTarget	
+Actor	GetCrimeFaction	Actor	TESFaction		papyrus::Actor::GetCrimeFaction	
+Actor	GetCurrentPackage	Actor	TESPackage		papyrus::Actor::GetCurrentPackage	
+Actor	GetDialogueTarget	Actor	Actor		papyrus::Actor::GetDialogueTarget	
+Actor	GetEquippedArmorInSlot	Actor	TESObjectARMO	uint	papyrus::Actor::GetEquippedArmorInSlot	
+Actor	GetEquippedItemType	Actor	int	uint	papyrus::Actor::GetEquippedItemType	
+Actor	GetEquippedShield	Actor	TESObjectARMO		papyrus::Actor::GetEquippedShield	
+Actor	GetEquippedShout	Actor	TESShout		papyrus::Actor::GetEquippedShout	
+Actor	GetEquippedSpell	Actor	SpellItem	uint	papyrus::Actor::GetEquippedSpell	
+Actor	GetEquippedWeapon	Actor	TESObjectWEAP	bool	papyrus::Actor::GetEquippedWeapon	
+Actor	GetFactionRank	Actor	int	TESFaction	papyrus::Actor::GetFactionRank	player (gPlayerCharacter3)
+Actor	GetFactionReaction	Actor	uint	Actor	papyrus::Actor::GetFactionReaction	player (gPlayerCharacter3): Actor::GetFactionReaction > ActorKnowledge::sub_42714 > Character::sub_37667; player (g_thePlayer): Actor::GetFactionReaction > ActorKnowledge::sub_42714 > Character::sub_37667
+Actor	GetFlyingState	Actor	uint		papyrus::Actor::GetFlyingState	
+Actor	GetForcedLandingMarker	Actor	TESObjectREFR		papyrus::Actor::GetForcedLandingMarker	
+Actor	GetGoldAmount	Actor	int		papyrus::Actor::GetGoldAmount	
+Actor	GetHighestRelationshipRank	Actor	int		papyrus::Actor::GetHighestRelationshipRank	
+Actor	GetKiller	Actor	Actor		papyrus::Actor::GetKiller	
+Actor	GetLevel	Actor	uint		papyrus::Actor::GetLevel	player (g_thePlayer): Actor::GetLevel > TESActorBaseData::GetLevel
+Actor	GetLeveledActorBase	Actor	TESNPC		papyrus::Actor::GetLeveledActorBase	
+Actor	GetLightLevel	Actor	float		papyrus::Actor::GetLightLevel	
+Actor	GetLowestRelationshipRank	Actor	int		papyrus::Actor::GetLowestRelationshipRank	
+Actor	GetNoBleedoutRecovery	Actor	bool		papyrus::Actor::GetNoBleedoutRecovery	
+Actor	GetPlayerControls	Actor	bool		papyrus::Actor::GetPlayerControls	
+Actor	GetRace	Actor	TESRace		papyrus::Actor::GetRace	
+Actor	GetRelationshipRank	Actor	int	Actor	papyrus::Actor::GetRelationshipRank	
+Actor	GetSitState	Actor	uint		papyrus::Actor::GetSitState	
+Actor	GetSleepState	Actor	uint		papyrus::Actor::GetSleepState	
+Actor	GetVoiceRecoveryTime	Actor	float		papyrus::Actor::GetVoiceRecoveryTime	
+Actor	GetWarmthRating	Actor	float		papyrus::Actor::GetWarmthRating	
+Actor	HasAssociation	Actor	bool	BGSAssociationType, Actor	papyrus::Actor::HasAssociation	
+Actor	HasFamilyRelationship	Actor	bool	Actor	papyrus::Actor::HasFamilyRelationship	
+Actor	HasLOS	Actor	bool	TESObjectREFR	papyrus::Actor::HasLOS	player (gPlayerCharacter3); player (g_thePlayer): Actor::HasLineOfSight
+Actor	HasMagicEffect	Actor	bool	EffectSetting	papyrus::Actor::HasMagicEffect	
+Actor	HasMagicEffectWithKeyword	Actor	bool	BGSKeyword	papyrus::Actor::HasMagicEffectWithKeyword	
+Actor	HasParentRelationship	Actor	bool	Actor	papyrus::Actor::HasParentRelationship	
+Actor	HasPerk	Actor	bool	BGSPerk	papyrus::Actor::HasPerk	
+Actor	HasSpell	Actor	bool	TESForm	papyrus::Actor::HasSpell	player (gPlayerCharacter3): Actor::HasSpell > Actor::VisitSpells
+Actor	IsAlarmed	Actor	bool		papyrus::Actor::IsAlarmed	
+Actor	IsAlerted	Actor	bool		papyrus::Actor::IsAlerted	
+Actor	IsAllowedToFly	Actor	bool		papyrus::Actor::IsAllowedToFly	
+Actor	IsArrested	Actor	bool		papyrus::Actor::IsArrested	
+Actor	IsArrestingTarget	Actor	bool		papyrus::Actor::IsArrestingTarget	
+Actor	IsBeingRidden	Actor	bool		papyrus::Actor::IsBeingRidden	
+Actor	IsBleedingOut	Actor	bool		papyrus::Actor::IsBleedingOut	
+Actor	IsBribed	Actor	bool		papyrus::Actor::IsBribed	
+Actor	IsChild	Actor	bool		papyrus::Actor::IsChild	
+Actor	IsCommandedActor	Actor	bool		papyrus::Actor::IsCommandedActor	
+Actor	IsDead	Actor	bool		papyrus::Actor::IsDead	
+Actor	IsDetectedBy	Actor	bool	Actor	papyrus::Actor::IsDetectedBy	
+Actor	IsDoingFavor	Actor	bool		papyrus::Actor::IsDoingFavor	
+Actor	IsEquipped	Actor	bool	TESForm	papyrus::Actor::IsEquipped	
+Actor	IsEssential	Actor	bool		papyrus::Actor::IsEssential	
+Actor	IsFlying	Actor	bool		papyrus::Actor::IsFlying	
+Actor	IsGhost	Actor	bool		papyrus::Actor::IsGhost	
+Actor	IsGuard	Actor	bool		papyrus::Actor::IsGuard	
+Actor	IsHostileToActor	Actor	bool	Actor	papyrus::Actor::IsHostileToActor	player (gPlayerCharacter3): Actor::IsHostileToActor; player (g_thePlayer): Actor::IsHostileToActor > Character::sub_37534
+Actor	IsInCombat	Actor	bool		papyrus::Actor::IsInCombat	
+Actor	IsInFaction	Actor	bool	TESFaction	papyrus::Actor::IsInFaction	
+Actor	IsInKillMove	Actor	bool		papyrus::Actor::IsInKillMove	
+Actor	IsIntimidated	Actor	bool		papyrus::Actor::IsIntimidated	
+Actor	IsOnMount	Actor	bool		papyrus::Actor::IsOnMount	
+Actor	IsOverEncumbered	Actor	bool		papyrus::Actor::IsOverEncumbered	player (gPlayerCharacter3): Actor::IsOverEncumbered; player (g_thePlayer): Actor::IsOverEncumbered
+Actor	IsPlayersLastRiddenHorse	Actor	bool		papyrus::Actor::IsPlayersLastRiddenHorse	player (g_thePlayer)
+Actor	IsPlayerTeammate	Actor	bool		papyrus::Actor::IsPlayerTeammate	
+Actor	IsRunning	Actor	bool		papyrus::Actor::IsRunning	
+Actor	IsSneaking	Actor	bool		papyrus::Actor::IsSneaking	
+Actor	IsSprinting	Actor	bool		papyrus::Actor::IsSprinting	
+Actor	IsTrespassing	Actor	bool		papyrus::Actor::IsTrespassing	
+Actor	IsUnconscious	Actor	bool		papyrus::Actor::IsUnconscious	
+Actor	IsWeaponDrawn	Actor	bool		papyrus::Actor::IsWeaponDrawn	
+Actor	KeepOffsetFromActor	Actor	void	Actor, float, float, float, float, float, float, float, float	papyrus::Actor::KeepOffsetFromActor	
+Actor	Kill	Actor	void	Actor	papyrus::Actor::Kill	player (gPlayerCharacter3): Actor::Kill_Papyrus_impl > Actor::SetLifeState; player (g_thePlayer): Actor::Kill_Papyrus_impl > Actor::SetLifeState; screen: camera (PlayerCamera::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState; screen: controls (ControlMap::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState; screen: menus (UI::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage
+Actor	KillSilent	Actor	void	Actor	papyrus::Actor::KillSilent	player (gPlayerCharacter3): Actor::Kill_Papyrus_impl > Actor::SetLifeState; player (g_thePlayer): Actor::Kill_Papyrus_impl > Actor::SetLifeState; screen: camera (PlayerCamera::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState; screen: controls (ControlMap::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState; screen: menus (UI::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::Kill_Papyrus_impl > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage
+Actor	ModActorValue	Actor	void	BSFixedString, float	papyrus::Actor::ModActorValue	
+Actor	ModFactionRank	Actor	void	TESFaction, int	papyrus::Actor::ModFactionRank	player (gPlayerCharacter3); player (g_thePlayer): Actor::ModFactionRank > Character::sub_37677 > Character::sub_37668
+Actor	MoveToPackageLocation	Actor	bool		papyrus::Actor::MoveToPackageLocation	player (gPlayerCharacter3)
+Actor	OpenInventory	Actor	void	bool	papyrus::Actor::OpenInventory	player (gPlayerCharacter3): ContainerMenu::OpenMenu > TESObjectREFR::IsAnOwner; player (g_thePlayer): ContainerMenu::OpenMenu; screen: menus (UI::singleton): ContainerMenu::OpenMenu; screen: menus (UIMessageQueue::singleton): ContainerMenu::OpenMenu
+Actor	PathToReference	Actor	bool	TESObjectREFR, float	papyrus::Actor::PathToReference	player (g_thePlayer): Actor::sub_37893 > Actor::sub_37820 > sub_14077F800
+Actor	PlayIdle	Actor	bool	TESIdleForm	papyrus::Actor::PlayIdle	player (gPlayerCharacter3): Character::sub_55105 > AIProcess::SetupSpecialIdle > sub_1406F0790; player (g_thePlayer): Character::sub_55105 > AIProcess::SetupSpecialIdle
+Actor	PlayIdleWithTarget	Actor	bool	TESIdleForm, TESObjectREFR	papyrus::Actor::PlayIdleWithTarget	player (gPlayerCharacter3): Character::sub_55105 > AIProcess::SetupSpecialIdle > sub_1406F0790; player (g_thePlayer): Character::sub_55105 > AIProcess::SetupSpecialIdle
+Actor	PlaySubGraphAnimation	Actor	void	BSFixedString	papyrus::Actor::PlaySubGraphAnimation	
+Actor	RemoveFromAllFactions	Actor	void		papyrus::Actor::RemoveFromAllFactions	player (g_thePlayer): Character::sub_37670 > Character::sub_37668
+Actor	RemoveFromFaction	Actor	void	TESFaction	papyrus::Actor::RemoveFromFaction	player (g_thePlayer): Actor::RemoveFromFaction > Character::sub_37668
+Actor	RemovePerk	Actor	void	BGSPerk	papyrus::Actor::RemovePerk	
+Actor	RemoveShout	Actor	bool	TESShout	papyrus::Actor::RemoveShout	
+Actor	RemoveSpell	Actor	bool	SpellItem	papyrus::Actor::RemoveSpell	player (gPlayerCharacter3): TaskQueueInterface::QueueRemoveSpell > sub_1406595D0 > BSTaskPool_HandleTask; player (g_thePlayer): TaskQueueInterface::QueueRemoveSpell > sub_1406595D0 > BSTaskPool_HandleTask; screen: menus (UIMessageQueue::singleton): TaskQueueInterface::QueueRemoveSpell > sub_1406595D0 > BSTaskPool_HandleTask
+Actor	ResetHealthAndLimbs	Actor	void		papyrus::Actor::ResetHealthAndLimbs	
+Actor	RestoreActorValue	Actor	void	BSFixedString, float	papyrus::Actor::RestoreActorValue	
+Actor	Resurrect	Actor	bool		papyrus::Actor::Resurrect	
+Actor	SendAssaultAlarm	Actor	void		papyrus::Actor::SendAssaultAlarm	player (gPlayerCharacter3): Actor::SendAssaultAlarm > Character::sub_37425 > Character::sub_37679; player (g_thePlayer)
+Actor	SendLycanthropyStateChanged	Actor	void	bool	papyrus::Actor::SendLycanthropyStateChanged	
+Actor	SendTrespassAlarm	Actor	void	Actor	papyrus::Actor::SendTrespassAlarm	player (gPlayerCharacter3): Actor::TrespassAlarm; player (g_thePlayer): Actor::TrespassAlarm; screen: menus (UI::singleton): Actor::TrespassAlarm > Character::sub_37679 > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::TrespassAlarm > Character::sub_37679 > SendHUDMessage::ShowHUDMessage
+Actor	SendVampirismStateChanged	Actor	void	bool	papyrus::Actor::SendVampirismStateChanged	
+Actor	SetActorValue	Actor	void	BSFixedString, float	papyrus::Actor::SetActorValue	
+Actor	SetAlert	Actor	void	bool	papyrus::Actor::SetAlert	
+Actor	SetAllowFlying	Actor	void	bool	papyrus::Actor::SetAllowFlying	player (g_thePlayer)
+Actor	SetAllowFlyingEx	Actor	void	bool, bool, bool	papyrus::Actor::SetAllowFlyingEx	player (g_thePlayer)
+Actor	SetAlpha	Actor	void	float, bool	papyrus::Actor::SetAlpha	
+Actor	SetAttackActorOnSight	Actor	void	bool	papyrus::Actor::SetAttackActorOnSight	
+Actor	SetBribed	Actor	void	bool	papyrus::Actor::SetBribed	
+Actor	SetCrimeFaction	Actor	void	TESFaction	papyrus::Actor::SetCrimeFaction	player (g_thePlayer): Character::SetCrimeFaction > Character::sub_37668
+Actor	SetCriticalStage	Actor	void	uint	papyrus::Actor::SetCriticalStage	player (g_thePlayer): Actor::SetCriticalStage > Actor::sub_37616 > Actor::KillImmediate
+Actor	SetDoingFavor	Actor	void	bool	papyrus::Actor::SetDoingFavor	player (gPlayerCharacter3): Character::sub_37493; player (g_thePlayer): Character::sub_37493; screen: menus (UIMessageQueue::singleton): Character::sub_37493 > sub_14091F600
+Actor	SetDontMove	Actor	void	bool	papyrus::Actor::SetDontMove	player (gPlayerCharacter3): Actor::SetDontMove > Actor::SetLifeState; player (g_thePlayer): Actor::SetDontMove > Actor::SetLifeState; screen: camera (PlayerCamera::singleton): Actor::SetDontMove > Actor::SetLifeState; screen: controls (ControlMap::singleton): Actor::SetDontMove > Actor::SetLifeState; screen: menus (UI::singleton): Actor::SetDontMove > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::SetDontMove > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage
+Actor	SetExpressionOverride	Actor	void	uint, uint	papyrus::Actor::SetExpressionOverride	
+Actor	SetEyeTexture	Actor	void	BGSTextureSet	papyrus::Actor::SetEyeTexture	player (gPlayerCharacter3): BSTaskPool::SetNiGeometryTexture > sub_1406595D0 > BSTaskPool_HandleTask; player (g_thePlayer): BSTaskPool::SetNiGeometryTexture > sub_1406595D0 > BSTaskPool_HandleTask; screen: menus (UIMessageQueue::singleton): BSTaskPool::SetNiGeometryTexture > sub_1406595D0 > BSTaskPool_HandleTask
+Actor	SetFactionRank	Actor	void	TESFaction, int	papyrus::Actor::SetFactionRank	player (gPlayerCharacter3): Character::sub_37677; player (g_thePlayer): Character::sub_37677 > Character::sub_37668
+Actor	SetForcedLandingMarker	Actor	void	TESObjectREFR	papyrus::Actor::SetForcedLandingMarker	
+Actor	SetGhost	Actor	void	bool	papyrus::Actor::SetGhost	
+Actor	SetHeadTracking	Actor	void	bool	papyrus::Actor::SetHeadTracking	
+Actor	SetIntimidated	Actor	void	bool	papyrus::Actor::SetIntimidated	
+Actor	SetLookAt	Actor	void	TESObjectREFR, bool	papyrus::Actor::SetLookAt	
+Actor	SetNoBleedoutRecovery	Actor	void	bool	papyrus::Actor::SetNoBleedoutRecovery	
+Actor	SetNotShowOnStealthMeter	Actor	void	bool	papyrus::Actor::SetNotShowOnStealthMeter	
+Actor	SetOutfit	Actor	void	BGSOutfit, bool	papyrus::Actor::SetOutfit	player (gPlayerCharacter3): Actor::AddWornOutfit > ActorEquipManager::EquipObject > coop_equipFunc_0; player (g_thePlayer): TESObjectREFR::InitInventoryIfRequired > InventoryChanges::InitLeveledItems > TESActorBaseData::GetLevel; screen: menus (UI::singleton): Actor::AddWornOutfit > sub_1401906A0
+Actor	SetPlayerControls	Actor	void	bool	papyrus::Actor::SetPlayerControls	
+Actor	SetPlayerResistingArrest	Actor	void		papyrus::Actor::SetPlayerResistingArrest	player (g_thePlayer): Actor::SetPlayerIsResistingArrestFromMyFaction
+Actor	SetPlayerTeammate	Actor	void	bool, bool	papyrus::Actor::SetPlayerTeammate	player (g_thePlayer): coop_etPlayerTeammate
+Actor	SetRace	Actor	void	TESRace	papyrus::Actor::SetRace	player (gPlayerCharacter3); player (g_thePlayer): Actor::SwitchRace; screen: camera (PlayerCamera::singleton): Actor::SwitchRace > Actor::StopInteractingQuick; screen: controls (ControlMap::singleton): Actor::SwitchRace > Actor::StopInteractingQuick; screen: controls (PlayerControls::singleton): Actor::SwitchRace > Character::sub_38785 > Character::sub_38805; screen: menus (UI::singleton): sub_1401906A0; screen: menus (UIMessageQueue::singleton): Actor::SwitchRace > Actor::sub_40593 > sub_14091F050
+Actor	SetRelationshipRank	Actor	void	Actor, int	papyrus::Actor::SetRelationshipRank	player (gPlayerCharacter3): sub_14039DB40 > TESDataHandler::AddFormToDataHandler > TESObjectCELL::sub_19411; player (g_thePlayer)
+Actor	SetRestrained	Actor	void	bool	papyrus::Actor::SetRestrained	player (gPlayerCharacter3): Actor::SetRestrained > Actor::SetLifeState; player (g_thePlayer): Actor::SetRestrained > Actor::SetLifeState; screen: camera (PlayerCamera::singleton): Actor::SetRestrained > Actor::SetLifeState; screen: controls (ControlMap::singleton): Actor::SetRestrained > Actor::SetLifeState; screen: menus (UI::singleton): Actor::SetRestrained > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::SetRestrained > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage
+Actor	SetSubGraphFloatVariable	Actor	void	BSFixedString, float	papyrus::Actor::SetSubGraphFloatVariable	
+Actor	SetUnconscious	Actor	void	bool	papyrus::Actor::SetUnconscious	player (gPlayerCharacter3): sub_140675040 > Actor::SetLifeState; player (g_thePlayer): sub_140675040 > Actor::SetLifeState; screen: camera (PlayerCamera::singleton): sub_140675040 > Actor::SetLifeState; screen: controls (ControlMap::singleton): sub_140675040 > Actor::SetLifeState; screen: menus (UI::singleton): sub_140675040 > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): sub_140675040 > Actor::SetLifeState > SendHUDMessage::ShowHUDMessage
+Actor	SetVehicle	Actor	void	TESObjectREFR	papyrus::Actor::SetVehicle	player (gPlayerCharacter3): Actor::sub_37903 > Actor::sub_39000 > sub_140711B60; player (g_thePlayer): Actor::sub_37903; screen: controls (ControlMap::singleton): Actor::sub_37903 > Actor::sub_39000 > sub_140711B60
+Actor	SetVoiceRecoveryTime	Actor	void	float	papyrus::Actor::SetVoiceRecoveryTime	
+Actor	ShowBarterMenu	Actor	void		papyrus::Actor::ShowBarterMenu	screen: menus (UI::singleton): BarterMenu::OpenMenu; screen: menus (UIMessageQueue::singleton): BarterMenu::OpenMenu
+Actor	ShowGiftMenu	Actor	bool	bool, BGSListForm, bool, bool	papyrus::Actor::ShowGiftMenu	player (g_thePlayer); screen: menus (UIMessageQueue::singleton): GiftMenu::OpenMenu_Impl
+Actor	StartCannibal	Actor	void	Actor	papyrus::Actor::StartCannibal	
+Actor	StartCombat	Actor	void	Actor	papyrus::Actor::StartCombat	player (gPlayerCharacter3); player (g_thePlayer): BSTaskPool_QueueStartCombat > sub_1406595D0 > BSTaskPool_HandleTask; screen: menus (UIMessageQueue::singleton): BSTaskPool_QueueStartCombat > sub_1406595D0 > BSTaskPool_HandleTask
+Actor	StartDeferredKill	Actor	void		papyrus::Actor::StartDeferredKill	
+Actor	StartSneaking	Actor	void		papyrus::Actor::StartSneaking	player (gPlayerCharacter3); player (g_thePlayer): PlayerControls::sub_42350; screen: camera (PlayerCamera::singleton): TESActionData::Func5_41557 > coop_performAction > coop_ApplyAnimationVariables; screen: controls (MenuControls::singleton): PlayerControls::sub_42350 > Actor::sub_40574 > Actor::ProcessVATSAttack; screen: controls (PlayerControls::singleton); screen: menus (UIMessageQueue::singleton): PlayerControls::sub_42350 > HUDMenu::FlashMeter
+Actor	StartVampireFeed	Actor	void	Actor	papyrus::Actor::StartVampireFeed	
+Actor	StopCombat	Actor	void		papyrus::Actor::StopCombat	player (gPlayerCharacter3); player (g_thePlayer): Actor::sub_37463
+Actor	StopCombatAlarm	Actor	void		papyrus::Actor::StopCombatAlarm	player (gPlayerCharacter3): ProcessLists::StopCombatAndAlarmOnActor; player (g_thePlayer): ProcessLists::StopCombatAndAlarmOnActor; screen: menus (UI::singleton): ProcessLists::StopCombatAndAlarmOnActor > PlayerCharacter::SetEscaping > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): ProcessLists::StopCombatAndAlarmOnActor > PlayerCharacter::SetEscaping > SendHUDMessage::ShowHUDMessage
+Actor	TrapSoul	Actor	bool	Actor	papyrus::Actor::TrapSoul	player (gPlayerCharacter3): Actor::TrapSoul; player (g_thePlayer): Actor::TrapSoul > Actor::GetLevel > TESActorBaseData::GetLevel; screen: menus (UI::singleton): Actor::TrapSoul > sub_140226A20; screen: menus (UIMessageQueue::singleton): Actor::TrapSoul > SendHUDMessage::ShowHUDMessage
+Actor	UnequipAll	Actor	void		papyrus::Actor::UnequipAll	player (gPlayerCharacter3): coop_unequipAll; player (g_thePlayer): coop_unequipAll
+Actor	UnequipItem	Actor	void	TESForm, bool, bool	papyrus::Actor::UnequipItem	player (gPlayerCharacter3); player (g_thePlayer); screen: controls (PlayerControls::singleton): ActorEquipManager::UnequipObject > coop_unequipFunc_0 > Character::sub_38543; screen: menus (UI::singleton): SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): SendHUDMessage::ShowHUDMessage
+Actor	UnequipItemSlot	Actor	void	uint	papyrus::Actor::UnequipItemSlot	
+Actor	UnequipShout	Actor	void	TESShout	papyrus::Actor::UnequipShout	player (gPlayerCharacter3): sub_1406CA320 > coop_unequipShoutFunc; player (g_thePlayer): sub_1406CA320 > coop_unequipShoutFunc; screen: controls (PlayerControls::singleton): sub_1406CA320 > coop_unequipShoutFunc > Character::sub_38543
+Actor	UnequipSpell	Actor	void	SpellItem, uint	papyrus::Actor::UnequipSpell	player (gPlayerCharacter3): coop_unequipFunc > sub_1406CA240 > coop_unequipSpellFunc; player (g_thePlayer): coop_unequipFunc > sub_1406CA240 > coop_unequipSpellFunc
+Actor	UnlockOwnedDoorsInCell	Actor	void		papyrus::Actor::UnLockOwnedDoorsInCell	
+Actor	WillIntimidateSucceed	Actor	bool		papyrus::Actor::WillIntimidateSucceed	player (g_thePlayer): Actor::WillIntimidateSucceed
+Actor	WornHasKeyword	Actor	bool	BGSKeyword	papyrus::Actor::WornHasKeyword	
+ActorBase	GetClass	TESNPC	TESClass		papyrus::ActorBase::GetClass	
+ActorBase	GetDeadCount	TESNPC	int		papyrus::ActorBase::GetDeadCount	
+ActorBase	GetGiftFilter	TESNPC	BGSListForm		papyrus::ActorBase::GetGiftFilter	
+ActorBase	GetRace	TESNPC	TESRace		papyrus::ActorBase::GetRace	
+ActorBase	GetSex	TESNPC	int		papyrus::ActorBase::GetSex	
+ActorBase	IsEssential	TESNPC	bool		papyrus::ActorBase::IsEssential	
+ActorBase	IsInvulnerable	TESNPC	bool		papyrus::ActorBase::IsInvulnerable	
+ActorBase	IsProtected	TESNPC	bool		papyrus::ActorBase::IsProtected	
+ActorBase	IsUnique	TESNPC	bool		papyrus::ActorBase::IsUnique	
+ActorBase	SetEssential	TESNPC	void	bool	papyrus::ActorBase::SetEssential	
+ActorBase	SetInvulnerable	TESNPC	void	bool	papyrus::ActorBase::SetInvulnerable	
+ActorBase	SetOutfit	TESNPC	void	BGSOutfit, bool	papyrus::ActorBase::SetOutfit	
+ActorBase	SetProtected	TESNPC	void	bool	papyrus::ActorBase::SetProtected	
+Alias	GetOwningQuest	BGSBaseAlias	TESQuest		papyrus::Alias::GetOwningQuest	
+Alias	RegisterForAnimationEvent	BGSBaseAlias	bool	TESObjectREFR, BSFixedString	papyrus::Alias::RegisterForAnimationEvent	
+Alias	RegisterForLOS	BGSBaseAlias	void	Actor, TESObjectREFR	papyrus::Alias::RegisterForLOS	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+Alias	RegisterForSingleLOSGain	BGSBaseAlias	void	Actor, TESObjectREFR	papyrus::Alias::RegisterForSingleLOSGain	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+Alias	RegisterForSingleLOSLost	BGSBaseAlias	void	Actor, TESObjectREFR	papyrus::Alias::RegisterForSingleLOSLost	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+Alias	RegisterForSingleUpdate	BGSBaseAlias	void	float	papyrus::Alias::RegisterForSingleUpdate	
+Alias	RegisterForSingleUpdateGameTime	BGSBaseAlias	void	float	papyrus::Alias::RegisterForSingleUpdateGameTime	
+Alias	RegisterForSleep	BGSBaseAlias	void		papyrus::Alias::RegisterForSleep	
+Alias	RegisterForTrackedStatsEvent	BGSBaseAlias	void		papyrus::Alias::RegisterForTrackedStatsEvent	
+Alias	RegisterForUpdate	BGSBaseAlias	void	float	papyrus::Alias::RegisterForUpdate	
+Alias	RegisterForUpdateGameTime	BGSBaseAlias	void	float	papyrus::Alias::RegisterForUpdateGameTime	
+Alias	StartObjectProfiling	BGSBaseAlias	void		papyrus::Alias::StartObjectProfiling	
+Alias	StopObjectProfiling	BGSBaseAlias	void		papyrus::Alias::StopObjectProfiling	
+Alias	UnregisterForAnimationEvent	BGSBaseAlias	void	TESObjectREFR, BSFixedString	papyrus::Alias::UnregisterForAnimationEvent	
+Alias	UnregisterForLOS	BGSBaseAlias	void	Actor, TESObjectREFR	papyrus::Alias::UnregisterForLOS	
+Alias	UnregisterForSleep	BGSBaseAlias	void		papyrus::Alias::UnregisterForSleep	
+Alias	UnregisterForTrackedStatsEvent	BGSBaseAlias	void		papyrus::Alias::UnregisterForTrackedStatsEvent	
+Alias	UnregisterForUpdate	?	?		papyrus::Alias::UnregisterForUpdate	
+Alias	UnregisterForUpdateGameTime	?	?		papyrus::Alias::UnregisterForUpdateGameTime	
+Armor	GetWarmthRating	TESObjectARMO	float		papyrus::Armor::GetWarmthRating	
+Cell	GetActorOwner	TESObjectCELL	TESNPC		papyrus::Cell::GetActorOwner	
+Cell	GetFactionOwner	TESObjectCELL	TESFaction		papyrus::Cell::GetFactionOwner	
+Cell	IsAttached	TESObjectCELL	bool		papyrus::Cell::IsAttached	
+Cell	IsInterior	TESObjectCELL	bool		papyrus::Cell::IsInterior	
+Cell	Reset	TESObjectCELL	void		papyrus::Cell::Reset	
+Cell	SetActorOwner	TESObjectCELL	void	TESNPC	papyrus::Cell::SetActorOwner	
+Cell	SetFactionOwner	TESObjectCELL	void	TESFaction	papyrus::Cell::SetFactionOwner	
+Cell	SetFogColor	TESObjectCELL	void	uint, uint, uint, uint, uint, uint	papyrus::Cell::SetFogColor	
+Cell	SetFogPlanes	TESObjectCELL	void	float, float	papyrus::Cell::SetFogPlanes	
+Cell	SetFogPower	TESObjectCELL	void	float	papyrus::Cell::SetFogPower	
+Cell	SetPublic	TESObjectCELL	void	bool	papyrus::Cell::SetPublic	
+Debug	CenterOnCell	StaticFunctionTag	void	BSFixedString	papyrus::Debug::CenterOnCell	player (gPlayerCharacter3): PlayerCharacter::CenterOnCell_Impl > sub_1407304F0 > ProcessLists::StopCombatAndAlarmOnActor; player (g_thePlayer); screen: camera (PlayerCamera::singleton): PlayerCharacter::CenterOnCell_Impl > sub_1407304F0 > Actor::StopInteractingQuick; screen: controls (ControlMap::singleton): PlayerCharacter::CenterOnCell_Impl > sub_1407304F0 > Actor::StopInteractingQuick; screen: imagespace (ImageSpaceManager::singleton): PlayerCharacter::CenterOnCell_Impl > sub_1407304F0 > sub_1401A1150; screen: menus (UI::singleton): PlayerCharacter::CenterOnCell_Impl > sub_1407304F0 > sub_1401A1150; screen: menus (UIMessageQueue::singleton): PlayerCharacter::CenterOnCell_Impl > sub_1407304F0 > sub_14091F420
+Debug	CenterOnCellAndWait	StaticFunctionTag	bool	BSFixedString	papyrus::Debug::CenterOnCellAndWait	player (g_thePlayer): sub_140A0A6F0 > sub_140A0A390
+Debug	CloseUserLog	StaticFunctionTag	void	BSFixedString	papyrus::Debug::CloseUserLog	
+Debug	DebugChannelNotify	StaticFunctionTag	void	BSFixedString, BSFixedString	papyrus::Debug::DebugChannelNotify	
+Debug	DumpAliasData	StaticFunctionTag	void	TESQuest	papyrus::Debug::DumpAliasData	
+Debug	GetConfigName	StaticFunctionTag	bool		papyrus::Debug::GetConfigName	
+Debug	GetPlatformName	StaticFunctionTag	bool		papyrus::Debug::GetPlatformName	
+Debug	GetVersionNumber	StaticFunctionTag	bool		papyrus::Debug::GetVersionNumber	
+Debug	MessageBox	StaticFunctionTag	void	BSFixedString	papyrus::Debug::MessageBox	screen: menus (UI::singleton): sub_14094B280 > MessageBoxMenu::QueueMessage; screen: menus (UIMessageQueue::singleton): sub_14094B280
+Debug	Notification	StaticFunctionTag	void	BSFixedString	papyrus::Debug::Notification	screen: menus (UI::singleton): SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): SendHUDMessage::ShowHUDMessage
+Debug	OpenUserLog	StaticFunctionTag	bool	BSFixedString	papyrus::Debug::OpenUserLog	
+Debug	PlayerMoveToAndWait	StaticFunctionTag	bool	BSFixedString	papyrus::Debug::PlayerMoveToAndWait	player (g_thePlayer): sub_140A0A6F0 > sub_140A0A390
+Debug	QuitGame	StaticFunctionTag	void		papyrus::Debug::QuitGame	
+Debug	SendAnimationEvent	StaticFunctionTag	void	TESObjectREFR, BSFixedString	papyrus::Debug::SendAnimationEvent	
+Debug	SetFootIK	StaticFunctionTag	void	bool	papyrus::Debug::SetFootIK	
+Debug	SetGodMode	StaticFunctionTag	void	bool	papyrus::Debug::SetGodMode	
+Debug	StartScriptProfiling	StaticFunctionTag	void	BSFixedString	papyrus::Debug::StartScriptProfiling	
+Debug	StartStackProfiling	StaticFunctionTag	void		papyrus::Debug::StartStackProfiling	
+Debug	StopScriptProfiling	StaticFunctionTag	void	BSFixedString	papyrus::Debug::StopScriptProfiling	
+Debug	StopStackProfiling	StaticFunctionTag	void		papyrus::Debug::StopStackProfiling	
+Debug	TakeScreenshot	StaticFunctionTag	void	BSFixedString	papyrus::Debug::TakeScreenshot	screen: menus (UI::singleton): sub_140653240 > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): sub_140653240 > SendHUDMessage::ShowHUDMessage
+Debug	ToggleAI	StaticFunctionTag	void		papyrus::Debug::ToggleAI	
+Debug	ToggleCollisions	StaticFunctionTag	void		papyrus::Debug::ToggleCollisions	
+Debug	ToggleMenus	StaticFunctionTag	void		papyrus::Debug::ToggleMenus	screen: menus (UI::singleton)
+Debug	Trace	StaticFunctionTag	void	BSFixedString, uint	papyrus::Debug::Trace	
+Debug	TraceStack	StaticFunctionTag	void	BSFixedString, uint	papyrus::Debug::TraceStack	
+Debug	TraceUser	StaticFunctionTag	bool	BSFixedString, BSFixedString, uint	papyrus::Debug::TraceUser	
+EffectShader	Play	TESEffectShader	void	TESObjectREFR, float	papyrus::EffectShader::Play	player (g_thePlayer): TESObjectREFR::ApplyEffectShader > sub_1405CF700
+EffectShader	Stop	TESEffectShader	void	TESObjectREFR	papyrus::EffectShader::Stop	
+Enchantment	IsHostile	EnchantmentItem	bool		papyrus::Enchantment::IsHostile	
+Faction	CanPayCrimeGold	TESFaction	bool		papyrus::Faction::CanPayCrimeGold	player (g_thePlayer)
+Faction	GetCrimeGold	TESFaction	uint		papyrus::Faction::GetCrimeGold	player (g_thePlayer)
+Faction	GetCrimeGoldNonViolent	TESFaction	uint		papyrus::Faction::GetCrimeGoldNonViolent	player (g_thePlayer)
+Faction	GetCrimeGoldViolent	TESFaction	uint		papyrus::Faction::GetCrimeGoldViolent	player (g_thePlayer)
+Faction	GetInfamy	TESFaction	uint		papyrus::Faction::GetInfamy	player (g_thePlayer)
+Faction	GetInfamyNonViolent	TESFaction	uint		papyrus::Faction::GetInfamyNonViolent	player (g_thePlayer)
+Faction	GetInfamyViolent	TESFaction	uint		papyrus::Faction::GetInfamyViolent	player (g_thePlayer)
+Faction	GetReaction	TESFaction	int	TESFaction	papyrus::Faction::GetReaction	
+Faction	GetStolenItemValueCrime	TESFaction	uint		papyrus::Faction::GetStolenItemValueCrime	player (g_thePlayer)
+Faction	GetStolenItemValueNoCrime	TESFaction	uint		papyrus::Faction::GetStolenItemValueNoCrime	player (g_thePlayer)
+Faction	IsFactionInCrimeGroup	TESFaction	bool	TESFaction	papyrus::Faction::IsFactionInCrimeGroup	
+Faction	IsPlayerExpelled	TESFaction	bool		papyrus::Faction::IsPlayerExpelled	
+Faction	ModCrimeGold	TESFaction	void	int, bool	papyrus::Faction::ModCrimeGold	player (g_thePlayer)
+Faction	ModReaction	TESFaction	void	TESFaction, int	papyrus::Faction::ModReaction	
+Faction	PlayerPayCrimeGold	TESFaction	void	bool, bool	papyrus::Faction::PlayerPayCrimeGold	player (g_thePlayer)
+Faction	SendAssaultAlarm	TESFaction	void		papyrus::Faction::SendAssaultAlarm	player (gPlayerCharacter3): Actor::SendAssaultAlarm > Character::sub_37425 > Character::sub_37679; player (g_thePlayer)
+Faction	SendPlayerToJail	TESFaction	bool	bool, bool	papyrus::Faction::SendPlayerToJail	
+Faction	SetAlly	TESFaction	void	TESFaction, bool, bool	papyrus::Faction::SetAlly	player (g_thePlayer): ProcessLists::ClearCachedFactionFightReactions
+Faction	SetCrimeGold	TESFaction	void	uint	papyrus::Faction::SetCrimeGold	player (g_thePlayer)
+Faction	SetCrimeGoldViolent	TESFaction	void	uint	papyrus::Faction::SetCrimeGoldViolent	player (g_thePlayer)
+Faction	SetEnemy	TESFaction	void	TESFaction, bool, bool	papyrus::Faction::SetEnemy	player (g_thePlayer): ProcessLists::ClearCachedFactionFightReactions
+Faction	SetPlayerEnemy	TESFaction	void	bool	papyrus::Faction::SetPlayerEnemy	player (g_thePlayer): TESFaction::sub_24505
+Faction	SetPlayerExpelled	TESFaction	void	bool	papyrus::Faction::SetPlayerExpelled	
+Faction	SetReaction	TESFaction	void	TESFaction, int	papyrus::Faction::SetReaction	
+Form	GetFormID	TESForm	uint		papyrus::Form::GetFormID	
+Form	GetGoldValue	TESForm	int		papyrus::Form::GetGoldValue	
+Form	HasKeyword	TESForm	bool	BGSKeyword	papyrus::Form::HasKeyword	
+Form	PlayerKnows	TESForm	bool		papyrus::Form::PlayerKnows	
+Form	RegisterForAnimationEvent	TESForm	bool	TESObjectREFR, BSFixedString	papyrus::Form::RegisterForAnimationEvent	
+Form	RegisterForLOS	TESForm	void	Actor, TESObjectREFR	papyrus::Form::RegisterForLOS	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+Form	RegisterForSingleLOSGain	TESForm	void	Actor, TESObjectREFR	papyrus::Form::RegisterForSingleLOSGain	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+Form	RegisterForSingleLOSLost	TESForm	void	Actor, TESObjectREFR	papyrus::Form::RegisterForSingleLOSLost	player (gPlayerCharacter3): PlayerCharacter::sub_53830
+Form	RegisterForSingleUpdate	TESForm	void	float	papyrus::Form::RegisterForSingleUpdate	
+Form	RegisterForSingleUpdateGameTime	TESForm	void	float	papyrus::Form::RegisterForSingleUpdateGameTime	
+Form	RegisterForSleep	TESForm	void		papyrus::Form::RegisterForSleep	
+Form	RegisterForTrackedStatsEvent	TESForm	void		papyrus::Form::RegisterForTrackedStatsEvent	
+Form	RegisterForUpdate	TESForm	void	float	papyrus::Form::RegisterForUpdate	
+Form	RegisterForUpdateGameTime	TESForm	void	float	papyrus::Form::RegisterForUpdateGameTime	
+Form	StartObjectProfiling	TESForm	void		papyrus::Form::StartObjectProfiling	
+Form	StopObjectProfiling	TESForm	void		papyrus::Form::StopObjectProfiling	
+Form	UnregisterForAnimationEvent	TESForm	void	TESObjectREFR, BSFixedString	papyrus::Form::UnregisterForAnimationEvent	
+Form	UnregisterForLOS	TESForm	void	Actor, TESObjectREFR	papyrus::Form::UnregisterForLOS	
+Form	UnregisterForSleep	TESForm	void		papyrus::Form::UnregisterForSleep	
+Form	UnregisterForTrackedStatsEvent	TESForm	void		papyrus::Form::UnregisterForTrackedStatsEvent	
+Form	UnregisterForUpdate	TESForm	void		papyrus::Form::UnregisterForUpdate	
+Form	UnregisterForUpdateGameTime	TESForm	void		papyrus::Form::UnregisterForUpdateGameTime	
+FormList	AddForm	BGSListForm	void	TESForm	papyrus::FormList::AddForm	
+FormList	Find	BGSListForm	int	TESForm	papyrus::FormList::Find	
+FormList	GetAt	BGSListForm	TESForm	uint	papyrus::FormList::GetAt	
+FormList	GetSize	BGSListForm	uint		papyrus::FormList::GetSize	
+FormList	HasForm	BGSListForm	bool	TESForm	papyrus::FormList::HasForm	
+FormList	RemoveAddedForm	BGSListForm	void	TESForm	papyrus::FormList::RemoveAddedForm	
+FormList	Revert	BGSListForm	void		papyrus::FormList::Revert	
+Game	AddAchievement	StaticFunctionTag	void	int	papyrus::Game::AddAchievement	player (g_thePlayer): sub_1401BA450
+Game	AddHavokBallAndSocketConstraint	StaticFunctionTag	bool	TESObjectREFR, BSFixedString, TESObjectREFR, BSFixedString, float, float, float, float, float, float	papyrus::Game::AddHavokBallAndSocketConstraint	
+Game	AddPerkPoints	StaticFunctionTag	void	int	papyrus::Game::AddPerkPoints	player (g_thePlayer)
+Game	AdvanceSkill	StaticFunctionTag	void	BSFixedString, float	papyrus::Game::AdvanceSkill	player (g_thePlayer)
+Game	CalculateFavorCost	StaticFunctionTag	uint	uint	papyrus::Game::CalculateFavorCost	player (g_thePlayer)
+Game	ClearPrison	StaticFunctionTag	void		papyrus::Game::ClearPrison	player (g_thePlayer)
+Game	ClearTempEffects	StaticFunctionTag	void		papyrus::Game::ClearTempEffects	
+Game	DisablePlayerControls	StaticFunctionTag	void	bool, bool, bool, bool, bool, bool, bool, bool, uint	papyrus::Game::DisablePlayerControls	player (gPlayerCharacter3): PlayerControls::sub_42351 > PlayerControls::sub_42350 > Actor::GetAttackReach; player (g_thePlayer): PlayerControls::sub_42351 > PlayerControls::sub_42350; screen: controls (ControlMap::singleton); screen: controls (MenuControls::singleton); screen: controls (PlayerControls::singleton); screen: menus (UIMessageQueue::singleton): PlayerControls::sub_42351 > PlayerControls::sub_42350 > HUDMenu::FlashMeter
+Game	EnableFastTravel	StaticFunctionTag	void	bool	papyrus::Game::EnableFastTravel	player (g_thePlayer)
+Game	EnablePlayerControls	StaticFunctionTag	void	bool, bool, bool, bool, bool, bool, bool, bool, uint	papyrus::Game::EnablePlayerControls	screen: controls (ControlMap::singleton); screen: controls (PlayerControls::singleton)
+Game	FadeOutGame	StaticFunctionTag	void	bool, bool, float, float	papyrus::Game::FadeOutGame	screen: menus (UI::singleton): coop_fadeOutGame > FaderData::sub_52877; screen: menus (UIMessageQueue::singleton): coop_fadeOutGame > FaderData::sub_52877
+Game	FastTravel	StaticFunctionTag	void	TESObjectREFR	papyrus::Game::FastTravel	player (g_thePlayer)
+Game	FindClosestActor	StaticFunctionTag	Actor	float, float, float, float	papyrus::Game::FindClosestActor	player (g_thePlayer): sub_1407750F0 > sub_1407783A0
+Game	FindClosestReferenceOfAnyTypeInList	StaticFunctionTag	TESObjectREFR	BGSListForm, float, float, float, float	papyrus::Game::FindClosestReferenceOfAnyTypeInList	
+Game	FindClosestReferenceOfType	StaticFunctionTag	TESObjectREFR	TESForm, float, float, float, float	papyrus::Game::FindClosestReferenceOfType	
+Game	FindRandomActor	StaticFunctionTag	Actor	float, float, float, float	papyrus::Game::FindRandomActor	player (g_thePlayer): sub_140775180 > sub_140777C80
+Game	FindRandomReferenceOfAnyTypeInList	StaticFunctionTag	TESObjectREFR	BGSListForm, float, float, float, float	papyrus::Game::FindRandomReferenceOfAnyTypeInList	
+Game	FindRandomReferenceOfType	StaticFunctionTag	TESObjectREFR	TESForm, float, float, float, float	papyrus::Game::FindRandomReferenceOfType	
+Game	ForceFirstPerson	StaticFunctionTag	void		papyrus::Game::ForceFirstPerson	screen: camera (PlayerCamera::singleton)
+Game	ForceThirdPerson	StaticFunctionTag	void		papyrus::Game::ForceThirdPerson	screen: camera (PlayerCamera::singleton)
+Game	GetForm	StaticFunctionTag	TESForm	uint	papyrus::Game::GetForm	
+Game	GetFormFromFile	StaticFunctionTag	TESForm	uint, BSFixedString	papyrus::Game::GetFormFromFile	
+Game	GetGameSettingFloat	StaticFunctionTag	float	BSFixedString	papyrus::Game::GetGameSettingFloat	
+Game	GetGameSettingInt	StaticFunctionTag	int	BSFixedString	papyrus::Game::GetGameSettingInt	
+Game	GetGameSettingString	StaticFunctionTag	bool	BSFixedString	papyrus::Game::GetGameSettingString	
+Game	GetPlayer	StaticFunctionTag	Actor		papyrus::Game::getplayer	player (g_thePlayer)
+Game	GetPlayerGrabbedRef	StaticFunctionTag	TESObjectREFR		papyrus::Game::GetPlayerGrabbedRef	player (g_thePlayer)
+Game	GetPlayersLastRiddenHorse	StaticFunctionTag	Actor		papyrus::Game::GetPlayersLastRiddenHorse	player (g_thePlayer)
+Game	GetRealHoursPassed	StaticFunctionTag	float		papyrus::Game::GetRealHoursPassed	player (g_thePlayer)
+Game	GetSunPositionX	StaticFunctionTag	float		papyrus::Game::GetSunPositionX	
+Game	GetSunPositionY	StaticFunctionTag	float		papyrus::Game::GetSunPositionY	
+Game	GetSunPositionZ	StaticFunctionTag	float		papyrus::Game::GetSunPositionZ	
+Game	HideTitleSequenceMenu	StaticFunctionTag	void		papyrus::Game::HideTitleSequenceMenu	screen: menus (UIMessageQueue::singleton): sub_14096DDA0
+Game	IncrementSkill	StaticFunctionTag	void	BSFixedString	papyrus::Game::IncrementSkill	player (g_thePlayer): IncrementSkillFromPapyrus
+Game	IncrementSkillBy	StaticFunctionTag	void	BSFixedString, uint	papyrus::Game::IncrementSkillBy	player (g_thePlayer): IncrementSkillFromPapyrus
+Game	IncrementStat	StaticFunctionTag	void	BSFixedString, int	papyrus::Game::IncrementStat	player's stats (g_MiscStatManager): sub_140244C60
+Game	IsActivateControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsActivateControlsEnabled	screen: controls (PlayerControls::singleton)
+Game	IsCamSwitchControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsCamSwitchControlsEnabled	screen: controls (ControlMap::singleton): PlayerControls::IsCamSwitchControlsEnabled; screen: controls (PlayerControls::singleton)
+Game	IsFastTravelControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsFastTravelControlsEnabled	player (g_thePlayer)
+Game	IsFastTravelEnabled	StaticFunctionTag	bool		papyrus::Game::IsFastTravelEnabled	player (gPlayerCharacter3): Actor::sub_40444 > Actor::IsOverEncumbered; player (g_thePlayer); screen: menus (UI::singleton): Actor::sub_40444 > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::sub_40444 > SendHUDMessage::ShowHUDMessage
+Game	IsFightingControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsFightingControlsEnabled	screen: controls (ControlMap::singleton)
+Game	IsJournalControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsJournalControlsEnabled	
+Game	IsLookingControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsLookingControlsEnabled	screen: controls (ControlMap::singleton)
+Game	IsMenuControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsMenuControlsEnabled	screen: controls (ControlMap::singleton)
+Game	IsMovementControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsMovementControlsEnabled	screen: controls (ControlMap::singleton)
+Game	IsPlayerSungazing	StaticFunctionTag	bool		papyrus::Game::IsPlayerSungazing	player (g_thePlayer)
+Game	IsSneakingControlsEnabled	StaticFunctionTag	bool		papyrus::Game::IsSneakingControlsEnabled	screen: controls (ControlMap::singleton)
+Game	IsWordUnlocked	StaticFunctionTag	bool	TESWordOfPower	papyrus::Game::IsWordUnlocked	
+Game	PlayBink	StaticFunctionTag	void	BSFixedString, bool, bool, bool, bool	papyrus::Game::PlayBink	
+Game	PrecacheCharGen	StaticFunctionTag	void		papyrus::Game::PrecacheCharGen	player (g_thePlayer): sub_140953780
+Game	PrecacheCharGenClear	StaticFunctionTag	void		papyrus::Game::PrecacheCharGenClear	
+Game	QueryStat	StaticFunctionTag	int	BSFixedString	papyrus::Game::QueryStat	player's stats (g_MiscStatManager): sub_140244C60
+Game	QuitToMainMenu	StaticFunctionTag	void		papyrus::Game::QuitToMainMenu	screen: menus (UI::singleton): sub_1409769B0 > FaderData::sub_52877; screen: menus (UIMessageQueue::singleton): sub_14094E3A0
+Game	RemoveHavokConstraints	StaticFunctionTag	bool	TESObjectREFR, BSFixedString, TESObjectREFR, BSFixedString	papyrus::Game::RemoveHavokConstraints	
+Game	RequestAutosave	StaticFunctionTag	void		papyrus::Game::RequestAutosave	
+Game	RequestModel	StaticFunctionTag	void	BSFixedString	papyrus::Game::RequestModel	
+Game	RequestSave	StaticFunctionTag	void		papyrus::Game::RequestSave	
+Game	SendWereWolfTransformation	StaticFunctionTag	void		papyrus::Game::SendWereWolfTransformation	player (gPlayerCharacter3): sub_1407737A0 > Character::sub_37428; player (g_thePlayer): sub_1407737A0
+Game	ServeTime	StaticFunctionTag	void		papyrus::Game::ServeTime	player (g_thePlayer)
+Game	SetAllowFlyingMountLandingRequests	StaticFunctionTag	void	bool	papyrus::Game::SetAllowFlyingMountLandingRequests	player (g_thePlayer)
+Game	SetBeastForm	StaticFunctionTag	void	bool	papyrus::Game::SetBeastForm	player (g_thePlayer): PlayerCamera::UpdateThirdPerson; screen: camera (PlayerCamera::singleton); screen: controls (MenuControls::singleton)
+Game	SetCameraTarget	StaticFunctionTag	void	Actor	papyrus::Game::SetCameraTarget	screen: camera (PlayerCamera::singleton)
+Game	SetHudCartMode	StaticFunctionTag	void	bool	papyrus::Game::SetHudCartMode	screen: menus (UIMessageQueue::singleton): sub_14091EDB0 > HUDData::GenerateHUDMessage
+Game	SetInChargen	StaticFunctionTag	void	bool, bool, bool	papyrus::Game::SetInChargen	player (g_thePlayer)
+Game	SetPlayerAIDriven	StaticFunctionTag	void	bool	papyrus::Game::SetPlayerAIDriven	player (g_thePlayer); screen: camera (PlayerCamera::singleton): PlayerCharacter::SetAIDriven
+Game	SetPlayerReportCrime	StaticFunctionTag	void	bool	papyrus::Game::SetPlayerReportCrime	player (g_thePlayer)
+Game	SetSittingRotation	StaticFunctionTag	void	float	papyrus::Game::SetSittingRotation	screen: camera (PlayerCamera::singleton)
+Game	SetSunGazeImageSpaceModifier	StaticFunctionTag	void	TESImageSpaceModifier	papyrus::Game::SetSunGazeImageSpaceModifier	player (g_thePlayer)
+Game	ShakeCamera	StaticFunctionTag	void	TESObjectREFR, float, float	papyrus::Game::shakeCamera	player (g_thePlayer)
+Game	ShakeController	StaticFunctionTag	void	float, float, float	papyrus::Game::shakeController	screen: rumble (410222): sub_140CD3E40; screen: rumble (410225): sub_140CD3E40
+Game	ShowFirstPersonGeometry	StaticFunctionTag	void	bool	papyrus::Game::ShowFirstPersonGeometry	player (g_thePlayer)
+Game	ShowLimitedRaceMenu	StaticFunctionTag	void		papyrus::Game::ShowLimitedRaceMenu	screen: menus (UIMessageQueue::singleton): sub_140953450
+Game	ShowRaceMenu	StaticFunctionTag	void		papyrus::Game::ShowRaceMenu	screen: menus (UIMessageQueue::singleton): sub_1409533E0
+Game	ShowTitleSequenceMenu	StaticFunctionTag	void		papyrus::Game::ShowTitleSequenceMenu	screen: menus (UIMessageQueue::singleton): sub_14096DD30
+Game	ShowTrainingMenu	StaticFunctionTag	void	Actor	papyrus::Game::ShowTrainingMenu	screen: menus (UIMessageQueue::singleton): sub_14097AE20
+Game	StartTitleSequence	StaticFunctionTag	void	BSFixedString	papyrus::Game::StartTitleSequence	screen: menus (UIMessageQueue::singleton): sub_14096DE10 > sub_140FA8D20
+Game	TeachWord	StaticFunctionTag	void	TESWordOfPower	papyrus::Game::TeachWord	player (g_thePlayer); screen: menus (UIMessageQueue::singleton): sub_140920610
+Game	TriggerScreenBlood	StaticFunctionTag	void	uint	papyrus::Game::TriggerScreenBlood	screen: blood (ScreenSplatter::singleton)
+Game	UnlockWord	StaticFunctionTag	void	TESWordOfPower	papyrus::Game::UnlockWord	player (g_thePlayer)
+Game	UsingGamepad	StaticFunctionTag	bool		papyrus::Game::UsingGamepad	screen: input (BSInputDeviceManager::singleton)
+GlobalVariable	GetValue	TESGlobal	float		papyrus::GlobalVariable::GetValue	
+GlobalVariable	SetValue	TESGlobal	void	float	papyrus::GlobalVariable::SetValue	
+ImageSpaceModifier	Apply	TESImageSpaceModifier	void	float	papyrus::ImageSpaceModifier::Apply	
+ImageSpaceModifier	ApplyCrossFade	TESImageSpaceModifier	void	float	papyrus::ImageSpaceModifier::ApplyCrossFade	
+ImageSpaceModifier	PopTo	TESImageSpaceModifier	void	TESImageSpaceModifier, float	papyrus::ImageSpaceModifier::PopTo	
+ImageSpaceModifier	Remove	TESImageSpaceModifier	void		papyrus::ImageSpaceModifier::Remove	
+ImageSpaceModifier	RemoveCrossFade	StaticFunctionTag	void	float	papyrus::ImageSpaceModifier::RemoveCrossFade	
+Ingredient	IsHostile	IngredientItem	bool		papyrus::Ingredient::IsHostile	
+Ingredient	LearnAllEffects	IngredientItem	void		papyrus::Ingredient::LearnAllEffects	
+Ingredient	LearnEffect	IngredientItem	void	uint	papyrus::Ingredient::LearnEffect	
+Ingredient	LearnNextEffect	IngredientItem	uint		papyrus::Ingredient::LearnNextEffect	
+Keyword	SendStoryEvent	BGSKeyword	void	BGSLocation, TESObjectREFR, TESObjectREFR, uint, uint	papyrus::Keyword::SendStoryEvent	
+Keyword	SendStoryEventAndWait	BGSKeyword	bool	BGSLocation, TESObjectREFR, TESObjectREFR, uint, uint	papyrus::Keyword::SendStoryEventAndWait	
+LeveledActor	AddForm	TESLevCharacter	void	TESForm, uint	papyrus::LeveledActor::AddForm	
+LeveledActor	Revert	TESLevCharacter	void		papyrus::LeveledActor::Revert	
+LeveledItem	AddForm	TESLevItem	void	TESForm, uint, uint	papyrus::LeveledItem::AddForm	
+LeveledItem	Revert	TESLevItem	void		papyrus::LeveledItem::Revert	
+LeveledSpell	AddForm	TESLevSpell	void	TESForm, uint	papyrus::LeveledSpell::AddForm	
+LeveledSpell	Revert	TESLevSpell	void		papyrus::LeveledSpell::Revert	
+Light	GetWarmthRating	TESObjectLIGH	float		papyrus::Light::GetWarmthRating	
+Location	GetKeywordData	BGSLocation	float	BGSKeyword	papyrus::Location::GetKeywordData	
+Location	GetRefTypeAliveCount	BGSLocation	uint	BGSLocationRefType	papyrus::Location::GetRefTypeAliveCount	
+Location	GetRefTypeDeadCount	BGSLocation	uint	BGSLocationRefType	papyrus::Location::GetRefTypeDeadCount	
+Location	HasCommonParent	BGSLocation	bool	BGSLocation, BGSKeyword	papyrus::Location::HasCommonParent	
+Location	HasRefType	BGSLocation	bool	BGSLocationRefType	papyrus::Location::HasRefType	
+Location	IsChild	BGSLocation	bool	BGSLocation	papyrus::Location::IsChild	
+Location	IsCleared	BGSLocation	bool		papyrus::Location::IsCleared	
+Location	IsLoaded	BGSLocation	bool		papyrus::Location::IsLoaded	
+Location	SetCleared	BGSLocation	void	bool	papyrus::Location::SetCleared	
+Location	SetKeywordData	BGSLocation	void	BGSKeyword, float	papyrus::Location::SetKeywordData	
+LocationAlias	Clear	BGSLocAlias	void		papyrus::LocationAlias::Clear	
+LocationAlias	ForceLocationTo	BGSLocAlias	void	BGSLocation	papyrus::LocationAlias::ForceLocationTo	
+LocationAlias	GetLocation	BGSLocAlias	BGSLocation		papyrus::LocationAlias::GetLocation	
+MagicEffect	GetAssociatedSkill	EffectSetting	bool		papyrus::MagicEffect::GetAssociatedSkill	
+Math	abs	StaticFunctionTag	float	float	papyrus::Math::abs	
+Math	acos	StaticFunctionTag	float	float	papyrus::Math::acos	
+Math	asin	StaticFunctionTag	float	float	papyrus::Math::asin	
+Math	atan	StaticFunctionTag	float	float	papyrus::Math::atan	
+Math	Ceiling	StaticFunctionTag	int	float	papyrus::Math::Ceiling	
+Math	cos	StaticFunctionTag	float	float	papyrus::Math::cos	
+Math	DegreesToRadians	StaticFunctionTag	float	float	papyrus::Math::DegreesToRadians	
+Math	Floor	StaticFunctionTag	int	float	papyrus::Math::Floor	
+Math	pow	StaticFunctionTag	float	float, float	papyrus::Math::pow	
+Math	RadiansToDegrees	StaticFunctionTag	float	float	papyrus::Math::RadiansToDegrees	
+Math	sin	StaticFunctionTag	float	float	papyrus::Math::sin	
+Math	sqrt	StaticFunctionTag	float	float	papyrus::Math::sqrt	
+Math	tan	StaticFunctionTag	float	float	papyrus::Math::tan	
+Message	ResetHelpMessage	StaticFunctionTag	void	BSFixedString	papyrus::Message::ResetHelpMessage	
+Message	Show	BGSMessage	bool	float, float, float, float, float, float, float, float, float	papyrus::Message::Show	player (g_thePlayer); screen: menus (UI::singleton): sub_14094B5D0 > MessageBoxMenu::QueueMessage; screen: menus (UIMessageQueue::singleton): sub_14094B5D0
+Message	ShowAsHelpMessage	BGSMessage	void	BSFixedString, float, float, int	papyrus::Message::ShowAsHelpMessage	screen: input (BSInputDeviceManager::singleton): HelpMessageManager::sub_51587; screen: menus (UIMessageQueue::singleton): HelpMessageManager::sub_51587 > sub_14091BC80 > sub_14091FBF0
+MusicType	Add	BGSMusicType	void		papyrus::MusicType::Add	
+MusicType	Remove	BGSMusicType	void		papyrus::MusicType::Remove	
+ObjectReference	Activate	TESObjectREFR	bool	TESObjectREFR, bool	papyrus::ObjectReference::Activate	player (gPlayerCharacter3): TESObjectREFR::ActivateRef; player (g_thePlayer): TESObjectREFR::ActivateRef; screen: camera (PlayerCamera::singleton): TESObjectREFR::ActivateRef
+ObjectReference	AddDependentAnimatedObjectReference	TESObjectREFR	bool	TESObjectREFR	papyrus::ObjectReference::AddDependentAnimatedObjectReference	
+ObjectReference	AddInventoryEventFilter	TESObjectREFR	void	TESForm	papyrus::ObjectReference::AddInventoryEventFilter	
+ObjectReference	AddItem	TESObjectREFR	bool	TESForm, uint, bool	AddItem_Native	
+ObjectReference	AddToMap	TESObjectREFR	void	bool	papyrus::ObjectReference::AddToMap	screen: menus (UI::singleton): SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): SendHUDMessage::ShowHUDMessage
+ObjectReference	ApplyHavokImpulse	TESObjectREFR	bool	float, float, float, float	papyrus::ObjectReference::ApplyHavokImpulse	
+ObjectReference	BlockActivation	TESObjectREFR	void	bool	papyrus::ObjectReference::BlockActivation	
+ObjectReference	CalculateEncounterLevel	TESObjectREFR	uint	uint	papyrus::ObjectReference::CalculateEncounterLevel	player (g_thePlayer): TESObjectREFR::GetCalcLevel
+ObjectReference	CanFastTravelToMarker	TESObjectREFR	bool		papyrus::ObjectReference::CanFastTravelToMarker	
+ObjectReference	ClearDestruction	TESObjectREFR	void		papyrus::ObjectReference::ClearDestruction	player (gPlayerCharacter3): sub_1401D0AE0 > TES::sub_13355 > Character::sub_37501; player (g_thePlayer): sub_1401D0AE0 > TES::sub_13355 > Character::sub_37501; screen: menus (UI::singleton): sub_1401D0AE0 > TESObjectREFR::Enable > sub_1401906A0
+ObjectReference	CreateDetectionEvent	TESObjectREFR	void	Actor, uint	papyrus::ObjectReference::CreateDetectionEvent	
+ObjectReference	DamageObject	TESObjectREFR	bool	float	papyrus::ObjectReference::DamageObject	
+ObjectReference	Delete	TESObjectREFR	bool		papyrus::ObjectReference::Delete	player (gPlayerCharacter3); player (g_thePlayer): sub_140656060 > sub_1406595D0 > BSTaskPool_HandleTask; screen: menus (UIMessageQueue::singleton): sub_140656060 > sub_1406595D0 > BSTaskPool_HandleTask
+ObjectReference	Disable	TESObjectREFR	bool	bool	papyrus::ObjectReference::Disable	
+ObjectReference	DisableNoWait	TESObjectREFR	void	bool	papyrus::ObjectReference::DisableNoWait	
+ObjectReference	DropObject	TESObjectREFR	bool	TESForm, uint	papyrus::ObjectReference::DropObject	
+ObjectReference	Enable	TESObjectREFR	bool	bool	papyrus::ObjectReference::Enable	
+ObjectReference	EnableFastTravel	TESObjectREFR	void	bool	papyrus::ObjectReference::EnableFastTravel	
+ObjectReference	EnableNoWait	TESObjectREFR	void	bool	papyrus::ObjectReference::EnableNoWait	
+ObjectReference	ForceAddRagdollToWorld	TESObjectREFR	bool		papyrus::ObjectReference::ForceAddRagdollToWorld	
+ObjectReference	ForceRemoveRagdollFromWorld	TESObjectREFR	bool		papyrus::ObjectReference::ForceRemoveRagdollFromWorld	
+ObjectReference	GetActorOwner	TESObjectREFR	TESNPC		papyrus::ObjectReference::GetActorOwner	
+ObjectReference	GetAllItemsCount	TESObjectREFR	uint		sub_140A2CD70	
+ObjectReference	GetAngleX	TESObjectREFR	float		sub_140A2CD90	
+ObjectReference	GetAngleY	TESObjectREFR	float		sub_140A2CDB0	
+ObjectReference	GetAngleZ	TESObjectREFR	float		sub_140A2CDD0	
+ObjectReference	GetAnimationVariableBool	TESObjectREFR	bool	BSFixedString	papyrus::ObjectReference::GetAnimationVariableBool	
+ObjectReference	GetAnimationVariableFloat	TESObjectREFR	float	BSFixedString	papyrus::ObjectReference::GetAnimationVariableFloat	
+ObjectReference	GetAnimationVariableInt	TESObjectREFR	int	BSFixedString	papyrus::ObjectReference::GetAnimationVariableInt	
+ObjectReference	GetBaseObject	TESObjectREFR	TESForm		papyrus::ObjectReference::GetBaseObject	
+ObjectReference	GetCurrentDestructionStage	TESObjectREFR	int		papyrus::ObjectReference::GetCurrentDestructionStage	
+ObjectReference	GetCurrentLocation	TESObjectREFR	BGSLocation		papyrus::ObjectReference::GetCurrentLocation	player (g_thePlayer): TESObjectREFR::GetCurrentLocation
+ObjectReference	GetCurrentScene	TESObjectREFR	BGSScene		papyrus::ObjectReference::GetCurrentScene	
+ObjectReference	GetDistance	TESObjectREFR	float	TESObjectREFR	papyrus::ObjectReference::getDistance	
+ObjectReference	GetEditorLocation	TESObjectREFR	BGSLocation		papyrus::ObjectReference::GetEditorLocation	
+ObjectReference	GetFactionOwner	TESObjectREFR	TESFaction		papyrus::ObjectReference::GetFactionOwner	
+ObjectReference	GetHeadingAngle	TESObjectREFR	float	TESObjectREFR	papyrus::ObjectReference::GetHeadingAngle	
+ObjectReference	GetHeight	TESObjectREFR	float		papyrus::ObjectReference::GetHeight	
+ObjectReference	GetItemCount	TESObjectREFR	uint	TESForm	papyrus::ObjectReference::GetItemCount	
+ObjectReference	GetItemHealthPercent	TESObjectREFR	float		papyrus::ObjectReference::GetItemHealthPercent	
+ObjectReference	GetKey	TESObjectREFR	TESKey		papyrus::ObjectReference::GetKey	
+ObjectReference	GetLength	TESObjectREFR	float		papyrus::ObjectReference::GetLength	
+ObjectReference	GetLinkedRef	TESObjectREFR	TESObjectREFR	BGSKeyword	papyrus::ObjectReference::GetLinkedRef	
+ObjectReference	GetLockLevel	TESObjectREFR	int		papyrus::ObjectReference::GetLockLevel	player (g_thePlayer): sub_14017B6E0
+ObjectReference	GetMass	TESObjectREFR	float		papyrus::ObjectReference::GetMass	
+ObjectReference	GetNthLinkedRef	TESObjectREFR	TESObjectREFR	int	papyrus::ObjectReference::GetNthLinkedRef	
+ObjectReference	GetOpenState	TESObjectREFR	uint		papyrus::ObjectReference::GetOpenState	
+ObjectReference	GetParentCell	TESObjectREFR	TESObjectCELL		papyrus::ObjectReference::GetParentCell	
+ObjectReference	GetPositionX	TESObjectREFR	float		papyrus::ObjectReference::GetPositionX	
+ObjectReference	GetPositionY	TESObjectREFR	float		papyrus::ObjectReference::GetPositionY	
+ObjectReference	GetPositionZ	TESObjectREFR	float		papyrus::ObjectReference::GetPositionZ	
+ObjectReference	GetScale	TESObjectREFR	float		papyrus::ObjectReference::GetScale	
+ObjectReference	GetTriggerObjectCount	TESObjectREFR	uint		papyrus::ObjectReference::GetTriggerObjectCount	
+ObjectReference	GetVoiceType	TESObjectREFR	BGSVoiceType		papyrus::ObjectReference::GetVoiceType	
+ObjectReference	GetWidth	TESObjectREFR	float		papyrus::ObjectReference::GetWidth	
+ObjectReference	GetWorldSpace	TESObjectREFR	TESWorldSpace		papyrus::ObjectReference::GetWorldSpace	
+ObjectReference	HasEffectKeyword	TESObjectREFR	bool	BGSKeyword	papyrus::ObjectReference::HasEffectKeyword	
+ObjectReference	HasNode	TESObjectREFR	bool	BSFixedString	papyrus::ObjectReference::HasNode	
+ObjectReference	HasRefType	TESObjectREFR	bool	BGSLocationRefType	papyrus::ObjectReference::HasRefType	
+ObjectReference	IgnoreFriendlyHits	TESObjectREFR	void	bool	papyrus::ObjectReference::IgnoreFriendlyHits	
+ObjectReference	InterruptCast	TESObjectREFR	void		papyrus::ObjectReference::InterruptCast	
+ObjectReference	Is3DLoaded	TESObjectREFR	bool		papyrus::ObjectReference::Is3DLoaded	
+ObjectReference	IsActivateChild	TESObjectREFR	bool	TESObjectREFR	papyrus::ObjectReference::IsActivateChild	
+ObjectReference	IsActivationBlocked	TESObjectREFR	bool		papyrus::ObjectReference::IsActivationBlocked	
+ObjectReference	IsContainerEmpty	TESObjectREFR	bool		sub_140A2D5C0	
+ObjectReference	IsDeleted	TESObjectREFR	bool		papyrus::ObjectReference::IsDeleted	
+ObjectReference	IsDisabled	TESObjectREFR	bool		papyrus::ObjectReference::IsDisabled	
+ObjectReference	IsFurnitureInUse	TESObjectREFR	bool	bool	papyrus::ObjectReference::IsFurnitureInUse	
+ObjectReference	IsFurnitureMarkerInUse	TESObjectREFR	bool	uint, bool	papyrus::ObjectReference::IsFurnitureMarkerInUse	
+ObjectReference	IsIgnoringFriendlyHits	TESObjectREFR	bool		papyrus::ObjectReference::IsIgnoringFriendlyHits	
+ObjectReference	IsInDialogueWithPlayer	TESObjectREFR	bool		papyrus::ObjectReference::IsInDialogueWithPlayer	
+ObjectReference	IsLockBroken	TESObjectREFR	bool		papyrus::ObjectReference::IsLockBroken	player (g_thePlayer): IsLockBroken
+ObjectReference	IsLocked	TESObjectREFR	bool		papyrus::ObjectReference::IsLocked	
+ObjectReference	IsMapMarkerVisible	TESObjectREFR	bool		papyrus::ObjectReference::IsMapMarkerVisible	
+ObjectReference	KnockAreaEffect	TESObjectREFR	void	float, float	papyrus::ObjectReference::KnockAreaEffect	player (g_thePlayer): sub_140630980
+ObjectReference	Lock	TESObjectREFR	void	bool, bool	papyrus::ObjectReference::Lock	
+ObjectReference	MoveTo	TESObjectREFR	bool	TESObjectREFR, float, float, float, bool	papyrus::ObjectReference::MoveTo	player (gPlayerCharacter3)
+ObjectReference	MoveToInteractionLocation	TESObjectREFR	bool	TESObjectREFR	papyrus::ObjectReference::MoveToInteractionLocation	player (gPlayerCharacter3)
+ObjectReference	MoveToMyEditorLocation	TESObjectREFR	bool		papyrus::ObjectReference::MoveToMyEditorLocation	player (gPlayerCharacter3)
+ObjectReference	MoveToNode	TESObjectREFR	bool	TESObjectREFR, BSFixedString	papyrus::ObjectReference::MoveToNode	player (gPlayerCharacter3)
+ObjectReference	PlaceActorAtMe	TESObjectREFR	Actor	TESNPC, uint, BGSEncounterZone	papyrus::ObjectReference::PlaceActorAtMe	player (gPlayerCharacter3): sub_1401D74E0 > Actor::SwitchRace; player (g_thePlayer): sub_1401D74E0 > TESLeveledList::sub_14752 > TESObjectREFR::GetCalcLevel; screen: camera (PlayerCamera::singleton): sub_1401D74E0 > Actor::SwitchRace > Actor::StopInteractingQuick; screen: controls (ControlMap::singleton): sub_1401D74E0 > Actor::SwitchRace > Actor::StopInteractingQuick; screen: menus (UI::singleton): TESDataHandler::CreateReferenceAtLocation > TESObjectCELL::sub_19411 > sub_1401906A0; screen: menus (UIMessageQueue::singleton): TESDataHandler::CreateReferenceAtLocation > Projectile::Launch > ShowHUDAmmo
+ObjectReference	PlaceAtMe	TESObjectREFR	TESObjectREFR	TESForm, uint, bool, bool	PlaceAtMe_Native	player (gPlayerCharacter3): TESDataHandler::CreateReferenceAtLocation > sub_1407D8E10; player (g_thePlayer): TESDataHandler::CreateReferenceAtLocation; screen: menus (UI::singleton): TESDataHandler::CreateReferenceAtLocation > TESObjectCELL::sub_19411 > sub_1401906A0; screen: menus (UIMessageQueue::singleton): TESDataHandler::CreateReferenceAtLocation > Projectile::Launch > ShowHUDAmmo
+ObjectReference	PlayAnimation	TESObjectREFR	bool	BSFixedString	papyrus::ObjectReference::PlayAnimation	
+ObjectReference	PlayAnimationAndWait	TESObjectREFR	bool	BSFixedString, BSFixedString	papyrus::ObjectReference::PlayAnimationAndWait	
+ObjectReference	PlayGamebryoAnimation	TESObjectREFR	bool	BSFixedString, bool, float	papyrus::ObjectReference::PlayGamebryoAnimation	
+ObjectReference	PlayImpactEffect	TESObjectREFR	bool	BGSImpactDataSet, BSFixedString, float, float, float, float, bool, bool	papyrus::ObjectReference::PlayImpactEffect	player (g_thePlayer): BGSImpactManager::PlayImpactEffect_0 > TESObjectREFR::FindReferenceFor3D
+ObjectReference	PlaySyncedAnimationAndWaitSS	TESObjectREFR	bool	BSFixedString, BSFixedString, TESObjectREFR, BSFixedString, BSFixedString	papyrus::ObjectReference::PlaySyncedAnimationAndWaitSS	
+ObjectReference	PlaySyncedAnimationSS	TESObjectREFR	bool	BSFixedString, TESObjectREFR, BSFixedString	papyrus::ObjectReference::PlaySyncedAnimationSS	
+ObjectReference	PlayTerrainEffect	TESObjectREFR	void	BSFixedString, BSFixedString	papyrus::ObjectReference::PlayTerrainEffect	player (g_thePlayer): BSTempEffect::sub_30174
+ObjectReference	ProcessTrapHit	TESObjectREFR	void	TESObjectREFR, float, float, float, float, float, float, float, float, int, float	papyrus::ObjectReference::ProcessTrapHit	
+ObjectReference	PushActorAway	TESObjectREFR	void	Actor, float	papyrus::ObjectReference::PushActorAway	player (gPlayerCharacter3): AIProcess::KnockExplosion > Actor::StopInteractingQuick; player (g_thePlayer): AIProcess::KnockExplosion; screen: camera (PlayerCamera::singleton): AIProcess::KnockExplosion > Actor::StopInteractingQuick; screen: controls (ControlMap::singleton): AIProcess::KnockExplosion > Actor::StopInteractingQuick
+ObjectReference	RemoveAllInventoryEventFilters	TESObjectREFR	void		papyrus::ObjectReference::RemoveAllInventoryEventFilters	
+ObjectReference	RemoveAllItems	TESObjectREFR	void	TESObjectREFR, bool, bool	papyrus::ObjectReference::RemoveAllItems	player (gPlayerCharacter3): InventoryChanges::RemoveAllItems > sub_1402346F0 > InventoryChanges::RemoveItem; player (g_thePlayer)
+ObjectReference	RemoveAllStolenItems	TESObjectREFR	void	TESObjectREFR	sub_140A2F690	player (gPlayerCharacter3): sub_140235A20 > InventoryChanges::RemoveItem; player (g_thePlayer); screen: menus (UI::singleton): sub_140235A20 > IngredientItem::sub_51636 > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): sub_140235A20 > IngredientItem::sub_51636 > SendHUDMessage::ShowHUDMessage
+ObjectReference	RemoveDependentAnimatedObjectReference	TESObjectREFR	bool	TESObjectREFR	papyrus::ObjectReference::RemoveDependentAnimatedObjectReference	
+ObjectReference	RemoveInventoryEventFilter	TESObjectREFR	void	TESForm	papyrus::ObjectReference::RemoveInventoryEventFilter	
+ObjectReference	RemoveItem	TESObjectREFR	bool	TESForm, uint, bool, TESObjectREFR	papyrus::ObjectReference::RemoveItem	
+ObjectReference	Reset	TESObjectREFR	bool	TESObjectREFR	papyrus::ObjectReference::Reset	
+ObjectReference	Say	TESObjectREFR	void	TESTopic, Actor, bool	papyrus::ObjectReference::Say	player (g_thePlayer)
+ObjectReference	SendStealAlarm	TESObjectREFR	void	Actor	papyrus::ObjectReference::SendStealAlarm	player (gPlayerCharacter3): Actor::StealAlarm; player (g_thePlayer): Actor::StealAlarm; screen: menus (UI::singleton): Actor::StealAlarm > Character::sub_37679 > SendHUDMessage::ShowHUDMessage; screen: menus (UIMessageQueue::singleton): Actor::StealAlarm > Character::sub_37679 > SendHUDMessage::ShowHUDMessage
+ObjectReference	SetActorCause	TESObjectREFR	void	Actor	papyrus::ObjectReference::SetActorCause	
+ObjectReference	SetActorOwner	TESObjectREFR	void	TESNPC	papyrus::ObjectReference::SetActorOwner	
+ObjectReference	SetAngle	TESObjectREFR	bool	float, float, float	papyrus::ObjectReference::SetAngle	player (gPlayerCharacter3)
+ObjectReference	SetAnimationVariableBool	TESObjectREFR	void	BSFixedString, bool	papyrus::ObjectReference::SetAnimationVariableBool	
+ObjectReference	SetAnimationVariableFloat	TESObjectREFR	void	BSFixedString, float	papyrus::ObjectReference::SetAnimationVariableFloat	
+ObjectReference	SetAnimationVariableInt	TESObjectREFR	void	BSFixedString, int	papyrus::ObjectReference::SetAnimationVariableInt	
+ObjectReference	SetContainerAllowStolenItems	TESObjectREFR	void	bool	sub_140A2C380	
+ObjectReference	SetDestroyed	TESObjectREFR	void	bool	papyrus::ObjectReference::SetDestroyed	
+ObjectReference	SetFactionOwner	TESObjectREFR	void	TESFaction	papyrus::ObjectReference::SetFactionOwner	
+ObjectReference	SetLockLevel	TESObjectREFR	void	uint	papyrus::ObjectReference::SetLockLevel	
+ObjectReference	SetMotionType	TESObjectREFR	bool	uint, bool	papyrus::ObjectReference::SetMotionType	
+ObjectReference	SetNoFavorAllowed	TESObjectREFR	void	bool	papyrus::ObjectReference::SetNoFavorAllowed	
+ObjectReference	SetOpen	TESObjectREFR	void	bool	papyrus::ObjectReference::SetOpen	player (gPlayerCharacter3): TESObjectREFR::ActivateRef; player (g_thePlayer): TESObjectREFR::ActivateRef; screen: camera (PlayerCamera::singleton): TESObjectREFR::ActivateRef
+ObjectReference	SetPosition	TESObjectREFR	bool	float, float, float	papyrus::ObjectReference::SetPosition	player (gPlayerCharacter3)
+ObjectReference	SetScale	TESObjectREFR	bool	float	papyrus::ObjectReference::SetScale	
+ObjectReference	SplineTranslateTo	TESObjectREFR	void	float, float, float, float, float, float, float, float, float	papyrus::ObjectReference::SplineTranslateTo	
+ObjectReference	SplineTranslateToRefNode	TESObjectREFR	void	TESObjectREFR, BSFixedString, float, float, float	papyrus::ObjectReference::SplineTranslateToRefNode	
+ObjectReference	StopTranslation	TESObjectREFR	void		papyrus::ObjectReference::StopTranslation	
+ObjectReference	TetherToHorse	TESObjectREFR	void	TESObjectREFR	papyrus::ObjectReference::TetherToHorse	
+ObjectReference	TranslateTo	TESObjectREFR	void	float, float, float, float, float, float, float, float	papyrus::ObjectReference::TranslateTo	
+ObjectReference	WaitForAnimationEvent	TESObjectREFR	bool	BSFixedString	papyrus::ObjectReference::WaitForAnimationEvent	
+Package	GetOwningQuest	TESPackage	TESQuest		papyrus::Package::GetOwningQuest	
+Package	GetTemplate	TESPackage	TESPackage const		papyrus::Package::GetTemplate	
+Potion	IsHostile	AlchemyItem	bool		papyrus::Potion::IsHostile	
+Quest	CompleteAllObjectives	TESQuest	void		papyrus::Quest::CompleteAllObjectives	player (g_thePlayer): sub_1403C8F10 > sub_140394440; screen: menus (UIMessageQueue::singleton): sub_1403C8F10 > sub_140394440 > sub_1409201C0
+Quest	CompleteQuest	TESQuest	void		papyrus::Quest::CompleteQuest	screen: menus (UIMessageQueue::singleton): TESQuest::sub_24991 > sub_1409201C0
+Quest	FailAllObjectives	TESQuest	void		papyrus::Quest::FailAllObjectives	player (g_thePlayer): sub_1403C8F60 > sub_140394440; screen: menus (UIMessageQueue::singleton): sub_1403C8F60 > sub_140394440 > sub_1409201C0
+Quest	GetAlias	TESQuest	BGSBaseAlias	uint	papyrus::Quest::GetAlias	
+Quest	GetCurrentStageID	TESQuest	uint		papyrus::Quest::GetCurrentStageID	
+Quest	IsActive	TESQuest	bool		papyrus::Quest::IsActive	
+Quest	IsCompleted	TESQuest	bool		papyrus::Quest::IsCompleted	
+Quest	IsObjectiveCompleted	TESQuest	bool	uint	papyrus::Quest::IsObjectiveCompleted	
+Quest	IsObjectiveDisplayed	TESQuest	bool	uint	papyrus::Quest::IsObjectiveDisplayed	
+Quest	IsObjectiveFailed	TESQuest	bool	uint	papyrus::Quest::IsObjectiveFailed	
+Quest	IsRunning	TESQuest	bool		papyrus::Quest::IsRunning	
+Quest	IsStageDone	TESQuest	bool	uint	papyrus::Quest::IsStageDone	
+Quest	IsStarting	TESQuest	bool		papyrus::Quest::IsStarting	
+Quest	IsStopped	TESQuest	bool		papyrus::Quest::IsStopped	
+Quest	IsStopping	TESQuest	bool		papyrus::Quest::IsStopping	
+Quest	Reset	TESQuest	void		papyrus::Quest::Reset	player (gPlayerCharacter3): BGSStoryTeller::BeginStartUpQuest > TESQuest::sub_25046; player (g_thePlayer): BGSStoryTeller::BeginStartUpQuest > TESQuest::sub_25046 > IngredientItem::sub_51636
+Quest	SetActive	TESQuest	void	bool	papyrus::Quest::SetActive	
+Quest	SetCurrentStageID	TESQuest	bool	uint	papyrus::Quest::SetCurrentStageID	player (gPlayerCharacter3): TESQuest::EnsureQuestStarted > BGSStoryTeller::BeginStartUpQuest > TESQuest::sub_25046; player (g_thePlayer): TESQuest::EnsureQuestStarted > TESQuest::sub_25048 > TESQuest::sub_25063
+Quest	SetObjectiveCompleted	TESQuest	void	uint, bool	papyrus::Quest::SetObjectiveCompleted	player (g_thePlayer): sub_140394440; screen: menus (UIMessageQueue::singleton): sub_140394440 > sub_1409201C0
+Quest	SetObjectiveDisplayed	TESQuest	void	uint, bool, bool	papyrus::Quest::SetObjectiveDisplayed	player (g_thePlayer): sub_140394440; screen: menus (UIMessageQueue::singleton): sub_140394440 > sub_1409201C0
+Quest	SetObjectiveFailed	TESQuest	void	uint, bool	papyrus::Quest::SetObjectiveFailed	player (g_thePlayer): sub_140394440; screen: menus (UIMessageQueue::singleton): sub_140394440 > sub_1409201C0
+Quest	Start	TESQuest	bool		papyrus::Quest::Start	player (gPlayerCharacter3): TESQuest::EnsureQuestStarted > BGSStoryTeller::BeginStartUpQuest > TESQuest::sub_25046; player (g_thePlayer): TESQuest::EnsureQuestStarted > TESQuest::sub_25048 > TESQuest::sub_25063
+Quest	Stop	TESQuest	void		papyrus::Quest::Stop	
+Quest	UpdateCurrentInstanceGlobal	TESQuest	bool	TESGlobal	papyrus::Quest::UpdateCurrentInstanceGlobal	
+ReferenceAlias	AddInventoryEventFilter	BGSRefAlias	void	TESForm	papyrus::ReferenceAlias::AddInventoryEventFilter	
+ReferenceAlias	Clear	BGSRefAlias	void		papyrus::ReferenceAlias::Clear	player (gPlayerCharacter3): TESQuest::sub_25051 > BGSRefAlias::sub_24012 > Actor::EvaluatePackage; player (g_thePlayer): TESQuest::sub_25051 > BGSRefAlias::sub_24012 > Actor::EvaluatePackage
+ReferenceAlias	ForceRefTo	BGSRefAlias	void	TESObjectREFR	papyrus::ReferenceAlias::ForceRefTo	player (gPlayerCharacter3): TESQuest::ForceRefIntoAlias > BGSRefAlias::sub_24011 > Character::sub_37677; player (g_thePlayer): TESQuest::ForceRefIntoAlias > BGSRefAlias::sub_24011 > Actor::EndInterruptPackage
+ReferenceAlias	GetReference	BGSRefAlias	TESObjectREFR		papyrus::ReferenceAlias::GetReference	
+ReferenceAlias	RemoveAllInventoryEventFilters	BGSRefAlias	void		papyrus::ReferenceAlias::RemoveAllInventoryEventFilters	
+ReferenceAlias	RemoveInventoryEventFilter	BGSRefAlias	void	TESForm	papyrus::ReferenceAlias::RemoveInventoryEventFilter	
+Scene	ForceStart	BGSScene	void		papyrus::Scene::ForceStart	
+Scene	GetOwningQuest	BGSScene	TESQuest		papyrus::Scene::GetOwningQuest	
+Scene	IsActionComplete	BGSScene	bool	uint	papyrus::Scene::IsActionComplete	
+Scene	IsPlaying	BGSScene	bool		papyrus::Scene::IsPlaying	
+Scene	Start	BGSScene	void		papyrus::Scene::Start	
+Scene	Stop	BGSScene	void		papyrus::Scene::Stop	
+Scroll	Cast	ScrollItem	bool	TESObjectREFR, TESObjectREFR	papyrus::Scroll::Cast	
+ShaderParticleGeometry	Apply	BGSShaderParticleGeometryData	void	float	papyrus::ShaderParticleGeometry::Apply	
+ShaderParticleGeometry	Remove	BGSShaderParticleGeometryData	void	float	papyrus::ShaderParticleGeometry::Remove	
+Sound	Play	TESSound	uint	TESObjectREFR	papyrus::Sound::Play	
+Sound	PlayAndWait	TESSound	bool	TESObjectREFR	papyrus::Sound::PlayAndWait	
+Sound	SetInstanceVolume	StaticFunctionTag	void	uint, float	papyrus::Sound::SetInstanceVolume	
+Sound	StopInstance	StaticFunctionTag	void	uint	papyrus::Sound::StopInstance	
+SoundCategory	Mute	BGSSoundCategory	void		papyrus::SoundCategory::Mute	
+SoundCategory	Pause	BGSSoundCategory	void		papyrus::SoundCategory::Pause	
+SoundCategory	SetFrequency	BGSSoundCategory	void	float	papyrus::SoundCategory::SetFrequency	
+SoundCategory	SetVolume	BGSSoundCategory	void	float	papyrus::SoundCategory::SetVolume	
+SoundCategory	UnMute	BGSSoundCategory	void		papyrus::SoundCategory::UnMute	
+SoundCategory	UnPause	BGSSoundCategory	void		papyrus::SoundCategory::UnPause	
+Spell	Cast	SpellItem	bool	TESObjectREFR, TESObjectREFR	papyrus::SPELL::Cast	
+Spell	IsHostile	SpellItem	bool		papyrus::SPELL::IsHostile	
+Spell	Preload	SpellItem	void		papyrus::SPELL::Preload	
+Spell	RemoteCast	SpellItem	bool	TESObjectREFR, Actor, TESObjectREFR	papyrus::SPELL::RemoteCast	
+Spell	Unload	SpellItem	void		papyrus::SPELL::Unload	
+Topic	Add	TESTopic	void		papyrus::Topic::Add	
+TopicInfo	GetOwningQuest	TESTopicInfo	TESQuest		papyrus::TopicInfo::GetOwningQuest	
+Utility	GameTimeToString	StaticFunctionTag	bool	float	papyrus::utility::GameTimeToString	
+Utility	GetCurrentGameTime	StaticFunctionTag	float		papyrus::utility::GetCurrentGameTime	
+Utility	GetCurrentRealTime	StaticFunctionTag	float		papyrus::utility::GetCurrentRealTime	
+Utility	IsInMenuMode	StaticFunctionTag	bool		papyrus::utility::IsInMenuMode	
+Utility	RandomFloat	StaticFunctionTag	float	float, float	papyrus::utility::RandomFloat	
+Utility	RandomInt	StaticFunctionTag	int	int, int	papyrus::utility::RandomInt	
+Utility	SetINIBool	StaticFunctionTag	void	BSFixedString, bool	papyrus::utility::SetINIBool	
+Utility	SetINIFloat	StaticFunctionTag	void	BSFixedString, float	papyrus::utility::SetINIFloat	
+Utility	SetINIInt	StaticFunctionTag	void	BSFixedString, int	papyrus::utility::SetINIInt	
+Utility	SetINIString	StaticFunctionTag	void	BSFixedString, BSFixedString	papyrus::utility::SetINIString	
+Utility	Wait	StaticFunctionTag	bool	float	papyrus::utility::Wait	
+Utility	WaitGameTime	StaticFunctionTag	bool	float	papyrus::utility::WaitGameTime	
+Utility	WaitMenuMode	StaticFunctionTag	bool	float	papyrus::utility::WaitMenuMode	
+VisualEffect	Play	BGSReferenceEffect	void	TESObjectREFR, float, TESObjectREFR	papyrus::VisualEffect::Play	player (g_thePlayer): TESObjectREFR::ApplyArtObject > sub_1405CD840
+VisualEffect	Stop	BGSReferenceEffect	void	TESObjectREFR	papyrus::VisualEffect::Stop	
+Weapon	Fire	TESObjectWEAP	void	TESObjectREFR, TESAmmo	papyrus::WEAPON::Fire	player (gPlayerCharacter3): sub_140654CC0 > sub_1406595D0 > BSTaskPool_HandleTask; player (g_thePlayer): sub_140654CC0 > sub_1406595D0 > BSTaskPool_HandleTask; screen: camera (PlayerCamera::singleton): TESObjectWEAP::Fire > sub_1407F3470 > sub_1407F44E0; screen: menus (UI::singleton): TESObjectWEAP::Fire; screen: menus (UIMessageQueue::singleton): sub_140654CC0 > sub_1406595D0 > BSTaskPool_HandleTask; screen: rumble (410222): TESObjectWEAP::Fire > sub_140CD3E40; screen: rumble (410225): TESObjectWEAP::Fire > sub_140CD3E40
+Weather	FindWeather	StaticFunctionTag	TESWeather	uint	papyrus::Weather::FindWeather	
+Weather	ForceActive	TESWeather	void	bool	papyrus::Weather::ForceActive	player (gPlayerCharacter3): TaskQueueInterface::QueueForceWeather > sub_1406595D0 > BSTaskPool_HandleTask; player (g_thePlayer): TaskQueueInterface::QueueForceWeather > sub_1406595D0 > BSTaskPool_HandleTask; screen: menus (UIMessageQueue::singleton): TaskQueueInterface::QueueForceWeather > sub_1406595D0 > BSTaskPool_HandleTask
+Weather	GetClassification	TESWeather	int		papyrus::Weather::GetClassification	
+Weather	GetCurrentWeather	StaticFunctionTag	TESWeather		papyrus::Weather::GetCurrentWeather	
+Weather	GetCurrentWeatherTransition	StaticFunctionTag	float		papyrus::Weather::GetCurrentWeatherTransition	
+Weather	GetOutgoingWeather	StaticFunctionTag	TESWeather		papyrus::Weather::GetOutgoingWeather	
+Weather	GetSkyMode	StaticFunctionTag	uint		papyrus::Weather::GetSkyMode	
+Weather	ReleaseOverride	StaticFunctionTag	void		papyrus::Weather::ReleaseOverride	
+Weather	SetActive	TESWeather	void	bool, bool	papyrus::Weather::SetActive	

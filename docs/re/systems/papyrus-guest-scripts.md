@@ -24,7 +24,11 @@ A script stack runs for a guest when:
 - it was queued while a native ran for that guest (an `Activate` raising `OnActivate`, a `SetStage`
   running a fragment), or
 - it answers a registration made for that guest (`RegisterForSingleUpdate` → `OnUpdate`; the repeating
-  `RegisterForUpdate` until `UnregisterForUpdate`).
+  `RegisterForUpdate` until `UnregisterForUpdate`), or
+- it is a dialogue line's fragment after that guest's pick (2026-10-22): `TESTopicInfo::Begin` (25616) sends
+  the topic info event for the speaker at once, at the line's start and its end, and the VM's sink (53997)
+  queues the fragment on that thread; the dialogue hook wraps it in `ScopedCause` for the character
+  `HostConversation` names (`IDialogueBridge::Filters::LineFor`).
 
 | ID | Engine function | Our hook | What it does here |
 |---|---|---|---|
@@ -35,6 +39,39 @@ A script stack runs for a guest when:
 | 55618 | `NativeFunction0<StaticFunctionTag, Actor*>::MarshallAndDispatch` | `HookGetPlayer` | `Game.GetPlayer` (55469, bound in 55503; other no-argument natives returning an Actor share it, filtered by name, case-insensitively: below): in a stack run for a guest, the result is repacked (55510, then `Variable` assignment 104297) as that guest's character. |
 | 53954, 55744 | `SkyrimVM` queuing a delayed functor; `CastFunctor::operator()` | `HookFunctorQueued`, `HookCastRun` | `Spell.Cast` casts later from a functor, maybe after the script ended: the functor is tagged with the native's guest when queued, and the cast runs for it (`docs/re/systems/guest-world-events.md`). |
 
+- **A player in the frame** (2026-10-22): a script that stored the player (a `PlayerRef` property, a variable set
+  at `OnInit` / `OnLoad`, an alias filled with the player) never calls `Game.GetPlayer()`. In a stack run for a
+  guest, `HookNativeCalled` puts that guest's character into the native's frame wherever the player (0x14) is, its
+  `self` (`StackFrame::self`, +0x28) and its arguments (`GetStackFrameVariable`, 104484), for the call, and gives
+  the frame its own values back after it (`PlayerInFrame`). The call reads them at once (104651 copies `self` at its
+  start and hands the frame to `MarshallAndDispatch`; a latent native keeps what it read), so
+  `PlayerRef.RemoveItem` acts on the guest's character, as `Game.GetPlayer().RemoveItem` does, and so does a
+  stored player passed as an argument (`dragonActorSCRIPT`'s `getDistance(player)`). Scenario
+  `relief-takes-client-relics`; control (the swap off): it fails at "[client] the player gave up the axe".
+- **Natives on the player** (2026-10-22): global natives that act on this game's player without naming them
+  (`Game.AdvanceSkill`, `QueryStat`, `ShowTrainingMenu`, `FastTravel`, `Debug.Notification`...), read from their
+  code, not listed (`NativeReach`, below "Natives on the player: read from the code"). In a stack run for a guest,
+  `HookNativeCalled` does not run them: it reads their arguments from the native's frame (numbers, bools,
+  strings, forms, None), clears the stack's return value (`Stack::returnValue`, +0x70; they return None) and returns
+  `kCompleted`, as the original does after a call (read in IDA: 104651 sets +0x70 and returns 0). The host's game
+  sends them to that guest's game (`PlayerNativeEvent` → `PlayerNativeRequest` → `NotifyPlayerNative`, only from
+  the host's game, `HostPlayerNatives`), which queues the same call on its VM (`IVirtualMachine::DispatchStaticCall`,
+  slot 0x26, read in IDA: class and function looked up, the arguments filled at once by `IFunctionArguments`' slot 1,
+  then the stack queued through 104848), so its own player, perks and mods take it. An argument the session cannot
+  carry (an array, a temporary reference that is not an actor: "Values carried" below) leaves the native on the
+  host, with a warning.
+- **A native returning a value** (`QueryStat`, `CalculateFavorCost`, `GetPlayersLastRiddenHorse`) waits for the
+  guest's game, as a latent native does: `PlayerNatives::SendToGuest` puts the stack in the VM's latent wait (104851, what
+  104651 calls for a native flagged latent; it logs "requested to wait on a latent call") and returns `kInProgress`,
+  which the VM's caller (104853) handles without looking at the function's latent flag. The guest's game dispatches
+  the call with an `IStackCallbackFunctor` (CommonLibSSE-NG; the VM tells it the stack's result), sends the value back
+  (`PlayerNativeResultRequest`, the stack id as `ReplyId`; `HostPlayerNatives` takes it only from the game it asked
+  and passes it to the host's game as `NotifyPlayerNativeResult`), and the host's game resumes the stack with it
+  (`IVirtualMachine::ReturnFromLatent`, slot 0x2B, 104807: sets `Stack::returnValue` and runs it on). A guest that
+  leaves first, or a call its game cannot run, answers None: for a number, a bool or a string the script gets its
+  return type's default (`GetReturnType`, slot 4, 104635, returns a `TypeInfo` through a hidden pointer). The round trip is a few frames
+  (about 50 ms in `dialogue-picker-gets-speech-experience`). Not handled: a save taken while a stack waits keeps the
+  wait in the save with nothing to answer it after a load (vanilla latent natives save their own functors).
 - Guests' characters are known by form id (`SkyrimBridge::SetActorCopy` / `SetActorPlayer` / `DeleteActor`
   keep the list through `GuestScripts::SetGuest`, filled only while hosting), so the constructor never
   resolves a form: it can run with engine locks held (spike 1: building arguments there added lock orders
@@ -44,6 +81,68 @@ A script stack runs for a guest when:
   back from the engine's string pool in whichever spelling was pooled first.
 - Measured with the lock-order checker after `plate-counts-client` and the combat, door, lock and travel
   scenarios: no report with these hooks on the stack.
+
+## Natives on the player: read from the code
+
+A global native (`StaticFunctionTag`, no self) has no target: when its code reaches the player or the screen,
+that can only be this game's. So in a stack run for a guest, a global native whose C++ function, or a callee down
+to three calls (tail jumps included), addresses one of this game's per-player objects runs on that guest's game
+(`Papyrus/NativeReach`, `Papyrus/PlayerNatives`). The objects, by Address Library id: the player
+(`g_thePlayer` 403521, `gPlayerCharacter3` 401069), its misc stats (`MiscStatManager` 400662), its screen (`UI`
+400327, `UIMessageQueue` 400445, `PlayerControls` 400864, `ControlMap` 400863, `MenuControls` 401263,
+`PlayerCamera` 400802, `ImageSpaceManager` 414660, `BSInputDeviceManager` 402776, `ScreenSplatter` 400672, the
+gamepad's rumble queues 410222 and 410225). `Game.GetPlayer` is rule 2's own (`HookGetPlayer`, answered on the
+host). Natives with a self are not read: they act on what they are given (below, "Naming their target").
+
+- **Read at run time**, once per native, on its first call in a guest's stack: its function is `+0x50` of the
+  engine's `NativeFunctionN` (and SKSE's; its `MarshallAndDispatch`, vfunc 0x16, does `mov rax, [r14+50h]; call
+  rax`), or the callee of a CommonLibSSE native's `std::function` there (MSVC: the `_Func_impl` in place, vtable
+  then the pointer, `_Impl` at +0x38 pointing at it). Zydis decodes each function over its unwind entry
+  (`RtlLookupFunctionEntry`; a leaf without one until it returns, at most 0x400 bytes); every RIP-relative operand
+  is checked against the objects' addresses, and `call`/`jmp` targets that start a function are followed, in the
+  game and the native's own module only. In a plugin, an object or function is also reached through the data cell
+  holding its address (a `REL::Relocation`).
+- **Checked against IDA:** `scripts/re/papyrus_natives.py` reads the same rule over the database (663 natives, 143
+  global; 65 reach one, depth 2 and 3 alike, depth 5-6 adds unrelated engine code: Havok constraints,
+  `DumpAliasData`). Its output is `docs/re/papyrus_natives.tsv`; scenario `natives-reach-matches-ida` asks the
+  plugin (harness `global_natives`) for every global native IDA lists and fails on any read otherwise.
+- **The 65, each right on the guest's game** (read 2026-10-22): its stats, skills, perks and achievements
+  (`AdvanceSkill`, `IncrementSkill(By)`, `IncrementStat`, `QueryStat`, `AddPerkPoints`, `AddAchievement`,
+  `CalculateFavorCost`, `GetPlayersLastRiddenHorse`); its menus (`ShowTrainingMenu`, the race menus, the title
+  sequence, `Debug.MessageBox`, `Debug.Notification`, `ToggleMenus`, `TakeScreenshot`); its screen (fades, camera,
+  controls and their queries, `SetPlayerAIDriven`, `ShakeCamera`, `TriggerScreenBlood`, sun gazing, the HUD's cart mode, `UsingGamepad`, `ShakeController`); its body and place (`FastTravel`, `CenterOnCell(AndWait)`, `PlayerMoveToAndWait`,
+  `SetBeastForm`, `SendWereWolfTransformation`, `ClearPrison`, `SetPlayerReportCrime`, `TeachWord`, `UnlockWord`);
+  reads around it (`FindClosestActor`, `FindRandomActor`, which skip the player; `GetRealHoursPassed`,
+  `GetPlayerGrabbedRef`); `QuitToMainMenu`, `PrecacheCharGen`; the player's fast travel flag, jail time and
+  character creation flags (`EnableFastTravel`, `ServeTime`, `SetInChargen`: leaves IDA had not made functions,
+  found by the plugin's reading first). Not tested: a carriage ride (`CarriageSystemScript` travels from the stack
+  of the player sitting down, not the picked line's).
+- **Misses stay on the host**, as before: a native reaching the player through a virtual call or a queued task, or
+  an object not in the set. `PlayBink` reads the movie player (`gBGSMoviePlayer` 412214), left out on purpose: a
+  video is a cutscene, which the whole party sees (`party-model.md`, Cutscenes), so it waits for the cutscene work to
+  run on every game. The fix is the object, never a native's name. A CommonLibSSE plugin's relocation is filled on its first use: a
+  native read before it stays on the host.
+- **Values carried:** numbers, bools, strings, None, and forms: an actor in the session by its session id, any other
+  form by its `GameId` (`ScriptValue`, `ScriptForm`), so `FastTravel`'s marker, `TeachWord`'s word or
+  `GetPlayerGrabbedRef`'s reference go as well. A form is read from a form handle only (bits 32-47 `0xFFFF`; an
+  alias's or an active effect's names its quest or actor), and written back as a script object of its own type
+  (`Variable::SetForm`): the engine packs per type (55510 is an actor's, type 62: the class by type id, the handle,
+  the bound object or a new one bound, `ObjectBindPolicy::BindObject` 104184), so ours does the same with the form's
+  type (VM slots 0x0A, 0x15, 0x1C, 0x2D, 0x2F, read in IDA; CommonLibSSE-NG `PackHandle`). Not carried, so the native
+  stays on the host with a warning: arrays, and a temporary reference that is not an actor (no other game knows
+  it). Scenario `words-reach-client`: the client presses Dragonborn's QA shout button in QASmoke
+  (`DLC2QALearnShouts`), the host's script teaches and unlocks its twelve words for the client, and only the
+  client's game learns them.
+- `ClearPrison` and `SetPlayerReportCrime` change the guest's own state; the party's bounty (the `Faction` crime
+  gold natives, with a self) stays the host's. Natives with another actor as their self that open this player's
+  menus on it or read this player against it (`Actor.ShowGiftMenu`, `ShowBarterMenu`, `OpenInventory`,
+  `GetBribeAmount`, `WillIntimidateSucceed`) are methods, not read: barter and gifts on the picker's game are
+  `shared-dialogue.md`'s (Open, item 1).
+
+**Naming their target:** the natives with an actor or a reference as their self or an argument (`Actor.AddSpell`,
+`ObjectReference.MoveTo`, `Quest.SetObjectiveDisplayed`...) read the player to compare it with that target. They
+act on whoever they are given; a stored player given to them in a guest's stack is that guest's character (above,
+"A player in the frame").
 
 ## Tests
 
@@ -58,6 +157,11 @@ Unpatched vanilla scripts, the client acting on its own game; checked on the hos
 | `shrine-blesses-client` | Solitude temple shrines (`TempleBlessingScript`: casts on the activator, messages when it is the player) | 1, and 2 through `Spell.Cast` | each player gets only their own shrine's blessing on every game, though each game sees the other's character pray; the client's comes from the host's script (step 5), cast by its copy and applied by its game |
 | `vilkas-counts-client-hits` | The Companions' trial (`C00TrainerScript` on Vilkas's alias: hits by `Game.GetPlayer()` count, anyone else's end the trial) | 1 | three hits pass the trial (stage 150, not 110). Nothing the hits start asks for the player: stage 150's fragment only stops the fight, and `PassTheSword` (`Game.GetPlayer().AddItem`) is stage 200's, set from his dialogue (`QF_C00VilkasTrainingQuest`: 150 → `Fragment_3`, 200 → `Fragment_1`) |
 | `statue-fires-at-client` | Soljund's Sinkhole boss trigger (`dunSoljundsBossSCRIPT`): `RegisterForSingleUpdate`, every seventh `OnUpdate` the statue casts Firebolt at `game.getPlayer()` | 1, and 2 through `RegisterForSingleUpdate` | the host's own hit events (harness `engine_events`, `hit`): the statue's Firebolt (`0x12FD0`) hits the client's character and never the host's player, who stands 3,500 units away |
+| `dialogue-options-are-the-hosts` | Brenuin's coin (`TIF__00060022`: `Game.GetPlayer().RemoveItem(Gold, 1)`, the blessing cast on `Game.GetPlayer()`) | 2 through a picked line | the client's coin goes, the host's gold stays |
+| `dialogue-pick-says-the-hosts-line` | Hulda's room (`RentRoomScript.RentRoom`: `Game.GetPlayer().RemoveItem`) | 2 through a picked line | the host's gold stays; the client, judged by the host's list, has none to give |
+| `dialogue-picker-gets-speech-experience` | Ungrien's persuade (`TIF__00036A32`: `FavorDialogueScript.Persuade`: `GetAv("Speechcraft")`, `AdvanceSkill`, `IncrementStat`, `QueryStat`, `AddAchievement`) | 2, natives on the player, one returning a value | the client's character on the host carries the client's Speech; the client's Speech gains it, the host's not; `QueryStat` answers with the client's stats, so the achievement runs on the client's game; the host's own persuade stays the host's |
+| `relief-takes-client-relics` | Volunruud's relief door (`dunVolunruudDoorSCRIPT`: `player = game.getPlayer()` at `onLoad`, then `player.getItemCount(relic)`, `player.RemoveItem(relic)`) | 2, a player in the frame | the client's axe goes into the relief on both games though the host's player has none; the host's box says the sword is missing (stage 10 stays: stages only go forward) |
+| `dialogue-picker-trains` | Amren's training (`Game.ShowTrainingMenu(akSpeaker)`) | 2, natives on the player | the training menu opens on the client's game over its dialogue menu (as on the host's), never on the host's |
 | `client-beast-form-stays-client` | Beast Form (`WerewolfChangeEffectScript`: `Target == Game.GetPlayer()` starts `PlayerWerewolfQuest`, whose `SetRace` changes `Game.GetPlayer()`), upstream's reason for dropping rule 1 | none: the effect is the guest's | the guest changes and changes back, the host shows its copy do the same (respawned for each race), the host's player keeps its race and the host's `PlayerWerewolfQuest` never runs |
 
 The ring, keyhole, shrine and trial scripts are the ones upstream shipped patched copies of (`SkyrimTogetherUtils.IsPlayer`,

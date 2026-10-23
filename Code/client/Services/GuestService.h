@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Structs/ScriptValue.h>
+
 #include <memory>
 #include <NoCopyMove.h>
 
@@ -7,6 +9,7 @@ struct World;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct UpdateEvent;
+struct NotifyPlayerNative;
 
 /**
  * @brief This game as a guest in someone's session: the host's world applied here (Services/Guest/). The
@@ -28,6 +31,10 @@ private:
     void OnConnected(const ConnectedEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
+    // A native on the player the host's script called for this game's player: runs here.
+    void OnPlayerNative(const NotifyPlayerNative& acMessage) noexcept;
+    // What it returned, to the host's script waiting on it (None also when it did not run here).
+    void SendNativeResult(uint32_t aReplyId, const LocalValue& acResult) noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -36,4 +43,5 @@ private:
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_updateConnection;
+    entt::scoped_connection m_playerNativeConnection;
 };

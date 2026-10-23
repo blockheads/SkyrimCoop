@@ -47,6 +47,8 @@ enum RequestOpcode : unsigned char
     kContainerChangeRequest,
     kCellStateRequest,
     kDialogueStartFailedRequest,
+    kPlayerNativeRequest,
+    kPlayerNativeResultRequest,
     kRequestOpcodeMax
 };
 
@@ -99,5 +101,7 @@ enum NotifyOpcode : unsigned char
     kNotifyQuests,
     kNotifyObjectChanges,
     kNotifyDialogueRefused,
+    kNotifyPlayerNative,
+    kNotifyPlayerNativeResult,
     kNotifyOpcodeMax
 };

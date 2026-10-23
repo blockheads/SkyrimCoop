@@ -52,6 +52,7 @@ target(name)
         "entt",
         "glm",
         "xbyak",
+        "zydis",
         "nlohmann_json")
 
     -- mem is header-only; vendored copy

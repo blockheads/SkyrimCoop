@@ -16,6 +16,7 @@
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/LockChangeEvent.h>
 
+#include <ExtraData/ExtraContainerChanges.h>
 #include <ExtraData/ExtraDataList.h>
 #include <ExtraData/ExtraCharge.h>
 #include <ExtraData/ExtraCount.h>
@@ -46,6 +47,9 @@ extern const AnimationGraphDescriptor* BehaviorVarPatch(BSAnimationGraphManager*
 using TActivate = bool(TESObjectREFR*, TESObjectREFR* apActivator, uint8_t aUnk1, TESBoundObject* apObjectToGet, int32_t aCount, char aDefaultProcessing);
 using TAddInventoryItem = void(TESObjectREFR*, TESBoundObject* apItem, ExtraDataList* apExtraData, int32_t aCount, TESObjectREFR* apOldOwner);
 using TRemoveInventoryItem = BSPointerHandle<TESObjectREFR>*(TESObjectREFR*, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate);
+// InventoryChanges::RemoveItem (16059, CommonLibSSE-NG): apRef is the inventory's owner, apDropLoc a reference.
+using TRemoveFromInventory = BSPointerHandle<TESObjectREFR>*(ExtraContainerChanges::Data*, BSPointerHandle<TESObjectREFR>* apResult, TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount,
+                                                            ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, TESObjectREFR* apDropRef);
 using TPlayAnimationAndWait = bool(void*, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName);
 using TPlayAnimation = bool(void*, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName);
 using TRotate = void(TESObjectREFR*, float aAngle);
@@ -54,6 +58,7 @@ using TLockChange = void(TESObjectREFR*);
 static TActivate* RealActivate = nullptr;
 static TAddInventoryItem* RealAddInventoryItem = nullptr;
 static TRemoveInventoryItem* RealRemoveInventoryItem = nullptr;
+static TRemoveFromInventory* RealRemoveFromInventory = nullptr;
 static TPlayAnimationAndWait* RealPlayAnimationAndWait = nullptr;
 static TPlayAnimation* RealPlayAnimation = nullptr;
 static TRotate* RealRotateX = nullptr;
@@ -1206,32 +1211,43 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
     RealAddInventoryItem(apThis, apItem, apExtraData, aCount, apOldOwner);
 }
 
+// An item leaving aRef's inventory, as InventoryService sends it.
+void SendRemoval(TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount, ExtraDataList* apExtraList) noexcept
+{
+    Inventory::Entry item{};
+    World::Get().GetModSystem().GetServerModId(apItem->formID, item.BaseId);
+    if (apExtraList)
+    {
+        ScopedExtraDataOverride _;
+        apRef->GetItemFromExtraData(item, apExtraList);
+    }
+    item.Count = -aCount;
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(apRef->formID, std::move(item)));
+}
+
 BSPointerHandle<TESObjectREFR>*
 HookRemoveInventoryItem(TESObjectREFR* apThis, BSPointerHandle<TESObjectREFR>* apResult, TESBoundObject* apItem, int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, const NiPoint3* apRotate)
 {
     if (!ScopedInventoryOverride::IsOverriden())
-    {
-        auto& modSystem = World::Get().GetModSystem();
-
-        Inventory::Entry item{};
-        modSystem.GetServerModId(apItem->formID, item.BaseId);
-
-        if (apExtraList)
-        {
-            ScopedExtraDataOverride _;
-            apThis->GetItemFromExtraData(item, apExtraList);
-        }
-
-        item.Count = -aCount;
-
-        World::Get().GetRunner().Trigger(InventoryChangeEvent(apThis->formID, std::move(item)));
-    }
+        SendRemoval(apThis, apItem, aCount, apExtraList);
 
     spdlog::debug("Removing inventory item {:X} from {:X}", apItem->formID, apThis->formID);
 
     ScopedItemRemovalOverride _;
 
     return RealRemoveInventoryItem(apThis, apResult, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apRotate);
+}
+
+// A removal the engine makes on the inventory itself, not through TESObjectREFR::RemoveItem (the Training Menu's and a
+// fine's gold, PayGoldToContainer 37511; a trapped soul's gem): sent as that one is.
+BSPointerHandle<TESObjectREFR>* HookRemoveFromInventory(ExtraContainerChanges::Data* apThis, BSPointerHandle<TESObjectREFR>* apResult, TESObjectREFR* apRef, TESBoundObject* apItem,
+                                                        int32_t aCount, ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc,
+                                                        TESObjectREFR* apDropRef)
+{
+    TESObjectREFR* pOwner = apRef ? apRef : apThis ? apThis->parent : nullptr;
+    if (pOwner && apItem && aCount > 0 && !ScopedInventoryOverride::IsOverriden() && !ScopedItemRemovalOverride::IsOverriden())
+        SendRemoval(pOwner, apItem, aCount, apExtraList);
+    return RealRemoveFromInventory(apThis, apResult, apRef, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apDropRef);
 }
 
 void HookRotateX(TESObjectREFR* apThis, float aAngle)
@@ -1342,6 +1358,7 @@ static Hooks::Initializer s_objectReferencesHooks(
         POINTER_SKYRIMSE(TActivate, s_activate, 19796);
         POINTER_SKYRIMSE(TAddInventoryItem, s_addInventoryItem, 19708);
         POINTER_SKYRIMSE(TRemoveInventoryItem, s_removeInventoryItem, 19689);
+        POINTER_SKYRIMSE(TRemoveFromInventory, s_removeFromInventory, 16059);
         POINTER_SKYRIMSE(TPlayAnimationAndWait, s_playAnimationAndWait, 56206);
         POINTER_SKYRIMSE(TPlayAnimation, s_playAnimation, 56205);
         POINTER_SKYRIMSE(TLockpickUnlock, s_lockpickUnlock, 51968);
@@ -1354,6 +1371,7 @@ static Hooks::Initializer s_objectReferencesHooks(
         RealActivate = s_activate.Get();
         RealAddInventoryItem = s_addInventoryItem.Get();
         RealRemoveInventoryItem = s_removeInventoryItem.Get();
+        RealRemoveFromInventory = s_removeFromInventory.Get();
         RealPlayAnimationAndWait = s_playAnimationAndWait.Get();
         RealPlayAnimation = s_playAnimation.Get();
 
@@ -1364,6 +1382,7 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK(&RealActivate, HookActivate);
         HOOK(&RealAddInventoryItem, HookAddInventoryItem);
         HOOK(&RealRemoveInventoryItem, HookRemoveInventoryItem);
+        HOOK(&RealRemoveFromInventory, HookRemoveFromInventory);
         HOOK(&RealPlayAnimationAndWait, HookPlayAnimationAndWait);
         HOOK(&RealPlayAnimation, HookPlayAnimation);
         RealLockpickUnlock = s_lockpickUnlock.Get();

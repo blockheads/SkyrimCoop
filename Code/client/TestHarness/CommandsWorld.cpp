@@ -306,9 +306,13 @@ nlohmann::json Global(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"value", *cValue}};
 }
 
-// {"cmd": "script_state", "object": id, "script": name}: the state that script on the object is in.
+// {"cmd": "script_state", "object": id, "script": name, "state"?: name}: the state that script on the object is
+// in, put in that state first when one is given.
 nlohmann::json ScriptState(Harness&, const nlohmann::json& acRequest)
 {
+    if (acRequest.contains("state") && !EngineCalls::SetScriptState(acRequest.value("object", 0u), acRequest.value("script", std::string()).c_str(),
+                                                                    acRequest.value("state", std::string()).c_str()))
+        return Error("no such script on that object");
     const auto cState = EngineCalls::GetScriptState(acRequest.value("object", 0u), acRequest.value("script", std::string()).c_str());
     if (!cState)
         return Error("no such script on that object");
@@ -324,8 +328,8 @@ nlohmann::json ScriptStacks(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"stacks", stacks}};
 }
 
-// {"cmd": "script_var", "object": id, "script": name, "var": name, "value"?: number}: a script variable or
-// auto property (its "::<Name>_var"), set first when a value is given.
+// {"cmd": "script_var", "object": id, "script": name, "var": name, "value"?: number, "form"?: id}: a script
+// variable or auto property (its "::<Name>_var"), set first when a value is given (a number, or a form for an object).
 nlohmann::json ScriptVar(Harness&, const nlohmann::json& acRequest)
 {
     const auto cObject = acRequest.value("object", 0u);
@@ -335,6 +339,8 @@ nlohmann::json ScriptVar(Harness&, const nlohmann::json& acRequest)
         name = "::" + name + "_var";
     if (acRequest.contains("value") && !EngineCalls::SetScriptVariable(cObject, cScript.c_str(), name.c_str(), acRequest["value"].get<double>()))
         return Error("no such int, float or bool variable");
+    if (acRequest.contains("form") && !EngineCalls::SetScriptVariableForm(cObject, cScript.c_str(), name.c_str(), acRequest.value("form", 0u)))
+        return Error("no such object variable, or no such form");
     const auto cValue = EngineCalls::GetScriptVariable(cObject, cScript.c_str(), name.c_str());
     if (!cValue)
         return Error("no such script on that object, or no such variable");
@@ -350,14 +356,37 @@ nlohmann::json ScriptVar(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"name", name}, {"type", cValue->Type}, {"value", value}};
 }
 
-// {"cmd": "form", "form": id}: the form's type (TESForm::formType) and name.
+// {"cmd": "global_natives", "class": name}: the class's global natives, each with whether it acts on this game's
+// player (NativeReach): {name: bool}.
+nlohmann::json GlobalNatives(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cNatives = EngineCalls::GetGlobalNatives(acRequest.value("class", std::string()).c_str());
+    if (!cNatives)
+        return Error("no such script class in the VM");
+    auto natives = nlohmann::json::object();
+    for (const auto& acNative : *cNatives)
+        natives[acNative.Name] = acNative.ReachesThisPlayer;
+    return {{"ok", true}, {"natives", natives}};
+}
+
+// {"cmd": "form", "form": id}: the form's type (TESForm::formType), name, owner (a reference's) and whether the player
+// knows it (a word of power).
 nlohmann::json Form(Harness&, const nlohmann::json& acRequest)
 {
     auto& forms = World::Get().GetFormBridge();
     const uint32_t cForm = acRequest.value("form", 0u);
     if (!forms.FormExists(cForm))
         return Error("no such form");
-    return {{"ok", true}, {"type", forms.GetFormType(cForm)}, {"name", forms.GetFormName(cForm)}};
+    return {{"ok", true}, {"type", forms.GetFormType(cForm)}, {"name", forms.GetFormName(cForm)}, {"owner", EngineCalls::GetOwner(cForm)},
+            {"known", EngineCalls::GetPlayerKnows(cForm).value_or(false)}};
+}
+
+// {"cmd": "form_known", "form": id, "known": bool}: the player knows the form (a word of power) or not.
+nlohmann::json FormKnown(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::SetPlayerKnows(acRequest.value("form", 0u), acRequest.value("known", false)))
+        return Error("no such form");
+    return {{"ok", true}};
 }
 
 // {"cmd": "item_count", "object": id, "item": id}: how many of that item the reference holds.
@@ -514,10 +543,13 @@ nlohmann::json DialoguePick(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
-// {"cmd": "skill", "index": actor value}: the player's skill level and its experience toward the next one.
+// {"cmd": "skill", "index": actor value}: the player's skill level and its experience toward the next one. With
+// "actor": that actor's value (a copy's, as this game's scripts read it).
 nlohmann::json Skill(Harness&, const nlohmann::json& acRequest)
 {
     const uint32_t cIndex = acRequest.value("index", 0u);
+    if (acRequest.contains("actor"))
+        return {{"ok", true}, {"level", EngineCalls::GetActorValue(acRequest.value("actor", 0u), cIndex)}};
     return {{"ok", true}, {"level", EngineCalls::GetPlayerActorValue(cIndex)}, {"experience", EngineCalls::GetPlayerSkillExperience(cIndex)}};
 }
 
@@ -575,7 +607,9 @@ constexpr Command cCommands[] = {
     {"script_state", true, &ScriptState},
     {"script_var", true, &ScriptVar},
     {"script_stacks", true, &ScriptStacks},
+    {"global_natives", true, &GlobalNatives},
     {"form", true, &Form},
+    {"form_known", true, &FormKnown},
     {"container_items", true, &ContainerItems},
     {"menu_var", true, &MenuVar},
     {"ref_enabled", true, &RefEnabled},

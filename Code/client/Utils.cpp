@@ -1,4 +1,5 @@
 #include <World.h>
+#include <Structs/ScriptValue.h>
 #include <Components.h>
 #include <Actor.h>
 #include <VersionDb.h>
@@ -45,6 +46,28 @@ std::optional<uint32_t> GetSessionIdByFormId(uint32_t aFormId) noexcept
         if (view.get<FormIdComponent>(entity).Id == aFormId)
             return GetSessionId(entity);
     return std::nullopt;
+}
+
+ScriptValue ToScriptValue(const LocalValue& acValue) noexcept
+{
+    const auto cToSession = [](const LocalForm& acForm) {
+        ScriptForm form;
+        if (const auto cSessionId = GetSessionIdByFormId(acForm.FormId))
+            form.SessionId = *cSessionId;
+        else
+            World::Get().GetModSystem().GetServerModId(acForm.FormId, form.Form);
+        return std::optional(form);
+    };
+    return *MapForm<ScriptForm>(acValue, cToSession);
+}
+
+std::optional<LocalValue> ToLocalValue(const ScriptValue& acValue) noexcept
+{
+    const auto cToLocal = [](const ScriptForm& acForm) {
+        const uint32_t cFormId = acForm.SessionId ? GetFormIdBySessionId(acForm.SessionId) : World::Get().GetModSystem().GetGameId(acForm.Form);
+        return TESForm::GetById(cFormId) ? std::optional(LocalForm{cFormId}) : std::nullopt;
+    };
+    return MapForm<LocalForm>(acValue, cToLocal);
 }
 
 TESForm* GetFormBySessionId(uint32_t aSessionId) noexcept

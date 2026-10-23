@@ -35,6 +35,8 @@
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyMount.h>
 #include <Messages/NotifyAiState.h>
+#include <Messages/NotifyPlayerNative.h>
+#include <Messages/NotifyPlayerNativeResult.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/NotifyEquipmentChanges.h>
@@ -66,7 +68,7 @@ struct NotifyMessageFactory
             NotifySubtitle, NotifyPlayerLeft, NotifyPlayerJoined, NotifyPlayerLevel, NotifySettingsChange,
             NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifyRemoveSpell, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
             NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyGlobals, NotifyQuests, NotifyObjectChanges,
-            NotifyDialogueRefused>;
+            NotifyDialogueRefused, NotifyPlayerNative, NotifyPlayerNativeResult>;
 
         return s_visitor(std::forward<T>(func));
     }

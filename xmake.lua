@@ -80,6 +80,8 @@ add_requires(
 -- The SKSE plugin's (mem is header-only, vendored in Code/external/mem).
 if is_plat("windows") then
     add_requires("minhook v1.3.3", "xbyak v7.06")
+    -- Reading natives' machine code (Papyrus/NativeReach).
+    add_requires("zydis v4.1.0")
     -- The in-game UI (Code/client/Ui): HTML/CSS-like documents, FreeType fonts.
     add_requires("rmlui 6.2", {configs = {freetype = true}})
     -- MSVC treats __movsb as a builtin; clang-cl only declares it in <intrin.h>.

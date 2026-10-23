@@ -143,6 +143,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
+    , m_playerNatives(*this, aNetwork, m_players, m_characters)
 {
     using enum Delivery;
 
@@ -195,6 +196,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         if (!m_players.IsPlayer(aConnection))
             return;
         m_session.OnPlayerLeft(aConnection);
+        m_playerNatives.OnPlayerLeft(aConnection);
         m_characters.OnPlayerLeft(aConnection);
         m_players.Remove(aConnection);
         m_timeScale.OnPlayerLeft(aConnection);

@@ -60,15 +60,12 @@ The rule and why: `docs/design/party-model.md` ("Experience"); engine path and t
    experience, the host's stays.
 2. **Fix `HookAddSkillExperience`'s signature** (40488 takes the advance object and action too;
    CommonLibSSE-NG, IDA); check it in the disassembly.
-3. **Speech from a picked line to the picker**: built 2026-10-19 with shared dialogue's client, parked on
-   tag `archive/shared-dialogue-client` (the host's game holds back its player's Speech gain after another player's
-   pick and sends its input amount; the picker's game adds it through 40488, `GainSkillExperience`). The host's
-   side (`DialogueExperienceRequest` → `NotifyDialogueExperience`, `dialogue_tests.cpp`) is in. A script's
-   skill gain outside a picked line (a quest's reward) is the party's (step 6).
-4. **Barter Speech to the trader**, with shared barter.
-5. **Training to whoever pays**: done 2026-10-19 with shared dialogue (Flow, 8): the training menu opens on the
-   picker's game with its copy of the trainer, so the cost, the skill and the trainings this level are the
-   picker's (`dialogue-picker-trains`).
+3. **Speech from a picked line to the picker**: done 2026-10-22 by rule 2 (the line runs for its picker, whose game
+   runs its `Game.AdvanceSkill`; `dialogue-picker-gets-speech-experience`), replacing the 2026-10-19 reroute. A
+   script's skill gain outside a picked line (a quest's reward) is the party's (step 6).
+4. **Barter Speech to the trader**, with barter on the picker's game.
+5. **Training to whoever pays**: done (2026-10-19; by rule 2 since 2026-10-22, `Game.ShowTrainingMenu` running on
+   the picker's game): the cost, the skill and the trainings this level are the picker's (`dialogue-picker-trains`).
 6. **Quest rewards to everyone**, with quest sync: a script's `Game.AdvanceSkill` / `IncrementSkill` on the
    host's player is replayed on each game as its own player's (input, not the measured gain). Mods' quest
    experience follows from the quest completing on every game.
@@ -333,6 +330,61 @@ Decisions made without the user are marked **Decided**.
     `GuestDialogue`), cleared when the engine shows its own list (a stale record could skip a needed refill); the
     host sends a step's list when its engine builds one (the `List` filter as the event) instead of counting lists
     every frame (`GetListsShown`, `m_listsAtPick`, `m_stepSent`).
+- **A picked line runs for its picker (2026-10-22, after deciding each player keeps their own items and gold,
+  `party-model.md`).** Rule 2 for dialogue: on the host's game a guest's picked line's fragments are queued under
+  that guest's cause (`TESTopicInfo::Begin` 25616, the `LineFor` filter, `HostConversation`), so `Game.GetPlayer()`
+  there is the picker's character. Natives on the player (`Game.AdvanceSkill`, `IncrementSkill(By)`,
+  `IncrementStat`, `ShowTrainingMenu`) in any script run for a guest are skipped on the host and run on that guest's
+  game (`GuestScripts`, `PlayerNativeEvent` → `PlayerNativeRequest`/`NotifyPlayerNative`, host-only rule in
+  `HostAuthority`, `GuestEngine::RunPlayerNative` through `DispatchStaticCall`). Deleted, the two reroutes they
+  replace: the training hook (52942) and `OpenTraining`, the Speech filter on `PlayerCharacter` and
+  `GainSkillExperience`, `DialogueExperience*`/`DialogueTraining*`, `HostDialogue::Talker`. Also typed:
+  `IFunctionArguments` returns bool (CommonLibSSE-NG; nothing implemented it before), `Stack::returnValue`.
+  - Scenarios: the coin is the client's (`dialogue-options-are-the-hosts`), the host does not pay the client's room
+    (`dialogue-pick-says-the-hosts-line`), a real persuade (Ungrien, `dialogue-picker-gets-speech-experience`; the
+    old one faked it with `advskill`), the training menu over the client's dialogue menu as on the host's game
+    (`dialogue-picker-trains`; the reroute closed the dialogue first, vanilla does not, read on the host).
+    BridgeTests 110 pass (the two reroute cases out, a player-native relay case in), TPTests round trip.
+  - Runs, `--tag dialogue,scripts` on a fresh duo: 28 of 32; `dialogue-options-are-the-hosts` missed once
+    ("[host] the client's character carries its gold" after 5 s, the copy behind the client's gold once; it passed
+    alone and twice after the same predecessors; the wait now names both counts). `statue-fires-at-client` and
+    `ring-turns-for-client` fail on the player's `in_combat` (owner vs copy, AI state from commit 2, no native
+    forwarded during them; the events agent's combat work passes them), `shrine-blesses-client` on the lock-order
+    checker's known engine pair (our hooks only passing through; the checker fix is the late-join report's).
+
+- **Rule 2's gaps (2026-10-22, after the picked line).** Three generic rules, no script named:
+  - *A player in the frame:* in a stack run for a guest, a native's `self` or argument holding the player (a
+    `PlayerRef` property, a variable stored at load) is that guest's character for the call (`GuestScripts`,
+    `PlayerInFrame`). Scenario `relief-takes-client-relics` (Volunruud's relief door, `player` stored at `onLoad`);
+    control with the swap off: fails at "[client] the player gave up the axe".
+  - *Natives on the player, read from the code:* no list. A global native whose code (three calls deep) addresses
+    this game's player, its stats or its screen runs on the guest's game (`Papyrus/NativeReach`, Zydis at run time,
+    once per native); IDA's reading of the same rule (`scripts/re/papyrus_natives.py`, `docs/re/papyrus_natives.tsv`:
+    65 of 143 global natives) is checked by `natives-reach-matches-ida`. It also moves `FastTravel`, prison, beast
+    form, words and the screen natives to the guest's game (`papyrus-guest-scripts.md`, "Natives on the player: read
+    from the code"). Any form goes as an argument or result (an actor by session id, the rest by `GameId`,
+    `Variable::SetForm` packing it as the engine's per-type packers do), and None: `words-reach-client` teaches the
+    QA shout button's twelve words to the client only.
+    A value comes back from the guest's game: the host's stack waits as on a latent native (104851,
+    `kInProgress`) until `PlayerNativeResultRequest` → `HostPlayerNatives` → `NotifyPlayerNativeResult` →
+    `ReturnFromLatent` (104807); a guest leaving answers with the default. `IFunction::GetReturnType` returns a
+    `TypeInfo` through a hidden pointer (it was declared as a reference: the first call crashed the host).
+  - *The copy's gold after training:* the Training Menu pays through `InventoryChanges::RemoveItem` (16059), under
+    the `TESObjectREFR::RemoveItem` hook, so the host's copy of the guest kept every lesson's gold
+    (`dialogue-options-are-the-hosts` failed after `dialogue-picker-trains`). Hooked; skipped inside the reference's
+    own removal (`ScopedItemRemovalOverride`), so each removal goes out once.
+  - *What the copy stands in for:* a player's copy already carries its owner's actor values, skills included
+    (`ActorValueService`); `dialogue-picker-gets-speech-experience` now checks the copy's Speech and the persuade's
+    `QueryStat` answering from the client's game. Ownership is a decision for the user: the engine refuses a copy's
+    (created) base as an owner (11609), so a guest renting a room pays and owns nothing (`party-model.md`, "Items and
+    gold": options A, the party's, recommended, and B, that guest's).
+  - Tests: BridgeTests 112 pass (a value answered once and only to the host's game; a guest leaving answers with
+    none), TPTests 5 cases pass (round trip of `PlayerNativeResultRequest` / `NotifyPlayerNativeResult`).
+    `--tag dialogue,scripts`: 31 of 35; `statue-fires-at-client` and `ring-turns-for-client` on the player's
+    `in_combat` (known, fixed elsewhere), `dive-host-player` and `relief-takes-client-relics` on one lock-order pair
+    on the client, engine against engine (`GarbageCollector` demoting a reference, 11787, against a sleeping NPC's
+    idle conditions, 11778; ours only `HookMainLoop` and `HookUpdateAI` passing through). The relief, the persuade
+    and the training passed again on the final build, the relief twice.
 
 ### Phase 5: the server is gone (2026-10-21, uncommitted)
 

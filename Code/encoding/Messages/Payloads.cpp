@@ -325,4 +325,46 @@ void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
         EffectIds.push_back(effectId);
     }
 }
+// A native takes a handful; anything past it is a corrupt message.
+constexpr uint64_t kMaxNativeArguments = 16;
+
+void PlayerNative::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, SessionId);
+    Serialization::WriteString(aWriter, Class);
+    Serialization::WriteString(aWriter, Function);
+    Serialization::WriteVarInt(aWriter, Arguments.size());
+    for (const auto& cArgument : Arguments)
+        SerializeScriptValue(aWriter, cArgument);
+    Serialization::WriteVarInt(aWriter, ReplyId);
+}
+
+void PlayerNative::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Class = Serialization::ReadString(aReader);
+    Function = Serialization::ReadString(aReader);
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    Arguments.clear();
+    for (uint64_t i = 0; i < cCount && i < kMaxNativeArguments; ++i)
+        if (!DeserializeScriptValue(aReader, Arguments.emplace_back()))
+        {
+            Arguments.clear();
+            return;
+        }
+    ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
+
+void PlayerNativeResult::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, ReplyId);
+    SerializeScriptValue(aWriter, Result);
+}
+
+void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    if (!DeserializeScriptValue(aReader, Result))
+        Result = std::monostate{};
+}
 } // namespace Payloads

@@ -223,10 +223,10 @@ Found along the way:
 - **Polling scripts have no cause.** `dunLabyrinthianMazeTabletScript`: `OnLoad` registers, and each
   `OnUpdate` asks `game.getPlayer().getDistance(self) < 512`. Nothing a player did starts it, so on the
   host it only ever sees the host's player. A context cannot help; this needs "any player" semantics.
-- **Not tested: calls on the player.** `PlayerREF.GetItemCount(...)` with a stored player still acts on
-  the host's player; swapping the call's object for the copy in `Call` (its top frame's `Self`) is the
-  same mechanism, untested. `defaultDisplayItemInListScript` (display cases) is the example; it is not
-  placed in the five masters.
+- **Calls on the player** (built 2026-10-22): `PlayerREF.GetItemCount(...)` with a stored player acted on the
+  host's player; now a native's frame holds the guest's character wherever it held the player, for the call
+  (`papyrus-guest-scripts.md`, "A player in the frame"; `relief-takes-client-relics`). `defaultDisplayItemInListScript`
+  (display cases) is not placed in the five masters; Volunruud's relief door is the scenario's.
 - **Implicit-player natives** (`Message.Show`, `Debug.Notification`) show on the host: confirmed in the
   linker's `ActivateBox`.
 
@@ -312,7 +312,7 @@ separated (spike 1's main channel).
 | Quest and scene fragments using the player | 771 | 11 | 176; 39 only teleport (`MoveTo` 59) |
 | Dialogue fragments using the player | 481 | 8 | 15 |
 
-The rest is items or gold (shared inventory), party effects (spells, factions, crime, hostility:
+The rest is items or gold (each player's own since 2026-10-22, `party-model.md`), party effects (spells, factions, crime, hostility:
 `NPC.StartCombat(player)` turns the NPC hostile and the host's AI picks the target) and messages (114 after
 a player's action).
 

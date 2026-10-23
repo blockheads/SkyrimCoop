@@ -8,6 +8,7 @@
 #include <Games/Primitives.h>
 
 struct Actor;
+struct TESForm;
 
 struct BSScript
 {
@@ -38,7 +39,11 @@ struct BSScript
         uint32_t variableCount : 10;
         uint32_t variableUserFlagCount : 6;
         uint32_t pad20 : 8;
-        uint8_t unk24[0x30 - 0x24];
+        uint32_t initialValueCount : 10; // 24
+        uint32_t propertyCount : 10;
+        uint32_t staticFunctionCount : 9;
+        uint32_t pad24 : 3;
+        uint8_t unk28[0x30 - 0x28];
         void* data; // 30
     };
 
@@ -58,6 +63,8 @@ struct BSScript
 
     // The form a handle names (a handle's low 32 bits; CommonLibSSE-NG IObjectHandlePolicy).
     static uint32_t FormIdOfHandle(uint64_t aHandle) noexcept { return static_cast<uint32_t>(aHandle); }
+    // A form's handle (bits 32-47 0xFFFF; an alias's or an active effect's names its quest or actor instead).
+    static bool IsFormHandle(uint64_t aHandle) noexcept { return (aHandle >> 32) == 0xFFFF; }
 
     struct Variable
     {
@@ -69,6 +76,9 @@ struct BSScript
         Object* GetObject() const noexcept;
         // The actor as a script value, as Game.GetPlayer returns it.
         void SetActor(Actor* apActor, IVirtualMachine* apVm) noexcept;
+        // Any form as a script value of its own type (its bound object, or one made and bound), as the engine's
+        // per-type packers do (55510 for an actor; CommonLibSSE-NG PackHandle).
+        void SetForm(TESForm* apForm, IVirtualMachine* apVm) noexcept;
 
         template <class T> void Set(T aValue) noexcept
         {
@@ -133,13 +143,20 @@ struct BSScript
     struct StackFrame;
     struct Stack;
 
+    // A value's type (CommonLibSSE-NG TypeInfo): a Variable::Type, or an object type's info. A class, so a method
+    // returns it through a hidden pointer (NativeFunctionBase::GetReturnType 104635 writes to rdx).
+    struct TypeInfo
+    {
+        Variable::Type type;
+    };
+
     struct IFunction : BSIntrusiveRefCounted
     {
         virtual ~IFunction() = default;
         virtual BSFixedString& GetName() = 0;
         virtual BSFixedString& GetObjectTypeName() = 0;
         virtual BSFixedString& GetStateName() = 0;
-        virtual Variable::Type& GetReturnType() = 0;
+        virtual TypeInfo GetReturnType() = 0;
         virtual uint32_t GetParamCount() = 0;
         virtual void GetParam(uint32_t aIndex, BSFixedString& apNameOut, Variable::Type& apTypeOut) = 0;
         virtual uint32_t GetStackFrameSize() = 0;
@@ -171,7 +188,19 @@ struct BSScript
 
         virtual ~IFunctionArguments() {}
 
-        virtual void Prepare(Statement* apUnk) noexcept = 0;
+        // Fills the call's arguments (CommonLibSSE-NG operator()(BSScrapArray<Variable>&)).
+        virtual bool Prepare(Statement* apArguments) const noexcept = 0;
+    };
+
+    // Told a dispatched call's result (CommonLibSSE-NG IStackCallbackFunctor; DispatchStaticCall's callback).
+    struct IStackCallbackFunctor
+    {
+        virtual ~IStackCallbackFunctor() = default;
+        virtual void operator()(Variable aResult) = 0;
+        virtual bool CanSave() const { return false; }
+        virtual void SetObject(void* appObject) {} // const BSTSmartPointer<Object>&
+
+        volatile int32_t refCount = 0; // 08, BSIntrusiveRefCounted
     };
 
     struct Stack
@@ -192,9 +221,11 @@ struct BSScript
 
         // CommonLibSSE-NG Stack.h
         uint8_t unk00[0x60];
-        StackFrame* pTop;    // 60
-        uint8_t unk68[0x18];
-        uint32_t stackId;    // 80
+        StackFrame* pTop;     // 60
+        uint32_t state;       // 68
+        uint32_t freezeState; // 6C
+        Variable returnValue; // 70
+        uint32_t stackId;     // 80
     };
 
     struct StackFrame
@@ -219,6 +250,8 @@ struct BSScript
         uint8_t unk00[0x10];
         Stack* pStack; // 10
     };
+
+    struct ObjectBindPolicy;
 
     struct IObjectHandlePolicy
     {
@@ -249,8 +282,10 @@ struct BSScript
         virtual void sub_06();
         virtual void sub_07();
         virtual void sub_08();
-        virtual void GetScriptObjectType1(BSFixedString* apClassName, void** apOutTypeInfoPtr);
-        virtual void sub_0A();
+        // appType: BSTSmartPointer<ObjectTypeInfo>&, a found type comes with a reference to release (CommonLibSSE-NG).
+        virtual bool GetScriptObjectType1(const BSFixedString& acClassName, ObjectTypeInfo** appType);
+        // appType: BSTSmartPointer<ObjectTypeInfo>&, a found type comes with a reference to release (CommonLibSSE-NG).
+        virtual bool GetScriptObjectType2(uint32_t aTypeId, ObjectTypeInfo** appType);
         virtual void sub_0B();
         virtual void sub_0C();
         virtual void sub_0D();
@@ -261,7 +296,8 @@ struct BSScript
         virtual void sub_12();
         virtual void sub_13();
         virtual void sub_14();
-        virtual void sub_15();
+        // appResult: BSTSmartPointer<Object>&, the new object comes with a reference (CommonLibSSE-NG CreateObject2).
+        virtual bool CreateObject2(const BSFixedString& acClassName, Object** appResult);
         virtual void sub_16();
         virtual void sub_17();
         virtual void BindNativeMethod(IFunction* apFunction);
@@ -279,19 +315,27 @@ struct BSScript
         virtual void sub_23();
         virtual void SendEvent(uint64_t aId, const BSFixedString& acEventName, IFunctionArguments* apArgs) const noexcept;
         virtual void sub_25();
-        virtual void sub_26();
+        // Queues a call of a global function (CommonLibSSE-NG; appCallback: BSTSmartPointer<IStackCallbackFunctor>&).
+        virtual bool DispatchStaticCall(const BSFixedString& acClass, const BSFixedString& acFunction, IFunctionArguments* apArguments, void** appCallback);
         virtual void sub_27();
         virtual void sub_28();
         virtual void sub_29();
-        virtual void sub_2A();
-        virtual void sub_2B();
+        virtual bool IsWaitingOnLatent(uint32_t aStackId) const;
+        // Resumes a stack waiting on a latent call with its result (104807, CommonLibSSE-NG ReturnFromLatent).
+        virtual void ReturnFromLatent(uint32_t aStackId, const Variable& acValue);
         virtual void sub_2C();
         virtual IObjectHandlePolicy* GetObjectHandlePolicy();
+        virtual void sub_2E();
+        virtual ObjectBindPolicy* GetObjectBindPolicy();
     };
 
     // Internal::VirtualMachine, the IVirtualMachine behind GameVM (CommonLibSSE-NG VirtualMachine.h): its running stacks.
     struct VirtualMachine
     {
+        // The stack waits on a latent call, as NativeFunctionBase::Call does for a latent native (104851) until
+        // ReturnFromLatent.
+        void WaitOnLatent(uint32_t aStackId) noexcept;
+
         uint8_t unk0[0x9318];
         BSSpinLock runningStacksLock;                            // 9318
         creation::BSTHashMap<uint32_t, Stack*> allRunningStacks; // 9320, BSTSmartPointer values
@@ -302,7 +346,7 @@ struct BSScript
         BSFixedString& GetName() override;
         BSFixedString& GetObjectTypeName() override;
         BSFixedString& GetStateName() override;
-        Variable::Type& GetReturnType() override;
+        TypeInfo GetReturnType() override;
         std::uint32_t GetParamCount() override;
         void GetParam(uint32_t aIndex, BSFixedString& apNameOut, Variable::Type& a_typeOut) override;
         uint32_t GetStackFrameSize() override;
@@ -401,9 +445,10 @@ static_assert(offsetof(BSScript::Arguments, pData) == 0x8 && offsetof(BSScript::
 static_assert(offsetof(BSScript::Object, currentState) == 0x10 && offsetof(BSScript::Object, pType) == 0x8 && sizeof(BSScript::Object) == 0x30);
 static_assert(offsetof(BSScript::ObjectTypeInfo, pParent) == 0x10 && offsetof(BSScript::ObjectTypeInfo, data) == 0x30 &&
               sizeof(BSScript::ObjectTypeInfo) == 0x38 && sizeof(BSScript::ObjectTypeInfo::VariableInfo) == 0x10);
-static_assert(offsetof(BSScript::Stack, pTop) == 0x60 && offsetof(BSScript::Stack, stackId) == 0x80);
+static_assert(offsetof(BSScript::Stack, pTop) == 0x60 && offsetof(BSScript::Stack, returnValue) == 0x70 && offsetof(BSScript::Stack, stackId) == 0x80);
 static_assert(offsetof(BSScript::StackFrame, pPrevious) == 0x8 && offsetof(BSScript::StackFrame, pFunction) == 0x10 &&
               offsetof(BSScript::StackFrame, self) == 0x28);
 static_assert(offsetof(BSScript::CodeTasklet, pStack) == 0x10);
+static_assert(sizeof(BSScript::IStackCallbackFunctor) == 0x10); // the vtable, then refCount at 08
 static_assert(offsetof(BSScript::VirtualMachine, runningStacksLock) == 0x9318 && offsetof(BSScript::VirtualMachine, allRunningStacks) == 0x9320 &&
               sizeof(creation::BSTHashMap<uint32_t, BSScript::Stack*>) == 0x30);

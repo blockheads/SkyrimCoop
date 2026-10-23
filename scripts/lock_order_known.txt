@@ -111,3 +111,13 @@ SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16f48b > SkyrimS
 # update job, one call at a time; vanilla takes both from scripts and the player's own pickups. Both stacks read
 # on 2026-10-21 (keyhole-asks-client, client).
 SkyrimSE.exe+0x15583a > SkyrimSE.exe+0x15584d vs SkyrimSE.exe+0x154dce > SkyrimSE.exe+0x154de0
+
+# An NPC's sleep package reading extra-data for its idle conditions (Character::UpdateAI -> BGSProcedureSleep ->
+# BGSProcedureSitSleepExecState -> 39923 -> TESIdleForm conditions -> TESConditionItem::IsTrue -> 11778) against
+# the main thread demoting a reference (ProcessEvents -> BGSDynamicPersistenceManager::DemoteReference ->
+# GarbageCollector::Add -> 11597 -> 11787) or the loader thread initializing a cell's references
+# (InitTESThread -> LoadScripts -> TESObjectCELL::InitItemImpl -> TESObjectREFR::InitItemImpl -> 11596 -> 11786).
+# Ours on the stacks: only the pass-throughs HookUpdateAI and HookMainLoop. Both stacks read on 2026-10-22
+# (statue-fires-at-client, keyhole-asks-client, copy-made-later-shows-effects on the guest). Vanilla.
+SkyrimSE.exe+0x1595ad > SkyrimSE.exe+0x162a07 vs SkyrimSE.exe+0x712a24 > SkyrimSE.exe+0x161ef7
+SkyrimSE.exe+0x712a24 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x158104 > SkyrimSE.exe+0x1627c5

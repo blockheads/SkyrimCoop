@@ -38,7 +38,16 @@ BSScript::Variable* BSScript::Object::GetVariable(const char* acpName) noexcept
 }
 
 BSScript::Variable::Variable()
+    : type(kEmpty)
 {
+    data.pObj = nullptr;
+}
+
+void BSScript::VirtualMachine::WaitOnLatent(uint32_t aStackId) noexcept
+{
+    using TWaitOnLatent = void(VirtualMachine*, uint32_t);
+    POINTER_SKYRIMSE(TWaitOnLatent, s_waitOnLatent, 104851);
+    s_waitOnLatent(this, aStackId);
 }
 
 BSScript::Variable::~Variable() noexcept
@@ -74,6 +83,34 @@ void BSScript::Variable::SetActor(Actor* apActor, IVirtualMachine* apVm) noexcep
     packed.data.pObj = nullptr;
     s_pack(&packed, apActor, apVm);
     s_assign(this, &packed);
+}
+
+void BSScript::Variable::SetForm(TESForm* apForm, IVirtualMachine* apVm) noexcept
+{
+    if (Actor* pActor = Cast<Actor>(apForm))
+        return SetActor(pActor, apVm);
+    // ObjectBindPolicy::BindObject (104184): its BSTSmartPointer<Object>&.
+    using TBindObject = void(ObjectBindPolicy*, Object**, uint64_t);
+    POINTER_SKYRIMSE(TBindObject, s_bindObject, 104184);
+
+    Clear();
+    const uint32_t cType = apForm ? static_cast<uint32_t>(apForm->formType) : 0;
+    ObjectTypeInfo* pClass = nullptr;
+    if (!apForm || !apVm || !apVm->GetScriptObjectType2(cType, &pClass) || !pClass)
+        return;
+    IObjectHandlePolicy* pPolicy = apVm->GetObjectHandlePolicy();
+    const uint64_t cHandle = pPolicy->GetHandleForObject(cType, apForm);
+    Object* pObject = nullptr;
+    if (!apVm->FindBoundObject(cHandle, pClass->name.AsAscii(), &pObject) && apVm->CreateObject2(pClass->name, &pObject) && pObject &&
+        pPolicy->HandleIsType(cType, cHandle) && pPolicy->IsHandleObjectAvailable(cHandle))
+        s_bindObject(apVm->GetObjectBindPolicy(), &pObject, cHandle);
+    if (pObject)
+    {
+        // An object value's type is its class (Variable::SetObject); the reference found or made moves into it.
+        type = static_cast<Type>(reinterpret_cast<uintptr_t>(pClass));
+        data.pObj = pObject;
+    }
+    _InterlockedDecrement(reinterpret_cast<volatile long*>(pClass)); // the lookup's; the VM keeps its types
 }
 
 template <> void BSScript::Variable::Set(int32_t aValue) noexcept
@@ -167,9 +204,9 @@ BSFixedString& BSScript::NativeFunctionBase::GetStateName()
     return stateName;
 }
 
-BSScript::Variable::Type& BSScript::NativeFunctionBase::GetReturnType()
+BSScript::TypeInfo BSScript::NativeFunctionBase::GetReturnType()
 {
-    return returnType;
+    return {returnType};
 }
 
 uint32_t BSScript::NativeFunctionBase::GetParamCount()

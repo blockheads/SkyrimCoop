@@ -4,6 +4,7 @@
 
 #include <Events/ActivateEvent.h>
 #include <Events/ContainerChangeEvent.h>
+#include <Events/PlayerNativeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/UpdateEvent.h>
 #include <World.h>
@@ -16,6 +17,10 @@
 #include <Bridges/IWorldBridge.h>
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
+#include <Messages/NotifyPlayerNativeResult.h>
+#include <Messages/PlayerNativeRequest.h>
+#include <Papyrus/PlayerNatives.h>
+#include <Utils.h>
 
 HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
@@ -24,6 +29,8 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     m_activateConnection = m_dispatcher.sink<ActivateEvent>().connect<&HostService::OnActivate>(this);
     m_scriptAnimationConnection = m_dispatcher.sink<ScriptAnimationEvent>().connect<&HostService::OnScriptAnimation>(this);
     m_containerChangeConnection = m_dispatcher.sink<ContainerChangeEvent>().connect<&HostService::OnContainerChange>(this);
+    m_playerNativeConnection = m_dispatcher.sink<PlayerNativeEvent>().connect<&HostService::OnPlayerNative>(this);
+    m_playerNativeResultConnection = m_dispatcher.sink<NotifyPlayerNativeResult>().connect<&HostService::OnPlayerNativeResult>(this);
 }
 
 void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
@@ -43,6 +50,30 @@ void HostService::OnContainerChange(const ContainerChangeEvent& acEvent) noexcep
     // Actors' items are their owner's (InventoryService); the engine keeps containers' only.
     if (IsHosting())
         m_pEngine->RecordItems(acEvent.ContainerId, acEvent.ItemId);
+}
+
+void HostService::OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept
+{
+    const auto cGuest = Utils::GetSessionIdByFormId(acEvent.GuestFormId);
+    if (!IsHosting() || !cGuest)
+        return;
+    PlayerNativeRequest request;
+    request.SessionId = *cGuest;
+    request.Class = acEvent.Class;
+    request.Function = acEvent.Function;
+    request.ReplyId = acEvent.ReplyId;
+    for (const auto& cArgument : acEvent.Arguments)
+        request.Arguments.push_back(Utils::ToScriptValue(cArgument));
+    spdlog::info("HostService: {}.{} from a script run for guest {:X} goes to its game", request.Class, request.Function, acEvent.GuestFormId);
+    m_world.GetTransport().Send(request);
+}
+
+void HostService::OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept
+{
+    if (!IsHosting())
+        return;
+    spdlog::info("HostService: the guest's game answered stack {}", acMessage.ReplyId);
+    PlayerNatives::Answer(acMessage.ReplyId, Utils::ToLocalValue(acMessage.Result).value_or(std::monostate{}));
 }
 
 HostService::~HostService() noexcept

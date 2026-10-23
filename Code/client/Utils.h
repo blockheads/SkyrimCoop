@@ -5,6 +5,7 @@
 #include <source_location>
 #include <string_view>
 #include <RTTI.h>
+#include <Structs/ScriptValue.h>
 
 struct TESForm;
 
@@ -38,6 +39,10 @@ uint32_t GetFormIdBySessionId(uint32_t aSessionId) noexcept;
 // The session id of the actor with this local form id, if the mod tracks it.
 std::optional<uint32_t> GetSessionIdByFormId(uint32_t aFormId) noexcept;
 TESForm* GetFormBySessionId(uint32_t aSessionId) noexcept;
+// A script value of this game as the session carries it (a form: an actor's session id, else its GameId), and back
+// (none: its form is not in this game).
+ScriptValue ToScriptValue(const LocalValue& acValue) noexcept;
+std::optional<LocalValue> ToLocalValue(const ScriptValue& acValue) noexcept;
 
 template <class T> T* GetBySessionId(uint32_t aSessionId) noexcept
 {

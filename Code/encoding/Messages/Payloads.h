@@ -7,6 +7,7 @@
 #include <Structs/ActorAiState.h>
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
+#include <Structs/ScriptValue.h>
 #include <Wire/Buffer.h>
 
 namespace Payloads
@@ -233,5 +234,33 @@ struct ActiveEffects
 
     uint32_t SessionId{};
     std::vector<GameId> EffectIds{};
+};
+
+// A native on "the player" the host's script called for a guest's character, which that guest's game runs instead
+// (docs/design/party-model.md, rule 2).
+struct PlayerNative
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PlayerNative&) const noexcept = default;
+
+    uint32_t SessionId{}; // the guest's character
+    std::string Class{};
+    std::string Function{};
+    std::vector<ScriptValue> Arguments{};
+    uint32_t ReplyId{}; // a native returning a value: the host's script waits for PlayerNativeResult under this id; 0: none
+};
+
+// What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId).
+struct PlayerNativeResult
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PlayerNativeResult&) const noexcept = default;
+
+    uint32_t ReplyId{};
+    ScriptValue Result{}; // None also when it did not run there (the guest left, an argument not there)
 };
 } // namespace Payloads

@@ -2197,6 +2197,7 @@ GOLD = 0xF
 GIVE_COIN_TOPIC = 0x6001F  # FavorJobsBeggarsGiveMoneyTopic
 GIVE_COIN_INFO = 0x60022   # its line: the beggar thanks the player
 RENT_ROOM_TOPIC = 0x9CC92  # its info: the player pays 10 gold for the room, or, without it, cannot afford it
+PLAYER_BASE = 0x7  # the player's base (TESNPC): an owner meaning each game's own player
 RENT_ROOM_NO_GOLD_INFO = 0x9CC95  # Hulda's line to a player without the gold
 
 
@@ -2762,6 +2763,11 @@ def scenario_dialogue_pick_says_the_hosts_line():
         client_shows_hosts_list("after the pick")
         if item_count("", 0x14, GOLD) != host_gold:
             raise TestFailure(f"[host] its player paid for the client's room: {host_gold} -> {item_count('', 0x14, GOLD)} gold")
+        # The room is the party's: rented by the client's character, the bed is the player's (0x7) on the host.
+        bed = script_var("", npc, "RentRoomScript", "Bed")
+        owner = player_command("", {"cmd": "form", "form": bed}).get("owner")
+        if owner != PLAYER_BASE:
+            raise TestFailure(f"[host] the rented bed {bed:X} is owned by {owner}, not the player's base")
         hold()
     finally:
         close_dialogues()
@@ -2786,14 +2792,73 @@ UNGRIEN_TOPIC = 0x369D2  # its branch's first topic; his answer's choices follow
 UNGRIEN_PERSUADE_TOPIC = 0x369D1  # needs the player's Speech at SpeechEasy (25); its script persuades him
 
 
+def misc_stat(instance, name):
+    """That game's player's misc stat (the console's GetPCMiscStat)."""
+    output = console_on(instance, f'getpcmiscstat "{name}"')
+    numbers = re.findall(r"-?\d+(?:\.\d+)?", " ".join(output))  # "Player misc stat value 1.00"
+    if not numbers:
+        raise TestFailure(f"[{instance or 'host'}] no value for misc stat {name}: {output}")
+    return round(float(numbers[-1]))
+
+
+def set_misc_stat(instance, name, value):
+    if change := value - misc_stat(instance, name):
+        console_on(instance, f'modpcmiscstat "{name}" {change}')
+
+
+def actor_value(instance, actor, index):
+    """That actor's value in that game (a copy's: what the host's scripts read of it)."""
+    return player_command(instance, {"cmd": "skill", "index": index, "actor": actor})["level"]
+
+
+# FavorDialogueScript.Persuade's achievement: Game.QueryStat("Bribes") && Game.QueryStat("Intimidations"), then
+# Game.AddAchievement(28).
+PERSUADE_ACHIEVEMENT_STATS = ("Bribes", "Intimidations")
+
+
+def natives_run_for_host(since, function):
+    """The natives the host's script ran on that game's player since that trail number (GuestService's log)."""
+    lines, _ = log_trail("client", since)
+    return [line["text"] for line in lines if line["text"].startswith(f"GuestService: the host's script runs Game.{function}")]
+
+
+def scenario_natives_reach_matches_ida():
+    """The plugin's reading of which global natives act on this game's player (Papyrus/NativeReach, rule 2's natives
+    on the player) matches IDA's over the game (scripts/re/papyrus_natives.py, docs/re/papyrus_natives.tsv): no
+    native moves to the guest's game, or stays on the host, that IDA reads otherwise. Natives IDA does not list
+    (SKSE's) are not compared."""
+    expected = {}
+    with open(ROOT / "docs/re/papyrus_natives.tsv") as table:
+        header = table.readline().rstrip("\n").split("\t")
+        for line in table:
+            row = dict(zip(header, line.rstrip("\n").split("\t")))
+            if row["self"] == "StaticFunctionTag" and row["function"] != "?":
+                expected.setdefault(row["class"], {})[row["name"].lower()] = bool(row.get("reaches the player"))
+    differ = []
+    for klass, natives in sorted(expected.items()):
+        read = {name.lower(): reaches for name, reaches in
+                player_command("", {"cmd": "global_natives", "class": klass})["natives"].items()}
+        for name, reaches in sorted(natives.items()):
+            if name not in read:
+                differ.append(f"{klass}.{name}: not in the VM")
+            elif read[name] != reaches:
+                differ.append(f"{klass}.{name}: the plugin reads {'the player' if read[name] else 'no player'}, IDA "
+                              f"{'the player' if reaches else 'no player'}")
+    if differ:
+        raise TestFailure(f"[host] {len(differ)} global natives read otherwise than IDA: " + "; ".join(differ))
+
+
 def scenario_dialogue_picker_gets_speech_experience():
     """A persuade's Speech experience is the picker's: the host's game says every line and runs its script for the
     player who picked it (party-model.md, rule 2), and the Game.AdvanceSkill in it runs on that player's game. The
     client talks to Ungrien's copy, asks about the Black-Briars and persuades him (FavorDialogueScript.Persuade; the
     host's list, judged for the host's Speech, set to 30): the client's Speech gains experience, the host's does
-    not. Then the host persuades another Ungrien itself (his topic is gone once he is persuaded): its own Speech
-    gains it, the client's not."""
-    speech = skill("", SPEECH_SKILL)[0]
+    not. The persuade sizes it from Game.GetPlayer().GetAv("Speechcraft"), the client's character on the host, which
+    carries the client's Speech (45). Its Game.QueryStat asks the client's game, whose bribes and intimidations are
+    counted (the host's are not): the achievement it then gives goes to the client's game. Then the host persuades
+    another Ungrien itself (his topic is gone once he is persuaded): its own Speech gains it, the client's not."""
+    speech = {name: skill(name, SPEECH_SKILL)[0] for name in ("", "client")}
+    stats = {name: {stat: misc_stat(name, stat) for stat in PERSUADE_ACHIEVEMENT_STATS} for name in ("", "client")}
     npc, _, copy = spawn_host_npc(UNGRIEN, restrained=True)
     def persuade(name, talk_to):
         other = "client" if name == "" else ""
@@ -2816,17 +2881,33 @@ def scenario_dialogue_picker_gets_speech_experience():
         close_dialogues()
     try:
         console_on("", "player.setav speechcraft 30")
+        console_on("client", "player.setav speechcraft 45")
+        for stat in PERSUADE_ACHIEVEMENT_STATS:
+            set_misc_stat("", stat, 0)
+            set_misc_stat("client", stat, max(stats["client"][stat], 1))
+        character = client_on_host()
+        wait_for(f"[host] the client's character {character:08X} carries the client's Speech",
+                 lambda: actor_value("", character, SPEECH_SKILL) == skill("client", SPEECH_SKILL)[0], 10)
         place_before("", npc, 800, 90)
+        _, since = log_trail("client")
         persuade("client", copy)
+        wait_for("[client] the persuade's achievement runs here: its QueryStat answered for the client",
+                 lambda: natives_run_for_host(since, "AddAchievement"), 10)
         remove_host_npc(npc)
         npc, _, copy = spawn_host_npc(UNGRIEN, restrained=True)
         place_before("client", copy, 800, 90)
+        _, since = log_trail("client")
         persuade("", npc)
+        if achievements := natives_run_for_host(since, "AddAchievement"):
+            raise TestFailure(f"[client] the host's own persuade gave the client's game an achievement: {achievements[0]}")
         hold()
     finally:
         close_dialogues()
         remove_host_npc(npc)
-        console_on("", f"player.setav speechcraft {speech:.0f}")
+        for name in ("", "client"):
+            console_on(name, f"player.setav speechcraft {speech[name]:.0f}")
+            for stat, value in stats[name].items():
+                set_misc_stat(name, stat, value)
 
 
 def scenario_dialogue_refused_start():
@@ -3133,7 +3214,9 @@ def scenario_dialogue_picker_trains():
     training. The host's game says the line and runs its script for the client (party-model.md, rule 2), whose
     Game.ShowTrainingMenu runs on the client's game, with the copy, over its dialogue menu as in single player; the
     host's game opens nothing. The client trains once: its One-handed goes up and its gold down, the host's stay as
-    they were. Leaving the training menu, the client is back in the conversation, as in single player."""
+    they were, and the client's character on the host carries the gold it has left (the menu pays from the inventory
+    itself, InventoryChanges::RemoveItem). Leaving the training menu, the client is back in the conversation, as in
+    single player."""
     gold = {name: item_count(name, 0x14, GOLD) for name in ("", "client")}
     trained = {name: (skill(name, ONE_HANDED_SKILL)[0], trainings(name)) for name in ("", "client")}
     npc, _, copy = spawn_host_npc(AMREN, restrained=True)
@@ -3164,6 +3247,10 @@ def scenario_dialogue_picker_trains():
         if (skill("", ONE_HANDED_SKILL), item_count("", 0x14, GOLD)) != before[""]:
             raise TestFailure(f"[host] its One-handed or gold changed: {before['']} -> "
                               f"{(skill('', ONE_HANDED_SKILL), item_count('', 0x14, GOLD))}")
+        character = client_on_host()
+        left = item_count("client", 0x14, GOLD)
+        wait_for(f"[host] the client's character carries the {left} gold it has left",
+                 lambda: item_count("", character, GOLD) == left, 5)
         tap_key("client", TAB_KEY)
         wait_for("[client] the training menu closes", lambda: TRAINING_MENU not in menus("client"), 10)
         if not talking_to("client", copy):
@@ -4512,6 +4599,108 @@ def scenario_keyhole_asks_client():
     finally:
         if claws := item_count("client", 0x14, CLAW):
             console_on("client", f"player.removeitem {CLAW:08X} {claws}")
+        both_go(HOME_CELL)
+
+
+# Volunruud's relief door (dunVolunruudDoorSCRIPT, a vanilla script with a stored player): `player = game.getPlayer()`
+# at onLoad, then on activation (dunVolunruudQST at stage 10 or later) `player.getItemCount(relic)` and
+# `player.RemoveItem(relic)` for each of its two relics; one in, its static shows it in the relief and the door says
+# the other is missing (a message box).
+VOLUNRUUD_CELL, VOLUNRUUD_DOOR, VOLUNRUUD_SCRIPT = "Volunruud01", 0xCDDA4, "dunVolunruudDoorSCRIPT"
+VOLUNRUUD_QUEST, VOLUNRUUD_QUEST_ID = "dunVolunruudQST", 0x8ADFA
+VOLUNRUUD_AXE, VOLUNRUUD_AXE_SHOWN = 0x8ADFB, 0x8FFDB  # relic01base and relic01static
+MESSAGE_BOX_OK = (636, 389)  # a one-line message box's one button, in window pixels (as LEAVE_IT_BUTTON)
+
+
+def close_message_box(instance):
+    """The player points at the box's one button and clicks it (vanilla message boxes take only the mouse, and a
+    button takes a click once the cursor came onto it)."""
+    move_cursor(instance, (MESSAGE_BOX_OK[0], MESSAGE_BOX_OK[1] + 80))
+    move_cursor(instance, MESSAGE_BOX_OK)
+    click(instance)
+    wait_for(f"[{instance or 'host'}] the message box is closed", lambda: "MessageBoxMenu" not in menus(instance), 5)
+
+
+# Dragonborn's QA shout button in QASmoke (DLC2QALearnShouts, a vanilla script: on activation `akActivator ==
+# Game.getplayer()`, then game.teachword and game.unlockword for each word of its list, DLC2QAShoutList's twelve).
+QA_SHOUT_BUTTON, QA_SHOUT_SCRIPT = 0x0402A891, "DLC2QALearnShouts"
+QA_SHOUT_WORDS = [0x040179D9, 0x040179DA, 0x040179DB, 0x040200C2, 0x040200C3, 0x040200C4,
+                  0x0401DF93, 0x0401DF94, 0x0401DF95, 0x040200E4, 0x040200E5, 0x040200E6]
+
+
+def knows_word(instance, word):
+    return player_command(instance, {"cmd": "form", "form": word}).get("known")
+
+
+def scenario_words_reach_client():
+    """Forms as a native's arguments, on the guest's game: the client presses the QA shout button. The host's game
+    runs its script for the client (party-model.md, rule 2), and Game.TeachWord and Game.UnlockWord act on this
+    game's player (NativeReach), so the client's game runs them, each word carried by its GameId: the client learns
+    the twelve words, the host's player none."""
+    def reset():
+        for name in ("", "client"):
+            for word in QA_SHOUT_WORDS:
+                player_command(name, {"cmd": "form_known", "form": word, "known": False})
+        # The button as a first press finds it (a press closes it for good).
+        player_command("", {"cmd": "script_var", "object": QA_SHOUT_BUTTON, "script": QA_SHOUT_SCRIPT, "var": "currentIndex", "value": 0})
+        player_command("", {"cmd": "script_state", "object": QA_SHOUT_BUTTON, "script": QA_SHOUT_SCRIPT, "state": "open"})
+        for name in ("", "client"):
+            console_on(name, f"{QA_SHOUT_BUTTON:X}.sae Open")
+    reset()
+    try:
+        place_before("client", QA_SHOUT_BUTTON, 110)
+        activate_on("client", QA_SHOUT_BUTTON)
+        wait_for("[client] learns the twelve words", lambda: all(knows_word("client", w) for w in QA_SHOUT_WORDS), 15)
+        frame = game_frame("")
+        def host_stays():
+            if learned := [f"{w:08X}" for w in QA_SHOUT_WORDS if knows_word("", w)]:
+                raise TestFailure(f"[host] its player learned the client's words {learned}")
+            return game_frame("") > frame + 60
+        wait_for("[host] learns none", host_stays, 10)
+    finally:
+        reset()
+
+
+def scenario_relief_takes_client_relics():
+    """The client, carrying Volunruud's ceremonial axe, puts it in the relief. On the host the door's script holds the
+    host's player (stored when its cell loaded) and asks that variable for the relics: in a stack run for the client,
+    the native sees the client's character in its place (party-model.md, rule 2: a stored player), so the axe is
+    taken from the client and the relief shows it on both games, though the host's player holds none; the host's box
+    says the sword is still missing (the host's until messages go to everyone). The quest is set to stage 10 first
+    (a first activation sets it, with a box) and stays there: stages only go forward. The relief is emptied after."""
+    try:
+        both_go(VOLUNRUUD_CELL)
+        copy = client_on_host()
+        if item_count("", 0x14, VOLUNRUUD_AXE):
+            raise TestFailure(f"[host] the host's player holds the axe {VOLUNRUUD_AXE:X} to begin with")
+        for name in ("", "client"):
+            if ref_enabled(name, VOLUNRUUD_AXE_SHOWN):
+                raise TestFailure(f"[{name or 'host'}] the axe {VOLUNRUUD_AXE_SHOWN:X} stands in the relief to begin with")
+        wait_for("[host] the door's script holds the host's player",
+                 lambda: script_var("", VOLUNRUUD_DOOR, VOLUNRUUD_SCRIPT, "player") == 0x14, 10)
+        if (quest_stage("", VOLUNRUUD_QUEST_ID) or 0) < 10:
+            console_on("", f"setstage {VOLUNRUUD_QUEST} 10")
+        wait_for(f"[host] {VOLUNRUUD_QUEST} is at stage 10", lambda: quest_stage("", VOLUNRUUD_QUEST_ID) == 10, 5)
+        console_on("client", f"player.additem {VOLUNRUUD_AXE:08X} 1")
+        wait_for("[host] the client's character holds the axe", lambda: item_count("", copy, VOLUNRUUD_AXE) == 1, 5)
+        for name in ("", "client"):
+            place_before(name, VOLUNRUUD_DOOR, 200)
+        activate_on("client", VOLUNRUUD_DOOR)
+        wait_for("[client] the player gave up the axe", lambda: item_count("client", 0x14, VOLUNRUUD_AXE) == 0, 10)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the axe stands in the relief", lambda name=name: ref_enabled(name, VOLUNRUUD_AXE_SHOWN), 5)
+        wait_for("[host] the relief says the sword is still missing", lambda: "MessageBoxMenu" in menus(""), 5)
+        close_message_box("")
+        if item_count("", 0x14, VOLUNRUUD_AXE):
+            raise TestFailure("[host] the host's player holds an axe it never had")
+    finally:
+        if "MessageBoxMenu" in menus(""):
+            close_message_box("")
+        if count := item_count("client", 0x14, VOLUNRUUD_AXE):
+            console_on("client", f"player.removeitem {VOLUNRUUD_AXE:08X} {count}")
+        if ref_enabled("", VOLUNRUUD_AXE_SHOWN):
+            console_on("", f"{VOLUNRUUD_AXE_SHOWN:08X}.disable")
+        script_var("", VOLUNRUUD_DOOR, VOLUNRUUD_SCRIPT, "relic01in", 0)
         both_go(HOME_CELL)
 
 
@@ -6258,6 +6447,7 @@ SCENARIOS = {
     "dialogue-options-are-the-hosts": scenario_dialogue_options_are_the_hosts,
     "dialogue-quest-option-from-host": scenario_dialogue_quest_option_from_host,
     "dialogue-pick-says-the-hosts-line": scenario_dialogue_pick_says_the_hosts_line,
+    "natives-reach-matches-ida": scenario_natives_reach_matches_ida,
     "dialogue-picker-gets-speech-experience": scenario_dialogue_picker_gets_speech_experience,
     "dialogue-picker-trains": scenario_dialogue_picker_trains,
     "dialogue-refused-start": scenario_dialogue_refused_start,
@@ -6324,6 +6514,8 @@ SCENARIOS = {
     "ring-turns-for-client": scenario_ring_turns_for_client,
     "late-join-gets-ring-pose": scenario_late_join_gets_ring_pose,
     "keyhole-asks-client": scenario_keyhole_asks_client,
+    "relief-takes-client-relics": scenario_relief_takes_client_relics,
+    "words-reach-client": scenario_words_reach_client,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
     "host-npc-leaves-copy-follows": scenario_host_npc_leaves_copy_follows,
@@ -6387,6 +6579,7 @@ TAGS = {
     "dialogue-quest-option-from-host": {'dialogue', 'spawn', 'quests'},
     "dialogue-options-are-the-hosts": {'dialogue', 'spawn'},
     "dialogue-pick-says-the-hosts-line": {'dialogue', 'spawn'},
+    "natives-reach-matches-ida": {'scripts'},
     "dialogue-picker-gets-speech-experience": {'dialogue', 'spawn'},
     "dialogue-picker-trains": {'dialogue', 'spawn'},
     "dialogue-refused-start": {'dialogue', 'spawn'},
@@ -6447,6 +6640,8 @@ TAGS = {
     "ring-turns-for-client": {'objects', 'scripts', 'cells'},
     "late-join-gets-ring-pose": {'world', 'cells', 'session', 'scripts'},
     "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
+    "relief-takes-client-relics": {'objects', 'scripts', 'cells', 'inventory'},
+    "words-reach-client": {'objects', 'scripts'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
     "host-npc-leaves-copy-follows": {'spawn'},

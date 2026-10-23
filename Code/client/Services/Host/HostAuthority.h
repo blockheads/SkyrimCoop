@@ -7,6 +7,7 @@
 #include <Services/Host/HostClock.h>
 #include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostPlayerNatives.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostTimeScale.h>
@@ -40,8 +41,8 @@ struct HostNetwork;
  * notification, which carries the same payload (Messages/Payloads.h), and differ only in who
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
  * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
- * (how fast everyone's clock runs), HostDialogue (the party's conversation) and HostWorldState (a guest's cell
- * loading); HostWeather has no rules.
+ * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
+ * loading) and HostPlayerNatives (natives the host's scripts ran for a guest); HostWeather has no rules.
  */
 struct HostAuthority
 {
@@ -118,6 +119,7 @@ private:
     HostWorldState m_worldState;
     HostTimeScale m_timeScale;
     HostDialogue m_dialogue;
+    HostPlayerNatives m_playerNatives;
 };
 
 // A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.
