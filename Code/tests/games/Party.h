@@ -230,9 +230,11 @@ struct Party
         };
         if (!cCopy.Copy)
             aDifferences.push_back(std::format("{} ({:X}) is not flagged a copy", acWhat, aCopyId));
-        if (cCopy.Cell != cOwner.Cell)
-            aDifferences.push_back(
-                std::format("{} ({:X}) is in cell {:X}, the owner's in {:X}", acWhat, aCopyId, cCopy.Cell, cOwner.Cell));
+        // Outdoors the worldspace: by a cell's border the two can stand in neighbouring cells.
+        if (cOwner.WorldSpace ? cCopy.WorldSpace != cOwner.WorldSpace : cCopy.Cell != cOwner.Cell)
+            aDifferences.push_back(std::format("{} ({:X}) is in cell {:X} (worldspace {:X}), the owner's in {:X} ({:X})",
+                                               acWhat, aCopyId, cCopy.Cell, cCopy.WorldSpace, cOwner.Cell,
+                                               cOwner.WorldSpace));
         else if (const float cApart = glm::distance(cAt(cCopy), cAt(cOwner)); cApart > cNear)
             aDifferences.push_back(std::format("{} ({:X}) stands {:.0f} from the owner's", acWhat, aCopyId, cApart));
         if (cCopy.Dead != cOwner.Dead)

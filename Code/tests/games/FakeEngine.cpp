@@ -3,6 +3,7 @@
 #include <Events/ContainerChangeEvent.h>
 #include <Events/LockChangeEvent.h>
 #include <Events/PartyNativeEvent.h>
+#include <Structs/GridCellCoords.h>
 #include <Papyrus/PartyNatives.h>
 #include <World.h>
 
@@ -461,6 +462,10 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         return false;
     std::copy_n(aPosition, 3, it->second.Position);
     std::copy_n(aRotation, 3, it->second.Rotation);
+    // Outdoors its parent cell follows where it stands.
+    if (it->second.WorldSpace)
+        if (const uint32_t cCell = CellAt(it->second.WorldSpace, {aPosition[0], aPosition[1], aPosition[2]}))
+            it->second.Cell = cCell;
     return true;
 }
 
@@ -557,16 +562,75 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
         return;
     const uint32_t cFrom = it->second.Cell;
     it->second.Cell = aCellId;
+    const auto cExterior = Exteriors.find(aCellId);
+    it->second.WorldSpace = cExterior != Exteriors.end() ? cExterior->second.WorldSpace : 0;
     it->second.Position[0] = aX;
     it->second.Position[1] = aY;
     it->second.Position[2] = aZ;
     if (aFormId == kPlayer)
     {
-        if (cFrom != aCellId)
-            UnloadCell(cFrom);
-        LoadCell(aCellId);
+        LoadAroundPlayer(cFrom);
         Teleported = true;
+        ++Travels;
     }
+}
+
+void FakeEngine::Exterior(uint32_t aWorldSpace, uint32_t aFirstCell, int32_t aRadius)
+{
+    uint32_t cell = aFirstCell;
+    for (int32_t x = -aRadius; x <= aRadius; ++x)
+        for (int32_t y = -aRadius; y <= aRadius; ++y)
+            Exteriors[cell++] = {aWorldSpace, x, y};
+}
+
+uint32_t FakeEngine::LookupCellByCoords(uint32_t aWorldSpaceFormId, int32_t aX, int32_t aY) const noexcept
+{
+    for (const auto& [cId, cCell] : Exteriors)
+        if (cCell.WorldSpace == aWorldSpaceFormId && cCell.X == aX && cCell.Y == aY)
+            return cId;
+    return 0;
+}
+
+uint32_t FakeEngine::CellAt(uint32_t aWorldSpace, const glm::vec3& acPosition) const noexcept
+{
+    const auto cAt = GridCellCoords::CalculateGridCellCoords(acPosition.x, acPosition.y);
+    return LookupCellByCoords(aWorldSpace, cAt.X, cAt.Y);
+}
+
+// The loaded grid's centre is the player's cell (TES::centerGridX/Y; the engine's own lag behind it not modelled).
+void FakeEngine::LoadAroundPlayer(uint32_t aFrom)
+{
+    const auto& cPlayer = Actors.at(kPlayer);
+    std::set<uint32_t> cells{cPlayer.Cell};
+    if (const auto cCentre = Exteriors.find(cPlayer.Cell); cCentre != Exteriors.end())
+        for (const auto& [cId, cCell] : Exteriors)
+            if (cCell.WorldSpace == cCentre->second.WorldSpace &&
+                GridCellCoords::IsCellInGridCell({cCell.X, cCell.Y}, {cCentre->second.X, cCentre->second.Y}, false))
+                cells.insert(cId);
+    std::set<uint32_t> left = std::exchange(m_playerCells, cells);
+    left.insert(aFrom);
+    for (const uint32_t cCell : left)
+        if (!cells.contains(cCell))
+            UnloadCell(cCell);
+    for (const uint32_t cCell : cells)
+        LoadCell(cCell);
+}
+
+void FakeEngine::PlayerStands(uint32_t aCell, const glm::vec3& acPosition)
+{
+    auto& player = Actors.at(kPlayer);
+    const uint32_t cFrom = player.Cell;
+    player.Cell = aCell;
+    const auto cExterior = Exteriors.find(aCell);
+    player.WorldSpace = cExterior != Exteriors.end() ? cExterior->second.WorldSpace : 0;
+    std::copy_n(&acPosition.x, 3, player.Position);
+    LoadAroundPlayer(cFrom);
+}
+
+void FakeEngine::PlayerWalks(const glm::vec3& acPosition)
+{
+    const auto& cPlayer = Actors.at(kPlayer);
+    PlayerStands(CellAt(cPlayer.WorldSpace, acPosition), acPosition);
 }
 
 void FakeEngine::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept
@@ -621,15 +685,19 @@ void FakeEngine::SetActorValues(uint32_t aFormId, const ActorValues& acValues) n
         it->second.Values.ActorValuesList[cIndex] = cValue;
 }
 
-// PlayerCharacter::RespawnPlayer: up from bleedout, health restored, moved to its cell's COC marker (an interior's).
+// PlayerCharacter::RespawnPlayer: up from bleedout, health restored, moved to the COC marker of its cell (outdoors the
+// loaded grid's centre cell, its own here).
 void FakeEngine::RespawnPlayer() noexcept
 {
     auto& player = Actors.at(kPlayer);
     player.Bleeding = false;
     ForceActorValue(kPlayer, 2, kHealth, 1000000.f);
-    const auto cMarker = CocMarkers.find(player.Cell);
-    const glm::vec3 cTo = cMarker != CocMarkers.end() ? cMarker->second : glm::vec3{};
-    MoveActorTo(kPlayer, player.Cell, cTo.x, cTo.y, cTo.z);
+    glm::vec3 to{};
+    if (const auto cMarker = CocMarkers.find(player.Cell); cMarker != CocMarkers.end())
+        to = cMarker->second;
+    else if (const auto cExterior = Exteriors.find(player.Cell); cExterior != Exteriors.end())
+        to = {cExterior->second.X * 4096.f + 2048.f, cExterior->second.Y * 4096.f + 2048.f, 0.f};
+    MoveActorTo(kPlayer, player.Cell, to.x, to.y, to.z);
 }
 
 // PartyNatives' entry points (Papyrus/PartyNatives.h) on the current game's fake engine.

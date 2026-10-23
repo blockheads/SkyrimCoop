@@ -516,6 +516,34 @@ flag needs more comparable rounds before calling it a leak. Frame stalls and per
 in the report. Fault-injection checks additionally covered an interrupted/crashed prefix, the next fresh boot,
 stable crash signatures and copied reports, known findings, missing samples, and frame-counter resets.
 
+Follow-up after retiring the duplicate scenarios: four fresh `scripts` rounds on pinned DLL `ff3bad3f7834`,
+seeds 20261030-20261033, passed 24/24 each. The report is
+`build/coop-test/soak/20261023-125857-af8ede/report.json`; all 400 sampled active-game DLL hashes matched the pin.
+Rounds took 429.3, 219.8, 228.7 and 225.7 s (1103.6 s total); the first boot took 238.2 s, the others 28.5-37.3 s.
+There were no crashes or scenario failures. Two lock pairs newly observed relative to the previous report were
+already reviewed patterns. Per-scenario frame-stall deltas totaled 67 on the host and 56 on the guest; cumulative
+longest-frame values include boot/loading and must not be read as scenario-only stalls.
+
+| Fresh round | Host end RSS + swap (MiB) | Guest end RSS + swap (MiB) |
+|---|---:|---:|
+| 1 | 2444.19 | 2497.78 |
+| 2 | 2485.46 | 2527.11 |
+| 3 | 2504.88 | 2525.57 |
+| 4 | 2508.35 | 2538.71 |
+
+The guest did not grow every round; its earlier two-sample flag is unresolved, not confirmed or dismissed.
+The host did, by 64.2 MiB overall, with smaller increments each round. Different orders and fresh processes
+can retain different caches; the earlier report also used 28 scenarios rather than 24. These samples identify
+candidates, not a measured lifetime leak. A controlled long session is needed to distinguish continued growth
+from caches; this targeted run does not substitute for a release soak of the full suite.
+
+The earlier unreviewed engine-only pair (`16ABBD > E92C16` versus `1B064A > 165105`, SkyrimSE.exe RVAs) was
+traced through both captured stacks and Skyrim 1.6.1170 disassembly. An IO worker restoring saved Havok state
+takes an ExtraDataList write lock before the bhkWorld write lock; player positioning takes the world lock before
+updating ExtraMultiBoundRef under the extra-data lock. It is a potential lock-order cycle, not an observed
+deadlock or a proven harmless path. No suppression was added. Evidence and the remaining vanilla-harness
+isolation step are in `build/coop-test/validation/current-20261023/engine-lock-review.md`.
+
 ### (c) Shared specs: one spec, two runners (built, the Skyrim side not run yet)
 
 The cutscene scenarios were already steps (`script_call`, `disconnect_client`, `screen(...)["controls"]`). Written

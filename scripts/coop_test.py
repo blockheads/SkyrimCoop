@@ -5321,34 +5321,34 @@ def scenario_chest_take_all():
     held = {name: {item: item_count(name, 0x14, item) or 0 for item in [*before, SWEETROLL]} for name in ("", "client")}
     try:
         if (theirs := container_items("client", chest)) != before:
-            raise TestFailure(f"[client] chest {chest:X} holds other items than the host's to begin with: "
-                              + item_differences(before, theirs, "host", "client"))
+            raise TestFailure(f"[guest] chest {chest:X} holds other items than the host's to begin with: "
+                              + item_differences(before, theirs, "host", "guest"))
         if SWEETROLL in before:
             raise TestFailure(f"[host] chest {chest:X} holds sweetrolls to begin with")
         console_on("", f"{chest:X}.additem {SWEETROLL:X} 2")
         for name in ("", "client"):
-            wait_for(f"[{name or 'host'}] chest {chest:X} holds 2 sweetrolls",
+            wait_for(f"[{'guest' if name else 'host'}] chest {chest:X} holds 2 sweetrolls",
                      lambda name=name: item_count(name, chest, SWEETROLL) == 2, 5)
         take_all("client", chest)
         if "ContainerMenu" in menus(""):
-            raise TestFailure("[host] the client's opening of the chest opened the host's menu")
+            raise TestFailure("[host] the guest's opening of the chest opened the host's menu")
         left = container_items("client", chest)
         if SWEETROLL in left:
-            raise TestFailure(f"[client] Take All left {left[SWEETROLL]} sweetrolls in the chest")
+            raise TestFailure(f"[guest] Take All left {left[SWEETROLL]} sweetrolls in the chest")
         try:
-            wait_for(f"[host] chest {chest:X} holds what the client's does ({len(left)} kinds)",
+            wait_for(f"[host] chest {chest:X} holds what the guest's does ({len(left)} kinds)",
                      lambda: container_items("", chest) == left, 5)
         except TestFailure as error:
-            raise TestFailure(f"{error}: {item_differences(container_items('', chest), left, 'host', 'client')}") from None
+            raise TestFailure(f"{error}: {item_differences(container_items('', chest), left, 'host', 'guest')}") from None
         copy = client_on_host()
-        wait_for("[host] the client's character holds the sweetrolls", lambda: item_count("", copy, SWEETROLL) == 2, 5)
+        wait_for("[host] the guest player's copy holds the sweetrolls", lambda: item_count("", copy, SWEETROLL) == 2, 5)
         if item_count("", 0x14, SWEETROLL) != held[""][SWEETROLL]:
             raise TestFailure("[host] the guest's Take All changed the host player's inventory")
         if (rolls := item_count("client", 0x14, SWEETROLL)) != held["client"][SWEETROLL] + 2:
-            raise TestFailure(f"[client] the player holds {rolls} sweetrolls, not {held['client'][SWEETROLL] + 2}")
-        # The other way: the host's own take empties the client's chest of it.
+            raise TestFailure(f"[guest] the player holds {rolls} sweetrolls, not {held['client'][SWEETROLL] + 2}")
+        # The host's own take must also empty the guest's copy of the chest.
         console_on("", f"{chest:X}.additem {SWEETROLL:X} 1")
-        wait_for("[client] the sweetroll is in its chest", lambda: item_count("client", chest, SWEETROLL) == 1, 5)
+        wait_for("[guest] the sweetroll is in its chest", lambda: item_count("client", chest, SWEETROLL) == 1, 5)
         take_all("", chest)
         if "ContainerMenu" in menus("client"):
             raise TestFailure("[guest] the host's Take All opened the guest's container menu")
@@ -5357,11 +5357,11 @@ def scenario_chest_take_all():
         copy = other_player(actors_on("client"))
         wait_for("[guest] the host player's copy holds the sweetroll",
                  lambda: item_count("client", copy, SWEETROLL) == held[""][SWEETROLL] + 1, 5)
-        wait_for(f"[client] chest {chest:X} holds no sweetroll", lambda: item_count("client", chest, SWEETROLL) == 0, 5)
+        wait_for(f"[guest] chest {chest:X} holds no sweetroll", lambda: item_count("client", chest, SWEETROLL) == 0, 5)
         if container_items("client", chest) != container_items("", chest):
-            raise TestFailure(f"[client] chest {chest:X} holds other items than the host's")
+            raise TestFailure(f"[guest] chest {chest:X} holds other items than the host's")
         if (rolls := item_count("client", 0x14, SWEETROLL)) != held["client"][SWEETROLL] + 2:
-            raise TestFailure(f"[client] the player holds {rolls} sweetrolls: the host's take reached it")
+            raise TestFailure(f"[guest] the player holds {rolls} sweetrolls: the host's take reached it")
     finally:
         passed = sys.exc_info()[0] is None  # a failed step's name is the failure, not the clean-up's
         for name in ("", "client"):
@@ -5378,7 +5378,7 @@ def scenario_chest_take_all():
         if extra := item_count("", chest, SWEETROLL):
             console_on("", f"{chest:X}.removeitem {SWEETROLL:X} {extra}")
         if passed:
-            wait_for("[client] the chest is as it was", lambda: container_items("client", chest) == before, 5)
+            wait_for("[guest] the chest is as it was", lambda: container_items("client", chest) == before, 5)
 
 
 def guest_locks_taken(since):

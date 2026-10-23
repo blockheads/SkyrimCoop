@@ -119,8 +119,27 @@ struct FakeEngine : StillBridges
     void PlayerTravels(uint32_t aCell, const glm::vec3& acPosition);
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
-    // Each interior's COC marker (TESObjectCELL::GetCOCPlacementInfo), where a respawn puts the player.
+    size_t Travels = 0;  // the player's teleports, ever
+    // Each cell's COC marker (TESObjectCELL::GetCOCPlacementInfo), where a respawn puts the player; an exterior
+    // without one: its centre.
     std::map<uint32_t, glm::vec3> CocMarkers;
+
+    // A worldspace's exterior cells: (x, y) for |x|, |y| <= aRadius, 4096 units each (GridCellCoords), form ids
+    // from aFirstCell on.
+    void Exterior(uint32_t aWorldSpace, uint32_t aFirstCell, int32_t aRadius);
+    struct ExteriorCell
+    {
+        uint32_t WorldSpace = 0;
+        int32_t X = 0;
+        int32_t Y = 0;
+    };
+    std::map<uint32_t, ExteriorCell> Exteriors; // by cell form id
+    [[nodiscard]] uint32_t CellAt(uint32_t aWorldSpace, const glm::vec3& acPosition) const noexcept;
+    uint32_t LookupCellByCoords(uint32_t aWorldSpaceFormId, int32_t aX, int32_t aY) const noexcept override;
+    // This game's player stands at acPosition in aCell (a save loaded there), or walks to acPosition outdoors: the
+    // loaded cells follow (outdoors the 5 by 5 grid around its cell), no teleport.
+    void PlayerStands(uint32_t aCell, const glm::vec3& acPosition);
+    void PlayerWalks(const glm::vec3& acPosition);
 
     // An NPC this game's cell loads (as `placeatme`: a temporary reference of aBase); its form id.
     uint32_t LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition = {});
@@ -213,6 +232,10 @@ struct FakeEngine : StillBridges
     void CheckHealth(Actor& aActor) noexcept;
 
     std::deque<std::pair<LocalCall, uint32_t>> m_queued;
+    // The cells loaded around the player at aCell and acPosition (an interior, or outdoors its grid); the others its
+    // last place loaded unload.
+    void LoadAroundPlayer(uint32_t aFrom);
+    std::set<uint32_t> m_playerCells;
     uint32_t m_nextTemporary = 0xFF000800;
     uint32_t m_made = 0;
     std::set<uint32_t> m_freedTemporary;
