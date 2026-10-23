@@ -17,7 +17,7 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 ### Constraints
 
 - **Build system**: Cross-compile the Windows DLL from Linux with clang-cl + lld-link (MSVC ABI; MinGW/GCC breaks engine vtables). Setup `scripts/toolchain/setup_msvc_toolchain.sh`, build `scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL`. Details: `docs/re/systems/compiler-abi.md`
-- **Testing**: `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the script docstring
+- **Testing**: four tiers, `docs/design/testing.md` (unit and in-process games gate every change: `scripts/check.sh`, also the pre-push hook; the duo for what's affected). `scripts/coop_test.py duo` (two Skyrim instances), `scenario` (two-game sync scenarios), `reload` (swap a rebuild into the running games); games run off-screen, see the script docstring
 - **Test harness**: the command socket, control files, status and harness engine calls live in `Code/client/TestHarness/`, the DLL swap in `Code/client/HotReload/` and `Code/hotreload/Loader.cpp`. Both build only with the xmake option `test_harness` (`COOP_TEST_HARNESS`), which `scripts/xmake-msvc.sh f` turns on; a player build (`--test_harness=n`, the default elsewhere) contains neither. Production code reaches the harness only through `TestHarness::Configure/Poll/Shutdown`, each behind `#if COOP_TEST_HARNESS`
 - **SKSE dependency**: Client DLL loads into Skyrim via SKSE — cannot modify SKSE itself
 - **Wine/Proton**: Client always runs under Wine/Proton on Linux, debug tooling must work with this
@@ -31,6 +31,10 @@ A peer-to-peer cooperative multiplayer mod for Skyrim Special Edition, forked fr
 - **Engine access goes through typed structs** in `Code/client/Games/` with `static_assert`ed offsets, checked against CommonLibSSE-NG and IDA. No raw byte offsets in services, bridges or the harness.
 - **Before reversing anything, search GitHub/Nexus** for an SKSE mod that already does it, and add good ones to `scripts/re/fetch_references.sh`.
 - **When adding or touching a hook,** check its signature against the community name and the disassembly (three inherited upstream hooks were silently wrong).
+- **Every bug gets a test in the fastest tier that can show it.** A bug Skyrim finds (a scenario, a soak, play) is
+  fixed with a tier 1 test (`ClientTests`, `BridgeTests`) or tier 2 flow (`GameTests`) that fails without the fix,
+  unless only Skyrim can show it; then a scenario, and what was learned goes into the fake engine
+  (`docs/design/testing.md`).
 - **Scenarios drive the game as a player would** (input through the engine's dispatch) and wait for game state, never sleeps or retries. A failure names the step that went wrong.
 - **Keep code comments short.** One or two lines saying what the code is for and the engine ID or name it relies on. The reasoning, evidence and history go in `docs/` (`docs/re/systems/`, `docs/design/`), not in the source.
 - **Host, guest, every game.** Code only the host runs lives in `Services/Host/` (rules, `HostAuthority`) and `Bridges/HostEngine`; code only a guest runs in `Services/Guest/` and `Bridges/GuestEngine`, made by `GuestService` on joining. No `IsHosting()` checks inside them. Actors split by owner and copy instead.
@@ -49,7 +53,12 @@ scripts/xmake-msvc.sh build -j8 SkyrimCoopLoader          # hot reload's residen
 # Native Linux: clang 18 (first time: scripts/xmake-linux.sh f)
 scripts/xmake-linux.sh build -j8 BridgeTests && build/linux/x86_64/debug/BridgeTests
 scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
+scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
+scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests
 scripts/xmake-linux.sh build -j8 coop_peer
+
+# The gate before every push: the native tests and the plugin's build (also the pre-push hook)
+scripts/check.sh
 
 # clangd's compile database (both builds): build/compile_commands.json
 scripts/compile_commands.sh
@@ -62,6 +71,8 @@ Targets:
 - `SkyrimCoopVanillaHarness` - a stand-in plugin running the harness commands without ours (`coop_test.py repro --vanilla`)
 - `BridgeTests` - the host's rules (`HostAuthority`, `Services/Host/`) with in-process games and no Skyrim (Catch2)
 - `TPTests` - message encoding, quantization, differentials (Catch2)
+- `ClientTests` - every game's pure logic split out of hooks (`PartyRules`), no engine (Catch2)
+- `GameTests` - whole games in-process: real services and the host's rules on a fake engine (Catch2)
 - `coop_peer` - a game stand-in on the network for scenarios (a host refusing joins, a game asking to join)
 
 ## Layout
@@ -86,7 +97,8 @@ Code/
 ├── components/imgui/    # The debug views' renderer
 ├── hotreload/           # Hot reload's loader
 ├── vanilla_harness/     # The harness without our plugin
-└── tests/               # TPTests (encoding.cpp), bridge/ (BridgeTests), peer/ (coop_peer)
+└── tests/               # TPTests (encoding.cpp), bridge/ (BridgeTests), client/ (ClientTests), games/ (GameTests),
+                         # specs/ (shared specs: GameTests and scripts/coop_specs.py), peer/ (coop_peer)
 ```
 
 ### How a message flows

@@ -9,6 +9,8 @@
 #include <Messages/NotifyPlayerNativeResult.h>
 #include <Messages/PlayerNativeRequest.h>
 #include <Messages/PlayerNativeResultRequest.h>
+#include <Messages/NotifyWorldCall.h>
+#include <Messages/WorldCallRequest.h>
 
 #include <spdlog/spdlog.h>
 
@@ -20,6 +22,7 @@ HostPlayerNatives::HostPlayerNatives(HostAuthority& aAuthority, HostNetwork& aNe
 {
     aAuthority.On(*this, &HostPlayerNatives::OnPlayerNative);
     aAuthority.On(*this, &HostPlayerNatives::OnPlayerNativeResult);
+    aAuthority.On(*this, &HostPlayerNatives::OnWorldCall);
 }
 
 void HostPlayerNatives::OnPlayerNative(const PlayerNativeRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -27,8 +30,8 @@ void HostPlayerNatives::OnPlayerNative(const PlayerNativeRequest& acRequest, Con
     // Only the host's game runs scripts for another player.
     if (aSender != m_players.Host())
     {
-        spdlog::warn("HostPlayerNatives: {:x} is not the host and sent {}.{} for {:x}", aSender, acRequest.Class,
-                     acRequest.Function, acRequest.SessionId);
+        spdlog::warn("HostPlayerNatives: {:x} is not the host and sent {}.{} for {:x}", aSender, acRequest.Call.Class,
+                     acRequest.Call.Function, acRequest.SessionId);
         return;
     }
     const ConnectionId_t cOwner = m_characters.OwnerOf(acRequest.SessionId);
@@ -57,6 +60,21 @@ void HostPlayerNatives::OnPlayerNativeResult(const PlayerNativeResultRequest& ac
     }
     m_waiting.erase(it);
     Answer(acRequest.ReplyId, acRequest.Result);
+}
+
+void HostPlayerNatives::OnWorldCall(const WorldCallRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const ConnectionId_t cHost = m_players.Host();
+    const uint32_t cCharacter = aSender != cHost ? m_characters.PlayerCharacterOf(aSender) : 0;
+    if (!cHost || !cCharacter)
+    {
+        spdlog::warn("HostPlayerNatives: {:x} has no character to run {}.{} for", aSender, acRequest.Call.Class, acRequest.Call.Function);
+        return;
+    }
+    NotifyWorldCall notify;
+    notify.SessionId = cCharacter;
+    notify.Call = acRequest.Call;
+    m_network.Send(cHost, notify);
 }
 
 void HostPlayerNatives::OnPlayerLeft(ConnectionId_t aPlayer) noexcept

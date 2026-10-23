@@ -11,6 +11,7 @@ struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
 struct PlayerNativeEvent;
 struct NotifyPlayerNativeResult;
+struct NotifyWorldCall;
 
 struct HostAuthority;
 struct HostNetwork;
@@ -50,6 +51,8 @@ protected:
     void OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept;
     // That guest's game answered one returning a value: the script waiting on it goes on.
     void OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept;
+    // A guest's own script changed the world (a quest's stage): this game makes the call, for that guest (rule 2).
+    void OnWorldCall(const NotifyWorldCall& acMessage) noexcept;
 
 private:
     World& m_world;
@@ -68,4 +71,5 @@ private:
     entt::scoped_connection m_containerChangeConnection;
     entt::scoped_connection m_playerNativeConnection;
     entt::scoped_connection m_playerNativeResultConnection;
+    entt::scoped_connection m_worldCallConnection;
 };

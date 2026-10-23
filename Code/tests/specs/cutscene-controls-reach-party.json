@@ -1,0 +1,26 @@
+{
+  "name": "cutscene-controls-reach-party",
+  "doc": "A script on the host takes its player's controls, as a cutscene does: the guest's are taken too, the same ones, and come back with the host's. Then the host takes them again and the guest leaves mid-cutscene: its game gives its own back.",
+  "steps": [
+    {"do": "script", "game": "host", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFABE"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE"},
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"},
+    {"do": "script", "game": "host", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE"},
+    {"do": "leave", "game": "guest"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"},
+    {"do": "join", "game": "guest"},
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"}
+  ],
+  "cleanup": [
+    {"do": "join", "game": "guest"},
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"}
+  ]
+}

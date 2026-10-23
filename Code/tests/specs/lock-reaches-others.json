@@ -1,0 +1,57 @@
+{
+  "name": "lock-reaches-others",
+  "doc": "The host locks a door: the guest's door is locked too, at the same level. The guest unlocks it: the host's is unlocked (a proposal the host's world takes).",
+  "steps": [
+    {
+      "do": "lock",
+      "game": "host",
+      "ref": "inner-door",
+      "locked": true,
+      "level": 50
+    },
+    {
+      "expect": "lock",
+      "game": "guest",
+      "ref": "inner-door",
+      "locked": true,
+      "level": 50
+    },
+    {
+      "do": "lock",
+      "game": "guest",
+      "ref": "inner-door",
+      "locked": false,
+      "level": 50
+    },
+    {
+      "expect": "lock",
+      "game": "host",
+      "ref": "inner-door",
+      "locked": false
+    }
+  ],
+  "cleanup": [
+    {
+      "do": "lock",
+      "game": "host",
+      "ref": "inner-door",
+      "locked": false,
+      "level": 0
+    },
+    {
+      "expect": "lock",
+      "game": "host",
+      "ref": "inner-door",
+      "locked": false
+    },
+    {
+      "expect": "lock",
+      "game": "guest",
+      "ref": "inner-door",
+      "locked": false
+    }
+  ],
+  "tags": [
+    "objects"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "restriction-stays-with-game",
+  "doc": "A script with no player behind it turns off fighting only, movement left (Esbern's door, the Volkihar banquet): a restriction, not a cutscene, so the guest's controls stay all on.",
+  "steps": [
+    {"do": "script", "game": "host", "call": "Game.DisablePlayerControls", "args": [false, true, false, false, false, false, false, false, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFBF"},
+    {"do": "marker", "from": "host", "to": "guest"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF", "now": true}
+  ],
+  "cleanup": [
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"}
+  ]
+}

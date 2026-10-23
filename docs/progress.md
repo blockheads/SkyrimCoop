@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-22 (overnight: ghost NPCs, AI state on copies).
+Last updated 2026-10-23 (testing tiers; cutscenes: a player's own moment).
 
 ## Direct authority migration
 
@@ -152,6 +152,67 @@ Steps 1-3 done 2026-10-22 (overnight slice 5, below), then replaced the same day
 4. **Quest topics on peers:** follow from quest sync (missing on a peer's menu until then).
 5. **If step sync waits:** list updates event-driven, not checked every update (`DialogueService::ShowOwnLines`
    on the host's list arriving, the peer's engine building its list, a new step).
+
+### Cutscenes: a player's own moment stays theirs (2026-10-23, uncommitted)
+
+Research `docs/research/party-freezes.md`: 81 vanilla scripts take the controls (8 more only in comments), 25 of them
+one player's moment (travel, fishing, the lute, traps, beast forms). Built (`docs/design/cutscenes.md`, "Whose
+moment"):
+
+- **The rule:** a controls or screen call whose stack a player's action started (GuestScripts' cause: a guest, or
+  this game's player 0x14, now tagged on the host too) stays that player's. It is the party's when no player is
+  behind it, or when a stage that player's scripts set runs it (`Cause::Story`).
+- **Restrictions:** a controls call is shared only if it asks for movement (a hook on `ToggleControls`, 68545).
+- **Tests:** scenarios `player-moment-stays-theirs`, `restriction-stays-with-game`,
+  `player-stage-cutscene-reaches-party`, each 3 of 3. Everyone gets a cutscene wherever they are (no distance
+  gate, decided 2026-10-23). New harness controls: `papyrus_call` `player_action`, and
+  `quest_allow_rerun` for a run-once quest.
+- **Re-run:** the scripts, quests, magic and dialogue scenarios pass, except the two crashes below and one
+  `dialogue-pick-reaches-host` timeout ("[host] FF000854 says the picked line"), which passed 3 of 3 on a rerun, cause
+  unknown.
+- **Crashes found:**
+  - `HookSetOwnerForm` read through an unresolved owner form id while a reference loaded. Fixed:
+    `docs/re/crashes/2026-10-23-owner-form-id-on-load.md`.
+  - A guest's beast form: its werewolf quest's stage goes to the host as a world call, the host changes the guest's
+    copy, and crashed freeing a behaviour graph (`docs/re/crashes/2026-10-23-guest-beast-form-graph-gc.md`). The cause
+    is fixed below; the graph crash itself is not investigated.
+- **A guest's own quests** (2026-10-23): a quest the guest's own scripts start (the beast form's
+  `PlayerWerewolfQuest`, a mod's quest from its MCM) is the guest's: its stages and events stay on its game
+  (`PlayerNatives::IsOwnQuest`, a hook on `EnsureQuestStarted` 25003; `docs/design/world-state-sync.md`, "A guest's
+  own quests"). `client-beast-form-stays-client` passes again. The first piece of per-player quests
+  (`docs/ideas.md`).
+- **Two cutscenes at once** (2026-10-23): each game keeps who took which controls (its own scripts, each other game's
+  by `NotifyPartyNative::Source`), and a give-back gives back only what no one else holds. A player leaving gives back
+  what its cutscene held on the others (`NotifyPlayerLeft`). Scenarios `overlapping-cutscenes-keep-controls`,
+  `leaver-cutscene-gives-back`.
+- **Lock order:** `client-beast-form-stays-client` printed an engine-only self-deadlock pattern on the host
+  (`SkyrimSE.exe+0xcb553c > +0xcb55b7`, write lock on `0x1431ca5d0` asked while holding its read lock). It has none
+  of our frames and is not in `lock_order_known.txt`. A second, also engine-only, came up in the tagged run: a lock
+  order inversion (`+0x16abbd > +0xe92c16` vs `+0x1b064a > +0x165105`). Both noted, not looked into.
+- **Re-run after both:** the new scenarios and `client-beast-form-stays-client` 3 of 3; the scripts, quests, magic,
+  dialogue and session tags pass except one `host-rejoins` (Lydia's copy had no animation state yet after the
+  rejoin: action, idle and graph states 0). It passed 3 of 3 on a rerun; cause unknown.
+- **One script call type** (2026-10-23, cleanup): the cutscene, world-call and player-native paths each had their own
+  `{class, function, self, arguments}` struct, frame reader and conversion loops. Now `ScriptCallOf<TForm>`
+  (`ScriptCall` on the wire, `LocalCall` in a game; `Structs/ScriptValue.h`), `GlobalCall::ReadCall`/`QueueCall`, and
+  `Utils::ToScriptCall`/`ToLocalCall`. `Payloads::PlayerNative` gains the call's self (always None) on the wire. The
+  scripts tag passes, and so do the two dialogue native scenarios. `guest-spawns-no-critters` failed once as the
+  first scenario after a reload ("[host] its spawner places the dragonflies"), then passed 3 of 3.
+
+### Cutscenes, step 1 (2026-10-23, uncommitted)
+
+The whole party sees a cutscene (`docs/design/cutscenes.md`; research `docs/research/cutscenes.md`): every
+script's call on the controls or the screen (fades: image-space modifiers, `FadeOutGame`; camera, shakes, music,
+video) runs on every game, each on its own player (`Papyrus/PartyNatives`, `CutsceneService`, `PartyNativeRequest`/`NotifyPartyNative` relayed by the
+host). Which calls those are is read from their code (`NativeReach::CallOf`: the native's own code calling the
+engine's controls, fade, image-space, camera, shake, music or rumble functions), no list. Decided against a
+cutscene gate (2026-10-23): a spell's fade outside one tints everyone, accepted. A guest's own script setting a quest's stage goes to the host (`Quest.SetCurrentStageID`,
+`WorldCallRequest`/`NotifyWorldCall`, `HostPlayerNatives::OnWorldCall`): the Elder Scroll's `MQ206.SetStage(20)`.
+Scenarios `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`,
+`screen-reaches-party`, `guest-script-stage-reaches-host`; controls without the sending fail. Harness
+`papyrus_call` and `screen`. Found on the way: 1.6's `Disable`/`EnablePlayerControls` take nine arguments, and
+`GlobalCall` now refuses a call whose arguments did not fit (`Statement::SetSize` returns false). Step 2: each
+player's own character in the scene.
 
 ### Overnight 2026-10-22: ghost NPCs, AI state on copies, step sync (uncommitted)
 
@@ -564,6 +625,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Kill moves | works, both ways, with kill credit | `host-kill-move`, `client-kill-move` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
+| Cutscenes (step 1: scripts' controls, fades, camera, shakes, music for the party) | works, from any game; a player's own moment stays theirs; two at once keep their controls; each player's own character in the scene not yet (step 2) | `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`, `screen-reaches-party`, `player-moment-stays-theirs`, `restriction-stays-with-game`, `player-stage-cutscene-reaches-party`, `overlapping-cutscenes-keep-controls`, `leaver-cutscene-gives-back` |
 | Beast form (a guest's werewolf change) | works: the guest's game runs it (owner-applied effect), its copies respawn for each race from the owner's state; upstream's host-player bug does not occur (2026-10-20) | `client-beast-form-stays-client` |
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
@@ -603,6 +665,39 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Four tiers (2026-10-23, `docs/design/testing.md`, Factorio's model): unit, integration against a fake engine,
+  the duo, soak. Tier 1 `ClientTests` (new, `Code/tests/client/`): `PartyRules` (the cutscene share rule and the
+  control holds, split out of `PartyNatives`), 45 assertions, rule edit to result 0.4 s. Tier 2 `GameTests` (new
+  prototype, `Code/tests/games/`): two games in-process, real `TransportService`/`CutsceneService` and the host's
+  rules on a fake engine; 4 cutscene flows in 1.0 s. Skyrim showed the fake's first guess wrong (movement takes
+  jumping too, `0x401`). Then GuestScripts' tags and cause rules (`ScriptTags`), WorldEvents' own-event rule and
+  a guest's own quests (`OwnEvents`) split out the same way, then NativeReach's code reading (`CodeReach`, Zydis on
+  Linux): `ClientTests` 173 assertions. `GameTests` 11 flows: world-state sync between games on a fake world
+  (locks, containers, cell state, rejoining, two guests), real `GuestWorldState` and `HostWorldState`, checked by
+  `Party::Differences()`. `scripts/xmake-linux.sh` passes clang's flags through config files (CMake packages
+  could not build on Linux). `guest-spawns-no-critters` fails when the host's weather drifted to rain (0x4D7FB):
+  `CritterSpawn` places nothing then; passes with `fw 81a`. The scenario should set the weather as it sets the
+  hour (open). The gate: `scripts/check.sh` (tiers 1-2 and the plugin's build, 3-11 s), run by the pre-push hook
+  (`core.hooksPath scripts/hooks`; it pointed at a path that no longer exists, so no hook ran). `coop_test.py
+  affected` built: changed sources select scenario tags with their file and glob reasons; an uncovered source fails
+  loudly, a `core` change says the full suite covers it and never starts it (`--check`: all 1,183 files under
+  `Code/` but tests covered). Shared specs (`Code/tests/specs/`): four cutscene scenarios and two world ones (a lock,
+  a chest's items) as data, run by
+  `GameTests "[spec]"` on the fake and by `scripts/coop_specs.py` in Skyrim (not run there yet); the fake learned
+  `Game.ShakeCamera` for markers; all six pass in Skyrim too (21.5 s). The duo's baseline is pinned (the host's
+  weather, noon, date, time scale, players' values and placement; the guest follows by sync, checked before
+  cleanup; `raw_days` stays cumulative). `coop_test.py soak`: fresh-duo rounds, seeded shuffles, reports of
+  crashes, lock patterns, stalls and memory compared with the last soak; two `scripts` rounds 28/28 each, no
+  crash, one unreviewed engine-only lock pattern, the guest's memory 22.9 MiB higher across the two (a candidate,
+  not a leak yet). The specs take part in `scenario`, `affected` and `soak`. Tier 2 copies: the real `CharacterService`, `TravelService` and
+  `ModSystem` in every game (`ModSystem` reads plugins from `IFormBridge::GetLoadedMods`; the session-id lookups and
+  script value conversions moved out of `Utils.cpp`), the host hosting through `HostService`; `copy_flows.cpp`.
+  Found and fixed: an NPC unloading on the host in the frame between its assignment and the host's game handling
+  the answer left the guest's copy for good (`OnAssignCharacter` now sends `RequestRemoveCharacter`). The `spawn`
+  scenarios in Skyrim are still to run on it (the duo was busy).
+  Travel flows (`travel_flows.cpp`): the tether both ways, players' copies coming along, NPCs staying with their
+  cells; `RunLocalUpdates`' snapshot throttle is per service now (was a function static). New rule in CLAUDE.md:
+  every bug gets a test in the fastest tier that can show it.
 - Beast form (2026-10-20, `docs/re/systems/papyrus-guest-scripts.md`, "Beast form"): `client-beast-form-stays-client`
   (3 of 3) shows upstream's beast form bug gone: the change runs on the guest's game only. Fixed on the way:
   a copy respawned for a race change started from the host's record of its owner's last cell entry (stale
@@ -921,6 +1016,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `.2.log` in the game's `Data/SKSE/Plugins/logs`); a run folder's copy of the logs is taken at the duo's start,
   so a live report is read from the game's own log.
 
+- **Host crash freeing a behaviour graph in a guest's beast form** (2026-10-23): noted, not investigated (`docs/re/crashes/2026-10-23-guest-beast-form-graph-gc.md`).
 - **Host crash in `TaskQueue::Drain`, 2 s after a save** (2026-10-19): the Runner queue looked overwritten; not reproduced in six more saves (`docs/re/crashes/2026-10-19-runner-queue-after-save.md`).
 - **Our client update runs on a job thread** inside `HookVMUpdate`. Which AI stage jobs run beside it,
   and are our engine changes (spawn, delete, `MoveTo`, packages) safe there?

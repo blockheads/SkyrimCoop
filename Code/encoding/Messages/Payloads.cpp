@@ -338,33 +338,17 @@ void EffectFlash::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     EffectId.Deserialize(aReader);
 }
 
-// A native takes a handful; anything past it is a corrupt message.
-constexpr uint64_t kMaxNativeArguments = 16;
-
 void PlayerNative::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
-    Serialization::WriteString(aWriter, Class);
-    Serialization::WriteString(aWriter, Function);
-    Serialization::WriteVarInt(aWriter, Arguments.size());
-    for (const auto& cArgument : Arguments)
-        SerializeScriptValue(aWriter, cArgument);
+    SerializeScriptCall(aWriter, Call);
     Serialization::WriteVarInt(aWriter, ReplyId);
 }
 
 void PlayerNative::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    Class = Serialization::ReadString(aReader);
-    Function = Serialization::ReadString(aReader);
-    const uint64_t cCount = Serialization::ReadVarInt(aReader);
-    Arguments.clear();
-    for (uint64_t i = 0; i < cCount && i < kMaxNativeArguments; ++i)
-        if (!DeserializeScriptValue(aReader, Arguments.emplace_back()))
-        {
-            Arguments.clear();
-            return;
-        }
+    DeserializeScriptCall(aReader, Call);
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
@@ -379,5 +363,27 @@ void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexc
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     if (!DeserializeScriptValue(aReader, Result))
         Result = std::monostate{};
+}
+
+void WorldCall::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, SessionId);
+    SerializeScriptCall(aWriter, Call);
+}
+
+void WorldCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    DeserializeScriptCall(aReader, Call);
+}
+
+void PartyNative::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    SerializeScriptCall(aWriter, Call);
+}
+
+void PartyNative::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    DeserializeScriptCall(aReader, Call);
 }
 } // namespace Payloads

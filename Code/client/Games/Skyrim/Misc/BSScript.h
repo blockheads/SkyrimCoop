@@ -180,7 +180,8 @@ struct BSScript
     {
         struct Statement
         {
-            void SetSize(uint32_t aCount) noexcept;
+            // False: the array could not grow.
+            [[nodiscard]] bool SetSize(uint32_t aCount) noexcept;
 
             uint8_t pad0[8];
             Variable* vars;
@@ -318,7 +319,9 @@ struct BSScript
         // Queues a call of a global function (CommonLibSSE-NG; appCallback: BSTSmartPointer<IStackCallbackFunctor>&).
         virtual bool DispatchStaticCall(const BSFixedString& acClass, const BSFixedString& acFunction, IFunctionArguments* apArguments, void** appCallback);
         virtual void sub_27();
-        virtual void sub_28();
+        // Queues a call of a method on a bound object (CommonLibSSE-NG DispatchMethodCall2; appCallback as above).
+        virtual bool DispatchMethodCall(uint64_t aHandle, const BSFixedString& acClass, const BSFixedString& acFunction, IFunctionArguments* apArguments,
+                                        void** appCallback);
         virtual void sub_29();
         virtual bool IsWaitingOnLatent(uint32_t aStackId) const;
         // Resumes a stack waiting on a latent call with its result (104807, CommonLibSSE-NG ReturnFromLatent).

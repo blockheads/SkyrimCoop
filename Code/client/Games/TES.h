@@ -35,6 +35,28 @@ struct GridCellArray
 
 static_assert(offsetof(GridCellArray, arr) == 0x18);
 
+struct ImageSpaceModifierInstanceForm;
+
+// An image-space modifier running (CommonLibSSE-NG ImageSpaceModifierInstance, an NiObject).
+struct ImageSpaceModifierInstance
+{
+    // A form's (Papyrus ImageSpaceModifier.Apply), else none (its vfunc 0x27, IsForm).
+    [[nodiscard]] ImageSpaceModifierInstanceForm* AsForm() noexcept
+    {
+        using TIsForm = ImageSpaceModifierInstanceForm*(ImageSpaceModifierInstance*);
+        return reinterpret_cast<TIsForm**>(pVtable)[0x27](this);
+    }
+
+    void* pVtable;
+};
+
+struct ImageSpaceModifierInstanceForm : ImageSpaceModifierInstance
+{
+    uint8_t pad8[0x28 - 0x8];
+    TESForm* pImod; // 28, TESImageSpaceModifier
+};
+static_assert(offsetof(ImageSpaceModifierInstanceForm, pImod) == 0x28);
+
 struct TES
 {
     static TES* Get() noexcept;
@@ -51,10 +73,13 @@ struct TES
     int32_t currentGridX;
     int32_t currentGridY;
     TESObjectCELL* interiorCell;
+    uint8_t padC8[0x108 - 0xC8];
+    GameList<ImageSpaceModifierInstance> activeImageSpaceModifiers; // 108, NiPointer values
 };
 
 static_assert(offsetof(TES, cells) == 0x78);
 static_assert(offsetof(TES, interiorCell) == 0xC0);
+static_assert(offsetof(TES, activeImageSpaceModifiers) == 0x108);
 
 struct ProcessLists
 {

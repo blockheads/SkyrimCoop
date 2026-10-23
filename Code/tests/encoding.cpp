@@ -490,14 +490,72 @@ TEST_CASE("Packets", "[encoding.packets]")
 
         PlayerNativeRequest sendRequest, recvRequest;
         sendRequest.SessionId = 0x21;
-        sendRequest.Class = "Game";
-        sendRequest.Function = "AdvanceSkill";
-        sendRequest.Arguments = {std::string("Speechcraft"), 2.5f, int32_t(-3), true, ScriptForm{.SessionId = 0x22},
+        sendRequest.Call.Class = "Game";
+        sendRequest.Call.Function = "AdvanceSkill";
+        sendRequest.Call.Arguments = {std::string("Speechcraft"), 2.5f, int32_t(-3), true, ScriptForm{.SessionId = 0x22},
                                  ScriptForm{.Form = GameId(1, 0x803)}, std::monostate{}};
         NotifyPlayerNative sendNotify, recvNotify;
         static_cast<Payloads::PlayerNative&>(sendNotify) = sendRequest;
-        sendNotify.Function = "QueryStat";
+        sendNotify.Call.Function = "QueryStat";
         sendNotify.ReplyId = 0x4D2;
+
+        Buffer::Writer writer(&buff);
+        sendRequest.Serialize(writer);
+        sendNotify.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvRequest.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvNotify.DeserializeRaw(reader);
+
+        CHECK(recvRequest == sendRequest);
+        CHECK(recvNotify == sendNotify);
+    }
+
+    SECTION("PartyNativeRequest and NotifyPartyNative")
+    {
+        Buffer buff(1000);
+
+        PartyNativeRequest sendRequest, recvRequest;
+        sendRequest.Call.Class = "Game";
+        sendRequest.Call.Function = "DisablePlayerControls";
+        sendRequest.Call.Arguments = {true, false, true, false, false, true, true, false};
+        NotifyPartyNative sendNotify, recvNotify;
+        sendNotify.Call.Class = "ImageSpaceModifier";
+        sendNotify.Call.Function = "ApplyCrossFade";
+        sendNotify.Call.Self = ScriptForm{.Form = GameId(0, 0xF756D)};
+        sendNotify.Call.Arguments = {2.5f};
+        sendNotify.Source = 3;
+
+        Buffer::Writer writer(&buff);
+        sendRequest.Serialize(writer);
+        sendNotify.Serialize(writer);
+
+        Buffer::Reader reader(&buff);
+        uint64_t trash;
+        reader.ReadBits(trash, 8); // pop opcode
+        recvRequest.DeserializeRaw(reader);
+        reader.ReadBits(trash, 8);
+        recvNotify.DeserializeRaw(reader);
+
+        CHECK(recvRequest == sendRequest);
+        CHECK(recvNotify == sendNotify);
+    }
+
+    SECTION("WorldCallRequest and NotifyWorldCall")
+    {
+        Buffer buff(1000);
+
+        WorldCallRequest sendRequest, recvRequest;
+        sendRequest.Call.Class = "Quest";
+        sendRequest.Call.Function = "SetCurrentStageID";
+        sendRequest.Call.Self = ScriptForm{.Form = GameId(0, 0x1F258)};
+        sendRequest.Call.Arguments = {int32_t(15)};
+        NotifyWorldCall sendNotify, recvNotify;
+        sendNotify.SessionId = 0x22;
+        sendNotify.Call = sendRequest.Call;
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);

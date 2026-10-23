@@ -80,9 +80,32 @@ static_assert(offsetof(PlayerControls, bBlockPlayerInput) == 0x1D9);
 static_assert(offsetof(PlayerControls, Data) == 0x24);
 static_assert(offsetof(PlayerControls, handlers) == 0x58);
 
+// ControlMap (CommonLibSSE-NG, its AE layout): which user events are on; ToggleControls (68545) writes them.
 struct BSInputEnableManager
 {
+    // UserEvents::USER_EVENT_FLAG (CommonLibSSE-NG): the controls ToggleControls takes and gives back.
+    enum UserEvent : uint32_t
+    {
+        kMovement = 1 << 0,
+        kLooking = 1 << 1,
+        kActivate = 1 << 2,
+        kMenu = 1 << 3,
+        kConsole = 1 << 4,
+        kPOVSwitch = 1 << 5,
+        kFighting = 1 << 6,
+        kSneaking = 1 << 7,
+        kMainFour = 1 << 8,
+        kWheelZoom = 1 << 9,
+        kJumping = 1 << 10,
+        kVATS = 1 << 11,
+    };
+
     static BSInputEnableManager* Get();
 
     void EnableOtherEvent(int32_t aFlags, bool aEnable, bool aUnk2);
+
+    uint8_t pad0[0x120];
+    uint32_t enabledControls; // 120
+    uint32_t storedControls;  // 124
 };
+static_assert(offsetof(BSInputEnableManager, enabledControls) == 0x120);

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Before a push: the gate (scripts/check.sh, tiers 1-2). `git push --no-verify` skips it.
+# Installed with `git config core.hooksPath scripts/hooks`.
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh"

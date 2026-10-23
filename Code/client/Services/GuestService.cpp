@@ -1,11 +1,15 @@
 #include <Services/GuestService.h>
 
 #include <Bridges/GuestEngine.h>
+#include <Papyrus/GlobalCall.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/NotifyPlayerNative.h>
 #include <Messages/PlayerNativeResultRequest.h>
+#include <Messages/WorldCallRequest.h>
+#include <Events/WorldCallEvent.h>
+#include <Papyrus/PlayerNatives.h>
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
@@ -43,6 +47,7 @@ GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcep
     m_disconnectedConnection = aDispatcher.sink<DisconnectedEvent>().connect<&GuestService::OnDisconnected>(this);
     m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&GuestService::OnUpdate>(this);
     m_playerNativeConnection = aDispatcher.sink<NotifyPlayerNative>().connect<&GuestService::OnPlayerNative>(this);
+    m_worldCallConnection = aDispatcher.sink<WorldCallEvent>().connect<&GuestService::OnWorldCall>(this);
 }
 
 GuestService::~GuestService() noexcept = default;
@@ -50,12 +55,15 @@ GuestService::~GuestService() noexcept = default;
 void GuestService::OnConnected(const ConnectedEvent&) noexcept
 {
     // The host joins its own session too: its world is its own.
-    if (!m_world.GetHostService().IsHosting())
-        m_pGuest = std::make_unique<Guest>(m_world, m_dispatcher);
+    if (m_world.GetHostService().IsHosting())
+        return;
+    m_pGuest = std::make_unique<Guest>(m_world, m_dispatcher);
+    PlayerNatives::SetGuest(true);
 }
 
 void GuestService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
+    PlayerNatives::SetGuest(false);
     m_pGuest.reset();
 }
 
@@ -63,7 +71,7 @@ void GuestService::OnPlayerNative(const NotifyPlayerNative& acMessage) noexcept
 {
     if (!m_pGuest)
         return;
-    spdlog::info("GuestService: the host's script runs {}.{} for this game's player", acMessage.Class, acMessage.Function);
+    spdlog::info("GuestService: the host's script runs {}.{} for this game's player", acMessage.Call.Class, acMessage.Call.Function);
     // One returning a value: the host's script waits for it.
     const uint32_t cReplyId = acMessage.ReplyId;
     GlobalCall::OnReturn onReturn;
@@ -73,9 +81,18 @@ void GuestService::OnPlayerNative(const NotifyPlayerNative& acMessage) noexcept
         };
     if (m_pGuest->Engine.RunPlayerNative(acMessage, std::move(onReturn)))
         return;
-    spdlog::warn("GuestService: {}.{} did not run", acMessage.Class, acMessage.Function);
+    spdlog::warn("GuestService: {}.{} did not run", acMessage.Call.Class, acMessage.Call.Function);
     if (cReplyId)
         SendNativeResult(cReplyId, {});
+}
+
+void GuestService::OnWorldCall(const WorldCallEvent& acEvent) noexcept
+{
+    if (!m_pGuest)
+        return;
+    WorldCallRequest request;
+    request.Call = Utils::ToScriptCall(acEvent.Call);
+    m_world.GetTransport().Send(request);
 }
 
 void GuestService::SendNativeResult(uint32_t aReplyId, const LocalValue& acResult) noexcept

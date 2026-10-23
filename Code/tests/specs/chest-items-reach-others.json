@@ -1,0 +1,76 @@
+{
+  "name": "chest-items-reach-others",
+  "doc": "A chest's items are the host's world: the host puts two sweetrolls in QASmoke's small chest and the guest's holds them too; the guest's chest losing them is a proposal the host's world takes.",
+  "steps": [
+    {
+      "expect": "items",
+      "game": "host",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 0,
+      "now": true
+    },
+    {
+      "do": "add_items",
+      "game": "host",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 2
+    },
+    {
+      "expect": "items",
+      "game": "host",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 2
+    },
+    {
+      "expect": "items",
+      "game": "guest",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 2
+    },
+    {
+      "do": "remove_items",
+      "game": "guest",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 2
+    },
+    {
+      "expect": "items",
+      "game": "host",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 0
+    }
+  ],
+  "cleanup": [
+    {
+      "do": "remove_items",
+      "game": "host",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 2
+    },
+    {
+      "expect": "items",
+      "game": "host",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 0
+    },
+    {
+      "expect": "items",
+      "game": "guest",
+      "ref": "0xC2CE8",
+      "item": "0x64B3D",
+      "count": 0
+    }
+  ],
+  "tags": [
+    "objects",
+    "inventory"
+  ]
+}

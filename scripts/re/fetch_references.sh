@@ -62,6 +62,12 @@ for repo in Mardoxx/skyrimui DCCStudios/CHIM-Dialogue-TTS-Bridge JonathanFeenstr
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Camera and controls (docs/research/party-freezes.md): how mods read "the player is taken over" with no cutscene
+# state, from the player's own state: movement controls enabled, AI-driven, the furniture camera.
+for repo in mwilsnd/SkyrimSE-SmoothCam ersh1/TrueDirectionalMovement; do
+    fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
+done
+
 curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"

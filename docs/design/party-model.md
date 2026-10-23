@@ -65,7 +65,7 @@ numbers: `docs/research/player-events.md` (spikes, "Script scan"). Built: rules 
    `PlayerRef` property, a variable set at load) is that member too, as `self` or an argument of a native. Natives
    that act on this player without naming them (skills, stats, perk points, achievements, the training and race
    menus) run on that member's game instead, and one returning a value (`QueryStat`) answers from there; the screen's
-   (controls, fades, camera) wait for the cutscene design (`docs/re/systems/papyrus-guest-scripts.md`, the table).
+   (controls, fades, camera) are the party's (`docs/design/cutscenes.md`).
 3. **With no member's action behind it, position questions ask about the party.** Timers and loads that ask
    where the player is (`GetDistance`, `IsInLocation`, `GetCurrentLocation`, about 15 engine functions):
    true if any member is, the nearest member for a distance. Anything else without a cause is the host's
@@ -174,7 +174,10 @@ Cutscenes play for everyone as in single player, for any mod, whoever triggered 
 - **Each player sees their own character in it** (decided 2026-10-14). What the host's player does in the
   scene, each peer's own player does on that peer's game: the same package, furniture, `MoveTo`, controls,
   camera, fades, imagespace, music and shake.
-- A scene with room for one player only (Helgen's cart seat) gets its rule with the cutscene design.
+- A scene with room for one player only (Helgen's cart seat) keeps it its player's; the others watch (step 2).
+- Built, step 1 (2026-10-23): every script's call on the controls or the screen (fades, camera, shakes, music) runs
+  on every game, so the party sees every cutscene (`docs/design/cutscenes.md`). Step 2 is each player's own
+  character in it.
 
 ## Still open
 

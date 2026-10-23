@@ -4,6 +4,7 @@
 #include "Status.h"
 
 #include <World.h>
+#include <Papyrus/GuestScripts.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
 
@@ -284,6 +285,14 @@ nlohmann::json Quest(Harness&, const nlohmann::json& acRequest)
             {"stages", cState->Stages},
             {"objectives", cState->Objectives},
             {"aliases", aliases}};
+}
+
+// {"cmd": "quest_allow_rerun", "quest": id}: a run-once quest a scenario started can start again (alreadyRun cleared).
+nlohmann::json QuestAllowRerun(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::AllowQuestRerun(acRequest.value("quest", 0u)))
+        return Error("no such quest");
+    return {{"ok", true}};
 }
 
 // {"cmd": "quest_force_alias", "quest", "alias", "ref", "parent", "x", "y"}: a scenario's fill of a reference alias, the
@@ -590,9 +599,51 @@ nlohmann::json Camera(Harness&, const nlohmann::json& acRequest)
     return response;
 }
 
+// {"cmd": "screen"}: what a cutscene does to this game's screen (EngineCalls::GetScreenState).
+nlohmann::json Screen(Harness&, const nlohmann::json&)
+{
+    const auto cState = EngineCalls::GetScreenState();
+    return {{"ok", true}, {"controls", cState.Controls}, {"imods", cState.Imods}, {"shake", {{"strength", cState.ShakeStrength}, {"seconds", cState.ShakeSeconds}}}};
+}
+
+// {"cmd": "papyrus_call", "class": name, "function": name, "self"?: form id, "args": [...], "player_action"?: bool}:
+// queues the call as a script's: a quest's with no player's action behind it, or (player_action) one this game's
+// player's action started (GuestScripts' cause 0x14). Arguments: null (None), bools, integers, floats, strings,
+// {"form": id}.
+nlohmann::json PapyrusCall(Harness&, const nlohmann::json& acRequest)
+{
+    std::vector<LocalValue> arguments;
+    for (const auto& cArgument : acRequest.value("args", nlohmann::json::array()))
+    {
+        if (cArgument.is_null())
+            arguments.emplace_back(std::monostate{});
+        else if (cArgument.is_boolean())
+            arguments.emplace_back(cArgument.get<bool>());
+        else if (cArgument.is_number_integer())
+            arguments.emplace_back(cArgument.get<int32_t>());
+        else if (cArgument.is_number())
+            arguments.emplace_back(cArgument.get<float>());
+        else if (cArgument.is_string())
+            arguments.emplace_back(cArgument.get<std::string>());
+        else if (cArgument.is_object() && cArgument.contains("form"))
+            arguments.emplace_back(LocalForm{cArgument.value("form", 0u)});
+        else
+            return Error("an argument is not null, a bool, number, string or {\"form\": id}");
+    }
+    const std::optional<uint32_t> cSelf = acRequest.contains("self") ? std::optional(acRequest.value("self", 0u)) : std::nullopt;
+    std::optional<GuestScripts::ScopedCause> cause;
+    if (acRequest.value("player_action", false))
+        cause.emplace(0x14u);
+    if (!EngineCalls::QueuePapyrusCall(acRequest.value("class", std::string()), acRequest.value("function", std::string()), cSelf, arguments))
+        return Error("the VM did not queue the call");
+    return Ok();
+}
+
 constexpr Command cCommands[] = {
     {"status", false, &GetStatus},
     {"camera", true, &Camera},
+    {"screen", true, &Screen},
+    {"papyrus_call", true, &PapyrusCall},
     {"dialogue", true, &Dialogue},
     {"dialogue_pick", true, &DialoguePick},
     {"item_count", true, &ItemCount},
@@ -608,6 +659,7 @@ constexpr Command cCommands[] = {
     {"world_state", true, &WorldState},
     {"quest", true, &Quest},
     {"quest_force_alias", true, &QuestForceAlias},
+    {"quest_allow_rerun", true, &QuestAllowRerun},
     {"global", true, &Global},
     {"form_save", true, &FormSave},
     {"engine_events", false, &GetEngineEvents},

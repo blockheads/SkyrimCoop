@@ -17,6 +17,7 @@
 #include <Services/ActorValueService.h>
 #include <Services/InventoryService.h>
 #include <Services/EffectVisualsService.h>
+#include <Services/CutsceneService.h>
 #include <Services/AiStateService.h>
 #include <Services/DialogueService.h>
 #include <Bridges/DialogueBridge.h>
@@ -66,7 +67,7 @@ World::World()
     , m_pDialogueBridge(std::make_unique<DialogueBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
-    , m_modSystem(m_dispatcher)
+    , m_modSystem(m_dispatcher, ctx().at<IFormBridge&>())
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
 {
 
@@ -89,6 +90,7 @@ World::World()
                                ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
@@ -114,6 +116,7 @@ World::~World()
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
     ctx().erase<DialogueService>();
+    ctx().erase<CutsceneService>();
     ctx().erase<AiStateService>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();

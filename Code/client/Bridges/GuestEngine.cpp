@@ -217,17 +217,10 @@ void GuestEngine::ReleaseWeather() noexcept
         pSky->ReleaseWeatherOverride();
 }
 
-bool GuestEngine::RunPlayerNative(const Payloads::PlayerNative& acCall, GlobalCall::OnReturn aOnReturn) noexcept
+bool GuestEngine::RunPlayerNative(const Payloads::PlayerNative& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
 {
-    std::vector<LocalValue> arguments;
-    for (const ScriptValue& cValue : acCall.Arguments)
-    {
-        auto argument = Utils::ToLocalValue(cValue);
-        if (!argument)
-            return false;
-        arguments.push_back(std::move(*argument));
-    }
-    return GlobalCall::Queue(acCall.Class, acCall.Function, arguments, std::move(aOnReturn));
+    const auto cCall = Utils::ToLocalCall(acCall.Call);
+    return cCall && GlobalCall::QueueCall(*cCall, std::move(aOnReturn));
 }
 
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept

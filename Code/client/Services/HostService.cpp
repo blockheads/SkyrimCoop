@@ -18,6 +18,9 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/NotifyPlayerNativeResult.h>
+#include <Messages/NotifyWorldCall.h>
+#include <Papyrus/GlobalCall.h>
+#include <Papyrus/GuestScripts.h>
 #include <Messages/PlayerNativeRequest.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Utils.h>
@@ -31,6 +34,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     m_containerChangeConnection = m_dispatcher.sink<ContainerChangeEvent>().connect<&HostService::OnContainerChange>(this);
     m_playerNativeConnection = m_dispatcher.sink<PlayerNativeEvent>().connect<&HostService::OnPlayerNative>(this);
     m_playerNativeResultConnection = m_dispatcher.sink<NotifyPlayerNativeResult>().connect<&HostService::OnPlayerNativeResult>(this);
+    m_worldCallConnection = m_dispatcher.sink<NotifyWorldCall>().connect<&HostService::OnWorldCall>(this);
 }
 
 void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
@@ -59,12 +63,9 @@ void HostService::OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept
         return;
     PlayerNativeRequest request;
     request.SessionId = *cGuest;
-    request.Class = acEvent.Class;
-    request.Function = acEvent.Function;
+    request.Call = Utils::ToScriptCall(acEvent.Call);
     request.ReplyId = acEvent.ReplyId;
-    for (const auto& cArgument : acEvent.Arguments)
-        request.Arguments.push_back(Utils::ToScriptValue(cArgument));
-    spdlog::info("HostService: {}.{} from a script run for guest {:X} goes to its game", request.Class, request.Function, acEvent.GuestFormId);
+    spdlog::info("HostService: {}.{} from a script run for guest {:X} goes to its game", request.Call.Class, request.Call.Function, acEvent.GuestFormId);
     m_world.GetTransport().Send(request);
 }
 
@@ -74,6 +75,20 @@ void HostService::OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage
         return;
     spdlog::info("HostService: the guest's game answered stack {}", acMessage.ReplyId);
     PlayerNatives::Answer(acMessage.ReplyId, Utils::ToLocalValue(acMessage.Result).value_or(std::monostate{}));
+}
+
+void HostService::OnWorldCall(const NotifyWorldCall& acMessage) noexcept
+{
+    const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
+    const auto cCall = Utils::ToLocalCall(acMessage.Call);
+    if (!IsHosting() || !cGuest || !cCall)
+    {
+        spdlog::warn("HostService: {}.{} from a guest's script names a form or character not here", acMessage.Call.Class, acMessage.Call.Function);
+        return;
+    }
+    spdlog::info("HostService: {}.{} from guest {:X}'s own script runs here, for it", acMessage.Call.Class, acMessage.Call.Function, cGuest);
+    const GuestScripts::ScopedCause cCause(cGuest); // the call runs for that guest (rule 2)
+    GlobalCall::QueueCall(*cCall);
 }
 
 HostService::~HostService() noexcept

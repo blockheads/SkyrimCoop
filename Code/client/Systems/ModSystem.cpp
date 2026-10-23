@@ -3,9 +3,14 @@
 #include <Structs/Mods.h>
 #include <Structs/GameId.h>
 
-#include <Games/TES.h>
+#include <Bridges/IFormBridge.h>
+#include <Games/EngineNames.h>
 
-ModSystem::ModSystem(entt::dispatcher& aDispatcher) noexcept
+#include <cstring>
+#include <limits>
+
+ModSystem::ModSystem(entt::dispatcher& aDispatcher, const IFormBridge& acForms) noexcept
+    : m_forms(acForms)
 {
     std::memset(m_standardToServer, 0, sizeof(m_standardToServer));
     // Deal with temporary ids
@@ -81,21 +86,24 @@ void ModSystem::HandleMods(const Mods& acMods) noexcept
     std::memset(m_standardToServer, 0, sizeof(m_standardToServer));
     m_standardToServer[0xFF] = std::numeric_limits<uint32_t>::max();
 
-    const auto pModManager = ModManager::Get();
+    const auto cLoaded = m_forms.GetLoadedMods();
 
     for (const auto& mod : acMods.ModList)
     {
-        if (Mod* pMod = pModManager->GetByName(mod.Filename.c_str()))
+        const auto cHere = std::ranges::find_if(cLoaded, [&mod](const IFormBridge::ModEntry& acEntry) {
+            return SameName(acEntry.Filename, mod.Filename.c_str());
+        });
+        if (cHere != cLoaded.end())
         {
             if (mod.IsLite)
             {
-                m_serverToGame.emplace(mod.Id, GameMod{static_cast<uint16_t>(pMod->GetId() & 0xFFFu), true});
-                m_liteToServer.emplace(pMod->GetId(), mod.Id);
+                m_serverToGame.emplace(mod.Id, GameMod{static_cast<uint16_t>(cHere->Id & 0xFFFu), true});
+                m_liteToServer.emplace(cHere->Id, mod.Id);
             }
             else
             {
-                m_serverToGame.emplace(mod.Id, GameMod{static_cast<uint16_t>(pMod->GetId() & 0xFFu), false});
-                m_standardToServer[pMod->GetId() & 0xFF] = mod.Id;
+                m_serverToGame.emplace(mod.Id, GameMod{static_cast<uint16_t>(cHere->Id & 0xFFu), false});
+                m_standardToServer[cHere->Id & 0xFF] = mod.Id;
             }
         }
         else

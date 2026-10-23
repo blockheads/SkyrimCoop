@@ -44,3 +44,35 @@ bool DeserializeScriptValue(Wire::Buffer::Reader& aReader, ScriptValue& aValue) 
     default: return false;
     }
 }
+
+namespace
+{
+// A native takes a handful; anything past it is a corrupt message.
+constexpr uint64_t kMaxNativeArguments = 16;
+} // namespace
+
+void SerializeScriptCall(Wire::Buffer::Writer& aWriter, const ScriptCall& acCall) noexcept
+{
+    Serialization::WriteString(aWriter, acCall.Class);
+    Serialization::WriteString(aWriter, acCall.Function);
+    SerializeScriptValue(aWriter, acCall.Self);
+    Serialization::WriteVarInt(aWriter, acCall.Arguments.size());
+    for (const auto& cArgument : acCall.Arguments)
+        SerializeScriptValue(aWriter, cArgument);
+}
+
+void DeserializeScriptCall(Wire::Buffer::Reader& aReader, ScriptCall& aCall) noexcept
+{
+    aCall.Class = Serialization::ReadString(aReader);
+    aCall.Function = Serialization::ReadString(aReader);
+    if (!DeserializeScriptValue(aReader, aCall.Self))
+        aCall.Self = std::monostate{};
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    aCall.Arguments.clear();
+    for (uint64_t i = 0; i < cCount && i < kMaxNativeArguments; ++i)
+        if (!DeserializeScriptValue(aReader, aCall.Arguments.emplace_back()))
+        {
+            aCall.Arguments.clear();
+            return;
+        }
+}

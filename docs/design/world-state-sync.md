@@ -251,7 +251,9 @@ stages, objectives and alias fills, come from the host.
 ```
 
 The rule that follows: **a guest never decides world state; it reports what its player did, and the host's
-game reacts as if it happened there.** Everyone else then gets the result from the host. What a guest's
+game reacts as if it happened there.** The scripts a guest still runs itself (its body's and items', the Elder
+Scroll's reading) send their world calls to the host instead (a quest's stage, 2026-10-23: `docs/design/cutscenes.md`,
+"A guest's own script changing the world"). Everyone else then gets the result from the host. What a guest's
 player does that the world reacts to, and where each stands:
 
 | A guest's player... | On the host today | Still needed |
@@ -289,6 +291,17 @@ would have to be known). Cost: a quest that tracks one player's body (Frostfall,
 host's player only; per-player system quests are an idea for mod support (`docs/ideas.md`). A quest's alias
 fill of a reference the guest never loaded is loaded the engine's way (its promote task, 15319), as the
 host's game did.
+
+**A guest's own quests** (built 2026-10-23, the first piece of per-player quests): a quest the guest's own scripts
+start is the guest's. `TESQuest::EnsureQuestStarted` (25003, every start: `Quest.Start`'s and the engine's) is hooked
+on a guest; a start in a stack its own player caused (GuestScripts' cause 0x14) of a quest not running yet records the
+quest (`PlayerNatives::IsOwnQuest`). Its stages stay on the guest (`PlayerNatives::SendToHost` does not send them),
+and its events, the quest's handle or an alias's (53508: an alias's handle is the quest's form id with the alias id
+above it, top word 0), are delivered (`WorldEvents::IsOwnEvent`). Story quests the host runs (`MQ206`) are not
+started by the guest's scripts and still go to the host. Found when the beast form broke: its later stages went to
+the host, which changed the guest's character there (`docs/re/crashes/2026-10-23-guest-beast-form-graph-gc.md`).
+Not covered: a quest that starts itself (start game enabled, the story manager), and a host's copy of the same quest
+overwriting the guest's (quest or global sync).
 
 Its first slice (2026-10-21): a guest's
 game does not deliver activation and trigger events to the world's scripts; the host's copy of the guest

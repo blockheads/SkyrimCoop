@@ -151,6 +151,7 @@ private:
     IPlayerBridge& m_playerBridge;
     std::unordered_set<uint32_t> m_discoveredActors;
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
+    std::chrono::steady_clock::time_point m_lastSnapshot; // our actors' last movement snapshot sent
 
     entt::scoped_connection m_referenceAddedConnection;
     entt::scoped_connection m_referenceRemovedConnection;

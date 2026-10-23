@@ -258,10 +258,8 @@ struct PlayerNative
     bool operator==(const PlayerNative&) const noexcept = default;
 
     uint32_t SessionId{}; // the guest's character
-    std::string Class{};
-    std::string Function{};
-    std::vector<ScriptValue> Arguments{};
-    uint32_t ReplyId{}; // a native returning a value: the host's script waits for PlayerNativeResult under this id; 0: none
+    ScriptCall Call{};    // a global native's
+    uint32_t ReplyId{};   // a native returning a value: the host's script waits for PlayerNativeResult under this id; 0: none
 };
 
 // What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId).
@@ -274,5 +272,30 @@ struct PlayerNativeResult
 
     uint32_t ReplyId{};
     ScriptValue Result{}; // None also when it did not run there (the guest left, an argument not there)
+};
+
+// A script's call on one game's controls or screen (a fade, the camera, a shake, music, a video), which every other
+// game runs on its own player and screen (docs/design/cutscenes.md).
+struct PartyNative
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PartyNative&) const noexcept = default;
+
+    ScriptCall Call{}; // its self: an image-space modifier, a music type; None for a global native
+};
+
+// A guest's own script changed the world (a quest's stage): the host's game makes the call instead, for that guest
+// (docs/design/world-state-sync.md, "Only the host's game decides").
+struct WorldCall
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const WorldCall&) const noexcept = default;
+
+    uint32_t SessionId{}; // the guest's character, the host fills it in
+    ScriptCall Call{};
 };
 } // namespace Payloads

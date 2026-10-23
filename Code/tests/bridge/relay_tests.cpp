@@ -85,6 +85,52 @@ TEST_CASE("Effect flashes: relayed from the owner only, to everyone else", "[Bri
     CHECK(session.SentTo<NotifyEffectFlash>(kHost).empty());
 }
 
+TEST_CASE("Cutscenes: a game's party call reaches every other game, named as that game's player's", "[Bridge][Scripts]")
+{
+    Session session;
+    PartyNativeRequest call;
+    call.Call.Class = "ImageSpaceModifier";
+    call.Call.Function = "Apply";
+    call.Call.Self = ScriptForm{.Form = GameId(0, 0xF756D)};
+    call.Call.Arguments = {1.f};
+
+    session.Receive(kPeer, call);
+    for (const ConnectionId_t cOther : {kHost, kOtherPeer})
+    {
+        REQUIRE(session.SentTo<NotifyPartyNative>(cOther).size() == 1);
+        CHECK(*session.SentTo<NotifyPartyNative>(cOther)[0] == [&] {
+            NotifyPartyNative notify;
+            static_cast<Payloads::PartyNative&>(notify) = call;
+            notify.Source = session.PlayerId(kPeer);
+            return notify;
+        }());
+    }
+    CHECK(session.SentTo<NotifyPartyNative>(kPeer).empty());
+}
+
+TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, for that guest", "[Bridge][Scripts]")
+{
+    Session session;
+    const uint32_t cCharacter = session.Character(kPeer);
+    WorldCallRequest call;
+    call.Call.Class = "Quest";
+    call.Call.Function = "SetCurrentStageID";
+    call.Call.Self = ScriptForm{.Form = GameId(0, 0x1F258)};
+    call.Call.Arguments = {int32_t(15)};
+
+    session.Receive(kPeer, call);
+    const auto cSent = session.SentTo<NotifyWorldCall>(kHost);
+    REQUIRE(cSent.size() == 1);
+    CHECK(cSent[0]->SessionId == cCharacter);
+    CHECK(cSent[0]->Call == call.Call);
+    CHECK(session.SentTo<NotifyWorldCall>(kOtherPeer).empty());
+
+    // The host's game makes its own calls.
+    session.Receive(kHost, call);
+    CHECK(session.SentTo<NotifyWorldCall>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyWorldCall>(kPeer).empty());
+}
+
 TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[Bridge][Inventory]")
 {
     Session session;
@@ -315,9 +361,9 @@ TEST_CASE("Scripts: a native on the player the host's script ran for a guest run
     Session session;
     PlayerNativeRequest request;
     request.SessionId = session.Character(kPeer);
-    request.Class = "Game";
-    request.Function = "AdvanceSkill";
-    request.Arguments = {std::string("Speechcraft"), 2.5f};
+    request.Call.Class = "Game";
+    request.Call.Function = "AdvanceSkill";
+    request.Call.Arguments = {std::string("Speechcraft"), 2.5f};
 
     // Only the host's game runs scripts for other players.
     session.Receive(kOtherPeer, request);
@@ -326,8 +372,7 @@ TEST_CASE("Scripts: a native on the player the host's script ran for a guest run
     session.Receive(kHost, request);
     const auto cSent = session.SentTo<NotifyPlayerNative>(kPeer);
     REQUIRE(cSent.size() == 1);
-    CHECK(cSent[0]->Function == "AdvanceSkill");
-    CHECK(cSent[0]->Arguments == request.Arguments);
+    CHECK(cSent[0]->Call == request.Call);
     CHECK(session.SentTo<NotifyPlayerNative>(kHost).empty());
     CHECK(session.SentTo<NotifyPlayerNative>(kOtherPeer).empty());
 }
@@ -337,9 +382,9 @@ TEST_CASE("Scripts: a native on the player returning a value answers the host's 
     Session session;
     PlayerNativeRequest request;
     request.SessionId = session.Character(kPeer);
-    request.Class = "Game";
-    request.Function = "QueryStat";
-    request.Arguments = {std::string("Bribes")};
+    request.Call.Class = "Game";
+    request.Call.Function = "QueryStat";
+    request.Call.Arguments = {std::string("Bribes")};
     request.ReplyId = 77;
     session.Receive(kHost, request);
     REQUIRE(session.SentTo<NotifyPlayerNative>(kPeer).size() == 1);
@@ -366,8 +411,8 @@ TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script w
     Session session;
     PlayerNativeRequest request;
     request.SessionId = session.Character(kPeer);
-    request.Class = "Game";
-    request.Function = "QueryStat";
+    request.Call.Class = "Game";
+    request.Call.Function = "QueryStat";
     request.ReplyId = 78;
     session.Receive(kHost, request);
     CHECK(session.SentTo<NotifyPlayerNativeResult>(kHost).empty());

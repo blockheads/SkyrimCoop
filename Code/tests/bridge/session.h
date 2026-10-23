@@ -62,6 +62,10 @@
 #include <Messages/NotifyActiveEffects.h>
 #include <Messages/NotifyEffectFlash.h>
 #include <Messages/EffectFlashRequest.h>
+#include <Messages/PartyNativeRequest.h>
+#include <Messages/NotifyPartyNative.h>
+#include <Messages/WorldCallRequest.h>
+#include <Messages/NotifyWorldCall.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>

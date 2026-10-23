@@ -21,7 +21,8 @@ struct Arguments final : BSScript::IFunctionArguments
 
     bool Prepare(Statement* apArguments) const noexcept override
     {
-        apArguments->SetSize(static_cast<uint32_t>(m_values.size()));
+        if (!apArguments->SetSize(static_cast<uint32_t>(m_values.size())))
+            return false;
         for (size_t i = 0; i < m_values.size(); ++i)
             Write(apArguments->vars[i], m_values[i]);
         return true;
@@ -44,9 +45,9 @@ struct ReturnFunctor final : BSScript::IStackCallbackFunctor
 private:
     OnReturn m_onReturn;
 };
-} // namespace
 
-bool Queue(std::string_view aClass, std::string_view aFunction, std::span<const LocalValue> aArguments, OnReturn aOnReturn) noexcept
+// aSelf: a method's object handle; 0 for a global function.
+bool Dispatch(uint64_t aSelf, std::string_view aClass, std::string_view aFunction, std::span<const LocalValue> aArguments, OnReturn aOnReturn) noexcept
 {
     auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
     if (!pVm)
@@ -58,10 +59,31 @@ bool Queue(std::string_view aClass, std::string_view aFunction, std::span<const 
         pCallback->refCount = 1;
     const BSFixedString cClass(std::string(aClass).c_str());
     const BSFixedString cFunction(std::string(aFunction).c_str());
-    const bool cQueued = pVm->DispatchStaticCall(cClass, cFunction, &arguments, reinterpret_cast<void**>(&pCallback));
+    void** ppCallback = reinterpret_cast<void**>(&pCallback);
+    const bool cQueued = aSelf ? pVm->DispatchMethodCall(aSelf, cClass, cFunction, &arguments, ppCallback)
+                               : pVm->DispatchStaticCall(cClass, cFunction, &arguments, ppCallback);
     if (pCallback && _InterlockedDecrement(reinterpret_cast<volatile long*>(&pCallback->refCount)) == 0)
         delete pCallback;
     return cQueued;
+}
+} // namespace
+
+bool Queue(std::string_view aClass, std::string_view aFunction, std::span<const LocalValue> aArguments, OnReturn aOnReturn) noexcept
+{
+    return Dispatch(0, aClass, aFunction, aArguments, std::move(aOnReturn));
+}
+
+bool QueueCall(const LocalCall& acCall, OnReturn aOnReturn) noexcept
+{
+    const auto* pSelf = std::get_if<LocalForm>(&acCall.Self);
+    if (!pSelf)
+        return Queue(acCall.Class, acCall.Function, acCall.Arguments, std::move(aOnReturn));
+    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
+    auto* pForm = TESForm::GetById(pSelf->FormId);
+    if (!pVm || !pForm)
+        return false;
+    const uint64_t cHandle = pVm->GetObjectHandlePolicy()->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
+    return Dispatch(cHandle, acCall.Class, acCall.Function, acCall.Arguments, std::move(aOnReturn));
 }
 
 std::optional<LocalValue> Read(const BSScript::Variable& acVariable) noexcept
@@ -86,6 +108,27 @@ std::optional<LocalValue> Read(const BSScript::Variable& acVariable) noexcept
             return std::nullopt;
         return LocalForm{pForm->formID};
     }
+}
+
+std::optional<LocalCall> ReadCall(BSScript::IFunction* apFunction, BSScript::StackFrame& aFrame) noexcept
+{
+    LocalCall call{.Class = apFunction->GetObjectTypeName().AsAscii(), .Function = apFunction->GetName().AsAscii()};
+    if (!apFunction->GetIsStatic())
+    {
+        auto self = Read(aFrame.self);
+        if (!self || !std::holds_alternative<LocalForm>(*self))
+            return std::nullopt;
+        call.Self = std::move(*self);
+    }
+    const uint32_t cPage = aFrame.GetPageForFrame();
+    for (uint32_t i = 0; i < apFunction->GetParamCount(); ++i)
+    {
+        auto value = Read(*aFrame.GetStackFrameVariable(i, cPage));
+        if (!value)
+            return std::nullopt;
+        call.Arguments.push_back(std::move(*value));
+    }
+    return call;
 }
 
 void Write(BSScript::Variable& aVariable, const LocalValue& acValue) noexcept

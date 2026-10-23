@@ -2,8 +2,6 @@
 
 #include <VersionDb.h>
 
-#include <Zydis/Zydis.h>
-
 #include <windows.h>
 
 #include <algorithm>
@@ -11,6 +9,7 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -19,10 +18,7 @@ namespace NativeReach
 {
 namespace
 {
-// Calls followed from the native's function: deeper reaches unrelated engine code (papyrus_natives.py, depth 2-6).
-constexpr int cDepth = 3;
-// A function without unwind data (a leaf) is read until it returns, or this far.
-constexpr uintptr_t cLeafBytes = 0x400;
+using Module = Range; // a module's image: its base to its end
 
 // A CommonLibSSE native keeps a std::function at +0x50 (NativeFunction::_stub): MSVC holds a function pointer in
 // place (its _Func_impl: vtable, then the pointer) with the _Impl pointer last, pointing at itself.
@@ -36,24 +32,12 @@ struct StdFunction
 static_assert(sizeof(StdFunction) == sizeof(std::function<void()>) && offsetof(StdFunction, pImpl) == 0x38);
 static_assert(offsetof(BSScript::NativeFunction, pFunction) == 0x50);
 
-struct Module
-{
-    uintptr_t Base;
-    uintptr_t End;
-
-    bool Contains(uintptr_t aAddress) const noexcept { return aAddress >= Base && aAddress < End; }
-};
-
-// What one function reads and calls.
-struct Facts
-{
-    bool Reads{};
-    std::vector<uintptr_t> Callees;
-};
-
 std::mutex s_lock;
 std::unordered_map<BSScript::IFunction*, bool> s_natives;
 std::unordered_map<uintptr_t, Facts> s_functions;
+
+std::shared_mutex s_callsLock; // a leaf; CallOf reads it on every native call
+std::unordered_map<BSScript::IFunction*, Call> s_calls;
 
 // This game's per-player objects: the player, its stats and its screen.
 const std::unordered_set<uintptr_t>& PerPlayer() noexcept
@@ -84,14 +68,42 @@ const std::unordered_set<uintptr_t>& PerPlayer() noexcept
     return s_addresses;
 }
 
-const ZydisDecoder& Decoder() noexcept
+// The engine functions a script's call ends in: a cutscene's (docs/design/cutscenes.md), and the world's.
+const std::unordered_map<uintptr_t, Call>& CallFunctions() noexcept
 {
-    static const ZydisDecoder s_decoder = [] {
-        ZydisDecoder decoder;
-        ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
-        return decoder;
+    POINTER_SKYRIMSE(void, s_toggleControls, 68545);   // ControlMap::ToggleControls
+    POINTER_SKYRIMSE(void, s_fade, 52847);             // the fade FadeOutGame and the menus use
+    POINTER_SKYRIMSE(void, s_imodTrigger, 18570);      // ImageSpaceModifierInstanceForm::Trigger
+    POINTER_SKYRIMSE(void, s_imodCrossFade, 18575);    // TESImageSpaceModifier::ApplyCrossFade
+    POINTER_SKYRIMSE(void, s_imodStop, 18573);         // ImageSpaceModifierInstanceForm::Stop
+    POINTER_SKYRIMSE(void, s_imodStopCrossFade, 18577);
+    POINTER_SKYRIMSE(void, s_shakeCamera, 33012);
+    POINTER_SKYRIMSE(void, s_forceFirstPerson, 50790); // PlayerCamera
+    POINTER_SKYRIMSE(void, s_forceThirdPerson, 50796);
+    POINTER_SKYRIMSE(void, s_setCameraTarget, 50838);
+    POINTER_SKYRIMSE(void, s_musicAdd, 35145);         // BSMusicManager
+    POINTER_SKYRIMSE(void, s_musicRemove, 35146);
+    POINTER_SKYRIMSE(void, s_rumble, 68528);           // the gamepad's rumble queues
+    POINTER_SKYRIMSE(void, s_setStage, 25004);         // TESQuest::SetStage
+    static const std::unordered_map<uintptr_t, Call> s_functions = [] {
+        std::unordered_map<uintptr_t, Call> functions;
+        functions[reinterpret_cast<uintptr_t>(s_toggleControls.GetPtr())] = Call::kControls;
+        functions[reinterpret_cast<uintptr_t>(s_setStage.GetPtr())] = Call::kWorld;
+        for (const auto* pFunction : {&s_fade, &s_imodTrigger, &s_imodCrossFade, &s_imodStop, &s_imodStopCrossFade, &s_shakeCamera, &s_forceFirstPerson,
+                                      &s_forceThirdPerson, &s_setCameraTarget, &s_musicAdd, &s_musicRemove, &s_rumble})
+            functions[reinterpret_cast<uintptr_t>(pFunction->GetPtr())] = Call::kScreen;
+        functions.erase(0);
+        return functions;
     }();
-    return s_decoder;
+    return s_functions;
+}
+
+// The screen's objects read where no function says it: the movie player (Game.PlayBink).
+const std::unordered_set<uintptr_t>& ScreenObjects() noexcept
+{
+    POINTER_SKYRIMSE(void, s_moviePlayer, 412214);
+    static const std::unordered_set<uintptr_t> s_objects{reinterpret_cast<uintptr_t>(s_moviePlayer.GetPtr())};
+    return s_objects;
 }
 
 std::optional<Module> ModuleOf(uintptr_t aAddress) noexcept
@@ -169,120 +181,86 @@ const RUNTIME_FUNCTION* Root(const RUNTIME_FUNCTION* apEntry, uintptr_t aImageBa
     }
 }
 
-struct Range
+// This process's code, as CodeReach reads it.
+class ProcessCode final : public Code
 {
-    uintptr_t Begin;
-    uintptr_t End;
+  public:
+    std::span<const uint8_t> At(uintptr_t aAt, size_t aMax) const noexcept override
+    {
+        return {reinterpret_cast<const uint8_t*>(aAt), aMax};
+    }
+
+    std::optional<Entry> EntryOf(uintptr_t aAddress) const noexcept override
+    {
+        DWORD64 imageBase = 0;
+        const RUNTIME_FUNCTION* pEntry = RtlLookupFunctionEntry(aAddress, &imageBase, nullptr);
+        if (!pEntry)
+            return std::nullopt;
+        return Entry{{imageBase + pEntry->BeginAddress, imageBase + pEntry->EndAddress}, imageBase + Root(pEntry, imageBase)->BeginAddress};
+    }
+
+    std::optional<uintptr_t> HeldBy(uintptr_t aCell) const noexcept override { return NativeReach::HeldBy(aCell); }
+    bool IsCode(uintptr_t aAddress) const noexcept override { return NativeReach::IsCode(aAddress); }
 };
 
-// Reads the function at aFunction (in acModule), over each of its unwind entries: the per-player objects its operands
-// address, and the functions it calls or tail-jumps to. In a plugin, an object or function is also reached through
-// the cell holding its address.
-Facts Read(uintptr_t aFunction, const Module& acModule, bool aThroughCells) noexcept
+const Objects& EngineObjects() noexcept
 {
-    Facts facts;
-    DWORD64 imageBase = 0;
-    const RUNTIME_FUNCTION* pEntry = RtlLookupFunctionEntry(aFunction, &imageBase, nullptr);
-    const RUNTIME_FUNCTION* pRoot = pEntry ? Root(pEntry, imageBase) : nullptr;
-    if (pRoot && imageBase + pRoot->BeginAddress != aFunction)
-        return facts; // not a function's start
-    // A leaf (no entry) is read until it returns.
-    std::vector<Range> parts{{aFunction, pEntry ? imageBase + pEntry->EndAddress : std::min(aFunction + cLeafBytes, acModule.End)}};
-    const auto cIsRead = [&parts](uintptr_t aAddress) {
-        return std::ranges::any_of(parts, [aAddress](const Range& acPart) { return aAddress >= acPart.Begin && aAddress < acPart.End; });
-    };
-    // Another entry of this function: added to what is read.
-    const auto cAddPart = [&](uintptr_t aAddress) {
-        DWORD64 base = 0;
-        const RUNTIME_FUNCTION* pPart = pRoot ? RtlLookupFunctionEntry(aAddress, &base, nullptr) : nullptr;
-        if (!pPart || base != imageBase || Root(pPart, base)->BeginAddress != pRoot->BeginAddress)
-            return false;
-        if (!cIsRead(base + pPart->BeginAddress))
-            parts.push_back({base + pPart->BeginAddress, base + pPart->EndAddress});
-        return true;
-    };
-
-    ZydisDecodedInstruction instruction;
-    ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
-    for (size_t part = 0; part < parts.size(); ++part)
-    {
-        const Range cPart = parts[part];
-        for (uintptr_t at = cPart.Begin; at < cPart.End; at += instruction.length)
-        {
-            if (ZYAN_FAILED(ZydisDecoderDecodeFull(&Decoder(), reinterpret_cast<const void*>(at), cPart.End - at, &instruction, operands)))
-                break;
-            const bool cIsCall = instruction.meta.category == ZYDIS_CATEGORY_CALL || instruction.meta.category == ZYDIS_CATEGORY_UNCOND_BR;
-            const bool cIsBranch = cIsCall || instruction.meta.category == ZYDIS_CATEGORY_COND_BR;
-            for (uint8_t i = 0; i < instruction.operand_count_visible; ++i)
-            {
-                const ZydisDecodedOperand& acOperand = operands[i];
-                const bool cIsMemory = acOperand.type == ZYDIS_OPERAND_TYPE_MEMORY && acOperand.mem.base == ZYDIS_REGISTER_RIP;
-                const bool cIsTarget = acOperand.type == ZYDIS_OPERAND_TYPE_IMMEDIATE && acOperand.imm.is_relative && cIsBranch;
-                ZyanU64 address = 0;
-                if ((!cIsMemory && !cIsTarget) || ZYAN_FAILED(ZydisCalcAbsoluteAddress(&instruction, &acOperand, at, &address)))
-                    continue;
-                if (cIsTarget)
-                {
-                    if (!cIsRead(address) && !cAddPart(address) && cIsCall)
-                        facts.Callees.push_back(address);
-                }
-                else if (PerPlayer().contains(address))
-                    facts.Reads = true;
-                else if (aThroughCells && acModule.Contains(address))
-                {
-                    const std::optional<uintptr_t> cHeld = HeldBy(address);
-                    if (cHeld && PerPlayer().contains(*cHeld))
-                        facts.Reads = true;
-                    else if (cHeld && cIsCall && IsCode(*cHeld))
-                        facts.Callees.push_back(*cHeld);
-                }
-            }
-            const bool cEnds = instruction.mnemonic == ZYDIS_MNEMONIC_RET || instruction.mnemonic == ZYDIS_MNEMONIC_INT3 ||
-                               instruction.mnemonic == ZYDIS_MNEMONIC_JMP;
-            if (!pEntry && cEnds)
-                break;
-        }
-        if (pEntry)
-            cAddPart(cPart.End); // the next entry, when it is this function's
-    }
-    return facts;
+    static const Objects s_objects{PerPlayer(), ScreenObjects()};
+    return s_objects;
 }
 
+// The facts of a function, read once (under s_lock).
+const Facts& FactsOf(uintptr_t aFunction, const Module& acGame, const Module& acOwn) noexcept
+{
+    auto it = s_functions.find(aFunction);
+    if (it == s_functions.end())
+    {
+        const Module* pModule = acGame.Contains(aFunction) ? &acGame : acOwn.Contains(aFunction) ? &acOwn : nullptr;
+        static const ProcessCode s_code;
+        it = s_functions.emplace(aFunction, pModule ? Read(aFunction, *pModule, pModule != &acGame, s_code, EngineObjects()) : Facts{}).first;
+    }
+    return it->second;
+}
+
+Call ClassifyCallback(uintptr_t aCallback) noexcept
+{
+    const std::optional<Module> cOwn = ModuleOf(aCallback);
+    return cOwn ? ClassifyCall(FactsOf(aCallback, Game(), *cOwn), CallFunctions()) : Call::kNone;
+}
+
+// The engine's code and the native's own plugin are followed; never other modules (imports, the CRT).
 bool Classify(uintptr_t aCallback) noexcept
 {
     const Module& cGame = Game();
     const std::optional<Module> cOwn = ModuleOf(aCallback);
     if (!cOwn)
         return false;
-    // The engine's code and the native's own plugin; never other modules (imports, the CRT).
-    const auto cModuleOf = [&](uintptr_t aAddress) -> const Module* {
-        return cGame.Contains(aAddress) ? &cGame : cOwn->Contains(aAddress) ? &*cOwn : nullptr;
-    };
-
-    std::unordered_set<uintptr_t> seen{aCallback};
-    std::vector<uintptr_t> level{aCallback};
-    for (int depth = 0; depth <= cDepth && !level.empty(); ++depth)
-    {
-        std::vector<uintptr_t> next;
-        for (const uintptr_t cFunction : level)
-        {
-            auto it = s_functions.find(cFunction);
-            if (it == s_functions.end())
-            {
-                const Module* pModule = cModuleOf(cFunction);
-                it = s_functions.emplace(cFunction, pModule ? Read(cFunction, *pModule, pModule != &cGame) : Facts{}).first;
-            }
-            if (it->second.Reads)
-                return true;
-            for (const uintptr_t cCallee : it->second.Callees)
-                if (cModuleOf(cCallee) && seen.insert(cCallee).second)
-                    next.push_back(cCallee);
-        }
-        level = std::move(next);
-    }
-    return false;
+    return Reaches(
+        aCallback, [&](uintptr_t aFunction) -> const Facts& { return FactsOf(aFunction, cGame, *cOwn); },
+        [&](uintptr_t aCallee) { return cGame.Contains(aCallee) || cOwn->Contains(aCallee); });
 }
 } // namespace
+
+Call CallOf(BSScript::IFunction* apFunction) noexcept
+{
+    {
+        std::shared_lock _{s_callsLock};
+        if (const auto it = s_calls.find(apFunction); it != s_calls.end())
+            return it->second;
+    }
+    Call call = Call::kNone;
+    {
+        std::scoped_lock _{s_lock};
+        if (const uintptr_t cCallback = CallbackOf(apFunction))
+            call = ClassifyCallback(cCallback);
+    }
+    if (call != Call::kNone)
+        spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),
+                      call == Call::kWorld ? "world" : call == Call::kControls ? "controls" : "screen");
+    std::unique_lock _{s_callsLock};
+    s_calls.emplace(apFunction, call);
+    return call;
+}
 
 bool ReachesThisPlayer(BSScript::IFunction* apFunction) noexcept
 {

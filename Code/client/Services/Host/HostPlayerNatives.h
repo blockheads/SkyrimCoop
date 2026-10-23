@@ -12,11 +12,13 @@ struct HostNetwork;
 struct HostPlayers;
 struct PlayerNativeRequest;
 struct PlayerNativeResultRequest;
+struct WorldCallRequest;
 
 /**
  * @brief Natives on "the player" the host's script called for a guest (Game.AdvanceSkill, Game.QueryStat): that
  * guest's game runs them (docs/design/party-model.md, rule 2). One returning a value keeps the host's script waiting
- * until that game answers, or leaves.
+ * until that game answers, or leaves. The other way, a guest's own script changing the world (a quest's stage) is
+ * the host's game's to make, for that guest.
  */
 struct HostPlayerNatives
 {
@@ -31,6 +33,8 @@ struct HostPlayerNatives
     void OnPlayerNative(const PlayerNativeRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Only from the game it was sent to: back to the host's game.
     void OnPlayerNativeResult(const PlayerNativeResultRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // Only from a guest: to the host's game, for that guest's character.
+    void OnWorldCall(const WorldCallRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Before the player is off the list: what its game was asked goes unanswered (the host's script gets none).
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 

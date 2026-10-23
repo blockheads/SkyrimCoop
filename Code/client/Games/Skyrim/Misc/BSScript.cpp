@@ -176,11 +176,11 @@ template <class T> T* BSScript::Variable::ExtractComplexType() noexcept
     return pPolicy->GetObjectForHandle<T>(handle);
 }
 
-void BSScript::IFunctionArguments::Statement::SetSize(uint32_t aCount) noexcept
+bool BSScript::IFunctionArguments::Statement::SetSize(uint32_t aCount) noexcept
 {
-    using TSetSize = void(BSScript::IFunctionArguments::Statement*, uint32_t aCount);
+    using TSetSize = bool(BSScript::IFunctionArguments::Statement*, uint32_t aCount);
     POINTER_SKYRIMSE(TSetSize, s_setSize, 53915);
-    s_setSize(this, aCount);
+    return s_setSize(this, aCount);
 }
 
 BSScript::IObjectHandlePolicy* BSScript::IObjectHandlePolicy::Get() noexcept

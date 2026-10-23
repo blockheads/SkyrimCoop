@@ -30,6 +30,19 @@ A script stack runs for a guest when:
   queues the fragment on that thread; the dialogue hook wraps it in `ScopedCause` for the character
   `HostConversation` names (`IDialogueBridge::Filters::LineFor`).
 
+**This game's own player, and the story** (2026-10-23, for `PartyNatives`: `docs/design/cutscenes.md`, "Whose
+moment"). In a session the same tags also name this game's player (0x14) on the host, as they always did on a guest:
+
+- a call the engine queues (no native running: `t_nativeDepth`) with the player as an argument;
+- an event `WorldEvents::IsOwnEvent` calls the player's own (SKSE's input and menu events, an event on the player,
+  a timer the player's scripts set), when no native runs and no cause is set;
+- the host's own picked line (`HostConversation::LineFor` returns 0x14).
+
+A 0x14 tag changes nothing for rule 2 (`GuestCharacter(0x14)` is null). `MagicTarget::IsWorldCast` treats it as no
+guest. A `SetStage` (`NativeReach::Call::kWorld`) running in a stack with a player's cause marks what it queues as
+the **story** (`Cause::Story`: its fragment), and the mark follows that stack's natives, the calls they queue and
+the timers they set.
+
 | ID | Engine function | Our hook | What it does here |
 |---|---|---|---|
 | 104943 | `Internal::RawFuncCallQuery` constructor `(callType, objectType, name, self, args)` | `HookCallQueued` | Decides the guest a queued call runs for (above); arguments already built, read without engine calls. |
@@ -117,6 +130,9 @@ host). Natives with a self are not read: they act on what they are given (below,
   character creation flags (`EnableFastTravel`, `ServeTime`, `SetInChargen`: leaves IDA had not made functions,
   found by the plugin's reading first). Not tested: a carriage ride (`CarriageSystemScript` travels from the stack
   of the player sitting down, not the picked line's).
+- **The screen's calls come first:** a native whose own code takes the controls or changes the screen (fades,
+  camera, shakes, music) runs on every game, not on the guest's alone, though it reaches the player too (`PartyNatives`, `docs/design/cutscenes.md`). On a guest, its own script's call setting a quest's stage
+  goes to the host (`PlayerNatives::SendToHost`).
 - **Misses stay on the host**, as before: a native reaching the player through a virtual call or a queued task, or
   an object not in the set. `PlayBink` reads the movie player (`gBGSMoviePlayer` 412214), left out on purpose: a
   video is a cutscene, which the whole party sees (`party-model.md`, Cutscenes), so it waits for the cutscene work to

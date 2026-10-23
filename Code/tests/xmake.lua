@@ -9,4 +9,6 @@ target("TPTests")
     add_packages("catch2", "glm", "spdlog", "rpmalloc")
 
 includes("bridge")
+includes("client")
+includes("games")
 includes("peer")

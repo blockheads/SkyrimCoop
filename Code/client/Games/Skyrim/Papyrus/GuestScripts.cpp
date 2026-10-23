@@ -1,5 +1,8 @@
 #include <Papyrus/GuestScripts.h>
+#include <Papyrus/NativeReach.h>
+#include <Papyrus/PartyNativesScope.h>
 #include <Papyrus/PlayerNatives.h>
+#include <Papyrus/ScriptTags.h>
 
 #include <Actor.h>
 #include <Forms/TESForm.h>
@@ -122,7 +125,7 @@ Hooks::Initializer s_hooks([]() {
     HOOK(&RealSetOwnerForm, HookSetOwnerForm);
 });
 
-constexpr uint32_t cPlayerFormId = 0x14;
+constexpr uint32_t cPlayerFormId = kThisPlayer;
 
 bool IsHosting() noexcept
 {
@@ -229,173 +232,30 @@ class PlayerInFrame
 
 // --- Tags: which guest each call and stack runs for ---
 
-enum class Timer : uint8_t
-{
-    kOnce,
-    kRepeat,
-    kStop,
-};
-
-// A script's timer or registration: when it fires, the engine queues one of Events on the script that set it.
-struct TimerNative
-{
-    std::string_view Name;
-    std::array<std::string_view, 2> Events;
-    Timer Kind;
-};
-
-// Form, Alias and ActiveMagicEffect share these names.
-constexpr TimerNative cTimerNatives[] = {
-    {"RegisterForSingleUpdate", {"OnUpdate"}, Timer::kOnce},
-    {"RegisterForUpdate", {"OnUpdate"}, Timer::kRepeat},
-    {"UnregisterForUpdate", {"OnUpdate"}, Timer::kStop},
-    {"RegisterForSingleUpdateGameTime", {"OnUpdateGameTime"}, Timer::kOnce},
-    {"RegisterForUpdateGameTime", {"OnUpdateGameTime"}, Timer::kRepeat},
-    {"UnregisterForUpdateGameTime", {"OnUpdateGameTime"}, Timer::kStop},
-    {"RegisterForAnimationEvent", {"OnAnimationEvent", "OnAnimationEventUnregistered"}, Timer::kRepeat},
-    {"UnregisterForAnimationEvent", {"OnAnimationEvent"}, Timer::kStop},
-    {"RegisterForSleep", {"OnSleepStart", "OnSleepStop"}, Timer::kRepeat},
-    {"UnregisterForSleep", {"OnSleepStart", "OnSleepStop"}, Timer::kStop},
-    {"RegisterForLOS", {"OnGainLOS", "OnLostLOS"}, Timer::kRepeat},
-    {"RegisterForSingleLOSGain", {"OnGainLOS"}, Timer::kOnce},
-    {"RegisterForSingleLOSLost", {"OnLostLOS"}, Timer::kOnce},
-    {"UnregisterForLOS", {"OnGainLOS", "OnLostLOS"}, Timer::kStop},
-    {"RegisterForTrackedStatsEvent", {"OnTrackedStatsEvent"}, Timer::kRepeat},
-    {"UnregisterForTrackedStatsEvent", {"OnTrackedStatsEvent"}, Timer::kStop},
-};
-
-const TimerNative* FindTimerNative(std::string_view aName) noexcept
-{
-    const auto it = std::ranges::find_if(cTimerNatives, [aName](const auto& acTimer) { return SameName(acTimer.Name, aName); });
-    return it != std::end(cTimerNatives) ? it : nullptr;
-}
-
-// The timer event aEvent names, spelled as cTimerNatives spells it ("" if none).
-std::string_view TimerEvent(std::string_view aEvent) noexcept
-{
-    for (const auto& cTimer : cTimerNatives)
-        for (const std::string_view cEvent : cTimer.Events)
-            if (!cEvent.empty() && SameName(cEvent, aEvent))
-                return cEvent;
-    return {};
-}
-
-// Its lock is a leaf: no engine call while it is held.
-class Tags
-{
-  public:
-    // False until a guest's call is first tagged: until then the hooks skip the lock.
-    bool Any() const noexcept { return m_any.load(std::memory_order_relaxed); }
-
-    // A queued call runs for aGuest (0: for no one, a new call where an old one was).
-    void TagCall(const void* apCall, uint32_t aGuest) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        if (aGuest)
-        {
-            m_calls[apCall] = aGuest;
-            m_any = true;
-        }
-        else
-            m_calls.erase(apCall);
-    }
-
-    // The stack that runs the call takes its guest.
-    void MoveToStack(const void* apCall, uint32_t aStackId) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        if (auto call = m_calls.extract(apCall))
-            m_stacks[aStackId] = call.mapped();
-    }
-
-    uint32_t OfStack(uint32_t aStackId) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        const auto it = m_stacks.find(aStackId);
-        return it != m_stacks.end() ? it->second : 0;
-    }
-
-    void EndStack(uint32_t aStackId) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        m_stacks.erase(aStackId);
-    }
-
-    // A script object's timer, set (or stopped) by a stack running for aGuest.
-    void SetTimer(uint64_t aObject, std::string_view aEvent, uint32_t aGuest, Timer aKind) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        const std::pair<uint64_t, std::string> cKey{aObject, aEvent};
-        if (!aGuest || aKind == Timer::kStop)
-            m_timers.erase(cKey);
-        else
-            m_timers[cKey] = {aGuest, aKind == Timer::kRepeat};
-    }
-
-    bool HasTimers() noexcept
-    {
-        std::scoped_lock _{m_lock};
-        return !m_timers.empty();
-    }
-
-    // The guest whose timer raised aEvent on aObject, kept for TakeTimer.
-    uint32_t PeekTimer(uint64_t aObject, std::string_view aEvent) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        const auto it = m_timers.find({aObject, std::string(aEvent)});
-        return it != m_timers.end() ? it->second.Guest : 0;
-    }
-
-    // The guest whose timer raised aEvent on aObject; a single timer is used up.
-    uint32_t TakeTimer(uint64_t aObject, std::string_view aEvent) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        const auto it = m_timers.find({aObject, std::string(aEvent)});
-        if (it == m_timers.end())
-            return 0;
-        const uint32_t cGuest = it->second.Guest;
-        if (!it->second.Repeats)
-            m_timers.erase(it);
-        return cGuest;
-    }
-
-    // A delayed native queued by a guest's script, then run: the guest it runs for.
-    void TagFunctor(const void* apFunctor, uint32_t aGuest) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        m_functors[apFunctor] = aGuest;
-    }
-
-    uint32_t TakeFunctor(const void* apFunctor) noexcept
-    {
-        std::scoped_lock _{m_lock};
-        auto functor = m_functors.extract(apFunctor);
-        return functor ? functor.mapped() : 0;
-    }
-
-  private:
-    struct TimerGuest
-    {
-        uint32_t Guest;
-        bool Repeats;
-    };
-
-    std::mutex m_lock;
-    std::atomic<bool> m_any{false};
-    std::map<const void*, uint32_t> m_calls;                         // queued call -> guest
-    std::map<uint32_t, uint32_t> m_stacks;                            // stack id -> guest
-    std::map<std::pair<uint64_t, std::string>, TimerGuest> m_timers; // (script object, event) -> guest
-    std::map<const void*, uint32_t> m_functors;                      // queued delayed native -> guest
-};
-
 Tags s_tags;
 
-// The guest whose native is running on this thread: what the native queues runs for them too.
+// The guest whose native is running on this thread: what the native queues runs for them too. So does its story.
 thread_local uint32_t t_nativeGuest = 0;
+thread_local bool t_nativeStory = false;
+thread_local uint32_t t_nativeDepth = 0; // natives running on this thread
+
+Cause CauseOf(const BSScript::Stack* apStack) noexcept
+{
+    return apStack && s_tags.Any() ? s_tags.OfStack(apStack->stackId) : Cause{};
+}
 
 uint32_t GuestOf(const BSScript::Stack* apStack) noexcept
 {
-    return apStack && s_tags.Any() ? s_tags.OfStack(apStack->stackId) : 0;
+    return CauseOf(apStack).Player;
+}
+
+// Whether an argument is this game's player: the engine's event of their action (an activation, a trigger, a hit).
+bool PlayerArgument(const BSScript::Arguments* apArguments) noexcept
+{
+    if (!apArguments)
+        return false;
+    return std::ranges::any_of(std::span(apArguments->pData, apArguments->size),
+                               [](const BSScript::Variable& acValue) { return FormIdOf(acValue) == cPlayerFormId; });
 }
 
 // --- The rules ---
@@ -425,17 +285,21 @@ bool HookGetPlayer(BSScript::IFunction* apThis, BSScript::Variable* apBase, BSSc
 
 // --- Tagging ---
 
-// The call runs for the guest whose native queued it, whose character is an argument, or whose timer it answers.
+// The call runs for the guest whose native queued it, whose character is an argument, or whose timer it answers. In a
+// session, an engine event naming this game's player (no native queued it) runs for that player (PartyNatives).
 void* HookCallQueued(void* apThis, int32_t aCallType, void* apObjectType, const BSFixedString* apEvent, const BSScript::Variable* apSelf, const BSScript::Arguments* apArguments)
 {
     void* pResult = RealCallQueued(apThis, aCallType, apObjectType, apEvent, apSelf, apArguments);
-    uint32_t guest = t_nativeGuest ? t_nativeGuest : GuestArgument(apArguments);
     auto* pSelf = apSelf ? apSelf->GetObject() : nullptr;
-    if (!guest && pSelf && apEvent && apEvent->AsAscii() && s_tags.HasTimers())
-        if (const auto cEvent = TimerEvent(apEvent->AsAscii()); !cEvent.empty())
-            guest = s_tags.TakeTimer(pSelf->GetHandle(), cEvent);
-    if (guest || s_tags.Any())
-        s_tags.TagCall(apThis, guest);
+    const QueuedCall cCall{.Native = {t_nativeGuest, t_nativeStory},
+                           .NativeDepth = t_nativeDepth,
+                           .InSession = PartyNatives::InSession(),
+                           .Self = pSelf ? pSelf->GetHandle() : 0,
+                           .Event = apEvent && apEvent->AsAscii() ? apEvent->AsAscii() : ""};
+    const Cause cause = CauseOfCall(
+        s_tags, cCall, [apArguments] { return GuestArgument(apArguments); }, [apArguments] { return PlayerArgument(apArguments); });
+    if (cause.Player || s_tags.Any())
+        s_tags.TagCall(apThis, cause);
     return pResult;
 }
 
@@ -447,31 +311,39 @@ bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall)
 }
 
 // While a native runs for a guest, what it queues runs for them too; a timer it sets fires for them. The player in its
-// frame is the guest's character, and one on the player runs on the guest's game instead (PlayerNatives).
+// frame is the guest's character, and one on the player runs on the guest's game instead (PlayerNatives). A cutscene's
+// call runs here and on every other game (PartyNatives), on any game. A quest's stage set in a stack run for a player
+// is the story: its fragment, and what that queues, run for that player as the story.
 BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
 {
     BSScript::Stack* pStack = appStack ? *appStack : nullptr;
-    uint32_t guest = 0;
+    Cause cause;
+    uint32_t& guest = cause.Player;
     if (pStack && s_tags.Any())
     {
-        guest = GuestOf(pStack);
+        cause = CauseOf(pStack);
         const char* cpName = apThis->GetName().AsAscii();
-        const BSScript::StackFrame* pTop = pStack->pTop;
-        if (const TimerNative* pTimer = cpName ? FindTimerNative(cpName) : nullptr)
-            if (auto* pScript = pTop ? pTop->self.GetObject() : nullptr)
-                for (const std::string_view cEvent : pTimer->Events)
-                    if (!cEvent.empty())
-                        s_tags.SetTimer(pScript->GetHandle(), cEvent, guest, pTimer->Kind);
+        if (auto* pScript = cpName && pStack->pTop ? pStack->pTop->self.GetObject() : nullptr)
+            NativeCalled(s_tags, cpName, pScript->GetHandle(), cause);
     }
+    if (const auto cResult = PlayerNatives::SendToHost(apThis, pStack, guest))
+        return *cResult;
     Actor* pGuest = guest ? GuestCharacter(guest) : nullptr;
     const PlayerInFrame cPlayer(apThis, pGuest ? pStack->pTop : nullptr, pGuest, apVm);
-    if (pGuest)
+    const PartyNatives::Scope cParty(apThis, pStack, guest, cause.Story);
+    if (pGuest && !cParty.IsParty())
         if (const auto cResult = PlayerNatives::SendToGuest(apThis, *pStack, apVm, guest))
             return *cResult;
     const uint32_t cOuter = t_nativeGuest;
-    t_nativeGuest = guest;
+    const bool cOuterStory = t_nativeStory;
+    const Cause cWithin = Within(cause, NativeReach::CallOf(apThis) == NativeReach::Call::kWorld);
+    t_nativeGuest = cWithin.Player;
+    t_nativeStory = cWithin.Story;
+    ++t_nativeDepth;
     const auto cResult = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
+    --t_nativeDepth;
     t_nativeGuest = cOuter;
+    t_nativeStory = cOuterStory;
     return cResult;
 }
 
@@ -499,6 +371,7 @@ BSScript::Variable* HookCastRun(DelayFunctor* apThis, BSScript::Variable* apResu
 
 // A guest's character's base as an owner (a bed rented, a horse bought for Game.GetPlayer()) is the player's base:
 // the party's, each game's own player (docs/design/party-model.md, "Items and gold"). Such a base is a temporary form.
+// Never read through apOwner: a reference loading from its plugin (11595) passes the owner's form id, unresolved.
 void HookSetOwnerForm(void* apThis, TESForm* apOwner)
 {
     constexpr uint32_t cPlayerBaseFormId = 0x7;
@@ -506,7 +379,7 @@ void HookSetOwnerForm(void* apThis, TESForm* apOwner)
         const Actor* pGuest = GuestCharacter(acSlot.load(std::memory_order_relaxed));
         return pGuest && pGuest->baseForm == apOwner;
     };
-    if (apOwner && apOwner->formID >= 0xFF000000 && IsHosting() && std::ranges::any_of(s_guests, cIsGuestBase))
+    if (apOwner && IsHosting() && std::ranges::any_of(s_guests, cIsGuestBase))
         apOwner = TESForm::GetById(cPlayerBaseFormId);
     RealSetOwnerForm(apThis, apOwner);
 }
@@ -525,6 +398,11 @@ uint32_t NativeGuest() noexcept
     return t_nativeGuest;
 }
 
+bool InNative() noexcept
+{
+    return t_nativeDepth != 0;
+}
+
 ScopedCause::ScopedCause(uint32_t aPlayer) noexcept
     : m_outer(t_nativeGuest)
 {
@@ -538,10 +416,7 @@ ScopedCause::~ScopedCause() noexcept
 
 uint32_t RegisteredBy(uint64_t aObject, std::string_view aEvent) noexcept
 {
-    if (!s_tags.HasTimers())
-        return 0;
-    const auto cEvent = TimerEvent(aEvent);
-    return cEvent.empty() ? 0 : s_tags.PeekTimer(aObject, cEvent);
+    return s_tags.RegisteredBy(aObject, aEvent);
 }
 
 void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept

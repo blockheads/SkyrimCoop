@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <string_view>
@@ -18,7 +19,8 @@
 // compare and key them with these (docs/re/systems/engine-names.md).
 [[nodiscard]] inline bool SameName(std::string_view aName, std::string_view aOther) noexcept
 {
-    return aName.size() == aOther.size() && _strnicmp(aName.data(), aOther.data(), aName.size()) == 0;
+    const auto cLower = [](char aChar) { return std::tolower(static_cast<unsigned char>(aChar)); };
+    return std::ranges::equal(aName, aOther, {}, cLower, cLower);
 }
 
 // A map key for an engine name: the same for every spelling of it.

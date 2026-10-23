@@ -1,0 +1,18 @@
+{
+  "name": "leaver-cutscene-gives-back",
+  "doc": "The guest's script (no player behind it) takes the controls, so the host's are taken too; the guest leaves mid-cutscene: the host gets back what that cutscene held (NotifyPlayerLeft).",
+  "steps": [
+    {"do": "script", "game": "guest", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFABE"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE"},
+    {"do": "leave", "game": "guest"},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"}
+  ],
+  "cleanup": [
+    {"do": "join", "game": "guest"},
+    {"do": "script", "game": "host", "by": "player", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"}
+  ]
+}

@@ -16,7 +16,6 @@
 #include <Events/ReferenceJumpEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
-#include <Events/MoveActorEvent.h>
 
 #include <Structs/ActionEvent.h>
 #include <Structs/GridCellCoords.h>
@@ -56,9 +55,8 @@
 #include <Systems/FaceGenSystem.h>
 
 #include <World.h>
-#include <Utils.h>
+#include <SessionIds.h>
 #include <Services/HostService.h>
-#include <Camera/TESCamera.h>
 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept
@@ -324,6 +322,13 @@ void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessag
     if (!m_actorBridge.ActorExists(formIdComponent->Id))
     {
         spdlog::error("{}: : actor not found, form id: {:X}", __FUNCTION__, formIdComponent->Id);
+        // Gone between asking and the answer (its cell unloaded): the copies the host already sent go too.
+        if (acMessage.Owner)
+        {
+            RequestRemoveCharacter message;
+            message.SessionId = acMessage.SessionId;
+            m_transport.Send(message);
+        }
         m_world.destroy(cEntity);
         return;
     }
@@ -1267,14 +1272,13 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
 
 void CharacterService::RunLocalUpdates() noexcept
 {
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
     constexpr auto cDelayBetweenSnapshots = 100ms;
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenSnapshots)
+    if (now - m_lastSnapshot < cDelayBetweenSnapshots)
         return;
 
-    lastSendTimePoint = now;
+    m_lastSnapshot = now;
 
     ReferencesMoveRequest message;
     message.Tick = m_transport.GetTick();

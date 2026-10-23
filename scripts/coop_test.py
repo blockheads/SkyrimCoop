@@ -6,6 +6,10 @@
                       [--save NAME --level N]         (from a save; raise both players' level after loading)
   coop_test.py scenario [names] [--tag a,b] [--shuffle --repeat N] sync scenarios against a running duo; each
                                                       starts from the same baseline and is cleaned up after
+  coop_test.py affected [--base REF] [--run] [--check] select scenarios from changed sources (default HEAD);
+                                                      core changes need the full suite, never started here
+  coop_test.py soak [--hours H | --rounds N] [--seed S] fresh duo each round, shuffled suite, persistent reports;
+                      [--tag a,b]                     a tag limits this to a smoke test of the soak
   coop_test.py reload                                 swap the current build into a running duo and reconnect
   coop_test.py stop                                   kill the test Skyrim instance(s)
   coop_test.py screenshot [out.png]                   capture the off-screen game display
@@ -54,6 +58,7 @@ SKYRIM_RUNTIME_DIR. Every game run keeps its logs in build/coop-test/runs/<time>
 import argparse
 import collections
 import contextlib
+import fnmatch
 import json
 import math
 import os
@@ -772,7 +777,7 @@ def reload_games(seconds=60):
 def command_duo(args):
     """Two real Skyrim instances: host + client on one machine, each must show the other."""
     check_prerequisites()
-    run_dir = new_run_dir("duo")
+    run_dir = getattr(args, "run_dir", None) or new_run_dir("duo")
     passed = False
     try:
         for name in ("", "client"):
@@ -822,8 +827,7 @@ def command_duo(args):
             for name in ("", "client"):
                 select_instance(name)
                 face_actor(next(iter(seen[name or "host"])))
-            time.sleep(0.3)
-            save_home()
+            save_home(cell_name=args.cell if not args.save else None)
     except TestFailure as error:
         print(f"\nFAIL: {error}\nLogs: {run_dir}", file=sys.stderr)
         raise SystemExit(1)
@@ -839,6 +843,7 @@ def command_duo(args):
                 select_instance(name)
                 stop_game()
             log("Both games stopped" + ("" if passed else " (failed run)"))
+    return run_dir
 
 # --- Sync scenarios: run against a `duo --keep-running` session, a few seconds each ------------
 # Scenarios drive both games through the plugin (its test harness, Code/client/TestHarness): the player draws, attacks,
@@ -1996,6 +2001,28 @@ def scenario_quest_stage_reaches_guest():
     finally:
         console_on("", "resetquest BardsCollegeLute")
         client_quest_matches(LUTE_QUEST, "Finn's Lute is reset again")
+
+
+def scenario_guest_script_stage_reaches_host():
+    """A script on the client's own game (an item's, as the Elder Scroll's MQ206.SetStage(20)) sets a quest's stage:
+    the host's game sets it, for the client (PlayerNatives::SendToHost), and runs its fragment; the client takes the
+    stage from the host, its fragment skipped."""
+    console_on("", "resetquest BardsCollegeLute")
+    client_quest_matches(LUTE_QUEST, "Finn's Lute is reset")
+    reset_quest_fragments()
+    try:
+        script_call("client", "Quest", "SetCurrentStageID", [15], on=LUTE_QUEST)
+        wait_for("[host] stage 15 is done", lambda: 15 in quest_snapshot("", LUTE_QUEST)["done"], 5)
+        client_quest_matches(LUTE_QUEST, "stage 15 is done")
+        if not quest_fragments("", LUTE_QUEST):
+            raise TestFailure("[host] ran no fragment for the client's stage")
+        if quest_fragments("client", LUTE_QUEST):
+            raise TestFailure(f"[client] ran {quest_fragments('client', LUTE_QUEST)} of the stage's fragments")
+        console_on("", "resetquest BardsCollegeLute")
+        client_quest_matches(LUTE_QUEST, "Finn's Lute is reset again")
+    finally:
+        for name in ("", "client"):
+            console_on(name, "resetquest BardsCollegeLute")
 
 
 def scenario_quest_completes_for_guest():
@@ -4781,6 +4808,256 @@ def scenario_words_reach_client():
         reset()
 
 
+# --- Cutscenes: the whole party sees them (docs/design/cutscenes.md) -------------------------------------------
+
+ALL_CONTROLS = 0xFFFFFFFF  # ControlMap's enabled controls with nothing taken
+FADE_TO_BLACK_IMOD = 0xF756D  # FadeToBlackImod (IMAD), Harkon's bite's fade
+# Game.DisablePlayerControls(movement, fighting, cam switch, looking, sneaking, menu, activate, journal tabs, POV type)
+TAKE_CONTROLS = [True, True, False, False, False, True, True, False, 0]
+GIVE_CONTROLS = [True] * 8 + [0]
+
+
+def screen(instance):
+    """What a cutscene does to that game's screen: its enabled controls, image-space modifiers and camera shake."""
+    return player_command(instance, {"cmd": "screen"})
+
+
+def script_call(instance, klass, function, args=(), on=None):
+    """That game queues the call as a quest's script would (no player's action behind it)."""
+    request = {"cmd": "papyrus_call", "class": klass, "function": function, "args": list(args)}
+    if on is not None:
+        request["self"] = on
+    player_command(instance, request)
+
+
+def player_script_call(instance, klass, function, args=(), on=None):
+    """That game queues the call as a script its own player's action started (a lever, fishing, a picked line)."""
+    request = {"cmd": "papyrus_call", "class": klass, "function": function, "args": list(args), "player_action": True}
+    if on is not None:
+        request["self"] = on
+    player_command(instance, request)
+
+
+def screen_marker(instance, other):
+    """A party call after the calls before it (a shake, from a script with no player behind it): once `other`
+    shakes, any of the earlier calls sent to it has arrived and run too (one session, in order)."""
+    wait_for(f"[{other or 'host'}] no shake before the marker", lambda: screen(other)["shake"]["seconds"] <= 0, 5)
+    script_call(instance, "Game", "ShakeCamera", [None, 0.5, 2.0])
+    wait_for(f"[{other or 'host'}] the marker's shake arrives", lambda: screen(other)["shake"]["seconds"] > 0, 5)
+
+
+def party_controls(state, what):
+    """Both games' controls are `state` (a ControlMap mask; None: anything but all on)."""
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] controls {what}",
+                 lambda name=name: (screen(name)["controls"] != ALL_CONTROLS) if state is None else screen(name)["controls"] == state, 5)
+
+
+def scenario_cutscene_controls_reach_party():
+    """A script on the host takes its player's controls (Game.DisablePlayerControls, as a cutscene does): the client's
+    are taken too, the same ones, and come back with the host's (PartyNatives). Then the host takes them again and the
+    client leaves mid-cutscene: its game gives its own back."""
+    try:
+        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        party_controls(None, "taken by the host's cutscene")
+        if screen("client")["controls"] != screen("")["controls"]:
+            raise TestFailure(f"[client] controls {screen('client')['controls']:X}, the host's {screen('')['controls']:X}")
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back")
+
+        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        party_controls(None, "taken again")
+        disconnect_client()
+        wait_for("[client] its controls come back as it leaves", lambda: screen("client")["controls"] == ALL_CONTROLS, 5)
+        rejoin_client()
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back at the end")
+    finally:
+        for name in ("", "client"):
+            script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        if game_state("client").get("online") is False:
+            rejoin_client()
+
+
+def scenario_cutscene_fade_reaches_party():
+    """In the host's cutscene (controls taken) its script fades to black (ImageSpaceModifier.Apply on FadeToBlackImod)
+    and shakes the camera: the client's screen fades and shakes too, and clears with the host's; the controls come
+    back with the host's."""
+    try:
+        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        party_controls(None, "taken by the host's cutscene")
+        script_call("", "ImageSpaceModifier", "Apply", [1.0], on=FADE_TO_BLACK_IMOD)
+        script_call("", "Game", "ShakeCamera", [None, 0.5, 2.0])
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] fades to black", lambda name=name: FADE_TO_BLACK_IMOD in screen(name)["imods"], 5)
+            wait_for(f"[{name or 'host'}] shakes", lambda name=name: screen(name)["shake"]["seconds"] > 0, 5)
+        script_call("", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the fade clears", lambda name=name: FADE_TO_BLACK_IMOD not in screen(name)["imods"], 5)
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back")
+    finally:
+        script_call("", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+
+
+def scenario_guest_cutscene_reaches_host():
+    """A script with no player's action behind it on the client's game takes its player's controls and fades to
+    black: the host's controls and screen follow, and come back with the client's. (Its player's own script would be
+    its moment alone: player-moment-stays-theirs.)"""
+    try:
+        script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        party_controls(None, "taken by the client's cutscene")
+        script_call("client", "ImageSpaceModifier", "Apply", [1.0], on=FADE_TO_BLACK_IMOD)
+        wait_for("[host] fades to black", lambda: FADE_TO_BLACK_IMOD in screen("")["imods"], 5)
+        script_call("client", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+        wait_for("[host] the fade clears", lambda: FADE_TO_BLACK_IMOD not in screen("")["imods"], 5)
+        script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back with the client's")
+    finally:
+        script_call("client", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+        script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+
+
+FIGHTING_ONLY = [False, True, False, False, False, False, False, False, 0]  # DisablePlayerControls: fighting, movement left
+MONK_SCENE_QUEST = 0x76F39  # MG04MonkSceneQuest: stage 0 applies its intro, then its loop; stage 200 pops to its outro
+MONK_INTRO_IMOD, MONK_LOOP_IMOD, MONK_OUTRO_IMOD = 0xEF960, 0xEF95F, 0xEF961
+
+
+def scenario_player_moment_stays_theirs():
+    """A script one player's action started (a lever, fishing, the lute) takes that player's controls and fades their
+    screen: that game's alone, the other's controls and screen stay as they are (PartyNatives; docs/design/cutscenes.md,
+    "Whose moment"). The host's player first, then the client's."""
+    for player, other in (("", "client"), ("client", "")):
+        try:
+            player_script_call(player, "Game", "DisablePlayerControls", TAKE_CONTROLS)
+            player_script_call(player, "ImageSpaceModifier", "Apply", [1.0], on=FADE_TO_BLACK_IMOD)
+            wait_for(f"[{player or 'host'}] its own moment takes its controls and fades",
+                     lambda: screen(player)["controls"] != ALL_CONTROLS and FADE_TO_BLACK_IMOD in screen(player)["imods"], 5)
+            screen_marker(player, other)
+            if screen(other)["controls"] != ALL_CONTROLS:
+                raise TestFailure(f"[{other or 'host'}] its controls are {screen(other)['controls']:X}: another player's moment took them")
+            if FADE_TO_BLACK_IMOD in screen(other)["imods"]:
+                raise TestFailure(f"[{other or 'host'}] fades with another player's moment")
+            player_script_call(player, "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+            player_script_call(player, "Game", "EnablePlayerControls", GIVE_CONTROLS)
+            wait_for(f"[{player or 'host'}] its controls come back", lambda: screen(player)["controls"] == ALL_CONTROLS, 5)
+        finally:
+            # Each game's own, never sent: a party give-back could land after the next direction's moment.
+            for name in ("", "client"):
+                player_script_call(name, "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+                player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
+
+
+def scenario_restriction_stays_with_game():
+    """A script with no player behind it turns off fighting only, movement left (Esbern's door, the Volkihar banquet):
+    a restriction, not a cutscene, so it stays with its game's player and the client's controls stay all on."""
+    try:
+        script_call("", "Game", "DisablePlayerControls", FIGHTING_ONLY)
+        wait_for("[host] fighting is off", lambda: screen("")["controls"] != ALL_CONTROLS, 5)
+        screen_marker("", "client")
+        if screen("client")["controls"] != ALL_CONTROLS:
+            raise TestFailure(f"[client] its controls are {screen('client')['controls']:X}: the host's restriction reached it")
+    finally:
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back")
+
+
+def scenario_player_stage_cutscene_reaches_party():
+    """A player's own script shaking the camera shakes that game only; a quest stage that player's script sets is the
+    story, and its fragment's screen calls reach the client too (MG04MonkSceneQuest stage 200: its loop pops to its
+    outro, ImageSpaceModifier.PopTo)."""
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] no shake yet", lambda name=name: screen(name)["shake"]["seconds"] <= 0, 5)
+    try:
+        player_script_call("", "Game", "ShakeCamera", [None, 0.5, 2.0])
+        wait_for("[host] its own script shakes it", lambda: screen("")["shake"]["seconds"] > 0, 5)
+        script_call("", "ImageSpaceModifier", "Apply", [1.0], on=FADE_TO_BLACK_IMOD)  # the marker: a party call after it
+        wait_for("[client] the marker's fade arrives", lambda: FADE_TO_BLACK_IMOD in screen("client")["imods"], 5)
+        if screen("client")["shake"]["seconds"] > 0:
+            raise TestFailure("[client] shakes with the host player's own script")
+        script_call("", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+
+        player_command("", {"cmd": "quest_allow_rerun", "quest": MONK_SCENE_QUEST})  # it runs once per save
+        script_call("", "Quest", "Start", [], on=MONK_SCENE_QUEST)  # the world's: its intro and loop are everyone's
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] the scene's loop", lambda name=name: MONK_LOOP_IMOD in screen(name)["imods"], 10)
+        player_script_call("", "Quest", "SetCurrentStageID", [200], on=MONK_SCENE_QUEST)
+        wait_for("[host] its stage 200 pops to the outro", lambda: MONK_OUTRO_IMOD in screen("")["imods"], 5)
+        wait_for("[client] the host player's stage pops it to the outro too", lambda: MONK_OUTRO_IMOD in screen("client")["imods"], 5)
+    finally:
+        for imod in (FADE_TO_BLACK_IMOD, MONK_INTRO_IMOD, MONK_LOOP_IMOD, MONK_OUTRO_IMOD):
+            script_call("", "ImageSpaceModifier", "Remove", [], on=imod)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] its screen clears", lambda name=name: not screen(name)["imods"], 5)
+        console_on("", "resetquest MG04MonkSceneQuest")
+        client_quest_matches(MONK_SCENE_QUEST, "the monks' scene is reset")
+
+
+def scenario_overlapping_cutscenes_keep_controls():
+    """Two cutscenes at once on the client: the host's (shared) and the client player's own moment. Whichever gives
+    its controls back first gives back only what the other does not hold (PartyNatives' holds), in both orders."""
+    try:
+        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        party_controls(None, "taken by the host's cutscene")
+        player_script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        player_script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        player_script_call("client", "Game", "ShakeCamera", [None, 0.5, 2.0])  # after its give-back, on its VM
+        wait_for("[client] its own moment's give-back has run", lambda: screen("client")["shake"]["seconds"] > 0, 5)
+        if screen("client")["controls"] == ALL_CONTROLS:
+            raise TestFailure("[client] its own moment gave back the controls the host's cutscene holds")
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back with the host's cutscene")
+
+        player_script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        wait_for("[client] its own moment takes its controls", lambda: screen("client")["controls"] != ALL_CONTROLS, 5)
+        script_call("", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        screen_marker("", "client")
+        if screen("client")["controls"] == ALL_CONTROLS:
+            raise TestFailure("[client] the host's cutscene gave back the controls the client's own moment holds")
+        player_script_call("client", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "back with the client's own moment")
+    finally:
+        for name in ("", "client"):
+            player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        script_call("", "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "all back")
+
+
+def scenario_leaver_cutscene_gives_back():
+    """The client's script (no player behind it) takes the controls, so the host's are taken too; the client leaves
+    mid-cutscene: the host gets back what that cutscene held (NotifyPlayerLeft)."""
+    try:
+        script_call("client", "Game", "DisablePlayerControls", TAKE_CONTROLS)
+        party_controls(None, "taken by the client's cutscene")
+        disconnect_client()
+        wait_for("[host] its controls come back as the client leaves", lambda: screen("")["controls"] == ALL_CONTROLS, 5)
+    finally:
+        if game_state("client").get("online") is False:
+            rejoin_client()
+        for name in ("", "client"):
+            player_script_call(name, "Game", "EnablePlayerControls", GIVE_CONTROLS)
+        party_controls(ALL_CONTROLS, "all back")
+
+
+def scenario_screen_reaches_party():
+    """Outside a cutscene too, a script's shake and fade are the party's (a trap, a boss's music, a spell's look): the
+    host's script shakes the camera and fades, and the client's screen does too, and clears with the host's."""
+    try:
+        script_call("", "Game", "ShakeCamera", [None, 0.5, 2.0])
+        script_call("", "ImageSpaceModifier", "Apply", [1.0], on=FADE_TO_BLACK_IMOD)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] shakes and fades",
+                     lambda name=name: screen(name)["shake"]["seconds"] > 0 and FADE_TO_BLACK_IMOD in screen(name)["imods"], 5)
+        script_call("", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+        wait_for("[client] the fade clears", lambda: FADE_TO_BLACK_IMOD not in screen("client")["imods"], 5)
+        if screen("client")["controls"] != ALL_CONTROLS:
+            raise TestFailure(f"[client] its controls are {screen('client')['controls']:X} though no script took them")
+    finally:
+        script_call("", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
+
+
 def scenario_relief_takes_client_relics():
     """The client, carrying Volunruud's ceremonial axe, puts it in the relief. On the host the door's script holds the
     host's player (stored when its cell loaded) and asks that variable for the relics: in a stack run for the client,
@@ -6433,19 +6710,46 @@ def scenario_input_mouse_cast():
 
 
 
-# --- Isolation: every scenario starts from the same baseline and leaves nothing behind ----------
-# reset_baseline() puts both players back (casts, hands, equipment, values, combat, place) and
-# removes every NPC; scenarios spawn their own NPCs fresh. check_baseline() lists what still
-# differs. The runner resets and checks after every scenario: one that leaves something the reset
-# cannot undo (usually a copy stuck out of sync) fails, instead of the innocent one after it.
+# Isolation resets the world/player fixture and removes owned test NPCs between scenarios.
+# Cleanup that cannot reach the baseline fails the scenario that left it.
 HOME_FILE = "home.json"     # in each game's control dir, written by `duo --keep-running`
 TEST_ITEMS = {IRON_SWORD}   # given out by scenarios, never part of the baseline
 HOME_TOLERANCE = 40.0       # units from the recorded spot
 PLAYER_VALUES = ("health", "magicka", "stamina")
 
 
-def save_home():
-    """Records each player's spot, heading, clothes and level as the baseline the scenarios start from."""
+def world_sync_problems():
+    host, guest = game_state(""), game_state("client")
+    problems = []
+    if host.get("weather") != guest.get("weather"):
+        problems.append(f"weather: host {host.get('weather')}, guest {guest.get('weather')}")
+    if not same_calendar() or not close(host.get("time", {}).get("hour"), guest.get("time", {}).get("hour"), 0.05):
+        problems.append(calendars("calendar differs"))
+    return problems
+
+
+def reset_world(home):
+    world = home["world"]
+    console_on("", f"fw {world['weather']:X}")
+    for field, global_name in (("year", "gameyear"), ("month", "gamemonth"), ("day", "gameday"),
+                               ("hour", "gamehour"), ("scale", "timescale")):
+        console_on("", f"set {global_name} to {world['time'][field]:.8f}")
+
+
+def record_world_home():
+    # Clear noon is the fixture; only the host is forced, and the guest follows normal sync.
+    time_ = calendar("")
+    world = {"weather": CLEAR_WEATHER, "time": {key: time_[key] for key in ("year", "month", "day", "hour", "scale")},
+             "raw_days_at_record": time_.get("raw_days")}
+    world["time"]["hour"] = 12.0
+    reset_world({"world": world})
+    wait_for("baseline: the guest follows the host's weather and calendar", lambda: not world_sync_problems(), 10)
+    return world
+
+
+def save_home(cell_name=HOME_CELL):
+    """Records the world fixture and each player's placement, equipment, level and maximum values."""
+    world = record_world_home()
     for name in ("", "client"):
         me = player_snapshot(name)
         placement = me.get("placement") or {}
@@ -6453,7 +6757,9 @@ def save_home():
             raise TestFailure(f"{name or 'host'}: no player snapshot to record the baseline from")
         home = {"position": placement["position"], "heading": placement["rotation"][2],
                 "equipment": sorted(i for i in me.get("equipment", []) if i not in TEST_ITEMS),
-                "level": game_state(name).get("level")}
+                "level": game_state(name).get("level"), "cell": placement.get("cell"), "cell_name": cell_name,
+                "values": {value: me.get("values", {}).get(f"max_{value}") for value in PLAYER_VALUES},
+                "world": world}
         atomic_write(CONTROL / HOME_FILE, json.dumps(home) + "\n")
     log("Recorded both players' baseline (home.json)")
 
@@ -6464,6 +6770,21 @@ def load_home(instance):
         return json.loads((CONTROL / HOME_FILE).read_text())
     except (OSError, ValueError):
         return None
+
+
+def upgrade_home():
+    homes = {name: load_home(name) for name in ("", "client")}
+    if all(home and home.get("world") and home.get("values") for home in homes.values()):
+        return
+    if not all(homes.values()):
+        raise TestFailure("no player baseline: start duo --keep-running first")
+    world = record_world_home()
+    for name, home in homes.items():
+        me = player_snapshot(name)
+        home.update(world=world, cell=me.get("placement", {}).get("cell"), cell_name=HOME_CELL,
+                    values={value: me.get("values", {}).get(f"max_{value}") for value in PLAYER_VALUES})
+        atomic_write(CONTROL / HOME_FILE, json.dumps(home) + "\n")
+    log("Upgraded home.json with the world fixture and player values")
 
 
 def owned_npcs(instance):
@@ -6503,7 +6824,10 @@ def reset_player(instance, home):
         run_console(f"player.setlevel {home['level']}")
     values = me.get("values") or {}
     for value in PLAYER_VALUES:
-        if values.get(value, 0) < values.get(f"max_{value}", 0) - 0.5:
+        target = home.get("values", {}).get(value)
+        if target is not None and not close(values.get(f"max_{value}"), target, 0.5):
+            run_console(f"player.setav {value} {target:g}")
+        if values.get(value, 0) < (target if target is not None else values.get(f"max_{value}", 0)) - 0.5:
             run_console(f"player.restoreav {value} 100000")
     if (me.get("ai") or {}).get("combat_target"):
         run_console("player.stopcombat")
@@ -6521,23 +6845,42 @@ def reset_player(instance, home):
 def reset_baseline():
     if game_state("client").get("online") is False:
         rejoin_client()
+    home = load_home("")
     for name in ("", "client"):
         for npc in owned_npcs(name):
             console_on(name, f"{npc:08X}.disable")
             console_on(name, f"{npc:08X}.markfordelete")
     for name in ("", "client"):
+        place = load_home(name)
+        if place.get("cell") and player_cell(name) != place["cell"]:
+            if not place.get("cell_name"):
+                raise TestFailure("baseline cell differs and has no coc name; boot duo with --cell")
+            console_on(name, f"coc {place['cell_name']}")
+            wait_for(f"[{name or 'guest'}] back in the baseline cell",
+                     lambda name=name, place=place: player_cell(name) == place["cell"], 60)
+    for name in ("", "client"):
         reset_player(name, load_home(name))
+    reset_world(home)
 
 
 def check_baseline():
     """What differs from the baseline in either game (empty: a scenario can start)."""
     problems = []
+    world = load_home("")["world"]
     for name in ("", "client"):
         game = name or "host"
         home = load_home(name)
         me = player_snapshot(name)
         state = me.get("state") or {}
         values = me.get("values") or {}
+        current = game_state(name)
+        if current.get("weather") != world["weather"]:
+            problems.append(f"{game}: weather {current.get('weather')}, baseline {world['weather']}")
+        for field in ("year", "month", "day", "hour", "scale"):
+            if not close(current.get("time", {}).get(field), world["time"][field], 0.05):
+                problems.append(f"{game}: calendar {field} {current.get('time', {}).get(field)}, baseline {world['time'][field]}")
+        if home.get("cell") and player_cell(name) != home["cell"]:
+            problems.append(f"{game}: not in the baseline cell {home['cell']:X}")
         if any(state.get("casting") or []):
             problems.append(f"{game}: player still casting {state['casting']}")
         if foreign_in_hands(state, home):
@@ -6547,6 +6890,8 @@ def check_baseline():
         if sorted(me.get("equipment", [])) != home["equipment"]:
             problems.append(f"{game}: player wears {sorted(me.get('equipment', []))}, baseline {home['equipment']}")
         for value in PLAYER_VALUES:
+            if (target := home.get("values", {}).get(value)) is not None and not close(values.get(f"max_{value}"), target, 0.5):
+                problems.append(f"{game}: maximum {value} {values.get(f'max_{value}')}, baseline {target}")
             if values.get(value, 0) < values.get(f"max_{value}", 0) - 1:
                 problems.append(f"{game}: player {value} {values.get(value):.0f} of {values.get(f'max_{value}'):.0f}")
         if (me.get("ai") or {}).get("combat_target"):
@@ -6570,34 +6915,16 @@ def check_baseline():
 
 
 def settle_baseline(timeout=8.0):
-    """Resets both games and waits until they match the baseline; returns what still differs.
-    A failed scenario can leave a player's copy on an animation its owner moved past: the player
-    then draws and sheathes (a fresh action for the copy to replay). If even that does not settle
-    it, a hot reload respawns every copy. The scenario that left it has already failed; this only
-    gives the next one a clean start."""
-    def settle(seconds):
-        deadline = time.monotonic() + seconds
-        while True:
-            problems = check_baseline()
-            if not problems or time.monotonic() > deadline:
-                return problems
-            time.sleep(0.1)
+    """Apply the baseline once, then wait for the commanded state; report anything left different."""
     try:
         reset_baseline()
-        if not (problems := settle(timeout / 2)):
-            return []
-        for name, role in (("", "host"), ("client", "client")):
-            if any(f"[{role} 00000014" in problem and "animation." in problem for problem in problems):
-                log(f"baseline: the {role}'s copy shows a stale animation; the {role} draws and sheathes")
-                draw(name)
-                sheathe(name)
-        reset_baseline()
-        if not (problems := settle(timeout / 2)):
-            return []
-        log("baseline: still not reached (" + " | ".join(problems) + "); hot reload respawns the copies")
-        reload_games()
-        reset_baseline()
-        return settle(timeout)
+        deadline = time.monotonic() + timeout
+        while True:
+            problems = check_baseline()
+            if not problems or time.monotonic() >= deadline:
+                return problems
+            check_for_crash()
+            time.sleep(0.1)
     except TestFailure as error:  # e.g. a game that crashed: the scenario before it is to blame
         return [f"reset failed: {error}"]
 
@@ -6710,6 +7037,16 @@ SCENARIOS = {
     "keyhole-asks-client": scenario_keyhole_asks_client,
     "relief-takes-client-relics": scenario_relief_takes_client_relics,
     "words-reach-client": scenario_words_reach_client,
+    "cutscene-controls-reach-party": scenario_cutscene_controls_reach_party,
+    "cutscene-fade-reaches-party": scenario_cutscene_fade_reaches_party,
+    "guest-cutscene-reaches-host": scenario_guest_cutscene_reaches_host,
+    "screen-reaches-party": scenario_screen_reaches_party,
+    "player-moment-stays-theirs": scenario_player_moment_stays_theirs,
+    "restriction-stays-with-game": scenario_restriction_stays_with_game,
+    "player-stage-cutscene-reaches-party": scenario_player_stage_cutscene_reaches_party,
+    "overlapping-cutscenes-keep-controls": scenario_overlapping_cutscenes_keep_controls,
+    "leaver-cutscene-gives-back": scenario_leaver_cutscene_gives_back,
+    "guest-script-stage-reaches-host": scenario_guest_script_stage_reaches_host,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
     "host-npc-leaves-copy-follows": scenario_host_npc_leaves_copy_follows,
@@ -6739,7 +7076,7 @@ SCENARIOS = {
 }
 
 # What each scenario exercises, for running only the ones a change can affect:
-# `scenario --tag movement,spawn`. The full suite still runs before a commit. Scenarios tagged
+# `scenario --tag movement,spawn`. Full suites belong to release soaks. Scenarios tagged
 # `input` drive the real keyboard and mouse and run only when named or tagged. Scenarios tagged
 # `restart` restart a game (minutes): in the full suite, but in a tag run only with `--tag restart`.
 TAGS = {
@@ -6842,6 +7179,16 @@ TAGS = {
     "keyhole-asks-client": {'objects', 'scripts', 'cells', 'inventory'},
     "relief-takes-client-relics": {'objects', 'scripts', 'cells', 'inventory'},
     "words-reach-client": {'objects', 'scripts'},
+    "cutscene-controls-reach-party": {'scripts', 'session'},
+    "cutscene-fade-reaches-party": {'scripts'},
+    "guest-cutscene-reaches-host": {'scripts'},
+    "screen-reaches-party": {'scripts'},
+    "player-moment-stays-theirs": {'scripts'},
+    "restriction-stays-with-game": {'scripts'},
+    "player-stage-cutscene-reaches-party": {'scripts', 'quests'},
+    "overlapping-cutscenes-keep-controls": {'scripts'},
+    "leaver-cutscene-gives-back": {'scripts', 'session'},
+    "guest-script-stage-reaches-host": {'scripts', 'quests', 'world'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
     "host-npc-leaves-copy-follows": {'spawn'},
@@ -6866,6 +7213,373 @@ TAGS = {
     "input-keyboard-draw": {'input', 'hands'},
     "input-mouse-cast": {'input', 'hands', 'magic'},
 }
+
+
+# All matching globs contribute; core asks for a full suite without selecting it.
+SOURCE_TAGS = [
+    # Shared specs change the Skyrim contract as well as the fake's checks.
+    ("Code/tests/specs/*", {'spec'}),
+    # Every game's lifecycle, dispatch, hooks and shared engine access.
+    ("Code/client/World.*", {'core'}),
+    ("Code/client/*Pch.h", {'core'}),
+    ("Code/client/Components.h", {'core'}),
+    ("Code/client/main.cpp", {'core'}),
+    ("Code/client/skse_*", {'core'}),
+    ("Code/client/Plugin*", {'core'}),
+    ("Code/client/RunningGame.*", {'core'}),
+    ("Code/client/Utils.*", {'core'}),
+    ("Code/client/SessionIds.*", {'core'}),
+    ("Code/client/VersionDb.*", {'core'}),
+    ("Code/client/SkseRipAllocator.h", {'core'}),
+    ("Code/client/TaskQueue.*", {'core'}),
+    ("Code/client/HookSwitch.*", {'core'}),
+    ("Code/client/Breadcrumbs.*", {'core'}),
+    ("Code/client/CrashHandler.*", {'core'}),
+    ("Code/client/HeapHistory.*", {'core'}),
+    ("Code/client/NvidiaUtil.*", {'core'}),
+    ("Code/client/Hooks/*", {'core'}),
+    ("Code/client/Services/*TransportService.*", {'core'}),
+    ("Code/client/Services/*RunnerService.*", {'core'}),
+    ("Code/client/Services/Host/HostAuthority.*", {'core'}),
+    ("Code/client/Services/Host/HostNetwork.*", {'core'}),
+    ("Code/client/Systems/ModSystem.*", {'core'}),
+
+    # Each game's systems, including headers beside the Generic implementations.
+    ("Code/client/Services/*InventoryService.*", {'inventory'}),
+    ("Code/client/Services/*CharacterService.*", {'spawn', 'movement', 'animation', 'ai', 'dialogue', 'combat', 'cells'}),
+    ("Code/client/Services/*ActorValueService.*", {'values'}),
+    ("Code/client/Services/*CombatService.*", {'combat'}),
+    ("Code/client/Services/*MagicService.*", {'magic'}),
+    ("Code/client/Services/*EffectVisualsService.*", {'magic'}),
+    ("Code/client/Services/*AiStateService.*", {'ai'}),
+    ("Code/client/Services/*DialogueService.*", {'dialogue'}),
+    ("Code/client/Services/*ObjectService.*", {'objects'}),
+    ("Code/client/Services/*CutsceneService.*", {'scripts'}),
+    ("Code/client/Services/*PapyrusService.*", {'scripts', 'reload'}),
+    ("Code/client/Services/*PlayerService.*", {'session', 'values', 'spawn'}),
+    ("Code/client/Services/*SessionService.*", {'session'}),
+    ("Code/client/Services/*MapService.*", {'ui', 'world'}),
+    ("Code/client/Services/*TravelService.*", {'cells', 'travel'}),
+    ("Code/client/Services/*TimeScaleService.*", {'world', 'combat'}),
+    ("Code/client/Services/*CommandService.*", {'world', 'ui'}),
+    ("Code/client/Services/*ImguiService.*", {'ui'}),
+    ("Code/client/Services/Debug*", {'ui'}),
+    ("Code/client/Services/JoinStatus.h", {'session'}),
+    ("Code/client/Services/WorldStateLog.h", {'world', 'quest', 'objects'}),
+
+    # Hosting/joining constructs the role's systems; scripts also cross these entry points.
+    ("Code/client/Services/HostService.*", {'session', 'scripts', 'world', 'objects'}),
+    ("Code/client/Services/GuestService.*", {'session', 'scripts', 'world', 'quest'}),
+    ("Code/client/Services/Host/HostSession.*", {'session'}),
+    ("Code/client/Services/Host/HostPlayers.*", {'session'}),
+    ("Code/client/Services/Host/JoinRefusal.*", {'session', 'restart'}),
+    ("Code/client/Services/Host/HostCharacters.*", {'spawn', 'movement', 'cells'}),
+    ("Code/client/Services/Host/HostGame.h", {'spawn', 'world', 'quest', 'objects', 'session'}),
+    ("Code/client/Services/Host/HostConversation.*", {'dialogue', 'scripts'}),
+    ("Code/client/Services/Host/HostDialogue.*", {'dialogue'}),
+    ("Code/client/Services/Guest/GuestDialogue.*", {'dialogue'}),
+    ("Code/client/Services/Host/HostPlayerNatives.*", {'scripts', 'quest'}),
+    ("Code/client/Services/Host/HostClock.*", {'world'}),
+    ("Code/client/Services/Guest/GuestClock.*", {'world'}),
+    ("Code/client/Services/Host/HostWeather.*", {'world', 'cells'}),
+    ("Code/client/Services/Guest/GuestWeather.*", {'world', 'cells'}),
+    ("Code/client/Services/Host/HostTimeScale.*", {'world', 'combat'}),
+    ("Code/client/Services/Host/HostWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
+    ("Code/client/Services/Guest/GuestWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
+
+    # Adapters span systems; the common bridge and actor ownership underpin every scenario.
+    ("Code/client/Bridges/SkyrimBridge.*", {'core'}),
+    ("Code/client/Bridges/I*Bridge.h", {'core'}),
+    ("Code/client/Bridges/HostEngine.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
+    ("Code/client/Bridges/GuestEngine.*", {'world', 'quest', 'objects', 'cells', 'inventory', 'scripts'}),
+    ("Code/client/Bridges/DialogueBridge.*", {'dialogue'}),
+    ("Code/client/Bridges/ContainerItems.*", {'objects', 'inventory'}),
+    ("Code/client/Bridges/PhysicsRests.*", {'world', 'objects'}),
+    ("Code/client/Components/*AnimationComponent.h", {'animation', 'movement', 'hands'}),
+    ("Code/client/Components/*WeaponDrawComponent.h", {'hands'}),
+    ("Code/client/Components/*Component.h", {'spawn'}),
+    ("Code/client/Components/ActorValuesComponent.h", {'values'}),
+    ("Code/client/Components/CombatComponent.h", {'combat'}),
+    ("Code/client/Components/InterpolationComponent.h", {'movement'}),
+    ("Code/client/Components/OwnerPlaceComponent.h", {'movement', 'cells'}),
+    ("Code/client/Components/WaitingFor*", {'spawn'}),
+    ("Code/client/Events/*ConnectedEvent.h", {'core'}),
+    ("Code/client/Events/DisconnectedEvent.h", {'core'}),
+    ("Code/client/Events/UpdateEvent.h", {'core'}),
+    ("Code/client/Events/Actor*Event.h", {'spawn'}),
+    ("Code/client/Events/Reference*Event.h", {'spawn', 'movement', 'cells'}),
+    ("Code/client/Events/PlayerArrivedEvent.h", {'spawn', 'cells'}),
+    ("Code/client/Events/PlayerFormChangeEvent.h", {'session', 'spawn'}),
+    ("Code/client/Events/*NativeEvent.h", {'scripts'}),
+    ("Code/client/Events/WorldCallEvent.h", {'scripts', 'quest'}),
+    ("Code/client/Events/Papyrus*Event.h", {'scripts'}),
+    ("Code/client/Events/ScriptAnimationEvent.h", {'scripts', 'objects'}),
+    ("Code/client/Events/*Inventory*Event.h", {'inventory'}),
+    ("Code/client/Events/EquipmentChangeEvent.h", {'inventory'}),
+    ("Code/client/Events/ContainerChangeEvent.h", {'inventory', 'objects'}),
+    ("Code/client/Events/ActivateEvent.h", {'objects'}),
+    ("Code/client/Events/LockChangeEvent.h", {'objects'}),
+    ("Code/client/Events/AiStateChangeEvent.h", {'ai'}),
+    ("Code/client/Events/FactionsChangeEvent.h", {'ai'}),
+    ("Code/client/Events/DialogueEvent.h", {'dialogue'}),
+    ("Code/client/Events/SubtitleEvent.h", {'dialogue'}),
+    ("Code/client/Events/HealthChangeEvent.h", {'values'}),
+    ("Code/client/Events/HitEvent.h", {'combat'}),
+    ("Code/client/Events/AddExperienceEvent.h", {'combat'}),
+    ("Code/client/Events/ProjectileLaunchedEvent.h", {'combat', 'magic'}),
+    ("Code/client/Events/*Spell*Event.h", {'magic'}),
+    ("Code/client/Events/*CastEvent.h", {'magic'}),
+    ("Code/client/Events/AddTargetEvent.h", {'magic'}),
+    ("Code/client/Events/EffectVisualsChangeEvent.h", {'magic'}),
+    ("Code/client/Events/BeastFormChangeEvent.h", {'magic', 'spawn', 'scripts'}),
+    ("Code/client/Events/MountEvent.h", {'movement'}),
+    ("Code/client/Events/MoveActorEvent.h", {'movement'}),
+    ("Code/client/Events/*WaypointEvent.h", {'world', 'ui'}),
+    ("Code/client/Events/SetTimeCommandEvent.h", {'world', 'ui'}),
+    ("Code/client/Events/TimeScaleEvent.h", {'world', 'combat'}),
+    ("Code/client/Systems/AnimationSystem.*", {'animation', 'movement', 'hands'}),
+    ("Code/client/Systems/InterpolationSystem.*", {'movement'}),
+    ("Code/client/Systems/FaceGenSystem.*", {'spawn'}),
+    ("Code/client/Systems/CacheSystem.*", {'spawn'}),
+    ("Code/client/Systems/RenderSystem*", {'ui'}),
+    ("Code/client/ModCompat/*", {'animation', 'movement', 'hands'}),
+    ("Code/client/Ui/*", {'ui', 'session'}),
+
+    # Papyrus cause/routing rules, natives and the VM; Party* stays scripts only.
+    ("Code/client/Games/Skyrim/Papyrus/*", {'scripts'}),
+    ("Code/client/Games/Skyrim/Papyrus/*Events*", {'quest', 'quests'}),
+    ("Code/client/Games/Skyrim/Papyrus/GuestScripts.*", {'quest', 'quests'}),
+    ("Code/client/Games/Skyrim/Misc/BSScript.*", {'scripts', 'quest'}),
+    ("Code/client/Games/Skyrim/Misc/GameVM.*", {'scripts', 'quest'}),
+    ("Code/client/Games/Skyrim/Misc/NativeFunction.h", {'scripts'}),
+    ("Code/client/Games/Skyrim/Misc/BGSStoryManager.*", {'quest', 'scripts'}),
+    ("Code/client/SkyrimVM64.cpp", {'scripts'}),
+    ("Code/client/ScriptValues.*", {'scripts'}),
+
+    # Engine ownership, storage, names and frame/render plumbing are shared.
+    ("Code/client/Games/ActorExtension.*", {'core'}),
+    ("Code/client/Games/*Memory.*", {'core'}),
+    ("Code/client/Games/*Primitives.*", {'core'}),
+    ("Code/client/Games/*Rtti.*", {'core'}),
+    ("Code/client/Games/Skyrim/RTTI.*", {'core'}),
+    ("Code/client/Games/EngineNames.h", {'core'}),
+    ("Code/client/Games/Events.h", {'core'}),
+    ("Code/client/Games/*Renderer.*", {'core'}),
+    ("Code/client/Games/System.cpp", {'core'}),
+    ("Code/client/Games/*TES.*", {'core'}),
+    ("Code/client/Games/ModManager.*", {'core'}),
+    ("Code/client/Games/Overrides.h", {'core'}),
+    ("Code/client/Games/Crc64.*", {'core'}),
+    ("Code/client/Games/INISettingCollection.*", {'core'}),
+    ("Code/client/Games/Skyrim/BSCore/*", {'core'}),
+    ("Code/client/Games/Skyrim/BSSystem/*", {'core'}),
+    ("Code/client/Games/Skyrim/BSGraphics/*", {'core'}),
+    ("Code/client/Games/Skyrim/BSRandom/*", {'core'}),
+    ("Code/client/Games/Skyrim/Events/*", {'core'}),
+    ("Code/client/Games/Skyrim/Default*", {'core'}),
+    ("Code/client/Games/Skyrim/NetImmerse/*", {'core'}),
+
+    # Actors, their copies, animation, combat, input and magic glue.
+    ("Code/client/Games/Skyrim/Actor.*", {'spawn', 'movement', 'values', 'combat', 'ai', 'hands'}),
+    ("Code/client/Games/Skyrim/PlayerCharacter.*", {'session', 'spawn', 'cells', 'combat', 'values'}),
+    ("Code/client/Games/*Animation*", {'animation', 'movement', 'hands'}),
+    ("Code/client/Games/Skyrim/Havok/*", {'animation', 'movement', 'combat'}),
+    ("Code/client/Games/*CopyAiState.*", {'ai', 'combat', 'movement'}),
+    ("Code/client/Games/Skyrim/AiStateEvents.*", {'ai'}),
+    ("Code/client/Games/Skyrim/FactionEvents.*", {'ai'}),
+    ("Code/client/Games/Skyrim/AI/*", {'ai', 'movement', 'scripts'}),
+    ("Code/client/Games/Skyrim/BSInput/*", {'input', 'hands', 'magic', 'scripts'}),
+    ("Code/client/Games/Skyrim/Camera/*", {'scripts', 'combat'}),
+    ("Code/client/Games/Skyrim/Combat/*", {'combat', 'ai'}),
+    ("Code/client/Games/*Magic/*", {'magic', 'combat'}),
+    ("Code/client/Games/Skyrim/Effects/*", {'magic', 'values'}),
+    ("Code/client/Games/Skyrim/EffectEvents.*", {'magic'}),
+    ("Code/client/Games/Skyrim/Projectiles/*", {'combat', 'magic'}),
+    ("Code/client/Games/Skyrim/EquipManager.*", {'inventory', 'hands', 'magic'}),
+    ("Code/client/Games/Skyrim/ContainerEvents.*", {'inventory', 'objects'}),
+    ("Code/client/Games/Skyrim/PlayerEvents.*", {'session', 'spawn', 'magic', 'scripts'}),
+    ("Code/client/Games/Skyrim/PlayerCollision.*", {'cells', 'movement'}),
+    ("Code/client/Games/Skyrim/Misc/ActorState.*", {'hands', 'movement'}),
+    ("Code/client/Games/Skyrim/Misc/ActorValueOwner.h", {'values'}),
+    ("Code/client/Games/Skyrim/Misc/*Movement*.h", {'movement'}),
+    ("Code/client/Games/Skyrim/Misc/IPostAnimation*", {'animation'}),
+    ("Code/client/Games/Skyrim/Misc/MiddleProcess.h", {'ai', 'combat', 'magic'}),
+    ("Code/client/Games/Skyrim/Misc/InventoryEntry.h", {'inventory'}),
+    ("Code/client/Games/Skyrim/Misc/TintMask.h", {'spawn'}),
+    ("Code/client/Games/Skyrim/Misc/BS*String.*", {'core'}),
+    ("Code/client/Games/Misc/*", {'dialogue', 'ai', 'objects'}),
+
+    # Reference persistence, travel, the calendar and menus.
+    ("Code/client/Games/Form*", {'world', 'objects', 'spawn'}),
+    ("Code/client/Games/IFormFactory.h", {'world', 'spawn'}),
+    ("Code/client/Games/*References.*", {'spawn', 'movement', 'ai', 'objects'}),
+    ("Code/client/Games/*ReferenceStates.*", {'world', 'objects'}),
+    ("Code/client/Games/BGSCreatedObjectManager.*", {'world', 'spawn', 'inventory'}),
+    ("Code/client/Games/*SaveLoad.*", {'world', 'objects', 'spawn', 'reload'}),
+    ("Code/client/Games/*TimeManager.*", {'world'}),
+    ("Code/client/Games/Skyrim/TESObjectREFR.*", {'core'}),
+    ("Code/client/Games/Skyrim/ReferenceEvents.*", {'world', 'objects', 'cells'}),
+    ("Code/client/Games/Skyrim/LoadingScreen.cpp", {'cells', 'travel'}),
+    ("Code/client/Games/Skyrim/Fixes/*", {'cells'}),
+    ("Code/client/Games/Skyrim/BSTimer.*", {'world', 'combat'}),
+    ("Code/client/Games/Skyrim/Sky/*", {'world', 'cells'}),
+    ("Code/client/Games/Skyrim/Interface/*", {'ui', 'dialogue', 'input', 'scripts'}),
+    ("Code/client/Games/Skyrim/Components/*", {'spawn', 'inventory', 'magic', 'ai', 'quest'}),
+    ("Code/client/Games/Skyrim/ExtraData/*", {'inventory', 'objects', 'ai'}),
+
+    # Engine forms: quest state and dialogue are distinct from equipment and shared base forms.
+    ("Code/client/Games/Skyrim/Forms/*Quest*", {'quest', 'quests', 'scripts'}),
+    ("Code/client/Games/Skyrim/Forms/*Alias*", {'quest'}),
+    ("Code/client/Games/Skyrim/Forms/BGSStoryManager*", {'quest', 'scripts'}),
+    ("Code/client/Games/Skyrim/Forms/*Topic*", {'dialogue'}),
+    ("Code/client/Games/Skyrim/Forms/ActorValueInfo.*", {'values'}),
+    ("Code/client/Games/Skyrim/Forms/*Item*", {'inventory', 'magic'}),
+    ("Code/client/Games/Skyrim/Forms/EffectSetting.h", {'magic'}),
+    ("Code/client/Games/Skyrim/Forms/TESAmmo.h", {'inventory', 'combat'}),
+    ("Code/client/Games/Skyrim/Forms/TESObjectARM*.h", {'inventory'}),
+    ("Code/client/Games/Skyrim/Forms/TESObjectWEAP.h", {'inventory', 'combat'}),
+    ("Code/client/Games/Skyrim/Forms/BGSOutfit.h", {'inventory', 'spawn'}),
+    ("Code/client/Games/Skyrim/Forms/TESGlobal.h", {'world'}),
+    ("Code/client/Games/Skyrim/Forms/FormChanges.*", {'world', 'objects'}),
+    ("Code/client/Games/Skyrim/Forms/TESObjectCELL.*", {'world', 'cells', 'objects'}),
+    ("Code/client/Games/Skyrim/Forms/TESWorldSpace.*", {'world', 'cells'}),
+    ("Code/client/Games/Skyrim/Forms/TESWeather.h", {'world', 'cells'}),
+    ("Code/client/Games/Skyrim/Forms/TESLev*", {'world', 'objects'}),
+    ("Code/client/Games/Skyrim/Forms/TESIdleForm.h", {'animation'}),
+    ("Code/client/Games/Skyrim/Forms/BGSAction.h", {'animation'}),
+    ("Code/client/Games/Skyrim/Forms/TESFaction.h", {'ai'}),
+    ("Code/client/Games/Skyrim/Forms/TESPackage.h", {'ai'}),
+    ("Code/client/Games/Skyrim/Forms/TESNPC.*", {'spawn'}),
+    ("Code/client/Games/Skyrim/Forms/TESActorBase.h", {'spawn'}),
+    ("Code/client/Games/Skyrim/Forms/TESRace.h", {'spawn', 'magic'}),
+    ("Code/client/Games/Skyrim/Forms/BGSHeadPart.h", {'spawn'}),
+    ("Code/client/Games/Skyrim/Forms/Script.h", {'scripts'}),
+    ("Code/client/Games/Skyrim/Forms/BGSLocation.h", {'world', 'quest'}),
+    ("Code/client/Games/Skyrim/Forms/BGSEncounterZone.h", {'world', 'spawn'}),
+    ("Code/client/Games/Skyrim/Forms/BGSKeyword.h", {'core'}),
+    ("Code/client/Games/Skyrim/Forms/BGSListForm.h", {'core'}),
+    ("Code/client/Games/Skyrim/Forms/TESForm.h", {'core'}),
+    ("Code/client/Games/Skyrim/Forms/TESObject.h", {'core'}),
+    ("Code/client/Games/Skyrim/Forms/TESBound*.h", {'core'}),
+
+    # Harness commands select their systems; staging and shared readouts gate every run.
+    ("Code/client/TestHarness/CommandsInput.cpp", {'input', 'hands', 'magic', 'movement'}),
+    ("Code/client/TestHarness/CommandsSession.cpp", {'session', 'reload'}),
+    ("Code/client/TestHarness/CommandsWorld.cpp", {'core', 'world', 'quest', 'scripts', 'dialogue', 'inventory', 'objects', 'ai', 'animation'}),
+    ("Code/client/TestHarness/CommandsStaging.cpp", {'core', 'inventory', 'movement', 'ai', 'ui'}),
+    ("Code/client/TestHarness/Commands.*", {'core'}),
+    ("Code/client/TestHarness/AnimationTrace.*", {'animation', 'combat'}),
+    ("Code/client/TestHarness/PlayerInput.*", {'input', 'hands', 'magic', 'movement', 'combat', 'objects', 'dialogue'}),
+    ("Code/client/TestHarness/InputTrace.*", {'input'}),
+    ("Code/client/TestHarness/PlayerEvents.cpp", {'scripts'}),
+    ("Code/client/TestHarness/QuestFragments.cpp", {'quest', 'scripts'}),
+    ("Code/client/TestHarness/ChangeLog.*", {'world', 'objects'}),
+    ("Code/client/TestHarness/Session.*", {'session'}),
+    ("Code/client/TestHarness/CommandServer.*", {'core'}),
+    ("Code/client/TestHarness/ConsoleOutput.*", {'core'}),
+    ("Code/client/TestHarness/ControlFiles.*", {'core'}),
+    ("Code/client/TestHarness/EngineCalls.*", {'core'}),
+    ("Code/client/TestHarness/EngineEvents.*", {'core'}),
+    ("Code/client/TestHarness/Harness.h", {'core'}),
+    ("Code/client/TestHarness/LogTrail.*", {'core'}),
+    ("Code/client/TestHarness/Status.*", {'core'}),
+    ("Code/client/TestHarness/TestHarness.*", {'core'}),
+    ("Code/client/HotReload/*", {'core', 'reload'}),
+    ("Code/hotreload/*", {'core', 'reload'}),
+    ("Code/vanilla_harness/*", {'core'}),
+
+    # Wire, factories and shared payloads carry every system; leaf messages name their system.
+    ("Code/encoding/Wire/*", {'core'}),
+    ("Code/encoding/*Pch.h", {'core'}),
+    ("Code/encoding/Opcodes.h", {'core'}),
+    ("Code/encoding/MetaMessage.h", {'core'}),
+    ("Code/encoding/ChatMessageTypes.h", {'ui', 'session'}),
+    ("Code/encoding/Messages/Message.*", {'core'}),
+    ("Code/encoding/Messages/*MessageFactory.*", {'core'}),
+    ("Code/encoding/Messages/Payloads.*", {'core'}),
+    ("Code/encoding/Messages/*Inventory*", {'inventory'}),
+    ("Code/encoding/Messages/*Equipment*", {'inventory'}),
+    ("Code/encoding/Messages/*Container*", {'inventory', 'objects'}),
+    ("Code/encoding/Messages/*DrawWeapon*", {'hands'}),
+    ("Code/encoding/Messages/*Actor*Value*", {'values'}),
+    ("Code/encoding/Messages/*Health*", {'values'}),
+    ("Code/encoding/Messages/*Death*", {'values', 'spawn'}),
+    ("Code/encoding/Messages/*Respawn*", {'spawn', 'values'}),
+    ("Code/encoding/Messages/*Spell*", {'magic'}),
+    ("Code/encoding/Messages/*Cast*", {'magic', 'hands'}),
+    ("Code/encoding/Messages/*Effect*", {'magic'}),
+    ("Code/encoding/Messages/*AddTarget*", {'magic', 'combat'}),
+    ("Code/encoding/Messages/*Projectile*", {'combat', 'magic'}),
+    ("Code/encoding/Messages/*Experience*", {'combat'}),
+    ("Code/encoding/Messages/*AiState*", {'ai'}),
+    ("Code/encoding/Messages/*Factions*", {'ai'}),
+    ("Code/encoding/Messages/*Dialogue*", {'dialogue'}),
+    ("Code/encoding/Messages/*Subtitle*", {'dialogue'}),
+    ("Code/encoding/Messages/*Character*", {'spawn'}),
+    ("Code/encoding/Messages/*Assignment*", {'spawn'}),
+    ("Code/encoding/Messages/*ReferencesMove*", {'movement'}),
+    ("Code/encoding/Messages/*Mount*", {'movement'}),
+    ("Code/encoding/Messages/*EnterCell*", {'cells'}),
+    ("Code/encoding/Messages/*PartyTravel*", {'cells', 'travel'}),
+    ("Code/encoding/Messages/*Authentication*", {'session', 'restart'}),
+    ("Code/encoding/Messages/*PlayerJoined*", {'session'}),
+    ("Code/encoding/Messages/*PlayerLeft*", {'session'}),
+    ("Code/encoding/Messages/*PlayerLevel*", {'session', 'ui'}),
+    ("Code/encoding/Messages/*SettingsChange*", {'session'}),
+    ("Code/encoding/Messages/*ChatMessage*", {'session', 'ui'}),
+    ("Code/encoding/Messages/*Waypoint*", {'world', 'ui'}),
+    ("Code/encoding/Messages/*Time*", {'world', 'combat'}),
+    ("Code/encoding/Messages/*Weather*", {'world', 'cells'}),
+    ("Code/encoding/Messages/*WorldState*", {'world', 'quest', 'objects'}),
+    ("Code/encoding/Messages/*CellState*", {'world', 'objects', 'cells'}),
+    ("Code/encoding/Messages/*Activate*", {'objects'}),
+    ("Code/encoding/Messages/*LockChange*", {'objects'}),
+    ("Code/encoding/Messages/*Native*", {'scripts'}),
+    ("Code/encoding/Messages/*WorldCall*", {'scripts', 'quest'}),
+
+    # Shared structs and transport; ownership ids and load order are common infrastructure.
+    ("Code/encoding/Structs/*Animation*", {'animation', 'movement', 'hands'}),
+    ("Code/encoding/Structs/ActionEvent.*", {'animation', 'hands', 'movement'}),
+    ("Code/encoding/Structs/ActorAiState.*", {'ai'}),
+    ("Code/encoding/Structs/ActorData.*", {'spawn'}),
+    ("Code/encoding/Structs/ActorValues.*", {'values'}),
+    ("Code/encoding/Structs/ActorWhereabouts.*", {'spawn', 'cells'}),
+    ("Code/encoding/Structs/DialogueOption.*", {'dialogue'}),
+    ("Code/encoding/Structs/Faction*", {'ai'}),
+    ("Code/encoding/Structs/Game*", {'core'}),
+    ("Code/encoding/Structs/LoadOrder.*", {'core'}),
+    ("Code/encoding/Structs/Mods.*", {'core'}),
+    ("Code/encoding/Structs/ServerSettings.*", {'session'}),
+    ("Code/encoding/Structs/GridCellCoords.*", {'cells'}),
+    ("Code/encoding/Structs/Inventory.*", {'inventory'}),
+    ("Code/encoding/Structs/LockData.*", {'objects'}),
+    ("Code/encoding/Structs/MagicEquipment.*", {'inventory', 'magic'}),
+    ("Code/encoding/Structs/Movement.*", {'movement'}),
+    ("Code/encoding/Structs/ReferenceUpdate.*", {'movement', 'animation'}),
+    ("Code/encoding/Structs/*NetQuantize.*", {'movement'}),
+    ("Code/encoding/Structs/ScriptValue.*", {'scripts'}),
+    ("Code/encoding/Structs/TimeModel.*", {'world'}),
+    ("Code/encoding/Structs/Tints.*", {'spawn'}),
+    ("Code/encoding/Structs/WeaponState.h", {'hands', 'magic'}),
+    ("Code/network/*", {'core'}),
+
+    # Shared libraries, rendering dependencies, build recipes and test tooling.
+    ("Code/base/*", {'core'}),
+    ("Code/common/*", {'core'}),
+    ("Code/external/*", {'core'}),
+    ("Code/components/*", {'core'}),
+    ("Code/*xmake.lua", {'core'}),
+    ("Code/.clang-format", {'core'}),
+    ("scripts/*", {'core'}),
+    ("xmake.lua", {'core'}),
+]
+
+
+def validate_source_tags():
+    known = set().union(*TAGS.values()) | {'core'}
+    for pattern, tags in SOURCE_TAGS:
+        if unknown := tags - known:
+            raise TestFailure(f"SOURCE_TAGS {pattern}: unknown tag(s) {sorted(unknown)}")
 
 
 def status_table():
@@ -7544,15 +8258,13 @@ def command_repro(args):
     log(f"Crashed {crashes} of {args.runs} runs")
 
 
-def command_scenario(args):
-    global HOLD
-    HOLD = args.hold
-    names = args.names or [name for name in SCENARIOS if "input" not in TAGS.get(name, set()) or args.tag]
-    if args.tag:
-        wanted = set(args.tag.split(","))
+def scenario_names(requested, tag):
+    names = requested or [name for name in SCENARIOS if "input" not in TAGS.get(name, set()) or tag]
+    if tag:
+        wanted = set(tag.split(","))
         # Restarting a game takes minutes: only when named, or asked for by its tag.
         if "restart" not in wanted:
-            names = [name for name in names if "restart" not in TAGS.get(name, set()) or name in (args.names or [])]
+            names = [name for name in names if "restart" not in TAGS.get(name, set()) or name in (requested or [])]
         known = set().union(*TAGS.values())
         if wanted - known:
             raise TestFailure(f"unknown tag(s) {sorted(wanted - known)}; known: {', '.join(sorted(known))}")
@@ -7560,6 +8272,95 @@ def command_scenario(args):
     unknown = [name for name in names if name not in SCENARIOS]
     if unknown:
         raise TestFailure(f"unknown scenario(s) {unknown}; known: {', '.join(SCENARIOS)}")
+    return names
+
+
+def source_matches(path):
+    return [(pattern, tags) for pattern, tags in SOURCE_TAGS if fnmatch.fnmatchcase(path, pattern)]
+
+
+def affected_source(path):
+    if path.startswith("Code/tests/specs/"):
+        return True
+    if path.startswith(("docs/", "Code/tests/")):
+        return False
+    return path.startswith(("Code/", "scripts/")) or Path(path).suffix in {
+        '.c', '.cc', '.cpp', '.cxx', '.h', '.hpp', '.inl', '.py', '.sh', '.ps1', '.lua',
+    }
+
+
+def changed_sources(base):
+    paths = set()
+    for command in (["git", "diff", "--name-only", "-z", base, "--"],
+                    ["git", "ls-files", "--others", "--exclude-standard", "-z"]):
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+        if result.returncode:
+            raise TestFailure(f"{' '.join(command)}: {result.stderr.strip()}")
+        paths.update(filter(None, result.stdout.split("\0")))
+    return paths
+
+
+def command_affected(args):
+    if args.check:
+        sources = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "Code").rglob("*")
+                         if p.is_file() and affected_source(p.relative_to(ROOT).as_posix()))
+        uncovered = [path for path in sources if not source_matches(path)]
+        for path in uncovered:
+            print(f"no tag for {path}")
+        if uncovered:
+            raise TestFailure(f"{len(uncovered)} source file(s) have no SOURCE_TAGS pattern")
+        print(f"SOURCE_TAGS covers all {len(sources)} files under Code/ (excluding other Code/tests/).")
+        if not args.run:
+            return
+
+    paths = args.files if args.files is not None else changed_sources(args.base)
+    reasons = collections.defaultdict(list)
+    uncovered = []
+    for path in sorted({Path(path).as_posix() for path in paths}):
+        if not affected_source(path):
+            continue
+        matches = source_matches(path)
+        if not matches:
+            print(f"no tag for {path}")
+            uncovered.append(path)
+        for pattern, tags in matches:
+            for tag in tags:
+                reasons[tag].append((path, pattern))
+
+    print("tags: " + (", ".join(sorted(reasons)) or "none"))
+    for tag in sorted(reasons):
+        print(f"  {tag}:")
+        for path, pattern in reasons[tag]:
+            print(f"    {path} <- {pattern}")
+    if 'core' in reasons:
+        print("core changed: the full suite covers this, run it before a release")
+        if args.run:
+            print("The full suite was not run; --run selects only the other tags' scenarios.")
+    tags = ",".join(sorted(set(reasons) - {'core'}))
+    names = scenario_names([], tags) if tags else []
+    print(f"scenarios ({len(names)}):")
+    for name in names:
+        print(f"  {name}")
+    if uncovered:
+        raise TestFailure(f"{len(uncovered)} changed source file(s) have no SOURCE_TAGS pattern; no scenarios run")
+    if args.run and names:
+        if len(names) == len(SCENARIOS):
+            raise TestFailure("affected selected the full suite; run it explicitly with scenario")
+        command_scenario(argparse.Namespace(names=[], tag=tags, hold=0, repeat=1, shuffle=False,
+                                            seed=None, fail_fast=False, dry_run=args.dry_run))
+    elif args.run:
+        print("No targeted scenarios to run.")
+
+
+def command_scenario(args):
+    global HOLD
+    HOLD = args.hold
+    names = scenario_names(args.names, args.tag)
+    if getattr(args, "dry_run", False):
+        print("Would run scenario" + (f" --tag {args.tag}" if args.tag else ":"))
+        for name in names:
+            print(f"  {name}")
+        return
     for name in ("", "client"):
         select_instance(name)
         if not read_status():
@@ -7572,11 +8373,15 @@ def command_scenario(args):
                                 "equipment": sorted(i for i in player_snapshot(name).get("equipment", [])
                                                     if i not in TEST_ITEMS)})
         save_home()
+    upgrade_home()
     order = [name for _ in range(args.repeat) for name in names]
+    seed = args.seed
     if args.shuffle:
         seed = args.seed if args.seed is not None else random.randrange(1 << 30)
         random.Random(seed).shuffle(order)
         log(f"Shuffled order (--seed {seed} repeats it): {' '.join(order)}")
+    observe = getattr(args, "observe", lambda event, **data: None)
+    observe("order", order=order, seed=seed)
 
     suite_start = time.monotonic()
     log("=== baseline: resetting both games")
@@ -7589,12 +8394,14 @@ def command_scenario(args):
     runs = []  # (name, seconds, result)
     for index, name in enumerate(order):
         log(f"=== {name}: {SCENARIOS[name].__doc__}")
+        observe("start", name=name, index=index)
         scenario_start = time.monotonic()
         marks, wall_start = trail_marks(), time.time()
         CURRENT_STEP.update(description=None, time=wall_start)
         try:
             known_locks = lock_order_reports()
             SCENARIOS[name]()
+            wait_for("the guest follows the host's weather and calendar", lambda: not world_sync_problems(), 5)
             # Whatever the scenario did, both games must agree afterwards.
             problems = check_desync()
             if problems:
@@ -7623,6 +8430,7 @@ def command_scenario(args):
             result = f"FAIL ({left})" if result == "PASS" else f"{result} [{left}]"
             known_world |= world_pairs(world)
         runs.append((name, time.monotonic() - scenario_start, result))
+        observe("result", name=name, seconds=runs[-1][1], result=result)
         log(f"=== {name}: {result}")
         if args.fail_fast and result != "PASS":
             for skipped in order[index + 1:]:
@@ -7645,7 +8453,254 @@ def command_scenario(args):
         raise SystemExit(1)
 
 
+def soak_snapshot():
+    games = {}
+    for name, role in (("", "host"), ("client", "guest")):
+        select_instance(name)
+        status = read_status()
+        stale = status is None
+        if stale:
+            try:
+                status = json.loads((CONTROL / "status.json").read_text())
+            except (OSError, ValueError):
+                status = {}
+        sample = {"frames": status.get("frames"), "locks": status.get("lock_order", {}).get("reports", []),
+                  "heartbeat_ms": status.get("heartbeat_ms"), "memory": None, "stale_status": stale,
+                  "build": status.get("game", {}).get("build"), "generation": status.get("reload", {}).get("generation")}
+        try:
+            pid = game_process(name)
+            fields = dict(line.split(":", 1) for line in Path(f"/proc/{pid}/status").read_text().splitlines() if ":" in line)
+            sample["memory"] = {"pid": pid, **{key: int(fields.get(field, "0 kB").split()[0]) * 1024
+                                for key, field in (("rss_bytes", "VmRSS"), ("swap_bytes", "VmSwap"), ("virtual_bytes", "VmSize"))}}
+        except (TestFailure, OSError, ValueError) as error:
+            sample["unavailable"] = str(error)
+        games[role] = sample
+    return games
+
+
+def soak_frame_deltas(before, after):
+    result = {}
+    for role in ("host", "guest"):
+        first, last = before.get(role, {}), after.get(role, {})
+        old, new = first.get("frames") or {}, last.get("frames") or {}
+        pid = (first.get("memory") or {}).get("pid")
+        same_process = pid is not None and pid == (last.get("memory") or {}).get("pid") \
+            and first.get("generation") == last.get("generation")
+        result[role] = {key: new[key] - old[key] for key in ("frames", "stalls")
+                        if same_process and key in new and key in old and new[key] >= old[key]}
+    return result
+
+
+def soak_facts(rounds):
+    crashes, locks, failures = set(), set(), set()
+    for round_ in rounds:
+        crashes.update(crash["signature"] for crash in round_.get("crashes", []))
+        for sample in [round_.get("before", {}), round_.get("after", {})] + [
+                entry.get(phase, {}) for entry in round_.get("scenarios", []) for phase in ("before", "after")]:
+            for game in sample.values():
+                for report in game.get("locks", []):
+                    match = LOCK_PATTERN.match(report)
+                    sites = match.group(3) if match else report
+                    locks.add(" vs ".join(sorted(sites.split(" vs "))))
+        failures.update(entry["name"] for entry in round_.get("scenarios", []) if entry.get("result", "").startswith("FAIL"))
+    return crashes, locks, failures
+
+
+def soak_summary(rounds, previous, memory_rounds=None):
+    facts, old = soak_facts(rounds), soak_facts(previous)
+    summary = {key: sorted(current - known) for key, current, known in zip(
+        ("new_crash_signatures", "new_lock_patterns", "first_failures"), facts, old)}
+    growth = []
+    for role in ("host", "guest"):
+        values = []
+        for round_ in memory_rounds if memory_rounds is not None else rounds:
+            # Fresh processes are compared at the same boundary: after the shuffled suite.
+            memory = round_.get("after", {}).get(role, {}).get("memory")
+            if memory and round_.get("complete"):
+                values.append({"round": round_["index"], "bytes": memory["rss_bytes"] + memory["swap_bytes"]})
+        if len(values) >= 2 and all(b["bytes"] > a["bytes"] for a, b in zip(values, values[1:])) \
+                and values[-1]["bytes"] - values[0]["bytes"] >= 16 * 1024 * 1024:
+            growth.append({"game": role, "samples": values, "growth_bytes": values[-1]["bytes"] - values[0]["bytes"]})
+    summary["memory_growth"] = growth
+    summary["round_errors"] = [{"round": r["index"], "message": r["error"]} for r in rounds
+                               if r.get("error") and not r.get("scenarios")]
+    return summary
+
+
+def soak_summary_line(summary):
+    findings = [f"{len(summary[key])} {label[:-1] if len(summary[key]) == 1 else label}" for key, label in (
+        ("new_crash_signatures", "new crash signatures"), ("new_lock_patterns", "new lock patterns"),
+        ("first_failures", "first failures"), ("memory_growth", "memory growth trends"),
+        ("round_errors", "round errors")) if summary[key]]
+    return ", ".join(findings) or "nothing new"
+
+
+def soak_crashes(before, directory):
+    found = []
+    for name, role in (("", "host"), ("client", "guest")):
+        for path in crash_logs(name):
+            if path in before[name]:
+                continue
+            try:
+                report = crash_report(name, path)
+            except (OSError, ValueError, subprocess.SubprocessError, ImportError, TestFailure) as error:
+                report = f"Could not symbolize crash: {error}"
+            destination = directory / f"{role}-{path.name}"
+            shutil.copy2(path, destination)
+            report_file = destination.with_suffix(".report.txt")
+            report_file.write_text(report)
+            text = path.read_text(errors="replace")
+            frames = re.findall(r"^\s*\[\d+\]\[P\].*?(\S+\.(?:exe|dll)\+[0-9A-Fa-f]+)", text, re.MULTILINE)[:5]
+            exception = re.search(r'Unhandled exception "([^"]+)"', text)
+            signature = (exception.group(1) if exception else "unknown exception") + ": " + (" > ".join(frames) or "no probable frames")
+            found.append({"game": role, "log": str(destination), "report": str(report_file),
+                          "signature": signature, "top_frames": frames})
+            KNOWN_CRASHES[name].add(path)
+    return found
+
+
+def stop_duo():
+    for name in ("", "client"):
+        select_instance(name)
+        if not stop_game():
+            raise TestFailure(f"{name or 'guest'}: could not stop the test game")
+    for _, connection in list(_rpc_connections.items()):
+        connection[2].close()
+        connection[1].close()
+    _rpc_connections.clear()
+
+
+def command_soak(args):
+    if args.tag is not None and not args.tag.strip():
+        raise TestFailure("--tag must name a tag; omit it only for a full suite")
+    if args.rounds is not None and args.rounds <= 0:
+        raise TestFailure("--rounds must be positive")
+    hours = args.hours if args.hours is not None else (6 if args.rounds is None else None)
+    if hours is not None and (not math.isfinite(hours) or hours <= 0):
+        raise TestFailure("--hours must be finite and positive")
+    names = scenario_names([], args.tag) if args.tag else list(SCENARIOS)
+    if not names:
+        raise TestFailure("no scenarios selected")
+    seed = args.seed if args.seed is not None else random.randrange(1 << 30)
+    if args.dry_run:
+        print(f"Would boot a fresh duo each round; {str(args.rounds) + ' rounds' if args.rounds else str(hours) + ' hours'}; "
+              f"seed {seed}; {len(names)} scenarios")
+        return
+
+    base = TEST_HOME / "soak"
+    previous_files = sorted(base.glob("*/report.json"), key=lambda p: p.stat().st_mtime)
+    previous, previous_file = {}, None
+    for path in reversed(previous_files):
+        try:
+            previous = json.loads(path.read_text())
+            previous_file = str(path)
+            break
+        except (OSError, ValueError):
+            continue
+    directory = base / (time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
+    directory.mkdir(parents=True)
+    report_file = directory / "report.json"
+    report = {"schema": 1, "started": time.time(), "seed": seed, "tag": args.tag, "hours": hours,
+              "requested_rounds": args.rounds, "previous_report": previous_file, "rounds": []}
+    started = time.monotonic()
+    deadline = started + hours * 3600 if hours is not None else math.inf
+
+    def save_report():
+        report["seconds"] = time.monotonic() - started
+        report["summary"] = soak_summary(report["rounds"], previous.get("rounds", []))
+        atomic_write(report_file, json.dumps(report, indent=2) + "\n")
+
+    save_report()
+    log(f"Soak {'smoke test' if args.tag else 'full suite'}; report: {report_file}")
+    try:
+        while time.monotonic() < deadline and (args.rounds is None or len(report["rounds"]) < args.rounds):
+            index = len(report["rounds"]) + 1
+            round_dir = directory / f"round-{index:04d}"
+            round_dir.mkdir()
+            round_ = {"index": index, "seed": seed + index - 1, "scenarios": [], "attempted_order": [], "crashes": [],
+                      "runner_log": str(round_dir / "runner.log"), "phase": "setup"}
+            round_["order"] = list(names)
+            random.Random(round_["seed"]).shuffle(round_["order"])
+            report["rounds"].append(round_)
+            prior = previous.get("rounds", []) + report["rounds"][:-1]
+            crash_before = {name: set(crash_logs(name)) for name in ("", "client")}
+            round_started = time.monotonic()
+            log(f"=== soak round {index}, seed {round_['seed']}: {len(names)} scenarios")
+            save_report()
+
+            def observe(event, **data):
+                if event == "order":
+                    round_["order"] = data["order"]
+                elif event == "start":
+                    round_["attempted_order"].append(data["name"])
+                    round_["scenarios"].append({**data, "seed": round_["seed"], "result": "RUNNING", "before": soak_snapshot()})
+                elif event == "result":
+                    entry = round_["scenarios"][-1]
+                    entry.update(data, after=soak_snapshot())
+                    entry["frame_delta"] = soak_frame_deltas(entry["before"], entry["after"])
+                    if data["result"] != "PASS":
+                        entry["failed_step"] = dict(CURRENT_STEP)
+                save_report()
+
+            try:
+                with (round_dir / "runner.log").open("w", buffering=1) as output, \
+                        contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                    stop_duo()
+                    boot_start = time.monotonic()
+                    round_["phase"] = "boot"
+                    run_dir = new_run_dir(f"soak-round-{index:04d}")
+                    round_["run_dir"] = str(run_dir)
+                    save_report()
+                    duo = argparse.Namespace(cell=HOME_CELL, save=None, boot_timeout=240, world_timeout=180,
+                                             seconds=60, keep_running=True, level=None, npc="", run_dir=run_dir)
+                    command_duo(duo)
+                    round_["boot_seconds"] = time.monotonic() - boot_start
+                    round_["phase"] = "scenarios"
+                    round_["before"] = soak_snapshot()
+                    save_report()
+                    command_scenario(argparse.Namespace(names=names if not args.tag else [], tag=args.tag, hold=0,
+                                                       repeat=1, shuffle=True, seed=round_["seed"], fail_fast=False,
+                                                       dry_run=False, observe=observe))
+            except (TestFailure, SystemExit, OSError) as error:
+                round_["error"] = f"{round_['phase']}: {error}"
+            finally:
+                round_["after"] = soak_snapshot()
+                for entry in round_["scenarios"]:
+                    if entry["result"] == "RUNNING":
+                        entry["result"] = "FAIL (round aborted: " + round_.get("error", "interrupted") + ")"
+                round_["not_run"] = round_["order"][len(round_["attempted_order"]):]
+                round_["complete"] = not round_["not_run"] and len(round_["scenarios"]) == len(names)
+                round_["crashes"] = soak_crashes(crash_before, round_dir)
+                for name in ("", "client"):
+                    select_instance(name)
+                    collect_logs(round_dir)
+                round_["seconds"] = time.monotonic() - round_started
+                round_["summary"] = soak_summary([round_], prior, memory_rounds=report["rounds"])
+                round_["comparison"] = f"round {index - 1}" if index > 1 else previous_file
+                save_report()
+            passed = sum(entry["result"] == "PASS" for entry in round_["scenarios"])
+            log(f"round {index}: {passed}/{len(names)} passed, {round_['seconds']:.1f}s; "
+                + soak_summary_line(round_["summary"]) + (f" (compared with {round_['comparison']})" if round_["comparison"] else ""))
+    except KeyboardInterrupt:
+        report["interrupted"] = True
+        raise
+    finally:
+        report["finished"] = time.time()
+        save_report()
+        stop_duo()
+    print(f"{len(report['rounds'])} rounds, {soak_summary_line(report['summary'])}; report: {report_file}")
+    if any(round_.get("error") or round_["crashes"] or any(entry["result"] != "PASS" for entry in round_["scenarios"])
+           for round_ in report["rounds"]):
+        raise SystemExit(1)
+
+
 def main():
+    from coop_specs import register
+    register(SCENARIOS, TAGS)
+    try:
+        validate_source_tags()
+    except TestFailure as error:
+        raise SystemExit(f"FAIL: {error}")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("launch", "duo", "repro"):
@@ -7699,6 +8754,20 @@ def main():
     scenario.add_argument("--repeat", type=int, default=1, help="run the list N times")
     scenario.add_argument("--tag", help="only scenarios with one of these comma-separated tags (see TAGS)")
     scenario.add_argument("--fail-fast", action="store_true", help="stop at the first scenario that fails")
+    scenario.add_argument("--dry-run", action="store_true", help="print the selection without contacting Skyrim")
+    affected = commands.add_parser("affected", help="select scenarios from changed source files")
+    affected.add_argument("--base", default="HEAD", metavar="REF", help="compare against REF (default HEAD), including untracked files")
+    affected.add_argument("--run", action="store_true", help="run the selected scenarios; never expand core into the full suite")
+    affected.add_argument("--check", action="store_true", help="check Code/ coverage, including shared specs but excluding other Code/tests/")
+    affected.add_argument("--dry-run", action="store_true", help="with --run: print what scenario would run without contacting Skyrim")
+    affected.add_argument("--files", nargs="*", help=argparse.SUPPRESS)
+    soak = commands.add_parser("soak", help="fresh duo and shuffled scenarios each round; --tag limits a smoke test")
+    budget = soak.add_mutually_exclusive_group()
+    budget.add_argument("--hours", type=float, help="start rounds for H hours (default 6); finish the last round")
+    budget.add_argument("--rounds", type=int, help="run N rounds instead of a time budget")
+    soak.add_argument("--seed", type=int, help="first round's shuffle seed; each round adds one")
+    soak.add_argument("--tag", help="smoke test only these comma-separated scenario tags")
+    soak.add_argument("--dry-run", action="store_true", help="print the scope without booting or stopping games")
     stop = commands.add_parser("stop", help="stop the test game(s) (both instances unless --instance)")
     console = commands.add_parser("console", help="run a console command in the running test game")
     console.add_argument("text", nargs="+")
@@ -7757,6 +8826,10 @@ def main():
             command_duo(args)
         elif args.command == "scenario":
             command_scenario(args)
+        elif args.command == "affected":
+            command_affected(args)
+        elif args.command == "soak":
+            command_soak(args)
         elif args.command == "reload":
             command_reload(args)
         elif args.command == "console":
@@ -7815,5 +8888,6 @@ def main():
 
 
 if __name__ == "__main__":
+    sys.modules["coop_test"] = sys.modules[__name__]
     main()
 

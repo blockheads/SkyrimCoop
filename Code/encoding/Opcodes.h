@@ -50,6 +50,8 @@ enum RequestOpcode : unsigned char
     kPlayerNativeRequest,
     kPlayerNativeResultRequest,
     kEffectFlashRequest,
+    kPartyNativeRequest,
+    kWorldCallRequest,
     kRequestOpcodeMax
 };
 
@@ -105,5 +107,7 @@ enum NotifyOpcode : unsigned char
     kNotifyPlayerNative,
     kNotifyPlayerNativeResult,
     kNotifyEffectFlash,
+    kNotifyPartyNative,
+    kNotifyWorldCall,
     kNotifyOpcodeMax
 };

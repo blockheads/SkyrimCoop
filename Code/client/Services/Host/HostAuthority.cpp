@@ -51,6 +51,8 @@
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestActiveEffects.h>
 #include <Messages/EffectFlashRequest.h>
+#include <Messages/PartyNativeRequest.h>
+#include <Messages/NotifyPartyNative.h>
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
@@ -182,6 +184,9 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
     Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::SessionId);
     Relay<EffectFlashRequest, NotifyEffectFlash>(FromOwner, &EffectFlashRequest::SessionId);
+    // A script's call on the controls or the screen (fades, camera, shakes, music): every other game runs it too
+    // (cutscenes.md).
+    On(*this, &HostAuthority::OnPartyNative);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);
@@ -271,6 +276,17 @@ void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, C
             notify.Changes[cSessionId] = cFactions;
     if (!notify.Changes.empty())
         m_players.SendToOthers(notify, aSender, Net::kReliable);
+}
+
+void HostAuthority::OnPartyNative(const PartyNativeRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const auto* cpPlayer = m_players.Find(aSender);
+    if (!cpPlayer)
+        return;
+    NotifyPartyNative notify;
+    static_cast<Payloads::PartyNative&>(notify) = acRequest;
+    notify.Source = cpPlayer->Id;
+    Deliver(notify, Delivery::FromAnyone, 0, aSender);
 }
 
 void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept

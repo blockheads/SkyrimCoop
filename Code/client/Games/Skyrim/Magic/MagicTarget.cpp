@@ -114,7 +114,8 @@ bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
 {
     if (!apTarget->GetExtension()->IsOtherPlayer() || !World::Get().GetHostService().IsHosting())
         return false;
-    return !apCaster || (IsCopy(apCaster) && GuestScripts::NativeGuest());
+    const uint32_t cGuest = GuestScripts::NativeGuest();
+    return !apCaster || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script
 }
 
 // A player's hostile spell on another player while PvP is off.

@@ -9,7 +9,7 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   everyone; shared dialogue): decided, `docs/design/party-model.md`; shared dialogue in `docs/design/shared-dialogue.md`.
 - **More natives on the player** (2026-10-22). Rule 2 sends the natives that act on this player (the table in
   `docs/re/systems/papyrus-guest-scripts.md`, from `scripts/re/papyrus_natives.py`) to the guest's game, values
-  included. Left: the screen's natives (controls, fades, camera, shakes: the cutscene design), member natives that
+  included. Left: member natives that
   open this player's menus on another actor (`ShowGiftMenu`, `ShowBarterMenu`, `OpenInventory`: a method call on the
   guest's copy, with barter on the picker's game), `GetPlayerGrabbedRef` (returns an object a `ScriptValue` cannot
   carry), words of power (the party's: mirror to every game), and a save taken while a script waits for a guest's
@@ -46,7 +46,11 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   with the globals their scripts name kept per game (left out of the host's global sync). The list first,
   shipped for known mods; then found by a heuristic (no stages, objectives or aliases but the player's) or
   from the compiled scripts (`.pex`: which natives, on what). Their world writes (a campfire, harvesting) go
-  to the host as a guest's actions. Notes: `docs/research/guest-scripts-and-mods.md`.
+  to the host as a guest's actions. Notes: `docs/research/guest-scripts-and-mods.md`. First piece built
+  2026-10-23: a quest the guest's own scripts start (an MCM toggle, an item, an effect) is the guest's
+  (`docs/design/world-state-sync.md`, "A guest's own quests"). A mod's quest that starts itself is not, yet;
+  test with a real survival mod (Frostfall, Sunhelm) to see which way they start and whether the host's quest
+  and global sync overwrite the guest's state.
 - **Switch a guest's own weather choice off** (2026-10-20). Today a guest's game keeps picking its own weather
   (the region's climate, cell changes, scripts), and `GuestWeather` checks every frame and forces the
   host's back (`GuestEngine::HoldWeather`). Cleaner: while a guest, stop the game choosing at all, so the

@@ -48,7 +48,10 @@
 #include <Misc/BSScript.h>
 #include <Misc/MiddleProcess.h>
 #include <Misc/GameVM.h>
+#include <Papyrus/GlobalCall.h>
 #include <Papyrus/NativeReach.h>
+#include <AI/Movement/PlayerControls.h>
+#include <Games/TES.h>
 #include <NetImmerse/NiCamera.h>
 #include <NetImmerse/NiNode.h>
 #include <PlayerCharacter.h>
@@ -779,6 +782,15 @@ std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept
     return state;
 }
 
+bool AllowQuestRerun(uint32_t aQuestId) noexcept
+{
+    auto* pQuest = Cast<TESQuest>(TESForm::GetById(aQuestId));
+    if (!pQuest)
+        return false;
+    pQuest->alreadyRun = false;
+    return true;
+}
+
 bool ForceQuestAlias(uint32_t aQuestId, uint32_t aAliasId, uint32_t aRefId, uint32_t aParentId, int16_t aGridX, int16_t aGridY) noexcept
 {
     auto* pQuest = Cast<TESQuest>(TESForm::GetById(aQuestId));
@@ -1266,6 +1278,28 @@ void SetPlayerTrainings(uint32_t aCount) noexcept
 {
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         pPlayer->skillTrainingsThisLevel = aCount;
+}
+
+ScreenState GetScreenState() noexcept
+{
+    POINTER_SKYRIMSE(float, s_shakeStrength, 402622);
+    POINTER_SKYRIMSE(float, s_shakeSeconds, 402623);
+    ScreenState state;
+    if (const auto* pControls = BSInputEnableManager::Get())
+        state.Controls = pControls->enabledControls;
+    if (auto* pTes = TES::Get())
+        for (ImageSpaceModifierInstance* pInstance : pTes->activeImageSpaceModifiers)
+            if (const auto* pForm = pInstance ? pInstance->AsForm() : nullptr; pForm && pForm->pImod)
+                state.Imods.push_back(pForm->pImod->formID);
+    state.ShakeStrength = *s_shakeStrength.Get();
+    state.ShakeSeconds = *s_shakeSeconds.Get();
+    return state;
+}
+
+bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction, std::optional<uint32_t> aSelf, const std::vector<LocalValue>& acArguments) noexcept
+{
+    const LocalCall cCall{.Class = acClass, .Function = acFunction, .Self = aSelf ? LocalValue{LocalForm{*aSelf}} : LocalValue{}, .Arguments = acArguments};
+    return GlobalCall::QueueCall(cCall);
 }
 
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept

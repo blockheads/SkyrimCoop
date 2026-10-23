@@ -3,7 +3,13 @@
 #include <Papyrus/NativeReach.h>
 
 #include <Events/PlayerNativeEvent.h>
+#include <Events/WorldCallEvent.h>
+#include <Forms/TESQuest.h>
+#include <Papyrus/GuestScripts.h>
+#include <Papyrus/OwnEvents.h>
+#include <Papyrus/PartyNatives.h>
 #include <Games/EngineNames.h>
+#include <HookSwitch.h>
 #include <Misc/GameVM.h>
 #include <World.h>
 
@@ -11,6 +17,9 @@
 #include <map>
 #include <mutex>
 #include <vector>
+#include <Hooks/FunctionHook.h>
+#include <Hooks/Initializer.h>
+#include <VersionDb.h>
 
 namespace PlayerNatives
 {
@@ -20,6 +29,32 @@ namespace
 std::mutex s_waitingLock;
 std::map<uint32_t, BSScript::Variable::Type> s_waiting;
 std::atomic<bool> s_anyWaited{false}; // until then a stack ending skips the lock
+std::atomic<bool> s_isGuest{false};
+
+// The quests this guest's own scripts started.
+OwnEvents::OwnQuests s_ownQuests;
+
+// TESQuest::EnsureQuestStarted (25003, CommonLibSSE-NG `EnsureQuestStarted(bool& a_result, bool a_startNow)`): every
+// start, Quest.Start's and the engine's.
+using TQuestStarted = bool(TESQuest*, bool*, bool);
+TQuestStarted* RealQuestStarted = nullptr;
+
+bool HookQuestStarted(TESQuest* apThis, bool* apResult, bool aNow)
+{
+    const bool cWasRunning = apThis && (apThis->flags & TESQuest::Flags::Enabled);
+    const bool cOk = RealQuestStarted(apThis, apResult, aNow);
+    if (apThis && s_ownQuests.Started(apThis->formID, cWasRunning, cOk, s_isGuest.load(std::memory_order_relaxed), GuestScripts::NativeGuest()))
+        spdlog::info("PlayerNatives: quest {:X} started by this guest's own script: its own", apThis->formID);
+    return cOk;
+}
+
+Hooks::Initializer s_hooks([]() {
+    const HookGate cGate(__FILE__);
+    POINTER_SKYRIMSE(TQuestStarted, s_questStarted, 25003);
+    RealQuestStarted = s_questStarted.Get();
+    HOOK(&RealQuestStarted, HookQuestStarted);
+});
+
 
 // A global native acting on this game's player without naming them (NativeReach). Game.GetPlayer is rule 2's own
 // (GuestScripts, HookGetPlayer).
@@ -30,33 +65,54 @@ bool IsPlayerNative(BSScript::IFunction* apFunction) noexcept
     const bool cIsGetPlayer = cpClass && cpName && SameName(cpClass, "Game") && SameName(cpName, "GetPlayer");
     return apFunction->GetIsStatic() && !cIsGetPlayer && NativeReach::ReachesThisPlayer(apFunction);
 }
-
-// The native's arguments from its frame; false: one the session cannot carry (GlobalCall::Read).
-bool ReadArguments(BSScript::IFunction* apFunction, BSScript::StackFrame& aFrame, std::vector<LocalValue>& aArguments) noexcept
-{
-    const uint32_t cPage = aFrame.GetPageForFrame();
-    for (uint32_t i = 0; i < apFunction->GetParamCount(); ++i)
-    {
-        auto value = GlobalCall::Read(*aFrame.GetStackFrameVariable(i, cPage));
-        if (!value)
-            return false;
-        aArguments.push_back(std::move(*value));
-    }
-    return true;
-}
 } // namespace
+
+void SetGuest(bool aIsGuest) noexcept
+{
+    s_isGuest = aIsGuest;
+    s_ownQuests.Clear();
+}
+
+bool IsOwnQuest(uint32_t aFormId) noexcept
+{
+    return s_ownQuests.Contains(aFormId);
+}
+
+std::optional<BSScript::CallResult> SendToHost(BSScript::IFunction* apFunction, BSScript::Stack* apStack, uint32_t aTag) noexcept
+{
+    if (!s_isGuest.load(std::memory_order_relaxed) || !apStack || !apStack->pTop || PartyNatives::IsMirrored(aTag) ||
+        NativeReach::CallOf(apFunction) != NativeReach::Call::kWorld)
+        return std::nullopt;
+    auto call = GlobalCall::ReadCall(apFunction, *apStack->pTop);
+    if (!call)
+    {
+        spdlog::warn("PlayerNatives: {}.{}'s object or an argument is not one the session can carry: this guest's game makes it",
+                     apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii());
+        return std::nullopt;
+    }
+    if (const auto* pSelf = std::get_if<LocalForm>(&call->Self); pSelf && IsOwnQuest(pSelf->FormId))
+        return std::nullopt; // its own quest's stage: here
+    apStack->returnValue.Clear();
+    if (apFunction->GetReturnType().type == BSScript::Variable::kBoolean)
+        apStack->returnValue.Set(true);
+    spdlog::info("PlayerNatives: {}.{} from this guest's script goes to the host", call->Class, call->Function);
+    World::Get().GetRunner().Trigger(WorldCallEvent{std::move(*call)});
+    return BSScript::CallResult::kCompleted;
+}
 
 std::optional<BSScript::CallResult> SendToGuest(BSScript::IFunction* apFunction, BSScript::Stack& aStack, BSScript::IVirtualMachine* apVm,
                                                 uint32_t aGuest) noexcept
 {
     if (!aStack.pTop || !IsPlayerNative(apFunction))
         return std::nullopt;
-    PlayerNativeEvent event{.GuestFormId = aGuest, .Class = apFunction->GetObjectTypeName().AsAscii(), .Function = apFunction->GetName().AsAscii()};
-    if (!ReadArguments(apFunction, *aStack.pTop, event.Arguments))
+    auto call = GlobalCall::ReadCall(apFunction, *aStack.pTop);
+    if (!call)
     {
-        spdlog::warn("PlayerNatives: {}.{} for guest {:X} has an argument the session cannot carry: run on the host", event.Class, event.Function, aGuest);
+        spdlog::warn("PlayerNatives: {}.{} for guest {:X} has an argument the session cannot carry: run on the host",
+                     apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(), aGuest);
         return std::nullopt;
     }
+    PlayerNativeEvent event{.GuestFormId = aGuest, .Call = std::move(*call)};
     if (apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
     {
         aStack.returnValue.Clear();

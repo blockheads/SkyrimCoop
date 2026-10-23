@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Structs/ScriptValue.h>
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -67,6 +69,8 @@ struct QuestState
     std::vector<Alias> Aliases;
 };
 std::optional<QuestState> GetQuestState(uint32_t aQuestId) noexcept;
+// Forgets that a run-once quest ran (TESQuest::alreadyRun), so a scenario can start it again; false if no such quest.
+bool AllowQuestRerun(uint32_t aQuestId) noexcept;
 // Fills the quest's reference alias with the reference, read from its plugin first when it is not in memory (indoors:
 // aParentId its cell; outdoors: its worldspace and grid cell); false if either is missing.
 bool ForceQuestAlias(uint32_t aQuestId, uint32_t aAliasId, uint32_t aRefId, uint32_t aParentId, int16_t aGridX, int16_t aGridY) noexcept;
@@ -446,4 +450,18 @@ struct CameraView
     float TargetOffCenter = 0.f; // degrees between the view and the target's head
 };
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept;
+
+// What a cutscene does to this game's screen: the enabled controls (ControlMap, UEFlag bits), the forms of the
+// image-space modifiers running (TES's list), and the camera's shake (strength and seconds left; 402622, 402623, set by
+// ShakeCamera 33012).
+struct ScreenState
+{
+    uint32_t Controls{};
+    std::vector<uint32_t> Imods;
+    float ShakeStrength{};
+    float ShakeSeconds{};
+};
+ScreenState GetScreenState() noexcept;
+// Queues a Papyrus call as a script's (GlobalCall): a global function, or a method on aSelf's script object.
+bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction, std::optional<uint32_t> aSelf, const std::vector<LocalValue>& acArguments) noexcept;
 } // namespace TestHarness::EngineCalls

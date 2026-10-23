@@ -4,13 +4,15 @@
 
 struct Mods;
 struct GameId;
+class IFormBridge;
 
 /**
  * @brief Makes sure that different clients can have independent load orders and mods.
  */
 struct ModSystem
 {
-    ModSystem(entt::dispatcher& aDispatcher) noexcept;
+    // aForms: this game's loaded plugins, which the session's mod ids map to.
+    ModSystem(entt::dispatcher& aDispatcher, const IFormBridge& acForms) noexcept;
     ~ModSystem() = default;
 
     NO_COPY_MOVE(ModSystem);
@@ -30,6 +32,7 @@ private:
         bool isLite;
     };
 
+    const IFormBridge& m_forms;
     entt::scoped_connection m_modsConnection;
     std::unordered_map<uint16_t, uint32_t> m_liteToServer;
     std::unordered_map<uint32_t, GameMod> m_serverToGame;

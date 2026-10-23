@@ -7,6 +7,7 @@
 #include <string>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 // A Papyrus value: None, a number, a bool, a string or a form (as TForm: this game's, or the session's).
 template <class TForm> using ScriptValueOf = std::variant<std::monostate, int32_t, float, bool, std::string, TForm>;
@@ -52,6 +53,25 @@ struct LocalForm
 // A value as one game's script has it.
 using LocalValue = ScriptValueOf<LocalForm>;
 
+// A script's call of a native, made on another game: its class and name, its object (a method's form; None for a
+// global native) and its arguments, forms as TForm.
+template <class TForm> struct ScriptCallOf
+{
+    bool operator==(const ScriptCallOf&) const noexcept = default;
+
+    std::string Class{};
+    std::string Function{};
+    ScriptValueOf<TForm> Self{};
+    std::vector<ScriptValueOf<TForm>> Arguments{};
+};
+
+// A call as the session carries it, and as one game's script makes it.
+using ScriptCall = ScriptCallOf<ScriptForm>;
+using LocalCall = ScriptCallOf<LocalForm>;
+
 void SerializeScriptValue(Wire::Buffer::Writer& aWriter, const ScriptValue& acValue) noexcept;
 // False: a kind this build does not know, so nothing after it can be read.
 bool DeserializeScriptValue(Wire::Buffer::Reader& aReader, ScriptValue& aValue) noexcept;
+
+void SerializeScriptCall(Wire::Buffer::Writer& aWriter, const ScriptCall& acCall) noexcept;
+void DeserializeScriptCall(Wire::Buffer::Reader& aReader, ScriptCall& aCall) noexcept;

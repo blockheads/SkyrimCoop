@@ -44,6 +44,8 @@ struct HostCharacters
 
     // The owner's connection (0: no such character).
     [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aSessionId) const noexcept;
+    // The player's own character (its session id), or none.
+    [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) const noexcept;
     // Its characters leave with it.
@@ -68,8 +70,6 @@ private:
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
-    // The player's own character (its session id), or none.
-    [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
     // The host's actors (not its player, whose copy travels with the party) to one player.
     void SendHostActors(ConnectionId_t aPlayer) const noexcept;
     void SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, ConnectionId_t aSender) const noexcept;

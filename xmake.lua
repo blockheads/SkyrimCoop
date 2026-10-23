@@ -93,6 +93,8 @@ end
 -- The native tests.
 if is_plat("linux") then
     add_requires("catch2 2.13.9")
+    -- ClientTests: NativeReach's reading of code (CodeReach)
+    add_requires("zydis v4.1.0")
 end
 
 -- spdlog formats with std::format, not its bundled fmt.

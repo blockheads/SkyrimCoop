@@ -100,7 +100,7 @@ void HostConversation::OnPicked(const NotifyDialoguePicked& acMessage, uint32_t 
     auto& bridge = m_dialogue.Bridge();
     // Before its line begins: its script runs for the picker.
     m_pickerSpeaker = bridge.GetSpeaker();
-    m_picker = aOwnPick ? 0 : CharacterOf(acMessage.PlayerId);
+    m_picker = aOwnPick ? 0x14 : CharacterOf(acMessage.PlayerId); // the host's own pick: its player's (0x14)
     m_awaitingList = true;
     // Its own menu said its own pick.
     if (aOwnPick || !bridge.GetSpeaker())

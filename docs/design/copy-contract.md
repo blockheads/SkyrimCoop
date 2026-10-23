@@ -244,6 +244,12 @@ A copy of one of the game's own NPCs outlived its owner's actor (fixed 2026-10-2
   its copy flag and the guest ran that NPC's AI wherever it was left. The copy follows where the host's actor was
   at removal; an unloaded host NPC walking on (its schedule) is not followed until it is spawned again.
   Scenario `host-npc-leaves-copy-follows`; `release_host_npc` no longer touches the client.
+- **Gone before its assignment came back (found 2026-10-23 by tier 2, `copy_flows.cpp`).** The host's rules send a
+  new NPC's spawn to the guests with its assignment, and the host's own game handles the answer on its next
+  update: a guest has its copy a frame before the host's game knows it owns the NPC. An NPC unloading in that
+  frame was dropped by `OnAssignCharacter` ("actor not found") with no removal sent, and the guest's copy stayed
+  with no owner. Now `OnAssignCharacter` sends `RequestRemoveCharacter` for the session id it was given
+  (whereabouts unknown: nothing to follow, the actor is gone).
 
 ## When syncing a new system
 

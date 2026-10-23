@@ -1,0 +1,476 @@
+# Testing: four tiers
+
+Decided 2026-10-23 with the user. The model is Factorio's (Friday Facts #60 and #62,
+factorio.com/blog/post/fff-60, fff-62): unit tests of isolated logic, integration tests of the real game on small
+maps checked against saved checksums, and black-box tests of the binary with several instances for multiplayer.
+They test the trickiest code first, not everything, and credit the tests with the desyncs that would otherwise
+have held up their multiplayer release.
+
+We can't boot Skyrim headless as Factorio boots its engine, so our "small map" is a fake engine behind the bridge
+interfaces. Skyrim itself is the black box.
+
+```
+                         speed       runs                  catches
+ 1 unit         Catch2   < 1 s run   every change          logic: rules, holds, tags, encodings
+ 2 integration  Catch2   seconds     every change          flows between games: messages, order, leaving
+ 3 black box    duo      minutes     while building;       how Skyrim behaves; glue; the fake's honesty
+                                     affected before push
+ 4 soak         duo      hours       before a release      crashes, deadlocks, order bugs
+```
+
+## The gate
+
+```bash
+scripts/check.sh            # tiers 1-2 and the plugin's build; before every push (the pre-push hook)
+scripts/check.sh --no-dll   # without the Windows toolchain
+```
+
+It builds and runs `ClientTests`, `BridgeTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
+build at `-j8`. Each step's output is in `build/check/`, and a failure shows its failed checks or compiler errors.
+Incremental it takes 3-11 s. The hook is `scripts/hooks/pre-push`, installed with
+`git config core.hooksPath scripts/hooks` (relative, so worktrees share it); `git push --no-verify` skips it.
+Skyrim's scenarios are not in it.
+
+## Today's numbers (measured 2026-10-23)
+
+- DLL, one `.cpp` touched (`PartyNatives.cpp`, `CutsceneService.cpp`, `World.cpp`): 1.8-2.4 s
+- DLL, `World.h` touched (most of the plugin): 12.9 s
+- `ClientTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
+- `BridgeTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (115 cases)
+- `TPTests`: build 1.9 s; run under 0.01 s
+- `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 2.1 s (11 flows, 2-3 games each)
+- Duo boot (`stop`, then `duo --keep-running`): 22.6 s, both games connected and the baseline recorded
+- `reload` (swap a rebuild into the running duo): 2.2 s
+- One scenario (`cutscene-controls-reach-party`): 1.6 s, 2.6 s with the command's start
+- The `scripts` tag (24 scenarios): 176 s
+- The full suite: 132 scenarios, over 10 minutes (not run for this)
+
+So one Skyrim loop (build, reload, the affected tag) costs minutes; tiers 1-2 cost a few seconds.
+
+A catch: xmake compares timestamps by the second, so an edit within a second of the last build is not rebuilt.
+Scripts that edit and build in a loop wait a second first.
+
+## Tier 1: unit
+
+- **For:** pure client and host logic, no engine: whose a call is, who holds what, the host's rules, message
+  encoding.
+- **Where:**
+  - `Code/tests/client/` (`ClientTests`): every game's logic. The pure files are listed one by one in its
+    `xmake.lua` (`PartyRules`, `ScriptTags`, `OwnEvents`, and `Games/EngineNames.h`); a file that needs the engine
+    doesn't build there, so the Linux build is the purity check.
+  - `Code/tests/bridge/` (`BridgeTests`): the host's rules (`HostAuthority`, `Services/Host/`) against in-process
+    games (`session.h`).
+  - `Code/tests/encoding.cpp` (`TPTests`): messages on the wire.
+- **Run:**
+  ```bash
+  scripts/xmake-linux.sh build -j8 ClientTests && build/linux/x86_64/debug/ClientTests
+  scripts/xmake-linux.sh build -j8 BridgeTests && build/linux/x86_64/debug/BridgeTests
+  scripts/xmake-linux.sh build -j8 TPTests && build/linux/x86_64/debug/TPTests
+  ```
+- **When:** every change. **Budget:** about 10 s build and run, each target.
+- **Shape:** a hook's file splits in two:
+  ```
+  Papyrus/PartyRules.{h,cpp}    pure: inputs -> decision; no engine headers
+  Papyrus/PartyNatives.cpp      glue: the hook gathers inputs, calls the rule, acts
+  ```
+  Engine constants the rule needs are mirrored in the pure header and `static_assert`ed against the engine struct
+  in the glue (`PartyRules::kMovement == BSInputEnableManager::kMovement`).
+
+## Tier 2: integration
+
+- **For:** whole games in-process (the real client services and the host's rules) against a fake engine, 2-4
+  games, given/when/then flows. The checksum is `Party::Differences()`: every reference in a cell two games have
+  loaded is the same.
+- **Where:** `Code/tests/games/` (`GameTests`).
+- **Run:** `scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests`
+- **When:** every change. **Budget:** seconds. Today: build 2.5-4.5 s (one service), run 2.1 s for 11 flows.
+  Most of the run is enet's loopback handshakes and `Net::Client::Close`'s 100 ms wait per leave.
+
+```
+one process
+  Party (Party.h)
+    HostNetwork + HostAuthority (every rule in Services/Host/), HostOf: the host's reads from its fake world
+    World "Dovahkiin" (the host's game)    TransportService::ConnectLocal (in-process, as in Skyrim)
+    World "Lydia" (a guest)                TransportService::Connect 127.0.0.1 (enet, as from another machine)
+  each World (Seams.cpp): the services a flow needs, real
+    TransportService, CutsceneService, RunnerService, CharacterService, TravelService, ModSystem, HostService
+    (HostSeams.cpp: hosting as in Skyrim, its reads from the fake world and CharacterService);
+    on a guest GuestWorldState (GuestSeams.cpp, as it joins)
+    SkyrimBridge = FakeEngine: StillBridges (every bridge call answers nothing) + ControlMap's mask + a script VM
+                   + the world's references (locks, containers' items, change records, loaded cells)
+                   + the actors (the player 0x14, NPCs its cells load, copies; temporary ids as placeatme's)
+  World::Get() is the game being stepped (Party::As)
+```
+
+Real code in it: `TransportService`, `CutsceneService`, `RunnerService`, `CharacterService`, `TravelService`,
+`InterpolationSystem`, `ModSystem`, `GuestWorldState`, the script value conversions (`ScriptValues.cpp`) and
+session ids (`SessionIds.cpp`), `HostNetwork`, `HostAuthority` and its rules (`HostWorldState` included),
+`PartyRules`, the encoding and the network. Fake (link seams, no production interface widened): `World`'s
+constructor (the services above, in the real order, destroyed first), `SkyrimBridge`, `RunningGame`,
+`PartyNatives`' entry points (the glue's job, mirrored in about 40 lines over `PartyRules`), `GuestEngine`'s calls
+`GuestWorldState` makes, `GuestService`'s making of the guest's parts, `HostService` (its hosting; its own
+destructor needs `HostEngine`'s and `HostConversation`'s, never made here), and what `CharacterService` calls that
+tier 2 leaves out: `AnimationSystem` / `FaceGenSystem` (their `Setup`s mirrored: components only),
+`AiStateService::ReadState`, `EffectVisualsService::ReadEffects` (not in these worlds).
+
+The flows (`cutscene_flows.cpp`): a guest's world script takes everyone's controls and the guest leaves, so the
+host's come back; the host's world script, so the guest gets its own back as it leaves; two cutscenes at once; a
+restriction stays with its game. With `CutsceneService::OnPlayerLeft`'s give-back removed, the first fails:
+"never happened: the host's controls come back".
+
+The world flows (`world_flows.cpp`): the host's player picks a lock and it opens on the guest's game; a guest's
+pick is a proposal the host's world takes and sends back as its own; a guest's world locking a door is no
+proposal; a guest takes gold and the host's chest holds what the guest's does; a cell a guest never loaded gets
+the host's changes there when it loads it; a guest away while the host changes things gets them on joining again;
+two guests, one's proposal reaching the other. Each ends with the checksum. With `GuestWorldState`'s `ByPlayer`
+check removed, the third fails; with its cell-state ask removed, the last-but-one two fail.
+
+The copy flows (`copy_flows.cpp`): an NPC the host's game loads gets a copy on the guest's game; it goes when the
+host's NPC goes, before the host's game has its assignment back and after; a guest's player gets a copy on the
+host's game, which goes when the guest leaves. The first run found a bug: the host's rules send the spawn with
+the assignment, so a guest has its copy a frame before the host's game handles its answer; an NPC unloading in
+that frame was dropped by `OnAssignCharacter` without telling the host, and the guest's copy stayed for good.
+Fixed (`CharacterService::OnAssignCharacter` sends `RequestRemoveCharacter` for it); without the fix the race case
+fails.
+
+The travel flows (`travel_flows.cpp`): the host travels and the guest follows (the tether), the players' copies
+coming along; a guest travels and the host and the other guest follow; an NPC stays with its cell when the party
+leaves it, and one loading where the party is now gets a copy there. The check is that every game sees the party
+in one cell: its own player and each player's copy. Without `RunPresence`, or without the tether's move, all three
+fail. The fake engine's travel: the player's move loads its new cell and unloads the old one and reports a
+teleport (`ConsumeTeleported`); an actor is in the process lists only while its cell is loaded. Found on the way:
+`RunLocalUpdates` throttled snapshots with a function-local `static`, so with two games in one process only one
+sent any; it is a member now (`m_lastSnapshot`). Statics in services are state the whole process shares.
+
+To make `CharacterService`, `ModSystem` and the conversions build without the engine: `CharacterService` dropped two
+includes it did not use (`MoveActorEvent.h`, `TESCamera.h`) and takes the session ids from `SessionIds.h`; the
+session-id lookups and script value conversions moved out of `Utils.cpp` (`SessionIds.cpp`, `ScriptValues.cpp`;
+a form's being in this game is `IFormBridge::FormExists`); `ModSystem` reads the loaded plugins from
+`IFormBridge::GetLoadedMods` in place of `ModManager` (it takes the form bridge). Before that, for `CutsceneService`
+and `GuestWorldState`, three header changes:
+`Papyrus/PartyNatives.h` has no engine types (its `Scope` moved to `PartyNativesScope.h`), the script value
+conversions moved out of `Utils.h` into `ScriptValues.h`, and `GuestEngine.h` no longer includes
+`Papyrus/GlobalCall.h` (it names the callback's `std::function` itself).
+
+What the fake world assumes, from the engine (`docs/design/world-state-sync.md`): a cell's references are in
+memory once it loaded and stay after it unloads, so a change to a cell a guest never loaded cannot apply there; a
+guest's game raises its player's lock and container changes as events and applies the host's without raising
+any; the host's game records each change it takes as its own.
+
+### What Skyrim taught the fake
+
+The fake's `Game.DisablePlayerControls` takes what Skyrim takes, read with the harness's `screen` (2026-10-23):
+
+- movement: `0x401` (movement and jumping)
+- fighting `0x40`, looking `0x2`, sneaking `0x80`, menu `0x100` (`kMainFour`)
+- camera switch, activate, the journal: nothing in `ControlMap`
+- the defaults (movement, fighting, menu, activate): `0x541`
+
+The first fake had movement as `0x1` only.
+
+### Growing it: blockers, and the size of each
+
+Today 12 of the 26 service files build natively (`CharacterService`, `CommandService`, `CutsceneService`,
+`GuestWorldState`, `MapService`, `PlayerService`, `RunnerService`, `SessionService`, `TimeScaleService`,
+`TransportService`, `TravelService`, and `ModSystem` among the systems). What stopped the rest, first error each
+(`CharacterService` was only three unused or misplaced includes):
+
+1. **Engine structs in services** (`CombatService`, `InventoryService`, `MagicService`, `ObjectService`,
+   `HostService`): `Games/Primitives.h` fails its own `static_assert` (`sizeof(NiRefObject)`), as
+   it should: the engine's layout is the MSVC ABI's (`long` is 4 bytes there, 8 on Linux). They can never build
+   natively; their engine calls go behind a bridge first. Large: one service at a time, as a flow needs it.
+2. **`VersionDb.h` / `intrin.h` through the Papyrus and engine helpers** (`ActorValueService`, `AiStateService`,
+   `DialogueService`, `EffectVisualsService`, `PapyrusService`, every `Guest/` service, `GuestService`): Address
+   Library pointers and intrinsics, reached through headers like `Utils.h` and `Papyrus/*.h`. Medium: often only
+   a header that declares too much (as `PartyNatives.h` and `Utils.h` did); split the declarations a service uses
+   from the engine's.
+3. **The engine glue's entry points** (`GlobalCall`, `GuestScripts`, `PlayerNatives`): faked one function at a
+   time in `Seams.cpp` / `FakeEngine.cpp`. Small each; keep each fake as thin as its glue.
+4. **`HostService`'s hosting**: done as a seam (`HostSeams.cpp`). Splitting the real one (network, authority and
+   `HostGame` from bridges, apart from `HostEngine`'s reads) would put its wiring under test too. Medium.
+5. **The checksum:** `Party::Differences()` compares the fake worlds' references (locks, items). It grows with the
+   fake: doors' open state, enabled, globals and quests next.
+6. **One `World` per game in one process:** handled. `World::Get()` is the game being stepped; the fake engine's
+   state is per game. Real glue keeps module statics (`PartyNatives`' holds), which is fine because the fake
+   replaces the glue, but pure rules must be instance state (`ControlHolds` is).
+
+## Tier 3: black box
+
+- **For:** two real games, the harness and hot reload (`scripts/coop_test.py`, `Code/client/TestHarness/`).
+- **When:**
+  - building a new feature: fast, targeted runs to learn how Skyrim behaves, since we have no data on it yet.
+    What's learned goes into the fake engine, and from then on tiers 1-2 gate the feature.
+  - an existing feature: only the scenarios a change affects (`scenario --tag ...` or by name), before pushing.
+- **Run:** `coop_test.py duo --keep-running` once, then `reload` and `scenario <names>` per change.
+- **Budget:** a tag in a few minutes; the full suite never unasked.
+
+`duo --keep-running` pins a repeatable fixture and records `home.json` for both games: placement and cell,
+equipment, level, health/magicka/stamina maxima, and the host's world fixture (clear weather `0x81A`, noon, the
+recorded date and time scale). Old home files acquire
+these fields once without replacing their recorded player positions. `settle_baseline` applies the fixture once
+through harness console/input controls and waits for the commanded state; it never retries or hot-reloads a
+copy to make the check pass. Residual differences fail the scenario that left them and stop the run.
+
+Only the host's weather and calendar are set; the guest follows through normal sync. Weather/calendar agreement
+is checked **before** cleanup, so resetting to clear weather cannot erase a weather desync. Scenarios can still
+force a different weather or advance time, and their checks run before the fixture returns. Noon prevents
+ordinary clock advancement crossing midnight between short scenarios; the date is restored after explicit waits
+and fast travel. The engine's `raw_days` remains cumulative and its sync is checked: existing harness controls
+cannot rewind it, and setting `GameDaysPassed` alone is overwritten next frame. The per-process midnight counter
+also remains cumulative and is not exposed by the harness. No save load or forced guest calendar conceals this.
+
+QASmoke is an isolated interior; NPCs do not wander in from adjacent exterior cells. Reset removes owned test
+NPCs, restores the recorded cell and player placement, maximum values and depleted pools, stops casts/combat and
+releases held input. Baseline checks reject leftover NPCs or copies. Quests, script timers, effects and arbitrary
+reference state remain each scenario's cleanup responsibility; a fixture does not rewind the whole world.
+
+The shared specs in section (c) register automatically as `spec:<name>`, tagged `spec` plus their system tags, for
+`scenario`, `affected` and `soak`. `Code/tests/specs/*` is the exception to `affected`'s test-directory exclusion:
+changing shared data selects the `spec` tag, while changes to the fake's runner still stay in tiers 1-2. Run
+`python3 scripts/coop_specs.py` or `coop_test.py scenario --tag spec` to check the same contracts in Skyrim.
+
+Validated 2026-10-23 on the running duo: `guest-spawns-no-critters` (6.7 s), `weather-follows-host` (14.2 s), the
+25 hand-written `world` scenarios (241.3 s), and the 24 hand-written `scripts` scenarios (185.7 s), all passing.
+The six shared specs then present also passed in Skyrim (21.5 s), including all four cutscene contracts and the
+new lock/container contracts. Deliberate rain, date/hour, maximum-health and depleted-stamina drift reset in
+1.16 s in one application of the fixture, with both games checked afterward.
+
+## Tier 4: soak
+
+- **For:** crashes, deadlocks, retained memory and order bugs. `soak` boots a fresh duo for each shuffled round,
+  recording the attempted order, crash reports, all lock patterns, memory and frame stalls. Correctness failures
+  are recorded too, but they remain tiers 1-3's job.
+- **Run:** `coop_test.py soak --hours 6` or `--rounds N`, optionally `--seed S`. Without `--tag` this explicitly
+  runs the full suite, including input, restart scenarios and shared specs. `--tag scripts --rounds 2` is a smoke
+  test of the soak runner, not evidence that the full suite soaked. `--dry-run` inspects scope without games.
+- **When:** before a release, unattended. **Budget:** hours.
+- **Cost:** the measured 132-scenario suite takes over 10 minutes, plus roughly 23 seconds for each fresh boot;
+  a full round therefore exceeds 10.4 minutes, before additional shared specs and recording overhead.
+
+## How a feature moves down the tiers
+
+```
+new feature
+  tier 3: run the real thing, targeted; read the engine (harness readouts, IDA)
+     |  what Skyrim does, written down (docs/re/, then the fake engine)
+     v
+  tier 1: the logic split out (pure rule + thin glue), its cases in Catch2
+  tier 2: the flow between games against the fake
+     |  from here tiers 1-2 gate every change
+     v
+  tier 3: only its affected scenarios, before a push
+  tier 4: in the soak, before a release
+```
+
+**Every bug gets a test** in the fastest tier that can show it, failing without the fix: Factorio credits its
+tests with the desyncs they caught because each became one. A bug Skyrim finds (a scenario, a soak, play) gets a
+tier 1 test or tier 2 flow if the fake can show it; if only Skyrim can, a scenario, and what was learned about the
+engine goes into the fake. The first: the copy left by an NPC unloading between its assignment and the host's
+answer (`copy_flows.cpp`, found by tier 2 itself).
+
+Keeping the fake honest, as contract tests do: the same scenario spec runs against the fake (tier 2) and against
+Skyrim (tier 3) now and then. When they disagree, Skyrim is right and the fake is fixed.
+
+## Trickiest first
+
+Done (`ClientTests`, 173 assertions):
+
+- `PartyRules` (`party_tests.cpp`): the cutscene share rule and the control holds.
+- `ScriptTags` (`script_tags_tests.cpp`): GuestScripts' tag table (calls, stacks, timers, delayed natives) and the
+  cause rules (`CauseOfCall`, `NativeCalled`, `Within`), with the chain from a guest's lever to a stage's fragment.
+- `OwnEvents` (`own_events_tests.cpp`): which events are this game's player's (`IsOwnEvent`, VM handles), what
+  happens to each (`Deliver`: run, run as this game's player, drop), and a guest's own quests (`OwnQuests`).
+- `SameName` / `NameKey` (`engine_names_tests.cpp`), portable since (no `_strnicmp`).
+- `CodeReach` (`code_reach_tests.cpp`): NativeReach's reading of a native's code (Zydis over x64 assembled in the
+  test: a leaf ending at its ret, unwind entries chained to one function, tail jumps, a plugin's cells), which of
+  the party's calls it makes, and how far reach follows calls. The process is asked through `Code`; the glue
+  answers from Windows' unwind data and memory.
+- The guest's side of world-state sync is tier 2 (`world_flows.cpp`, above): its logic is the flow, not a rule.
+
+Each was checked by breaking the rule (the native-depth rule, the story without a player, a native's event, a quest
+already running, chained parts, a leaf's ret): a test fails each time.
+
+Next, in order:
+
+1. **The copy contract** (`docs/design/copy-contract.md`): what a copy may run. Mostly engine glue, so a pure rule
+   comes out only where a decision is made (which upkeep runs, which graph events replay).
+
+## Proposals
+
+### (a) `coop_test.py affected`: scenarios from changed files (built)
+
+```
+coop_test.py affected [--base REF] [--run] [--check]
+  changed = git diff --name-only REF + git ls-files --others --exclude-standard
+            REF defaults to HEAD: committed changes since REF, tracked working changes, untracked files
+  tags    = union of every matching SOURCE_TAGS pattern's tags
+  print the tags, each reason (file and pattern), and the selected scenarios
+  --run   use scenario's runner, baseline, cleanup and desync/lock checks
+  --check list every uncovered file under Code/ (except Code/tests/) and fail if any exist
+```
+
+`docs/` and `Code/tests/` do not select Skyrim scenarios; tiers 1-2 still gate test changes. Other prose outside
+those directories, such as `CLAUDE.md`, is ignored too. All files under `Code/` and `scripts/` participate,
+including headers, build recipes and assets; source/script extensions elsewhere participate as well. An
+unmatched source prints `no tag for <file>` and fails before any scenario starts. Deleted paths still count.
+Git is read from the repository root with NUL-separated paths, so spaces in names and the caller's directory do
+not change the selection. Git errors fail the command instead of producing an empty selection.
+
+`SOURCE_TAGS` is an ordered list of `(glob, {tags})` beside `TAGS`. Matching uses `fnmatch` on repository-relative
+paths: `*` also spans `/`, so `Services/*InventoryService.*` covers its header and Generic implementation.
+All matches contribute, rather than the first winning. Tags and paths print in sorted order, reasons in table
+order for each path, and scenarios in their normal suite order. Every table tag must exist in `TAGS`, except
+`core`; an unknown tag fails at startup, including for `--help`.
+
+The map follows responsibilities read from the code:
+
+- Each game's services select their system: inventory, magic, combat, values, AI, dialogue, travel, or scripts.
+  `InventoryService` selects only `inventory`; Papyrus' `Party*` selects only `scripts`. Broad family/directory
+  globs cover related headers and implementations, with narrower entries where a file has its own system.
+- The host's session and player list select `session`; its character ownership and arrivals select `spawn`,
+  `movement` and `cells`. Host/guest clock, weather, conversation and world-state services follow those systems.
+  Host/guest service entry points include `session` and the script/world systems they construct or route.
+- `HostEngine` reads globals, quests, objects and containers; `GuestEngine` applies them and runs player natives.
+  Their tags include those systems. The common `SkyrimBridge` and its interfaces span every system and are core.
+- Skyrim's Papyrus VM and cause rules select scripts and, where relevant, quests. Actor, animation, input,
+  magic, forms and persistence glue follow the state they drive. Both existing quest tag spellings (`quest`
+  and `quests`) are retained where the shared quest/script rules reach them; `TAGS` is unchanged.
+- Harness `CommandsInput` selects input/hands/magic/movement, `CommandsSession` selects session/reload, and
+  `CommandsWorld` selects its world/quest/script/dialogue/inventory/object/AI/animation systems. The last also
+  serves shared status and log readouts, so it is core. `CommandsStaging` selects its inventory/movement/AI/UI
+  systems and is core because console commands and placement establish the baseline. Harness dispatch,
+  `EngineCalls`, status, control files and diagnostic readouts are core; dedicated traces/fragments select
+  their systems.
+- Message families and structs select their payload's system; shared payloads, factories, opcodes, wire and
+  network code are core. So are `World`, transport, hooks, engine storage, shared dependencies, build recipes
+  and Python harness tooling. Changes there can invalidate any targeted result.
+
+`core` means the full suite: the command prints **"core changed: the full suite covers this, run it before a
+release"**. It never expands core into a full run, even with `--run`. With core and other tags, `--run` runs only
+the other tags' scenarios and says the full suite was not run; core alone runs nothing. If the other tags
+together select every scenario, `--run` refuses that too: a full suite needs an explicit `scenario` invocation.
+Selection shares `scenario`'s own tag filter, including its restart opt-in and input rules; targeted runs keep
+those rules. `--check` audits coverage without Git or Skyrim; combine it with `--run` to check before selecting.
+
+To inspect the run path without contacting either game, use `affected --run --dry-run`. `scenario --dry-run`
+uses the same selection helper. Hidden `--files a b c` replaces Git's path list for focused checks, including
+nonexistent/deleted paths; `--files` with no paths selects nothing. For example:
+
+```
+coop_test.py affected --files Code/client/Services/Generic/InventoryService.cpp
+coop_test.py affected --run --dry-run --files Code/client/World.cpp Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp
+coop_test.py affected --check
+```
+
+Coverage says a glob exists, not that it is the right one. When a responsibility or scenario changes, review
+its tags as well as running `--check`. Later, harness logs could propose patterns from a full run
+(`affected --learn`); that is not built.
+
+### (b) `coop_test.py soak`: tier 4 (built)
+
+```
+coop_test.py soak [--hours H | --rounds N] [--seed S] [--tag a,b]
+  each round
+    duo boot (fresh games, so leaks and boot-order bugs show)
+    scenario: the full suite, --shuffle with the round's seed
+    collect: crashes (CrashLoggerSSE logs, `crash`), lock-order reports (status.json, engine-only too),
+             game memory per scenario, frame stalls (World::FrameStats), each FAIL with its seed and order
+    a crash: keep the order up to it, boot again, go on with the next round
+  summary (build/coop-test/soak/<time>/report.json, compared with the last soak's)
+    new crash signatures (top frames), new lock patterns, scenarios that failed for the first time,
+    memory that grows round over round; the rest is one line ("12 rounds, nothing new")
+```
+
+The default budget is six hours. Budgets are checked between rounds: a started round finishes, so the limit can
+overrun by one round. The first shuffle seed is recorded (random if omitted); round N uses `S + N - 1`.
+Tag selection uses `scenario`'s filter, including its restart opt-in. With no tag, all registered scenarios are
+explicitly named, including input/restart and specs. Every scenario goes through `command_scenario`'s normal
+baseline, cleanup, desync/world and lock checks. This is a fresh-process soak, not a test of unbounded growth in
+one game; use long sessions as well when investigating lifetime leaks.
+
+Each invocation creates `build/coop-test/soak/<time>-<id>/report.json`. It is atomically checkpointed before the
+boot and at every scenario start/result, so the planned order, attempted prefix, seed and current scenario
+survive interruption. Each `round-NNNN/` keeps `runner.log`, both games' status/plugin/SKSE logs and any new raw
+CrashLogger logs with readable `.report.txt` reports from the same `crash_report` used by `crash`. The original
+Proton/boot logs remain under `runs/`, linked by `run_dir`. An aborted round records unrun names; its successor
+stops both games and boots afresh. Interrupting saves the report and stops the test games, as does completion.
+
+Before and after every scenario, the report records each game's Linux process id, resident/swap/virtual memory,
+plugin build, raw lock reports and frame counters. Frame/stall deltas count only within the same process and
+plugin generation; longest-frame/update values are cumulative maxima. These counters already come from harness `status.frames`,
+so no production interface or C++ readout was added. Missing memory/readouts remain unavailable, not zero
+measurements; after an exit, the last status file is retained with `stale_status: true`. The existing scenario
+lock gate still fails on new unreviewed patterns with our code on the stack; soak collection additionally keeps
+engine-only and reviewed reports for comparison.
+
+The first round compares findings with the last invocation's report; later rounds compare with that history
+and earlier rounds of this invocation. Reports list new crash signatures (exception plus the top five probable
+module/offset frames), new lock-site pairs (either direction is the same pair), and scenario names failing for
+the first time. Every failure retains its full result, step, seed and order index even if already known. A boot
+or baseline error with no scenario is reported separately. Memory growth is a candidate trend: completed rounds'
+end-of-suite RSS plus swap must rise every round and by at least 16 MiB overall. Incomplete rounds are excluded;
+different shuffled orders can retain different caches, so this is evidence to investigate, not a proven leak.
+Both round and invocation summaries include these trends. All underlying samples remain in the report.
+
+The summary is one line when nothing is new; known failures remain in the report and pass counts. Crashes,
+failed scenarios, boot/baseline errors or interruptions return failure. New engine-only lock patterns and memory
+trends are findings without changing a passing scenario into a correctness failure. Heap-history/quarantine
+alternation from `repro` remains a later extension, not an option implemented by `soak`.
+
+Smoke check 2026-10-23: `soak --rounds 2 --tag scripts --seed 20261023`, 28/28 passing in each round, with
+different orders (seeds 20261023 and 20261024). Rounds took 271.0 s and 239.3 s, including fresh boots of 66.3 s
+and 31.6 s; no crashes or scenario failures. The report is
+`build/coop-test/soak/20261023-120430-92ae83/report.json`. It retained 12 lock patterns: 11 reviewed ones and one
+unreviewed engine-only pattern. Round 2 added one reviewed pattern and flagged the guest's end memory rising
+22.9 MiB (2485.9 to 2508.9 MiB); the host's fell. These are fresh processes with different orders, so the memory
+flag needs more comparable rounds before calling it a leak. Frame stalls and per-scenario memory are retained
+in the report. Fault-injection checks additionally covered an interrupted/crashed prefix, the next fresh boot,
+stable crash signatures and copied reports, known findings, missing samples, and frame-counter resets.
+
+### (c) Shared specs: one spec, two runners (built, the Skyrim side not run yet)
+
+The cutscene scenarios were already steps (`script_call`, `disconnect_client`, `screen(...)["controls"]`). Written
+as data in `Code/tests/specs/*.json`, the same steps run against the fake (tier 2) and against Skyrim (tier 3):
+
+```json
+{"name": "leaver-cutscene-gives-back",
+ "steps": [
+   {"do": "script", "game": "guest", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+   {"expect": "controls", "game": "host", "equals": "0xFFFFFABE"},
+   {"do": "leave", "game": "guest"},
+   {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"}],
+ "cleanup": [...]}
+```
+
+- **Vocabulary:**
+  - Steps: `script` (`call` as `Class.Function`, `args`, `by: "player"` for a player's own action), `leave`,
+    `join`, and `marker` (a party shake from one game, waited for on the other: everything sent before it has run
+    there).
+  - World steps: `lock` (the player locks or picks it, the harness's `lock`), `add_items` / `remove_items` (the
+    console's `additem` / `removeitem` on a container).
+  - Expectations: `controls` (`equals` a mask, or `taken`), `shake` (`shaking`), `lock` (`locked`, `level`),
+    `items` (`item`, `count`). An expectation waits for its state, or with `now` checks it at once: "stays" after
+    a marker.
+  - A reference is a hex id (QASmoke's small chest, `0xC2CE8`) or a role each runner finds: `inner-door` is
+    `inner_door()` in Skyrim and a stand-in in the fake's QASmoke. `tags` are the scenario's tags besides `spec`.
+  - `cleanup` always runs, for the duo, which outlives a scenario; the fake runs it too.
+- **Tier 2:** `GameTests "[spec]"` runs every spec on a fresh party, one section each (`-c <name>` runs one). A
+  failure names the spec, the step and the state ("restriction-stays-with-game, step 4: ... controls FFFFFFFF").
+  The files are read at run time: editing a spec needs no rebuild.
+- **Tier 3:** `scripts/coop_specs.py [names]` registers each spec as the scenario `spec:<name>` (tags `spec`,
+  `scripts`) and runs it with `coop_test.py scenario`'s runner, baseline and checks included. Each step maps to
+  `script_call` / `player_script_call` / `disconnect_client` / `rejoin_client` / `screen_marker`, each expectation
+  to `wait_for` on `screen` (5 s). `coop_specs.py --dry` prints those calls without the duo.
+- **The specs so far:** `cutscene-controls-reach-party`, `leaver-cutscene-gives-back`,
+  `overlapping-cutscenes-keep-controls`, `restriction-stays-with-game` (a hand-written scenario's steps each, with
+  Skyrim's measured masks: `0xFFFFFABE` for the defaults, `0xFFFFFFBF` for fighting only); `lock-reaches-others`
+  and `chest-items-reach-others` (world-state sync: a lock both ways; sweetrolls added on the host, removed on the
+  guest). The second assumes a guest's console `removeitem` raises the same container event as its player's take:
+  the Skyrim run says.
+- **Expectations are in the engine's own values** (the mask Skyrim shows), so a fake that guesses wrong fails the
+  spec on tier 2. The jumping bit was found this way, by hand.
+- **When:** tier 2 on every change (it's in `scripts/check.sh`); tier 3 when the fake engine changes, and in
+  every soak round.
+- **Open:** running the four in Skyrim (the duo was busy); `coop_test.py` importing `coop_specs.register` so
+  `scenario`, `affected` and `soak` see them; `affected` mapping `Code/tests/specs/` to the `spec` tag. Once a
+  spec passes on both, its hand-written scenario goes and the spec is the only copy.

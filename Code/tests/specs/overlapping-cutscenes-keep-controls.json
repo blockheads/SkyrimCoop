@@ -1,0 +1,34 @@
+{
+  "name": "overlapping-cutscenes-keep-controls",
+  "doc": "Two cutscenes at once on the guest: the host's (shared) and the guest player's own moment. Whichever gives its controls back first gives back only what the other holds not (PartyNatives' holds), in both orders.",
+  "steps": [
+    {"do": "script", "game": "host", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFABE"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE"},
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.ShakeCamera", "args": [null, 0.5, 2.0]},
+    {"expect": "shake", "game": "guest", "shaking": true},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE", "now": true},
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"},
+
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE"},
+    {"do": "script", "game": "host", "call": "Game.DisablePlayerControls", "args": [true, true, false, false, false, true, true, false, 0]},
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"do": "marker", "from": "host", "to": "guest"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFABE", "now": true},
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"}
+  ],
+  "cleanup": [
+    {"do": "script", "game": "host", "by": "player", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"do": "script", "game": "guest", "by": "player", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"do": "script", "game": "host", "call": "Game.EnablePlayerControls", "args": [true, true, true, true, true, true, true, true, 0]},
+    {"expect": "controls", "game": "host", "equals": "0xFFFFFFFF"},
+    {"expect": "controls", "game": "guest", "equals": "0xFFFFFFFF"}
+  ]
+}
