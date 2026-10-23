@@ -60,6 +60,8 @@
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyActiveEffects.h>
+#include <Messages/NotifyEffectFlash.h>
+#include <Messages/EffectFlashRequest.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>

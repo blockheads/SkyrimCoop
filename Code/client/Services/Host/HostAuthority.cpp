@@ -27,6 +27,7 @@
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyActiveEffects.h>
+#include <Messages/NotifyEffectFlash.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyHealthChangeBroadcast.h>
@@ -49,6 +50,7 @@
 #include <Messages/RequestDeathStateChange.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestActiveEffects.h>
+#include <Messages/EffectFlashRequest.h>
 #include <Messages/RequestEquipmentSnapshot.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestHealthChangeBroadcast.h>
@@ -179,6 +181,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
     Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::SessionId);
+    Relay<EffectFlashRequest, NotifyEffectFlash>(FromOwner, &EffectFlashRequest::SessionId);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);

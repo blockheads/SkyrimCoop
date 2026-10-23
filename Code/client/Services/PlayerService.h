@@ -14,6 +14,7 @@ struct UpdateEvent;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct ServerSettings;
+struct PlayerFormChangeEvent;
 
 
 /**
@@ -32,6 +33,8 @@ protected:
     void OnConnected(const ConnectedEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
     void OnServerSettingsReceived(const ServerSettings& acSettings) noexcept;
+    // The level reaches the others; a beast race respawns the player's copies (BeastFormChangeEvent).
+    void OnPlayerFormChange(const PlayerFormChangeEvent& acEvent) noexcept;
 
 private:
     /**
@@ -43,8 +46,6 @@ private:
      * @brief Make sure difficulty doesn't get changed while connected
      */
     void RunDifficultyUpdates() const noexcept;
-    void RunLevelUpdates() const noexcept;
-    void RunBeastFormDetection() const noexcept;
 
     void ToggleDeathSystem(bool aSet) noexcept;
 
@@ -72,8 +73,12 @@ private:
     uint32_t m_cachedSecondarySpellId = 0;
     uint32_t m_cachedPowerId = 0;
 
+    uint16_t m_lastLevel = 0;
+    uint32_t m_lastRaceFormId = 0;
+
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;
     entt::scoped_connection m_settingsConnection;
+    entt::scoped_connection m_formChangeConnection;
 };

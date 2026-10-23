@@ -49,6 +49,7 @@ enum RequestOpcode : unsigned char
     kDialogueStartFailedRequest,
     kPlayerNativeRequest,
     kPlayerNativeResultRequest,
+    kEffectFlashRequest,
     kRequestOpcodeMax
 };
 
@@ -103,5 +104,6 @@ enum NotifyOpcode : unsigned char
     kNotifyDialogueRefused,
     kNotifyPlayerNative,
     kNotifyPlayerNativeResult,
+    kNotifyEffectFlash,
     kNotifyOpcodeMax
 };

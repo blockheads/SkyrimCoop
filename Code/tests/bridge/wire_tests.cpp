@@ -16,6 +16,8 @@
 #include <Messages/NotifyDialogue.h>
 #include <Messages/NotifyDrawWeapon.h>
 #include <Messages/NotifyActiveEffects.h>
+#include <Messages/NotifyEffectFlash.h>
+#include <Messages/EffectFlashRequest.h>
 #include <Messages/NotifyEquipmentSnapshot.h>
 #include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyInterruptCast.h>
@@ -97,6 +99,12 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.SessionId = 0x2345;
         m.EffectIds = {GameId(1, 0x12F03), GameId(2, 0x1B212)};
         add("ActiveEffects", m, (NotifyActiveEffects*)nullptr);
+    }
+    {
+        EffectFlashRequest m;
+        m.SessionId = 0x2345;
+        m.EffectId = GameId(1, 0x12F03);
+        add("EffectFlash", m, (NotifyEffectFlash*)nullptr);
     }
     {
         DrawWeaponRequest m;
@@ -236,6 +244,7 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
     const std::map<std::string, std::pair<std::string, std::string>> cRecorded{
         {"AiState", {"b424b2a8010000000121831001", "b424b2a8010000000121831001"}}, // replaced NewPackage (2026-10-22)
         {"ActiveEffects", {"c5460283de040192e40602", "c5460283de040192e40602"}},
+        {"EffectFlash", {"c54683de0401", "c54683de0401"}}, // new 2026-10-22
         {"ActorMaxValues", {"e78a01011a00007a43", "e78a01011a00007a43"}},
         {"ActorValues", {"d668021800004d4219000060c0", "d668021800004d4219000060c0"}},
         {"AddTarget", {"ef9b03f0bd03cddf0401cedf04010000cc4103", "ef9b03f0bd03cddf0401cedf04010000cc4103"}},

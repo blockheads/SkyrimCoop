@@ -15,6 +15,7 @@
 #include <Events/InventoryChangeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/LockChangeEvent.h>
+#include <Events/ReferenceJumpEvent.h>
 
 #include <ExtraData/ExtraContainerChanges.h>
 #include <ExtraData/ExtraDataList.h>
@@ -50,6 +51,10 @@ using TRemoveInventoryItem = BSPointerHandle<TESObjectREFR>*(TESObjectREFR*, BSP
 // InventoryChanges::RemoveItem (16059, CommonLibSSE-NG): apRef is the inventory's owner, apDropLoc a reference.
 using TRemoveFromInventory = BSPointerHandle<TESObjectREFR>*(ExtraContainerChanges::Data*, BSPointerHandle<TESObjectREFR>* apResult, TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount,
                                                             ITEM_REMOVE_REASON aReason, ExtraDataList* apExtraList, TESObjectREFR* apMoveToRef, const NiPoint3* apDropLoc, TESObjectREFR* apDropRef);
+// TESObjectREFR::MoveTo_Impl (56626: a script's MoveTo, SetPosition and SetAngle), the console's setpos and setangle
+// (22053, 22054). Their callers read no result.
+using TMoveTo = void(TESObjectREFR*, void* apTargetHandle, TESObjectCELL* apCell, TESWorldSpace* apWorldSpace, const NiPoint3& acPosition, const NiPoint3& acRotation);
+using TSetOnAxis = void(TESObjectREFR*, char aAxis, float aValue);
 using TPlayAnimationAndWait = bool(void*, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apAnimation, BSFixedString* apEventName);
 using TPlayAnimation = bool(void*, uint32_t auiStackID, TESObjectREFR* apSelf, BSFixedString* apEventName);
 using TRotate = void(TESObjectREFR*, float aAngle);
@@ -59,6 +64,9 @@ static TActivate* RealActivate = nullptr;
 static TAddInventoryItem* RealAddInventoryItem = nullptr;
 static TRemoveInventoryItem* RealRemoveInventoryItem = nullptr;
 static TRemoveFromInventory* RealRemoveFromInventory = nullptr;
+static TMoveTo* RealMoveTo = nullptr;
+static TSetOnAxis* RealSetPositionOnAxis = nullptr;
+static TSetOnAxis* RealSetAngleOnAxis = nullptr;
 static TPlayAnimationAndWait* RealPlayAnimationAndWait = nullptr;
 static TPlayAnimation* RealPlayAnimation = nullptr;
 static TRotate* RealRotateX = nullptr;
@@ -1238,6 +1246,31 @@ HookRemoveInventoryItem(TESObjectREFR* apThis, BSPointerHandle<TESObjectREFR>* a
     return RealRemoveInventoryItem(apThis, apResult, apItem, aCount, aReason, apExtraList, apMoveToRef, apDropLoc, apRotate);
 }
 
+// An actor put somewhere at once jumps there on the other games too (CharacterService, Movement::Teleported).
+void RaiseJump(TESObjectREFR* apThis) noexcept
+{
+    if (apThis && Cast<Actor>(apThis))
+        World::Get().GetRunner().Trigger(ReferenceJumpEvent{apThis->formID});
+}
+
+void HookMoveTo(TESObjectREFR* apThis, void* apTargetHandle, TESObjectCELL* apCell, TESWorldSpace* apWorldSpace, const NiPoint3& acPosition, const NiPoint3& acRotation)
+{
+    RealMoveTo(apThis, apTargetHandle, apCell, apWorldSpace, acPosition, acRotation);
+    RaiseJump(apThis);
+}
+
+void HookSetPositionOnAxis(TESObjectREFR* apThis, char aAxis, float aValue)
+{
+    RealSetPositionOnAxis(apThis, aAxis, aValue);
+    RaiseJump(apThis);
+}
+
+void HookSetAngleOnAxis(TESObjectREFR* apThis, char aAxis, float aValue)
+{
+    RealSetAngleOnAxis(apThis, aAxis, aValue);
+    RaiseJump(apThis);
+}
+
 // A removal the engine makes on the inventory itself, not through TESObjectREFR::RemoveItem (the Training Menu's and a
 // fine's gold, PayGoldToContainer 37511; a trapped soul's gem): sent as that one is.
 BSPointerHandle<TESObjectREFR>* HookRemoveFromInventory(ExtraContainerChanges::Data* apThis, BSPointerHandle<TESObjectREFR>* apResult, TESObjectREFR* apRef, TESBoundObject* apItem,
@@ -1359,6 +1392,9 @@ static Hooks::Initializer s_objectReferencesHooks(
         POINTER_SKYRIMSE(TAddInventoryItem, s_addInventoryItem, 19708);
         POINTER_SKYRIMSE(TRemoveInventoryItem, s_removeInventoryItem, 19689);
         POINTER_SKYRIMSE(TRemoveFromInventory, s_removeFromInventory, 16059);
+        POINTER_SKYRIMSE(TMoveTo, s_moveTo, 56626);
+        POINTER_SKYRIMSE(TSetOnAxis, s_setPositionOnAxis, 22053);
+        POINTER_SKYRIMSE(TSetOnAxis, s_setAngleOnAxis, 22054);
         POINTER_SKYRIMSE(TPlayAnimationAndWait, s_playAnimationAndWait, 56206);
         POINTER_SKYRIMSE(TPlayAnimation, s_playAnimation, 56205);
         POINTER_SKYRIMSE(TLockpickUnlock, s_lockpickUnlock, 51968);
@@ -1372,6 +1408,9 @@ static Hooks::Initializer s_objectReferencesHooks(
         RealAddInventoryItem = s_addInventoryItem.Get();
         RealRemoveInventoryItem = s_removeInventoryItem.Get();
         RealRemoveFromInventory = s_removeFromInventory.Get();
+        RealMoveTo = s_moveTo.Get();
+        RealSetPositionOnAxis = s_setPositionOnAxis.Get();
+        RealSetAngleOnAxis = s_setAngleOnAxis.Get();
         RealPlayAnimationAndWait = s_playAnimationAndWait.Get();
         RealPlayAnimation = s_playAnimation.Get();
 
@@ -1383,6 +1422,9 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK(&RealAddInventoryItem, HookAddInventoryItem);
         HOOK(&RealRemoveInventoryItem, HookRemoveInventoryItem);
         HOOK(&RealRemoveFromInventory, HookRemoveFromInventory);
+        HOOK(&RealMoveTo, HookMoveTo);
+        HOOK(&RealSetPositionOnAxis, HookSetPositionOnAxis);
+        HOOK(&RealSetAngleOnAxis, HookSetAngleOnAxis);
         HOOK(&RealPlayAnimationAndWait, HookPlayAnimationAndWait);
         HOOK(&RealPlayAnimation, HookPlayAnimation);
         RealLockpickUnlock = s_lockpickUnlock.Get();

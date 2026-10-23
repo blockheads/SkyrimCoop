@@ -69,6 +69,22 @@ TEST_CASE("Active effects: relayed from the owner only, to everyone else", "[Bri
     CHECK(session.SentTo<NotifyActiveEffects>(kHost).empty());
 }
 
+TEST_CASE("Effect flashes: relayed from the owner only, to everyone else", "[Bridge][Magic]")
+{
+    Session session;
+    EffectFlashRequest flash;
+    flash.SessionId = session.Character(kHost);
+    flash.EffectId = GameId(0, 0x12F03);
+    session.Receive(kPeer, flash);
+    CHECK(session.SentTo<NotifyEffectFlash>(kOtherPeer).empty());
+
+    session.Receive(kHost, flash);
+    REQUIRE(session.SentTo<NotifyEffectFlash>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyEffectFlash>(kPeer)[0]->EffectId == flash.EffectId);
+    CHECK(session.SentTo<NotifyEffectFlash>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyEffectFlash>(kHost).empty());
+}
+
 TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[Bridge][Inventory]")
 {
     Session session;

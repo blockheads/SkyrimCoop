@@ -6,6 +6,7 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/BeastFormChangeEvent.h>
+#include <Events/PlayerFormChangeEvent.h>
 
 #include <Messages/PlayerRespawnRequest.h>
 #include <Messages/PlayerLevelRequest.h>
@@ -42,6 +43,7 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     m_connectedConnection = m_dispatcher.sink<ConnectedEvent>().connect<&PlayerService::OnConnected>(this);
     m_disconnectedConnection = m_dispatcher.sink<DisconnectedEvent>().connect<&PlayerService::OnDisconnected>(this);
     m_settingsConnection = m_dispatcher.sink<ServerSettings>().connect<&PlayerService::OnServerSettingsReceived>(this);
+    m_formChangeConnection = m_dispatcher.sink<PlayerFormChangeEvent>().connect<&PlayerService::OnPlayerFormChange>(this);
 }
 
 void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
@@ -49,12 +51,13 @@ void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
     RunRespawnUpdates(acEvent.Delta);
     RunPostDeathUpdates(acEvent.Delta);
     RunDifficultyUpdates();
-    RunLevelUpdates();
-    RunBeastFormDetection();
 }
 
 void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
 {
+    // What changes from here is sent on PlayerFormChangeEvent.
+    m_lastLevel = m_playerBridge.GetPlayerLevel();
+    m_lastRaceFormId = m_playerBridge.GetPlayerRaceFormId();
     // World encounters are the host's world: only its game spawns them.
     m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, m_world.GetHostService().IsHosting() ? 1.f : 0.f);
 }
@@ -200,56 +203,23 @@ void PlayerService::RunDifficultyUpdates() const noexcept
     m_playerBridge.SetDifficulty(*m_serverDifficulty);
 }
 
-void PlayerService::RunLevelUpdates() const noexcept
+void PlayerService::OnPlayerFormChange(const PlayerFormChangeEvent&) noexcept
 {
-    // The LevelUp hook is kinda weird, so ehh, just check periodically, doesn't really cost anything.
-
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenUpdates = 1000ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
-        return;
-
-    lastSendTimePoint = now;
-
-    static uint16_t oldLevel = m_playerBridge.GetPlayerLevel();
-
-    uint16_t newLevel = m_playerBridge.GetPlayerLevel();
-    if (newLevel != oldLevel)
+    const uint16_t cLevel = m_playerBridge.GetPlayerLevel();
+    if (cLevel != m_lastLevel)
     {
         PlayerLevelRequest request{};
-        request.NewLevel = newLevel;
-
+        request.NewLevel = cLevel;
         m_transport.Send(request);
-
-        oldLevel = newLevel;
+        m_lastLevel = cLevel;
     }
-}
 
-void PlayerService::RunBeastFormDetection() const noexcept
-{
-    static uint32_t lastRaceFormId = 0;
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenUpdates = 250ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenUpdates)
+    const uint32_t cRaceFormId = m_playerBridge.GetPlayerRaceFormId();
+    if (!cRaceFormId || cRaceFormId == m_lastRaceFormId)
         return;
-
-    lastSendTimePoint = now;
-
-    const uint32_t raceFormId = m_playerBridge.GetPlayerRaceFormId();
-    if (!raceFormId)
-        return;
-
-    if (raceFormId == lastRaceFormId)
-        return;
-
-    if (raceFormId == kWerewolfRaceFormId || raceFormId == kVampireLordRaceFormId)
+    if (cRaceFormId == kWerewolfRaceFormId || cRaceFormId == kVampireLordRaceFormId)
         m_world.GetDispatcher().trigger(BeastFormChangeEvent());
-
-    lastRaceFormId = raceFormId;
+    m_lastRaceFormId = cRaceFormId;
 }
 
 void PlayerService::ToggleDeathSystem(bool aSet) noexcept

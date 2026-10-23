@@ -460,6 +460,15 @@ nlohmann::json IsCurrentPackage(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"result", *cResult}};
 }
 
+// {"cmd": "faction_rank", "actor": id, "faction": id}: the condition GetFactionRank on the actor here (-1: none).
+nlohmann::json FactionRank(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cResult = EngineCalls::GetFactionRank(acRequest.value("actor", 0u), acRequest.value("faction", 0u));
+    if (!cResult)
+        return Error("no such actor or faction");
+    return {{"ok", true}, {"result", *cResult}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -615,6 +624,7 @@ constexpr Command cCommands[] = {
     {"ref_enabled", true, &RefEnabled},
     {"actor_place", true, &ActorPlace},
     {"is_current_package", true, &IsCurrentPackage},
+    {"faction_rank", true, &FactionRank},
     {"activate", true, &Activate},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},

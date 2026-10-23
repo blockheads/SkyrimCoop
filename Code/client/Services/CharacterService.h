@@ -19,6 +19,8 @@ struct NotifyCharacterSpawn;
 struct NotifyReferencesMove;
 struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
+struct FactionsChangeEvent;
+struct ReferenceJumpEvent;
 struct NotifyRemoveCharacter;
 struct PlayerArrivedEvent;
 struct SpellCastEvent;
@@ -72,6 +74,10 @@ struct CharacterService
     void OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept;
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
     void OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept;
+    // An owned actor's factions changed: they reach its copies if they differ from the last sent.
+    void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;
+    // An actor of ours put somewhere at once: its next snapshot says so (Movement::Teleported).
+    void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept;
     void OnMountEvent(const MountEvent& acEvent) const noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) const noexcept;
@@ -125,11 +131,9 @@ private:
     // Everything a peer needs about one of our actors, read from the engine now.
     std::optional<AssignCharacterRequest> BuildAssignment(entt::entity aEntity) const noexcept;
 
-    void RunLocalUpdates() const noexcept;
+    void RunLocalUpdates() noexcept;
     void RunRemoteUpdates() noexcept;
     void RunActorDiscovery() noexcept;
-    void RunFactionsUpdates() const noexcept;
-    void RunExperienceUpdates() noexcept;
     // Copies whose owner is around us but which are elsewhere or without 3D go where the owner is.
     void RunPresence() noexcept;
     // A spawn for a copy we already have: its owner's latest place and spawn data.
@@ -146,16 +150,15 @@ private:
     IFormBridge& m_formBridge;
     IPlayerBridge& m_playerBridge;
     std::unordered_set<uint32_t> m_discoveredActors;
-
-
-    float m_cachedExperience = 0.f;
-
+    std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
 
     entt::scoped_connection m_referenceAddedConnection;
     entt::scoped_connection m_referenceRemovedConnection;
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_actionConnection;
     entt::scoped_connection m_factionsConnection;
+    entt::scoped_connection m_factionsChangeConnection;
+    entt::scoped_connection m_referenceJumpConnection;
     entt::scoped_connection m_removeCharacterConnection;
     entt::scoped_connection m_connectedConnection;
     entt::scoped_connection m_disconnectedConnection;

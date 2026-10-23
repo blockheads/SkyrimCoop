@@ -633,6 +633,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Position.z = 125452.4f;
         sendMessage.Rotation.x = -1.87f;
         sendMessage.Rotation.y = 45.35f;
+        sendMessage.EffectIds = {GameId(0, 0x4B2D9), GameId(2, 0x803)};
 
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
@@ -645,6 +646,17 @@ TEST_CASE("Packets", "[encoding.packets]")
         recvMessage.DeserializeRaw(reader);
 
         REQUIRE(sendMessage == recvMessage);
+
+        // The spawn others get carries the same.
+        NotifyCharacterSpawn sendSpawn = NotifyCharacterSpawn::FromAssignment(sendMessage, 7, 0), recvSpawn;
+        CHECK(sendSpawn.EffectIds == sendMessage.EffectIds);
+        Buffer spawnBuff(1000);
+        Buffer::Writer spawnWriter(&spawnBuff);
+        sendSpawn.Serialize(spawnWriter);
+        Buffer::Reader spawnReader(&spawnBuff);
+        spawnReader.ReadBits(trash, 8);
+        recvSpawn.DeserializeRaw(spawnReader);
+        REQUIRE(sendSpawn == recvSpawn);
     }
 
     SECTION("NotifyTimeSettings")
@@ -808,6 +820,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         vars.Integers.push_back(41104539);
 
         move.Variables = vars;
+        move.Teleported = true;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);

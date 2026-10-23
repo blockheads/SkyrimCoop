@@ -236,6 +236,18 @@ struct ActiveEffects
     std::vector<GameId> EffectIds{};
 };
 
+// An effect's visuals that play once (no FX Persist) just started on one of the owner's actors: its copies play them.
+struct EffectFlash
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const EffectFlash&) const noexcept = default;
+
+    uint32_t SessionId{};
+    GameId EffectId{};
+};
+
 // A native on "the player" the host's script called for a guest's character, which that guest's game runs instead
 // (docs/design/party-model.md, rule 2).
 struct PlayerNative

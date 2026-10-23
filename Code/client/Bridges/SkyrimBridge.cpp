@@ -1974,24 +1974,35 @@ void SkyrimBridge::ActorUpdateFaceGen(uint32_t aFormId) noexcept
 
 namespace
 {
-// EffectSetting (1.6.1170, CommonLibSSE): EffectSettingData at +0x68; flags +0x00, effectShader
-// (the hit shader) +0x30, hitEffectArt +0x88.
+// The hit shader and art of a magic effect whose visuals last as long as it (FX Persist): those a copy holds. The
+// others play once on the owner (ActiveEffectReferenceEffectController::GetEffectPersists).
 struct HitVisuals
 {
     TESForm* pShader;
     TESForm* pArt;
 };
 
-HitVisuals GetHitVisuals(uint32_t aEffectFormId) noexcept
+// The effect's hit visuals: those that last as long as it (FX Persist), or those that play once.
+HitVisuals GetHitVisuals(uint32_t aEffectFormId, bool aPersisting = true) noexcept
 {
-    constexpr uint32_t cNoHitEffect = 1u << 27;
     const auto* pEffect = Cast<EffectSetting>(TESForm::GetById(aEffectFormId));
-    if (!pEffect)
+    if (!pEffect || (pEffect->flags & EffectSetting::kNoHitEffect) || ((pEffect->flags & EffectSetting::kFXPersist) != 0) != aPersisting)
         return {};
-    const auto* pData = reinterpret_cast<const uint8_t*>(pEffect) + 0x68;
-    if (*reinterpret_cast<const uint32_t*>(pData) & cNoHitEffect)
-        return {};
-    return {*reinterpret_cast<TESForm* const*>(pData + 0x30), *reinterpret_cast<TESForm* const*>(pData + 0x88)};
+    return {pEffect->pHitShader, pEffect->pHitArt};
+}
+
+// TESObjectREFR::ApplyEffectShader / ApplyArtObject (shader or art, duration (-1: until stopped), facing ref, face
+// target, attach to camera, attach node, interface effect), as Papyrus Play and the console's PlayMagicShaderVisuals.
+using TApplyVisuals = bool(TESObjectREFR*, TESForm*, float, TESObjectREFR*, bool, bool, void*, bool);
+
+void ApplyHitVisuals(Actor* apActor, const HitVisuals& acVisuals, float aDuration) noexcept
+{
+    POINTER_SKYRIMSE(TApplyVisuals, s_applyEffectShader, 19872);
+    POINTER_SKYRIMSE(TApplyVisuals, s_applyArtObject, 22769);
+    if (acVisuals.pShader)
+        (s_applyEffectShader.Get())(apActor, acVisuals.pShader, aDuration, nullptr, false, false, nullptr, false);
+    if (acVisuals.pArt)
+        (s_applyArtObject.Get())(apActor, acVisuals.pArt, aDuration, nullptr, false, false, nullptr, false);
 }
 
 } // namespace
@@ -2008,18 +2019,21 @@ bool SkyrimBridge::PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId
     Actor* pActor = GetActor(aFormId);
     if (!pActor || !pActor->GetNiNode())
         return false;
-    const HitVisuals cVisuals = GetHitVisuals(aEffectFormId);
-    // TESObjectREFR::ApplyEffectShader / ApplyArtObject (shader or art, duration (-1: until
-    // stopped), facing ref, face target, attach to camera, attach node, interface effect), as
-    // Papyrus Play and the console's PlayMagicShaderVisuals do.
-    using TApply = bool(TESObjectREFR*, TESForm*, float, TESObjectREFR*, bool, bool, void*, bool);
-    POINTER_SKYRIMSE(TApply, s_applyEffectShader, 19872);
-    POINTER_SKYRIMSE(TApply, s_applyArtObject, 22769);
-    if (cVisuals.pShader)
-        (s_applyEffectShader.Get())(pActor, cVisuals.pShader, -1.f, nullptr, false, false, nullptr, false);
-    if (cVisuals.pArt)
-        (s_applyArtObject.Get())(pActor, cVisuals.pArt, -1.f, nullptr, false, false, nullptr, false);
+    ApplyHitVisuals(pActor, GetHitVisuals(aEffectFormId), -1.f);
     return IsPlayingEffectHitVisuals(aFormId, aEffectFormId);
+}
+
+bool SkyrimBridge::FlashEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept
+{
+    Breadcrumbs::Record("FlashEffectHitVisuals", aFormId, aEffectFormId);
+    Actor* pActor = GetActor(aFormId);
+    const HitVisuals cVisuals = GetHitVisuals(aEffectFormId, false);
+    if (!pActor || !pActor->GetNiNode() || !(cVisuals.pShader || cVisuals.pArt))
+        return false;
+    // A lifetime of 0: finished at once, as an effect's that does not persist, so each runs its own pass and ends
+    // (ReferenceEffect 34769, ShaderReferenceEffect::Update 34913, the shader's pass 17339).
+    ApplyHitVisuals(pActor, cVisuals, 0.f);
+    return true;
 }
 
 bool SkyrimBridge::IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept

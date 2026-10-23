@@ -159,8 +159,12 @@ struct PlayerCharacter : Actor
     uint8_t padAFC[0xB10 - 0xAFC];
     GameArray<TintMask*> baseTints;
     GameArray<TintMask*>* overlayTints;
+    uint8_t padB38[0xBE3 - 0xB38];
+    // CommonLib PlayerFlags (0xBE0) byte 3; 0x20 isInCombat, set by UpdateInCombat (41238), read by IsInCombat (41024).
+    uint8_t playerFlags3;
+    uint8_t padBE4[0xBE8 - 0xBE4];
 
-    uint8_t padPlayerEnd[0xBE0 - 0xB30];
+    [[nodiscard]] bool IsFlaggedInCombat() const noexcept { return playerFlags3 & 0x20; }
 };
 
 static_assert(offsetof(PlayerCharacter, objectives) == 0x588);
@@ -170,4 +174,5 @@ static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8);
 static_assert(offsetof(PlayerCharacter, locationForm) == 0xAD0);
 static_assert(offsetof(PlayerCharacter, baseTints) == 0xB18);
 static_assert(offsetof(PlayerCharacter, overlayTints) == 0xB30);
+static_assert(offsetof(PlayerCharacter, playerFlags3) == 0xBE3);
 static_assert(sizeof(PlayerCharacter) == 0xBE8);

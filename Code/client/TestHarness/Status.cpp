@@ -177,6 +177,8 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     mod["process_me"] = EngineCalls::IsProcessMe(aFormId);
     mod["package_type"] = EngineCalls::GetPackageType(aFormId);
     mod["subtitle"] = EngineCalls::GetSubtitle(aFormId);
+    // With the finished ones still fading out (one-shot hit visuals), shown and not compared: a flash is brief.
+    mod["visuals_shown"] = EngineCalls::GetShownVisualFormIds(aFormId);
     // Water, shown and not compared: a copy's height follows its owner's a little late.
     const auto cWater = EngineCalls::GetWater(aFormId);
     mod["water"] = {{"submerged", cWater.Submerged}, {"swimming", cWater.Swimming}, {"head_under", cWater.HeadUnder},

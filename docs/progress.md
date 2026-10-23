@@ -281,7 +281,8 @@ Decisions made without the user are marked **Decided**.
   `AiState`, `AiStateService::ReadState`).
 - **AI state cleanup (2026-10-22, the user's review: "this clearly isn't clean code"; "events over polling").**
   - Event-driven: `AiStateEvents` (Games/Skyrim) sinks `TESPackageEvent`, `TESCombatEvent`, `TESDeathEvent` and
-    `TESSceneEvent` and queues `AiStateChangeEvent`; the owner reads and sends only on those, if changed. The 250 ms
+    `TESSceneEvent` and queues `AiStateChangeEvent`; the owner reads and sends only on those, if changed (target
+    switches and the player's flag since, "Events over polling" below). The 250 ms
     check and the 2 s full resend are gone. `put_package` sends the package event as evaluation does.
   - The wire state is what a copy applies: package, scene, combat state and target (package target, furniture and
     follow target dropped; the status still shows them from `EngineCalls::GetAiReadout`). Wire bytes re-pinned.
@@ -321,8 +322,8 @@ Decisions made without the user are marked **Decided**.
     sent and a pick not said, with why.
   - Not dialogue: after a beggar's coin the host's player has Gift of Charity (`EEF58`), whose effect shader stayed
     on the guest's copy forever (copies held every hit shader; the owner only FX Persist ones): found by
-    `dialogue-options-are-the-hosts`' desync check; fixed by the polling agent's EffectVisuals change (in its
-    worktree), the coin scenarios dispel the blessing meanwhile.
+    `dialogue-options-are-the-hosts`' desync check; fixed by the EffectVisuals change ("Events over polling",
+    below); the coin scenarios dispel the blessing too.
   - Runs: BridgeTests 111 pass, TPTests pass; `--tag dialogue` 22 of 22, twice in a row on one duo.
   The half-ported three-player duo and `dialogue-three-players` are removed (`docs/ideas.md`, Testing).
   - Bridge cleanup (the user's review: "dialoguebridge is large"): `Redraw`, `Pick(index)` and
@@ -351,6 +352,75 @@ Decisions made without the user are marked **Decided**.
     `ring-turns-for-client` fail on the player's `in_combat` (owner vs copy, AI state from commit 2, no native
     forwarded during them; the events agent's combat work passes them), `shrine-blesses-client` on the lock-order
     checker's known engine pair (our hooks only passing through; the checker fix is the late-join report's).
+- **Events over polling (2026-10-22, after the AI state cleanup).** What each engine event or hook covers:
+  `docs/re/systems/change-events.md`; what is left and why: `docs/ideas.md`, "Events over polling".
+  - **Combat target switches (AiStateService): done.** `CombatController::SetTarget` (33235, the only writer of an
+    NPC's target, `+0x104`) hooked in `AiStateEvents`; it raises the attacker. Also the player's in-combat flag:
+    `PlayerCharacter::UpdateInCombat` (41238) hooked, a flip raises the player (a player has no combat event; the
+    desync check caught a host's player left in combat on the host and not on its copy). Scenario
+    `guest-player-in-switched-combat` (Vilkas fights the host's player, then the client's character once the host's
+    player steps 1500 units away; the client's player must be in combat): fails before (its Vilkas stays on the
+    host's character), with the hook file left out too, and passes after (3 of 3, and in the tag runs).
+    **Decided:** the combat scenarios' cleanups freeze Vilkas before `stopcombat`: thawed, he takes up the fight
+    with the host's player again within 2 s (vanilla, seen without the hooks too), and `guest-player-in-hosts-combat`
+    then left the host's player in combat.
+  - **EffectVisualsService: done.** The owner sends its actors' effects when its engine starts or stops their hit
+    visuals (hooks on 34094, ours `ActiveEffect::StartHitEffects`, and `ActiveEffect::StopHitEffects` 34050, in
+    `EffectEvents`); `TESActiveEffectApplyRemove` is sent for scripted effects only (Flames' fire sent none). The
+    250 ms check, the 2 s full resend and the copy's 5 s "owner went quiet" stop are gone. `AssignCharacterRequest`
+    and `NotifyCharacterSpawn` carry `EffectIds` (TPTests round trip, bridge case "a player's own gets an id..."
+    checks them; the spawn messages have no pinned bytes). The copy keeps its owner's list by session id (a respawn
+    keeps it), replays it when its 3D loads (`TESObjectLoadedEvent`, `ReferenceEvents`) and stops it on the
+    character's removal or a disconnect. Found by the main session (Gift of Charity on a copy): copies held every
+    effect's visuals until it ended, the owner only those with FX Persist; **decided:** only FX Persist effects are
+    shared (`GetHitVisuals`, typed `EffectSetting` fields instead of raw offsets). Scenario
+    `copy-made-later-shows-effects` (Vilkas casts Oakflesh while the client is away; the copy made on its return
+    shows it, then a dispel ends it on both): passes, fails with the spawn's list left empty.
+    `burning-shows-on-copy`'s body passes (its world-differs failure is the hazard loose end).
+    Then (main session, merging this): one-shot visuals no longer vanish from copies. `StartHitEffects` raises the
+    effect when it does not persist, the owner sends `EffectFlashRequest` (relayed from the owner,
+    `NotifyEffectFlash`; bridge case, wire pin) and the copy plays it with a lifetime of 0, which the engine ends
+    after the shader's own pass as it does its own (`change-events.md`). Scenario `copy-flashes-one-shot-effects`
+    (Gift of Charity on Vilkas: the flash shows and ends by itself on both, the blessing still running), read
+    through the harness's `mod.visuals_shown`: a one-shot shader is finished from its start, which `visuals` leaves
+    out, so the first version (Arkay's blessing, whose `0x92DEC` is its enchant shader, not a hit shader) never saw
+    the host's flash. 3 of 3.
+  - **Copies sweeping across a teleport (fixed, the merge's runs).** A copy whose owner went to another interior or
+    worldspace was moved there at its old cell's coordinates and interpolated from the old points to the new ones,
+    across the new cell: through QASmoke's water on the way home (z 1060 up to the floor at 6976), so the engine
+    set the copy swimming (`ActorState1` bit 10, `Character::sub_37946`), and a copy never leaves it on land
+    (leaving needs its controller's `kSupport` or the in-air state). A swimming guest's character is never taken as
+    Vilkas's target: `guest-player-in-switched-combat` failed after `plate-counts-client` (Kolbjorn and back), not
+    alone (the merge was not the cause), and `dive-host-player` failed on `SwimStart` vs `swimStop` after the
+    return home (the copy's own swim start; the owner's `swimStop` replay was refused). Now the owner's movement in
+    another interior or worldspace drops the copy's earlier points and places it at the new position, as does an
+    arrival's spawn (`CharacterService::OnReferencesMoveRequest`, `RefreshCopy`). plate then switched-combat 2 of 2,
+    `dive-host-player` 5 of 5, `dive-client-player`, `party-changes-cells` pass. A teleport inside one cell (`setpos`)
+    still sweeps.
+  - **PlayerService: done.** Beast form on `TESSwitchRaceCompleteEvent` (struct asserted), the level on a hook on
+    `TESActorBaseData::SetLevel` (14385), the one write: the level-up sends `LevelIncrease` before writing, the
+    console's `setlevel` (the baseline's reset) sends nothing. Both polls gone (`PlayerEvents`). `party-shows-levels`
+    (2 of 2) and `client-beast-form-stays-client` pass.
+  - **CharacterService factions and experience: done.** Factions on hooks on their five writers (`FactionEvents`:
+    `AddToFaction` 37686, `RemoveFromFaction` 37688, the rank setter 37677, `SetCrimeFaction` 37381, Papyrus
+    `RemoveFromAllFactions` 54735); the owner sends an actor's factions when they differ from the last sent. Found:
+    a copy has no `CacheComponent`, so `OnFactionsChanges` never applied a change to any copy (only spawns carried
+    factions); fixed. Experience goes out on each skill use (the hook was already there, the 1 s timer only
+    batched). New harness `faction_rank` (the condition GetFactionRank) and scenario `copy-holds-owners-factions`
+    (add, rank, remove on the host's Vilkas): passes (failed on the copy-side bug first). `shared-xp`,
+    `vilkas-counts-client-hits`, `late-join-client` pass.
+  - **InventoryService: not done (stalled).** The 3 s equipment snapshot repairs a copy that drifted in its own game
+    (`repair-equipment-drift`), which no owner event sees; the weapon state has no single writer; the naked NPC
+    check's cause is unknown. Tried and reverted: snapshots on the owner's `TESEquipEvent`, the naked check on 3D
+    loads. Reasons in ideas.md.
+  - **ActorValueService: plan only** (ideas.md); **HostWorldState: not done** (alias and location fills and globals
+    have no event); **DialogueService:** skipped (the shared dialogue rework in the main checkout).
+  - Runs (final build, one duo): BridgeTests 110 cases, TPTests pass. `--tag ai,combat,magic,spawn,session`: 73 of
+    76 pass. `join-refused-shows-why` needed `coop_peer` built in the worktree (then passed),
+    `flames-client-hits-host-npc` is the hazard loose end, `late-join-gets-ring-pose` hit the known lock-order report
+    with only `HookUpdateAI`/`HookMainLoop` of ours on the stacks (a guest NPC's `BGSProcedureSleep` during the late
+    join's cell load). Earlier, `sneak-host-player` failed twice on a Fader Menu stuck after a first lever for the new
+    combat scenario (lifting the host's player 2000 units); it passed again once the lever changed.
 
 - **Rule 2's gaps (2026-10-22, after the picked line).** Three generic rules, no script named:
   - *A player in the frame:* in a stack run for a guest, a native's `self` or argument holding the player (a
@@ -741,6 +811,14 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **Open 2026-10-22: an instant effect with FX Persist shows nothing on copies.** A shrine blessing's glow is its
+  `CureDiseaseEffect` (`0xFBFF5`: FX Persist, `HealMysticFXS` `0x4E220` and its art, no duration): the owner shows
+  it about 3 s (it starts persisting and is stopped the next update, then fades), but it is listed for one update
+  only, so the owner's read after the change finds it gone and the copy never plays it. Generic fix to weigh: send
+  a flash for an effect that ends as it starts (`change-events.md`, Effect visuals). Tried 2026-10-22: treating an FX Persist
+  effect with no duration as a flash (`FlashEffectOf`) changed nothing (a shrine blessing cast on the host's Vilkas:
+  the host shows `0x4E220`, the copy never), so its visuals likely do not start through `StartHitEffects` (34094) at
+  all; not traced. Reverted.
 - **Done 2026-10-22: a host NPC leaving no longer leaves a ghost on the guest.** The removal carries where the host's actor went; the guest's reference follows it (moved, disabled or deleted) and stays a copy until the host spawns it again (`docs/design/copy-contract.md`, "When the owner's actor goes away"; `host-npc-leaves-copy-follows`). Still open: a guest's non-persistent references are made anew when it loads their cell, unflagged, so they run their own AI until the host's spawn arrives (not measured).
 - **Done 2026-10-22: a guest's player is in combat when the host's NPCs fight it** (`guest-player-in-hosts-combat`;
   above, overnight slice 4). Not checked: combat music and the wait/save block on a guest.
@@ -756,8 +834,12 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   process actors (`docs/re/systems/actor-ai-and-copies.md`, "A copy is in deferred kill"), so a copy
   dropped to low process can die from its owner's 0 health before its owner's death action. Unseen at
   that distance; the death action is skipped for an already dead copy.
-- **A copy slides after its owner is teleported** (2026-10-13): the scenarios' `placeatme` then move
-  of a host NPC (~900 units) shows on the client as a 0.5 s slide across the room, not a jump.
+- **Done 2026-10-22: a copy jumps with its owner.** A script's `MoveTo`, `SetPosition` or `SetAngle`
+  (`TESObjectREFR::MoveTo_Impl`, 56626, from the script functors only) and the console's `setpos`/`setangle`
+  (22053, 22054) on an actor raise `ReferenceJumpEvent`; the owner's next snapshot carries `Movement::Teleported`,
+  and the copy drops its earlier points and starts at the new place, as for another cell. `TESObjectREFR::SetPosition`
+  (19790) is not the signal: root motion, projectiles and flight call it every frame. Scenario
+  `copy-jumps-with-owner` (a host NPC moved 900 units with `setpos`: no read of its copy in between).
 - **Audits not done:** combat, detection, magic/magicka. Then one copy update in place of the
   scattered `IsCopy()` checks.
 - **Upstream AI patches to re-check** (from before copies ran no AI; delete each the cut covers):
@@ -850,6 +932,19 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   (`AIProcess::Update3DModel_Impl` reads menu mode; not traced). Why the harness pauses only cell changes.
 - **Lock order, vanilla:** `coc` while the exterior world steps inverts the extra-data and `bhkWorld`
   locks. Listed in `scripts/lock_order_known.txt`, not fixed.
+- **Host hang in `dialogue-refused-start` (2026-10-22, the 25th scenario of a `--tag ai,combat,magic,spawn,session,scripts`
+  run; 3 of 3 alone).** The main thread waits for jobs in `Main` (36555); one job thread waits in `Mutex::Lock1`
+  (13129, the engine's `BSSpinLock`) from `MenuTopicManager` (35289) → `Actor::UpdateInDialogue` (37541) → our
+  pass-through `HookSpeakSoundFunction` → `SpeakSound` (37542) → `SetupSpecialIdle` (39256) → `sub_1406F0790` →
+  `sub_1406DE5E0`, for the speaker's (Lydia's) `MiddleHighProcessData+0x1E8` spin lock. No thread in the dump is in
+  one of the eleven functions that take that lock (`sub_1406DFBC0` ... `sub_1406F1020`, all scoped), the main
+  thread is in Main's own wait: the lock looks leaked or its memory reused (Brenuin, her foe, was disabled and
+  deleted 0.2 s before the host spoke to her). Not reproduced. The lock-order checker covers only
+  `BSReadWriteLock`, and `BSSpinLock`'s unlock is inlined, so it cannot name a holder; instead the HangWatchdog now
+  logs, for a thread waiting in `Mutex::Lock1`, the lock (its `rdi` in that frame) with its owner thread id and
+  count and whether that thread exists (`CrashHandler::SetSpinLockWait`). Next time: an owner that is a listed
+  thread names the holder, one that does not exist means a leaked lock or freed memory (then
+  `repro --heap-history` on the process data).
 - **Portal graph crash:** our fix works on the repro; SCN-Crash-fix was not run against it
   (`docs/re/crashes/2026-10-11-qasmoke-exit-portal-graph.md`).
 
@@ -883,7 +978,11 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 ### Tests and harness
 
 - `dive-host-player` failed 1 of 2 on a fresh duo (2026-10-21): the copy's animation event `SwimStart` vs the
-  owner's `swimStop`; once left the copy showing visual `77785`. Actor sync, not followed up.
+  owner's `swimStop`; once left the copy showing visual `77785`. Cause found 2026-10-22: the copy swept across the
+  teleport home through QASmoke's water (above, "Copies sweeping across a teleport"); fixed.
+- **Checked 2026-10-22: a copy that swam stops swimming with its owner.** `copy-leaves-water-with-owner`: the host
+  swims in the river and is put on its bank; its copy on the client swims, then stops (2 of 2). Not covered: an
+  owner walking out up a shore (the copy follows at its owner's pace there).
 - `late-join-client` failed once on a fresh duo (2026-10-21): the client's copy of the host's player kept the
   baseline heading (4.71 vs the host's 2.55); passed 3 of 3 after.
 - `late-join-gets-cell-state` failed once on a fresh duo (2026-10-21): the same copy heading (the host's player
@@ -931,13 +1030,21 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   entries above). `HEAD` before phase 5 passed 6 of 6, the same orders included; not settled whether phase 5 makes
   it likelier. Likely the spawn heading: `SetActorRotation` was a stub, so a copy kept its created heading until its
   owner moved; implemented the same day, then 3 of 3 passed right after the scenarios that had tripped it.
+- **Decided for review 2026-10-22: a cast's hazards are each game's own**, as its projectiles are: sync never sent them
+  (`HostEngine`'s `ReadCreate` takes plain references, a placed hazard is `PHZD`), each game's replayed cast makes
+  its own, and the world check now skips them (`world_differences`). Undo the check's line to make the host's the only
+  one instead. The history:
 - `burning-shows-on-copy` fails its world check about half the time (2026-10-21, 3 of 6 after the `TiltedPhoques` steps;
   it passed the run before them): each game's own fire hazard from the spell's impact (`HAZD` 3E075, a created
   reference) is still there when the check looks, at a different spot in each game. Either hazards are each game's
   own transient effect and the check should skip them like projectiles, or the host's should be the only one;
-  not decided.
-- `party-stacks-on-arrival` fails every run (2026-10-21; with copies spawning at their owner's heading, 2 of 4 passed): "[client] came within 9 units of the other player: it
-  walked through it". Not followed up.
+  not decided. Seen again 2026-10-22, in `flames-client-hits-host-npc` too, as a hazard alive on one game only (the
+  host's or the client's, with and without the event changes): the two games' hazards end at different times.
+- **Done 2026-10-22: `party-stacks-on-arrival` failed every run** ("[client] came within 9 units of the other player: it
+  walked through it"). The game was right: the client walked off the spot and back into the host within half a
+  second, and a player leaves the stack only after half a second off it (the grace for a one-frame jump), so it was
+  stacked again. The scenario's walk off now waits for its game to take it off the stack (the `Stack: … walked off`
+  log line); 2 of 2.
 
 - Rule 2 through `SetStage` has no scenario (2026-10-20): `vilkas-counts-client-hits` now claims rule 1 only (the trial's sword is given at stage 200, from dialogue). Candidate: Northwatch Keep's `MS09NonCombatTrigger1Script` (`OnTriggerEnter`: `Game.GetPlayer().SetFactionRank`, then MS09 stage 55, whose fragment ranks `Game.GetPlayer()` too); needs a faction readout and MS09 staged at 40. `statue-fires-at-client` checks the host's own hits now and fails with rule 2 off (`docs/re/systems/papyrus-guest-scripts.md`, "Rule 2 never ran").
 - The client's fire statue in Soljund's Sinkhole fired though `6AE8C.disable` ran on the client (2026-10-20): its script checks `FPStatueA.isEnabled()`. Not followed up; the scenario no longer disables it (step 5 stops the client's trigger).

@@ -2,21 +2,24 @@
 #include <Services/TransportService.h>
 
 #include <Bridges/IActorBridge.h>
-#include <Events/UpdateEvent.h>
-#include <Messages/NotifyActiveEffects.h>
-#include <Messages/RequestActiveEffects.h>
-#include <World.h>
-#include <Components/LocalComponent.h>
-#include <Components/RemoteComponent.h>
-#include <Utils.h>
 #include <Components/FormIdComponent.h>
+#include <Components/LocalComponent.h>
+#include <Events/DisconnectedEvent.h>
+#include <Events/EffectVisualsChangeEvent.h>
+#include <Events/ReferenceLoadedEvent.h>
+#include <Messages/EffectFlashRequest.h>
+#include <Messages/NotifyActiveEffects.h>
+#include <Messages/NotifyEffectFlash.h>
+#include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/NotifyRemoveCharacter.h>
+#include <Messages/RequestActiveEffects.h>
+#include <Utils.h>
+#include <World.h>
 
 namespace
 {
 constexpr uint32_t cInactive = 1u << 15; // ActiveEffect flag: conditions not met, nothing shows
-constexpr auto cCheckEvery = std::chrono::milliseconds(250);
-constexpr auto cSendAllEvery = std::chrono::seconds(2);
-constexpr auto cOwnerQuietAfter = std::chrono::seconds(5);
+constexpr uint32_t cRemoved = 1u << 17;  // ActiveEffect::Update finished it (its visuals stopped), still listed
 } // namespace
 
 EffectVisualsService::EffectVisualsService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
@@ -25,123 +28,162 @@ EffectVisualsService::EffectVisualsService(World& aWorld, entt::dispatcher& aDis
     , m_transport(aTransport)
     , m_actorBridge(aActorBridge)
 {
-    m_updateConnection = aDispatcher.sink<UpdateEvent>().connect<&EffectVisualsService::OnUpdate>(this);
+    m_changeConnection = aDispatcher.sink<EffectVisualsChangeEvent>().connect<&EffectVisualsService::OnEffectVisualsChange>(this);
+    m_loadedConnection = aDispatcher.sink<ReferenceLoadedEvent>().connect<&EffectVisualsService::OnReferenceLoaded>(this);
     m_notifyConnection = aDispatcher.sink<NotifyActiveEffects>().connect<&EffectVisualsService::OnNotifyActiveEffects>(this);
-    m_remoteRemovedConnection = m_world.on_destroy<RemoteComponent>().connect<&EffectVisualsService::OnRemoteComponentRemoved>(this);
+    m_flashConnection = aDispatcher.sink<NotifyEffectFlash>().connect<&EffectVisualsService::OnNotifyEffectFlash>(this);
+    m_spawnConnection = aDispatcher.sink<NotifyCharacterSpawn>().connect<&EffectVisualsService::OnCharacterSpawn>(this);
+    m_removeConnection = aDispatcher.sink<NotifyRemoveCharacter>().connect<&EffectVisualsService::OnRemoveCharacter>(this);
+    m_disconnectConnection = aDispatcher.sink<DisconnectedEvent>().connect<&EffectVisualsService::OnDisconnected>(this);
 }
 
-void EffectVisualsService::OnUpdate(const UpdateEvent&) noexcept
+std::vector<uint32_t> EffectVisualsService::ReadEffectForms(uint32_t aFormId) const noexcept
+{
+    std::vector<uint32_t> ids;
+    for (const auto& cEffect : m_actorBridge.GetActorActiveEffects(aFormId))
+        if (!(cEffect.Flags & (cInactive | cRemoved)) && m_actorBridge.EffectHasHitVisuals(cEffect.EffectFormId))
+            ids.push_back(cEffect.EffectFormId);
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+    return ids;
+}
+
+std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t aFormId) const noexcept
+{
+    std::vector<GameId> effects;
+    for (const uint32_t cId : ReadEffectForms(aFormId))
+        if (GameId effectId; m_world.GetModSystem().GetServerModId(cId, effectId))
+            effects.push_back(effectId);
+    return effects;
+}
+
+void EffectVisualsService::OnEffectVisualsChange(const EffectVisualsChangeEvent& acEvent) noexcept
 {
     if (!m_transport.IsConnected())
         return;
-    const auto cNow = Clock::now();
-    if (cNow - m_lastCheck < cCheckEvery)
-        return;
-    m_lastCheck = cNow;
-    SendOwnedEffects();
-    RunCopies();
+    auto view = m_world.view<FormIdComponent, LocalComponent>();
+    for (const auto cEntity : view)
+        if (view.get<FormIdComponent>(cEntity).Id == acEvent.ActorId)
+        {
+            const uint32_t cSessionId = view.get<LocalComponent>(cEntity).Id;
+            if (acEvent.FlashEffectId)
+                SendFlash(cSessionId, acEvent.FlashEffectId);
+            return SendOwned(acEvent.ActorId, cSessionId);
+        }
 }
 
-void EffectVisualsService::SendOwnedEffects() noexcept
+void EffectVisualsService::SendFlash(uint32_t aSessionId, uint32_t aEffectFormId) noexcept
 {
-    const auto cNow = Clock::now();
-    const bool cSendAll = cNow - m_lastFullSend >= cSendAllEvery;
-    if (cSendAll)
-        m_lastFullSend = cNow;
-
-    auto& modSystem = m_world.GetModSystem();
-    auto view = m_world.view<FormIdComponent, LocalComponent>();
-    for (auto entity : view)
-    {
-        const uint32_t cFormId = view.get<FormIdComponent>(entity).Id;
-        const uint32_t cSessionId = view.get<LocalComponent>(entity).Id;
-        if (!m_actorBridge.ActorExists(cFormId))
-            continue;
-
-        std::vector<uint32_t> ids;
-        for (const auto& cEffect : m_actorBridge.GetActorActiveEffects(cFormId))
-            if (!(cEffect.Flags & cInactive) && m_actorBridge.EffectHasHitVisuals(cEffect.EffectFormId))
-                ids.push_back(cEffect.EffectFormId);
-        std::sort(ids.begin(), ids.end());
-        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
-
-        const auto cSent = m_sent.find(cSessionId);
-        const bool cChanged = cSent == m_sent.end() ? !ids.empty() : cSent->second != ids;
-        if (!cChanged && (!cSendAll || ids.empty()))
-            continue;
-
-        RequestActiveEffects request;
-        request.SessionId = cSessionId;
-        for (const uint32_t cId : ids)
-        {
-            GameId effectId;
-            if (modSystem.GetServerModId(cId, effectId))
-                request.EffectIds.push_back(effectId);
-        }
-        spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals", cFormId, cSessionId, request.EffectIds.size());
+    EffectFlashRequest request;
+    request.SessionId = aSessionId;
+    if (m_world.GetModSystem().GetServerModId(aEffectFormId, request.EffectId))
         m_transport.Send(request);
-        if (ids.empty())
-            m_sent.erase(cSessionId);
-        else
-            m_sent[cSessionId] = std::move(ids);
-    }
+}
+
+void EffectVisualsService::OnNotifyEffectFlash(const NotifyEffectFlash& acMessage) noexcept
+{
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
+    const uint32_t cEffectId = m_world.GetModSystem().GetGameId(acMessage.EffectId);
+    if (cFormId && cEffectId && m_actorBridge.ActorExists(cFormId) && m_actorBridge.IsActorCopy(cFormId))
+        m_actorBridge.FlashEffectHitVisuals(cFormId, cEffectId);
+}
+
+void EffectVisualsService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
+{
+    if (const auto cSessionId = Utils::GetSessionIdByFormId(acEvent.FormId); cSessionId && m_shown.contains(*cSessionId))
+        PlayMissing(*cSessionId);
+}
+
+void EffectVisualsService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noexcept
+{
+    if (!m_actorBridge.ActorExists(aFormId))
+        return;
+    auto ids = ReadEffectForms(aFormId);
+    const auto cSent = m_sent.find(aSessionId);
+    if (cSent != m_sent.end() && cSent->second == ids)
+        return;
+
+    RequestActiveEffects request;
+    request.SessionId = aSessionId;
+    for (const uint32_t cId : ids)
+        if (GameId effectId; m_world.GetModSystem().GetServerModId(cId, effectId))
+            request.EffectIds.push_back(effectId);
+    spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals", aFormId, aSessionId, request.EffectIds.size());
+    m_transport.Send(request);
+    m_sent[aSessionId] = std::move(ids);
 }
 
 void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMessage) noexcept
 {
-    const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
-        return;
-
-    auto& modSystem = m_world.GetModSystem();
     std::vector<uint32_t> wanted;
     for (const auto& cEffectId : acMessage.EffectIds)
-        if (const uint32_t cId = modSystem.GetGameId(cEffectId))
+        if (const uint32_t cId = m_world.GetModSystem().GetGameId(cEffectId))
             wanted.push_back(cId);
+    Show(acMessage.SessionId, std::move(wanted));
+}
 
-    auto& shown = m_shown[cFormId];
-    shown.LastHeard = Clock::now();
-    for (const uint32_t cId : shown.EffectIds)
-        if (std::find(wanted.begin(), wanted.end(), cId) == wanted.end())
-            m_actorBridge.StopEffectHitVisuals(cFormId, cId);
-    shown.EffectIds = std::move(wanted);
-    if (shown.EffectIds.empty())
+void EffectVisualsService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) noexcept
+{
+    // A list heard since is newer than the spawn's (a respawn's spawn is the character's record).
+    if (m_shown.contains(acMessage.SessionId))
     {
-        m_shown.erase(cFormId);
+        m_world.GetRunner().Queue([this, cSessionId = acMessage.SessionId]() { PlayMissing(cSessionId); });
         return;
     }
-    PlayMissing(cFormId, shown);
+    std::vector<uint32_t> wanted;
+    for (const auto& cEffectId : acMessage.EffectIds)
+        if (const uint32_t cId = m_world.GetModSystem().GetGameId(cEffectId))
+            wanted.push_back(cId);
+    if (wanted.empty())
+        return;
+    m_shown[acMessage.SessionId].EffectIds = std::move(wanted);
+    // After every handler of the spawn: CharacterService makes the copy in its own.
+    m_world.GetRunner().Queue([this, cSessionId = acMessage.SessionId]() { PlayMissing(cSessionId); });
 }
 
-void EffectVisualsService::PlayMissing(uint32_t aFormId, const Shown& acShown) noexcept
+void EffectVisualsService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept
 {
-    // The engine drops visuals with the 3D, and the first use of a shader in this game plays
-    // nothing while it loads: those play again on the next check.
-    for (const uint32_t cId : acShown.EffectIds)
-        if (!m_actorBridge.IsPlayingEffectHitVisuals(aFormId, cId))
-            m_actorBridge.PlayEffectHitVisuals(aFormId, cId);
+    StopShown(acMessage.SessionId);
+    m_shown.erase(acMessage.SessionId);
 }
 
-void EffectVisualsService::RunCopies() noexcept
+void EffectVisualsService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
-    const auto cNow = Clock::now();
-    for (auto it = m_shown.begin(); it != m_shown.end();)
-    {
-        if (cNow - it->second.LastHeard < cOwnerQuietAfter)
-        {
-            if (m_actorBridge.ActorExists(it->first))
-                PlayMissing(it->first, it->second);
-            ++it;
-            continue;
-        }
-        for (const uint32_t cId : it->second.EffectIds)
-            m_actorBridge.StopEffectHitVisuals(it->first, cId);
-        it = m_shown.erase(it);
-    }
+    for (const auto& [cSessionId, cShown] : m_shown)
+        StopShown(cSessionId);
+    m_shown.clear();
+    m_sent.clear();
 }
 
-void EffectVisualsService::OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
+void EffectVisualsService::Show(uint32_t aSessionId, std::vector<uint32_t> aEffectIds) noexcept
 {
-    if (const auto* pFormId = aRegistry.try_get<FormIdComponent>(aEntity))
-        m_shown.erase(pFormId->Id);
+    auto& shown = m_shown[aSessionId];
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+    if (cFormId && m_actorBridge.ActorExists(cFormId) && m_actorBridge.IsActorCopy(cFormId))
+        for (const uint32_t cId : shown.EffectIds)
+            if (std::find(aEffectIds.begin(), aEffectIds.end(), cId) == aEffectIds.end())
+                m_actorBridge.StopEffectHitVisuals(cFormId, cId);
+    shown.EffectIds = std::move(aEffectIds);
+    PlayMissing(aSessionId);
+}
+
+void EffectVisualsService::PlayMissing(uint32_t aSessionId) noexcept
+{
+    const auto cShown = m_shown.find(aSessionId);
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+    if (cShown == m_shown.end() || !cFormId || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
+        return;
+    cShown->second.FormId = cFormId;
+    for (const uint32_t cId : cShown->second.EffectIds)
+        if (!m_actorBridge.IsPlayingEffectHitVisuals(cFormId, cId))
+            m_actorBridge.PlayEffectHitVisuals(cFormId, cId);
+}
+
+void EffectVisualsService::StopShown(uint32_t aSessionId) noexcept
+{
+    const auto cShown = m_shown.find(aSessionId);
+    if (cShown == m_shown.end() || !cShown->second.FormId || !m_actorBridge.ActorExists(cShown->second.FormId))
+        return;
+    for (const uint32_t cId : cShown->second.EffectIds)
+        m_actorBridge.StopEffectHitVisuals(cShown->second.FormId, cId);
 }

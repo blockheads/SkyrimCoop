@@ -61,6 +61,8 @@ struct ActiveEffect
     uint16_t usUniqueID;
     MagicSystem::CastingSource eCastingSource;
 };
+static_assert(offsetof(ActiveEffect, pTarget) == 0x50 && offsetof(ActiveEffect, pHitEffects) == 0x60); // CommonLib target, hitEffects
+static_assert(offsetof(ActiveEffect, uiFlags) == 0x7C);
 static_assert(sizeof(ActiveEffect) == 0x90);
 
 namespace ActiveEffectFactory

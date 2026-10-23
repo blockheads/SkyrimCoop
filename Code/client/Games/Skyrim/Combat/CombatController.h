@@ -16,6 +16,8 @@ struct CombatController
 {
     void SetTarget(Actor* apTarget);
     void UpdateTarget();
+    // The fighting actor, read as SetTarget (33235) reads it: the cached pointer while handles are held.
+    [[nodiscard]] Actor* GetAttacker() const noexcept;
 
     CombatGroup *pCombatGroup;
     CombatState *pState;
@@ -51,8 +53,11 @@ struct CombatController
     NiPointer<Actor> pCachedTarget;
 };
 
+static_assert(offsetof(CombatController, attackerHandle) == 0x28);
 static_assert(offsetof(CombatController, targetHandle) == 0x2C);
 static_assert(offsetof(CombatController, startedCombat) == 0x35);
 static_assert(offsetof(CombatController, targetSelectors) == 0xA0);
 static_assert(offsetof(CombatController, pActiveTargetSelector) == 0xB8);
+static_assert(offsetof(CombatController, handleCount) == 0xC8);
+static_assert(offsetof(CombatController, pCachedAttacker) == 0xD0);
 static_assert(sizeof(CombatController) == 0xE0);

@@ -258,6 +258,9 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
 
 // The effect shaders and art objects the engine is playing on the actor.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
+// Every shader and art object in the engine's list on the actor, the finished ones still fading out too: a hit
+// shader without FX Persist is finished from its start (ShaderReferenceEffect::Init) and plays one pass.
+std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept;
 // The actor whose health bar the HUD shows, or 0.
 uint32_t GetEnemyHealthTarget() noexcept;
 // The player's last used combat skill (an actor value, -1 none yet) and its experience: where shared XP goes.
@@ -345,6 +348,8 @@ bool IsTalking(uint32_t aFormId) noexcept;
 bool IsInCombat(uint32_t aFormId) noexcept;
 // The condition GetIsCurrentPackage (21529) on the actor: what dialogue lines read.
 std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noexcept;
+// The condition GetFactionRank (21493) on the actor: -1 when not a member, as conditions read it.
+std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept;
 // The actor's sneaking flag (ActorState1::sneaking), what detection reads; false without the actor.
 bool IsSneaking(uint32_t aFormId) noexcept;
 // ActorState1::sitSleepState: 0 normal, 3 sitting, 7 sleeping (CommonLibSSE-NG SIT_SLEEP_STATE).

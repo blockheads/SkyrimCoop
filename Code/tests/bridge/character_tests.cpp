@@ -20,6 +20,7 @@ TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it 
     announce.Cookie = 5;
     announce.ReferenceId = GameId(0, 0x14);
     announce.AppearanceBuffer = "face";
+    announce.EffectIds = {GameId(0, 0x4B2D9)};
     session.Receive(kPeer, announce);
 
     const auto cResponses = session.SentTo<AssignCharacterResponse>(kPeer);
@@ -45,6 +46,7 @@ TEST_CASE("Characters: a player's own gets an id, everyone else a spawn, and it 
         REQUIRE(cSpawns.size() == 1);
         CHECK(cSpawns[0]->SessionId == cPlayer);
         CHECK(cSpawns[0]->AppearanceBuffer == "face");
+        CHECK(cSpawns[0]->EffectIds == announce.EffectIds);
     }
 }
 

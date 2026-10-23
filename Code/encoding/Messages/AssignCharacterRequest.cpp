@@ -20,6 +20,9 @@ void AssignCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const n
     CurrentActorData.Serialize(aWriter);
     Serialization::WriteString(aWriter, GraphState);
     AiState.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, EffectIds.size());
+    for (const auto& cEffectId : EffectIds)
+        cEffectId.Serialize(aWriter);
 }
 
 void AssignCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -55,4 +58,8 @@ void AssignCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
     CurrentActorData.Deserialize(aReader);
     GraphState = Serialization::ReadString(aReader);
     AiState.Deserialize(aReader);
+    EffectIds.clear();
+    const auto cEffects = Serialization::ReadVarInt(aReader);
+    for (uint64_t i = 0; i < cEffects && i < 256; ++i)
+        EffectIds.emplace_back().Deserialize(aReader);
 }

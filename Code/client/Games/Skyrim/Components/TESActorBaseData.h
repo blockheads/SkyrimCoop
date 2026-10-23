@@ -47,5 +47,6 @@ struct TESActorBaseData : BaseFormComponent
     GameArray<FactionInfo> factions;
 };
 
+static_assert(offsetof(TESActorBaseData, level) == 0x10); // written by TESActorBaseData::SetLevel (14385)
 static_assert(offsetof(TESActorBaseData, owner) == 0x30);
 static_assert(offsetof(TESActorBaseData, factions) == 0x40);

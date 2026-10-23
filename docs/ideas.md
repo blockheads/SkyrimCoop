@@ -154,24 +154,35 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   `Listen<&T::OnX>()` helper drops the members. When a file is touched anyway.
 - **Events over polling** (user, 2026-10-22: "we always want to use events over polling if possible"). Discrete
   state should go out when an engine event or hook says it changed, not from a timer that re-reads it.
-  Continuous state (movement, animation variables) on the tick is fine. The timed reads left, mostly upstream's,
-  with the event or hook that could replace each (not checked in IDA unless said):
-  - `ActorValueService`: small health changes (250 ms), pools (100 ms), death states (250 ms, plus a 500 ms
-    retry), all actor values (1 s): `TESDeathEvent`, hooks on the actor value modifiers (`DamageActorValue`,
-    `RestoreActorValue`, `SetBase`).
-  - `CharacterService`: factions (2 s): hooks on `SetFactionRank`/`RemoveFromFaction`; experience (1 s): the skill
-    use hook it already has; actor discovery (each frame over every loaded actor): `TESCellAttachDetachEvent`,
-    `TESObjectLoadedEvent`; presence (2 s retry).
-  - `InventoryService`: weapon state (each frame), equipment snapshots (3 s), the naked NPC check (1 s):
-    `TESEquipEvent`, the draw/sheathe actions it already hooks.
-  - `PlayerService`: level (1 s, "the LevelUp hook is kinda weird"), beast form (250 ms, the race):
-    `TESSwitchRaceCompleteEvent`; difficulty (each frame): the settings write.
-  - `EffectVisualsService`: 250 ms checks and a full send every 2 s: `TESActiveEffectApplyRemove`.
-  - `DialogueService`: menu open and speaker each frame: `MenuOpenCloseEvent` (the archive's client had it).
-  - `HostWorldState`: globals and quests on intervals: `TESQuestStageEvent`, `TESQuestStartStopEvent`; globals
-    have no event (a hook on the global's value write).
-  - Done: `AiStateService` (2026-10-22, `TESPackageEvent`, `TESCombatEvent`, `TESSceneEvent`).
-  Per service, with its scenarios; drop any periodic full resend once the spawn or join carries the state.
+  Continuous state (movement, animation variables) on the tick is fine. What each engine event covers and misses:
+  `docs/re/systems/change-events.md`. Left, with why:
+  - `ActorValueService` (plan, not started: combat sync leans on it). Pools (100 ms) are continuous (regeneration)
+    and may stay on the tick, without the always-resend of health/magicka/stamina once the copy side converges from
+    the spawn. All values (1 s): no event; hooks on the writers (`ActorValueOwner` `SetActorValue`/`ModActorValue`,
+    `RestoreActorValue`/`DamageActorValue`, permanent and temporary modifiers from `ValueModifierEffect`, perks) raise
+    the actor, the read sends what differs. Death (250 ms): `TESDeathEvent` (dying and dead) and a hook on
+    `Actor::Resurrect`. Small health deltas (250 ms batching of hit events, not a poll): flush on the frame's update.
+    The copy's 500 ms death retry waits for the owner's replayed death action: the copy's own death graph event or
+    `TESDeathEvent` on the copy instead. Scenarios: `--tag combat`, `death-*`, `vilkas-counts-client-hits`.
+  - `InventoryService` (unchanged, stalled 2026-10-22). Equipment snapshots (3 s): the owner's `TESEquipEvent` covers
+    its own changes, but the case the snapshot exists for is a copy drifting in its own game (`repair-equipment-drift`
+    strips the copy only), where the owner sees nothing. The copy would reconcile on its own `TESEquipEvent` against
+    its owner's worn set, which it must then follow from every change message too (armor replacing armor in a slot
+    included), or it undoes the owner's changes as they land. Weapon state (each frame): the state bits
+    (`ActorState+0xC` bits 5-7) have no single writer (two found, for drawn and sheathed only). The naked NPC check
+    (1 s): its cause is not recorded (upstream `ef2ce4b9`); 3D loads and discovery would cover an NPC loading naked,
+    not one stripped later, so it waits for the cause.
+  - `CharacterService` actor discovery (each frame over every loaded actor, `TESCellAttachDetachEvent`,
+    `TESObjectLoadedEvent`) and presence (2 s retry): not looked at.
+  - `PlayerService` difficulty (each frame): the settings write, not looked at.
+  - `HostWorldState` quests (500 ms): `TESQuestStageEvent`, `TESQuestStartStopEvent` and `ObjectiveState::Event`
+    (23951) cover stages, running and objectives, but alias and location fills (`BGSRefAlias::ForceRefTo`, `Clear`,
+    location aliases) send nothing and `QuestState` carries them: hooks on those first. Globals (250 ms): no event,
+    and the writers are Papyrus `SetValue`/`Mod`, the console's `set` and compiled script operations.
+  - `DialogueService`'s menu and speaker check: left for the shared dialogue rework (main checkout, 2026-10-22).
+  - Done: `AiStateService` (`TESPackageEvent`, `TESCombatEvent`, `TESSceneEvent`, `TESDeathEvent`, combat target
+    switches, the player's combat flag), `EffectVisualsService`, `PlayerService` race and level, `CharacterService`
+    factions and experience (progress.md, "Events over polling").
 
 - **Rename `BridgeTests` to `HostAuthorityTests`** (2026-10-20). `HostBridge` became `HostAuthority`, but
   its tests are still the `BridgeTests` target in `Code/tests/bridge/` (`[Bridge]` tags, `BridgeTest`

@@ -26,4 +26,6 @@ struct Movement
     Rotator2_NetQuantize Rotation{};
     AnimationVariables Variables{};
     float Direction{};
+    // Put there at once (a script's MoveTo, the console's setpos): the copy jumps, never slides across.
+    bool Teleported{};
 };

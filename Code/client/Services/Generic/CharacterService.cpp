@@ -12,6 +12,8 @@
 #include <Events/MountEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
+#include <Events/FactionsChangeEvent.h>
+#include <Events/ReferenceJumpEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/SubtitleEvent.h>
 #include <Events/MoveActorEvent.h>
@@ -36,6 +38,7 @@
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
 #include <Services/AiStateService.h>
+#include <Services/EffectVisualsService.h>
 #include <Messages/SyncExperienceRequest.h>
 #include <Messages/NotifySyncExperience.h>
 #include <Messages/DialogueRequest.h>
@@ -79,6 +82,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_characterSpawnConnection = m_dispatcher.sink<NotifyCharacterSpawn>().connect<&CharacterService::OnCharacterSpawn>(this);
     m_referenceMovementSnapshotConnection = m_dispatcher.sink<NotifyReferencesMove>().connect<&CharacterService::OnReferencesMoveRequest>(this);
     m_factionsConnection = m_dispatcher.sink<NotifyFactionsChanges>().connect<&CharacterService::OnFactionsChanges>(this);
+    m_factionsChangeConnection = m_dispatcher.sink<FactionsChangeEvent>().connect<&CharacterService::OnFactionsChange>(this);
+    m_referenceJumpConnection = m_dispatcher.sink<ReferenceJumpEvent>().connect<&CharacterService::OnReferenceJump>(this);
     m_removeCharacterConnection = m_dispatcher.sink<NotifyRemoveCharacter>().connect<&CharacterService::OnRemoveCharacter>(this);
 
     m_mountConnection = m_dispatcher.sink<MountEvent>().connect<&CharacterService::OnMountEvent>(this);
@@ -217,9 +222,7 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
     RunActorDiscovery();
     RunPresence();
     RunLocalUpdates();
-    RunFactionsUpdates();
     RunRemoteUpdates();
-    RunExperienceUpdates();
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
@@ -520,7 +523,10 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
 {
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
+    {
+        pInterpolation->TimePoints.clear();
         pInterpolation->Position = acMessage.Position;
+    }
     auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(aEntity);
     place.CellId = acMessage.CellId;
     place.LastMove = {};
@@ -555,13 +561,22 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Variables = movement.Variables;
         point.Direction = movement.Direction;
 
-        InterpolationSystem::AddPoint(interpolationComponent, point);
+        // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
+        // sweeps across.
+        bool teleported = movement.Teleported;
         if (movement.CellId)
         {
             auto& place = m_world.get_or_emplace<OwnerPlaceComponent>(*itor);
+            teleported |= place.CellId && (movement.WorldSpaceId != place.WorldSpaceId || (!movement.WorldSpaceId && movement.CellId != place.CellId));
             place.CellId = movement.CellId;
             place.WorldSpaceId = movement.WorldSpaceId;
         }
+        if (teleported)
+        {
+            interpolationComponent.TimePoints.clear();
+            interpolationComponent.Position = movement.Position;
+        }
+        InterpolationSystem::AddPoint(interpolationComponent, point);
 
         for (const auto& action : update.ActionEvents)
         {
@@ -588,7 +603,8 @@ void CharacterService::OnActionEvent(const ActionEvent& acActionEvent) const noe
 
 void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) const noexcept
 {
-    auto view = m_world.view<RemoteComponent, FormIdComponent, CacheComponent>();
+    // Copies have no CacheComponent (only actors this game owns do, CharacterService::ProcessNewEntity).
+    auto view = m_world.view<RemoteComponent, FormIdComponent>();
 
     for (const auto& [id, factions] : acEvent.Changes)
     {
@@ -596,11 +612,10 @@ void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) c
 
         if (itor != std::end(view))
         {
-            auto& formIdComponent = view.get<FormIdComponent>(*itor);
-            auto& cacheComponent = view.get<CacheComponent>(*itor);
-            cacheComponent.FactionsContent = factions;
-
-            m_actorBridge.SetActorFactions(formIdComponent.Id, cacheComponent.FactionsContent);
+            const uint32_t cFormId = view.get<FormIdComponent>(*itor).Id;
+            if (auto* pCache = m_world.try_get<CacheComponent>(*itor))
+                pCache->FactionsContent = factions;
+            m_actorBridge.SetActorFactions(cFormId, factions);
         }
     }
 }
@@ -870,7 +885,12 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
 
 void CharacterService::OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept
 {
-    m_cachedExperience += acEvent.Experience;
+    if (!m_transport.IsConnected())
+        return;
+    SyncExperienceRequest message;
+    message.Experience = acEvent.Experience;
+    m_transport.Send(message);
+    spdlog::debug("Sending over experience {}", message.Experience);
 }
 
 void CharacterService::OnNotifySyncExperience(const NotifySyncExperience& acMessage) noexcept
@@ -1055,6 +1075,8 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
     message.GraphState = cState.GraphState;
     if (const auto* pAiState = m_world.ctx().find<AiStateService>())
         message.AiState = pAiState->ReadState(formIdComponent.Id);
+    if (const auto* pEffects = m_world.ctx().find<EffectVisualsService>())
+        message.EffectIds = pEffects->ReadEffects(formIdComponent.Id);
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);
@@ -1243,7 +1265,7 @@ ActorData CharacterService::BuildActorData(uint32_t aFormId) const noexcept
     return actorData;
 }
 
-void CharacterService::RunLocalUpdates() const noexcept
+void CharacterService::RunLocalUpdates() noexcept
 {
     static std::chrono::steady_clock::time_point lastSendTimePoint;
     constexpr auto cDelayBetweenSnapshots = 100ms;
@@ -1266,7 +1288,11 @@ void CharacterService::RunLocalUpdates() const noexcept
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
 
         AnimationSystem::Serialize(m_world, message, localComponent, animationComponent, formIdComponent);
+        if (m_jumped.erase(formIdComponent.Id))
+            if (const auto it = message.Updates.find(localComponent.Id); it != message.Updates.end())
+                it->second.UpdatedMovement.Teleported = true;
     }
+    m_jumped.clear(); // jumps of actors that are not ours
 
     m_transport.Send(message);
 }
@@ -1375,39 +1401,31 @@ void CharacterService::RunRemoteUpdates() noexcept
         m_world.remove<WaitingFor3D>(entity);
 }
 
-void CharacterService::RunFactionsUpdates() const noexcept
+void CharacterService::OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept
 {
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenSnapshots = 2000ms;
+    m_jumped.insert(acEvent.FormId);
+}
 
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenSnapshots)
+void CharacterService::OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept
+{
+    if (!m_transport.IsConnected())
         return;
-
-    lastSendTimePoint = now;
-
-    RequestFactionsChanges message;
-
-    auto factionedActors = m_world.view<LocalComponent, CacheComponent, FormIdComponent>();
-    for (auto entity : factionedActors)
+    auto view = m_world.view<LocalComponent, CacheComponent, FormIdComponent>();
+    for (const auto cEntity : view)
     {
-        auto& formIdComponent = factionedActors.get<FormIdComponent>(entity);
-        auto& localComponent = factionedActors.get<LocalComponent>(entity);
-        auto& cacheComponent = factionedActors.get<CacheComponent>(entity);
-
-        auto factions = m_actorBridge.GetActorFactions(formIdComponent.Id);
-
-        if (cacheComponent.FactionsContent == factions)
+        if (view.get<FormIdComponent>(cEntity).Id != acEvent.ActorId)
             continue;
-
+        auto& cacheComponent = view.get<CacheComponent>(cEntity);
+        auto factions = m_actorBridge.GetActorFactions(acEvent.ActorId);
+        if (cacheComponent.FactionsContent == factions)
+            return;
         cacheComponent.FactionsContent = factions;
 
-        // If not send the current factions and replace the cached factions
-        message.Changes[localComponent.Id] = factions;
-    }
-
-    if (!message.Changes.empty())
+        RequestFactionsChanges message;
+        message.Changes[view.get<LocalComponent>(cEntity).Id] = std::move(factions);
         m_transport.Send(message);
+        return;
+    }
 }
 
 // Tells the host, which sends what is here and, when the player led, takes the party along.
@@ -1542,29 +1560,4 @@ void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldD
         if (m_world.orphan(entity))
             m_world.destroy(entity);
     }
-}
-
-void CharacterService::RunExperienceUpdates() noexcept
-{
-    static std::chrono::steady_clock::time_point lastSendTimePoint;
-    constexpr auto cDelayBetweenSnapshots = 1000ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastSendTimePoint < cDelayBetweenSnapshots)
-        return;
-
-    lastSendTimePoint = now;
-
-    if (m_cachedExperience == 0.f)
-        return;
-
-
-    SyncExperienceRequest message;
-    message.Experience = m_cachedExperience;
-
-    m_cachedExperience = 0.f;
-
-    m_transport.Send(message);
-
-    spdlog::debug("Sending over experience {}", message.Experience);
 }

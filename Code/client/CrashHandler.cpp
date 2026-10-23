@@ -29,7 +29,11 @@ std::string SerializeTimePoint(const time_point& time, const std::string& format
 
 // Unwinds with each module's own unwind tables (ntdll only, no loader lock), so it is
 // safe on a suspended thread. Returns the number of return addresses written.
-static int CaptureBacktrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames)
+static std::atomic<DWORD64> s_spinLockWait{0};
+static std::atomic<CrashHandler::TSpinLockOfFrame> s_spinLockOfFrame{nullptr};
+
+// apSpinLock: the spin lock a frame of the registered wait function waits for (SetSpinLockWait), else untouched.
+static int CaptureBacktrace(const CONTEXT& acContext, DWORD64* apFrames, int aMaxFrames, DWORD64* apSpinLock = nullptr)
 {
     CONTEXT context = acContext;
     int count = 0;
@@ -42,6 +46,10 @@ static int CaptureBacktrace(const CONTEXT& acContext, DWORD64* apFrames, int aMa
         auto* pFunction = context.Rip ? RtlLookupFunctionEntry(context.Rip, &imageBase, nullptr) : nullptr;
         if (pFunction)
         {
+            // The unwound context holds this frame's nonvolatile registers.
+            const auto pLockOfFrame = s_spinLockOfFrame.load();
+            if (apSpinLock && pLockOfFrame && imageBase + pFunction->BeginAddress == s_spinLockWait.load())
+                *apSpinLock = pLockOfFrame(context);
             void* pHandlerData = nullptr;
             DWORD64 establisherFrame = 0;
             RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, context.Rip, pFunction, &context, &pHandlerData,
@@ -252,6 +260,34 @@ void CrashHandler::SetHangDiagnostic(void (*apDiagnostic)()) noexcept
     s_hangDiagnostic = apDiagnostic;
 }
 
+void CrashHandler::SetSpinLockWait(DWORD64 aFunction, TSpinLockOfFrame apLockOfFrame) noexcept
+{
+    s_spinLockOfFrame = apLockOfFrame;
+    s_spinLockWait = aFunction;
+}
+
+// The spin lock a stuck thread waits for, read after the threads run again (a copy: it may be freed memory).
+static void LogSpinLock(DWORD64 aLock)
+{
+    uint32_t lock[2]{};
+    SIZE_T read = 0;
+    if (!ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<LPCVOID>(aLock), lock, sizeof(lock), &read) || read != sizeof(lock))
+    {
+        spdlog::error("  waits for spin lock {:#x}: unreadable", aLock);
+        return;
+    }
+    bool live = false;
+    if (const HANDLE cSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0); cSnapshot != INVALID_HANDLE_VALUE)
+    {
+        THREADENTRY32 entry{sizeof(entry)};
+        for (BOOL more = Thread32First(cSnapshot, &entry); more && !live; more = Thread32Next(cSnapshot, &entry))
+            live = entry.th32OwnerProcessID == GetCurrentProcessId() && entry.th32ThreadID == lock[0];
+        CloseHandle(cSnapshot);
+    }
+    spdlog::error("  waits for spin lock {:#x}: owner thread {} ({}), count {}", aLock, lock[0],
+                  lock[0] == 0 ? "none" : live ? "alive" : "no such thread", lock[1]);
+}
+
 // After a stall: the stack of every other thread (a stuck worker the main thread waits for is
 // otherwise invisible). Each thread is suspended only while capturing.
 static void LogOtherThreadsInOurCode(DWORD aMainThreadId)
@@ -272,6 +308,7 @@ static void LogOtherThreadsInOurCode(DWORD aMainThreadId)
         DWORD Id;
         DWORD64 Frames[32];
         int Count;
+        DWORD64 SpinLock;
     };
     std::vector<DWORD> threadIds;
     const HANDLE cSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -297,7 +334,8 @@ static void LogOtherThreadsInOurCode(DWORD aMainThreadId)
             context.ContextFlags = CONTEXT_FULL;
             Captured& slot = captured[used];
             slot.Id = cId;
-            slot.Count = GetThreadContext(cThread, &context) ? CaptureBacktrace(context, slot.Frames, 32) : 0;
+            slot.SpinLock = 0;
+            slot.Count = GetThreadContext(cThread, &context) ? CaptureBacktrace(context, slot.Frames, 32, &slot.SpinLock) : 0;
             ResumeThread(cThread);
             ++used;
         }
@@ -311,6 +349,8 @@ static void LogOtherThreadsInOurCode(DWORD aMainThreadId)
                                             [&](DWORD64 aFrame) { return aFrame >= cOurBase && aFrame < ourEnd; });
         spdlog::error("HangWatchdog: thread {}{}:", cThread.Id, cInOurCode ? " (our code on its stack)" : "");
         LogFrames(cThread.Frames, cThread.Count);
+        if (cThread.SpinLock)
+            LogSpinLock(cThread.SpinLock);
     }
 }
 
@@ -335,12 +375,15 @@ static DWORD WINAPI HangWatchdog(LPVOID apMainThread)
         context.ContextFlags = CONTEXT_FULL;
         DWORD64 frames[48];
         int frameCount = 0;
+        DWORD64 spinLock = 0;
         if (GetThreadContext(cMainThread, &context))
-            frameCount = CaptureBacktrace(context, frames, 48);
+            frameCount = CaptureBacktrace(context, frames, 48, &spinLock);
         ResumeThread(cMainThread);
 
         spdlog::error("HangWatchdog: main loop stalled for 10s after {} ticks", cTicks);
         LogFrames(frames, frameCount);
+        if (spinLock)
+            LogSpinLock(spinLock);
         LogOtherThreadsInOurCode(GetThreadId(cMainThread));
         if (auto* pDiagnostic = s_hangDiagnostic.load())
             pDiagnostic();

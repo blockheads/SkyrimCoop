@@ -6,12 +6,14 @@
 #include <Bridges/IFormBridge.h>
 #include <Camera/PlayerCamera.h>
 #include <Camera/VATS.h>
+#include <Effects/ReferenceEffect.h>
 #include <Components/TESContainer.h>
 #include <ExtraData/ExtraOwnership.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
 #include <Forms/TESIdleForm.h>
 #include <Forms/TESObjectCELL.h>
+#include <Forms/TESFaction.h>
 #include <Forms/TESPackage.h>
 #include <Forms/BGSLocation.h>
 #include <Forms/TESQuest.h>
@@ -201,6 +203,35 @@ std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
     if (!pActor || !pProcessLists)
         return {};
     return pProcessLists->GetPlayingVisualFormIds(pActor->GetHandle().handle.iBits);
+}
+
+std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    ProcessLists* pProcessLists = ProcessLists::Get();
+    if (!pActor || !pProcessLists)
+        return {};
+    const uint32_t cHandle = pActor->GetHandle().handle.iBits;
+    std::vector<uint32_t> result;
+    {
+        BSScopedLock<BSRecursiveLock> _(pProcessLists->magicEffectsLock);
+        for (uint32_t i = 0; pProcessLists->magicEffects.data && i < pProcessLists->magicEffects.length; ++i)
+        {
+            const auto* pEffect = Cast<ReferenceEffect>(pProcessLists->magicEffects[i]);
+            if (!pEffect || pEffect->hTarget != cHandle)
+                continue;
+            const TESForm* pForm = nullptr;
+            if (const auto* pShader = Cast<ShaderReferenceEffect>(pProcessLists->magicEffects[i]))
+                pForm = pShader->pEffectShader;
+            else if (const auto* pModel = Cast<ModelReferenceEffect>(pProcessLists->magicEffects[i]))
+                pForm = pModel->pArtObject;
+            if (pForm)
+                result.push_back(pForm->formID);
+        }
+    }
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
 }
 
 std::pair<int32_t, float> GetCombatSkillExperience() noexcept
@@ -897,6 +928,20 @@ std::optional<bool> IsCurrentPackage(uint32_t aFormId, uint32_t aPackageId) noex
     double result = 0.0;
     s_getIsCurrentPackage(pActor, pPackage, nullptr, &result);
     return result == 1.0;
+}
+
+std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noexcept
+{
+    // GameFunc::native::GetFactionRank (subject, the faction parameter, unused, the result).
+    using TCondition = bool(TESObjectREFR*, TESForm*, void*, double*);
+    POINTER_SKYRIMSE(TCondition, s_getFactionRank, 21493);
+    auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    auto* pFaction = Cast<TESFaction>(TESForm::GetById(aFactionId));
+    if (!pActor || !pFaction)
+        return std::nullopt;
+    double result = -1.0;
+    s_getFactionRank(pActor, pFaction, nullptr, &result);
+    return static_cast<int32_t>(result);
 }
 
 Water GetWater(uint32_t aFormId) noexcept

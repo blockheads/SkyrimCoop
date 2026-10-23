@@ -4,6 +4,10 @@
 #include <Havok/bhkCollision.h>
 #include <NetImmerse/NiNode.h>
 #include <AiStateEvents.h>
+#include <EffectEvents.h>
+#include <FactionEvents.h>
+#include <PlayerEvents.h>
+#include <ReferenceEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -152,6 +156,10 @@ GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
 {
     ContainerEvents::Start();
     AiStateEvents::Start();
+    EffectEvents::Start();
+    PlayerEvents::Start();
+    FactionEvents::Start();
+    ReferenceEvents::Start();
 }
 
 GuestEngine::~GuestEngine() noexcept
@@ -165,6 +173,10 @@ GuestEngine::~GuestEngine() noexcept
         }
     ContainerEvents::Stop();
     AiStateEvents::Stop();
+    EffectEvents::Stop();
+    PlayerEvents::Stop();
+    FactionEvents::Stop();
+    ReferenceEvents::Stop();
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept

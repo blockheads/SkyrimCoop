@@ -30,6 +30,7 @@
 #include <Messages/AiStateRequest.h>
 #include <Messages/PlayerNativeRequest.h>
 #include <Messages/PlayerNativeResultRequest.h>
+#include <Messages/EffectFlashRequest.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/SyncExperienceRequest.h>
 #include <Messages/RequestEquipmentChanges.h>
@@ -58,7 +59,7 @@ struct RequestMessageFactory
             RequestEquipmentChanges, SendChatMessageRequest, PlayerRespawnRequest, DialogueRequest, SubtitleRequest, PlayerLevelRequest, RequestSetWaypoint,
             RequestRemoveWaypoint, RemoveSpellRequest, SetTimeCommandRequest, RequestRemoveCharacter, RequestEquipmentSnapshot, EnterCellRequest, RequestActiveEffects, TimeScaleRequest,
             DialogueStartRequest, DialogueOpenedRequest, DialogueOptionsRequest, DialoguePickRequest, DialogueCloseRequest,
-            DialogueJoinRequest, ContainerChangeRequest, CellStateRequest, DialogueStartFailedRequest, PlayerNativeRequest, PlayerNativeResultRequest>;
+            DialogueJoinRequest, ContainerChangeRequest, CellStateRequest, DialogueStartFailedRequest, PlayerNativeRequest, PlayerNativeResultRequest, EffectFlashRequest>;
 
         return s_visitor(std::forward<T>(func));
     }

@@ -2,6 +2,10 @@
 
 #include <Bridges/ContainerItems.h>
 #include <AiStateEvents.h>
+#include <EffectEvents.h>
+#include <FactionEvents.h>
+#include <PlayerEvents.h>
+#include <ReferenceEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -178,6 +182,10 @@ HostEngine::HostEngine(const ModSystem& acMods) noexcept
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
     ContainerEvents::Start();
     AiStateEvents::Start();
+    EffectEvents::Start();
+    PlayerEvents::Start();
+    FactionEvents::Start();
+    ReferenceEvents::Start();
     ModManager::WatchCreated(&OnCreated);
 }
 
@@ -188,6 +196,10 @@ HostEngine::~HostEngine() noexcept
     s_log.Take();
     ContainerEvents::Stop();
     AiStateEvents::Stop();
+    EffectEvents::Stop();
+    PlayerEvents::Stop();
+    FactionEvents::Stop();
+    ReferenceEvents::Stop();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept

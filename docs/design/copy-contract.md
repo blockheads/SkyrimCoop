@@ -34,7 +34,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | AI state others read (current package, sitting, sleeping, in a scene, alarmed, combat state) | the owner's | built 2026-10-22 (`AiStateService`, `Games/Skyrim/CopyAiState.cpp`): package, scene, combat state and target; sitting and sleeping by replay; alarmed not yet. Below, "AI state" |
 | Combat controller, combat group membership | no | never given to a copy: `CombatUpdateJob` (46902) would run its combat AI (below, "AI state") |
 | Applying spell effects locally | no | the owner applies them (MagicTarget.cpp); on the host, the world's spells on a guest's character (a statue, a trap, a script making the copy cast) are sent to its owner too (`docs/re/systems/guest-world-events.md`) |
-| Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects with visuals; the copy plays just their hit shader and art while listed (EffectVisualsService) |
+| Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects whose visuals last (FX Persist) when its engine starts or stops them, a spawn carrying the list; the copy plays just their hit shader and art while listed, again on its 3D loading; visuals that play once go out as their effect starts, and the copy plays them once (EffectVisualsService) |
 | Hit feedback for the attacker (enemy health bar) | in the attacker's game | our player's hit on a copy shows its health bar at once, from the owner's health (CombatService::OnHitEvent) |
 | Combat decisions, dialogue, reservations | no (audit when touched) | to check when syncing combat or dialogue |
 | Crime | the party's, judged on the host | decided 2026-10-12: one shared party bounty. Any player's crime counts for everyone; the host's NPCs witness it. Not built: today only the host's own player can commit a crime on the host (a remote player's copy is an NPC to the engine, `Actor::UpdateTrespassing` runs for the real player only) |
@@ -157,7 +157,8 @@ get the copy's own answer.
 - **Forms go by id** (packages, furniture, scenes), so a mod's package travels as a vanilla one does.
 
 **As built (2026-10-22).** `AiStateService` (every game), event-driven: the engine's package, combat, death and
-scene events (`Games/Skyrim/AiStateEvents.cpp`) mark an owned actor changed; its state is read on the main thread and
+scene events, a combat target switch (`CombatController::SetTarget` 33235) and the player's in-combat flag
+(`PlayerCharacter::UpdateInCombat` 41238), all in `Games/Skyrim/AiStateEvents.cpp`, mark an owned actor changed; its state is read on the main thread and
 sent (`AiStateRequest`) when it differs from the last sent. A spawn carries it. The host relays it from the owner only
 (`NotifyAiState`). No timed check, no periodic resend. The copy's side, `IActorBridge::SetCopyAiFields` and
 `Games/Skyrim/CopyAiState.cpp`:
@@ -165,7 +166,8 @@ sent (`AiStateRequest`) when it differs from the last sent. A spawn carries it. 
 ```
 owner's game                              copy's game
 TESPackageEvent / TESCombatEvent /        NotifyAiState, or the spawn's AiState
-TESDeathEvent / TESSceneEvent (any          -> SetCopyAiFields:
+TESDeathEvent / TESSceneEvent,              -> SetCopyAiFields:
+SetTarget, the player's flag (any
   thread) -> AiStateChangeEvent (queued)       package  -> running slot
   -> read (main thread), send if changed      scene, combat -> ActorExtension, answered
                                               combat target -> combatHandle
@@ -189,9 +191,8 @@ alarmed          not carried (an engine-made package)
 
 Readouts: the status's `ai_state` (package, scene, combat, combat target, in combat; `EngineCalls::GetAiReadout`, as
 conditions read them), compared by the desync check; harness `is_current_package`, `put_package` (which sends the
-package event, as evaluation does). Open: a combat target switch inside one fight has no event (the target travels
-with combat state changes only). Scenarios `copy-runs-owners-package`,
-`copy-in-owners-combat`, `guest-player-in-hosts-combat`. Details and the audit:
+package event, as evaluation does). Scenarios `copy-runs-owners-package`,
+`copy-in-owners-combat`, `guest-player-in-hosts-combat`, `guest-player-in-switched-combat`. Details and the audit:
 `docs/re/systems/actor-ai-and-copies.md`, "Combat state and its readers".
 
 First user: shared dialogue syncing the step (`shared-dialogue.md`, "Next"), where each game judges its menu's

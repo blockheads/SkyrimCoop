@@ -25,6 +25,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAssignment(const AssignCharacterR
     spawn.LatestAction = acAssignment.LatestAction;
     spawn.GraphState = acAssignment.GraphState;
     spawn.AiState = acAssignment.AiState;
+    spawn.EffectIds = acAssignment.EffectIds;
     spawn.FaceTints = acAssignment.FaceTints;
     spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
@@ -57,6 +58,9 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     Serialization::WriteString(aWriter, GraphState);
     AiState.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, EffectIds.size());
+    for (const auto& cEffectId : EffectIds)
+        cEffectId.Serialize(aWriter);
 }
 
 void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -94,4 +98,8 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     IsPlayerSummon = Serialization::ReadBool(aReader);
     GraphState = Serialization::ReadString(aReader);
     AiState.Deserialize(aReader);
+    EffectIds.clear();
+    const auto cEffects = Serialization::ReadVarInt(aReader);
+    for (uint64_t i = 0; i < cEffects && i < 256; ++i)
+        EffectIds.emplace_back().Deserialize(aReader);
 }

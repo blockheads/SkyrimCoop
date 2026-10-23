@@ -129,6 +129,7 @@ public:
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override;
+    bool FlashEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept override;
 
     // -----------------------------------------------------------------

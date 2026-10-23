@@ -331,9 +331,12 @@ struct TESUniqueIDChangeEvent
 {
 };
 
+// CommonLibSSE-NG TESSwitchRaceCompleteEvent: Actor::SwitchRace finished (Papyrus OnRaceSwitchComplete).
 struct TESSwitchRaceCompleteEvent
 {
+    TESObjectREFR* subject; // 00 (NiPointer)
 };
+static_assert(sizeof(TESSwitchRaceCompleteEvent) == 0x8);
 
 struct TESFastTravelEndEvent
 {

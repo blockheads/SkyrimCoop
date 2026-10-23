@@ -248,11 +248,14 @@ public:
     virtual void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept = 0;
 
     // --- Effect visuals: what a magic effect shows on its target (burning, frost, a glow) ---
-    // Whether that magic effect shows on its target (a hit shader or hit art).
+    // Whether that magic effect shows on its target while it runs (a hit shader or hit art, FX Persist).
     virtual bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept = 0;
     // Plays only that effect's hit visuals on the actor until stopped; true if they now play (not
     // before the actor has 3D, nor the first time a shader is used in this game: it loads).
     virtual bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept = 0;
     virtual void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept = 0;
     virtual bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept = 0;
+    // Plays that effect's hit visuals once on the actor, as its start does when it is not FX Persist (each runs its
+    // own pass and ends); false if it has none or the actor has no 3D.
+    virtual bool FlashEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept = 0;
 };

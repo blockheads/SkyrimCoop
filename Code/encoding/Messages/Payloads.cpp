@@ -325,6 +325,19 @@ void ActiveEffects::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
         EffectIds.push_back(effectId);
     }
 }
+
+void EffectFlash::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, SessionId);
+    EffectId.Serialize(aWriter);
+}
+
+void EffectFlash::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    EffectId.Deserialize(aReader);
+}
+
 // A native takes a handful; anything past it is a corrupt message.
 constexpr uint64_t kMaxNativeArguments = 16;
 

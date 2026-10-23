@@ -2126,6 +2126,28 @@ def scenario_move_host_npc():
     hold()
 
 
+def scenario_copy_jumps_with_owner():
+    """The host puts its NPC 900 units away at once (the console's setpos, as a script's MoveTo does): the client's
+    copy jumps there too, never sliding across in between (Movement::Teleported)."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    show("client", lambda actors: copy)
+    start = host_npc_state(npc)["position"]
+    def flat(a, b):
+        return math.hypot(a[0] - b[0], a[1] - b[1])
+    wait_on("client", f"copy {copy:08X} at the host's NPC", lambda actors: (p := actors.get(str(copy), {}).get("actual")) and flat(p, start) < 30, 10)
+    goal = [start[0] + 900, start[1], start[2]]
+    console_on("", f"{npc:08X}.setpos x {goal[0]:.0f}")
+    seen = []
+    def arrived(actors):
+        if position := actors.get(str(copy), {}).get("actual"):
+            seen.append(position)
+        return position and flat(position, goal) < 30
+    wait_on("client", f"copy {copy:08X} at the NPC's new place", arrived, 5)
+    if between := [[round(v) for v in p] for p in seen if flat(p, start) > 30 and flat(p, goal) > 30]:
+        raise TestFailure(f"[client] the copy slid across: {len(between)} of {len(seen)} reads between, {between[:3]}")
+    hold()
+
+
 def voice(instance, form_id):
     """The actor's voice line in that game (mod.voice): callback state, seconds left, sound id."""
     select_instance(instance)
@@ -2393,7 +2415,10 @@ def other_player_position(instance):
 
 def walk_off(walker, toward, what):
     """The walker turns toward `toward` (x, y) and walks there until it is 100 units from the other player: off
-    the stack (60), with a short clear way back. Nothing else follows from it: no menu opens, nobody travels."""
+    the stack (60), with a short clear way back, and stays off until its game takes it off the stack (half a second
+    off the spot, TravelService::UpdateStack: one back on it sooner is still stacked). Nothing else follows from
+    it: no menu opens, nobody travels."""
+    _, mark = log_trail(walker, 1 << 62)
     start = my_position(walker)
     console_on(walker, f"player.setangle z {math.degrees(math.atan2(toward[0] - start[0], toward[1] - start[1])) % 360:.0f}")
     cells = {name: player_cell(name) for name in ("", "client")}
@@ -2403,6 +2428,8 @@ def walk_off(walker, toward, what):
                  lambda: distance(my_position(walker)[:2], other_player_position(walker)[:2]) > 100, 10)
     finally:
         release(walker, "forward")
+    wait_for(f"[{walker or 'host'}] its game takes it off the stack",
+             lambda: any("Stack: 14 walked off" in line["text"] for line in log_trail(walker, mark)[0]), 5)
     for name in ("", "client"):
         if player_cell(name) != cells[name]:
             raise TestFailure(f"[{name or 'host'}] walking off the stack took the party elsewhere")
@@ -3453,6 +3480,31 @@ def dive_roundtrip(diver, observer, label):
         both_go(HOME_CELL)
 
 
+def scenario_copy_leaves_water_with_owner():
+    """The host swims in the river and then stands on its bank (put there, as a script's MoveTo would): its copy
+    on the client swims while it does and stops swimming with it, though a copy's own controller never gets the
+    support that ends a swim (Character::sub_37946, docs/progress.md)."""
+    both_go("river", RIVER_CELL)
+    console_on("", "tcai")
+    try:
+        for name, spot in (("", RIVER_SPOT), ("client", RIVER_BANK)):
+            for axis, value in zip("xyz", spot):
+                console_on(name, f"player.setpos {axis} {value}")
+        wait_for("[host] swims", lambda: water("").get("swimming"), 10)
+        show("client", other_player)
+        select_instance("client")
+        copy = other_player((read_status() or {}).get("actors", {}))
+        wait_for("[client] the host's character swims", lambda: water("client", copy).get("swimming"), 10)
+        for axis, value in zip("xyz", (RIVER_BANK[0] + 150, RIVER_BANK[1], RIVER_BANK[2])):
+            console_on("", f"player.setpos {axis} {value}")
+        wait_for("[host] stands on the bank, not swimming", lambda: not water("").get("swimming"), 10)
+        wait_for("[client] the host's character stops swimming with it", lambda: not water("client", copy).get("swimming"), 10)
+        hold()
+    finally:
+        console_on("", "tcai")
+        both_go(HOME_CELL)
+
+
 def scenario_dive_host_player():
     """Host dives, stays under, surfaces; the client's copy of the host follows without its own decisions."""
     dive_roundtrip("", "client", "host's character")
@@ -4274,6 +4326,74 @@ def scenario_burning_shows_on_copy():
     hold()
 
 
+OAKFLESH = 0x5AD5C  # 60 s armor spell with hit visuals (AlterationArmorFXS and its art)
+
+
+def active_spells(instance, actor):
+    """The spells of the actor's active effects in that game."""
+    select_instance(instance)
+    effects = (((read_status() or {}).get("world") or {}).get(str(actor)) or {}).get("effects") or []
+    return {e.get("spell") for e in effects}
+
+
+def scenario_copy_made_later_shows_effects():
+    """The host's staged Vilkas casts Oakflesh on himself while the client is away. The client joins again: the
+    copy it makes then shows the visuals from its spawn, nothing having changed on the host since (the owner sends
+    its effects only when the engine starts or ends one). A dispel ends them on both."""
+    try:
+        stage_host_npc(VILKAS)
+        session_id = host_npc_state(VILKAS)["session_id"]
+        disconnect_client()
+        wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
+        console_on("", f"{VILKAS:X}.cast {OAKFLESH:08X} {VILKAS:X} left")
+        shown = wait_for("[host] Vilkas shows Oakflesh", lambda: visuals("", VILKAS), 3)
+        rejoin_client()
+        copy = copy_of("client", session_id)
+        if OAKFLESH not in active_spells("", VILKAS):
+            raise TestFailure(f"[host] Vilkas's Oakflesh ended before the client came back: {active_spells('', VILKAS)}")
+        try:
+            wait_for("[client] the copy made on joining shows it", lambda: shown <= visuals("client", copy), 3)
+        except TestFailure:
+            raise TestFailure(f"[client] its copy of Vilkas shows {visuals('client', copy)}, not the host's {shown}")
+        console_on("", f"{VILKAS:X}.dispelallspells")
+        wait_for("[host] Oakflesh is dispelled", lambda: not (shown & visuals("", VILKAS)), 3)
+        wait_for("[client] the copy's visuals end too", lambda: not (shown & visuals("client", copy)), 3)
+    finally:
+        console_on("", f"{VILKAS:X}.dispelallspells")
+        release_host_npc(VILKAS)
+
+
+# Gift of Charity's AlchFortifyPersuasion (0xD6947) has no FX Persist: its hit shader plays one pass of its hour.
+CHARITY_SHADER = 0x4E220  # HealMysticFXS
+
+
+def shown_visuals(instance, form_id):
+    """The shaders and art in that game's list on the actor, the finished ones still fading out too: a one-shot
+    hit shader is finished from its start ("visuals" leaves those out)."""
+    select_instance(instance)
+    return set(((((read_status() or {}).get("world") or {}).get(str(form_id)) or {}).get("mod") or {}).get("visuals_shown") or [])
+
+
+def scenario_copy_flashes_one_shot_effects():
+    """An effect whose visuals play once (no FX Persist) flashes on the copy as on its owner: the host's staged
+    Vilkas takes Gift of Charity (a beggar's blessing, an hour long). Its shader shows on the host's Vilkas and on
+    the client's copy, then ends on both by itself while the blessing still runs (the owner sends the flash when its
+    engine starts it)."""
+    try:
+        stage_host_npc(VILKAS)
+        copy = copy_of("client", host_npc_state(VILKAS)["session_id"])
+        console_on("", f"{VILKAS:X}.cast {GIFT_OF_CHARITY:08X} {VILKAS:X} left")
+        wait_for("[host] Vilkas flashes the blessing", lambda: CHARITY_SHADER in shown_visuals("", VILKAS), 3)
+        wait_for("[client] the copy flashes it too", lambda: CHARITY_SHADER in shown_visuals("client", copy), 3)
+        wait_for("[host] the flash ends", lambda: CHARITY_SHADER not in shown_visuals("", VILKAS), 15)
+        wait_for("[client] the copy's flash ends by itself", lambda: CHARITY_SHADER not in shown_visuals("client", copy), 15)
+        if GIFT_OF_CHARITY not in active_spells("", VILKAS):
+            raise TestFailure(f"[host] the blessing ended with its flash: {active_spells('', VILKAS)}")
+    finally:
+        console_on("", f"{VILKAS:X}.dispelallspells")
+        release_host_npc(VILKAS)
+
+
 # --- Objects: doors, locks ------------------------------------------------------------------
 
 def cell_objects(instance):
@@ -4871,9 +4991,9 @@ def scenario_copy_in_owners_combat():
         wait_for("[host] Vilkas is out of combat", lambda: not ai_state("", VILKAS).get("in_combat"), 5)
         wait_for("[client] its Vilkas is out of combat", lambda: not ai_state("client", VILKAS).get("in_combat"), 3)
     finally:
+        freeze("", VILKAS)  # first: thawed, he takes up the fight with the host's player again after a stopcombat
         for command in (f"{VILKAS:X}.stopcombat", "player.stopcombat"):
             console_on("", command)
-        freeze("", VILKAS)
         release_host_npc(VILKAS)
 
 
@@ -4895,10 +5015,78 @@ def scenario_guest_player_in_hosts_combat():
         console_on("", f"{VILKAS:X}.stopcombat")
         wait_for("[client] the player is out of combat", lambda: not ai_state("client", 0x14).get("in_combat"), 5)
     finally:
+        freeze("", VILKAS)  # first: thawed, he takes up the fight with the host's player again after a stopcombat
         for command in (f"{VILKAS:X}.stopcombat", "player.stopcombat"):
             console_on("", command)
         console_on("client", "player.stopcombat")
-        freeze("", VILKAS)
+        release_host_npc(VILKAS)
+
+
+def scenario_guest_player_in_switched_combat():
+    """The host's Vilkas (staged, his AI on) fights the host's player, then turns on the client's character without
+    leaving combat: both are his targets, and the host's player steps 1500 units away (the closer one wins). A switch
+    inside a fight sends no combat event (TESCombatEvent is a state change): the host's combat controller setting
+    its target (33235) says so. The client's player counts as in combat from then on."""
+    try:
+        stage_host_npc(VILKAS)
+        freeze("", VILKAS, False)
+        client_character = client_on_host()
+        console_on("", f"{VILKAS:X}.startcombat player")
+        wait_for("[host] Vilkas fights the host's player", lambda: ai_state("", VILKAS).get("combat_target") == 0x14, 5)
+        wait_for("[client] its Vilkas is in combat", lambda: ai_state("client", VILKAS).get("in_combat"), 3)
+        if ai_state("client", 0x14).get("in_combat"):
+            raise TestFailure("[client] the player is in combat while Vilkas fights the host's player")
+        console_on("", f"{VILKAS:X}.startcombat {client_character:X}")  # his second target; he keeps the first
+        console_on("", f"player.setpos x {actor_place('', 0x14)['position'][0] + 1500:.0f}")
+        wait_for("[host] Vilkas turns on the client's character",
+                 lambda: ai_state("", VILKAS).get("combat_target") == client_character, 5)
+        try:
+            wait_for("[client] the player is in combat", lambda: ai_state("client", 0x14).get("in_combat"), 3)
+        except TestFailure:
+            raise TestFailure(f"[client] the player is not in combat after the switch: its Vilkas {ai_state('client', VILKAS)} "
+                              f"(host {ai_state('', VILKAS)})")
+        console_on("", f"{VILKAS:X}.stopcombat")
+        wait_for("[client] the player is out of combat", lambda: not ai_state("client", 0x14).get("in_combat"), 5)
+    finally:
+        freeze("", VILKAS)  # first: thawed, he takes up the fight with the host's player again after a stopcombat
+        for command in (f"{VILKAS:X}.stopcombat", "player.stopcombat"):
+            console_on("", command)
+        console_on("client", "player.stopcombat")
+        release_host_npc(VILKAS)
+
+
+POTENTIAL_MARRIAGE = 0x19809  # Skyrim.esm PotentialMarriageFaction: read by dialogue conditions, no AI of its own
+
+
+def faction_rank(instance, actor, faction):
+    """The condition GetFactionRank on the actor in that game (-1: not a member), as a dialogue line reads it."""
+    select_instance(instance)
+    response = rpc({"cmd": "faction_rank", "actor": actor, "faction": faction}) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] faction_rank {actor:X} {faction:X}: {response.get('error')}")
+    return response["result"]
+
+
+def scenario_copy_holds_owners_factions():
+    """The host's Vilkas is given a rank in a faction, another, and leaves it (the console's AddToFaction, SetFactionRank,
+    RemoveFromFaction). The client's copy answers GetFactionRank as he does each time: the owner sends its factions
+    when the engine writes them, with no periodic check."""
+    try:
+        copy = stage_host_npc(VILKAS)
+        # He is in it from his base at rank 0; out of it, the condition answers below 0 (-2 for a base faction removed).
+        for command, member in ((f"addtofaction {POTENTIAL_MARRIAGE:X} 1", 1), (f"setfactionrank {POTENTIAL_MARRIAGE:X} 3", 3),
+                                (f"removefromfaction {POTENTIAL_MARRIAGE:X}", None)):
+            console_on("", f"{VILKAS:X}.{command}")
+            rank = faction_rank("", VILKAS, POTENTIAL_MARRIAGE)
+            if (rank != member) if member is not None else rank >= 0:
+                raise TestFailure(f"[host] Vilkas's rank is {rank} after {command}")
+            try:
+                wait_for(f"[client] its Vilkas has rank {rank}", lambda: faction_rank("client", copy, POTENTIAL_MARRIAGE) == rank, 3)
+            except TestFailure:
+                raise TestFailure(f"[client] its Vilkas has rank {faction_rank('client', copy, POTENTIAL_MARRIAGE)} after the "
+                                  f"host's {command}, not {rank}")
+    finally:
+        console_on("", f"{VILKAS:X}.setfactionrank {POTENTIAL_MARRIAGE:X} 0")  # as his base has him
         release_host_npc(VILKAS)
 
 
@@ -5226,9 +5414,11 @@ def world_differences(host, guest, host_again=(), guest_again=()):
     for ref_id, ref in guest.items():
         if ref_id < CREATED_ID and ref_id not in host:
             differences[reference_label(ref)] = {"present": "client only"}
-    # A created reference deleted is gone (the engine frees it): only a living one is compared.
+    # A created reference deleted is gone (the engine frees it): only a living one is compared. A cast's projectiles
+    # and hazards are each game's own, as the cast is (HostEngine's ReadCreate sends plain references only).
     def alive_created(world):
-        return [r for r in world.values() if r["id"] >= CREATED_ID and not (r.get("flags") or 0) & FORM_DELETED]
+        return [r for r in world.values() if r["id"] >= CREATED_ID and not (r.get("flags") or 0) & FORM_DELETED
+                and FORM_TYPE_NAMES.get(r["type"]) not in ("PROJ", "HAZD")]
     unpaired = alive_created(guest)
     for ref in alive_created(host):
         twin = next((r for r in unpaired if r["base"] == ref["base"] and near(r["position"], ref["position"], 2.0)), None)
@@ -6436,6 +6626,7 @@ SCENARIOS = {
     # characters
     "steady-state": scenario_steady_state,
     "move-host-npc": scenario_move_host_npc,
+    "copy-jumps-with-owner": scenario_copy_jumps_with_owner,
     "remove-host-npc": scenario_remove_host_npc,
     "copy-ends-voice-line": scenario_copy_ends_voice_line,
     "dialogue-peer-starts": scenario_dialogue_peer_starts,
@@ -6477,6 +6668,7 @@ SCENARIOS = {
     "furniture-client-player": scenario_furniture_client_player,
     "sneak-client-player": scenario_sneak_client_player,
     "dive-host-player": scenario_dive_host_player,
+    "copy-leaves-water-with-owner": scenario_copy_leaves_water_with_owner,
     "dive-client-player": scenario_dive_client_player,
     "cast-host-player": scenario_cast_host_player,
     "cast-client-player": scenario_cast_client_player,
@@ -6502,6 +6694,8 @@ SCENARIOS = {
     "clock-slows-for-everyone": scenario_clock_slows_for_everyone,
     # magic
     "burning-shows-on-copy": scenario_burning_shows_on_copy,
+    "copy-made-later-shows-effects": scenario_copy_made_later_shows_effects,
+    "copy-flashes-one-shot-effects": scenario_copy_flashes_one_shot_effects,
     # objects
     "door-opens-for-both": scenario_door_opens_for_both,
     "lock-reaches-others": scenario_lock_reaches_others,
@@ -6522,6 +6716,8 @@ SCENARIOS = {
     "copy-runs-owners-package": scenario_copy_runs_owners_package,
     "copy-in-owners-combat": scenario_copy_in_owners_combat,
     "guest-player-in-hosts-combat": scenario_guest_player_in_hosts_combat,
+    "guest-player-in-switched-combat": scenario_guest_player_in_switched_combat,
+    "copy-holds-owners-factions": scenario_copy_holds_owners_factions,
     "client-beast-form-stays-client": scenario_client_beast_form_stays_client,
     # chat
     "chat-reaches-everyone": scenario_chat_reaches_everyone,
@@ -6568,6 +6764,7 @@ TAGS = {
     "late-join-gets-quests": {'world', 'quest', 'session'},
     "steady-state": {'session', 'movement', 'spawn'},
     "move-host-npc": {'movement'},
+    "copy-jumps-with-owner": {'movement', 'spawn'},
     "remove-host-npc": {'spawn'},
     "copy-ends-voice-line": {'dialogue', 'ai'},
     "dialogue-peer-starts": {'dialogue', 'spawn'},
@@ -6605,6 +6802,7 @@ TAGS = {
     "sneak-host-player": {'movement', 'ai'},
     "sneak-client-player": {'movement', 'ai'},
     "dive-host-player": {'movement', 'ai', 'dialogue', 'cells'},
+    "copy-leaves-water-with-owner": {'movement', 'cells'},
     "dive-client-player": {'movement', 'ai', 'dialogue', 'cells'},
     "furniture-host-player": {'movement'},
     "furniture-client-player": {'movement'},
@@ -6629,6 +6827,8 @@ TAGS = {
     "client-kill-move": {'combat', 'values', 'animation'},
     "clock-slows-for-everyone": {'world', 'combat'},
     "burning-shows-on-copy": {'combat', 'magic'},
+    "copy-made-later-shows-effects": {'magic', 'spawn'},
+    "copy-flashes-one-shot-effects": {'magic', 'spawn'},
     "door-opens-for-both": {'objects'},
     "lock-reaches-others": {'objects'},
     "chest-take-reaches-others": {'objects', 'inventory'},
@@ -6648,6 +6848,8 @@ TAGS = {
     "copy-runs-owners-package": {'spawn', 'ai'},
     "copy-in-owners-combat": {'combat', 'ai'},
     "guest-player-in-hosts-combat": {'combat', 'ai'},
+    "guest-player-in-switched-combat": {'combat', 'ai'},
+    "copy-holds-owners-factions": {'ai', 'spawn'},
     "client-beast-form-stays-client": {'scripts', 'magic', 'spawn', 'quests'},
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},

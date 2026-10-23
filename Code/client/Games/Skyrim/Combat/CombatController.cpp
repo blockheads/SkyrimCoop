@@ -67,6 +67,13 @@ void CombatController::UpdateTarget()
     SetTarget(pNewTarget);
 }
 
+Actor* CombatController::GetAttacker() const noexcept
+{
+    if (handleCount)
+        return pCachedAttacker.object;
+    return Cast<Actor>(TESObjectREFR::GetByHandle(attackerHandle));
+}
+
 void CombatController::SetTarget(Actor* apTarget)
 {
     using TSetTarget = void(CombatController*, Actor*);
