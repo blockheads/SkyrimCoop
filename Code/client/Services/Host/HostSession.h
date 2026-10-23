@@ -10,6 +10,7 @@ struct AuthenticationRequest;
 struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
+struct HostCharacters;
 
 struct HostNetwork;
 
@@ -25,7 +26,8 @@ struct HostSession
     static constexpr uint32_t cMaxPlayers = 8;
 
     // Registers its rules with aAuthority.
-    HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, const HostGame& acGame) noexcept;
+    HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
+                const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostSession);
 
@@ -46,6 +48,7 @@ private:
 
     HostNetwork& m_network;
     HostPlayers& m_players;
+    HostCharacters& m_characters;
     const HostGame& m_game;
     // What the others were last told (none before the first frame).
     std::optional<ServerSettings> m_sentSettings;

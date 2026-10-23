@@ -128,28 +128,28 @@ SCENARIO("A guest joining later gets another guest's player as it is now", "[ite
     party.Agree("every copy carries and wears what its owner does");
 }
 
-SCENARIO("What a player does before its session id comes back reaches its copy", "[items]")
+SCENARIO("What a player does right after its game announces it reaches its copy", "[items]")
 {
     Party party(1, Plugins, false);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
     party.Join(party.Guest());
 
-    // Only the guest's game runs: it announces its player, and the host's answer waits (as over a slow line).
-    const auto cWaiting = [&] {
-        for (const auto cEntity : party.Guest().view<FormIdComponent, WaitingForAssignmentComponent>())
+    // Only the guest's game runs: it announces its player under the id from its join, the host has not read it yet.
+    const auto cAnnounced = [&] {
+        for (const auto cEntity : party.Guest().view<FormIdComponent, LocalComponent>())
             if (party.Guest().get<FormIdComponent>(cEntity).Id == FakeEngine::kPlayer)
                 return true;
         return false;
     };
-    party.Until(cWaiting, "the guest's player is announced", {}, &party.Guest());
+    party.Until(cAnnounced, "the guest's player is announced", {}, &party.Guest());
     party.As(party.Guest(), [&] {
         guest.GetsItem(FakeEngine::kPlayer, kGold, 30);
         guest.GetsItem(FakeEngine::kPlayer, kIronSword, 1);
         guest.Equips(FakeEngine::kPlayer, kIronSword);
     });
-    party.Step(party.Guest()); // its runner hands the changes to InventoryService, the answer still not back
-    REQUIRE(cWaiting());
+    party.Step(party.Guest()); // its runner hands the changes to InventoryService, which sends them at once
+    REQUIRE(PlayerCopies(host).empty());
 
     party.Until([&] { return PlayerCopies(host).size() == 1; }, "the host's game has the guest's player");
     party.Agree("the host's copy carries the gold and holds the sword");

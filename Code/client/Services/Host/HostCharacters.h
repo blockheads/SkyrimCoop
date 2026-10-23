@@ -13,7 +13,6 @@ struct HostGame;
 struct HostPlayers;
 struct ReferencesMoveRequest;
 struct AssignCharacterRequest;
-struct CancelAssignmentRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
 struct PlayerRespawnRequest;
@@ -44,6 +43,10 @@ struct HostCharacters
 
     // The owner's connection (0: no such character).
     [[nodiscard]] ConnectionId_t OwnerOf(uint32_t aSessionId) const noexcept;
+    // A session id for one of the host's actors, which its game announces under it.
+    [[nodiscard]] uint32_t NewCharacterId() noexcept;
+    // A joining player's character's session id (in its join answer), which only its game may announce.
+    [[nodiscard]] uint32_t ReservePlayerCharacter(ConnectionId_t aPlayer) noexcept;
     // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
@@ -52,11 +55,10 @@ struct HostCharacters
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
 private:
-    // A player's own character, or (the host only) one of the host's actors, gets a session id; its
-    // owner gets the id, everyone else a spawn.
+    // A player's own character, or (the host only) one of the host's actors, under the id the host gave it:
+    // everyone else gets a spawn.
     void OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // The owner dropped an announcement it is still waiting on.
-    void OnCancelAssignment(const CancelAssignmentRequest& acRequest, ConnectionId_t aSender) noexcept;
+    [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
     // The owner stopped simulating the actor; its copies go where it went.
     void OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept;
     // The owner respawns its actor everywhere (a new appearance after a beast form); anyone else
@@ -79,8 +81,7 @@ private:
     void SendPlayersMet(ConnectionId_t aPlayer) noexcept;
     // The host's actors (not its player, whose copy travels with the party) to one player.
     void SendHostActors(ConnectionId_t aPlayer) noexcept;
-    // The host's game's spawns of its actors but aExcludedSessionId, to aPlayer; one it announced but has not moved
-    // yet (it handles its id on its next update) goes once it moves it. How many went.
+    // The host's game's spawns of its actors but aExcludedSessionId, to aPlayer. How many went.
     size_t SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcludedSessionId) noexcept;
     void SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, ConnectionId_t aSender) const noexcept;
 
@@ -93,12 +94,8 @@ private:
     struct Character
     {
         ConnectionId_t Owner{};
-        uint32_t Cookie{}; // of the owner's announcement
         // A player's: what is needed to spawn it again, kept current with its movement.
         std::optional<NotifyCharacterSpawn> PlayerRecord;
-        // Its owner's game moved it: it has handled its id. Before, the players waiting for its spawn.
-        bool Moved{};
-        std::vector<ConnectionId_t> Waiting;
     };
 
     HostAuthority& m_authority;
@@ -108,6 +105,8 @@ private:
     std::unordered_map<uint32_t, Character> m_characters;
     // Never reused in a session: a late message for a removed character finds nothing.
     uint32_t m_lastSessionId = 0;
+    // Each player's character's id, from its join.
+    std::unordered_map<ConnectionId_t, uint32_t> m_playerCharacters;
 
     // Where a player's game is: a worldspace (outdoors) or an interior cell.
     struct Place

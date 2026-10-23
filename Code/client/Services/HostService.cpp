@@ -153,6 +153,11 @@ void HostService::KickPlayer(uint32_t aPlayerId) noexcept
         m_pAuthority->Kick(aPlayerId);
 }
 
+uint32_t HostService::NewCharacterId() noexcept
+{
+    return m_pAuthority ? m_pAuthority->NewCharacterId() : 0;
+}
+
 void HostService::OnUpdate(const UpdateEvent&) noexcept
 {
     if (!IsHosting())

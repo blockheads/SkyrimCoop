@@ -149,7 +149,6 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         };
         has(static_cast<LocalComponent*>(nullptr), "Local");
         has(static_cast<RemoteComponent*>(nullptr), "Remote");
-        has(static_cast<WaitingForAssignmentComponent*>(nullptr), "WaitingForAssignment");
         has(static_cast<WaitingFor3D*>(nullptr), "WaitingFor3D");
         has(static_cast<InterpolationComponent*>(nullptr), "Interpolation");
         has(static_cast<LocalAnimationComponent*>(nullptr), "LocalAnimation");

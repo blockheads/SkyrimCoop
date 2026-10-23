@@ -39,6 +39,7 @@ TEST_CASE("Weather: a joining player gets the host's weather", "[HostAuthority][
 
     AssignCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
+    announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);
     REQUIRE(session.SentTo<NotifyWeatherChange>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyWeatherChange>(kPeer)[0]->Id == GameId(0, 0x81A));

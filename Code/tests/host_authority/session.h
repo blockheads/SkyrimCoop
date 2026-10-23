@@ -20,8 +20,6 @@
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
 #include <Messages/AssignCharacterRequest.h>
-#include <Messages/AssignCharacterResponse.h>
-#include <Messages/CancelAssignmentRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyRemoveCharacter.h>
@@ -112,24 +110,31 @@ struct Session
         const auto cResponses = SentTo<AuthenticationResponse>(aPlayer);
         REQUIRE(!cResponses.empty());
         m_playerIds[aPlayer] = cResponses.back()->PlayerId;
+        m_characterIds[aPlayer] = cResponses.back()->CharacterId;
         return cResponses.back()->PlayerId;
     }
     // The player id a player got when it joined.
     uint32_t PlayerId(ConnectionId_t aPlayer) const { return m_playerIds.at(aPlayer); }
+    // The session id its join gave a player's character.
+    uint32_t CharacterId(ConnectionId_t aPlayer) const { return m_characterIds.at(aPlayer); }
+    // A session id for one of the host's actors, as the host's game takes it.
+    uint32_t NewCharacterId() { return m_authority.NewCharacterId(); }
 
-    // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player.
-    // Returns its session id; what the announcement sent is cleared.
+    // A character aOwner announces, as its game does: the host one of its NPCs, a peer its player. Returns its
+    // session id once another game got its spawn; what the announcement sent is cleared.
     uint32_t Character(ConnectionId_t aOwner)
     {
         AssignCharacterRequest announce;
-        announce.Cookie = ++m_cookie;
-        announce.ReferenceId = aOwner == kHost ? GameId(1, 0x1000 + m_cookie) : GameId(0, 0x14);
+        announce.SessionId = aOwner == kHost ? NewCharacterId() : CharacterId(aOwner);
+        announce.ReferenceId = aOwner == kHost ? GameId(1, 0x1000 + ++m_npcs) : GameId(0, 0x14);
         Receive(aOwner, announce);
-        const auto cResponses = SentTo<AssignCharacterResponse>(aOwner);
-        REQUIRE(cResponses.size() == 1);
-        const uint32_t cSessionId = cResponses[0]->SessionId;
+        REQUIRE(std::ranges::any_of(m_games, [&](ConnectionId_t aGame) {
+            return aGame != aOwner && std::ranges::any_of(SentTo<NotifyCharacterSpawn>(aGame), [&](const auto* apSpawn) {
+                       return apSpawn->SessionId == announce.SessionId;
+                   });
+        }));
         Outbox.clear();
-        return cSessionId;
+        return announce.SessionId;
     }
 
     void Leave(ConnectionId_t aPlayer)
@@ -219,8 +224,9 @@ private:
         return game;
     }
 
-    uint32_t m_cookie = 0;
+    uint32_t m_npcs = 0;
     std::map<ConnectionId_t, uint32_t> m_playerIds;
+    std::map<ConnectionId_t, uint32_t> m_characterIds;
     std::set<ConnectionId_t> m_games;
     HostNetwork m_network;
     HostAuthority m_authority;

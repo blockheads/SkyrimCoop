@@ -254,7 +254,7 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
         m_world.SetServerSettings(acMessage.Settings);
 
         m_dispatcher.trigger(acMessage.Settings);
-        m_dispatcher.trigger(ConnectedEvent(acMessage.PlayerId));
+        m_dispatcher.trigger(ConnectedEvent(acMessage.PlayerId, acMessage.CharacterId));
         return; // quit the function here.
     }
 

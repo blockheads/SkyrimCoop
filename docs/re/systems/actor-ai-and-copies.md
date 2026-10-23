@@ -398,7 +398,8 @@ when the host answered the assignment. An NPC placed with `placeatme` falls at o
 the assignment (in the air) and never landed (`firebolt-client-hits-host-npc` failed on Lydia's copy
 having no action against her `JumpLand`). The component now comes with the assignment request, right
 after the snapshot that carries the graph state, so the actions queue in order behind it and go out
-with the first update once the id arrives (dropped if the answer gives the actor to someone else).
+with the first update once the id arrives (dropped if the answer gives the actor to someone else). Since
+2026-10-23 there is no answer: the actor has its id as it is announced.
 
 ## An action's target (2026-10-13)
 

@@ -4,8 +4,6 @@
 #include <Services/Host/HostAuthority.h>
 
 #include <Messages/AssignCharacterRequest.h>
-#include <Messages/AssignCharacterResponse.h>
-#include <Messages/CancelAssignmentRequest.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyPartyTravel.h>
@@ -31,7 +29,6 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostCharacters::OnAssignCharacter);
-    aAuthority.On(*this, &HostCharacters::OnCancelAssignment);
     aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);
     aAuthority.On(*this, &HostCharacters::OnRespawn);
     aAuthority.On(*this, &HostCharacters::OnPlayerRespawn);
@@ -53,11 +50,6 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
             continue;
         }
         notify.Updates[cSessionId] = cUpdate;
-        if (!std::exchange(it->second.Moved, true))
-            for (const ConnectionId_t cPlayer : std::exchange(it->second.Waiting, {}))
-                if (m_players.IsPlayer(cPlayer) && WithHost(cPlayer))
-                    if (const auto cSpawn = BuildSpawn(cSessionId))
-                        m_network.Send(cPlayer, *cSpawn);
         if (auto& record = it->second.PlayerRecord)
         {
             record->CellId = cUpdate.UpdatedMovement.CellId;
@@ -79,24 +71,31 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
         return;
     }
 
+    const uint32_t cSessionId = acRequest.SessionId;
     if (cIsPlayer)
     {
-        // A player has one character: an earlier one (re-announced after a respawn) goes.
-        std::vector<uint32_t> previous;
-        for (const auto& [cSessionId, cCharacter] : m_characters)
-            if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
-                previous.push_back(cSessionId);
-        for (const uint32_t cSessionId : previous)
+        const auto cReserved = m_playerCharacters.find(aSender);
+        if (cReserved == m_playerCharacters.end() || cReserved->second != cSessionId)
+        {
+            spdlog::warn("HostCharacters: {:x} announced its player as {:x}, not the id its join gave it", aSender, cSessionId);
+            return;
+        }
+        // A player has one character: announced again (after a respawn), its copies are made again.
+        if (m_characters.contains(cSessionId))
             RemoveCharacter(cSessionId);
     }
+    else if (cSessionId == 0 || cSessionId > m_lastSessionId || m_characters.contains(cSessionId) || IsPlayerCharacter(cSessionId))
+    {
+        spdlog::warn("HostCharacters: the host's game announced {:x}:{:x} as {:x}, an id it was not given", acRequest.ReferenceId.ModId,
+                     acRequest.ReferenceId.BaseId, cSessionId);
+        return;
+    }
 
-    const uint32_t cSessionId = ++m_lastSessionId;
     const uint32_t cPlayerId = cIsPlayer ? m_players.PlayerIdOf(aSender) : 0;
     const auto cSpawn = NotifyCharacterSpawn::FromAssignment(acRequest, cSessionId, cPlayerId);
 
     auto& character = m_characters[cSessionId];
     character.Owner = aSender;
-    character.Cookie = acRequest.Cookie;
     if (cIsPlayer)
     {
         m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
@@ -109,27 +108,8 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
         }
     }
 
-    AssignCharacterResponse response;
-    response.Cookie = acRequest.Cookie;
-    response.SessionId = cSessionId;
-    response.PlayerId = cPlayerId;
-    response.Owner = true;
-    m_network.Send(aSender, response);
-
     SendToOthersWithHost(cSpawn, aSender);
     spdlog::info("HostCharacters: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cSessionId);
-}
-
-void HostCharacters::OnCancelAssignment(const CancelAssignmentRequest& acRequest, ConnectionId_t aSender) noexcept
-{
-    for (const auto& [cSessionId, cCharacter] : m_characters)
-    {
-        if (cCharacter.Owner == aSender && cCharacter.Cookie == acRequest.Cookie)
-        {
-            RemoveCharacter(cSessionId);
-            return;
-        }
-    }
 }
 
 void HostCharacters::OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept
@@ -193,6 +173,7 @@ void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t
 
 void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
+    m_playerCharacters.erase(aPlayer);
     m_places.erase(aPlayer);
     m_aheadOfHost.erase(aPlayer);
     m_broughtToParty.erase(aPlayer);
@@ -291,6 +272,21 @@ uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcep
     return cNoCharacter;
 }
 
+uint32_t HostCharacters::NewCharacterId() noexcept
+{
+    return ++m_lastSessionId;
+}
+
+uint32_t HostCharacters::ReservePlayerCharacter(ConnectionId_t aPlayer) noexcept
+{
+    return m_playerCharacters[aPlayer] = NewCharacterId();
+}
+
+bool HostCharacters::IsPlayerCharacter(uint32_t aSessionId) const noexcept
+{
+    return std::ranges::any_of(m_playerCharacters, [aSessionId](const auto& acEntry) { return acEntry.second == aSessionId; });
+}
+
 void HostCharacters::BringToParty(ConnectionId_t aPlayer) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
@@ -338,11 +334,6 @@ size_t HostCharacters::SendHostSpawns(ConnectionId_t aPlayer, uint32_t aExcluded
     const auto cSpawns = m_game.OwnSpawns(aExcludedSessionId);
     for (const auto& cSpawn : cSpawns)
         m_network.Send(aPlayer, cSpawn);
-    const ConnectionId_t cHost = m_players.Host();
-    for (auto& [cSessionId, character] : m_characters)
-        if (character.Owner == cHost && !character.Moved && !character.PlayerRecord &&
-            std::ranges::none_of(cSpawns, [cSessionId](const auto& acSpawn) { return acSpawn.SessionId == cSessionId; }))
-            character.Waiting.push_back(aPlayer);
     return cSpawns.size();
 }
 

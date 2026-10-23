@@ -104,7 +104,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     : m_network(aNetwork)
     , m_game(std::move(aGame))
     , m_players(aNetwork)
-    , m_session(*this, aNetwork, m_players, m_game)
+    , m_session(*this, aNetwork, m_players, m_characters, m_game)
     , m_characters(*this, aNetwork, m_players, m_game)
     , m_clock(*this, aNetwork, m_players, m_game)
     , m_weather(aNetwork, m_players, m_game)

@@ -5,7 +5,6 @@
 
 #include <Messages/AuthenticationRequest.h>
 #include <Messages/AssignCharacterRequest.h>
-#include <Messages/CancelAssignmentRequest.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/Relayed.h>
 #include <Messages/ReferencesMoveRequest.h>

@@ -209,7 +209,7 @@ SCENARIO("An NPC the host's game loads as a following guest's arrival reaches it
 
     WHEN("in the host's next frame its game announces an NPC, then its rules take the guest's arrival")
     {
-        // The host's game handles its answer for the guard only in its frame after this one.
+        // The host's game owns the guard from its announcement; its rules take the guest's arrival after it.
         party.As(party.Host(), [&] { host.LoadNpc(kGuard, kSinkhole, {20.f, 0.f, 0.f}); });
         party.Step(party.Host());
         party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest gets a copy of the guard");

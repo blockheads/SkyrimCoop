@@ -924,6 +924,17 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - `BridgeTests` is `HostAuthorityTests` (2026-10-23, uncommitted): `Code/tests/host_authority/`, `[HostAuthority]`
   tags, the `HostAuthorityTest` namespace; the gate, `CLAUDE.md` and the design docs follow. Dated entries keep
   the old name.
+- No character assignment round trip (2026-10-23, uncommitted, ideas.md "Upstream's MMO leftovers"): the host hands
+  out every session id and nothing answers an announcement. A player's character id comes in its join answer
+  (`AuthenticationResponse::CharacterId`, reserved by `HostCharacters`); the host's game takes its actors' ids from
+  `HostCharacters::NewCharacterId` (in-process, inside `RunActorDiscovery`'s existing host check). A game owns an
+  actor from its announcement (`CharacterService::AnnounceCharacter`, `AssignCharacterRequest::SessionId`); the host
+  drops one under an id it did not give. Gone: `AssignCharacterResponse`, `CancelAssignmentRequest`, the cookie,
+  `WaitingForAssignmentComponent`, `InventoryService`'s queue for actors waiting on an id, and `HostCharacters`'
+  hold-back of host actors not yet moved; with them the unload-between-announcement-and-answer race. A player
+  announced again (respawn) keeps its id; its copies are made again as before. Tests: `HostAuthorityTests` "only
+  under an id the host gave"; two host-rule checks that passed with their announcement refused now announce under
+  the right id; the copy and item flows follow the new order.
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.

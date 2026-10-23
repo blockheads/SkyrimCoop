@@ -28,11 +28,12 @@ struct AssignCharacterRequest final : RequestMessage
 
     bool operator==(const AssignCharacterRequest& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && Cookie == acRhs.Cookie && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
+        return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
                AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
     }
 
-    uint32_t Cookie{};
+    // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
+    uint32_t SessionId{};
     GameId ReferenceId{};
     GameId FormId{};
     GameId CellId{};

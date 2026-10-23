@@ -40,6 +40,8 @@ struct HostService
 
     // Removes a player from the session (hosting only).
     void KickPlayer(uint32_t aPlayerId) noexcept;
+    // A session id for one of this game's actors while hosting, else 0.
+    [[nodiscard]] uint32_t NewCharacterId() noexcept;
 
 protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;

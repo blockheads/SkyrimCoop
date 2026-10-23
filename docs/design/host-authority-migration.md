@@ -218,12 +218,12 @@ assignment in 3b. Two other readers of the records that stopped updating: gold l
 was announced with, and for players a spawn record (appearance, base, face; kept current with their
 movement), since the host's copy of a player cannot show those and is dropped when it respawns.
 - `AssignCharacterRequest`: a player's own character, or (the host only) one of the host's actors,
-  gets an id. The owner gets `AssignCharacterResponse`, everyone else a spawn; a player's character
-  also gets every other character (the host's actors from its engine, players from their record
-  and the host's copy). The host still asks in-process like any player, so its services are
-  unchanged.
-- Removal by the owner, `CancelAssignmentRequest` (nothing handled it: a copy announced and then
-  cancelled stayed on peers forever), and a player leaving remove characters everywhere.
+  announced under the id the host gave it (2026-10-23; before, the owner got its id back in an
+  `AssignCharacterResponse`): a player's from its join answer (`CharacterId`), the host's actors' from
+  `HostCharacters::NewCharacterId`. Everyone else gets a spawn; a player's character also gets every
+  other character (the host's actors from its engine, players from their record and the host's copy).
+- Removal by the owner and a player leaving remove characters everywhere (`CancelAssignmentRequest`
+  went with the answer, 2026-10-23).
 - `RequestRespawn`: the owner's goes to everyone (and updates the record's appearance); anyone
   else's is answered with a fresh spawn. `PlayerRespawnRequest`: everyone else respawns the
   player's character. Gold loss on death (`fGoldLossFactor`, off by default) is dropped.

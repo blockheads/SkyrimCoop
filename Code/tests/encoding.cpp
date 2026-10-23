@@ -362,6 +362,8 @@ TEST_CASE("Packets", "[encoding.packets]")
 
         AuthenticationResponse sendMessage, recvMessage;
         sendMessage.Type = AuthenticationResponse::ResponseType::kWrongGame;
+        sendMessage.PlayerId = 3;
+        sendMessage.CharacterId = 41;
         sendMessage.Version = "v1.6.7-0-gdeadbeef";
         sendMessage.Game = {GameVersions::Pack(1, 6, 640), GameVersions::Pack(2, 2, 3)};
         sendMessage.UserMods.ModList.push_back({"Hello", 42});
@@ -369,25 +371,6 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.UserMods.ModList.push_back({"Test", 8});
         sendMessage.UserMods.ModList.push_back({"Toast", 49});
 
-        Buffer::Writer writer(&buff);
-        sendMessage.Serialize(writer);
-
-        Buffer::Reader reader(&buff);
-
-        uint64_t trash;
-        reader.ReadBits(trash, 8); // pop opcode
-
-        recvMessage.DeserializeRaw(reader);
-
-        REQUIRE(sendMessage == recvMessage);
-    }
-
-    SECTION("CancelAssignmentRequest")
-    {
-        Buffer buff(1000);
-
-        CancelAssignmentRequest sendMessage, recvMessage;
-        sendMessage.Cookie = 14523698;
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
 
@@ -679,7 +662,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendAction.Type = 4;
 
         AssignCharacterRequest sendMessage, recvMessage;
-        sendMessage.Cookie = 14523698;
+        sendMessage.SessionId = 14523698;
         sendMessage.AppearanceBuffer = "toto";
         sendMessage.CellId.BaseId = 45;
         sendMessage.FormId.ModId = 48;

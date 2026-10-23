@@ -22,7 +22,6 @@
 #include <Components/RemoteWeaponDrawComponent.h>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
-#include <Components/WaitingForAssignmentComponent.h>
 #include <FormIds.h>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
@@ -46,7 +45,6 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
 
 void InventoryService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
-    RunPendingChanges();
     RunWeaponStateUpdates();
     RunWeaponDrawConvergence(acUpdateEvent.Delta);
     RunEquipmentSnapshots();
@@ -73,11 +71,6 @@ void InventoryService::OnInventoryChangeEvent(const InventoryChangeEvent& acEven
     std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*iter);
     if (!sessionIdRes.has_value())
     {
-        if (m_world.all_of<WaitingForAssignmentComponent>(*iter))
-        {
-            m_pending.emplace_back(*iter, request);
-            return;
-        }
         spdlog::error("{}: : failed to find session id, target form id: {:X}, item id: {:X}, count: {}", __FUNCTION__, acEvent.FormId, acEvent.Item.BaseId.BaseId, acEvent.Item.Count);
         return;
     }
@@ -101,8 +94,7 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
         return;
 
     std::optional<uint32_t> sessionIdRes = Utils::GetSessionId(*iter);
-    const bool cWaiting = !sessionIdRes && m_world.all_of<WaitingForAssignmentComponent>(*iter);
-    if (!sessionIdRes.has_value() && !cWaiting)
+    if (!sessionIdRes.has_value())
     {
         spdlog::error("{}: : failed to find session id, actor id: {:X}, item id: {:X}, isAmmo: {}, unequip: {}, slot: {:X}", __FUNCTION__, acEvent.ActorId, acEvent.ItemId, acEvent.IsAmmo, acEvent.Unequip, acEvent.EquipSlotId);
         return;
@@ -112,7 +104,7 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
         return;
 
     RequestEquipmentChanges request;
-    request.SessionId = sessionIdRes.value_or(0);
+    request.SessionId = *sessionIdRes;
 
     const auto cSlot = ToSession(acEvent.EquipSlotId);
     const auto cItem = ToSession(acEvent.ItemId);
@@ -128,11 +120,6 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
     request.IsAmmo = acEvent.IsAmmo;
     request.CurrentInventory = m_formBridge.GetActorEquipment(acEvent.ActorId);
 
-    if (cWaiting)
-    {
-        m_pending.emplace_back(*iter, request);
-        return;
-    }
     m_transport.Send(request);
 
     spdlog::info("Sending equipment request, item: {:X}, count: {}, target object: {:X}", acEvent.ItemId, acEvent.Count, acEvent.ActorId);
@@ -238,24 +225,6 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
 
 // Equipment changes are sent as events, so a copy that misses or undoes one would stay wrong
 // forever. Like health, the owner re-sends the full worn set now and then and copies converge.
-void InventoryService::RunPendingChanges() noexcept
-{
-    std::erase_if(m_pending, [&](auto& pending) {
-        auto& [cEntity, request] = pending;
-        if (m_world.valid(cEntity) && m_world.all_of<WaitingForAssignmentComponent>(cEntity))
-            return false;
-        const auto* cpLocal = m_world.valid(cEntity) ? m_world.try_get<LocalComponent>(cEntity) : nullptr;
-        if (cpLocal && m_transport.IsConnected())
-            std::visit(
-                [&](auto& aRequest) {
-                    aRequest.SessionId = cpLocal->Id;
-                    m_transport.Send(aRequest);
-                },
-                request);
-        return true;
-    });
-}
-
 void InventoryService::RunEquipmentSnapshots() noexcept
 {
     if (!m_transport.IsConnected())

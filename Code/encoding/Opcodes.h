@@ -4,7 +4,6 @@
 // entry makes the opcode k<Name> and the message factories' entry (RequestMessageFactory.h, NotifyMessageFactory.h).
 #define COOP_REQUESTS(X)            \
     X(AuthenticationRequest)        \
-    X(CancelAssignmentRequest)      \
     X(AssignCharacterRequest)       \
     X(ReferencesMoveRequest)        \
     X(RequestFactionsChanges)       \
@@ -56,7 +55,6 @@
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
-    X(AssignCharacterResponse)     \
     X(NotifyReferencesMove)        \
     X(NotifyTimeSettings)          \
     X(NotifyCharacterSpawn)        \

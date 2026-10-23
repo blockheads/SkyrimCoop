@@ -19,9 +19,7 @@
 
 #include <Structs/ActionEvent.h>
 #include <Structs/GridCellCoords.h>
-#include <Messages/CancelAssignmentRequest.h>
 #include <Messages/AssignCharacterRequest.h>
-#include <Messages/AssignCharacterResponse.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
@@ -70,7 +68,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<ConnectedEvent, &CharacterService::OnConnected>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &CharacterService::OnDisconnected>(m_connections, m_dispatcher, this);
 
-    Listen<AssignCharacterResponse, &CharacterService::OnAssignCharacter>(m_connections, m_dispatcher, this);
     Listen<NotifyCharacterSpawn, &CharacterService::OnCharacterSpawn>(m_connections, m_dispatcher, this);
     Listen<NotifyReferencesMove, &CharacterService::OnReferencesMoveRequest>(m_connections, m_dispatcher, this);
     Listen<NotifyFactionsChanges, &CharacterService::OnFactionsChanges>(m_connections, m_dispatcher, this);
@@ -249,8 +246,11 @@ void CharacterService::RunActorDiscovery() noexcept
     }
 }
 
-void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept
+void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexcept
 {
+    m_playerId = acConnectedEvent.PlayerId;
+    m_characterId = acConnectedEvent.CharacterId;
+
     // Go through all the forms that were previously detected
     auto view = m_world.view<FormIdComponent>();
     std::vector<entt::entity> entities(view.begin(), view.end());
@@ -283,87 +283,9 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
         if (m_world.orphan(cEntity))
             m_world.destroy(cEntity);
     }
-    m_world.clear<WaitingForAssignmentComponent, LocalComponent>();
-}
-
-void CharacterService::OnAssignCharacter(const AssignCharacterResponse& acMessage) noexcept
-{
-    spdlog::info("Received for cookie {:X}, session id {:X}", acMessage.Cookie, acMessage.SessionId);
-
-    auto view = m_world.view<WaitingForAssignmentComponent>();
-    const auto itor = std::find_if(std::begin(view), std::end(view), [view, cookie = acMessage.Cookie](auto entity) { return view.get<WaitingForAssignmentComponent>(entity).Cookie == cookie; });
-
-    if (itor == std::end(view))
-    {
-        spdlog::warn("Never found requested cookie: {}", acMessage.Cookie);
-        return;
-    }
-
-    const auto cEntity = *itor;
-
-    m_world.remove<WaitingForAssignmentComponent>(cEntity);
-
-    const auto formIdComponent = m_world.try_get<FormIdComponent>(cEntity);
-    if (!formIdComponent)
-    {
-        spdlog::error("{}: : form id component doesn't exist, cookie: {:X}", __FUNCTION__, acMessage.Cookie);
-        return;
-    }
-
-    if (!m_actorBridge.ActorExists(formIdComponent->Id))
-    {
-        spdlog::error("{}: : actor not found, form id: {:X}", __FUNCTION__, formIdComponent->Id);
-        // Gone between asking and the answer (its cell unloaded): the copies the host already sent go too.
-        if (acMessage.Owner)
-        {
-            RequestRemoveCharacter message;
-            message.SessionId = acMessage.SessionId;
-            m_transport.Send(message);
-        }
-        m_world.destroy(cEntity);
-        return;
-    }
-
-    // TODO: how could this possibly trigger?
-    if (acMessage.PlayerId != 0)
-        m_world.emplace_or_replace<PlayerComponent>(cEntity, acMessage.PlayerId);
-
-    if (acMessage.Owner)
-    {
-        spdlog::info("Received local actor, form id: {:X}", formIdComponent->Id);
-
-        m_world.emplace_or_replace<LocalComponent>(cEntity, acMessage.SessionId);
-        // Its actions since the request are queued already (RequestServerAssignment).
-        (void)m_world.get_or_emplace<LocalAnimationComponent>(cEntity);
-
-        m_actorBridge.SetActorCopy(formIdComponent->Id, false);
-
-        // Nothing is re-sent: copies start in this actor's graph state (NotifyCharacterSpawn::GraphState).
-    }
-    else
-    {
-        spdlog::info("Received remote actor, form id: {:X}, isweapondrawn: {}", formIdComponent->Id, acMessage.IsWeaponDrawn);
-
-        m_world.remove<LocalAnimationComponent>(cEntity);
-        m_world.emplace_or_replace<RemoteComponent>(cEntity, acMessage.SessionId, formIdComponent->Id);
-
-        m_actorBridge.SetActorCopy(formIdComponent->Id, true);
-
-        InterpolationSystem::Setup(m_world, cEntity);
-        AnimationSystem::Setup(m_world, cEntity);
-
-        m_actorBridge.SetActorValues(formIdComponent->Id, acMessage.AllActorValues);
-        m_actorBridge.SetActorInventory(formIdComponent->Id, acMessage.CurrentInventory);
-
-        const bool cIsDead = m_actorBridge.IsActorDead(formIdComponent->Id);
-        if (cIsDead != acMessage.IsDead)
-            acMessage.IsDead ? m_actorBridge.KillActor(formIdComponent->Id) : m_actorBridge.RespawnActor(formIdComponent->Id);
-
-        m_world.emplace_or_replace<RemoteWeaponDrawComponent>(cEntity, acMessage.IsWeaponDrawn);
-
-        m_world.emplace_or_replace<OwnerPlaceComponent>(cEntity, acMessage.CellId, acMessage.WorldSpaceId, std::chrono::steady_clock::now());
-        MoveActor(formIdComponent->Id, acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position);
-    }
+    m_world.clear<LocalComponent>();
+    m_playerId = 0;
+    m_characterId = 0;
 }
 
 CharacterService::~CharacterService() noexcept
@@ -415,12 +337,12 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
     {
         const uint32_t cActorId = ToGame(acMessage.FormId);
 
-        auto waitingView = m_world.view<FormIdComponent, WaitingForAssignmentComponent>();
-        const auto waitingItor = std::find_if(std::begin(waitingView), std::end(waitingView), [waitingView, cActorId](auto entity) { return waitingView.get<FormIdComponent>(entity).Id == cActorId; });
+        auto ownView = m_world.view<FormIdComponent, LocalComponent>();
+        const auto ownItor = std::find_if(std::begin(ownView), std::end(ownView), [ownView, cActorId](auto entity) { return ownView.get<FormIdComponent>(entity).Id == cActorId; });
 
-        if (waitingItor != std::end(waitingView))
+        if (ownItor != std::end(ownView))
         {
-            spdlog::info("Character with form id {:X} already has a spawn request in progress.", cActorId);
+            spdlog::info("Character with form id {:X} is this game's already.", cActorId);
             return;
         }
 
@@ -1017,12 +939,12 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
         return;
     }
 
-    if (m_world.any_of<RemoteComponent, LocalComponent, WaitingForAssignmentComponent>(aEntity))
+    if (m_world.any_of<RemoteComponent, LocalComponent>(aEntity))
         return;
 
     m_actorBridge.SetupActorCache(formIdComponent.Id, static_cast<uint32_t>(entt::to_integral(aEntity)));
 
-    RequestServerAssignment(aEntity);
+    AnnounceCharacter(aEntity);
 }
 
 std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const entt::entity aEntity) const noexcept
@@ -1036,7 +958,7 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
     // NPCs, so checking it here skipped the player and every placed NPC.)
     if (!m_actorBridge.GetActorBaseFormId(formIdComponent.Id))
     {
-        spdlog::warn("RequestServerAssignment: no base form for {:X}", formIdComponent.Id);
+        spdlog::warn("AnnounceCharacter: no base form for {:X}", formIdComponent.Id);
         return std::nullopt;
     }
 
@@ -1117,28 +1039,30 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
     return message;
 }
 
-void CharacterService::RequestServerAssignment(const entt::entity aEntity) const noexcept
+void CharacterService::AnnounceCharacter(const entt::entity aEntity) const noexcept
 {
     if (!m_transport.IsOnline())
         return;
 
-    static uint32_t sCookieSeed = 0;
-
+    const uint32_t cFormId = m_world.get<FormIdComponent>(aEntity).Id;
+    const bool cIsPlayer = cFormId == m_playerBridge.GetPlayerFormId();
     auto message = BuildAssignment(aEntity);
     if (!message)
         return;
-    message->Cookie = sCookieSeed;
+    // The id the host gave it: the player's from the join, the host's game's other actors' from its rules.
+    message->SessionId = cIsPlayer ? m_characterId : m_world.GetHostService().NewCharacterId();
+    if (!message->SessionId)
+        return;
 
-    spdlog::info("Request id: {:X}, cookie: {:X}, entity: {:X}", m_world.get<FormIdComponent>(aEntity).Id, sCookieSeed, to_integral(aEntity));
+    m_world.emplace_or_replace<LocalComponent>(aEntity, message->SessionId);
+    // Its actions from here on follow the graph state just sent.
+    (void)m_world.get_or_emplace<LocalAnimationComponent>(aEntity);
+    m_actorBridge.SetActorCopy(cFormId, false);
+    if (cIsPlayer)
+        m_world.emplace_or_replace<PlayerComponent>(aEntity, m_playerId);
 
-    if (m_transport.Send(*message))
-    {
-        m_world.emplace<WaitingForAssignmentComponent>(aEntity, sCookieSeed);
-        // Its actions from here on follow the graph state just sent; they go out once it has an id.
-        m_world.emplace_or_replace<LocalAnimationComponent>(aEntity);
-
-        sCookieSeed++;
-    }
+    spdlog::info("Announced {:X} as {:X}", cFormId, message->SessionId);
+    m_transport.Send(*message);
 }
 
 // What a peer needs to spawn a copy of one of our actors, as the embedded server built it from the
@@ -1221,19 +1145,6 @@ void CharacterService::CancelServerAssignment(const entt::entity aEntity, const 
 
         m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
         return;
-    }
-
-    // In the event we were waiting for assignment, drop it
-    if (m_world.all_of<WaitingForAssignmentComponent>(aEntity))
-    {
-        auto& waitingComponent = m_world.get<WaitingForAssignmentComponent>(aEntity);
-
-        CancelAssignmentRequest message;
-        message.Cookie = waitingComponent.Cookie;
-
-        m_transport.Send(message);
-
-        m_world.remove<WaitingForAssignmentComponent, LocalAnimationComponent>(aEntity);
     }
 }
 

@@ -14,7 +14,6 @@
 #include <MetaMessage.h>
 
 #include <Messages/AuthenticationResponse.h>
-#include <Messages/AssignCharacterResponse.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/NotifyCharacterSpawn.h>

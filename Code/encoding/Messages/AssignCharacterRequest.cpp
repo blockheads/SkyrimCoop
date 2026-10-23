@@ -2,7 +2,7 @@
 
 void AssignCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Serialization::WriteVarInt(aWriter, Cookie);
+    Serialization::WriteVarInt(aWriter, SessionId);
     ReferenceId.Serialize(aWriter);
     FormId.Serialize(aWriter);
     CellId.Serialize(aWriter);
@@ -29,7 +29,7 @@ void AssignCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
 {
     RequestMessage::DeserializeRaw(aReader);
 
-    Cookie = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ReferenceId.Deserialize(aReader);
     FormId.Deserialize(aReader);
     CellId.Deserialize(aReader);

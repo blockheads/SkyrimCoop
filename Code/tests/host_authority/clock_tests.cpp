@@ -10,6 +10,7 @@ TEST_CASE("Time: a joining player gets the host's clock", "[HostAuthority][Time]
 
     AssignCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
+    announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);
     const auto cTimes = session.SentTo<NotifyTimeSettings>(kPeer);
     REQUIRE(cTimes.size() == 1);

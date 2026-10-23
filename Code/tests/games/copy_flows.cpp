@@ -65,16 +65,10 @@ SCENARIO("An NPC the host's game loads gets a copy on the guest's game", "[copie
         party.Agree("the games agree on the guard");
     }
 
-    WHEN("the host's guard goes (its cell unloads it) before the host's game has its assignment back")
+    WHEN("the host's guard goes (its cell unloads it) the frame the guest got its copy")
     {
-        // The host's rules sent the spawn with the assignment: the guest has its copy a frame before the host's
-        // game knows it owns the guard (its answer is handled on its next update). Loopback's timing only.
-        if (party.Conditioned())
-        {
-            WARN("left out under COOP_NET: the guest's copy comes after the host's answer");
-            return;
-        }
-        REQUIRE(!OwnsHere(party.Host(), npc));
+        // The host's game owns it from its announcement: no frame waits for an answer.
+        REQUIRE(OwnsHere(party.Host(), npc));
         party.As(party.Host(), [&] { host.Actors.erase(npc); });
         party.Until([&] { return guest.CopiesOf(kGuard).empty(); }, "the guest's copy goes");
         party.Agree("the games agree on the actors left");

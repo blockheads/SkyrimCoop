@@ -137,7 +137,8 @@ host's NPC goes, before the host's game has its assignment back and after; a gue
 host's game, which goes when the guest leaves. The first run found a bug: the host's rules send the spawn with
 the assignment, so a guest has its copy a frame before the host's game handles its answer; an NPC unloading in
 that frame was dropped by `OnAssignCharacter` without telling the host, and the guest's copy stayed for good.
-Fixed (`CharacterService::OnAssignCharacter` sends `RequestRemoveCharacter` for it); without the fix the race case
+Fixed (`CharacterService::OnAssignCharacter` sends `RequestRemoveCharacter` for it; since 2026-10-23 there is no answer to
+wait for, the host's game owns its actors from their announcement); without the fix the race case
 fails.
 
 The actor checksum, `Party::Agree()` (`ActorDifferences`): every actor a game owns in the session (its
@@ -183,7 +184,8 @@ Bugs they found, each fixed with the flow failing without the fix (and a `HostAu
 2. **An NPC the host's game announced as a following guest arrived never reached it.** The announcement skips a
    player not with the host; its arrival sends the host's actors from the host's game, which handles its answer
    only on its next update, so one announced in that frame was in neither. Now a host actor its game has not moved
-   yet keeps the players that arrived meanwhile, and its first movement sends them its spawn.
+   yet keeps the players that arrived meanwhile, and its first movement sends them its spawn. (2026-10-23: the
+   host's game owns an actor from its announcement now, so its spawns have it at once; the hold-back is gone.)
 3. **A guest that led got spawns of what the host left behind.** The host's arrival sends the players ahead of it
    the host's actors in the same frame, before discovery drops the NPCs of the cell it left; a placed NPC's spawn
    re-flagged the guest's held reference, a placeatme NPC's made a copy in the guest's cell at the old cell's
@@ -215,7 +217,8 @@ Bugs they found, each fixed with the flow failing without the fix (and a `HostAu
    id"), and the host's spawn of it has its inventory as announced, so a copy never had it. Changes of an actor
    still waiting for its assignment are queued now and sent once it is ours (`InventoryService::RunPendingChanges`;
    flow "What a player does before its session id comes back", which steps only the guest's game so the answer
-   waits).
+   waits). (2026-10-23: a player has its id from its join now, so nothing is queued; the flow is "What a player does
+   right after its game announces it".)
 
 The equipment flows (`equipment_flows.cpp`, `InventoryService` in every game, 2026-10-23): a player's weapons in
 either hand, a swap and a sheathe, and armor reach its copy; a host NPC's weapon reaches its copy, which takes

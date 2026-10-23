@@ -16,7 +16,6 @@ struct DisconnectedEvent;
 struct EquipmentChangeEvent;
 struct FormIdComponent;
 struct ActionEvent;
-struct AssignCharacterResponse;
 struct NotifyCharacterSpawn;
 struct NotifyReferencesMove;
 struct NotifyInventoryChanges;
@@ -61,9 +60,8 @@ struct CharacterService
     void OnActorAdded(const ActorAddedEvent& acEvent) noexcept;
     void OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept;
     void OnUpdate(const UpdateEvent& acUpdateEvent) noexcept;
-    void OnConnected(const ConnectedEvent& acConnectedEvent) const noexcept;
+    void OnConnected(const ConnectedEvent& acConnectedEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept;
-    void OnAssignCharacter(const AssignCharacterResponse& acMessage) noexcept;
     void OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) const noexcept;
     void OnReferencesMoveRequest(const NotifyReferencesMove& acMessage) const noexcept;
     void OnActionEvent(const ActionEvent& acActionEvent) const noexcept;
@@ -101,7 +99,8 @@ struct CharacterService
 private:
     void MoveActor(uint32_t aFormId, const GameId& acWorldSpaceId, const GameId& acCellId, const Vector3_NetQuantize& acPosition) const noexcept;
 
-    void RequestServerAssignment(entt::entity aEntity) const noexcept;
+    // One of this game's actors under the id the host gave it: this game's from here on.
+    void AnnounceCharacter(entt::entity aEntity) const noexcept;
     void CancelServerAssignment(entt::entity aEntity, uint32_t aFormId) const noexcept;
     void DeleteRemoteEntityComponents(entt::entity aEntity) const noexcept;
     // Where our actor is now, for its copies to follow when we stop simulating it.
@@ -144,6 +143,9 @@ private:
     IFormBridge& m_formBridge;
     IPlayerBridge& m_playerBridge;
     std::unordered_set<uint32_t> m_discoveredActors;
+    // This game's player in the session (ConnectedEvent): its player id and its character's session id.
+    uint32_t m_playerId{};
+    uint32_t m_characterId{};
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
     std::chrono::steady_clock::time_point m_lastSnapshot; // our actors' last movement snapshot sent
 

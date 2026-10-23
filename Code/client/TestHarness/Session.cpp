@@ -109,7 +109,6 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         auth.UserMods = RunningGame::Plugins(world.GetFormBridge());
 
         AssignCharacterRequest assign;
-        assign.Cookie = 1;
         assign.ReferenceId = GameId{0, 0x14};
         // Player FormId must remain empty; this is not the NPC base FormID.
         assign.CellId = ToSession(player.GetPlayerParentCellId()).value_or(GameId{});

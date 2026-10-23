@@ -196,10 +196,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   sends neither.
 - **Upstream's MMO leftovers** (survey 2026-10-23; the order is the user's call). The host is the only authority,
   and every game has the same build and plugins:
-  - The character assignment round trip: every actor's session id by request and reply (`AssignCharacterRequest`
-    / `Response`, `Cookie`, `WaitingForAssignmentComponent`, `CancelAssignmentRequest`, `Owner` always true), the
-    host's game asking itself in-process. The host could give its own actors an id on the spot; only a guest's
-    player needs the reply. Removes the unload-between-request-and-reply race. Skyrim check: spawns.
+  - ~~The character assignment round trip~~ (done 2026-10-23, progress.md "Test suite"): the host hands out every
+    id, a player's in its join answer.
   - Taking ownership of an actor (`TakeOwnership`): a guest mounting a horse claims its copy, unconfirmed (upstream's
     TODO). Under direct authority the mount goes to the host as a request. Skyrim check: mounts.
   - `ServerSettings` / `NotifySettingsChange`: five flags the host always sets the same (greetings, PvP, homes,

@@ -2,6 +2,7 @@
 
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
 #include <Services/Host/JoinRefusal.h>
@@ -15,9 +16,11 @@
 #include <Messages/NotifySettingsChange.h>
 #include <Structs/LoadOrder.h>
 
-HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, const HostGame& acGame) noexcept
+HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
+                         const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(aPlayers)
+    , m_characters(aCharacters)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostSession::OnAuthentication);
@@ -105,6 +108,7 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
 
     response.Type = kAccepted;
     response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_network.HostConnection());
+    response.CharacterId = m_characters.ReservePlayerCharacter(aSender);
     response.Settings = Settings();
     m_network.Send(aSender, response);
     Announce(aSender);

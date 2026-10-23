@@ -4,7 +4,6 @@
 #include <Components/RemoteAnimationComponent.h>
 #include <Components/FormIdComponent.h>
 #include <Components/InterpolationComponent.h>
-#include <Components/WaitingForAssignmentComponent.h>
 #include <Components/LocalComponent.h>
 #include <Components/RemoteComponent.h>
 #include <Components/LocalWeaponDrawComponent.h>

@@ -77,6 +77,7 @@ TEST_CASE("Time scale: a joining player gets the slowed clock", "[HostAuthority]
 
     AssignCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
+    announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);
     CHECK(LastScale(session, kPeer) == 0.25f);
 
@@ -94,6 +95,7 @@ TEST_CASE("Time scale: a player joining mid slowdown is freed when it ends", "[H
     session.Join(kPeer, JoinRequest("Lydia", 12));
     AssignCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
+    announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);
     CHECK(LastScale(session, kPeer) == 0.25f);
 
