@@ -2,6 +2,7 @@
 
 #include <NoCopyMove.h>
 #include <Structs/GameId.h>
+#include <Messages/RelayedMessages.h>
 
 class IActorBridge;
 
@@ -9,8 +10,6 @@ struct World;
 struct TransportService;
 struct EffectVisualsChangeEvent;
 struct ReferenceLoadedEvent;
-struct NotifyActiveEffects;
-struct NotifyEffectFlash;
 struct NotifyCharacterSpawn;
 struct NotifyRemoveCharacter;
 struct DisconnectedEvent;

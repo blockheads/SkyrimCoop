@@ -8,13 +8,9 @@
 #include <Events/AddTargetEvent.h>
 #include <Events/RemoveSpellEvent.h>
 
-#include <Messages/RemoveSpellRequest.h>
+#include <Messages/Relayed.h>
 
-#include <Messages/SpellCastRequest.h>
-#include <Messages/InterruptCastRequest.h>
 
-#include <Messages/NotifySpellCast.h>
-#include <Messages/NotifyInterruptCast.h>
 
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>

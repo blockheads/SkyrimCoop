@@ -6,7 +6,7 @@
 #include <Events/PartyNativeEvent.h>
 #include <Messages/NotifyPartyNative.h>
 #include <Messages/NotifyPlayerLeft.h>
-#include <Messages/PartyNativeRequest.h>
+#include <Messages/Relayed.h>
 #include <Papyrus/PartyNatives.h>
 #include <ScriptValues.h>
 #include <World.h>

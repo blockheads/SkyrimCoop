@@ -18,10 +18,9 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <Messages/NotifyPlayerNativeResult.h>
-#include <Messages/NotifyWorldCall.h>
+#include <Messages/Relayed.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
-#include <Messages/PlayerNativeRequest.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Utils.h>
 

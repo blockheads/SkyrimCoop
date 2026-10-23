@@ -9,6 +9,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <Messages/RelayedMessages.h>
 
 class IActorBridge;
 class IFormBridge;
@@ -21,8 +22,6 @@ struct NotifyInventoryChanges;
 struct InventoryChangeEvent;
 struct EquipmentChangeEvent;
 struct NotifyEquipmentChanges;
-struct NotifyEquipmentSnapshot;
-struct NotifyDrawWeapon;
 
 /**
  * @brief Manages actors' inventories.

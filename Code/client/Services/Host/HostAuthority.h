@@ -20,6 +20,7 @@
 
 #include <ChatMessageTypes.h>
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct LockChangeRequest;
 struct ContainerChangeRequest;
@@ -27,7 +28,6 @@ struct RequestInventoryChanges;
 struct RequestFactionsChanges;
 struct SendChatMessageRequest;
 struct PlayerLevelRequest;
-struct PartyNativeRequest;
 
 struct HostNetwork;
 

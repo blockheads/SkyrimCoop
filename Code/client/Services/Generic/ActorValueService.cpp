@@ -9,14 +9,7 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/HealthChangeEvent.h>
 
-#include <Messages/NotifyActorValueChanges.h>
-#include <Messages/RequestActorValueChanges.h>
-#include <Messages/NotifyActorMaxValueChanges.h>
-#include <Messages/RequestActorMaxValueChanges.h>
-#include <Messages/NotifyHealthChangeBroadcast.h>
-#include <Messages/RequestHealthChangeBroadcast.h>
-#include <Messages/NotifyDeathStateChange.h>
-#include <Messages/RequestDeathStateChange.h>
+#include <Messages/Relayed.h>
 
 #include <Bridges/IActorBridge.h>
 

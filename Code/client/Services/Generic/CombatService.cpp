@@ -6,8 +6,7 @@
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Events/HitEvent.h>
 
-#include <Messages/ProjectileLaunchRequest.h>
-#include <Messages/NotifyProjectileLaunch.h>
+#include <Messages/Relayed.h>
 
 #include <Systems/ModSystem.h>
 #include <World.h>

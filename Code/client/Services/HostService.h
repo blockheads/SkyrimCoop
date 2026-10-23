@@ -3,6 +3,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct World;
 struct UpdateEvent;
@@ -11,7 +12,6 @@ struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
 struct PlayerNativeEvent;
 struct NotifyPlayerNativeResult;
-struct NotifyWorldCall;
 
 struct HostAuthority;
 struct HostNetwork;

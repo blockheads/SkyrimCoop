@@ -5,14 +5,13 @@
 #include <network/ENetInterface.h>
 
 #include <unordered_map>
+#include <Messages/RelayedMessages.h>
 
 struct HostAuthority;
 struct HostCharacters;
 struct HostNetwork;
 struct HostPlayers;
-struct PlayerNativeRequest;
 struct PlayerNativeResultRequest;
-struct WorldCallRequest;
 
 /**
  * @brief Natives on "the player" the host's script called for a guest (Game.AdvanceSkill, Game.QueryStat): that

@@ -891,6 +891,13 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   `Client::Close` waited up to 100 ms for an answer on the frame; they flush the disconnect instead. Test:
   `BridgeTests` "[Network]" (205/100/100 ms before). `GameTests` then took 6.4 s, waiting on the services' real
   timers; `check.sh` runs it in 8 shards (2 s), each on its own ports (`GAMETESTS_PORT`).
+- Relayed messages are a template (2026-10-23, uncommitted, ideas.md "Code cleanup"). The 41 headers that only
+  wrapped a payload (`Payloads.h`) are `using` lines of `Relayed<Payload, Opcode>` in `Messages/RelayedMessages.h`
+  (declared there, for headers that named them ahead; defined in `Relayed.h`); 41 headers gone, about 950 lines net.
+  `Opcodes.h` lists every message once in opcode order (`COOP_REQUESTS`, `COOP_NOTIFICATIONS`), which makes the
+  opcodes and both factories' `Visit` (`CreateMessageVisitor` is gone). `kRequestRemoveSpell` is
+  `kRemoveSpellRequest`, as its type. All 104 opcode values compared equal before and after; `wire_tests.cpp`'s
+  bytes unchanged.
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.

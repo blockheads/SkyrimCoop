@@ -8,14 +8,3 @@ template <class T> struct MetaMessage
 };
 
 } // namespace details
-
-template <class... T>
-auto CreateMessageVisitor = [](auto&& f) mutable
-{
-    auto expender = [f](auto&&... xs)
-    {
-        (void)(... && !f(xs));
-    };
-
-    expender(::details::MetaMessage<T>{}...);
-};

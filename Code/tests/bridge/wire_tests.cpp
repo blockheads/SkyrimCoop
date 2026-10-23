@@ -3,42 +3,7 @@
 // notification here is read back from the request's own bytes.
 #include <catch2/catch.hpp>
 
-#include <Messages/AddTargetRequest.h>
-#include <Messages/DialogueRequest.h>
-#include <Messages/DrawWeaponRequest.h>
-#include <Messages/InterruptCastRequest.h>
-#include <Messages/MountRequest.h>
-#include <Messages/AiStateRequest.h>
-#include <Messages/NotifyActorMaxValueChanges.h>
-#include <Messages/NotifyActorValueChanges.h>
-#include <Messages/NotifyAddTarget.h>
-#include <Messages/NotifyDeathStateChange.h>
-#include <Messages/NotifyDialogue.h>
-#include <Messages/NotifyDrawWeapon.h>
-#include <Messages/NotifyActiveEffects.h>
-#include <Messages/NotifyEffectFlash.h>
-#include <Messages/EffectFlashRequest.h>
-#include <Messages/NotifyEquipmentSnapshot.h>
-#include <Messages/NotifyHealthChangeBroadcast.h>
-#include <Messages/NotifyInterruptCast.h>
-#include <Messages/NotifyMount.h>
-#include <Messages/NotifyAiState.h>
-#include <Messages/NotifyProjectileLaunch.h>
-#include <Messages/NotifyRemoveSpell.h>
-#include <Messages/NotifySpellCast.h>
-#include <Messages/NotifySubtitle.h>
-#include <Messages/NotifySyncExperience.h>
-#include <Messages/ProjectileLaunchRequest.h>
-#include <Messages/RemoveSpellRequest.h>
-#include <Messages/RequestActorMaxValueChanges.h>
-#include <Messages/RequestActorValueChanges.h>
-#include <Messages/RequestDeathStateChange.h>
-#include <Messages/RequestActiveEffects.h>
-#include <Messages/RequestEquipmentSnapshot.h>
-#include <Messages/RequestHealthChangeBroadcast.h>
-#include <Messages/SpellCastRequest.h>
-#include <Messages/SubtitleRequest.h>
-#include <Messages/SyncExperienceRequest.h>
+#include <Messages/Relayed.h>
 
 #include <map>
 #include <string>

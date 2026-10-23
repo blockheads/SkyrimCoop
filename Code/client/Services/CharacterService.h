@@ -5,6 +5,7 @@
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Structs/ActorWhereabouts.h>
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct ActorAddedEvent;
 struct ActorRemovedEvent;
@@ -24,23 +25,15 @@ struct ReferenceJumpEvent;
 struct NotifyRemoveCharacter;
 struct PlayerArrivedEvent;
 struct SpellCastEvent;
-struct NotifySpellCast;
 struct InterruptCastEvent;
-struct NotifyInterruptCast;
 struct AddTargetEvent;
-struct NotifyAddTarget;
 struct ProjectileLaunchedEvent;
-struct NotifyProjectileLaunch;
 struct MountEvent;
-struct NotifyMount;
 struct NotifyRespawn;
 struct BeastFormChangeEvent;
 struct AddExperienceEvent;
-struct NotifySyncExperience;
 struct DialogueEvent;
-struct NotifyDialogue;
 struct SubtitleEvent;
-struct NotifySubtitle;
 
 class IActorBridge;
 class IFormBridge;

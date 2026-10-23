@@ -4,12 +4,11 @@
 
 #include <chrono>
 #include <string>
+#include <Messages/RelayedMessages.h>
 
 struct World;
 struct NotifyDialogueList;
 struct NotifyDialogueRefused;
-struct NotifyDialogue;
-struct NotifySubtitle;
 
 /**
  * @brief A guest's game in the party's conversation (docs/design/shared-dialogue.md): talking to a copy asks the

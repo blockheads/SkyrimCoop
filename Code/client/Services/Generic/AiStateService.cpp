@@ -6,8 +6,7 @@
 #include <Components/LocalComponent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/DisconnectedEvent.h>
-#include <Messages/AiStateRequest.h>
-#include <Messages/NotifyAiState.h>
+#include <Messages/Relayed.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <SessionIds.h>

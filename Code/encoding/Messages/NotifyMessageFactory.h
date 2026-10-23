@@ -9,8 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <Messages/NotifyEquipmentSnapshot.h>
-#include <Messages/NotifyActiveEffects.h>
+#include <Messages/Relayed.h>
 #include <Messages/Message.h>
 #include <MetaMessage.h>
 
@@ -22,30 +21,12 @@
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
-#include <Messages/NotifyActorValueChanges.h>
-#include <Messages/NotifyActorMaxValueChanges.h>
-#include <Messages/NotifyHealthChangeBroadcast.h>
 #include <Messages/NotifyActivate.h>
-#include <Messages/NotifyDeathStateChange.h>
-#include <Messages/NotifySpellCast.h>
-#include <Messages/NotifyInterruptCast.h>
-#include <Messages/NotifyAddTarget.h>
-#include <Messages/NotifyRemoveSpell.h>
-#include <Messages/NotifyProjectileLaunch.h>
-#include <Messages/NotifyDrawWeapon.h>
-#include <Messages/NotifyMount.h>
-#include <Messages/NotifyAiState.h>
-#include <Messages/NotifyPlayerNative.h>
 #include <Messages/NotifyPlayerNativeResult.h>
-#include <Messages/NotifyEffectFlash.h>
 #include <Messages/NotifyPartyNative.h>
-#include <Messages/NotifyWorldCall.h>
 #include <Messages/NotifyRespawn.h>
-#include <Messages/NotifySyncExperience.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
-#include <Messages/NotifyDialogue.h>
-#include <Messages/NotifySubtitle.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLevel.h>
@@ -62,17 +43,13 @@ struct NotifyMessageFactory
 {
     std::unique_ptr<NotifyMessage> Extract(Wire::Buffer::Reader& aReader) const noexcept;
 
-    template <class T> static auto Visit(T&& func)
+    // aFunc with each notification's MetaMessage, in opcode order (Opcodes.h), until it returns true.
+    template <class T> static void Visit(T&& aFunc)
     {
-        auto s_visitor = CreateMessageVisitor<
-            AuthenticationResponse, AssignCharacterResponse, NotifyReferencesMove, NotifyTimeSettings, NotifyCharacterSpawn, NotifyInventoryChanges, NotifyFactionsChanges, NotifyRemoveCharacter,
-            NotifyActorValueChanges, NotifyActorMaxValueChanges, NotifyHealthChangeBroadcast, NotifyActivate, NotifyDeathStateChange, NotifySpellCast,
-            NotifyProjectileLaunch, NotifyInterruptCast, NotifyAddTarget, NotifyDrawWeapon, NotifyMount, NotifyAiState, NotifyRespawn, NotifySyncExperience, NotifyEquipmentChanges, NotifyChatMessageBroadcast, NotifyDialogue,
-            NotifySubtitle, NotifyPlayerLeft, NotifyPlayerJoined, NotifyPlayerLevel, NotifySettingsChange,
-            NotifyWeatherChange, NotifySetWaypoint, NotifyRemoveWaypoint, NotifyRemoveSpell, NotifyEquipmentSnapshot, NotifyActiveEffects, NotifyTimeScale, NotifyPartyTravel,
-            NotifyDialogueStart, NotifyDialogueOpen, NotifyDialogueList, NotifyDialoguePicked, NotifyDialogueClosed, NotifyGlobals, NotifyQuests, NotifyObjectChanges,
-            NotifyDialogueRefused, NotifyPlayerNative, NotifyPlayerNativeResult, NotifyEffectFlash, NotifyPartyNative, NotifyWorldCall>;
-
-        return s_visitor(std::forward<T>(func));
+#define COOP_VISIT(aName)                                                                                              \
+    if (::details::MetaMessage<aName> meta; aFunc(meta))                                                             \
+        return;
+        COOP_NOTIFICATIONS(COOP_VISIT)
+#undef COOP_VISIT
     }
 };

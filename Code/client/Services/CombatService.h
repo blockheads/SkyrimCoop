@@ -1,6 +1,7 @@
 #pragma once
 
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 class IActorBridge;
 class IFormBridge;
@@ -9,7 +10,6 @@ struct World;
 struct TransportService;
 struct UpdateEvent;
 struct ProjectileLaunchedEvent;
-struct NotifyProjectileLaunch;
 struct HitEvent;
 
 /**

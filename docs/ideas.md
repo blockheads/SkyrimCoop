@@ -148,12 +148,9 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Code cleanup
 
-- **One template for relayed messages** (2026-10-22, the user's review: "too much boilerplate?"). 36 of the 84
-  message headers are a request or notification wrapping a shared payload (`Messages/Payloads.h`), each the same
-  20 lines (756 in all; `PlayerNativeRequest.h` and `NotifyPlayerNative.h` are a pair). A template
-  (`Relayed<Payload, Opcode>`) makes each a `using` line. A new message is also listed by hand in three places
-  (`Opcodes.h`, `RequestMessageFactory.h`, `NotifyMessageFactory.h`): one list could make all three. The bytes stay
-  as `wire_tests.cpp` pins them. Its own commit, repo-wide.
+- ~~One template for relayed messages~~ (done 2026-10-23, progress.md "Test suite"). Left: the three payload
+  messages with fields or bytes of their own (`NotifyPartyNative`, `PlayerNativeResultRequest`,
+  `NotifyPlayerNativeResult`) stay structs; a new message's header is still included in its factory by hand.
 - **One line per hook** (2026-10-22). 127 hooks repeat `POINTER_SKYRIMSE`, `Real = .Get()` and `HOOK` in their
   initializer, plus a function-pointer global each. A helper (`Hook<ID>(&Real, &HookFn)`) makes it one line; the
   signature check against the community name and IDA stays. When a file is touched anyway.

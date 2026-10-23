@@ -202,7 +202,8 @@ player is sent is listed in one place, `HostAuthority::PlayerEntered`. A plain r
 the bridge's constructor, naming the request and who
 gets it (`Relay<SpellCastRequest, NotifySpellCast>(FromOwner, &SpellCastRequest::CasterId)`). A
 request and its notification inherit one payload struct (`Code/encoding/Messages/Payloads.h`):
-its fields and their bytes are written once, and the relay copies the payload. Only items and
+its fields and their bytes are written once, and the relay copies the payload. Such a pair is two
+`using` lines of `Relayed<Payload, Opcode>` (`Messages/RelayedMessages.h`, defined in `Relayed.h`). Only items and
 equipment changes pass on something different (`ToNotify`). `Code/tests/bridge/wire_tests.cpp` pins
 the bytes of every relayed message. Deliveries: `FromOwner` (the actor's owner says it;
 everyone else replays it), `FromAnyone`, and `ToOwner` (done to another's actor; its owner alone

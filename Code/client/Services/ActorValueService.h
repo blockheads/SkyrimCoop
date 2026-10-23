@@ -1,6 +1,7 @@
 #pragma once
 
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct World;
 
@@ -11,10 +12,6 @@ struct UpdateEvent;
 struct HealthChangeEvent;
 
 struct TransportService;
-struct NotifyActorValueChanges;
-struct NotifyActorMaxValueChanges;
-struct NotifyHealthChangeBroadcast;
-struct NotifyDeathStateChange;
 
 class IActorBridge;
 

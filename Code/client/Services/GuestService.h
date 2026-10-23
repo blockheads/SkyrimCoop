@@ -4,12 +4,12 @@
 
 #include <memory>
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct World;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct UpdateEvent;
-struct NotifyPlayerNative;
 struct WorldCallEvent;
 
 /**

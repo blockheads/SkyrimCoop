@@ -1,113 +1,125 @@
 #pragma once
 
+// Every message, in opcode order: the opcodes are the wire's, so a new message goes at the end of its list. Each
+// entry makes the opcode k<Name> and the message factories' entry (RequestMessageFactory.h, NotifyMessageFactory.h).
+#define COOP_REQUESTS(X)            \
+    X(AuthenticationRequest)        \
+    X(CancelAssignmentRequest)      \
+    X(AssignCharacterRequest)       \
+    X(ReferencesMoveRequest)        \
+    X(RequestFactionsChanges)       \
+    X(RequestActorValueChanges)     \
+    X(RequestActorMaxValueChanges)  \
+    X(RequestHealthChangeBroadcast) \
+    X(ActivateRequest)              \
+    X(LockChangeRequest)            \
+    X(RequestDeathStateChange)      \
+    X(RequestInventoryChanges)      \
+    X(SpellCastRequest)             \
+    X(InterruptCastRequest)         \
+    X(AddTargetRequest)             \
+    X(RemoveSpellRequest)           \
+    X(ProjectileLaunchRequest)      \
+    X(DrawWeaponRequest)            \
+    X(MountRequest)                 \
+    X(AiStateRequest)               \
+    X(RequestRespawn)               \
+    X(SyncExperienceRequest)        \
+    X(RequestEquipmentChanges)      \
+    X(SendChatMessageRequest)       \
+    X(PlayerRespawnRequest)         \
+    X(DialogueRequest)              \
+    X(SubtitleRequest)              \
+    X(PlayerLevelRequest)           \
+    X(RequestSetWaypoint)           \
+    X(RequestRemoveWaypoint)        \
+    X(SetTimeCommandRequest)        \
+    X(RequestRemoveCharacter)       \
+    X(RequestEquipmentSnapshot)     \
+    X(EnterCellRequest)             \
+    X(RequestActiveEffects)         \
+    X(TimeScaleRequest)             \
+    X(DialogueStartRequest)         \
+    X(DialogueOpenedRequest)        \
+    X(DialogueOptionsRequest)       \
+    X(DialoguePickRequest)          \
+    X(DialogueCloseRequest)         \
+    X(DialogueJoinRequest)          \
+    X(ContainerChangeRequest)       \
+    X(CellStateRequest)             \
+    X(DialogueStartFailedRequest)   \
+    X(PlayerNativeRequest)          \
+    X(PlayerNativeResultRequest)    \
+    X(EffectFlashRequest)           \
+    X(PartyNativeRequest)           \
+    X(WorldCallRequest)
+
+#define COOP_NOTIFICATIONS(X)      \
+    X(AuthenticationResponse)      \
+    X(AssignCharacterResponse)     \
+    X(NotifyReferencesMove)        \
+    X(NotifyTimeSettings)          \
+    X(NotifyCharacterSpawn)        \
+    X(NotifyFactionsChanges)       \
+    X(NotifyRemoveCharacter)       \
+    X(NotifyActorValueChanges)     \
+    X(NotifyActorMaxValueChanges)  \
+    X(NotifyHealthChangeBroadcast) \
+    X(NotifyActivate)              \
+    X(NotifyDeathStateChange)      \
+    X(NotifyInventoryChanges)      \
+    X(NotifySpellCast)             \
+    X(NotifyInterruptCast)         \
+    X(NotifyAddTarget)             \
+    X(NotifyRemoveSpell)           \
+    X(NotifyProjectileLaunch)      \
+    X(NotifyDrawWeapon)            \
+    X(NotifyMount)                 \
+    X(NotifyAiState)               \
+    X(NotifyRespawn)               \
+    X(NotifySyncExperience)        \
+    X(NotifyEquipmentChanges)      \
+    X(NotifyChatMessageBroadcast)  \
+    X(NotifyDialogue)              \
+    X(NotifySubtitle)              \
+    X(NotifyPlayerLeft)            \
+    X(NotifyPlayerJoined)          \
+    X(NotifyPlayerLevel)           \
+    X(NotifySettingsChange)        \
+    X(NotifyWeatherChange)         \
+    X(NotifySetWaypoint)           \
+    X(NotifyRemoveWaypoint)        \
+    X(NotifyEquipmentSnapshot)     \
+    X(NotifyActiveEffects)         \
+    X(NotifyTimeScale)             \
+    X(NotifyPartyTravel)           \
+    X(NotifyDialogueStart)         \
+    X(NotifyDialogueOpen)          \
+    X(NotifyDialogueList)          \
+    X(NotifyDialoguePicked)        \
+    X(NotifyDialogueClosed)        \
+    X(NotifyGlobals)               \
+    X(NotifyQuests)                \
+    X(NotifyObjectChanges)         \
+    X(NotifyDialogueRefused)       \
+    X(NotifyPlayerNative)          \
+    X(NotifyPlayerNativeResult)    \
+    X(NotifyEffectFlash)           \
+    X(NotifyPartyNative)           \
+    X(NotifyWorldCall)
+
+#define COOP_OPCODE(aName) k##aName,
+
 enum RequestOpcode : unsigned char
 {
-    kAuthenticationRequest = 0,
-    kCancelAssignmentRequest,
-    kAssignCharacterRequest,
-    kReferencesMoveRequest,
-    kRequestFactionsChanges,
-    kRequestActorValueChanges,
-    kRequestActorMaxValueChanges,
-    kRequestHealthChangeBroadcast,
-    kActivateRequest,
-    kLockChangeRequest,
-    kRequestDeathStateChange,
-    kRequestInventoryChanges,
-    kSpellCastRequest,
-    kInterruptCastRequest,
-    kAddTargetRequest,
-    kRequestRemoveSpell,
-    kProjectileLaunchRequest,
-    kDrawWeaponRequest,
-    kMountRequest,
-    kAiStateRequest,
-    kRequestRespawn,
-    kSyncExperienceRequest,
-    kRequestEquipmentChanges,
-    kSendChatMessageRequest,
-    kPlayerRespawnRequest,
-    kDialogueRequest,
-    kSubtitleRequest,
-    kPlayerLevelRequest,
-    kRequestSetWaypoint,
-    kRequestRemoveWaypoint,
-    kSetTimeCommandRequest,
-    kRequestRemoveCharacter,
-    kRequestEquipmentSnapshot,
-    kEnterCellRequest,
-    kRequestActiveEffects,
-    kTimeScaleRequest,
-    kDialogueStartRequest,
-    kDialogueOpenedRequest,
-    kDialogueOptionsRequest,
-    kDialoguePickRequest,
-    kDialogueCloseRequest,
-    kDialogueJoinRequest,
-    kContainerChangeRequest,
-    kCellStateRequest,
-    kDialogueStartFailedRequest,
-    kPlayerNativeRequest,
-    kPlayerNativeResultRequest,
-    kEffectFlashRequest,
-    kPartyNativeRequest,
-    kWorldCallRequest,
+    COOP_REQUESTS(COOP_OPCODE)
     kRequestOpcodeMax
 };
 
 enum NotifyOpcode : unsigned char
 {
-    kAuthenticationResponse = 0,
-    kAssignCharacterResponse,
-    kNotifyReferencesMove,
-    kNotifyTimeSettings,
-    kNotifyCharacterSpawn,
-    kNotifyFactionsChanges,
-    kNotifyRemoveCharacter,
-    kNotifyActorValueChanges,
-    kNotifyActorMaxValueChanges,
-    kNotifyHealthChangeBroadcast,
-    kNotifyActivate,
-    kNotifyDeathStateChange,
-    kNotifyInventoryChanges,
-    kNotifySpellCast,
-    kNotifyInterruptCast,
-    kNotifyAddTarget,
-    kNotifyRemoveSpell,
-    kNotifyProjectileLaunch,
-    kNotifyDrawWeapon,
-    kNotifyMount,
-    kNotifyAiState,
-    kNotifyRespawn,
-    kNotifySyncExperience,
-    kNotifyEquipmentChanges,
-    kNotifyChatMessageBroadcast,
-    kNotifyDialogue,
-    kNotifySubtitle,
-    kNotifyPlayerLeft,
-    kNotifyPlayerJoined,
-    kNotifyPlayerLevel,
-    kNotifySettingsChange,
-    kNotifyWeatherChange,
-    kNotifySetWaypoint,
-    kNotifyRemoveWaypoint,
-    kNotifyEquipmentSnapshot,
-    kNotifyActiveEffects,
-    kNotifyTimeScale,
-    kNotifyPartyTravel,
-    kNotifyDialogueStart,
-    kNotifyDialogueOpen,
-    kNotifyDialogueList,
-    kNotifyDialoguePicked,
-    kNotifyDialogueClosed,
-    kNotifyGlobals,
-    kNotifyQuests,
-    kNotifyObjectChanges,
-    kNotifyDialogueRefused,
-    kNotifyPlayerNative,
-    kNotifyPlayerNativeResult,
-    kNotifyEffectFlash,
-    kNotifyPartyNative,
-    kNotifyWorldCall,
+    COOP_NOTIFICATIONS(COOP_OPCODE)
     kNotifyOpcodeMax
 };
+
+#undef COOP_OPCODE

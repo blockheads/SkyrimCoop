@@ -4,10 +4,7 @@
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/NotifyEquipmentChanges.h>
-#include <Messages/RequestEquipmentSnapshot.h>
-#include <Messages/NotifyEquipmentSnapshot.h>
-#include <Messages/DrawWeaponRequest.h>
-#include <Messages/NotifyDrawWeapon.h>
+#include <Messages/Relayed.h>
 
 #include <Events/UpdateEvent.h>
 #include <Events/InventoryChangeEvent.h>

@@ -2,8 +2,7 @@
 
 #include <Bridges/IActorBridge.h>
 
-#include <Messages/NotifyDialogue.h>
-#include <Messages/NotifySubtitle.h>
+#include <Messages/Relayed.h>
 #include <Messages/SharedDialogue.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>

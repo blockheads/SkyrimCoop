@@ -7,12 +7,9 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/EffectVisualsChangeEvent.h>
 #include <Events/ReferenceLoadedEvent.h>
-#include <Messages/EffectFlashRequest.h>
-#include <Messages/NotifyActiveEffects.h>
-#include <Messages/NotifyEffectFlash.h>
+#include <Messages/Relayed.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyRemoveCharacter.h>
-#include <Messages/RequestActiveEffects.h>
 #include <SessionIds.h>
 #include <World.h>
 

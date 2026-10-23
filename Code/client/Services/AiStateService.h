@@ -3,6 +3,7 @@
 #include <Structs/ActorAiState.h>
 
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 class IActorBridge;
 struct ActorAiFields;
@@ -11,7 +12,6 @@ struct World;
 struct TransportService;
 struct AiStateChangeEvent;
 struct DisconnectedEvent;
-struct NotifyAiState;
 struct NotifyCharacterSpawn;
 struct NotifyRemoveCharacter;
 

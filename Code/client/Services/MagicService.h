@@ -1,9 +1,7 @@
 #pragma once
 
 #include <Events/AddTargetEvent.h>
-#include <Messages/AddTargetRequest.h>
-#include <Messages/NotifyAddTarget.h>
-#include <Messages/NotifyRemoveSpell.h>
+#include <Messages/Relayed.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <NoCopyMove.h>
@@ -20,8 +18,6 @@ struct InterruptCastEvent;
 struct AddTargetEvent;
 struct RemoveSpellEvent;
 
-struct NotifySpellCast;
-struct NotifyInterruptCast;
 
 /**
  * @brief Handles magic spell casting and magic effects.
