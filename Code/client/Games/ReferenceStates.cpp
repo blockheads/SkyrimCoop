@@ -2,7 +2,7 @@
 
 #include <Games/FormState.h>
 #include <SaveLoad.h>
-#include <Systems/ModSystem.h>
+#include <FormIds.h>
 
 #include <TESObjectREFR.h>
 
@@ -19,14 +19,14 @@ namespace
 // the deleted one; both are form flags. 1: enabled; kDeleted: deleted.
 constexpr uint32_t kDeleted = 2;
 
-bool ReadEnabled(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadEnabled(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     aChange.Value = (acObject.IsDisabled() ? 0 : 1) | (acObject.IsDeleted() ? kDeleted : 0);
     return true;
 }
 
 // At once, no fade: the host's fade already played.
-bool ApplyEnabled(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplyEnabled(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     if (acChange.Value & kDeleted)
     {
@@ -45,14 +45,14 @@ bool ApplyEnabled(TESObjectREFR& aObject, const ObjectChange& acChange, const Mo
 // The level in the low byte, kLocked above it; no lock reads as unlocked, level 0.
 constexpr uint32_t kLocked = 0x100;
 
-bool ReadLock(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadLock(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     const Lock* pLock = acObject.GetLock();
     aChange.Value = pLock ? (pLock->IsLocked() ? kLocked : 0) | pLock->lockLevel : 0;
     return true;
 }
 
-bool ApplyLock(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplyLock(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     return aObject.SetLockState((acChange.Value & kLocked) != 0, static_cast<uint8_t>(acChange.Value & 0xFF));
 }
@@ -64,7 +64,7 @@ bool IsOpen(const TESObjectREFR& acObject) noexcept
 }
 
 // 1: open or opening.
-bool ReadOpen(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadOpen(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     aChange.Value = IsOpen(acObject);
     return true;
@@ -72,7 +72,7 @@ bool ReadOpen(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectC
 
 // Plays the open or close, as ObjectReference.SetOpen does (BGSOpenCloseForm::SetOpenState, 14287). It is nobody's
 // activation here: the lid's Open event (14285) would hand the menu to an activator an interrupted lid left behind.
-bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     if (IsOpen(aObject) == (acChange.Value != 0))
         return true;
@@ -84,7 +84,7 @@ bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSy
 }
 
 // Position, then angle.
-bool ReadMove(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadMove(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     const float cValues[6] = {acObject.position.x, acObject.position.y, acObject.position.z,
                               acObject.rotation.x, acObject.rotation.y, acObject.rotation.z};
@@ -94,7 +94,7 @@ bool ReadMove(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectC
 
 // In its cell, each axis that differs, as Papyrus' SetPosition and SetAngle do (22053, 22054): its 3D and collision
 // follow, nothing disabled (MoveTo's disable and enable crash a placeable water's cell animations).
-bool ApplyMove(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplyMove(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     float values[6];
     if (acChange.Data.size() != sizeof(values))
@@ -112,29 +112,34 @@ bool ApplyMove(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSy
 }
 
 // 1% steps, as the reference holds it.
-bool ReadScale(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadScale(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     aChange.Value = acObject.scale;
     return true;
 }
 
-bool ApplyScale(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplyScale(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     if (aObject.scale != acChange.Value)
         aObject.SetScale(static_cast<float>(acChange.Value) / 100.f);
     return true;
 }
 
-bool ReadOwner(const TESObjectREFR& acObject, uint32_t, const ModSystem& acMods, ObjectChange& aChange) noexcept
+bool ReadOwner(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     const TESForm* pOwner = acObject.GetOwner();
-    return !pOwner || acMods.GetServerModId(pOwner->formID, aChange.Item);
+    if (!pOwner)
+        return true;
+    const auto cOwner = ToSession(pOwner->formID);
+    if (cOwner)
+        aChange.Item = *cOwner;
+    return cOwner.has_value();
 }
 
 // No owner: Item's base id 0.
-bool ApplyOwner(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+bool ApplyOwner(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
-    TESForm* pOwner = acChange.Item.BaseId ? TESForm::GetById(acMods.GetGameId(acChange.Item)) : nullptr;
+    TESForm* pOwner = acChange.Item.BaseId ? TESForm::GetById(ToGame(acChange.Item)) : nullptr;
     if (acChange.Item.BaseId && !pOwner)
         return false;
     if (aObject.GetOwner() != pOwner)
@@ -142,15 +147,18 @@ bool ApplyOwner(TESObjectREFR& aObject, const ObjectChange& acChange, const ModS
     return true;
 }
 
-bool ReadBase(const TESObjectREFR& acObject, uint32_t, const ModSystem& acMods, ObjectChange& aChange) noexcept
+bool ReadBase(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
-    return acObject.baseForm && acMods.GetServerModId(acObject.baseForm->formID, aChange.Item);
+    const auto cBase = acObject.baseForm ? ToSession(acObject.baseForm->formID) : std::nullopt;
+    if (cBase)
+        aChange.Item = *cBase;
+    return cBase.has_value();
 }
 
 // A placed leveled item's pick: the host's base, its 3D loaded again.
-bool ApplyBase(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+bool ApplyBase(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
-    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(acMods.GetGameId(acChange.Item)));
+    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(ToGame(acChange.Item)));
     if (!pBase)
         return false;
     if (aObject.baseForm != pBase)
@@ -160,14 +168,14 @@ bool ApplyBase(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSy
 
 // Every flag no row above takes, as its save data. Nothing saved, nothing sent (a havok move: its position is in the
 // location header FormState skips).
-bool ReadSaveData(const TESObjectREFR& acObject, uint32_t aFlags, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadSaveData(const TESObjectREFR& acObject, uint32_t aFlags, ObjectChange& aChange) noexcept
 {
     aChange.Value = aFlags;
     return FormState::Save(acObject, aFlags, aChange.Data) && !aChange.Data.empty();
 }
 
 // A load records no change: marked after it, so the cell's unload keeps it as the host's does.
-bool ApplySaveData(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplySaveData(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     if (!FormState::Load(aObject, acChange.Value, acChange.Data))
         return false;
@@ -176,12 +184,12 @@ bool ApplySaveData(TESObjectREFR& aObject, const ObjectChange& acChange, const M
 }
 
 // An actor's graphs are its owner's (copies load them at spawn).
-bool ReadGraph(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectChange& aChange) noexcept
+bool ReadGraph(const TESObjectREFR& acObject, uint32_t, ObjectChange& aChange) noexcept
 {
     return acObject.formType == FormType::Reference && acObject.SaveGraphs(aChange.Data) && !aChange.Data.empty();
 }
 
-bool ApplyGraph(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
+bool ApplyGraph(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     return aObject.LoadGraphs(acChange.Data);
 }
@@ -190,8 +198,8 @@ struct ReferenceState
 {
     ObjectChange::Kind Kind;
     uint32_t Flags; // the change flags it takes (TESObjectREFR::ChangeFlags)
-    bool (*Read)(const TESObjectREFR& acObject, uint32_t aFlags, const ModSystem& acMods, ObjectChange& aChange) noexcept; // false: nothing to send
-    bool (*Apply)(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept;
+    bool (*Read)(const TESObjectREFR& acObject, uint32_t aFlags, ObjectChange& aChange) noexcept; // false: nothing to send
+    bool (*Apply)(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept;
 };
 
 // In order: each row takes its flags, the last what is left.
@@ -269,7 +277,7 @@ void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept
         aObject.MarkChanged(cMissing);
 }
 
-void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
+void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
           std::vector<ObjectChange>& aChanges) noexcept
 {
     uint32_t left = aFlags & SentFlags();
@@ -282,7 +290,7 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, co
             continue;
         left &= ~cTaken;
         ObjectChange change{cState.Kind, acId};
-        if (cState.Read(acObject, cTaken, acMods, change))
+        if (cState.Read(acObject, cTaken, change))
             aChanges.push_back(std::move(change));
     }
     // A flag no row takes, the first time: what vanilla still needs a row for. The game's thread only.
@@ -294,23 +302,23 @@ void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, co
     }
 }
 
-bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexcept
 {
     for (const auto& cState : cStates)
         if (cState.Kind == acChange.Type)
         {
             ObjectChange here{acChange.Type, acChange.Object};
-            return cState.Read(acObject, cState.Flags, acMods, here) && here.Value == acChange.Value && here.Item == acChange.Item &&
+            return cState.Read(acObject, cState.Flags, here) && here.Value == acChange.Value && here.Item == acChange.Item &&
                    here.Data == acChange.Data;
         }
     return false;
 }
 
-bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept
 {
     for (const auto& cState : cStates)
         if (cState.Kind == acChange.Type)
-            return cState.Apply(aObject, acChange, acMods);
+            return cState.Apply(aObject, acChange);
     return false;
 }
 } // namespace ReferenceStates

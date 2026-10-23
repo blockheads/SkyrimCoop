@@ -7,6 +7,7 @@
 #include <Services/TransportService.h>
 #include <SessionIds.h>
 #include <World.h>
+#include <FormIds.h>
 
 GuestDialogue::GuestDialogue(World& aWorld, entt::dispatcher& aDispatcher, DialogueService& aDialogue) noexcept
     : m_world(aWorld)
@@ -80,13 +81,12 @@ void GuestDialogue::OnList(const NotifyDialogueList& acMessage) noexcept
 {
     if (acMessage.Conversation != m_dialogue.Conversation())
         return;
-    auto& modSystem = m_world.GetModSystem();
     m_step = acMessage.Step;
     m_choices = acMessage.Choices;
     m_options.clear();
     for (const auto& cOption : acMessage.Options)
-        m_options.push_back({modSystem.GetGameId(cOption.Topic), modSystem.GetGameId(cOption.Info),
-                             cOption.Quest != GameId{} ? modSystem.GetGameId(cOption.Quest) : 0, cOption.Text});
+        m_options.push_back({ToGame(cOption.Topic), ToGame(cOption.Info),
+                             cOption.Quest != GameId{} ? ToGame(cOption.Quest) : 0, cOption.Text});
     // The same step again: a pick of this game's that was not said; its menu takes a pick again.
     m_shownStep = 0;
 }

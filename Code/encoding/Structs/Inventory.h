@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include "MagicEquipment.h"
 #include <Wire/Buffer.h>
 

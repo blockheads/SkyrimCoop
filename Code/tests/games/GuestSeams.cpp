@@ -15,7 +15,7 @@
 #include <Services/HostService.h>
 #include <World.h>
 
-GuestEngine::GuestEngine(const ModSystem& acMods) noexcept : m_mods(acMods)
+GuestEngine::GuestEngine() noexcept
 {
 }
 
@@ -90,7 +90,7 @@ bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
 struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
-        : Engine(aWorld.GetModSystem()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
+        : Clock(aWorld, aWorld.GetDispatcher(), Engine),
           Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>())
     {

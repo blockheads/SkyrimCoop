@@ -10,6 +10,7 @@
 #include <Messages/RequestRemoveWaypoint.h>
 
 #include <Bridges/IPlayerBridge.h>
+#include <FormIds.h>
 
 MapService::MapService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept
     : m_world(aWorld)
@@ -35,8 +36,7 @@ void MapService::OnSetWaypoint(const SetWaypointEvent& acMessage) noexcept
     RequestSetWaypoint request{};
     request.Position = acMessage.Position;
 
-    ModSystem& modSystem = m_world.Get().GetModSystem();
-    modSystem.GetServerModId(acMessage.WorldSpaceFormID, request.WorldSpaceFormID);
+    request.WorldSpaceFormID = ToSession(acMessage.WorldSpaceFormID).value_or(GameId{});
 
     m_transport.Send(request);
 }
@@ -52,8 +52,7 @@ void MapService::OnRemoveWaypoint(const RemoveWaypointEvent& acMessage) noexcept
 
 void MapService::OnNotifySetWaypoint(const NotifySetWaypoint& acMessage) noexcept
 {
-    ModSystem& modSystem = m_world.Get().GetModSystem();
-    const uint32_t cWorldSpaceID = modSystem.GetGameId(acMessage.WorldSpaceFormID);
+    const uint32_t cWorldSpaceID = ToGame(acMessage.WorldSpaceFormID);
 
     m_playerBridge.SetPlayerWaypoint(acMessage.Position.x, acMessage.Position.y, acMessage.Position.z, cWorldSpaceID);
 }

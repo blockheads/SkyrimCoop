@@ -15,6 +15,7 @@
 #include <Ui/UiService.h>
 #include <Games/Skyrim/BSCore/LockOrder.h>
 #include <BuildVersion.h>
+#include <FormIds.h>
 
 namespace TestHarness
 {
@@ -54,7 +55,7 @@ static nlohmann::json EquippedItems(uint32_t aFormId)
     auto items = nlohmann::json::array();
     for (const auto& entry : world.GetFormBridge().GetActorEquipment(aFormId).Entries)
         if (entry.IsWorn())
-            items.push_back(world.GetModSystem().GetGameId(entry.BaseId));
+            items.push_back(ToGame(entry.BaseId));
     return items;
 }
 

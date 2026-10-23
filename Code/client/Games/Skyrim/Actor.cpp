@@ -65,6 +65,7 @@
 #include <RTTI.h>
 #include <Utils.h>
 #include <VersionDb.h>
+#include <FormIds.h>
 
 using TRemoveSpell = bool(Actor*, MagicItem*);
 using TCharacterConstructor = Actor*(Actor*);
@@ -525,8 +526,6 @@ Factions Actor::GetFactions() const noexcept
 {
     Factions result;
 
-    auto& modSystem = World::Get().GetModSystem();
-
     auto* pNpc = Cast<TESNPC>(baseForm);
     if (pNpc)
     {
@@ -536,7 +535,7 @@ Factions Actor::GetFactions() const noexcept
         {
             Faction faction;
 
-            modSystem.GetServerModId(factions[i].faction->formID, faction.Id);
+            faction.Id = ToSession(factions[i].faction->formID).value_or(GameId{});
             faction.Rank = factions[i].rank;
 
             result.NpcFactions.push_back(faction);
@@ -550,7 +549,7 @@ Factions Actor::GetFactions() const noexcept
         {
             Faction faction;
 
-            modSystem.GetServerModId(pChanges->entries[i].faction->formID, faction.Id);
+            faction.Id = ToSession(pChanges->entries[i].faction->formID).value_or(GameId{});
             faction.Rank = pChanges->entries[i].rank;
 
             result.ExtraFactions.push_back(faction);
@@ -625,16 +624,14 @@ MagicEquipment Actor::GetMagicEquipment() const noexcept
 {
     MagicEquipment equipment;
 
-    auto& modSystem = World::Get().GetModSystem();
-
     uint32_t mainId = magicItems[0] ? magicItems[0]->formID : 0;
-    modSystem.GetServerModId(mainId, equipment.LeftHandSpell);
+    equipment.LeftHandSpell = ToSession(mainId).value_or(GameId{});
 
     uint32_t secondaryId = magicItems[1] ? magicItems[1]->formID : 0;
-    modSystem.GetServerModId(secondaryId, equipment.RightHandSpell);
+    equipment.RightHandSpell = ToSession(secondaryId).value_or(GameId{});
 
     uint32_t shoutId = equippedShout ? equippedShout->formID : 0;
-    modSystem.GetServerModId(shoutId, equipment.Shout);
+    equipment.Shout = ToSession(shoutId).value_or(GameId{});
 
     return equipment;
 }
@@ -675,25 +672,24 @@ void Actor::SetActorInventory(const Inventory& acInventory) noexcept
 void Actor::SetMagicEquipment(const MagicEquipment& acEquipment) noexcept
 {
     auto* pEquipManager = EquipManager::Get();
-    auto& modSystem = World::Get().GetModSystem();
 
     if (acEquipment.LeftHandSpell)
     {
-        uint32_t mainHandWeaponId = modSystem.GetGameId(acEquipment.LeftHandSpell);
+        uint32_t mainHandWeaponId = ToGame(acEquipment.LeftHandSpell);
         spdlog::debug("Setting left hand spell: {:X}", mainHandWeaponId);
         pEquipManager->EquipSpell(this, TESForm::GetById(mainHandWeaponId), 0);
     }
 
     if (acEquipment.RightHandSpell)
     {
-        uint32_t secondaryHandWeaponId = modSystem.GetGameId(acEquipment.RightHandSpell);
+        uint32_t secondaryHandWeaponId = ToGame(acEquipment.RightHandSpell);
         spdlog::debug("Setting right hand spell: {:X}", secondaryHandWeaponId);
         pEquipManager->EquipSpell(this, TESForm::GetById(secondaryHandWeaponId), 1);
     }
 
     if (acEquipment.Shout)
     {
-        uint32_t shoutId = modSystem.GetGameId(acEquipment.Shout);
+        uint32_t shoutId = ToGame(acEquipment.Shout);
         spdlog::debug("Setting shout: {:X}", shoutId);
         pEquipManager->EquipShout(this, TESForm::GetById(shoutId));
     }
@@ -712,11 +708,9 @@ void Actor::SetFactions(const Factions& acFactions) noexcept
 {
     RemoveFromAllFactions();
 
-    auto& modSystem = World::Get().GetModSystem();
-
     for (auto& entry : acFactions.NpcFactions)
     {
-        auto pForm = GetById(modSystem.GetGameId(entry.Id));
+        auto pForm = GetById(ToGame(entry.Id));
         auto pFaction = Cast<TESFaction>(pForm);
         if (pFaction)
         {
@@ -726,7 +720,7 @@ void Actor::SetFactions(const Factions& acFactions) noexcept
 
     for (auto& entry : acFactions.ExtraFactions)
     {
-        auto pForm = GetById(modSystem.GetGameId(entry.Id));
+        auto pForm = GetById(ToGame(entry.Id));
         auto pFaction = Cast<TESFaction>(pForm);
         if (pFaction)
         {
@@ -1106,10 +1100,9 @@ void HookAddInventoryItem(Actor* apThis, TESBoundObject* apItem, ExtraDataList* 
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
-        auto& modSystem = World::Get().GetModSystem();
 
         Inventory::Entry item{};
-        modSystem.GetServerModId(apItem->formID, item.BaseId);
+        item.BaseId = ToSession(apItem->formID).value_or(GameId{});
         item.Count = aCount;
 
         if (apExtraData)
@@ -1125,10 +1118,9 @@ void* HookPickUpObject(Actor* apThis, TESObjectREFR* apObject, int32_t aCount, b
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
-        auto& modSystem = World::Get().GetModSystem();
 
         Inventory::Entry item{};
-        modSystem.GetServerModId(apObject->baseForm->formID, item.BaseId);
+        item.BaseId = ToSession(apObject->baseForm->formID).value_or(GameId{});
         item.Count = aCount;
 
         if (apObject->GetExtraDataList())
@@ -1151,10 +1143,9 @@ void Actor::PickUpObject(TESObjectREFR* apObject, int32_t aCount, bool aUnk1, fl
 
 void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, ExtraDataList* apExtraData, int32_t aCount, NiPoint3* apLocation, NiPoint3* apRotation)
 {
-    auto& modSystem = World::Get().GetModSystem();
 
     Inventory::Entry item{};
-    modSystem.GetServerModId(apObject->formID, item.BaseId);
+    item.BaseId = ToSession(apObject->formID).value_or(GameId{});
     item.Count = -aCount;
 
     if (apExtraData)
@@ -1171,9 +1162,7 @@ void Actor::DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apLoca
 {
     ExtraDataList* pExtraData = GetExtraDataFromItem(arEntry);
 
-    ModSystem& modSystem = World::Get().GetModSystem();
-
-    uint32_t objectId = modSystem.GetGameId(arEntry.BaseId);
+    uint32_t objectId = ToGame(arEntry.BaseId);
     TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(objectId));
     if (!pObject)
     {

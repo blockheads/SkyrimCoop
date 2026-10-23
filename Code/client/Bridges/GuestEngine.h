@@ -10,7 +10,6 @@
 #include <optional>
 #include <NoCopyMove.h>
 
-struct ModSystem;
 struct TESObjectREFR;
 struct TESQuest;
 
@@ -21,7 +20,7 @@ struct TESQuest;
 class GuestEngine
 {
 public:
-    explicit GuestEngine(const ModSystem& acMods) noexcept;
+    GuestEngine() noexcept;
     ~GuestEngine() noexcept;
 
     NO_COPY_MOVE(GuestEngine);
@@ -72,7 +71,6 @@ private:
     // The host's rest of a physics object: put there and held (its bodies keyframed).
     bool PlaceAtHostRest(TESObjectREFR& aObject, const ObjectChange& acMove) noexcept;
 
-    const ModSystem& m_mods;
     // The host's created references' ids (base id part) and this game's, by handle.
     std::unordered_map<uint32_t, uint32_t> m_created;
 };

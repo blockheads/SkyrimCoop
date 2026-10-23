@@ -38,8 +38,8 @@ attaches, with no save involved. `FormState` follows those two routines:
 
 Saves write a form reference as a 3-byte index into the save's form id array (`WriteFormID` 36048, 36047;
 `ReadFormID` 36000). Upstream's hooks (`Games/SaveLoad.cpp`) replace them, while `ScopedSaveLoadOverride`
-is held, with network ids: the mod and base id from `ModSystem`, as two var ints. So the bytes mean the
-same on any game with the same mods.
+is held, with network ids: the mod and base id (`FormIds.h`; a created form's as `kCreatedModId`), as two var
+ints. So the bytes mean the same on any game with the same mods.
 
 - `ReadFormID` returns true for a reference whose form is gone (a nonzero index that resolves to 0). Upstream's
   hook returned true always; it returns the engine's meaning now.

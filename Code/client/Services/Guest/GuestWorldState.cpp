@@ -11,6 +11,7 @@
 #include <Services/TransportService.h>
 #include <Services/WorldStateLog.h>
 #include <World.h>
+#include <FormIds.h>
 
 GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine& aEngine) noexcept
     : m_world(aWorld)
@@ -87,9 +88,11 @@ void GuestWorldState::OnLockChange(const LockChangeEvent& acEvent) noexcept
     // The world's own (its scripts, a cell load) is the host's to decide (step 5).
     if (!acEvent.ByPlayer)
         return;
-    LockChangeRequest request;
-    if (!m_world.GetModSystem().GetServerModId(acEvent.FormId, request.Id))
+    const auto cId = ToSession(acEvent.FormId);
+    if (!cId)
         return;
+    LockChangeRequest request;
+    request.Id = *cId;
     request.IsLocked = acEvent.IsLocked;
     request.LockLevel = acEvent.LockLevel;
     spdlog::info("GuestWorldState: proposed lock {:X} {} at {}", request.Id.LogFormat(), request.IsLocked ? "locked" : "unlocked", request.LockLevel);

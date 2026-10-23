@@ -6,7 +6,7 @@
 #include <Bridges/HostEngine.h>
 #include <Bridges/IActorBridge.h>
 #include <Messages/ReferencesMoveRequest.h>
-#include <Systems/ModSystem.h>
+#include <FormIds.h>
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
 #include <Services/AiStateService.h>
@@ -125,9 +125,9 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     auto& update = aMovementSnapshot.Updates[localComponent.Id];
     auto& movement = update.UpdatedMovement;
     if (const uint32_t cCell = cActors.GetActorParentCellFormId(formIdComponent.Id))
-        aWorld.GetModSystem().GetServerModId(cCell, movement.CellId.ModId, movement.CellId.BaseId);
+        movement.CellId = ToSession(cCell).value_or(GameId{});
     if (const uint32_t cWorldSpace = cActors.GetActorWorldSpaceFormId(formIdComponent.Id))
-        aWorld.GetModSystem().GetServerModId(cWorldSpace, movement.WorldSpaceId.ModId, movement.WorldSpaceId.BaseId);
+        movement.WorldSpaceId = ToSession(cWorldSpace).value_or(GameId{});
     float x = 0.f, y = 0.f, z = 0.f;
     cActors.GetActorPosition(formIdComponent.Id, x, y, z);
     movement.Position = {x, y, z};

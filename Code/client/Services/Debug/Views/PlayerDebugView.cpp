@@ -76,8 +76,6 @@ void DebugService::DrawPlayerDebugView()
         ImGui::InputInt2("Center grid", centerGrid, ImGuiInputTextFlags_ReadOnly);
     }
 
-    auto& modSystem = m_world.GetModSystem();
-
     if (ImGui::CollapsingHeader("Worn armor"))
     {
         Inventory wornArmor{};

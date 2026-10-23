@@ -2,7 +2,7 @@
 
 #include <Bridges/IFormBridge.h>
 #include <SessionIds.h>
-#include <Systems/ModSystem.h>
+#include <FormIds.h>
 #include <World.h>
 
 namespace Utils
@@ -14,7 +14,7 @@ ScriptValue ToScriptValue(const LocalValue& acValue) noexcept
         if (const auto cSessionId = GetSessionIdByFormId(acForm.FormId))
             form.SessionId = *cSessionId;
         else
-            World::Get().GetModSystem().GetServerModId(acForm.FormId, form.Form);
+            form.Form = ToSession(acForm.FormId).value_or(GameId{});
         return std::optional(form);
     };
     return *MapForm<ScriptForm>(acValue, cToSession);
@@ -24,7 +24,7 @@ std::optional<LocalValue> ToLocalValue(const ScriptValue& acValue) noexcept
 {
     const auto cToLocal = [](const ScriptForm& acForm) {
         const uint32_t cFormId = acForm.SessionId ? GetFormIdBySessionId(acForm.SessionId)
-                                                  : World::Get().GetModSystem().GetGameId(acForm.Form);
+                                                  : ToGame(acForm.Form);
         return World::Get().GetFormBridge().FormExists(cFormId) ? std::optional(LocalForm{cFormId}) : std::nullopt;
     };
     return MapForm<LocalForm>(acValue, cToLocal);

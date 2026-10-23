@@ -19,6 +19,7 @@
 #include <Components/LocalComponent.h>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
+#include <FormIds.h>
 
 MagicService::MagicService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                            IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
@@ -90,11 +91,10 @@ void MagicService::OnSpellCastEvent(const SpellCastEvent& acEvent) const noexcep
     request.CastingSource = acEvent.CastingSource;
     request.IsDualCasting = acEvent.IsDualCasting;
 
-    if (!m_world.GetModSystem().GetServerModId(acEvent.SpellId, request.SpellFormId))
-    {
-        spdlog::error("Server spell id not found for spell form id {:X}", acEvent.SpellId);
+    const auto cSpell = ToSession(acEvent.SpellId);
+    if (!cSpell)
         return;
-    }
+    request.SpellFormId = *cSpell;
 
     if (acEvent.DesiredTargetID != 0)
     {
@@ -142,7 +142,7 @@ void MagicService::OnNotifySpellCast(const NotifySpellCast& acMessage) const noe
 
     if (!spellFormId)
     {
-        spellFormId = World::Get().GetModSystem().GetGameId(acMessage.SpellFormId);
+        spellFormId = ToGame(acMessage.SpellFormId);
         if (spellFormId == 0)
         {
             spdlog::error("Could not find spell form id for GameId base {:X}, mod {:X}", acMessage.SpellFormId.BaseId, acMessage.SpellFormId.ModId);
@@ -234,17 +234,12 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
 
     AddTargetRequest request{};
 
-    if (!m_world.GetModSystem().GetServerModId(acEvent.SpellID, request.SpellId.ModId, request.SpellId.BaseId))
-    {
-        spdlog::error("{}: could not find server ID for spell with formID {:X}, discarding", __FUNCTION__, acEvent.SpellID);
+    const auto cSpell = ToSession(acEvent.SpellID);
+    const auto cEffect = ToSession(acEvent.EffectID);
+    if (!cSpell || !cEffect)
         return;
-    }
-
-    if (!m_world.GetModSystem().GetServerModId(acEvent.EffectID, request.EffectId.ModId, request.EffectId.BaseId))
-    {
-        spdlog::error("{}: could not find server ID for effect with formID {:X}, discarding", __FUNCTION__, acEvent.EffectID);
-        return;
-    }
+    request.SpellId = *cSpell;
+    request.EffectId = *cEffect;
 
     request.Magnitude = acEvent.Magnitude;
 
@@ -303,7 +298,7 @@ void MagicService::OnAddTargetEvent(const AddTargetEvent& acEvent) noexcept
 
 void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
 {
-    const uint32_t cSpellId = World::Get().GetModSystem().GetGameId(acMessage.SpellId);
+    const uint32_t cSpellId = ToGame(acMessage.SpellId);
     if (cSpellId == 0)
     {
         spdlog::error("{}: failed to retrieve formID of server spell id, GameId base: {:X}, mod: {:X}, discarding", __FUNCTION__, acMessage.SpellId.BaseId, acMessage.SpellId.ModId);
@@ -316,7 +311,7 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
         return;
     }
 
-    const uint32_t cEffectId = World::Get().GetModSystem().GetGameId(acMessage.EffectId);
+    const uint32_t cEffectId = ToGame(acMessage.EffectId);
     if (cEffectId == 0)
     {
         spdlog::error("{}: failed to retrieve formID of server effect id, GameId base: {:X}, mod: {:X}, discarding", __FUNCTION__, acMessage.EffectId.BaseId, acMessage.EffectId.ModId);
@@ -368,11 +363,10 @@ void MagicService::OnRemoveSpellEvent(const RemoveSpellEvent& acEvent) noexcept
 
     RemoveSpellRequest request{};
 
-    if (!m_world.GetModSystem().GetServerModId(acEvent.SpellId, request.SpellId.ModId, request.SpellId.BaseId))
-    {
-        spdlog::error("{}: Could not find spell with form {:X}", __FUNCTION__, acEvent.SpellId);
+    const auto cSpell = ToSession(acEvent.SpellId);
+    if (!cSpell)
         return;
-    }
+    request.SpellId = *cSpell;
 
     auto view = m_world.view<FormIdComponent>();
     const auto it = std::find_if(std::begin(view), std::end(view), [id = acEvent.TargetId, view](auto entity) {
@@ -406,7 +400,7 @@ void MagicService::OnNotifyRemoveSpell(const NotifyRemoveSpell& acMessage) noexc
         return;
     }
 
-    const uint32_t cSpellId = World::Get().GetModSystem().GetGameId(acMessage.SpellId);
+    const uint32_t cSpellId = ToGame(acMessage.SpellId);
     if (cSpellId == 0)
     {
         spdlog::error("{}: failed to retrieve spell id, GameId base: {:X}, mod: {:X}", __FUNCTION__,

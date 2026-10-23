@@ -8,6 +8,7 @@
 
 #include <DefaultObjectManager.h>
 #include <RTTI.h>
+#include <FormIds.h>
 
 void DebugService::DrawContainerDebugView()
 {
@@ -52,8 +53,7 @@ void DebugService::DrawContainerDebugView()
                 World::Get().GetRunner().Queue(
                     [entry, actorId = pActor->formID]()
                     {
-                        auto& modSystem = World::Get().GetModSystem();
-                        uint32_t itemId = modSystem.GetGameId(entry.BaseId);
+                        uint32_t itemId = ToGame(entry.BaseId);
                         TESForm* pItem = TESForm::GetById(itemId);
                         Actor* pActor = Cast<Actor>(TESForm::GetById(actorId));
                         EquipManager::Get()->Equip(pActor, pItem, nullptr, entry.Count, DefaultObjectManager::Get().rightEquipSlot, false, true, false, false);
@@ -64,8 +64,7 @@ void DebugService::DrawContainerDebugView()
                 World::Get().GetRunner().Queue(
                     [entry, actorId = pActor->formID]()
                     {
-                        auto& modSystem = World::Get().GetModSystem();
-                        uint32_t itemId = modSystem.GetGameId(entry.BaseId);
+                        uint32_t itemId = ToGame(entry.BaseId);
                         TESForm* pItem = TESForm::GetById(itemId);
                         Actor* pActor = Cast<Actor>(TESForm::GetById(actorId));
                         EquipManager::Get()->UnEquip(pActor, pItem, nullptr, entry.Count, DefaultObjectManager::Get().rightEquipSlot, false, true, false, false, nullptr);

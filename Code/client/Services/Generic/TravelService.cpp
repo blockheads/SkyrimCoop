@@ -12,6 +12,7 @@
 #include <Services/TransportService.h>
 #include <Components.h>
 #include <World.h>
+#include <FormIds.h>
 
 namespace
 {
@@ -43,11 +44,10 @@ TravelService::TravelService(World& aWorld, entt::dispatcher& aDispatcher, Trans
 bool TravelService::IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& acCellId,
                                    const glm::vec3& acPosition) const noexcept
 {
-    auto& modSystem = m_world.GetModSystem();
     if (!acWorldSpaceId)
-        return modSystem.GetGameId(acCellId) == m_playerBridge.GetPlayerParentCellFormId();
+        return ToGame(acCellId) == m_playerBridge.GetPlayerParentCellFormId();
     const uint32_t cPlayerWorldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
-    if (!cPlayerWorldSpaceId || modSystem.GetGameId(acWorldSpaceId) != cPlayerWorldSpaceId)
+    if (!cPlayerWorldSpaceId || ToGame(acWorldSpaceId) != cPlayerWorldSpaceId)
         return false;
     float x, y, z;
     m_playerBridge.GetPlayerPosition(x, y, z);
@@ -58,11 +58,10 @@ bool TravelService::IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& a
 uint32_t TravelService::CellAt(const GameId& acWorldSpaceId, const GameId& acCellId,
                                const glm::vec3& acPosition) const noexcept
 {
-    auto& modSystem = m_world.GetModSystem();
     if (!acWorldSpaceId)
-        return modSystem.GetGameId(acCellId);
+        return ToGame(acCellId);
     const GridCellCoords cCoordinates = GridCellCoords::CalculateGridCellCoords(acPosition.x, acPosition.y);
-    return m_formBridge.LookupCellByCoords(modSystem.GetGameId(acWorldSpaceId), cCoordinates.X, cCoordinates.Y);
+    return m_formBridge.LookupCellByCoords(ToGame(acWorldSpaceId), cCoordinates.X, cCoordinates.Y);
 }
 
 // The player travelled (PlayerCharacter::ConsumeTeleported). Runs here, not in the engine's event, which

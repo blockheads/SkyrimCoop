@@ -50,6 +50,7 @@
 #include <World.h>
 #include <SessionIds.h>
 #include <Services/HostService.h>
+#include <FormIds.h>
 
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept
@@ -80,7 +81,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     m_mountConnection = m_dispatcher.sink<MountEvent>().connect<&CharacterService::OnMountEvent>(this);
     m_notifyMountConnection = m_dispatcher.sink<NotifyMount>().connect<&CharacterService::OnNotifyMount>(this);
 
-
     m_notifyRespawnConnection = m_dispatcher.sink<NotifyRespawn>().connect<&CharacterService::OnNotifyRespawn>(this);
     m_playerArrivedConnection =
         m_dispatcher.sink<PlayerArrivedEvent>().connect<&CharacterService::OnPlayerArrived>(this);
@@ -94,7 +94,6 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     m_subtitleEventConnection = m_dispatcher.sink<SubtitleEvent>().connect<&CharacterService::OnSubtitleEvent>(this);
     m_subtitleSyncConnection = m_dispatcher.sink<NotifySubtitle>().connect<&CharacterService::OnNotifySubtitle>(this);
-
 
 }
 
@@ -395,7 +394,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
 
         if (acMessage.BaseId != GameId{})
         {
-            const auto cNpcId = World::Get().GetModSystem().GetGameId(acMessage.BaseId);
+            const auto cNpcId = ToGame(acMessage.BaseId);
             if (cNpcId == 0)
             {
                 spdlog::error("Failed to retrieve NPC, it will not be spawned, possibly missing mod, base: {:X}:{:X}, form: {:X}:{:X}", acMessage.BaseId.BaseId, acMessage.BaseId.ModId, acMessage.FormId.BaseId, acMessage.FormId.ModId);
@@ -415,7 +414,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
     }
     else
     {
-        const uint32_t cActorId = World::Get().GetModSystem().GetGameId(acMessage.FormId);
+        const uint32_t cActorId = ToGame(acMessage.FormId);
 
         auto waitingView = m_world.view<FormIdComponent, WaitingForAssignmentComponent>();
         const auto waitingItor = std::find_if(std::begin(waitingView), std::end(waitingView), [waitingView, cActorId](auto entity) { return waitingView.get<FormIdComponent>(entity).Id == cActorId; });
@@ -464,7 +463,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
     uint32_t cellId = m_playerBridge.GetPlayerParentCellFormId();
     if (acMessage.FormId != GameId{})
     {
-        if (const uint32_t cOwnerCellId = m_world.GetModSystem().GetGameId(acMessage.CellId))
+        if (const uint32_t cOwnerCellId = ToGame(acMessage.CellId))
             cellId = cOwnerCellId;
     }
     m_actorBridge.MoveActorTo(actorFormId, cellId, acMessage.Position.x, acMessage.Position.y, acMessage.Position.z);
@@ -703,12 +702,14 @@ ActorWhereabouts CharacterService::ReadWhereabouts(uint32_t aFormId) const noexc
         where.Where = ActorWhereabouts::State::kDisabled;
     else
     {
-        auto& modSystem = m_world.GetModSystem();
         const uint32_t cCellId = m_actorBridge.GetActorParentCellFormId(aFormId);
         const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(aFormId);
-        if (!cCellId || !modSystem.GetServerModId(cCellId, where.CellId) ||
-            (cWorldSpaceId && !modSystem.GetServerModId(cWorldSpaceId, where.WorldSpaceId)))
+        const auto cCell = cCellId ? ToSession(cCellId) : std::nullopt;
+        const auto cWorldSpace = cWorldSpaceId ? ToSession(cWorldSpaceId) : std::optional(GameId{});
+        if (!cCell || !cWorldSpace)
             return {};
+        where.CellId = *cCell;
+        where.WorldSpaceId = *cWorldSpace;
         float x = 0.f, y = 0.f, z = 0.f;
         m_actorBridge.GetActorPosition(aFormId, x, y, z);
         where.Position = {x, y, z};
@@ -1042,27 +1043,23 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
 
     AssignCharacterRequest message{};
 
-    if (!m_world.GetModSystem().GetServerModId(formIdComponent.Id, message.ReferenceId))
-    {
-        spdlog::error("Server reference id not found for form id {:X}", formIdComponent.Id);
+    // A created actor goes by its created id: the spawn rebuilds it from its base (NotifyCharacterSpawn).
+    const auto cReference = ToSessionOrCreated(formIdComponent.Id);
+    if (!cReference)
         return std::nullopt;
-    }
+    message.ReferenceId = *cReference;
 
-    const uint32_t cParentCellId = m_actorBridge.GetActorParentCellFormId(formIdComponent.Id);
-    if (!m_world.GetModSystem().GetServerModId(cParentCellId, message.CellId))
-    {
-        spdlog::error("Server cell id not found for cell id {:X}", cParentCellId);
+    const auto cCell = ToSession(m_actorBridge.GetActorParentCellFormId(formIdComponent.Id));
+    if (!cCell)
         return std::nullopt;
-    }
+    message.CellId = *cCell;
 
-    const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(formIdComponent.Id);
-    if (cWorldSpaceId)
+    if (const uint32_t cWorldSpaceId = m_actorBridge.GetActorWorldSpaceFormId(formIdComponent.Id))
     {
-        if (!m_world.GetModSystem().GetServerModId(cWorldSpaceId, message.WorldSpaceId))
-        {
-            spdlog::error("Server worldspace id not found for {:X}", cWorldSpaceId);
+        const auto cWorldSpace = ToSession(cWorldSpaceId);
+        if (!cWorldSpace)
             return std::nullopt;
-        }
+        message.WorldSpaceId = *cWorldSpace;
     }
 
     const auto cState = ReadLiveState(formIdComponent.Id);
@@ -1109,10 +1106,12 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
         uint32_t cNpcTemplateId = m_actorBridge.GetActorNpcTemplateBaseFormId(formIdComponent.Id);
         if (!cNpcTemplateId && !m_actorBridge.IsActorNpcTemporary(formIdComponent.Id))
             cNpcTemplateId = m_actorBridge.GetActorBaseFormId(formIdComponent.Id);
-        if (cNpcTemplateId && !m_world.GetModSystem().GetServerModId(cNpcTemplateId, message.FormId))
+        if (cNpcTemplateId)
         {
-            spdlog::error("Server NPC form id not found for form id {:X}", cNpcTemplateId);
-            return std::nullopt;
+            const auto cTemplate = ToSession(cNpcTemplateId);
+            if (!cTemplate)
+                return std::nullopt;
+            message.FormId = *cTemplate;
         }
     }
 
@@ -1455,12 +1454,12 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
     });
 
     EnterCellRequest request;
-    auto& modSystem = m_world.GetModSystem();
-    if (!modSystem.GetServerModId(cCellId, request.CellId) || (cWorldSpaceId && !modSystem.GetServerModId(cWorldSpaceId, request.WorldSpaceId)))
-    {
-        spdlog::error("Arrived in cell {:X} (worldspace {:X}) the host cannot know: no mod id", cCellId, cWorldSpaceId);
+    const auto cCell = ToSession(cCellId);
+    const auto cWorldSpace = cWorldSpaceId ? ToSession(cWorldSpaceId) : std::optional(GameId{});
+    if (!cCell || !cWorldSpace)
         return;
-    }
+    request.CellId = *cCell;
+    request.WorldSpaceId = *cWorldSpace;
     float x, y, z;
     m_playerBridge.GetPlayerPosition(x, y, z);
     request.Position = glm::vec3(x, y, z);

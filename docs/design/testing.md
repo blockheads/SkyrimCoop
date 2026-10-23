@@ -99,7 +99,7 @@ one process
     World "Lydia" (a guest)                TransportService::Connect 127.0.0.1 (enet, as from another machine)
   each World (Seams.cpp): the services a flow needs, real
     TransportService, CutsceneService, RunnerService, CharacterService, TravelService, ActorValueService,
-    PlayerService, ModSystem, HostService
+    PlayerService, HostService
     (HostSeams.cpp: hosting as in Skyrim, its reads from the fake world and CharacterService);
     on a guest GuestWorldState (GuestSeams.cpp, as it joins)
     SkyrimBridge = FakeEngine: StillBridges (every bridge call answers nothing) + ControlMap's mask + a script VM
@@ -110,7 +110,7 @@ one process
 ```
 
 Real code in it: `TransportService`, `CutsceneService`, `RunnerService`, `CharacterService`, `TravelService`,
-`ActorValueService`, `PlayerService`, `InterpolationSystem`, `ModSystem`, `GuestWorldState`, the script value conversions (`ScriptValues.cpp`) and
+`ActorValueService`, `PlayerService`, `InterpolationSystem`, `GuestWorldState`, the script value conversions (`ScriptValues.cpp`) and
 session ids (`SessionIds.cpp`), `HostNetwork`, `HostAuthority` and its rules (`HostWorldState` included),
 `PartyRules`, the encoding and the network. Fake (link seams, no production interface widened): `World`'s
 constructor (the services above, in the real order, destroyed first), `SkyrimBridge`, `RunningGame`,

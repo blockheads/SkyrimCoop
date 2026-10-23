@@ -23,6 +23,7 @@
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
 #include <Components/WaitingForAssignmentComponent.h>
+#include <FormIds.h>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                     IActorBridge& aActorBridge, IFormBridge& aFormBridge) noexcept
@@ -110,15 +111,15 @@ void InventoryService::OnEquipmentChangeEvent(const EquipmentChangeEvent& acEven
     if (!m_actorBridge.ActorExists(acEvent.ActorId))
         return;
 
-    auto& modSystem = World::Get().GetModSystem();
-
     RequestEquipmentChanges request;
     request.SessionId = sessionIdRes.value_or(0);
 
-    if (!modSystem.GetServerModId(acEvent.EquipSlotId, request.EquipSlotId))
+    const auto cSlot = ToSession(acEvent.EquipSlotId);
+    const auto cItem = ToSession(acEvent.ItemId);
+    if (!cSlot || !cItem)
         return;
-    if (!modSystem.GetServerModId(acEvent.ItemId, request.ItemId))
-        return;
+    request.EquipSlotId = *cSlot;
+    request.ItemId = *cItem;
 
     request.Count = acEvent.Count;
     request.Unequip = acEvent.Unequip;
@@ -173,16 +174,14 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
         return;
     }
 
-    auto& modSystem = World::Get().GetModSystem();
-
-    uint32_t itemId = modSystem.GetGameId(acMessage.ItemId);
+    uint32_t itemId = ToGame(acMessage.ItemId);
     if (!m_formBridge.FormExists(itemId))
     {
         spdlog::error("Could not find inventory item {:X}:{:X}", acMessage.ItemId.ModId, acMessage.ItemId.BaseId);
         return;
     }
 
-    uint32_t equipSlotId = modSystem.GetGameId(acMessage.EquipSlotId);
+    uint32_t equipSlotId = ToGame(acMessage.EquipSlotId);
 
     // Determine slot index: 1 = right hand, 0 = left hand
     uint32_t slotId = m_formBridge.IsRightHandEquipSlot(equipSlotId) ? 1 : 0;
@@ -216,7 +215,7 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
             Inventory wornArmor = m_formBridge.GetActorWornArmor(cActorFormId);
             for (const auto& armor : wornArmor.Entries)
             {
-                uint32_t armorId = modSystem.GetGameId(armor.BaseId);
+                uint32_t armorId = ToGame(armor.BaseId);
                 if (m_formBridge.FormExists(armorId))
                     m_formBridge.ActorUnequipItem(cActorFormId, armorId, equipSlotId, 1);
             }
@@ -225,7 +224,7 @@ void InventoryService::OnNotifyEquipmentChanges(const NotifyEquipmentChanges& ac
 
             for (const auto& armor : wornArmor.Entries)
             {
-                uint32_t armorId = modSystem.GetGameId(armor.BaseId);
+                uint32_t armorId = ToGame(armor.BaseId);
                 if (m_formBridge.FormExists(armorId))
                     m_formBridge.ActorEquipItem(cActorFormId, armorId, equipSlotId, 1);
             }
@@ -292,14 +291,13 @@ void InventoryService::OnNotifyEquipmentSnapshot(const NotifyEquipmentSnapshot& 
     constexpr uint32_t cRightHandSlot = 0x13F42;
     constexpr uint32_t cLeftHandSlot = 0x13F43;
     constexpr uint8_t cArmorType = 26;
-    auto& modSystem = World::Get().GetModSystem();
 
     // Worn items as (game form id, left hand) on each side.
     const auto worn = [&](const Inventory& acInventory) {
         std::set<std::pair<uint32_t, bool>> items;
         for (const auto& entry : acInventory.Entries)
             if (entry.IsWorn())
-                if (const uint32_t cId = modSystem.GetGameId(entry.BaseId))
+                if (const uint32_t cId = ToGame(entry.BaseId))
                     items.insert({cId, entry.ExtraWornLeft});
         return items;
     };

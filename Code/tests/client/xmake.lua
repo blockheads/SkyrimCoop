@@ -8,5 +8,6 @@ target("ClientTests")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp", "../../client/Games/Skyrim/Papyrus/ScriptTags.cpp",
               "../../client/Games/Skyrim/Papyrus/OwnEvents.cpp", "../../client/Games/Skyrim/Papyrus/CodeReach.cpp")
     add_includedirs("../../client", "../../client/Games/Skyrim")
-    add_packages("catch2", "zydis")
+    add_deps("SkyrimEncoding")
+    add_packages("catch2", "zydis", "glm")
 target_end()

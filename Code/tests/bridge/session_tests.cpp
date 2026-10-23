@@ -81,12 +81,8 @@ TEST_CASE("Join: accepted with a player id, the session's settings and the sessi
     CHECK_FALSE(cResponse.Settings.PvpEnabled);
     CHECK_FALSE(cResponse.Settings.GreetingsEnabled);
 
-    REQUIRE(cResponse.UserMods.ModList.size() == 3);
-    CHECK(cResponse.UserMods.ModList[0].Filename == "Skyrim.esm");
-    CHECK_FALSE(cResponse.UserMods.ModList[0].IsLite);
-    CHECK(cResponse.UserMods.ModList[2].Filename == "ccBGSSSE001-Fish.esm");
-    CHECK(cResponse.UserMods.ModList[2].IsLite);
-    CHECK(cResponse.UserMods.ModList[0].Id != cResponse.UserMods.ModList[1].Id);
+    // Its plugins are the host's, so a form's id is the same in both games: no list comes back to map them.
+    CHECK(cResponse.UserMods.ModList.empty());
 
     // The others learn the newcomer.
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).size() == 1);
@@ -340,27 +336,3 @@ TEST_CASE("Player list: a player who leaves and joins again gets a new id", "[Br
     CHECK(cAnnounced[0]->PlayerId == cAgain);
 }
 
-TEST_CASE("Mod ids: a plugin's session id is its place in the load order, the same for every player", "[Bridge][Session]")
-{
-    Session session;
-    // Every GameId on the wire names a plugin by these: each game maps them to its own plugin indices.
-    const auto cIds = [](const Mods& acMods) {
-        std::vector<std::tuple<std::string, uint16_t, bool>> ids;
-        for (const auto& cEntry : acMods.ModList)
-            ids.emplace_back(cEntry.Filename.c_str(), cEntry.Id, cEntry.IsLite);
-        return ids;
-    };
-    const std::vector<std::tuple<std::string, uint16_t, bool>> cExpected{
-        {"Skyrim.esm", 0, false}, {"Update.esm", 1, false}, {"ccBGSSSE001-Fish.esm", 2, true}};
-
-    session.Receive(kNewcomer, Join("Serana"));
-    CHECK(cIds(OnlyResponse(session, kNewcomer).UserMods) == cExpected);
-
-    // A second newcomer, whose game names a plugin in another case: the same ids, under its own names.
-    auto join = Join("Inigo");
-    join.UserMods.ModList[1].Filename = "update.esm";
-    session.Receive(5, join);
-    auto expected = cExpected;
-    std::get<0>(expected[1]) = "update.esm";
-    CHECK(cIds(OnlyResponse(session, 5).UserMods) == expected);
-}

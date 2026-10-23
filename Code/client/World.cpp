@@ -67,7 +67,6 @@ World::World()
     , m_pDialogueBridge(std::make_unique<DialogueBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
-    , m_modSystem(m_dispatcher, ctx().at<IFormBridge&>())
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
 {
 
@@ -167,11 +166,6 @@ RunnerService& World::GetRunner() noexcept
 TransportService& World::GetTransport() noexcept
 {
     return m_transport;
-}
-
-ModSystem& World::GetModSystem() noexcept
-{
-    return m_modSystem;
 }
 
 IActorBridge& World::GetActorBridge() noexcept

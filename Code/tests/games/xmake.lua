@@ -13,7 +13,7 @@ target("GameTests")
               "../../client/Services/Generic/CharacterService.cpp", "../../client/Services/Generic/TravelService.cpp",
               "../../client/Services/Generic/SessionService.cpp", "../../client/Services/Generic/ActorValueService.cpp",
               "../../client/Services/Generic/PlayerService.cpp", "../../client/Services/Generic/InventoryService.cpp",
-              "../../client/Systems/InterpolationSystem.cpp", "../../client/Systems/ModSystem.cpp",
+              "../../client/Systems/InterpolationSystem.cpp",
               "../../client/Services/Guest/GuestWorldState.cpp", "../../client/Services/Guest/GuestClock.cpp",
               "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Generic/MapService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/MagicService.cpp",

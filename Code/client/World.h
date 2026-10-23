@@ -6,7 +6,6 @@
 
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
-#include <Systems/ModSystem.h>
 
 #include <Structs/ServerSettings.h>
 
@@ -46,7 +45,6 @@ struct World : entt::registry
 
     RunnerService& GetRunner() noexcept;
     TransportService& GetTransport() noexcept;
-    ModSystem& GetModSystem() noexcept;
 
     SessionService& GetSessionService() noexcept;
     const SessionService& GetSessionService() const noexcept;
@@ -84,7 +82,6 @@ private:
     std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
     RunnerService m_runner;
     TransportService m_transport;
-    ModSystem m_modSystem;
     ServerSettings m_serverSettings{};
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;

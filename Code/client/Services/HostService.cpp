@@ -108,7 +108,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     }
     m_pNetwork = std::move(pNetwork);
 
-    m_pEngine = std::make_unique<HostEngine>(m_world.GetModSystem());
+    m_pEngine = std::make_unique<HostEngine>();
     HostGame game;
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };

@@ -12,6 +12,7 @@
 #include <Hooks/FunctionHook.h>
 #include <Hooks/Initializer.h>
 #include <VersionDb.h>
+#include <FormIds.h>
 
 using Wire::Serialization;
 
@@ -48,15 +49,13 @@ void BGSSaveFormBuffer::Reserve(uint32_t aSize) noexcept
 
 void BGSSaveFormBuffer::WriteId(uint32_t aId) noexcept
 {
-    uint32_t modId = 0;
-    uint32_t baseId = 0;
-    World::Get().GetModSystem().GetServerModId(aId, modId, baseId);
+    const GameId cId = ToSessionOrCreated(aId).value_or(GameId{});
 
     constexpr uint32_t cMaxVarInts = 20; // two var ints of up to 10 bytes
     Reserve(position + cMaxVarInts);
     Wire::Buffer::Writer writer(std::span(reinterpret_cast<uint8_t*>(buffer + position), capacity - position));
-    Serialization::WriteVarInt(writer, modId);
-    Serialization::WriteVarInt(writer, baseId);
+    Serialization::WriteVarInt(writer, cId.ModId);
+    Serialization::WriteVarInt(writer, cId.BaseId);
     position += writer.Size() & 0xFFFFFFFF;
 }
 
@@ -169,7 +168,7 @@ bool BGSLoadFormBuffer_LoadFormId(BGSLoadFormBuffer* apThis, uint32_t& aFormId)
     aFormId = 0;
 
     if (modId != 0 || baseId != 0)
-        aFormId = World::Get().GetModSystem().GetGameId(modId, baseId);
+        aFormId = ToGame(GameId(modId, baseId));
 
     apThis->position += reader.Size() & 0xFFFFFFFF;
 

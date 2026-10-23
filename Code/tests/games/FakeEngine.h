@@ -479,7 +479,7 @@ LocalCall DisablePlayerControls(bool aMovement = true, bool aFighting = true, bo
 LocalCall EnablePlayerControls(bool aMovement = true, bool aFighting = true, bool aCamSwitch = true,
                                bool aLooking = true, bool aSneaking = true, bool aMenu = true, bool aActivate = true);
 
-// Session ids of this game's form ids, one load order (ModSystem's fake).
+// Session ids of this game's form ids, one load order (FormIds.h's ToSession).
 [[nodiscard]] GameId SessionIdOf(uint32_t aFormId) noexcept;
 [[nodiscard]] uint32_t FormIdOf(const GameId& acId) noexcept;
 

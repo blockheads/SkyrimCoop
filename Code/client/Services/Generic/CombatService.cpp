@@ -8,7 +8,7 @@
 
 #include <Messages/Relayed.h>
 
-#include <Systems/ModSystem.h>
+#include <FormIds.h>
 #include <World.h>
 
 #include <Bridges/IActorBridge.h>
@@ -45,7 +45,6 @@ void CombatService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::ent
 
 void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept
 {
-    ModSystem& modSystem = m_world.Get().GetModSystem();
 
     uint32_t shooterFormId = acEvent.ShooterID;
     auto view = m_world.view<FormIdComponent, LocalComponent>();
@@ -65,9 +64,9 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
     request.OriginY = acEvent.Origin.y;
     request.OriginZ = acEvent.Origin.z;
 
-    modSystem.GetServerModId(acEvent.ProjectileBaseID, request.ProjectileBaseID);
-    modSystem.GetServerModId(acEvent.WeaponID, request.WeaponID);
-    modSystem.GetServerModId(acEvent.AmmoID, request.AmmoID);
+    request.ProjectileBaseID = ToSession(acEvent.ProjectileBaseID).value_or(GameId{});
+    request.WeaponID = ToSession(acEvent.WeaponID).value_or(GameId{});
+    request.AmmoID = ToSession(acEvent.AmmoID).value_or(GameId{});
 
     request.ShooterID = localComponent.Id;
 
@@ -75,8 +74,8 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
     request.XAngle = acEvent.XAngle;
     request.YAngle = acEvent.YAngle;
 
-    modSystem.GetServerModId(acEvent.ParentCellID, request.ParentCellID);
-    modSystem.GetServerModId(acEvent.SpellID, request.SpellID);
+    request.ParentCellID = ToSession(acEvent.ParentCellID).value_or(GameId{});
+    request.SpellID = ToSession(acEvent.SpellID).value_or(GameId{});
 
     request.CastingSource = acEvent.CastingSource;
 
@@ -99,7 +98,6 @@ void CombatService::OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acE
 
 void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMessage) const noexcept
 {
-    ModSystem& modSystem = World::Get().GetModSystem();
     spdlog::debug("Projectile from session id {:X} received", acMessage.ShooterID);
 
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
@@ -113,17 +111,17 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
 
     FormIdComponent formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
 
-    const uint32_t cParentCellId = modSystem.GetGameId(acMessage.ParentCellID);
+    const uint32_t cParentCellId = ToGame(acMessage.ParentCellID);
     if (!m_formBridge.FormExists(cParentCellId))
     {
         spdlog::warn("Cannot launch projectile, invalid parent cell: {:X}", cParentCellId);
         return;
     }
 
-    const uint32_t cProjectileBaseId = modSystem.GetGameId(acMessage.ProjectileBaseID);
-    const uint32_t cWeaponId        = modSystem.GetGameId(acMessage.WeaponID);
-    const uint32_t cAmmoId          = modSystem.GetGameId(acMessage.AmmoID);
-    const uint32_t cSpellId         = modSystem.GetGameId(acMessage.SpellID);
+    const uint32_t cProjectileBaseId = ToGame(acMessage.ProjectileBaseID);
+    const uint32_t cWeaponId        = ToGame(acMessage.WeaponID);
+    const uint32_t cAmmoId          = ToGame(acMessage.AmmoID);
+    const uint32_t cSpellId         = ToGame(acMessage.SpellID);
 
     spdlog::debug("Projectile from session id {:X}: relaunching", acMessage.ShooterID);
     m_formBridge.LaunchProjectile(

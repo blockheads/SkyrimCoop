@@ -6,6 +6,7 @@
 #include <Services/TransportService.h>
 #include <SessionIds.h>
 #include <World.h>
+#include <FormIds.h>
 
 HostConversation::HostConversation(World& aWorld, entt::dispatcher& aDispatcher, DialogueService& aDialogue) noexcept
     : m_world(aWorld)
@@ -170,7 +171,6 @@ void HostConversation::SendOptions() noexcept
     if (!m_dialogue.Conversation() || !bridge.GetSpeaker())
         return;
 
-    auto& modSystem = m_world.GetModSystem();
     DialogueOptionsRequest request;
     request.Conversation = m_dialogue.Conversation();
     request.Step = m_dialogue.Step();
@@ -178,10 +178,10 @@ void HostConversation::SendOptions() noexcept
     for (const auto& cOption : bridge.GetOptions())
     {
         DialogueOption& option = request.Options.emplace_back();
-        modSystem.GetServerModId(cOption.Topic, option.Topic);
-        modSystem.GetServerModId(cOption.Info, option.Info);
+        option.Topic = ToSession(cOption.Topic).value_or(GameId{});
+        option.Info = ToSession(cOption.Info).value_or(GameId{});
         if (cOption.Quest)
-            modSystem.GetServerModId(cOption.Quest, option.Quest);
+            option.Quest = ToSession(cOption.Quest).value_or(GameId{});
         option.Text = cOption.Text;
     }
     spdlog::info("Dialogue: step {} of conversation {}: {} options{}", request.Step, request.Conversation,

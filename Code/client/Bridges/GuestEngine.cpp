@@ -13,7 +13,7 @@
 #include <Breadcrumbs.h>
 #include <Games/Overrides.h>
 #include <Games/ReferenceStates.h>
-#include <Systems/ModSystem.h>
+#include <FormIds.h>
 
 #include <ExtraData/ExtraContainerChanges.h>
 #include <Forms/BGSLocation.h>
@@ -32,7 +32,6 @@
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 #include <RTTI.h>
-
 
 namespace
 {
@@ -120,15 +119,15 @@ void ApplyObjectives(TESQuest& aQuest, const QuestState& acQuest, bool aAsLoad) 
         aQuest.MarkChanged(TESQuest::kChangeObjectives);
 }
 
-TESObjectREFR* FindReference(const GameId& acId, const ModSystem& acMods) noexcept
+TESObjectREFR* FindReference(const GameId& acId) noexcept
 {
-    return Cast<TESObjectREFR>(TESForm::GetById(acMods.GetGameId(acId)));
+    return Cast<TESObjectREFR>(TESForm::GetById(ToGame(acId)));
 }
 
 // Toggled only from the state the host's door was in before: one already where it went is left.
-bool ActivateDoor(TESObjectREFR& aDoor, const ObjectChange& acChange, const ModSystem& acMods) noexcept
+bool ActivateDoor(TESObjectREFR& aDoor, const ObjectChange& acChange) noexcept
 {
-    auto* pActivator = FindReference(acChange.Activator, acMods);
+    auto* pActivator = FindReference(acChange.Activator);
     if (!pActivator)
         return false;
     if (aDoor.GetOpenState() == static_cast<TESObjectREFR::OpenState>(acChange.OpenState))
@@ -151,8 +150,7 @@ void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcep
 
 } // namespace
 
-GuestEngine::GuestEngine(const ModSystem& acMods) noexcept
-    : m_mods(acMods)
+GuestEngine::GuestEngine() noexcept
 {
     ContainerEvents::Start();
     AiStateEvents::Start();
@@ -196,7 +194,7 @@ void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 
 bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
 {
-    TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(m_mods.GetGameId(acWeather)));
+    TESWeather* pWeather = Cast<TESWeather>(TESForm::GetById(ToGame(acWeather)));
     Sky* pSky = Sky::Get();
     if (!pWeather || !pSky)
         return pWeather != nullptr;
@@ -225,7 +223,7 @@ bool GuestEngine::RunPlayerNative(const Payloads::PlayerNative& acCall, std::fun
 
 bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 {
-    auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(m_mods.GetGameId(acGlobal.Id)));
+    auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(ToGame(acGlobal.Id)));
     if (!pGlobal || pGlobal->IsConstant())
         return false;
     pGlobal->f = acGlobal.Value;
@@ -234,7 +232,7 @@ bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
 
 void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
 {
-    auto* pQuest = Cast<TESQuest>(TESForm::GetById(m_mods.GetGameId(acQuest.Id)));
+    auto* pQuest = Cast<TESQuest>(TESForm::GetById(ToGame(acQuest.Id)));
     if (!pQuest)
         return;
     TESQuest& quest = *pQuest;
@@ -270,15 +268,15 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 
 std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
 {
-    return ::ReadContainerItems(m_mods, aObjectFormId, aItemFormId);
+    return ::ReadContainerItems(aObjectFormId, aItemFormId);
 }
 
 TESObjectREFR* GuestEngine::FindFillReference(TESQuest& aQuest, const QuestAliasFill& acFill) const noexcept
 {
     if (TESObjectREFR* pRef = FindReference(acFill.Ref))
         return pRef;
-    const uint32_t cCellId = acFill.Cell.BaseId ? m_mods.GetGameId(acFill.Cell) : 0;
-    return cCellId ? TESObjectREFR::LoadFromPlugin(m_mods.GetGameId(acFill.Ref), cCellId, acFill.GridX, acFill.GridY, &aQuest) : nullptr;
+    const uint32_t cCellId = acFill.Cell.BaseId ? ToGame(acFill.Cell) : 0;
+    return cCellId ? TESObjectREFR::LoadFromPlugin(ToGame(acFill.Ref), cCellId, acFill.GridX, acFill.GridY, &aQuest) : nullptr;
 }
 
 void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const noexcept
@@ -307,7 +305,7 @@ void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const 
     }
     for (const auto& cFill : acQuest.Locations)
     {
-        auto* pLocation = cFill.Location.BaseId ? Cast<BGSLocation>(TESForm::GetById(m_mods.GetGameId(cFill.Location))) : nullptr;
+        auto* pLocation = cFill.Location.BaseId ? Cast<BGSLocation>(TESForm::GetById(ToGame(cFill.Location))) : nullptr;
         BGSBaseAlias* pAlias = aQuest.GetAlias(cFill.AliasId);
         if (!pAlias || aQuest.GetAliasedLocation(cFill.AliasId) == pLocation)
             continue;
@@ -321,7 +319,7 @@ void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const 
 TESObjectREFR* GuestEngine::FindReference(const GameId& acId) const noexcept
 {
     if (acId.ModId != ObjectChange::kCreatedModId)
-        return ::FindReference(acId, m_mods);
+        return ::FindReference(acId);
     const auto it = m_created.find(acId.BaseId);
     return it != m_created.end() ? TESObjectREFR::GetByHandle(it->second) : nullptr;
 }
@@ -331,11 +329,11 @@ bool GuestEngine::Create(const ObjectChange& acChange) noexcept
     if (const TESObjectREFR* pMade = FindReference(acChange.Object); pMade && !pMade->IsDeleted())
         return true;
     ObjectChange::Placement placement;
-    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));
+    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(ToGame(acChange.Item)));
     if (!pBase || !ObjectChange::UnpackPlacement(acChange.Data, placement))
         return false;
-    auto* pCell = placement.Cell ? Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(placement.Cell))) : nullptr;
-    auto* pWorldSpace = placement.WorldSpace ? Cast<TESWorldSpace>(TESForm::GetById(m_mods.GetGameId(placement.WorldSpace))) : nullptr;
+    auto* pCell = placement.Cell ? Cast<TESObjectCELL>(TESForm::GetById(ToGame(placement.Cell))) : nullptr;
+    auto* pWorldSpace = placement.WorldSpace ? Cast<TESWorldSpace>(TESForm::GetById(ToGame(placement.WorldSpace))) : nullptr;
     ModManager* pManager = ModManager::Get();
     if ((!pCell && !pWorldSpace) || !pManager)
         return false;
@@ -357,29 +355,29 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     auto* pObject = FindReference(acChange.Object);
     if (!pObject)
         return false;
-    if (aLoad && ReferenceStates::Matches(*pObject, acChange, m_mods))
+    if (aLoad && ReferenceStates::Matches(*pObject, acChange))
         return true;
     switch (acChange.Type)
     {
     case ObjectChange::Kind::kMove: return PlaceAtHostRest(*pObject, acChange);
-    case ObjectChange::Kind::kActivate: return ActivateDoor(*pObject, acChange, m_mods);
+    case ObjectChange::Kind::kActivate: return ActivateDoor(*pObject, acChange);
     case ObjectChange::Kind::kAnimation: PlayAnimation(*pObject, acChange); return true;
     case ObjectChange::Kind::kRecord:
         ReferenceStates::RecordRows(*pObject, acChange.Value);
         return true;
-    case ObjectChange::Kind::kContents: return ApplyContainerContents(m_mods, *pObject, acChange);
+    case ObjectChange::Kind::kContents: return ApplyContainerContents(*pObject, acChange);
     case ObjectChange::Kind::kItems:
     {
-        auto* pItem = Cast<TESBoundObject>(TESForm::GetById(m_mods.GetGameId(acChange.Item)));
+        auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ToGame(acChange.Item)));
         return !Cast<Actor>(pObject) && pObject->SetContainerCount(pItem, static_cast<int32_t>(acChange.Value));
     }
-    default: return ReferenceStates::Apply(*pObject, acChange, m_mods);
+    default: return ReferenceStates::Apply(*pObject, acChange);
     }
 }
 
 bool GuestEngine::PlaceAtHostRest(TESObjectREFR& aObject, const ObjectChange& acMove) noexcept
 {
-    if (!ReferenceStates::Apply(aObject, acMove, m_mods))
+    if (!ReferenceStates::Apply(aObject, acMove))
         return false;
     // This game's own flight of it ends there, and stays: its physics no longer moves it.
     if (NiNode* p3D = aObject.GetNiNode())
@@ -400,21 +398,26 @@ std::vector<uint32_t> GuestEngine::AttachedCells() const noexcept
 std::optional<CellStateRequest> GuestEngine::ReadCellChanges(uint32_t aCellFormId) const noexcept
 {
     auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(aCellFormId));
-    CellStateRequest request;
-    if (!pCell || !pCell->IsValid() || !m_mods.GetServerModId(aCellFormId, request.Cell))
+    const auto cCell = pCell && pCell->IsValid() ? ToSession(aCellFormId) : std::nullopt;
+    if (!cCell)
         return std::nullopt;
+    CellStateRequest request;
+    request.Cell = *cCell;
     for (const TESObjectREFR* pRef : pCell->GetReferences())
     {
         ChangedReference changed;
         changed.Flags = ReferenceStates::ChangedRows(*pRef);
-        if (changed.Flags && m_mods.GetServerModId(pRef->formID, changed.Id))
+        if (const auto cId = changed.Flags ? ToSession(pRef->formID) : std::nullopt)
+        {
+            changed.Id = *cId;
             request.Changed.push_back(changed);
+        }
     }
     return request;
 }
 
 bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
 {
-    const auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(acCell)));
+    const auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(ToGame(acCell)));
     return pCell && pCell->IsValid();
 }

@@ -20,6 +20,7 @@
 #include <Papyrus/PartyNatives.h>
 #include <Games/Overrides.h>
 #include <World.h>
+#include <FormIds.h>
 
 using namespace PartyRules;
 
@@ -803,9 +804,7 @@ namespace
 {
 GameId ServerId(uint32_t aFormId)
 {
-    GameId id;
-    World::Get().GetModSystem().GetServerModId(aFormId, id);
-    return id;
+    return ToSession(aFormId).value_or(GameId{});
 }
 } // namespace
 
@@ -869,7 +868,7 @@ void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
     std::vector<std::pair<uint32_t, uint32_t>> replaced; // item, slot
     for (const auto& cEntry : cActor->second.Items.Entries)
     {
-        const uint32_t cWornId = World::Get().GetModSystem().GetGameId(cEntry.BaseId);
+        const uint32_t cWornId = ToGame(cEntry.BaseId);
         const auto cWornForm = ItemForms.find(cWornId);
         if (cWornForm == ItemForms.end() || cWornId == aItem)
             continue;
@@ -943,7 +942,7 @@ Inventory FakeEngine::GetActorWornArmor(uint32_t aActorFormId) const noexcept
 {
     Inventory armor = GetActorEquipment(aActorFormId);
     std::erase_if(armor.Entries, [&](const Inventory::Entry& acEntry) {
-        return GetFormType(World::Get().GetModSystem().GetGameId(acEntry.BaseId)) != kArmor;
+        return GetFormType(ToGame(acEntry.BaseId)) != kArmor;
     });
     return armor;
 }
@@ -1031,7 +1030,7 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 // Added (a worn one equipped, as SetInventory's adds do) or removed.
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
-    const uint32_t cItem = World::Get().GetModSystem().GetGameId(aItem.BaseId);
+    const uint32_t cItem = ToGame(aItem.BaseId);
     AddItems(aObjectFormId, cItem, aItem.Count);
     if (aItem.Count > 0 && aItem.IsWorn())
     {

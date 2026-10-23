@@ -9,7 +9,7 @@
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
-#include <Systems/ModSystem.h>
+#include <FormIds.h>
 
 #include <Forms/FormChanges.h>
 #include <Forms/BGSLocation.h>
@@ -38,7 +38,7 @@ static_assert(QuestState::kFlags == (TESQuest::Enabled | TESQuest::Completed | T
 namespace
 {
 // A role's fill as a guest can make it (QuestAliasFill): acCreated, the created references that went out.
-QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef, const ModSystem& acMods,
+QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef,
                              const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
 {
     QuestAliasFill fill{aAliasId};
@@ -46,22 +46,27 @@ QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef, cons
         return fill;
     if (apRef->IsTemporary())
     {
-        fill.HostOnly = !acCreated.count(apRef->formID) || !acMods.GetServerModId(apRef->formID, fill.Ref);
+        fill.HostOnly = !acCreated.count(apRef->formID);
+        fill.Ref = CreatedId(apRef->formID);
         return fill;
     }
     const TESObjectCELL* pCell = apRef->GetParentCellEx();
-    if (!acMods.GetServerModId(apRef->formID, fill.Ref) || !pCell)
+    const auto cRef = ToSession(apRef->formID);
+    if (!cRef)
+        return fill;
+    fill.Ref = *cRef;
+    if (!pCell)
         return fill;
     int32_t x = 0;
     int32_t y = 0;
     const bool cOutdoors = pCell->worldspace && pCell->GetGrid(x, y);
-    acMods.GetServerModId(cOutdoors ? pCell->worldspace->formID : pCell->formID, fill.Cell);
+    fill.Cell = ToSession(cOutdoors ? pCell->worldspace->formID : pCell->formID).value_or(GameId{});
     fill.GridX = static_cast<int16_t>(x);
     fill.GridY = static_cast<int16_t>(y);
     return fill;
 }
 
-QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMods, const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
+QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
 {
     QuestState quest{acId, static_cast<uint16_t>(aQuest.flags & QuestState::kFlags), aQuest.currentStage};
     for (const TESQuest::Stage* pStage : aQuest.stages)
@@ -80,12 +85,12 @@ QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const ModSystem& acMo
             continue;
         if (aQuest.GetRefAlias(pAlias->aliasId))
         {
-            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, aQuest.GetAliasedRef(pAlias->aliasId), acMods, acCreated));
+            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, aQuest.GetAliasedRef(pAlias->aliasId), acCreated));
             continue;
         }
         QuestLocationFill& fill = quest.Locations.emplace_back(QuestLocationFill{pAlias->aliasId});
         if (const BGSLocation* pLocation = aQuest.GetAliasedLocation(pAlias->aliasId))
-            acMods.GetServerModId(pLocation->formID, fill.Location);
+            fill.Location = ToSession(pLocation->formID).value_or(GameId{});
     }
     return quest;
 }
@@ -145,18 +150,22 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
 }
 
 // A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs.
-std::optional<ObjectChange> ReadCreate(const TESObjectREFR& acRef, const ModSystem& acMods) noexcept
+std::optional<ObjectChange> ReadCreate(const TESObjectREFR& acRef) noexcept
 {
-    ObjectChange change{ObjectChange::Kind::kCreate};
     const TESObjectCELL* pCell = acRef.GetParentCellEx();
-    if (acRef.formType != FormType::Reference || acRef.IsDeleted() || !acRef.baseForm || !Cast<TESBoundObject>(acRef.baseForm) || !pCell ||
-        !acMods.GetServerModId(acRef.formID, change.Object) || !acMods.GetServerModId(acRef.baseForm->formID, change.Item))
+    if (acRef.formType != FormType::Reference || acRef.IsDeleted() || !acRef.baseForm || !Cast<TESBoundObject>(acRef.baseForm) || !pCell)
         return std::nullopt;
+    const auto cObject = ToSessionOrCreated(acRef.formID);
+    const auto cItem = ToSession(acRef.baseForm->formID);
+    if (!cObject || !cItem)
+        return std::nullopt;
+    ObjectChange change{ObjectChange::Kind::kCreate, *cObject};
+    change.Item = *cItem;
     ObjectChange::Placement placement;
     if (pCell->worldspace)
-        acMods.GetServerModId(pCell->worldspace->formID, placement.WorldSpace);
+        placement.WorldSpace = ToSession(pCell->worldspace->formID).value_or(GameId{});
     else
-        acMods.GetServerModId(pCell->formID, placement.Cell);
+        placement.Cell = ToSession(pCell->formID).value_or(GameId{});
     for (int axis = 0; axis < 3; ++axis)
     {
         placement.Position[axis] = acRef.position[axis];
@@ -175,8 +184,7 @@ ObjectChange ReadRecord(const TESObjectREFR& acRef, const GameId& acId) noexcept
 }
 } // namespace
 
-HostEngine::HostEngine(const ModSystem& acMods) noexcept
-    : m_mods(acMods)
+HostEngine::HostEngine() noexcept
 {
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
@@ -206,10 +214,9 @@ std::optional<GameId> HostEngine::ReadWeather() const noexcept
 {
     const Sky* pSky = Sky::Get();
     const TESWeather* pWeather = pSky ? pSky->GetWeather() : nullptr;
-    GameId id;
-    if (!pWeather || pWeather->formID == Sky::kWorldMapWeather || !m_mods.GetServerModId(pWeather->formID, id))
+    if (!pWeather || pWeather->formID == Sky::kWorldMapWeather)
         return std::nullopt;
-    return id;
+    return ToSession(pWeather->formID);
 }
 
 std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
@@ -221,9 +228,10 @@ std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
     globals.reserve(pData->globals.length);
     for (TESGlobal* pGlobal : pData->globals)
     {
-        GameId id;
-        if (pGlobal && !pGlobal->IsConstant() && m_mods.GetServerModId(pGlobal->formID, id))
-            globals.push_back({id, pGlobal->f, TimeData::IsCalendarGlobal(pGlobal->formID)});
+        if (!pGlobal || pGlobal->IsConstant())
+            continue;
+        if (const auto cId = ToSession(pGlobal->formID))
+            globals.push_back({*cId, pGlobal->f, TimeData::IsCalendarGlobal(pGlobal->formID)});
     }
     return globals;
 }
@@ -237,9 +245,8 @@ std::vector<QuestState> HostEngine::ReadQuests() const noexcept
     quests.reserve(pData->quests.length);
     for (TESQuest* pQuest : pData->quests)
     {
-        GameId id;
-        if (pQuest && m_mods.GetServerModId(pQuest->formID, id))
-            quests.push_back(ReadQuest(*pQuest, id, m_mods, m_created));
+        if (const auto cId = pQuest ? ToSession(pQuest->formID) : std::nullopt)
+            quests.push_back(ReadQuest(*pQuest, *cId, m_created));
     }
     return quests;
 }
@@ -255,31 +262,37 @@ void HostEngine::SetHour(float aHours) noexcept
 
 void HostEngine::RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept
 {
-    ObjectChange event{ObjectChange::Kind::kActivate};
+    const auto cObject = ToSessionOrCreated(aObjectFormId);
+    const auto cActivator = ToSessionOrCreated(aActivatorFormId);
+    if (!cObject || !cActivator)
+        return;
+    ObjectChange event{ObjectChange::Kind::kActivate, *cObject};
     event.OpenState = aOpenState;
-    if (m_mods.GetServerModId(aObjectFormId, event.Object) && m_mods.GetServerModId(aActivatorFormId, event.Activator))
-        m_events.push_back(std::move(event));
+    event.Activator = *cActivator;
+    m_events.push_back(std::move(event));
 }
 
 void HostEngine::RecordAnimation(uint32_t aObjectFormId, const std::string& acAnimation, const std::string& acEvent) noexcept
 {
-    ObjectChange event{ObjectChange::Kind::kAnimation};
+    const auto cObject = ToSessionOrCreated(aObjectFormId);
+    if (!cObject)
+        return;
+    ObjectChange event{ObjectChange::Kind::kAnimation, *cObject};
     event.Animation = acAnimation;
     event.Event = acEvent;
-    if (m_mods.GetServerModId(aObjectFormId, event.Object))
-        m_events.push_back(std::move(event));
+    m_events.push_back(std::move(event));
 }
 
 void HostEngine::RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept
 {
-    if (auto change = ReadContainerItems(m_mods, aObjectFormId, aItemFormId))
+    if (auto change = ReadContainerItems(aObjectFormId, aItemFormId))
         m_events.push_back(std::move(*change));
 }
 
 void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept
 {
     // Goes out from the funnel, as any of the host's lock changes.
-    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(m_mods.GetGameId(acObject)));
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(ToGame(acObject)));
     if (pObject && pObject->SetLockState(aLocked, aLockLevel))
         spdlog::info("HostEngine: took a guest's lock {:X} {} at {}", acObject.LogFormat(), aLocked ? "locked" : "unlocked", aLockLevel);
     else
@@ -288,8 +301,8 @@ void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLeve
 
 void HostEngine::SetItems(const GameId& acObject, const GameId& acItem, uint32_t aCount) noexcept
 {
-    const uint32_t cObjectId = m_mods.GetGameId(acObject);
-    const uint32_t cItemId = m_mods.GetGameId(acItem);
+    const uint32_t cObjectId = ToGame(acObject);
+    const uint32_t cItemId = ToGame(acItem);
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cObjectId));
     if (pObject && !Cast<Actor>(pObject) && pObject->SetContainerCount(Cast<TESBoundObject>(TESForm::GetById(cItemId)), static_cast<int32_t>(aCount)))
     {
@@ -309,7 +322,7 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
     for (const uint32_t cFormId : created)
     {
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
-        if (auto create = pObject ? ReadCreate(*pObject, m_mods) : std::nullopt)
+        if (auto create = pObject ? ReadCreate(*pObject) : std::nullopt)
         {
             // An id still out: its old reference was deleted and the id used again since the last update.
             if (m_created.count(cFormId))
@@ -323,23 +336,24 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
     for (const auto& [cFormId, cFlags] : changed)
     {
         const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
-        GameId id;
-        if (!pObject || !IsShared(cFormId) || !m_mods.GetServerModId(cFormId, id))
+        const auto cId = pObject && IsShared(cFormId) ? ToSessionOrCreated(cFormId) : std::nullopt;
+        if (!cId)
             continue;
+        const GameId& id = *cId;
         // A physics move goes out once it rests (m_rests): each game simulates the flight. A graph's live changes
         // are the animations scripts play (relayed as events); its state goes with a cell's.
         constexpr uint32_t cNotLive = TESObjectREFR::CHANGE_REFR_HAVOK_MOVE | TESObjectREFR::CHANGE_REFR_ANIMATION;
-        ReferenceStates::Read(*pObject, id, cFlags & ~cNotLive, m_mods, changes);
+        ReferenceStates::Read(*pObject, id, cFlags & ~cNotLive, changes);
     }
     for (const uint32_t cFormId : m_rests.TakeRested())
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
-            if (GameId id; IsShared(cFormId) && m_mods.GetServerModId(cFormId, id))
-                ReferenceStates::Read(*pObject, id, TESObjectREFR::CHANGE_REFR_MOVE, m_mods, changes);
+            if (const auto cId = IsShared(cFormId) ? ToSessionOrCreated(cFormId) : std::nullopt)
+                ReferenceStates::Read(*pObject, *cId, TESObjectREFR::CHANGE_REFR_MOVE, changes);
     // Records that lost rows: the guests drop theirs too.
     for (const uint32_t cFormId : removed)
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
-            if (GameId id; IsShared(cFormId) && m_mods.GetServerModId(cFormId, id))
-                changes.push_back(ReadRecord(*pObject, id));
+            if (const auto cId = IsShared(cFormId) ? ToSessionOrCreated(cFormId) : std::nullopt)
+                changes.push_back(ReadRecord(*pObject, *cId));
     // Events last: an object a script enabled and then animated is enabled for the animation.
     changes.insert(changes.end(), std::make_move_iterator(m_events.begin()), std::make_move_iterator(m_events.end()));
     m_events.clear();
@@ -362,8 +376,7 @@ void HostEngine::TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcep
             ++it;
             continue;
         }
-        if (GameId id; m_mods.GetServerModId(cFormId, id))
-            aChanges.push_back(ReferenceStates::Deleted(id));
+        aChanges.push_back(ReferenceStates::Deleted(CreatedId(cFormId)));
         m_rests.Forget(cFormId);
         it = m_created.erase(it);
     }
@@ -372,12 +385,12 @@ void HostEngine::TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcep
 std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId& acCell,
                                                                              const std::vector<ChangedReference>& acChanged) const noexcept
 {
-    auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(m_mods.GetGameId(acCell)));
+    auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(ToGame(acCell)));
     if (!pCell || !pCell->IsFullyLoaded())
         return std::nullopt;
     std::unordered_map<uint32_t, uint32_t> guestRows;
     for (const auto& cRef : acChanged)
-        if (const uint32_t cFormId = m_mods.GetGameId(cRef.Id))
+        if (const uint32_t cFormId = ToGame(cRef.Id))
             guestRows[cFormId] |= cRef.Flags;
     std::vector<ObjectChange> changes;
     const auto cReferences = pCell->GetReferences();
@@ -386,12 +399,11 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
     {
         if (!pRef->IsTemporary() || !IsShared(pRef->formID))
             continue;
-        GameId id;
-        auto create = ReadCreate(*pRef, m_mods);
-        if (create && m_mods.GetServerModId(pRef->formID, id))
+        if (auto create = ReadCreate(*pRef))
         {
+            const GameId cId = create->Object;
             changes.push_back(std::move(*create));
-            ReferenceStates::Read(*pRef, id, ReferenceStates::RecordedRows(*pRef), m_mods, changes);
+            ReferenceStates::Read(*pRef, cId, ReferenceStates::RecordedRows(*pRef), changes);
         }
     }
     // Then the rows this game or the guest changed, and the host's record of them.
@@ -400,11 +412,11 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
         const auto cGuest = guestRows.find(pRef->formID);
         const bool cGuestChanged = cGuest != guestRows.end() && pRef->formType == FormType::Reference;
         const uint32_t cRows = ReferenceStates::ChangedRows(*pRef) | (cGuestChanged ? cGuest->second & ReferenceStates::RowFlags() : 0);
-        GameId id;
-        if (!cRows || !m_mods.GetServerModId(pRef->formID, id))
+        const auto cId = cRows ? ToSessionOrCreated(pRef->formID) : std::nullopt;
+        if (!cId)
             continue;
-        ReferenceStates::Read(*pRef, id, cRows, m_mods, changes);
-        changes.push_back(ReadRecord(*pRef, id));
+        ReferenceStates::Read(*pRef, *cId, cRows, changes);
+        changes.push_back(ReadRecord(*pRef, *cId));
     }
     // Containers last: the host's roll of their leveled entries, then all they hold.
     for (TESObjectREFR* pRef : cReferences)
@@ -412,7 +424,7 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
         if (pRef->formType != FormType::Reference || pRef->IsTemporary() || !pRef->GetContainer())
             continue;
         pRef->InitInventoryIfRequired();
-        if (auto contents = ReadContainerContents(m_mods, *pRef))
+        if (auto contents = ReadContainerContents(*pRef))
             changes.push_back(std::move(*contents));
     }
     return changes;

@@ -898,6 +898,18 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   opcodes and both factories' `Visit` (`CreateMessageVisitor` is gone). `kRequestRemoveSpell` is
   `kRemoveSpellRequest`, as its type. All 104 opcode values compared equal before and after; `wire_tests.cpp`'s
   bytes unchanged.
+- No form id translation (2026-10-23, uncommitted, ideas.md "Code cleanup"): upstream's `ModSystem` mapped each
+  client's load order to the server's. The join refuses any guest whose plugins differ from the host's in set,
+  light flag or order (`HostSession`), so a form has the same id in every game: `ModSystem`, its table and the
+  join answer's numbered plugin list are gone. `FormIds.h` (no state): `ToSession` (none for a created, 0xFF, form;
+  0 is `GameId{}`), `ToGame` (0 for a created id), and for the messages that rebuild created forms
+  `ToSessionOrCreated` / `CreatedId` (the old `0xFFFFFFFF` id): world state's references (`HostEngine`,
+  `ReadContainerContents`), a spawn's reference (`CharacterService`), enchantments, the save buffer's ids and an
+  action's target. The 87 `GetServerModId` calls and every `World::Get().GetModSystem()` chain are plain calls; no
+  `ModSystem&` goes through the bridges. Handling that changed: a created poison goes without an id (its receiver
+  asserted against one); sends that ignored the result carry no id for a created form; guarded ones drop instead
+  of sending an id no game finds (a guest's activation, lock or equip of a created form). `ClientTests`
+  "[FormIds]". `Inventory.h` includes `<optional>`.
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.
@@ -1120,7 +1132,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - Players walking apart outdoors work (measured 2026-10-23): the far copy is kept without 3D and loads again on
     return. A far respawn's new copy is lost out of the host's grid and not sent again (respawn parked).
   - Not tried: a follower in a menu, in dialogue, dead or mounted; three players.
-- **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are still in the tree**, compiled out of the
+- **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are gone** (checked 2026-10-23); they were compiled out of the
   Windows build: the RmlUi panels replace them (party, chat).
 - **Quests** need their own design before sync goes on.
 - **Build ids of uncommitted trees match each other.** `BuildCommit()` is `git describe --tags

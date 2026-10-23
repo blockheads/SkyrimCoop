@@ -20,6 +20,7 @@
 #include <DefaultObjectManager.h>
 #include <RTTI.h>
 #include <Wire/Buffer.h>
+#include <FormIds.h>
 
 namespace
 {
@@ -274,10 +275,10 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
     auto& movement = update.UpdatedMovement;
 
     if (const auto pCell = pActor->parentCell)
-        World::Get().GetModSystem().GetServerModId(pCell->formID, movement.CellId.ModId, movement.CellId.BaseId);
+        movement.CellId = ToSession(pCell->formID).value_or(GameId{});
 
     if (const auto pWorldSpace = pActor->GetWorldSpace())
-        World::Get().GetModSystem().GetServerModId(pWorldSpace->formID, movement.WorldSpaceId.ModId, movement.WorldSpaceId.BaseId);
+        movement.WorldSpaceId = ToSession(pWorldSpace->formID).value_or(GameId{});
 
     movement.Position = pActor->position;
 
@@ -306,14 +307,8 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
 
 bool AnimationSystem::Serialize(World& aWorld, const ActionEvent& aActionEvent, const ActionEvent& aLastProcessedAction, std::string* apData)
 {
-    uint32_t actionBaseId = 0;
-    uint32_t actionModId = 0;
-    if (!aWorld.GetModSystem().GetServerModId(aActionEvent.ActionId, actionModId, actionBaseId))
-        return false;
-
-    uint32_t targetBaseId = 0;
-    uint32_t targetModId = 0;
-    if (!aWorld.GetModSystem().GetServerModId(aActionEvent.TargetId, targetModId, targetBaseId))
+    // Actions on a form or target the session lacks are not sent (a created target, a spawned NPC, is).
+    if (!ToSession(aActionEvent.ActionId) || !ToSessionOrCreated(aActionEvent.TargetId))
         return false;
 
     uint8_t scratch[1 << 14];

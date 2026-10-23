@@ -12,6 +12,7 @@
 #include <Messages/NotifyRemoveCharacter.h>
 #include <SessionIds.h>
 #include <World.h>
+#include <FormIds.h>
 
 namespace
 {
@@ -49,8 +50,8 @@ std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t aFormId) const no
 {
     std::vector<GameId> effects;
     for (const uint32_t cId : ReadEffectForms(aFormId))
-        if (GameId effectId; m_world.GetModSystem().GetServerModId(cId, effectId))
-            effects.push_back(effectId);
+        if (const auto cEffect = ToSession(cId))
+            effects.push_back(*cEffect);
     return effects;
 }
 
@@ -73,14 +74,17 @@ void EffectVisualsService::SendFlash(uint32_t aSessionId, uint32_t aEffectFormId
 {
     EffectFlashRequest request;
     request.SessionId = aSessionId;
-    if (m_world.GetModSystem().GetServerModId(aEffectFormId, request.EffectId))
+    if (const auto cEffect = ToSession(aEffectFormId))
+    {
+        request.EffectId = *cEffect;
         m_transport.Send(request);
+    }
 }
 
 void EffectVisualsService::OnNotifyEffectFlash(const NotifyEffectFlash& acMessage) noexcept
 {
     const uint32_t cFormId = Utils::GetFormIdBySessionId(acMessage.SessionId);
-    const uint32_t cEffectId = m_world.GetModSystem().GetGameId(acMessage.EffectId);
+    const uint32_t cEffectId = ToGame(acMessage.EffectId);
     if (cFormId && cEffectId && m_actorBridge.ActorExists(cFormId) && m_actorBridge.IsActorCopy(cFormId))
         m_actorBridge.FlashEffectHitVisuals(cFormId, cEffectId);
 }
@@ -103,8 +107,8 @@ void EffectVisualsService::SendOwned(uint32_t aFormId, uint32_t aSessionId) noex
     RequestActiveEffects request;
     request.SessionId = aSessionId;
     for (const uint32_t cId : ids)
-        if (GameId effectId; m_world.GetModSystem().GetServerModId(cId, effectId))
-            request.EffectIds.push_back(effectId);
+        if (const auto cEffect = ToSession(cId))
+            request.EffectIds.push_back(*cEffect);
     spdlog::debug("Active effects of {:X} (session id {:X}): {} with visuals", aFormId, aSessionId, request.EffectIds.size());
     m_transport.Send(request);
     m_sent[aSessionId] = std::move(ids);
@@ -114,7 +118,7 @@ void EffectVisualsService::OnNotifyActiveEffects(const NotifyActiveEffects& acMe
 {
     std::vector<uint32_t> wanted;
     for (const auto& cEffectId : acMessage.EffectIds)
-        if (const uint32_t cId = m_world.GetModSystem().GetGameId(cEffectId))
+        if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
     Show(acMessage.SessionId, std::move(wanted));
 }
@@ -129,7 +133,7 @@ void EffectVisualsService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessag
     }
     std::vector<uint32_t> wanted;
     for (const auto& cEffectId : acMessage.EffectIds)
-        if (const uint32_t cId = m_world.GetModSystem().GetGameId(cEffectId))
+        if (const uint32_t cId = ToGame(cEffectId))
             wanted.push_back(cId);
     if (wanted.empty())
         return;

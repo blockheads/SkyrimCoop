@@ -7,6 +7,7 @@
 #include <Services/TransportService.h>
 #include <SessionIds.h>
 #include <World.h>
+#include <FormIds.h>
 
 DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                  IDialogueBridge& aBridge) noexcept
@@ -161,12 +162,11 @@ bool DialogueService::OnPickAsked(uint32_t aIndex) noexcept
     }
     spdlog::info("Dialogue: picks option {} of step {}: topic {:X}, line {:X}", aIndex, m_step, cOptions[aIndex].Topic, cOptions[aIndex].Info);
     // Its menu's option, as the host's game listed it.
-    auto& modSystem = m_world.GetModSystem();
     DialoguePickRequest pick;
     pick.Conversation = m_conversation;
     pick.Step = m_step;
-    modSystem.GetServerModId(cOptions[aIndex].Topic, pick.Topic);
-    modSystem.GetServerModId(cOptions[aIndex].Info, pick.Info);
+    pick.Topic = ToSession(cOptions[aIndex].Topic).value_or(GameId{});
+    pick.Info = ToSession(cOptions[aIndex].Info).value_or(GameId{});
     pick.Text = cOptions[aIndex].Text;
     m_transport.Send(pick);
     m_pRole->OnPickSent();
@@ -178,10 +178,9 @@ void DialogueService::OnPicked(const NotifyDialoguePicked& acMessage) noexcept
     if (acMessage.Conversation != m_conversation)
         return;
     m_step = acMessage.Step;
-    auto& modSystem = m_world.GetModSystem();
     const bool cOwnPick = acMessage.PlayerId == m_transport.GetLocalPlayerId();
     if (m_pRole)
-        m_pRole->OnPicked(acMessage, modSystem.GetGameId(acMessage.Topic), modSystem.GetGameId(acMessage.Info), cOwnPick);
+        m_pRole->OnPicked(acMessage, ToGame(acMessage.Topic), ToGame(acMessage.Info), cOwnPick);
 }
 
 void DialogueService::OnClosed(const NotifyDialogueClosed& acMessage) noexcept

@@ -21,6 +21,7 @@
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
 #include <BuildVersion.h>
+#include <FormIds.h>
 
 // #include <imgui_internal.h>
 
@@ -179,13 +180,11 @@ void TransportService::OnConnected()
 
     request.UserMods = RunningGame::Plugins(m_formBridge);
 
-    auto& modSystem = m_world.GetModSystem();
-
     const uint32_t worldSpaceId = m_playerBridge.GetPlayerWorldSpaceId();
     if (worldSpaceId != 0)
-        modSystem.GetServerModId(worldSpaceId, request.WorldSpaceId);
+        request.WorldSpaceId = ToSession(worldSpaceId).value_or(GameId{});
 
-    modSystem.GetServerModId(m_playerBridge.GetPlayerParentCellId(), request.CellId);
+    request.CellId = ToSession(m_playerBridge.GetPlayerParentCellId()).value_or(GameId{});
 
     request.Level = m_playerBridge.GetPlayerLevel();
 
@@ -254,7 +253,6 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
 
         m_world.SetServerSettings(acMessage.Settings);
 
-        m_dispatcher.trigger(acMessage.UserMods);
         m_dispatcher.trigger(acMessage.Settings);
         m_dispatcher.trigger(ConnectedEvent(acMessage.PlayerId));
         return; // quit the function here.

@@ -78,6 +78,7 @@ static TLockChange* RealLockChange = nullptr;
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
 #include <Utils.h>
+#include <FormIds.h>
 #include <Wire/Buffer.h>
 #include <VersionDb.h>
 
@@ -655,7 +656,6 @@ TESObjectCELL* TESObjectREFR::GetParentCellEx() const noexcept
 
 void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataList* apExtraDataList) noexcept
 {
-    auto& modSystem = World::Get().GetModSystem();
 
     if (ExtraCount* pExtraCount = Cast<ExtraCount>(apExtraDataList->GetByType(ExtraDataType::Count)))
     {
@@ -671,7 +671,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
     {
         Utils::Assert(pExtraEnchantment->pEnchantment, "Null enchantment in ExtraEnchantment");
 
-        modSystem.GetServerModId(pExtraEnchantment->pEnchantment->formID, arEntry.ExtraEnchantId);
+        arEntry.ExtraEnchantId = ToSessionOrCreated(pExtraEnchantment->pEnchantment->formID).value_or(GameId{});
 
         if (pExtraEnchantment->pEnchantment->formID & 0xFF000000)
         {
@@ -686,11 +686,11 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
                 effect.Area = pEffectItem->data.iArea;
                 effect.Duration = pEffectItem->data.iDuration;
                 effect.RawCost = pEffectItem->fRawCost;
-                modSystem.GetServerModId(pEffectItem->pEffectSetting->formID, effect.EffectId);
+                effect.EffectId = ToSession(pEffectItem->pEffectSetting->formID).value_or(GameId{});
                 arEntry.EnchantData.Effects.push_back(effect);
             }
 
-            uint32_t objectId = modSystem.GetGameId(arEntry.BaseId);
+            uint32_t objectId = ToGame(arEntry.BaseId);
             TESForm* pObject = TESForm::GetById(objectId);
             if (pObject)
                 arEntry.EnchantData.IsWeapon = pObject->formType == FormType::Weapon;
@@ -710,7 +710,7 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         Utils::Assert(pExtraPoison->pPoison, "Null poison in ExtraPoison");
         if (pExtraPoison && pExtraPoison->pPoison)
         {
-            modSystem.GetServerModId(pExtraPoison->pPoison->formID, arEntry.ExtraPoisonId);
+            arEntry.ExtraPoisonId = ToSession(pExtraPoison->pPoison->formID).value_or(GameId{});
             arEntry.ExtraPoisonCount = pExtraPoison->uiCount;
         }
     }
@@ -738,7 +738,6 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
 
 ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEntry) noexcept
 {
-    auto& modSystem = World::Get().GetModSystem();
 
     ExtraDataList* pExtraDataList = nullptr;
 
@@ -761,7 +760,7 @@ ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEnt
         }
         else
         {
-            uint32_t enchantId = modSystem.GetGameId(arEntry.ExtraEnchantId);
+            uint32_t enchantId = ToGame(arEntry.ExtraEnchantId);
             pEnchantment = Cast<EnchantmentItem>(TESForm::GetById(enchantId));
         }
 
@@ -776,7 +775,7 @@ ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEnt
         // doesn't seem to be the case, there are only like 3 poisons, and no custom ones
         Utils::Assert(arEntry.ExtraPoisonId.ModId != 0xFFFFFFFF, "Poison is sent as temp!");
 
-        uint32_t poisonId = modSystem.GetGameId(arEntry.ExtraPoisonId);
+        uint32_t poisonId = ToGame(arEntry.ExtraPoisonId);
         if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(poisonId)))
         {
             pExtraDataList->SetPoison(pPoison, arEntry.ExtraPoisonCount);
@@ -835,7 +834,6 @@ Inventory TESObjectREFR::GetInventory() const noexcept
 
 Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) const noexcept
 {
-    auto& modSystem = World::Get().GetModSystem();
     Inventory inventory{};
 
     if (TESContainer* pBaseContainer = GetContainer())
@@ -853,7 +851,7 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
                 continue;
 
             Inventory::Entry entry;
-            modSystem.GetServerModId(pGameEntry->form->formID, entry.BaseId);
+            entry.BaseId = ToSession(pGameEntry->form->formID).value_or(GameId{});
             entry.Count = pGameEntry->count;
 
             inventory.Entries.push_back(std::move(entry));
@@ -872,7 +870,7 @@ Inventory TESObjectREFR::GetInventory(std::function<bool(TESForm&)> aFilter) con
             continue;
 
         Inventory::Entry entry{};
-        modSystem.GetServerModId(pGameEntry->form->formID, entry.BaseId);
+        entry.BaseId = ToSession(pGameEntry->form->formID).value_or(GameId{});
         entry.Count = pGameEntry->count;
 
         for (ExtraDataList* pExtraDataList : *pGameEntry->dataList)
@@ -970,13 +968,11 @@ std::vector<uint32_t> TESObjectREFR::RemoveNonQuestItems(Inventory& aCurrentInve
 
     std::vector<uint32_t> questEntries{};
 
-    auto& modSystem = World::Get().GetModSystem();
-
     for (auto& entry : aCurrentInventory.Entries)
     {
         if (entry.IsQuestItem)
         {
-            uint32_t gameId = modSystem.GetGameId(entry.BaseId);
+            uint32_t gameId = ToGame(entry.BaseId);
             questEntries.emplace_back(gameId);
             continue;
         }
@@ -999,11 +995,10 @@ void TESObjectREFR::SetInventoryRetainingQuestItems(Inventory& aCurrentInventory
 
     // Remove all non-quest items first
     std::vector<uint32_t> questItemIds = RemoveNonQuestItems(aCurrentInventory);
-    auto& modSystem = World::Get().GetModSystem();
 
     for (const auto& entry : acSourceInventory.Entries)
     {
-        uint32_t gameId = modSystem.GetGameId(entry.BaseId);
+        uint32_t gameId = ToGame(entry.BaseId);
 
         // If the item is not in the list of quest items, add it
         if (std::find(questItemIds.begin(), questItemIds.end(), gameId) == questItemIds.end())
@@ -1016,9 +1011,8 @@ void TESObjectREFR::SetInventoryRetainingQuestItems(Inventory& aCurrentInventory
 
 void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSettingInventory) noexcept
 {
-    ModSystem& modSystem = World::Get().GetModSystem();
 
-    uint32_t objectId = modSystem.GetGameId(arEntry.BaseId);
+    uint32_t objectId = ToGame(arEntry.BaseId);
     TESBoundObject* pObject = Cast<TESBoundObject>(TESForm::GetById(objectId));
     if (!pObject)
     {
@@ -1202,10 +1196,9 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
 {
     if (!ScopedInventoryOverride::IsOverriden())
     {
-        auto& modSystem = World::Get().GetModSystem();
 
         Inventory::Entry item{};
-        modSystem.GetServerModId(apItem->formID, item.BaseId);
+        item.BaseId = ToSession(apItem->formID).value_or(GameId{});
         item.Count = aCount;
 
         if (apExtraData)
@@ -1223,7 +1216,7 @@ void HookAddInventoryItem(TESObjectREFR* apThis, TESBoundObject* apItem, ExtraDa
 void SendRemoval(TESObjectREFR* apRef, TESBoundObject* apItem, int32_t aCount, ExtraDataList* apExtraList) noexcept
 {
     Inventory::Entry item{};
-    World::Get().GetModSystem().GetServerModId(apItem->formID, item.BaseId);
+    item.BaseId = ToSession(apItem->formID).value_or(GameId{});
     if (apExtraList)
     {
         ScopedExtraDataOverride _;

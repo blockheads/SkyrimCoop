@@ -7,7 +7,6 @@
 
 #include <optional>
 
-struct ModSystem;
 struct TESObjectREFR;
 
 /**
@@ -18,7 +17,7 @@ class HostEngine
 {
 public:
     // Watches the engine's change funnel (FormChanges) for the references' state while it lives.
-    explicit HostEngine(const ModSystem& acMods) noexcept;
+    HostEngine() noexcept;
     ~HostEngine() noexcept;
 
     HostEngine(const HostEngine&) = delete;
@@ -56,7 +55,6 @@ private:
     // deletions for the guests: a script's Delete() of one often records no change (it is never saved).
     void TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcept;
 
-    const ModSystem& m_mods;
     PhysicsRests m_rests;
     std::vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges
     std::unordered_map<uint32_t, uint32_t> m_created; // the created references that went out: id -> base

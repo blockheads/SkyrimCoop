@@ -11,17 +11,12 @@
 #include <Messages/NotifyRemoveCharacter.h>
 #include <SessionIds.h>
 #include <World.h>
+#include <FormIds.h>
 
 namespace
 {
 // The player's reference in every game (PlayerCharacter).
 constexpr uint32_t cPlayerFormId = 0x14;
-
-// Created forms (an engine-made package) have no id the other games share.
-bool IsCreated(uint32_t aFormId) noexcept
-{
-    return (aFormId & 0xFF000000) == 0xFF000000;
-}
 } // namespace
 
 AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport, IActorBridge& aActorBridge) noexcept
@@ -120,33 +115,30 @@ void AiStateService::CountCopiesFightingPlayer() noexcept
 
 ActorAiState AiStateService::ToState(const ActorAiFields& acFields) const noexcept
 {
-    auto& mods = m_world.GetModSystem();
     ActorAiState state;
-    if (acFields.PackageId && !IsCreated(acFields.PackageId))
-        mods.GetServerModId(acFields.PackageId, state.Package);
-    if (acFields.SceneId && !IsCreated(acFields.SceneId))
-        mods.GetServerModId(acFields.SceneId, state.Scene);
+    // A created form (an engine-made package) has no id the other games share: none.
+    state.Package = ToSession(acFields.PackageId).value_or(GameId{});
+    state.Scene = ToSession(acFields.SceneId).value_or(GameId{});
     state.Combat = acFields.CombatState;
     // An actor in the session goes by its session id (each game has its own form id for it), else by its form.
     if (const auto cSessionId = Utils::GetSessionIdByFormId(acFields.CombatTargetId))
         state.CombatTarget.SessionId = *cSessionId;
-    else if (acFields.CombatTargetId && !IsCreated(acFields.CombatTargetId))
-        mods.GetServerModId(acFields.CombatTargetId, state.CombatTarget.RefId);
+    else
+        state.CombatTarget.RefId = ToSession(acFields.CombatTargetId).value_or(GameId{});
     return state;
 }
 
 ActorAiFields AiStateService::ToFields(const ActorAiState& acState) const noexcept
 {
-    auto& mods = m_world.GetModSystem();
     ActorAiFields fields;
     if (acState.Package != GameId{})
-        fields.PackageId = mods.GetGameId(acState.Package);
+        fields.PackageId = ToGame(acState.Package);
     if (acState.Scene != GameId{})
-        fields.SceneId = mods.GetGameId(acState.Scene);
+        fields.SceneId = ToGame(acState.Scene);
     fields.CombatState = acState.Combat;
     if (acState.CombatTarget.SessionId)
         fields.CombatTargetId = Utils::GetFormIdBySessionId(acState.CombatTarget.SessionId);
     else if (acState.CombatTarget.RefId != GameId{})
-        fields.CombatTargetId = mods.GetGameId(acState.CombatTarget.RefId);
+        fields.CombatTargetId = ToGame(acState.CombatTarget.RefId);
     return fields;
 }

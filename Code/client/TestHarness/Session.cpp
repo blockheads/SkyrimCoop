@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <BuildVersion.h>
 #include <Services/HostService.h>
+#include <FormIds.h>
 
 namespace TestHarness
 {
@@ -111,10 +112,9 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         assign.Cookie = 1;
         assign.ReferenceId = GameId{0, 0x14};
         // Player FormId must remain empty; this is not the NPC base FormID.
-        auto& mods = world.GetModSystem();
-        mods.GetServerModId(player.GetPlayerParentCellId(), assign.CellId);
+        assign.CellId = ToSession(player.GetPlayerParentCellId()).value_or(GameId{});
         if (player.GetPlayerWorldSpaceId())
-            mods.GetServerModId(player.GetPlayerWorldSpaceId(), assign.WorldSpaceId);
+            assign.WorldSpaceId = ToSession(player.GetPlayerWorldSpaceId()).value_or(GameId{});
         auth.CellId = assign.CellId;
         auth.WorldSpaceId = assign.WorldSpaceId;
         player.GetPlayerPosition(assign.Position.x, assign.Position.y, assign.Position.z);

@@ -75,11 +75,10 @@ save (stage 5) is only safe when they do.
 
 ### Mod ids (not a check, but part of joining)
 
-Every `GameId` on the wire is (session mod id, form id within the mod). Since every game loads the
-host's plugins in the host's order (stage 3), a plugin's session id is its place in the load order:
-the join response returns the player's own plugin list with those ids
-(`AuthenticationResponse::UserMods`), and each game maps them to its own plugin indices
-(`ModSystem`). No table is kept (3d).
+Every game loads the host's plugins in the host's order (stage 3), so a form has the same id in every
+game: a `GameId` on the wire is the form id split in two (load index, the rest; `FormIds.h`). Only a form
+a game created (0xFF) is its own; it goes without an id, or as a created id where a message rebuilds it.
+No table is kept (3d, 2026-10-23).
 
 ### 4. Who are you: characters live in the host's save
 

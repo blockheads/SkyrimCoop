@@ -448,6 +448,8 @@ that needs the standalone server goes with the section that breaks it.
      response's list). Since 3a.3 every game has the host's plugins in the host's order, so a
      plugin's session id is simply its place in the load order: `HostSession` returns the player's own
      list (its own names, for its game to find each plugin by) with those ids, and keeps no table.
+     (2026-10-23: the mapping is gone too. A form's id is the same number in every game, `FormIds.h`; only a
+     created form is its own game's.)
      The server's table (`ModsComponent::AddStandard`/`AddLite`, one counter in first-seen order,
      the host's plugins first) is gone; its shadow record carries no mods. Tests first: the bridge
      case written against the old table found that it gave a plugin whose name differs only in case

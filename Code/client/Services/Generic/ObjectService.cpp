@@ -13,6 +13,7 @@
 #include <Components/LocalComponent.h>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
+#include <FormIds.h>
 
 ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                               IFormBridge& aFormBridge, IActorBridge& aActorBridge)
@@ -45,11 +46,10 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
 
     ActivateRequest request;
 
-    if (!m_world.GetModSystem().GetServerModId(acEvent.ObjectFormId, request.Id))
-    {
-        spdlog::error("Server form id not found for object form id {:X}", acEvent.ObjectFormId);
+    const auto cObject = ToSession(acEvent.ObjectFormId);
+    if (!cObject)
         return;
-    }
+    request.Id = *cObject;
 
     if (acEvent.ObjectParentCellFormId == 0)
     {
@@ -57,11 +57,10 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
         return;
     }
 
-    if (!m_world.GetModSystem().GetServerModId(acEvent.ObjectParentCellFormId, request.CellId))
-    {
-        spdlog::error("Server cell id not found for cell form id {:X}", acEvent.ObjectParentCellFormId);
+    const auto cCell = ToSession(acEvent.ObjectParentCellFormId);
+    if (!cCell)
         return;
-    }
+    request.CellId = *cCell;
 
     auto view = m_world.view<FormIdComponent>();
     const auto pEntity = std::find_if(std::begin(view), std::end(view), [id = acEvent.ActivatorFormId, view](entt::entity entity) { return view.get<FormIdComponent>(entity).Id == id; });
@@ -90,7 +89,7 @@ void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
         return;
     }
 
-    const uint32_t cObjectId = World::Get().GetModSystem().GetGameId(acMessage.Id);
+    const uint32_t cObjectId = ToGame(acMessage.Id);
     if (!m_formBridge.FormExists(cObjectId))
     {
         spdlog::error("Failed to retrieve object to activate.");

@@ -23,8 +23,7 @@
 struct GuestService::Guest
 {
     Guest(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-        : Engine(aWorld.GetModSystem())
-        , Clock(aWorld, aDispatcher, Engine)
+        : Clock(aWorld, aDispatcher, Engine)
         , Weather(aDispatcher, Engine)
         , WorldState(aWorld, aDispatcher, Engine)
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())

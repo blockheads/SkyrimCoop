@@ -5,7 +5,7 @@
 #include <optional>
 
 // Script values between this game and the session, with no engine types (ScriptValues.cpp): a form an actor's session
-// id, else its GameId (ModSystem); back, none for a form not in this game (IFormBridge::FormExists).
+// id, else its GameId (FormIds.h); back, none for a form not in this game (IFormBridge::FormExists).
 namespace Utils
 {
 // A script value of this game as the session carries it (a form: an actor's session id, else its GameId), and back

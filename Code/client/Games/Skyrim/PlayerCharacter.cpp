@@ -32,6 +32,7 @@
 #include <Hooks/Initializer.h>
 #include <RTTI.h>
 #include <VersionDb.h>
+#include <FormIds.h>
 
 int32_t PlayerCharacter::LastUsedCombatSkill = -1;
 
@@ -176,10 +177,9 @@ void PlayerCharacter::RemoveWaypoint() noexcept
 
 char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2)
 {
-    auto& modSystem = World::Get().GetModSystem();
 
     Inventory::Entry item{};
-    modSystem.GetServerModId(apObject->baseForm->formID, item.BaseId);
+    item.BaseId = ToSession(apObject->baseForm->formID).value_or(GameId{});
     item.Count = aCount;
 
     if (apObject->GetExtraDataList() && !ScopedExtraDataOverride::IsOverriden())

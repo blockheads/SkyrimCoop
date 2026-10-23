@@ -3,7 +3,6 @@
 #include <Messages/WorldState.h>
 
 struct TESObjectREFR;
-struct ModSystem;
 
 // A world reference's change flags as a guest gets them: a row per state, read on the host now and applied on a guest
 // with the engine's own call (its side effects and events). The last row would take every other flag as its save
@@ -24,12 +23,12 @@ uint32_t ChangedRows(const TESObjectREFR& acObject) noexcept;
 // row, the missing ones marked.
 void RecordRows(TESObjectREFR& aObject, uint32_t aRows) noexcept;
 // The reference's state now for aFlags: a change for each row that takes any of them.
-void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags, const ModSystem& acMods,
+void Read(const TESObjectREFR& acObject, const GameId& acId, uint32_t aFlags,
           std::vector<ObjectChange>& aChanges) noexcept;
 // The enabled row of a reference that is gone (deleted), for one no longer there to read.
 ObjectChange Deleted(const GameId& acId) noexcept;
 // Whether the reference here already reads as the change (a row's kind only).
-bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept;
+bool Matches(const TESObjectREFR& acObject, const ObjectChange& acChange) noexcept;
 // False for a kind that is an event, not a state, or a change the engine refused.
-bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem& acMods) noexcept;
+bool Apply(TESObjectREFR& aObject, const ObjectChange& acChange) noexcept;
 } // namespace ReferenceStates

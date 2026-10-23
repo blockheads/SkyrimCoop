@@ -58,8 +58,7 @@ void SetCurrentWorld(World* apWorld) noexcept
 
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
-      m_runner(m_dispatcher), m_transport(*this, m_dispatcher),
-      m_modSystem(m_dispatcher, ctx().at<IFormBridge&>())
+      m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
     // In the real World's order: TravelService before CharacterService.
@@ -141,11 +140,6 @@ uint64_t World::GetTick() const noexcept
 TransportService& World::GetTransport() noexcept
 {
     return m_transport;
-}
-
-ModSystem& World::GetModSystem() noexcept
-{
-    return m_modSystem;
 }
 
 IFormBridge& World::GetFormBridge() noexcept

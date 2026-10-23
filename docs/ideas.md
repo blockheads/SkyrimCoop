@@ -193,14 +193,25 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   its tests are still the `BridgeTests` target in `Code/tests/bridge/` (`[Bridge]` tags, `BridgeTest`
   namespace). Rename the target, folder and tags together with every doc and script that names them
   (`CLAUDE.md`, `progress.md`, the design docs).
-- **One call for a form's session id** (2026-10-21). ~60 call sites repeat
-  `if (m_mods.GetServerModId(formId, id))` to turn a game form id into the wire's `GameId`, and on the host it
-  almost never fails: every standard plugin's form passes, one from a plugin missing from the session list
-  silently gets session id 0 (the first plugin, normally `Skyrim.esm`, so the guest finds the wrong form),
-  and a created `0xFF` reference gets `0xFFFFFFFF`, which no guest finds. Only a light plugin missing from the
-  list fails. Replace it with one call returning an optional `GameId` (`ModSystem::ToSession`), which fails for
-  `0xFF` ids and unknown plugins of both kinds and logs once; then drop the repeated checks. Code:
-  `Systems/ModSystem.cpp`, session ids from `HostSession.cpp`.
+- ~~One call for a form's session id~~ (done 2026-10-23 as no translation at all, progress.md "Test suite"). Left:
+  `AnimationSystem::Serialize` maps an action's form and target only to drop an action on a created form, and
+  sends neither.
+- **Upstream's MMO leftovers** (survey 2026-10-23; the order is the user's call). The host is the only authority,
+  and every game has the same build and plugins:
+  - The character assignment round trip: every actor's session id by request and reply (`AssignCharacterRequest`
+    / `Response`, `Cookie`, `WaitingForAssignmentComponent`, `CancelAssignmentRequest`, `Owner` always true), the
+    host's game asking itself in-process. The host could give its own actors an id on the spot; only a guest's
+    player needs the reply. Removes the unload-between-request-and-reply race. Skyrim check: spawns.
+  - Taking ownership of an actor (`TakeOwnership`): a guest mounting a horse claims its copy, unconfirmed (upstream's
+    TODO). Under direct authority the mount goes to the host as a request. Skyrim check: mounts.
+  - `ServerSettings` / `NotifySettingsChange`: five flags the host always sets the same (greetings, PvP, homes,
+    death system; `SyncPlayerCalendar` unread). Only `Difficulty` carries anything. The auth `Token`
+    (`m_serverPassword`) is never checked.
+  - Chat channels (global, party, local) for 2-4 players: `kPartyChat` unused, local once.
+  - "Server" names: `RequestServerAssignment`, `GetServerSettings`, `m_serverDifficulty`, log lines.
+  - Stays: clock sync (interpolation's time base), compression, the connect's name lookup, kick. Actor session
+    ids: a placed NPC could go by its form id now, but created NPCs and players' copies still need one; a redesign,
+    not a deletion.
 - **Client services by role.** The client keeps upstream's layout, one service per message family, so each
   service mixes our own player, copies and the host's actors, and copy checks (`IsCopy()`) are scattered
   through all of them. `CharacterService` is ~1,600 lines with 26 subscriptions (ownership, spawns,
