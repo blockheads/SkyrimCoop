@@ -885,6 +885,12 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - Last full run (2026-10-13, `5cdf49d2` build): **47 of 47**. Earlier the same day: 42 of 43, then
   45 of 47 with the new scenarios (the two dives, fixed: they had passed only because the arrival fade
   swallowed the swim input). The morning's baseline was 37 of 43.
+- The gate in 4 s (2026-10-23, uncommitted): it took 21 s, 20 of them `GameTests` asleep (0.3 s of CPU). The host's
+  listener slept 2 ms on every `Net::Server::Update`, which `HostService::OnUpdate` calls on the host's game frame
+  (upstream's server loop thread left it): the host's Skyrim lost 2 ms a frame, fixed. `Server::Close` and
+  `Client::Close` waited up to 100 ms for an answer on the frame; they flush the disconnect instead. Test:
+  `BridgeTests` "[Network]" (205/100/100 ms before). `GameTests` then took 6.4 s, waiting on the services' real
+  timers; `check.sh` runs it in 8 shards (2 s), each on its own ports (`GAMETESTS_PORT`).
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.

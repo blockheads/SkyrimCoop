@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The gate every change passes (docs/design/testing.md, tiers 1-2): build and run the native tests, and build the
-# plugin. About 10-20 s incremental; the pre-push hook (scripts/hooks/pre-push) runs it.
+# plugin. About 5 s incremental; the pre-push hook (scripts/hooks/pre-push) runs it.
 #   scripts/check.sh            # everything
 #   scripts/check.sh --no-dll   # the native tests only (no Windows toolchain)
 # Skyrim's scenarios are not part of it: run the affected ones before a feature push (coop_test.py scenario).
@@ -40,10 +40,45 @@ step() {
     fi
 }
 
+# GameTests in shards at once: its games wait on real timers, not the CPU. Each shard has its own ports; it fails
+# if a shard fails or a case did not run.
+SHARDS=8
+game_tests() {
+    local binary="build/linux/x86_64/debug/GameTests" dir="$LOGS/GameTests" pids=() failed=0 shard
+    rm -rf "$dir" && mkdir -p "$dir"
+    # Catch2 reads a comma in a name as "or": escaped, as are brackets and backslashes.
+    "$binary" --list-test-names-only | grep . | sed 's/[],[\\]/\\&/g' \
+        | awk -v dir="$dir" -v n="$SHARDS" '{ print > (dir "/" (NR % n) ".cases") }'
+    for shard in "$dir"/*.cases; do
+        GAMETESTS_PORT=$((21578 + 16 * $(basename "$shard" .cases))) \
+            "$binary" --input-file "$shard" > "${shard%.cases}.log" 2>&1 &
+        pids+=($!)
+    done
+    for pid in "${pids[@]}"; do wait "$pid" || failed=1; done
+    local listed ran
+    listed=$(cat "$dir"/*.cases | wc -l)
+    ran=$(cat "$dir"/*.log | grep -oE "in [0-9]+ test cases|test cases: +[0-9]+" | grep -oE "[0-9]+" | paste -sd+ | bc)
+    if (( failed )); then
+        cat "$dir"/*.log
+        return 1
+    fi
+    if (( ran != listed )); then
+        echo "ran ${ran:-0} of $listed cases"
+        return 1
+    fi
+    cat "$dir"/*.log | grep -oE "[0-9]+ assertions" | grep -oE "[0-9]+" | paste -sd+ | bc \
+        | xargs -I{} echo "All tests passed ({} assertions in $ran test cases, $SHARDS shards)"
+}
+
 echo "check: tiers 1-2"
 for target in ClientTests BridgeTests TPTests GameTests; do
     step "build $target" scripts/xmake-linux.sh build -j8 "$target"
-    [[ " ${FAILED[*]-} " == *" build $target "* ]] || step "run $target" "build/linux/x86_64/debug/$target"
+    [[ " ${FAILED[*]-} " == *" build $target "* ]] && continue
+    if [[ $target == GameTests ]]; then
+        step "run $target" game_tests
+    else
+        step "run $target" "build/linux/x86_64/debug/$target"
+    fi
 done
 if (( DLL )); then
     step "build plugin" scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL

@@ -27,7 +27,9 @@ scripts/check.sh --no-dll   # without the Windows toolchain
 
 It builds and runs `ClientTests`, `BridgeTests`, `TPTests` and `GameTests`, then builds the plugin, one target per
 build at `-j8`. Each step's output is in `build/check/`, and a failure shows its failed checks or compiler errors.
-Incremental it takes 3-11 s. The hook is `scripts/hooks/pre-push`, installed with
+`GameTests` runs in 8 shards at once (`build/check/GameTests/`), each with its own ports (`GAMETESTS_PORT`): its
+games wait on real timers, not the CPU. The step fails if any case did not run (Catch2 reads a comma in a name as
+"or"; `check.sh` escapes them). Incremental it takes 4-12 s. The hook is `scripts/hooks/pre-push`, installed with
 `git config core.hooksPath scripts/hooks` (relative, so worktrees share it); `git push --no-verify` skips it.
 Skyrim's scenarios are not in it.
 

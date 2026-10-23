@@ -16,6 +16,7 @@
 #include <World.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <format>
 #include <functional>
 #include <map>
@@ -37,7 +38,7 @@ struct Party
     {
         m_games.push_back(NewGame("Dovahkiin", acPlugins));
         As(Host(), [&] {
-            REQUIRE(Host().GetHostService().StartHosting(cPort));
+            REQUIRE(Host().GetHostService().StartHosting(Port()));
             Host().GetTransport().ConnectLocal(*Host().GetHostService().GetNetwork());
         });
         Until([&] { return Host().GetTransport().IsOnline(); }, "the host's game joins its own session");
@@ -232,7 +233,12 @@ struct Party
             pRelay->Pump();
     }
 
-    static constexpr uint16_t cPort = 21578;
+    // The host's first port; scripts/check.sh gives each shard its own (GAMETESTS_PORT).
+    static uint16_t Port()
+    {
+        const char* cpPort = std::getenv("GAMETESTS_PORT");
+        return cpPort ? static_cast<uint16_t>(std::atoi(cpPort)) : 21578;
+    }
     NetConditions m_net = NetConditions::FromEnvironment();
     std::map<World*, std::unique_ptr<UdpRelay>> m_relays;
     // How far a copy may stand from its owner's actor: FollowOwner leaves a copy within 64 units where it is.

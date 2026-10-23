@@ -94,9 +94,8 @@ namespace Net
                 enet_peer_disconnect(peer, static_cast<enet_uint32>(EDisconnectReason::Quit));
             }
 
-            // Allow disconnection packets to be sent
-            ENetEvent event;
-            enet_host_service(m_pHost, &event, 100);
+            // Sends the disconnects now, without waiting on the game's frame for an answer.
+            enet_host_flush(m_pHost);
 
             m_peers.clear();
 
@@ -191,8 +190,6 @@ namespace Net
             m_lastUpdateTime = m_currentTick;
             OnUpdate();
         }
-
-        std::this_thread::sleep_for(2ms);
     }
 
     void Server::SendToAll(Packet* apPacket, const EPacketFlags aPacketFlags) noexcept

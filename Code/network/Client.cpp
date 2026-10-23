@@ -237,9 +237,8 @@ namespace Net
         {
             enet_peer_disconnect(m_pPeer, static_cast<enet_uint32>(kNormal));
 
-            // Allow time for disconnect packet to be sent
-            ENetEvent event;
-            enet_host_service(m_pHost, &event, 100);
+            // Sends the disconnect now, without waiting on the game's frame for an answer.
+            enet_host_flush(m_pHost);
 
             enet_peer_reset(m_pPeer);
             m_pPeer = nullptr;
