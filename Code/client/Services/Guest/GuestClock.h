@@ -38,6 +38,8 @@ private:
     // The calendar shown when the host's last came in: a fade starts from it.
     TimeModel m_shownTime;
     float m_fadeTimer = 0.f;
+    // This game's: the static is the engine hook's (TimeManager.cpp), one per process.
+    bool m_hasHostTime = false;
     uint64_t m_lastTick = 0;
 
     entt::scoped_connection m_timeConnection;

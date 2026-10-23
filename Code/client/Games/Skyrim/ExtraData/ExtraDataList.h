@@ -16,6 +16,8 @@ struct ExtraDataList
 
     bool Add(ExtraDataType aType, BSExtraData* apNewData);
     bool Remove(ExtraDataType aType, BSExtraData* apNewData);
+    // Removes and frees the entry of that type, as the engine does (12354).
+    void RemoveByType(ExtraDataType aType) noexcept;
 
     uint32_t GetCount() const;
 

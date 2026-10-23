@@ -1,5 +1,5 @@
 // A guest's side in this process: GuestEngine's calls GuestWorldState makes, on the fake engine's world, and
-// GuestService's making of the guest's parts as it joins (only GuestWorldState so far).
+// GuestService's making of the guest's parts as it joins (its clock, weather, world state and dialogue).
 #include "GuestSeams.h"
 #include "FakeEngine.h"
 
@@ -7,6 +7,10 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
+#include <Services/DialogueService.h>
+#include <Services/Guest/GuestClock.h>
+#include <Services/Guest/GuestDialogue.h>
+#include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/HostService.h>
 #include <World.h>
@@ -22,8 +26,26 @@ void GuestEngine::SetDecidesWorld(bool aOn) noexcept
     FakeEngine::Current().DecidesWorld = aOn;
 }
 
-bool GuestEngine::SetGlobal(const GlobalValue&) noexcept
+void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept
 {
+    FakeEngine::Current().Calendar = acTime;
+}
+
+bool GuestEngine::HoldWeather(const GameId& acWeather) noexcept
+{
+    FakeEngine::Current().Weather = acWeather;
+    FakeEngine::Current().WeatherHeld = true;
+    return true;
+}
+
+void GuestEngine::ReleaseWeather() noexcept
+{
+    FakeEngine::Current().WeatherHeld = false;
+}
+
+bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
+{
+    FakeEngine::Current().Globals[FormIdOf(acGlobal.Id)] = acGlobal.Value;
     return true;
 }
 
@@ -67,12 +89,18 @@ bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
 
 struct GuestSeam::Guest
 {
-    explicit Guest(World& aWorld) : Engine(aWorld.GetModSystem()), WorldState(aWorld, aWorld.GetDispatcher(), Engine)
+    explicit Guest(World& aWorld)
+        : Engine(aWorld.GetModSystem()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
+          Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
+          Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>())
     {
     }
 
     GuestEngine Engine;
+    GuestClock Clock;
+    GuestWeather Weather;
     GuestWorldState WorldState;
+    GuestDialogue Dialogue;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -98,6 +126,10 @@ void GuestSeam::OnDisconnected(const DisconnectedEvent&) noexcept
 
 void GuestSeam::Update() noexcept
 {
-    if (m_pGuest)
-        m_pGuest->WorldState.OnUpdate(UpdateEvent(1.0 / 60));
+    if (!m_pGuest)
+        return;
+    const UpdateEvent cUpdate(1.0 / 60);
+    m_pGuest->Clock.OnUpdate(cUpdate);
+    m_pGuest->Weather.OnUpdate(cUpdate);
+    m_pGuest->WorldState.OnUpdate(cUpdate);
 }

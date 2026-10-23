@@ -104,7 +104,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
         if (aSender != m_players.Host())
         {
             m_authority.PlayerEntered(aSender, cSessionId);
-            if (!WithHost(aSender))
+            if (!WithHost(aSender) || !InHostGrid(acRequest.Position))
                 BringToParty(aSender);
         }
     }
@@ -195,6 +195,7 @@ void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
     m_places.erase(aPlayer);
     m_aheadOfHost.erase(aPlayer);
+    m_broughtToParty.erase(aPlayer);
     std::vector<uint32_t> owned;
     for (const auto& [cSessionId, cCharacter] : m_characters)
         if (cCharacter.Owner == aPlayer)
@@ -266,6 +267,9 @@ void HostCharacters::OnEnterCell(const EnterCellRequest& acRequest, ConnectionId
     if (aSender != m_players.Host())
     {
         SendHostActors(aSender);
+        // Its arrival by the party's travel; where it was as it joined (kBeforeJoining) may be "with the host" too.
+        if (acRequest.How == EnterCellRequest::Travel::kTether && m_broughtToParty.erase(aSender))
+            SendPlayersMet(aSender);
         return;
     }
     std::vector<ConnectionId_t> arrived;
@@ -287,7 +291,7 @@ uint32_t HostCharacters::PlayerCharacterOf(ConnectionId_t aPlayer) const noexcep
     return cNoCharacter;
 }
 
-void HostCharacters::BringToParty(ConnectionId_t aPlayer) const noexcept
+void HostCharacters::BringToParty(ConnectionId_t aPlayer) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
     const auto cHostCharacter = m_characters.find(PlayerCharacterOf(cHost));
@@ -302,8 +306,25 @@ void HostCharacters::BringToParty(ConnectionId_t aPlayer) const noexcept
     travel.Position = cRecord.Position;
     travel.Heading = cRecord.Rotation.y;
     m_network.Send(aPlayer, travel, Net::kReliable);
+    m_broughtToParty.insert(aPlayer);
     spdlog::info("HostCharacters: {:x} joined away from the host: sent to {:x}:{:x}", aPlayer, travel.CellId.ModId,
                  travel.CellId.BaseId);
+}
+
+void HostCharacters::SendPlayersMet(ConnectionId_t aPlayer) noexcept
+{
+    if (const auto cSpawn = BuildSpawn(PlayerCharacterOf(aPlayer)))
+        SendToOthersWithHost(*cSpawn, aPlayer);
+    size_t count = 0;
+    for (const auto& [cSessionId, cCharacter] : m_characters)
+        if (cCharacter.PlayerRecord && cCharacter.Owner != aPlayer && WithHost(cCharacter.Owner))
+            if (const auto cSpawn = BuildSpawn(cSessionId))
+            {
+                m_network.Send(aPlayer, *cSpawn);
+                ++count;
+            }
+    spdlog::info("HostCharacters: {:x} reached the party it was brought to: {} players' characters each way", aPlayer,
+                 count);
 }
 
 void HostCharacters::SendHostActors(ConnectionId_t aPlayer) noexcept
@@ -339,6 +360,17 @@ bool HostCharacters::WithHost(ConnectionId_t aPlayer) const noexcept
     if (cPlayer == m_places.end() || cHost == m_places.end())
         return true;
     return cPlayer->second == cHost->second;
+}
+
+bool HostCharacters::InHostGrid(const Vector3_NetQuantize& acPosition) const noexcept
+{
+    const auto cHostCharacter = m_characters.find(PlayerCharacterOf(m_players.Host()));
+    const auto cHostPlace = m_places.find(m_players.Host());
+    if (cHostCharacter == m_characters.end() || cHostPlace == m_places.end() || !cHostPlace->second.WorldSpaceId)
+        return true;
+    return GridCellCoords::IsCellInGridCell(GridCellCoords::CalculateGridCellCoords(acPosition),
+                                            GridCellCoords::CalculateGridCellCoords(cHostCharacter->second.PlayerRecord->Position),
+                                            false);
 }
 
 void HostCharacters::SendToOthersWithHost(const NotifyCharacterSpawn& acSpawn, ConnectionId_t aSender) const noexcept

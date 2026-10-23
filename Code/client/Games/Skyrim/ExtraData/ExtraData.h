@@ -21,6 +21,7 @@ enum class ExtraDataType : uint32_t
     CannotWear = 0x3D,
     Poison = 0x3E,
     Faction = 0x5B,
+    OpenCloseActivateRef = 0x68,
     AliasInstanceArray = 0x88,
     OutfitItem = 0x8E,
     TextDisplayData = 0x99,

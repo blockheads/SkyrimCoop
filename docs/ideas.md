@@ -32,6 +32,10 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   Notes: `docs/design/host-authority-migration.md` (Decisions, 2).
 - **Tether countdown.** Today anyone's travel takes the party along at once (Decisions, 4). A short
   countdown that anyone can cancel, as Borderlands does, before the party follows.
+- **Death: spectate, then respawn together** (user, 2026-10-23). A player who goes down stays down and watches
+  the others (a spectator camera on a party member) until the party has been out of combat for 10 s, then gets
+  up. Replaces upstream's respawn (`PlayerService`'s 5 s timer, `PlayerCharacter::RespawnPlayer`'s move to the
+  cell's COC marker), which today only stops pulling the party (`EnterCellRequest::Travel::kRespawn`).
 - **Shared wait and sleep** (user, 2026-10-20). Whoever starts a wait asks the host; every game shows the
   Wait menu and pauses, and the host's countdown (`PlayerCharacter::WaitStep`, 40485) drives them all, so
   nobody plays through the jump. Today the host's wait jumps everyone's clock while the others play on, and

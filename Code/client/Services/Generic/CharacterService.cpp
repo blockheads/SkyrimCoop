@@ -1482,6 +1482,7 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
                  cWorldSpaceId,
                  request.How == EnterCellRequest::Travel::kOwn      ? "leading the party"
                  : request.How == EnterCellRequest::Travel::kTether ? "following"
+                 : request.How == EnterCellRequest::Travel::kRespawn ? "respawning"
                                                                     : "from before joining");
 }
 

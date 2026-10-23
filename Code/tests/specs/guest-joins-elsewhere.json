@@ -1,0 +1,60 @@
+{
+  "name": "guest-joins-elsewhere",
+  "doc": "The guest leaves, goes elsewhere (Riverwood) and joins again: it is brought to the host's player and gets every copy, a dead NPC's dead.",
+  "steps": [
+    {
+      "do": "spawn_npc",
+      "base": "0x000FA6D9",
+      "as": "chicken"
+    },
+    {
+      "do": "kill",
+      "actor": "chicken"
+    },
+    {
+      "expect": "actor",
+      "game": "guest",
+      "actor": "chicken",
+      "dead": true
+    },
+    {
+      "do": "leave",
+      "game": "guest"
+    },
+    {
+      "do": "go",
+      "game": "guest",
+      "cell": "elsewhere"
+    },
+    {
+      "do": "join",
+      "game": "guest"
+    },
+    {
+      "expect": "together"
+    },
+    {
+      "expect": "actors agree"
+    },
+    {
+      "expect": "actor",
+      "game": "guest",
+      "actor": "chicken",
+      "dead": true
+    }
+  ],
+  "cleanup": [
+    {
+      "do": "join",
+      "game": "guest"
+    },
+    {
+      "expect": "together"
+    }
+  ],
+  "tags": [
+    "session",
+    "spawn",
+    "cells"
+  ]
+}

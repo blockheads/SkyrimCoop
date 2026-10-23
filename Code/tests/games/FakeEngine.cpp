@@ -1,10 +1,24 @@
 #include "FakeEngine.h"
 
 #include <Events/ContainerChangeEvent.h>
+#include <Events/ActivateEvent.h>
+#include <Events/AddTargetEvent.h>
+#include <Events/AiStateChangeEvent.h>
+#include <Events/EffectVisualsChangeEvent.h>
+#include <Events/EquipmentChangeEvent.h>
+#include <Events/HealthChangeEvent.h>
+#include <Events/HitEvent.h>
+#include <Events/ProjectileLaunchedEvent.h>
+#include <Events/SpellCastEvent.h>
+#include <Events/InventoryChangeEvent.h>
 #include <Events/LockChangeEvent.h>
 #include <Events/PartyNativeEvent.h>
+#include <Events/RemoveWaypointEvent.h>
+#include <Events/SetWaypointEvent.h>
+#include <Events/TimeScaleEvent.h>
 #include <Structs/GridCellCoords.h>
 #include <Papyrus/PartyNatives.h>
+#include <Games/Overrides.h>
 #include <World.h>
 
 using namespace PartyRules;
@@ -88,6 +102,17 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
 void FakeEngine::Frame()
 {
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
+    // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
+    const auto cNow = std::chrono::steady_clock::now();
+    if (m_lastFrame.time_since_epoch().count())
+        Calendar.Time += Calendar.TimeScale * std::chrono::duration<float>(cNow - m_lastFrame).count() / 3600.f;
+    m_lastFrame = cNow;
+    if (Calendar.Time >= 24.f)
+    {
+        Calendar.Time -= 24.f;
+        ++Calendar.Day;
+        ++Calendar.DaysPassed;
+    }
     RunQueued();
 }
 
@@ -136,6 +161,14 @@ ObjectChange LockRow(uint32_t aReference, const FakeEngine::Reference& acReferen
 {
     ObjectChange row{.Type = ObjectChange::Kind::kLock, .Object = SessionIdOf(aReference)};
     row.Value = (acReference.Locked ? kLocked : 0) | acReference.LockLevel;
+    return row;
+}
+
+// ReferenceStates' open row: 1 open or opening.
+ObjectChange OpenRow(uint32_t aDoor, const FakeEngine::Reference& acReference)
+{
+    ObjectChange row{.Type = ObjectChange::Kind::kOpenState, .Object = SessionIdOf(aDoor)};
+    row.Value = acReference.Open ? 1 : 0;
     return row;
 }
 
@@ -207,10 +240,31 @@ void FakeEngine::SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount)
     Recorded.push_back(ItemsRow(aContainer, aItem, aCount));
 }
 
+void FakeEngine::SetOpen(uint32_t aDoor, bool aOpen)
+{
+    auto& reference = References.at(aDoor);
+    reference.Open = aOpen;
+    Changed.insert(aDoor);
+    Recorded.push_back(OpenRow(aDoor, reference));
+}
+
+void FakeEngine::ToggleDoor(uint32_t aObject)
+{
+    const auto it = References.find(aObject);
+    if (it == References.end() || !it->second.Door)
+        return;
+    if (IsGuest)
+        it->second.Open = !it->second.Open;
+    else
+        SetOpen(aObject, !it->second.Open);
+}
+
 std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
 {
     const auto& cReference = References.at(aReference);
     std::vector<ObjectChange> rows{LockRow(aReference, cReference)};
+    if (cReference.Door)
+        rows.push_back(OpenRow(aReference, cReference));
     for (const auto& [cItem, cCount] : cReference.Items)
         rows.push_back(ItemsRow(aReference, cItem, cCount));
     return rows;
@@ -229,6 +283,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         reference.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
         break;
     case ObjectChange::Kind::kItems: SetCount(reference, FormIdOf(acChange.Item), static_cast<int32_t>(acChange.Value)); break;
+    case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
     default: break;
     }
     (void)aLoad; // a state already as the host's is left as it is: the same either way here
@@ -283,14 +338,15 @@ uint32_t FakeEngine::NewTemporary() noexcept
 uint32_t FakeEngine::LoadNpc(uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition)
 {
     const uint32_t cId = NewTemporary();
-    Actors[cId] =
-        Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z}, .Made = m_made};
+    Actors[cId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z},
+                        .Essential = EssentialBases.contains(aBase), .Made = m_made};
     return cId;
 }
 
 void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, const glm::vec3& acPosition)
 {
-    Actors[aFormId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z}};
+    Actors[aFormId] = Actor{.Base = aBase, .Cell = aCell, .Position = {acPosition.x, acPosition.y, acPosition.z},
+                            .Essential = EssentialBases.contains(aBase)};
 }
 
 void FakeEngine::CheckHealth(Actor& aActor) noexcept
@@ -398,10 +454,7 @@ bool FakeEngine::IsActorDead(uint32_t aFormId) const noexcept
 void FakeEngine::KillActor(uint32_t aFormId) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
-    {
-        it->second.Dead = true;
-        it->second.Bleeding = false;
-    }
+        (it->second.Essential ? it->second.Bleeding : it->second.Dead) = true;
 }
 
 // Actor::Respawn: alive again, values restored.
@@ -419,13 +472,16 @@ void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
     RespawnActor(aFormId);
 }
 
-bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t, float aDamage) noexcept
+bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
+    const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
     CheckHealth(it->second);
+    if (!cWasDead && it->second.Dead)
+        it->second.KilledBy = aAttackerFormId;
     return true;
 }
 
@@ -544,7 +600,7 @@ uint32_t FakeEngine::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
     ++Spawned[aNpcFormId];
     const uint32_t cId = NewTemporary();
     Actors[cId] = Actor{.Base = aNpcFormId, .Cell = Actors.at(kPlayer).Cell, .WorldSpace = Actors.at(kPlayer).WorldSpace,
-                        .Created = true, .Made = m_made};
+                        .Created = true, .Essential = EssentialBases.contains(aNpcFormId), .Made = m_made};
     return cId;
 }
 
@@ -561,12 +617,21 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     if (it == Actors.end())
         return;
     const uint32_t cFrom = it->second.Cell;
-    it->second.Cell = aCellId;
     const auto cExterior = Exteriors.find(aCellId);
     it->second.WorldSpace = cExterior != Exteriors.end() ? cExterior->second.WorldSpace : 0;
+    // Outdoors the cell at the position, as MoveTo picks it.
+    const uint32_t cAt = it->second.WorldSpace ? CellAt(it->second.WorldSpace, {aX, aY, aZ}) : 0;
+    it->second.Cell = cAt ? cAt : aCellId;
     it->second.Position[0] = aX;
     it->second.Position[1] = aY;
     it->second.Position[2] = aZ;
+    // A created actor landing in a cell not loaded goes as with its cell's unload (measured: a player's copy spawned
+    // four cells off is gone that frame, before SetActorPersistent).
+    if (aFormId != kPlayer && it->second.Created && !it->second.Persistent && !Attached.contains(it->second.Cell))
+    {
+        DeleteActor(aFormId);
+        return;
+    }
     if (aFormId == kPlayer)
     {
         LoadAroundPlayer(cFrom);
@@ -733,3 +798,382 @@ void GiveBackControls(std::optional<uint32_t> aSource) noexcept
     }
 }
 } // namespace PartyNatives
+
+namespace
+{
+GameId ServerId(uint32_t aFormId)
+{
+    GameId id;
+    World::Get().GetModSystem().GetServerModId(aFormId, id);
+    return id;
+}
+} // namespace
+
+uint8_t FakeEngine::GetFormType(uint32_t aFormId) const noexcept
+{
+    const auto it = ItemForms.find(aFormId);
+    return it != ItemForms.end() ? it->second.Type : 0;
+}
+
+Inventory::Entry& FakeEngine::EntryOf(Actor& aActor, uint32_t aItem)
+{
+    const GameId cId = ServerId(aItem);
+    for (auto& entry : aActor.Items.Entries)
+        if (entry.BaseId == cId)
+            return entry;
+    Inventory::Entry entry;
+    entry.BaseId = cId;
+    entry.Count = 1;
+    return aActor.Items.Entries.emplace_back(entry);
+}
+
+void FakeEngine::Equips(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
+{
+    Equip(aActor, aItem, aSlot);
+}
+
+void FakeEngine::Unequips(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
+{
+    Unequip(aActor, aItem, aSlot);
+}
+
+void FakeEngine::ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
+{
+    ScopedEquipOverride _;
+    Equip(aActorFormId, aItemFormId, aEquipSlotFormId);
+}
+
+void FakeEngine::ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t) noexcept
+{
+    ScopedEquipOverride _;
+    Unequip(aActorFormId, aItemFormId, aEquipSlotFormId);
+}
+
+// EquipHook, then the engine: a hand holds one weapon, an armor takes its slots from what wore them; what it
+// replaces comes off through the unequip, under the hook's ScopedUnequipOverride (no event).
+void FakeEngine::Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
+{
+    const auto cActor = Actors.find(aActor);
+    const auto cForm = ItemForms.find(aItem);
+    if (cActor == Actors.end() || cForm == ItemForms.end())
+        return;
+    if (cActor->second.Copy && !ScopedEquipOverride::IsOverriden())
+        return;
+    if (!cActor->second.Copy)
+        World::Get().GetRunner().Trigger(
+            EquipmentChangeEvent{.ActorId = aActor, .ItemId = aItem, .EquipSlotId = aSlot, .Count = 1});
+
+    ScopedUnequipOverride _;
+    const bool cWeapon = cForm->second.Type == kWeapon;
+    const bool cLeft = cWeapon && aSlot == kLeftHand;
+    std::vector<std::pair<uint32_t, uint32_t>> replaced; // item, slot
+    for (const auto& cEntry : cActor->second.Items.Entries)
+    {
+        const uint32_t cWornId = World::Get().GetModSystem().GetGameId(cEntry.BaseId);
+        const auto cWornForm = ItemForms.find(cWornId);
+        if (cWornForm == ItemForms.end() || cWornId == aItem)
+            continue;
+        if (cWeapon && cWornForm->second.Type == kWeapon && (cLeft ? cEntry.ExtraWornLeft : cEntry.ExtraWorn))
+            replaced.emplace_back(cWornId, aSlot);
+        else if (!cWeapon && cEntry.ExtraWorn && (cWornForm->second.Slots & cForm->second.Slots))
+            replaced.emplace_back(cWornId, 0);
+    }
+    // Ours (EquipManager::Equip, not applied at once) puts no armor over armor: measured, the copy of a player that
+    // swapped iron armor for steel wears the steel after InventoryService's unequip-all, equip, re-equip.
+    if (!cWeapon && !replaced.empty() && ScopedEquipOverride::IsOverriden())
+        return;
+    for (const auto& [cItem, cSlot] : replaced)
+        Unequip(aActor, cItem, cSlot);
+
+    auto& entry = EntryOf(cActor->second, aItem);
+    (cLeft ? entry.ExtraWornLeft : entry.ExtraWorn) = true;
+}
+
+// UnEquipHook, then the engine: off that hand (both for no hand's slot).
+void FakeEngine::Unequip(uint32_t aActor, uint32_t aItem, uint32_t aSlot)
+{
+    const auto cActor = Actors.find(aActor);
+    if (cActor == Actors.end())
+        return;
+    if (cActor->second.Copy && !ScopedEquipOverride::IsOverriden() && !ScopedInventoryOverride::IsOverriden() &&
+        !ScopedItemRemovalOverride::IsOverriden())
+        return;
+    if (!cActor->second.Copy && !ScopedUnequipOverride::IsOverriden())
+        World::Get().GetRunner().Trigger(EquipmentChangeEvent{
+            .ActorId = aActor, .ItemId = aItem, .EquipSlotId = aSlot, .Count = 1, .Unequip = true});
+
+    const GameId cId = ServerId(aItem);
+    for (auto& entry : cActor->second.Items.Entries)
+        if (entry.BaseId == cId)
+        {
+            if (aSlot != kLeftHand)
+                entry.ExtraWorn = false;
+            if (aSlot != kRightHand)
+                entry.ExtraWornLeft = false;
+        }
+}
+
+std::set<std::tuple<uint32_t, uint32_t, bool>> FakeEngine::Worn(uint32_t aActor) const
+{
+    std::set<std::tuple<uint32_t, uint32_t, bool>> worn;
+    if (const auto it = Actors.find(aActor); it != Actors.end())
+        for (const auto& cEntry : it->second.Items.Entries)
+        {
+            if (cEntry.ExtraWorn)
+                worn.emplace(cEntry.BaseId.ModId, cEntry.BaseId.BaseId, false);
+            if (cEntry.ExtraWornLeft)
+                worn.emplace(cEntry.BaseId.ModId, cEntry.BaseId.BaseId, true);
+        }
+    return worn;
+}
+
+// Actor::GetEquipment: the worn entries.
+Inventory FakeEngine::GetActorEquipment(uint32_t aActorFormId) const noexcept
+{
+    Inventory equipment;
+    if (const auto it = Actors.find(aActorFormId); it != Actors.end())
+        for (const auto& cEntry : it->second.Items.Entries)
+            if (cEntry.IsWorn())
+                equipment.Entries.push_back(cEntry);
+    return equipment;
+}
+
+// TESObjectREFR::GetWornArmor: the worn armors.
+Inventory FakeEngine::GetActorWornArmor(uint32_t aActorFormId) const noexcept
+{
+    Inventory armor = GetActorEquipment(aActorFormId);
+    std::erase_if(armor.Entries, [&](const Inventory::Entry& acEntry) {
+        return GetFormType(World::Get().GetModSystem().GetGameId(acEntry.BaseId)) != kArmor;
+    });
+    return armor;
+}
+
+void FakeEngine::AddItems(uint32_t aActor, uint32_t aItem, int32_t aCount)
+{
+    const auto cActor = Actors.find(aActor);
+    if (cActor == Actors.end() || !aCount)
+        return;
+    const GameId cId = ServerId(aItem);
+    auto& entries = cActor->second.Items.Entries;
+    auto it = std::find_if(entries.begin(), entries.end(), [&](const auto& acEntry) { return acEntry.BaseId == cId; });
+    if (it == entries.end())
+    {
+        if (aCount < 0)
+            return;
+        Inventory::Entry entry;
+        entry.BaseId = cId;
+        entries.push_back(entry);
+        it = std::prev(entries.end());
+    }
+    if (it->Count + aCount <= 0)
+    {
+        if (it->IsWorn())
+            Unequip(aActor, aItem, 0);
+        std::erase_if(entries, [&](const auto& acEntry) { return acEntry.BaseId == cId; });
+        return;
+    }
+    it->Count += aCount;
+}
+
+void FakeEngine::GetsItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
+{
+    if (!ScopedInventoryOverride::IsOverriden())
+    {
+        Inventory::Entry item;
+        item.BaseId = ServerId(aItem);
+        item.Count = aCount;
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
+    }
+    AddItems(aActor, aItem, aCount);
+}
+
+void FakeEngine::LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
+{
+    if (!ScopedInventoryOverride::IsOverriden())
+    {
+        Inventory::Entry item;
+        item.BaseId = ServerId(aItem);
+        item.Count = -aCount;
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item));
+    }
+    AddItems(aActor, aItem, -aCount);
+}
+
+void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
+{
+    Inventory::Entry item;
+    item.BaseId = ServerId(aItem);
+    item.Count = -aCount;
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item, true));
+    ScopedInventoryOverride _;
+    AddItems(aActor, aItem, -aCount);
+}
+
+int32_t FakeEngine::CountOf(uint32_t aActor, uint32_t aItem) const
+{
+    int32_t count = 0;
+    if (const auto it = Actors.find(aActor); it != Actors.end())
+        for (const auto& cEntry : it->second.Items.Entries)
+            if (cEntry.BaseId.BaseId == (aItem & 0x00FFFFFF))
+                count += cEntry.Count;
+    return count;
+}
+
+std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aActor) const
+{
+    std::map<std::pair<uint32_t, uint32_t>, int32_t> carried;
+    if (const auto it = Actors.find(aActor); it != Actors.end())
+        for (const auto& cEntry : it->second.Items.Entries)
+            carried[{cEntry.BaseId.ModId, cEntry.BaseId.BaseId}] += cEntry.Count;
+    return carried;
+}
+
+// Added (a worn one equipped, as SetInventory's adds do) or removed.
+void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
+{
+    const uint32_t cItem = World::Get().GetModSystem().GetGameId(aItem.BaseId);
+    AddItems(aObjectFormId, cItem, aItem.Count);
+    if (aItem.Count > 0 && aItem.IsWorn())
+    {
+        ScopedEquipOverride _;
+        Equip(aObjectFormId, cItem, aItem.ExtraWornLeft ? kLeftHand : kRightHand);
+    }
+}
+
+WeaponState FakeEngine::GetWeaponState(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() ? it->second.Weapon : WeaponState::Sheathed;
+}
+
+void FakeEngine::SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed;
+}
+
+void FakeEngine::PlacesMarker(const glm::vec3& acPosition, uint32_t aWorldSpace)
+{
+    Vector3_NetQuantize position;
+    position.x = acPosition.x;
+    position.y = acPosition.y;
+    position.z = acPosition.z;
+    World::Get().GetRunner().Trigger(SetWaypointEvent(position, aWorldSpace));
+    Waypoint = Marker{acPosition, aWorldSpace};
+}
+
+// From the map ("Remove It"): the only removal our hook raises.
+void FakeEngine::RemovesMarker()
+{
+    World::Get().GetRunner().Trigger(RemoveWaypointEvent());
+    Waypoint.reset();
+}
+
+// HookSetGlobalTimeMultiplier: a change of this game's own, raised while connected.
+void FakeEngine::SlowsTime(float aMultiplier)
+{
+    if (aMultiplier != WantedTimeScale && World::Get().GetTransport().IsConnected())
+        World::Get().GetRunner().Trigger(TimeScaleEvent{aMultiplier});
+    WantedTimeScale = aMultiplier;
+}
+
+void FakeEngine::CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget)
+{
+    const auto cActor = Actors.find(aCaster);
+    if (cActor == Actors.end())
+        return;
+    if (!cActor->second.Copy)
+        World::Get().GetRunner().Trigger(SpellCastEvent(aCaster, aSpell, aTarget, aSource, false, cActor->second.Loaded));
+    Casts.push_back({aCaster, aSpell, aSource, aTarget});
+}
+
+void FakeEngine::SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude)
+{
+    const auto cTarget = Actors.find(aTarget);
+    if (cTarget == Actors.end())
+        return;
+    const bool cOurCast = Actors.contains(aCaster) && !Actors.at(aCaster).Copy;
+    if (cTarget->second.Copy)
+    {
+        if (!cOurCast)
+            return;
+        AddTargetEvent event;
+        event.TargetID = aTarget;
+        event.CasterID = aCaster;
+        event.SpellID = aSpell;
+        event.EffectID = aEffect;
+        event.Magnitude = aMagnitude;
+        World::Get().GetRunner().Trigger(event);
+        return;
+    }
+    Effects.push_back({aTarget, aCaster, aSpell, aEffect});
+}
+
+void FakeEngine::Fights(uint32_t aActor, uint32_t aTarget)
+{
+    auto& ai = Actors.at(aActor).Ai;
+    ai.CombatState = aTarget ? 1 : 0;
+    ai.CombatTargetId = aTarget;
+    World::Get().GetRunner().Trigger(AiStateChangeEvent{aActor});
+}
+
+void FakeEngine::Burns(uint32_t aActor, uint32_t aEffect, bool aOn)
+{
+    auto& visuals = Actors.at(aActor).Visuals;
+    aOn ? (void)visuals.insert(aEffect) : (void)visuals.erase(aEffect);
+    World::Get().GetRunner().Trigger(EffectVisualsChangeEvent{aActor, 0});
+}
+
+std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(uint32_t aFormId) const noexcept
+{
+    std::vector<ActiveEffectInfo> effects;
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        for (const uint32_t cId : it->second.Visuals)
+            effects.push_back({.EffectFormId = cId});
+    return effects;
+}
+
+void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
+{
+    const auto cHittee = Actors.find(aHittee);
+    if (cHittee == Actors.end())
+        return;
+    World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
+    if (aHittee == kPlayer)
+    {
+        World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
+        DamageActorHealth(aHittee, aHitter, aDamage);
+        return;
+    }
+    if (cHittee->second.Copy && cHittee->second.Player)
+        return; // another game's player: its own game takes the hit
+    if (aHitter == kPlayer)
+    {
+        World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage, aHitter));
+        if (cHittee->second.Copy)
+            return;
+    }
+    DamageActorHealth(aHittee, aHitter, aDamage);
+}
+
+void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin)
+{
+    ProjectileLaunchedEvent event{};
+    event.Origin = acOrigin;
+    event.ShooterID = aShooter;
+    event.SpellID = aSpell;
+    event.ParentCellID = Actors.at(aShooter).Cell;
+    World::Get().GetRunner().Trigger(event);
+    Shots.push_back({aShooter, aSpell, acOrigin});
+}
+
+void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
+{
+    ActivateEvent event;
+    event.ObjectFormId = aObject;
+    event.ActivatorFormId = aActor;
+    event.ObjectParentCellFormId = References.at(aObject).Cell;
+    World::Get().GetRunner().Trigger(event);
+    Activations.emplace_back(aObject, aActor);
+    ToggleDoor(aObject);
+}

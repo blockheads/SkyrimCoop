@@ -33,13 +33,14 @@ struct EnterCellRequest final : RequestMessage
     GameId WorldSpaceId{}; // empty: an interior
     Vector3_NetQuantize Position{};
     float Heading{}; // the way it faces on arrival (radians clockwise from north): followers face it too
-    // How it got here: its own travel, which everyone else follows (NotifyPartyTravel); the party tether's; or a
-    // travel from before it joined, which neither leads nor follows.
+    // How it got here: its own travel, which everyone else follows (NotifyPartyTravel); the party tether's; a
+    // travel from before it joined or its respawn, which neither leads nor follows.
     enum class Travel : uint8_t
     {
         kOwn,
         kTether,
         kBeforeJoining,
+        kRespawn,
     };
     Travel How{Travel::kOwn};
     // The player as it arrives, for the copies others spawn of it now (the host's record of it is from when

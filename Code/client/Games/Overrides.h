@@ -1,7 +1,9 @@
 #pragma once
 
 #include <NoCopyMove.h>
-#include <TESObjectREFR.h>
+#include <cstdint>
+
+struct TESObjectREFR; // only a tag for ScopedReferencesOverride
 
 template <class T> struct ScopedOverride
 {

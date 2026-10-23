@@ -13,10 +13,12 @@
 
 #include <glm/glm.hpp>
 
+#include <chrono>
 #include <deque>
 #include <map>
 #include <optional>
 #include <set>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -46,6 +48,8 @@ struct FakeEngine : StillBridges
         bool Locked = false;
         uint8_t LockLevel = 0;
         std::map<uint32_t, int32_t> Items; // a container's count of each item
+        bool Door = false;
+        bool Open = false; // a door's (BGSOpenCloseForm's open state)
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
@@ -65,6 +69,10 @@ struct FakeEngine : StillBridges
     // The host's game takes a change (a guest's proposal accepted, HostGame::SetLock / SetItems): made and recorded.
     void SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel);
     void SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount);
+    // The host's game opens or closes a door (its player, a replayed activation): made and recorded.
+    void SetOpen(uint32_t aDoor, bool aOpen);
+    // The global variables (TESGlobal), by form id: the host's read (HostGame::ReadGlobals), a guest's set to them.
+    std::map<uint32_t, float> Globals;
     // The rows of a reference's state (ReferenceStates' encoding: a lock's level, kLocked above it; items' counts).
     [[nodiscard]] std::vector<ObjectChange> RowsOf(uint32_t aReference) const;
     // Another game's change made here (GuestEngine::ApplyObjectChange); false: no such reference.
@@ -107,6 +115,11 @@ struct FakeEngine : StillBridges
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Loaded = true;  // its 3D is loaded (in the process lists)
+        WeaponState Weapon = WeaponState::Sheathed;
+        uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
+        ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
+        std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
+        std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
         ActorValues Values = FullValues();
         Inventory Items;
         uint32_t Made = 0; // which actor at this form id: a reused id is a new one (a fresh ActorExtension)
@@ -123,6 +136,163 @@ struct FakeEngine : StillBridges
     // Each cell's COC marker (TESObjectCELL::GetCOCPlacementInfo), where a respawn puts the player; an exterior
     // without one: its centre.
     std::map<uint32_t, glm::vec3> CocMarkers;
+    // The calendar, run each frame as Calendar::Update does (a guest's is the host's, GuestEngine::SetCalendar), and
+    // the weather (a guest's held to the host's, GuestEngine::HoldWeather).
+    TimeModel Calendar;
+    GameId Weather{};
+    bool WeatherHeld = false;
+    TimeModel GetGameTime() const noexcept override { return Calendar; }
+    // Magic. A spell's kind as MagicService asks it (SpellItem's casting type and archetypes).
+    struct SpellForm
+    {
+        bool Concentration = false;
+        bool Healing = false;
+        bool Buff = false;
+    };
+    std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
+                                             {0x00012FCC, {.Concentration = true, .Healing = true}}, // Healing
+                                             {0x0005AD5C, {.Buff = true}}};                          // Oakflesh
+    // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
+    struct Cast
+    {
+        uint32_t Caster = 0;
+        uint32_t Spell = 0;
+        uint32_t Source = 0;
+        uint32_t Target = 0;
+    };
+    std::vector<Cast> Casts;
+    struct Effect
+    {
+        uint32_t Target = 0;
+        uint32_t Caster = 0;
+        uint32_t Spell = 0;
+        uint32_t EffectId = 0;
+    };
+    std::vector<Effect> Effects;
+    std::vector<std::pair<uint32_t, uint32_t>> Reactions; // victim, attacker (Actor::ReactToAttack)
+    // The actor casts by itself: our hook raises it unless the caster is a copy (HookSpellCast).
+    void CastsSpell(uint32_t aCaster, uint32_t aSpell, uint32_t aSource, uint32_t aTarget = 0);
+    // This game's spell lands on an actor (HookAddTarget): on another game's actor, our cast is a request for its
+    // owner and is not applied here; on our own, applied.
+    void SpellHits(uint32_t aTarget, uint32_t aCaster, uint32_t aSpell, uint32_t aEffect, float aMagnitude);
+    bool IsConcentrationSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Concentration; }
+    bool IsHealingSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Healing; }
+    bool IsBuffSpell(uint32_t aFormId) const noexcept override { return Spell(aFormId).Buff; }
+    bool IsMagicItem(uint32_t aFormId) const noexcept override { return SpellForms.contains(aFormId); }
+    void CastSpell(uint32_t aActorFormId, uint32_t aSpellFormId, uint32_t aCastingSource,
+                   uint32_t aDesiredTargetFormId) noexcept override
+    {
+        Casts.push_back({aActorFormId, aSpellFormId, aCastingSource, aDesiredTargetFormId});
+    }
+    void AddMagicTargetEffect(uint32_t aTargetFormId, uint32_t aCasterFormId, uint32_t aSpellFormId,
+                              uint32_t aEffectFormId, float aMagnitude, bool aIsDualCasting, bool aApplyHealPerkBonus,
+                              bool aApplyStaminaPerkBonus) noexcept override
+    {
+        Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+    }
+    void ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept override
+    {
+        Reactions.emplace_back(aVictimFormId, aAttackerFormId);
+    }
+    // Objects: an actor activates one by itself (opens a door, pulls a lever), as our hook on TESObjectREFR::Activate
+    // raises it; another game's activation replayed here (ActivateObjectFromActor), recorded.
+    void Activates(uint32_t aActor, uint32_t aObject);
+    std::vector<std::pair<uint32_t, uint32_t>> Activations; // object, activator
+    bool ObjectHasLock(uint32_t aObjectFormId) const noexcept override
+    {
+        const auto it = References.find(aObjectFormId);
+        return it != References.end() && (it->second.Locked || it->second.LockLevel);
+    }
+    bool ObjectIsLocked(uint32_t aObjectFormId) const noexcept override
+    {
+        const auto it = References.find(aObjectFormId);
+        return it != References.end() && it->second.Locked;
+    }
+    void ActivateObjectFromActor(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t) noexcept override
+    {
+        Activations.emplace_back(aObjectFormId, aActivatorFormId);
+        ToggleDoor(aObjectFormId);
+    }
+    // An activated door swings: the host's records it, a guest's opens here only (the host's state follows).
+    void ToggleDoor(uint32_t aObject);
+    // Combat. A melee hit, as our hook on Actor::DamageActor (Actor.cpp) takes it: raised as a hit, and a hit of this
+    // game's player on another's actor raised as a health change and not applied here (its owner applies it).
+    void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
+    // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
+    // launched, relaunched here (LaunchProjectile).
+    void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
+    struct Shot
+    {
+        uint32_t Shooter = 0;
+        uint32_t Spell = 0;
+        glm::vec3 Origin{};
+    };
+    std::vector<Shot> Shots;
+    void LaunchProjectile(uint32_t aShooterFormId, uint32_t aCellFormId, float aOriginX, float aOriginY, float aOriginZ,
+                          uint32_t aProjectileBaseId, uint32_t aWeaponId, uint32_t aAmmoId, uint32_t aSpellId,
+                          uint32_t aCastingSource, float aZAngle, float aXAngle, float aYAngle, int32_t aArea,
+                          float aPower, float aScale, bool aAlwaysHit, bool aNoDamageOutsideCombat, bool aAutoAim,
+                          bool aDeferInit, bool aForceConeOfFire, bool aUnkBool1, bool aUnkBool2) noexcept override
+    {
+        Shots.push_back({aShooterFormId, aSpellId, {aOriginX, aOriginY, aOriginZ}});
+    }
+    std::vector<uint32_t> HealthBarsShown; // HUD's enemy health (ShowEnemyHealth)
+    void ShowEnemyHealth(uint32_t aActorFormId) noexcept override { HealthBarsShown.push_back(aActorFormId); }
+    // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
+    void Fights(uint32_t aActor, uint32_t aTarget);
+    ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() ? it->second.Ai : ActorAiFields{};
+    }
+    void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.Ai = acFields;
+    }
+    uint32_t CopiesFightingPlayer = 0; // the player's combat state counts them (CombatState hook)
+    void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
+    // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
+    void Burns(uint32_t aActor, uint32_t aEffect, bool aOn);
+    std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept override;
+    bool EffectHasHitVisuals(uint32_t) const noexcept override { return true; }
+    bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
+    {
+        return Actors.contains(aFormId) && Actors.at(aFormId).ShownVisuals.insert(aEffectFormId).second;
+    }
+    void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.ShownVisuals.erase(aEffectFormId);
+    }
+    bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override
+    {
+        return Actors.contains(aFormId) && Actors.at(aFormId).ShownVisuals.contains(aEffectFormId);
+    }
+    // The player's map marker: placed in the map by the player (our hook on SetWaypoint raises it), or another
+    // player's applied through the engine's own call (no event).
+    struct Marker
+    {
+        glm::vec3 Position{};
+        uint32_t WorldSpace = 0;
+    };
+    std::optional<Marker> Waypoint;
+    void PlacesMarker(const glm::vec3& acPosition, uint32_t aWorldSpace);
+    void RemovesMarker();
+    void SetPlayerWaypoint(float aX, float aY, float aZ, uint32_t aWorldSpaceFormId) noexcept override
+    {
+        Waypoint = Marker{{aX, aY, aZ}, aWorldSpaceFormId};
+    }
+    void RemovePlayerWaypoint() noexcept override { Waypoint.reset(); }
+    // The clock's speed: this game's own wish (a kill cam, raised by our BSTimer hook) and the party's, the slower
+    // running (BSTimer::SetSharedMultiplier).
+    float WantedTimeScale = 1.f;
+    float SharedTimeScale = 1.f;
+    void SlowsTime(float aMultiplier);
+    [[nodiscard]] float TimeMultiplier() const noexcept { return std::min(WantedTimeScale, SharedTimeScale); }
+    void SetSharedTimeScale(float aMultiplier) noexcept override { SharedTimeScale = aMultiplier; }
+    // NPC bases that go down instead of dying, even at the console's kill (measured: Lydia, owner and copy).
+    std::set<uint32_t> EssentialBases{0x000A2C8E};
 
     // A worldspace's exterior cells: (x, y) for |x|, |y| <= aRadius, 4096 units each (GridCellCoords), form ids
     // from aFirstCell on.
@@ -217,6 +387,53 @@ struct FakeEngine : StillBridges
     void SetPlayerRespawnMode(bool aEnable) noexcept override { Actors.at(kPlayer).Essential = aEnable; }
     void RespawnPlayer() noexcept override;
 
+    // Equipment. An item's form: a weapon held in a hand, or an armor and the biped slots it covers.
+    struct ItemForm
+    {
+        uint8_t Type = 0;   // FormType: kWeapon or kArmor
+        uint32_t Slots = 0; // an armor's (BGSBipedObjectForm)
+    };
+    static constexpr uint8_t kWeapon = 41;
+    static constexpr uint8_t kArmor = 26;
+    static constexpr uint32_t kRightHand = 0x13F42; // DefaultObjectManager's equip slots
+    static constexpr uint32_t kLeftHand = 0x13F43;
+    std::map<uint32_t, ItemForm> ItemForms{{0x00012EB7, {kWeapon}},          // Iron Sword
+                                           {0x00013989, {kWeapon}},          // Steel Sword
+                                           {0x0001397E, {kWeapon}},          // Iron Dagger
+                                           {0x00012E49, {kArmor, 0x4}},      // Iron Armor (body)
+                                           {0x00013952, {kArmor, 0x4}},      // Steel Armor (body)
+                                           {0x00012E4D, {kArmor, 0x1 | 0x2}}}; // Iron Helmet (head, hair)
+    // The actor equips or unequips by itself (the player's menu, an NPC's AI), as EquipManager::Equip (38894) and
+    // UnEquip (38901) through our hooks: a local actor's change is raised (EquipmentChangeEvent), a copy refuses it.
+    void Equips(uint32_t aActor, uint32_t aItem, uint32_t aSlot = kRightHand);
+    void Unequips(uint32_t aActor, uint32_t aItem, uint32_t aSlot = kRightHand);
+    // The actor draws or sheathes by itself; ActorState's weapon state, the animation not modelled.
+    void Draws(uint32_t aActor, bool aDraw) { Actors.at(aActor).Weapon = aDraw ? WeaponState::Drawn : WeaponState::Sheathed; }
+    WeaponState GetWeaponState(uint32_t aFormId) const noexcept override;
+    // Actor::SetWeaponDrawnEx (InventoryService's convergence): at once, as if its animation had played.
+    void SetActorWeaponDrawnEx(uint32_t aFormId, bool aDraw) noexcept override;
+    // Items. The actor gets or loses some by itself (a script's AddItem, a sale, eating), as our hooks on
+    // AddInventoryItem and RemoveItem: raised (InventoryChangeEvent) unless under ScopedInventoryOverride; the last of
+    // a worn item comes off first (through UnEquipHook).
+    void GetsItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    void LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // Dropped into the world, as HookDropObject: raised as a drop, the removal under ScopedInventoryOverride.
+    void Drops(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    [[nodiscard]] int32_t CountOf(uint32_t aActor, uint32_t aItem) const;
+    // Every item the actor carries (server ids) and how many.
+    [[nodiscard]] std::map<std::pair<uint32_t, uint32_t>, int32_t> Carried(uint32_t aActor) const;
+    // TESObjectREFR::AddOrRemoveItem: another game's change (InventoryService, under ScopedInventoryOverride).
+    void ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept override;
+    // What the actor wears: each worn item (its server id) and whether in the left hand.
+    [[nodiscard]] std::set<std::tuple<uint32_t, uint32_t, bool>> Worn(uint32_t aActor) const;
+    uint8_t GetFormType(uint32_t aFormId) const noexcept override;
+    bool IsRightHandEquipSlot(uint32_t aEquipSlotFormId) const noexcept override { return aEquipSlotFormId == kRightHand; }
+    Inventory GetActorEquipment(uint32_t aActorFormId) const noexcept override;
+    Inventory GetActorWornArmor(uint32_t aActorFormId) const noexcept override;
+    // EquipManager's, ours: under ScopedEquipOverride, as EquipManager::Equip and UnEquip set it.
+    void ActorEquipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+    void ActorUnequipItem(uint32_t aActorFormId, uint32_t aItemFormId, uint32_t aEquipSlotFormId, int32_t aCount) noexcept override;
+
     [[nodiscard]] bool Has(uint32_t aFlags) const noexcept
     {
         return (Controls & aFlags) == aFlags;
@@ -230,8 +447,21 @@ struct FakeEngine : StillBridges
     uint32_t NewTemporary() noexcept;
     // At 0 health: dead, or down if essential; a copy is in deferred kill.
     void CheckHealth(Actor& aActor) noexcept;
+    // The engine's equip and unequip behind EquipHook and UnEquipHook (EquipManager.cpp).
+    void Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot);
+    void Unequip(uint32_t aActor, uint32_t aItem, uint32_t aSlot);
+    [[nodiscard]] SpellForm Spell(uint32_t aFormId) const noexcept
+    {
+        const auto it = SpellForms.find(aFormId);
+        return it != SpellForms.end() ? it->second : SpellForm{};
+    }
+    // The actor's inventory entry of aItem (a form id), added with a count of 1 if it has none.
+    Inventory::Entry& EntryOf(Actor& aActor, uint32_t aItem);
+    // aCount more (or fewer) of the item; an entry at 0 goes, a worn one unequipped first.
+    void AddItems(uint32_t aActor, uint32_t aItem, int32_t aCount);
 
     std::deque<std::pair<LocalCall, uint32_t>> m_queued;
+    std::chrono::steady_clock::time_point m_lastFrame;
     // The cells loaded around the player at aCell and acPosition (an interior, or outdoors its grid); the others its
     // last place loaded unload.
     void LoadAroundPlayer(uint32_t aFrom);

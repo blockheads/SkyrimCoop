@@ -1,11 +1,15 @@
 #pragma once
 
+#include <glm/vec3.hpp>
+
+#include <cstdint>
+
 /**
  * @brief Dispatched when a local projectile has been launched.
  */
 struct ProjectileLaunchedEvent
 {
-    NiPoint3 Origin;
+    glm::vec3 Origin{};
     uint32_t ProjectileBaseID;
     uint32_t ShooterID;
     uint32_t WeaponID;

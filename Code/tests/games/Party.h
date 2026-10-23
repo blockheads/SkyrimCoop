@@ -6,6 +6,7 @@
 #include <catch2/catch.hpp>
 
 #include "FakeEngine.h"
+#include "UdpRelay.h"
 
 #include <Components.h>
 #include <RunningGame.h>
@@ -51,11 +52,18 @@ struct Party
         }
     }
 
-    // aGuest joins (again).
+    // aGuest joins (again): straight to the host's port, or under COOP_NET through its relay.
     void Join(World& aGuest)
     {
-        const uint16_t cPort = Host().GetHostService().GetNetwork()->GetPort();
-        As(aGuest, [&] { REQUIRE(aGuest.GetTransport().Connect(std::format("127.0.0.1:{}", cPort))); });
+        uint16_t port = Host().GetHostService().GetNetwork()->GetPort();
+        if (m_net.Any())
+        {
+            auto& pRelay = m_relays[&aGuest];
+            if (!pRelay)
+                pRelay = std::make_unique<UdpRelay>(port, m_net, m_net.Seed + static_cast<uint32_t>(m_relays.size()));
+            port = pRelay->Port();
+        }
+        As(aGuest, [&] { REQUIRE(aGuest.GetTransport().Connect(std::format("127.0.0.1:{}", port))); });
         Until([&] { return aGuest.GetTransport().IsOnline(); }, std::format("{} joins", Engine(aGuest).Name));
     }
 
@@ -143,6 +151,10 @@ struct Party
         SetCurrentWorld(nullptr);
     }
 
+    size_t GameCount() const
+    {
+        return m_games.size();
+    }
     World& Host()
     {
         return *m_games[0];
@@ -166,6 +178,7 @@ struct Party
     // One frame of every game (the host's runs its network and rules, HostService::OnUpdate).
     void Frame()
     {
+        PumpRelays();
         for (auto& pGame : m_games)
             As(*pGame, [&] { pGame->Update(); });
     }
@@ -173,24 +186,31 @@ struct Party
     // One frame of aGame alone, the others standing still (to order what each game does).
     void Step(World& aGame)
     {
+        PumpRelays();
         As(aGame, [&] { aGame.Update(); });
     }
 
-    // Frames until aDone; fails naming acStep if it is not done within 2 s (enet's loopback takes real time), with
-    // what acWhy reads then. With apOnly, only that game's frames.
+    // Frames until aDone; fails naming acStep if it is not done within 2 s (enet's loopback takes real time; 20 s
+    // under COOP_NET, for its resends), with what acWhy reads then. With apOnly, only that game's frames.
     void Until(const std::function<bool()>& aDone, const std::string& acStep,
                const std::function<std::string()>& acWhy = {}, World* apOnly = nullptr)
     {
-        const auto cDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        const auto cDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(m_net.Any() ? 20 : 2);
         size_t frames = 0;
         while (!aDone())
         {
             if (std::chrono::steady_clock::now() > cDeadline)
                 FAIL("never happened: " << acStep << (acWhy ? " (" + acWhy() + ")" : std::string()) << ", " << frames
-                                        << " frames");
+                                        << " frames" << (m_net.Any() ? ", " + m_net.Describe() : std::string()));
             apOnly ? Step(*apOnly) : Frame();
             ++frames;
         }
+    }
+
+    // Under COOP_NET: the guests' datagrams go through relays (UdpRelay).
+    [[nodiscard]] bool Conditioned() const noexcept
+    {
+        return m_net.Any();
     }
 
     // A script on aGame, no player's action behind it (a quest's stage fragment).
@@ -206,7 +226,15 @@ struct Party
     }
 
   private:
+    void PumpRelays()
+    {
+        for (auto& [cpGame, pRelay] : m_relays)
+            pRelay->Pump();
+    }
+
     static constexpr uint16_t cPort = 21578;
+    NetConditions m_net = NetConditions::FromEnvironment();
+    std::map<World*, std::unique_ptr<UdpRelay>> m_relays;
     // How far a copy may stand from its owner's actor: FollowOwner leaves a copy within 64 units where it is.
     static constexpr float cNear = 64.f;
 
@@ -243,6 +271,28 @@ struct Party
         if (cCopy.Disabled != cOwner.Disabled)
             aDifferences.push_back(std::format("{} ({:X}) is {}, the owner's {}", acWhat, aCopyId,
                                                cCopy.Disabled ? "disabled" : "enabled", cOwner.Disabled ? "disabled" : "enabled"));
+        const auto cWorn = [](const FakeEngine& acEngine, uint32_t aId) {
+            std::string worn;
+            for (const auto& [cMod, cBase, cLeft] : acEngine.Worn(aId))
+                worn += std::format("{}{:X}:{:X}{}", worn.empty() ? "" : " ", cMod, cBase, cLeft ? " (left)" : "");
+            return worn.empty() ? std::string("nothing") : worn;
+        };
+        if (acCopies.Worn(aCopyId) != acOwner.Worn(aOwnerId))
+            aDifferences.push_back(std::format("{} ({:X}) wears {}, the owner's {}", acWhat, aCopyId,
+                                               cWorn(acCopies, aCopyId), cWorn(acOwner, aOwnerId)));
+        if (ShowsHandsUp(cCopy.Weapon) != HandsUp(cOwner.Weapon))
+            aDifferences.push_back(std::format("{} ({:X}) shows its hands {}, the owner's are {}", acWhat, aCopyId,
+                                               ShowsHandsUp(cCopy.Weapon) ? "up" : "down",
+                                               HandsUp(cOwner.Weapon) ? "up" : "down"));
+        const auto cCarried = [](const FakeEngine& acEngine, uint32_t aId) {
+            std::string carried;
+            for (const auto& [cItem, cCount] : acEngine.Carried(aId))
+                carried += std::format("{}{} {:X}:{:X}", carried.empty() ? "" : ", ", cCount, cItem.first, cItem.second);
+            return carried.empty() ? std::string("nothing") : carried;
+        };
+        if (acCopies.Carried(aCopyId) != acOwner.Carried(aOwnerId))
+            aDifferences.push_back(std::format("{} ({:X}) carries {}, the owner's {}", acWhat, aCopyId,
+                                               cCarried(acCopies, aCopyId), cCarried(acOwner, aOwnerId)));
     }
 
     std::unique_ptr<World> NewGame(const char* acpName, const WorldPlugins& acPlugins)

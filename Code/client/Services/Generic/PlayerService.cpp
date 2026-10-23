@@ -19,6 +19,7 @@
 
 #include <spdlog/spdlog.h>
 #include <Services/HostService.h>
+#include <Services/TravelService.h>
 
 // ActorValueInfo::kHealth = 24 (Skyrim SE enum value)
 static constexpr int32_t kHealthActorValue = 24;
@@ -134,6 +135,8 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
 
     if (m_respawnTimer <= 0.0)
     {
+        // It moves the player (to its cell's COC marker): a travel that takes nobody along.
+        m_world.GetTravelService().OnRespawnMove();
         m_playerBridge.RespawnPlayer();
 
         m_knockdownTimer = 1.5;

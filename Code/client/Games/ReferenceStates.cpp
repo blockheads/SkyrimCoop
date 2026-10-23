@@ -70,11 +70,13 @@ bool ReadOpen(const TESObjectREFR& acObject, uint32_t, const ModSystem&, ObjectC
     return true;
 }
 
-// Plays the open or close, as ObjectReference.SetOpen does (BGSOpenCloseForm::SetOpenState, 14287).
+// Plays the open or close, as ObjectReference.SetOpen does (BGSOpenCloseForm::SetOpenState, 14287). It is nobody's
+// activation here: the lid's Open event (14285) would hand the menu to an activator an interrupted lid left behind.
 bool ApplyOpen(TESObjectREFR& aObject, const ObjectChange& acChange, const ModSystem&) noexcept
 {
     if (IsOpen(aObject) == (acChange.Value != 0))
         return true;
+    aObject.extraData.RemoveByType(ExtraDataType::OpenCloseActivateRef);
     using TSetOpenState = bool(TESObjectREFR*, bool, bool);
     POINTER_SKYRIMSE(TSetOpenState, s_setOpenState, 14287);
     s_setOpenState.Get()(&aObject, acChange.Value != 0, false);

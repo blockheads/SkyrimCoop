@@ -1,5 +1,6 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
+#include "FakeDialogue.h"
 #include "FakeEngine.h"
 
 #include <Bridges/IActorBridge.h>
@@ -7,10 +8,20 @@
 
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
+#include <Components/RemoteAnimationComponent.h>
 #include <Services/ActorValueService.h>
+#include <Services/AiStateService.h>
+#include <Services/EffectVisualsService.h>
 #include <Services/CharacterService.h>
+#include <Services/CombatService.h>
 #include <Services/CutsceneService.h>
+#include <Services/DialogueService.h>
 #include <Services/HostService.h>
+#include <Services/InventoryService.h>
+#include <Services/MagicService.h>
+#include <Services/MapService.h>
+#include <Services/ObjectService.h>
+#include <Services/TimeScaleService.h>
 #include <Services/PlayerService.h>
 #include <Services/TravelService.h>
 #include <Services/RunnerService.h>
@@ -46,7 +57,8 @@ void SetCurrentWorld(World* apWorld) noexcept
 }
 
 World::World()
-    : m_pSkyrimBridge(CreateBridgeContext(*this)), m_runner(m_dispatcher), m_transport(*this, m_dispatcher),
+    : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
+      m_runner(m_dispatcher), m_transport(*this, m_dispatcher),
       m_modSystem(m_dispatcher, ctx().at<IFormBridge&>())
 {
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
@@ -55,10 +67,21 @@ World::World()
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<CharacterService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
                                     ctx().at<IPlayerBridge&>());
+    ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
+    ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
+    ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
+    ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
+    ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(),
                                  ctx().at<IActorBridge&>());
+    ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
+                                 ctx().at<IPlayerBridge&>());
+    ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
     ctx().emplace<GuestSeam>(*this);
 }
@@ -68,9 +91,18 @@ World::~World()
 {
     ctx().erase<GuestSeam>();
     ctx().erase<HostService>();
+    ctx().erase<MapService>();
+    ctx().erase<CombatService>();
     ctx().erase<PlayerService>();
+    ctx().erase<DialogueService>();
     ctx().erase<CutsceneService>();
+    ctx().erase<AiStateService>();
+    ctx().erase<EffectVisualsService>();
+    ctx().erase<MagicService>();
+    ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
+    ctx().erase<TimeScaleService>();
+    ctx().erase<ObjectService>();
     ctx().erase<CharacterService>();
     ctx().erase<TravelService>();
 }
@@ -83,6 +115,9 @@ World& World::Get() noexcept
 void World::Update() noexcept
 {
     m_dispatcher.trigger(UpdateEvent(1.0 / 60));
+    // The copies' graph updates (AnimationSystem::Update): the fake has no graphs, so each replayed action is refused.
+    for (auto&& [cEntity, animation] : view<RemoteAnimationComponent>().each())
+        animation.TimePoints.clear();
     ctx().at<GuestSeam>().Update();
     ctx().at<FakeEngine&>().Frame();
 }
@@ -90,6 +125,17 @@ void World::Update() noexcept
 RunnerService& World::GetRunner() noexcept
 {
     return m_runner;
+}
+
+IActorBridge& World::GetActorBridge() noexcept
+{
+    return ctx().at<IActorBridge&>();
+}
+
+// As the real World: the session's clock (the host's network's, or the guest's estimate of it).
+uint64_t World::GetTick() const noexcept
+{
+    return m_transport.GetTick();
 }
 
 TransportService& World::GetTransport() noexcept

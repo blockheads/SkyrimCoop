@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/ActorUpkeep.h>
 #include <Games/Events.h>
 #include <TESObjectREFR.h>
 
@@ -416,7 +417,3 @@ static_assert(sizeof(Actor::SpellItemEntry) == 0x18);
 // actor pushed past its friendly-hit tolerance is marked angry with that player's character here,
 // and Actor::IsHostileToActor reports it hostile (see HookIsHostileToActor).
 void MarkAngryWithRemotePlayer(Actor* apActor, Actor* apRemotePlayer) noexcept;
-// Main thread, every frame: ends the anger once Skyrim has resolved the fight.
-void UpdateRemotePlayerAnger() noexcept;
-// Main thread: refreshes the actors whose locks the hang watchdog reports.
-void RefreshHangLockWatch() noexcept;

@@ -4,7 +4,7 @@
 #include <Components.h>
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
-#include <Utils.h>
+#include <SessionIds.h>
 #include <World.h>
 
 HostConversation::HostConversation(World& aWorld, entt::dispatcher& aDispatcher, DialogueService& aDialogue) noexcept

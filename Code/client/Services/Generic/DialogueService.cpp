@@ -5,7 +5,7 @@
 #include <Events/UpdateEvent.h>
 #include <Messages/SharedDialogue.h>
 #include <Services/TransportService.h>
-#include <Utils.h>
+#include <SessionIds.h>
 #include <World.h>
 
 DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,

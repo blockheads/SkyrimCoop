@@ -86,8 +86,10 @@ in the session and travels with it, never with a cell. NPC copies (the host's ac
   first movement sends it the spawn. And the host's own arrival sent a player ahead of it the NPCs of the cell the
   host had just left (discovery drops them on its next update): a held reference was flagged a copy again, a
   placeatme NPC's copy made in the guest's cell. `BuildSpawnRequests` skips an NPC without 3D.
-- **Joining elsewhere (2026-10-23).** A guest whose player announces itself away from the host's is sent to it
-  (`NotifyPartyTravel`, `HostCharacters::BringToParty`); the copies it got on joining that landed in its own cell
+- **Joining elsewhere (2026-10-23).** A guest whose player announces itself away from the host's, or outdoors
+  out of its loaded grid (`InHostGrid`), is sent to it (`NotifyPartyTravel`, `HostCharacters::BringToParty`); its
+  arrival there sends the players' characters both ways (`SendPlayersMet`: the copies made at its join may be
+  gone); the copies it got on joining that landed in its own cell
   go with its arrival, and the host sends it the actors there.
 - **No inventory reset:** enabling an actor (`TESObjectREFR::Enable` 19800, which a 3D reload goes through)
   resets its inventory to its base's template (`Actor::ResetInventory` 37322 → `InitInventoryIfRequired`

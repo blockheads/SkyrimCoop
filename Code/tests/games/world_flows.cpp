@@ -14,6 +14,8 @@ constexpr uint32_t kGate = 0x0001A003;          // another locked door there
 constexpr uint32_t kChest = 0x0001A001;         // a chest in kSmoke: 50 gold
 constexpr uint32_t kSinkholeChest = 0x0001B001; // a chest in kSinkhole: 10 gold
 constexpr uint32_t kGold = 0x0000000F;
+constexpr uint32_t kInnDoor = 0x0001A004;    // an unlocked door in kSmoke
+constexpr uint32_t kTimesAsked = 0x0003F1D6; // a global the host's quests count with
 
 // Each game's plugins: the same references; everyone has kSmoke loaded.
 void Plugins(FakeEngine& aEngine)
@@ -22,6 +24,8 @@ void Plugins(FakeEngine& aEngine)
     aEngine.References[kGate] = {.Cell = kSmoke, .Locked = true, .LockLevel = 50};
     aEngine.References[kChest] = {.Cell = kSmoke, .Items = {{kGold, 50}}};
     aEngine.References[kSinkholeChest] = {.Cell = kSinkhole, .Items = {{kGold, 10}}};
+    aEngine.References[kInnDoor] = {.Cell = kSmoke, .Door = true};
+    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
     aEngine.LoadCell(kSmoke);
 }
 
@@ -127,4 +131,32 @@ SCENARIO("Two guests: one's proposal reaches the other through the host", "[worl
     party.Until([&] { return Party::Engine(party.Guest(1)).References[kChest].Items[kGold] == 25; },
                 "the other guest's chest holds 25");
     CheckInSync(party);
+}
+
+SCENARIO("A guest opens a door: it opens on the host's game, and the host's closing reaches the guest", "[world]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return !host.CopiesOf().empty(); }, "the host's game has the guest's player");
+
+    party.As(party.Guest(), [&] { guest.Activates(FakeEngine::kPlayer, kInnDoor); });
+    party.Until([&] { return host.References.at(kInnDoor).Open; }, "the door opens on the host's game");
+
+    party.As(party.Host(), [&] { host.Activates(FakeEngine::kPlayer, kInnDoor); });
+    party.Until([&] { return !guest.References.at(kInnDoor).Open; }, "the host's closing it reaches the guest");
+    CheckInSync(party);
+}
+
+SCENARIO("The host's globals reach the guests: at the join and as they change", "[world]")
+{
+    Party party(1, Plugins, false);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    host.Globals[kTimesAsked] = 3.f;
+
+    party.Join(party.Guest());
+    party.Until([&] { return guest.Globals[kTimesAsked] == 3.f; }, "a joining guest gets the host's global");
+    host.Globals[kTimesAsked] = 7.f;
+    party.Until([&] { return guest.Globals[kTimesAsked] == 7.f; }, "the host's change reaches it");
 }

@@ -11,6 +11,7 @@
 #include <RunningGame.h>
 #include <Services/AiStateService.h>
 #include <Services/CharacterService.h>
+#include <Services/DialogueService.h>
 #include <Services/EffectVisualsService.h>
 #include <Services/Host/HostAuthority.h>
 #include <Services/Host/HostConversation.h>
@@ -52,10 +53,17 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
         return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
     };
-    game.ReadTime = [] { return TimeModel{}; };
-    game.SetHour = [](float) {};
-    game.ReadWeather = [] { return std::optional<GameId>{}; };
-    game.ReadGlobals = [] { return std::vector<HostGlobal>{}; };
+    game.ReadTime = [&engine] { return engine.Calendar; };
+    game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };
+    game.ReadWeather = [&engine] {
+        return engine.Weather.BaseId ? std::optional<GameId>(engine.Weather) : std::optional<GameId>{};
+    };
+    game.ReadGlobals = [&engine] {
+        std::vector<HostGlobal> globals;
+        for (const auto& [cId, cValue] : engine.Globals)
+            globals.push_back({.Id = GameId{0, cId}, .Value = cValue});
+        return globals;
+    };
     game.ReadQuests = [] { return std::vector<QuestState>{}; };
     game.TakeObjectChanges = [&engine] { return std::exchange(engine.Recorded, {}); };
     game.ReadCellState = [&engine](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
@@ -71,6 +79,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
+    m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
     return true;
 }
 
@@ -78,8 +87,15 @@ void HostService::StopHosting() noexcept
 {
     if (!IsHosting())
         return;
+    m_pConversation.reset();
     m_pNetwork.reset();
     m_pAuthority.reset();
+}
+
+void HostService::KickPlayer(uint32_t aPlayerId) noexcept
+{
+    if (m_pAuthority)
+        m_pAuthority->Kick(aPlayerId);
 }
 
 void HostService::OnUpdate(const UpdateEvent&) noexcept
@@ -90,39 +106,9 @@ void HostService::OnUpdate(const UpdateEvent&) noexcept
     m_pAuthority->Update(m_pNetwork->GetTick());
 }
 
-// Never made here (the fake engine is the host's reads, and no conversation), but HostService's members name them.
+// Never made here (the fake engine is the host's reads), but HostService's members name them.
 HostEngine::~HostEngine() noexcept = default;
 PhysicsRests::~PhysicsRests() noexcept = default;
-HostConversation::~HostConversation() noexcept = default;
-bool HostConversation::OnStartAsked(uint32_t, bool) noexcept
-{
-    return false;
-}
-bool HostConversation::OnTalk(uint32_t) noexcept
-{
-    return false;
-}
-uint32_t HostConversation::LineFor(uint32_t) noexcept
-{
-    return 0;
-}
-std::optional<std::vector<IDialogueBridge::Option>> HostConversation::OnListBuilt() noexcept
-{
-    return std::nullopt;
-}
-void HostConversation::OnOpen(const NotifyDialogueOpen&) noexcept
-{
-}
-void HostConversation::OnPicked(const NotifyDialoguePicked&, uint32_t, uint32_t, bool) noexcept
-{
-}
-void HostConversation::OnClosed() noexcept
-{
-}
-void HostConversation::OnUpdate(bool, uint32_t) noexcept
-{
-}
-
 // AnimationSystem and FaceGenSystem as their own (their files read the engine too): the components only.
 void AnimationSystem::Setup(World& aWorld, entt::entity aEntity) noexcept
 {
@@ -159,20 +145,18 @@ void AnimationSystem::TargetToNetwork(ActionEvent&) noexcept
 {
 }
 
+// CombatService's engine upkeep (Actor.cpp): no remote-player anger or hang watch in the fake.
+void UpdateRemotePlayerAnger() noexcept
+{
+}
+
+void RefreshHangLockWatch() noexcept
+{
+}
+
 void FaceGenSystem::Setup(World& aWorld, entt::entity aEntity, const Tints& acTints) noexcept
 {
     if (!acTints.Entries.empty())
         aWorld.emplace_or_replace<FaceGenComponent>(aEntity).FaceTints = acTints;
 }
 
-// Left out of tier 2: their state is not in the fake engine.
-
-ActorAiState AiStateService::ReadState(uint32_t) const noexcept
-{
-    return {};
-}
-
-std::vector<GameId> EffectVisualsService::ReadEffects(uint32_t) const noexcept
-{
-    return {};
-}

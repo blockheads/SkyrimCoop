@@ -74,7 +74,7 @@ BSPointerHandle<Projectile>* HookLaunch(BSPointerHandle<Projectile>* apThis, Pro
     }
 
     ProjectileLaunchedEvent Event{};
-    Event.Origin = arData.Origin;
+    Event.Origin = {arData.Origin.x, arData.Origin.y, arData.Origin.z};
     if (arData.pProjectileBase)
         Event.ProjectileBaseID = arData.pProjectileBase->formID;
     if (arData.pShooter)

@@ -29,6 +29,7 @@ void GuestClock::OnTimeSettings(const NotifyTimeSettings& acMessage) noexcept
 {
     m_shownTime = m_world.ctx().at<IWorldBridge&>().GetGameTime();
     s_hostClock = true;
+    m_hasHostTime = true;
     // The host's calendar as of now: hour, date and days passed.
     m_hostTime.m_timeModel = acMessage.timeModel;
     m_lastTick = m_world.GetTick();
@@ -36,7 +37,7 @@ void GuestClock::OnTimeSettings(const NotifyTimeSettings& acMessage) noexcept
 
 void GuestClock::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
-    if (!s_hostClock)
+    if (!m_hasHostTime)
         return;
 
     const uint64_t cNow = m_world.GetTick();

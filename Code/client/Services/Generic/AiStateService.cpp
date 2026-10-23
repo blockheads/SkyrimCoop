@@ -10,7 +10,7 @@
 #include <Messages/NotifyAiState.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyRemoveCharacter.h>
-#include <Utils.h>
+#include <SessionIds.h>
 #include <World.h>
 
 namespace

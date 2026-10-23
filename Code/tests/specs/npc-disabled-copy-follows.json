@@ -1,0 +1,52 @@
+{
+  "name": "npc-disabled-copy-follows",
+  "doc": "The host disables a placed NPC: the guest's reference is disabled too and stays a copy (copy-contract.md, \"When the owner's actor goes away\").",
+  "steps": [
+    {
+      "do": "stage_npc",
+      "ref": "0x0001A695",
+      "as": "vilkas"
+    },
+    {
+      "expect": "actors agree"
+    },
+    {
+      "do": "disable",
+      "actor": "vilkas"
+    },
+    {
+      "expect": "actor",
+      "game": "guest",
+      "actor": "vilkas",
+      "disabled": true,
+      "copy": true
+    },
+    {
+      "expect": "actors agree"
+    }
+  ],
+  "cleanup": [
+    {
+      "do": "enable",
+      "actor": "vilkas"
+    },
+    {
+      "expect": "actor",
+      "game": "guest",
+      "actor": "vilkas",
+      "disabled": false,
+      "copy": true
+    },
+    {
+      "do": "send_home",
+      "actor": "vilkas"
+    },
+    {
+      "expect": "actors agree"
+    }
+  ],
+  "tags": [
+    "spawn",
+    "cells"
+  ]
+}

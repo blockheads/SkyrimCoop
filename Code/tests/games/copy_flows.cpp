@@ -68,7 +68,12 @@ SCENARIO("An NPC the host's game loads gets a copy on the guest's game", "[copie
     WHEN("the host's guard goes (its cell unloads it) before the host's game has its assignment back")
     {
         // The host's rules sent the spawn with the assignment: the guest has its copy a frame before the host's
-        // game knows it owns the guard (its answer is handled on its next update).
+        // game knows it owns the guard (its answer is handled on its next update). Loopback's timing only.
+        if (party.Conditioned())
+        {
+            WARN("left out under COOP_NET: the guest's copy comes after the host's answer");
+            return;
+        }
         REQUIRE(!OwnsHere(party.Host(), npc));
         party.As(party.Host(), [&] { host.Actors.erase(npc); });
         party.Until([&] { return guest.CopiesOf(kGuard).empty(); }, "the guest's copy goes");
@@ -185,4 +190,35 @@ SCENARIO("A guest joins while the party is elsewhere: it is brought there and ge
             CHECK(guest.IsActorDead(guest.CopiesOf(kGuard)[0]));
         }
     }
+}
+
+namespace
+{
+constexpr uint32_t kTamriel = 0x0000003C;
+constexpr uint32_t kFirstTamrielCell = 0x00020000; // the fake's: cells (-6..6, -6..6)
+constexpr glm::vec3 kHostStands{100.f, 100.f, 0.f}; // in cell (0, 0)
+
+void Outdoors(FakeEngine& aEngine)
+{
+    aEngine.Exterior(kTamriel, kFirstTamrielCell, 6);
+    aEngine.PlayerStands(aEngine.CellAt(kTamriel, kHostStands), kHostStands);
+}
+} // namespace
+
+SCENARIO("A guest joins outdoors four cells from the host, out of its grid: it is brought to the party", "[copies]")
+{
+    Party party(1, Outdoors, false);
+    FakeEngine& guest = Party::Engine(party.Guest());
+
+    const glm::vec3 cFar{4 * 4096.f + 100.f, 100.f, 0.f}; // in cell (4, 0)
+    party.As(party.Guest(), [&] { guest.PlayerStands(guest.CellAt(kTamriel, cFar), cFar); });
+    party.Join(party.Guest());
+
+    const auto cFromHost = [&] {
+        const auto& cPlayer = guest.Actors.at(FakeEngine::kPlayer);
+        return glm::distance(glm::vec3{cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]}, kHostStands);
+    };
+    party.Until([&] { return cFromHost() < 64.f; }, "the guest is brought to the host's player",
+                [&] { return std::format("the guest's player {} units from the host's", cFromHost()); });
+    party.Agree("the games agree on the players");
 }

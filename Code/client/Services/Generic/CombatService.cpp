@@ -2,7 +2,7 @@
 #include <Services/TransportService.h>
 
 #include <Events/UpdateEvent.h>
-#include <Games/Skyrim/Actor.h>
+#include <Games/ActorUpkeep.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Events/HitEvent.h>
 

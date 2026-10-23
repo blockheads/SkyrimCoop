@@ -2,6 +2,14 @@
 
 #include <NoCopyMove.h>
 
+#include <Messages/RequestEquipmentChanges.h>
+#include <Messages/RequestInventoryChanges.h>
+
+#include <chrono>
+#include <utility>
+#include <variant>
+#include <vector>
+
 class IActorBridge;
 class IFormBridge;
 
@@ -79,12 +87,21 @@ private:
     * and resets their inventory.
     */
     void RunNakedNPCBugChecks() noexcept;
+    // Sends the changes queued for an actor that has its session id now; drops those of one no longer announced.
+    void RunPendingChanges() noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
     IActorBridge& m_actorBridge;
     IFormBridge& m_formBridge;
+
+    // Changes an actor made between its announcement and its session id (CharacterService's assignment): the host's
+    // spawn of it has its inventory as announced, so they follow once it is ours.
+    std::vector<std::pair<entt::entity, std::variant<RequestInventoryChanges, RequestEquipmentChanges>>> m_pending;
+
+    std::chrono::steady_clock::time_point m_lastSnapshotSend;
+    std::chrono::steady_clock::time_point m_lastNakedCheck;
 
     entt::scoped_connection m_updateConnection;
     entt::scoped_connection m_inventoryConnection;

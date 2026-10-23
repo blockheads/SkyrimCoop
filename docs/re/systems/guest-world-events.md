@@ -96,6 +96,27 @@ count it twice. Applying adds or removes the difference (`TESObjectREFR::SetCont
 `ScopedInventoryOverride`, so it raises nothing (no echo). The player's own inventory stays theirs (actor
 inventory sync, as before). Actors and references the game created (`0xFF`) are left out.
 
+A container's activation is still relayed (`ActivateRequest` → `NotifyActivate`) and replayed on the other games
+with the activating player's copy as the activator (`SkyrimBridge::ActivateObjectFromActor`). Read in IDA
+(2026-10-23) for `chest-take-all`'s "the host's Take All opened the guest's container menu":
+`TESObjectCONT::Activate` (17887) opens the menu (or the lockpicking menu) only for the game's own player
+(`gPlayerCharacter3`); for another actor it plays the open sound, takes the named item (the replay names none),
+and calls `Actor::StealAlarm` if that actor does not own the container. `TESObjectREFR::ActivateRef` (19796) sends
+`OnActivate` (a guest drops it, `WorldEvents.cpp`) and records the activator, and hands nothing to the player. So
+the replay cannot open a menu. What did (measured in Skyrim 2026-10-23, fixed the same day): the host's open state
+reaching the guest (`ReferenceStates::ApplyOpen`, `BGSOpenCloseForm::SetOpenState` 14287). An animated lid's
+toggle (`BGSOpenCloseForm::OpenOrClose`, 14284) records its activator in `ExtraOpenCloseActivateRef` (0x68,
+set by 11802) and acts on the lid's `Open`/`Close` event (14285): the recorded activator gets the base's
+`HandleOpen`/`HandleClose` (a container's opens the menu for the game's player), then it is cleared. The guest's
+own close records its player; the host's open, arriving late (its copy replays the guest's activation), interrupts
+that lid before its `Close` event, so its `Open` event finds the guest's player and opens its menu again.
+`SetOpenState` without its snap clears nothing. `ApplyOpen` now removes the record before playing the host's open
+or close (`ExtraDataList::RemoveByType`, 12354): it is nobody's activation in that game. Only Skyrim shows it
+(the fake has no lids or menus); `chest-take-all` is its scenario.
+
+The replay's `StealAlarm` (an owned chest, measured the same day): it runs once on the guest with the host's player
+copy and returns through the non-player branch before any crime processing; no bounty in any hold.
+
 ```
 host or guest: an item into or out of a container (menu, console, script, Take All)
   engine add / remove → TESContainerChangedEvent (16149) → ContainerEvents sink → ContainerChangeEvent (queued)

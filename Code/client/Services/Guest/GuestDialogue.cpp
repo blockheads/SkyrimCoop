@@ -6,7 +6,7 @@
 #include <Messages/NotifySubtitle.h>
 #include <Messages/SharedDialogue.h>
 #include <Services/TransportService.h>
-#include <Utils.h>
+#include <SessionIds.h>
 #include <World.h>
 
 GuestDialogue::GuestDialogue(World& aWorld, entt::dispatcher& aDispatcher, DialogueService& aDialogue) noexcept

@@ -5091,30 +5091,6 @@ def scenario_vilkas_counts_client_hits():
             console_on("", command)
 
 
-def scenario_host_npc_leaves_copy_follows():
-    """The host's Vilkas leaves (sent home), comes back, is disabled and enabled. The client's Vilkas, its own
-    placed reference shown as a copy, follows each time: home with the host's, disabled with it, and the host's
-    spawn takes it over again when the host has it here. It never stays behind as the client's own actor."""
-    try:
-        stage_host_npc(VILKAS)
-        release_host_npc(VILKAS)
-        if str(VILKAS) in local_player("client").get("local_actors", {}):
-            raise TestFailure(f"[client] {VILKAS:X} runs as the client's own actor")
-        stage_host_npc(VILKAS)  # the host's spawn takes the client's over again
-        console_on("", f"{VILKAS:X}.disable")
-        wait_for("[host] Vilkas is gone", lambda: not host_npc_state(VILKAS), 10)
-        copy_follows_host(VILKAS, "is disabled with the host's")
-        console_on("", f"{VILKAS:X}.enable")
-        session_id = wait_for("[host] Vilkas is back with a session id",
-                              lambda: (sid := host_npc_state(VILKAS).get("session_id")) is not None and sid >= 0 and (sid,), 10)[0]
-        if copy_of("client", session_id) != VILKAS:
-            raise TestFailure(f"[client] the host's Vilkas is not shown by the client's own {VILKAS:X}")
-        copy_follows_host(VILKAS, "is back with the host's")
-    finally:
-        if ref_enabled("", VILKAS) is False:
-            console_on("", f"{VILKAS:X}.enable")
-        if host_npc_state(VILKAS) or actor_place("", VILKAS).get("cell") == actor_place("", 0x14).get("cell"):
-            release_host_npc(VILKAS)
 
 
 # Skyrim.esm packages: DefaultSandboxCurrentLocation256 and DefaultSandboxCurrentLocation1024.
@@ -6952,7 +6928,6 @@ SCENARIOS = {
     "guest-script-stage-reaches-host": scenario_guest_script_stage_reaches_host,
     "shrine-blesses-client": scenario_shrine_blesses_client,
     "vilkas-counts-client-hits": scenario_vilkas_counts_client_hits,
-    "host-npc-leaves-copy-follows": scenario_host_npc_leaves_copy_follows,
     "copy-runs-owners-package": scenario_copy_runs_owners_package,
     "copy-in-owners-combat": scenario_copy_in_owners_combat,
     "guest-player-in-hosts-combat": scenario_guest_player_in_hosts_combat,
@@ -7089,7 +7064,6 @@ TAGS = {
     "guest-script-stage-reaches-host": {'scripts', 'quests', 'world'},
     "shrine-blesses-client": {'objects', 'scripts', 'cells', 'magic'},
     "vilkas-counts-client-hits": {'combat', 'scripts', 'quests', 'inventory'},
-    "host-npc-leaves-copy-follows": {'spawn'},
     "copy-runs-owners-package": {'spawn', 'ai'},
     "copy-in-owners-combat": {'combat', 'ai'},
     "guest-player-in-hosts-combat": {'combat', 'ai'},

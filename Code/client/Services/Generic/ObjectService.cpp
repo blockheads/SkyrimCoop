@@ -11,7 +11,7 @@
 
 #include <inttypes.h>
 #include <Components/LocalComponent.h>
-#include <Utils.h>
+#include <SessionIds.h>
 #include <Components/FormIdComponent.h>
 
 ObjectService::ObjectService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,

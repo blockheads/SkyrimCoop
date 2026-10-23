@@ -1179,7 +1179,7 @@ bool HookActivate(TESObjectREFR* apThis, TESObjectREFR* apActivator, uint8_t aUn
     if (apActivator && !ScopedHostChangeOverride::IsOverriden() && (pActivator ? apThis->baseForm->formType != FormType::Book : cIsDoor))
     {
         const auto cOpenState = cIsDoor ? apThis->GetOpenState() : TESObjectREFR::kNone;
-        ActivateEvent evt(apThis, pActivator, apObjectToGet, aCount, aDefaultProcessing, aUnk1, cOpenState);
+        ActivateEvent evt;
         evt.ObjectFormId = apThis->formID;
         evt.ActivatorFormId = apActivator->formID;
         evt.ByReference = !pActivator;

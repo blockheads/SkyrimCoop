@@ -29,6 +29,8 @@ struct TravelService
     // loaded grid.
     [[nodiscard]] bool IsAroundPlayer(const GameId& acWorldSpaceId, const GameId& acCellId,
                                       const glm::vec3& acPosition) const noexcept;
+    // The player's respawn moves it next (PlayerCharacter::RespawnPlayer): that arrival leads nobody.
+    void OnRespawnMove() noexcept;
     // The cell at a place a peer reports (outdoors the worldspace's cell at the position), 0 if none.
     [[nodiscard]] uint32_t CellAt(const GameId& acWorldSpaceId, const GameId& acCellId,
                                   const glm::vec3& acPosition) const noexcept;
@@ -57,6 +59,9 @@ struct TravelService
     // The arrival is the player's own travel (it leads the party), not one from before joining.
     bool m_leading = false;
     bool m_teleportedOffline = false;
+    // A respawn's move is to come (until it does, or 10 s for a load screen), and the arrival is one.
+    std::chrono::steady_clock::time_point m_respawnMoveUntil{};
+    bool m_respawned = false;
     uint32_t m_arrivalCellId = 0; // where the player last arrived (the party stacks in new cells)
     // Where the party tether sent the player and it has not arrived yet, oldest first. Arriving at one of
     // them is following, not leading.

@@ -60,6 +60,9 @@ scripts/xmake-linux.sh build -j8 coop_peer
 # The gate before every push: the native tests and the plugin's build (also the pre-push hook)
 scripts/check.sh
 
+# Tier 2 over a bad line (delay, jitter, loss; minutes): before a push that touches messages or their order
+scripts/net_check.sh
+
 # clangd's compile database (both builds): build/compile_commands.json
 scripts/compile_commands.sh
 ```

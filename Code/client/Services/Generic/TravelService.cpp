@@ -79,11 +79,15 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
         return;
     }
     if (m_playerBridge.ConsumeTeleported())
-        m_arriving = m_leading = true;
+    {
+        m_respawned = std::chrono::steady_clock::now() < std::exchange(m_respawnMoveUntil, {});
+        m_arriving = true;
+        m_leading = !m_respawned;
+    }
     else if (std::exchange(m_teleportedOffline, false))
     {
         m_arriving = true;
-        m_leading = false;
+        m_leading = m_respawned = false;
     }
     const uint32_t cCellId = m_playerBridge.GetPlayerParentCellFormId();
     if (!m_arriving || !cCellId)
@@ -113,8 +117,16 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
         m_playerBridge.SetPlayerHeading(cReached->Heading);
     m_tetherTargets.erase(m_tetherTargets.begin(), cFollowing ? cReached.base() : m_tetherTargets.end());
     using Travel = EnterCellRequest::Travel;
-    const Travel cHow = cFollowing ? Travel::kTether : m_leading ? Travel::kOwn : Travel::kBeforeJoining;
+    const Travel cHow = cFollowing  ? Travel::kTether
+                        : m_leading  ? Travel::kOwn
+                        : m_respawned ? Travel::kRespawn
+                                      : Travel::kBeforeJoining;
     m_dispatcher.trigger(PlayerArrivedEvent{cCellId, m_playerBridge.GetPlayerWorldSpaceId(), cHow});
+}
+
+void TravelService::OnRespawnMove() noexcept
+{
+    m_respawnMoveUntil = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 }
 
 void TravelService::OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept

@@ -68,6 +68,13 @@ bool ExtraDataList::Add(ExtraDataType aType, BSExtraData* apNewData)
     return true;
 }
 
+void ExtraDataList::RemoveByType(ExtraDataType aType) noexcept
+{
+    using TRemoveByType = void(ExtraDataList*, ExtraDataType);
+    POINTER_SKYRIMSE(TRemoveByType, s_removeByType, 12354);
+    s_removeByType(this, aType);
+}
+
 uint32_t ExtraDataList::GetCount() const
 {
     uint32_t count = 0;

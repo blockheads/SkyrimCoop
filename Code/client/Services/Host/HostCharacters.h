@@ -70,8 +70,13 @@ private:
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;
-    // A player that joined where the host is not goes there (the party tether).
-    void BringToParty(ConnectionId_t aPlayer) const noexcept;
+    // Indoors anywhere; outdoors within the host's player's loaded grid (GridCellCoords::IsCellInGridCell).
+    [[nodiscard]] bool InHostGrid(const Vector3_NetQuantize& acPosition) const noexcept;
+    // A player that joined where the host is not, or outdoors out of its grid, goes there (the party tether).
+    void BringToParty(ConnectionId_t aPlayer) noexcept;
+    // Its arrival there: the players' copies either way were made where it joined and may be gone (a copy moved
+    // out of the loaded cells is), so each is sent again; a game that still has one refreshes it.
+    void SendPlayersMet(ConnectionId_t aPlayer) noexcept;
     // The host's actors (not its player, whose copy travels with the party) to one player.
     void SendHostActors(ConnectionId_t aPlayer) noexcept;
     // The host's game's spawns of its actors but aExcludedSessionId, to aPlayer; one it announced but has not moved
@@ -117,6 +122,8 @@ private:
     // Arrived where the host is not yet (it led, or the host is still loading): the host's actors there reach
     // them once the host arrives.
     std::unordered_set<ConnectionId_t> m_aheadOfHost;
+    // Sent to the party at its join (BringToParty), not arrived yet.
+    std::unordered_set<ConnectionId_t> m_broughtToParty;
     // Where the party went last (the latest player to travel by itself), for followers that arrive elsewhere.
     std::optional<NotifyPartyTravel> m_partyTravel;
 };

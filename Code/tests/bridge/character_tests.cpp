@@ -431,12 +431,106 @@ TEST_CASE("Party tether: a player joining away from the host is sent to it", "[B
     CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
 }
 
-TEST_CASE("Party tether: a follower's arrival takes nobody along", "[Bridge][Characters]")
+TEST_CASE("Party tether: a player brought to the party gets the players' characters again where it arrives",
+          "[Bridge][Characters]")
+{
+    Session session;
+    AssignCharacterRequest host;
+    host.Cookie = 1;
+    host.ReferenceId = GameId(0, 0x14);
+    host.CellId = GameId(0, 0x32AE7);
+    session.Receive(kHost, host);
+    const uint32_t cHostPlayer = session.SentTo<AssignCharacterResponse>(kHost)[0]->SessionId;
+    NotifyCharacterSpawn hostSpawn;
+    hostSpawn.SessionId = cHostPlayer;
+    session.Spawns.push_back(hostSpawn);
+
+    // It joins in Riverwood and is sent to QASmoke; the copies made at its join may be gone by its arrival.
+    AssignCharacterRequest away = host;
+    away.CellId = GameId(0, 0x9732);
+    away.WorldSpaceId = GameId(0, 0x3C);
+    session.Receive(kPeer, away);
+    const uint32_t cPeerPlayer = session.SentTo<AssignCharacterResponse>(kPeer)[0]->SessionId;
+    session.Outbox.clear();
+
+    session.Receive(kPeer, Arrival(0x32AE7, 0, {1.f, 2.f, 3.f}, EnterCellRequest::Travel::kTether));
+    const auto cToPeer = session.SentTo<NotifyCharacterSpawn>(kPeer);
+    CHECK(std::ranges::any_of(cToPeer, [&](const auto* apSpawn) { return apSpawn->SessionId == cHostPlayer; }));
+    const auto cToHost = session.SentTo<NotifyCharacterSpawn>(kHost);
+    REQUIRE(cToHost.size() == 1);
+    CHECK(cToHost[0]->SessionId == cPeerPlayer);
+    CHECK(cToHost[0]->Position == glm::vec3(1.f, 2.f, 3.f));
+
+    // Its next arrival is an ordinary one: the players' copies travel with the party.
+    session.Outbox.clear();
+    session.Receive(kPeer, Arrival(0x32AE7, 0, {}, EnterCellRequest::Travel::kTether));
+    CHECK(session.SentTo<NotifyCharacterSpawn>(kHost).empty());
+}
+
+TEST_CASE("Party tether: a player brought to the party outdoors gets them where it arrives, not where it joined",
+          "[Bridge][Characters]")
+{
+    Session session;
+    AssignCharacterRequest host;
+    host.Cookie = 1;
+    host.ReferenceId = GameId(0, 0x14);
+    host.CellId = GameId(0, 0x9732);
+    host.WorldSpaceId = GameId(0, 0x3C);
+    host.Position = glm::vec3(100.f, 100.f, 0.f);
+    session.Receive(kHost, host);
+
+    // Four cells off in Tamriel, as Skyrim orders it: its assignment, then where it was as it joined (the same
+    // worldspace: "with the host"), then its arrival by the party's travel.
+    AssignCharacterRequest away = host;
+    away.CellId = GameId(0, 0x9740);
+    away.Position = glm::vec3(4 * 4096.f + 100.f, 100.f, 0.f);
+    session.Receive(kPeer, away);
+    const uint32_t cPeerPlayer = session.SentTo<AssignCharacterResponse>(kPeer)[0]->SessionId;
+    session.Receive(kPeer, Arrival(0x9740, 0x3C, {4 * 4096.f + 100.f, 100.f, 0.f}));
+    session.Outbox.clear();
+
+    session.Receive(kPeer, Arrival(0x9732, 0x3C, {101.f, 100.f, 0.f}, EnterCellRequest::Travel::kTether));
+    const auto cToHost = session.SentTo<NotifyCharacterSpawn>(kHost);
+    REQUIRE(cToHost.size() == 1);
+    CHECK(cToHost[0]->SessionId == cPeerPlayer);
+    CHECK(cToHost[0]->Position == glm::vec3(101.f, 100.f, 0.f));
+}
+
+TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sent to it", "[Bridge][Characters]")
+{
+    Session session;
+    AssignCharacterRequest host;
+    host.Cookie = 1;
+    host.ReferenceId = GameId(0, 0x14);
+    host.CellId = GameId(0, 0x9732);
+    host.WorldSpaceId = GameId(0, 0x3C);
+    host.Position = glm::vec3(100.f, 100.f, 0.f);
+    session.Receive(kHost, host);
+
+    // In Tamriel too, but four cells (4096 units each) away: sent to the host's player.
+    AssignCharacterRequest away = host;
+    away.CellId = GameId(0, 0x9740);
+    away.Position = glm::vec3(4 * 4096.f + 100.f, 100.f, 0.f);
+    session.Receive(kPeer, away);
+    const auto cTravels = session.SentTo<NotifyPartyTravel>(kPeer);
+    REQUIRE(cTravels.size() == 1);
+    CHECK(cTravels[0]->WorldSpaceId == GameId(0, 0x3C));
+    CHECK(cTravels[0]->Position == glm::vec3(100.f, 100.f, 0.f));
+
+    // Two cells away, in its loaded grid: stays.
+    AssignCharacterRequest near = host;
+    near.Position = glm::vec3(2 * 4096.f + 100.f, 100.f, 0.f);
+    session.Receive(kOtherPeer, near);
+    CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
+}
+
+TEST_CASE("Party tether: a follower's, a joiner's or a respawn's arrival takes nobody along", "[Bridge][Characters]")
 {
     Session session;
     BothInQASmoke(session);
 
-    for (const auto cHow : {EnterCellRequest::Travel::kTether, EnterCellRequest::Travel::kBeforeJoining})
+    for (const auto cHow : {EnterCellRequest::Travel::kTether, EnterCellRequest::Travel::kBeforeJoining,
+                            EnterCellRequest::Travel::kRespawn})
     {
         session.Receive(kPeer, Arrival(0x9732, 0x3C, {}, cHow));
         for (const auto cTo : {kHost, kPeer, kOtherPeer})

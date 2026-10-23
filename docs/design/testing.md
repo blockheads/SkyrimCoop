@@ -36,10 +36,11 @@ Skyrim's scenarios are not in it.
 - DLL, one `.cpp` touched (`PartyNatives.cpp`, `CutsceneService.cpp`, `World.cpp`): 1.8-2.4 s
 - DLL, `World.h` touched (most of the plugin): 12.9 s
 - `ClientTests`: rule edit, build and run 0.4 s; test edit, build and run 1.1 s
-- `BridgeTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (115 cases)
+- `BridgeTests`: build 2.4-3.8 s (one rule or test file); run 0.04 s (118 cases)
 - `TPTests`: build 1.9 s; run under 0.01 s
-- `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 7.7 s (23 flows, 2-3 games each;
-  8 s with the duo running), 0.9 s of it each death flow (the services' real-time timers)
+- `GameTests` (tier 2): build 2.5-4.5 s (one service), 14.5 s from clean; run 14 s (28 flows and spec runs, 2-3 games each;
+  8 s with the duo running), 0.9 s of it each death flow (the services' real-time timers); 10.2 s for 24 flows
+  with the outdoor respawn, on a loaded machine (load 9)
 - Duo boot (`stop`, then `duo --keep-running`): 22.6 s, both games connected and the baseline recorded
 - `reload` (swap a rebuild into the running duo): 2.2 s
 - One scenario (`cutscene-controls-reach-party`): 1.6 s, 2.6 s with the command's start
@@ -84,7 +85,7 @@ Scripts that edit and build in a loop wait a second first.
   loaded is the same) and `Party::Agree()` (the games agree on every actor, below).
 - **Where:** `Code/tests/games/` (`GameTests`).
 - **Run:** `scripts/xmake-linux.sh build -j8 GameTests && build/linux/x86_64/debug/GameTests`
-- **When:** every change. **Budget:** seconds. Today: build 2.5-4.5 s (one service), run 7.7 s for 23 flows.
+- **When:** every change. **Budget:** seconds. Today: build 2.5-4.5 s (one service), run 7.7-10.2 s for 23-24 flows.
   Most of the run is enet's loopback handshakes, `Net::Client::Close`'s 100 ms wait per leave, and the death
   flows' waits on `ActorValueService`'s timers (250 ms death state, 500 ms before a copy dies).
 
@@ -161,7 +162,11 @@ restored):
   QASmoke's COC marker after `PlayerService`'s 5 s, and the host spawns its copy again (without
   `PlayerRespawnRequest`, or the copy's `RequestRespawn`, it fails). Tier 2 has no animation replay, so the copy
   never goes down itself; the check is that it is a new actor (`FakeEngine::Actor::Made`, a fresh extension in
-  Skyrim), as the respawn is what ends a copy's replayed bleedout there.
+  Skyrim), as the respawn is what ends a copy's replayed bleedout there. Outdoors (the fake's exteriors: a
+  worldspace's cells on the 4096-unit grid, the 5 by 5 grid loaded around the player's cell, walking without a
+  teleport), a guest's player gets up in its own cell and the host stays put, next to it and three cells away; the
+  second failed first: the respawn's move led the party (bug 5). Without `PlayerService`'s `OnRespawnMove`, or
+  `TravelService`'s `kRespawn`, it fails.
 - `travel_flows.cpp`: a placed NPC stays with its cell, held as a copy, when the host leads away, and when the guest
   leads (its arrival drops its copies first; without `CancelServerAssignment`'s hold it fails), and is the host's
   copy again on the party's return; an NPC the host's game loads in the frame a following guest's arrival reaches
@@ -184,6 +189,86 @@ Bugs they found, each fixed with the flow failing without the fix (and a `Bridge
 4. **Statics shared by the two games:** `ActorValueService`'s four send timers (the guest's sends took the host's
    turn, so the host's NPC's health and death never went out) and `PlayerService`'s respawn flag (the host, not
    down, cleared it every frame, so a guest's respawn never came). Members now.
+5. **A respawn outdoors pulled the party** to the respawned player when they were out of its loaded grid:
+   upstream's `RespawnPlayer` moves the player, and the arrival led. `PlayerService` tells `TravelService` before
+   it (`OnRespawnMove`), and the arrival is sent as `EnterCellRequest::Travel::kRespawn`, which leads nobody.
+6. **A guest joining outdoors four cells from the host stayed there** (found in Skyrim, 2026-10-23): outdoors
+   the place is the worldspace, so it counted as with the host. A joiner out of the host's player's loaded grid
+   is sent to it too now (`HostCharacters::InHostGrid`; flow "A guest joins outdoors four cells from the host",
+   `BridgeTests` "a player joining outdoors out of the host's grid").
+7. **A guest brought to the party at its join had no copy of the host's player, nor the host of it** (found in
+   Skyrim, 2026-10-23, `guest-joins-elsewhere` and the four-cell join). The copies made at the join were lost on
+   the way (the host's, made four cells off before it was persistent, deleted that frame; the guest's dropped as
+   its travel began), and an arrival sends the host's actors only, players' copies being taken to travel with the
+   party. Its arrival now sends the players' characters both ways (`HostCharacters::SendPlayersMet`; a game that
+   still has the copy refreshes it). The fake learned the loss first: a created actor moved into a cell not
+   loaded is deleted, which made the flow and the spec fail as in Skyrim. `BridgeTests` "a player brought to the
+   party gets the players' characters again". Skyrim then showed the host still without the guest's copy: the
+   guest's "where I was as I joined" arrival (`kBeforeJoining`) comes after its assignment and, outdoors in the
+   same worldspace, counts as with the host, so the resend went before the travel. Only the arrival by the
+   party's travel (`kTether`) counts now (`BridgeTests` "a player brought to the party outdoors gets them where it
+   arrives"; the fake's guest sends that arrival before its assignment, so tier 2 did not show the order).
+8. **What a player got or equipped before its session id came back was lost** (found under network conditions,
+   2026-10-23): `InventoryService` dropped a change for an actor with no session id yet ("failed to find session
+   id"), and the host's spawn of it has its inventory as announced, so a copy never had it. Changes of an actor
+   still waiting for its assignment are queued now and sent once it is ours (`InventoryService::RunPendingChanges`;
+   flow "What a player does before its session id comes back", which steps only the guest's game so the answer
+   waits).
+
+The equipment flows (`equipment_flows.cpp`, `InventoryService` in every game, 2026-10-23): a player's weapons in
+either hand, a swap and a sheathe, and armor reach its copy; a host NPC's weapon reaches its copy, which takes
+no equip of its own; a late joiner's copy of the host's player comes dressed (the spawn's inventory). The actor
+checksum compares what each copy wears with its owner's. Each fails with its line broken (the send, the apply,
+the slot, the unequip, the armor's equip, the host's relay, the spawn's inventory). `InventoryService`'s two
+timers were statics two games would share (the snapshot's and the naked check's); members now, as the rule says
+(no flow shows it: the snapshot comes every 3 s, past `Until`'s 2).
+
+The item flows (`item_flows.cpp`, the same day): a player's gold gained and spent reaches its copy and not the
+other player; a dropped held sword leaves its copy's hands and inventory (one removal: the host relays a drop as
+a count); a host NPC's gold reaches its copy; a guest joining later gets another guest's player with its gold
+and sword (the host's copy, `CharacterService::ReadCopy`). The checksum compares what each copy carries. A
+player's drawn weapon reaches its copy, and a joiner sees the host's player's hands up (`equipment_flows.cpp`).
+The fake has no graphs, so each replayed action is refused (`World::Update` drains the copies' queues) and the
+copy's hands come from `InventoryService`'s convergence, its fallback in Skyrim. Each fails with its line broken.
+
+Clock, weather, markers and time scale (`clock_weather_flows.cpp`, `shared_flows.cpp`, 2026-10-23; `GuestClock`,
+`GuestWeather`, `MapService`, `TimeScaleService` in every game): a joining guest takes the host's weather and
+date, the host's change of weather and a wait reach it, leaving gives its weather back; a guest's map marker
+shows on the host's and the other guest's map and goes with its removal; a kill cam on a guest's game slows the
+host's clock and both run at full speed after. The fake's calendar runs on real time, as the engine's frame
+delta does (run by frames, the host saw drift every frame and resent its clock). `GuestClock`'s
+"has the host's clock" is per game now; the engine hook keeps its static.
+
+Magic, effect visuals and AI state (`magic_flows.cpp`, 2026-10-23; `MagicService`, `EffectVisualsService`,
+`AiStateService` in every game, each including `SessionIds.h` for `Utils.h`): a guest's Flames replays on its copy
+from the same hand, and is not sent back; a guest's spell on a host NPC is applied by the host's game, cast by its
+copy of the guest, and the NPC turns on it; a host NPC's burning plays on its copy and ends with it; a host NPC
+fighting the guest's player fights the guest's own player on the guest's game, which counts it for its player's
+combat. The fake has each actor's casts, effects, reactions, AI fields and hit visuals, as our hooks raise them
+(`HookSpellCast`, `HookAddTarget`, `EffectEvents`, `AiEvents`).
+
+Combat and objects (`combat_flows.cpp`, `object_flows.cpp`, the same day; `CombatService`, `ObjectService` in every
+game): a guest's sword hit on a host NPC is applied by the host's game, the guest's copy taking nothing and
+showing the guard's health bar, and its killing blow credits the host's copy of the guest; a guest's fire bolt
+launches from its copy on the host's game from the same place; a guest's lever pull replays by its copy, a
+locked gate's activation (a lockpick attempt) is not passed on. To build natively: `CombatService` takes its two
+engine upkeep calls from `Games/ActorUpkeep.h` (out of `Actor.h`), `ProjectileLaunchedEvent` holds a `glm::vec3`
+and `ActivateEvent` only the form ids it was read into (its engine pointers had no reader).
+
+Dialogue (`dialogue_flows.cpp`, the same day; `DialogueService` in every game, `HostConversation` made by the
+hosting seam as `HostService` makes it, `GuestDialogue` by the guest's): a guest talking to its copy of a host NPC
+starts the host's game's conversation with the NPC in the background (the host plays on), the guest's menu opens
+on its copy with the host's game's list, its pick is said by the host's game alone and the next list shows, and
+its goodbye ends the conversation on both. `FakeDialogue.h` is the engine's side: a speaker, a menu, the list
+built from a script of topics and our hooks' filters where the engine asks them.
+
+The baseline's last four (the same day): a player's and a host NPC's health lost and regained show on their
+copies (`values_flows.cpp`); a guest opening a door opens it on the host's game, and the host closing it reaches
+the guest (`world_flows.cpp`; the fake's doors swing on activation and have the open-state row); the host's
+globals reach a joining guest and follow its changes (`world_flows.cpp`; `HostGame::ReadGlobals` and
+`GuestEngine::SetGlobal` on the fake's globals); the host kicks a guest, whose copy goes, and it joins again
+(`session_flows.cpp`; `HostService::KickPlayer` in the hosting seam). The rest of `test-coverage.md`'s "none
+yet" rows are details of covered features, left until after the MVP.
 
 The travel flows (`travel_flows.cpp`): the host travels and the guest follows (the tether), the players' copies
 coming along; a guest travels and the host and the other guest follow; an NPC stays with its cell when the party
@@ -214,14 +299,56 @@ What the fake's actors assume (each to check in Skyrim unless marked measured):
 
 - An actor `Actor::Create` made (a copy) is deleted with its cell unless persistent, and its form id goes to the
   next reference made (measured: `docs/re/crashes/2026-10-14-reused-copy-form-id.md`). A placeatme NPC stays in its
-  unloaded cell (not measured).
+  unloaded cell (measured 2026-10-23: the same form id and base, with 3D, once its cell loads again; not looked up
+  while unloaded).
 - A copy at or below 0 health neither dies nor goes down (measured: actor-ai-and-copies.md, "A copy is in deferred
-  kill"); a non-copy dies at 0 health, or goes down if essential (`SetPlayerRespawnMode`).
+  kill"); a non-copy dies at 0 health, or goes down if essential (`SetPlayerRespawnMode`). An essential base's
+  NPC goes down at the console's kill too, owner and copy (measured: Lydia, `EssentialBases`); the specs kill a
+  chicken.
 - `PlayerCharacter::RespawnPlayer` in an interior ends the bleedout, restores health and moves the player to the
   cell's COC marker, a travel the engine reports (`ConsumeTeleported`), so a respawning guest's arrival leads
   (`kOwn`) and the others, in the same interior, stay (read from our `RespawnPlayer`; not measured).
-- `DisableActor` takes 3D away (out of the process lists); `ApplyRemoteMovement` puts the actor at the position.
-- An NPC placed in the plugins is in every game, its 3D loaded while its cell is.
+- `DisableActor` takes 3D away (out of the process lists); `ApplyRemoteMovement` puts the actor at the position,
+  even out of the loaded grid (measured 2026-10-23: a player's copy four cells off is kept, a copy, with no 3D and
+  no cell, and is the same reference with 3D on return; the fake keeps its 3D). `MoveActorTo` puts a created
+  actor that is not persistent into a cell not loaded out of the game (measured: a player's copy spawned four
+  cells off, before `SetActorPersistent`, is gone that frame).
+- An NPC placed in the plugins is in every game, its 3D loaded while its cell is. Its enable and disable reach a
+  copy only through the copy messages: the world-state enabled row skips actors (measured 2026-10-23).
+- Containers have no lids or menus: a lid's recorded activator (`chest-take-all`'s bug,
+  `guest-world-events.md`) shows only in Skyrim.
+- Outdoors the loaded grid is the 5 by 5 around the player's own cell (measured 2026-10-23: dimension 5, around
+  the player's cell; the engine's lag in moving it not modelled), and an exterior cell's COC placement is its
+  centre (wrong: measured off-centre; only respawn uses it, parked). `RespawnPlayer` outdoors goes to the COC point
+  of the grid's centre cell (measured: its `MoveTo` input).
+
+What the fake's equipment assumes (`FakeEngine::Equip`, from our hooks in `EquipManager.cpp`; not measured):
+
+- An actor's own equip or unequip (the player's menu, an NPC's AI) raises `EquipmentChangeEvent` for an actor that
+  is not a copy; a copy refuses one that is not ours (`ScopedEquipOverride`, which `EquipManager::Equip` sets).
+- A hand holds one weapon, and an equip into it takes the old one off with no event (the hook's
+  `ScopedUnequipOverride`). An armor takes off a worn armor sharing a biped slot, also with no event.
+- Equipping an item the actor does not have adds one.
+- Items: an actor's own gain or loss raises `InventoryChangeEvent` (the hooks on `AddInventoryItem`,
+  `RemoveItem`), a drop raises one marked a drop; another game's change applies under `ScopedInventoryOverride`
+  and raises none. A copy's 3D replays no action (no graphs): every queued action is refused.
+- Ours (`ActorEquipItem`, `EquipManager::Equip` not applied at once) puts no armor over armor: measured
+  2026-10-23, a player swapping iron armor for steel in the menu sends one request (the steel; the iron comes off
+  inside the equip, no event), and its copy wears the steel and the helmet within 95 ms after
+  `OnNotifyEquipmentChanges`' unequip-all, equip, re-equip. The mechanism (refused or applied in another order) is
+  not known; the fake refuses.
+
+### Network conditions
+
+Every flow also runs with the guests' traffic over a bad line: `COOP_NET="delay=50,jitter=30,loss=5,seed=1"` puts a
+UDP relay on loopback between each guest's enet client and the host's server (`UdpRelay.h`), holding each
+datagram for the delay plus up to the jitter each way (so some arrive out of order) and dropping the loss's
+share, from the seed; enet's own resends do the rest, as on the internet. The host's own game stays in-process.
+`Party::Until` waits 20 s instead of 2 under it, and a failure names the conditions and the seed.
+`scripts/net_check.sh` runs two profiles (50/30/5% and 120/80/10%), about 1.5 and 5 minutes for every flow: before
+a push that touches messages or their order, not in the gate. First runs (2026-10-23): everything passed but one
+flow, which found bug 8; one section needs loopback's timing (the guest's copy before the host's own answer) and
+says so under `COOP_NET` (a warning, not a pass).
 
 ### What Skyrim taught the fake
 
@@ -241,8 +368,8 @@ Today 13 of the 26 service files build natively (`ActorValueService`, `Character
 `TransportService`, `TravelService`, and `ModSystem` among the systems). What stopped the rest, first error each
 (`CharacterService` was only three unused or misplaced includes):
 
-1. **Engine structs in services** (`CombatService`, `InventoryService`, `MagicService`, `ObjectService`,
-   `HostService`): `Games/Primitives.h` fails its own `static_assert` (`sizeof(NiRefObject)`), as
+1. **Engine structs in services** (`HostService`; `InventoryService`, `CombatService` and `ObjectService` were a
+   header each, `MagicService` and the others below `Utils.h`, all in tier 2 now): `Games/Primitives.h` fails its own `static_assert` (`sizeof(NiRefObject)`), as
    it should: the engine's layout is the MSVC ABI's (`long` is 4 bytes there, 8 on Linux). They can never build
    natively; their engine calls go behind a bridge first. Large: one service at a time, as a flow needs it.
 2. **`VersionDb.h` / `intrin.h` through the Papyrus and engine helpers** (`AiStateService`,
@@ -322,6 +449,62 @@ owner's cached `JumpLand` fields differed from its copy's zero fields, after the
 This remains C++ regression work for tiers 1-2, not a green full suite. Evidence and the exact source hashes are in
 `build/coop-test/validation/pinned-ff3bad3f7834/`. Later ActorValue/Player/HostCharacters work in the shared tree
 was not silently substituted into that run.
+
+Follow-up builds on 2026-10-23 were captured with their source hashes and active DLL generations under
+`build/coop-test/validation/`. Build `8ed928c99087` passed all 95 affected selections for HostCharacters,
+CharacterService, ActorValueService and PlayerService, including the 41 spawn cases. Firebolt passed there;
+the earlier failure is not thereby proved fixed. After the respawn arrival change, build `35bfae3b44ee` passed
+78/79 additional affected selections: `party-panel` failed its checksum after hot reload, with a 54-degree
+owner/copy heading difference. Both runs kept their build fixed; neither was a full suite run.
+
+The actor vocabulary in `coop_specs.py` binds each named actor for that spec run, resolves a spawned copy by
+session id after joining again, and reads held placed copies with `actor_place` even without 3D. Staged actors
+are sent home and thawed; spawned actors are removed, including on a failed step. `deadly_hit` uses health
+damage, and `down` reads bleedout with the spec's `within` deadline. `together` checks one cell and both players'
+copies; it does not mean all of upstream's post-death motion has finished.
+
+On `35bfae3b44ee`, `npc-disabled-copy-follows` and `npc-sent-home-copy-follows` passed (2.7 and 2.2 s). The latter
+retires the old `host-npc-leaves-copy-follows` function and name; disable/enable coverage is in the other spec.
+The two specs using Lydia as a mortal NPC failed: `.kill` put her in bleedout, with `dead: false` on owner and
+copy. Their data was left unchanged (since: the fake's Lydia is essential too, and the specs kill a chicken). `guest-down-gets-up` reached its down, recovery and actor checks, but
+failed the baseline reset after recovery motion displaced the player (the spec is removed since: respawn is
+parked for the spectate design, `docs/ideas.md`). These are retained failures, not green
+shared-spec coverage. Step readouts are in `pinned-35bfae3b44ee/actor-specs.json`.
+
+The world-state enabled row does **not** cover placed actors: `HostEngine::OnFormChange` and
+`ReferenceStates::RecordedRows` accept `FormType::Reference`, excluding actors. The disabled Vilkas stayed a
+disabled copy until `NotifyCharacterSpawn` re-enabled it; the guest log records that path, without an enabled
+object row. A held reference still follows the whereabouts at removal, not later movement while the host no
+longer simulates it.
+
+Engine measurements confirmed the 5-by-5 exterior grid around the player's cell. Readouts use this repo's
+TES names (`centerGrid` at B0/B4, `currentGrid` at B8/BC); CommonLib calls them `currentGrid` and `currentQueued`.
+A cell's COC placement is **not necessarily its geometric center**: the live `RespawnPlayer` move in cell
+(4, -12) used roughly (17224.8, -47204.5), rather than (18432, -47104). The interior used QASmoke's COC marker.
+Later ragdoll/physics positions are separate samples, not the commanded destination. A placed-at-runtime NPC
+returned at its original form id after cell unload and `pcb`, although `actor_place` could not find it while
+unloaded. Joining from a different interior restored a living and a dead host NPC correctly.
+
+The pre-fix distant respawn pulled the host from grid (4, -12) to (8, -12). With `kRespawn`, the host stayed
+exactly put in the corresponding controlled-health-damage measurement. A separate failure remains: the host
+lost its guest copy and did not show it again after return movement and travel home. Joining four exterior cells
+away also left the guest away from the host; `WithHost` groups an entire worldspace. Preserve these failures
+when growing the fake, rather than treating a passed no-tether check as a complete respawn contract.
+
+The chest readout found `HUD Menu` alone immediately after the guest's Take All. The guest then applied
+`open C2CE8` from the host's world state and reopened `ContainerMenu` about a second later. A debugger captured
+`ReferenceStates::ApplyOpen` calling `BGSOpenCloseForm::SetOpenState`, followed by the engine's open callback
+calling `ContainerMenu::OpenMenu` with the guest's own player. The relayed activation correctly used the host
+player's copy. `take_all` already waits for a stack containing only the HUD, so a stronger menu-close predicate
+does not fix this reopening. Preserve the UI test and model the open/close callback's activator state for a fast
+regression, not just item counts. `guest-menu-transitions.json` and both chest readout files retain the sequence.
+
+In a separate owned-chest take, the guest's activation replay called `Actor::StealAlarm` once with the host
+player's copy. The captured non-player branch returned before crime processing; the copy was not a player
+teammate. No guest bounty changed in any of the nine hold factions over the observed post-action frames. The
+host also gained no bounty in that fixture, so it is not a positive witness/bounty control. This establishes
+the replay's early exit in that run, not a claim about every mod's crime rules. See `chest-followup.json` and
+`alarm-debugger.log` under `pinned-35bfae3b44ee/`.
 
 ## Tier 4: soak
 
@@ -565,8 +748,17 @@ as data in `Code/tests/specs/*.json`, the same steps run against the fake (tier 
     there).
   - World steps: `lock` (the player locks or picks it, the harness's `lock`), `add_items` / `remove_items` (the
     console's `additem` / `removeitem` on a container).
+  - Actor steps (2026-10-23), on the host's actors: `spawn_npc` (`base`, `as`: the host's player places one,
+    `spawn_host_npc`), `stage_npc` (`ref`, `as`: a placed NPC to the stage, `stage_host_npc`), `send_home`,
+    `kill`, `disable`, `enable` (`actor`: `move_actor` home, the console's `kill`/`disable`/`enable`);
+    `deadly_hit` (`game`: its player takes more than its health); `go` (`game`, `cell: "elsewhere"`: a travel
+    while away, Riverwood in Skyrim, an exterior in the fake). Each spawn or stage waits until the host's game owns
+    the actor and every guest has its copy. An `actor` is a name an `as` gave or a hex id.
   - Expectations: `controls` (`equals` a mask, or `taken`), `shake` (`shaking`), `lock` (`locked`, `level`),
-    `items` (`item`, `count`). An expectation waits for its state, or with `now` checks it at once: "stays" after
+    `items` (`item`, `count`); for actors `actors agree` (`Party::Agree` in the fake, `check_desync` in Skyrim),
+    `actor` (`game`, `actor`, and any of `dead`, `disabled`, `copy`: the host's actor as that game has it, its copy
+    on a guest), `together` (every player where the host's is), `down` (`game`, `down`: its player bleeding out;
+    `within` seconds for Skyrim's wait, a respawn takes several). An expectation waits for its state, or with `now` checks it at once: "stays" after
     a marker.
   - A reference is a hex id (QASmoke's small chest, `0xC2CE8`) or a role each runner finds: `inner-door` is
     `inner_door()` in Skyrim and a stand-in in the fake's QASmoke. `tags` are the scenario's tags besides `spec`.
@@ -583,7 +775,14 @@ as data in `Code/tests/specs/*.json`, the same steps run against the fake (tier 
   Skyrim's measured masks: `0xFFFFFABE` for the defaults, `0xFFFFFFBF` for fighting only); `lock-reaches-others`
   and `chest-items-reach-others` (world-state sync: a lock both ways; sweetrolls added on the host, removed on the
   guest). The second assumes a guest's console `removeitem` raises the same container event as its player's take:
-  the Skyrim run says.
+  the Skyrim run says. Actors (2026-10-23, the fake only so far): `npc-death-reaches-copy`, `npc-disabled-copy-follows`,
+  `npc-sent-home-copy-follows` (the twin of `host-npc-leaves-copy-follows`), `guest-joins-elsewhere`
+  (`guest-down-gets-up` dropped: respawn is parked); each failed in the fake with the line it covers broken (the death relay, `FollowOwner`'s
+  disable and move, `BringToParty`). Writing the disabled one found that a held reference does not
+  follow its owner's actor while the host's game does not simulate it: enabled and sent home in one go, the host
+  sends nothing, and the guest's stays disabled on the stage (the contract's scope: it follows where the actor was
+  at removal). Its cleanup waits for the copy to be enabled first; whether Skyrim's world-state enabled row covers
+  placed actors, which would re-enable it there, is for the Skyrim run.
 - **Expectations are in the engine's own values** (the mask Skyrim shows), so a fake that guesses wrong fails the
   spec on tier 2. The jumping bit was found this way, by hand.
 - **When:** tier 2 on every change (it's in `scripts/check.sh`); tier 3 when the fake engine changes, and in

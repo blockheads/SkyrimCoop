@@ -93,3 +93,58 @@ SCENARIO("A guest's player goes down and gets up: its copy on the host is spawne
         }
     }
 }
+
+namespace
+{
+constexpr uint32_t kTamriel = 0x0000003C;
+constexpr uint32_t kFirstTamrielCell = 0x00020000; // the fake's: cells (-4..4, -4..4)
+
+// Everyone stands outdoors in Tamriel's cell (0, 0).
+void Outdoors(FakeEngine& aEngine)
+{
+    aEngine.Exterior(kTamriel, kFirstTamrielCell, 4);
+    const glm::vec3 cStand{100.f, 100.f, 0.f};
+    aEngine.PlayerStands(aEngine.CellAt(kTamriel, cStand), cStand);
+}
+
+glm::vec3 At(const FakeEngine& acEngine)
+{
+    const auto& cPlayer = acEngine.Actors.at(FakeEngine::kPlayer);
+    return {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+}
+} // namespace
+
+SCENARIO("Outdoors, a guest's player goes down and gets up in its own cell: the host stays where it is", "[death]")
+{
+    Party party(1, Outdoors);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Agree("the games agree on the players");
+
+    const auto cGoesDownAndUp = [&](bool aCopied) {
+        const size_t cHostTravels = host.Travels;
+        const glm::vec3 cHostAt = At(host);
+        const uint32_t cCell = guest.GetPlayerParentCellId();
+        party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+        REQUIRE(guest.IsPlayerBleedingOut());
+        party.Until([&] { return !guest.IsPlayerBleedingOut(); }, "the guest's player gets up");
+        THEN("it gets up in its own cell, and the host's player has not moved")
+        {
+            CHECK(guest.GetPlayerParentCellId() == cCell);
+            if (aCopied)
+                party.Agree("the games agree on the players");
+            CHECK(host.Travels == cHostTravels);
+            CHECK(At(host) == cHostAt);
+        }
+    };
+
+    WHEN("next to the host") cGoesDownAndUp(true);
+    WHEN("three cells from the host, out of its loaded grid")
+    {
+        party.As(party.Guest(), [&] { guest.PlayerWalks({3 * 4096.f + 500.f, 100.f, 0.f}); });
+        party.Agree("the host's copy of the guest walks along");
+        // Its new copy on the host goes, made out of the host's grid, and is not sent again (as in Skyrim, 2026-10-23;
+        // respawn is parked for the spectate design, docs/ideas.md).
+        cGoesDownAndUp(false);
+    }
+}

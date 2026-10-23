@@ -702,12 +702,24 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   position within 64, dead, enabled, copy flag; held copies as the host's references), `ActorValueService` and
   `PlayerService` in every game, the fake's placed NPCs, health, death, bleedout, respawn and created actors deleted
   with their cell; flows for late join, a host NPC going away (moved, disabled, deleted, back), death and a
-  guest's respawn, a placed NPC the party leaves and returns to, an NPC loading as a follower arrives; 23 flows,
-  7.7 s; each new flow failed with its covered line broken. Found and fixed: a guest joining elsewhere was never
+  guest's respawn (indoors and out: the fake has exteriors now), a placed NPC the party leaves and returns to, an
+  NPC loading as a follower arrives; 24 flows, 7.7-10.2 s; each new flow failed with its covered line broken. Found and fixed: a guest joining elsewhere was never
   brought to the party; an NPC announced in the frame a follower's arrival reached the host's rules never reached
   that follower; the host's arrival sent a guest ahead of it the NPCs of the cell it left; `ActorValueService`'s
-  send timers and `PlayerService`'s respawn flag were statics two games shared (`docs/design/testing.md`, tier 2;
+  send timers and `PlayerService`'s respawn flag were statics two games shared; a respawn outdoors pulled players
+  out of the respawned player's grid (its arrival is `kRespawn` now). Four actor shared specs (`Code/tests/specs/`: an NPC's
+  death, disable and trip home, joining elsewhere) with actor steps and expectations
+  (`actors agree`, `actor`, `together`, `down`; respawn's spec dropped, parked for the spectate design); pass in the fake, the Skyrim side to map them in `coop_specs.py` (`docs/design/testing.md`, tier 2;
   `copy-contract.md`, "Arrival races"). The fake's unmeasured assumptions are listed for the Skyrim side.
+  Tier 2 equipment the same day: `InventoryService` in every game, the fake's equipment (hands, armor slots, our
+  equip hooks' events and refusals), worn items in the checksum; flows for a player's weapons and armor, a host
+  NPC's weapon, an armor swap (measured in Skyrim) and a late joiner's dressed copy (`equipment_flows.cpp`); items (gold, a dropped sword, a later
+  joiner's copy of another guest as it is now, `item_flows.cpp`) and drawn weapons, carried items and hands in the
+  checksum. Clock, weather, map markers and time scale the same day (`clock_weather_flows.cpp`, `shared_flows.cpp`);
+  magic, effect visuals and AI state (`magic_flows.cpp`); combat and objects (`combat_flows.cpp`, `object_flows.cpp`);
+  dialogue's games (`dialogue_flows.cpp`, `FakeDialogue.h`); health, doors, globals and kicks (`values_flows.cpp`,
+  `world_flows.cpp`, `session_flows.cpp`). The baseline is done: every working feature has a fast test, details
+  left for after the MVP. Coverage per scenario: `docs/design/test-coverage.md`.
 - Beast form (2026-10-20, `docs/re/systems/papyrus-guest-scripts.md`, "Beast form"): `client-beast-form-stays-client`
   (3 of 3) shows upstream's beast form bug gone: the change runs on the guest's game only. Fixed on the way:
   a copy respawned for a race change started from the host's record of its owner's last cell entry (stale
@@ -924,6 +936,21 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   effect with no duration as a flash (`FlashEffectOf`) changed nothing (a shrine blessing cast on the host's Vilkas:
   the host shows `0x4E220`, the copy never), so its visuals likely do not start through `StartHitEffects` (34094) at
   all; not traced. Reverted.
+- **Fixed 2026-10-23: a player's first items and equipment were lost under latency.** A change made before its
+  session id came back was dropped; queued now until the assignment (`InventoryService::RunPendingChanges`). Found
+  by tier 2's network conditions, new the same day (`COOP_NET`, `scripts/net_check.sh`: every flow through a relay
+  that delays, jitters and drops the guests' datagrams; all pass at 120 ms, 80 ms jitter, 10% loss).
+- **Fixed 2026-10-23: a guest brought to the party at its join had no player copies** (`guest-joins-elsewhere`,
+  the four-cell join). The copies made at the join were lost on the way, and the arrival sent the host's actors
+  only. Now its arrival by the party's travel sends the players' characters both ways
+  (`HostCharacters::SendPlayersMet`; tier 2 flow and spec, `BridgeTests`; `docs/design/testing.md`, tier 2 bug 7).
+  Skyrim's first run found its join-time arrival counted too, outdoors; only the `kTether` arrival counts now.
+- **Fixed 2026-10-23: the host's Take All reopened the guest's container menu** (`chest-take-all`). The host's lid
+  opening, arriving after the guest closed the chest, found the guest's player still recorded as the lid's
+  activator and opened its menu (`BGSOpenCloseForm`'s lid event, 14285). Applying the host's open state clears that
+  record first (`ReferenceStates::ApplyOpen`; `docs/re/systems/guest-world-events.md`). Only Skyrim shows it (no
+  lids in the fake): `chest-take-all` to confirm. The replay's `StealAlarm` on an owned chest returns before any
+  crime on the guest (measured).
 - **Done 2026-10-22: a host NPC leaving no longer leaves a ghost on the guest.** The removal carries where the host's actor went; the guest's reference follows it (moved, disabled or deleted) and stays a copy until the host spawns it again (`docs/design/copy-contract.md`, "When the owner's actor goes away"; `host-npc-leaves-copy-follows`). Still open: a guest's non-persistent references are made anew when it loads their cell, unflagged, so they run their own AI until the host's spawn arrives (not measured).
 - **Done 2026-10-22: a guest's player is in combat when the host's NPCs fight it** (`guest-player-in-hosts-combat`;
   above, overnight slice 4). Not checked: combat music and the wait/save block on a guest.
@@ -1064,7 +1091,9 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   - A client's fast travel passes time only on its own game; the host follows by `MoveTo`, so the
     party's clock (the host's) skips the trip and the client is set back to it.
   - Every travel of a player's own leads: a scripted move on a client (a quest teleport, jail) takes the
-    party along too. Within a cell or the loaded grid nobody moves.
+    party along too. Within a cell or the loaded grid nobody moves. Not a respawn (2026-10-23): upstream's
+    `RespawnPlayer` moves the player to its cell's COC marker, which outdoors pulled players more than two cells
+    away; that arrival is `kRespawn` now and leads nobody (tier 2 "Outdoors, a guest's player goes down").
   - Two players leading at once to different places can end apart (each game follows in the host's
     order; a leader may follow the other one afterwards). Not seen; the fix would be the host keeping the
     party's last destination and sending a follower that arrives elsewhere on to it. One leader travelling
@@ -1073,6 +1102,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
     time does not lead.
   - A player joining somewhere else is pulled to the host's player and pulls nobody (2026-10-23,
     `HostCharacters::BringToParty`; tier 2 late-join flow, `BridgeTests` "a player joining away from the host").
+    Outdoors also when out of the host's loaded grid in the same worldspace (fixed the same day after Skyrim's
+    four-cell join: `InHostGrid`).
+  - Players walking apart outdoors work (measured 2026-10-23): the far copy is kept without 3D and loads again on
+    return. A far respawn's new copy is lost out of the host's grid and not sent again (respawn parked).
   - Not tried: a follower in a menu, in dialogue, dead or mounted; three players.
 - **The old CEF overlay and its Angular UI (`Code/skyrim_ui`) are still in the tree**, compiled out of the
   Windows build: the RmlUi panels replace them (party, chat).

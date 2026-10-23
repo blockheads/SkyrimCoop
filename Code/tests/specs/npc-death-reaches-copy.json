@@ -1,0 +1,31 @@
+{
+  "name": "npc-death-reaches-copy",
+  "doc": "A host NPC dies (the console's kill): its copy on the guest dies with it, and the games agree on every actor.",
+  "steps": [
+    {
+      "do": "spawn_npc",
+      "base": "0x000FA6D9",
+      "as": "chicken"
+    },
+    {
+      "expect": "actors agree"
+    },
+    {
+      "do": "kill",
+      "actor": "chicken"
+    },
+    {
+      "expect": "actor",
+      "game": "guest",
+      "actor": "chicken",
+      "dead": true
+    },
+    {
+      "expect": "actors agree"
+    }
+  ],
+  "tags": [
+    "values",
+    "spawn"
+  ]
+}

@@ -2,6 +2,8 @@
 // (docs/design/testing.md, "Shared specs"). One section per spec: `GameTests "[spec]" -c <name>` runs one.
 #include "Party.h"
 
+#include <Structs/GridCellCoords.h>
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -40,12 +42,20 @@ LocalValue ValueOf(const Json& acValue)
 constexpr uint32_t kQaSmoke = 0x00031D2E;
 constexpr uint32_t kInnerDoor = 0x0001686E; // a stand-in id: coop_test.py's inner_door() finds the real one
 constexpr uint32_t kSmallChest = 0x000C2CE8;
+constexpr uint32_t kVilkas = 0x0001A695;
+constexpr uint32_t kVilkasHome = 0x00016EF6; // a stand-in for where the game placed him (Jorrvaskr)
+constexpr glm::vec3 kStage{0.f, 200.f, 0.f}; // a stand-in for coop_test.py's stage_spot()
+constexpr uint32_t kTamriel = 0x0000003C;
+constexpr glm::vec3 kElsewhere{4096.f * 5 + 100.f, 0.f, 0.f}; // "elsewhere": Riverwood in Skyrim, an exterior
 
 void QaSmoke(FakeEngine& aEngine)
 {
     aEngine.References[kInnerDoor] = {.Cell = kQaSmoke};
     aEngine.References[kSmallChest] = {.Cell = kQaSmoke, .Items = {{0x0000000A, 3}, {0x0003AD5B, 1}}}; // lockpicks, a potion
+    aEngine.Actors.at(FakeEngine::kPlayer).Cell = kQaSmoke;
     aEngine.LoadCell(kQaSmoke);
+    aEngine.PlaceNpc(kVilkas, 0x0001A694, kVilkasHome, {300.f, 300.f, 0.f});
+    aEngine.Exterior(kTamriel, 0x00020000, 6);
 }
 
 uint32_t Id(const Json& acValue)
@@ -61,6 +71,66 @@ struct SpecRun
 {
     Party& Games;
     std::string Name;
+    std::map<std::string, uint32_t> Npcs; // the host's NPCs by the name a step gave them ("as")
+
+    // An actor a step names: a name it was given, or a hex id; the host's reference.
+    uint32_t HostActor(const Json& acValue, const std::string& acWhat)
+    {
+        const std::string cText = acValue.get<std::string>();
+        if (const auto it = Npcs.find(cText); it != Npcs.end())
+            return it->second;
+        if (cText.starts_with("0x"))
+            return static_cast<uint32_t>(std::stoul(cText, nullptr, 16));
+        FAIL(acWhat << ": no actor \"" << cText << "\"");
+        return 0;
+    }
+
+    // The host's actor as aGame has it: itself on the host; on a guest its copy (by session id), or the guest's own
+    // reference held as a copy (0: none).
+    uint32_t ActorOn(World& aGame, uint32_t aHostActor)
+    {
+        if (&aGame == &Games.Host())
+            return aHostActor;
+        World& host = Games.Host();
+        for (const auto cEntity : host.view<FormIdComponent, LocalComponent>())
+            if (host.get<FormIdComponent>(cEntity).Id == aHostActor)
+                for (const auto cCopy : aGame.view<FormIdComponent, RemoteComponent>())
+                    if (aGame.get<RemoteComponent>(cCopy).Id == host.get<LocalComponent>(cEntity).Id)
+                        return aGame.get<FormIdComponent>(cCopy).Id;
+        for (const auto cEntity : aGame.view<FormIdComponent, HeldCopyComponent>())
+            if (aGame.get<FormIdComponent>(cEntity).Id == aHostActor)
+                return aHostActor;
+        return 0;
+    }
+
+    // The host's game owns the actor and every guest has a copy of it.
+    bool Shown(uint32_t aHostActor)
+    {
+        for (size_t i = 0; i + 1 < Games.GameCount(); ++i)
+            if (!ActorOn(Games.Guest(i), aHostActor) || !Party::Engine(Games.Guest(i)).IsActorCopy(ActorOn(Games.Guest(i), aHostActor)))
+                return false;
+        for (const auto cEntity : Games.Host().view<FormIdComponent, LocalComponent>())
+            if (Games.Host().get<FormIdComponent>(cEntity).Id == aHostActor)
+                return true;
+        return false;
+    }
+
+    // Every game's player is where the host's is: its interior, or outdoors its worldspace within the loaded grid.
+    bool Together()
+    {
+        const auto& cHost = Party::Engine(Games.Host()).Actors.at(FakeEngine::kPlayer);
+        for (size_t i = 0; i + 1 < Games.GameCount(); ++i)
+        {
+            const auto& cGuest = Party::Engine(Games.Guest(i)).Actors.at(FakeEngine::kPlayer);
+            const auto cAt = [](const FakeEngine::Actor& acActor) {
+                return GridCellCoords::CalculateGridCellCoords(acActor.Position[0], acActor.Position[1]);
+            };
+            if (cHost.WorldSpace ? cGuest.WorldSpace != cHost.WorldSpace || !GridCellCoords::IsCellInGridCell(cAt(cGuest), cAt(cHost), false)
+                                 : cGuest.Cell != cHost.Cell)
+                return false;
+        }
+        return true;
+    }
 
     World& Game(const std::string& acName)
     {
@@ -114,6 +184,39 @@ struct SpecRun
                 const auto& cReference = cEngine.References.at(cRef);
                 return cReference.Locked == cLocked && (!cLevel || cReference.LockLevel == *cLevel);
             };
+        }
+        else if (cExpect == "actors agree")
+        {
+            if (acStep.value("now", false))
+            {
+                const auto cDifferences = Games.ActorDifferences();
+                for (const auto& cDifference : cDifferences)
+                    UNSCOPED_INFO(cDifference);
+                CHECK(cDifferences.empty());
+            }
+            else
+                Games.Agree(acWhat);
+            return;
+        }
+        else if (cExpect == "actor")
+        {
+            const uint32_t cHostActor = HostActor(acStep["actor"], acWhat);
+            World* pGame = &game;
+            holds = [this, pGame, cHostActor, acStep] {
+                const uint32_t cId = ActorOn(*pGame, cHostActor);
+                const FakeEngine& cHere = Party::Engine(*pGame);
+                return cId && (!acStep.contains("dead") || cHere.IsActorDead(cId) == acStep["dead"].get<bool>()) &&
+                       (!acStep.contains("disabled") || cHere.IsActorDisabled(cId) == acStep["disabled"].get<bool>()) &&
+                       (!acStep.contains("copy") || cHere.IsActorCopy(cId) == acStep["copy"].get<bool>());
+            };
+        }
+        else if (cExpect == "together")
+            holds = [this] { return Together(); };
+        else if (cExpect == "down")
+        {
+            // "within" is Skyrim's wait (a respawn takes seconds there); the fake's frames are quicker than its 2 s.
+            const bool cDown = acStep["down"].get<bool>();
+            holds = [&cEngine, cDown] { return cEngine.IsPlayerBleedingOut() == cDown; };
         }
         else if (cExpect == "items")
         {
@@ -186,6 +289,60 @@ struct SpecRun
                 const int32_t cNow = std::max(0, engine.References.at(cRef).Items[cItem] + cCount);
                 engine.PlayerSetsItems(cRef, cItem, cNow);
             });
+        }
+        else if (cDo == "spawn_npc")
+        {
+            // The host's player places one (the console's placeatme), next to it.
+            FakeEngine& host = Party::Engine(Games.Host());
+            uint32_t npc = 0;
+            Games.As(Games.Host(), [&] {
+                const auto& cPlayer = host.Actors.at(FakeEngine::kPlayer);
+                npc = host.LoadNpc(Id(acStep["base"]), cPlayer.Cell,
+                                   {cPlayer.Position[0] + 60.f, cPlayer.Position[1], cPlayer.Position[2]});
+            });
+            Npcs[acStep["as"].get<std::string>()] = npc;
+            Games.Until([&] { return Shown(npc); }, acWhat + " (the host's game owns it, every guest has a copy)");
+        }
+        else if (cDo == "stage_npc")
+        {
+            // One of the host's placed NPCs brought to the stage (coop_test.py's stage_host_npc).
+            const uint32_t cNpc = Id(acStep["ref"]);
+            Npcs[acStep["as"].get<std::string>()] = cNpc;
+            Games.As(Games.Host(), [&] { Party::Engine(Games.Host()).MoveActorTo(cNpc, kQaSmoke, kStage.x, kStage.y, kStage.z); });
+            Games.Until([&] { return Shown(cNpc); }, acWhat + " (the host's game owns it, every guest has a copy)");
+        }
+        else if (cDo == "send_home")
+        {
+            // Back where the game placed it (move_actor's home).
+            const uint32_t cNpc = HostActor(acStep["actor"], acWhat);
+            Games.As(Games.Host(), [&] { Party::Engine(Games.Host()).MoveActorTo(cNpc, kVilkasHome, 300.f, 300.f, 0.f); });
+        }
+        else if (cDo == "kill" || cDo == "disable" || cDo == "enable")
+        {
+            // The host's console on its actor.
+            const uint32_t cNpc = HostActor(acStep["actor"], acWhat);
+            FakeEngine& host = Party::Engine(Games.Host());
+            Games.As(Games.Host(), [&] {
+                if (cDo == "kill")
+                    host.KillActor(cNpc);
+                else if (cDo == "disable")
+                    host.DisableActor(cNpc, false);
+                else
+                    host.EnableActor(cNpc);
+            });
+        }
+        else if (cDo == "deadly_hit")
+        {
+            World& game = Game(acStep.value("game", "host"));
+            Games.As(game, [&] { Party::Engine(game).Hit(FakeEngine::kPlayer, 10000.f); });
+        }
+        else if (cDo == "go")
+        {
+            World& game = Game(acStep["game"].get<std::string>());
+            if (acStep["cell"].get<std::string>() != "elsewhere")
+                FAIL(acWhat << ": no such place");
+            FakeEngine& engine = Party::Engine(game);
+            Games.As(game, [&] { engine.PlayerTravels(engine.CellAt(kTamriel, kElsewhere), kElsewhere); });
         }
         else if (cDo == "marker")
         {
