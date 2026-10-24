@@ -6,6 +6,7 @@
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
 
+#include <Games/QuestChanges.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <Papyrus/PartyRules.h>
@@ -13,6 +14,7 @@
 
 #include <glm/glm.hpp>
 
+#include <array>
 #include <chrono>
 #include <deque>
 #include <map>
@@ -77,6 +79,16 @@ struct FakeEngine : StillBridges
     void SetOpen(uint32_t aDoor, bool aOpen);
     // The global variables (TESGlobal), by form id: the host's read (HostGame::ReadGlobals), a guest's set to them.
     std::map<uint32_t, float> Globals;
+    std::set<uint32_t> GlobalWrites;
+    void SetGlobal(uint32_t aId, float aValue) { Globals[aId] = aValue; GlobalWrites.insert(aId); }
+    std::array<uint32_t, 2> BeastPerkGlobals{}; // werewolf, vampire: default objects 320/321
+    void ModifyBeastPerks(bool aVampire, int32_t aDelta);
+    std::map<uint32_t, QuestState> Quests;
+    QuestChanges QuestWrites;
+    // The quest events and alias-write hooks report the quest after its state was written.
+    void QuestChanged(uint32_t aId) { QuestWrites.Quest(aId); }
+    void ClearReferenceAlias(uint32_t aQuest, uint32_t aAlias);
+    void ClearLocationAlias(uint32_t aQuest, uint32_t aAlias);
     // The rows of a reference's state (ReferenceStates' encoding: a lock's level, kLocked above it; items' counts).
     [[nodiscard]] std::vector<ObjectChange> RowsOf(uint32_t aReference) const;
     // Another game's change made here (GuestEngine::ApplyObjectChange); false: no such reference.
@@ -125,11 +137,30 @@ struct FakeEngine : StillBridges
         std::set<uint32_t> Visuals;       // an owner's effects with hit visuals on (burning)
         std::set<uint32_t> ShownVisuals;  // a copy's visuals played for its owner's
         ActorValues Values = FullValues();
+        std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         Inventory Items;
+        ActionEvent LatestAnimation;
+        bool BlockResurrect = false;
+        uint32_t ResurrectCalls = 0;
+        uint32_t ValueWrites = 0;
         uint32_t Made = 0; // which actor at this form id: a reused id is a new one (a fresh ActorExtension)
     };
+    struct Npc
+    {
+        std::string Name;
+        uint32_t Race = 0;
+    };
+    std::map<uint32_t, Npc> Npcs;
     std::map<uint32_t, Actor> Actors{{kPlayer, Actor{.Base = 0x7, .Player = true}}};
     static constexpr uint32_t kPlayer = 0x14;
+    mutable std::map<std::pair<uint32_t, int32_t>, uint32_t> ValueReads;
+    mutable std::map<std::pair<uint32_t, int32_t>, uint32_t> MaximumReads;
+    bool HoldDeathActions = false;
+    bool RefuseDeathActions = false;
+    void ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction);
+    void FinishDeath(uint32_t aFormId);
+    ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
+    void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
 
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
     // left unloaded, a teleport the engine reports once (ConsumeTeleported).
@@ -242,6 +273,15 @@ struct FakeEngine : StillBridges
     }
     std::vector<uint32_t> HealthBarsShown; // HUD's enemy health (ShowEnemyHealth)
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override { HealthBarsShown.push_back(aActorFormId); }
+    // Voice lines (Actor::SpeakSound 37542): it reads the actor's process unchecked, so one without 3D crashes the game.
+    std::vector<std::pair<uint32_t, std::string>> Lines;
+    uint32_t SpokeWithout3D = 0;
+    void ActorSpeakSound(uint32_t aFormId, const std::string& acFilename) noexcept override
+    {
+        if (!ActorHas3D(aFormId))
+            ++SpokeWithout3D;
+        Lines.emplace_back(aFormId, acFilename);
+    }
     // AI: the actor fights a target by itself (its combat AI); our hooks raise AiStateChangeEvent (AiEvents.cpp).
     void Fights(uint32_t aActor, uint32_t aTarget);
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
@@ -335,6 +375,9 @@ struct FakeEngine : StillBridges
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
+    bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
+    std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
+    uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
@@ -454,7 +497,7 @@ struct FakeEngine : StillBridges
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;
     // At 0 health: dead, or down if essential; a copy is in deferred kill.
-    void CheckHealth(Actor& aActor) noexcept;
+    void CheckHealth(uint32_t aFormId, Actor& aActor) noexcept;
     // The engine's equip and unequip behind EquipHook and UnEquipHook (EquipManager.cpp).
     void Equip(uint32_t aActor, uint32_t aItem, uint32_t aSlot);
     void Unequip(uint32_t aActor, uint32_t aItem, uint32_t aSlot);

@@ -77,6 +77,7 @@ struct TESQuest : BGSStoryManagerTreeForm
         void SetState(uint8_t aState) noexcept;
     };
 
+    static_assert(offsetof(Objective, parent) == 0x8);
     static_assert(offsetof(Objective, index) == 0x1C);
     static_assert(offsetof(Objective, state) == 0x1F);
 

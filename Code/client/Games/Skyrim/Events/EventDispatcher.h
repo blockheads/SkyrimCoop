@@ -100,6 +100,7 @@ struct TESDeathEvent
     TESObjectREFR* pActorKiller;
     bool isDead;
 };
+static_assert(offsetof(TESDeathEvent, isDead) == 0x10 && sizeof(TESDeathEvent) == 0x18);
 
 struct TESDestructionStageChangedEvent
 {

@@ -13,10 +13,12 @@
 #include <Components/TESActorBaseData.h>
 #include <ExtraData/ExtraFactionChanges.h>
 #include <Games/Memory.h>
+#include <Games/Skyrim/RefrInteraction.h>
 #include <Forms/TESLevItem.h>
 #include <Combat/CombatController.h>
 
 #include <Events/HealthChangeEvent.h>
+#include <Events/ActorDeathChangeEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
@@ -775,6 +777,22 @@ bool Actor::InitiateMountPackage(Actor* apMount) noexcept
     return RealInitiateMountPackage(this, apMount);
 }
 
+bool Actor::PutOnMount(Actor* apMount) noexcept
+{
+    using TConstruct = RefrInteraction*(void* apMemory, Actor* apRider, Actor* apMount);
+    using TAttach = void(RefrInteraction** appInteraction);
+    POINTER_SKYRIMSE(TConstruct, s_construct, 40345); // MountInteraction::MountInteraction
+    POINTER_SKYRIMSE(TAttach, s_attach, 41532);       // into the rider's and the mount's ExtraInteraction
+    if (!apMount)
+        return false;
+    RefrInteraction* pInteraction = s_construct(Memory::Allocate(0x38), this, apMount);
+    InterlockedIncrement(&pInteraction->refCount);
+    s_attach(&pInteraction);
+    if (InterlockedDecrement(&pInteraction->refCount) == 0)
+        delete pInteraction;
+    return true;
+}
+
 void Actor::GenerateMagicCasters() noexcept
 {
     using CS = MagicSystem::CastingSource;
@@ -865,6 +883,7 @@ bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
     g_forceAnimation = true;
     KillImpl(nullptr, 100.f, true, cRagdoll);
     g_forceAnimation = false;
+    World::Get().GetRunner().Trigger(DeathActionReplayedEvent{formID, acAction.Tick});
     if (pExtension->LatestAnimation.ActionId == acAction.ActionId)
         return true;
     pExtension->LatestAnimation = cPrevious;

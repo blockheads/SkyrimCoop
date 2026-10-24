@@ -9,3 +9,10 @@ DefaultObjectManager& DefaultObjectManager::Get()
 
     return GetDefaultObjectManager();
 }
+
+TESForm* DefaultObjectManager::GetObject(Object aObject) noexcept
+{
+    using TGetObject = TESForm*(uint32_t);
+    POINTER_SKYRIMSE(TGetObject, getObject, 11436);
+    return getObject(aObject);
+}

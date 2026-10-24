@@ -123,7 +123,9 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
+    game.TakeGlobalChanges = [this] { return m_pEngine->TakeGlobalChanges(); };
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
+    game.TakeQuestChanges = [this] { return m_pEngine->TakeQuestChanges(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
     game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return m_pEngine->ReadCellState(acCell, acChanged);

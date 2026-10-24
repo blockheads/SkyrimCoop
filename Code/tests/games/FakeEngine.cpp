@@ -8,6 +8,9 @@
 #include <Events/EffectVisualsChangeEvent.h>
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/HealthChangeEvent.h>
+#include <Events/ActorValueChangeEvent.h>
+#include <Events/ActorDeathChangeEvent.h>
+#include <Games/DeathActions.h>
 #include <Events/HitEvent.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Events/SpellCastEvent.h>
@@ -351,11 +354,22 @@ void FakeEngine::PlaceNpc(uint32_t aFormId, uint32_t aBase, uint32_t aCell, cons
                             .Essential = EssentialBases.contains(aBase)};
 }
 
-void FakeEngine::CheckHealth(Actor& aActor) noexcept
+void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
 {
     if (aActor.Copy || aActor.Dead || aActor.Values.ActorValuesList[kHealth] > 0.f)
         return;
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
+    if (aActor.Dead)
+    {
+        auto& action = aActor.LatestAnimation;
+        action.Tick = World::Get().GetTransport().GetTick();
+        action.ActorId = aFormId;
+        action.ActionId = 0x1337;
+        action.State1 = DeathActions::kDying;
+        action.EventName = "DeathAnim";
+        World::Get().GetDispatcher().trigger(action);
+        World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId, false});
+    }
 }
 
 void FakeEngine::Hit(uint32_t aFormId, float aDamage)
@@ -417,6 +431,27 @@ uint32_t FakeEngine::GetActorBaseFormId(uint32_t aFormId) const noexcept
     return it != Actors.end() ? it->second.Base : 0;
 }
 
+bool FakeEngine::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || !aBaseFormId)
+        return false;
+    it->second.Base = aBaseFormId;
+    return true;
+}
+
+std::string FakeEngine::GetActorBaseName(uint32_t aFormId) const noexcept
+{
+    const auto it = Npcs.find(GetActorBaseFormId(aFormId));
+    return it != Npcs.end() ? it->second.Name : std::string{};
+}
+
+uint32_t FakeEngine::GetActorRaceFormId(uint32_t aFormId) const noexcept
+{
+    const auto it = Npcs.find(GetActorBaseFormId(aFormId));
+    return it != Npcs.end() ? it->second.Race : 0;
+}
+
 uint32_t FakeEngine::GetActorParentCellFormId(uint32_t aFormId) const noexcept
 {
     const auto it = Actors.find(aFormId);
@@ -456,22 +491,68 @@ bool FakeEngine::IsActorDead(uint32_t aFormId) const noexcept
 void FakeEngine::KillActor(uint32_t aFormId) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        const bool cWasDead = it->second.Dead;
         (it->second.Essential ? it->second.Bleeding : it->second.Dead) = true;
+        if (!cWasDead && it->second.Dead)
+            World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
+    }
 }
 
-// Actor::Respawn: alive again, values restored.
+void FakeEngine::FinishDeath(uint32_t aFormId)
+{
+    Actors.at(aFormId).BlockResurrect = false;
+    World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
+}
+
+void FakeEngine::ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction)
+{
+    if (!RefuseDeathActions)
+        KillActor(aFormId);
+    Actors.at(aFormId).LatestAnimation = acAction;
+    World::Get().GetDispatcher().trigger(DeathActionReplayedEvent{aFormId, acAction.Tick});
+}
+
+ActionEvent FakeEngine::GetActorLatestAnimation(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    return it != Actors.end() ? it->second.LatestAnimation : ActionEvent{};
+}
+
+void FakeEngine::SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept
+{
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+        it->second.LatestAnimation = acAction;
+}
+
+// Actor::Respawn: alive again, values restored; the value writers and Resurrect report it.
 void FakeEngine::RespawnActor(uint32_t aFormId) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
     {
+        const bool cWasDead = it->second.Dead;
+        const auto cAction = it->second.LatestAnimation;
         it->second.Dead = it->second.Bleeding = false;
+        it->second.LatestAnimation = {};
         it->second.Values = FullValues();
+        it->second.Bases = FullValues().ActorMaxValuesList;
+        for (const uint32_t cIndex : {kHealth, kMagicka, kStamina})
+            World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, cIndex});
+        if (cWasDead)
+            World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId, true, true,
+                cAction.ActionId && DeathActions::IsDying(cAction.State1) ? std::optional<uint64_t>{cAction.Tick} : std::nullopt});
     }
 }
 
 void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
 {
-    RespawnActor(aFormId);
+    if (const auto it = Actors.find(aFormId); it != Actors.end())
+    {
+        ++it->second.ResurrectCalls;
+        if (it->second.BlockResurrect)
+            return;
+        RespawnActor(aFormId);
+    }
 }
 
 bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept
@@ -481,7 +562,8 @@ bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, f
         return false;
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
-    CheckHealth(it->second);
+    World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, kHealth});
+    CheckHealth(aFormId, it->second);
     if (!cWasDead && it->second.Dead)
         it->second.KilledBy = aAttackerFormId;
     return true;
@@ -529,6 +611,7 @@ bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
 
 float FakeEngine::GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept
 {
+    ++ValueReads[{aFormId, aIndex}];
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return 0.f;
@@ -539,6 +622,7 @@ float FakeEngine::GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept
 
 float FakeEngine::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept
 {
+    ++MaximumReads[{aFormId, aIndex}];
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return 0.f;
@@ -550,23 +634,42 @@ float FakeEngine::GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const
 void FakeEngine::SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Values.ActorValuesList[static_cast<uint32_t>(aIndex)] = aValue;
+    {
+        ++it->second.ValueWrites;
+        const auto cIndex = static_cast<uint32_t>(aIndex);
+        auto& base = it->second.Bases[cIndex];
+        const float cDelta = aValue - base;
+        if (cDelta != 0.f)
+        {
+            base = aValue;
+            it->second.Values.ActorValuesList[cIndex] += cDelta;
+            it->second.Values.ActorMaxValuesList[cIndex] += cDelta;
+            World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, cIndex});
+        }
+    }
 }
 
-// ForceMode PERMANENT (0) sets the maximum, DAMAGE (2) the current value up to it; at 0 health, as a hit.
+// A permanent modifier moves the maximum and current together; damage changes only the current value.
 void FakeEngine::ForceActorValue(uint32_t aFormId, int32_t aForceMode, int32_t aIndex, float aValue) noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return;
     auto& values = it->second.Values;
+    ++it->second.ValueWrites;
+    const auto cBefore = values;
     const auto cIndex = static_cast<uint32_t>(aIndex);
     if (aForceMode == 0)
+    {
+        values.ActorValuesList[cIndex] += aValue - values.ActorMaxValuesList[cIndex];
         values.ActorMaxValuesList[cIndex] = aValue;
+    }
     else if (aForceMode == 2)
         values.ActorValuesList[cIndex] = std::min(aValue, values.ActorMaxValuesList[cIndex]);
+    if (cBefore != values)
+        World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, cIndex});
     if (cIndex == kHealth)
-        CheckHealth(it->second);
+        CheckHealth(aFormId, it->second);
 }
 
 bool FakeEngine::IsActorDisabled(uint32_t aFormId) const noexcept
@@ -1182,4 +1285,34 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);
     ToggleDoor(aObject);
+}
+
+// The alias clear hooks report their quest after the engine removes the fill, without a stage/flag event.
+void FakeEngine::ClearReferenceAlias(uint32_t aQuest, uint32_t aAlias)
+{
+    for (auto& fill : Quests.at(aQuest).Aliases)
+        if (fill.AliasId == aAlias)
+        {
+            fill = QuestAliasFill{aAlias};
+            QuestChanged(aQuest);
+            return;
+        }
+}
+
+void FakeEngine::ClearLocationAlias(uint32_t aQuest, uint32_t aAlias)
+{
+    for (auto& fill : Quests.at(aQuest).Locations)
+        if (fill.AliasId == aAlias)
+        {
+            fill = QuestLocationFill{aAlias};
+            QuestChanged(aQuest);
+            return;
+        }
+}
+
+// StatsMenu::ModifyPerkPoints writes directly; its hook marks both default globals after either signed delta.
+void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
+{
+    Globals.at(BeastPerkGlobals[aVampire ? 1 : 0]) += static_cast<float>(aDelta);
+    GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
 }

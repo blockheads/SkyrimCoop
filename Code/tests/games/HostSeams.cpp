@@ -66,7 +66,25 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
             globals.push_back({.Id = GameId{0, cId}, .Value = cValue});
         return globals;
     };
-    game.ReadQuests = [] { return std::vector<QuestState>{}; };
+    game.TakeGlobalChanges = [&engine] {
+        std::vector<HostGlobal> globals;
+        for (const uint32_t cId : std::exchange(engine.GlobalWrites, {}))
+            globals.push_back({.Id = GameId{0, cId}, .Value = engine.Globals.at(cId)});
+        return globals;
+    };
+    game.ReadQuests = [&engine] {
+        std::vector<QuestState> quests;
+        for (const auto& [cId, cQuest] : engine.Quests)
+            quests.push_back(cQuest);
+        return quests;
+    };
+    game.TakeQuestChanges = [&engine] {
+        std::vector<QuestState> quests;
+        for (const uint32_t cId : engine.QuestWrites.Take())
+            if (const auto it = engine.Quests.find(cId); it != engine.Quests.end())
+                quests.push_back(it->second);
+        return quests;
+    };
     game.TakeObjectChanges = [&engine] { return std::exchange(engine.Recorded, {}); };
     game.ReadCellState = [&engine](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return engine.CellState(acCell, acChanged);

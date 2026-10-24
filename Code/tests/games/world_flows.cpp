@@ -153,10 +153,41 @@ SCENARIO("The host's globals reach the guests: at the join and as they change", 
     Party party(1, Plugins, false);
     FakeEngine& host = Party::Engine(party.Host());
     FakeEngine& guest = Party::Engine(party.Guest());
-    host.Globals[kTimesAsked] = 3.f;
+    host.SetGlobal(kTimesAsked, 3.f);
 
     party.Join(party.Guest());
     party.Until([&] { return guest.Globals[kTimesAsked] == 3.f; }, "a joining guest gets the host's global");
-    host.Globals[kTimesAsked] = 7.f;
+    host.SetGlobal(kTimesAsked, 7.f);
     party.Until([&] { return guest.Globals[kTimesAsked] == 7.f; }, "the host's change reaches it");
+}
+
+SCENARIO("Quest writes reach guests whole and coalesced on the next frame", "[world][quests]")
+{
+    constexpr uint32_t kQuest = 0x36191;
+    Party party(1, [=](FakeEngine& aEngine) {
+        Plugins(aEngine);
+        QuestState quest;
+        quest.Id = GameId{0, kQuest};
+        aEngine.Quests[kQuest] = quest;
+    });
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& quest = host.Quests.at(kQuest);
+    quest.Flags = 1;
+    quest.CurrentStage = 20;
+    quest.DoneStages = {10, 20};
+    host.QuestChanged(kQuest);
+    quest.Objectives = {{20, 1}};
+    host.QuestChanged(kQuest);
+    quest.Aliases = {{3, GameId{0, 0x1A677}, false}};
+    quest.Locations = {{4, GameId{0, 0x18A56}}};
+    host.QuestChanged(kQuest);
+    party.Until([&] { return guest.Quests.at(kQuest) == quest; }, "the stage, objectives and alias fills reach the guest");
+
+    quest.Flags = 0x42;
+    quest.Objectives.clear();
+    quest.Aliases.clear();
+    quest.Locations.clear();
+    host.QuestChanged(kQuest);
+    party.Until([&] { return guest.Quests.at(kQuest) == quest; }, "completion, failure and cleared aliases reach the guest");
 }

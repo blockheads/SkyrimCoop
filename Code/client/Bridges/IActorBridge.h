@@ -112,6 +112,8 @@ public:
 
     // --- Base form ---
     virtual uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept = 0;
+    // Changes this reference's NPC base and reloads its model; false if either form is missing.
+    virtual bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept = 0;
     virtual std::string GetActorBaseName(uint32_t aFormId) const noexcept = 0;
     virtual uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept = 0;
 
@@ -202,7 +204,8 @@ public:
     virtual void ActorFixVampireLordModel(uint32_t aFormId) noexcept = 0;
 
     // --- Mounting ---
-    virtual void ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept = 0;
+    // A copy rider on its mount at once (Actor::PutOnMount): copies run no mount package.
+    virtual void ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept = 0;
 
     // --- World position ---
     virtual uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept = 0;

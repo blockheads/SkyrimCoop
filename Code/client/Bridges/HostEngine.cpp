@@ -6,6 +6,9 @@
 #include <FactionEvents.h>
 #include <PlayerEvents.h>
 #include <ReferenceEvents.h>
+#include <ActorValueEvents.h>
+#include <QuestEvents.h>
+#include <GlobalEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -78,20 +81,28 @@ QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const std::unordered_
             quest.Objectives.push_back({pObjective->index, pObjective->state});
     // A stopped quest has its aliases cleared (25049): only a running or starting one's are read.
     if (aQuest.IsStopped())
+    {
+        QuestEvents::Changes().Track(aQuest.formID, {});
         return quest;
+    }
+    std::set<uint32_t> references;
     for (const BGSBaseAlias* pAlias : aQuest.aliases)
     {
         if (!pAlias)
             continue;
         if (aQuest.GetRefAlias(pAlias->aliasId))
         {
-            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, aQuest.GetAliasedRef(pAlias->aliasId), acCreated));
+            const auto* pRef = aQuest.GetAliasedRef(pAlias->aliasId);
+            if (pRef)
+                references.insert(pRef->formID);
+            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, pRef, acCreated));
             continue;
         }
         QuestLocationFill& fill = quest.Locations.emplace_back(QuestLocationFill{pAlias->aliasId});
         if (const BGSLocation* pLocation = aQuest.GetAliasedLocation(pAlias->aliasId))
             fill.Location = ToSession(pLocation->formID).value_or(GameId{});
     }
+    QuestEvents::Changes().Track(aQuest.formID, references);
     return quest;
 }
 
@@ -194,6 +205,9 @@ HostEngine::HostEngine() noexcept
     PlayerEvents::Start();
     FactionEvents::Start();
     ReferenceEvents::Start();
+    ActorValueEvents::Start();
+    QuestEvents::Start();
+    GlobalEvents::Start();
     ModManager::WatchCreated(&OnCreated);
 }
 
@@ -208,6 +222,9 @@ HostEngine::~HostEngine() noexcept
     PlayerEvents::Stop();
     FactionEvents::Stop();
     ReferenceEvents::Stop();
+    ActorValueEvents::Stop();
+    QuestEvents::Stop();
+    GlobalEvents::Stop();
 }
 
 std::optional<GameId> HostEngine::ReadWeather() const noexcept
@@ -236,6 +253,16 @@ std::vector<HostGlobal> HostEngine::ReadGlobals() const noexcept
     return globals;
 }
 
+std::vector<HostGlobal> HostEngine::TakeGlobalChanges() const noexcept
+{
+    std::vector<HostGlobal> globals;
+    for (const uint32_t cId : GlobalEvents::Take())
+        if (const auto* pGlobal = Cast<TESGlobal>(TESForm::GetById(cId)); pGlobal && !pGlobal->IsConstant())
+            if (const auto cSessionId = ToSession(cId))
+                globals.push_back({*cSessionId, pGlobal->f, TimeData::IsCalendarGlobal(cId)});
+    return globals;
+}
+
 std::vector<QuestState> HostEngine::ReadQuests() const noexcept
 {
     std::vector<QuestState> quests;
@@ -248,6 +275,16 @@ std::vector<QuestState> HostEngine::ReadQuests() const noexcept
         if (const auto cId = pQuest ? ToSession(pQuest->formID) : std::nullopt)
             quests.push_back(ReadQuest(*pQuest, *cId, m_created));
     }
+    return quests;
+}
+
+std::vector<QuestState> HostEngine::TakeQuestChanges() const noexcept
+{
+    std::vector<QuestState> quests;
+    for (const uint32_t cId : QuestEvents::Changes().Take())
+        if (auto* pQuest = Cast<TESQuest>(TESForm::GetById(cId)))
+            if (const auto cSessionId = ToSession(cId))
+                quests.push_back(ReadQuest(*pQuest, *cSessionId, m_created));
     return quests;
 }
 
@@ -328,6 +365,7 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
             if (m_created.count(cFormId))
                 changes.push_back(ReferenceStates::Deleted(create->Object));
             m_created[cFormId] = pObject->baseForm->formID;
+            QuestEvents::Changes().Reference(cFormId);
             m_rests.Forget(cFormId); // an id used before: the old one's rest is not this one's
             changes.push_back(std::move(*create));
         }
@@ -378,6 +416,7 @@ void HostEngine::TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcep
         }
         aChanges.push_back(ReferenceStates::Deleted(CreatedId(cFormId)));
         m_rests.Forget(cFormId);
+        QuestEvents::Changes().Reference(it->first);
         it = m_created.erase(it);
     }
 }

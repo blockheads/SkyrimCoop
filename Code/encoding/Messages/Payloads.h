@@ -9,6 +9,7 @@
 #include <Structs/Inventory.h>
 #include <Structs/ScriptValue.h>
 #include <Wire/Buffer.h>
+#include <optional>
 
 namespace Payloads
 {
@@ -67,6 +68,8 @@ struct DeathStateChange
 
     uint32_t Id{};
     bool IsDead{};
+    // The owner's death action: a death waits for it, a resurrection corrects it even if it arrives later.
+    std::optional<uint64_t> DeathActionTick;
 };
 
 struct HealthChange

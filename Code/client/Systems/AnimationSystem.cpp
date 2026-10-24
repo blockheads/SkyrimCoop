@@ -158,7 +158,7 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         // A paired action (a kill move) on an actor of this game: started here, on the game thread, as its
         // owner's game started it; in the copy's animation job the partner's graph may be updating elsewhere.
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
-        if (pPartner && !pPartner->GetExtension()->IsCopy())
+        if (pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount())
         {
             step.Phase.store(ReplayStep::kBusy, std::memory_order_release);
             apActor->LoadAnimationVariables(step.Variables);
@@ -201,9 +201,9 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);
     actionData.eventName = BSFixedString(cAction.EventName.c_str());
     // A paired action (a kill move) on an actor of this game plays the partner's half too; a copy partner plays
-    // its own, from its owner.
+    // its own, from its owner. So does a mount: getting off hands it back mid-pair (its owner played its half).
     auto* pPartner = Cast<Actor>(pTarget);
-    if (pPartner && !pPartner->GetExtension()->IsCopy())
+    if (pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount())
         actionData.targetEventName = BSFixedString(cAction.TargetEventName.c_str());
     actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(cAction.IdleId));
     actionData.someFlag = ((cAction.Type & 0x4) != 0) ? 1 : 0;

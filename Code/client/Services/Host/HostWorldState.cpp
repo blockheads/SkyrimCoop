@@ -12,9 +12,6 @@
 
 namespace
 {
-// About 1100 globals and 1500 quests: compared a few times a second, not every frame.
-constexpr uint64_t kGlobalsIntervalMs = 250;
-constexpr uint64_t kQuestsIntervalMs = 500;
 // A cell's state goes in messages of at most this many changes (NotifyObjectChanges takes 4096).
 constexpr size_t kCellChangesPerMessage = 1024;
 // Cells a guest loaded that the host's game has not: past this many, the oldest is forgotten.
@@ -34,20 +31,12 @@ HostWorldState::HostWorldState(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostWorldState::OnCellState);
 }
 
-void HostWorldState::Update(uint64_t aTick) noexcept
+void HostWorldState::Update(uint64_t) noexcept
 {
     UpdateObjectChanges();
     UpdatePendingCells();
-    if (aTick - m_globalsTick >= kGlobalsIntervalMs)
-    {
-        m_globalsTick = aTick;
-        UpdateGlobals();
-    }
-    if (aTick - m_questsTick >= kQuestsIntervalMs)
-    {
-        m_questsTick = aTick;
-        UpdateQuests();
-    }
+    UpdateGlobals();
+    UpdateQuests();
 }
 
 void HostWorldState::UpdateGlobals() noexcept
@@ -58,7 +47,9 @@ void HostWorldState::UpdateGlobals() noexcept
         return;
 
     NotifyGlobals changed;
-    for (const auto& cGlobal : m_game.ReadGlobals())
+    auto globals = !m_globalsRead ? m_game.ReadGlobals() : m_game.TakeGlobalChanges ? m_game.TakeGlobalChanges() : std::vector<HostGlobal>{};
+    m_globalsRead = true;
+    for (const auto& cGlobal : globals)
     {
         // The calendar is HostClock's: a guest runs its clock on, a global would set it back.
         if (cGlobal.Clock)
@@ -87,8 +78,10 @@ void HostWorldState::UpdateQuests() noexcept
 
     // The first look sends every quest: the others take it as a load, not as the host's game playing them all now.
     NotifyQuests changed;
-    changed.Join = m_quests.empty();
-    for (auto& quest : m_game.ReadQuests())
+    changed.Join = !m_questsRead;
+    auto quests = !m_questsRead ? m_game.ReadQuests() : m_game.TakeQuestChanges ? m_game.TakeQuestChanges() : std::vector<QuestState>{};
+    m_questsRead = true;
+    for (auto& quest : quests)
     {
         auto [it, cAdded] = m_questIndex.try_emplace(Key(quest.Id), m_quests.size());
         if (cAdded)

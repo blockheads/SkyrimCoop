@@ -2,6 +2,7 @@
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include "FakeDialogue.h"
 #include "FakeEngine.h"
+#include <Games/DeathActions.h>
 
 #include <Bridges/IActorBridge.h>
 #include "GuestSeams.h"
@@ -9,6 +10,7 @@
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
 #include <Components/RemoteAnimationComponent.h>
+#include <Components/FormIdComponent.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
 #include <Services/EffectVisualsService.h>
@@ -114,9 +116,25 @@ World& World::Get() noexcept
 void World::Update() noexcept
 {
     m_dispatcher.trigger(UpdateEvent(1.0 / 60));
-    // The copies' graph updates (AnimationSystem::Update): the fake has no graphs, so each replayed action is refused.
-    for (auto&& [cEntity, animation] : view<RemoteAnimationComponent>().each())
-        animation.TimePoints.clear();
+    // The real AnimationSystem replays a dying owner's action 300 ms behind its tick.
+    auto& engine = ctx().at<FakeEngine&>();
+    const uint64_t cTick = GetTransport().GetTick();
+    for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
+    {
+        for (auto it = animation.TimePoints.begin(); it != animation.TimePoints.end();)
+        {
+            if (DeathActions::IsDying(it->State1))
+            {
+                if (engine.HoldDeathActions || cTick < it->Tick + 300)
+                {
+                    ++it;
+                    continue;
+                }
+                engine.ReplayDeathAction(form.Id, *it);
+            }
+            it = animation.TimePoints.erase(it);
+        }
+    }
     ctx().at<GuestSeam>().Update();
     ctx().at<FakeEngine&>().Frame();
 }

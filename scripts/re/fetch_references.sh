@@ -41,6 +41,9 @@ for repo in powerof3/EssentialsBeGone NoahBoddie/death-defiance-system; do
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Actor values: ActorValueGenerator hooks the actor value owner's base setter and 38468's modifiers.
+fetch NoahBoddie/ActorValueGenerator "$ROOT/reference/plugins/ActorValueGenerator"
+
 # Kill moves: Kaputt plays paired kill-move idles (AIProcess play-paired-idle 39256) and hooks the attack action
 # where vanilla picks one (49170+0x435) and the hit (38627+0x4a8).
 fetch Pentalimbed/kaputt "$ROOT/reference/plugins/kaputt"

@@ -8,6 +8,12 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/HealthChangeEvent.h>
+#include <Events/ActorValueChangeEvent.h>
+#include <Events/ActorDeathChangeEvent.h>
+#include <Events/ReferenceLoadedEvent.h>
+#include <Games/DeathActions.h>
+#include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/NotifyRemoveCharacter.h>
 
 #include <Messages/Relayed.h>
 
@@ -28,6 +34,12 @@ ActorValueService::ActorValueService(World& aWorld, entt::dispatcher& aDispatche
     m_dispatcher.sink<HealthChangeEvent>().connect<&ActorValueService::OnHealthChange>(this);
     m_dispatcher.sink<NotifyHealthChangeBroadcast>().connect<&ActorValueService::OnHealthChangeBroadcast>(this);
     m_dispatcher.sink<NotifyDeathStateChange>().connect<&ActorValueService::OnDeathStateChange>(this);
+    m_dispatcher.sink<ActorValueChangeEvent>().connect<&ActorValueService::OnValueChanged>(this);
+    m_dispatcher.sink<ActorDeathChangeEvent>().connect<&ActorValueService::OnDeathChanged>(this);
+    m_dispatcher.sink<DeathActionReplayedEvent>().connect<&ActorValueService::OnDeathActionReplayed>(this);
+    m_dispatcher.sink<ReferenceLoadedEvent>().connect<&ActorValueService::OnReferenceLoaded>(this);
+    m_dispatcher.sink<NotifyCharacterSpawn>().connect<&ActorValueService::OnSpawn>(this);
+    m_dispatcher.sink<NotifyRemoveCharacter>().connect<&ActorValueService::OnRemove>(this);
 }
 
 void ActorValueService::CreateActorValuesComponent(const entt::entity aEntity, uint32_t aFormId) noexcept
@@ -58,8 +70,15 @@ void ActorValueService::OnLocalComponentAdded(entt::registry& aRegistry, const e
 
 void ActorValueService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
-    // TODO: this crashes sometimes, no clue why
     m_world.clear<ActorValuesComponent>();
+    m_smallHealthChanges.clear();
+    m_changedValues.clear();
+    m_changedDeaths.clear();
+    m_copyDeathStates.clear();
+    m_resurrections.clear();
+    m_replayedDeaths.clear();
+    m_copyValues.clear();
+    m_copyPoolsPending.clear();
 }
 
 void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
@@ -69,6 +88,10 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
 
     auto view = m_world.view<FormIdComponent>();
     const uint32_t formId = acEvent.FormId;
+    m_changedValues.erase(formId);
+    m_changedDeaths.erase(formId);
+    m_replayedDeaths.erase(formId);
+    m_resurrections.erase(formId);
 
     const auto it = std::find_if(
         std::begin(view), std::end(view),
@@ -83,81 +106,110 @@ void ActorValueService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcep
         m_world.remove<ActorValuesComponent>(*it);
 }
 
-void ActorValueService::OnUpdate(const UpdateEvent& acEvent) noexcept
+void ActorValueService::OnUpdate(const UpdateEvent&) noexcept
 {
     RunSmallHealthUpdates();
+    BroadcastActorValues();
     RunPoolUpdates();
     RunDeathStateUpdates();
-    RunActorValuesUpdates();
+    ApplyCopyPools();
+}
 
-    const auto cNow = std::chrono::steady_clock::now();
-    if (!m_pendingDeathStates.empty() && cNow >= m_nextDeathStateRetry)
-    {
-        m_nextDeathStateRetry = cNow + 500ms;
-        ApplyPendingDeathStates();
-    }
+void ActorValueService::OnValueChanged(const ActorValueChangeEvent& acEvent) noexcept
+{
+    m_changedValues[acEvent.FormId].insert(acEvent.Value);
+    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
+        if (form.Id == acEvent.FormId && m_copyValues.contains(copy.Id))
+            m_copyPoolsPending.insert(copy.Id);
+}
+
+void ActorValueService::OnDeathChanged(const ActorDeathChangeEvent& acEvent) noexcept
+{
+    m_changedDeaths[acEvent.FormId] |= acEvent.Final;
+    if (acEvent.Resurrected)
+        m_resurrections[acEvent.FormId] = acEvent.ActionTick;
+}
+
+void ActorValueService::OnDeathActionReplayed(const DeathActionReplayedEvent& acEvent) noexcept
+{
+    m_replayedDeaths[acEvent.FormId] = acEvent.Tick;
+    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
+        if (form.Id == acEvent.FormId)
+        {
+            const auto it = m_copyDeathStates.find(copy.Id);
+            if (it != m_copyDeathStates.end() && !it->second.IsDead &&
+                (!it->second.ActionTick || *it->second.ActionTick < acEvent.Tick))
+                m_copyDeathStates.erase(it);
+            ApplyDeathState(copy.Id);
+        }
+}
+
+void ActorValueService::OnReferenceLoaded(const ReferenceLoadedEvent& acEvent) noexcept
+{
+    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
+        if (form.Id == acEvent.FormId)
+        {
+            if (m_copyValues.contains(copy.Id))
+                m_copyPoolsPending.insert(copy.Id);
+            ApplyDeathState(copy.Id);
+        }
+}
+
+void ActorValueService::OnSpawn(const NotifyCharacterSpawn& acMessage) noexcept
+{
+    m_copyValues[acMessage.SessionId] = acMessage.InitialActorValues;
+    m_copyPoolsPending.insert(acMessage.SessionId);
+}
+
+void ActorValueService::OnRemove(const NotifyRemoveCharacter& acMessage) noexcept
+{
+    m_replayedDeaths.erase(Utils::GetFormIdBySessionId(acMessage.SessionId));
+    m_copyDeathStates.erase(acMessage.SessionId);
+    m_copyValues.erase(acMessage.SessionId);
+    m_copyPoolsPending.erase(acMessage.SessionId);
 }
 
 void ActorValueService::BroadcastActorValues() noexcept
 {
+    auto changes = std::exchange(m_changedValues, {});
     if (!m_transport.IsConnected())
         return;
-
-    auto view = m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>();
-
-    for (auto entity : view)
+    for (auto&& [cEntity, form, local, cached] : m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>().each())
     {
-        auto& formIdComponent = view.get<FormIdComponent>(entity);
-        const uint32_t formId = formIdComponent.Id;
-
-        if (!m_actorBridge.ActorExists(formId))
+        const auto it = changes.find(form.Id);
+        if (it == changes.end() || !m_actorBridge.ActorExists(form.Id))
             continue;
-
-        auto& localComponent = view.get<LocalComponent>(entity);
-        auto& actorValuesComponent = view.get<ActorValuesComponent>(entity);
-
-        RequestActorValueChanges requestValueChanges;
-        requestValueChanges.Id = localComponent.Id;
-        RequestActorMaxValueChanges requestMaxValueChanges;
-        requestMaxValueChanges.Id = localComponent.Id;
-
-        const bool isPlayer = m_actorBridge.IsOtherPlayer(formId);
-
-        const int32_t cCount = m_actorBridge.GetActorValueCount();
-        for (int i = 0; i < cCount; i++)
+        RequestActorValueChanges current;
+        RequestActorMaxValueChanges maximum;
+        current.Id = maximum.Id = local.Id;
+        for (const uint32_t cIndex : it->second)
         {
-            if (isPlayer && i == 133 /* ActorValueInfo::kDragonSouls */)
+            if (cIndex >= static_cast<uint32_t>(m_actorBridge.GetActorValueCount()) ||
+                (m_actorBridge.IsOtherPlayer(form.Id) && cIndex == 133))
                 continue;
-
-            float newValue = m_actorBridge.GetActorValue(formId, i);
-            float oldValue = actorValuesComponent.CurrentActorValues.ActorValuesList[i];
-            // Health, magicka and stamina always go out, so copies converge even while the owner's
-            // value is unchanged.
-            if (newValue != oldValue || (i >= 24 && i <= 26) /* kHealth, kMagicka, kStamina */)
+            // Continuous pools go with their tick; their maxima still follow writes.
+            if (cIndex < 24 || cIndex > 26)
             {
-                requestValueChanges.Values.insert({i, newValue});
-                actorValuesComponent.CurrentActorValues.ActorValuesList[i] = newValue;
+                const float cValue = m_actorBridge.GetActorValue(form.Id, cIndex);
+                auto& last = cached.CurrentActorValues.ActorValuesList[cIndex];
+                if (cValue != last)
+                {
+                    last = cValue;
+                    current.Values[cIndex] = cValue;
+                }
             }
-
-            float newMaxValue = m_actorBridge.GetActorPermanentValue(formId, i);
-            float oldMaxValue = actorValuesComponent.CurrentActorValues.ActorMaxValuesList[i];
-            // Health, magicka and stamina maxima always go out too, so copies converge.
-            if (newMaxValue != oldMaxValue || (i >= 24 && i <= 26))
+            const float cMax = m_actorBridge.GetActorPermanentValue(form.Id, cIndex);
+            auto& lastMax = cached.CurrentActorValues.ActorMaxValuesList[cIndex];
+            if (cMax != lastMax)
             {
-                requestMaxValueChanges.Values.insert({i, newMaxValue});
-                actorValuesComponent.CurrentActorValues.ActorMaxValuesList[i] = newMaxValue;
+                lastMax = cMax;
+                maximum.Values[cIndex] = cMax;
             }
         }
-
-        if (requestValueChanges.Values.size() > 0)
-        {
-            m_transport.Send(requestValueChanges);
-        }
-
-        if (requestMaxValueChanges.Values.size() > 0)
-        {
-            m_transport.Send(requestMaxValueChanges);
-        }
+        if (!current.Values.empty())
+            m_transport.Send(current);
+        if (!maximum.Values.empty())
+            m_transport.Send(maximum);
     }
 }
 
@@ -220,14 +272,6 @@ void ActorValueService::OnHealthChange(const HealthChangeEvent& acEvent) noexcep
 
 void ActorValueService::RunSmallHealthUpdates() noexcept
 {
-    constexpr auto cDelayBetweenUpdates = 250ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_lastSmallHealthSend < cDelayBetweenUpdates)
-        return;
-
-    m_lastSmallHealthSend = now;
-
     if (!m_smallHealthChanges.empty())
     {
         for (auto& value : m_smallHealthChanges)
@@ -238,7 +282,7 @@ void ActorValueService::RunSmallHealthUpdates() noexcept
 
             m_transport.Send(requestHealthChange);
 
-            spdlog::debug("Sent out delta health through timer, {:X}:{:f}", value.first, value.second);
+            spdlog::debug("Sent out delta health for the frame, {:X}:{:f}", value.first, value.second);
         }
 
         m_smallHealthChanges.clear();
@@ -246,7 +290,7 @@ void ActorValueService::RunSmallHealthUpdates() noexcept
 }
 
 // Direct authority: the owner's health, magicka and stamina are the truth (copies neither spend nor
-// regenerate). Send each within 100ms of a change (the 1s BroadcastActorValues resends them regardless).
+// regenerate). Send each within 100ms of a change.
 void ActorValueService::RunPoolUpdates() noexcept
 {
     if (!m_transport.IsConnected())
@@ -284,52 +328,37 @@ void ActorValueService::RunPoolUpdates() noexcept
 
 void ActorValueService::RunDeathStateUpdates() noexcept
 {
-    constexpr auto cDelayBetweenUpdates = 250ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_lastDeathStateSend < cDelayBetweenUpdates)
+    const auto changes = std::exchange(m_changedDeaths, {});
+    const auto resurrections = std::exchange(m_resurrections, {});
+    if (!m_transport.IsConnected())
         return;
-
-    m_lastDeathStateSend = now;
-
-    auto localView = m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>();
-
-    for (auto entity : localView)
+    for (auto&& [cEntity, form, local, cached] : m_world.view<FormIdComponent, LocalComponent, ActorValuesComponent>().each())
     {
-        const auto& formIdComponent = localView.get<FormIdComponent>(entity);
-        const uint32_t formId = formIdComponent.Id;
-
-        if (!m_actorBridge.ActorExists(formId))
+        const auto it = changes.find(form.Id);
+        if (it == changes.end() || !m_actorBridge.ActorExists(form.Id))
             continue;
-
-        auto& localComponent = localView.get<LocalComponent>(entity);
-        auto& actorValuesComponent = localView.get<ActorValuesComponent>(entity);
-
-        bool isDead = m_actorBridge.IsActorDead(formId);
-        if (isDead != actorValuesComponent.IsDead)
-        {
-            actorValuesComponent.IsDead = isDead;
-
-            RequestDeathStateChange requestChange;
-            requestChange.Id = localComponent.Id;
-            requestChange.IsDead = isDead;
-
-            m_transport.Send(requestChange);
-        }
+        const bool cDead = m_actorBridge.IsActorDead(form.Id);
+        if (cached.IsDead == cDead && !resurrections.contains(form.Id))
+            continue;
+        const auto cAction = m_actorBridge.GetActorLatestAnimation(form.Id);
+        const bool cHasAction = cDead && cAction.ActionId && DeathActions::IsDying(cAction.State1);
+        // A dying event can precede the action: without one, wait for the engine's final death event.
+        if (cDead && !cHasAction && !it->second)
+            continue;
+        cached.IsDead = cDead;
+        if (cDead)
+            cached.DeathActionTick = cHasAction ? std::optional<uint64_t>{cAction.Tick} : std::nullopt;
+        else if (const auto resurrected = resurrections.find(form.Id); resurrected != resurrections.end() && resurrected->second)
+            cached.DeathActionTick = resurrected->second;
+        RequestDeathStateChange request;
+        request.Id = local.Id;
+        request.IsDead = cDead;
+        request.DeathActionTick = cached.DeathActionTick;
+        m_transport.Send(request);
     }
-}
-
-void ActorValueService::RunActorValuesUpdates() noexcept
-{
-    constexpr auto cDelayBetweenUpdates = 1000ms;
-
-    const auto now = std::chrono::steady_clock::now();
-    if (now - m_lastValuesSend < cDelayBetweenUpdates)
-        return;
-
-    m_lastValuesSend = now;
-
-    BroadcastActorValues();
+    for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
+        if (changes.contains(form.Id))
+            ApplyDeathState(copy.Id);
 }
 
 void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast& acMessage) const noexcept
@@ -371,8 +400,14 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     }
 }
 
-void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMessage) const noexcept
+void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMessage) noexcept
 {
+    for (const auto& [key, value] : acMessage.Values)
+        if (key >= 24 && key <= 26)
+        {
+            m_copyValues[acMessage.Id].ActorValuesList[key] = value;
+            m_copyPoolsPending.insert(acMessage.Id);
+        }
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
 
     const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.Id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
@@ -397,15 +432,20 @@ void ActorValueService::OnActorValueChanges(const NotifyActorValueChanges& acMes
         if (key == 26 /* kStamina */ || key == 25 /* kMagicka */ || key == 24 /* kHealth */)
         {
             // The owner's value as is: a copy is in deferred kill (HookUpdateAI), its death is its owner's.
-            m_actorBridge.ForceActorValue(formId, 2 /* ForceMode::DAMAGE */, key, value);
             continue;
         }
         m_actorBridge.SetActorValue(formId, key, value);
     }
 }
 
-void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges& acMessage) const noexcept
+void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges& acMessage) noexcept
 {
+    for (const auto& [key, value] : acMessage.Values)
+        if (key >= 24 && key <= 26)
+        {
+            m_copyValues[acMessage.Id].ActorMaxValuesList[key] = value;
+            m_copyPoolsPending.insert(acMessage.Id);
+        }
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
 
     const auto it = std::find_if(std::begin(view), std::end(view), [id = acMessage.Id, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
@@ -426,37 +466,65 @@ void ActorValueService::OnActorMaxValueChanges(const NotifyActorMaxValueChanges&
 
         spdlog::debug("Actor max value update, server ID: {:X}, key: {}, value: {}", acMessage.Id, key, value);
 
-        m_actorBridge.ForceActorValue(formId, 0 /* ForceMode::PERMANENT */, key, value);
+        if (key < 24 || key > 26)
+            m_actorBridge.ForceActorValue(formId, 0 /* ForceMode::PERMANENT */, key, value);
+    }
+}
+
+void ActorValueService::ApplyCopyPools() noexcept
+{
+    const auto pending = std::exchange(m_copyPoolsPending, {});
+    for (const uint32_t cId : pending)
+    {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(cId);
+        const auto it = m_copyValues.find(cId);
+        if (it == m_copyValues.end() || !cFormId || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId))
+            continue;
+        for (const int32_t cIndex : {24, 25, 26})
+        {
+            const auto& values = it->second;
+            if (const auto max = values.ActorMaxValuesList.find(cIndex); max != values.ActorMaxValuesList.end())
+                m_actorBridge.ForceActorValue(cFormId, 0, cIndex, max->second);
+            if (const auto value = values.ActorValuesList.find(cIndex); value != values.ActorValuesList.end())
+                m_actorBridge.ForceActorValue(cFormId, 2, cIndex, value->second);
+        }
     }
 }
 
 void ActorValueService::OnDeathStateChange(const NotifyDeathStateChange& acMessage) noexcept
 {
-    // Not at once: a copy dies with its owner's replayed death action (AnimationSystem), 300ms behind. The
-    // state applies to a copy still alive after that, e.g. an owner ragdolled to death with no action.
-    m_pendingDeathStates[acMessage.Id] = acMessage.IsDead;
-    m_nextDeathStateRetry = std::chrono::steady_clock::now() + 500ms;
+    if (!acMessage.IsDead)
+        if (const auto it = m_copyValues.find(acMessage.Id); it != m_copyValues.end())
+            if (const auto health = it->second.ActorValuesList.find(24); health != it->second.ActorValuesList.end() && health->second <= 0.f)
+                it->second.ActorValuesList.erase(health);
+    m_copyDeathStates[acMessage.Id] = {acMessage.IsDead, acMessage.DeathActionTick};
+    ApplyDeathState(acMessage.Id);
 }
 
-void ActorValueService::ApplyPendingDeathStates() noexcept
+void ActorValueService::ApplyDeathState(uint32_t aSessionId) noexcept
 {
-    std::vector<uint32_t> done;
-    for (const auto& [cSessionId, cIsDead] : m_pendingDeathStates)
+    const auto it = m_copyDeathStates.find(aSessionId);
+    if (it == m_copyDeathStates.end())
+        return;
+    const uint32_t cFormId = Utils::GetFormIdBySessionId(aSessionId);
+    const auto& cDesired = it->second;
+    if (!cFormId || !m_actorBridge.ActorExists(cFormId))
+        return;
+    if (!m_actorBridge.IsActorCopy(cFormId) || m_actorBridge.IsOtherPlayer(cFormId))
     {
-        const uint32_t cFormId = Utils::GetFormIdBySessionId(cSessionId);
-        // Gone, not a copy, or a player (players are never killed): nothing to apply.
-        if (cFormId == 0 || !m_actorBridge.ActorExists(cFormId) || !m_actorBridge.IsActorCopy(cFormId) ||
-            m_actorBridge.IsOtherPlayer(cFormId) || m_actorBridge.IsActorDead(cFormId) == cIsDead)
-        {
-            done.push_back(cSessionId);
-            continue;
-        }
-
-        if (cIsDead)
-            m_actorBridge.KillActor(cFormId);
-        else
-            m_actorBridge.ResurrectActor(cFormId);
+        m_copyDeathStates.erase(it);
+        return;
     }
-    for (const uint32_t cSessionId : done)
-        m_pendingDeathStates.erase(cSessionId);
+    if (m_actorBridge.IsActorDead(cFormId) == cDesired.IsDead)
+        return;
+    if (cDesired.IsDead && cDesired.ActionTick)
+    {
+        const auto replay = m_replayedDeaths.find(cFormId);
+        if (replay == m_replayedDeaths.end() || replay->second < *cDesired.ActionTick)
+            return;
+    }
+    if (cDesired.IsDead)
+        m_actorBridge.KillActor(cFormId);
+    else
+        m_actorBridge.ResurrectActor(cFormId);
 }

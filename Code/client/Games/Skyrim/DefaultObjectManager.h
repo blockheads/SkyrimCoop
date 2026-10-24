@@ -7,6 +7,13 @@ struct BGSAction;
 struct DefaultObjectManager
 {
     static DefaultObjectManager& Get();
+    enum Object : uint32_t
+    {
+        kWerewolfAvailablePerks = 320,
+        kVampireAvailablePerks = 321,
+    };
+    // The engine's GetDefaultObject (11436), including its initialized check.
+    static TESForm* GetObject(Object aObject) noexcept;
 
     uint8_t padB8[0xB8];
     TESForm* leftEquipSlot;

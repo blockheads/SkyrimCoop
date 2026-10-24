@@ -202,12 +202,14 @@ TEST_CASE("Death: from the owner only", "[HostAuthority][Values]")
     RequestDeathStateChange death;
     death.Id = cHostNpc;
     death.IsDead = true;
+    death.DeathActionTick = 12345;
     session.Receive(kPeer, death);
     CHECK(session.Outbox.empty());
 
     session.Receive(kHost, death);
     REQUIRE(session.SentTo<NotifyDeathStateChange>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyDeathStateChange>(kPeer)[0]->IsDead);
+    CHECK(session.SentTo<NotifyDeathStateChange>(kPeer)[0]->DeathActionTick == death.DeathActionTick);
 }
 
 TEST_CASE("Hits: go to the actor's owner alone", "[HostAuthority][Values]")

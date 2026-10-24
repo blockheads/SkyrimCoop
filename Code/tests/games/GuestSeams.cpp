@@ -49,8 +49,9 @@ bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
     return true;
 }
 
-void GuestEngine::ApplyQuest(const QuestState&, bool) noexcept
+void GuestEngine::ApplyQuest(const QuestState& acQuest, bool) noexcept
 {
+    FakeEngine::Current().Quests[FormIdOf(acQuest.Id)] = acQuest;
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept

@@ -267,6 +267,8 @@ std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept;
 // Every shader and art object in the engine's list on the actor, the finished ones still fading out too: a hit
 // shader without FX Persist is finished from its start (ShaderReferenceEffect::Init) and plays one pass.
 std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept;
+// The player may get on the mount now: what offers "Ride" and what InitiateMountPackage checks first (38706).
+bool PlayerCanRide(uint32_t aMountFormId) noexcept;
 // Sets the difficulty as the settings menu does (53310): iDifficulty, then PlayerCharacter::SetDifficulty (40563).
 void ChooseDifficulty(uint32_t aDifficulty) noexcept;
 // The actor whose health bar the HUD shows, or 0.
@@ -321,6 +323,8 @@ float GetVoiceTimer(uint32_t aFormId) noexcept;
 // The actor's AI process level (0 high .. 3 low), -1 without a process; and whether the engine updates its
 // AI at all (kProcessMe).
 int32_t GetProcessLevel(uint32_t aFormId) noexcept;
+// Its fade in or out (0: none; ActorProcess::GetFadeState 39451): nothing activates an actor while it fades.
+uint32_t GetFadeState(uint32_t aFormId) noexcept;
 // The voice line's sound (HighProcessData::soundHandles[0]): its id (-1 none), and its duration in ms
 // (BSSoundHandle::GetDuration, 0 until the audio system knows it).
 struct VoiceSound
@@ -348,6 +352,8 @@ struct AiReadout
 AiReadout GetAiReadout(uint32_t aFormId) noexcept;
 // A mount interaction (ExtraInteraction): a rider on its mount, or a mount with its rider (CommonLibSSE Actor::IsOnMount).
 bool HasMountInteraction(uint32_t aFormId) noexcept;
+// Its getting on or off animation plays: until it ends, a dismount is refused (Actor::Dismount 37906).
+bool IsGettingOnOrOffMount(uint32_t aFormId) noexcept;
 // Puts the package in the actor's running slot and sends its package event, as package evaluation would
 // (ActorPackage::InitFromPackage 38959, TESPackageEvent): staging on the owner, with the actor frozen so evaluation
 // does not replace it.

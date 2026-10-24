@@ -672,6 +672,33 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- Placed wildlife copies take the host's chosen NPC base (2026-10-23, uncommitted): spawn and refresh keep the
+  exact placed reference, but apply the owner's base and reload its model/race. GameTests reproduces the Rabbit/Fox
+  swap, including absent 3D and reversed refresh order; removing either the sent base or refresh handler fails it.
+  Skyrim found the reload left every swapped actor disabled: `Actor::Disable` (37267) only queues the disable, which
+  landed after the immediate Enable. `SetBaseObject` now calls the reference's own Disable (19801, what that task
+  runs). New scenario `wildlife-takes-hosts-pick` (Riverwood's Rabbits, Deer, Mudcrab) failed without it and passes
+  4 of 4; Riverwood's desync check is clean.
+- Voice lines skip a copy with no 3D (2026-10-23): the guest crashed in `Actor::SpeakSound` voicing a bandit's copy
+  it was still loading (`docs/re/crashes/2026-10-23-voice-on-unloaded-copy.md`). GameTests flow fails without it.
+- **Quest writes instead of polling (2026-10-23).** The host reads quests once, then only quests marked by
+  stage/start/stop/objective events, alias-fill/clear and Reset hooks, or the change funnel. Alias references
+  moving or becoming shared invalidate their quests too. Fast tests and the plugin gate pass; restoring the
+  timer fails three host cases. Skyrim was not run; quest stage, roles/fills, completion and late join remain.
+- **Global writes instead of polling (2026-10-23).** The host reads globals once, then only ids marked by
+  Papyrus SetValue (Mod uses it), console/compiled-script assignment and beast-form perk spending. The 250 ms
+  timer is gone; the calendar remains HostClock's. The gate passes; restoring the timer fails four host cases.
+  Skyrim was not run: global-reaches-guest, late-join-gets-globals and beast perk spending/refunds remain.
+- **Actor-value writes and death events (2026-10-23).** The writer funnel (38470), TESDeathEvent and Resurrect
+  (37321) replace the value/death scans. Only regenerating pools keep their 100 ms comparison; converged copies
+  need no resend. Small hits flush each frame; copies wait for the owner's death-action tick, including a
+  resurrection before its delayed replay. The gate passes; the old service/serializer fail eight GameTests
+  cases and two wire cases. Skyrim was not run: combat, health, death and rapid resurrection remain.
+- **Clear, refund and resurrection coverage (2026-10-23).** Six GameTests cover independent reference/location
+  alias clears, both beast perk globals decreasing to zero, immediate revival, and owner/copy resurrection
+  refusal. Each fails with the relevant quest/global delta or resurrection-event handler omitted; restored
+  handlers pass the full gate (66 GameTests). No Skyrim run or new Skyrim-only scenario was needed.
+
 - MMO settings/password/chat cleanup (2026-10-23, uncommitted): only the host's difficulty goes in the join answer
   and its updates; fixed co-op rules stay in code. Removed the unchecked token/password and extra chat channels;
   dialogue picks still show in chat. Packet fixtures and a two-guest join/change/hold/leave/rejoin flow
@@ -955,12 +982,21 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   wrappers it had labelled hooks by a shared variable name are calls now; four hooks it could not see are found).
   `PlayerNativeResultRequest`, `NotifyPlayerNativeResult` and `NotifyPartyNative` (payload `PartyNativeFrom`) are
   `Relayed` too; bytes unchanged. `coop_test.py`'s source tags cover the new files.
-- A mount is the rider's game's by the host's word (2026-10-23, uncommitted): a guest's player getting on a copy
-  asks (`MountRequest`); `HostCharacters::OnMount` makes the rider's game the owner and tells every game, the
-  rider's taking it (`TakeOwnership`, private now). Before, the rider's game claimed it alone and the host, still
-  the owner on record, dropped its movement. The debug view's unconfirmed claim is gone. Open: the mount goes
-  back on dismount (no dismount event handled yet); a mount scenario (needs an exterior: horses are not ridden
-  indoors; harness readouts `riding`/`ridden` added). `HostAuthorityTests` "Mounts: ...".
+- Mounts work (2026-10-23, uncommitted). A guest's player getting on a copy asks (`MountRequest`);
+  `HostCharacters::OnMount` makes the rider's game the owner and tells every game, the rider's taking it
+  (`TakeOwnership`, private). Getting off (`Actor::Dismount` 37906 hooked) gives it back (`DismountRequest`,
+  `OnDismount`, `NotifyDismount`: the rider's game makes it a copy, `GiveUpOwnership`; the host's takes it). Fixed with
+  it: a rider leaving had its horse removed from every game; now it goes back to the host. Every other game's copy of
+  the rider gets on at once (`Actor::PutOnMount`: a `MountInteraction` 40345 attached 41532, as InitiateMountPackage
+  links a low-process rider) instead of a mount package a copy never runs (it stuck after the ride); it gets off by
+  replaying its owner's `HorseExit`, the engine's interaction update unlinking it. A mount's half of a paired action
+  is never forced with its rider's (`AnimationSystem`): ownership changes hands mid-pair, the mount's owner plays it.
+  A game taking an actor sends its latest action (through `ReadLiveState`'s `TargetToNetwork`: a paired partner as a
+  session id, not a form id, or 0x14 lands on each game's own player) and its AI state; a created package (a ridden
+  mount's DoNothing, `PutCreatedPackage`) raises the AI state too. Scenario `guest-rides-host-horse` (Riverwood: the
+  copy fades in, the guest gets on, both games agree while riding, gets off; 4 of 4). `HostAuthorityTests`
+  "Mounts: ..." (the leaving case fails without the fix). Readouts `riding`, `ridden`, `getting_on_off`,
+  `mod.fade_state` (nothing activates an actor fading in, `TESNPC::Activate`), `mod.player_can_ride` (38706).
 - A player's active effects go into its record (2026-10-23, uncommitted, `HostCharacters::OnActiveEffects`): spawns
   built later from the record had the effects of its announcement. Test "a player's effects go into its record".
 - The actor comparison's "visuals" are what plays on the body (2026-10-23, uncommitted): the owed Skyrim checks
@@ -983,6 +1019,16 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 Everything known to be unfinished, unverified or unexplained. Close an entry by fixing it, proving it
 harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details are in the doc named.
+
+### Mounts (2026-10-23)
+
+- A copy made while its owner rides (a late join, a rejoin) starts off the horse: the spawn carries no mount. Design:
+  the host keeps each mount's rider (from `OnMount`, cleared by `OnDismount`) and sends `NotifyMount` after a
+  newcomer's spawns; the newcomer links once both copies have loaded.
+- ~~Riverwood, seen in the duo's desync check: two of the host's placed NPCs (Rabbit 00105A25 sid 85, Fox 00105A35
+  sid 86) showed swapped on the guest (each copy the other's name and race).~~ Fixed (placed wildlife, "Test suite").
+- `host-rejoins` failed once on Lydia landing a jump just as the end-of-scenario comparison ran (the copy not yet
+  replaying it); passed twice after.
 
 ### Mods
 
@@ -1116,8 +1162,8 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - **`flames-client-hits-host-npc` failed once** (2026-10-12, with the since-reverted copy-side skip): Lydia's
   copy without any animation state after her spawn drop, "desync afterwards"; passed 4 of 4 alone and in
   the other full runs.
-- **Leveled wildlife picks its own base on each game** (host Rabbit is a Fox on the client, Deer an
-  Elk). The copy should take its owner's base.
+- ~~**Leveled wildlife picks its own base on each game**~~ (host Rabbit is a Fox on the client, Deer an
+  Elk). Fixed (2026-10-23, "Test suite" above; `wildlife-takes-hosts-pick`).
 - **Console `disable`/`kill` on a wild wolf did nothing** on the host, no error logged. Not investigated.
 - **Trespass and crime:** a remote player is never caught (only the real player trespasses). Decided
   answer: shared party bounty (`docs/ideas.md`).

@@ -171,7 +171,11 @@ struct Session
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
     std::optional<GameId> Weather;                           // the host's weather to share
+    uint32_t GlobalReads = 0;
+    std::vector<HostGlobal> GlobalChanges;
     std::vector<HostGlobal> Globals;                              // the host's global variables
+    uint32_t QuestReads = 0;
+    std::vector<QuestState> QuestChanges;
     std::vector<QuestState> Quests;                               // the host's quests
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
     std::vector<std::tuple<GameId, GameId, uint32_t>> ItemsSet; // guests' container changes the host's game took
@@ -202,8 +206,10 @@ private:
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
         game.ReadWeather = [this] { return Weather; };
-        game.ReadGlobals = [this] { return Globals; };
-        game.ReadQuests = [this] { return Quests; };
+        game.ReadGlobals = [this] { ++GlobalReads; return Globals; };
+        game.TakeGlobalChanges = [this] { return std::exchange(GlobalChanges, {}); };
+        game.ReadQuests = [this] { ++QuestReads; return Quests; };
+        game.TakeQuestChanges = [this] { return std::exchange(QuestChanges, {}); };
         game.TakeObjectChanges = [this] { return std::exchange(ObjectChanges, {}); };
         game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) -> std::optional<std::vector<ObjectChange>> {
             GuestChanged = acChanged;

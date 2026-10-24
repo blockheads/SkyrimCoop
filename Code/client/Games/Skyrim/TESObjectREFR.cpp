@@ -634,16 +634,18 @@ bool TESObjectREFR::InitInventoryIfRequired() noexcept
 
 void TESObjectREFR::SetBaseObject(TESBoundObject* apBase) noexcept
 {
-    using TSetObjectReference = void(TESObjectREFR*, TESBoundObject*);
-    POINTER_SKYRIMSE(TSetObjectReference, s_setObjectReference, 19785);
-    s_setObjectReference(this, apBase);
+    // Actor's override (37466) also sets its race from the new NPC base.
+    SetBaseForm(apBase);
     MarkChanged(CHANGE_REFR_BASEOBJECT);
     if (!GetNiNode() || IsDisabled())
         return;
     // The 3D is the old base's: dropped and loaded again as Disable and Enable do, leaving no form-flags record.
     const BGSSaveLoadGame* pSaveLoad = BGSSaveLoadGame::Get();
     const bool cRecorded = pSaveLoad && pSaveLoad->HasChange(*this, CHANGE_FORM_FLAGS);
-    DisableImpl();
+    // The reference's own Disable (19801): Actor's (37267) only queues it, which would land after the Enable.
+    using TDisable = void(TESObjectREFR*);
+    POINTER_SKYRIMSE(TDisable, s_disable, 19801);
+    s_disable(this);
     EnableImpl();
     if (!cRecorded)
         UnsetChanged(CHANGE_FORM_FLAGS);

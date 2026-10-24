@@ -4,6 +4,7 @@
 #include "Party.h"
 
 #include <Components.h>
+#include <Events/DialogueEvent.h>
 
 namespace
 {
@@ -152,6 +153,28 @@ SCENARIO("The host's NPC goes away: its copy does what it does", "[copies]")
         party.Until([&] { return guest.CopiesOf(kGuard).empty(); }, "the guest's copy of the guard is deleted");
         party.Agree("the games agree on the actors left");
     }
+}
+
+SCENARIO("The host's NPC speaks while the guest's copy has no 3D yet: the copy stays silent", "[copies]")
+{
+    Party party(1, PlacedNpcs);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {-30.f, 10.f, 0.f}); });
+    party.Until([&] { return guest.IsActorCopy(kVilkas) && guest.CopiesOf(kGuard).size() == 1; },
+                "the guest's Vilkas is the host's copy, and it has the host's guard");
+
+    // The guest's game still loading him (2026-10-23, a bandit after a teleport): Actor::SpeakSound crashed it.
+    guest.Actors.at(kVilkas).Loaded = false;
+    party.As(party.Host(), [&] {
+        party.Host().GetDispatcher().trigger(DialogueEvent(kVilkas, "vilkas.fuz"));
+        party.Host().GetDispatcher().trigger(DialogueEvent(guard, "guard.fuz"));
+    });
+    party.Until([&] { return !guest.Lines.empty() && guest.Lines.back().second == "guard.fuz"; },
+                "the guest's guard says the line said after Vilkas's");
+    CHECK(guest.SpokeWithout3D == 0);
+    CHECK(guest.Lines.size() == 1);
 }
 
 SCENARIO("A guest joins while the party is elsewhere: it is brought there and gets every copy", "[copies]")

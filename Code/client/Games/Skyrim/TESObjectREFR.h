@@ -192,7 +192,7 @@ struct TESObjectREFR : TESForm
     [[nodiscard]] uint32_t CountLeveledEntries() const noexcept;
     // Rolls its leveled entries as opening it does (InitInventoryIfRequired 16038); false for none to roll.
     bool InitInventoryIfRequired() noexcept;
-    // Its base swapped (SetObjectReference 19785) and recorded as the engine's pick records it (0x80); a loaded,
+    // Its base swapped (SetObjectReference, virtual 0x84) and recorded as the engine's pick records it (0x80); a loaded,
     // enabled reference's 3D loaded again for it.
     void SetBaseObject(TESBoundObject* apBase) noexcept;
     TESObjectCELL* GetParentCellEx() const noexcept;

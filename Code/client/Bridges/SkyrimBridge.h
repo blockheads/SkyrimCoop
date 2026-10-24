@@ -68,6 +68,7 @@ public:
     uint32_t GetActiveMagicItemFormId(uint32_t aFormId, uint32_t aSlot) const noexcept override;
     uint32_t GetCombatTargetFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
+    bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
@@ -109,7 +110,7 @@ public:
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acEvent) noexcept override;
     void ActorFixVampireLordModel(uint32_t aFormId) noexcept override;
-    void ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
+    void ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;

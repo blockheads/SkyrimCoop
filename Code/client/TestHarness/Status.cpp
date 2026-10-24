@@ -174,6 +174,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     mod["voice"] = {{"callback", EngineCalls::GetVoiceLineState(aFormId)}, {"seconds", EngineCalls::GetVoiceTimer(aFormId)},
                     {"sound", static_cast<int64_t>(static_cast<int32_t>(cVoiceSound.Id))}, {"duration_ms", cVoiceSound.DurationMs}};
     mod["process_level"] = EngineCalls::GetProcessLevel(aFormId);
+    mod["fade_state"] = EngineCalls::GetFadeState(aFormId);
     mod["process_me"] = EngineCalls::IsProcessMe(aFormId);
     mod["package_type"] = EngineCalls::GetPackageType(aFormId);
     mod["subtitle"] = EngineCalls::GetSubtitle(aFormId);
@@ -181,6 +182,8 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     mod["visuals_shown"] = EngineCalls::GetShownVisualFormIds(aFormId);
     // At this game's camera (FXCameraAttachScript's fluff), shown and not compared: a copy has none.
     mod["camera_visuals"] = EngineCalls::GetCameraVisualFormIds(aFormId);
+    if (actors.IsActorMount(aFormId))
+        mod["player_can_ride"] = EngineCalls::PlayerCanRide(aFormId);
     // Water, shown and not compared: a copy's height follows its owner's a little late.
     const auto cWater = EngineCalls::GetWater(aFormId);
     mod["water"] = {{"submerged", cWater.Submerged}, {"swimming", cWater.Swimming}, {"head_under", cWater.HeadUnder},
@@ -197,6 +200,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                        {"cell", actors.GetActorParentCellFormId(aFormId)},
                        {"riding", !actors.IsActorMount(aFormId) && EngineCalls::HasMountInteraction(aFormId)},
                        {"ridden", actors.IsActorMount(aFormId) && EngineCalls::HasMountInteraction(aFormId)},
+                       {"getting_on_off", EngineCalls::IsGettingOnOrOffMount(aFormId)},
                        {"worldspace", actors.GetActorWorldSpaceFormId(aFormId)},
                        {"has_3d", actors.ActorHas3D(aFormId)}, {"disabled", actors.IsActorDisabled(aFormId)}}},
         {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},

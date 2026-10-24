@@ -11,6 +11,7 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
+#include <Events/AiStateChangeEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/FactionsChangeEvent.h>
@@ -124,8 +125,11 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
 
     m_actorBridge.SetActorCopy(acFormId, false);
     m_world.emplace_or_replace<LocalComponent>(acEntity, acSessionId);
-    m_world.emplace_or_replace<LocalAnimationComponent>(acEntity);
+    // Its copies hold the last owner's action and AI state until this game sends its own (the action as played here
+    // while it was a copy: a mount's half of its rider's paired getting on).
+    m_world.emplace_or_replace<LocalAnimationComponent>(acEntity).Append(ReadLiveState(acFormId).LatestAction);
     DeleteRemoteEntityComponents(acEntity);
+    m_dispatcher.trigger(AiStateChangeEvent{acFormId});
 
     return true;
 }
@@ -383,13 +387,15 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
 
     spdlog::info("NotifyCharacterSpawn, session id: {:X}, form id: {:X}", acMessage.SessionId, actorFormId);
 
+    m_actorBridge.SetActorCopy(actorFormId, true);
+    if (!ApplyPlacedBase(actorFormId, acMessage))
+        return;
+
     if (m_actorBridge.IsActorDisabled(actorFormId))
     {
         spdlog::warn("Disabled actor is being re-enabled: {:X}", actorFormId);
         m_actorBridge.EnableActor(actorFormId);
     }
-
-    m_actorBridge.SetActorCopy(actorFormId, true);
 
     // Where the copy goes: an NPC from the game's data (FormId set) to the cell its owner reported, even if
     // the player has left it since; a created actor (a player's copy) to the player's cell.
@@ -449,8 +455,28 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
         m_world.emplace_or_replace<SpawnGraphStateComponent>(*entity, acMessage.GraphState);
 }
 
+bool CharacterService::ApplyPlacedBase(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept
+{
+    if (acMessage.FormId == GameId{} || acMessage.BaseId == GameId{})
+        return true;
+    const uint32_t cBaseId = ToGame(acMessage.BaseId);
+    if (cBaseId && m_actorBridge.SetActorBaseFormId(aFormId, cBaseId))
+        return true;
+    spdlog::error("Failed to apply owner's NPC base {:X}:{:X} to placed actor {:X}", acMessage.BaseId.ModId,
+                  acMessage.BaseId.BaseId, aFormId);
+    return false;
+}
+
 void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept
 {
+    const auto* pFormId = m_world.try_get<FormIdComponent>(aEntity);
+    const uint32_t cOldBase = pFormId ? m_actorBridge.GetActorBaseFormId(pFormId->Id) : 0;
+    if (pFormId && !ApplyPlacedBase(pFormId->Id, acMessage))
+        return;
+    const bool cBaseChanged = pFormId && cOldBase != m_actorBridge.GetActorBaseFormId(pFormId->Id);
+    if (cBaseChanged)
+        m_world.emplace_or_replace<WaitingFor3D>(aEntity, acMessage);
+
     // The owner's arrival: it is there now (RunPresence moves the copy), as the spawn would have it.
     if (auto* pInterpolation = m_world.try_get<InterpolationComponent>(aEntity))
     {
@@ -462,8 +488,7 @@ void CharacterService::RefreshCopy(entt::entity aEntity, const NotifyCharacterSp
     place.LastMove = {};
     if (auto* pWaitingFor3D = m_world.try_get<WaitingFor3D>(aEntity))
         pWaitingFor3D->SpawnRequest = acMessage;
-    const auto* pFormId = m_world.try_get<FormIdComponent>(aEntity);
-    if (pFormId && !m_actorBridge.ActorHas3D(pFormId->Id) && !acMessage.GraphState.empty())
+    if (pFormId && (cBaseChanged || !m_actorBridge.ActorHas3D(pFormId->Id)) && !acMessage.GraphState.empty())
         m_world.emplace_or_replace<SpawnGraphStateComponent>(aEntity, acMessage.GraphState);
     spdlog::info("Character with remote id {:X} is already spawned: refreshed from the new spawn (cell {:X})", acMessage.SessionId,
                  acMessage.CellId.BaseId);
@@ -806,7 +831,7 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
     }
 
     if (cRiderFormId && mountFormId)
-        m_actorBridge.ActorInitiateMountPackage(cRiderFormId, mountFormId);
+        m_actorBridge.ActorPutOnMount(cRiderFormId, mountFormId);
 }
 
 void CharacterService::OnDismountEvent(const DismountEvent& acEvent) const noexcept
@@ -892,6 +917,9 @@ void CharacterService::OnNotifyDialogue(const NotifyDialogue& acMessage) noexcep
     }
 
     auto formIdComponent = remoteView.get<FormIdComponent>(*remoteIt);
+    // A copy not loaded yet has no process, which Actor::SpeakSound (37542) reads unchecked.
+    if (!m_actorBridge.ActorHas3D(formIdComponent.Id))
+        return;
 
     m_actorBridge.ActorStopCurrentDialogue(formIdComponent.Id);
     m_actorBridge.ActorSpeakSound(formIdComponent.Id, std::string(acMessage.SoundFilename.c_str()));
@@ -1029,7 +1057,6 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
 
     // Serialize the base form
     const auto isPlayer = (formIdComponent.Id == 0x14);
-    const auto isTemporary = (formIdComponent.Id >= 0xFF000000);
 
     if (isPlayer)
     {
@@ -1051,12 +1078,10 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     const uint32_t cCommandingActor = m_actorBridge.GetActorCommandingActorFormId(formIdComponent.Id);
     message.IsPlayerSummon = (cCommandingActor == 0x14);
 
-    if (isTemporary)
+    if (!isPlayer)
     {
-        // The reference only exists in this game, so peers rebuild it from its NPC base. A
-        // temporary base (leveled spawns) is described by its template; a real base (e.g. placeatme
-        // of a game NPC) is sent as is. Without one the copy is a blank custom actor with the
-        // default face and race.
+        // Placed references can roll different leveled NPCs in each game too. Send the owner's
+        // chosen base (a temporary base's template), for both placed and created copies.
         uint32_t cNpcTemplateId = m_actorBridge.GetActorNpcTemplateBaseFormId(formIdComponent.Id);
         if (!cNpcTemplateId && !m_actorBridge.IsActorNpcTemporary(formIdComponent.Id))
             cNpcTemplateId = m_actorBridge.GetActorBaseFormId(formIdComponent.Id);

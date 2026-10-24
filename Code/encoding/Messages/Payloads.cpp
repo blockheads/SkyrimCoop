@@ -83,12 +83,16 @@ void DeathStateChange::SerializePayload(Wire::Buffer::Writer& aWriter) const noe
 {
     Serialization::WriteVarInt(aWriter, Id);
     Serialization::WriteBool(aWriter, IsDead);
+    Serialization::WriteBool(aWriter, DeathActionTick.has_value());
+    if (DeathActionTick)
+        Serialization::WriteVarInt(aWriter, *DeathActionTick);
 }
 
 void DeathStateChange::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     Id = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     IsDead = Serialization::ReadBool(aReader);
+    DeathActionTick = Serialization::ReadBool(aReader) ? std::optional<uint64_t>{Serialization::ReadVarInt(aReader)} : std::nullopt;
 }
 
 void HealthChange::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept

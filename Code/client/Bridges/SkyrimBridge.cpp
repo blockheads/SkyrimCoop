@@ -444,6 +444,21 @@ uint32_t SkyrimBridge::GetActorBaseFormId(uint32_t aFormId) const noexcept
     return 0;
 }
 
+bool SkyrimBridge::SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept
+{
+    Breadcrumbs::Record("SetActorBaseFormId", aFormId, aBaseFormId);
+    Actor* pActor = GetActor(aFormId);
+    TESNPC* pNpc = Cast<TESNPC>(TESForm::GetById(aBaseFormId));
+    if (!pActor || !pNpc)
+        return false;
+    if (pActor->baseForm != pNpc)
+    {
+        pActor->GetExtension()->GraphDescriptorHash = 0;
+        pActor->SetBaseObject(pNpc);
+    }
+    return true;
+}
+
 std::string SkyrimBridge::GetActorBaseName(uint32_t aFormId) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -1797,13 +1812,13 @@ void SkyrimBridge::ActorFixVampireLordModel(uint32_t aFormId) noexcept
         pActor->FixVampireLordModel();
 }
 
-void SkyrimBridge::ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept
+void SkyrimBridge::ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept
 {
-    Breadcrumbs::Record("ActorInitiateMountPackage", aRiderFormId, aMountFormId);
+    Breadcrumbs::Record("ActorPutOnMount", aRiderFormId, aMountFormId);
     Actor* pRider = GetActor(aRiderFormId);
     Actor* pMount = GetActor(aMountFormId);
     if (pRider && pMount)
-        pRider->InitiateMountPackage(pMount);
+        pRider->PutOnMount(pMount);
 }
 
 uint32_t SkyrimBridge::GetActorParentCellFormId(uint32_t aFormId) const noexcept

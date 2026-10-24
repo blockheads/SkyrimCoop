@@ -28,8 +28,12 @@ struct HostGame
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.
     std::function<std::vector<HostGlobal>()> ReadGlobals;
+    // Global writes since the last call, coalesced to their current values.
+    std::function<std::vector<HostGlobal>()> TakeGlobalChanges;
     // Every quest of the host's game as it holds it now.
     std::function<std::vector<QuestState>()> ReadQuests;
+    // Quest writes since the last call, coalesced to their current state.
+    std::function<std::vector<QuestState>()> TakeQuestChanges;
     // The host's world objects' changes since the last call (references' state, scripts' events, containers' items), in order.
     std::function<std::vector<ObjectChange>()> TakeObjectChanges;
     // The state of a cell's references the host's game changed, or aChanged names (a guest's own changes); none

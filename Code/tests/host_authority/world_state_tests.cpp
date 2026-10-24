@@ -30,7 +30,8 @@ TEST_CASE("World state: a changed global reaches the others, not the host", "[Ho
 
     session.Outbox.clear();
     session.Globals[0].Value = 1.f;
-    session.Frame(1300);
+    session.GlobalChanges = {session.Globals[0]};
+    session.Frame(1001);
     REQUIRE(session.SentTo<NotifyGlobals>(kPeer).size() == 1);
     REQUIRE(session.SentTo<NotifyGlobals>(kOtherPeer).size() == 1);
     CHECK(session.SentTo<NotifyGlobals>(kPeer)[0]->Values.size() == 1);
@@ -51,7 +52,8 @@ TEST_CASE("World state: the clock's globals are never sent", "[HostAuthority][Wo
     session.Outbox.clear();
     session.Globals[1].Value = 16.f;
     session.Globals[2].Value = 4.6f;
-    session.Frame(1300);
+    session.GlobalChanges = {session.Globals[1], session.Globals[2]};
+    session.Frame(1001);
     CHECK(session.SentTo<NotifyGlobals>(kPeer).empty());
 
     // Nor to a joining player.
@@ -70,23 +72,40 @@ TEST_CASE("World state: an unchanged global is not sent again", "[HostAuthority]
     session.Frame(1000);
     session.Outbox.clear();
 
-    session.Frame(1300);
-    session.Frame(1600);
-    CHECK(session.Outbox.empty());
+    session.GlobalChanges = session.Globals;
+    session.Frame(1001);
+    session.Frame(100000);
+    CHECK(session.GlobalReads == 1);
+    CHECK(session.SentTo<NotifyGlobals>(kPeer).empty());
 }
 
-TEST_CASE("World state: globals are compared a few times a second", "[HostAuthority][WorldState]")
+TEST_CASE("World state: global writes go out next frame without scanning the table", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Globals = {{kFriendsCountRift, 0.f}};
     session.Frame(1000);
     session.Outbox.clear();
 
-    session.Globals[0].Value = 2.f;
-    session.Frame(1100);
-    CHECK(session.Outbox.empty());
-    session.Frame(1250);
-    CHECK(session.SentTo<NotifyGlobals>(kPeer).size() == 1);
+    session.Globals[0].Value = -0.f;
+    session.GlobalChanges = {session.Globals[0]};
+    session.Frame(1001);
+    REQUIRE(session.SentTo<NotifyGlobals>(kPeer).size() == 1);
+    CHECK(std::signbit(ValueOf(*session.SentTo<NotifyGlobals>(kPeer)[0], kFriendsCountRift)));
+    session.Outbox.clear();
+    session.Frame(100000);
+    CHECK(session.SentTo<NotifyGlobals>(kPeer).empty());
+    CHECK(session.GlobalReads == 1);
+}
+
+TEST_CASE("World state: globals written after an empty initial table reach guests", "[HostAuthority][WorldState]")
+{
+    Session session;
+    session.Frame(1000);
+    session.GlobalChanges = {{kFriendsCountRift, 2.f}};
+    session.Frame(1001);
+    REQUIRE(session.SentTo<NotifyGlobals>(kPeer).size() == 1);
+    CHECK(ValueOf(*session.SentTo<NotifyGlobals>(kPeer)[0], kFriendsCountRift) == 2.f);
+    CHECK(session.GlobalReads == 1);
 }
 
 TEST_CASE("World state: a joining player gets every global", "[HostAuthority][WorldState]")
@@ -146,7 +165,8 @@ TEST_CASE("World state: a quest the host's game changes reaches the others, whol
     session.Quests[0].DoneStages.push_back(20);
     session.Quests[0].Objectives.push_back({20, 1});
     session.Quests[0].Aliases.push_back({3, GameId(0, 0x1A677), false});
-    session.Frame(1500);
+    session.QuestChanges = {session.Quests[0]};
+    session.Frame(1001);
     REQUIRE(session.SentTo<NotifyQuests>(kOtherPeer).size() == 1);
     const auto& cChanged = *session.SentTo<NotifyQuests>(kOtherPeer)[0];
     CHECK_FALSE(cChanged.Join);
@@ -160,7 +180,7 @@ TEST_CASE("World state: a quest the host's game changes reaches the others, whol
     CHECK(session.SentTo<NotifyQuests>(kPeer).empty());
 }
 
-TEST_CASE("World state: quests are compared twice a second", "[HostAuthority][WorldState]")
+TEST_CASE("World state: quest writes go out next frame without re-reading quiet quests", "[HostAuthority][WorldState]")
 {
     Session session;
     session.Quests = {Quest(kAlduinsWall, 0x0, 0)};
@@ -168,10 +188,30 @@ TEST_CASE("World state: quests are compared twice a second", "[HostAuthority][Wo
     session.Outbox.clear();
 
     session.Quests[0].Flags = 0x1;
-    session.Frame(1250);
+    session.QuestChanges = {session.Quests[0]};
+    session.Frame(1001);
+    REQUIRE(session.SentTo<NotifyQuests>(kPeer).size() == 1);
+    CHECK_FALSE(session.SentTo<NotifyQuests>(kPeer)[0]->Join);
+    session.Outbox.clear();
+    session.Frame(100000);
     CHECK(session.SentTo<NotifyQuests>(kPeer).empty());
-    session.Frame(1500);
-    CHECK(session.SentTo<NotifyQuests>(kPeer).size() == 1);
+    CHECK(session.QuestReads == 1);
+
+    session.QuestChanges = {session.Quests[0]};
+    session.Frame(100001);
+    CHECK(session.SentTo<NotifyQuests>(kPeer).empty());
+}
+
+TEST_CASE("World state: an empty initial quest list is still read only once", "[HostAuthority][WorldState]")
+{
+    Session session;
+    session.Frame(1000);
+    session.Quests = {Quest(kAlduinsWall, 0x1, 0)};
+    session.QuestChanges = session.Quests;
+    session.Frame(1001);
+    REQUIRE(session.SentTo<NotifyQuests>(kPeer).size() == 1);
+    CHECK_FALSE(session.SentTo<NotifyQuests>(kPeer)[0]->Join);
+    CHECK(session.QuestReads == 1);
 }
 
 TEST_CASE("World state: a joining player gets every quest, as a load", "[HostAuthority][WorldState]")

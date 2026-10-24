@@ -250,6 +250,9 @@ struct Actor : TESObjectREFR
     void RemoveFromAllFactions() noexcept;
     void QueueUpdate() noexcept;
     bool InitiateMountPackage(Actor* apMount) noexcept;
+    // On its mount at once, with no package or animation, as InitiateMountPackage links a low-process rider. For a
+    // copy, which runs no AI: its owner's actions play the rest, the replayed getting off unlinking it too.
+    bool PutOnMount(Actor* apMount) noexcept;
     void GenerateMagicCasters() noexcept;
     void DispelAllSpells(bool aNow = false) noexcept;
     void Reset() noexcept;
@@ -278,6 +281,7 @@ struct Actor : TESObjectREFR
     enum ActorFlags
     {
         IS_A_MOUNT = 1 << 1,
+        GETTING_ON_OFF_MOUNT = 1 << 3, // from InitiateMountPackage or Dismount until MountDismountEndHandler (42881)
         IS_COMMANDED_ACTOR = 1 << 16,
         IS_ESSENTIAL = 1 << 18,
     };

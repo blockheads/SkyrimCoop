@@ -269,6 +269,14 @@ std::pair<int32_t, float> GetCombatSkillExperience() noexcept
     return {cSkill, pPlayer->GetSkillExperience(Skills::GetSkillFromActorValue(cSkill))};
 }
 
+bool PlayerCanRide(uint32_t aMountFormId) noexcept
+{
+    using TCanRide = bool(Actor*, Actor*);
+    POINTER_SKYRIMSE(TCanRide, s_canRide, 38706);
+    Actor* pMount = GetActor(aMountFormId);
+    return pMount && PlayerCharacter::Get() && s_canRide(PlayerCharacter::Get(), pMount);
+}
+
 void ChooseDifficulty(uint32_t aDifficulty) noexcept
 {
     using TSetDifficulty = void(PlayerCharacter*, int32_t);
@@ -608,6 +616,14 @@ int32_t GetProcessLevel(uint32_t aFormId) noexcept
     return pActor && pActor->currentProcess ? pActor->currentProcess->processLevel : -1;
 }
 
+uint32_t GetFadeState(uint32_t aFormId) noexcept
+{
+    using TGetFadeState = uint32_t(AIProcess*);
+    POINTER_SKYRIMSE(TGetFadeState, s_getFadeState, 39451); // ActorProcess::GetFadeState
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->currentProcess ? s_getFadeState(pActor->currentProcess) : 0;
+}
+
 VoiceSound GetVoiceSound(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
@@ -912,6 +928,12 @@ bool HasMountInteraction(uint32_t aFormId) noexcept
 {
     const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
     return pActor && pActor->extraData.Contains(ExtraDataType::Interaction);
+}
+
+bool IsGettingOnOrOffMount(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    return pActor && (pActor->flags2 & Actor::GETTING_ON_OFF_MOUNT);
 }
 
 AiReadout GetAiReadout(uint32_t aFormId) noexcept

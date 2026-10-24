@@ -162,14 +162,12 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   state should go out when an engine event or hook says it changed, not from a timer that re-reads it.
   Continuous state (movement, animation variables) on the tick is fine. What each engine event covers and misses:
   `docs/re/systems/change-events.md`. Left, with why:
-  - `ActorValueService` (plan, not started: combat sync leans on it). Pools (100 ms) are continuous (regeneration)
-    and may stay on the tick, without the always-resend of health/magicka/stamina once the copy side converges from
-    the spawn. All values (1 s): no event; hooks on the writers (`ActorValueOwner` `SetActorValue`/`ModActorValue`,
-    `RestoreActorValue`/`DamageActorValue`, permanent and temporary modifiers from `ValueModifierEffect`, perks) raise
-    the actor, the read sends what differs. Death (250 ms): `TESDeathEvent` (dying and dead) and a hook on
-    `Actor::Resurrect`. Small health deltas (250 ms batching of hit events, not a poll): flush on the frame's update.
-    The copy's 500 ms death retry waits for the owner's replayed death action: the copy's own death graph event or
-    `TESDeathEvent` on the copy instead. Scenarios: `--tag combat`, `death-*`, `vilkas-counts-client-hits`.
+  - `ActorValueService`: done (2026-10-23, progress.md "Test suite"). Actor::SendActorValueUpdate (38470)
+    marks written values; TESDeathEvent and Resurrect (37321) mark death. Small hits flush on the frame.
+    Pools keep their 100 ms comparison for regeneration; copies converge from cached owner values on writes
+    and 3D loads, then stay quiet. Copy death waits for the owner's replayed action (optional tick on the wire).
+    GameTests cover immediate resurrection, owner/copy refusal and stale replay, and fail with resurrection
+    event handling omitted. Evidence and signatures: change-events.md.
   - `InventoryService` (unchanged, stalled 2026-10-22). Equipment snapshots (3 s): the owner's `TESEquipEvent` covers
     its own changes, but the case the snapshot exists for is a copy drifting in its own game (`repair-equipment-drift`
     strips the copy only), where the owner sees nothing. Looked at 2026-10-23, stays: the equip hooks refuse every
@@ -188,10 +186,11 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
     events, logging what they missed) for a scan that costs a few dozen actors a frame and is never late.
   - `CharacterService` presence (2 s): a spacing between moves of a copy the engine may drop, not a poll; nothing
     says a move was dropped. Stays.
-  - `HostWorldState` quests (500 ms): `TESQuestStageEvent`, `TESQuestStartStopEvent` and `ObjectiveState::Event`
-    (23951) cover stages, running and objectives, but alias and location fills (`BGSRefAlias::ForceRefTo`, `Clear`,
-    location aliases) send nothing and `QuestState` carries them: hooks on those first. Globals (250 ms): no event,
-    and the writers are Papyrus `SetValue`/`Mod`, the console's `set` and compiled script operations.
+  - `HostWorldState` quests and globals: done (2026-10-23, progress.md "Test suite"). Initial snapshots,
+    then quest events, alias-fill/clear and Reset hooks, quest change flags and alias-reference invalidation;
+    globals from Papyrus SetValue/Mod, console/compiled-script assignment and beast perk writes. No timers;
+    the calendar stays with HostClock. GameTests isolate both alias clears and both beast globals decreasing
+    to zero; they fail with delta handling omitted. Evidence and signatures: change-events.md.
   - `DialogueService`'s menu and speaker check: left for the shared dialogue rework (main checkout, 2026-10-22).
   - Done: `AiStateService` (`TESPackageEvent`, `TESCombatEvent`, `TESSceneEvent`, `TESDeathEvent`, combat target
     switches, the player's combat flag), `EffectVisualsService`, `PlayerService` race and level, `CharacterService`
@@ -205,8 +204,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   and every game has the same build and plugins:
   - ~~The character assignment round trip~~ (done 2026-10-23, progress.md "Test suite"): the host hands out every
     id, a player's in its join answer.
-  - ~~Taking ownership of an actor~~ (done 2026-10-23): the host gives a mount to its rider's game. Open: back on
-    dismount, and a mount scenario.
+  - ~~Taking ownership of an actor~~ (done 2026-10-23): mounts work end to end (progress.md "Test suite"). Open: a
+    copy made while its owner rides (progress.md, loose ends "Mounts").
   - ~~Server settings and unused password~~ (done 2026-10-23, progress.md "Test suite"). Difficulty alone in
     auth and `NotifySettingsChange`; fixed greetings/PvP/death rules stay in code, homes/calendar flags and the
     unchecked token/password are gone.

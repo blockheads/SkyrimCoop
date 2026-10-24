@@ -8,6 +8,7 @@
 #include <FactionEvents.h>
 #include <PlayerEvents.h>
 #include <ReferenceEvents.h>
+#include <ActorValueEvents.h>
 #include <ContainerEvents.h>
 
 #include <Breadcrumbs.h>
@@ -158,6 +159,7 @@ GuestEngine::GuestEngine() noexcept
     PlayerEvents::Start();
     FactionEvents::Start();
     ReferenceEvents::Start();
+    ActorValueEvents::Start();
 }
 
 GuestEngine::~GuestEngine() noexcept
@@ -175,6 +177,7 @@ GuestEngine::~GuestEngine() noexcept
     PlayerEvents::Stop();
     FactionEvents::Stop();
     ReferenceEvents::Stop();
+    ActorValueEvents::Stop();
 }
 
 void GuestEngine::SetCalendar(const TimeModel& acTime) noexcept

@@ -2,130 +2,74 @@
 
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
+#include <Structs/ActorValues.h>
+#include <map>
+#include <optional>
+#include <set>
 
 struct World;
-
-struct ConnectedEvent;
 struct DisconnectedEvent;
 struct ActorRemovedEvent;
 struct UpdateEvent;
 struct HealthChangeEvent;
-
+struct ActorValueChangeEvent;
+struct ActorDeathChangeEvent;
+struct DeathActionReplayedEvent;
+struct ReferenceLoadedEvent;
+struct NotifyCharacterSpawn;
+struct NotifyRemoveCharacter;
 struct TransportService;
-
 class IActorBridge;
 
-/**
- * @brief Broadcast and apply actor values and death state.
- *
- * Responsible for periodically checking whether actor values of local actors have changed since
- * the previous frame, and if so, broadcast those values to other players within range.
- * This service is also responsible for applying incoming actor value changes.
- * Health is synced separately from other actor values, since health changes
- * need to be synced immediately.
- *
- * This service is also responsible for syncing the death states of individual actors.
- * The death state is perdiocally checked and compared to cached death states.
- */
+// Owner writes send discrete values and death; regenerating pools are compared every 100 ms.
 struct ActorValueService
 {
-public:
     ActorValueService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport) noexcept;
     ~ActorValueService() noexcept = default;
-
     NO_COPY_MOVE(ActorValueService);
 
 private:
-    enum ValueType : uint8_t
-    {
-        kValue,
-        kMaxValue
-    };
-
-    /**
-     * @brief Creates actor values components for new local components.
-     */
     void OnLocalComponentAdded(entt::registry& aRegistry, entt::entity aEntity) noexcept;
-    /**
-     * @brief Clears actor values components on disconnect.
-     */
     void OnDisconnected(const DisconnectedEvent&) noexcept;
-    /**
-     * @brief Removes actor values component on reference removed.
-     */
     void OnActorRemoved(const ActorRemovedEvent&) noexcept;
-    /**
-     * @brief Checks whether health, death state and actor values should be broadcasted.
-     */
     void OnUpdate(const UpdateEvent&) noexcept;
-    /**
-     * @brief Receives remote actor values changes and applies them locally.
-     */
-    void OnActorValueChanges(const NotifyActorValueChanges& acMessage) const noexcept;
-    /**
-     * @brief Receives remote max actor values changes and applies them locally.
-     */
-    void OnActorMaxValueChanges(const NotifyActorMaxValueChanges& acMessage) const noexcept;
-    /**
-     * @brief Processes health value changes.
-     *
-     * If the health changes are small, it will be cached and sent out on update.
-     */
+    void OnValueChanged(const ActorValueChangeEvent&) noexcept;
+    void OnDeathChanged(const ActorDeathChangeEvent&) noexcept;
+    void OnDeathActionReplayed(const DeathActionReplayedEvent&) noexcept;
+    void OnReferenceLoaded(const ReferenceLoadedEvent&) noexcept;
+    void OnSpawn(const NotifyCharacterSpawn&) noexcept;
+    void OnRemove(const NotifyRemoveCharacter&) noexcept;
+    void OnActorValueChanges(const NotifyActorValueChanges&) noexcept;
+    void OnActorMaxValueChanges(const NotifyActorMaxValueChanges&) noexcept;
     void OnHealthChange(const HealthChangeEvent&) noexcept;
-    /**
-     * @brief Receives health value changes and applies them locally.
-     */
-    void OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast& acMessage) const noexcept;
-    /**
-     * @brief Receives death state changes and applies them locally.
-     */
-    void OnDeathStateChange(const NotifyDeathStateChange& acEvent) noexcept;
-    void ApplyPendingDeathStates() noexcept;
-
-    /**
-     * @brief Checks and broadcasts new actor values.
-     *
-     * If the current (max) actor values have changed compared to the previously cached actor values,
-     * the new actor values will be broadcasted to the other clients in range.
-     */
-    void RunActorValuesUpdates() noexcept;
-    /**
-     * @brief Checks and broadcasts small health changes.
-     *
-     * If the small health member variable has collected any health changes, this function
-     * broadcasts those changes to the other clients.
-     */
+    void OnHealthChangeBroadcast(const NotifyHealthChangeBroadcast&) const noexcept;
+    void OnDeathStateChange(const NotifyDeathStateChange&) noexcept;
+    void ApplyDeathState(uint32_t aSessionId) noexcept;
+    void ApplyCopyPools() noexcept;
     void RunSmallHealthUpdates() noexcept;
     void RunPoolUpdates() noexcept;
-    /**
-     * @brief Checks and broadcasts death state changes.
-     */
     void RunDeathStateUpdates() noexcept;
-
-    /**
-     * @brief Checks and broadcasts actor values.
-     * @see RunActorValuesUpdates()
-     */
     void BroadcastActorValues() noexcept;
-    /**
-     * @brief Creates actor values component for actor and caches the initial actor values.
-     */
     void CreateActorValuesComponent(entt::entity aEntity, uint32_t aFormId) noexcept;
+
+    struct CopyDeath
+    {
+        bool IsDead;
+        std::optional<uint64_t> ActionTick;
+    };
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
     TransportService& m_transport;
     IActorBridge& m_actorBridge;
-
-    //! @brief Session ids and collected health changes.
     std::unordered_map<uint32_t, float> m_smallHealthChanges;
-    // Copies whose dead/alive state still differs from the owner's, by session id. Kill/Respawn on
-    // a copy does not always take (e.g. resurrect while the death is still playing), so retry.
-    std::unordered_map<uint32_t, bool> m_pendingDeathStates;
-    std::chrono::steady_clock::time_point m_nextDeathStateRetry;
-    // When each kind of update last went out (members: two games in one process each send their own).
-    std::chrono::steady_clock::time_point m_lastSmallHealthSend;
+    std::map<uint32_t, std::set<uint32_t>> m_changedValues;
+    std::map<uint32_t, bool> m_changedDeaths; // form id -> final engine event seen
+    std::map<uint32_t, std::optional<uint64_t>> m_resurrections;
+    // Kept after convergence too: a delayed death action must not undo a newer resurrection.
+    std::unordered_map<uint32_t, CopyDeath> m_copyDeathStates;
+    std::unordered_map<uint32_t, uint64_t> m_replayedDeaths; // form id -> owner action tick
+    std::unordered_map<uint32_t, ActorValues> m_copyValues; // session id -> the owner's values
+    std::set<uint32_t> m_copyPoolsPending;
     std::chrono::steady_clock::time_point m_lastPoolSend;
-    std::chrono::steady_clock::time_point m_lastDeathStateSend;
-    std::chrono::steady_clock::time_point m_lastValuesSend;
 };

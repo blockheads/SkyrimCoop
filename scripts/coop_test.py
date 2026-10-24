@@ -1951,6 +1951,33 @@ def scenario_guest_spawns_no_critters():
         wait_for("[host] nothing the spawner placed is left", lambda: not placed(), 10)
 
 
+def scenario_wildlife_takes_hosts_pick():
+    """Riverwood's placed leveled wildlife (a Rabbit reference can roll a Fox) rolls on each game: the client's
+    copy takes the host's pick (its base swapped, CharacterService::ApplyPlacedBase) and stays enabled and loaded."""
+    both_go(OUTDOOR_CELL)
+    try:
+        def leveled():
+            select_instance("")
+            return {s["mod"]["session_id"]: s["identity"] for s in (read_status() or {}).get("world", {}).values()
+                    if s["role"] == "own" and not s["player"] and s["identity"].get("temporary_base")}
+        host = wait_for("[host] has placed leveled wildlife around", lambda: leveled() or None, 20)
+
+        def wrong():
+            select_instance("client")
+            copies = {s["mod"]["session_id"]: s["identity"] for s in (read_status() or {}).get("world", {}).values()
+                      if s["role"] == "copy"}
+            return [f"{who['name']} sid {sid}: " + (f"client's is a {copies[sid]['name']} (race {copies[sid]['race']:X})"
+                                                    if sid in copies else "no loaded copy on the client")
+                    for sid, who in host.items()
+                    if sid not in copies or (copies[sid]["name"], copies[sid]["race"]) != (who["name"], who["race"])]
+        try:
+            wait_for(f"[client] {len(host)} loaded copies, each the host's pick", lambda: not wrong(), 20)
+        except TestFailure:
+            raise TestFailure("[client] copies of the host's leveled wildlife: " + "; ".join(wrong()))
+    finally:
+        both_go(HOME_CELL)
+
+
 def stage_script_state(instance, actor):
     select_instance(instance)
     return ((rpc({"cmd": "script_state", "object": actor, "script": STAGE_ON_DEATH}) or {}).get("state") or "").lower()
@@ -3751,13 +3778,21 @@ def actor_state(instance, form_id):
     return ((read_status() or {}).get("world") or {}).get(str(form_id)) or {}
 
 
+def player_copy(instance):
+    """That game's copy of the other player (its form id), or None."""
+    select_instance(instance)
+    world = (read_status() or {}).get("world") or {}
+    return next((int(k) for k, v in world.items() if v.get("player") and k != "20"), None)
+
+
 def scenario_guest_rides_host_horse():
     """Outdoors (no riding indoors), the client's player gets on the host's horse: the host gives the horse to
-    the client's game to move. Getting off gives it back to the host. (The host's copy of the rider does not get
-    on yet: progress.md, loose ends.)"""
+    the client's game to move, and the host's copy of the rider sits on it. Getting off gives it back to the host,
+    the copy getting off with it."""
     both_go(OUTDOOR_CELL)
     horse = None
     try:
+        rider = player_copy("")
         before = set(local_player("").get("local_actors", {}))
         console_on("", f"player.placeatme {HORSE} 1")
         horse = int(next(iter(wait_for("[host] the horse loaded",
@@ -3765,22 +3800,35 @@ def scenario_guest_rides_host_horse():
         sid = wait_for("[host] the horse has a session id",
                        lambda: (s := host_npc_state(horse).get("session_id")) is not None and s >= 0 and (s,), 10)[0]
         copy = copy_of("client", sid)
-        # Until its owner's first movement reaches it, the copy cannot be got on (the activation does nothing).
-        wait_for("[client] the horse's copy moves with the host's",
-                 lambda: actor_state("client", copy).get("mod", {}).get("interpolation_points", 0) > 0, 10)
+        # A placed actor fades in, and nothing activates it until it has (TESNPC::Activate).
+        wait_for("[client] the horse has faded in", lambda: actor_state("client", copy).get("mod", {}).get("fade_state") == 0, 10)
         activate_on("client", copy)
         wait_for("[client] its player rides the horse, now its game's to move",
                  lambda: actor_state("client", 0x14).get("placement", {}).get("riding")
                  and actor_state("client", copy).get("role") == "own", 15)
-        wait_for("[host] the horse is a copy here", lambda: actor_state("", horse).get("role") == "copy", 10)
+        # A player gets off once seated: until the mount animation ends the engine refuses (Actor::Dismount).
+        wait_for("[client] its player is seated", lambda: not actor_state("client", 0x14).get("placement", {}).get("getting_on_off"), 10)
+        wait_for("[host] the client's player sits on the horse, a copy here",
+                 lambda: actor_state("", rider).get("placement", {}).get("riding")
+                 and actor_state("", horse).get("role") == "copy"
+                 and actor_state("", horse).get("placement", {}).get("ridden"), 10)
+        # While riding, the horse and the rider agree with their copies (the rest of Riverwood is not this scenario's).
+        riding = [p for p in check_desync() if f", sid {sid}]" in p or "[client 00000014," in p]
+        if riding:
+            raise TestFailure("while riding: " + " | ".join(riding))
         tap_key("client", ACTIVATE_KEY)
         wait_for("[client] its player got off, the horse a copy again",
                  lambda: not actor_state("client", 0x14).get("placement", {}).get("riding")
                  and actor_state("client", copy).get("role") == "copy", 15)
-        wait_for("[host] the horse is its own again, no one on it",
+        wait_for("[host] the horse is its own again, the client's player off it",
                  lambda: actor_state("", horse).get("role") == "own"
+                 and not actor_state("", rider).get("placement", {}).get("riding")
                  and not actor_state("", horse).get("placement", {}).get("ridden"), 10)
     finally:
+        if actor_state("client", 0x14).get("placement", {}).get("riding"):
+            tap_key("client", ACTIVATE_KEY)
+            wait_for("[client] its player got off for the cleanup",
+                     lambda: not actor_state("client", 0x14).get("placement", {}).get("riding"), 15)
         if horse is not None:
             console_on("", f"{horse:08X}.disable")
             console_on("", f"{horse:08X}.markfordelete")
@@ -6874,6 +6922,7 @@ SCENARIOS = {
     "quest-stage-reaches-guest": scenario_quest_stage_reaches_guest,
     "guest-story-starts-no-quest": scenario_guest_story_starts_no_quest,
     "guest-spawns-no-critters": scenario_guest_spawns_no_critters,
+    "wildlife-takes-hosts-pick": scenario_wildlife_takes_hosts_pick,
     "death-stage-runs-once": scenario_death_stage_runs_once,
     "quest-completes-for-guest": scenario_quest_completes_for_guest,
     "quest-roles-match-host": scenario_quest_roles_match_host,
@@ -7018,6 +7067,7 @@ TAGS = {
     "quest-stage-reaches-guest": {'world', 'quest'},
     "guest-story-starts-no-quest": {'world', 'quest', 'cells'},
     "guest-spawns-no-critters": {'world', 'scripts', 'objects'},
+    "wildlife-takes-hosts-pick": {'spawn', 'cells'},
     "death-stage-runs-once": {'world', 'scripts', 'quest', 'spawn'},
     "quest-completes-for-guest": {'world', 'quest'},
     "quest-roles-match-host": {'world', 'quest'},
@@ -7253,6 +7303,8 @@ SOURCE_TAGS = [
     ("Code/client/Events/EffectVisualsChangeEvent.h", {'magic'}),
     ("Code/client/Events/BeastFormChangeEvent.h", {'magic', 'spawn', 'scripts'}),
     ("Code/client/Events/MountEvent.h", {'movement'}),
+    ("Code/client/Events/DismountEvent.h", {'movement'}),
+    ("Code/client/Events/DifficultyChangeEvent.h", {'session'}),
     ("Code/client/Events/MoveActorEvent.h", {'movement'}),
     ("Code/client/Events/*WaypointEvent.h", {'world', 'ui'}),
     ("Code/client/Events/SetTimeCommandEvent.h", {'world', 'ui'}),
@@ -7300,6 +7352,7 @@ SOURCE_TAGS = [
     ("Code/client/Games/Skyrim/NetImmerse/*", {'core'}),
 
     # Actors, their copies, animation, combat, input and magic glue.
+    ("Code/client/Games/Skyrim/RefrInteraction.h", {'movement'}),
     ("Code/client/Games/Skyrim/Actor.*", {'spawn', 'movement', 'values', 'combat', 'ai', 'hands'}),
     ("Code/client/Games/Skyrim/PlayerCharacter.*", {'session', 'spawn', 'cells', 'combat', 'values'}),
     ("Code/client/Games/*Animation*", {'animation', 'movement', 'hands'}),
@@ -7307,6 +7360,14 @@ SOURCE_TAGS = [
     ("Code/client/Games/*CopyAiState.*", {'ai', 'combat', 'movement'}),
     ("Code/client/Games/ActorUpkeep.h", {'combat'}),
     ("Code/client/Games/Skyrim/AiStateEvents.*", {'ai'}),
+    ("Code/client/Games/Skyrim/QuestEvents.*", {'quest'}),
+    ("Code/client/Games/Skyrim/GlobalEvents.*", {'world', 'quest'}),
+    ("Code/client/Games/Skyrim/ActorValueEvents.*", {'values', 'combat'}),
+    ("Code/client/Games/QuestChanges.h", {'quest'}),
+    ("Code/client/Games/ScriptAssignments.h", {'quest'}),
+    ("Code/client/Games/DeathActions.h", {'combat', 'values'}),
+    ("Code/client/Events/ActorDeathChangeEvent.h", {'combat', 'values'}),
+    ("Code/client/Events/ActorValueChangeEvent.h", {'values'}),
     ("Code/client/Games/Skyrim/FactionEvents.*", {'ai'}),
     ("Code/client/Games/Skyrim/AI/*", {'ai', 'movement', 'scripts'}),
     ("Code/client/Games/Skyrim/BSInput/*", {'input', 'hands', 'magic', 'scripts'}),

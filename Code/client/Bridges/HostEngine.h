@@ -27,8 +27,12 @@ public:
     [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;
     // Every global but the constants; the calendar's are marked.
     [[nodiscard]] std::vector<HostGlobal> ReadGlobals() const noexcept;
+    // Only globals written since the last call; constants excluded, calendar marked.
+    [[nodiscard]] std::vector<HostGlobal> TakeGlobalChanges() const noexcept;
     // Every quest as the game holds it now.
     [[nodiscard]] std::vector<QuestState> ReadQuests() const noexcept;
+    // Only quests whose state or alias references changed since the last call.
+    [[nodiscard]] std::vector<QuestState> TakeQuestChanges() const noexcept;
     // Runs the clock on to that hour, the next day's if it is earlier, as a wait does.
     void SetHour(float aHours) noexcept;
     // A world script's event on an object, kept for the others: it activated a door (by a reference) or played an

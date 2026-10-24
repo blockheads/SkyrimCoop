@@ -26,6 +26,7 @@
 #include <Services/PapyrusService.h>
 #include <Services/DebugService.h>
 #include <World.h>
+#include <Events/AiStateChangeEvent.h>
 
 #include <AI/AITimer.h>
 #include <Combat/CombatTargetSelector.h>
@@ -106,7 +107,8 @@ bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
     return RealCheckForNewPackage(apThis, apActor, aUnk1);
 }
 
-// Packages the engine creates on the fly (movement blocked, flee, ...) all arrive here.
+// Packages the engine creates on the fly (movement blocked, flee, a ridden mount's DoNothing, ...) all arrive here,
+// with no TESPackageEvent: an owned actor's AI state goes out again.
 using TPutCreatedPackage = void(Actor*, TESPackage* apPackage, bool aRunOnce, bool aUnk);
 static TPutCreatedPackage* RealPutCreatedPackage = nullptr;
 
@@ -119,6 +121,8 @@ void HookPutCreatedPackage(Actor* apThis, TESPackage* apPackage, bool aRunOnce, 
         return;
 
     RealPutCreatedPackage(apThis, apPackage, aRunOnce, aUnk);
+    if (!apThis->GetExtension()->IsCopy())
+        World::Get().GetRunner().Trigger(AiStateChangeEvent{apThis->formID});
 }
 
 // Actor::GetCurrentPackage (37399): what GetIsCurrentPackage (21529) and Papyrus read.

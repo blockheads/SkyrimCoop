@@ -651,15 +651,21 @@ at package evaluation; Valhalla Combat and DeadlyCombat react in the hit path an
 `SetGraphVariable*` and `NotifyAnimationGraph`. SkyMP runs an NPC's AI on its hosting player and puppets it
 elsewhere (`keepOffsetFromActor`), with no AI state synced.
 
+Placed wildlife's base picks (2026-10-23): the Rabbit/Fox swap keeps the correct reference/session links;
+`OnCharacterSpawn` used to retain the guest's local roll. The existing spawn `BaseId` now carries the host's
+chosen NPC base for placed actors too. The guest applies it on spawn and refresh, keeping the reference.
+`SetBaseObject` dispatches virtual 0x84 (`Actor::SetObjectReference`, 37466), whose actor override also updates
+race, and reloads loaded 3D. CommonLibSSE-NG's Actor.h and 1.6.1170 disassembly at `0x140673B40` agree.
+GameTests reproduces both swapped names/races, with absent 3D and reversed refresh order. The 3D reload calls the
+reference's own Disable (19801) before Enable: `Actor::Disable` (37267) only queues task 80 (`0x1406569E0`), which runs
+19801 later, after the Enable, and left every swapped actor disabled. Skyrim: `wildlife-takes-hosts-pick`.
+
 ### Still open
 
 - `Actor::Update` on copies: the trespass rule (only the real player trespasses, so a remote player is
   never caught on the other game; decided answer: a shared party bounty, copy-contract.md). A copy
   that surfaces before its owner's gasp arrives could gasp on its own (above): not seen, the copy lags
   its owner.
-- Leveled wildlife picks its own base on each game (seen at the river, Tamriel 7,-8, 2026-10-12):
-  host `105987` Rabbit is a Fox on the client, host `EBC51` Deer an Elk. The copy should take its
-  owner's base. Not investigated.
 - AI patches inherited from upstream, from before copies ran no AI: `HookIsFleeing` (forces "not
   fleeing" for players; its comment asks why the flag gets set on remote players at all) and
   `HookProcessResponse` (a remote player's copy speaks no AI dialogue response), and the detection and

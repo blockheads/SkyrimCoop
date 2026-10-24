@@ -24,10 +24,8 @@ struct HostNetwork;
 /**
  * @brief The world is the host's (docs/design/world-state-sync.md, step 4): what changes in its
  * game reaches the others, who apply it with their engine's own call and decide nothing themselves.
- * Global variables and quests are compared with what the others hold a few times a second: globals never
- * reach the engine's change funnel, nor does a script's alias fill. What the host's world scripts did to objects
- * (doors, animations) goes out each frame (step 5). A guest's cell loading gets the host's state of the references
- * there, once the host's game has that cell loaded too (step 2 of finishing it, docs/progress.md).
+ * Quests and globals go out on engine writes. Object changes go out every frame.
+ * A guest's cell loading gets the host's state once that cell is loaded in the host's game too.
  */
 struct HostWorldState
 {
@@ -64,11 +62,11 @@ private:
     const HostGame& m_game;
     // The globals' values the others hold, by session id ((mod id << 32) | base id), as float bits.
     std::unordered_map<uint64_t, uint32_t> m_globals;
-    uint64_t m_globalsTick{};
+    bool m_globalsRead = false;
     // The quests as the others hold them, by session id, in the order the host's game lists them.
     std::unordered_map<uint64_t, size_t> m_questIndex;
     std::vector<QuestState> m_quests;
-    uint64_t m_questsTick{};
+    bool m_questsRead = false;
     // Guests' cells the host's game has not loaded yet, oldest first.
     std::vector<PendingCell> m_pendingCells;
 };

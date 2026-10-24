@@ -139,6 +139,7 @@ private:
     void RunPresence() noexcept;
     // A spawn for a copy we already have: its owner's latest place and spawn data.
     void RefreshCopy(entt::entity aEntity, const NotifyCharacterSpawn& acMessage) const noexcept;
+    bool ApplyPlacedBase(uint32_t aFormId, const NotifyCharacterSpawn& acMessage) const noexcept;
     // Drops the copy and asks the host to spawn it again.
     void RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept;
     // Drops our entities for the copies acShouldDrop picks (by form id).

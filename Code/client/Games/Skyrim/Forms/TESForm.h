@@ -22,7 +22,8 @@ enum class FormType : uint8_t
     Reference = 61,
     Character = 62,
     WorldSpace = 71,
-    QuestItem = 77,
+    Quest = 77,
+    QuestItem = Quest,
     Count = 0x87
 };
 

@@ -583,6 +583,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override
+    {
+        return false;
+    }
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -729,7 +733,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ActorFixVampireLordModel(uint32_t aFormId) noexcept override
     {
     }
-    void ActorInitiateMountPackage(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override
+    void ActorPutOnMount(uint32_t aRiderFormId, uint32_t aMountFormId) noexcept override
     {
     }
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override

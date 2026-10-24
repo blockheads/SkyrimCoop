@@ -244,3 +244,23 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         CHECK(cBytes.second.substr(2) == cRecorded.at(cName).second);
     }
 }
+
+TEST_CASE("A death can wait for the owner's exact replayed action", "[Wire][Values]")
+{
+    RequestDeathStateChange request;
+    request.Id = 0x5678;
+    request.IsDead = true;
+    for (const uint64_t cTick : {0ull, 300ull, 0x100000001ull})
+    {
+        request.DeathActionTick = cTick;
+        const auto cNotify = FromRequestBytes<NotifyDeathStateChange>(request);
+        CHECK(cNotify.Id == request.Id);
+        CHECK(cNotify.IsDead);
+        CHECK(cNotify.DeathActionTick == request.DeathActionTick);
+    }
+    request.IsDead = false;
+    request.DeathActionTick.reset();
+    const auto cAlive = FromRequestBytes<NotifyDeathStateChange>(request);
+    CHECK_FALSE(cAlive.IsDead);
+    CHECK_FALSE(cAlive.DeathActionTick);
+}
