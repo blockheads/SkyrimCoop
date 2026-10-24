@@ -8,7 +8,7 @@ TEST_CASE("Time: a joining player gets the host's clock", "[HostAuthority][Time]
     session.HostClock.Day = 17;
     session.HostClock.DaysPassed = 300;
 
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
     announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);

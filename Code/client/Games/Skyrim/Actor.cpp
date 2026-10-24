@@ -19,6 +19,7 @@
 #include <Events/HealthChangeEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/MountEvent.h>
+#include <Events/DismountEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
 #include <Events/RemoveSpellEvent.h>
@@ -766,6 +767,8 @@ void Actor::RemoveFromAllFactions() noexcept
 
 using TInitiateMountPackage = bool(Actor*, Actor* apMount);
 static TInitiateMountPackage* RealInitiateMountPackage = nullptr;
+using TDismount = bool(Actor*);
+static TDismount* RealDismount = nullptr;
 
 bool Actor::InitiateMountPackage(Actor* apMount) noexcept
 {
@@ -997,11 +1000,8 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     const auto* pExHittee = apThis->GetExtension();
     if (pExHittee->IsLocalPlayer())
     {
-        if (!World::Get().GetServerSettings().PvpEnabled)
-        {
-            if (apHitter && apHitter->GetExtension()->IsOtherPlayer())
-                return false;
-        }
+        if (apHitter && apHitter->GetExtension()->IsOtherPlayer())
+            return false;
 
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
@@ -1231,6 +1231,15 @@ bool HookInitiateMountPackage(Actor* apThis, Actor* apMount)
         World::Get().GetRunner().Trigger(MountEvent(apThis->formID, apMount->formID));
 
     return RealInitiateMountPackage(apThis, apMount);
+}
+
+// Every dismount starts here: the player's activate, Papyrus Dismount, the console, the get-up package.
+bool HookDismount(Actor* apThis)
+{
+    const bool cStarted = RealDismount(apThis);
+    if (cStarted && apThis->GetExtension()->IsLocal())
+        World::Get().GetRunner().Trigger(DismountEvent{apThis->formID});
+    return cStarted;
 }
 
 using TUnequipObject = void(Actor*, void* apUnk1, TESBoundObject* apObject, int32_t aUnk2, void* apUnk3);
@@ -1544,15 +1553,9 @@ static Hooks::Initializer s_actorHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TApplyMovement, s_applyMovement, 37356);
-        POINTER_SKYRIMSE(TResetInventory, s_resetInventory, 37322);
-        POINTER_SKYRIMSE(TUpdateAI, s_updateAI, 37347);
         POINTER_SKYRIMSE(TCharacterDestructor, s_characterDtor, 37175);
         POINTER_SKYRIMSE(TGetLocation, s_GetActorLocation, 19812);
 
-        RealApplyMovement = s_applyMovement.Get();
-        RealResetInventory = s_resetInventory.Get();
-        RealUpdateAI = s_updateAI.Get();
         POINTER_SKYRIMSE(TUpdateCellAttachment, s_updateCellAttachment, 37352);
         UpdateCellAttachment = s_updateCellAttachment.Get();
         POINTER_SKYRIMSE(TUpdateVoiceTimer, s_updateVoiceTimer, 37752);
@@ -1565,9 +1568,9 @@ static Hooks::Initializer s_actorHooks(
         UpdateLipSyncGraph = s_updateLipSyncGraph.Get();
         FUNC_GetActorLocation = s_GetActorLocation.Get();
 
-        HOOK(&RealApplyMovement, HookApplyMovement);
-        HOOK(&RealResetInventory, HookResetInventory);
-        HOOK(&RealUpdateAI, HookUpdateAI);
+        HOOK_ID(37356, &RealApplyMovement, HookApplyMovement);
+        HOOK_ID(37322, &RealResetInventory, HookResetInventory);
+        HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         HOOK_ID(19790, &RealSetPosition, HookSetPosition);
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);
         HOOK_ID(40245, &RealCharacterConstructor, HookCharacterConstructor);
@@ -1586,6 +1589,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(42704, &RealUpdateDetectionState, HookUpdateDetectionState);
         HOOK_ID(39643, &RealProcessResponse, HookProcessResponse);
         HOOK_ID(37905, &RealInitiateMountPackage, HookInitiateMountPackage);
+        HOOK_ID(37906, &RealDismount, HookDismount);
         HOOK_ID(37975, &RealUnequipObject, HookUnequipObject);
         HOOK_ID(37542, &RealSpeakSoundFunction, HookSpeakSoundFunction);
         HOOK_ID(37198, &RealAddDeathItems, HookAddDeathItems);

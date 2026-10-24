@@ -28,28 +28,33 @@ TEST_CASE("Chat: to everyone, the sender too, under its name and as typed", "[Ho
     Session session;
 
     SendChatMessageRequest chat;
-    chat.MessageType = kGlobalChat;
     chat.ChatMessage = "<b>hello</b> there";
     session.Receive(kPeer, chat);
     for (const auto cTo : {kHost, kPeer, kOtherPeer})
     {
         const auto cNotifies = session.SentTo<NotifyChatMessageBroadcast>(cTo);
         REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->MessageType == kGlobalChat);
+        CHECK(cNotifies[0]->MessageType == kPlayerChat);
         CHECK(cNotifies[0]->PlayerName == "Lydia");
         CHECK(cNotifies[0]->ChatMessage == "<b>hello</b> there");
     }
 }
 
-TEST_CASE("Chat: players cannot send system messages", "[HostAuthority][Chat]")
+TEST_CASE("Chat: player text cannot become a system line", "[HostAuthority][Chat]")
 {
     Session session;
 
     SendChatMessageRequest chat;
-    chat.MessageType = kSystemMessage;
-    chat.ChatMessage = "The server is shutting down";
+    chat.ChatMessage = "The session is ending";
     session.Receive(kPeer, chat);
-    CHECK(session.Outbox.empty());
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(cTo);
+        REQUIRE(cLines.size() == 1);
+        CHECK(cLines[0]->MessageType == kPlayerChat);
+        CHECK(cLines[0]->PlayerName == "Lydia");
+        CHECK(cLines[0]->ChatMessage == chat.ChatMessage);
+    }
 }
 
 TEST_CASE("Chat: a line is cut to the chat's length, whole characters, without control characters", "[HostAuthority][Chat]")

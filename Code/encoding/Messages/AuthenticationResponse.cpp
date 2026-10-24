@@ -6,7 +6,7 @@ void AuthenticationResponse::SerializeRaw(Wire::Buffer::Writer& aWriter) const n
     Serialization::WriteString(aWriter, Version);
     Game.Serialize(aWriter);
     UserMods.Serialize(aWriter);
-    Settings.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Difficulty);
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteVarInt(aWriter, CharacterId);
 }
@@ -17,7 +17,7 @@ void AuthenticationResponse::DeserializeRaw(Wire::Buffer::Reader& aReader) noexc
     Version = Serialization::ReadString(aReader);
     Game.Deserialize(aReader);
     UserMods.Deserialize(aReader);
-    Settings.Deserialize(aReader);
+    Difficulty = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     CharacterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

@@ -55,7 +55,7 @@ TEST_CASE("World state: the clock's globals are never sent", "[HostAuthority][Wo
     CHECK(session.SentTo<NotifyGlobals>(kPeer).empty());
 
     // Nor to a joining player.
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
     announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);
@@ -96,7 +96,7 @@ TEST_CASE("World state: a joining player gets every global", "[HostAuthority][Wo
     session.Frame(1000);
     session.Outbox.clear();
 
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
     announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);
@@ -181,7 +181,7 @@ TEST_CASE("World state: a joining player gets every quest, as a load", "[HostAut
     session.Frame(1000);
     session.Outbox.clear();
 
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.ReferenceId = GameId(0, 0x14);
     announce.SessionId = session.CharacterId(kPeer);
     session.Receive(kPeer, announce);

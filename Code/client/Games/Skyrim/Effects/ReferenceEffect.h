@@ -9,9 +9,43 @@ struct BSTempEffect
     uint8_t pad0[0x30];
 };
 
+// What plays a reference effect: an active effect, a script's VisualEffect, the sky (CommonLibSSE-NG).
+struct ReferenceEffectController
+{
+    virtual ~ReferenceEffectController();
+
+    virtual void sub_01();
+    virtual void sub_02();
+    virtual void sub_03();
+    virtual void sub_04();
+    virtual void sub_05();
+    virtual void sub_06();
+    virtual void sub_07();
+    virtual void sub_08();
+    virtual void sub_09();
+    virtual void sub_0A();
+    virtual void sub_0B();
+    virtual void sub_0C();
+    virtual void sub_0D();
+    virtual void sub_0E();
+    virtual void sub_0F();
+    virtual void sub_10();
+    virtual void sub_11();
+    virtual void sub_12();
+    virtual void sub_13();
+    virtual void sub_14();
+    virtual void sub_15();
+    virtual void sub_16();
+    virtual void sub_17();
+    virtual void sub_18();
+    virtual void sub_19();
+    // 1A: plays at the camera, not on its reference (OwnedCameraEffectController, SkyEffectController)
+    virtual bool EffectAttachesToCamera();
+};
+
 struct ReferenceEffect : BSTempEffect
 {
-    void* pController;   // 30
+    ReferenceEffectController* pController; // 30
     uint32_t hTarget;    // 38 - the reference it plays on
     uint32_t hAimTarget; // 3C
     bool bFinished;      // 40 - stopping sets it; the effect then fades out and leaves the list

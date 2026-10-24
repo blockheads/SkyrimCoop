@@ -286,6 +286,18 @@ struct PartyNative
     ScriptCall Call{}; // its self: an image-space modifier, a music type; None for a global native
 };
 
+// A party native as the other games get it: Source is the player whose script called it (its PlayerId), whose
+// cutscene it is.
+struct PartyNativeFrom : PartyNative
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PartyNativeFrom&) const noexcept = default;
+
+    uint32_t Source{};
+};
+
 // A guest's own script changed the world (a quest's stage): the host's game makes the call instead, for that guest
 // (docs/design/world-state-sync.md, "Only the host's game decides").
 struct WorldCall

@@ -35,7 +35,6 @@ TransportService::TransportService(World& aWorld, entt::dispatcher& aDispatcher)
     , m_worldBridge(aWorld.ctx().at<IWorldBridge&>())
 {
     Listen<UpdateEvent, &TransportService::HandleUpdate>(m_connections, m_dispatcher, this);
-    Listen<NotifySettingsChange, &TransportService::HandleNotifySettingsChange>(m_connections, m_dispatcher, this);
     Listen<ConnectedEvent, &TransportService::HandleConnected>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &TransportService::HandleDisconnected>(m_connections, m_dispatcher, this);
 
@@ -155,7 +154,7 @@ void TransportService::OnConsume(const void* apData, uint32_t aSize)
     auto pMessage = factory.Extract(reader);
     if (!pMessage)
     {
-        spdlog::error("Couldn't parse packet from server");
+        spdlog::error("Couldn't parse packet from the host");
         return;
     }
 
@@ -167,9 +166,6 @@ void TransportService::OnConnected()
     AuthenticationRequest request{};
     request.Version = BuildCommit();
     request.Game = RunningGame::GetVersions();
-
-    request.Token = m_serverPassword;
-    m_serverPassword = "";
 
     // null if discord is not active
     // TODO: think about user opt out
@@ -204,7 +200,7 @@ void TransportService::OnDisconnected(EDisconnectReason aReason)
     if (m_joinStatus.Current != JoinStatus::State::kRefused)
         m_joinStatus = {};
 
-    spdlog::warn("Disconnected from server {}", std::to_underlying(aReason));
+    spdlog::warn("Disconnected from the host ({})", std::to_underlying(aReason));
 
     m_dispatcher.trigger(DisconnectedEvent());
 }
@@ -251,9 +247,9 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
         m_connected = true;
         m_joinStatus = {JoinStatus::State::kJoined};
 
-        m_world.SetServerSettings(acMessage.Settings);
-
-        m_dispatcher.trigger(acMessage.Settings);
+        NotifySettingsChange difficulty;
+        difficulty.Difficulty = acMessage.Difficulty;
+        m_dispatcher.trigger(difficulty);
         m_dispatcher.trigger(ConnectedEvent(acMessage.PlayerId, acMessage.CharacterId));
         return; // quit the function here.
     }
@@ -261,10 +257,4 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
     // Refused: the join status says why.
     m_joinStatus = JoinRefusal::ForPlayer(acMessage, {BuildCommit(), RunningGame::GetVersions(), RunningGame::Plugins(m_formBridge)});
     spdlog::error("Couldn't join the session ({}): {}", m_joinStatus.Reason, m_joinStatus.Message);
-}
-
-void TransportService::HandleNotifySettingsChange(const NotifySettingsChange& acMessage) noexcept
-{
-    m_world.SetServerSettings(acMessage.Settings);
-    m_dispatcher.trigger(acMessage.Settings);
 }

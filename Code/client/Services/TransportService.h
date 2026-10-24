@@ -14,7 +14,6 @@ struct ImguiService;
 struct UpdateEvent;
 struct RequestMessage;
 struct AuthenticationResponse;
-struct NotifySettingsChange;
 
 struct World;
 class IPlayerBridge;
@@ -59,7 +58,6 @@ struct TransportService : Client
     void OnUpdate() override;
 
     [[nodiscard]] bool IsOnline() const noexcept { return m_connected; }
-    void SetServerPassword(const std::string& acPassword) noexcept { m_serverPassword = acPassword; }
     const uint32_t& GetLocalPlayerId() const noexcept { return m_localPlayerId; }
     // The last attempt to join: under way, joined, or refused and why.
     [[nodiscard]] const JoinStatus& GetJoinStatus() const noexcept { return m_joinStatus; }
@@ -72,7 +70,6 @@ protected:
 
     // Packet handlers
     void HandleAuthenticationResponse(const AuthenticationResponse& acMessage) noexcept;
-    void HandleNotifySettingsChange(const NotifySettingsChange& acMessage) noexcept;
 
 private:
     World& m_world;
@@ -83,7 +80,6 @@ private:
     bool m_connected;
     HostNetwork* m_pHostNetwork{nullptr};
     std::vector<std::vector<uint8_t>> m_localInbox;
-    std::string m_serverPassword{};
     uint32_t m_localPlayerId;
     JoinStatus m_joinStatus;
 

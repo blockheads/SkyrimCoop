@@ -5,7 +5,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Messages/AuthenticationRequest.h>
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 #include <RunningGame.h>
 #include <Systems/AnimationSystem.h>
 #include <Structs/GameVersions.h>
@@ -108,7 +108,7 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
         auth.Level = player.GetPlayerLevel();
         auth.UserMods = RunningGame::Plugins(world.GetFormBridge());
 
-        AssignCharacterRequest assign;
+        AnnounceCharacterRequest assign;
         assign.ReferenceId = GameId{0, 0x14};
         // Player FormId must remain empty; this is not the NPC base FormID.
         assign.CellId = ToSession(player.GetPlayerParentCellId()).value_or(GameId{});

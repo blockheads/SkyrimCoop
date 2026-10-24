@@ -1,38 +1,38 @@
 #include <Messages/NotifyCharacterSpawn.h>
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 
 #include <limits>
 
-NotifyCharacterSpawn NotifyCharacterSpawn::FromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aSessionId, uint32_t aPlayerId) noexcept
+NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharacterRequest& acAnnouncement, uint32_t aSessionId, uint32_t aPlayerId) noexcept
 {
-    const bool cIsPlayer = acAssignment.ReferenceId == GameId{0, 0x14};
-    const bool cIsTemporary = acAssignment.ReferenceId.ModId == std::numeric_limits<uint32_t>::max();
+    const bool cIsPlayer = acAnnouncement.ReferenceId == GameId{0, 0x14};
+    const bool cIsTemporary = acAnnouncement.ReferenceId.ModId == std::numeric_limits<uint32_t>::max();
 
     NotifyCharacterSpawn spawn;
     spawn.SessionId = aSessionId;
     // A game reference everyone has is found by its id; the player and temporary references are
     // created from their base and appearance instead.
     if (!cIsPlayer && !cIsTemporary)
-        spawn.FormId = acAssignment.ReferenceId;
-    spawn.BaseId = acAssignment.FormId;
-    spawn.CellId = acAssignment.CellId;
-    spawn.Position = acAssignment.Position;
-    spawn.Rotation = acAssignment.Rotation;
-    spawn.ChangeFlags = acAssignment.ChangeFlags;
-    spawn.AppearanceBuffer = acAssignment.AppearanceBuffer;
-    spawn.InventoryContent = acAssignment.CurrentActorData.InitialInventory;
-    spawn.FactionsContent = acAssignment.FactionsContent;
-    spawn.LatestAction = acAssignment.LatestAction;
-    spawn.GraphState = acAssignment.GraphState;
-    spawn.AiState = acAssignment.AiState;
-    spawn.EffectIds = acAssignment.EffectIds;
-    spawn.FaceTints = acAssignment.FaceTints;
-    spawn.InitialActorValues = acAssignment.CurrentActorData.InitialActorValues;
+        spawn.FormId = acAnnouncement.ReferenceId;
+    spawn.BaseId = acAnnouncement.FormId;
+    spawn.CellId = acAnnouncement.CellId;
+    spawn.Position = acAnnouncement.Position;
+    spawn.Rotation = acAnnouncement.Rotation;
+    spawn.ChangeFlags = acAnnouncement.ChangeFlags;
+    spawn.AppearanceBuffer = acAnnouncement.AppearanceBuffer;
+    spawn.InventoryContent = acAnnouncement.CurrentActorData.InitialInventory;
+    spawn.FactionsContent = acAnnouncement.FactionsContent;
+    spawn.LatestAction = acAnnouncement.LatestAction;
+    spawn.GraphState = acAnnouncement.GraphState;
+    spawn.AiState = acAnnouncement.AiState;
+    spawn.EffectIds = acAnnouncement.EffectIds;
+    spawn.FaceTints = acAnnouncement.FaceTints;
+    spawn.InitialActorValues = acAnnouncement.CurrentActorData.InitialActorValues;
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
-    spawn.IsDead = acAssignment.CurrentActorData.IsDead;
+    spawn.IsDead = acAnnouncement.CurrentActorData.IsDead;
     spawn.IsPlayer = cIsPlayer;
-    spawn.IsWeaponDrawn = acAssignment.CurrentActorData.IsWeaponDrawn;
-    spawn.IsPlayerSummon = acAssignment.IsPlayerSummon;
+    spawn.IsWeaponDrawn = acAnnouncement.CurrentActorData.IsWeaponDrawn;
+    spawn.IsPlayerSummon = acAnnouncement.IsPlayerSummon;
     return spawn;
 }
 

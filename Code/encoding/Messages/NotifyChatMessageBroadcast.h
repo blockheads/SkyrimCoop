@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <ChatMessageTypes.h>
 #include <Wire/Buffer.h>
 
 struct NotifyChatMessageBroadcast final : NotifyMessage
@@ -19,7 +20,7 @@ struct NotifyChatMessageBroadcast final : NotifyMessage
 
     bool operator==(const NotifyChatMessageBroadcast& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && MessageType == acRhs.MessageType && PlayerName == acRhs.PlayerName && ChatMessage == acRhs.ChatMessage; }
 
-    ChatMessageType MessageType;
+    ChatMessageType MessageType = kPlayerChat;
     std::string PlayerName;
     std::string ChatMessage;
 };

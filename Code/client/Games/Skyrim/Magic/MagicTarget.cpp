@@ -118,10 +118,10 @@ bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
     return !apCaster || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script
 }
 
-// A player's hostile spell on another player while PvP is off.
+// A player's hostile spell cannot harm another player.
 bool IsBlockedPvp(Actor* apCaster, const MagicItem* apSpell) noexcept
 {
-    return IsPlayer(apCaster) && !IsFriendly(apSpell) && !World::Get().GetServerSettings().PvpEnabled;
+    return IsPlayer(apCaster) && !IsFriendly(apSpell);
 }
 } // namespace
 

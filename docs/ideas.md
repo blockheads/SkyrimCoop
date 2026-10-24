@@ -148,9 +148,9 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
 
 ## Code cleanup
 
-- ~~One template for relayed messages~~ (done 2026-10-23, progress.md "Test suite"). Left: the three payload
-  messages with fields or bytes of their own (`NotifyPartyNative`, `PlayerNativeResultRequest`,
-  `NotifyPlayerNativeResult`) stay structs; a new message's header is still included in its factory by hand.
+- ~~One template for relayed messages~~ (done 2026-10-23, progress.md "Test suite"). A new message's header is still
+  included in its factory by hand: the preprocessor cannot make includes from the list, and a missing one fails
+  the build naming the type.
 - ~~One line per hook~~ (done 2026-10-23). `HOOK_ID(ID, &Real, HookFn)` replaces 122 initializer triples;
   a thin macro supplies the breadcrumb name to `Hooks::Hook`, and `HOOK_ID_IMMEDIATE` selects immediate
   installation. All verified function types and globals stay, including originals called outside their hooks.
@@ -172,15 +172,22 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
     `TESDeathEvent` on the copy instead. Scenarios: `--tag combat`, `death-*`, `vilkas-counts-client-hits`.
   - `InventoryService` (unchanged, stalled 2026-10-22). Equipment snapshots (3 s): the owner's `TESEquipEvent` covers
     its own changes, but the case the snapshot exists for is a copy drifting in its own game (`repair-equipment-drift`
-    strips the copy only), where the owner sees nothing. The copy would reconcile on its own `TESEquipEvent` against
-    its owner's worn set, which it must then follow from every change message too (armor replacing armor in a slot
-    included), or it undoes the owner's changes as they land. Weapon state (each frame): the state bits
+    strips the copy only), where the owner sees nothing. Looked at 2026-10-23, stays: the equip hooks refuse every
+    change the engine makes to a copy, so a copy drifts only by losing an item (an unequip by removal) or by an
+    owner's equip that failed (the item not there yet). Neither raises anything today, and the snapshot also covers
+    drift whose cause is not known. An event version: the copy keeps its owner's worn set from every change message
+    (`CurrentInventory`) and reconciles on a removal and on the missing item's arrival. Weapon state (each frame): the state bits
     (`ActorState+0xC` bits 5-7) have no single writer (two found, for drawn and sheathed only). The naked NPC check
     (1 s): its cause is not recorded (upstream `ef2ce4b9`); 3D loads and discovery would cover an NPC loading naked,
     not one stripped later, so it waits for the cause.
-  - `CharacterService` actor discovery (each frame over every loaded actor, `TESCellAttachDetachEvent`,
-    `TESObjectLoadedEvent`) and presence (2 s retry): not looked at.
-  - `PlayerService` difficulty (each frame): the settings write, not looked at.
+  - `CharacterService` actor discovery (each frame over the high process list): stays (looked at 2026-10-23). The
+    set is "in the high process list with 3D", which changes on `TESObjectLoadedEvent` (3D) and on the four process
+    moves (`Actor::MoveToHigh` 37621, `MoveToLow` 37622, `MoveToMiddleLow` 37623, `MoveToMiddleHigh` 37624, shared by
+    every actor class). An event version marks it dirty on those and rescans; `ReferenceEvents` runs only in a session,
+    so a session's start rescans too. Proving no change slips by needs an audit run in Skyrim (the scan beside the
+    events, logging what they missed) for a scan that costs a few dozen actors a frame and is never late.
+  - `CharacterService` presence (2 s): a spacing between moves of a copy the engine may drop, not a poll; nothing
+    says a move was dropped. Stays.
   - `HostWorldState` quests (500 ms): `TESQuestStageEvent`, `TESQuestStartStopEvent` and `ObjectiveState::Event`
     (23951) cover stages, running and objectives, but alias and location fills (`BGSRefAlias::ForceRefTo`, `Clear`,
     location aliases) send nothing and `QuestState` carries them: hooks on those first. Globals (250 ms): no event,
@@ -188,7 +195,7 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   - `DialogueService`'s menu and speaker check: left for the shared dialogue rework (main checkout, 2026-10-22).
   - Done: `AiStateService` (`TESPackageEvent`, `TESCombatEvent`, `TESSceneEvent`, `TESDeathEvent`, combat target
     switches, the player's combat flag), `EffectVisualsService`, `PlayerService` race and level, `CharacterService`
-    factions and experience (progress.md, "Events over polling").
+    factions and experience, difficulty (progress.md, "Events over polling").
 
 - ~~Rename `BridgeTests` to `HostAuthorityTests`~~ (done 2026-10-23, progress.md "Test suite").
 - ~~One call for a form's session id~~ (done 2026-10-23 as no translation at all, progress.md "Test suite"). Left:
@@ -198,13 +205,15 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   and every game has the same build and plugins:
   - ~~The character assignment round trip~~ (done 2026-10-23, progress.md "Test suite"): the host hands out every
     id, a player's in its join answer.
-  - Taking ownership of an actor (`TakeOwnership`): a guest mounting a horse claims its copy, unconfirmed (upstream's
-    TODO). Under direct authority the mount goes to the host as a request. Skyrim check: mounts.
-  - `ServerSettings` / `NotifySettingsChange`: five flags the host always sets the same (greetings, PvP, homes,
-    death system; `SyncPlayerCalendar` unread). Only `Difficulty` carries anything. The auth `Token`
-    (`m_serverPassword`) is never checked.
-  - Chat channels (global, party, local) for 2-4 players: `kPartyChat` unused, local once.
-  - "Server" names: `RequestServerAssignment`, `GetServerSettings`, `m_serverDifficulty`, log lines.
+  - ~~Taking ownership of an actor~~ (done 2026-10-23): the host gives a mount to its rider's game. Open: back on
+    dismount, and a mount scenario.
+  - ~~Server settings and unused password~~ (done 2026-10-23, progress.md "Test suite"). Difficulty alone in
+    auth and `NotifySettingsChange`; fixed greetings/PvP/death rules stay in code, homes/calendar flags and the
+    unchecked token/password are gone.
+  - ~~Extra chat channels~~ (done 2026-10-23). One player-chat category, including dialogue picks, plus system
+    lines. Player requests carry text only; the host chooses the category and name.
+  - "Server" names go as their code is touched: settings now use host difficulty, and the debug address/connect
+    panel is Connection. The existing Session roster panel keeps its name.
   - Stays: clock sync (interpolation's time base), compression, the connect's name lookup, kick. Actor session
     ids: a placed NPC could go by its form id now, but created NPCs and players' copies still need one; a redesign,
     not a deletion.
@@ -220,22 +229,8 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
   side's engine calls, `HostBridge` became `HostAuthority`. After phase 5 (the listener moving into the bridge
   changes how messages reach these services): a short survey and plan in `docs/design/`, then one piece at
   a time with its scenarios, deleted from the old place in the same change.
-- **Drop the engine bridge interfaces (later refactor, leaning drop, 2026-10-20).** Services reach the engine
-  through `I*Bridge` interfaces (`IActorBridge`, `IFormBridge`, `IPlayerBridge`, `IEventBridge`, `IWorldBridge`,
-  and `IDialogueBridge` on the parked dialogue branch), meant for running services headless against a fake.
-  The fake never got there: `ReplayBridge` (canned answers from a recording), its `ClientReplayTests`, the
-  services-only target that never compiled and `SkyrimBridge`'s recording were deleted 2026-10-20. Today
-  each interface is a second copy of every declaration with one implementation.
-  - The plan: services hold the concrete bridge; a service with logic worth testing headless gets a narrow
-    seam of its own where it needs one (callbacks, as `HostGame` gives the bridge's rules to `HostAuthorityTests`),
-    not a fake of the whole engine. If `SkyrimBridge` (~1700 lines, every area) is too big to hold whole, split
-    it into concrete per-area classes (`ActorBridge`, `WorldBridge`...) without the virtual layer.
-  - What it costs: a fake engine for services is no longer an option (nobody uses one); an edit to the bridge's
-    header rebuilds every service, not only the bridge; the interfaces' grouping by area goes unless the
-    bridge is split. Services stay free of engine types as long as the bridge's header is.
-  - What it gains: one declaration per method instead of two, no virtual calls, no guessing which interface a
-    method belongs on (`GetModCount` is on both `IFormBridge` and `IWorldBridge`).
-  - Not a reason to keep them: a second game or platform (Skyrim only; the Linux tools use no client service).
+- ~~Drop the engine bridge interfaces~~ (struck 2026-10-23): tier 2's fake engine (`GameTests`) now runs every
+  service through those interfaces, so they are the seam the fast tests stand on.
 - **One id scheme for references.** Two today: actors travel by a session id the host hands out (`SessionId`,
   `HostCharacters`), created objects by a `GameId` under `ObjectChange::kCreatedModId` (`HostEngine`'s
   `m_created`, `GuestEngine`'s twins). Only references whose form id differs between games need a session id:

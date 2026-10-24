@@ -1,7 +1,6 @@
 #pragma once
 
 #include <network/ENetInterface.h>
-#include <Structs/ServerSettings.h>
 
 #include <optional>
 #include <NoCopyMove.h>
@@ -15,9 +14,7 @@ struct HostCharacters;
 struct HostNetwork;
 
 /**
- * @brief Who gets into the session: a joining game's checks, then the session's answer (adding it to
- * HostPlayers); the session's settings, which are the host's; and the player list every game shows,
- * as players join and leave, and the plugins' session ids (docs/design/join-flow.md).
+ * @brief Admits matching games, shares the host's difficulty, and announces players joining and leaving.
  */
 struct HostSession
 {
@@ -31,11 +28,8 @@ struct HostSession
 
     NO_COPY_MOVE(HostSession);
 
-    // The session's settings, the same for every player: the host's difficulty, the co-op options'
-    // defaults.
-    [[nodiscard]] ServerSettings Settings() const noexcept;
-    // Every frame: tells the others when the host's settings changed.
-    void Update() noexcept;
+    // The host's game set its difficulty: the others take it (those joining later get it in their answer).
+    void OnDifficultyChange(uint32_t aDifficulty) const noexcept;
 
     // A game asks to join: accepted as a player, or refused and disconnected (the host's chat says why).
     void OnAuthentication(const AuthenticationRequest& acRequest, ConnectionId_t aSender) noexcept;
@@ -50,6 +44,4 @@ private:
     HostPlayers& m_players;
     HostCharacters& m_characters;
     const HostGame& m_game;
-    // What the others were last told (none before the first frame).
-    std::optional<ServerSettings> m_sentSettings;
 };

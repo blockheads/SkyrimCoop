@@ -1,5 +1,6 @@
 #include "Commands.h"
 #include "Status.h"
+#include "EngineCalls.h"
 
 #include <World.h>
 #include <Services/HostService.h>
@@ -38,9 +39,8 @@ nlohmann::json Kick(Harness&, const nlohmann::json& acRequest)
 // answers with the difficulty right after (before the session's own update can change it).
 nlohmann::json Difficulty(Harness&, const nlohmann::json& acRequest)
 {
-    auto& player = World::Get().GetPlayerBridge();
-    player.SetDifficulty(acRequest.value("value", 2u));
-    return {{"ok", true}, {"difficulty", player.GetDifficulty()}};
+    EngineCalls::ChooseDifficulty(acRequest.value("value", 2u));
+    return {{"ok", true}, {"difficulty", World::Get().GetPlayerBridge().GetDifficulty()}};
 }
 
 // {"cmd": "reload"}: the loader swaps in the current build next frame (Code/hotreload/Loader.cpp).

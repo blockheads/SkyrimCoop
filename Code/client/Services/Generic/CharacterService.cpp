@@ -10,6 +10,7 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/MountEvent.h>
+#include <Events/DismountEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/FactionsChangeEvent.h>
@@ -19,7 +20,7 @@
 
 #include <Structs/ActionEvent.h>
 #include <Structs/GridCellCoords.h>
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/NotifyReferencesMove.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
@@ -77,6 +78,8 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<MountEvent, &CharacterService::OnMountEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyMount, &CharacterService::OnNotifyMount>(m_connections, m_dispatcher, this);
+    Listen<DismountEvent, &CharacterService::OnDismountEvent>(m_connections, m_dispatcher, this);
+    Listen<NotifyDismount, &CharacterService::OnNotifyDismount>(m_connections, m_dispatcher, this);
 
     Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
@@ -120,15 +123,23 @@ bool CharacterService::TakeOwnership(const uint32_t acFormId, const uint32_t acS
     }
 
     m_actorBridge.SetActorCopy(acFormId, false);
-
-    // TODO(cosideci): this should be done differently.
-    // Send an ownership claim request, and have the server broadcast the result.
-    // Only then should components be added or removed.
     m_world.emplace_or_replace<LocalComponent>(acEntity, acSessionId);
     m_world.emplace_or_replace<LocalAnimationComponent>(acEntity);
     DeleteRemoteEntityComponents(acEntity);
 
     return true;
+}
+
+void CharacterService::GiveUpOwnership(entt::entity aEntity, uint32_t aSessionId, uint32_t aFormId) const noexcept
+{
+    if (m_world.all_of<LocalComponent>(aEntity))
+    {
+        m_world.remove<LocalAnimationComponent, LocalComponent>(aEntity);
+        m_world.emplace_or_replace<RemoteComponent>(aEntity, aSessionId, aFormId);
+    }
+    m_actorBridge.SetActorCopy(aFormId, true);
+    InterpolationSystem::Setup(m_world, aEntity);
+    AnimationSystem::Setup(m_world, aEntity);
 }
 
 void CharacterService::DeleteTempActor(const uint32_t aFormId) noexcept
@@ -192,7 +203,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
         return;
 
     auto& formIdComponent = view.get<FormIdComponent>(cId);
-    CancelServerAssignment(*entityIt, formIdComponent.Id);
+    ReleaseCharacter(*entityIt, formIdComponent.Id);
 
     if (m_world.all_of<FormIdComponent>(cId))
         m_world.remove<FormIdComponent>(cId);
@@ -212,7 +223,7 @@ void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 }
 
 // Dispatches ActorAddedEvent / ActorRemovedEvent as actors gain or lose loaded 3D, which drives
-// server assignment (replaces the actor half of DiscoveryService, removed in ec7d02d1).
+// announcements (replaces the actor half of DiscoveryService, removed in ec7d02d1).
 // Everyone announces their own player. Only the host announces NPCs: under the party tether every
 // player is in the host's cell, so the host owns every actor and guests only replicate them.
 void CharacterService::RunActorDiscovery() noexcept
@@ -286,6 +297,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_world.clear<LocalComponent>();
     m_playerId = 0;
     m_characterId = 0;
+    m_riddenMount = 0;
 }
 
 CharacterService::~CharacterService() noexcept
@@ -657,7 +669,7 @@ void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) const noe
 
 void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept
 {
-    CancelServerAssignment(aEntity, m_world.get<FormIdComponent>(aEntity).Id);
+    ReleaseCharacter(aEntity, m_world.get<FormIdComponent>(aEntity).Id);
 
     m_world.remove<FormIdComponent, HeldCopyComponent>(aEntity);
 
@@ -712,14 +724,10 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) const noexcept
         return;
     }
 
-    const entt::entity cRiderEntity = *riderIt;
-
-    std::optional<uint32_t> riderSessionIdRes = Utils::GetSessionId(cRiderEntity);
-    if (!riderSessionIdRes.has_value())
-    {
-        spdlog::error("{}: failed to find session id", __FUNCTION__);
+    // Ours only: a copy getting on its mount replays its owner's.
+    const auto* cpRider = m_world.try_get<LocalComponent>(*riderIt);
+    if (!cpRider)
         return;
-    }
 
     const auto mountIt = std::find_if(std::begin(view), std::end(view), [id = acEvent.MountID, view](auto entity) { return view.get<FormIdComponent>(entity).Id == id; });
 
@@ -738,18 +746,28 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) const noexcept
         return;
     }
 
-    if (m_world.try_get<RemoteComponent>(cMountEntity))
-        TakeOwnership(acEvent.MountID, *mountSessionIdRes, cMountEntity);
-
+    // The host decides who simulates the mount (HostCharacters::OnMount); its answer gives it to us.
     MountRequest request;
     request.MountId = mountSessionIdRes.value();
-    request.RiderId = riderSessionIdRes.value();
+    request.RiderId = cpRider->Id;
 
     m_transport.Send(request);
 }
 
-void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcept
+void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
+    // Our player got on it: the host gave the mount to this game.
+    for (const auto cRider : m_world.view<LocalComponent>())
+    {
+        if (m_world.get<LocalComponent>(cRider).Id != acMessage.RiderId)
+            continue;
+        for (const auto cMount : m_world.view<RemoteComponent, FormIdComponent>())
+            if (m_world.get<RemoteComponent>(cMount).Id == acMessage.MountId &&
+                TakeOwnership(m_world.get<FormIdComponent>(cMount).Id, acMessage.MountId, cMount))
+                m_riddenMount = acMessage.MountId;
+        return;
+    }
+
     auto remoteView = m_world.view<RemoteComponent, FormIdComponent>();
 
     const auto riderIt = std::find_if(std::begin(remoteView), std::end(remoteView), [remoteView, Id = acMessage.RiderId](auto entity) { return remoteView.get<RemoteComponent>(entity).Id == Id; });
@@ -781,26 +799,41 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) const noexcep
 
         if (sessionId == acMessage.MountId)
         {
-            auto& mountFormIdComponent = m_world.get<FormIdComponent>(entity);
-            mountFormId = mountFormIdComponent.Id;
-
-            if (m_world.all_of<LocalComponent>(entity))
-            {
-                m_world.remove<LocalAnimationComponent, LocalComponent>(entity);
-                m_world.emplace_or_replace<RemoteComponent>(entity, acMessage.MountId, mountFormId);
-            }
-
-            m_actorBridge.SetActorCopy(mountFormId, true);
-
-            InterpolationSystem::Setup(m_world, entity);
-            AnimationSystem::Setup(m_world, entity);
-
+            mountFormId = m_world.get<FormIdComponent>(entity).Id;
+            GiveUpOwnership(entity, acMessage.MountId, mountFormId);
             break;
         }
     }
 
     if (cRiderFormId && mountFormId)
         m_actorBridge.ActorInitiateMountPackage(cRiderFormId, mountFormId);
+}
+
+void CharacterService::OnDismountEvent(const DismountEvent& acEvent) const noexcept
+{
+    if (!m_riddenMount || acEvent.RiderId != m_playerBridge.GetPlayerFormId())
+        return;
+    DismountRequest request;
+    request.RiderId = m_characterId;
+    request.MountId = m_riddenMount;
+    m_transport.Send(request);
+}
+
+void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
+{
+    for (const auto cEntity : m_world.view<FormIdComponent>())
+    {
+        if (Utils::GetSessionId(cEntity) != acMessage.MountId)
+            continue;
+        const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+        if (m_world.all_of<LocalComponent>(cEntity))
+            GiveUpOwnership(cEntity, acMessage.MountId, cFormId);
+        else if (m_world.GetHostService().IsHosting())
+            TakeOwnership(cFormId, acMessage.MountId, cEntity);
+        break;
+    }
+    if (m_riddenMount == acMessage.MountId)
+        m_riddenMount = 0;
 }
 
 void CharacterService::OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept
@@ -947,7 +980,7 @@ void CharacterService::ProcessNewEntity(entt::entity aEntity) const noexcept
     AnnounceCharacter(aEntity);
 }
 
-std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const entt::entity aEntity) const noexcept
+std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(const entt::entity aEntity) const noexcept
 {
     const auto& formIdComponent = m_world.get<FormIdComponent>(aEntity);
 
@@ -962,7 +995,7 @@ std::optional<AssignCharacterRequest> CharacterService::BuildAssignment(const en
         return std::nullopt;
     }
 
-    AssignCharacterRequest message{};
+    AnnounceCharacterRequest message{};
 
     // A created actor goes by its created id: the spawn rebuilds it from its base (NotifyCharacterSpawn).
     const auto cReference = ToSessionOrCreated(formIdComponent.Id);
@@ -1046,7 +1079,7 @@ void CharacterService::AnnounceCharacter(const entt::entity aEntity) const noexc
 
     const uint32_t cFormId = m_world.get<FormIdComponent>(aEntity).Id;
     const bool cIsPlayer = cFormId == m_playerBridge.GetPlayerFormId();
-    auto message = BuildAssignment(aEntity);
+    auto message = BuildAnnouncement(aEntity);
     if (!message)
         return;
     // The id the host gave it: the player's from the join, the host's game's other actors' from its rules.
@@ -1065,9 +1098,8 @@ void CharacterService::AnnounceCharacter(const entt::entity aEntity) const noexc
     m_transport.Send(*message);
 }
 
-// What a peer needs to spawn a copy of one of our actors, as the embedded server built it from the
-// assignment (CreateCharacter + Serialize): a game reference keeps its id, a player or temporary
-// actor is rebuilt from its appearance and base.
+// What another game needs to spawn a copy of one of our actors, built from its announcement: a game reference
+// keeps its id, a player or temporary actor is rebuilt from its appearance and base.
 std::vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept
 {
     std::vector<NotifyCharacterSpawn> spawns;
@@ -1082,8 +1114,8 @@ std::vector<NotifyCharacterSpawn> CharacterService::BuildSpawnRequests(uint32_t 
         const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
         if (cFormId != m_playerBridge.GetPlayerFormId() && !m_actorBridge.ActorHas3D(cFormId))
             continue;
-        if (const auto cAssignment = BuildAssignment(cEntity))
-            spawns.push_back(NotifyCharacterSpawn::FromAssignment(*cAssignment, cSessionId, m_transport.GetLocalPlayerId()));
+        if (const auto cAssignment = BuildAnnouncement(cEntity))
+            spawns.push_back(NotifyCharacterSpawn::FromAnnouncement(*cAssignment, cSessionId, m_transport.GetLocalPlayerId()));
     }
 
     return spawns;
@@ -1112,7 +1144,7 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
     return false;
 }
 
-void CharacterService::CancelServerAssignment(const entt::entity aEntity, const uint32_t aFormId) const noexcept
+void CharacterService::ReleaseCharacter(const entt::entity aEntity, const uint32_t aFormId) const noexcept
 {
     if (m_world.all_of<RemoteComponent>(aEntity))
     {
@@ -1461,7 +1493,7 @@ void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldD
         if (cFormId && !acShouldDrop(cFormId))
             continue;
         // Deletes what is left of a copy we spawned; the game's own references stop being copies.
-        CancelServerAssignment(entity, cFormId);
+        ReleaseCharacter(entity, cFormId);
         // Gone without discovery noticing: it must not report it removed later.
         m_discoveredActors.erase(cFormId);
         if (m_world.all_of<HeldCopyComponent>(entity))

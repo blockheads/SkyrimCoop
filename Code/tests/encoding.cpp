@@ -66,7 +66,7 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
 
     {
         AuthenticationRequest request;
-        request.Token = "TesSt";
+        request.Username = "TesSt";
 
         Buffer::Writer writer(&buff);
         request.Serialize(writer);
@@ -80,7 +80,7 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
         REQUIRE(pMessage->GetOpcode() == request.GetOpcode());
 
         auto pRequest = CastUnique<AuthenticationRequest>(std::move(pMessage));
-        REQUIRE(pRequest->Token == request.Token);
+        REQUIRE(pRequest->Username == request.Username);
     }
 
     {
@@ -100,6 +100,79 @@ TEST_CASE("Encoding factory", "[encoding.factory]")
 
         auto pRequest = CastUnique<PlayerLevelRequest>(std::move(pMessage));
         REQUIRE(pRequest->NewLevel == request.NewLevel);
+    }
+}
+
+TEST_CASE("Session packets carry only difficulty and chat content", "[encoding.session]")
+{
+    const auto check = [](const auto& acMessage, const auto& acFactory, const std::vector<uint8_t>& acExpected)
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        acMessage.Serialize(writer);
+        CHECK(std::vector<uint8_t>(buffer.GetData(), buffer.GetData() + writer.Size()) == acExpected);
+
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = acFactory.Extract(reader);
+        REQUIRE(decoded);
+        using Message = std::remove_cvref_t<decltype(acMessage)>;
+        CHECK(*CastUnique<Message>(std::move(decoded)) == acMessage);
+        CHECK(reader.GetBitPosition() == writer.GetBitPosition());
+    };
+
+    SECTION("Authentication has no token between game and build")
+    {
+        AuthenticationRequest request;
+        request.Game = {1, 2};
+        request.Version = "v";
+        request.Username = "L";
+        request.Level = 7;
+        request.PlayerTime = {0.f, 0.f, 0, 0, 0, 0};
+        std::vector<uint8_t> expected{uint8_t(kAuthenticationRequest), 1, 2, 1, 'v', 0, 0x20, 0, 'L', 0, 0, 0, 0, 7};
+        expected.resize(26, 0);
+        check(request, RequestMessageFactory{}, expected);
+    }
+
+    SECTION("Authentication returns difficulty without option flags")
+    {
+        AuthenticationResponse response;
+        response.Type = AuthenticationResponse::ResponseType::kAccepted;
+        response.Version = "v";
+        response.Game = {1, 2};
+        response.Difficulty = 5;
+        response.PlayerId = 7;
+        check(response, NotifyMessageFactory{}, {uint8_t(kAuthenticationResponse), 0, 1, 'v', 1, 2, 0, 0xA0, 0xE0, 0, 0});
+    }
+
+    SECTION("Difficulty changes carry one value")
+    {
+        NotifySettingsChange message;
+        message.Difficulty = 5;
+        check(message, NotifyMessageFactory{}, {uint8_t(kNotifySettingsChange), 5});
+    }
+
+    SECTION("Players send only text")
+    {
+        SendChatMessageRequest request;
+        request.ChatMessage = "Hi";
+        check(request, RequestMessageFactory{}, {uint8_t(kSendChatMessageRequest), 2, 'H', 'i'});
+    }
+
+    SECTION("Player and system broadcasts remain distinct")
+    {
+        NotifyChatMessageBroadcast line;
+        line.PlayerName = "L";
+        line.ChatMessage = "Hi";
+        check(line, NotifyMessageFactory{}, {uint8_t(kNotifyChatMessageBroadcast), 1, 1, 'L', 2, 'H', 'i'});
+        line.MessageType = kSystemMessage;
+        line.PlayerName.clear();
+        check(line, NotifyMessageFactory{}, {uint8_t(kNotifyChatMessageBroadcast), 0, 0, 2, 'H', 'i'});
+    }
+
+    SECTION("Active refusal codes keep their wire values")
+    {
+        CHECK(uint8_t(AuthenticationResponse::ResponseType::kSessionFull) == 5);
+        CHECK(uint8_t(AuthenticationResponse::ResponseType::kWrongGame) == 6);
     }
 }
 
@@ -336,7 +409,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         Buffer buff(1000);
 
         AuthenticationRequest sendMessage, recvMessage;
-        sendMessage.Token = "TesSt";
+        sendMessage.Username = "Lydia";
         sendMessage.Game = {GameVersions::Pack(1, 6, 1170), GameVersions::Pack(2, 2, 6)};
         sendMessage.UserMods.ModList.push_back({"Hello", 42});
         sendMessage.UserMods.ModList.push_back({"Hi", 14});
@@ -365,6 +438,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.PlayerId = 3;
         sendMessage.CharacterId = 41;
         sendMessage.Version = "v1.6.7-0-gdeadbeef";
+        sendMessage.Difficulty = 5;
         sendMessage.Game = {GameVersions::Pack(1, 6, 640), GameVersions::Pack(2, 2, 3)};
         sendMessage.UserMods.ModList.push_back({"Hello", 42});
         sendMessage.UserMods.ModList.push_back({"Hi", 14});
@@ -644,7 +718,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         }
     }
 
-    SECTION("AssignCharacterRequest")
+    SECTION("AnnounceCharacterRequest")
     {
         Buffer buff(1000);
 
@@ -661,7 +735,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendAction.TargetActor = 0x1200003;
         sendAction.Type = 4;
 
-        AssignCharacterRequest sendMessage, recvMessage;
+        AnnounceCharacterRequest sendMessage, recvMessage;
         sendMessage.SessionId = 14523698;
         sendMessage.AppearanceBuffer = "toto";
         sendMessage.CellId.BaseId = 45;
@@ -689,7 +763,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         REQUIRE(sendMessage == recvMessage);
 
         // The spawn others get carries the same.
-        NotifyCharacterSpawn sendSpawn = NotifyCharacterSpawn::FromAssignment(sendMessage, 7, 0), recvSpawn;
+        NotifyCharacterSpawn sendSpawn = NotifyCharacterSpawn::FromAnnouncement(sendMessage, 7, 0), recvSpawn;
         CHECK(sendSpawn.EffectIds == sendMessage.EffectIds);
         Buffer spawnBuff(1000);
         Buffer::Writer spawnWriter(&spawnBuff);

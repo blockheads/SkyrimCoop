@@ -75,7 +75,7 @@ const char* Name(ResponseType aType)
     case ResponseType::kAccepted: return "accepted";
     case ResponseType::kWrongVersion: return "wrong_version";
     case ResponseType::kModsMismatch: return "mods_mismatch";
-    case ResponseType::kServerFull: return "full";
+    case ResponseType::kSessionFull: return "full";
     case ResponseType::kWrongGame: return "wrong_game";
     default: return "other";
     }
@@ -185,7 +185,7 @@ int main(int argc, char** argv)
         else if (refuse == "wrong_game")
             host.Reason = ResponseType::kWrongGame;
         else if (refuse == "full")
-            host.Reason = ResponseType::kServerFull;
+            host.Reason = ResponseType::kSessionFull;
         else
             return Usage();
         host.Version = version;

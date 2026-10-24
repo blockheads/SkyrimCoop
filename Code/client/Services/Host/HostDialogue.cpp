@@ -129,7 +129,7 @@ void HostDialogue::OnPick(const DialoguePickRequest& acRequest, ConnectionId_t a
 
     // Who said what, in everyone's chat ("Lydia: Here. Have a gold piece.").
     NotifyChatMessageBroadcast line;
-    line.MessageType = kPlayerDialogue;
+    line.MessageType = kPlayerChat;
     line.PlayerName = ChatText(m_players.PlayerNameOf(aSender));
     line.ChatMessage = ChatText(acRequest.Text);
     m_players.SendToAll(line);

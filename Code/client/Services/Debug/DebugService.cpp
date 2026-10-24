@@ -230,7 +230,7 @@ void DebugService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
         s_f8Pressed = false;
 }
 
-static bool g_enableServerWindow{false};
+static bool g_enableConnectionWindow{false};
 static bool g_enableAnimWindow{false};
 static bool g_enableEntitiesWindow{false};
 static bool g_enableInventoryWindow{false};
@@ -248,15 +248,13 @@ static bool g_enableCombatWindow{false};
 static bool g_enableCalendarWindow{false};
 static bool g_enableDragonSpawnerWindow{false};
 
-void DebugService::DrawServerView() noexcept
+void DebugService::DrawConnectionView() noexcept
 {
     ImGui::SetNextWindowSize(ImVec2(250, 440), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Server");
+    ImGui::Begin("Connection");
 
     static char s_address[1024] = "127.0.0.1:10578";
-    static char s_password[1024] = "";
     ImGui::InputText("Address", s_address, std::size(s_address));
-    ImGui::InputText("Password", s_password, std::size(s_password));
 
     if (m_transport.IsOnline())
     {
@@ -267,7 +265,6 @@ void DebugService::DrawServerView() noexcept
     {
         if (ImGui::Button("Connect"))
         {
-            m_transport.SetServerPassword(s_password);
             m_transport.Connect(s_address);
         }
     }
@@ -338,7 +335,7 @@ void DebugService::OnDraw() noexcept
     {
         ImGui::MenuItem("Quests", nullptr, &g_enableQuestWindow);
         ImGui::MenuItem("Entities", nullptr, &g_enableEntitiesWindow);
-        ImGui::MenuItem("Server", nullptr, &g_enableServerWindow);
+        ImGui::MenuItem("Connection", nullptr, &g_enableConnectionWindow);
         ImGui::MenuItem("Session", nullptr, &g_enableSessionWindow);
         ImGui::MenuItem("Dragon spawner", nullptr, &g_enableDragonSpawnerWindow);
 
@@ -372,8 +369,8 @@ void DebugService::OnDraw() noexcept
         DrawQuestDebugView();
     if (g_enableEntitiesWindow)
         DrawEntitiesView();
-    if (g_enableServerWindow)
-        DrawServerView();
+    if (g_enableConnectionWindow)
+        DrawConnectionView();
     if (g_enableSessionWindow)
         DrawSessionView();
     if (g_enableDragonSpawnerWindow)

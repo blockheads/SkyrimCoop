@@ -12,21 +12,21 @@
 #include <Structs/ActorData.h>
 #include <Wire/Buffer.h>
 
-struct AssignCharacterRequest final : RequestMessage
+struct AnnounceCharacterRequest final : RequestMessage
 {
-    static constexpr RequestOpcode Opcode = kAssignCharacterRequest;
+    static constexpr RequestOpcode Opcode = kAnnounceCharacterRequest;
 
-    AssignCharacterRequest()
+    AnnounceCharacterRequest()
         : RequestMessage(Opcode)
     {
     }
 
-    virtual ~AssignCharacterRequest() = default;
+    virtual ~AnnounceCharacterRequest() = default;
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const AssignCharacterRequest& acRhs) const noexcept
+    bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
                AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;

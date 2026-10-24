@@ -1377,12 +1377,6 @@ static Hooks::Initializer s_objectReferencesHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TSetOnAxis, s_setPositionOnAxis, 22053);
-        POINTER_SKYRIMSE(TSetOnAxis, s_setAngleOnAxis, 22054);
-
-        RealSetPositionOnAxis = s_setPositionOnAxis.Get();
-        RealSetAngleOnAxis = s_setAngleOnAxis.Get();
-
         HOOK_ID(19512, &RealLockChange, HookLockChange);
         HOOK_ID(19787, &RealRotateX, HookRotateX);
         HOOK_ID(19788, &RealRotateY, HookRotateY);
@@ -1392,8 +1386,8 @@ static Hooks::Initializer s_objectReferencesHooks(
         HOOK_ID(19689, &RealRemoveInventoryItem, HookRemoveInventoryItem);
         HOOK_ID(16059, &RealRemoveFromInventory, HookRemoveFromInventory);
         HOOK_ID(56626, &RealMoveTo, HookMoveTo);
-        HOOK(&RealSetPositionOnAxis, HookSetPositionOnAxis);
-        HOOK(&RealSetAngleOnAxis, HookSetAngleOnAxis);
+        HOOK_ID(22053, &RealSetPositionOnAxis, HookSetPositionOnAxis);
+        HOOK_ID(22054, &RealSetAngleOnAxis, HookSetAngleOnAxis);
         HOOK_ID(56206, &RealPlayAnimationAndWait, HookPlayAnimationAndWait);
         HOOK_ID(56205, &RealPlayAnimation, HookPlayAnimation);
         HOOK_ID(51968, &RealLockpickUnlock, HookLockpickUnlock);

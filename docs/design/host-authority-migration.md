@@ -217,7 +217,7 @@ assignment in 3b. Two other readers of the records that stopped updating: gold l
 **3b. Ids and assignment.** Done. The bridge keeps the characters: who owns each, the cookie it
 was announced with, and for players a spawn record (appearance, base, face; kept current with their
 movement), since the host's copy of a player cannot show those and is dropped when it respawns.
-- `AssignCharacterRequest`: a player's own character, or (the host only) one of the host's actors,
+- `AnnounceCharacterRequest` (`AssignCharacterRequest` until 2026-10-23): a player's own character, or (the host only) one of the host's actors,
   announced under the id the host gave it (2026-10-23; before, the owner got its id back in an
   `AssignCharacterResponse`): a player's from its join answer (`CharacterId`), the host's actors' from
   `HostCharacters::NewCharacterId`. Everyone else gets a spawn; a player's character also gets every

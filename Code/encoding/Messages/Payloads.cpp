@@ -386,4 +386,16 @@ void PartyNative::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
     DeserializeScriptCall(aReader, Call);
 }
+
+void PartyNativeFrom::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    PartyNative::SerializePayload(aWriter);
+    Serialization::WriteVarInt(aWriter, Source);
+}
+
+void PartyNativeFrom::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    PartyNative::DeserializePayload(aReader);
+    Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+}
 } // namespace Payloads

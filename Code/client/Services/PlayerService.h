@@ -14,7 +14,8 @@ struct TransportService;
 struct UpdateEvent;
 struct ConnectedEvent;
 struct DisconnectedEvent;
-struct ServerSettings;
+struct NotifySettingsChange;
+struct DifficultyChangeEvent;
 struct PlayerFormChangeEvent;
 
 
@@ -33,7 +34,9 @@ protected:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
     void OnConnected(const ConnectedEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
-    void OnServerSettingsReceived(const ServerSettings& acSettings) noexcept;
+    void OnDifficultyChange(const NotifySettingsChange& acMessage) noexcept;
+    // A guest holds the host's difficulty even if its settings menu changes it.
+    void OnDifficultySet(const DifficultyChangeEvent& acEvent) const noexcept;
     // The level reaches the others; a beast race respawns the player's copies (BeastFormChangeEvent).
     void OnPlayerFormChange(const PlayerFormChangeEvent& acEvent) noexcept;
 
@@ -43,10 +46,6 @@ private:
      */
     void RunRespawnUpdates(const double acDeltaTime) noexcept;
     void RunPostDeathUpdates(const double acDeltaTime) noexcept;
-    /**
-     * @brief Make sure difficulty doesn't get changed while connected
-     */
-    void RunDifficultyUpdates() const noexcept;
 
     void ToggleDeathSystem(bool aSet) noexcept;
 
@@ -59,8 +58,8 @@ private:
 
     double m_respawnTimer = 0.0;
     bool m_respawnStarted = false; // the player is down and its respawn timer runs
-    // The host's difficulty while in a session (a friend's game), and the game's own from before it.
-    std::optional<uint32_t> m_serverDifficulty;
+    // The host's difficulty while joined, and this game's own from before joining.
+    std::optional<uint32_t> m_hostDifficulty;
     std::optional<uint32_t> m_previousDifficulty;
 
     bool m_isDeathSystemEnabled = true;

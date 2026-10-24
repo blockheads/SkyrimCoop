@@ -25,7 +25,9 @@ struct SyncExperience;
 struct ActiveEffects;
 struct EffectFlash;
 struct PlayerNative;
+struct PlayerNativeResult;
 struct PartyNative;
+struct PartyNativeFrom;
 struct WorldCall;
 } // namespace Payloads
 
@@ -55,6 +57,8 @@ using RemoveSpellRequest = Relayed<Payloads::RemoveSpell, kRemoveSpellRequest>;
 using NotifyRemoveSpell = Relayed<Payloads::RemoveSpell, kNotifyRemoveSpell>;
 using MountRequest = Relayed<Payloads::Mount, kMountRequest>;
 using NotifyMount = Relayed<Payloads::Mount, kNotifyMount>;
+using DismountRequest = Relayed<Payloads::Mount, kDismountRequest>;
+using NotifyDismount = Relayed<Payloads::Mount, kNotifyDismount>;
 using AiStateRequest = Relayed<Payloads::AiState, kAiStateRequest>;
 using NotifyAiState = Relayed<Payloads::AiState, kNotifyAiState>;
 using DialogueRequest = Relayed<Payloads::Dialogue, kDialogueRequest>;
@@ -69,6 +73,9 @@ using EffectFlashRequest = Relayed<Payloads::EffectFlash, kEffectFlashRequest>;
 using NotifyEffectFlash = Relayed<Payloads::EffectFlash, kNotifyEffectFlash>;
 using PlayerNativeRequest = Relayed<Payloads::PlayerNative, kPlayerNativeRequest>;
 using NotifyPlayerNative = Relayed<Payloads::PlayerNative, kNotifyPlayerNative>;
+using PlayerNativeResultRequest = Relayed<Payloads::PlayerNativeResult, kPlayerNativeResultRequest>;
+using NotifyPlayerNativeResult = Relayed<Payloads::PlayerNativeResult, kNotifyPlayerNativeResult>;
 using PartyNativeRequest = Relayed<Payloads::PartyNative, kPartyNativeRequest>;
+using NotifyPartyNative = Relayed<Payloads::PartyNativeFrom, kNotifyPartyNative>;
 using WorldCallRequest = Relayed<Payloads::WorldCall, kWorldCallRequest>;
 using NotifyWorldCall = Relayed<Payloads::WorldCall, kNotifyWorldCall>;

@@ -7,11 +7,12 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/BeastFormChangeEvent.h>
 #include <Events/PlayerFormChangeEvent.h>
+#include <Events/DifficultyChangeEvent.h>
 
 #include <Messages/PlayerRespawnRequest.h>
 #include <Messages/PlayerLevelRequest.h>
 
-#include <Structs/ServerSettings.h>
+#include <Messages/NotifySettingsChange.h>
 
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -43,7 +44,8 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     Listen<UpdateEvent, &PlayerService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<ConnectedEvent, &PlayerService::OnConnected>(m_connections, m_dispatcher, this);
     Listen<DisconnectedEvent, &PlayerService::OnDisconnected>(m_connections, m_dispatcher, this);
-    Listen<ServerSettings, &PlayerService::OnServerSettingsReceived>(m_connections, m_dispatcher, this);
+    Listen<NotifySettingsChange, &PlayerService::OnDifficultyChange>(m_connections, m_dispatcher, this);
+    Listen<DifficultyChangeEvent, &PlayerService::OnDifficultySet>(m_connections, m_dispatcher, this);
     Listen<PlayerFormChangeEvent, &PlayerService::OnPlayerFormChange>(m_connections, m_dispatcher, this);
 }
 
@@ -51,7 +53,6 @@ void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     RunRespawnUpdates(acEvent.Delta);
     RunPostDeathUpdates(acEvent.Delta);
-    RunDifficultyUpdates();
 }
 
 void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
@@ -65,38 +66,33 @@ void PlayerService::OnConnected(const ConnectedEvent& acEvent) noexcept
 
 void PlayerService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
-    // A friend's game gets its own difficulty back; the host's was never changed.
+    // A guest gets its own difficulty back; the host's was never changed.
     if (m_previousDifficulty)
         m_playerBridge.SetDifficulty(static_cast<uint32_t>(*m_previousDifficulty));
     m_previousDifficulty.reset();
-    m_serverDifficulty.reset();
+    m_hostDifficulty.reset();
 
     ToggleDeathSystem(false);
 
-    // Restore to the default value (150 in skyrim, 175 in fallout 4)
+    // Restore Skyrim's default greet distance.
     m_playerBridge.SetGreetDistance(150.f);
 
     m_formBridge.SetGlobalValue(kWorldEncountersGlobalFormId, 1.f);
 }
 
-void PlayerService::OnServerSettingsReceived(const ServerSettings& acSettings) noexcept
+void PlayerService::OnDifficultyChange(const NotifySettingsChange& acMessage) noexcept
 {
-    // The session's difficulty is the host's: a friend's game takes it (and keeps its own for
-    // leaving, from the first settings of the session); the host's game is where it comes from.
+    // A guest holds the host's difficulty and keeps its own for leaving; the host's game supplies it.
     if (!m_world.GetHostService().IsHosting())
     {
         if (!m_previousDifficulty)
             m_previousDifficulty = m_playerBridge.GetDifficulty();
-        m_serverDifficulty = acSettings.Difficulty;
-        m_playerBridge.SetDifficulty(acSettings.Difficulty);
+        m_hostDifficulty = acMessage.Difficulty;
+        m_playerBridge.SetDifficulty(acMessage.Difficulty);
     }
 
-    if (!acSettings.GreetingsEnabled)
-    {
-        m_playerBridge.SetGreetDistance(0.f);
-    }
-
-    ToggleDeathSystem(acSettings.DeathSystemEnabled);
+    m_playerBridge.SetGreetDistance(0.f);
+    ToggleDeathSystem(true);
 }
 
 
@@ -195,13 +191,10 @@ void PlayerService::RunPostDeathUpdates(const double acDeltaTime) noexcept
     }
 }
 
-void PlayerService::RunDifficultyUpdates() const noexcept
+void PlayerService::OnDifficultySet(const DifficultyChangeEvent& acEvent) const noexcept
 {
-    // A friend's game holds the host's difficulty (its settings menu cannot change it away).
-    if (!m_transport.IsConnected() || !m_serverDifficulty || m_playerBridge.GetDifficulty() == *m_serverDifficulty)
-        return;
-
-    m_playerBridge.SetDifficulty(*m_serverDifficulty);
+    if (m_transport.IsConnected() && m_hostDifficulty && acEvent.Difficulty != *m_hostDifficulty)
+        m_playerBridge.SetDifficulty(*m_hostDifficulty);
 }
 
 void PlayerService::OnPlayerFormChange(const PlayerFormChangeEvent&) noexcept

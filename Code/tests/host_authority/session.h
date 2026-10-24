@@ -19,7 +19,7 @@
 #include <Messages/WorldState.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyRemoveCharacter.h>
@@ -28,11 +28,8 @@
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/NotifyFactionsChanges.h>
-#include <Messages/PlayerNativeResultRequest.h>
-#include <Messages/NotifyPlayerNativeResult.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/NotifyEquipmentChanges.h>
-#include <Messages/NotifyPartyNative.h>
 #include <Messages/NotifyInventoryChanges.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestInventoryChanges.h>
@@ -124,7 +121,7 @@ struct Session
     // session id once another game got its spawn; what the announcement sent is cleared.
     uint32_t Character(ConnectionId_t aOwner)
     {
-        AssignCharacterRequest announce;
+        AnnounceCharacterRequest announce;
         announce.SessionId = aOwner == kHost ? NewCharacterId() : CharacterId(aOwner);
         announce.ReferenceId = aOwner == kHost ? GameId(1, 0x1000 + ++m_npcs) : GameId(0, 0x14);
         Receive(aOwner, announce);
@@ -143,6 +140,12 @@ struct Session
         m_network.CloseRoute(aPlayer);
     }
     void Frame(uint64_t aTick) { m_authority.Update(aTick); }
+    // The host's player picks a difficulty (its game's DifficultyChangeEvent).
+    void ChooseDifficulty(uint32_t aDifficulty)
+    {
+        Difficulty = aDifficulty;
+        m_authority.DifficultyChanged(aDifficulty);
+    }
 
     void Receive(ConnectionId_t aFrom, const RequestMessage& acMessage)
     {

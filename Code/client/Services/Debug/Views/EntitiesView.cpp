@@ -160,15 +160,5 @@ void DebugService::DisplayRemoteComponent(RemoteComponent& aRemoteComponent, con
     if (!ImGui::CollapsingHeader("Remote Component", ImGuiTreeNodeFlags_DefaultOpen))
         return;
 
-    ImGui::InputInt("Server Id", (int*)&aRemoteComponent.Id, 0, 0, ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_CharsHexadecimal);
-
-    if (ImGui::Button("Take ownership"))
-    {
-        m_world.GetRunner().Queue(
-            [acEntity, acFormId]()
-            {
-                if (auto* pRemoteCompoment = World::Get().try_get<RemoteComponent>(acEntity))
-                    World::Get().GetCharacterService().TakeOwnership(acFormId, pRemoteCompoment->Id, acEntity);
-            });
-    }
+    ImGui::InputInt("Session Id", (int*)&aRemoteComponent.Id, 0, 0, ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_CharsHexadecimal);
 }

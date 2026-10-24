@@ -307,10 +307,6 @@ void AnimationSystem::Serialize(World& aWorld, ReferencesMoveRequest& aMovementS
 
 bool AnimationSystem::Serialize(World& aWorld, const ActionEvent& aActionEvent, const ActionEvent& aLastProcessedAction, std::string* apData)
 {
-    // Actions on a form or target the session lacks are not sent (a created target, a spawned NPC, is).
-    if (!ToSession(aActionEvent.ActionId) || !ToSessionOrCreated(aActionEvent.TargetId))
-        return false;
-
     uint8_t scratch[1 << 14];
     Wire::Buffer::Writer writer{std::span(scratch)};
     aActionEvent.GenerateDifferential(aLastProcessedAction, writer);

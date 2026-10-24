@@ -32,6 +32,10 @@ struct FakeEngine : StillBridges
     float ShakeSeconds = 0.f;         // the camera's shake left (Game.ShakeCamera), a frame a 60th of a second
     PartyRules::ControlHolds Holds;   // PartyNatives' holds on this game
     bool InSession = false;
+    uint32_t Difficulty = 3;
+    // The player picks a difficulty in the settings menu (our hook on PlayerCharacter::SetDifficulty raises it).
+    void ChoosesDifficulty(uint32_t aDifficulty);
+    float GreetDistance = 150.f;
 
     // A script's call on this game, run now in a stack whose cause is aCause (GuestScripts': 0 for no player's action).
     void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false);
@@ -384,6 +388,10 @@ struct FakeEngine : StillBridges
     {
         ForceActorValue(kPlayer, aForceMode, aIndex, aValue);
     }
+    uint32_t GetDifficulty() const noexcept override { return Difficulty; }
+    void SetDifficulty(uint32_t aDifficulty) noexcept override { Difficulty = aDifficulty; }
+    float GetGreetDistance() const noexcept override { return GreetDistance; }
+    void SetGreetDistance(float aDistance) noexcept override { GreetDistance = aDistance; }
     void SetPlayerRespawnMode(bool aEnable) noexcept override { Actors.at(kPlayer).Essential = aEnable; }
     void RespawnPlayer() noexcept override;
 

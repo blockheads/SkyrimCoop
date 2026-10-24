@@ -3,7 +3,6 @@
 void AuthenticationRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Game.Serialize(aWriter);
-    Serialization::WriteString(aWriter, Token);
     Serialization::WriteString(aWriter, Version);
     UserMods.Serialize(aWriter);
     Serialization::WriteString(aWriter, Username);
@@ -18,7 +17,6 @@ void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexce
     RequestMessage::DeserializeRaw(aReader);
 
     Game.Deserialize(aReader);
-    Token = Serialization::ReadString(aReader);
     Version = Serialization::ReadString(aReader);
     UserMods.Deserialize(aReader);
     Username = Serialization::ReadString(aReader);

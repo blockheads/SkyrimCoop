@@ -113,12 +113,18 @@ namespace Hooks
         return pRealFunction;
     }
 
+    // Points *appFunction at the engine function with Address Library ID Id, for a hook added later (HOOK).
+    template<uint32_t Id, class T> void Resolve(T** appFunction) noexcept
+    {
+        static VersionDbPtr<T> s_function(Id);
+        *appFunction = s_function.Get();
+    }
+
     // Resolve an Address Library ID and keep the original hook name for crash breadcrumbs.
     template<uint32_t Id, class T, class U>
     void Hook(T** appSystemFunction, U* apHookFunction, const char* acpName, bool aDelayed = true) noexcept
     {
-        static VersionDbPtr<T> s_function(Id);
-        *appSystemFunction = s_function.Get();
+        Resolve<Id>(appSystemFunction);
         FunctionHookManager::GetInstance().Add(appSystemFunction, apHookFunction, aDelayed, acpName);
     }
 }

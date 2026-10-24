@@ -12,7 +12,7 @@
 #include <Structs/ActorValues.h>
 #include <Wire/Buffer.h>
 
-struct AssignCharacterRequest;
+struct AnnounceCharacterRequest;
 
 struct NotifyCharacterSpawn final : NotifyMessage
 {
@@ -24,7 +24,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     }
 
     // What others spawn for a character its owner announced (aPlayerId: the owner's, for players).
-    static NotifyCharacterSpawn FromAssignment(const AssignCharacterRequest& acAssignment, uint32_t aSessionId, uint32_t aPlayerId) noexcept;
+    static NotifyCharacterSpawn FromAnnouncement(const AnnounceCharacterRequest& acAnnouncement, uint32_t aSessionId, uint32_t aPlayerId) noexcept;
 
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;

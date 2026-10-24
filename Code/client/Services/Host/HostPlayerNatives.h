@@ -11,7 +11,6 @@ struct HostAuthority;
 struct HostCharacters;
 struct HostNetwork;
 struct HostPlayers;
-struct PlayerNativeResultRequest;
 
 /**
  * @brief Natives on "the player" the host's script called for a guest (Game.AdvanceSkill, Game.QueryStat): that

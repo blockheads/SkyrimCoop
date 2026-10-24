@@ -46,7 +46,6 @@ bool IsPlayer(Session& aSession, ConnectionId_t aGame)
 {
     const size_t cSent = aSession.Outbox.size();
     SendChatMessageRequest line;
-    line.MessageType = kGlobalChat;
     line.ChatMessage = "hello";
     aSession.Receive(aGame, line);
     const bool cIsPlayer = aSession.Outbox.size() > cSent;
@@ -62,7 +61,7 @@ const AuthenticationResponse& OnlyResponse(const Session& acSession, ConnectionI
 }
 } // namespace
 
-TEST_CASE("Join: accepted with a player id, the session's settings and the session's mod ids", "[HostAuthority][Session]")
+TEST_CASE("Join: accepted with a player id and the host's difficulty", "[HostAuthority][Session]")
 {
     Session session;
     session.Receive(kNewcomer, Join("Serana"));
@@ -76,10 +75,7 @@ TEST_CASE("Join: accepted with a player id, the session's settings and the sessi
         CHECK(cResponse.PlayerId != session.PlayerId(cPlayer));
     CHECK(IsPlayer(session, kNewcomer));
 
-    CHECK(cResponse.Settings.Difficulty == 3); // the host's
-    CHECK(cResponse.Settings.DeathSystemEnabled);
-    CHECK_FALSE(cResponse.Settings.PvpEnabled);
-    CHECK_FALSE(cResponse.Settings.GreetingsEnabled);
+    CHECK(cResponse.Difficulty == 3); // the host's
 
     // Its plugins are the host's, so a form's id is the same in both games: no list comes back to map them.
     CHECK(cResponse.UserMods.ModList.empty());
@@ -182,7 +178,7 @@ TEST_CASE("Join: a full session refuses the next game", "[HostAuthority][Session
     session.Outbox.clear();
 
     session.Receive(kNewcomer, Join("Serana"));
-    CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kServerFull);
+    CHECK(OnlyResponse(session, kNewcomer).Type == AuthenticationResponse::ResponseType::kSessionFull);
     CHECK_FALSE(IsPlayer(session, kNewcomer));
     CHECK(session.SentTo<NotifyPlayerJoined>(kHost).empty());
     CHECK(HostChat(session) == std::vector<std::string>{"Serana couldn't join: the session is full."});
@@ -199,7 +195,6 @@ TEST_CASE("Join: a game that is not a player can only ask to join", "[HostAuthor
 {
     Session session;
     SendChatMessageRequest chat;
-    chat.MessageType = kGlobalChat;
     chat.ChatMessage = "hello?";
     session.Receive(kNewcomer, chat);
     CHECK(session.Outbox.empty());
@@ -232,7 +227,7 @@ TEST_CASE("Join: a refused game's status has the reason's code and words", "[Hos
     CHECK(status.Details == std::vector<std::string>{"missing USSEP.esp", "light Fish.esm: the host loads it as a light plugin, you as a full one",
                                                      "extra SkyUI_SE.esp", "order: after Update.esm the host loads A.esp, you load B.esp"});
 
-    refusal.Type = kServerFull;
+    refusal.Type = kSessionFull;
     status = JoinRefusal::ForPlayer(refusal, Ours());
     CHECK(status.Reason == "full");
     CHECK(status.Message == "The session is full.");
@@ -245,20 +240,18 @@ TEST_CASE("Join: a refused game's status has the reason's code and words", "[Hos
     CHECK(JoinRefusal::ForHost(kModsMismatch, join, Ours()) == "A player couldn't join: their plugins differ from yours (3 differences).");
 }
 
-TEST_CASE("Settings: the host's difficulty reaches the others when it changes", "[HostAuthority][Session]")
+TEST_CASE("Difficulty: the host's reaches the others when it changes", "[HostAuthority][Session]")
 {
     Session session;
     session.Frame(1);
     CHECK(session.SentTo<NotifySettingsChange>(kPeer).empty()); // the joined have it already
 
-    session.Difficulty = 5;
-    session.Frame(2);
+    session.ChooseDifficulty(5);
     for (const auto cPeer : {kPeer, kOtherPeer})
     {
         const auto cNotifies = session.SentTo<NotifySettingsChange>(cPeer);
         REQUIRE(cNotifies.size() == 1);
-        CHECK(cNotifies[0]->Settings.Difficulty == 5);
-        CHECK(cNotifies[0]->Settings.DeathSystemEnabled);
+        CHECK(cNotifies[0]->Difficulty == 5);
     }
     CHECK(session.SentTo<NotifySettingsChange>(kHost).empty()); // its own
 
@@ -269,7 +262,7 @@ TEST_CASE("Settings: the host's difficulty reaches the others when it changes", 
     session.Receive(4, JoinRequest("Serana"));
     const auto cResponses = session.SentTo<AuthenticationResponse>(4);
     REQUIRE(cResponses.size() == 1);
-    CHECK(cResponses[0]->Settings.Difficulty == 5);
+    CHECK(cResponses[0]->Difficulty == 5);
 }
 
 TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, and they learn it", "[HostAuthority][Session]")

@@ -27,6 +27,7 @@ enum class ExtraDataType : uint32_t
     TextDisplayData = 0x99,
     Enchantment = 0x9B,
     Soul = 0x9C,
+    Interaction = 0xA9, // a mount's rider and a rider's mount (ExtraInteraction)
 };
 
 struct BSExtraData

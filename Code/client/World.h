@@ -7,8 +7,6 @@
 #include <Services/RunnerService.h>
 #include <Services/TransportService.h>
 
-#include <Structs/ServerSettings.h>
-
 // Bridge interface forward declarations — do NOT include the bridge headers here.
 // SkyrimBridge.h is included only in World.cpp, keeping SKSE headers out of this file.
 class IActorBridge;
@@ -67,9 +65,6 @@ struct World : entt::registry
 
     auto& GetDispatcher() noexcept { return m_dispatcher; }
 
-    const ServerSettings& GetServerSettings() const noexcept { return m_serverSettings; }
-    void SetServerSettings(ServerSettings aServerSettings) noexcept { m_serverSettings = aServerSettings; }
-
     [[nodiscard]] uint64_t GetTick() const noexcept;
 
     static void Create() noexcept;
@@ -82,7 +77,6 @@ private:
     std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
     RunnerService m_runner;
     TransportService m_transport;
-    ServerSettings m_serverSettings{};
 
     std::chrono::high_resolution_clock::time_point m_lastFrameTime;
     FrameStats m_frameStats;

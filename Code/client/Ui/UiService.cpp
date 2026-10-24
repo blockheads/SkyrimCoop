@@ -387,7 +387,6 @@ void UiService::SendChat() noexcept
     }
     // Everyone gets it from the host, us too: what shows is what was sent.
     SendChatMessageRequest request;
-    request.MessageType = kGlobalChat;
     request.ChatMessage = m_chatDraft.c_str();
     m_world.GetTransport().Send(request);
     m_chatDraft.clear();

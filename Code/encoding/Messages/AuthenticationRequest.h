@@ -23,13 +23,12 @@ struct AuthenticationRequest final : RequestMessage
 
     bool operator==(const AuthenticationRequest& achRhs) const noexcept
     {
-        return GetOpcode() == achRhs.GetOpcode() && Game == achRhs.Game && Token == achRhs.Token && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
+        return GetOpcode() == achRhs.GetOpcode() && Game == achRhs.Game && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
                WorldSpaceId == achRhs.WorldSpaceId && CellId == achRhs.CellId && Level == achRhs.Level
             && PlayerTime == achRhs.PlayerTime;
     }
 
     GameVersions Game{};
-    std::string Token{};
     std::string Version{};
     Mods UserMods{};
     std::string Username{};

@@ -4,7 +4,6 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/PartyNativeEvent.h>
-#include <Messages/NotifyPartyNative.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/Relayed.h>
 #include <Papyrus/PartyNatives.h>

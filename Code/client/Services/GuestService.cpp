@@ -6,7 +6,6 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/Relayed.h>
-#include <Messages/PlayerNativeResultRequest.h>
 #include <Events/WorldCallEvent.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Services/Guest/GuestClock.h>

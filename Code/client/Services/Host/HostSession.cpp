@@ -26,33 +26,14 @@ HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostP
     aAuthority.On(*this, &HostSession::OnAuthentication);
 }
 
-ServerSettings HostSession::Settings() const noexcept
-{
-    // The co-op options are upstream's defaults until a settings screen sets them.
-    ServerSettings settings{};
-    settings.Difficulty = m_game.ReadDifficulty();
-    settings.GreetingsEnabled = false;
-    settings.PvpEnabled = false;
-    settings.SyncPlayerHomes = false;
-    settings.DeathSystemEnabled = true;
-    settings.SyncPlayerCalendar = false;
-    return settings;
-}
-
-void HostSession::Update() noexcept
+void HostSession::OnDifficultyChange(uint32_t aDifficulty) const noexcept
 {
     // Not before the host's own player is in: "everyone but the host" would include it.
     const ConnectionId_t cHost = m_players.Host();
-    const auto cSettings = Settings();
-    if (!cHost || cSettings == m_sentSettings)
+    if (!cHost)
         return;
-
-    const bool cFirst = !m_sentSettings;
-    m_sentSettings = cSettings;
-    if (cFirst)
-        return; // everyone who joined got these
     NotifySettingsChange notify;
-    notify.Settings = cSettings;
+    notify.Difficulty = aDifficulty;
     m_players.SendToOthers(notify, cHost);
 }
 
@@ -103,13 +84,13 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
     if (m_players.Count() >= cMaxPlayers)
     {
         spdlog::info("HostSession: {:x} '{}' found the session full: refused", aSender, acRequest.Username.c_str());
-        return refuse(kServerFull);
+        return refuse(kSessionFull);
     }
 
     response.Type = kAccepted;
     response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_network.HostConnection());
     response.CharacterId = m_characters.ReservePlayerCharacter(aSender);
-    response.Settings = Settings();
+    response.Difficulty = m_game.ReadDifficulty();
     m_network.Send(aSender, response);
     Announce(aSender);
 }

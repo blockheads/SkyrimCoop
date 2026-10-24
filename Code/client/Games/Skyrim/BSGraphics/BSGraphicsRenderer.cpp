@@ -106,14 +106,11 @@ static Hooks::Initializer s_viewportHooks(
             /*strip DISCL_EXCLUSIVE bits and append DISCL_NONEXCLUSIVE*/ 3);
 
         const VersionDbPtr<void> timerLoc(77246);
-        const VersionDbPtr<void> renderInit(77226);
 
         Hooks::SwapCall(mem::pointer(timerLoc.GetPtr()) + 9, StopTimer, &Hook_StopTimer);
 
-        Renderer_Init = reinterpret_cast<decltype(Renderer_Init)>(renderInit.GetPtr());
-
         // Once we find a proper way to locate it for different versions, go back to swapcall
         // Hooks::SwapCall(mem::pointer(initLoc.GetPtr()) + 0xD1A, Renderer_Init, &Hook_Renderer_Init);
-        HOOK_IMMEDIATE(&Renderer_Init, &Hook_Renderer_Init);
+        HOOK_ID_IMMEDIATE(77226, &Renderer_Init, &Hook_Renderer_Init);
     });
 } // namespace BSGraphics

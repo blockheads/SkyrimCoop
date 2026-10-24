@@ -4,6 +4,7 @@
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Structs/ActorWhereabouts.h>
+#include <Messages/RelayedMessages.h>
 
 #include <optional>
 #include <NoCopyMove.h>
@@ -12,7 +13,7 @@ struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 struct ReferencesMoveRequest;
-struct AssignCharacterRequest;
+struct AnnounceCharacterRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
 struct PlayerRespawnRequest;
@@ -57,13 +58,21 @@ struct HostCharacters
 private:
     // A player's own character, or (the host only) one of the host's actors, under the id the host gave it:
     // everyone else gets a spawn.
-    void OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void OnAnnounceCharacter(const AnnounceCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
     [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
     // The owner stopped simulating the actor; its copies go where it went.
     void OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept;
     // The owner respawns its actor everywhere (a new appearance after a beast form); anyone else
     // lost its copy and asks for a fresh spawn.
     void OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept;
+    // A player's character got on a mount: the rider's game simulates it from here on (its movement is the rider's
+    // input), so it becomes that game's; every game hears of it, the rider's to take it.
+    void OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // Its rider got off: the mount is the host's again (its game simulates it), and every game hears of it.
+    void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void GiveBack(uint32_t aMountId, uint32_t aRiderId) noexcept;
+    // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
+    void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
     // A player came back from death: everyone else respawns its character.
     void OnPlayerRespawn(const PlayerRespawnRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Owners' movement goes straight to everyone else (unreliable: only the latest matters).

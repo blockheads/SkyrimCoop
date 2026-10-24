@@ -15,6 +15,7 @@
 #include <Events/AddExperienceEvent.h>
 #include <Events/SetWaypointEvent.h>
 #include <Events/RemoveWaypointEvent.h>
+#include <Events/DifficultyChangeEvent.h>
 
 #include <World.h>
 
@@ -42,6 +43,7 @@ using TAddSkillExperience = void(PlayerCharacter*, int32_t aSkill, float aExperi
 using TCalculateExperience = bool(int32_t*, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2);
 using TSetWaypoint = void(PlayerCharacter*, NiPoint3* apPosition, TESForm* apWorldOrCell);
 using TRemoveWaypoint = void(PlayerCharacter*);
+using TSetDifficulty = void(PlayerCharacter*, int32_t aDifficulty);
 
 static TPickUpObject* RealPickUpObject = nullptr;
 static TSetBeastForm* RealSetBeastForm = nullptr;
@@ -49,6 +51,7 @@ static TAddSkillExperience* RealAddSkillExperience = nullptr;
 static TCalculateExperience* RealCalculateExperience = nullptr;
 static TSetWaypoint* RealSetWaypoint = nullptr;
 static TRemoveWaypoint* RealRemoveWaypoint = nullptr;
+static TSetDifficulty* RealSetDifficulty = nullptr;
 
 PlayerCharacter* PlayerCharacter::Get() noexcept
 {
@@ -270,6 +273,14 @@ void HookRemoveWaypoint(PlayerCharacter* apThis)
     return RealRemoveWaypoint(apThis);
 }
 
+// Every difficulty the engine sets, after writing iDifficulty: the settings menu (53310), its defaults (36622), the
+// saved settings applied (36598) and a profile's.
+void HookSetDifficulty(PlayerCharacter* apThis, int32_t aDifficulty)
+{
+    RealSetDifficulty(apThis, aDifficulty);
+    World::Get().GetRunner().Trigger(DifficultyChangeEvent{static_cast<uint32_t>(*Settings::GetDifficulty())});
+}
+
 namespace
 {
 // The player's PositionPlayerEvent (CommonLibSSE; skymp's "positionPlayer"), sent by 40438 for every
@@ -350,4 +361,5 @@ static Hooks::Initializer s_playerCharacterHooks(
         HOOK_ID(27244, &RealCalculateExperience, HookCalculateExperience);
         HOOK_ID(40535, &RealSetWaypoint, HookSetWaypoint);
         HOOK_ID(40536, &RealRemoveWaypoint, HookRemoveWaypoint);
+        HOOK_ID(40563, &RealSetDifficulty, HookSetDifficulty);
     });

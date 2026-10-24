@@ -62,7 +62,7 @@ JoinStatus ForPlayer(const AuthenticationResponse& acResponse, const Install& ac
         status.Message = std::format("Your plugins differ from the host's ({} {}). You both need the same plugins in the same order.", status.Details.size(),
                                      status.Details.size() == 1 ? "difference" : "differences");
         break;
-    case kServerFull:
+    case kSessionFull:
         status.Reason = "full";
         status.Message = "The session is full.";
         break;
@@ -86,7 +86,7 @@ std::string ForHost(AuthenticationResponse::ResponseType aReason, const Authenti
         const size_t cCount = CompareLoadOrders(acOurs.Plugins, acRequest.UserMods).size();
         return std::format("{} couldn't join: their plugins differ from yours ({} {}).", cName, cCount, cCount == 1 ? "difference" : "differences");
     }
-    case kServerFull: return std::format("{} couldn't join: the session is full.", cName);
+    case kSessionFull: return std::format("{} couldn't join: the session is full.", cName);
     default: return std::format("{} couldn't join.", cName);
     }
 }

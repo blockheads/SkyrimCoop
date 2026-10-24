@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Opcodes.h"
-#include "../ChatMessageTypes.h"
 #include <Wire/Buffer.h>
 #include <Wire/Serialization.h>
 

@@ -3742,6 +3742,51 @@ def scenario_repair_equipment_drift():
     wait_for("[client] the copy wears the owner's equipment again", lambda: equipment("client", copy) == owner, 10)
 
 
+HORSE = "00109E3D"   # WhiterunPlayerHorse (Skyrim.esm), a plain horse to put down
+ACTIVATE_KEY = 0x12  # E: activates what the player looks at; riding, gets off
+
+
+def actor_state(instance, form_id):
+    select_instance(instance)
+    return ((read_status() or {}).get("world") or {}).get(str(form_id)) or {}
+
+
+def scenario_guest_rides_host_horse():
+    """Outdoors (no riding indoors), the client's player gets on the host's horse: the host gives the horse to
+    the client's game to move. Getting off gives it back to the host. (The host's copy of the rider does not get
+    on yet: progress.md, loose ends.)"""
+    both_go(OUTDOOR_CELL)
+    horse = None
+    try:
+        before = set(local_player("").get("local_actors", {}))
+        console_on("", f"player.placeatme {HORSE} 1")
+        horse = int(next(iter(wait_for("[host] the horse loaded",
+                                       lambda: set(local_player("").get("local_actors", {})) - before, 15))))
+        sid = wait_for("[host] the horse has a session id",
+                       lambda: (s := host_npc_state(horse).get("session_id")) is not None and s >= 0 and (s,), 10)[0]
+        copy = copy_of("client", sid)
+        # Until its owner's first movement reaches it, the copy cannot be got on (the activation does nothing).
+        wait_for("[client] the horse's copy moves with the host's",
+                 lambda: actor_state("client", copy).get("mod", {}).get("interpolation_points", 0) > 0, 10)
+        activate_on("client", copy)
+        wait_for("[client] its player rides the horse, now its game's to move",
+                 lambda: actor_state("client", 0x14).get("placement", {}).get("riding")
+                 and actor_state("client", copy).get("role") == "own", 15)
+        wait_for("[host] the horse is a copy here", lambda: actor_state("", horse).get("role") == "copy", 10)
+        tap_key("client", ACTIVATE_KEY)
+        wait_for("[client] its player got off, the horse a copy again",
+                 lambda: not actor_state("client", 0x14).get("placement", {}).get("riding")
+                 and actor_state("client", copy).get("role") == "copy", 15)
+        wait_for("[host] the horse is its own again, no one on it",
+                 lambda: actor_state("", horse).get("role") == "own"
+                 and not actor_state("", horse).get("placement", {}).get("ridden"), 10)
+    finally:
+        if horse is not None:
+            console_on("", f"{horse:08X}.disable")
+            console_on("", f"{horse:08X}.markfordelete")
+        both_go(HOME_CELL)
+
+
 # --- Hands: draw, cast, sheathe -------------------------------------------------------------
 
 def copy_drawn(expected):
@@ -6871,6 +6916,7 @@ SCENARIOS = {
     "equip-client-player": scenario_equip_client_player,
     "equip-host-npc": scenario_equip_host_npc,
     "repair-equipment-drift": scenario_repair_equipment_drift,
+    "guest-rides-host-horse": scenario_guest_rides_host_horse,
     # hands
     "draw-host-player": scenario_draw_host_player,
     "draw-client-player": scenario_draw_client_player,
@@ -7012,6 +7058,7 @@ TAGS = {
     "equip-client-player": {'inventory'},
     "equip-host-npc": {'inventory'},
     "repair-equipment-drift": {'inventory'},
+    "guest-rides-host-horse": {'spawn', 'movement'},
     "draw-host-player": {'hands'},
     "draw-client-player": {'hands'},
     "sneak-host-player": {'movement', 'ai'},
@@ -7114,7 +7161,7 @@ SOURCE_TAGS = [
     ("Code/client/Services/*RunnerService.*", {'core'}),
     ("Code/client/Services/Host/HostAuthority.*", {'core'}),
     ("Code/client/Services/Host/HostNetwork.*", {'core'}),
-    ("Code/client/Systems/ModSystem.*", {'core'}),
+    ("Code/client/FormIds.h", {'core'}),
 
     # Each game's systems, including headers beside the Generic implementations.
     ("Code/client/Services/*InventoryService.*", {'inventory'}),
@@ -7178,6 +7225,7 @@ SOURCE_TAGS = [
     ("Code/client/Events/*ConnectedEvent.h", {'core'}),
     ("Code/client/Events/DisconnectedEvent.h", {'core'}),
     ("Code/client/Events/UpdateEvent.h", {'core'}),
+    ("Code/client/Events/Listen.h", {'core'}),
     ("Code/client/Events/Actor*Event.h", {'spawn'}),
     ("Code/client/Events/Reference*Event.h", {'spawn', 'movement', 'cells'}),
     ("Code/client/Events/PlayerArrivedEvent.h", {'spawn', 'cells'}),
@@ -7257,6 +7305,7 @@ SOURCE_TAGS = [
     ("Code/client/Games/*Animation*", {'animation', 'movement', 'hands'}),
     ("Code/client/Games/Skyrim/Havok/*", {'animation', 'movement', 'combat'}),
     ("Code/client/Games/*CopyAiState.*", {'ai', 'combat', 'movement'}),
+    ("Code/client/Games/ActorUpkeep.h", {'combat'}),
     ("Code/client/Games/Skyrim/AiStateEvents.*", {'ai'}),
     ("Code/client/Games/Skyrim/FactionEvents.*", {'ai'}),
     ("Code/client/Games/Skyrim/AI/*", {'ai', 'movement', 'scripts'}),
@@ -7369,6 +7418,7 @@ SOURCE_TAGS = [
     ("Code/encoding/Messages/Message.*", {'core'}),
     ("Code/encoding/Messages/*MessageFactory.*", {'core'}),
     ("Code/encoding/Messages/Payloads.*", {'core'}),
+    ("Code/encoding/Messages/Relayed*.h", {'core'}),
     ("Code/encoding/Messages/*Inventory*", {'inventory'}),
     ("Code/encoding/Messages/*Equipment*", {'inventory'}),
     ("Code/encoding/Messages/*Container*", {'inventory', 'objects'}),
@@ -7421,7 +7471,6 @@ SOURCE_TAGS = [
     ("Code/encoding/Structs/Game*", {'core'}),
     ("Code/encoding/Structs/LoadOrder.*", {'core'}),
     ("Code/encoding/Structs/Mods.*", {'core'}),
-    ("Code/encoding/Structs/ServerSettings.*", {'session'}),
     ("Code/encoding/Structs/GridCellCoords.*", {'cells'}),
     ("Code/encoding/Structs/Inventory.*", {'inventory'}),
     ("Code/encoding/Structs/LockData.*", {'objects'}),

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Message.h"
-#include <Structs/ServerSettings.h>
 
 struct NotifySettingsChange final : NotifyMessage
 {
@@ -17,7 +16,7 @@ struct NotifySettingsChange final : NotifyMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifySettingsChange& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Settings == acRhs.Settings; }
+    bool operator==(const NotifySettingsChange& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Difficulty == acRhs.Difficulty; }
 
-    ServerSettings Settings{};
+    uint32_t Difficulty{};
 };

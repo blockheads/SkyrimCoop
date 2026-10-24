@@ -105,7 +105,7 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    step, the option's topic and line, its text); a guest's own menu does not say it. `HostDialogue` takes the
    first pick of a step that is an option of the host's list (topic and line both) and sends
    `NotifyDialoguePicked` (the next step, topic, line, the picker) to everyone, and a chat line
-   (`kPlayerDialogue`: the picker's name, the option's text, through `ChatText` as chat). The host's game says it
+   (`kPlayerChat`: the picker's name, the option's text, through `ChatText` as chat). The host's game says it
    unless its own menu did (`DialogueBridge::PickOption`: the listed option, as a click). Any other pick (a stale
    step, one from a guest's menu before the host's list arrived) is not said, and the picker gets the step's
    list back (`HostDialogue::SendList`), so no menu stays in the picked state. The other menus keep their list
@@ -164,7 +164,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `NotifyDialogueOpen` | host → all | conversation, NPC session id |
 | `DialogueOptionsRequest` / `NotifyDialogueList` | host's game → host → all | conversation, step, choices, options (topic, info, quest, text) |
 | `DialoguePickRequest` / `NotifyDialoguePicked` | game → host → all | an option of the host's list (topic, line), its text / the next step, topic, line, picker; a pick not in the list is not said |
-| `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerDialogue`, the picker's name, the option's text |
+| `NotifyChatMessageBroadcast` | host → all | the pick: `kPlayerChat`, the picker's name, the option's text |
 | `DialogueJoinRequest` | game → host | conversation: this player's menu is open on it |
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
 | `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals) |

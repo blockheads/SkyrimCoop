@@ -260,11 +260,15 @@ struct ReferenceState
 // one's pose, physics, graph and effects too (larger).
 std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
 
-// The effect shaders and art objects the engine is playing on the actor.
+// The effect shaders and art objects the engine is playing on the actor's body.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
+// Those it plays at this game's camera on the actor's behalf (a script's VisualEffect attached to the camera).
+std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept;
 // Every shader and art object in the engine's list on the actor, the finished ones still fading out too: a hit
 // shader without FX Persist is finished from its start (ShaderReferenceEffect::Init) and plays one pass.
 std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept;
+// Sets the difficulty as the settings menu does (53310): iDifficulty, then PlayerCharacter::SetDifficulty (40563).
+void ChooseDifficulty(uint32_t aDifficulty) noexcept;
 // The actor whose health bar the HUD shows, or 0.
 uint32_t GetEnemyHealthTarget() noexcept;
 // The player's last used combat skill (an actor value, -1 none yet) and its experience: where shared XP goes.
@@ -342,6 +346,8 @@ struct AiReadout
     uint32_t CombatTarget = 0;  // Actor::currentCombatTarget
 };
 AiReadout GetAiReadout(uint32_t aFormId) noexcept;
+// A mount interaction (ExtraInteraction): a rider on its mount, or a mount with its rider (CommonLibSSE Actor::IsOnMount).
+bool HasMountInteraction(uint32_t aFormId) noexcept;
 // Puts the package in the actor's running slot and sends its package event, as package evaluation would
 // (ActorPackage::InitFromPackage 38959, TESPackageEvent): staging on the owner, with the actor frozen so evaluation
 // does not replace it.

@@ -48,10 +48,8 @@ static Hooks::Initializer s_BSThreadInit(
     []()
     {
         const HookGate cGate(__FILE__);
-        const VersionDbPtr<uint8_t> threadInit(68261);
-        BSThread_Initialize = reinterpret_cast<decltype(BSThread_Initialize)>(threadInit.GetPtr());
         // need to detour this for now :/
-        HOOK_IMMEDIATE(&BSThread_Initialize, &Hook_BSThread_Initialize);
+        HOOK_ID_IMMEDIATE(68261, &BSThread_Initialize, &Hook_BSThread_Initialize);
 
         const VersionDbPtr<uint8_t> setThreadName(69066);
         Hooks::Jump(setThreadName.Get(), &Hook_SetThreadName);

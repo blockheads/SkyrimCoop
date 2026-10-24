@@ -21,8 +21,6 @@
 #include <Messages/NotifyFactionsChanges.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyActivate.h>
-#include <Messages/NotifyPlayerNativeResult.h>
-#include <Messages/NotifyPartyNative.h>
 #include <Messages/NotifyRespawn.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>

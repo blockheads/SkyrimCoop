@@ -323,18 +323,10 @@ TEST_CASE("Factions: each actor's from its owner only", "[HostAuthority][Charact
     CHECK(session.Outbox.empty());
 }
 
-TEST_CASE("Mounts, subtitles, experience: reach everyone else", "[HostAuthority][Characters]")
+TEST_CASE("Subtitles, experience: reach everyone else", "[HostAuthority][Characters]")
 {
     Session session;
     const uint32_t cHostNpc = session.Character(kHost);
-    const uint32_t cHorse = session.Character(kHost);
-
-    MountRequest mount;
-    mount.RiderId = cHostNpc;
-    mount.MountId = cHorse;
-    session.Receive(kPeer, mount);
-    REQUIRE(session.SentTo<NotifyMount>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyMount>(kHost)[0]->MountId == cHorse);
 
     SubtitleRequest subtitle;
     subtitle.SessionId = cHostNpc;

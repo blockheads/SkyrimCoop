@@ -7,6 +7,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <FormIds.h>
+#include <Events/DifficultyChangeEvent.h>
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
 #include <Services/AiStateService.h>
@@ -27,6 +28,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_world(aWorld), m_dispatcher(aDispatcher)
 {
     Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
+    Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
 }
 
 HostService::~HostService() noexcept
@@ -75,7 +77,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.SetItems = [&engine](const GameId& acObject, const GameId& acItem, uint32_t aCount) {
         engine.SetItems(FormIdOf(acObject), FormIdOf(acItem), static_cast<int32_t>(aCount));
     };
-    game.ReadDifficulty = [] { return 3u; };
+    game.ReadDifficulty = [&engine] { return engine.GetDifficulty(); };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
@@ -101,6 +103,12 @@ void HostService::KickPlayer(uint32_t aPlayerId) noexcept
 uint32_t HostService::NewCharacterId() noexcept
 {
     return m_pAuthority ? m_pAuthority->NewCharacterId() : 0;
+}
+
+void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept
+{
+    if (IsHosting())
+        m_pAuthority->DifficultyChanged(acEvent.Difficulty);
 }
 
 void HostService::OnUpdate(const UpdateEvent&) noexcept

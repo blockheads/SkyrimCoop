@@ -95,34 +95,17 @@ void HookSetOwnerForm(void* apThis, TESForm* apOwner);
 
 Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
-    POINTER_SKYRIMSE(TCompare, s_compare, 105220);
-    POINTER_SKYRIMSE(TGetPlayer, s_getPlayer, 55618);
-    POINTER_SKYRIMSE(TCallQueued, s_callQueued, 104943);
-    POINTER_SKYRIMSE(TStackCreated, s_stackCreated, 104848);
-    POINTER_SKYRIMSE(TNativeCalled, s_nativeCalled, 104651);
-    POINTER_SKYRIMSE(TStackEnded, s_stackEnded, 104480);
-    POINTER_SKYRIMSE(TFunctorQueued, s_functorQueued, 53954);
-    POINTER_SKYRIMSE(TCastRun, s_castRunPointer, 55744);
-    POINTER_SKYRIMSE(TSetOwnerForm, s_setOwnerForm, 11609);
-    RealCompare = s_compare.Get();
-    RealGetPlayer = s_getPlayer.Get();
-    RealCallQueued = s_callQueued.Get();
-    RealStackCreated = s_stackCreated.Get();
-    RealNativeCalled = s_nativeCalled.Get();
-    RealStackEnded = s_stackEnded.Get();
-    RealFunctorQueued = s_functorQueued.Get();
-    RealCastRun = s_castRunPointer.Get();
-    RealSetOwnerForm = s_setOwnerForm.Get();
+    HOOK_ID(105220, &RealCompare, HookCompare);
+    HOOK_ID(55618, &RealGetPlayer, HookGetPlayer);
+    HOOK_ID(104943, &RealCallQueued, HookCallQueued);
+    HOOK_ID(104848, &RealStackCreated, HookStackCreated);
+    HOOK_ID(104651, &RealNativeCalled, HookNativeCalled);
+    HOOK_ID(104480, &RealStackEnded, HookStackEnded);
+    HOOK_ID(53954, &RealFunctorQueued, HookFunctorQueued);
+    HOOK_ID(55744, &RealCastRun, HookCastRun);
+    HOOK_ID(11609, &RealSetOwnerForm, HookSetOwnerForm);
+    // Hooks install later: this is still the engine's own address.
     s_castRun = reinterpret_cast<void*>(RealCastRun);
-    HOOK(&RealCompare, HookCompare);
-    HOOK(&RealGetPlayer, HookGetPlayer);
-    HOOK(&RealCallQueued, HookCallQueued);
-    HOOK(&RealStackCreated, HookStackCreated);
-    HOOK(&RealNativeCalled, HookNativeCalled);
-    HOOK(&RealStackEnded, HookStackEnded);
-    HOOK(&RealFunctorQueued, HookFunctorQueued);
-    HOOK(&RealCastRun, HookCastRun);
-    HOOK(&RealSetOwnerForm, HookSetOwnerForm);
 });
 
 constexpr uint32_t cPlayerFormId = kThisPlayer;

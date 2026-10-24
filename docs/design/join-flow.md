@@ -115,12 +115,11 @@ No table is kept (3d, 2026-10-23).
 
 ### Session settings
 
-- **Rule:** the host sets them, players read them: sent in the join response
-  (`AuthenticationResponse::Settings`) and again on any change (`NotifySettingsChange`).
-- **Today (3a.4):** the difficulty is the host's own; a friend's game takes and holds it, and gets
-  its own back on leaving; the host's is never changed. The co-op options (greetings, PvP, the death
-  system, player homes, calendar sync) are upstream's defaults.
-- **Later:** a host settings screen for the co-op options.
+- The host's difficulty is sent on joining (`AuthenticationResponse::Difficulty`) and on changes
+  (`NotifySettingsChange::Difficulty`). A guest holds it while joined and gets its own back on leaving;
+  the host's is never changed.
+- Session rules are fixed: greetings and PvP off, the death system on. Homes and calendar sync have no
+  settings flags. The host's clock is shared by the guest clock, independently of difficulty.
 
 ### Saving: only the host
 

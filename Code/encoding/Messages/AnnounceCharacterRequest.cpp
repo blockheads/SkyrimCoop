@@ -1,6 +1,6 @@
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 
-void AssignCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
+void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
     ReferenceId.Serialize(aWriter);
@@ -25,7 +25,7 @@ void AssignCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const n
         cEffectId.Serialize(aWriter);
 }
 
-void AssignCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
+void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     RequestMessage::DeserializeRaw(aReader);
 

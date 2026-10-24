@@ -179,6 +179,8 @@ static nlohmann::json Snapshot(uint32_t aFormId)
     mod["subtitle"] = EngineCalls::GetSubtitle(aFormId);
     // With the finished ones still fading out (one-shot hit visuals), shown and not compared: a flash is brief.
     mod["visuals_shown"] = EngineCalls::GetShownVisualFormIds(aFormId);
+    // At this game's camera (FXCameraAttachScript's fluff), shown and not compared: a copy has none.
+    mod["camera_visuals"] = EngineCalls::GetCameraVisualFormIds(aFormId);
     // Water, shown and not compared: a copy's height follows its owner's a little late.
     const auto cWater = EngineCalls::GetWater(aFormId);
     mod["water"] = {{"submerged", cWater.Submerged}, {"swimming", cWater.Swimming}, {"head_under", cWater.HeadUnder},
@@ -193,6 +195,8 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                       {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}}},
         {"placement", {{"position", {position[0], position[1], position[2]}}, {"rotation", ActorRotation(aFormId)},
                        {"cell", actors.GetActorParentCellFormId(aFormId)},
+                       {"riding", !actors.IsActorMount(aFormId) && EngineCalls::HasMountInteraction(aFormId)},
+                       {"ridden", actors.IsActorMount(aFormId) && EngineCalls::HasMountInteraction(aFormId)},
                        {"worldspace", actors.GetActorWorldSpaceFormId(aFormId)},
                        {"has_3d", actors.ActorHas3D(aFormId)}, {"disabled", actors.IsActorDisabled(aFormId)}}},
         {"state", {{"dead", actors.IsActorDead(aFormId)}, {"bleeding_out", actors.IsBleedingOut(aFormId)},

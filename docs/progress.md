@@ -415,6 +415,13 @@ Decisions made without the user are marked **Decided**.
     checker's known engine pair (our hooks only passing through; the checker fix is the late-join report's).
 - **Events over polling (2026-10-22, after the AI state cleanup).** What each engine event or hook covers:
   `docs/re/systems/change-events.md`; what is left and why: `docs/ideas.md`, "Events over polling".
+  - **Difficulty: done (2026-10-23, uncommitted).** The engine sets it through `PlayerCharacter::SetDifficulty`
+    (40563, after writing `iDifficulty`: the settings menu 53310, its defaults 36622, the saved settings applied
+    36598, a profile's); hooked in `PlayerCharacter.cpp`, it raises `DifficultyChangeEvent`. The host's game tells
+    the others (`HostAuthority::DifficultyChanged`, `HostSession::OnDifficultyChange`), a guest's puts the host's back
+    (`PlayerService::OnDifficultySet`). Both per-frame reads are gone. The fake engine's `ChoosesDifficulty` raises
+    it (`session_settings_flows.cpp`); `HostAuthorityTests` "Difficulty: the host's reaches the others".
+    Discovery, presence and the equipment snapshot were looked at and stay (`docs/ideas.md`).
   - **Combat target switches (AiStateService): done.** `CombatController::SetTarget` (33235, the only writer of an
     NPC's target, `+0x104`) hooked in `AiStateEvents`; it raises the attacker. Also the player's in-combat flag:
     `PlayerCharacter::UpdateInCombat` (41238) hooked, a flip raises the player (a player has no combat event; the
@@ -665,6 +672,11 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- MMO settings/password/chat cleanup (2026-10-23, uncommitted): only the host's difficulty goes in the join answer
+  and its updates; fixed co-op rules stay in code. Removed the unchecked token/password and extra chat channels;
+  dialogue picks still show in chat. Packet fixtures and a two-guest join/change/hold/leave/rejoin flow
+  (`session_settings_flows.cpp`). Merged with the character assignment: the join answer carries both.
+  `ChatMessageTypes.h` is included by the chat broadcast's header, no longer by every message (`Message.h`).
 - Four tiers (2026-10-23, `docs/design/testing.md`, Factorio's model): unit, integration against a fake engine,
   the duo, soak. Tier 1 `ClientTests` (new, `Code/tests/client/`): `PartyRules` (the cutscene share rule and the
   control holds, split out of `PartyNatives`), 45 assertions, rule edit to result 0.4 s. Tier 2 `GameTests` (new
@@ -935,6 +947,31 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   announced again (respawn) keeps its id; its copies are made again as before. Tests: `HostAuthorityTests` "only
   under an id the host gave"; two host-rule checks that passed with their announcement refused now announce under
   the right id; the copy and item flows follow the new order.
+- Cleanup leftovers (2026-10-23, uncommitted): `AssignCharacterRequest` is `AnnounceCharacterRequest`
+  (`CancelServerAssignment` is `ReleaseCharacter`); `AnimationSystem::Serialize` lost a check that could not fail.
+  Hooks: 20 more installs are `HOOK_ID`, the four explicit `VersionDbPtr` casts included; `Hooks::Resolve<ID>(&Real)`
+  resolves one hooked later or only on a condition (`Memory.cpp`). Left: `ExitProcess` (`GetProcAddress`) and DInput's
+  device vtable, which have no Address Library id. `build_re_data.py` reads `Resolve`: 148 hooked ids (six call
+  wrappers it had labelled hooks by a shared variable name are calls now; four hooks it could not see are found).
+  `PlayerNativeResultRequest`, `NotifyPlayerNativeResult` and `NotifyPartyNative` (payload `PartyNativeFrom`) are
+  `Relayed` too; bytes unchanged. `coop_test.py`'s source tags cover the new files.
+- A mount is the rider's game's by the host's word (2026-10-23, uncommitted): a guest's player getting on a copy
+  asks (`MountRequest`); `HostCharacters::OnMount` makes the rider's game the owner and tells every game, the
+  rider's taking it (`TakeOwnership`, private now). Before, the rider's game claimed it alone and the host, still
+  the owner on record, dropped its movement. The debug view's unconfirmed claim is gone. Open: the mount goes
+  back on dismount (no dismount event handled yet); a mount scenario (needs an exterior: horses are not ridden
+  indoors; harness readouts `riding`/`ridden` added). `HostAuthorityTests` "Mounts: ...".
+- A player's active effects go into its record (2026-10-23, uncommitted, `HostCharacters::OnActiveEffects`): spawns
+  built later from the record had the effects of its announcement. Test "a player's effects go into its record".
+- The actor comparison's "visuals" are what plays on the body (2026-10-23, uncommitted): the owed Skyrim checks
+  failed `spec:guest-joins-elsewhere` at "actors agree", the host's copy of the guest's player lacking 0xB94EC.
+  That is `FXCameraAttachFluffObject`, which Riverwood's `FXCameraAttachScript` volumes play at the guest's camera
+  on its player: the screen's, not the actor's, so no copy shows it (`docs/design/copy-contract.md`). The harness
+  now skips visuals whose controller attaches to the camera (`ReferenceEffectController::EffectAttachesToCamera`,
+  vtable 0x1A: true for `OwnedCameraEffectController` and `SkyEffectController`, false for active effects' and
+  scripts' other effects, IDA 1.6.1170) and shows them as `mod.camera_visuals`. Not a sync bug, so no fast test;
+  the fake engine plays no camera effects. To confirm in Skyrim: the rerun was held up by a Steam download
+  stalling Riverwood's load (the loading spinner stayed up past the step's 60 s).
 - Harness (2026-10-13): a player's button waits for the game to take input (no fade or menu);
   `both_go` waits for the arrival's fade; `attack` waits for the last swing to end; `place` takes a
   bearing; lock patterns match in either order.

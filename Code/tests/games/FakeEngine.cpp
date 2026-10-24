@@ -1,6 +1,7 @@
 #include "FakeEngine.h"
 
 #include <Events/ContainerChangeEvent.h>
+#include <Events/DifficultyChangeEvent.h>
 #include <Events/ActivateEvent.h>
 #include <Events/AddTargetEvent.h>
 #include <Events/AiStateChangeEvent.h>
@@ -1059,6 +1060,12 @@ void FakeEngine::PlacesMarker(const glm::vec3& acPosition, uint32_t aWorldSpace)
     position.z = acPosition.z;
     World::Get().GetRunner().Trigger(SetWaypointEvent(position, aWorldSpace));
     Waypoint = Marker{acPosition, aWorldSpace};
+}
+
+void FakeEngine::ChoosesDifficulty(uint32_t aDifficulty)
+{
+    Difficulty = aDifficulty;
+    World::Get().GetRunner().Trigger(DifficultyChangeEvent{aDifficulty});
 }
 
 // From the map ("Remove It"): the only removal our hook raises.

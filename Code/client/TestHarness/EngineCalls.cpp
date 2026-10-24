@@ -25,6 +25,7 @@
 #include <Games/Misc/SubtitleManager.h>
 #include <Games/Skyrim/Events/EventDispatcher.h>
 #include <Games/Overrides.h>
+#include <Games/References.h>
 #include <Games/Skyrim/BSInput/InputEvent.h>
 #include <Games/TES.h>
 #include <Havok/BShkbAnimationGraph.h>
@@ -199,16 +200,16 @@ float GetGlobalTimeMultiplier() noexcept
     return *s_globalTimeMultiplier.Get();
 }
 
-std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
+namespace
 {
-    Actor* pActor = GetActor(aFormId);
-    ProcessLists* pProcessLists = ProcessLists::Get();
-    if (!pActor || !pProcessLists)
-        return {};
-    return pProcessLists->GetPlayingVisualFormIds(pActor->GetHandle().handle.iBits);
-}
+enum class Visuals
+{
+    OnBody,   // playing on the actor's body
+    AtCamera, // playing at this game's camera, which follows the actor
+    Shown     // every one in the list, the finished ones fading out too
+};
 
-std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
+std::vector<uint32_t> VisualFormIds(uint32_t aFormId, Visuals aWhich) noexcept
 {
     Actor* pActor = GetActor(aFormId);
     ProcessLists* pProcessLists = ProcessLists::Get();
@@ -223,6 +224,12 @@ std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
             const auto* pEffect = Cast<ReferenceEffect>(pProcessLists->magicEffects[i]);
             if (!pEffect || pEffect->hTarget != cHandle)
                 continue;
+            if (aWhich != Visuals::Shown)
+            {
+                const bool cAtCamera = pEffect->pController && pEffect->pController->EffectAttachesToCamera();
+                if (pEffect->bFinished || cAtCamera != (aWhich == Visuals::AtCamera))
+                    continue;
+            }
             const TESForm* pForm = nullptr;
             if (const auto* pShader = Cast<ShaderReferenceEffect>(pProcessLists->magicEffects[i]))
                 pForm = pShader->pEffectShader;
@@ -236,6 +243,22 @@ std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
     result.erase(std::unique(result.begin(), result.end()), result.end());
     return result;
 }
+} // namespace
+
+std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
+{
+    return VisualFormIds(aFormId, Visuals::OnBody);
+}
+
+std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept
+{
+    return VisualFormIds(aFormId, Visuals::AtCamera);
+}
+
+std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
+{
+    return VisualFormIds(aFormId, Visuals::Shown);
+}
 
 std::pair<int32_t, float> GetCombatSkillExperience() noexcept
 {
@@ -244,6 +267,17 @@ std::pair<int32_t, float> GetCombatSkillExperience() noexcept
     if (!pPlayer || cSkill == -1)
         return {-1, 0.f};
     return {cSkill, pPlayer->GetSkillExperience(Skills::GetSkillFromActorValue(cSkill))};
+}
+
+void ChooseDifficulty(uint32_t aDifficulty) noexcept
+{
+    using TSetDifficulty = void(PlayerCharacter*, int32_t);
+    POINTER_SKYRIMSE(TSetDifficulty, s_setDifficulty, 40563);
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || aDifficulty > 5)
+        return;
+    *Settings::GetDifficulty() = static_cast<int32_t>(aDifficulty);
+    s_setDifficulty(pPlayer, static_cast<int32_t>(aDifficulty));
 }
 
 uint32_t GetEnemyHealthTarget() noexcept
@@ -872,6 +906,12 @@ bool PutPackage(uint32_t aFormId, uint32_t aPackageId) noexcept
         s_sendPackageEvent(&pEvents->packageEvent, &cEvent);
     }
     return true;
+}
+
+bool HasMountInteraction(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    return pActor && pActor->extraData.Contains(ExtraDataType::Interaction);
 }
 
 AiReadout GetAiReadout(uint32_t aFormId) noexcept

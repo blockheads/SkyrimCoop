@@ -2,13 +2,13 @@
 
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct World;
 struct TransportService;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct PartyNativeEvent;
-struct NotifyPartyNative;
 struct NotifyPlayerLeft;
 
 /**

@@ -21,7 +21,6 @@
 #include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/RequestEquipmentChanges.h>
-#include <Messages/NotifyPartyNative.h>
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/RequestRemoveWaypoint.h>
@@ -120,7 +119,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Characters (spawning, removal, movement and respawn: HostCharacters)
     On(*this, &HostAuthority::OnFactionsChanges);
-    Relay<MountRequest, NotifyMount>(FromAnyone);
     // What its AI is doing: its owner's, read 1:1 on every game (copy-contract.md, "AI state").
     Relay<AiStateRequest, NotifyAiState>(FromOwner, &AiStateRequest::SessionId);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
@@ -146,7 +144,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<AddTargetRequest, NotifyAddTarget>(ToOwner, &AddTargetRequest::TargetId);
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
-    Relay<RequestActiveEffects, NotifyActiveEffects>(FromOwner, &RequestActiveEffects::SessionId);
     Relay<EffectFlashRequest, NotifyEffectFlash>(FromOwner, &EffectFlashRequest::SessionId);
     // A script's call on the controls or the screen (fades, camera, shakes, music): every other game runs it too
     // (cutscenes.md).
@@ -179,10 +176,14 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
 void HostAuthority::Update(uint64_t aTick) noexcept
 {
-    m_session.Update();
     m_clock.Update(aTick);
     m_weather.Update();
     m_worldState.Update(aTick);
+}
+
+void HostAuthority::DifficultyChanged(uint32_t aDifficulty) const noexcept
+{
+    m_session.OnDifficultyChange(aDifficulty);
 }
 
 void HostAuthority::Kick(uint32_t aPlayerId) noexcept
@@ -255,14 +256,9 @@ void HostAuthority::OnPartyNative(const PartyNativeRequest& acRequest, Connectio
 
 void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
-    if (acRequest.MessageType == kSystemMessage || acRequest.MessageType > kLocalChat)
-    {
-        spdlog::warn("HostAuthority: {:x} sent a chat message of type {}, which players cannot", aSender, uint32_t(acRequest.MessageType));
-        return;
-    }
     // The chat box shows text as it is (RmlUi text, no markup parsed).
     NotifyChatMessageBroadcast notify;
-    notify.MessageType = acRequest.MessageType;
+    notify.MessageType = kPlayerChat;
     notify.PlayerName = ChatText(m_players.PlayerNameOf(aSender));
     notify.ChatMessage = ChatText(acRequest.ChatMessage);
     for (const ConnectionId_t cPlayer : m_players.Connections())

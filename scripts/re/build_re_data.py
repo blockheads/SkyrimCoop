@@ -208,11 +208,12 @@ def load_ida_notes():
 
 
 def scan_our_code():
-    """Every POINTER_SKYRIMSE, Hooks::Hook and HOOK_ID in the client, classified by address use."""
+    """Every POINTER_SKYRIMSE, Hooks::Hook, HOOK_ID and Hooks::Resolve in the client, classified by address use."""
     pointer = re.compile(r"POINTER_SKYRIMSE\(\s*([^,]+?)\s*,\s*(\w+)\s*,\s*(\d+)\s*\)")
     hook_call = re.compile(r'\bHooks::Hook<\s*(\d+)\s*>\(\s*&\s*(\w+)\s*,\s*&\s*(\w+)\s*,\s*"[^"]*"'
                            r'(?:\s*,\s*(?:true|false))?\s*\)')
     hook_macro = re.compile(r"\bHOOK_ID(?:_IMMEDIATE)?\(\s*(\d+)\s*,\s*&\s*(\w+)\s*,\s*&?(\w+)\s*\)")
+    resolve = re.compile(r"\bHooks::Resolve<\s*(\d+)\s*>\(\s*&\s*(\w+)\s*\)")
     uses = defaultdict(list)
     for path in sorted(CLIENT.rglob("*")):
         if path.suffix not in (".h", ".cpp"):
@@ -246,6 +247,17 @@ def scan_our_code():
                 flags = ["todo-in-code"] if re.search(r"TODO|not sure|FIXME|\?\?\?", window) else []
                 uses[ident].append({"file": str(path.relative_to(ROOT)), "line": number, "var": real,
                                     "type": type_name, "kind": "hook", "hook": hook, "flags": flags})
+            # Resolved now, hooked by a HOOK(&Real, ...) later (or only called).
+            for match in resolve.finditer(line):
+                ident, real = int(match.group(1)), match.group(2)
+                hooked = re.search(rf"\bHOOK(?:_IMMEDIATE)?\(\s*&\s*{real}\s*,\s*&?(\w+)", text)
+                declaration = re.search(rf"\b(\w+)\s*\*\s*{real}\s*(?:=|;)", text)
+                window = " ".join(lines[max(0, number - 3):number + 1])
+                flags = ["todo-in-code"] if re.search(r"TODO|not sure|FIXME|\?\?\?", window) else []
+                uses[ident].append({"file": str(path.relative_to(ROOT)), "line": number, "var": real,
+                                    "type": declaration.group(1) if declaration else f"decltype(*{real})",
+                                    "kind": "hook" if hooked else "call", "hook": hooked.group(1) if hooked else None,
+                                    "flags": flags})
     return uses
 
 

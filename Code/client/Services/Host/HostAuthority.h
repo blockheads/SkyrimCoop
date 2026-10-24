@@ -78,6 +78,8 @@ struct HostAuthority
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
     // The host removes a player from the session.
     void Kick(uint32_t aPlayerId) noexcept;
+    // The host's game set its difficulty (DifficultyChangeEvent).
+    void DifficultyChanged(uint32_t aDifficulty) const noexcept;
     // A session id for one of the host's actors (HostCharacters).
     [[nodiscard]] uint32_t NewCharacterId() noexcept { return m_characters.NewCharacterId(); }
 

@@ -113,11 +113,9 @@ static Hooks::Initializer s_memoryHooks(
     {
         const HookGate cGate(__FILE__);
 
-        POINTER_SKYRIMSE(TFormFree, s_formFree, 68117);
-        POINTER_SKYRIMSE(TFormReallocate, s_formReallocate, 68116);
-
-        RealFormFree = s_formFree.Get();
-        RealFormReallocate = s_formReallocate.Get();
+        // Resolved either way: they are called with heap history off too.
+        Hooks::Resolve<68117>(&RealFormFree);
+        Hooks::Resolve<68116>(&RealFormReallocate);
 
         HOOK_ID(68115, &RealFormAllocate, HookFormAllocate);
         if (HeapHistory::Start())

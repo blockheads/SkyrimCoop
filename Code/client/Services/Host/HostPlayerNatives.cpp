@@ -6,8 +6,6 @@
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/Relayed.h>
-#include <Messages/NotifyPlayerNativeResult.h>
-#include <Messages/PlayerNativeResultRequest.h>
 
 #include <spdlog/spdlog.h>
 

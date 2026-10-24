@@ -4,7 +4,7 @@
 #include <MetaMessage.h>
 
 #include <Messages/AuthenticationRequest.h>
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/Relayed.h>
 #include <Messages/ReferencesMoveRequest.h>
@@ -14,7 +14,6 @@
 #include <Messages/LockChangeRequest.h>
 #include <Messages/ContainerChangeRequest.h>
 #include <Messages/CellStateRequest.h>
-#include <Messages/PlayerNativeResultRequest.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/SendChatMessageRequest.h>

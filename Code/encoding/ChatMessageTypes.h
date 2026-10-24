@@ -8,8 +8,5 @@ constexpr size_t kChatMaxLength = 200;
 enum ChatMessageType : unsigned char
 {
     kSystemMessage = 0,
-    kGlobalChat,
-    kPlayerDialogue,
-    kPartyChat,
-    kLocalChat
+    kPlayerChat
 };

@@ -3,12 +3,12 @@
 
 void NotifySettingsChange::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
 {
-    Settings.Serialize(aWriter);
+    Serialization::WriteVarInt(aWriter, Difficulty);
 }
 
 void NotifySettingsChange::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
 {
     NotifyMessage::DeserializeRaw(aReader);
 
-    Settings.Deserialize(aReader);
+    Difficulty = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

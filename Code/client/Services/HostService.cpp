@@ -4,6 +4,7 @@
 
 #include <Events/ActivateEvent.h>
 #include <Events/ContainerChangeEvent.h>
+#include <Events/DifficultyChangeEvent.h>
 #include <Events/PlayerNativeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/UpdateEvent.h>
@@ -17,7 +18,6 @@
 #include <Bridges/IWorldBridge.h>
 #include <RunningGame.h>
 #include <Structs/GameVersions.h>
-#include <Messages/NotifyPlayerNativeResult.h>
 #include <Messages/Relayed.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
@@ -31,6 +31,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<ActivateEvent, &HostService::OnActivate>(m_connections, m_dispatcher, this);
     Listen<ScriptAnimationEvent, &HostService::OnScriptAnimation>(m_connections, m_dispatcher, this);
     Listen<ContainerChangeEvent, &HostService::OnContainerChange>(m_connections, m_dispatcher, this);
+    Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
     Listen<PlayerNativeEvent, &HostService::OnPlayerNative>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
     Listen<NotifyWorldCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
@@ -53,6 +54,12 @@ void HostService::OnContainerChange(const ContainerChangeEvent& acEvent) noexcep
     // Actors' items are their owner's (InventoryService); the engine keeps containers' only.
     if (IsHosting())
         m_pEngine->RecordItems(acEvent.ContainerId, acEvent.ItemId);
+}
+
+void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept
+{
+    if (IsHosting())
+        m_pAuthority->DifficultyChanged(acEvent.Difficulty);
 }
 
 void HostService::OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept

@@ -466,7 +466,7 @@ TEST_CASE("Dialogue: a pick shows in everyone's chat as who said what", "[HostAu
     {
         const auto cLines = session.SentTo<NotifyChatMessageBroadcast>(cTo);
         REQUIRE(cLines.size() == 1);
-        CHECK(cLines[0]->MessageType == kPlayerDialogue);
+        CHECK(cLines[0]->MessageType == kPlayerChat);
         CHECK(cLines[0]->PlayerName == "Lydia");
         CHECK(cLines[0]->ChatMessage == "Here. Have a gold piece.");
     }

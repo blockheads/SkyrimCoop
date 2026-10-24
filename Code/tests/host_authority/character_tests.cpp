@@ -16,7 +16,7 @@ TEST_CASE("Characters: a player's own goes under the id from its join, everyone 
     const uint32_t cOtherPlayer = session.Character(kOtherPeer);
     session.Copies[cOtherPlayer] = glm::vec3(7.f, 8.f, 9.f);
 
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.SessionId = session.CharacterId(kPeer);
     announce.ReferenceId = GameId(0, 0x14);
     announce.AppearanceBuffer = "face";
@@ -48,7 +48,7 @@ TEST_CASE("Characters: a player's own goes under the id from its join, everyone 
 TEST_CASE("Characters: only the host announces anything but a player's own", "[HostAuthority][Characters]")
 {
     Session session;
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.ReferenceId = GameId(1, 0x1234);
     session.Receive(kPeer, announce);
     CHECK(session.Outbox.empty());
@@ -58,14 +58,14 @@ TEST_CASE("Characters: only under an id the host gave", "[HostAuthority][Charact
 {
     Session session;
     // A player under another player's character's id.
-    AssignCharacterRequest player;
+    AnnounceCharacterRequest player;
     player.ReferenceId = GameId(0, 0x14);
     player.SessionId = session.CharacterId(kOtherPeer);
     session.Receive(kPeer, player);
     CHECK(session.Outbox.empty());
 
     // The host's game under an id it was not given, or a player's.
-    AssignCharacterRequest npc;
+    AnnounceCharacterRequest npc;
     npc.ReferenceId = GameId(1, 0x1234);
     for (const uint32_t cId : {0u, 9999u, session.CharacterId(kPeer)})
     {
@@ -299,7 +299,7 @@ namespace
 // Both players announce in QASmoke (an interior), as joining does; the peer's player's id.
 uint32_t BothInQASmoke(Session& aSession)
 {
-    AssignCharacterRequest player;
+    AnnounceCharacterRequest player;
     player.SessionId = aSession.CharacterId(kHost);
     player.ReferenceId = GameId(0, 0x14);
     player.CellId = GameId(0, 0x32AE7);
@@ -388,7 +388,7 @@ TEST_CASE("Party tether: a player's own travel takes everyone else along, the ho
 TEST_CASE("Party tether: a player joining away from the host is sent to it", "[HostAuthority][Characters]")
 {
     Session session;
-    AssignCharacterRequest host;
+    AnnounceCharacterRequest host;
     host.SessionId = session.CharacterId(kHost);
     host.ReferenceId = GameId(0, 0x14);
     host.CellId = GameId(0, 0x32AE7);
@@ -397,7 +397,7 @@ TEST_CASE("Party tether: a player joining away from the host is sent to it", "[H
     session.Receive(kHost, host);
 
     // One joins in Riverwood: it is sent to the host's player in QASmoke, facing the way it does.
-    AssignCharacterRequest away = host;
+    AnnounceCharacterRequest away = host;
     away.SessionId = session.CharacterId(kPeer);
     away.CellId = GameId(0, 0x9732);
     away.WorldSpaceId = GameId(0, 0x3C);
@@ -411,7 +411,7 @@ TEST_CASE("Party tether: a player joining away from the host is sent to it", "[H
     CHECK(session.SentTo<NotifyPartyTravel>(kHost).empty());
 
     // One joining where the host is stays.
-    AssignCharacterRequest here = host;
+    AnnounceCharacterRequest here = host;
     here.SessionId = session.CharacterId(kOtherPeer);
     session.Receive(kOtherPeer, here);
     CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
@@ -421,7 +421,7 @@ TEST_CASE("Party tether: a player brought to the party gets the players' charact
           "[HostAuthority][Characters]")
 {
     Session session;
-    AssignCharacterRequest host;
+    AnnounceCharacterRequest host;
     host.SessionId = session.CharacterId(kHost);
     host.ReferenceId = GameId(0, 0x14);
     host.CellId = GameId(0, 0x32AE7);
@@ -432,7 +432,7 @@ TEST_CASE("Party tether: a player brought to the party gets the players' charact
     session.Spawns.push_back(hostSpawn);
 
     // It joins in Riverwood and is sent to QASmoke; the copies made at its join may be gone by its arrival.
-    AssignCharacterRequest away = host;
+    AnnounceCharacterRequest away = host;
     away.SessionId = session.CharacterId(kPeer);
     away.CellId = GameId(0, 0x9732);
     away.WorldSpaceId = GameId(0, 0x3C);
@@ -458,7 +458,7 @@ TEST_CASE("Party tether: a player brought to the party outdoors gets them where 
           "[HostAuthority][Characters]")
 {
     Session session;
-    AssignCharacterRequest host;
+    AnnounceCharacterRequest host;
     host.SessionId = session.CharacterId(kHost);
     host.ReferenceId = GameId(0, 0x14);
     host.CellId = GameId(0, 0x9732);
@@ -468,7 +468,7 @@ TEST_CASE("Party tether: a player brought to the party outdoors gets them where 
 
     // Four cells off in Tamriel, as Skyrim orders it: its assignment, then where it was as it joined (the same
     // worldspace: "with the host"), then its arrival by the party's travel.
-    AssignCharacterRequest away = host;
+    AnnounceCharacterRequest away = host;
     away.SessionId = session.CharacterId(kPeer);
     away.CellId = GameId(0, 0x9740);
     away.Position = glm::vec3(4 * 4096.f + 100.f, 100.f, 0.f);
@@ -487,7 +487,7 @@ TEST_CASE("Party tether: a player brought to the party outdoors gets them where 
 TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sent to it", "[HostAuthority][Characters]")
 {
     Session session;
-    AssignCharacterRequest host;
+    AnnounceCharacterRequest host;
     host.SessionId = session.CharacterId(kHost);
     host.ReferenceId = GameId(0, 0x14);
     host.CellId = GameId(0, 0x9732);
@@ -496,7 +496,7 @@ TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sen
     session.Receive(kHost, host);
 
     // In Tamriel too, but four cells (4096 units each) away: sent to the host's player.
-    AssignCharacterRequest away = host;
+    AnnounceCharacterRequest away = host;
     away.SessionId = session.CharacterId(kPeer);
     away.CellId = GameId(0, 0x9740);
     away.Position = glm::vec3(4 * 4096.f + 100.f, 100.f, 0.f);
@@ -507,7 +507,7 @@ TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sen
     CHECK(cTravels[0]->Position == glm::vec3(100.f, 100.f, 0.f));
 
     // Two cells away, in its loaded grid: stays.
-    AssignCharacterRequest near = host;
+    AnnounceCharacterRequest near = host;
     near.SessionId = session.CharacterId(kOtherPeer);
     near.Position = glm::vec3(2 * 4096.f + 100.f, 100.f, 0.f);
     session.Receive(kOtherPeer, near);
@@ -594,7 +594,7 @@ TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared fir
     const uint32_t cPeerPlayer = session.Character(kPeer);
 
     // A tinted NPC of the host's, announced as a player joins: its spawn carries the texture names.
-    AssignCharacterRequest announce;
+    AnnounceCharacterRequest announce;
     announce.SessionId = session.NewCharacterId();
     announce.ReferenceId = GameId(1, 0x2000);
     Tints::Entry tint;
@@ -626,4 +626,136 @@ TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared fir
         CHECK(cActions[0].EventName == "MRh_SpellAimedStart");
         CHECK(cActions[0].TargetEventName == "BeginCastRight");
     }
+}
+
+TEST_CASE("Mounts: a player getting on the host's horse makes it its game's to move", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    MountRequest mount;
+    mount.RiderId = cPeerPlayer;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount);
+    // Every game hears it, the rider's to take the horse.
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+    {
+        REQUIRE(session.SentTo<NotifyMount>(cTo).size() == 1);
+        CHECK(session.SentTo<NotifyMount>(cTo)[0]->MountId == cHorse);
+    }
+
+    // Its rider's game moves it now; the host's no longer does.
+    session.Outbox.clear();
+    ReferencesMoveRequest ridden;
+    ridden.Updates[cHorse] = {};
+    session.Receive(kPeer, ridden);
+    REQUIRE(session.SentTo<NotifyReferencesMove>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyReferencesMove>(kOtherPeer)[0]->Updates.contains(cHorse));
+    session.Outbox.clear();
+    session.Receive(kHost, ridden);
+    CHECK(session.SentTo<NotifyReferencesMove>(kOtherPeer).empty());
+}
+
+TEST_CASE("Mounts: getting off gives the horse back to the host", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    MountRequest mount;
+    mount.RiderId = cPeerPlayer;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount);
+
+    DismountRequest dismount;
+    dismount.RiderId = cPeerPlayer;
+    dismount.MountId = cHorse;
+    session.Receive(kOtherPeer, dismount); // not its rider
+    CHECK(session.SentTo<NotifyDismount>(kHost).empty());
+
+    session.Receive(kPeer, dismount);
+    // Every game hears it, the host's to take the horse back.
+    for (const auto cTo : {kHost, kPeer, kOtherPeer})
+    {
+        REQUIRE(session.SentTo<NotifyDismount>(cTo).size() == 1);
+        CHECK(session.SentTo<NotifyDismount>(cTo)[0]->MountId == cHorse);
+    }
+
+    // The host's game moves it again; the rider's no longer does.
+    session.Outbox.clear();
+    ReferencesMoveRequest moved;
+    moved.Updates[cHorse] = {};
+    session.Receive(kPeer, moved);
+    CHECK(session.SentTo<NotifyReferencesMove>(kOtherPeer).empty());
+    session.Receive(kHost, moved);
+    CHECK(session.SentTo<NotifyReferencesMove>(kOtherPeer).size() == 1);
+}
+
+TEST_CASE("Mounts: a rider leaving gives its horse back to the host, which keeps it", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cHorse = session.Character(kHost);
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    MountRequest mount;
+    mount.RiderId = cPeerPlayer;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount);
+    session.Outbox.clear();
+
+    session.Leave(kPeer);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cRemoved = session.SentTo<NotifyRemoveCharacter>(cTo);
+        CHECK(std::ranges::none_of(cRemoved, [&](const auto* apRemove) { return apRemove->SessionId == cHorse; }));
+        REQUIRE(session.SentTo<NotifyDismount>(cTo).size() == 1);
+        CHECK(session.SentTo<NotifyDismount>(cTo)[0]->MountId == cHorse);
+    }
+    // The host's game moves it again.
+    session.Outbox.clear();
+    ReferencesMoveRequest moved;
+    moved.Updates[cHorse] = {};
+    session.Receive(kHost, moved);
+    CHECK(session.SentTo<NotifyReferencesMove>(kOtherPeer).size() == 1);
+}
+
+TEST_CASE("Mounts: the host's NPC on its horse reaches the others; no one mounts a rider not theirs", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cRider = session.Character(kHost);
+    const uint32_t cHorse = session.Character(kHost);
+
+    MountRequest mount;
+    mount.RiderId = cRider;
+    mount.MountId = cHorse;
+    session.Receive(kPeer, mount); // not its rider
+    CHECK(session.Outbox.empty());
+
+    session.Receive(kHost, mount);
+    CHECK(session.SentTo<NotifyMount>(kHost).empty());
+    for (const auto cTo : {kPeer, kOtherPeer})
+        CHECK(session.SentTo<NotifyMount>(cTo).size() == 1);
+}
+
+TEST_CASE("Characters: a player's effects go into its record, for the spawns made later", "[HostAuthority][Characters]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+
+    RequestActiveEffects effects;
+    effects.SessionId = cPeerPlayer;
+    effects.EffectIds = {GameId(0, 0xB94EC)};
+    session.Receive(kPeer, effects);
+    REQUIRE(session.SentTo<NotifyActiveEffects>(kHost).size() == 1);
+
+    // A player joining later gets it as it is now, not as it was announced.
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(cLate);
+    const auto cPeer = std::ranges::find_if(cSpawns, [&](const auto* apSpawn) { return apSpawn->SessionId == cPeerPlayer; });
+    REQUIRE(cPeer != cSpawns.end());
+    CHECK((*cPeer)->EffectIds == effects.EffectIds);
 }

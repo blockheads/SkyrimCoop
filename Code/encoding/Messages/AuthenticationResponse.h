@@ -3,7 +3,6 @@
 #include "Message.h"
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
-#include <Structs/ServerSettings.h>
 
 struct AuthenticationResponse final : NotifyMessage
 {
@@ -14,9 +13,8 @@ struct AuthenticationResponse final : NotifyMessage
         kAccepted,
         kWrongVersion,
         kModsMismatch,
-        kClientModsDisallowed,
-        kWrongPassword,
-        kServerFull,
+        // Keep active refusal codes stable after the unused upstream reasons.
+        kSessionFull = 5,
         kWrongGame,
     };
 
@@ -28,14 +26,14 @@ struct AuthenticationResponse final : NotifyMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const AuthenticationResponse& achRhs) const noexcept { return GetOpcode() == achRhs.GetOpcode() && Type == achRhs.Type && Version == achRhs.Version && Game == achRhs.Game && UserMods == achRhs.UserMods && Settings == achRhs.Settings && PlayerId == achRhs.PlayerId && CharacterId == achRhs.CharacterId; }
+    bool operator==(const AuthenticationResponse& achRhs) const noexcept { return GetOpcode() == achRhs.GetOpcode() && Type == achRhs.Type && Version == achRhs.Version && Game == achRhs.Game && UserMods == achRhs.UserMods && Difficulty == achRhs.Difficulty && PlayerId == achRhs.PlayerId && CharacterId == achRhs.CharacterId; }
 
     ResponseType Type;
     // The host's build and game: what a refused game differs from.
     std::string Version;
     GameVersions Game{};
     Mods UserMods{};
-    ServerSettings Settings{};
+    uint32_t Difficulty{};
     uint32_t PlayerId{};
     // The session id of the player's character, which its game announces under it.
     uint32_t CharacterId{};

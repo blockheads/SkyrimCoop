@@ -4,7 +4,7 @@
 // entry makes the opcode k<Name> and the message factories' entry (RequestMessageFactory.h, NotifyMessageFactory.h).
 #define COOP_REQUESTS(X)            \
     X(AuthenticationRequest)        \
-    X(AssignCharacterRequest)       \
+    X(AnnounceCharacterRequest)       \
     X(ReferencesMoveRequest)        \
     X(RequestFactionsChanges)       \
     X(RequestActorValueChanges)     \
@@ -51,7 +51,8 @@
     X(PlayerNativeResultRequest)    \
     X(EffectFlashRequest)           \
     X(PartyNativeRequest)           \
-    X(WorldCallRequest)
+    X(WorldCallRequest)             \
+    X(DismountRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -104,7 +105,8 @@
     X(NotifyPlayerNativeResult)    \
     X(NotifyEffectFlash)           \
     X(NotifyPartyNative)           \
-    X(NotifyWorldCall)
+    X(NotifyWorldCall)             \
+    X(NotifyDismount)
 
 #define COOP_OPCODE(aName) k##aName,
 

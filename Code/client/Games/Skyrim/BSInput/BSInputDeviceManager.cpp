@@ -34,12 +34,6 @@ static Hooks::Initializer s_initInputDeviceManager(
     []()
     {
         const HookGate cGate(__FILE__);
-        const VersionDbPtr<void> pollInputDevices(68617);
-        const VersionDbPtr<void> sendEvent(68655);
-
-        BSInputDeviceManager_PollInputDevices = reinterpret_cast<decltype(BSInputDeviceManager_PollInputDevices)>(pollInputDevices.GetPtr());
-        InputEventSource_SendEvent = reinterpret_cast<decltype(InputEventSource_SendEvent)>(sendEvent.GetPtr());
-
-        HOOK_IMMEDIATE(&BSInputDeviceManager_PollInputDevices, &Hook_BSInputDeviceManager_PollInputDevices);
-        HOOK_IMMEDIATE(&InputEventSource_SendEvent, &Hook_InputEventSource_SendEvent);
+        HOOK_ID_IMMEDIATE(68617, &BSInputDeviceManager_PollInputDevices, &Hook_BSInputDeviceManager_PollInputDevices);
+        HOOK_ID_IMMEDIATE(68655, &InputEventSource_SendEvent, &Hook_InputEventSource_SendEvent);
     });

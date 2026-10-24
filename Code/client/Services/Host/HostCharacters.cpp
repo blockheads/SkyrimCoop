@@ -3,9 +3,10 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 
-#include <Messages/AssignCharacterRequest.h>
+#include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/EnterCellRequest.h>
+#include <Messages/Relayed.h>
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyRespawn.h>
@@ -28,10 +29,13 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     , m_players(acPlayers)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostCharacters::OnAssignCharacter);
+    aAuthority.On(*this, &HostCharacters::OnAnnounceCharacter);
     aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);
     aAuthority.On(*this, &HostCharacters::OnRespawn);
     aAuthority.On(*this, &HostCharacters::OnPlayerRespawn);
+    aAuthority.On(*this, &HostCharacters::OnMount);
+    aAuthority.On(*this, &HostCharacters::OnDismount);
+    aAuthority.On(*this, &HostCharacters::OnActiveEffects);
     aAuthority.On(*this, &HostCharacters::OnMovement);
     aAuthority.On(*this, &HostCharacters::OnEnterCell);
 }
@@ -61,7 +65,7 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
         m_players.SendToOthers(notify, aSender, Net::kUnreliable);
 }
 
-void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     const bool cIsPlayer = acRequest.ReferenceId == GameId{0, 0x14};
     if (!cIsPlayer && aSender != m_players.Host())
@@ -92,7 +96,7 @@ void HostCharacters::OnAssignCharacter(const AssignCharacterRequest& acRequest, 
     }
 
     const uint32_t cPlayerId = cIsPlayer ? m_players.PlayerIdOf(aSender) : 0;
-    const auto cSpawn = NotifyCharacterSpawn::FromAssignment(acRequest, cSessionId, cPlayerId);
+    const auto cSpawn = NotifyCharacterSpawn::FromAnnouncement(acRequest, cSessionId, cPlayerId);
 
     auto& character = m_characters[cSessionId];
     character.Owner = aSender;
@@ -157,6 +161,59 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
     m_players.SendToOthers(notify, aSender, Net::kReliable);
 }
 
+void HostCharacters::OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    const auto cMount = m_characters.find(acRequest.MountId);
+    if (OwnerOf(acRequest.RiderId) != aSender || cMount == m_characters.end() || cMount->second.PlayerRecord)
+    {
+        spdlog::warn("HostCharacters: {:x} put {:x} on {:x}, which it cannot", aSender, acRequest.RiderId, acRequest.MountId);
+        return;
+    }
+    NotifyMount notify;
+    static_cast<Payloads::Mount&>(notify) = acRequest;
+    if (std::exchange(cMount->second.Owner, aSender) == aSender)
+        return m_players.SendToOthers(notify, aSender);
+    spdlog::info("HostCharacters: {:x} rides {:x}, which is its game's now", aSender, acRequest.MountId);
+    m_players.SendToAll(notify);
+}
+
+void HostCharacters::OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    const auto cMount = m_characters.find(acRequest.MountId);
+    if (OwnerOf(acRequest.RiderId) != aSender || cMount == m_characters.end() || cMount->second.PlayerRecord ||
+        cMount->second.Owner != aSender)
+    {
+        spdlog::warn("HostCharacters: {:x} took {:x} off {:x}, which it cannot", aSender, acRequest.RiderId, acRequest.MountId);
+        return;
+    }
+    GiveBack(acRequest.MountId, acRequest.RiderId);
+}
+
+void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId) noexcept
+{
+    const ConnectionId_t cHost = m_players.Host();
+    const auto cMount = m_characters.find(aMountId);
+    if (!cHost || cMount == m_characters.end() || std::exchange(cMount->second.Owner, cHost) == cHost)
+        return;
+    spdlog::info("HostCharacters: {:x} is the host's again", aMountId);
+    NotifyDismount notify;
+    notify.RiderId = aRiderId;
+    notify.MountId = aMountId;
+    m_players.SendToAll(notify);
+}
+
+void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept
+{
+    const auto it = m_characters.find(acRequest.SessionId);
+    if (it == m_characters.end() || it->second.Owner != aSender)
+        return;
+    if (auto& record = it->second.PlayerRecord)
+        record->EffectIds = acRequest.EffectIds;
+    NotifyActiveEffects notify;
+    static_cast<Payloads::ActiveEffects&>(notify) = acRequest;
+    m_players.SendToOthers(notify, aSender);
+}
+
 void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t aSender) const noexcept
 {
     // Its copies come back from death badly otherwise: everyone else spawns it again.
@@ -173,14 +230,18 @@ void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t
 
 void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
+    const uint32_t cRider = PlayerCharacterOf(aPlayer);
     m_playerCharacters.erase(aPlayer);
     m_places.erase(aPlayer);
     m_aheadOfHost.erase(aPlayer);
     m_broughtToParty.erase(aPlayer);
-    std::vector<uint32_t> owned;
+    std::vector<uint32_t> owned, ridden;
     for (const auto& [cSessionId, cCharacter] : m_characters)
         if (cCharacter.Owner == aPlayer)
-            owned.push_back(cSessionId);
+            (cCharacter.PlayerRecord ? owned : ridden).push_back(cSessionId);
+    // Anything else it owns is a mount it rides: the host's again, the rider gone.
+    for (const uint32_t cSessionId : ridden)
+        GiveBack(cSessionId, cRider);
     for (const uint32_t cSessionId : owned)
         RemoveCharacter(cSessionId);
 }

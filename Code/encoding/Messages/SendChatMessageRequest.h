@@ -17,8 +17,7 @@ struct SendChatMessageRequest final : RequestMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const SendChatMessageRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && MessageType == acRhs.MessageType && ChatMessage == acRhs.ChatMessage; }
+    bool operator==(const SendChatMessageRequest& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && ChatMessage == acRhs.ChatMessage; }
 
-    ChatMessageType MessageType;
     std::string ChatMessage;
 };

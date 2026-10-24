@@ -317,14 +317,9 @@ static Hooks::Initializer s_equipmentHooks(
     []()
     {
         const HookGate cGate(__FILE__);
-        POINTER_SKYRIMSE(TEquip, s_equipFunc, 38929);
-        POINTER_SKYRIMSE(TUnEquip, s_unequipFunc, 38934);
 
-        RealEquip = s_equipFunc.Get();
-        RealUnEquip = s_unequipFunc.Get();
-
-        HOOK(&RealEquip, EquipHook);
-        HOOK(&RealUnEquip, UnEquipHook);
+        HOOK_ID(38929, &RealEquip, EquipHook);
+        HOOK_ID(38934, &RealUnEquip, UnEquipHook);
         HOOK_ID(38928, &RealEquipSpell, EquipSpellHook);
         HOOK_ID(38933, &RealUnEquipSpell, UnEquipSpellHook);
         HOOK_ID(38930, &RealEquipShout, EquipShoutHook);
