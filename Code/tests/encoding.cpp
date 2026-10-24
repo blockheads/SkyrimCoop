@@ -129,7 +129,7 @@ TEST_CASE("Session packets carry only difficulty and chat content", "[encoding.s
         request.Level = 7;
         request.PlayerTime = {0.f, 0.f, 0, 0, 0, 0};
         std::vector<uint8_t> expected{uint8_t(kAuthenticationRequest), 1, 2, 1, 'v', 0, 0x20, 0, 'L', 0, 0, 0, 0, 7};
-        expected.resize(26, 0);
+        expected.resize(28, 0); // ... an empty player key, not from the main menu
         check(request, RequestMessageFactory{}, expected);
     }
 
@@ -695,6 +695,8 @@ TEST_CASE("Packets", "[encoding.packets]")
             sendMessage.ActorId = 7;
             sendMessage.AppearanceBuffer = "werewolf";
             sendMessage.ChangeFlags = 0x2000840;
+            sendMessage.FaceTints.Entries.push_back({"SkinTone", 0.5f, 0x8000FF, 6});
+            sendMessage.Weight = 12.5f;
             sendMessage.HasState = cHasState;
             if (cHasState)
             {
@@ -738,6 +740,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         AnnounceCharacterRequest sendMessage, recvMessage;
         sendMessage.SessionId = 14523698;
         sendMessage.AppearanceBuffer = "toto";
+        sendMessage.Weight = 87.5f;
         sendMessage.CellId.BaseId = 45;
         sendMessage.FormId.ModId = 48;
         sendMessage.ReferenceId.BaseId = 456799;
@@ -765,6 +768,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         // The spawn others get carries the same.
         NotifyCharacterSpawn sendSpawn = NotifyCharacterSpawn::FromAnnouncement(sendMessage, 7, 0), recvSpawn;
         CHECK(sendSpawn.EffectIds == sendMessage.EffectIds);
+        CHECK(sendSpawn.Weight == 87.5f);
         Buffer spawnBuff(1000);
         Buffer::Writer spawnWriter(&spawnBuff);
         sendSpawn.Serialize(spawnWriter);
@@ -949,5 +953,72 @@ TEST_CASE("Packets", "[encoding.packets]")
         recvMessage.DeserializeRaw(reader);
 
         REQUIRE(recvMessage.Updates[1].UpdatedMovement == sendMessage.Updates[1].UpdatedMovement);
+    }
+}
+
+TEST_CASE("Joining from the main menu", "[encoding.join]")
+{
+    const auto roundTrip = [](const auto& acMessage, const auto& acFactory) {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        acMessage.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = acFactory.Extract(reader);
+        REQUIRE(decoded);
+        using Message = std::remove_cvref_t<decltype(acMessage)>;
+        CHECK(*CastUnique<Message>(std::move(decoded)) == acMessage);
+        CHECK(reader.GetBitPosition() == writer.GetBitPosition());
+    };
+
+    SECTION("A player's character record goes whole")
+    {
+        PlayerRecordRequest request;
+        PlayerRecord& record = request.Record;
+        record.Key = "steam:76561198000000001";
+        record.Name = "Lydia";
+        record.Level = 23;
+        record.Base = std::string("\x01\x02\x00\xFF", 4);
+        record.BaseFlags = 0x03000E36;
+        record.FaceTints.Entries.push_back({"SkinTone", 0.5f, 0xFF8080, 1});
+        record.Weight = 100.f;
+        record.LevelExperience = 140.5f;
+        record.LevelThreshold = 650.f;
+        record.Skills[0] = {35.f, 12.25f, 90.f, 0};
+        record.Skills[17] = {100.f, 0.f, 0.f, 2};
+        record.PerkPoints = 2;
+        record.Perks = {{GameId(0, 0xBABE4), 1}, {GameId(0, 0x79342), 3}};
+        record.Spells = {GameId(0, 0x12FCD), GameId(0, 0x12FD0)};
+        record.Values = {{24, 250.f}, {25, 110.f}, {26, 180.f}};
+        record.Extras["racemenu"] = std::string(70000, 'm'); // past a string's 64 KB
+        Inventory::Entry sword;
+        sword.BaseId = GameId(0, 0x12EB7);
+        sword.Count = 1;
+        sword.ExtraWorn = true;
+        Inventory::Entry gold;
+        gold.BaseId = GameId(0, 0xF);
+        gold.Count = 1250;
+        record.Items.Entries = {sword, gold};
+        record.Cell = GameId(0, 0x31D2E);
+        record.WorldSpace = GameId(0, 0x3C);
+        record.Position = {1024.5f, -2048.25f, 64.f};
+        roundTrip(request, RequestMessageFactory{});
+    }
+
+    SECTION("A save chunk carries its place and bytes")
+    {
+        NotifySaveChunk chunk;
+        chunk.Offset = 65536;
+        chunk.Total = 3'500'000;
+        chunk.Data = std::string(NotifySaveChunk::kMaxData, '\x7F');
+        roundTrip(chunk, NotifyMessageFactory{});
+    }
+
+    SECTION("The join request names the player and whether it joins from the main menu")
+    {
+        AuthenticationRequest request;
+        request.Version = "v";
+        request.PlayerKey = "id:0123456789abcdef";
+        request.WantsWorld = true;
+        roundTrip(request, RequestMessageFactory{});
     }
 }

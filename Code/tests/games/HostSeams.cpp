@@ -8,6 +8,10 @@
 #include <Messages/ReferencesMoveRequest.h>
 #include <FormIds.h>
 #include <Events/DifficultyChangeEvent.h>
+#include <Events/GameSavingEvent.h>
+#include <Bridges/IJoinBridge.h>
+#include <Services/JoinService.h>
+#include <Services/SaveService.h>
 #include <Events/UpdateEvent.h>
 #include <RunningGame.h>
 #include <Services/AiStateService.h>
@@ -29,6 +33,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
 {
     Listen<UpdateEvent, &HostService::OnUpdate>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
+    Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
 }
 
 HostService::~HostService() noexcept
@@ -96,6 +101,17 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
         engine.SetItems(FormIdOf(acObject), FormIdOf(acItem), static_cast<int32_t>(aCount));
     };
     game.ReadDifficulty = [&engine] { return engine.GetDifficulty(); };
+    game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
+    game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };
+    game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
+        auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
+        if (!files)
+            return std::nullopt;
+        return SaveTransfer::Split(SaveTransfer::Pack(*files));
+    };
+    game.StorePlace = [this](const std::string& acKey, const GameId& acCell, const std::array<float, 3>& acPosition) {
+        m_world.ctx().at<SaveService>().GetRecords().SetPlace(acKey, acCell, acPosition);
+    };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(engine);
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
@@ -130,6 +146,12 @@ void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const
 {
     if (IsHosting())
         m_pAuthority->DifficultyChanged(acEvent.Difficulty);
+}
+
+void HostService::OnGameSaving(const GameSavingEvent&) const noexcept
+{
+    if (IsHosting())
+        m_pAuthority->Saving();
 }
 
 void HostService::OnUpdate(const UpdateEvent&) noexcept

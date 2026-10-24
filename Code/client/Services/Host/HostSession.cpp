@@ -5,6 +5,7 @@
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayers.h>
+#include <Services/Host/HostSaveTransfer.h>
 #include <Services/Host/JoinRefusal.h>
 
 #include <BuildVersion.h>
@@ -17,10 +18,11 @@
 #include <Structs/LoadOrder.h>
 
 HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
-                         const HostGame& acGame) noexcept
+                         HostSaveTransfer& aTransfer, const HostGame& acGame) noexcept
     : m_network(aNetwork)
     , m_players(aPlayers)
     , m_characters(aCharacters)
+    , m_transfer(aTransfer)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostSession::OnAuthentication);
@@ -87,8 +89,24 @@ void HostSession::OnAuthentication(const AuthenticationRequest& acRequest, Conne
         return refuse(kSessionFull);
     }
 
+    if (acRequest.WantsWorld)
+    {
+        const bool cKnown = m_game.HasRecord && m_game.HasRecord(acRequest.PlayerKey);
+        if (!cKnown && !acRequest.HasCharacter)
+        {
+            spdlog::info("HostSession: {:x} '{}' has no character in the host's save and brings none: refused", aSender, acRequest.PlayerKey);
+            return refuse(kNoCharacter);
+        }
+        spdlog::info("HostSession: {:x} '{}' joins ({}): the host's save follows", aSender, acRequest.PlayerKey,
+                     cKnown ? "the host's save keeps its character" : "it brings its character");
+        response.Type = kWorldFollows;
+        m_network.Send(aSender, response);
+        m_transfer.Want(aSender);
+        return;
+    }
+
     response.Type = kAccepted;
-    response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_network.HostConnection());
+    response.PlayerId = m_players.Add(aSender, acRequest.Username, acRequest.Level, aSender == m_network.HostConnection(), acRequest.PlayerKey);
     response.CharacterId = m_characters.ReservePlayerCharacter(aSender);
     response.Difficulty = m_game.ReadDifficulty();
     m_network.Send(aSender, response);

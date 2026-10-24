@@ -25,7 +25,8 @@ struct AuthenticationRequest final : RequestMessage
     {
         return GetOpcode() == achRhs.GetOpcode() && Game == achRhs.Game && Version == achRhs.Version && UserMods == achRhs.UserMods && Username == achRhs.Username &&
                WorldSpaceId == achRhs.WorldSpaceId && CellId == achRhs.CellId && Level == achRhs.Level
-            && PlayerTime == achRhs.PlayerTime;
+            && PlayerTime == achRhs.PlayerTime && PlayerKey == achRhs.PlayerKey && WantsWorld == achRhs.WantsWorld &&
+               HasCharacter == achRhs.HasCharacter;
     }
 
     GameVersions Game{};
@@ -36,4 +37,10 @@ struct AuthenticationRequest final : RequestMessage
     GameId CellId{};
     uint16_t Level{};
     TimeModel PlayerTime{};
+    // The player's stable id, its character's key in the host's save (PlayerRecord::Key).
+    std::string PlayerKey{};
+    // The host's gate, then its save (JoinService): no player yet.
+    bool WantsWorld{};
+    // Its game brings a character of its own (joined from a game it plays), for a host's save that has none.
+    bool HasCharacter{};
 };

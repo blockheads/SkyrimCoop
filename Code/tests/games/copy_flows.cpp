@@ -5,6 +5,9 @@
 
 #include <Components.h>
 #include <Events/DialogueEvent.h>
+#include <Events/PlayerLooksChangeEvent.h>
+
+#include <ranges>
 
 namespace
 {
@@ -38,6 +41,79 @@ void Plugins(FakeEngine& aEngine)
 {
     aEngine.Actors.at(FakeEngine::kPlayer).Cell = kSmoke;
     aEngine.LoadCell(kSmoke);
+}
+
+constexpr uint32_t kNordVampireRace = 0x00088794;
+constexpr uint32_t kKhajiitRace = 0x00013745;
+constexpr uint32_t kBretonRace = 0x00013741;
+
+// That game's copy of the other game's player (a party of two), 0 while it has none.
+uint32_t PlayerCopy(const FakeEngine& acEngine)
+{
+    for (const uint32_t cId : acEngine.CopiesOf())
+        if (acEngine.Actors.at(cId).Player)
+            return cId;
+    return 0;
+}
+
+// The copies that game made, ever (each respawn makes a new one).
+size_t CopiesMade(const FakeEngine& acEngine)
+{
+    return std::ranges::fold_left(acEngine.Spawned | std::views::values, size_t{0}, std::plus{});
+}
+
+// That game's copy of acOwner's player wears its looks: its base's save data, weight, and the tints FaceGenSystem
+// paints on its head.
+bool WearsLooks(World& aGame, const FakeEngine& acOwner)
+{
+    const FakeEngine& cEngine = Party::Engine(aGame);
+    const uint32_t cCopy = PlayerCopy(cEngine);
+    if (!cCopy)
+        return false;
+    const auto& cBase = cEngine.Npcs.at(cEngine.GetActorBaseFormId(cCopy));
+    const FaceGenComponent* cpFace = nullptr;
+    for (const auto cEntity : aGame.view<FormIdComponent, FaceGenComponent>())
+        if (aGame.get<FormIdComponent>(cEntity).Id == cCopy)
+            cpFace = &aGame.get<FaceGenComponent>(cEntity);
+    return cBase.Looks == acOwner.Player.Base && cBase.Weight == acOwner.Player.Weight && cpFace &&
+           cpFace->FaceTints == acOwner.Player.FaceTints;
+}
+
+// A player's tints as the race menu leaves them: skin tone and a war paint.
+Tints PaintedTints(uint32_t aPaint)
+{
+    Tints tints;
+    tints.Entries.push_back({"Actors\\Character\\Character Assets\\TintMasks\\SkinTone.dds", 1.f, 0xC09070, 6});
+    tints.Entries.push_back({"Actors\\Character\\Character Assets\\TintMasks\\FemaleHeadWarPaint_04.dds", 0.8f, aPaint, 3});
+    return tints;
+}
+
+// The times a game's player's looks changed for its copies (PlayerService's PlayerLooksChangeEvent).
+struct LooksChanges
+{
+    explicit LooksChanges(World& aGame)
+        : Connection(aGame.GetDispatcher().sink<PlayerLooksChangeEvent>().connect<&LooksChanges::On>(*this))
+    {
+    }
+    void On(const PlayerLooksChangeEvent&) { ++Count; }
+    size_t Count = 0;
+    entt::scoped_connection Connection;
+};
+
+// Each player in a look of their own: a Nord with a war paint, at Skyrim.esm's player's build.
+void PaintedPlayers(FakeEngine& aEngine)
+{
+    Plugins(aEngine);
+    aEngine.Player.Base = "race 13746";
+    aEngine.Player.FaceTints = PaintedTints(0x202020);
+    aEngine.Player.Weight = 100.f;
+}
+
+// Each player at Skyrim.esm's player's build (weight 100), past a new NPC's 50.
+void HeavyPlayers(FakeEngine& aEngine)
+{
+    Plugins(aEngine);
+    aEngine.Player.Weight = 100.f;
 }
 
 // The plugins' placed NPCs too: Vilkas in QASmoke, Aela in the sinkhole.
@@ -86,7 +162,7 @@ SCENARIO("An NPC the host's game loads gets a copy on the guest's game", "[copie
 
 SCENARIO("A guest's player gets a copy on the host's game", "[copies]")
 {
-    Party party(1, Plugins);
+    Party party(1, HeavyPlayers);
     FakeEngine& host = Party::Engine(party.Host());
 
     const auto cPlayerCopies = [&] {
@@ -97,11 +173,67 @@ SCENARIO("A guest's player gets a copy on the host's game", "[copies]")
     };
     party.Until([&] { return cPlayerCopies() == 1; }, "the host's game makes a copy of the guest's player");
     party.Agree("each game has the other's player");
+    THEN("each player's copy has its player's build (its weight, which the base's save data leaves out)")
+    {
+        FakeEngine& guest = Party::Engine(party.Guest());
+        for (FakeEngine* pGame : {&host, &guest})
+            for (const uint32_t cId : pGame->CopiesOf())
+                if (pGame->Actors.at(cId).Player)
+                    CHECK(pGame->GetActorBaseWeight(cId) == 100.f);
+    }
 
     WHEN("the guest leaves")
     {
         party.Leave(party.Guest());
         party.Until([&] { return cPlayerCopies() == 0; }, "the host's copy of the guest's player goes");
+    }
+}
+
+SCENARIO("A player's looks change: its copies are made again from them", "[copies]")
+{
+    Party party(1, PaintedPlayers);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Until([&] { return WearsLooks(party.Host(), guest) && WearsLooks(party.Guest(), host); },
+                "each game's copy of the other's player wears its looks");
+    party.Agree("each game has the other's player");
+
+    WHEN("the guest's player catches vampirism: its race switches, its skin with it")
+    {
+        party.As(party.Guest(), [&] {
+            guest.Player.FaceTints = PaintedTints(0x101010);
+            guest.PlayerSwitchesRace(kNordVampireRace);
+        });
+        party.Until([&] { return WearsLooks(party.Host(), guest); }, "the host's copy is made again as a vampire, in its new skin");
+        party.Agree("the games agree on the guest's player");
+    }
+
+    WHEN("the guest's player tries races in the race menu, then a new build and war paint, and closes it")
+    {
+        const size_t cMade = CopiesMade(host);
+        const LooksChanges cChanges(party.Guest());
+        party.As(party.Guest(), [&] {
+            guest.PlayerUsesRaceMenu([&] {
+                guest.PlayerSwitchesRace(kKhajiitRace);
+                guest.PlayerSwitchesRace(kBretonRace);
+                guest.Player.Weight = 0.f;
+                guest.Player.FaceTints = PaintedTints(0x8000FF);
+            });
+        });
+        party.Until([&] { return WearsLooks(party.Host(), guest); }, "the host's copy wears what the menu made");
+        party.Agree("the games agree on the guest's player");
+        THEN("the copy is made again once, when the menu closes, not for each race tried")
+        {
+            CHECK(cChanges.Count == 1);
+            CHECK(CopiesMade(host) == cMade + 1);
+        }
+    }
+
+    WHEN("the host's player switches race")
+    {
+        party.As(party.Host(), [&] { host.PlayerSwitchesRace(kKhajiitRace); });
+        party.Until([&] { return WearsLooks(party.Guest(), host); }, "the guest's copy of the host's player is made again as a Khajiit");
+        party.Agree("the games agree on the host's player");
     }
 }
 

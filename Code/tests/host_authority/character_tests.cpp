@@ -20,6 +20,7 @@ TEST_CASE("Characters: a player's own goes under the id from its join, everyone 
     announce.SessionId = session.CharacterId(kPeer);
     announce.ReferenceId = GameId(0, 0x14);
     announce.AppearanceBuffer = "face";
+    announce.Weight = 100.f;
     announce.EffectIds = {GameId(0, 0x4B2D9)};
     session.Receive(kPeer, announce);
     const uint32_t cPlayer = announce.SessionId;
@@ -41,6 +42,7 @@ TEST_CASE("Characters: a player's own goes under the id from its join, everyone 
         REQUIRE(cSpawns.size() == 1);
         CHECK(cSpawns[0]->SessionId == cPlayer);
         CHECK(cSpawns[0]->AppearanceBuffer == "face");
+        CHECK(cSpawns[0]->Weight == 100.f);
         CHECK(cSpawns[0]->EffectIds == announce.EffectIds);
     }
 }
@@ -152,11 +154,13 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     Session session;
     const uint32_t cPeerPlayer = session.Character(kPeer);
 
-    // A beast form: the owner sends its new appearance.
+    // New looks (a race, the race menu): the owner sends its appearance, its tints and its weight.
     RequestRespawn respawn;
     respawn.ActorId = cPeerPlayer;
     respawn.AppearanceBuffer = "werewolf";
     respawn.ChangeFlags = 7;
+    respawn.FaceTints.Entries.push_back({"SkinTone", 1.f, 0x101010, 6});
+    respawn.Weight = 0.f;
     session.Receive(kPeer, respawn);
     REQUIRE(session.SentTo<NotifyRespawn>(kHost).size() == 1);
     CHECK(session.SentTo<NotifyRespawn>(kOtherPeer)[0]->ActorId == cPeerPlayer);
@@ -173,6 +177,8 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     REQUIRE(cSpawns.size() == 1);
     CHECK(cSpawns[0]->AppearanceBuffer == "werewolf");
     CHECK(cSpawns[0]->ChangeFlags == 7);
+    CHECK(cSpawns[0]->FaceTints == respawn.FaceTints);
+    CHECK(cSpawns[0]->Weight == 0.f);
     CHECK(cSpawns[0]->Position == movement.Updates[cPeerPlayer].UpdatedMovement.Position);
 }
 

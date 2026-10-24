@@ -14,6 +14,10 @@ export XMAKE_CONFIGDIR="$ROOT/build/msvc-config"
 cd "$ROOT"
 if [[ "${1:-}" == "f" || "${1:-}" == "config" ]]; then
     shift
-    exec xmake f -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" --test_harness=y "$@"
+    exec xmake f -P "$ROOT" -p windows -a x64 --toolchain=clang-cl --sdk="$T/winsysroot" --test_harness=y "$@"
+fi
+# Always this checkout's project: in a git worktree (inside the main checkout) xmake would take the parent's.
+if [[ $# -gt 0 && "$1" != -* ]]; then
+    set -- "$1" -P "$ROOT" "${@:2}"
 fi
 exec xmake "$@"

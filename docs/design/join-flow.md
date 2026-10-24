@@ -15,12 +15,13 @@ as the stages below, so each later feature fills in its stage instead of reworki
 
 ```
 host: loads their save, clicks Host (in game), invites a friend through Steam
-friend: accepts the invite; their game connects from the MAIN MENU (no save of their own)
+friend: accepts the invite; their game connects, from their own game or from the main menu
   1. our mod's build        same commit?               no -> refused (later: update and restart)
   2. game version           same Skyrim runtime?       no -> refused (hard error)
   3. installs identical     same mods, same order?     no -> refused, with the differences
-  4. who are you            account id (Steam id)      known -> their stored character
-                                                       new   -> character creation
+  4. who are you            account id (Steam id)      known -> their character in the host's save
+                                                       new   -> the character of their own game
+                                                                (at the main menu: make one first)
   5. the world              the host sends its save; the friend's game loads it
   6. arrival                the friend's character, in the host's world, next to the host
 while playing: only the host saves; every player's character is saved in the host's save
@@ -82,19 +83,45 @@ No table is kept (3d, 2026-10-23).
 
 ### 4. Who are you: characters live in the host's save
 
-- **Decision: the host stores every player's character, in its own save.** A friend needs no save of
-  their own; the co-op game is one save on the host.
-- **Identity:** an account id, not a character name (today the name is read from the loaded
-  character, which a friend at the main menu does not have). The Steam id (the Steam API runs in
-  process) is the key; a generated key is the fallback.
-- **How it is stored, the way Skyrim stores everything else:** the host's game already holds each
-  friend's character, as its copy of them, synced live. That copy plus what copies do not carry yet
-  (skills, perks, spells and shouts, level) is the record. When the host saves, our plugin writes
-  every player's record into the save's SKSE co-save (the `.skse` file SKSE writes and reads with each
-  save for its plugins). When a friend joins, the host sends what it has: their live state if they
-  were here earlier this session, else the loaded save's record, else nothing (character creation).
-  Loading an older save takes everyone's characters back with it: one world, one timeline.
-- **New player:** Skyrim's character creation in the friend's game, then stored on the host.
+- **Decision: the host stores every player's character, in its own save** (revised 2026-10-24). The co-op game is
+  one save on the host; loading an older save takes everyone's characters back with it: one world, one timeline.
+- **Identity:** an account id, not a character name. The Steam id (the Steam API runs in process) is the key; a
+  generated key is the fallback.
+- **A new player brings a character from their own game.** They start a game of their own (Skyrim's character
+  creation and every mod's: RaceMenu, Alternate Start) or load one of their saves, then join from it. Their game takes
+  their character from its running player before it loads the host's save. That own save is used once: from then on
+  the host's save keeps the character. A friend at the main menu whom the host's save does not know is told to make a
+  character first.
+- **While playing, the friend's game keeps the record current.** It owns its player (direct authority), so the
+  engine counts its experience, levels, perks and items as in a single player game; its game sends the character
+  on joining, on its changes (a level, a perk, a menu closing, a race or look change) and on leaving. The host keeps
+  the newest and writes every friend's into its SKSE co-save when it saves. A look changed mid-session refreshes
+  the friend's copies from the same record.
+- **The record is the engine's own data, split where the engine splits character from world** (research
+  2026-10-24, below): the player base's save data by change flag, and the character parts of the player itself.
+  Mods that add forms (perks, spells, items, races, hair) travel with it; RaceMenu's look through its own preset
+  interface; per-player script state of mods (survival needs, vampire overhauls) stays the host save's until mods
+  are supported (`docs/ideas.md`).
+- Another host's world keeps its own record of the friend; changes made in the friend's own save after their first
+  join do not reach the host's (bringing a character again is a later idea).
+
+#### Where the engine keeps the player (IDA 1.6.1170, 2026-10-24)
+
+- **The player base (`0x7`, `TESNPC::SaveGame` 24777)** writes a section per change flag: `BaseData` (level, sex
+  flag, offsets), `Attributes`, `SpellList` (spells and shouts), `FullName`, `Factions`, `NPCSkills`, `Class`,
+  `Face` (head parts, colours, morphs, presets), `Gender`, `Race`. A late vanilla save's is about 220 bytes. The record
+  takes every section but `Factions`: guild and faction membership is the party's (`party-model.md`).
+- **The player (`0x14`, `PlayerCharacter::SaveGame`, vtable 0x0E)** is one unlabelled blob, about 38 KB late in a
+  game: `Actor::SaveGame` (values, spells, effects, items), then the character (perks `0x4B8`/`0x4D0`/`0x4E8`, skills
+  `0x9B8`, perk points `0xB09`, tints `0xB18`) mixed with the world (quest log, objectives, crime per faction, map
+  markers, teammates, camera). Loading another game's blob would bring that game's journal, so the record reads
+  and writes the character parts through the engine's calls instead.
+- **Elsewhere:** words of power known (`WOOP` records: the party's), misc stats and favourites (global data 0, 109;
+  later), created items such as player-made potions (`0xFF` forms; later).
+- Comparable projects: skymp writes the player base's record into a save and lets the engine load it; Skyrim Together
+  has each player load their own save (each world its own, quests drift); character transfer and New Game Plus
+  mods carry skills, gold and perks and drop items because they break quests. RaceMenu exposes
+  `IPresetInterface::SavePreset/LoadPreset(actor)`, the whole look (morphs, overlays, sculpt, tints) of any actor.
 
 ### 5. The world: the host's save
 
@@ -127,6 +154,92 @@ No table is kept (3d, 2026-10-23).
   quick or auto saves; Skyrim autosaves at load doors and on fast travel, so those are blocked too).
 - Leaving takes the friend back to the main menu; their character stays with the host.
 - Saves on the friend's side are an experimental idea (`docs/ideas.md`).
+
+## As built: stages 4 to 6 (2026-10-24)
+
+The plan, written before building it (revised 2026-10-24: the character comes from the friend's own game, no
+character creation inside the host's save). Built 2026-10-24 as planned, with one change found in Skyrim: the host's
+save and the guest's load run on the engine's main loop between frames (`MainLoopTasks`), not in our update, which runs
+inside the Papyrus VM's update job (`docs/re/systems/save-game.md`); at the main menu the main loop runs our update.
+`+connect_lobby` built 2026-10-24 (GameTests only). Not built yet: the join screen, the RaceMenu adapter.
+Two more found by making a new character and joining (`guest-makes-character-then-joins`): the base's weight is in no
+save section, so the record and the copies' spawn carry it (`Weight`); and a character from another race needs the
+tint masks of its race and sex before its colours go on (`ApplyPlayer` rebuilds them, 40696;
+`docs/re/systems/save-game.md`, "The player in a save").
+
+### The messages, and what each game does
+
+```
+guest (in its own game, or at the main menu)   host (in game, hosting)
+ JoinService::Join(endpoint)
+   in its own game: the character taken now
+     (JoinBridge::ReadPlayer), kept in memory
+   connecting -> checking
+   AuthenticationRequest{build, game, plugins,
+     PlayerKey, WantsWorld, HasCharacter} ─────► HostSession: the gate (build, game, mods, full)
+                                                   no record and no character -> no_character
+                                                   refused -> response {reason}, kick (as today)
+                         ◄───────────────────── AuthenticationResponse{kWorldFollows}
+   receiving_world                               HostSaveTransfer: the host's game saves
+                                                   "SkyrimCoopTransfer" (Save_Impl, device 2: written
+                                                   at once, its co-save with every player's record)
+                                                   .ess + .skse, snappy, 32 KB chunks, a few per frame
+                         ◄───────────────────── NotifySaveChunk{offset, total, data} x N
+   all in: Saves/SkyrimCoopJoin.ess + .skse
+   closes the connection, loading
+   BGSSaveLoadManager::Load_Impl("SkyrimCoopJoin")
+   (co-save load: CharacterRecords gets every
+    record the host's save keeps)
+   TESLoadGameEvent: the record under PlayerKey,
+     else the character it brought, is applied to
+     this game's player (the save's is the host's)
+   AuthenticationRequest{PlayerKey} ───────────► HostSession: accepted as a player (as today);
+                                                   HostPlayers keeps its key
+                         ◄───────────────────── AuthenticationResponse{kAccepted}, copies, world
+   joined: GuestService (and GuestRecord) as
+   today; saving refused from the first step
+   GuestRecord: PlayerRecordRequest{record} ───► HostRecords: kept under its key (CharacterRecords)
+     on joining, on its changes (items,               the host's save (co-save callback): each
+     equipment, experience, a menu closing, a         joined player's record, its position and
+     race change; at most once in 5 s), leaving       cell from the host's copy of it
+```
+
+Over Steam the same runs through the Steam connection's tunnel: `SteamService` hands the join to `JoinService` with
+the tunnel's loopback endpoint, and both connections go through it. A game Steam starts with `+connect_lobby <id>`
+joins that lobby once its main menu is up.
+
+### The character record
+
+`PlayerRecord` (`Code/encoding/Structs/PlayerRecord.h`), one per player, keyed by `Key`:
+
+- `Key`: `steam:<SteamID64>` when the game joined over Steam, else `id:<16 hex digits>` its game generated once and
+  keeps (`My Games/Skyrim Special Edition/SkyrimCoop/player_id`). Not checked by the host (friends' sessions).
+- `Name` (for the host's lists and logs)
+- `Base`, `BaseFlags`: the player base's save data (`FormState` of `0x7`) for its change flags but `Factions`: name,
+  race, sex, face, level, base spells and shouts
+- `Tints`: the face tint layers (as copies carry them)
+- `Skills`: the engine's skill block as it is (`PlayerSkills`: level experience and threshold, each skill's level,
+  experience and threshold, legendary counts); `PerkPoints`
+- `Perks`: the player's perks (`PlayerCharacter::AddPerk`'s list); `Spells`: spells added to the player
+- `Values`: base actor values (health, magicka, stamina, the skills)
+- `Items`: inventory with equipment (`Inventory`, as copies carry it), gold among them; quest items are left out when
+  the character comes from another world
+- `Extras`: a named blob per adapter (`racemenu`: RaceMenu's preset of the player), for mods
+- cell, worldspace, position (the host's copy's, at the host's save)
+
+Stored in the host's SKSE co-save (`SerializationInterface`, unique id `SKCP`, record `CHAR` version 2, the record
+list) when the host saves; read back, into `CharacterRecords`, when any game loads a save.
+
+### Failures (the error model's reasons)
+
+| Where | What the guest's join status says |
+|---|---|
+| can't reach the host, or no answer in 20 s | `unreachable` |
+| the gate | `wrong_build`, `wrong_game`, `mods_differ`, `full` (as today) |
+| at the main menu, and the host's save has no character for it | `no_character` |
+| the host's game cannot save within 60 s, or the transfer breaks | `transfer_failed` |
+| the connection drops before joining | `lost_connection` |
+| the save does not load | `transfer_failed` |
 
 ## Leaving and kick
 

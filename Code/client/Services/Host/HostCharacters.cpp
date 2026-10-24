@@ -153,6 +153,8 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
         {
             record->AppearanceBuffer = acRequest.AppearanceBuffer;
             record->ChangeFlags = acRequest.ChangeFlags;
+            record->FaceTints = acRequest.FaceTints;
+            record->Weight = acRequest.Weight;
         }
     }
     spdlog::info("HostCharacters: {:x} respawns its {}", aSender, acRequest.ActorId);

@@ -6,6 +6,8 @@
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
 
+#include <Bridges/IJoinBridge.h>
+
 #include <Games/QuestChanges.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
@@ -17,6 +19,7 @@
 #include <array>
 #include <chrono>
 #include <deque>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -26,7 +29,7 @@
 
 struct World;
 
-struct FakeEngine : StillBridges
+struct FakeEngine : StillBridges, IJoinBridge
 {
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;
 
@@ -37,7 +40,37 @@ struct FakeEngine : StillBridges
     uint32_t Difficulty = 3;
     // The player picks a difficulty in the settings menu (our hook on PlayerCharacter::SetDifficulty raises it).
     void ChoosesDifficulty(uint32_t aDifficulty);
+    // The player's race switches (Actor::SwitchRace: its base's race and the race its save data holds), reported as
+    // TESSwitchRaceCompleteEvent while a session's engine runs (PlayerEvents).
+    void PlayerSwitchesRace(uint32_t aRace);
+    // The player opens the race menu (showracemenu), makes aChanges in it and closes it (MenuEvent).
+    void PlayerUsesRaceMenu(const std::function<void()>& acChanges);
     float GreetDistance = 150.f;
+    // The join flow's engine (IJoinBridge). A save carries this game's player as a record and the co-save; loading one
+    // makes the player the save's (the host's) until JoinService applies the joining player's own.
+    bool AtMainMenu = false;
+    PlayerRecord Player;             // this game's player, as ReadPlayer reads it (but its items and place: the actor's)
+    bool RefusesSaves = false;       // Save_Impl's own refusals (combat, a menu)
+    std::vector<std::string> Loaded; // the saves this game loaded, by name
+    bool IsAtMainMenu() const noexcept override { return AtMainMenu; }
+    std::string PlayerId() noexcept override;
+    // As JoinBridge: a save or a load is made on the next main loop frame (RunMainLoop), never inside our update.
+    std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept override;
+    bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
+    // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
+    void RunMainLoop() noexcept;
+    PlayerRecord ReadPlayer() const noexcept override;
+    void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
+
+    // This game's player saves (a menu, quick, auto or console save) through Save_Impl's hook (SaveGameHooks.cpp): made
+    // unless SaveService refuses it. The saves made, by name.
+    bool PlayerSaves(const std::string& acName);
+    // The engine's own autosave (a load door, fast travel, waiting), through the same hook.
+    bool Autosaves(const std::string& acName);
+    std::vector<std::string> Saves;
+    std::optional<std::string> PendingSave;            // asked for, made by the next main loop frame
+    std::optional<std::optional<SaveFiles>> MadeSave;  // made (or refused), for the next SaveNow
+    std::optional<std::pair<std::string, SaveFiles>> PendingLoad;
 
     // A script's call on this game, run now in a stack whose cause is aCause (GuestScripts': 0 for no player's action).
     void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false);
@@ -149,6 +182,8 @@ struct FakeEngine : StillBridges
     {
         std::string Name;
         uint32_t Race = 0;
+        float Weight = 50.f; // this game's player's is its record's (Player.Weight)
+        std::string Looks;   // a copy's: the save data it was made from (CreateCustomActor)
     };
     std::map<uint32_t, Npc> Npcs;
     std::map<uint32_t, Actor> Actors{{kPlayer, Actor{.Base = 0x7, .Player = true}}};
@@ -377,6 +412,7 @@ struct FakeEngine : StillBridges
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
+    float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
@@ -405,7 +441,12 @@ struct FakeEngine : StillBridges
     void EnableActor(uint32_t aFormId) noexcept override;
     void DisableActor(uint32_t aFormId, bool aDelete) noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
-    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
+    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
+    // The player's base save data is its record's (Player.Base, BaseFlags), its tints too.
+    uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
+    void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
+    uint32_t GetPlayerRaceFormId() const noexcept override { return GetActorRaceFormId(kPlayer); }
+    Tints GetPlayerFaceTints() const noexcept override { return Player.FaceTints; }
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;

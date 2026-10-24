@@ -52,7 +52,8 @@
     X(EffectFlashRequest)           \
     X(PartyNativeRequest)           \
     X(WorldCallRequest)             \
-    X(DismountRequest)
+    X(DismountRequest)              \
+    X(PlayerRecordRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -106,7 +107,8 @@
     X(NotifyEffectFlash)           \
     X(NotifyPartyNative)           \
     X(NotifyWorldCall)             \
-    X(NotifyDismount)
+    X(NotifyDismount)              \
+    X(NotifySaveChunk)
 
 #define COOP_OPCODE(aName) k##aName,
 

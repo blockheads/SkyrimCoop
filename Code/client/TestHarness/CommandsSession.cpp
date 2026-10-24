@@ -6,6 +6,9 @@
 #include <Services/HostService.h>
 #include <Services/TransportService.h>
 #include <Services/SteamService.h>
+#include <Services/JoinService.h>
+#include <Services/SaveService.h>
+#include <Bridges/IJoinBridge.h>
 #include <Bridges/IPlayerBridge.h>
 
 // The session: leaving, kicking, and swapping in a rebuilt plugin. Hosting and joining are driven by
@@ -75,7 +78,73 @@ nlohmann::json SteamLeave(Harness&, const nlohmann::json&)
     return Ok();
 }
 
+// {"cmd": "join_world", "port": N}: joins the session on that port with the host's world, from this game (its character
+// comes along) or from the main menu, as the join screen will. The host across a network namespace link
+// (SKYRIMCOOP_JOIN_HOST), loopback otherwise.
+nlohmann::json JoinWorld(Harness&, const nlohmann::json& acRequest)
+{
+    const char* pHost = std::getenv("SKYRIMCOOP_JOIN_HOST");
+    const std::string cEndpoint = std::format("{}:{}", pHost && *pHost ? pHost : "127.0.0.1", acRequest.value("port", 0u));
+    return World::Get().ctx().at<JoinService>().Join(cEndpoint) ? Ok() : Error("joining already, or in a session");
+}
+
+nlohmann::json Describe(const PlayerRecord& acRecord)
+{
+    nlohmann::json perks = nlohmann::json::array(), spells = nlohmann::json::array(), skills = nlohmann::json::array();
+    for (const auto& cPerk : acRecord.Perks)
+        perks.push_back(std::format("{:X}:{:X}", cPerk.Id.ModId, cPerk.Id.BaseId));
+    for (const auto& cSpell : acRecord.Spells)
+        spells.push_back(std::format("{:X}:{:X}", cSpell.ModId, cSpell.BaseId));
+    for (const auto& cSkill : acRecord.Skills)
+        skills.push_back(cSkill.Level);
+    nlohmann::json values = nlohmann::json::object();
+    for (const auto& cValue : acRecord.Values)
+        values[std::to_string(cValue.Index)] = cValue.Base;
+    nlohmann::json tints = nlohmann::json::array();
+    for (const auto& cTint : acRecord.FaceTints.Entries)
+        tints.push_back({{"name", cTint.Name}, {"type", cTint.Type}, {"color", cTint.Color}, {"alpha", cTint.Alpha}});
+    nlohmann::json items = nlohmann::json::object();
+    for (const auto& cItem : acRecord.Items.Entries)
+    {
+        const std::string cId = std::format("{:X}:{:X}", cItem.BaseId.ModId, cItem.BaseId.BaseId);
+        items[cId] = items.value(cId, 0) + cItem.Count;
+    }
+    return {{"key", acRecord.Key}, {"name", acRecord.Name}, {"level", acRecord.Level}, {"base_bytes", acRecord.Base.size()},
+            {"perk_points", acRecord.PerkPoints}, {"perks", perks}, {"spells", spells}, {"skills", skills}, {"values", values},
+            {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}};
+}
+
+// {"cmd": "player_record"}: this game's player's character as the join flow reads it (IJoinBridge::ReadPlayer), and
+// the key it joins under.
+nlohmann::json PlayerRecordOf(Harness&, const nlohmann::json&)
+{
+    auto& world = World::Get();
+    PlayerRecord record = world.ctx().at<IJoinBridge&>().ReadPlayer();
+    record.Key = world.ctx().at<JoinService>().PlayerKey();
+    return {{"ok", true}, {"record", Describe(record)}};
+}
+
+// {"cmd": "records"}: the characters this game's loaded save keeps (and, on a host, its guests' since).
+nlohmann::json Records(Harness&, const nlohmann::json&)
+{
+    nlohmann::json records = nlohmann::json::array();
+    for (const auto& [cKey, cRecord] : World::Get().ctx().at<SaveService>().GetRecords().All())
+        records.push_back(Describe(cRecord));
+    return {{"ok", true}, {"records", records}};
+}
+
+// {"cmd": "forget_record", "key": "..."}: the host's game no longer keeps that player's character (a fresh save for it).
+nlohmann::json ForgetRecord(Harness&, const nlohmann::json& acRequest)
+{
+    World::Get().ctx().at<SaveService>().GetRecords().Remove(acRequest.value("key", std::string()));
+    return Ok();
+}
+
 constexpr Command cCommands[] = {
+    {"forget_record", false, &ForgetRecord},
+    {"join_world", false, &JoinWorld},
+    {"player_record", false, &PlayerRecordOf},
+    {"records", false, &Records},
     {"steam_host", false, &SteamHost},
     {"steam_leave", false, &SteamLeave},
     {"steam_invite", false, &SteamInvite},

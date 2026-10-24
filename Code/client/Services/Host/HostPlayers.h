@@ -16,13 +16,14 @@ struct HostPlayers
 {
     using ConnectionId_t = Net::ConnectionId_t;
 
-    // A player as the session keeps it (later also the account its stored character is under).
+    // A player as the session keeps it.
     struct Player
     {
         uint32_t Id{};
         std::string Name;
         uint16_t Level{};
         bool IsHost{};
+        std::string Key; // its character's key in the host's save (PlayerRecord::Key)
     };
 
     explicit HostPlayers(HostNetwork& aNetwork) noexcept;
@@ -30,7 +31,7 @@ struct HostPlayers
     NO_COPY_MOVE(HostPlayers);
 
     // A game that joined; returns its id in the player list (never reused in a session).
-    uint32_t Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost) noexcept;
+    uint32_t Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost, std::string aKey = {}) noexcept;
     void Remove(ConnectionId_t aConnection) noexcept;
 
     // The player on that connection (null: not a player).

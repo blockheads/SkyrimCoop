@@ -606,6 +606,21 @@ def setup_display():
     log(f"Installed /etc/X11/{DUMMY_XORG_CONFIG}")
 
 
+# Quick Start - SE (Nexus, installed in the game's Data): a new game asks "Skip the introduction?" and opens the race
+# menu at once. Every test game loads it (the host refuses another load order); it acts only on a new game.
+QUICK_START = "Quick Start - SE.esp"
+
+
+def enable_quick_start():
+    """Turns Quick Start on in the selected game's Plugins.txt (a `*` marks a plugin on), if it is installed."""
+    order = load_order_file()
+    lines = order.read_text().splitlines() if order.exists() else []
+    if not (GAME / "Data" / QUICK_START).exists() or f"*{QUICK_START}" in lines:
+        return
+    order.parent.mkdir(parents=True, exist_ok=True)
+    order.write_text("\n".join([line for line in lines if line.lstrip("*") != QUICK_START] + [f"*{QUICK_START}"]) + "\n")
+
+
 def prepare_prefix():
     if not (PREFIX / "pfx/drive_c/users/steamuser").exists():
         log("Creating the test Proton prefix (first run only, ~30s)...")
@@ -635,6 +650,7 @@ def prepare_prefix():
                             "AudioMenu": {"fAudioMasterVolume": "0.0000"},
                             # Subtitles on, as players have them (Low.ini turns them off).
                             "Interface": {"bDialogueSubtitles": "1", "bGeneralSubtitles": "1"}})
+    enable_quick_start()
 
 
 # The plugin's command socket (CommandServer.cpp): one JSON line per request, answered within a
@@ -719,13 +735,15 @@ def launch(args, run_dir):
         (PLUGINS / VANILLA_HARNESS.name).unlink(missing_ok=True)
         deploy_dll()
     deploy_crash_logger()
-    command = f"load {args.save}" if args.save else f"coc {args.cell}"
+    main_menu = getattr(args, "main_menu", False)
+    command = None if main_menu else f"load {args.save}" if args.save else f"coc {args.cell}"
     prepare_prefix()
     CONTROL.mkdir(parents=True, exist_ok=True)
-    for stale in ("status.json", "session.txt", "console.txt", "rpc.json", "request.txt"):
+    for stale in ("status.json", "session.txt", "console.txt", "rpc.json", "request.txt", "boot.txt"):
         (CONTROL / stale).unlink(missing_ok=True)
-    atomic_write(CONTROL / "boot.txt", command + "\n")  # run by the plugin at the main menu
-    log(f"Launching Skyrim (start command: {command!r})")
+    if command:
+        atomic_write(CONTROL / "boot.txt", command + "\n")  # run by the plugin at the main menu
+    log(f"Launching Skyrim ({'to the main menu' if main_menu else f'start command: {command!r}'})")
     output = open(run_dir / f"proton{'-' + INSTANCE if INSTANCE else ''}.log", "w")
     ensure_user_steam()
     launcher = subprocess.Popen(
@@ -738,6 +756,9 @@ def launch(args, run_dir):
     status = wait_for("Waiting for the plugin heartbeat (SKSE loaded our DLL)", read_status,
                       args.boot_timeout, launcher)
     log(f"Plugin alive in Skyrim (Windows PID {status['pid']})")
+    if main_menu:
+        wait_for("Waiting for the main menu", lambda: ((read_status() or {}).get("game") or {}).get("main_menu"), args.world_timeout, launcher)
+        return launcher
     wait_for(f"Waiting for the player to be in the world ({command})",
              lambda: (read_status() or {}).get("session", {}).get("world_ready"), args.world_timeout, launcher)
     log("Player is in the world")
@@ -2231,6 +2252,479 @@ def scenario_loaded_save_hosts_then_joins_friend():
         player_command("client", {"cmd": "disconnect"})
         if game_state("client").get("online") is not True:
             rejoin_client()
+
+
+def save_files(instance):
+    """The game's save files, by name (its prefix's Saves folder)."""
+    select_instance(instance)
+    saves = MY_GAMES / "Saves"
+    return {path.name for path in saves.glob("*.ess")} if saves.exists() else set()
+
+
+def press_key(instance, scan):
+    """The player presses and releases a keyboard key (DirectInput scan code), through the game's input dispatch."""
+    wait_for(f"[{instance or 'host'}] the game takes input", lambda: takes_input(instance), 10)
+    player_command(instance, {"cmd": "key", "scan": scan, "down": True})
+    player_command(instance, {"cmd": "key", "scan": scan, "down": False})
+
+
+QUICKSAVE_KEY = 0x3F  # F5
+SAVE_REFUSAL = "Only the host saves: your game can't save while you're in a co-op session."
+
+
+def scenario_guest_cannot_save():
+    """A guest's game refuses every save while it is in the host's session (Save_Impl's hook, SaveService) and its chat
+    says why: the console's `save`, the quicksave key (F5) and the engine's autosave at a load door write nothing (the
+    autosave says so once a session). The host's game saves."""
+    disconnect_client()
+    rejoin_client()  # a new session: the autosave's notice is due again
+    before = save_files("client")
+    refusals = system_chat("client").count(SAVE_REFUSAL)
+    console_on("client", "save SkyrimCoopGuestSave")
+    wait_for("[client] its chat says only the host saves (console save)",
+             lambda: system_chat("client").count(SAVE_REFUSAL) == refusals + 1, 10)
+    press_key("client", QUICKSAVE_KEY)
+    wait_for("[client] its chat says only the host saves (quicksave)",
+             lambda: system_chat("client").count(SAVE_REFUSAL) == refusals + 2, 10)
+    try:
+        both_go(INN)
+        travel("client", lambda: activate_on("client", INN_DOOR_INSIDE), player_cell("client"))
+        wait_for("[client] its chat says only the host saves (the load door's autosave)",
+                 lambda: system_chat("client").count(SAVE_REFUSAL) == refusals + 3, 10)
+        travel("client", lambda: activate_on("client", INN_DOOR_OUTSIDE), player_cell("client"))
+        if (told := system_chat("client").count(SAVE_REFUSAL)) != refusals + 3:
+            raise TestFailure(f"[client] its chat told the autosave's refusal again ({told - refusals} lines, expected 3)")
+    finally:
+        both_go(HOME_CELL)
+    if written := save_files("client") - before:
+        raise TestFailure(f"[client] wrote saves while a guest: {sorted(written)}")
+    select_instance("")
+    host_save = MY_GAMES / "Saves" / "SkyrimCoopHostSave.ess"
+    host_save.unlink(missing_ok=True)
+    try:
+        console_on("", "save SkyrimCoopHostSave")
+        wait_for("[host] its save is written", host_save.exists, 10)
+    finally:
+        host_save.unlink(missing_ok=True)
+        host_save.with_suffix(".skse").unlink(missing_ok=True)
+
+
+GOLD_ITEM, ARMSMAN, FIREBOLT_SPELL = "0:F", "0:BABE4", "0:12FD0"  # as player_record lists them
+
+
+def player_record(instance):
+    """The game's player's character as the join flow reads it (harness `player_record`): key, name, level, perks..."""
+    return player_command(instance, {"cmd": "player_record"})["record"]
+
+
+def kept_records(instance):
+    """{key: record} of the characters the game keeps (its loaded save's, and on a host its guests')."""
+    return {record["key"]: record for record in player_command(instance, {"cmd": "records"})["records"]}
+
+
+def session_port():
+    select_instance("")
+    port = ((read_status() or {}).get("session") or {}).get("port")
+    if not port:
+        raise TestFailure("[host] no session port")
+    return port
+
+
+def joins_with_world(what, timeout=240):
+    """The client's game joins the host's session with the host's world (harness `join_world`, as the join screen
+    will): gate, the host's save received and loaded, its character put on, then the session."""
+    player_command("client", {"cmd": "join_world", "port": session_port()})
+    wait_for(f"[client] {what}: the host's gate passes", lambda: join_status("client").get("state") in
+             ("receiving_world", "loading", "connecting", "joined") or game_state("client").get("online"), 30)
+    def joined():
+        status = join_status("client")
+        if status.get("state") == "refused":
+            raise TestFailure(f"[client] couldn't join ({status.get('reason')}): {status.get('message')}")
+        return game_state("client").get("online") and not status.get("joining")
+    wait_for(f"[client] {what}: receives and loads the host's save, then joins", joined, timeout)
+    wait_for("Each game shows the other player", both_see_each_other, 60)
+    wait_for(f"[client] {what}: takes the host's weather and calendar after its load", lambda: not world_sync_problems(), 30)
+
+
+def restart_client_at_main_menu():
+    """The client's game starts again and stays at the main menu (no save loaded), as a friend's game before joining."""
+    select_instance("client")
+    stop_game()
+    wait_for("[host] drops the client whose game ended", lambda: not game_state("").get("players"), 40)
+    select_instance("client")
+    launch(argparse.Namespace(cell=None, save=None, main_menu=True, boot_timeout=240, world_timeout=180),
+           new_run_dir("main-menu"))
+
+
+def scenario_host_save_keeps_guest_character():
+    """The host's game keeps the guest's character from the guest's game: from its joining, and on its changes (gold
+    the guest picks up reaches the host's record within seconds); a save of the host's game writes it into the save's
+    SKSE co-save (SaveService, CoSave)."""
+    key = player_record("client")["key"]
+    wait_for("[host] keeps the client's character", lambda: key in kept_records(""), 15)
+    kept_gold = lambda: kept_records("")[key]["items"].get(GOLD_ITEM, 0)
+    before = kept_gold()
+    console_on("client", "player.additem f 123")
+    wait_for("[host] its record of the client has the gold the client has now",
+             lambda: kept_gold() != before and kept_gold() == player_record("client")["items"].get(GOLD_ITEM, 0), 15)
+    select_instance("")
+    save = MY_GAMES / "Saves" / "SkyrimCoopRecords.ess"
+    co_save = save.with_suffix(".skse")
+    try:
+        console_on("", "save SkyrimCoopRecords")
+        wait_for("[host] its save and co-save are written", co_save.exists, 10)
+        data = co_save.read_bytes()
+        if key.encode() not in data:
+            raise TestFailure(f"[host] its co-save ({len(data)} bytes) has no character under {key}")
+    finally:
+        save.unlink(missing_ok=True)
+        co_save.unlink(missing_ok=True)
+
+
+def scenario_guest_brings_character_into_hosts_world():
+    """A friend new to the host's save joins from a game of its own (a direct connection): its game takes its
+    character (level 9, Armsman, Firebolt, an iron sword), receives the host's save and loads it, and plays that
+    character in the host's world, which the host's game then keeps (JoinService, HostSaveTransfer, JoinBridge)."""
+    key = player_record("client")["key"]
+    disconnect_client()
+    wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
+    player_command("", {"cmd": "forget_record", "key": key})
+    for line in ("player.setlevel 9", "player.addperk BABE4", "player.addspell 12FD0", f"player.additem {IRON_SWORD:X} 1"):
+        console_on("client", line)
+    own = player_record("client")
+    if own["level"] != 9 or ARMSMAN not in own["perks"] or FIREBOLT_SPELL not in own["spells"]:
+        raise TestFailure(f"[client] its own character did not take the changes: {own}")
+    try:
+        joins_with_world("from its own game")
+    finally:
+        if game_state("client").get("online") is not True and not join_status("client").get("joining"):
+            rejoin_client()
+    record = player_record("client")
+    for what, ok in (("level 9", record["level"] == 9), ("Armsman", ARMSMAN in record["perks"]),
+                     ("Firebolt", FIREBOLT_SPELL in record["spells"]), ("the sword", f"0:{IRON_SWORD:X}" in record["items"]),
+                     ("its name", record["name"] == own["name"])):
+        if not ok:
+            raise TestFailure(f"[client] plays another character in the host's world: no {what} ({record})")
+    wait_for("[host] keeps the character the client brought",
+             lambda: (kept := kept_records("").get(key)) and kept["level"] == 9 and ARMSMAN in kept["perks"], 15)
+
+
+def scenario_guest_joins_from_main_menu_as_kept_character():
+    """A friend the host's save knows joins from the main menu (its game just started, no save loaded): the host's
+    save comes, and its player is the character the host's game keeps (level and perks from its last session)."""
+    key = player_record("client")["key"]
+    console_on("client", "player.setlevel 11")
+    console_on("client", "player.addperk BABE4")
+    wait_for("[host] its record of the client is at level 11",
+             lambda: (kept := kept_records("").get(key)) and kept["level"] == 11, 20)
+    restart_client_at_main_menu()
+    joins_with_world("from the main menu")
+    record = player_record("client")
+    if record["level"] != 11 or ARMSMAN not in record["perks"] or record["key"] != key:
+        raise TestFailure(f"[client] plays another character than the host's save keeps: {record}")
+
+
+# The main menu's list (StartMenu.as in reference/plugins/skyrimui): entries carry an index, NEW's is 1; its state
+# is "MainConfirm" while "Start a new game?" waits.
+MAIN_LIST, MAIN_MENU_NEW = "_root.MenuHolder.Menu_mc.MainList", 1
+MAIN_MENU_STATE = "_root.MenuHolder.Menu_mc.strCurrentState"
+# The race menu (RaceSexPanels.as): categories 0 race, 1 body, 2 head, 3 face, 4 eyes, 5 brow, 6 mouth, 7 hair; the
+# race list (_SubList1) and the category's sliders (_SubList2: the body's Sex first). The categories list keeps the
+# open one centred: its right neighbour's tab (BODY_TAB from the race) opens the next.
+RACE_MENU, RACE_PANELS = "RaceSex Menu", "_root.RaceSexMenuBaseInstance.RaceSexPanelsInstance"
+BODY_CATEGORY, HEAD_CATEGORY, FACE_CATEGORY, EYES_CATEGORY, HAIR_CATEGORY = 1, 2, 3, 4, 7
+WAR_PAINT_TINT = 7                # TintMask type of the war paints
+NPC_FACE = 0x800                  # the base's face section: head parts, hair colour, morphs (TESNPC::SaveGame 24777)
+RACE_MENU_DONE_KEY = 0x13  # R
+KHAJIIT_RACE = 0x13745
+NEW_CHARACTER_NAME = "Rinara"
+# Buttons the mouse clicks, in window pixels (measured on 1280x720): the boxes take only the mouse, the name box's
+# Enter is not mapped while text entry is on.
+SKIP_INTRO_YES = (596, 389)       # Quick Start's "Skip the introduction?"
+BODY_TAB = (782, 36)              # the race menu's "Body" category
+FINISH_NAMING_OK = (587, 389)     # "Finish and name your character?"
+NAME_ACCEPT = (580, 316)          # the name box's "Accept"
+BEFRIEND_HADVAR = (542, 489)      # Quick Start's "Who did you befriend...?"
+JOIN_BASE_FLAGS = 0x03000E36      # the base's sections a character takes along (JoinBridge kBaseFlags)
+NPC_BASE_DATA, ESSENTIAL_FLAG = 0x2, 0x2  # the TESActorBaseData section, which starts with its flags
+NPC_SKILLS = 0x200                # the skills section: skills, offsets, health, magicka, stamina, ... (52 bytes)
+NPC_RACE = 0x2000000              # the race section: the race, then the original race (TESNPC::SaveGame 24777)
+
+
+def race_panel(field):
+    return menu_var("client", RACE_MENU, f"{RACE_PANELS}.{field}")
+
+
+def press_until(what, code, done, presses=12):
+    """The client's player presses the key until done() holds, each press waiting for the menu to move."""
+    for _ in range(presses):
+        if done():
+            return
+        before = done.watch()
+        tap_key("client", code)
+        wait_for(f"[client] {what}: the menu takes the press", lambda: done.watch() != before, 5)
+    if not done():
+        raise TestFailure(f"[client] {what}: not reached after {presses} presses")
+
+
+class Watch:
+    """A condition with the value a press changes (for press_until)."""
+    def __init__(self, value, test):
+        self.watch, self.test = value, test
+
+    def __call__(self):
+        return self.test(self.watch())
+
+
+def race_category(index):
+    """The client's player clicks the next category's tab until category `index` is open."""
+    for _ in range(8):
+        before = race_panel("_CategoriesList.selectedIndex")
+        if before == index:
+            return
+        move_cursor("client", BODY_TAB)
+        click("client")
+        wait_for(f"[client] the race menu opens its next category (for {index})",
+                 lambda: race_panel("_CategoriesList.selectedIndex") != before, 10)
+    raise TestFailure(f"[client] the race menu never opened category {index}")
+
+
+def race_option(text):
+    """The client's player moves the highlight down to the open category's option `text`."""
+    press_until(f"{text} is highlighted", DOWN_KEY, Watch(lambda: race_panel("_SubList2.selectedEntry.text"), lambda t: t == text))
+
+
+def slides_until(what, done):
+    """The client's player moves the highlighted slider right until done() holds of the engine's data."""
+    press_until(what, MENU_RIGHT_KEY, Watch(lambda: race_panel("_SubList2.SelectedEntry.SliderInstance.position"), lambda _: done()))
+
+
+def styles_character():
+    """In the race menu the client's player picks a war paint and its colour, a nose height, an eye colour, a hair style
+    and a hair colour, each press waiting on the engine's data (the tints, the base's face section)."""
+    face = lambda: form_save("client", 0x14, base=True, flags=NPC_FACE)["data"]
+    paint = lambda: next(((t["name"], t["color"]) for t in player_record("client")["tints"]
+                          if t["type"] == WAR_PAINT_TINT and t["alpha"] > 0), None)
+    race_category(HEAD_CATEGORY)
+    race_option("War Paint")
+    slides_until("a war paint is on", lambda: paint() is not None)
+    worn = paint()
+    race_option("War Paint Color")
+    slides_until("the war paint takes a colour", lambda: paint() not in (None, worn))
+    for category, option in ((FACE_CATEGORY, "Nose Height"), (EYES_CATEGORY, "Eye Color"), (HAIR_CATEGORY, "Hair"),
+                             (HAIR_CATEGORY, "Hair Color")):
+        race_category(category)
+        race_option(option)
+        was = face()
+        slides_until(f"the {option.lower()} changes", lambda: face() != was)
+
+
+def finishes_race_menu(what, name):
+    """The client's player finishes the race menu and names the character."""
+    tap_key("client", RACE_MENU_DONE_KEY)
+    clicks_box_button(what, FINISH_NAMING_OK)
+    wait_for("[client] the name box takes text", lambda: input_state("client")["text_entry"] > 0, 10)
+    player_command("client", {"cmd": "char", "text": name})
+    move_cursor("client", NAME_ACCEPT)
+    click("client")
+
+
+def tint_key(tint):
+    return tint["name"], tint["color"], round(tint["alpha"], 3)
+
+
+def copy_face_differences(copy):
+    """How the host's copy's head differs from the client's player's: painted with other tints than the client's head
+    shows ("" when none)."""
+    shows = sorted(map(tint_key, ((player_snapshot("client").get("mod") or {}).get("face") or {}).get("tints") or []))
+    select_instance("")
+    face = ((((read_status() or {}).get("world") or {}).get(str(copy)) or {}).get("mod") or {}).get("face") or {}
+    if not face.get("painted"):
+        return "its head is not painted"
+    painted = sorted(map(tint_key, face.get("tints") or []))
+    if painted == shows:
+        return ""
+    lacks, extra = sorted(set(shows) - set(painted))[:4], sorted(set(painted) - set(shows))[:4]
+    return f"{len(painted)} tints painted, the client shows {len(shows)}; lacks {lacks}, also {extra}"
+
+
+def waits_until_same(what, differences, timeout):
+    """Waits until differences() is "", failing with the last ones it found."""
+    last = [""]
+
+    def same():
+        last[0] = differences()
+        return not last[0]
+    try:
+        wait_for(what, same, timeout)
+    except TestFailure:
+        raise TestFailure(f"{what}: {last[0]}") from None
+
+
+def copy_looks_differences(copy):
+    """Where the host's copy of the client's player looks otherwise: its base's save bytes and its head's tints."""
+    return "; ".join(filter(None, [copy_base_differences(copy), copy_face_differences(copy)]))
+
+
+def clicks_box_button(what, button):
+    wait_for(f"[client] {what}: the box is up", lambda: "MessageBoxMenu" in menus("client"), 30)
+    move_cursor("client", (button[0], button[1] + 80))
+    move_cursor("client", button)
+    click("client")
+    wait_for(f"[client] {what}: the box is closed", lambda: "MessageBoxMenu" not in menus("client"), 10)
+
+
+def makes_new_character():
+    """At the main menu the client's player starts a new game (Quick Start skips the intro) and makes a character in
+    the race menu as a player does: Khajiit, female, with a war paint, a nose, eyes and hair of its own (styles_character),
+    named Rinara. Returns the player's identity."""
+    list_up = lambda: menu_var("client", "Main Menu", f"{MAIN_LIST}.selectedEntry.index") is not None
+    wait_for("[client] the main menu lists its entries", list_up, 30)
+    press_until("NEW is selected", DOWN_KEY,
+                Watch(lambda: menu_var("client", "Main Menu", f"{MAIN_LIST}.selectedEntry.index"), lambda i: i == MAIN_MENU_NEW))
+    tap_key("client", MENU_ACCEPT_KEY)
+    wait_for("[client] asks to start a new game",
+             lambda: menu_var("client", "Main Menu", MAIN_MENU_STATE) == "MainConfirm", 10)
+    tap_key("client", MENU_ACCEPT_KEY)
+    clicks_box_button("skips the introduction", SKIP_INTRO_YES)
+    wait_for("[client] the race menu opens", lambda: race_panel("_SubList1.selectedIndex") is not None, 60)
+    identity = lambda: player_snapshot("client").get("identity") or {}
+    press_until("Khajiit is the race", UP_KEY, Watch(lambda: identity().get("race"), lambda r: r == KHAJIIT_RACE))
+    move_cursor("client", BODY_TAB)
+    click("client")
+    wait_for("[client] the Body category is open", lambda: race_panel("_CategoriesList.selectedIndex") == BODY_CATEGORY, 10)
+    press_until("female", MENU_RIGHT_KEY, Watch(lambda: identity().get("female"), bool))
+    styles_character()
+    finishes_race_menu("finishes and names the character", NEW_CHARACTER_NAME)
+    clicks_box_button("picks who it escaped with", BEFRIEND_HADVAR)
+    wait_for("[client] plays the new character in its own world", lambda: RACE_MENU not in menus("client") and
+             identity().get("name") == NEW_CHARACTER_NAME and takes_input("client"), 60)
+    made = identity()
+    if made.get("race") != KHAJIIT_RACE or not made.get("female"):
+        raise TestFailure(f"[client] the race menu made another character: {made}")
+    return made
+
+
+def shown(data):
+    """A save section's hex in a failure: whole when short."""
+    return data if len(data) <= 128 else f"{len(data) // 2} bytes"
+
+
+def unpadded_skills(data):
+    """The skills section's hex without the bytes TESNPC::SaveGame (24777) never fills: it builds the 52 bytes on its
+    stack and leaves 0x2A-0x2B and 0x31-0x33 as they were, so each save has other garbage there."""
+    raw = bytearray(bytes.fromhex(data))
+    for offset in (*range(0x2A, 0x2C), *range(0x31, 0x34)):
+        if offset < len(raw):
+            raw[offset] = 0
+    return raw.hex()
+
+
+def copy_base_differences(copy):
+    """Where the host's copy's base saves other bytes than the client's player's base, section by section of the client's
+    recorded change flags ("" when none). The race section only by its race: a copy's base has no original race
+    (TESNPC::Create clears it for facegen)."""
+    recorded = form_save("client", 0x14, base=True)["flags"]
+    own = {1 << bit: form_save("client", 0x14, base=True, flags=1 << bit)["data"] for bit in range(32) if recorded & (1 << bit)}
+    theirs = {flag: form_save("", copy, base=True, flags=flag)["data"] for flag in own}
+    if NPC_RACE in own:
+        own[NPC_RACE], theirs[NPC_RACE] = own[NPC_RACE][:8], theirs[NPC_RACE][:8]
+    if NPC_SKILLS in own:
+        own[NPC_SKILLS], theirs[NPC_SKILLS] = unpadded_skills(own[NPC_SKILLS]), unpadded_skills(theirs[NPC_SKILLS])
+    return ", ".join(f"{flag:#x} ({shown(own[flag])} -> {shown(theirs[flag])})" for flag in own if theirs[flag] != own[flag])
+
+
+def input_state(instance):
+    return player_command(instance, {"cmd": "input_state"})
+
+
+def scenario_guest_makes_character_then_joins():
+    """A friend new to the host's save starts Skyrim, makes a new character (New, Quick Start skips the intro, the race
+    menu: Khajiit, female, war paint, a nose, eyes and hair of its own, named Rinara) and joins from that game. Its game loads the host's world and
+    is still that character, to the engine's own save bytes of its base; the host's copy of it saves the same bytes,
+    and the host keeps it (JoinService, JoinBridge, HostRecords). The client's game then starts again as the duo's."""
+    key = player_record("client")["key"]
+    select_instance("client")
+    load_order = load_order_file().read_bytes()
+    restart_client_at_main_menu()
+    try:
+        player_command("", {"cmd": "forget_record", "key": key})
+        made = makes_new_character()
+        sections = [1 << bit for bit in range(32) if JOIN_BASE_FLAGS & (1 << bit)]
+
+        def section(flag):
+            data = form_save("client", 0x14, base=True, flags=flag)["data"]
+            if flag == NPC_BASE_DATA:  # in a session the player is essential (respawn mode), not by its character
+                flags = int.from_bytes(bytes.fromhex(data[:8]), "little") & ~ESSENTIAL_FLAG
+                data = flags.to_bytes(4, "little").hex() + data[8:]
+            return data
+        base_sections = lambda: {flag: section(flag) for flag in sections}
+        mine = base_sections()
+        made_tints = player_record("client")["tints"]
+        joins_with_world("with its new character")
+        after = player_snapshot("client").get("identity") or {}
+        for what in ("name", "race", "female", "weight"):
+            if after.get(what) != made[what]:
+                raise TestFailure(f"[client] its {what} in the host's world is {after.get(what)!r}, made {made[what]!r}")
+        tint_key = lambda tint: (tint["name"], tint["color"], round(tint["alpha"], 3))
+        if (now_tints := sorted(map(tint_key, player_record("client")["tints"]))) != sorted(map(tint_key, made_tints)):
+            lost = sorted(set(map(tint_key, made_tints)) - set(now_tints))[:5]
+            raise TestFailure(f"[client] its face tints in the host's world are not the ones it made: {len(now_tints)} "
+                              f"masks, {len(made_tints)} made; missing {lost}")
+        now = base_sections()
+        if differ := [f"{flag:#x} ({shown(mine[flag])} -> {shown(now[flag])})" for flag in sections if now[flag] != mine[flag]]:
+            raise TestFailure(f"[client] its base in the host's world saves other bytes than the character it made, "
+                              f"in the sections of change flags {', '.join(differ)}")
+        select_instance("")
+        copy = next(iter(other_players()), None)
+        seen = ((read_status() or {}).get("actors") or {}).get(str(copy), {}).get("identity") or {}
+        for what in ("name", "race", "female", "weight"):
+            if seen.get(what) != made[what]:
+                raise TestFailure(f"[host] its copy of the client has {what} {seen.get(what)!r}, made {made[what]!r}")
+        if differ := copy_base_differences(copy):
+            raise TestFailure(f"[host] its copy's base {copy:X} saves other bytes than the client's own, in the sections of "
+                              f"change flags {differ}")
+        waits_until_same(f"[host] its copy {copy:X} wears the face the client made", lambda: copy_face_differences(copy), 15)
+        wait_for("[host] keeps the character the client made",
+                 lambda: (kept := kept_records("").get(key)) and kept["name"] == NEW_CHARACTER_NAME, 15)
+    finally:  # the duo's character again, in QASmoke, joined
+        restart_client(load_order, dropped=bool(game_state("client").get("online")))
+        rejoin_client()
+
+
+NORD_VAMPIRE_RACE = 0x88794
+
+
+def client_copy_looks_differences():
+    """copy_looks_differences of the host's copy of the client's player, once the host shows one."""
+    select_instance("")
+    copy = next(iter(other_players()), None)
+    return copy_looks_differences(copy) if copy else "the host shows no copy of the client"
+
+
+def scenario_guest_changes_looks_in_session():
+    """The client's player changes its looks while joined: in the race menu (showracemenu: a war paint, a nose, eyes,
+    hair, a new name), then by catching vampirism (its race switches to the Nord vampire's, by setrace as the disease's
+    script does). Each time the host's copy is made again: its base saves the client's bytes and its head is painted
+    with the tints the client's head shows, a vampire's pale skin too (CharacterService::OnPlayerLooksChange,
+    HostCharacters::OnRespawn). The client's game then starts again as the duo's."""
+    select_instance("client")
+    load_order = load_order_file().read_bytes()
+    try:
+        console_on("client", "showracemenu")
+        wait_for("[client] the race menu opens", lambda: race_panel("_SubList2.selectedIndex") is not None, 30)
+        styles_character()
+        finishes_race_menu("finishes and names the character again", "Restyled")
+        wait_for("[client] plays on, the race menu closed", lambda: RACE_MENU not in menus("client") and takes_input("client"), 30)
+        waits_until_same("[host] its copy is made again in the client's new looks",
+                         client_copy_looks_differences, 30)
+        console_on("client", "player.setrace NordRaceVampire")
+        wait_for("[host] its copy is made again as a vampire", lambda: player_race_on_host("client") == NORD_VAMPIRE_RACE, 30)
+        waits_until_same("[host] its vampire copy wears the client's looks, its pale skin too",
+                         client_copy_looks_differences, 30)
+    finally:  # the duo's character again, in QASmoke, joined
+        restart_client(load_order, dropped=bool(game_state("client").get("online")))
+        rejoin_client()
 
 
 def scenario_wildlife_takes_hosts_pick():
@@ -5763,16 +6257,14 @@ def scenario_form_state_round_trips():
     """World-state sync step 3: a form's save data through our own buffers. The client's character base
     and the host's copy of it save the same bytes (the appearance went through FormState on spawn, form ids
     as network ids); a door's lock saved on the host, unlocked, and loaded back is locked again."""
-    mine = form_save("client", 0x14, base=True)
     select_instance("")
     copy = next(iter(other_players()), None)
     if copy is None:
         raise TestFailure("[host] no copy of the client's character")
-    theirs = form_save("", copy, base=True, flags=mine["flags"])
-    if theirs["data"] != mine["data"]:
-        raise TestFailure(f"[host] the copy's base {theirs['form']:X} saves other bytes than the client's "
-                          f"own ({len(theirs['data']) // 2} / {len(mine['data']) // 2})")
-    log(f"[host] the copy's base saves the client's {len(mine['data']) // 2} bytes")
+    if differ := copy_base_differences(copy):
+        raise TestFailure(f"[host] the copy's base {copy:X} saves other bytes than the client's own, in the sections of "
+                          f"change flags {differ}")
+    log("[host] the copy's base saves the client's bytes")
     door = inner_door()
     try:
         lock_on("", door, True, 50)
@@ -7207,6 +7699,12 @@ SCENARIOS = {
     "wildlife-takes-hosts-pick": scenario_wildlife_takes_hosts_pick,
     "guest-joins-by-invite": scenario_guest_joins_by_invite,
     "loaded-save-hosts-then-joins-friend": scenario_loaded_save_hosts_then_joins_friend,
+    "guest-cannot-save": scenario_guest_cannot_save,
+    "host-save-keeps-guest-character": scenario_host_save_keeps_guest_character,
+    "guest-brings-character-into-hosts-world": scenario_guest_brings_character_into_hosts_world,
+    "guest-joins-from-main-menu-as-kept-character": scenario_guest_joins_from_main_menu_as_kept_character,
+    "guest-makes-character-then-joins": scenario_guest_makes_character_then_joins,
+    "guest-changes-looks-in-session": scenario_guest_changes_looks_in_session,
     "death-stage-runs-once": scenario_death_stage_runs_once,
     "quest-completes-for-guest": scenario_quest_completes_for_guest,
     "quest-roles-match-host": scenario_quest_roles_match_host,
@@ -7354,6 +7852,12 @@ TAGS = {
     "wildlife-takes-hosts-pick": {'spawn', 'cells'},
     "guest-joins-by-invite": {'session', 'steam', 'spawn', 'ui'},
     "loaded-save-hosts-then-joins-friend": {'session', 'steam', 'ui'},
+    "guest-cannot-save": {'session', 'save'},
+    "host-save-keeps-guest-character": {'session', 'save', 'join'},
+    "guest-brings-character-into-hosts-world": {'session', 'save', 'join'},
+    "guest-joins-from-main-menu-as-kept-character": {'session', 'save', 'join'},
+    "guest-makes-character-then-joins": {'session', 'save', 'join'},
+    "guest-changes-looks-in-session": {'session', 'spawn', 'join'},
     "death-stage-runs-once": {'world', 'scripts', 'quest', 'spawn'},
     "quest-completes-for-guest": {'world', 'quest'},
     "quest-roles-match-host": {'world', 'quest'},
@@ -7521,6 +8025,19 @@ SOURCE_TAGS = [
     ("Code/client/Services/*ImguiService.*", {'ui'}),
     ("Code/client/Services/Debug*", {'ui'}),
     ("Code/client/Services/JoinStatus.h", {'session'}),
+    ("Code/client/Services/*SaveService.*", {'save'}),
+    ("Code/client/Games/Skyrim/SaveGameHooks.*", {'save'}),
+    ("Code/client/Games/Skyrim/SaveLoadManager.*", {'save', 'join'}),
+    ("Code/client/Services/*JoinService.*", {'join'}),
+    ("Code/client/Services/SaveTransfer.*", {'join'}),
+    ("Code/client/Services/CharacterRecords.*", {'join'}),
+    ("Code/client/Services/Host/HostSaveTransfer.*", {'join'}),
+    ("Code/client/Services/Host/HostRecords.*", {'join'}),
+    ("Code/client/Services/Guest/GuestRecord.*", {'join'}),
+    ("Code/client/Bridges/*JoinBridge.*", {'join'}),
+    ("Code/client/CoSave.*", {'join', 'save'}),
+    ("Code/encoding/Structs/PlayerRecord.*", {'join'}),
+    ("Code/encoding/Messages/JoinMessages.*", {'join'}),
     ("Code/client/Services/WorldStateLog.h", {'world', 'quest', 'objects'}),
 
     # Hosting/joining constructs the role's systems; scripts also cross these entry points.
@@ -7592,7 +8109,7 @@ SOURCE_TAGS = [
     ("Code/client/Events/*CastEvent.h", {'magic'}),
     ("Code/client/Events/AddTargetEvent.h", {'magic'}),
     ("Code/client/Events/EffectVisualsChangeEvent.h", {'magic'}),
-    ("Code/client/Events/BeastFormChangeEvent.h", {'magic', 'spawn', 'scripts'}),
+    ("Code/client/Events/PlayerLooksChangeEvent.h", {'magic', 'spawn', 'scripts', 'join'}),
     ("Code/client/Events/MountEvent.h", {'movement'}),
     ("Code/client/Events/DismountEvent.h", {'movement'}),
     ("Code/client/Events/DifficultyChangeEvent.h", {'session'}),

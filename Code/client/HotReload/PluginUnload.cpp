@@ -9,6 +9,7 @@
 #include <network/Client.h>
 #include <Hooks/FunctionHook.h>
 #include <SkseRipAllocator.h>
+#include <CoSave.h>
 #include <VersionDb.h>
 
 extern std::unique_ptr<Plugin> g_plugin;
@@ -35,6 +36,7 @@ extern "C" __declspec(dllexport) void* SkyrimCoop_MainLoopAddress()
 extern "C" __declspec(dllexport) bool SkyrimCoop_Unload()
 {
     spdlog::info("Hot reload: unloading the plugin");
+    CoSave::Stop();
 
     // Copies leave the game: the next load spawns them again from the session.
     if (entt::locator<World>::has_value())

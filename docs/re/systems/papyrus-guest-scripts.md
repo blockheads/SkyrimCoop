@@ -258,8 +258,8 @@ Shout key (a power fires on release) → spell_cast 92C48 Beast Form
 - `WerewolfTransformVisual` waits out its 10 seconds whatever happens: changed back before that, it calls
   `SetStage(1)`, which starts the quest again and changes the player again. The scenario changes back only
   once no stack runs that script (harness `script_stacks`).
-- The guest respawns its copies on each race (`CharacterService::OnBeastFormChange`: entering by the race
-  poll, leaving by the `SetBeastForm(false)` hook). The respawn carries the owner's state now
+- The guest respawns its copies on each race (`CharacterService::OnPlayerLooksChange`, on every
+  `TESSwitchRaceCompleteEvent` of the player's: entering by `InitialShift`'s `SetRace`, leaving by `ShiftBack`'s). The respawn carries the owner's state now
   (`RequestRespawn::HasState`: latest action, graph state, values, inventory): the host rebuilt the new copy
   from the record of its last cell entry before (its magicka from before the harness's `setav`), and the
   host's copy, read for it, is already gone when the host asks (`CharacterService::RespawnCopy`).

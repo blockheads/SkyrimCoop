@@ -3,13 +3,15 @@
 #include <cstddef>
 #include <cstdint>
 
-// A Scaleform value (CommonLibSSE-NG GFxValue): only numbers and booleans are read here.
+// A Scaleform value (CommonLibSSE-NG GFxValue): numbers, booleans and strings are read here.
 struct GFxValue
 {
     enum : uint32_t
     {
         kBoolean = 2,
         kNumber = 3,
+        kString = 4,
+        kManaged = 0x40,  // a managed string's value points at the string's pointer
         kTypeMask = 0x8F, // the type without its flags
     };
 

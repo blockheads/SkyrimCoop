@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/IDialogueBridge.h>
+#include <Bridges/IJoinBridge.h>
 #include <Bridges/ISteamBridge.h>
 
 #include <memory>
@@ -77,6 +78,7 @@ private:
     std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
     std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
     std::unique_ptr<ISteamBridge> m_pSteamBridge;
+    std::unique_ptr<IJoinBridge> m_pJoinBridge;
     RunnerService m_runner;
     TransportService m_transport;
 

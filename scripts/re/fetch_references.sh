@@ -35,6 +35,11 @@ done
 # docs/re/systems/actor-ai-and-copies.md.
 fetch skyrim-multiplayer/skymp "$ROOT/reference/plugins/skymp"
 
+# RaceMenu (skee64): a player's whole look saved and applied (skee64/PresetInterface.cpp: race, weight, head parts,
+# morphs, tints by index, SetSkinFromTint; IPluginInterface.h's preset interface) and what it keeps in its co-save
+# (main.cpp: morphs, sculpt, overlays, overrides, body morphs). The join flow's characters, docs/design/join-flow.md.
+fetch expired6978/SKSE64Plugins "$ROOT/reference/plugins/SKSE64Plugins"
+
 # Plugins that hook Character::UpdateAI's essential/protected upkeep (CalculateEssentialProtected, 37227) and
 # its essential check (docs/re/systems/actor-ai-and-copies.md, the audit of UpdateAI's callees).
 for repo in powerof3/EssentialsBeGone NoahBoddie/death-defiance-system; do

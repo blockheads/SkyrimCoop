@@ -53,7 +53,8 @@ target(name)
         "glm",
         "xbyak",
         "zydis",
-        "nlohmann_json")
+        "nlohmann_json",
+        "snappy")
 
     -- mem is header-only; vendored copy
     add_includedirs("../external/mem", {public = false})

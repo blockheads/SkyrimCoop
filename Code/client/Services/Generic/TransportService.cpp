@@ -19,6 +19,8 @@
 #include <network/Packet.h>
 
 #include <RunningGame.h>
+#include <Services/JoinService.h>
+#include <Events/SessionLeavingEvent.h>
 #include <Structs/GameVersions.h>
 #include <BuildVersion.h>
 #include <FormIds.h>
@@ -98,6 +100,8 @@ bool TransportService::IsConnected() const noexcept
 
 void TransportService::Close() noexcept
 {
+    if (IsOnline())
+        m_dispatcher.trigger(SessionLeavingEvent{});
     if (!m_pHostNetwork)
     {
         Client::Close();
@@ -190,6 +194,13 @@ void TransportService::OnConnected()
     request.PlayerTime.Month = m_worldBridge.GetGameMonth();
     request.PlayerTime.Day = m_worldBridge.GetGameDay();
 
+    if (const auto* pJoin = m_world.ctx().find<JoinService>())
+    {
+        request.PlayerKey = pJoin->PlayerKey();
+        request.WantsWorld = pJoin->WantsWorld();
+        request.HasCharacter = pJoin->HasCharacter();
+    }
+
     Send(request);
 }
 
@@ -254,7 +265,15 @@ void TransportService::HandleAuthenticationResponse(const AuthenticationResponse
         return; // quit the function here.
     }
 
+    // Joining from the main menu: the gate passed, the host's save follows (JoinService).
+    if (acMessage.Type == AR::kWorldFollows)
+    {
+        m_dispatcher.trigger(acMessage);
+        return;
+    }
+
     // Refused: the join status says why.
     m_joinStatus = JoinRefusal::ForPlayer(acMessage, {BuildCommit(), RunningGame::GetVersions(), RunningGame::Plugins(m_formBridge)});
     spdlog::error("Couldn't join the session ({}): {}", m_joinStatus.Reason, m_joinStatus.Message);
+    m_dispatcher.trigger(acMessage);
 }

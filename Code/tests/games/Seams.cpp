@@ -28,6 +28,8 @@
 #include <Services/PlayerService.h>
 #include <Services/TravelService.h>
 #include <Services/RunnerService.h>
+#include <Services/JoinService.h>
+#include <Services/SaveService.h>
 #include <Services/SteamService.h>
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
@@ -51,6 +53,7 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& aWorld)
     aWorld.ctx().emplace<IFormBridge&>(static_cast<IFormBridge&>(engine));
     aWorld.ctx().emplace<IPlayerBridge&>(static_cast<IPlayerBridge&>(engine));
     aWorld.ctx().emplace<IWorldBridge&>(static_cast<IWorldBridge&>(engine));
+    aWorld.ctx().emplace<IJoinBridge&>(static_cast<IJoinBridge&>(engine));
     return bridge;
 }
 } // namespace
@@ -89,11 +92,15 @@ World::World()
     ctx().emplace<GuestSeam>(*this);
     ctx().emplace<FakeSteam&>(static_cast<FakeSteam&>(*m_pSteamBridge));
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
+    ctx().emplace<JoinService>(*this, m_dispatcher, ctx().at<IJoinBridge&>());
+    ctx().emplace<SaveService>(*this, m_dispatcher);
 }
 
 // As the real World: the services go first, newest first, while the dispatcher and the engine they use still live.
 World::~World()
 {
+    ctx().erase<SaveService>();
+    ctx().erase<JoinService>();
     ctx().erase<SteamService>();
     ctx().erase<GuestSeam>();
     ctx().erase<HostService>();
@@ -120,6 +127,7 @@ World& World::Get() noexcept
 
 void World::Update() noexcept
 {
+    ctx().at<FakeEngine&>().RunMainLoop();
     m_dispatcher.trigger(UpdateEvent(1.0 / 60));
     // The real AnimationSystem replays a dying owner's action 300 ms behind its tick.
     auto& engine = ctx().at<FakeEngine&>();

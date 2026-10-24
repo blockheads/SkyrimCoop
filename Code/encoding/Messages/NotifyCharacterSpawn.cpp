@@ -27,6 +27,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.AiState = acAnnouncement.AiState;
     spawn.EffectIds = acAnnouncement.EffectIds;
     spawn.FaceTints = acAnnouncement.FaceTints;
+    spawn.Weight = acAnnouncement.Weight;
     spawn.InitialActorValues = acAnnouncement.CurrentActorData.InitialActorValues;
     spawn.PlayerId = cIsPlayer ? aPlayerId : 0;
     spawn.IsDead = acAnnouncement.CurrentActorData.IsDead;
@@ -50,6 +51,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
     FaceTints.Serialize(aWriter);
+    Serialization::WriteFloat(aWriter, Weight);
     InitialActorValues.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteBool(aWriter, IsDead);
@@ -89,6 +91,7 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     LatestAction.ApplyDifferential(aReader);
 
     FaceTints.Deserialize(aReader);
+    Weight = Serialization::ReadFloat(aReader);
     InitialActorValues.Deserialize(aReader);
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 

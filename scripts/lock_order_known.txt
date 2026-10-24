@@ -21,6 +21,17 @@ SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x170402 > SkyrimS
 SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
 SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x16d4cb
 SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1831f8 vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
+# A joining guest putting its character on after the host's save loaded (JoinBridge::ApplyPlayer -> Actor::SwitchRace
+# -> Character::sub_38754 -> ExtraAliasInstanceArray read, then a condition's ExtraDataList::GetExtraData on the
+# player, our update thread) against that load (TESObjectREFR::LoadGame -> ExtraAliasInstanceArray write under the
+# player's reference lock, main thread). Never at once, as above: ApplyPlayer runs on the GameLoadedEvent after the
+# load. Both stacks read 2026-10-24 (guest-makes-character-then-joins).
+SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x170402 > SkyrimSE.exe+0x182bca
+# One main thread at two times: a save load (BGSSaveLoadGame::InitAndFinishLoadedForms -> Actor::FinishLoadGame ->
+# ExtraAliasInstanceArray, then TESQuest) against an earlier coc (CenterOnCell -> TES::SetCurrentCell ->
+# BGSRefAlias::InitializeRefAlias -> ExtraAliasInstanceArray write). Ours: only the main loop and the harness's console
+# hooks, passing through. Both stacks read 2026-10-24 (a client restarted with coc QASmoke, then loading a save).
+SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507 vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
 
 # coc while the exterior world steps: the main thread detaches a cell (CenterOnCell -> TES -> TESObjectCELL ->
 # TESObjectREFR::DetachHavok -> ExtraDataList::RemoveExtraData, then bhkWorld enter-write) while

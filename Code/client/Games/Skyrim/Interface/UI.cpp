@@ -2,6 +2,8 @@
 #include <HookSwitch.h>
 #include <Games/Skyrim/Interface/UI.h>
 #include <Misc/BSFixedString.h>
+#include <Events/EventDispatcher.h>
+#include <Interface/MenuOpenCloseEvent.h>
 #include <World.h>
 #include <Hooks/Initializer.h>
 #include <VersionDb.h>
@@ -14,6 +16,12 @@ UI* UI::Get()
 {
     POINTER_SKYRIMSE(UI*, s_instance, 400327);
     return *s_instance.Get();
+}
+
+EventDispatcher<MenuOpenCloseEvent>* UI::MenuOpenCloseSource() noexcept
+{
+    static_assert(sizeof(EventDispatcher<MenuOpenCloseEvent>) == 0x58 && sizeof(pad_0) >= 0x8 + 0x58);
+    return reinterpret_cast<EventDispatcher<MenuOpenCloseEvent>*>(pad_0 + 0x8);
 }
 
 bool UI::GetMenuOpen(const BSFixedString& acName) const

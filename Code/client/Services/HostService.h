@@ -13,6 +13,7 @@ struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
 struct DifficultyChangeEvent;
 struct PlayerNativeEvent;
+struct GameSavingEvent;
 
 struct HostAuthority;
 struct HostNetwork;
@@ -51,6 +52,8 @@ protected:
     void OnScriptAnimation(const ScriptAnimationEvent& acEvent) noexcept;
     void OnContainerChange(const ContainerChangeEvent& acEvent) noexcept;
     void OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept;
+    // The host's save is being written: the guests' records take their characters' places first.
+    void OnGameSaving(const GameSavingEvent&) const noexcept;
     // A native on "the player" a script ran for a guest: to that guest's game (party-model.md, rule 2).
     void OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept;
     // That guest's game answered one returning a value: the script waiting on it goes on.

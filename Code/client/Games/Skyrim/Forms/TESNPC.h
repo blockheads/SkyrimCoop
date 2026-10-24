@@ -93,5 +93,6 @@ struct TESNPC : TESActorBase
 };
 
 static_assert(offsetof(TESNPC, npcClass) == 0x1C0);
+static_assert(offsetof(TESNPC, weight) == 0x1FC);
 static_assert(offsetof(TESNPC, color) == 0x246);
 static_assert(offsetof(TESNPC, relationships) == 0x250);

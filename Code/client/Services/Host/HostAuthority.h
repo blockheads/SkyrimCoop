@@ -9,6 +9,8 @@
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostPlayerNatives.h>
 #include <Services/Host/HostPlayers.h>
+#include <Services/Host/HostRecords.h>
+#include <Services/Host/HostSaveTransfer.h>
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWeather.h>
@@ -80,6 +82,8 @@ struct HostAuthority
     void Kick(uint32_t aPlayerId) noexcept;
     // The host's game set its difficulty (DifficultyChangeEvent).
     void DifficultyChanged(uint32_t aDifficulty) const noexcept;
+    // The host's game is saving: the guests' records take their characters' places (HostRecords).
+    void Saving() const noexcept { m_records.OnSaving(); }
     // A session id for one of the host's actors (HostCharacters).
     [[nodiscard]] uint32_t NewCharacterId() noexcept { return m_characters.NewCharacterId(); }
 
@@ -119,6 +123,7 @@ private:
     std::array<Rule, kRequestOpcodeMax> m_rules{};
     // The parts, after the rules they register into, and the players first: the others read them.
     HostPlayers m_players;
+    HostSaveTransfer m_transfer;
     HostSession m_session;
     HostCharacters m_characters;
     HostClock m_clock;
@@ -127,6 +132,7 @@ private:
     HostTimeScale m_timeScale;
     HostDialogue m_dialogue;
     HostPlayerNatives m_playerNatives;
+    HostRecords m_records;
 };
 
 // A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.

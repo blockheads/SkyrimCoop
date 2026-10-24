@@ -467,6 +467,13 @@ std::string SkyrimBridge::GetActorBaseName(uint32_t aFormId) const noexcept
     return {};
 }
 
+float SkyrimBridge::GetActorBaseWeight(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    const TESNPC* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    return pNpc ? pNpc->weight : 50.f;
+}
+
 uint32_t SkyrimBridge::GetActorRaceFormId(uint32_t aFormId) const noexcept
 {
     if (Actor* pActor = GetActor(aFormId))
@@ -1848,12 +1855,13 @@ uint32_t SkyrimBridge::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
     return pActor ? pActor->formID : 0;
 }
 
-uint32_t SkyrimBridge::CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept
+uint32_t SkyrimBridge::CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept
 {
     Breadcrumbs::Record("CreateCustomActor", aChangeFlags);
     TESNPC* pNpc = TESNPC::Create(acAppearance, aChangeFlags);
     if (!pNpc)
         return 0;
+    pNpc->weight = aWeight; // before the actor's 3D, which takes its build from it
     Actor* pActor = Actor::Create(pNpc);
     return pActor ? pActor->formID : 0;
 }

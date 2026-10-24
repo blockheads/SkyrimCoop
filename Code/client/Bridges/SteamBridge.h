@@ -12,6 +12,7 @@ public:
     ~SteamBridge() override;
 
     bool IsReady() noexcept override;
+    SteamId GetLaunchLobby() noexcept override;
     SteamId GetUserId() noexcept override;
     std::string GetUserName() noexcept override;
     Events Poll() noexcept override;

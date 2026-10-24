@@ -57,6 +57,8 @@ struct SteamService
     bool Invite(SteamId aFriend) noexcept;
     void Leave() noexcept;
     [[nodiscard]] const Status& GetStatus() const noexcept { return m_status; }
+    // This player's Steam id while it joins or plays in another's Steam session, else 0.
+    [[nodiscard]] SteamId JoinedAs() const noexcept;
 
     // Each Steam message starts with its kind: a control line (reliable) or a tunnelled enet datagram (unreliable).
     enum Kind : uint8_t
@@ -99,6 +101,7 @@ private:
     bool m_joinedTransport{}; // a friend's transport dialled our tunnel
     Status m_status;
     bool m_hosting{};
+    bool m_launchLobbyTaken{}; // +connect_lobby: joined once, at the main menu
     double m_waited{}; // seconds in the current request
     std::vector<entt::scoped_connection> m_connections;
 };

@@ -2,6 +2,7 @@
 
 #include <AI/AIProcess.h>
 #include <Actor.h>
+#include <Forms/TESNPC.h>
 #include <BSAnimationGraphManager.h>
 #include <Bridges/IFormBridge.h>
 #include <Camera/PlayerCamera.h>
@@ -1495,7 +1496,9 @@ std::optional<double> GetWaitMenuHours() noexcept
     return value.value.number;
 }
 
-std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) noexcept
+namespace
+{
+std::optional<GFxValue> ReadMenuValue(const char* acpMenu, const char* acpPath) noexcept
 {
     const BSFixedString cName(acpMenu);
     UI* pUI = UI::Get();
@@ -1503,6 +1506,25 @@ std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) 
     GFxValue value{};
     if (!pMenu || !pMenu->uiMovie || !pMenu->uiMovie->GetVariable(&value, acpPath))
         return std::nullopt;
+    return value;
+}
+} // namespace
+
+std::optional<std::string> GetMenuText(const char* acpMenu, const char* acpPath) noexcept
+{
+    const auto cValue = ReadMenuValue(acpMenu, acpPath);
+    if (!cValue || (cValue->type & GFxValue::kTypeMask) != GFxValue::kString)
+        return std::nullopt;
+    const char* pText = (cValue->type & GFxValue::kManaged) ? *reinterpret_cast<const char* const*>(cValue->value.string) : cValue->value.string;
+    return pText ? std::optional<std::string>(pText) : std::nullopt;
+}
+
+std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) noexcept
+{
+    const auto cRead = ReadMenuValue(acpMenu, acpPath);
+    if (!cRead)
+        return std::nullopt;
+    const GFxValue& value = *cRead;
     switch (value.type & GFxValue::kTypeMask)
     {
     case GFxValue::kBoolean: return value.value.boolean ? 1.0 : 0.0;
@@ -1562,6 +1584,26 @@ bool SendKey(uint32_t aScanCode, bool aDown) noexcept
     return SendButton(InputEvent::kKeyboard, aScanCode, aDown);
 }
 
+bool SendChar(uint32_t aCharacter) noexcept
+{
+    VersionDbPtr<void*> inputDeviceManager(402776);
+    if (!*inputDeviceManager.Get())
+        return false;
+    static CharEvent s_event{};
+    const VersionDbPtr<void> charEventVtable(236705);
+    s_event.header.pVtable = charEventVtable.GetPtr();
+    s_event.header.device = static_cast<InputEvent::Device>(5); // as CharEvent's constructor (68634)
+    s_event.header.eventType = InputEvent::kChar;
+    s_event.header.pNext = nullptr;
+    s_event.keyCode = aCharacter;
+
+    using TSendEvent = void(void*, InputEvent* const*);
+    POINTER_SKYRIMSE(TSendEvent, s_sendEvent, 68655); // BSTEventSource<InputEvent*>::SendEvent
+    InputEvent* pChain = &s_event.header;
+    (s_sendEvent.Get())(*inputDeviceManager.Get(), &pChain);
+    return true;
+}
+
 bool SendMouseButton(uint32_t aButton, bool aDown) noexcept
 {
     return SendButton(InputEvent::kMouse, aButton, aDown);
@@ -1579,6 +1621,26 @@ bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept
     s_event.mouseInputX = aDeltaX;
     s_event.mouseInputY = aDeltaY;
     return MapAndSend(s_event.header, s_event.userEvent);
+}
+
+std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aFormId));
+    const auto* pNpc = pActor && pActor->baseForm ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    if (!pNpc)
+        return std::nullopt;
+    return BaseLooks{.Female = (pNpc->actorData.flags & TESActorBaseData::IS_FEMALE) != 0, .Weight = pNpc->weight};
+}
+
+std::optional<InputState> GetInputState() noexcept
+{
+    const auto* pMap = BSInputEnableManager::Get();
+    if (!pMap)
+        return std::nullopt;
+    InputState state{.Controls = pMap->enabledControls, .TextEntry = pMap->textEntryCount, .IgnoreKeyboardMouse = pMap->ignoreKeyboardMouse};
+    for (uint32_t i = 0; i < pMap->contextStack.length; ++i)
+        state.Contexts.push_back(pMap->contextStack.data[i]);
+    return state;
 }
 
 std::optional<std::pair<float, float>> GetMenuCursor() noexcept

@@ -12,7 +12,7 @@
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
 #include <Events/AiStateChangeEvent.h>
-#include <Events/BeastFormChangeEvent.h>
+#include <Events/PlayerLooksChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
@@ -52,6 +52,12 @@
 #include <Services/HostService.h>
 #include <FormIds.h>
 
+namespace
+{
+// TESNPC change flags the player's copies are made from: race, sex and face (NPC_ChangeForm 0x2000000, 0x1000000, 0x800).
+constexpr uint32_t kPlayerLooksFlags = 0x3000800;
+} // namespace
+
 CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
                                    IActorBridge& aActorBridge, IFormBridge& aFormBridge, IPlayerBridge& aPlayerBridge) noexcept
     : m_world(aWorld)
@@ -84,7 +90,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
-    Listen<BeastFormChangeEvent, &CharacterService::OnBeastFormChange>(m_connections, m_dispatcher, this);
+    Listen<PlayerLooksChangeEvent, &CharacterService::OnPlayerLooksChange>(m_connections, m_dispatcher, this);
 
     Listen<AddExperienceEvent, &CharacterService::OnAddExperienceEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySyncExperience, &CharacterService::OnNotifySyncExperience>(m_connections, m_dispatcher, this);
@@ -344,7 +350,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
         else
         {
             // Players and npcs with temporary ref ids and base ids (usually random events)
-            actorFormId = m_actorBridge.CreateCustomActor(acMessage.AppearanceBuffer, acMessage.ChangeFlags);
+            actorFormId = m_actorBridge.CreateCustomActor(acMessage.AppearanceBuffer, acMessage.ChangeFlags, acMessage.Weight);
             m_actorBridge.SetupActorFaceGen(actorFormId);
             FaceGenSystem::Setup(m_world, *entity, acMessage.FaceTints);
         }
@@ -707,33 +713,27 @@ void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) co
     m_transport.Send(request);
 }
 
-void CharacterService::OnBeastFormChange(const BeastFormChangeEvent& acEvent) const noexcept
+void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const noexcept
 {
-    auto view = m_world.view<FormIdComponent>();
-
+    auto view = m_world.view<FormIdComponent, LocalComponent>();
     const auto it = std::find_if(view.begin(), view.end(), [view](auto entity) { return view.get<FormIdComponent>(entity).Id == 0x14; });
-
-    std::optional<uint32_t> sessionIdRes = it != view.end() ? Utils::GetSessionId(*it) : std::nullopt;
-    if (!sessionIdRes.has_value())
-    {
-        spdlog::error("{}: failed to find session id", __FUNCTION__);
+    // Not announced yet: its announcement carries the looks.
+    if (it == view.end() || !m_transport.IsOnline())
         return;
-    }
-
-    uint32_t sessionId = sessionIdRes.value();
 
     RequestRespawn request;
-    request.ActorId = sessionId;
-
-    // SerializeActorNpc returns the change flags bitmask
+    request.ActorId = view.get<LocalComponent>(*it).Id;
+    m_actorBridge.MarkActorNpcChanged(0x14, kPlayerLooksFlags);
     request.ChangeFlags = m_actorBridge.SerializeActorNpc(0x14, request.AppearanceBuffer);
+    request.FaceTints = m_playerBridge.GetPlayerFaceTints();
+    request.Weight = m_actorBridge.GetActorBaseWeight(0x14);
     const auto cState = ReadLiveState(0x14);
     request.HasState = true;
     request.LatestAction = cState.LatestAction;
     request.GraphState = cState.GraphState;
     request.Data = cState.Data;
 
-    spdlog::info("Beast form change: our copies respawn as race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
+    spdlog::info("Player looks changed: our copies respawn as race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
     m_transport.Send(request);
 }
 
@@ -1060,11 +1060,12 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
 
     if (isPlayer)
     {
-        m_actorBridge.MarkActorNpcChanged(formIdComponent.Id, 0x2000800);
+        m_actorBridge.MarkActorNpcChanged(formIdComponent.Id, kPlayerLooksFlags);
     }
 
     const auto changeFlags = m_actorBridge.SerializeActorNpc(formIdComponent.Id, message.AppearanceBuffer);
     message.ChangeFlags = changeFlags;
+    message.Weight = m_actorBridge.GetActorBaseWeight(formIdComponent.Id);
 
     if (isPlayer)
     {

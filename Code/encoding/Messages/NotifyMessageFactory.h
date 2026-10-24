@@ -35,6 +35,7 @@
 #include <Messages/WorldState.h>
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifyRemoveWaypoint.h>
+#include <Messages/JoinMessages.h>
 
 struct NotifyMessageFactory
 {

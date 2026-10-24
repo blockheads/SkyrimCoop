@@ -78,6 +78,24 @@ Notes for us:
   no cast (`SpellCast` never runs) and, from our client, nothing our animation sync sees (it calls the
   original past our hook on 38949).
 
+### Menus without a world: the main menu, the race menu (2026-10-24)
+
+The harness's `key` and `mouse` work at the main menu (they no longer wait for the world). What a key does there is
+the control map's, as in game menus:
+
+- `ControlMap::MapUserEvents` (68542) walks the context stack (`ControlMap+0x108`, the top last; the main menu's is
+  gameplay, menu mode, cursor) and drops a keyboard event when text entry is on (`+0x128`, the name box) or a gamepad
+  took over (`+0x129`); `input_state` reads these. In menus W/S/A/D/E map to Up/Down/Left/Right/Accept; the arrow
+  keys and Enter map to nothing, so the harness's arrows and Enter do nothing (a real keyboard's reach Flash raw).
+- Typed text goes as `CharEvent`s (vtable 236705; constructor 68634 sets device 5, type 2, the character at
+  `+0x18`), through the same `SendEvent`: the harness's `char`. While the name box is open Enter is unmapped:
+  click its Accept.
+- Vanilla message boxes take only the mouse (`move_cursor`, `click`).
+- The menus' state is readable with `menu_var`, numbers or strings (`reference/plugins/skyrimui`): the main menu's
+  `_root.MenuHolder.Menu_mc.MainList.selectedEntry.index` (NEW is 1) and `strCurrentState` ("MainConfirm"), the
+  race menu's `_root.RaceSexMenuBaseInstance.RaceSexPanelsInstance` `_CategoriesList`, `_SubList1` (races),
+  `_SubList2` (sliders).
+
 ## Taking input (the chat line)
 
 We hook `BSTEventSource<InputEvent*>::SendEvent` (68655; verified in IDA 2026-10-13: `(source, InputEvent* const*

@@ -25,6 +25,8 @@ struct ActorExtension;
 struct AIProcess;
 struct CombatController;
 struct TESIdleForm;
+struct SpellItem;
+struct BGSPerk;
 
 struct Actor : TESObjectREFR
 {
@@ -132,8 +134,9 @@ struct Actor : TESObjectREFR
     virtual void sub_F8();
     virtual void sub_F9();
     virtual void sub_FA();
-    virtual void sub_FB();
-    virtual void sub_FC();
+    // CommonLibSSE-NG AddPerk/RemovePerk (0FB/0FC); the player's: PlayerCharacter 40681 (rank 0: one more), 40682 (queued).
+    virtual void AddPerk(BGSPerk* apPerk, uint32_t aRank);
+    virtual void RemovePerk(BGSPerk* apPerk);
     virtual void sub_FD();
     virtual void sub_FE();
     virtual void sub_FF();
@@ -277,6 +280,10 @@ struct Actor : TESObjectREFR
     bool PlayIdle(TESIdleForm* apIdle) noexcept;
     void FixVampireLordModel() noexcept;
     bool RemoveSpell(MagicItem* apSpell) noexcept;
+    // Actor::AddSpell (38716): false when it already has it.
+    bool AddSpell(SpellItem* apSpell) noexcept;
+    // Actor::SwitchRace (37925): its race and 3D, as the engine's race change does.
+    void SwitchRace(TESRace* apRace, bool aPlayer) noexcept;
 
     enum ActorFlags
     {
@@ -363,7 +370,7 @@ public:
     uint32_t unk178;               // F0
     uint32_t unk17C;               // F4
     SpellItemEntry* spellItemHead; // F8
-    BSTSmallArray<TESForm*> addedSpells;
+    BSTSmallArray<SpellItem> addedSpells; // spells added to this actor (AddSpell)
     ActorMagicCaster* casters[4];
     MagicItem* magicItems[4];
     TESForm* equippedShout;
@@ -413,6 +420,8 @@ static_assert(offsetof(Actor, unk17C) == 0x184);
 static_assert(offsetof(Actor, pCombatController) == 0x160);
 static_assert(offsetof(Actor, magicItems) == 0x1C8);
 static_assert(offsetof(Actor, equippedShout) == 0x1E8);
+static_assert(offsetof(Actor, addedSpells) == 0x190);
+static_assert(offsetof(Actor, race) == 0x1F8);
 static_assert(offsetof(Actor, actorLock) == 0x284);
 static_assert(sizeof(Actor) == 0x2B8);
 static_assert(sizeof(Actor::SpellItemEntry) == 0x18);

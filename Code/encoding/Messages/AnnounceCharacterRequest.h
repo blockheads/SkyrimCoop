@@ -29,7 +29,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
+               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
     }
 
     // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
@@ -51,6 +51,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
     Tints FaceTints{};
+    float Weight{50.f}; // the base's (TESNPC weight): the engine saves it with the actor, not in AppearanceBuffer
     bool IsDragon{};
     bool IsMount{};
     bool IsPlayerSummon{};

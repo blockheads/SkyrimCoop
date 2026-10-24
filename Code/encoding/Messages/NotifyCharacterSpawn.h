@@ -32,7 +32,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     bool operator==(const NotifyCharacterSpawn& acRhs) const noexcept
     {
         return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
-               InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
+               InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
                IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
     }
 
@@ -54,6 +54,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
     Tints FaceTints{};
+    float Weight{50.f}; // the base's (TESNPC weight): the engine saves it with the actor, not in AppearanceBuffer
     ActorValues InitialActorValues{};
     uint32_t PlayerId{};
     bool IsDead{};

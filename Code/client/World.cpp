@@ -22,8 +22,12 @@
 #include <Services/DialogueService.h>
 #include <Bridges/DialogueBridge.h>
 #include <Bridges/SteamBridge.h>
+#include <Bridges/JoinBridge.h>
+#include <Services/JoinService.h>
+#include <Services/SaveService.h>
 #include <Services/SteamService.h>
 #include <LoadGameEvents.h>
+#include <MenuEvents.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/TimeScaleService.h>
@@ -69,6 +73,7 @@ World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this))
     , m_pDialogueBridge(std::make_unique<DialogueBridge>())
     , m_pSteamBridge(std::make_unique<SteamBridge>())
+    , m_pJoinBridge(std::make_unique<JoinBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -104,6 +109,9 @@ World::World()
     ctx().emplace<HostService>(*this, m_dispatcher);
     ctx().emplace<GuestService>(*this, m_dispatcher);
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
+    ctx().emplace<IJoinBridge&>(*m_pJoinBridge);
+    ctx().emplace<JoinService>(*this, m_dispatcher, *m_pJoinBridge);
+    ctx().emplace<SaveService>(*this, m_dispatcher);
     LoadGameEvents::Start();
 
     BehaviorVar::Get()->Init();
@@ -115,6 +123,9 @@ World::~World()
     // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
     // hot reloads now and then). They go first, newest first.
     LoadGameEvents::Stop();
+    MenuEvents::Stop();
+    ctx().erase<SaveService>();
+    ctx().erase<JoinService>();
     ctx().erase<SteamService>();
     ctx().erase<GuestService>();
     ctx().erase<HostService>();
@@ -155,6 +166,9 @@ void World::Update() noexcept
         ++m_frameStats.Stalls;
         spdlog::warn("Frame stalled: {:.0f}ms since the last one (our last update took {:.1f}ms)", cFrameMs, m_lastUpdateMs);
     }
+
+    // The engine's UI is made after the plugin loads: its menu events from the first frame it is there.
+    MenuEvents::Start();
 
     // Force run this before so we get the tasks scheduled to run
     m_runner.OnUpdate(UpdateEvent(cDeltaSeconds));

@@ -97,6 +97,7 @@ struct Skills
 
 struct TESQuest;
 struct TESTopicInfo;
+struct BGSPerk;
 
 struct PlayerCharacter : Actor
 {
@@ -113,6 +114,8 @@ struct PlayerCharacter : Actor
     static void SetGodMode(bool aSet) noexcept;
 
     const GameArray<TintMask*>& GetTints() const noexcept;
+    // baseTints again from its race's tint layers for its sex, at their default colours (40696, as the race menu).
+    void RebuildTintMasks() noexcept;
 
     // TODO: there's an in game function for this in fallout 4, maybe also for skyrim?
     void SetDifficulty(const int32_t aDifficulty, bool aForceUpdate = true, bool aExpectGameDataLoaded = true) noexcept;
@@ -144,7 +147,16 @@ struct PlayerCharacter : Actor
         uint64_t instanceCount;
     };
 
-    uint8_t pad1[0x588 - sizeof(Actor)];
+    // A perk the player has, at its rank (CommonLibSSE-NG PerkRankData; saved by PlayerCharacter::SaveGame, vtable 0x0E).
+    struct PerkRank
+    {
+        BGSPerk* perk;
+        uint8_t rank;
+    };
+
+    uint8_t pad1[0x4B8 - sizeof(Actor)];
+    GameArray<PerkRank*> perkRanks; // CommonLib addedPerks: what PlayerCharacter::AddPerk (40681) adds
+    uint8_t pad4D0[0x588 - 0x4D0];
     GameArray<ObjectiveInstance> objectives;
     uint8_t pad5A0[0x92C - 0x5A0];
     uint32_t playerMapMarker; // handle of the marker placed on the map (40535 sets it, 40536 clears it)
@@ -156,7 +168,10 @@ struct PlayerCharacter : Actor
     TESForm* locationForm;
     uint8_t padAC8[0x28];
     int32_t difficulty;
-    uint8_t padAFC[0xB10 - 0xAFC];
+    uint32_t assumedIdentity;
+    int8_t murder;
+    uint8_t perkPoints; // CommonLib perkCount (Game.AddPerkPoints 55451)
+    uint8_t padB0A[0xB18 - 0xB0A];
     GameArray<TintMask*> baseTints;
     GameArray<TintMask*>* overlayTints;
     uint8_t padB38[0xBE3 - 0xB38];
@@ -167,7 +182,11 @@ struct PlayerCharacter : Actor
     [[nodiscard]] bool IsFlaggedInCombat() const noexcept { return playerFlags3 & 0x20; }
 };
 
+static_assert(offsetof(PlayerCharacter, perkRanks) == 0x4B8);
 static_assert(offsetof(PlayerCharacter, objectives) == 0x588);
+static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00);
+static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09);
+static_assert(sizeof(PlayerCharacter::PerkRank) == 0x10);
 static_assert(offsetof(PlayerCharacter, playerMapMarker) == 0x92C);
 static_assert(offsetof(PlayerCharacter, skillTrainingsThisLevel) == 0x938);
 static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8);

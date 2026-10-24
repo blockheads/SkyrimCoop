@@ -30,6 +30,7 @@ struct FakeSteam final : ISteamBridge
     SteamId Id{NextId()};
     std::string Name;
     bool Ready{true};
+    SteamId LaunchLobby{}; // Steam started this game with +connect_lobby <id>
     bool Listening{};
     std::vector<std::pair<SteamId, SteamId>> Invites; // (lobby, from), as Steam shows them to this player
     std::map<Connection, Link> Links;
@@ -53,6 +54,7 @@ struct FakeSteam final : ISteamBridge
     }
 
     bool IsReady() noexcept override { return Ready; }
+    SteamId GetLaunchLobby() noexcept override { return LaunchLobby; }
     SteamId GetUserId() noexcept override { return Id; }
     std::string GetUserName() noexcept override { return Name; }
     Events Poll() noexcept override { return std::exchange(m_pending, {}); }

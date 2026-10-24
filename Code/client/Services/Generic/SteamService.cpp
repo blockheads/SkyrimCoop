@@ -5,6 +5,8 @@
 #include <Events/UpdateEvent.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
+#include <Services/JoinService.h>
+#include <Bridges/IJoinBridge.h>
 #include <Services/TransportService.h>
 #include <World.h>
 
@@ -30,10 +32,18 @@ void SteamService::Notify(std::string aText) noexcept
 void SteamService::OnGameLoaded(const GameLoadedEvent&) noexcept
 {
     const bool cGuestElsewhere = m_world.GetTransport().IsOnline() && !m_world.GetHostService().IsHosting();
-    if (cGuestElsewhere || (m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())
+    // The host's save a main menu join loads is not this player's to host.
+    const auto* pJoin = m_world.ctx().find<JoinService>();
+    if (cGuestElsewhere || (pJoin && pJoin->IsJoining()) || (m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())
         return;
     spdlog::info("Steam: a save loaded; hosting");
     Host();
+}
+
+SteamService::SteamId SteamService::JoinedAs() const noexcept
+{
+    const bool cJoined = !m_hosting && (m_status.State == "connecting" || m_status.State == "connected");
+    return cJoined ? m_steam.GetUserId() : 0;
 }
 
 SteamService::~SteamService() noexcept
@@ -201,7 +211,11 @@ void SteamService::OnControl(Peer& aPeer, const std::string& acLine) noexcept
             return Fail("no loopback port for the session's tunnel");
         const uint16_t cPort = pPort->Port();
         m_tunnels[aPeer.Connection] = {.Port = std::move(pPort)};
-        if (!m_world.GetTransport().Connect(std::format("127.0.0.1:{}", cPort)))
+        // The whole join (the host's save, this player's character) runs through the tunnel.
+        auto* pJoin = m_world.ctx().find<JoinService>();
+        const std::string cEndpoint = std::format("127.0.0.1:{}", cPort);
+        const bool cDialled = pJoin ? pJoin->Join(cEndpoint) : m_world.GetTransport().Connect(cEndpoint);
+        if (!cDialled)
             return Fail("the transport would not dial the tunnel");
         m_joinedTransport = true;
         m_status.State = "connected";
@@ -244,6 +258,17 @@ void SteamService::OnUpdate(const UpdateEvent& acEvent) noexcept
     const ISteamBridge::Events cEvents = m_steam.Poll();
     for (const SteamId cLobby : cEvents.JoinRequests)
         JoinLobby(cLobby);
+    // Started by Steam for a friend's invite (+connect_lobby): that lobby, once the main menu is up.
+    if (!m_launchLobbyTaken && m_steam.IsReady())
+        if (m_world.ctx().contains<IJoinBridge&>() && m_world.ctx().at<IJoinBridge&>().IsAtMainMenu())
+        {
+            m_launchLobbyTaken = true;
+            if (const SteamId cLobby = m_steam.GetLaunchLobby())
+            {
+                spdlog::info("Steam: started for lobby {}", cLobby);
+                JoinLobby(cLobby);
+            }
+        }
 
     m_waited += acEvent.Delta;
     if (m_status.State == "creating_lobby" || m_status.State == "joining_lobby")

@@ -5,6 +5,8 @@ void RequestRespawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteVarInt(aWriter, ActorId);
     Serialization::WriteString(aWriter, AppearanceBuffer);
     Serialization::WriteVarInt(aWriter, ChangeFlags);
+    FaceTints.Serialize(aWriter);
+    Serialization::WriteFloat(aWriter, Weight);
     Serialization::WriteBool(aWriter, HasState);
     if (!HasState)
         return;
@@ -20,6 +22,9 @@ void RequestRespawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     ActorId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     AppearanceBuffer = Serialization::ReadString(aReader);
     ChangeFlags = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    FaceTints = Tints{};
+    FaceTints.Deserialize(aReader);
+    Weight = Serialization::ReadFloat(aReader);
     HasState = Serialization::ReadBool(aReader);
     if (!HasState)
         return;

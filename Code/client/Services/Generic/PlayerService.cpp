@@ -5,7 +5,8 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
-#include <Events/BeastFormChangeEvent.h>
+#include <Events/MenuEvent.h>
+#include <Events/PlayerLooksChangeEvent.h>
 #include <Events/PlayerFormChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 
@@ -26,9 +27,8 @@
 static constexpr int32_t kHealthActorValue = 24;
 // ActorValueOwner::ForceMode::DAMAGE = 2
 static constexpr int32_t kForceModeDamage = 2;
-// Skyrim race form IDs for beast form detection
-static constexpr uint32_t kWerewolfRaceFormId   = 0x200283A;
-static constexpr uint32_t kVampireLordRaceFormId = 0xCDD84;
+// The race menu (RaceSexMenu): what it changes reaches the copies once it closes.
+static constexpr const char* kRaceMenu = "RaceSex Menu";
 // Skyrim TESGlobal form IDs used to control game features
 static constexpr uint32_t kWorldEncountersGlobalFormId   = 0xB8EC1;
 
@@ -47,6 +47,7 @@ PlayerService::PlayerService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     Listen<NotifySettingsChange, &PlayerService::OnDifficultyChange>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &PlayerService::OnDifficultySet>(m_connections, m_dispatcher, this);
     Listen<PlayerFormChangeEvent, &PlayerService::OnPlayerFormChange>(m_connections, m_dispatcher, this);
+    Listen<MenuEvent, &PlayerService::OnMenu>(m_connections, m_dispatcher, this);
 }
 
 void PlayerService::OnUpdate(const UpdateEvent& acEvent) noexcept
@@ -211,9 +212,20 @@ void PlayerService::OnPlayerFormChange(const PlayerFormChangeEvent&) noexcept
     const uint32_t cRaceFormId = m_playerBridge.GetPlayerRaceFormId();
     if (!cRaceFormId || cRaceFormId == m_lastRaceFormId)
         return;
-    if (cRaceFormId == kWerewolfRaceFormId || cRaceFormId == kVampireLordRaceFormId)
-        m_world.GetDispatcher().trigger(BeastFormChangeEvent());
     m_lastRaceFormId = cRaceFormId;
+    if (!m_inRaceMenu)
+        m_world.GetDispatcher().trigger(PlayerLooksChangeEvent());
+}
+
+void PlayerService::OnMenu(const MenuEvent& acEvent) noexcept
+{
+    if (acEvent.Menu != kRaceMenu)
+        return;
+    m_inRaceMenu = acEvent.Opening;
+    if (acEvent.Opening || !m_transport.IsConnected())
+        return;
+    m_lastRaceFormId = m_playerBridge.GetPlayerRaceFormId();
+    m_world.GetDispatcher().trigger(PlayerLooksChangeEvent());
 }
 
 void PlayerService::ToggleDeathSystem(bool aSet) noexcept

@@ -25,6 +25,7 @@
 #include <Messages/EnterCellRequest.h>
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
+#include <Messages/JoinMessages.h>
 
 struct RequestMessageFactory
 {

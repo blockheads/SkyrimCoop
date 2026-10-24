@@ -10,6 +10,7 @@
 #include <Services/DialogueService.h>
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestDialogue.h>
+#include <Services/Guest/GuestRecord.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/HostService.h>
@@ -93,7 +94,8 @@ struct GuestSeam::Guest
     explicit Guest(World& aWorld)
         : Clock(aWorld, aWorld.GetDispatcher(), Engine),
           Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
-          Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>())
+          Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
+          Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>())
     {
     }
 
@@ -102,6 +104,7 @@ struct GuestSeam::Guest
     GuestWeather Weather;
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
+    GuestRecord Record;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -133,4 +136,5 @@ void GuestSeam::Update() noexcept
     m_pGuest->Clock.OnUpdate(cUpdate);
     m_pGuest->Weather.OnUpdate(cUpdate);
     m_pGuest->WorldState.OnUpdate(cUpdate);
+    m_pGuest->Record.OnUpdate(cUpdate);
 }

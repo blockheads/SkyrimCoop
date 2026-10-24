@@ -1,9 +1,11 @@
 #pragma once
 
 #include <Messages/CellStateRequest.h>
+#include <Messages/JoinMessages.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/WorldState.h>
 #include <Structs/GameVersions.h>
+#include <Structs/PlayerRecord.h>
 #include <Structs/Mods.h>
 #include <Structs/TimeModel.h>
 
@@ -44,6 +46,13 @@ struct HostGame
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // A guest's container change, accepted: the host's container holds that many (and it goes out as the host's change).
     std::function<void(const GameId& acObject, const GameId& acItem, uint32_t aCount)> SetItems;
+    // Saves the host's game now for a game joining from the main menu: the save in chunks, none when the engine
+    // refused to save (HostSaveTransfer tries again next update).
+    std::function<std::optional<std::vector<NotifySaveChunk>>()> SaveWorld;
+    // The guests' characters for the host's save (CharacterRecords): a guest's record, and its place at a save.
+    std::function<void(const PlayerRecord& acRecord)> StoreRecord;
+    std::function<bool(const std::string& acKey)> HasRecord;
+    std::function<void(const std::string& acKey, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.

@@ -11,7 +11,6 @@
 
 #include <Games/Events.h>
 #include <Events/InventoryChangeEvent.h>
-#include <Events/BeastFormChangeEvent.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/SetWaypointEvent.h>
 #include <Events/RemoveWaypointEvent.h>
@@ -66,6 +65,13 @@ const GameArray<TintMask*>& PlayerCharacter::GetTints() const noexcept
         return *overlayTints;
 
     return baseTints;
+}
+
+void PlayerCharacter::RebuildTintMasks() noexcept
+{
+    using TRebuildTintMasks = void(PlayerCharacter*);
+    POINTER_SKYRIMSE(TRebuildTintMasks, s_rebuildTintMasks, 40696);
+    s_rebuildTintMasks(this);
 }
 
 void PlayerCharacter::SetGodMode(bool aSet) noexcept
@@ -204,11 +210,9 @@ char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t 
 
 void HookSetBeastForm(void* apThis, void* apUnk1, void* apUnk2, bool aEntering)
 {
+    // The race switched back before (ShiftBack's SetRace): that respawned the copies (PlayerLooksChangeEvent).
     if (!aEntering)
-    {
         PlayerCharacter::Get()->GetExtension()->GraphDescriptorHash = BehaviorVar::GetHumanoidHash();
-        World::Get().GetRunner().Trigger(BeastFormChangeEvent());
-    }
 
     RealSetBeastForm(apThis, apUnk1, apUnk2, aEntering);
 }

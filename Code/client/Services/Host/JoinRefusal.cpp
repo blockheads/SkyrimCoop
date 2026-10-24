@@ -42,6 +42,24 @@ std::vector<std::string> Describe(const std::vector<LoadOrderDifference>& acDiff
 }
 } // namespace
 
+JoinStatus Failed(std::string_view aReason) noexcept
+{
+    JoinStatus status;
+    status.Current = JoinStatus::State::kRefused;
+    status.Reason = aReason;
+    if (aReason == "unreachable")
+        status.Message = "Couldn't reach the host's game. Check the address, or that the host is still hosting.";
+    else if (aReason == "lost_connection")
+        status.Message = "The connection to the host dropped while joining. Try again.";
+    else if (aReason == "transfer_failed")
+        status.Message = "The host's world didn't arrive or didn't load. Try joining again.";
+    else if (aReason == "no_character")
+        status.Message = "The host's game has no character of yours yet: start or load a game of your own, then join from it.";
+    else
+        status.Message = "The join didn't finish.";
+    return status;
+}
+
 JoinStatus ForPlayer(const AuthenticationResponse& acResponse, const Install& acOurs) noexcept
 {
     JoinStatus status;
@@ -66,6 +84,8 @@ JoinStatus ForPlayer(const AuthenticationResponse& acResponse, const Install& ac
         status.Reason = "full";
         status.Message = "The session is full.";
         break;
+    case kTransferFailed: return Failed("transfer_failed");
+    case kNoCharacter: return Failed("no_character");
     default:
         status.Reason = "refused";
         status.Message = "The host turned the join down.";
@@ -87,6 +107,8 @@ std::string ForHost(AuthenticationResponse::ResponseType aReason, const Authenti
         return std::format("{} couldn't join: their plugins differ from yours ({} {}).", cName, cCount, cCount == 1 ? "difference" : "differences");
     }
     case kSessionFull: return std::format("{} couldn't join: the session is full.", cName);
+    case kTransferFailed: return std::format("{} couldn't join: your game could not save for them.", cName);
+    case kNoCharacter: return std::format("{} couldn't join: they have no character in your game yet (the first time, they join from a game of their own).", cName);
     default: return std::format("{} couldn't join.", cName);
     }
 }

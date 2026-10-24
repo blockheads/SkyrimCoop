@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -44,10 +46,27 @@ public:
 
     virtual ~ISteamBridge() = default;
 
+    /// "+connect_lobby <id>" in a command line, else 0.
+    [[nodiscard]] static SteamId ParseConnectLobby(std::string_view aCommandLine) noexcept
+    {
+        constexpr std::string_view cFlag = "+connect_lobby";
+        const size_t cAt = aCommandLine.find(cFlag);
+        if (cAt == std::string_view::npos)
+            return 0;
+        size_t i = aCommandLine.find_first_not_of(" \t\"", cAt + cFlag.size());
+        SteamId id = 0;
+        for (; i < aCommandLine.size() && aCommandLine[i] >= '0' && aCommandLine[i] <= '9'; ++i)
+            id = id * 10 + static_cast<SteamId>(aCommandLine[i] - '0');
+        return id;
+    }
+
     /// Signed in, under Skyrim's App ID; until then every other call fails.
     [[nodiscard]] virtual bool IsReady() noexcept = 0;
     [[nodiscard]] virtual SteamId GetUserId() noexcept = 0;
     [[nodiscard]] virtual std::string GetUserName() noexcept = 0;
+    /// The lobby Steam started this game to join (a friend's invite accepted with the game closed: "+connect_lobby
+    /// <id>" on its command line), else 0.
+    [[nodiscard]] virtual SteamId GetLaunchLobby() noexcept = 0;
     /// Runs the networking callbacks and hands over what arrived.
     virtual Events Poll() noexcept = 0;
 

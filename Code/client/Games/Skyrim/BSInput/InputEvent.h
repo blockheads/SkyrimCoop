@@ -46,6 +46,17 @@ static_assert(offsetof(ButtonEvent, idCode) == 0x20);
 static_assert(offsetof(ButtonEvent, value) == 0x28);
 static_assert(sizeof(ButtonEvent) == 0x30);
 
+// A typed character for text fields (the name entry, the console), as the keyboard sends it after its key;
+// the engine's constructor (68634) sets device 5 and no next.
+struct CharEvent
+{
+    InputEvent header;
+    uint32_t keyCode; // the character, UTF-16
+    uint32_t pad1C;
+};
+static_assert(offsetof(CharEvent, keyCode) == 0x18);
+static_assert(sizeof(CharEvent) == 0x20);
+
 // The mouse moved by (mouseInputX, mouseInputY) since the last poll; idCode 0xA ("Cursor" in menus).
 struct MouseMoveEvent
 {

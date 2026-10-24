@@ -104,8 +104,14 @@ struct BSInputEnableManager
 
     void EnableOtherEvent(int32_t aFlags, bool aEnable, bool aUnk2);
 
-    uint8_t pad0[0x120];
-    uint32_t enabledControls; // 120
-    uint32_t storedControls;  // 124
+    uint8_t pad0[0x108];
+    GameArray<uint32_t> contextStack; // 108, input contexts (UserEvents::INPUT_CONTEXT_ID), the top last
+    uint32_t enabledControls;         // 120
+    uint32_t storedControls;          // 124
+    int8_t textEntryCount;            // 128, keyboard keys map to nothing while above 0
+    bool ignoreKeyboardMouse;         // 129, set by a gamepad's connect event
+    bool ignoreActivateDisabledEvents; // 12A
 };
+static_assert(offsetof(BSInputEnableManager, contextStack) == 0x108);
 static_assert(offsetof(BSInputEnableManager, enabledControls) == 0x120);
+static_assert(offsetof(BSInputEnableManager, textEntryCount) == 0x128);

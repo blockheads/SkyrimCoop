@@ -23,6 +23,11 @@
 #include <Structs/GridCellCoords.h>
 #include <Papyrus/PartyNatives.h>
 #include <Games/Overrides.h>
+#include <Events/GameLoadedEvent.h>
+#include <Events/MenuEvent.h>
+#include <Events/PlayerFormChangeEvent.h>
+#include <Services/SaveService.h>
+#include <Wire/Buffer.h>
 #include <World.h>
 #include <FormIds.h>
 
@@ -446,6 +451,14 @@ std::string FakeEngine::GetActorBaseName(uint32_t aFormId) const noexcept
     return it != Npcs.end() ? it->second.Name : std::string{};
 }
 
+float FakeEngine::GetActorBaseWeight(uint32_t aFormId) const noexcept
+{
+    if (aFormId == kPlayer)
+        return Player.Weight;
+    const auto it = Npcs.find(GetActorBaseFormId(aFormId));
+    return it != Npcs.end() ? it->second.Weight : 50.f;
+}
+
 uint32_t FakeEngine::GetActorRaceFormId(uint32_t aFormId) const noexcept
 {
     const auto it = Npcs.find(GetActorBaseFormId(aFormId));
@@ -710,9 +723,27 @@ uint32_t FakeEngine::SpawnActorFromNpc(uint32_t aNpcFormId) noexcept
 }
 
 // A player's copy: a temporary NPC made from their appearance, and an actor of it.
-uint32_t FakeEngine::CreateCustomActor(const std::string&, uint32_t) noexcept
+uint32_t FakeEngine::CreateCustomActor(const std::string& acAppearance, uint32_t, float aWeight) noexcept
 {
-    return SpawnActorFromNpc(NewTemporary());
+    const uint32_t cBase = NewTemporary();
+    Npcs[cBase].Weight = aWeight;
+    Npcs[cBase].Looks = acAppearance;
+    return SpawnActorFromNpc(cBase);
+}
+
+uint32_t FakeEngine::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept
+{
+    if (aFormId != kPlayer)
+        return 0;
+    aBuffer = Player.Base;
+    return Player.BaseFlags;
+}
+
+// TESForm::MarkChanged: the sections are saved from now on.
+void FakeEngine::MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept
+{
+    if (aFormId == kPlayer)
+        Player.BaseFlags |= aFlags;
 }
 
 // The player's is a travel (MoveTo_Impl queues it as a door's): the cells load and unload, a teleport is reported.
@@ -1169,6 +1200,121 @@ void FakeEngine::ChoosesDifficulty(uint32_t aDifficulty)
 {
     Difficulty = aDifficulty;
     World::Get().GetRunner().Trigger(DifficultyChangeEvent{aDifficulty});
+}
+
+void FakeEngine::PlayerSwitchesRace(uint32_t aRace)
+{
+    Npcs[Actors.at(kPlayer).Base].Race = aRace;
+    Player.Base = std::format("race {:X}", aRace);
+    Player.BaseFlags |= 0x2000000; // CHANGE_NPC_RACE
+    if (InSession)
+        World::Get().GetRunner().Trigger(PlayerFormChangeEvent{});
+}
+
+void FakeEngine::PlayerUsesRaceMenu(const std::function<void()>& acChanges)
+{
+    World::Get().GetRunner().Trigger(MenuEvent{"RaceSex Menu", true});
+    acChanges();
+    World::Get().GetRunner().Trigger(MenuEvent{"RaceSex Menu", false});
+}
+
+std::string FakeEngine::PlayerId() noexcept
+{
+    return std::format("id:{:016x}", std::hash<std::string>{}(Name));
+}
+
+PlayerRecord FakeEngine::ReadPlayer() const noexcept
+{
+    PlayerRecord record = Player;
+    const Actor& cPlayer = Actors.at(kPlayer);
+    // As JoinBridge: what the player carries, from its inventory.
+    record.Items = cPlayer.Items;
+    record.Cell = GameId(0, cPlayer.Cell);
+    record.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+    return record;
+}
+
+void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
+{
+    Actor& cPlayer = Actors.at(kPlayer);
+    Player = acRecord;
+    Player.Key.clear();
+    Player.Items = {};
+    cPlayer.Items = acRecord.Items;
+    // As JoinBridge: the joining player stands where the save put it, beside the host.
+    Player.Cell = GameId(0, cPlayer.Cell);
+    Player.WorldSpace = {};
+    Player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+}
+
+std::optional<IJoinBridge::SaveFiles> FakeEngine::SaveNow(const std::string& acName) noexcept
+{
+    if (MadeSave)
+        return *std::exchange(MadeSave, std::nullopt);
+    if (!PendingSave)
+        PendingSave = acName;
+    return std::nullopt;
+}
+
+bool FakeEngine::WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept
+{
+    PendingLoad = {acName, acFiles};
+    return true;
+}
+
+// The save's game file is the player's record; its co-save the records SaveService writes.
+void FakeEngine::RunMainLoop() noexcept
+{
+    if (const auto cName = std::exchange(PendingSave, std::nullopt))
+    {
+        if (RefusesSaves || !World::Get().ctx().at<SaveService>().OnSaveRequested())
+            MadeSave = std::optional<SaveFiles>{};
+        else
+        {
+            Saves.push_back(*cName);
+            Wire::Buffer buffer;
+            Wire::Buffer::Writer writer(&buffer);
+            ReadPlayer().Serialize(writer);
+            MadeSave = SaveFiles{{reinterpret_cast<const char*>(buffer.GetData()), writer.Size()}, World::Get().ctx().at<SaveService>().WriteCoSave()};
+        }
+    }
+    const auto cLoad = std::exchange(PendingLoad, std::nullopt);
+    if (!cLoad)
+        return;
+    const auto& [cName, cFiles] = *cLoad;
+    Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(cFiles.Game.data()), cFiles.Game.size()));
+    PlayerRecord saved;
+    saved.Deserialize(reader);
+    Player = saved;
+    Player.Items = {};
+    Actor& player = Actors.at(kPlayer);
+    player.Items = saved.Items;
+    player.Cell = saved.Cell.BaseId;
+    std::copy(saved.Position.begin(), saved.Position.end(), player.Position);
+    LoadCell(player.Cell);
+    auto& saves = World::Get().ctx().at<SaveService>();
+    saves.RevertCoSave();
+    saves.ReadCoSave(cFiles.CoSave, CharacterRecords::kVersion);
+    AtMainMenu = false;
+    Loaded.push_back(cName);
+    World::Get().GetRunner().Trigger(GameLoadedEvent{});
+}
+
+bool FakeEngine::Autosaves(const std::string& acName)
+{
+    if (!World::Get().ctx().at<SaveService>().OnSaveRequested(true))
+        return false;
+    Saves.push_back(acName);
+    return true;
+}
+
+// As Save_Impl's hook: SaveService decides first.
+bool FakeEngine::PlayerSaves(const std::string& acName)
+{
+    if (!World::Get().ctx().at<SaveService>().OnSaveRequested())
+        return false;
+    Saves.push_back(acName);
+    return true;
 }
 
 // From the map ("Remove It"): the only removal our hook raises.

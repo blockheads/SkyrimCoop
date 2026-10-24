@@ -16,6 +16,12 @@ struct AuthenticationResponse final : NotifyMessage
         // Keep active refusal codes stable after the unused upstream reasons.
         kSessionFull = 5,
         kWrongGame,
+        // A main menu join passed the gate: the host's save follows (NotifySaveChunk).
+        kWorldFollows,
+        // The host's game could not save for it.
+        kTransferFailed,
+        // Neither the host's save nor the joining game has a character for it.
+        kNoCharacter,
     };
 
     AuthenticationResponse()

@@ -10,6 +10,7 @@ struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 struct HostCharacters;
+struct HostSaveTransfer;
 
 struct HostNetwork;
 
@@ -24,14 +25,15 @@ struct HostSession
 
     // Registers its rules with aAuthority.
     HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
-                const HostGame& acGame) noexcept;
+                HostSaveTransfer& aTransfer, const HostGame& acGame) noexcept;
 
     NO_COPY_MOVE(HostSession);
 
     // The host's game set its difficulty: the others take it (those joining later get it in their answer).
     void OnDifficultyChange(uint32_t aDifficulty) const noexcept;
 
-    // A game asks to join: accepted as a player, or refused and disconnected (the host's chat says why).
+    // A game asks to join: accepted as a player, or refused and disconnected (the host's chat says why). One joining
+    // from the main menu that passes gets the host's save instead (HostSaveTransfer), and asks again once loaded.
     void OnAuthentication(const AuthenticationRequest& acRequest, ConnectionId_t aSender) noexcept;
     // A player is leaving (still in the list): the others drop it from theirs.
     void OnPlayerLeft(ConnectionId_t aPlayer) const noexcept;
@@ -43,5 +45,6 @@ private:
     HostNetwork& m_network;
     HostPlayers& m_players;
     HostCharacters& m_characters;
+    HostSaveTransfer& m_transfer;
     const HostGame& m_game;
 };

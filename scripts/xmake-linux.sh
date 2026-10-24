@@ -17,7 +17,11 @@ if [[ "${1:-}" == "f" || "${1:-}" == "config" ]]; then
     mkdir -p "$XMAKE_CONFIGDIR/clang"
     printf '%s\n' "$GCC" > "$XMAKE_CONFIGDIR/clang/compile.cfg"
     printf '%s\n' "$GCC" -fuse-ld=lld > "$XMAKE_CONFIGDIR/clang/link.cfg"
-    exec xmake f -p linux -a x86_64 -m debug --toolchain=clang --cxflags="--config=$XMAKE_CONFIGDIR/clang/compile.cfg" \
+    exec xmake f -P "$ROOT" -p linux -a x86_64 -m debug --toolchain=clang --cxflags="--config=$XMAKE_CONFIGDIR/clang/compile.cfg" \
         --ldflags="--config=$XMAKE_CONFIGDIR/clang/link.cfg" --shflags="--config=$XMAKE_CONFIGDIR/clang/link.cfg" -y "$@" < /dev/null
+fi
+# Always this checkout's project: in a git worktree (inside the main checkout) xmake would take the parent's.
+if [[ $# -gt 0 && "$1" != -* ]]; then
+    set -- "$1" -P "$ROOT" "${@:2}"
 fi
 exec xmake "$@"

@@ -20,6 +20,8 @@
 #include <vector>
 #include "PluginPaths.h"
 #include "RunningGame.h"
+#include "CoSave.h"
+#include "HotReload/Handoff.h"
 #if COOP_TEST_HARNESS
 #include "TestHarness/TestHarness.h"
 #endif
@@ -56,6 +58,7 @@ struct SKSEInterface
     uint32_t editorVersion;
     uint32_t isEditor;
     void* (*QueryInterface)(uint32_t aId);
+    uint32_t (*GetPluginHandle)(); // only while SKSE loads its plugins
 };
 
 static HINSTANCE s_dllInstance = nullptr;
@@ -156,6 +159,13 @@ bool SKSEPlugin_Load(const SKSEInterface* apSkse)
     const auto* pTasks = static_cast<const TaskInterface*>(apSkse->QueryInterface(4));
     TestHarness::Configure(pluginDirectory, pTasks ? pTasks->AddUITask : nullptr);
 #endif
+
+    // SKSE's serialization interface (3) for the co-save. A hot reload's client gets the handle from the first.
+    const auto cHandedOff = CoopReload::TakeHandoff("skse_plugin_handle");
+    const uint32_t cHandle = cHandedOff ? static_cast<uint32_t>(std::strtoul(cHandedOff->c_str(), nullptr, 10)) : apSkse->GetPluginHandle();
+    if (!cHandedOff)
+        CoopReload::HandOff("skse_plugin_handle", std::to_string(cHandle));
+    CoSave::Start(apSkse->QueryInterface(3), cHandle, !cHandedOff);
 
     std::string exeVersion("1.6.1170.0");
 

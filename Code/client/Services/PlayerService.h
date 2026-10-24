@@ -17,6 +17,7 @@ struct DisconnectedEvent;
 struct NotifySettingsChange;
 struct DifficultyChangeEvent;
 struct PlayerFormChangeEvent;
+struct MenuEvent;
 
 
 /**
@@ -37,8 +38,10 @@ protected:
     void OnDifficultyChange(const NotifySettingsChange& acMessage) noexcept;
     // A guest holds the host's difficulty even if its settings menu changes it.
     void OnDifficultySet(const DifficultyChangeEvent& acEvent) const noexcept;
-    // The level reaches the others; a beast race respawns the player's copies (BeastFormChangeEvent).
+    // The level reaches the others; a new race respawns the player's copies (PlayerLooksChangeEvent).
     void OnPlayerFormChange(const PlayerFormChangeEvent& acEvent) noexcept;
+    // The race menu closing respawns them once, for all it changed.
+    void OnMenu(const MenuEvent& acEvent) noexcept;
 
 private:
     /**
@@ -76,6 +79,7 @@ private:
 
     uint16_t m_lastLevel = 0;
     uint32_t m_lastRaceFormId = 0;
+    bool m_inRaceMenu = false;
 
     std::vector<entt::scoped_connection> m_connections;
 };

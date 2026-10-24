@@ -420,16 +420,17 @@ nlohmann::json ContainerItems(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"items", items}};
 }
 
-// {"cmd": "menu_var", "menu": "ContainerMenu", "path": "_root.Menu_mc.bFadedIn"}: a number or boolean in an open
-// menu's movie.
+// {"cmd": "menu_var", "menu": "ContainerMenu", "path": "_root.Menu_mc.bFadedIn"}: a number, boolean or string in an
+// open menu's movie.
 nlohmann::json MenuVar(Harness&, const nlohmann::json& acRequest)
 {
     const auto cMenu = acRequest.value("menu", std::string());
     const auto cPath = acRequest.value("path", std::string());
-    const auto cValue = EngineCalls::GetMenuVariable(cMenu.c_str(), cPath.c_str());
-    if (!cValue)
-        return Error("no such menu open, or no number or boolean there");
-    return {{"ok", true}, {"value", *cValue}};
+    if (const auto cValue = EngineCalls::GetMenuVariable(cMenu.c_str(), cPath.c_str()))
+        return {{"ok", true}, {"value", *cValue}};
+    if (const auto cText = EngineCalls::GetMenuText(cMenu.c_str(), cPath.c_str()))
+        return {{"ok", true}, {"value", *cText}};
+    return Error("no such menu open, or no number, boolean or string there");
 }
 
 // {"cmd": "ref_enabled", "object": id}: whether the reference is enabled in this game.
@@ -672,7 +673,7 @@ constexpr Command cCommands[] = {
     {"form", true, &Form},
     {"form_known", true, &FormKnown},
     {"container_items", true, &ContainerItems},
-    {"menu_var", true, &MenuVar},
+    {"menu_var", false, &MenuVar},
     {"ref_enabled", true, &RefEnabled},
     {"actor_place", true, &ActorPlace},
     {"is_current_package", true, &IsCurrentPackage},

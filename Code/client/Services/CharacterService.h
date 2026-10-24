@@ -31,7 +31,7 @@ struct ProjectileLaunchedEvent;
 struct MountEvent;
 struct DismountEvent;
 struct NotifyRespawn;
-struct BeastFormChangeEvent;
+struct PlayerLooksChangeEvent;
 struct AddExperienceEvent;
 struct DialogueEvent;
 struct SubtitleEvent;
@@ -77,7 +77,8 @@ struct CharacterService
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.
     void OnNotifyDismount(const NotifyDismount& acMessage) noexcept;
     void OnNotifyRespawn(const NotifyRespawn& acMessage) const noexcept;
-    void OnBeastFormChange(const BeastFormChangeEvent& acEvent) const noexcept;
+    // Our player's looks changed: the host makes its copies again from them (HostCharacters::OnRespawn).
+    void OnPlayerLooksChange(const PlayerLooksChangeEvent& acEvent) const noexcept;
     void OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept;
     void OnNotifySyncExperience(const NotifySyncExperience& acMessage) noexcept;
     void OnDialogueEvent(const DialogueEvent& acEvent) noexcept;

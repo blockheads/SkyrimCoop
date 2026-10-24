@@ -11,7 +11,7 @@ party shares one story (the party is the Dragonborn) in `docs/design/party-model
 authority), and the Skyrim Together server is gone. Peers own only their own player; the host owns
 every NPC and the world.
 
-Last updated 2026-10-23 (testing tiers; cutscenes: a player's own moment).
+Last updated 2026-10-24 (join flow stages 4 to 6; a new character's join tested end to end).
 
 ## Direct authority migration
 
@@ -634,6 +634,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
 | Cutscenes (step 1: scripts' controls, fades, camera, shakes, music for the party) | works, from any game; a player's own moment stays theirs; two at once keep their controls; each player's own character in the scene not yet (step 2) | `cutscene-controls-reach-party`, `cutscene-fade-reaches-party`, `guest-cutscene-reaches-host`, `screen-reaches-party`, `player-moment-stays-theirs`, `restriction-stays-with-game`, `player-stage-cutscene-reaches-party`, `overlapping-cutscenes-keep-controls`, `leaver-cutscene-gives-back` |
 | Beast form (a guest's werewolf change) | works: the guest's game runs it (owner-applied effect), its copies respawn for each race from the owner's state; upstream's host-player bug does not occur (2026-10-20) | `client-beast-form-stays-client` |
+| A player's looks changing in a session (race menu, vampirism, any race switch) | works: its copies respawn from its new base data, tints (the shown ones: a vampire's overlay) and weight (2026-10-24) | `guest-changes-looks-in-session`, GameTests "A player's looks change" |
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
@@ -672,6 +673,29 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- **Join flow, stages 4 to 6 (2026-10-24, uncommitted, worktree `join-flow`).** Every join gets the host's world by
+  save transfer: the host's game saves on its main loop (`JoinBridge`, `MainLoopTasks`: a save inside our update,
+  which runs in the VM's update job, hung the host), snappy-packed chunks (`HostSaveTransfer`), the guest writes
+  `SkyrimCoopJoin` and loads it, puts its character on the save's player, then joins. The character
+  (`PlayerRecord`): the player base's save data by change flag but Factions, and the character parts of the player
+  (perks with ranks, skills block, perk points, added spells, base values, items, tints), `Extras` for mod adapters;
+  research and the engine's split in `docs/design/join-flow.md`, "Who are you". A new friend brings the character of
+  its own game; one the host's save knows joins from the main menu as the kept one (`no_character` otherwise). The
+  host keeps records from its guests (on joining, changes, leaving) and writes them into its SKSE co-save (`CoSave`,
+  `SKCP`/`CHAR` v2). Guests' saves refused, with a chat line (autosaves once a session; `Save_Impl` 35727 hook).
+  Scenarios: `guest-cannot-save` 3 of 3, `host-save-keeps-guest-character` 3 of 3, `guest-brings-character-into-
+  hosts-world` 1 of 1, `guest-joins-from-main-menu-as-kept-character` 1 run (join and character pass; the after-scenario
+  world diff found 7 QASmoke animated activators `ACTI 1BA5A` at another pose after the load: Loose ends). GameTests
+  `[join]`, `[records]`, `[save]`. `+connect_lobby` built (GameTests `[steam]`, not run in Skyrim). Not built yet: the join screen, the RaceMenu adapter
+  (build/join-flow-report.md). Live look refresh of copies: built later the same day (below).
+  Later the same day: `guest-makes-character-then-joins` (a new game through the main menu, Quick Start - SE, now on
+  in every test game's load order, the race menu driven as a player: Khajiit, female, named, then the join; compares
+  the base's save sections, the tints, and the host's copy) passes 3 runs. It found: a copy never had its player's
+  weight (no base save section has it; `Weight` now on the announcement and spawn, and in `PlayerRecord`, co-save v3;
+  GameTests and the baseline's identity check cover it), and a guest joining from another race kept the host's
+  player's tint masks (`ApplyPlayer` now rebuilds them for the race and sex, 40696, before the record's colours).
+  Harness: keys work at the main menu (W/S/E are the menus' Up/Down/Accept; arrows and Enter only reach Flash raw),
+  `char` types into text fields (`CharEvent`), `menu_var` reads strings, `input_state` shows the control map.
 - **Steam: join from an invite (2026-10-23, uncommitted).** The duo's client game runs as OS user `coop2` in its own
   network namespace, its Steam on a second account (every Steam serves games on the fixed 127.0.0.1:57343;
   `docs/design/testing.md`, "Two Steam accounts"; status `steam` shows each game's account). `SteamService` on
@@ -1072,6 +1096,20 @@ harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details 
 
 Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/copy-contract.md`.
 
+- **Open 2026-10-24: a guest joining with the host's world stands on the host's spot.** The save's player position is
+  the host's, and the record's place (`PlayerRecord` cell and position) is not applied: the guest's copy appears in
+  the host and pushes it about 40 units (`guest-brings-character-into-hosts-world` fails its after-scenario check,
+  "left behind: host"). Put the joining player at its record's place, or beside the host.
+- **Open 2026-10-24: a look change remakes the copy.** `OnPlayerLooksChange` respawns copies (a new actor, a new form
+  id): whatever holds the old copy (a dialogue, a follower's leader) loses it. Updating the copy in place (its base
+  from the new save data, its head repainted, its 3D reset) would keep it.
+- **Open 2026-10-24: a copy's base level stays its spawn's.** `NotifyPlayerLevel` only updates the party roster
+  (`SessionService::OnPlayerLevel`); the copy's base data (`TESActorBaseData` level, change flag 0x2) keeps the level
+  its player announced with. Seen by `form-state-round-trips` after `guest-brings-character-into-hosts-world` (level
+  9, then the baseline's `setlevel 1`): copy 9, player 1. What reads a copy's level (conditions, AI) sees the old one.
+- **Open 2026-10-24: a copy's base has no original race.** `TESNPC::Create` clears it (`TESNPC+0x1E8`, upstream's
+  "forces facegen"); the owner's is kept. Only a beast form's return reads it, and a copy follows its owner's race.
+  Scenarios compare the race section by its race only (`copy_base_differences`).
 - **Open 2026-10-22: an instant effect with FX Persist shows nothing on copies.** A shrine blessing's glow is its
   `CureDiseaseEffect` (`0xFBFF5`: FX Persist, `HealMysticFXS` `0x4E220` and its art, no duration): the owner shows
   it about 3 s (it starts persisting and is stopped the next update, then fades), but it is listed for one update
@@ -1261,6 +1299,10 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 
 ### Tests and harness
 
+- **Open 2026-10-24: the race menu's Weight slider, driven by harness keys, moves but the base's weight does not.**
+  `ChangeWeight` (`sub_1409524D0`) writes `TESNPC+0x1FC` only when the value differs from what the menu stored; with
+  D presses the slider reached its top in one step and the weight stayed (50, or 75 once). Not understood;
+  `guest-makes-character-then-joins` leaves the weight at its default and still compares it in every game.
 - `dive-host-player` failed 1 of 2 on a fresh duo (2026-10-21): the copy's animation event `SwimStart` vs the
   owner's `swimStop`; once left the copy showing visual `77785`. Cause found 2026-10-22: the copy swept across the
   teleport home through QASmoke's water (above, "Copies sweeping across a teleport"); fixed.

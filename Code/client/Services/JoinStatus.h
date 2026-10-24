@@ -15,14 +15,22 @@ struct JoinStatus
         kConnecting,
         kJoined,
         kRefused,
+        // Joining from the main menu (JoinService):
+        kChecking,
+        kReceivingWorld,
+        kLoading,
+        kCreatingCharacter,
     };
 
     State Current = State::kIdle;
-    // When refused, a stable code: wrong_build, wrong_game, full, mods_differ, refused.
+    // When refused, a stable code: wrong_build, wrong_game, full, mods_differ, unreachable, lost_connection,
+    // transfer_failed.
     std::string Reason;
     // When refused, one sentence the player can act on, and a line per difference.
     std::string Message;
     std::vector<std::string> Details;
+    // Receiving the world: how much of the host's save is here (0 to 1).
+    float Progress{};
 
     bool operator==(const JoinStatus&) const = default;
 };
@@ -34,6 +42,10 @@ struct JoinStatus
     case JoinStatus::State::kConnecting: return "connecting";
     case JoinStatus::State::kJoined: return "joined";
     case JoinStatus::State::kRefused: return "refused";
+    case JoinStatus::State::kChecking: return "checking";
+    case JoinStatus::State::kReceivingWorld: return "receiving_world";
+    case JoinStatus::State::kLoading: return "loading";
+    case JoinStatus::State::kCreatingCharacter: return "creating_character";
     default: return "idle";
     }
 }

@@ -14,6 +14,7 @@ void AnnounceCharacterRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const
     FactionsContent.Serialize(aWriter);
     LatestAction.GenerateDifferential(ActionEvent{}, aWriter);
     FaceTints.Serialize(aWriter);
+    Serialization::WriteFloat(aWriter, Weight);
     Serialization::WriteBool(aWriter, IsDragon);
     Serialization::WriteBool(aWriter, IsMount);
     Serialization::WriteBool(aWriter, IsPlayerSummon);
@@ -50,6 +51,7 @@ void AnnounceCharacterRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noe
     LatestAction.ApplyDifferential(aReader);
 
     FaceTints.Deserialize(aReader);
+    Weight = Serialization::ReadFloat(aReader);
 
     IsDragon = Serialization::ReadBool(aReader);
     IsMount = Serialization::ReadBool(aReader);

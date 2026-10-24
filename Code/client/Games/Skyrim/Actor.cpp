@@ -324,6 +324,21 @@ void Actor::StopCombat() noexcept
     s_pStopCombat(this);
 }
 
+bool Actor::AddSpell(SpellItem* apSpell) noexcept
+{
+    using TAddSpell = bool(Actor*, SpellItem*);
+    POINTER_SKYRIMSE(TAddSpell, s_addSpell, 38716);
+    return apSpell && s_addSpell(this, apSpell);
+}
+
+void Actor::SwitchRace(TESRace* apRace, bool aPlayer) noexcept
+{
+    using TSwitchRace = void(Actor*, TESRace*, bool);
+    POINTER_SKYRIMSE(TSwitchRace, s_switchRace, 37925);
+    if (apRace)
+        s_switchRace(this, apRace, aPlayer);
+}
+
 bool Actor::RemoveSpell(MagicItem* apSpell) noexcept
 {
     if (!apSpell)

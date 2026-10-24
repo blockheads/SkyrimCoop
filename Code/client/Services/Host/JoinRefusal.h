@@ -21,6 +21,8 @@ struct Install
     Mods Plugins;
 };
 
+// A join that ended on this game's side: unreachable, lost_connection or transfer_failed.
+JoinStatus Failed(std::string_view aReason) noexcept;
 // The refused game's status, against its own install.
 JoinStatus ForPlayer(const AuthenticationResponse& acResponse, const Install& acOurs) noexcept;
 // The line the host's chat shows: the game that sent acRequest was refused.

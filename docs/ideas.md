@@ -255,3 +255,17 @@ Deferred until a bug needs them (the lock checker, hang dump and `symbolize_cras
     interface could change. `ThisCall`/hooks have no std equivalent.
   - Start with a clang-tidy `modernize-*`/`readability-*` baseline count, then a short plan
     (`docs/design/`), then one area per change with the bridge tests and the affected scenarios.
+
+## Join flow, later (2026-10-24)
+
+- **Per-player mod data.** Mods keep player state the record cannot see: Papyrus variables on player aliases (survival
+  needs, vampire overhauls, Wintersun), per-player globals, StorageUtil/JContainers keyed on the player, other plugins'
+  co-save records. A declared adapter per mod (what is the player's, how to read and apply it) into
+  `PlayerRecord::Extras`; RaceMenu first, through its `IPresetInterface` (also for copies' looks).
+- **Bringing a character again.** Replace the host's record with the one of the friend's own game on purpose (today the
+  host's save wins); export a co-op character to a single player save.
+- **More of the character:** misc stats (global data 0), favourites and hotkeys (109), player-made potions and
+  enchanted items (created `0xFF` forms), lasting effects (diseases, blessings).
+- **Copies' looks follow a record:** a record whose base changed (barber, RaceMenu, race change) refreshes the friend's
+  copies on the other games.
+- **Delete the guest's `SkyrimCoopJoin` save** once loaded, so it does not sit in its load list.

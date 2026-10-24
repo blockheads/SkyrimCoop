@@ -7,10 +7,10 @@ HostPlayers::HostPlayers(HostNetwork& aNetwork) noexcept
 {
 }
 
-uint32_t HostPlayers::Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost) noexcept
+uint32_t HostPlayers::Add(ConnectionId_t aConnection, const std::string& acName, uint16_t aLevel, bool aIsHost, std::string aKey) noexcept
 {
     const uint32_t cId = ++m_lastId;
-    m_players[aConnection] = {cId, acName, aLevel, aIsHost};
+    m_players[aConnection] = {cId, acName, aLevel, aIsHost, std::move(aKey)};
     return cId;
 }
 

@@ -32,6 +32,15 @@ nlohmann::json Key(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+// {"cmd": "char", "text": "Ri"}: typed characters for a text field, one CharEvent each.
+nlohmann::json Char(Harness&, const nlohmann::json& acRequest)
+{
+    for (const char c : acRequest.value("text", std::string()))
+        if (!EngineCalls::SendChar(static_cast<unsigned char>(c)))
+            return Error("the input system is not up");
+    return Ok();
+}
+
 // {"cmd": "mouse", "dx": 10, "dy": -5} moves the mouse; {"cmd": "mouse", "button": 0, "down": true} presses a button.
 nlohmann::json Mouse(Harness&, const nlohmann::json& acRequest)
 {
@@ -39,6 +48,16 @@ nlohmann::json Mouse(Harness&, const nlohmann::json& acRequest)
                            ? EngineCalls::SendMouseButton(acRequest.value("button", 0u), acRequest.value("down", true))
                            : EngineCalls::SendMouseMove(acRequest.value("dx", 0), acRequest.value("dy", 0));
     return cSent ? Ok() : Error("the input system is not up");
+}
+
+// {"cmd": "input_state"}: what the control map does with keys now (EngineCalls::GetInputState).
+nlohmann::json InputStateReadout(Harness&, const nlohmann::json&)
+{
+    const auto cState = EngineCalls::GetInputState();
+    if (!cState)
+        return Error("the input system is not up");
+    return {{"ok", true}, {"contexts", cState->Contexts}, {"controls", cState->Controls}, {"text_entry", cState->TextEntry},
+            {"ignore_keyboard_mouse", cState->IgnoreKeyboardMouse}};
 }
 
 // {"cmd": "interrupt", "caster": id, "source": 1}: ends a held (concentration) cast.
@@ -50,8 +69,10 @@ nlohmann::json Interrupt(Harness&, const nlohmann::json& acRequest)
 
 constexpr Command cCommands[] = {
     {"input", true, &Input},
-    {"key", true, &Key},
-    {"mouse", true, &Mouse},
+    {"key", false, &Key},
+    {"mouse", false, &Mouse},
+    {"char", false, &Char},
+    {"input_state", false, &InputStateReadout},
     {"interrupt", false, &Interrupt},
 };
 } // namespace

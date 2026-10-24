@@ -103,7 +103,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     : m_network(aNetwork)
     , m_game(std::move(aGame))
     , m_players(aNetwork)
-    , m_session(*this, aNetwork, m_players, m_characters, m_game)
+    , m_transfer(aNetwork, m_game)
+    , m_session(*this, aNetwork, m_players, m_characters, m_transfer, m_game)
     , m_characters(*this, aNetwork, m_players, m_game)
     , m_clock(*this, aNetwork, m_players, m_game)
     , m_weather(aNetwork, m_players, m_game)
@@ -111,6 +112,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
+    , m_records(*this, m_players, m_characters, m_game)
 {
     using enum Delivery;
 
@@ -162,6 +164,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     m_network.SetFrontDoor([this](const RequestMessage& acMessage, ConnectionId_t aSender) { return Handle(acMessage, aSender); });
     // A player's game ended its connection: the others drop it, then its characters go.
     m_network.SetDisconnectionHandler([this](ConnectionId_t aConnection) {
+        m_transfer.OnDisconnected(aConnection);
         if (!m_players.IsPlayer(aConnection))
             return;
         m_session.OnPlayerLeft(aConnection);
@@ -177,6 +180,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 void HostAuthority::Update(uint64_t aTick) noexcept
 {
     m_clock.Update(aTick);
+    m_transfer.Update(aTick);
     m_weather.Update();
     m_worldState.Update(aTick);
 }

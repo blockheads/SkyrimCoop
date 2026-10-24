@@ -591,6 +591,10 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    float GetActorBaseWeight(uint32_t aFormId) const noexcept override
+    {
+        return 50.f;
+    }
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override
     {
         return {};
@@ -748,7 +752,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept override
+    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override
     {
         return {};
     }

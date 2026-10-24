@@ -4,6 +4,7 @@
 #include "Session.h"
 
 #include <World.h>
+#include <Services/JoinService.h>
 #include <Components.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -92,12 +93,23 @@ static int64_t SessionId(uint32_t aFormId)
     return -1;
 }
 
+static nlohmann::json TintsOf(const Tints& acTints)
+{
+    auto tints = nlohmann::json::array();
+    for (const auto& cTint : acTints.Entries)
+        tints.push_back({{"name", cTint.Name}, {"type", cTint.Type}, {"color", cTint.Color}, {"alpha", cTint.Alpha}});
+    return tints;
+}
+
 // What the actor is, to catch a copy built from the wrong record (e.g. a blank custom actor).
 static nlohmann::json Identity(uint32_t aFormId)
 {
     auto& actors = World::Get().GetActorBridge();
-    return {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
-            {"race", actors.GetActorRaceFormId(aFormId)}};
+    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+                               {"race", actors.GetActorRaceFormId(aFormId)}};
+    if (const auto cLooks = EngineCalls::GetBaseLooks(aFormId))
+        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}});
+    return identity;
 }
 
 // Active magic effects: abilities and worn enchantments are permanent (duration 0), spells and
@@ -166,8 +178,15 @@ static nlohmann::json Snapshot(uint32_t aFormId)
         }
         if (const auto* pInterpolation = world.try_get<InterpolationComponent>(entity))
             mod["interpolation_points"] = pInterpolation->TimePoints.size();
+        // A copy's head, painted from its owner's tints (FaceGenSystem): compared by the scenarios.
+        if (const auto* pFace = world.try_get<FaceGenComponent>(entity))
+            mod["face"] = {{"painted", pFace->Generated}, {"tints", TintsOf(pFace->FaceTints)}};
         break;
     }
+
+    // This game's player's head: the tints it shows (a vampire's overlay ones, else its own), as its copies get them.
+    if (aFormId == world.GetPlayerBridge().GetPlayerFormId())
+        mod["face"] = {{"tints", TintsOf(world.GetPlayerBridge().GetPlayerFaceTints())}};
 
     // The voice line, shown and not compared: a copy's starts a little after its owner's, and the
     // callback state can rest at 3 once a line is over (the audio system's late callback).
@@ -191,12 +210,15 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                     {"seconds_under", cWater.SecondsUnder}};
 
     const auto cAi = EngineCalls::GetAiReadout(aFormId);
+    nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
+                               {"race", actors.GetActorRaceFormId(aFormId)},
+                               {"template_base", actors.GetActorNpcTemplateBaseFormId(aFormId)},
+                               {"temporary_base", actors.IsActorNpcTemporary(aFormId)},
+                               {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}};
+    if (const auto cLooks = EngineCalls::GetBaseLooks(aFormId))
+        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}});
     return {
-        {"identity", {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
-                      {"race", actors.GetActorRaceFormId(aFormId)},
-                      {"template_base", actors.GetActorNpcTemplateBaseFormId(aFormId)},
-                      {"temporary_base", actors.IsActorNpcTemporary(aFormId)},
-                      {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}}},
+        {"identity", identity},
         {"placement", {{"position", {position[0], position[1], position[2]}}, {"rotation", ActorRotation(aFormId)},
                        {"cell", actors.GetActorParentCellFormId(aFormId)},
                        {"riding", !actors.IsActorMount(aFormId) && EngineCalls::HasMountInteraction(aFormId)},
@@ -300,8 +322,9 @@ static nlohmann::json GameStatus()
         chat = {{"open", pUi->IsChatOpen()}, {"draft", pUi->GetChatDraft()}, {"lines", lines}};
     }
     // The last attempt to join, and if it was refused, why.
-    const auto& cJoin = world.GetTransport().GetJoinStatus();
-    const nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message}, {"details", cJoin.Details}};
+    const auto& cJoin = world.ctx().at<JoinService>().GetStatus();
+    const nlohmann::json join = {{"state", ToString(cJoin.Current)}, {"reason", cJoin.Reason}, {"message", cJoin.Message},
+                                 {"details", cJoin.Details}, {"progress", cJoin.Progress}, {"joining", world.ctx().at<JoinService>().IsJoining()}};
     nlohmann::json cursor = nullptr;
     if (const auto cCursor = EngineCalls::GetMenuCursor())
         cursor = {cCursor->first, cCursor->second};
@@ -320,7 +343,8 @@ static nlohmann::json GameStatus()
             {"wait_hours", waitHours},
             {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()}, {"difficulty", world.GetPlayerBridge().GetDifficulty()},
             {"players", players}, {"party_panel", party}, {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
-            {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()}};
+            {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()},
+            {"main_menu", EngineCalls::IsMenuOpen("Main Menu")}};
 }
 
 static nlohmann::json PlayerStatus(const Harness& acHarness)

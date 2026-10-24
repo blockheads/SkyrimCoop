@@ -10,6 +10,9 @@ void AuthenticationRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const no
     CellId.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, Level);
     PlayerTime.Serialize(aWriter);
+    Serialization::WriteString(aWriter, PlayerKey);
+    Serialization::WriteBool(aWriter, WantsWorld);
+    Serialization::WriteBool(aWriter, HasCharacter);
 }
 
 void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -24,4 +27,7 @@ void AuthenticationRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexce
     CellId.Deserialize(aReader);
     Level = Serialization::ReadVarInt(aReader) & 0xFFFF;
     PlayerTime.Deserialize(aReader);
+    PlayerKey = Serialization::ReadString(aReader);
+    WantsWorld = Serialization::ReadBool(aReader);
+    HasCharacter = Serialization::ReadBool(aReader);
 }

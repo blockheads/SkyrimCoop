@@ -5,6 +5,10 @@
 #include <Events/ActivateEvent.h>
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
+#include <Events/GameSavingEvent.h>
+#include <Bridges/IJoinBridge.h>
+#include <Services/JoinService.h>
+#include <Services/SaveService.h>
 #include <Events/PlayerNativeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/UpdateEvent.h>
@@ -32,6 +36,7 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<ScriptAnimationEvent, &HostService::OnScriptAnimation>(m_connections, m_dispatcher, this);
     Listen<ContainerChangeEvent, &HostService::OnContainerChange>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
+    Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
     Listen<PlayerNativeEvent, &HostService::OnPlayerNative>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
     Listen<NotifyWorldCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
@@ -60,6 +65,12 @@ void HostService::OnDifficultyChange(const DifficultyChangeEvent& acEvent) const
 {
     if (IsHosting())
         m_pAuthority->DifficultyChanged(acEvent.Difficulty);
+}
+
+void HostService::OnGameSaving(const GameSavingEvent&) const noexcept
+{
+    if (IsHosting())
+        m_pAuthority->Saving();
 }
 
 void HostService::OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept
@@ -133,6 +144,17 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
     game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { m_pEngine->SetItems(acObject, acItem, aCount); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
+    game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
+    game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };
+    game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
+        auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
+        if (!files)
+            return std::nullopt;
+        return SaveTransfer::Split(SaveTransfer::Pack(*files));
+    };
+    game.StorePlace = [this](const std::string& acKey, const GameId& acCell, const std::array<float, 3>& acPosition) {
+        m_world.ctx().at<SaveService>().GetRecords().SetPlace(acKey, acCell, acPosition);
+    };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));

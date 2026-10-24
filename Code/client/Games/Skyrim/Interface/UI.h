@@ -5,6 +5,8 @@
 #include <Games/Primitives.h>
 
 struct IMenu;
+struct MenuOpenCloseEvent;
+template <class T> struct EventDispatcher;
 
 struct UIMessage
 {
@@ -71,6 +73,9 @@ class UI
 {
 public:
     static UI* Get();
+
+    // Its menus opening and closing (CommonLibSSE-NG: UI's BSTEventSource<MenuOpenCloseEvent> base at 0x8).
+    EventDispatcher<MenuOpenCloseEvent>* MenuOpenCloseSource() noexcept;
 
     bool GetMenuOpen(const BSFixedString& acName) const;
     void CloseAllMenus();

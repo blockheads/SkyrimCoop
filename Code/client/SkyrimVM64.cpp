@@ -1,6 +1,10 @@
 #include <HookSwitch.h>
 #include "Plugin.h"
 #include "CrashHandler.h"
+#include "MainLoopTasks.h"
+#include <Interface/UI.h>
+
+#include <atomic>
 #if COOP_TEST_HARNESS
 #include "TestHarness/TestHarness.h"
 #include <Hooks/FunctionHook.h>
@@ -21,6 +25,8 @@ using TVMDestructor = uintptr_t(void*);
 static TVMUpdate* VMUpdate = nullptr;
 static TMainLoop* MainLoop = nullptr;
 static TVMDestructor* VMDestructor = nullptr;
+// The VM's update ran since the last main loop tick (it does not at the main menu).
+static std::atomic<bool> s_vmUpdated{false};
 
 int HookVMUpdate(VMContext* apThis, float a2)
 {
@@ -34,6 +40,7 @@ int HookVMUpdate(VMContext* apThis, float a2)
         spdlog::info("Papyrus VM update: client update loop running");
     }
 
+    s_vmUpdated = true;
     g_plugin->Update();
 
     return VMUpdate(apThis, a2);
@@ -49,6 +56,11 @@ short HookMainLoop(Main* apThis)
     // harness sees the plugin alive at the main menu too.
     TestHarness::Poll();
 #endif
+    MainLoopTasks::Run();
+    // At the main menu the VM's update, where ours runs, does not tick: the session (a join from there) runs here.
+    const UI* pUI = UI::Get();
+    if (!s_vmUpdated.exchange(false) && g_plugin && pUI && pUI->GetMenuOpen("Main Menu"))
+        g_plugin->Update();
 
     return MainLoop(apThis);
 }

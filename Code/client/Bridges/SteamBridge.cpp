@@ -233,6 +233,18 @@ SteamBridge::~SteamBridge()
     Impl::s_pInstance = nullptr;
 }
 
+ISteamBridge::SteamId SteamBridge::GetLaunchLobby() noexcept
+{
+    const wchar_t* cpLine = GetCommandLineW();
+    if (!cpLine)
+        return 0;
+    const std::wstring_view cWide(cpLine);
+    std::string line(cWide.size(), ' ');
+    for (size_t i = 0; i < cWide.size(); ++i)
+        line[i] = cWide[i] < 0x80 ? static_cast<char>(cWide[i]) : '?';
+    return ParseConnectLobby(line);
+}
+
 bool SteamBridge::IsReady() noexcept
 {
     return m_pImpl->Ready();

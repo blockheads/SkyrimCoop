@@ -47,6 +47,8 @@ void ClearPlayerMapMarker() noexcept;
 std::optional<double> GetWaitMenuHours() noexcept;
 // A number or boolean (1/0) in an open menu's movie ("_root.Menu_mc.bFadedIn"); none: no such menu or value.
 std::optional<double> GetMenuVariable(const char* acpMenu, const char* acpPath) noexcept;
+// A string there (StartMenu's strCurrentState); none: no such menu or string.
+std::optional<std::string> GetMenuText(const char* acpMenu, const char* acpPath) noexcept;
 
 // --- Quests ---
 
@@ -170,9 +172,21 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept;
 // A keyboard key by DirectInput scan code, as the keyboard sends it: given the user event the key is mapped
 // to in the open menu or gameplay (ControlMap), then through the same dispatch.
 bool SendKey(uint32_t aScanCode, bool aDown) noexcept;
+// A typed character, as the keyboard sends it for text fields (a CharEvent through the same dispatch).
+bool SendChar(uint32_t aCharacter) noexcept;
 // A mouse button (0 left, 1 right) and a mouse move by a delta, the same way.
 bool SendMouseButton(uint32_t aButton, bool aDown) noexcept;
 bool SendMouseMove(int32_t aDeltaX, int32_t aDeltaY) noexcept;
+// What the control map does with keys now (ControlMap): its input contexts (the top last), the controls
+// on, and the two flags that make it map keyboard keys to nothing.
+struct InputState
+{
+    std::vector<uint32_t> Contexts;
+    uint32_t Controls{};
+    int TextEntry{};
+    bool IgnoreKeyboardMouse{};
+};
+std::optional<InputState> GetInputState() noexcept;
 // Where the menus' cursor points while it shows.
 std::optional<std::pair<float, float>> GetMenuCursor() noexcept;
 void ForcePlayerFirstPerson() noexcept;
@@ -264,6 +278,14 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
 // Those it plays at this game's camera on the actor's behalf (a script's VisualEffect attached to the camera).
 std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept;
+// The actor's base looks the race menu sets beside its race: female (TESActorBaseData flag 1) and weight
+// (TESNPC, 0 to 100). None: no such actor or no NPC base.
+struct BaseLooks
+{
+    bool Female{};
+    float Weight{};
+};
+std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept;
 // Every shader and art object in the engine's list on the actor, the finished ones still fading out too: a hit
 // shader without FX Persist is finished from its start (ShaderReferenceEffect::Init) and plays one pass.
 std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept;

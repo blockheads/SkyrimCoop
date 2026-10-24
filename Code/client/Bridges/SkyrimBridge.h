@@ -70,6 +70,7 @@ public:
     uint32_t GetActorBaseFormId(uint32_t aFormId) const noexcept override;
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
+    float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override;
@@ -114,7 +115,7 @@ public:
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
-    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
+    uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;

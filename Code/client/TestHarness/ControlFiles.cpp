@@ -20,7 +20,13 @@ void ControlFiles::PollBootCommand()
     {
         std::ifstream bootFile(m_directory / "boot.txt");
         if (!bootFile || !std::getline(bootFile, m_bootCommand) || m_bootCommand.empty())
+        {
+            // Booted to the main menu: in the world once a save loads (a join from there).
+            if (entt::locator<World>::has_value() && World::Get().GetPlayerBridge().IsPlayerLoaded() &&
+                World::Get().GetPlayerBridge().GetPlayerParentCellId() != 0 && !EngineCalls::IsMenuOpen("Main Menu"))
+                m_bootState = "executed";
             return;
+        }
         m_bootState = "waiting_for_main_menu";
     }
     if (m_bootState != "waiting_for_main_menu")

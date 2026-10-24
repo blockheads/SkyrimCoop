@@ -5,6 +5,8 @@
 
 #include <Events/GameLoadedEvent.h>
 #include <Events/SessionNoticeEvent.h>
+#include <Services/JoinService.h>
+#include <Services/SaveService.h>
 #include <Services/SteamService.h>
 
 namespace
@@ -168,4 +170,47 @@ SCENARIO("A host with friends in its game does not leave it for an invite", "[st
                 "Lydia's player is told why she stays");
     CHECK(State(lydia).State == "hosting");
     CHECK(lydia.GetHostService().IsHosting());
+}
+
+SCENARIO("Steam starts a friend's game for an invite (+connect_lobby): at its main menu it joins that lobby", "[steam]")
+{
+    Party party(1, Plugins, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+
+    party.As(host, [&] { REQUIRE(Steam(host).Host()); });
+    party.Until([&] { return State(host).State == "hosting"; }, "the host's game makes its lobby and listens");
+    // Started by Steam with the lobby on its command line, it reaches its main menu.
+    Party::Steam(guest).LaunchLobby = State(host).Lobby;
+    Party::Engine(guest).AtMainMenu = true;
+
+    WHEN("the host's save keeps the friend's character")
+    {
+        PlayerRecord kept;
+        kept.Key = std::format("steam:{}", Party::Steam(guest).Id);
+        kept.Name = "Lydia";
+        kept.Level = 17;
+        party.As(host, [&] { host.ctx().at<SaveService>().GetRecords().Put(kept); });
+        party.Until([&] { return guest.GetTransport().IsOnline() && !guest.ctx().at<JoinService>().IsJoining(); },
+                    "the friend's game joins the lobby, loads the host's save and joins as its kept character",
+                    [&] { return std::format("Steam {} ({}), join {}", State(guest).State, State(guest).Error,
+                                             ToString(guest.ctx().at<JoinService>().GetStatus().Current)); });
+        CHECK(Party::Engine(guest).Player.Level == 17);
+        CHECK(Party::Engine(guest).Loaded == std::vector<std::string>{JoinService::kJoinSave});
+    }
+
+    WHEN("the host's save does not know the friend")
+    {
+        party.Until([&] { return guest.ctx().at<JoinService>().GetStatus().Current == JoinStatus::State::kRefused; },
+                    "the friend's game is told to make a character first");
+        CHECK(guest.ctx().at<JoinService>().GetStatus().Reason == "no_character");
+    }
+}
+
+TEST_CASE("Steam's +connect_lobby is read from the game's command line", "[steam]")
+{
+    CHECK(ISteamBridge::ParseConnectLobby(R"("C:\Games\Skyrim Special Edition\SkyrimSE.exe" +connect_lobby 109775241234567890)") ==
+          109775241234567890ull);
+    CHECK(ISteamBridge::ParseConnectLobby("skse64_loader.exe +connect_lobby  42 -windowed") == 42);
+    CHECK(ISteamBridge::ParseConnectLobby("SkyrimSE.exe -windowed") == 0);
 }
