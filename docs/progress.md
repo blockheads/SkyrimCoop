@@ -672,6 +672,17 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Test suite
 
+- **Steam: join from an invite (2026-10-23, uncommitted).** The duo's client game runs as OS user `coop2` in its own
+  network namespace, its Steam on a second account (every Steam serves games on the fixed 127.0.0.1:57343;
+  `docs/design/testing.md`, "Two Steam accounts"; status `steam` shows each game's account). `SteamService` on
+  `ISteamBridge` (Skyrim's `steam_api64`): the host makes a friends-only lobby and invites, the friend's accept hands
+  its game the lobby, which connects to the host P2P and joins the session through it (enet tunnelled; the host's
+  tunnel delivers into its own listener). `guest-joins-by-invite` 3 of 3 plus earlier runs; GameTests `[steam]`
+  (FakeSteam): join, the host leaving, the friend leaving, a foreign lobby refused. A loaded save hosts by itself, a
+  lone host steps down to join a friend's invite, the chat says who joined or left or why a join failed
+  (`loaded-save-hosts-then-joins-friend`, 3 of 3 after its cleanup fix: a friend's tunnel closing kicks its session
+  connection at once). Two lock-order families read and added to `lock_order_known.txt`. Next: `+connect_lobby`,
+  then joining from the main menu with the host's save (join-flow stages 4 to 6, not built).
 - Placed wildlife copies take the host's chosen NPC base (2026-10-23, uncommitted): spawn and refresh keep the
   exact placed reference, but apply the owner's base and reload its model/race. GameTests reproduces the Rabbit/Fox
   swap, including absent 3D and reversed refresh order; removing either the sent base or refresh handler fails it.
@@ -1292,6 +1303,7 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
   `form-state-round-trips` (the fresh-duo loose end above) and `late-join-gets-ring-pose` on a guest lock report,
   `+0x15584d > +0x155859` against `+0x154dce > +0x154de0`: the engine's inventory functions 11594/11591 again
   (see `lock_order_known.txt`), at other sites; its stacks were not in the log, so not added to the known list.
+  Seen again 2026-10-23 with its stacks (an outfit reset on the remove side): added.
 - **A guest whose game restarts keeps some of its own state at join** (2026-10-21, found in the phase 5 runs):
   `join-refused-plugins-differ` restarts the client's game, and after it rejoins (a) put-back states the host's
   cell answer leaves out (containers changed and refilled, `changes 0x20`; a door unlocked at level 50) and (b) a

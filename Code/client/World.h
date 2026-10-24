@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bridges/IDialogueBridge.h>
+#include <Bridges/ISteamBridge.h>
 
 #include <memory>
 
@@ -75,6 +76,7 @@ private:
     // Must exist before TransportService looks up its bridge references.
     std::unique_ptr<SkyrimBridge> m_pSkyrimBridge;
     std::unique_ptr<IDialogueBridge> m_pDialogueBridge;
+    std::unique_ptr<ISteamBridge> m_pSteamBridge;
     RunnerService m_runner;
     TransportService m_transport;
 

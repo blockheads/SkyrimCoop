@@ -1,6 +1,7 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include "FakeDialogue.h"
+#include "FakeSteam.h"
 #include "FakeEngine.h"
 #include <Games/DeathActions.h>
 
@@ -27,6 +28,7 @@
 #include <Services/PlayerService.h>
 #include <Services/TravelService.h>
 #include <Services/RunnerService.h>
+#include <Services/SteamService.h>
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
 #include <World.h>
@@ -60,7 +62,7 @@ void SetCurrentWorld(World* apWorld) noexcept
 
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
-      m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pSteamBridge(std::make_unique<FakeSteam>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
     // In the real World's order: TravelService before CharacterService.
@@ -85,11 +87,14 @@ World::World()
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
     ctx().emplace<GuestSeam>(*this);
+    ctx().emplace<FakeSteam&>(static_cast<FakeSteam&>(*m_pSteamBridge));
+    ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
 }
 
 // As the real World: the services go first, newest first, while the dispatcher and the engine they use still live.
 World::~World()
 {
+    ctx().erase<SteamService>();
     ctx().erase<GuestSeam>();
     ctx().erase<HostService>();
     ctx().erase<MapService>();

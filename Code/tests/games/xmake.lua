@@ -20,7 +20,8 @@ target("GameTests")
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp",
               "../../client/Services/Generic/CombatService.cpp",
               "../../client/Services/Generic/ObjectService.cpp",
-              "../../client/Services/Generic/DialogueService.cpp", "../../client/Services/Guest/GuestDialogue.cpp")
+              "../../client/Services/Generic/DialogueService.cpp", "../../client/Services/Guest/GuestDialogue.cpp",
+              "../../client/Services/Generic/SteamService.cpp")
     add_files("../../client/Games/Skyrim/Papyrus/PartyRules.cpp")
     add_includedirs(".", "../../client", "../../client/Games/Skyrim")
     -- The shared specs, which coop_test.py runs in Skyrim too.

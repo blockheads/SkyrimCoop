@@ -107,6 +107,9 @@ void HostService::StopHosting() noexcept
 {
     if (!IsHosting())
         return;
+    // As the real one: our own in-process connection goes through it.
+    if (m_world.GetTransport().IsConnectedLocally())
+        m_world.GetTransport().Close();
     m_pConversation.reset();
     m_pNetwork.reset();
     m_pAuthority.reset();

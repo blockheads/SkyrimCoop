@@ -5,6 +5,7 @@
 #include <World.h>
 #include <Services/HostService.h>
 #include <Services/TransportService.h>
+#include <Services/SteamService.h>
 #include <Bridges/IPlayerBridge.h>
 
 // The session: leaving, kicking, and swapping in a rebuilt plugin. Hosting and joining are driven by
@@ -54,7 +55,30 @@ nlohmann::json Reload(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"reload", ReloadStatus()}};
 }
 
+// {"cmd": "steam_host"}: makes a Steam lobby and listens, as the Host button will.
+nlohmann::json SteamHost(Harness&, const nlohmann::json&)
+{
+    return World::Get().ctx().at<SteamService>().Host() ? Ok() : Error("Steam not ready, or a session under way");
+}
+
+// {"cmd": "steam_invite", "friend": "<SteamID64>"}: the host invites a friend to its lobby, as the overlay's invite does.
+nlohmann::json SteamInvite(Harness&, const nlohmann::json& acRequest)
+{
+    const uint64_t cFriend = std::stoull(acRequest.value("friend", std::string("0")));
+    return World::Get().ctx().at<SteamService>().Invite(cFriend) ? Ok() : Error("not hosting a lobby, or Steam refused");
+}
+
+// {"cmd": "steam_leave"}: leaves the Steam session (the host's ends it for everyone in it).
+nlohmann::json SteamLeave(Harness&, const nlohmann::json&)
+{
+    World::Get().ctx().at<SteamService>().Leave();
+    return Ok();
+}
+
 constexpr Command cCommands[] = {
+    {"steam_host", false, &SteamHost},
+    {"steam_leave", false, &SteamLeave},
+    {"steam_invite", false, &SteamInvite},
     {"disconnect", false, &Disconnect},
     {"kick", false, &Kick},
     {"difficulty", false, &Difficulty},

@@ -8,6 +8,7 @@
 #include <Components/PlayerComponent.h>
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
+#include <Events/SessionNoticeEvent.h>
 #include <Events/SetTimeCommandEvent.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/SendChatMessageRequest.h>
@@ -95,6 +96,7 @@ UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept
     , m_actorBridge(aActorBridge)
 {
     Listen<NotifyChatMessageBroadcast, &UiService::OnChatMessage>(m_connections, aWorld.GetDispatcher(), this);
+    Listen<SessionNoticeEvent, &UiService::OnSessionNotice>(m_connections, aWorld.GetDispatcher(), this);
 }
 
 UiService::~UiService() noexcept
@@ -366,6 +368,11 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
         return;
     }
     ShowSystemLine("Commands: /settime <hours> <minutes>");
+}
+
+void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept
+{
+    ShowSystemLine(acNotice.Text);
 }
 
 void UiService::ShowSystemLine(const Rml::String& acText) noexcept

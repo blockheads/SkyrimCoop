@@ -39,7 +39,7 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
     static std::string error;
     static std::chrono::steady_clock::time_point deadline;
     static uint16_t port = 0;
-    static uint16_t joinPort = 0; // nonzero: join a host on 127.0.0.1:joinPort instead of hosting
+    static uint16_t joinPort = 0; // nonzero: join a host on joinPort instead of hosting
     std::ifstream command(directory / "session.txt");
     std::string next;
     if (command) std::getline(command, next);
@@ -78,7 +78,9 @@ nlohmann::json PollSession(const std::filesystem::path& directory)
     if (state == "waiting_for_world" && ready && joinPort != 0)
     {
         // The transport authenticates and assigns our character itself once connected.
-        world.GetTransport().Connect("127.0.0.1:" + std::to_string(joinPort));
+        // The host across a network namespace link (SKYRIMCOOP_JOIN_HOST), loopback otherwise.
+        const char* pHost = std::getenv("SKYRIMCOOP_JOIN_HOST");
+        world.GetTransport().Connect(std::string(pHost && *pHost ? pHost : "127.0.0.1") + ":" + std::to_string(joinPort));
         state = "joining";
     }
     if (state == "joining" && world.GetTransport().IsOnline())

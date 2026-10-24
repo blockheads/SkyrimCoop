@@ -50,6 +50,8 @@ namespace Net
         [[nodiscard]] uint64_t GetTick() const noexcept;
         [[nodiscard]] bool IsAlive(ConnectionId_t aConnectionId) const noexcept;
         [[nodiscard]] ENetPeer* GetPeer(ConnectionId_t aConnectionId) const noexcept;
+        // The connection from a port on this machine (a tunnel's end, SteamService); 0 when none.
+        [[nodiscard]] ConnectionId_t FindLocalConnection(uint16_t aPort) const noexcept;
 
     private:
 

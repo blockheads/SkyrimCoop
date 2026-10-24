@@ -6,6 +6,7 @@
 #include <catch2/catch.hpp>
 
 #include "FakeEngine.h"
+#include "FakeSteam.h"
 #include "UdpRelay.h"
 
 #include <Components.h>
@@ -169,6 +170,11 @@ struct Party
         return aGame.ctx().at<FakeEngine&>();
     }
 
+    static FakeSteam& Steam(World& aGame)
+    {
+        return aGame.ctx().at<FakeSteam&>();
+    }
+
     // aAction on aGame: World::Get() is that game while it runs.
     void As(World& aGame, const std::function<void()>& aAction)
     {
@@ -305,6 +311,7 @@ struct Party
     {
         auto pGame = std::make_unique<World>();
         Engine(*pGame).Name = acpName;
+        pGame->ctx().at<FakeSteam&>().Name = acpName;
         if (acPlugins)
             acPlugins(Engine(*pGame));
         return pGame;

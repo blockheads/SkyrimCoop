@@ -62,6 +62,7 @@ import fnmatch
 import json
 import math
 import os
+import pwd
 import random
 from pathlib import Path
 import re
@@ -80,6 +81,16 @@ GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
 PROTON = Path(os.environ.get("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
 RUNTIME = Path(os.environ.get("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
 STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".steam/steam"))
+# The client game runs as another OS user, whose Steam is logged into a second account: Steam invites need two
+# (docs/design/join-flow.md, "Steam"). Default: the test user `coop2` when it exists; "" runs both as this user.
+def user_exists(name):
+    try:
+        return bool(pwd.getpwnam(name))
+    except KeyError:
+        return False
+
+
+CLIENT_USER = os.environ.get("COOP_CLIENT_USER", "coop2" if user_exists("coop2") else "")
 TEST_HOME = (ROOT / "build/coop-test").resolve()  # one name for the games, from any checkout or worktree
 PREFIX = TEST_HOME / "prefix-host"
 DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"))
@@ -150,15 +161,110 @@ def set_ini(path, values):
 VISIBLE = False  # --visible: show the game on the desktop instead of the virtual display
 
 
+# The client user's own network namespace: every Steam client serves games on the fixed 127.0.0.1:57343, so a second
+# Steam on this machine needs its own loopback (docs/design/testing.md, "Two Steam accounts").
+CLIENT_NETNS, HOST_SIDE_ADDRESS, CLIENT_ADDRESS = "coop2", "10.77.0.1", "10.77.0.2"
+
+
+def sudo(*command):
+    return subprocess.run(["sudo", "-n", *command], capture_output=True, text=True)
+
+
+def ensure_client_netns():
+    """The namespace, its link to this one (10.77.0.1 here, 10.77.0.2 there), NAT out and DNS; kept until reboot."""
+    if CLIENT_NETNS not in sudo("ip", "netns", "list").stdout.split():
+        log(f"Creating the client's network namespace {CLIENT_NETNS} (once per boot)")
+        for command in (["ip", "netns", "add", CLIENT_NETNS],
+                        ["ip", "link", "add", "coop2-host", "type", "veth", "peer", "name", "coop2-ns"],
+                        ["ip", "link", "set", "coop2-ns", "netns", CLIENT_NETNS],
+                        ["ip", "addr", "add", f"{HOST_SIDE_ADDRESS}/24", "dev", "coop2-host"],
+                        ["ip", "link", "set", "coop2-host", "up"],
+                        ["ip", "netns", "exec", CLIENT_NETNS, "ip", "addr", "add", f"{CLIENT_ADDRESS}/24", "dev", "coop2-ns"],
+                        ["ip", "netns", "exec", CLIENT_NETNS, "ip", "link", "set", "coop2-ns", "up"],
+                        ["ip", "netns", "exec", CLIENT_NETNS, "ip", "link", "set", "lo", "up"],
+                        ["ip", "netns", "exec", CLIENT_NETNS, "ip", "route", "add", "default", "via", HOST_SIDE_ADDRESS]):
+            if (result := sudo(*command)).returncode != 0:
+                raise TestFailure(f"netns setup failed: {' '.join(command)}: {result.stderr.strip()}")
+    sudo("sysctl", "-q", "-w", "net.ipv4.ip_forward=1")
+    # Forwarding is dropped by default here (Docker's policy): let the namespace's traffic through, then NAT it.
+    for table, chain, rule in (("filter", "FORWARD", ["-i", "coop2-host", "-j", "ACCEPT"]),
+                               ("filter", "FORWARD", ["-o", "coop2-host", "-j", "ACCEPT"]),
+                               ("nat", "POSTROUTING", ["-s", "10.77.0.0/24", "!", "-o", "coop2-host", "-j", "MASQUERADE"])):
+        if sudo("iptables", "-t", table, "-C", chain, *rule).returncode != 0:
+            sudo("iptables", "-t", table, "-I", chain, "1", *rule)
+    resolv = Path(f"/etc/netns/{CLIENT_NETNS}/resolv.conf")
+    if not resolv.exists():
+        sudo("mkdir", "-p", str(resolv.parent))
+        subprocess.run(["sudo", "-n", "tee", str(resolv)], input="nameserver 1.1.1.1\nnameserver 8.8.8.8\n",
+                       text=True, capture_output=True)
+
+
+def in_client_netns(pid):
+    """That process runs in the client's namespace."""
+    mine = sudo("readlink", f"/proc/{pid}/ns/net").stdout.strip()
+    theirs = sudo("ip", "netns", "exec", CLIENT_NETNS, "readlink", "/proc/self/ns/net").stdout.strip()
+    return bool(mine) and mine == theirs
+
+
+def instance_runtime():
+    """The Steam runtime this instance's game runs in: the client user's own copy (its container hard-links the
+    runtime's files, which it may only do for files it owns), refreshed when Steam updates the runtime."""
+    if not instance_user():
+        return RUNTIME
+    copy = TEST_HOME / f"runtime-{instance_user()}"
+    if not (copy / "VERSIONS.txt").exists() or (copy / "VERSIONS.txt").read_bytes() != (RUNTIME / "VERSIONS.txt").read_bytes():
+        log(f"Copying the Steam runtime for {instance_user()} (once per runtime update, ~800 MB)")
+        sudo("rm", "-rf", str(copy))
+        sudo("install", "-d", "-o", instance_user(), "-g", instance_user(), str(copy))
+        result = sudo("-u", instance_user(), "rsync", "-a", "--exclude", "/var/", f"{RUNTIME}/", f"{copy}/")
+        if result.returncode != 0:
+            raise TestFailure(f"copying the Steam runtime failed: {result.stderr.strip()}")
+    return copy
+
+
+def instance_user():
+    """The OS user this instance's game runs as, when not this one (CLIENT_USER for the client)."""
+    return CLIENT_USER if INSTANCE == "client" and CLIENT_USER else None
+
+
+def as_instance_user(command, env):
+    """The command run as the instance's user (sudo, the environment passed explicitly, files group-writable), so
+    its game talks to that user's Steam; unchanged for this user."""
+    user = instance_user()
+    if not user:
+        return command
+    personal = {"HOME", "USER", "LOGNAME", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "XAUTHORITY", "MAIL"}
+    # HOST_HOME and its kin name this user's home, where Steam's container would find this user's Steam.
+    assignments = [f"{key}={value}" for key, value in env.items()
+                   if key not in personal and not key.startswith("HOST_")]
+    # Its own session bus (user_bus): without one, a game's D-Bus client starts one that outlives the game.
+    assignments.append(f"DBUS_SESSION_BUS_ADDRESS=unix:path={user_bus(user)}")
+    ensure_client_netns()
+    return ["sudo", "-n", "ip", "netns", "exec", CLIENT_NETNS, "sudo", "-u", user, "-H", "--", "env", *assignments,
+            "bash", "-c", 'umask 002; exec "$@"', "_", *command]
+
+
+def user_bus(user):
+    """A session bus for that user, started once and left running (the client user has no desktop session)."""
+    path = Path(f"/tmp/skyrimcoop-{user}-bus")
+    if not path.is_socket():
+        subprocess.run(["sudo", "-n", "-u", user, "-H", "dbus-daemon", "--session", f"--address=unix:path={path}",
+                        "--fork", "--nopidfile"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return path
+
+
 def game_env():
     env = dict(os.environ)
+    steam = Path(f"/home/{instance_user()}/.steam/steam") if instance_user() else STEAM
     env.update(SteamAppId="489830", SteamGameId="489830", STEAM_COMPAT_DATA_PATH=str(PREFIX),
-               STEAM_COMPAT_CLIENT_INSTALL_PATH=str(STEAM), WINEDEBUG=env.get("WINEDEBUG", "-all"),
+               STEAM_COMPAT_CLIENT_INSTALL_PATH=str(steam), WINEDEBUG=env.get("WINEDEBUG", "-all"),
                SKYRIMCOOP_LOG_LEVEL=env.get("SKYRIMCOOP_LOG_LEVEL", "debug"),
                # The UI straight from the repo (Wine's Z: is /): edits show up in game within a second.
                SKYRIMCOOP_UI_DIR=env.get("SKYRIMCOOP_UI_DIR", "Z:" + str(UI_SOURCE).replace("/", "\\")))
     if INSTANCE:
         env["SKYRIMCOOP_INSTANCE"] = INSTANCE
+    if instance_user():  # in its namespace: reachable on its link, and the host is across it
+        env.update(SKYRIMCOOP_COMMAND_ADDRESS=CLIENT_ADDRESS, SKYRIMCOOP_JOIN_HOST=HOST_SIDE_ADDRESS)
     if not VISIBLE:
         env["DISPLAY"] = VIRTUAL_DISPLAY
     return env
@@ -181,28 +287,52 @@ def uses_prefix(environ, keys=("STEAM_COMPAT_DATA_PATH", "WINEPREFIX")):
     return False
 
 
-def prefix_processes():
-    """PIDs started for our test prefix (matched by environment, so nothing else is touched)."""
-    pids = []
+def process_environs():
+    """{pid: environment} of every process; the client user's through one sudo (its /proc environ is not ours)."""
+    environs, theirs = {}, []
+    uid = pwd.getpwnam(CLIENT_USER).pw_uid if CLIENT_USER else None
     for entry in Path("/proc").iterdir():
         if entry.name.isdigit() and int(entry.name) != os.getpid():
             try:
-                if uses_prefix((entry / "environ").read_bytes()):
-                    pids.append(int(entry.name))
+                environs[int(entry.name)] = (entry / "environ").read_bytes()
+            except PermissionError:
+                with contextlib.suppress(OSError):
+                    if entry.stat().st_uid == uid:
+                        theirs.append(entry.name)
             except OSError:
                 pass
-    return pids
+    if theirs:
+        script = ("import json,sys\nout={}\nfor p in sys.argv[1:]:\n try: out[p]=open(f'/proc/{p}/environ','rb')"
+                  ".read().hex()\n except OSError: pass\nprint(json.dumps(out))")
+        result = subprocess.run(["sudo", "-n", "python3", "-c", script, *theirs], capture_output=True, text=True)
+        with contextlib.suppress(ValueError):
+            environs.update({int(pid): bytes.fromhex(data) for pid, data in json.loads(result.stdout).items()})
+    return environs
+
+
+def signal_process(pid, sig):
+    """os.kill, through sudo for the client user's processes."""
+    try:
+        os.kill(pid, sig)
+    except PermissionError:
+        subprocess.run(["sudo", "-n", "kill", f"-{sig.name.removeprefix('SIG')}", str(pid)], capture_output=True)
+
+
+def prefix_processes():
+    """PIDs started for our test prefix (matched by environment, so nothing else is touched)."""
+    return [pid for pid, environ in process_environs().items() if uses_prefix(environ)]
 
 
 def game_process(instance):
     """The instance's SkyrimSE.exe (by its wine prefix; not the launcher stubs that share the name)."""
     select_instance(instance)
-    for entry in Path("/proc").iterdir():
+    for pid, environ in process_environs().items():
+        entry = Path("/proc") / str(pid)
         try:
-            if entry.name.isdigit() and "SkyrimSE.exe" in (entry / "cmdline").read_bytes().decode(errors="replace") and \
-                    uses_prefix((entry / "environ").read_bytes(), ("WINEPREFIX",)) and \
+            if "SkyrimSE.exe" in (entry / "cmdline").read_bytes().decode(errors="replace") and \
+                    uses_prefix(environ, ("WINEPREFIX",)) and \
                     int((entry / "statm").read_text().split()[1]) * 4096 > 100 << 20:
-                return int(entry.name)
+                return pid
         except (OSError, ValueError, IndexError):
             pass
     raise TestFailure(f"[{instance or 'host'}] no running SkyrimSE.exe")
@@ -213,12 +343,12 @@ def game_stalled(instance):
     """The game's process stops (as a hitch or a slow load would hold it) and runs again afterwards: what
     reaches it meanwhile waits on its socket."""
     pid = game_process(instance)
-    os.kill(pid, signal.SIGSTOP)
+    signal_process(pid, signal.SIGSTOP)
     log(f"[{instance or 'host'}] game stalled")
     try:
         yield
     finally:
-        os.kill(pid, signal.SIGCONT)
+        signal_process(pid, signal.SIGCONT)
         log(f"[{instance or 'host'}] game runs again")
 
 
@@ -227,7 +357,7 @@ def stop_game():
     for sig in (signal.SIGTERM, signal.SIGKILL):
         for pid in pids:
             try:
-                os.kill(pid, sig)
+                signal_process(pid, sig)
             except ProcessLookupError:
                 pass
         deadline = time.monotonic() + 5
@@ -414,6 +544,7 @@ def ensure_virtual_display():
     which reports a real 60 Hz mode: on Xvfb (0 Hz) DXVK divides by zero in Skyrim's renderer init."""
     socket = Path("/tmp/.X11-unix") / f"X{VIRTUAL_DISPLAY.lstrip(':')}"
     if socket.exists():
+        allow_instance_user()
         return
     log_file = ROOT / "build/coop-test/xorg-display.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -430,6 +561,41 @@ def ensure_virtual_display():
         if time.monotonic() > deadline:
             raise TestFailure(f"Off-screen X server did not start on {VIRTUAL_DISPLAY} (see {log_file})")
         time.sleep(0.1)
+    allow_instance_user()
+
+
+def allow_instance_user():
+    """Lets the instance's user draw on its display (xhost)."""
+    if user := instance_user():
+        subprocess.run(["xhost", f"+SI:localuser:{user}"], env={**os.environ, "DISPLAY": game_env()["DISPLAY"]},
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def ensure_user_steam():
+    """The instance user's Steam client is running (its game's Steam API needs it), started silently on the game's
+    display if not. Logged in once by hand: `sudo -u coop2 -H env DISPLAY=:1 steam`."""
+    user = instance_user()
+    if not user:
+        return
+    ensure_client_netns()
+
+    def steam_pids():
+        return [int(p) for p in subprocess.run(["pgrep", "-u", user, "-x", "steam"], capture_output=True,
+                                               text=True).stdout.split()]
+    if (pids := steam_pids()) and all(in_client_netns(pid) for pid in pids):
+        return
+    if pids:  # outside the namespace it gets no game: restart it inside (its login is kept)
+        log(f"[{INSTANCE}] restarting {user}'s Steam inside {CLIENT_NETNS}")
+        sudo("pkill", "-u", user, "-x", "steam")
+        wait_for(f"[{INSTANCE}] {user}'s old Steam exited", lambda: not steam_pids(), 60)
+    allow_instance_user()
+    subprocess.Popen(["sudo", "-n", "ip", "netns", "exec", CLIENT_NETNS, "sudo", "-u", user, "-H", "env",
+                      f"DISPLAY={game_env()['DISPLAY']}", f"DBUS_SESSION_BUS_ADDRESS=unix:path={user_bus(user)}",
+                      "/usr/games/steam", "-silent"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    wait_for(f"[{INSTANCE}] {user}'s Steam is running in {CLIENT_NETNS}",
+             lambda: subprocess.run(["pgrep", "-u", user, "-f", "steamwebhelper"], capture_output=True).returncode == 0,
+             180)
 
 
 def setup_display():
@@ -444,8 +610,8 @@ def prepare_prefix():
     if not (PREFIX / "pfx/drive_c/users/steamuser").exists():
         log("Creating the test Proton prefix (first run only, ~30s)...")
         PREFIX.mkdir(parents=True, exist_ok=True)
-        subprocess.run([str(RUNTIME / "run"), "--", str(PROTON / "proton"), "run", "wineboot", "-u"],
-                       env=game_env(), cwd=GAME, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        subprocess.run(as_instance_user([str(instance_runtime() / "run"), "--", str(PROTON / "proton"), "run", "wineboot", "-u"],
+                                        game_env()), env=game_env(), cwd=GAME, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                        timeout=300)
     MY_GAMES.mkdir(parents=True, exist_ok=True)
     skyrim_ini, prefs_ini = MY_GAMES / "Skyrim.ini", MY_GAMES / "SkyrimPrefs.ini"
@@ -490,7 +656,7 @@ def rpc(request, timeout=3.0):
         connection = None
     try:
         if not connection:
-            sock = socket.create_connection(("127.0.0.1", info["port"]), timeout=1.0)
+            sock = socket.create_connection((info.get("address", "127.0.0.1"), info["port"]), timeout=1.0)
             connection = _rpc_connections[key] = [(info.get("pid"), info.get("port")), sock, sock.makefile("rb")]
         connection[1].settimeout(timeout)
         connection[1].sendall((json.dumps(request) + "\n").encode())
@@ -561,9 +727,10 @@ def launch(args, run_dir):
     atomic_write(CONTROL / "boot.txt", command + "\n")  # run by the plugin at the main menu
     log(f"Launching Skyrim (start command: {command!r})")
     output = open(run_dir / f"proton{'-' + INSTANCE if INSTANCE else ''}.log", "w")
+    ensure_user_steam()
     launcher = subprocess.Popen(
-        [str(RUNTIME / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
-         str(GAME / "skse64_loader.exe")],
+        as_instance_user([str(instance_runtime() / "run"), "--", str(PROTON / "proton"), "waitforexitandrun",
+                          str(GAME / "skse64_loader.exe")], game_env()),
         env=game_env(), cwd=GAME, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
     if vanilla and not VANILLA_HARNESS.exists():
         log(f"Vanilla run (no plugin): at the main menu, open the console (~) and type `{command}`")
@@ -1949,6 +2116,121 @@ def scenario_guest_spawns_no_critters():
             console_on("", f"{ref:X}.disable")
             console_on("", f"{ref:X}.markfordelete")
         wait_for("[host] nothing the spawner placed is left", lambda: not placed(), 10)
+
+
+def steam_status(instance):
+    """The game's Steam account and session (harness status `steam`)."""
+    select_instance(instance)
+    return (read_status() or {}).get("steam") or {}
+
+
+def client_steam_opens(url):
+    """The client player's Steam opens a steam:// link, as clicking Join on an invite does: with the game running,
+    Steam hands it the lobby (GameLobbyJoinRequested_t)."""
+    select_instance("client")
+    user = instance_user()
+    if not user:
+        raise TestFailure("the client game shares the host's Steam account: no second account (COOP_CLIENT_USER)")
+    result = sudo("ip", "netns", "exec", CLIENT_NETNS, "sudo", "-u", user, "-H", "env", f"DISPLAY={game_env()['DISPLAY']}",
+                  f"DBUS_SESSION_BUS_ADDRESS=unix:path={user_bus(user)}", "/usr/games/steam", url)
+    log(f"[client] Steam opened {url}" + (f" ({result.stderr.strip()[-200:]})" if result.returncode else ""))
+
+
+def steam_accounts():
+    """(host's SteamID64, client's): two accounts, or the scenario cannot run."""
+    host_id, guest_id = steam_status("").get("id"), steam_status("client").get("id")
+    if not host_id or not guest_id:
+        raise TestFailure(f"a game reports no Steam account (host {host_id}, client {guest_id})")
+    if host_id == guest_id:
+        raise TestFailure(f"both games signed into the same Steam account {host_id}: the client needs its own "
+                          "(docs/design/testing.md, \"Two Steam accounts\")")
+    return host_id, guest_id
+
+
+def client_accepts_steam_invite():
+    """The host's game makes its lobby and invites the client's account; the client's player accepts; returns once
+    the client's game is connected to the host over Steam."""
+    host_id, guest_id = steam_accounts()
+    select_instance("")
+    if not (rpc({"cmd": "steam_host"}) or {}).get("ok"):
+        raise TestFailure(f"[host] could not host on Steam: {steam_status('')}")
+    wait_for("[host] its lobby is made and it listens",
+             lambda: steam_status("").get("session", {}).get("state") == "hosting", 30)
+    lobby = steam_status("")["session"]["lobby"]
+    select_instance("")
+    if not (rpc({"cmd": "steam_invite", "friend": guest_id}) or {}).get("ok"):
+        raise TestFailure("[host] Steam refused the invite")
+    client_steam_opens(f"steam://joinlobby/489830/{lobby}/{host_id}")
+    session = lambda: steam_status("client").get("session", {})
+    try:
+        wait_for("[client] joins the lobby and connects to the host", lambda: session().get("state") == "connected", 60)
+    except TestFailure:
+        raise TestFailure(f"[client] Steam session {session().get('state')}: {session().get('error')}")
+    guest_name = steam_status("client").get("name")
+    wait_for(f"[host] has {guest_name}'s hello",
+             lambda: any(p.get("name") == guest_name for p in steam_status("").get("session", {}).get("peers", [])), 10)
+    for name, game in (("host", ""), ("client", "client")):
+        log(f"[{name}] Steam peers: {steam_status(game)['session']['peers']}")
+
+
+def steam_sessions_end():
+    for game in ("client", ""):
+        select_instance(game)
+        rpc({"cmd": "steam_leave"})
+
+
+def scenario_guest_joins_by_invite():
+    """A friend joins the host's session from a Steam invite, no address or port (two accounts: docs/design/testing.md,
+    "Two Steam accounts"): the client leaves its direct session; the host's game makes a lobby and invites the
+    client's account; the client's player accepts (its Steam opens the invite's join link); its game joins the lobby,
+    connects to the host through Valve's network, and joins the session through that connection (enet tunnelled over
+    it). Each game shows the other player and the party panels list each other; leaving the Steam session
+    drops the client's character from the host's game. Ends joined directly again."""
+    disconnect_client()
+    wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
+    try:
+        client_accepts_steam_invite()
+        wait_for("[client] is in the host's session, through Steam", lambda: game_state("client").get("online") is True, 30)
+        wait_for("Each game shows the other player, joined through Steam", both_see_each_other, 30)
+        party_panel_lists_the_other("joined through Steam")
+        select_instance("client")
+        rpc({"cmd": "steam_leave"})
+        wait_on("", "the client's character leaves the host's game with the Steam session",
+                lambda actors: other_player(actors) is None)
+    finally:
+        steam_sessions_end()
+        if game_state("client").get("online") is not True:
+            rejoin_client()
+
+
+def scenario_loaded_save_hosts_then_joins_friend():
+    """A player loads a save and is hosting on Steam by itself (TESLoadGameEvent; its chat says so); a friend's invite
+    then reaches it, and its game, hosting alone, steps down and joins the friend's session through Steam. Each chat
+    says who joined. Ends joined directly again."""
+    host_id, _ = steam_accounts()
+    host_name, guest_name = steam_status("").get("name"), steam_status("client").get("name")
+    disconnect_client()
+    wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
+    try:
+        console_on("client", "save SkyrimCoopSteamHost")
+        console_on("client", "load SkyrimCoopSteamHost")
+        wait_for("[client] the save loads and its game hosts on Steam",
+                 lambda: steam_status("client").get("session", {}).get("state") == "hosting"
+                 and game_state("client").get("hosting") is True, 90)
+        wait_for("[client] its chat says it hosts",
+                 lambda: "Hosting: friends can join from Steam (Shift+Tab, Invite to Game)." in system_chat("client"), 10)
+        client_accepts_steam_invite()
+        wait_for("[client] stops hosting and is in the host's session, through Steam",
+                 lambda: game_state("client").get("online") is True and game_state("client").get("hosting") is not True, 30)
+        wait_for("Each game shows the other player, joined through Steam", both_see_each_other, 30)
+        wait_for(f"[client] its chat says it joined {host_name}'s game",
+                 lambda: f"Joined {host_name}'s game." in system_chat("client"), 10)
+        wait_for(f"[host] its chat says {guest_name} joined", lambda: f"{guest_name} joined." in system_chat(""), 10)
+    finally:
+        steam_sessions_end()
+        player_command("client", {"cmd": "disconnect"})
+        if game_state("client").get("online") is not True:
+            rejoin_client()
 
 
 def scenario_wildlife_takes_hosts_pick():
@@ -6923,6 +7205,8 @@ SCENARIOS = {
     "guest-story-starts-no-quest": scenario_guest_story_starts_no_quest,
     "guest-spawns-no-critters": scenario_guest_spawns_no_critters,
     "wildlife-takes-hosts-pick": scenario_wildlife_takes_hosts_pick,
+    "guest-joins-by-invite": scenario_guest_joins_by_invite,
+    "loaded-save-hosts-then-joins-friend": scenario_loaded_save_hosts_then_joins_friend,
     "death-stage-runs-once": scenario_death_stage_runs_once,
     "quest-completes-for-guest": scenario_quest_completes_for_guest,
     "quest-roles-match-host": scenario_quest_roles_match_host,
@@ -7068,6 +7352,8 @@ TAGS = {
     "guest-story-starts-no-quest": {'world', 'quest', 'cells'},
     "guest-spawns-no-critters": {'world', 'scripts', 'objects'},
     "wildlife-takes-hosts-pick": {'spawn', 'cells'},
+    "guest-joins-by-invite": {'session', 'steam', 'spawn', 'ui'},
+    "loaded-save-hosts-then-joins-friend": {'session', 'steam', 'ui'},
     "death-stage-runs-once": {'world', 'scripts', 'quest', 'spawn'},
     "quest-completes-for-guest": {'world', 'quest'},
     "quest-roles-match-host": {'world', 'quest'},
@@ -7227,6 +7513,7 @@ SOURCE_TAGS = [
     ("Code/client/Services/*PapyrusService.*", {'scripts', 'reload'}),
     ("Code/client/Services/*PlayerService.*", {'session', 'values', 'spawn'}),
     ("Code/client/Services/*SessionService.*", {'session'}),
+    ("Code/client/Services/*SteamService.*", {'steam'}),
     ("Code/client/Services/*MapService.*", {'ui', 'world'}),
     ("Code/client/Services/*TravelService.*", {'cells', 'travel'}),
     ("Code/client/Services/*TimeScaleService.*", {'world', 'combat'}),
@@ -7262,6 +7549,10 @@ SOURCE_TAGS = [
     ("Code/client/Bridges/HostEngine.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
     ("Code/client/Bridges/GuestEngine.*", {'world', 'quest', 'objects', 'cells', 'inventory', 'scripts'}),
     ("Code/client/Bridges/DialogueBridge.*", {'dialogue'}),
+    ("Code/client/Bridges/SteamBridge.*", {'steam'}),
+    ("Code/client/Games/Skyrim/LoadGameEvents.*", {'steam'}),
+    ("Code/client/Events/GameLoadedEvent.h", {'steam'}),
+    ("Code/client/Events/SessionNoticeEvent.h", {'steam', 'ui'}),
     ("Code/client/Bridges/ContainerItems.*", {'objects', 'inventory'}),
     ("Code/client/Bridges/PhysicsRests.*", {'world', 'objects'}),
     ("Code/client/Components/*AnimationComponent.h", {'animation', 'movement', 'hands'}),

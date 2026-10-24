@@ -315,6 +315,14 @@ namespace Net
         return nullptr;
     }
 
+    ConnectionId_t Server::FindLocalConnection(uint16_t aPort) const noexcept
+    {
+        for (const auto& [cId, pPeer] : m_peers)
+            if (pPeer->address.port == aPort)
+                return cId;
+        return 0;
+    }
+
     void Server::Remove(const ConnectionId_t aId) noexcept
     {
         m_peers.erase(aId);

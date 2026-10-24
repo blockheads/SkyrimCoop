@@ -12,6 +12,7 @@
 #include <Services/SessionService.h>
 #include <Services/TransportService.h>
 #include <Services/HostService.h>
+#include <Services/SteamService.h>
 #include <Ui/UiService.h>
 #include <Games/Skyrim/BSCore/LockOrder.h>
 #include <BuildVersion.h>
@@ -383,6 +384,31 @@ static nlohmann::json Copies()
     return result;
 }
 
+// The Steam account this game signed in as, from Skyrim's steam_api64 (flat API, SDK 1.5x); empty without Steam.
+static nlohmann::json SteamStatus()
+{
+    const HMODULE cSteam = GetModuleHandleW(L"steam_api64.dll");
+    if (!cSteam)
+        return nlohmann::json::object();
+    using TAccessor = void* (*)();
+    const auto pUser = reinterpret_cast<TAccessor>(GetProcAddress(cSteam, "SteamAPI_SteamUser_v021"));
+    const auto pFriends = reinterpret_cast<TAccessor>(GetProcAddress(cSteam, "SteamAPI_SteamFriends_v017"));
+    const auto pGetId = reinterpret_cast<uint64_t (*)(void*)>(GetProcAddress(cSteam, "SteamAPI_ISteamUser_GetSteamID"));
+    const auto pGetName = reinterpret_cast<const char* (*)(void*)>(GetProcAddress(cSteam, "SteamAPI_ISteamFriends_GetPersonaName"));
+    nlohmann::json status = nlohmann::json::object();
+    if (void* pSteamUser = pUser && pGetId ? pUser() : nullptr)
+        status["id"] = std::to_string(pGetId(pSteamUser));
+    if (void* pSteamFriends = pFriends && pGetName ? pFriends() : nullptr)
+        status["name"] = pGetName(pSteamFriends);
+    const auto& cSession = World::Get().ctx().at<SteamService>().GetStatus();
+    nlohmann::json peers = nlohmann::json::array();
+    for (const auto& cPeer : cSession.Peers)
+        peers.push_back({{"id", std::to_string(cPeer.Id)}, {"name", cPeer.Name}, {"relayed", cPeer.Relayed}});
+    status["session"] = {{"state", cSession.State}, {"error", cSession.Error}, {"lobby", std::to_string(cSession.Lobby)},
+                         {"host", std::to_string(cSession.Host)}, {"host_name", cSession.HostName}, {"peers", peers}};
+    return status;
+}
+
 nlohmann::json BuildStatus(const Harness& acHarness)
 {
     const auto cUnixMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -401,6 +427,7 @@ nlohmann::json BuildStatus(const Harness& acHarness)
             {"clock_speed", EngineCalls::GetGlobalTimeMultiplier()},
             {"lock_order", LockOrderStatus()},
             {"reload", ReloadStatus()},
-            {"frames", FrameStatus()}};
+            {"frames", FrameStatus()},
+            {"steam", SteamStatus()}};
 }
 } // namespace TestHarness

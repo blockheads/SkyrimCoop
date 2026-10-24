@@ -9,6 +9,18 @@ SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16d3bb > SkyrimS
 SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
 SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x3d1507 vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
 SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x3d157f vs SkyrimSE.exe+0x3d21c8 > SkyrimSE.exe+0x1820ef
+# The same with the load's other writes (0x170402 > 0x182bca), seen loading a save mid-duo (2026-10-23): AI workers
+# (UpdateLowActorsAI through our pass-through HookUpdateAI, HookCheckForNewPackage) read extra-data. Vanilla.
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x170402 > SkyrimSE.exe+0x182bca
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x15ff00 vs SkyrimSE.exe+0x170402 > SkyrimSE.exe+0x182bca
+SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x170402 > SkyrimSE.exe+0x182bca
+# A guest applying the host's alias fills (GuestEngine::ApplyFills -> TESQuest::ForceRefIntoAlias, on our update
+# thread) against a save load's FinishLoadGame (TESObjectREFR::FinishLoadGame -> ExtraAliasInstanceArray, main thread).
+# Never at once: frames, and our update with them, stop while the main thread loads (the first update after a load logs
+# "Frame stalled: <the load's length>"). Both stacks read 2026-10-23 (loaded-save-hosts-then-joins-friend).
+SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
+SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x16d4cb
+SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1831f8 vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
 
 # coc while the exterior world steps: the main thread detaches a cell (CenterOnCell -> TES -> TESObjectCELL ->
 # TESObjectREFR::DetachHavok -> ExtraDataList::RemoveExtraData, then bhkWorld enter-write) while
@@ -111,6 +123,10 @@ SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x16f48b > SkyrimS
 # update job, one call at a time; vanilla takes both from scripts and the player's own pickups. Both stacks read
 # on 2026-10-21 (keyhole-asks-client, client).
 SkyrimSE.exe+0x15583a > SkyrimSE.exe+0x15584d vs SkyrimSE.exe+0x154dce > SkyrimSE.exe+0x154de0
+# The same pair at its next sites, the remove side under an outfit reset (Actor::ResetInventory 37322 through our
+# pass-through HookResetInventory -> RemoveOutfitItems -> RemoveItem). Both stacks read 2026-10-23
+# (late-join-gets-ring-pose, client).
+SkyrimSE.exe+0x15584d > SkyrimSE.exe+0x155859 vs SkyrimSE.exe+0x154dce > SkyrimSE.exe+0x154de0
 
 # An NPC's sleep package reading extra-data for its idle conditions (Character::UpdateAI -> BGSProcedureSleep ->
 # BGSProcedureSitSleepExecState -> 39923 -> TESIdleForm conditions -> TESConditionItem::IsTrue -> 11778) against

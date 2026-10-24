@@ -21,6 +21,9 @@
 #include <Services/AiStateService.h>
 #include <Services/DialogueService.h>
 #include <Bridges/DialogueBridge.h>
+#include <Bridges/SteamBridge.h>
+#include <Services/SteamService.h>
+#include <LoadGameEvents.h>
 #include <Services/MagicService.h>
 #include <Services/CommandService.h>
 #include <Services/TimeScaleService.h>
@@ -65,6 +68,7 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& world)
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this))
     , m_pDialogueBridge(std::make_unique<DialogueBridge>())
+    , m_pSteamBridge(std::make_unique<SteamBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -99,6 +103,8 @@ World::World()
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
     ctx().emplace<HostService>(*this, m_dispatcher);
     ctx().emplace<GuestService>(*this, m_dispatcher);
+    ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
+    LoadGameEvents::Start();
 
     BehaviorVar::Get()->Init();
 }
@@ -108,6 +114,8 @@ World::~World()
     // The services live in the registry's context, which is destroyed after our own members: their
     // connections to m_dispatcher would be released against a dispatcher already gone (it crashed
     // hot reloads now and then). They go first, newest first.
+    LoadGameEvents::Stop();
+    ctx().erase<SteamService>();
     ctx().erase<GuestService>();
     ctx().erase<HostService>();
     ctx().erase<MapService>();

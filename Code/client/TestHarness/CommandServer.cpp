@@ -1,6 +1,9 @@
 #include "CommandServer.h"
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
+#include <cstdlib>
+#include <string>
 #include <fstream>
 
 namespace TestHarness
@@ -41,9 +44,13 @@ bool CommandServer::Start(const std::string& aDirectory, THandler aHandler)
     if (cListener == INVALID_SOCKET)
         return false;
 
+    // Loopback, or the game's own network namespace link (SKYRIMCOOP_COMMAND_ADDRESS, coop_test.py's client user).
+    const char* pBind = std::getenv("SKYRIMCOOP_COMMAND_ADDRESS");
+    const std::string cBind = pBind && *pBind ? pBind : "127.0.0.1";
     sockaddr_in address{};
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (inet_pton(AF_INET, cBind.c_str(), &address.sin_addr) != 1)
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     address.sin_port = 0; // Any free port: two games run side by side.
     int length = sizeof(address);
     if (bind(cListener, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0 || listen(cListener, 4) != 0 ||
@@ -59,8 +66,8 @@ bool CommandServer::Start(const std::string& aDirectory, THandler aHandler)
 
     const int cPort = ntohs(address.sin_port);
     std::ofstream(aDirectory + "/rpc.json", std::ios::trunc)
-        << "{\"port\": " << cPort << ", \"pid\": " << GetCurrentProcessId() << "}\n";
-    spdlog::info("Command server listening on 127.0.0.1:{}", cPort);
+        << "{\"address\": \"" << cBind << "\", \"port\": " << cPort << ", \"pid\": " << GetCurrentProcessId() << "}\n";
+    spdlog::info("Command server listening on {}:{}", cBind, cPort);
     return true;
 }
 

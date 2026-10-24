@@ -511,6 +511,39 @@ host also gained no bounty in that fixture, so it is not a positive witness/boun
 the replay's early exit in that run, not a claim about every mod's crime rules. See `chest-followup.json` and
 `alarm-debugger.log` under `pinned-35bfae3b44ee/`.
 
+### Two Steam accounts
+
+Steam invites, lobbies and relayed connections need two accounts, so the duo's client game runs as a second OS
+user, `coop2`, whose own Steam client is logged into a second account (set up 2026-10-23). The harness does the rest
+(`COOP_CLIENT_USER`, default `coop2` when that user exists; `""` runs both games as you):
+
+```
+main network namespace              "coop2" network namespace
+  your Steam  127.0.0.1:57343         coop2's Steam  127.0.0.1:57343
+  host game                           client game (runs as coop2)
+          10.77.0.1  <── veth ──>  10.77.0.2,  NAT out to the internet
+```
+
+- **Why a namespace:** every Steam client serves games on the fixed `127.0.0.1:57343` (a game's `steamclient.so`
+  dials it straight away, nothing read first). A second Steam on the same loopback gets random ports, and every
+  game signs in as whoever holds 57343. The namespace gives `coop2`'s Steam its own loopback.
+- **What the harness sets up** (sudo, kept until reboot, `ensure_client_netns`): the namespace, a veth link, IP
+  forwarding, `FORWARD` accepts for `coop2-host` (this machine drops forwarding by default, Docker's policy), a NAT
+  rule, and DNS in `/etc/netns/coop2/resolv.conf`. `coop2`'s Steam is started (or restarted) inside it with `-silent`.
+- **The client game** runs through `sudo ip netns exec coop2 sudo -u coop2`, with the environment passed
+  explicitly (never `HOST_*`, which points Steam's container at your home), a session bus of its own
+  (`/tmp/skyrimcoop-coop2-bus`), and its own copy of the Steam runtime (`build/coop-test/runtime-coop2`: the
+  container hard-links the runtime's files, which a user may only do for files it owns). Its command socket
+  listens on 10.77.0.2 (`SKYRIMCOOP_COMMAND_ADDRESS`) and its test join dials the host at 10.77.0.1
+  (`SKYRIMCOOP_JOIN_HOST`).
+- **Skyrim must be installed for the second account**, or its Steam DRM stops the game ("Application load error
+  6:0000065432"): `coop2`'s Steam library holds a copy of the appmanifest and a link to the shared install, which
+  `coop2` cannot write.
+- **Check:** the harness status's `steam` (`id`, `name`) shows the account each game signed in as.
+- **One-time setup:** `sudo useradd -m -G video,render,audio coop2`; let it use the desktop (`xhost
+  +SI:localuser:coop2`); log its Steam in once (`sudo -u coop2 -H env DISPLAY=:1 steam`); ACLs giving `coop2` and
+  you write access to the client prefix (owned by `coop2`) and `Data/SKSE/Plugins`.
+
 ## Tier 4: soak
 
 - **For:** crashes, deadlocks, retained memory and order bugs. `soak` boots a fresh duo for each shuffled round,

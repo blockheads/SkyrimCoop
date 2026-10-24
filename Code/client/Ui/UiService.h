@@ -7,6 +7,7 @@
 struct World;
 struct UiRenderer;
 struct NotifyChatMessageBroadcast;
+struct SessionNoticeEvent;
 struct IDXGISwapChain;
 class IActorBridge;
 
@@ -73,6 +74,7 @@ struct UiService
 private:
     void UpdateParty() noexcept;
     void OnChatMessage(const NotifyChatMessageBroadcast& acMessage) noexcept;
+    void OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept;
     // The keys typed into the chat line, and which lines show.
     void UpdateChat() noexcept;
     void SendChat() noexcept;

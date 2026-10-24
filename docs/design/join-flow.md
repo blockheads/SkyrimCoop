@@ -268,13 +268,28 @@ Researched 2026-10-10, shelved in `git stash` ("steam/launcher work": a `steam_p
   Valve's relay network and a P2P listen socket reached ready, and a same-process echo passed. The
   relays matter beyond invites: they get through home routers, where plain ENet needs the host to
   forward a port.
-- Not yet tested: two accounts on two machines, which is the real test, and the next experiment.
-- Invites: accepted while the game runs, an invite reaches the plugin through the Steam API in
-  process. Accepted while the game is closed, Steam starts Skyrim with `+connect_lobby <lobby id>`
-  (a launcher prototype parses it; how the plugin alone would get it is part of the spike).
-- Open question: whether using Skyrim's App ID for our integration is allowed (it works technically; a
-  separate App ID would mean publishing on Steam). Fallbacks: Discord invites, a join link
-  (`skyrimcoop://join/...`), or typing an address.
+- Two accounts, tested 2026-10-23 (one machine, the second account's Steam in its own network namespace:
+  `docs/design/testing.md`, "Two Steam accounts"): the host's game makes a friends-only lobby and invites the
+  friend; the friend accepting hands its running game the lobby (`GameLobbyJoinRequested_t`), which joins it,
+  connects to the lobby's owner over `ISteamNetworkingSockets` P2P, says hello, and joins the host's session through
+  that connection: no address, no port forwarding (`guest-joins-by-invite`; GameTests `[steam]` on a fake Steam).
+  Steam relays when it must and goes direct when it can (both seen between the two test games).
+- As built: `ISteamBridge` (Skyrim's `steam_api64` flat API, SDK 1.5x: `SteamBridge`) and `SteamService`. The
+  session is enet tunnelled through the Steam connection, unchanged: the friend's transport dials a loopback port
+  (`Net::LoopbackPort`) whose datagrams go to the host as unreliable Steam messages (no Nagle delay; enet keeps its
+  own reliability, clock sync and timeouts), and the host's end of each tunnel delivers into its own listener, one
+  loopback port per friend. A Steam host starts hosting its session first if it does not yet. Control lines (the
+  versioned hello/welcome) and datagrams share the connection, a kind byte first. Harness: `steam_host`,
+  `steam_invite`, `steam_leave`, status `steam`.
+- Hosting is automatic (2026-10-23): a game that loads a save (`TESLoadGameEvent`, `LoadGameEvents`) hosts its session
+  and a friends-only lobby, so inviting is Steam's own UI (Shift+Tab, Invite to Game) and friends see "Join Game".
+  A game hosting alone that accepts a friend's invite steps down and joins it; one with friends in its game refuses
+  ("leave it first"). When a friend's Steam connection goes, the host kicks the session connection behind its tunnel
+  at once. The chat tells each player: hosting, X joined, X left, joined X's game, couldn't join (why)
+  (`SessionNoticeEvent`). Scenario `loaded-save-hosts-then-joins-friend`. Next: `+connect_lobby` for a game Steam
+  starts, then joining from the main menu with the character the host's save keeps (stages 4 to 6).
+- Skyrim's App ID (489830) for lobbies and connections, as in-process mods do (decided 2026-10-23). Fallbacks if
+  that ever stops working: Discord invites, a join link (`skyrimcoop://join/...`), or typing an address.
 
 **Side note, for fun: make it feel like AOL.** A buddy list of who is online and in which session, a
 small global chat for everyone using the mod, and each session's own little chat room (the same room
