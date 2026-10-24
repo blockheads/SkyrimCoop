@@ -1,0 +1,8 @@
+Generated with the built-in imagegen tool on 2026-10-24.
+Edit reference: the previous dead.png skull sprite.
+
+Use case: precise-object-edit
+Asset type: transparent pixel-art death-state skull icon for an in-game party HUD.
+Input image: edit target, current dead health face.
+Primary request: Make this much more unmistakably skeletal. Remove all hair, ears and flesh-like face contours. Replace with a bare domed ivory skull, pronounced cheekbones, two large empty dark eye sockets with no pupils, a triangular nasal cavity, clearly separated square upper and lower teeth, and a distinct narrow bony jaw. Friendly retro game skull, no gore. Keep the front-facing isolated head, warm ivory/brown limited palette and chunky low-resolution raster sprite style of the input. Roughly 30 by 32 logical square pixels, hard stepped edges, no smooth painted detail. The skull should nearly fill the square canvas with only 4 percent transparent padding, so it reads larger at tiny HUD sizes. No body or crossbones, no text, no accessories, no hair. Fully transparent background, preserve alpha, no glow or exterior shadow.
+

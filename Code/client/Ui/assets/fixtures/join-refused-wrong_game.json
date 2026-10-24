@@ -1,0 +1,14 @@
+{
+  "join": {
+    "visible": true,
+    "state": "refused",
+    "step": 2,
+    "completed": 1,
+    "message": "The host runs Skyrim 1.6.1170 with SKSE 2.2.6, you run Skyrim 1.6.1170 with SKSE 2.2.5. You both need the same versions.",
+    "reason": "wrong_game",
+    "details": [
+      "host Skyrim 1.6.1170 / SKSE 2.2.6",
+      "your Skyrim 1.6.1170 / SKSE 2.2.5"
+    ]
+  }
+}

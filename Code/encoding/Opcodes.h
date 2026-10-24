@@ -53,7 +53,8 @@
     X(PartyNativeRequest)           \
     X(WorldCallRequest)             \
     X(DismountRequest)              \
-    X(PlayerRecordRequest)
+    X(PlayerRecordRequest)          \
+    X(PlayerPerishedRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -108,7 +109,8 @@
     X(NotifyPartyNative)           \
     X(NotifyWorldCall)             \
     X(NotifyDismount)              \
-    X(NotifySaveChunk)
+    X(NotifySaveChunk)             \
+    X(NotifyPlayerPerished)
 
 #define COOP_OPCODE(aName) k##aName,
 

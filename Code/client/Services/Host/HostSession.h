@@ -6,6 +6,7 @@
 #include <NoCopyMove.h>
 
 struct AuthenticationRequest;
+struct PlayerPerishedRequest;
 struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
@@ -15,7 +16,7 @@ struct HostSaveTransfer;
 struct HostNetwork;
 
 /**
- * @brief Admits matching games, shares the host's difficulty, and announces players joining and leaving.
+ * @brief Admits matching games, shares the host's difficulty, and announces players joining, leaving and going down.
  */
 struct HostSession
 {
@@ -37,6 +38,8 @@ struct HostSession
     void OnAuthentication(const AuthenticationRequest& acRequest, ConnectionId_t aSender) noexcept;
     // A player is leaving (still in the list): the others drop it from theirs.
     void OnPlayerLeft(ConnectionId_t aPlayer) const noexcept;
+    // A player went down: every game's chat says so, its own too.
+    void OnPlayerPerished(const PlayerPerishedRequest& acRequest, ConnectionId_t aSender) const noexcept;
 
 private:
     // The newcomer learns everyone already here, and they learn the newcomer.

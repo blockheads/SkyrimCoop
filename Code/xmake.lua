@@ -16,3 +16,8 @@ end
 if is_plat("linux") then
     includes("tests")
 end
+
+includes("ui_models")
+if is_plat("linux") then
+    includes("ui_workbench")
+end

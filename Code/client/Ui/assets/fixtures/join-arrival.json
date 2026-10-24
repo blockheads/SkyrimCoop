@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "loading",
+    "step": 6,
+    "completed": 5,
+    "message": "Arriving beside the host..."
+  }
+}

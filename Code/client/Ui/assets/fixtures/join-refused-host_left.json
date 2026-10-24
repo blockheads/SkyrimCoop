@@ -1,0 +1,11 @@
+{
+  "join": {
+    "visible": true,
+    "state": "ended",
+    "step": 6,
+    "completed": 6,
+    "message": "The host ended the session.",
+    "reason": "host_left",
+    "details": []
+  }
+}

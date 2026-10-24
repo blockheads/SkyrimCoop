@@ -1,0 +1,8 @@
+target("UiModels")
+    set_kind("static")
+    set_group("UI")
+    add_files("*.cpp")
+    add_headerfiles("*.h")
+    add_includedirs("..", {public = true})
+    add_packages("rmlui", {public = true})
+target_end()

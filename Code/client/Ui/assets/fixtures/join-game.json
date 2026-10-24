@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "checking",
+    "step": 2,
+    "completed": 1,
+    "message": "Checking your game version..."
+  }
+}

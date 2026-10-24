@@ -1,0 +1,11 @@
+{
+  "join": {
+    "visible": true,
+    "state": "refused",
+    "step": 0,
+    "completed": 0,
+    "message": "The session is full.",
+    "reason": "full",
+    "details": []
+  }
+}

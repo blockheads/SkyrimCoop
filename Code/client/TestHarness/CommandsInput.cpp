@@ -5,6 +5,8 @@
 #include <World.h>
 #include <Bridges/IActorBridge.h>
 
+#include <RmlUi/Core.h>
+
 // The player's own input, through the game's input dispatch as a device sends it.
 namespace TestHarness
 {
@@ -60,6 +62,44 @@ nlohmann::json InputStateReadout(Harness&, const nlohmann::json&)
             {"ignore_keyboard_mouse", cState->IgnoreKeyboardMouse}};
 }
 
+// {"cmd": "ui_element", "id": "back"}: our UI's element of that id in any document (RmlUi's "game" context): shown,
+// its text and its border box in window pixels, for a scenario to read and click it.
+nlohmann::json UiElement(Harness&, const nlohmann::json& acRequest)
+{
+    Rml::Context* pContext = Rml::GetContext("game");
+    if (!pContext)
+        return Error("the UI is not up");
+    const std::string cId = acRequest.value("id", "");
+    for (int i = 0; i < pContext->GetNumDocuments(); ++i)
+        if (Rml::Element* pElement = pContext->GetDocument(i)->GetElementById(cId))
+        {
+            const Rml::Vector2f cAt = pElement->GetAbsoluteOffset(Rml::BoxArea::Border);
+            const Rml::Vector2f cSize = pElement->GetBox().GetSize(Rml::BoxArea::Border);
+            return {{"ok", true}, {"shown", pElement->IsVisible(true)}, {"text", pElement->GetInnerRML()},
+                    {"box", {cAt.x, cAt.y, cSize.x, cSize.y}}};
+        }
+    return {{"ok", true}, {"shown", false}};
+}
+
+// {"cmd": "clipboard"}: the Windows clipboard's text.
+nlohmann::json Clipboard(Harness&, const nlohmann::json&)
+{
+    std::string text;
+    if (OpenClipboard(nullptr))
+    {
+        if (HANDLE hText = GetClipboardData(CF_UNICODETEXT))
+            if (const auto* pText = static_cast<const wchar_t*>(GlobalLock(hText)))
+            {
+                const int cLength = WideCharToMultiByte(CP_UTF8, 0, pText, -1, nullptr, 0, nullptr, nullptr);
+                text.resize(cLength > 0 ? cLength - 1 : 0);
+                WideCharToMultiByte(CP_UTF8, 0, pText, -1, text.data(), cLength, nullptr, nullptr);
+                GlobalUnlock(hText);
+            }
+        CloseClipboard();
+    }
+    return {{"ok", true}, {"text", text}};
+}
+
 // {"cmd": "interrupt", "caster": id, "source": 1}: ends a held (concentration) cast.
 nlohmann::json Interrupt(Harness&, const nlohmann::json& acRequest)
 {
@@ -73,6 +113,8 @@ constexpr Command cCommands[] = {
     {"mouse", false, &Mouse},
     {"char", false, &Char},
     {"input_state", false, &InputStateReadout},
+    {"ui_element", false, &UiElement},
+    {"clipboard", false, &Clipboard},
     {"interrupt", false, &Interrupt},
 };
 } // namespace

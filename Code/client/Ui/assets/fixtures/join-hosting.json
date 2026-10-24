@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "hosting",
+    "step": 0,
+    "completed": 0,
+    "message": "Hosting a session on port 10578."
+  }
+}

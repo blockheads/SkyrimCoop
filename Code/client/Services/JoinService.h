@@ -32,16 +32,23 @@ struct JoinService
     static constexpr double kConnectSeconds = 20.0;
     static constexpr double kChunkSeconds = 30.0;
     static constexpr double kLoadSeconds = 180.0;
+    // A guest's session that drops: the same host again, this many times, each try this long at most.
+    static constexpr int kReconnectTries = 3;
+    static constexpr double kReconnectSeconds = 10.0;
+    static constexpr double kRetrySeconds = 2.0;
 
     JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBridge& aBridge) noexcept;
 
     NO_COPY_MOVE(JoinService);
 
     // Joins the session at acEndpoint, from a game this player plays (its character comes along) or from the main
-    // menu; false when this game is busy or already in a session.
+    // menu; false when this game is busy or in a session (one it hosts alone it leaves first).
     bool Join(const std::string& acEndpoint) noexcept;
-    // A join is under way, from connecting until it joined or failed.
+    // A join is under way, from connecting until it joined or failed (a reconnect too).
     [[nodiscard]] bool IsJoining() const noexcept { return m_step != Step::kIdle; }
+    // Reconnecting through a Steam tunnel made again: dials it (SteamService); false when not reconnecting.
+    bool Redial(const std::string& acEndpoint) noexcept;
+    [[nodiscard]] bool IsReconnecting() const noexcept { return m_step == Step::kReconnectWait || m_step == Step::kReconnecting; }
     // The connection asks for the host's save (the transport's join request).
     [[nodiscard]] bool WantsWorld() const noexcept { return m_step == Step::kConnecting || m_step == Step::kChecking; }
     // It brings a character of its own (the join started in a game this player plays).
@@ -60,6 +67,8 @@ private:
         kReceiving,
         kLoading,
         kJoining,
+        kReconnectWait, // until the next try
+        kReconnecting,
     };
 
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
@@ -74,6 +83,11 @@ private:
     void Arrive() noexcept;
     void Fail(const char* acpReason) noexcept;
     void Fail(JoinStatus aStatus) noexcept;
+    // The session dropped: tries the same host again (SteamService's lobby, else the transport's endpoint).
+    void StartReconnect() noexcept;
+    void Reconnect() noexcept;
+    // A try failed: the next one, or the session is over.
+    void Retry() noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -85,5 +99,6 @@ private:
     SaveTransfer::Assembly m_save;
     double m_waited{}; // seconds in the current step, or since the last chunk
     bool m_reached{};  // the transport reached the host this attempt
+    int m_tries{};     // reconnecting: the tries made
     std::vector<entt::scoped_connection> m_connections;
 };

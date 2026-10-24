@@ -26,6 +26,7 @@
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/JoinMessages.h>
+#include <Messages/PerishedMessages.h>
 
 struct RequestMessageFactory
 {

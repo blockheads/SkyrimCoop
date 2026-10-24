@@ -1,0 +1,13 @@
+{
+  "join": {
+    "visible": true,
+    "state": "refused",
+    "step": 5,
+    "completed": 4,
+    "message": "Couldn't receive the host's world.",
+    "reason": "transfer_failed",
+    "details": [
+      "The save transfer was interrupted."
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "checking",
+    "step": 3,
+    "completed": 2,
+    "message": "Checking your install..."
+  }
+}

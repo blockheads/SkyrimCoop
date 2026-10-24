@@ -15,6 +15,7 @@
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifySettingsChange.h>
+#include <Messages/PerishedMessages.h>
 #include <Structs/LoadOrder.h>
 
 HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
@@ -26,6 +27,7 @@ HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostP
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostSession::OnAuthentication);
+    aAuthority.On(*this, &HostSession::OnPlayerPerished);
 }
 
 void HostSession::OnDifficultyChange(uint32_t aDifficulty) const noexcept
@@ -123,12 +125,13 @@ void HostSession::Announce(ConnectionId_t aNewcomer) const noexcept
         notify.IsHost = acPlayer.IsHost;
         return notify;
     };
-    const auto cNewcomer = joined(*m_players.Find(aNewcomer));
+    auto newcomer = joined(*m_players.Find(aNewcomer));
+    newcomer.Arrived = true;
     m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
         if (aConnection == aNewcomer)
             return;
         m_network.Send(aNewcomer, joined(acPlayer));
-        m_network.Send(aConnection, cNewcomer);
+        m_network.Send(aConnection, newcomer);
     });
 }
 
@@ -141,4 +144,15 @@ void HostSession::OnPlayerLeft(ConnectionId_t aPlayer) const noexcept
     notify.PlayerId = cpPlayer->Id;
     notify.Username = cpPlayer->Name;
     m_players.SendToOthers(notify, aPlayer);
+}
+
+void HostSession::OnPlayerPerished(const PlayerPerishedRequest&, ConnectionId_t aSender) const noexcept
+{
+    const auto* cpPlayer = m_players.Find(aSender);
+    if (!cpPlayer)
+        return;
+    NotifyPlayerPerished notify;
+    notify.PlayerId = cpPlayer->Id;
+    notify.Username = cpPlayer->Name;
+    m_players.SendToAll(notify);
 }

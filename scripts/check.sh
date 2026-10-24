@@ -80,6 +80,10 @@ for target in ClientTests HostAuthorityTests TPTests GameTests; do
         step "run $target" "build/linux/x86_64/debug/$target"
     fi
 done
+step "build UiWorkbench" scripts/xmake-linux.sh build -j8 UiWorkbench
+if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
+    step "check UI fixtures" build/linux/x86_64/debug/UiWorkbench --check
+fi
 if (( DLL )); then
     step "build plugin" scripts/xmake-msvc.sh build -j8 SkyrimTogetherClientDLL
 fi

@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "loading",
+    "step": 5,
+    "completed": 4,
+    "message": "Loading the world..."
+  }
+}

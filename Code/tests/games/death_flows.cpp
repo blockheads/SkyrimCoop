@@ -2,6 +2,8 @@
 // health; a player goes down and gets up on its own game, and the others spawn its copy again.
 #include "Party.h"
 
+#include <Events/SessionNoticeEvent.h>
+
 namespace
 {
 constexpr uint32_t kSmoke = 0x00031D2E;
@@ -14,6 +16,19 @@ void Plugins(FakeEngine& aEngine)
     aEngine.LoadCell(kSmoke);
     aEngine.CocMarkers[kSmoke] = kSmokeMarker;
 }
+
+// aGame's chat lines about the session (SessionNoticeEvent), "red: " before the ones it shows in red.
+struct ChatNotices
+{
+    explicit ChatNotices(World& aGame)
+        : Connection(aGame.GetDispatcher().sink<SessionNoticeEvent>().connect<&ChatNotices::On>(*this))
+    {
+    }
+    void On(const SessionNoticeEvent& acNotice) { Lines.push_back((acNotice.Perished ? "red: " : "") + acNotice.Text); }
+    [[nodiscard]] bool Has(const std::string& acLine) const { return std::ranges::find(Lines, acLine) != Lines.end(); }
+    std::vector<std::string> Lines;
+    entt::scoped_connection Connection;
+};
 
 // aGame's copy of the other game's player, by form id (0: none).
 uint32_t PlayerCopy(const FakeEngine& acEngine)
@@ -54,6 +69,34 @@ SCENARIO("A host NPC dies: its copy dies with it", "[death]")
             party.Until([&] { return guest.IsActorDead(cCopy); }, "the guest's copy dies");
             party.Agree("the games agree on the dead guard");
         }
+    }
+}
+
+SCENARIO("A player joining, going down and leaving: every game's chat says so, going down in red", "[death][session]")
+{
+    Party party(1, Plugins, false);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    const ChatNotices cHostChat(party.Host());
+    const ChatNotices cGuestChat(party.Guest());
+    party.Join(party.Guest());
+    party.Until([&] { return cHostChat.Has("Lydia joined the party."); }, "the host's chat says the guest joined");
+    party.Agree("the games agree on the players");
+    THEN("the guest's chat names nobody joining: the host was there already")
+    {
+        CHECK(std::ranges::none_of(cGuestChat.Lines, [](const auto& acLine) { return acLine.ends_with("joined the party."); }));
+    }
+
+    WHEN("the guest's player takes a deadly hit")
+    {
+        party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+        party.Until([&] { return cHostChat.Has("red: Lydia has perished.") && cGuestChat.Has("red: Lydia has perished."); },
+                    "each game's chat says, in red, that the guest's player perished");
+    }
+
+    WHEN("the guest leaves")
+    {
+        party.Leave(party.Guest());
+        party.Until([&] { return cHostChat.Has("Lydia left the party."); }, "the host's chat says the guest left");
     }
 }
 

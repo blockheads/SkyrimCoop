@@ -1,0 +1,26 @@
+{
+  "party": [
+    {"name": "Lydia", "host": true, "level": 32, "health": 1},
+    {"name": "Serana", "level": 28, "health": 0.68},
+    {"name": "Mjoll", "level": 35, "health": 0.8},
+    {"name": "Aela", "level": 30, "health": 0.9},
+    {"name": "Farkas", "level": 26, "health": 0.65},
+    {"name": "J'zargo", "level": 24, "health": 1},
+    {"name": "Uthgerd", "level": 29, "health": 0.55},
+    {"name": "Teldryn", "level": 40, "health": 0.75}
+  ],
+  "chat": {
+    "open": true,
+    "lines": [
+      {"name": "Lydia", "text": "Meet at the bridge."},
+      {"name": "Serana", "text": "On my way."},
+      {"name": "Mjoll", "text": "The road is clear."},
+      {"name": "Aela", "text": "I will scout ahead."},
+      {"name": "Farkas", "text": "Ready when you are."},
+      {"name": "J'zargo", "text": "Bring a torch."},
+      {"name": "Uthgerd", "text": "I have supplies."},
+      {"name": "Teldryn", "text": "See you there."}
+    ],
+    "draft": ""
+  }
+}

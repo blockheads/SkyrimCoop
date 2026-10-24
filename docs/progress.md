@@ -686,8 +686,8 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   Scenarios: `guest-cannot-save` 3 of 3, `host-save-keeps-guest-character` 3 of 3, `guest-brings-character-into-
   hosts-world` 1 of 1, `guest-joins-from-main-menu-as-kept-character` 1 run (join and character pass; the after-scenario
   world diff found 7 QASmoke animated activators `ACTI 1BA5A` at another pose after the load: Loose ends). GameTests
-  `[join]`, `[records]`, `[save]`. `+connect_lobby` built (GameTests `[steam]`, not run in Skyrim). Not built yet: the join screen, the RaceMenu adapter
-  (build/join-flow-report.md). Live look refresh of copies: built later the same day (below).
+  `[join]`, `[records]`, `[save]`. `+connect_lobby` built (GameTests `[steam]`, not run in Skyrim). Not built yet: the RaceMenu adapter
+  (build/join-flow-report.md); the join screen came with the UI workbench (below). Live look refresh of copies: built later the same day (below).
   Later the same day: `guest-makes-character-then-joins` (a new game through the main menu, Quick Start - SE, now on
   in every test game's load order, the race menu driven as a player: Khajiit, female, named, then the join; compares
   the base's save sections, the tints, and the host's copy) passes 3 runs. It found: a copy never had its player's
@@ -696,6 +696,18 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
   player's tint masks (`ApplyPlayer` now rebuilds them for the race and sex, 40696, before the record's colours).
   Harness: keys work at the main menu (W/S/E are the menus' Up/Down/Accept; arrows and Enter only reach Flash raw),
   `char` types into text fields (`CharEvent`), `menu_var` reads strings, `input_state` shows the control map.
+- **The UI workbench merged, the join panel wired (2026-10-24).** `UiWorkbench` (native RmlUi on GLFW/GL3,
+  fixtures, `scripts/check-ui.sh`, in `scripts/check.sh`), `ui_models` (party activity, player colors, the
+  join model), health faces, the AOL-style chat. In the game the join box follows `JoinService` (steps,
+  refusals, Copy and Back by mouse or Escape); joins, departures and a player going down ("has perished.",
+  red) are chat lines on every game, not a party panel notice. Scenarios: `join-panel-shows-refusal`,
+  `party-panel`, `party-shows-levels`, `chat-reaches-everyone`, `join-refused-shows-why`,
+  `guest-joins-by-invite`, `loaded-save-hosts-then-joins-friend` PASS. GameTests now run `SessionService`.
+  Later: a new game hosts like a loaded save (hook on `NewGame_Enter` 52118; a game hosting alone steps down to
+  join), and a guest that loses its host reconnects (3 tries; Steam rejoins the lobby), else its panel says the
+  connection was lost; a kick says so without reconnecting (`join-flow.md`, "A guest losing its host"). The guest's
+  network now tells the host closing (code 1) from a kick (2). Scenarios `host-rejoins` (reconnects by itself),
+  `host-kicks-client`, the Steam ones and `guest-makes-character-then-joins` PASS.
 - **Steam: join from an invite (2026-10-23, uncommitted).** The duo's client game runs as OS user `coop2` in its own
   network namespace, its Steam on a second account (every Steam serves games on the fixed 127.0.0.1:57343;
   `docs/design/testing.md`, "Two Steam accounts"; status `steam` shows each game's account). `SteamService` on
@@ -1426,9 +1438,9 @@ order" says what comes during the migration and what after.
   make one. Only the host saves; a friend's game cannot save while connected.
 - The plugin's file interface (`request`, `status`, `events`, `manifest`) and the error model (state
   with stable reason codes, events as chat system lines); the harness moves onto the files.
-- The join screen: one component, a dark full screen over the main menu with our panel, showing
-  each step and a refusal in the same place; a Host button in game; needs mouse and keyboard input
-  for RmlUi. Built once, with joining from the main menu and save transfer (`join-flow.md`).
+- The join screen: built 2026-10-24 (the UI workbench's box, wired to `JoinService`: steps, refusals,
+  Copy and Back with the mouse; `Code/client/Ui/README.md`). Open: a Host button in game, a co-op entry
+  at the main menu, the `ended` state for a session ending in game.
 - Session settings from the host: its real difficulty (forced to Master today), a settings screen.
 - In-game screens besides the party panel: player list with kick, settings.
 - A launcher: not decided; the mod sync spike answers whether one is needed. Steam research and a

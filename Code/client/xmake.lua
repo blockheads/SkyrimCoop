@@ -36,6 +36,7 @@ target(name)
 
     -- Core dependencies (always needed)
     add_deps(
+        "UiModels",
         "CommonLib",
         "BaseLib",
         "ImGuiImpl",

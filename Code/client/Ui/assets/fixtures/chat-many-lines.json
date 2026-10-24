@@ -1,0 +1,51 @@
+{
+  "party": [
+    {
+      "name": "Lydia",
+      "host": true,
+      "level": 32,
+      "health": 1
+    },
+    {
+      "name": "Serana",
+      "host": false,
+      "level": 28,
+      "health": 0.68
+    }
+  ],
+  "chat": {
+    "lines": [
+      {
+        "name": "Serana",
+        "text": "I found the entrance. Bring a torch.",
+        "system": false
+      },
+      {
+        "name": "Lydia",
+        "text": "The path is clear. Meet me by the bridge.",
+        "system": false
+      },
+      {
+        "name": "Serana",
+        "text": "I found the entrance. Bring a torch.",
+        "system": false
+      },
+      {
+        "name": "Lydia",
+        "text": "The path is clear. Meet me by the bridge.",
+        "system": false
+      },
+      {
+        "name": "Serana",
+        "text": "I found the entrance. Bring a torch.",
+        "system": false
+      },
+      {
+        "name": "Lydia",
+        "text": "The path is clear. Meet me by the bridge.",
+        "system": false
+      }
+    ],
+    "open": false
+  }
+}

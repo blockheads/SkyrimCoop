@@ -1,0 +1,47 @@
+{
+  "page": "https://rct.fandom.com/wiki/Guest_Moods",
+  "images": [
+    {
+      "name": "Very happy",
+      "url": "https://static.wikia.nocookie.net/rct/images/1/1b/Very_happy.png.png/revision/latest?format=original",
+      "file": "very-happy.png",
+      "sha256": "bb5e1564768f00ecd4e05a33102f5763521573fa33a6a28cde873782ff3e4f26"
+    },
+    {
+      "name": "Really happy",
+      "url": "https://static.wikia.nocookie.net/rct/images/4/4e/Really_happy.png.png/revision/latest?format=original",
+      "file": "really-happy.png",
+      "sha256": "626e8945680c82df28d3e46c7fd05d167f715b9d0a6098b7f200bccc4ea7902b"
+    },
+    {
+      "name": "Happy",
+      "url": "https://static.wikia.nocookie.net/rct/images/7/76/Happy.png.png/revision/latest?format=original",
+      "file": "happy.png",
+      "sha256": "bde167be0e37a6b22c5d67cfdd693e2b1872be89693b905f550121e25d2dda66"
+    },
+    {
+      "name": "Neutral",
+      "url": "https://static.wikia.nocookie.net/rct/images/7/75/Neutral.png.png/revision/latest?format=original",
+      "file": "neutral.png",
+      "sha256": "65a1f42a8e9f350affa4f5933c1c04dcea5354b4efdf7032efbb23fc0b72df64"
+    },
+    {
+      "name": "Sad",
+      "url": "https://static.wikia.nocookie.net/rct/images/2/27/Sad.png.png/revision/latest?format=original",
+      "file": "sad.png",
+      "sha256": "2d741aa23663294be48e11254dc30ade9af14371b85d5fbcedb8766e4410ad4a"
+    },
+    {
+      "name": "Tired",
+      "url": "https://static.wikia.nocookie.net/rct/images/d/d5/Tired.png.png/revision/latest?format=original",
+      "file": "tired.png",
+      "sha256": "052e855d2c9267d3755f2ccf8e1da6d530910631c8c5da8a3a2fff7c21890d40"
+    },
+    {
+      "name": "Very tired",
+      "url": "https://static.wikia.nocookie.net/rct/images/9/92/Very_tired.png.png/revision/latest?format=original",
+      "file": "very-tired.png",
+      "sha256": "feb9706c7bbc4451d7426d2377dc946b26a18f8d1bc483adbc91a94ebdbc14fd"
+    }
+  ]
+}

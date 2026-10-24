@@ -1021,4 +1021,19 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         request.WantsWorld = true;
         roundTrip(request, RequestMessageFactory{});
     }
+
+    SECTION("A player joining now is marked, and a player going down carries its name")
+    {
+        NotifyPlayerJoined joined;
+        joined.PlayerId = 3;
+        joined.Username = "Serana";
+        joined.Level = 5;
+        joined.Arrived = true;
+        roundTrip(joined, NotifyMessageFactory{});
+        roundTrip(PlayerPerishedRequest{}, RequestMessageFactory{});
+        NotifyPlayerPerished perished;
+        perished.PlayerId = 3;
+        perished.Username = "Serana";
+        roundTrip(perished, NotifyMessageFactory{});
+    }
 }

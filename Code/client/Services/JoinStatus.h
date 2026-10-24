@@ -20,11 +20,14 @@ struct JoinStatus
         kReceivingWorld,
         kLoading,
         kCreatingCharacter,
+        // A guest's session dropped: trying the same host again, then ended (or the host removed it).
+        kReconnecting,
+        kEnded,
     };
 
     State Current = State::kIdle;
-    // When refused, a stable code: wrong_build, wrong_game, full, mods_differ, unreachable, lost_connection,
-    // transfer_failed.
+    // When refused or ended, a stable code: wrong_build, wrong_game, full, mods_differ, unreachable, lost_connection,
+    // transfer_failed, kicked.
     std::string Reason;
     // When refused, one sentence the player can act on, and a line per difference.
     std::string Message;
@@ -46,6 +49,8 @@ struct JoinStatus
     case JoinStatus::State::kReceivingWorld: return "receiving_world";
     case JoinStatus::State::kLoading: return "loading";
     case JoinStatus::State::kCreatingCharacter: return "creating_character";
+    case JoinStatus::State::kReconnecting: return "reconnecting";
+    case JoinStatus::State::kEnded: return "ended";
     default: return "idle";
     }
 }

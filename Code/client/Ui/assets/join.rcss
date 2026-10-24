@@ -1,0 +1,62 @@
+body {
+    width: 100%;
+    height: 100%;
+    font-family: Liberation Sans;
+    font-weight: 400;
+    font-size: 17dp;
+    color: #f0f0f0;
+    font-effect: none;
+}
+#join-backdrop {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+#join-panel {
+    width: 680dp;
+    max-width: 88%;
+    margin: 380dp auto 0;
+    background-color: #000000;
+    border: 1dp #d0d0d0;
+}
+.connection-content { padding: 24dp; }
+#join-message, #invite-message { line-height: 1.5; }
+.track {
+    margin-top: 20dp;
+    height: 8dp;
+    border: 1dp #808080;
+    background-color: #000000;
+    overflow: hidden;
+}
+.fill { height: 100%; background-color: #f0f0f0; }
+.fill.complete { width: 100%; }
+.fill.working { width: 30%; animation: 1.2s linear infinite alternate working; }
+@keyframes working {
+    from { margin-left: 0%; }
+    to { margin-left: 70%; }
+}
+.percent { margin-top: 8dp; text-align: right; }
+.error-title { margin-bottom: 10dp; font-weight: 700; }
+#refusal-details { margin-top: 18dp; max-height: 240dp; overflow: auto; }
+.detail { color: #b0b0b0; margin-bottom: 8dp; line-height: 1.5; }
+.actions { margin-top: 20dp; padding-top: 16dp; border-top: 1dp #808080; }
+button {
+    display: inline-block;
+    font-family: Liberation Sans;
+    font-weight: 400;
+    font-size: 17dp;
+    color: #f0f0f0;
+    background-color: transparent;
+    border: 1dp transparent;
+    padding: 6dp 8dp;
+    margin-right: 14dp;
+    cursor: pointer;
+    tab-index: auto;
+}
+button:hover, button:focus {
+    color: #000000;
+    background-color: #f0f0f0;
+    border-color: #f0f0f0;
+}
+scrollbarvertical { width: 6dp; }
+scrollbarvertical sliderbar { background-color: #b0b0b0; }

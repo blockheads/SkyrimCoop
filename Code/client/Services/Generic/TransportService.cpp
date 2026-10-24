@@ -90,6 +90,7 @@ void TransportService::ConnectLocal(HostNetwork& aNetwork) noexcept
 bool TransportService::Connect(const std::string& acEndpoint) noexcept
 {
     m_joinStatus = {JoinStatus::State::kConnecting};
+    m_endpoint = acEndpoint;
     return Client::Connect(acEndpoint);
 }
 
@@ -98,13 +99,15 @@ bool TransportService::IsConnected() const noexcept
     return m_pHostNetwork != nullptr || Client::IsConnected();
 }
 
-void TransportService::Close() noexcept
+void TransportService::Close(DisconnectedEvent::Cause aWhy) noexcept
 {
-    if (IsOnline())
+    if (IsOnline() && aWhy == DisconnectedEvent::Cause::kLeft)
         m_dispatcher.trigger(SessionLeavingEvent{});
+    m_closing = aWhy;
     if (!m_pHostNetwork)
     {
         Client::Close();
+        m_closing.reset();
         return;
     }
 
@@ -112,7 +115,10 @@ void TransportService::Close() noexcept
     m_pHostNetwork = nullptr;
     m_localInbox.clear();
     pNetwork->CloseRoute(kLocalConnectionId);
+    m_closingRoute = true;
     OnDisconnected(kNormal);
+    m_closingRoute = false;
+    m_closing.reset();
 }
 
 uint64_t TransportService::GetTick() const noexcept
@@ -206,6 +212,10 @@ void TransportService::OnConnected()
 
 void TransportService::OnDisconnected(EDisconnectReason aReason)
 {
+    using Cause = DisconnectedEvent::Cause;
+    DisconnectedEvent event;
+    event.WasGuest = m_connected && !m_closingRoute;
+    event.Why = m_closing ? *m_closing : aReason == kKicked ? Cause::kKicked : aReason == kAborted ? Cause::kLeft : Cause::kLost;
     m_connected = false;
     // A refusal stays what the attempt ended with; why a session ended comes with leaving and kicks.
     if (m_joinStatus.Current != JoinStatus::State::kRefused)
@@ -213,7 +223,7 @@ void TransportService::OnDisconnected(EDisconnectReason aReason)
 
     spdlog::warn("Disconnected from the host ({})", std::to_underlying(aReason));
 
-    m_dispatcher.trigger(DisconnectedEvent());
+    m_dispatcher.trigger(event);
 }
 
 void TransportService::OnUpdate()

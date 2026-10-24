@@ -1,0 +1,29 @@
+<rml>
+<head>
+    <title>Connection</title>
+    <link type="text/rcss" href="skyrim.rcss"/>
+    <link type="text/rcss" href="join.rcss"/>
+</head>
+<body data-model="join">
+    <div id="join-backdrop" data-if="visible &amp;&amp; state != 'creating_character'">
+        <div id="join-panel">
+            <div class="connection-content">
+                <div class="error-title" data-if="state == 'refused'">Couldn't connect</div>
+                <div class="error-title" data-if="state == 'ended'">Disconnected</div>
+                <div id="invite-message" data-if="state == 'idle'">Waiting for a Steam invite.</div>
+                <div id="join-message" data-if="state != 'idle'">{{ message }}</div>
+                <div class="track" data-if="state != 'refused' &amp;&amp; state != 'ended' &amp;&amp; state != 'idle' &amp;&amp; state != 'hosting'">
+                    <div class="fill" data-if="progress >= 0" data-style-width="(progress * 100) + '%'"></div>
+                    <div class="fill complete" data-if="progress &lt; 0 &amp;&amp; state == 'joined'"></div>
+                    <div class="fill working" data-if="progress &lt; 0 &amp;&amp; state != 'joined'"></div>
+                </div>
+                <div class="percent" data-if="progress >= 0 &amp;&amp; state != 'refused' &amp;&amp; state != 'ended'">{{ progress * 100 }}%</div>
+                <div id="refusal-details" data-if="state == 'refused' || state == 'ended'">
+                    <div class="detail" data-for="detail : details">- {{ detail }}</div>
+                </div>
+                <div class="actions" data-if="state == 'refused' || state == 'ended'"><button id="copy">[ Copy details ]</button><button id="back">[ Back ]</button></div>
+            </div>
+        </div>
+    </div>
+</body>
+</rml>

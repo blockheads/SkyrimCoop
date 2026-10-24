@@ -42,6 +42,12 @@ const JoinStatus& JoinService::GetStatus() const noexcept
 
 bool JoinService::Join(const std::string& acEndpoint) noexcept
 {
+    // A game hosting alone (a new game or a save of its own) steps down to join.
+    if (auto* pSteam = m_world.ctx().find<SteamService>(); pSteam && !IsJoining() && !pSteam->StepDown())
+    {
+        spdlog::warn("JoinService: no join: friends are in this game's session");
+        return false;
+    }
     if (IsJoining() || m_world.GetTransport().IsConnected())
     {
         spdlog::warn("JoinService: no join (joining {}, connected {})", IsJoining(), m_world.GetTransport().IsConnected());
@@ -117,6 +123,17 @@ void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
         if (m_waited > kLoadSeconds)
             Fail("transfer_failed");
         break;
+    case Step::kReconnectWait:
+        if (m_waited > kRetrySeconds)
+            Reconnect();
+        break;
+    case Step::kReconnecting:
+        if (m_waited > kReconnectSeconds)
+        {
+            Retry();
+            m_world.GetTransport().Close();
+        }
+        break;
     default: break;
     }
 }
@@ -188,6 +205,17 @@ void JoinService::Arrive() noexcept
 
 void JoinService::OnConnected(const ConnectedEvent&) noexcept
 {
+    if (m_step == Step::kReconnecting)
+    {
+        spdlog::info("JoinService: reconnected (try {})", m_tries);
+        m_step = Step::kIdle;
+        m_status = {};
+        m_dispatcher.trigger(SessionNoticeEvent{"Reconnected to the host."});
+        return;
+    }
+    // A new session: how the last one ended is over.
+    if (m_step == Step::kIdle)
+        m_status = {};
     if (m_step != Step::kJoining)
         return;
     spdlog::info("JoinService: joined");
@@ -195,13 +223,66 @@ void JoinService::OnConnected(const ConnectedEvent&) noexcept
     m_status = {};
 }
 
-void JoinService::OnDisconnected(const DisconnectedEvent&) noexcept
+void JoinService::OnDisconnected(const DisconnectedEvent& acEvent) noexcept
 {
-    // Loading runs with no connection (ours closed on purpose).
-    if (m_step == Step::kIdle || m_step == Step::kLoading)
+    using enum DisconnectedEvent::Cause;
+    if (m_step == Step::kIdle)
+    {
+        if (acEvent.WasGuest && acEvent.Why == kKicked)
+        {
+            m_status = JoinRefusal::Ended("kicked");
+            m_dispatcher.trigger(SessionNoticeEvent{m_status.Message});
+        }
+        else if (acEvent.WasGuest && acEvent.Why == kLost)
+            StartReconnect();
+        return;
+    }
+    // Loading runs with no connection (ours closed on purpose); between tries there is none.
+    if (m_step == Step::kLoading || m_step == Step::kReconnectWait)
         return;
     const JoinStatus& cTransport = m_world.GetTransport().GetJoinStatus();
     if (cTransport.Current == JoinStatus::State::kRefused)
         return Fail(cTransport);
+    if (m_step == Step::kReconnecting)
+        return Retry();
     Fail(m_reached || m_step == Step::kReceiving ? "lost_connection" : "unreachable");
+}
+
+void JoinService::StartReconnect() noexcept
+{
+    m_endpoint = m_world.GetTransport().GetEndpoint();
+    m_brought.reset();
+    m_tries = 0;
+    spdlog::warn("JoinService: lost the host; reconnecting to {}", m_endpoint);
+    m_dispatcher.trigger(SessionNoticeEvent{"Lost connection to the host. Reconnecting..."});
+    To(Step::kReconnectWait, JoinStatus::State::kReconnecting);
+}
+
+void JoinService::Reconnect() noexcept
+{
+    ++m_tries;
+    To(Step::kReconnecting, JoinStatus::State::kReconnecting);
+    spdlog::info("JoinService: reconnecting, try {} of {}", m_tries, kReconnectTries);
+    // A Steam session needs its tunnel again first; it dials through Redial.
+    if (auto* pSteam = m_world.ctx().find<SteamService>(); pSteam && pSteam->Rejoin())
+        return;
+    if (!m_world.GetTransport().Connect(m_endpoint))
+        Retry();
+}
+
+bool JoinService::Redial(const std::string& acEndpoint) noexcept
+{
+    return m_step == Step::kReconnecting && m_world.GetTransport().Connect(acEndpoint);
+}
+
+void JoinService::Retry() noexcept
+{
+    if (m_tries < kReconnectTries)
+        return To(Step::kReconnectWait, JoinStatus::State::kReconnecting);
+    spdlog::error("JoinService: couldn't reconnect after {} tries", m_tries);
+    if (auto* pSteam = m_world.ctx().find<SteamService>())
+        pSteam->EndRejoin();
+    m_step = Step::kIdle;
+    m_status = JoinRefusal::Ended("lost_connection");
+    m_dispatcher.trigger(SessionNoticeEvent{"Couldn't reconnect to the host."});
 }

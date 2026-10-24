@@ -46,6 +46,15 @@ struct FakeSteam final : ISteamBridge
 
     // The player accepts an invite, or picks "Join Game" on a friend in a lobby (GameLobbyJoinRequested_t).
     void ChooseJoin(SteamId aLobby) { m_pending.JoinRequests.push_back(aLobby); }
+    // The network between this end and its peer fails: each end gets its close.
+    void Drop(Connection aConnection)
+    {
+        const auto it = Links.find(aConnection);
+        if (it == Links.end() || !it->second.pPeer)
+            return;
+        it->second.pPeer->PeerClosed(it->second.PeerConnection, "dropped");
+        PeerClosed(aConnection, "dropped");
+    }
 
     static std::map<SteamId, Lobby>& Lobbies()
     {

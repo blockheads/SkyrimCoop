@@ -1,0 +1,5 @@
+{
+  "party": [{"name": "Lydia", "host": true, "level": 32, "health": 1}],
+  "party_visible": false,
+  "party_opacity": 0
+}

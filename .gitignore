@@ -108,3 +108,6 @@ tests/*.exe
 /workspace
 /compile_commands.json
 /.cache/
+
+# Git worktrees (scripts and agents make them here)
+/.worktrees/

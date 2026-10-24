@@ -15,6 +15,7 @@
 #include <Services/HostService.h>
 #include <Services/SteamService.h>
 #include <Ui/UiService.h>
+#include <Ui/UiInput.h>
 #include <Games/Skyrim/BSCore/LockOrder.h>
 #include <BuildVersion.h>
 #include <FormIds.h>
@@ -310,7 +311,7 @@ static nlohmann::json GameStatus()
     {
         party = nlohmann::json::array();
         for (const auto& cMember : pUi->GetPartyMembers())
-            party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"level", cMember.Level}, {"health", cMember.Health}});
+            party.push_back({{"name", cMember.Name}, {"host", cMember.IsHost}, {"level", cMember.Level}, {"health", cMember.Health}, {"color", cMember.Color}});
     }
     // The chat: every line received, whether its line is open and what is typed in it.
     nlohmann::json chat = nullptr;
@@ -318,7 +319,7 @@ static nlohmann::json GameStatus()
     {
         nlohmann::json lines = nlohmann::json::array();
         for (const auto& cLine : pUi->GetChatLines())
-            lines.push_back({{"name", cLine.Name}, {"text", cLine.Text}, {"system", cLine.System}});
+            lines.push_back({{"name", cLine.Name}, {"text", cLine.Text}, {"system", cLine.System}, {"color", cLine.Color}, {"perished", cLine.Perished}});
         chat = {{"open", pUi->IsChatOpen()}, {"draft", pUi->GetChatDraft()}, {"lines", lines}};
     }
     // The last attempt to join, and if it was refused, why.
@@ -337,12 +338,25 @@ static nlohmann::json GameStatus()
     if (const auto cHours = EngineCalls::GetWaitMenuHours())
         waitHours = *cHours;
     constexpr uint32_t cGameDaysPassed = 0x39;
+    const auto* pPartyUi = world.ctx().find<UiService>();
+    const auto cHud = UiInput::GetHudVisibility();
+    const auto nullable = [](std::optional<bool> value) -> nlohmann::json {
+        return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
+    };
+    const nlohmann::json hud = {{"menu_system_visible", cHud.MenuSystemVisible}, {"hud_menu_open", cHud.HudMenuOpen},
+        {"movie_ready", cHud.MovieReady}, {"blocking_menu", cHud.BlockingMenu},
+        {"root_visible", nullable(cHud.RootVisible)}, {"hud_clip_visible", nullable(cHud.HudClipVisible)},
+        {"health_clip_visible", nullable(cHud.HealthClipVisible)}, {"allows_party", cHud.AllowsParty()}};
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()},
                       {"days_passed", EngineCalls::GetGlobalValue(cGameDaysPassed).value_or(0.f)}, {"raw_days", EngineCalls::GetRawDaysPassed()}}},
             {"wait_hours", waitHours},
             {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()}, {"difficulty", world.GetPlayerBridge().GetDifficulty()},
-            {"players", players}, {"party_panel", party}, {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
+            {"players", players}, {"party_panel", party},
+            {"party_panel_visible", pPartyUi && pPartyUi->IsPartyPanelVisible()},
+            {"party_panel_opacity", pPartyUi ? pPartyUi->PartyPanelOpacity() : 0.f},
+            {"hud", hud},
+            {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
             {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()},
             {"main_menu", EngineCalls::IsMenuOpen("Main Menu")}};
 }

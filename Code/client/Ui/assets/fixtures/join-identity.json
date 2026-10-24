@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "checking",
+    "step": 4,
+    "completed": 3,
+    "message": "Looking for your character..."
+  }
+}

@@ -4,13 +4,16 @@
     <link type="text/rcss" href="skyrim.rcss"/>
     <link type="text/rcss" href="party.rcss"/>
 </head>
-<!-- The others in the session, while connected (UiService's "party" model): name, level and health each. -->
 <body data-model="party">
-    <div id="party" data-if="members.size > 0">
-        <div class="member" data-for="member : members" data-class-away="member.health < 0">
-            <div class="name">{{ member.name }}<span class="level" data-if="member.level > 0">{{ member.level }}</span></div>
-            <div class="health">
-                <div class="fill" data-style-width="member.health < 0 ? '0%' : (member.health * 100) + '%'"></div>
+    <div id="party" data-if="visible &amp;&amp; members.size > 0" data-style-opacity="opacity">
+        <!-- Keep health bindings inside the loop so departing rows are removed before evaluation. -->
+        <div data-for="member : members">
+            <div class="member" data-class-away="member.health &lt; 0" data-class-dead="member.health == 0">
+                <img class="mood" data-attr-src="member.face"/>
+                <div class="player-info">
+                    <div class="name" data-style-color="member.color">{{ member.name }}</div>
+                    <div class="level" data-if="member.level > 0 || member.health &lt; 0"><span data-if="member.level > 0">Level {{ member.level }}</span><span class="status" data-if="member.health &lt; 0">{{ member.level > 0 ? ' · Loading' : 'Loading' }}</span></div>
+                </div>
             </div>
         </div>
     </div>

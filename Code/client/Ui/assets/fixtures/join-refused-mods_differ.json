@@ -1,0 +1,15 @@
+{
+  "join": {
+    "visible": true,
+    "state": "refused",
+    "step": 3,
+    "completed": 2,
+    "message": "Your plugins differ from the host's (3 differences). You both need the same plugins in the same order.",
+    "reason": "mods_differ",
+    "details": [
+      "missing Unofficial Skyrim Special Edition Patch.esp",
+      "extra SkyUI_SE.esp",
+      "order 12: the host loads Immersive Armors.esp, you load Lux.esp"
+    ]
+  }
+}

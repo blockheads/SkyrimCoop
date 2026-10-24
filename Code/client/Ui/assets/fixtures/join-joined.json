@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "joined",
+    "step": 6,
+    "completed": 6,
+    "message": "You're in the host's world."
+  }
+}

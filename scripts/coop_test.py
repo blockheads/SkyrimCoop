@@ -1768,13 +1768,19 @@ def scenario_late_join_client():
 
 def scenario_host_rejoins():
     """The host leaves (which ends the session for everyone: the host is the session) and hosts
-    again, and the client joins again: the host must own the NPCs it spawns, not the client."""
+    again: the client lost its host, its join panel says it reconnects, and it does by itself
+    (JoinService). The host must own the NPCs it spawns, not the client."""
     player_command("", {"cmd": "disconnect"})
     wait_for("[host] stopped hosting", lambda: not game_state("").get("hosting") and game_state("").get("online") is False, 15)
     wait_for("[client] the session ended", lambda: game_state("client").get("online") is False, 15)
+    wait_for("[client] its join panel says it reconnects",
+             lambda: join_status("client").get("state") == "reconnecting" and ui_element("client", "join-message").get("text")
+             == "Lost connection to the host. Reconnecting...", 10)
     select_instance("")
     start_session("")
-    rejoin_client()
+    wait_for("[client] reconnected by itself", lambda: game_state("client").get("online") is True, 40)
+    wait_for("[client] its join panel is gone", lambda: not ui_element("client", "join-panel").get("shown"), 5)
+    wait_for("Each game shows the other player again", both_see_each_other, 30)
     npc, session_id, copy = spawn_host_npc(LYDIA)
     log(f"host's NPC {npc:08X} (session id {session_id:X}) reaches the client as {copy:08X}")
 
@@ -1787,6 +1793,9 @@ def scenario_host_kicks_client():
         raise TestFailure(f"[host] expected the client in the session, got {players}")
     player_command("", {"cmd": "kick", "player": players[0]["id"]})
     wait_for("[client] disconnected", lambda: game_state("client").get("online") is False, 10)
+    wait_for("[client] its join panel says the host removed it, and it does not reconnect",
+             lambda: (status := join_status("client")).get("state") == "ended" and status.get("reason") == "kicked"
+             and ui_element("client", "join-message").get("text") == "The host removed you from the session.", 10)
     wait_for("[host] no longer lists the client", lambda: not game_state("").get("players"), 10)
     wait_on("", "the client's character leaves the host's game", lambda actors: other_player(actors) is None)
     rejoin_client()
@@ -1871,6 +1880,50 @@ def scenario_join_refused_shows_why():
 
     rejoin_client()
     wait_for("[client] joined", lambda: join_status("client")["state"] == "joined", 5)
+
+
+def ui_element(instance, element_id):
+    """Our UI's element of that id: {"shown", "text", "box": [x, y, width, height] in window pixels}."""
+    return player_command(instance, {"cmd": "ui_element", "id": element_id})
+
+
+def clicks_ui(what, element_id):
+    """The client's player moves the menu cursor onto our UI's element and clicks it."""
+    element = ui_element("client", element_id)
+    if not element.get("shown"):
+        raise TestFailure(f"[client] {what}: {element_id} is not shown")
+    x, y, width, height = element["box"]
+    move_cursor("client", (x + width / 2, y + height / 2))
+    click("client")
+
+
+def scenario_join_panel_shows_refusal():
+    """A friend's game at the main menu is refused (a full session): the join panel shows why, Copy puts the
+    reason and the sentence on the clipboard, and Back puts the panel away while the main menu takes none of the
+    clicks (UiService, UiInput). The client's game then starts again as the duo's."""
+    select_instance("client")
+    load_order = load_order_file().read_bytes()
+    restart_client_at_main_menu()
+    try:
+        wait_for("[client] the main menu lists its entries",
+                 lambda: menu_var("client", "Main Menu", f"{MAIN_LIST}.selectedEntry.index") is not None, 30)
+        menu_state = menu_var("client", "Main Menu", MAIN_MENU_STATE)
+        with StandInHost("full") as port:
+            player_command("client", {"cmd": "join_world", "port": port})
+            wait_for("[client] refused: full", lambda: join_status("client").get("reason") == "full", 15)
+        message = join_status("client")["message"]
+        wait_for(f"[client] the join panel says why: {message!r}",
+                 lambda: (shown := ui_element("client", "join-message")).get("shown") and shown.get("text") == message, 10)
+        clicks_ui("copies the details", "copy")
+        wait_for("[client] Copy puts the reason and the sentence on the clipboard",
+                 lambda: {"reason full", f"message {message}"} <= set(player_command("client", {"cmd": "clipboard"})["text"].splitlines()), 5)
+        clicks_ui("goes back", "back")
+        wait_for("[client] Back puts the panel away", lambda: not ui_element("client", "join-panel").get("shown"), 5)
+        if (now := menu_var("client", "Main Menu", MAIN_MENU_STATE)) != menu_state:
+            raise TestFailure(f"[client] the main menu took the clicks: its state is {now!r}, was {menu_state!r}")
+    finally:  # the duo's character again, in QASmoke, joined
+        restart_client(load_order, dropped=bool(game_state("client").get("online")))
+        rejoin_client()
 
 
 # A plugin with nothing in it (a TES4 header only): a real difference in a load order, changing nothing.
@@ -2246,7 +2299,8 @@ def scenario_loaded_save_hosts_then_joins_friend():
         wait_for("Each game shows the other player, joined through Steam", both_see_each_other, 30)
         wait_for(f"[client] its chat says it joined {host_name}'s game",
                  lambda: f"Joined {host_name}'s game." in system_chat("client"), 10)
-        wait_for(f"[host] its chat says {guest_name} joined", lambda: f"{guest_name} joined." in system_chat(""), 10)
+        character = player_record("client")["name"]
+        wait_for(f"[host] its chat says {character} joined", lambda: f"{character} joined the party." in system_chat(""), 10)
     finally:
         steam_sessions_end()
         player_command("client", {"cmd": "disconnect"})
@@ -7689,6 +7743,7 @@ SCENARIOS = {
     "host-rejoins": scenario_host_rejoins,
     "host-kicks-client": scenario_host_kicks_client,
     "join-refused-shows-why": scenario_join_refused_shows_why,
+    "join-panel-shows-refusal": scenario_join_panel_shows_refusal,
     "join-refused-plugins-differ": scenario_join_refused_plugins_differ,
     "difficulty-follows-host": scenario_difficulty_follows_host,
     "global-reaches-guest": scenario_global_reaches_guest,
@@ -7842,6 +7897,7 @@ TAGS = {
     "host-rejoins": {'session', 'spawn'},
     "host-kicks-client": {'session', 'spawn'},
     "join-refused-shows-why": {'session'},
+    "join-panel-shows-refusal": {'session', 'join', 'ui'},
     "join-refused-plugins-differ": {'session', 'restart'},
     "difficulty-follows-host": {'session'},
     "global-reaches-guest": {'world'},

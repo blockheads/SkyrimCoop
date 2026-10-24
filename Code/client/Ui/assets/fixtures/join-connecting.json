@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "connecting",
+    "step": 0,
+    "completed": 0,
+    "message": "Connecting to the host's game..."
+  }
+}

@@ -7,6 +7,7 @@ void NotifyPlayerJoined::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexc
     Serialization::WriteString(aWriter, Username);
     Serialization::WriteVarInt(aWriter, Level);
     Serialization::WriteBool(aWriter, IsHost);
+    Serialization::WriteBool(aWriter, Arrived);
 }
 
 void NotifyPlayerJoined::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -17,4 +18,5 @@ void NotifyPlayerJoined::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     Username = Serialization::ReadString(aReader);
     Level = Serialization::ReadVarInt(aReader) & 0xFFFF;
     IsHost = Serialization::ReadBool(aReader);
+    Arrived = Serialization::ReadBool(aReader);
 }

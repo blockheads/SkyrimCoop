@@ -19,11 +19,13 @@ struct NotifyPlayerJoined final : NotifyMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyPlayerJoined& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username && Level == acRhs.Level && IsHost == acRhs.IsHost; }
+    bool operator==(const NotifyPlayerJoined& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username && Level == acRhs.Level && IsHost == acRhs.IsHost && Arrived == acRhs.Arrived; }
 
     uint32_t PlayerId{};
     std::string Username{};
     uint16_t Level{};
     // The session's host (the authority, who alone may kick).
     bool IsHost{};
+    // Joining now, not one already in the session (each is announced to a newcomer).
+    bool Arrived{};
 };

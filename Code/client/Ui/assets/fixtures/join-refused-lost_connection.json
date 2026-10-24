@@ -1,0 +1,14 @@
+{
+  "join": {
+    "visible": true,
+    "state": "ended",
+    "step": 6,
+    "completed": 6,
+    "message": "Lost connection to the host.",
+    "reason": "lost_connection",
+    "details": [
+      "Reconnecting didn't work.",
+      "Join again through Steam, or restart the game."
+    ]
+  }
+}

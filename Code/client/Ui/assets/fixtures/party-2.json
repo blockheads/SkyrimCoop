@@ -1,0 +1,16 @@
+{
+  "party": [
+    {
+      "name": "Lydia",
+      "host": true,
+      "level": 32,
+      "health": 1
+    },
+    {
+      "name": "Serana",
+      "host": false,
+      "level": 28,
+      "health": 0.68
+    }
+  ]
+}

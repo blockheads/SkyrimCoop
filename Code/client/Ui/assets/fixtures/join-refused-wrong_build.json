@@ -1,0 +1,14 @@
+{
+  "join": {
+    "visible": true,
+    "state": "refused",
+    "step": 1,
+    "completed": 0,
+    "message": "The host runs SkyrimCoop 9637430e, you run 05e158ac. You both need the same build.",
+    "reason": "wrong_build",
+    "details": [
+      "host build 9637430e",
+      "your build 05e158ac"
+    ]
+  }
+}

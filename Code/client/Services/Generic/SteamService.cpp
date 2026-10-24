@@ -1,6 +1,9 @@
 #include <Services/SteamService.h>
 
+#include <Events/ConnectedEvent.h>
 #include <Events/GameLoadedEvent.h>
+#include <Events/MenuEvent.h>
+#include <Events/NewGameEvent.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Services/Host/HostNetwork.h>
@@ -21,6 +24,9 @@ SteamService::SteamService(World& aWorld, entt::dispatcher& aDispatcher, ISteamB
 {
     Listen<UpdateEvent, &SteamService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<GameLoadedEvent, &SteamService::OnGameLoaded>(m_connections, aDispatcher, this);
+    Listen<NewGameEvent, &SteamService::OnNewGame>(m_connections, aDispatcher, this);
+    Listen<MenuEvent, &SteamService::OnMenu>(m_connections, aDispatcher, this);
+    Listen<ConnectedEvent, &SteamService::OnConnected>(m_connections, aDispatcher, this);
 }
 
 void SteamService::Notify(std::string aText) noexcept
@@ -28,15 +34,35 @@ void SteamService::Notify(std::string aText) noexcept
     m_dispatcher.trigger(SessionNoticeEvent{std::move(aText)});
 }
 
-// A save loaded: host, unless this game is in someone else's session or already in a Steam one.
 void SteamService::OnGameLoaded(const GameLoadedEvent&) noexcept
+{
+    HostWorld();
+}
+
+void SteamService::OnNewGame(const NewGameEvent&) noexcept
+{
+    m_newGame = true;
+}
+
+void SteamService::OnMenu(const MenuEvent& acEvent) noexcept
+{
+    if (m_newGame && !acEvent.Opening && acEvent.Menu == "Loading Menu")
+    {
+        m_newGame = false;
+        HostWorld();
+    }
+}
+
+// A world of this player's is up (a save loaded, a new game): host, unless this game is in someone else's session or
+// already in a Steam one.
+void SteamService::HostWorld() noexcept
 {
     const bool cGuestElsewhere = m_world.GetTransport().IsOnline() && !m_world.GetHostService().IsHosting();
     // The host's save a main menu join loads is not this player's to host.
     const auto* pJoin = m_world.ctx().find<JoinService>();
     if (cGuestElsewhere || (pJoin && pJoin->IsJoining()) || (m_status.State != "idle" && m_status.State != "failed") || !m_steam.IsReady())
         return;
-    spdlog::info("Steam: a save loaded; hosting");
+    spdlog::info("Steam: a world of this player's is up; hosting");
     Host();
 }
 
@@ -103,30 +129,66 @@ void SteamService::Leave() noexcept
 void SteamService::Fail(std::string aError) noexcept
 {
     spdlog::warn("Steam: {}", aError);
+    // A reconnect's try: JoinService's reconnect says how it ends.
     if (m_hosting)
         Notify("Steam session: " + aError);
-    else if (m_status.State == "connected")
+    else if (m_status.State == "connected" && !m_rejoining)
         Notify("Left " + m_status.HostName + "'s game: " + aError);
-    else
+    else if (!m_rejoining)
         Notify("Couldn't join: " + aError);
     Leave();
     m_status.State = "failed";
     m_status.Error = std::move(aError);
 }
 
+bool SteamService::StepDown() noexcept
+{
+    auto& host = m_world.GetHostService();
+    if (!host.IsHosting())
+        return true;
+    if (!m_status.Peers.empty() || (host.GetNetwork() && host.GetNetwork()->GetClientCount() != 0))
+        return false;
+    if (m_hosting)
+        Leave();
+    host.StopHosting();
+    return true;
+}
+
+bool SteamService::Rejoin() noexcept
+{
+    const SteamId cLobby = m_rejoinLobby ? m_rejoinLobby : JoinedAs() ? m_status.Lobby : 0;
+    if (!cLobby || m_hosting)
+        return false;
+    // What the dropped session or the last try left goes first.
+    Leave();
+    m_rejoinLobby = cLobby;
+    m_rejoining = true;
+    JoinLobby(cLobby);
+    return true;
+}
+
+void SteamService::EndRejoin() noexcept
+{
+    if (!m_rejoining)
+        return;
+    Leave();
+    m_rejoining = false;
+    m_rejoinLobby = 0;
+}
+
+void SteamService::OnConnected(const ConnectedEvent&) noexcept
+{
+    m_rejoining = false;
+    m_rejoinLobby = 0;
+}
+
 void SteamService::JoinLobby(SteamId aLobby) noexcept
 {
     // Hosting alone (a save loaded, nobody joined): this game steps down to join its friend's.
-    auto& host = m_world.GetHostService();
-    if (m_hosting)
+    if (m_hosting && !StepDown())
     {
-        if (!m_status.Peers.empty() || (host.GetNetwork() && host.GetNetwork()->GetClientCount() != 0))
-        {
-            Notify("Couldn't join: friends are in your game. Leave it first.");
-            return;
-        }
-        Leave();
-        host.StopHosting();
+        Notify("Couldn't join: friends are in your game. Leave it first.");
+        return;
     }
     if (m_status.State != "idle" && m_status.State != "failed")
     {
@@ -141,7 +203,8 @@ void SteamService::JoinLobby(SteamId aLobby) noexcept
     m_hosting = false;
     m_waited = 0.0;
     spdlog::info("Steam: joining lobby {}", aLobby);
-    Notify("Joining a friend's game...");
+    if (!m_rejoining)
+        Notify("Joining a friend's game...");
 }
 
 void SteamService::OnLobbyResult(const ISteamBridge::LobbyResult& acResult) noexcept
@@ -201,7 +264,6 @@ void SteamService::OnControl(Peer& aPeer, const std::string& acLine) noexcept
         aPeer.Name = acLine.substr(cHello.size());
         SendControl(aPeer.Connection, kWelcome + m_steam.GetUserName());
         spdlog::info("Steam: {} ({}) joined, {}", aPeer.Name, aPeer.Id, aPeer.Relayed ? "relayed" : "direct");
-        Notify(aPeer.Name + " joined.");
     }
     else if (!m_hosting && acLine.starts_with(cWelcome) && m_status.State == "connecting")
     {
@@ -214,14 +276,17 @@ void SteamService::OnControl(Peer& aPeer, const std::string& acLine) noexcept
         // The whole join (the host's save, this player's character) runs through the tunnel.
         auto* pJoin = m_world.ctx().find<JoinService>();
         const std::string cEndpoint = std::format("127.0.0.1:{}", cPort);
-        const bool cDialled = pJoin ? pJoin->Join(cEndpoint) : m_world.GetTransport().Connect(cEndpoint);
+        const bool cDialled = m_rejoining && pJoin ? pJoin->Redial(cEndpoint)
+                              : pJoin       ? pJoin->Join(cEndpoint)
+                                            : m_world.GetTransport().Connect(cEndpoint);
         if (!cDialled)
             return Fail("the transport would not dial the tunnel");
         m_joinedTransport = true;
         m_status.State = "connected";
         spdlog::info("Steam: connected to {}'s session, {}; joining it through the tunnel", aPeer.Name,
                      aPeer.Relayed ? "relayed" : "direct");
-        Notify("Joined " + aPeer.Name + "'s game.");
+        if (!m_rejoining)
+            Notify("Joined " + aPeer.Name + "'s game.");
     }
     else
         spdlog::warn("Steam: unexpected control line from {} ({} bytes)", aPeer.Id, acLine.size());
@@ -319,11 +384,18 @@ void SteamService::OnUpdate(const UpdateEvent& acEvent) noexcept
     {
         if (!FindPeer(cConnection))
             continue;
+        if (!m_hosting && m_joinedTransport && m_world.GetTransport().IsOnline())
+        {
+            // The session dropped: JoinService reconnects (Rejoin), and the chat says so.
+            spdlog::warn("Steam: lost the host ({}); reconnecting", cReason);
+            m_rejoinLobby = m_status.Lobby;
+            m_joinedTransport = false;
+            m_world.GetTransport().Close(DisconnectedEvent::Cause::kLost);
+            return;
+        }
         if (!m_hosting)
             return Fail("lost the host: " + cReason);
         spdlog::info("Steam: a guest left ({})", cReason);
-        if (const Peer* pPeer = FindPeer(cConnection); pPeer && !pPeer->Name.empty())
-            Notify(pPeer->Name + " left.");
         CloseTunnel(cConnection);
         std::erase_if(m_status.Peers, [cConnection](const Peer& acPeer) { return acPeer.Connection == cConnection; });
     }

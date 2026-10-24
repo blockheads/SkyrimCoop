@@ -300,13 +300,14 @@ namespace Net
                 m_clock.Reset();
                 m_connected = false;
 
-                // Map enet disconnect code to EDisconnectReason
+                // The server's code (Server::EDisconnectReason): 1 its game closed the session, 2 kicked, 3 banned.
                 EDisconnectReason reason = kNormal;
                 switch (event.data)
                 {
-                case 0: reason = kNormal; break;
-                case 1: reason = kKicked; break;
-                case 2: reason = kKicked; break;  // Banned treated as kicked
+                case 0:
+                case 1: reason = kNormal; break;
+                case 2:
+                case 3: reason = kKicked; break;
                 default: reason = kTimeout; break;
                 }
                 if (event.type == ENET_EVENT_TYPE_DISCONNECT_TIMEOUT)

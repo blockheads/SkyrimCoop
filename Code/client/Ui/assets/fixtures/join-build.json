@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "checking",
+    "step": 1,
+    "completed": 0,
+    "message": "Checking our mod's build..."
+  }
+}

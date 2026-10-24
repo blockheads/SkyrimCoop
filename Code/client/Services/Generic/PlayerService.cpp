@@ -11,6 +11,7 @@
 #include <Events/DifficultyChangeEvent.h>
 
 #include <Messages/PlayerRespawnRequest.h>
+#include <Messages/PerishedMessages.h>
 #include <Messages/PlayerLevelRequest.h>
 
 #include <Messages/NotifySettingsChange.h>
@@ -117,6 +118,7 @@ void PlayerService::RunRespawnUpdates(const double acDeltaTime) noexcept
     if (!m_respawnStarted)
     {
         m_respawnStarted = true;
+        m_transport.Send(PlayerPerishedRequest());
         m_respawnTimer = 5.0;
         m_playerBridge.FadeScreen(true, true, 3.0f, true, 2.0f);
 

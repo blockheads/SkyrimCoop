@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "receiving_world",
+    "step": 5,
+    "completed": 4,
+    "message": "Receiving the host's world..."
+  }
+}

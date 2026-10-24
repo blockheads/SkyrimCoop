@@ -275,7 +275,7 @@ detail order 12: the host loads Immersive Armors.esp, you load Lux.esp
 - `message` is one sentence a player can act on, worded in one place (`JoinRefusal`).
 - `detail` is one line per difference: diffable, copyable, pasteable.
 - States on the way: `idle`, `connecting`, `checking`, `receiving_world`, `creating_character`,
-  `loading`, `joined`, `hosting`, `refused`, `ended`.
+  `loading`, `joined`, `hosting`, `refused`, `reconnecting`, `ended`.
 
 **Events: what happened in the session.** Timestamped lines in a stream: `Serana joined`,
 `Intruder couldn't join: they run another build`, `Serana left`.
@@ -350,9 +350,25 @@ know the game is at the main menu. The panel only shows the state; the scenarios
 The host's side is smaller: a Host button in game (pause menu or a key) and its state (hosting on a
 port, or why hosting failed).
 
-**Today:** not built. A refusal reaches the join status (the log, the harness) and is shown nowhere
-in game; the join screen is built once, in this form (Build order below). An earlier panel that
-showed refusals over the game world (2026-10-13) was removed: a second place for the same message.
+**Today (2026-10-24):** built as a box rather than a full screen (`Code/client/Ui/README.md`, "In the
+game"): it shows a join on its way and a refusal, with Copy and Back, over the main menu or the game.
+Idle shows nothing: there is no co-op entry at the main menu, by design for now (below).
+Scenario `join-panel-shows-refusal`.
+
+**The flow for now (2026-10-24):** starting a game (New, `NewGame_Enter` 52118, once its loading
+screen closes) or loading one hosts by itself (`SteamService::HostWorld`); friends join through Steam's
+invite or "Join Game". A game hosting alone steps down to join (`SteamService::StepDown`, also before
+`JoinService::Join`). Skyrim's own main menu stays as it is.
+
+**A guest losing its host (2026-10-24):** the panel says "Lost connection to the host. Reconnecting..."
+(`reconnecting`) and `JoinService` tries the same host again: 3 tries, each up to 10 s, 2 s apart, as a
+plain rejoin (no world transfer; the guest is in the host's world already). A Steam session joins the
+same lobby again and dials its new tunnel (`SteamService::Rejoin`, `JoinService::Redial`). Then
+`ended`/`lost_connection` ("Join again through Steam, or restart the game."). A kick is
+`ended`/`kicked`, with no reconnect. The transport tells them apart (`DisconnectedEvent::Why`: left,
+kicked, lost; the host's network closing is code 1, a kick 2). Re-joining by hand after that is
+Steam's invite again, or a restart. Tests: GameTests `[session]` (drops and comes back, drops for
+good, kick), `[steam]` (the connection drops, the lobby stays); scenario `host-rejoins`.
 
 ## Mod sync: open, under investigation
 

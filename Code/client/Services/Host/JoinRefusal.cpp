@@ -60,6 +60,21 @@ JoinStatus Failed(std::string_view aReason) noexcept
     return status;
 }
 
+JoinStatus Ended(std::string_view aReason) noexcept
+{
+    JoinStatus status;
+    status.Current = JoinStatus::State::kEnded;
+    status.Reason = aReason;
+    if (aReason == "kicked")
+        status.Message = "The host removed you from the session.";
+    else
+    {
+        status.Message = "Lost connection to the host.";
+        status.Details = {"Reconnecting didn't work.", "Join again through Steam, or restart the game."};
+    }
+    return status;
+}
+
 JoinStatus ForPlayer(const AuthenticationResponse& acResponse, const Install& acOurs) noexcept
 {
     JoinStatus status;

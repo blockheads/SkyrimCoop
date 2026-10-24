@@ -13,7 +13,10 @@ namespace Net
 {
 struct LoopbackPort;
 }
+struct ConnectedEvent;
 struct GameLoadedEvent;
+struct MenuEvent;
+struct NewGameEvent;
 struct UpdateEvent;
 struct World;
 
@@ -21,8 +24,9 @@ struct World;
 /// connections; a friend's game joins the lobby when its player accepts an invite or picks "Join Game", and connects
 /// to the lobby's owner through Valve's relays. The session itself is enet tunnelled through that connection: the
 /// friend's transport dials a loopback port, and the host's tunnel delivers into its own listener. Every game runs it;
-/// who hosts is whoever made the lobby. A game that loads a save hosts by itself (friends join through Steam's invite
-/// or "Join Game"); one hosting alone steps down to join a friend's.
+/// who hosts is whoever made the lobby. A game that loads a save or starts a new one hosts by itself (friends join
+/// through Steam's invite or "Join Game"); one hosting alone steps down to join a friend's. A friend's game that loses
+/// its host joins the same lobby again for JoinService's reconnect.
 struct SteamService
 {
     using SteamId = ISteamBridge::SteamId;
@@ -56,6 +60,13 @@ struct SteamService
     /// The host's: invites a friend to its lobby (Steam shows them the invite).
     bool Invite(SteamId aFriend) noexcept;
     void Leave() noexcept;
+    /// A friend's game that lost its host: the same lobby again, its new tunnel dialled through JoinService::Redial;
+    /// false when it was in no Steam session.
+    bool Rejoin() noexcept;
+    /// Reconnecting is over: leaves what the last try left.
+    void EndRejoin() noexcept;
+    /// Steps down from hosting alone (no friend in this game's session), to join another; false when friends are in it.
+    bool StepDown() noexcept;
     [[nodiscard]] const Status& GetStatus() const noexcept { return m_status; }
     // This player's Steam id while it joins or plays in another's Steam session, else 0.
     [[nodiscard]] SteamId JoinedAs() const noexcept;
@@ -76,6 +87,11 @@ struct SteamService
 private:
     void OnUpdate(const UpdateEvent& acEvent) noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;
+    // A new game hosts once its world is up: the loading screen after New closes.
+    void OnNewGame(const NewGameEvent&) noexcept;
+    void OnMenu(const MenuEvent& acEvent) noexcept;
+    void HostWorld() noexcept;
+    void OnConnected(const ConnectedEvent&) noexcept;
     void Notify(std::string aText) noexcept;
     void Fail(std::string aError) noexcept;
     void JoinLobby(SteamId aLobby) noexcept;
@@ -102,6 +118,9 @@ private:
     Status m_status;
     bool m_hosting{};
     bool m_launchLobbyTaken{}; // +connect_lobby: joined once, at the main menu
+    bool m_newGame{};          // New was picked: host when its world is up
+    SteamId m_rejoinLobby{};   // the lobby of the host this game lost, while it reconnects
+    bool m_rejoining{};
     double m_waited{}; // seconds in the current request
     std::vector<entt::scoped_connection> m_connections;
 };

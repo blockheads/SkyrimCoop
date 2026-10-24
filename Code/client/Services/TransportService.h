@@ -46,7 +46,10 @@ struct TransportService : Client
     // Both hide Client's: they cover the in-process connection too.
     [[nodiscard]] bool IsConnected() const noexcept;
     [[nodiscard]] bool IsConnectedLocally() const noexcept { return m_pHostNetwork != nullptr; }
-    void Close() noexcept;
+    // aWhy: why the session ends for this game (a Steam host lost is kLost: the join service reconnects).
+    void Close(DisconnectedEvent::Cause aWhy = DisconnectedEvent::Cause::kLeft) noexcept;
+    // Where the last Connect dialled.
+    [[nodiscard]] const std::string& GetEndpoint() const noexcept { return m_endpoint; }
     /**
      * @brief The session's tick: the host's network's own when hosting, else our clock synchronized to it.
      */
@@ -82,6 +85,9 @@ private:
     std::vector<std::vector<uint8_t>> m_localInbox;
     uint32_t m_localPlayerId;
     JoinStatus m_joinStatus;
+    std::string m_endpoint;
+    std::optional<DisconnectedEvent::Cause> m_closing; // set while Close runs: the cause it gives
+    bool m_closingRoute{};                             // Close is ending the host's own in-process route
 
     std::vector<entt::scoped_connection> m_connections;
     std::function<void(std::unique_ptr<NotifyMessage>&)> m_messageHandlers[kNotifyOpcodeMax];

@@ -30,6 +30,7 @@
 #include <Services/RunnerService.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/SessionService.h>
 #include <Services/SteamService.h>
 #include <Structs/GameVersions.h>
 #include <Structs/Mods.h>
@@ -75,6 +76,7 @@ World::World()
                                     ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -114,6 +116,7 @@ World::~World()
     ctx().erase<MagicService>();
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
+    ctx().erase<SessionService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<CharacterService>();
@@ -191,6 +194,11 @@ CharacterService& World::GetCharacterService() noexcept
 HostService& World::GetHostService() noexcept
 {
     return ctx().at<HostService>();
+}
+
+SessionService& World::GetSessionService() noexcept
+{
+    return ctx().at<SessionService>();
 }
 
 // Skyrim 1.6.1170 with SKSE 2.2.6; Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm (HostAuthorityTests' host).

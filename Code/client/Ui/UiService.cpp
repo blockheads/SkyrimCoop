@@ -1,17 +1,20 @@
-#include <Ui/UiService.h>
-#include <Ui/UiRenderer.h>
 #include <Ui/UiInput.h>
+#include <Ui/UiRenderer.h>
+#include <Ui/UiService.h>
 
-#include <World.h>
 #include <Bridges/IActorBridge.h>
 #include <Components/FormIdComponent.h>
 #include <Components/PlayerComponent.h>
-#include <Services/SessionService.h>
-#include <Services/TransportService.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Events/SetTimeCommandEvent.h>
+#include <Games/Skyrim/Interface/MenuCursor.h>
+#include <Games/Skyrim/Interface/UI.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
 #include <Messages/SendChatMessageRequest.h>
+#include <Services/JoinService.h>
+#include <Services/SessionService.h>
+#include <Services/TransportService.h>
+#include <World.h>
 
 #include <RmlUi/Core.h>
 
@@ -34,10 +37,18 @@ struct UiSystem final : Rml::SystemInterface
         switch (aType)
         {
         case Rml::Log::LT_ERROR:
-        case Rml::Log::LT_ASSERT: spdlog::error("RmlUi: {}", acMessage); break;
-        case Rml::Log::LT_WARNING: spdlog::warn("RmlUi: {}", acMessage); break;
-        case Rml::Log::LT_INFO: spdlog::info("RmlUi: {}", acMessage); break;
-        default: spdlog::debug("RmlUi: {}", acMessage); break;
+        case Rml::Log::LT_ASSERT:
+            spdlog::error("RmlUi: {}", acMessage);
+            break;
+        case Rml::Log::LT_WARNING:
+            spdlog::warn("RmlUi: {}", acMessage);
+            break;
+        case Rml::Log::LT_INFO:
+            spdlog::info("RmlUi: {}", acMessage);
+            break;
+        default:
+            spdlog::debug("RmlUi: {}", acMessage);
+            break;
         }
         return true;
     }
@@ -91,12 +102,13 @@ Rml::String UiDirectory() noexcept
 }
 } // namespace
 
-UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept
-    : m_world(aWorld)
-    , m_actorBridge(aActorBridge)
+UiService::UiService(World& aWorld, IActorBridge& aActorBridge) noexcept : m_world(aWorld), m_actorBridge(aActorBridge)
 {
     Listen<NotifyChatMessageBroadcast, &UiService::OnChatMessage>(m_connections, aWorld.GetDispatcher(), this);
     Listen<SessionNoticeEvent, &UiService::OnSessionNotice>(m_connections, aWorld.GetDispatcher(), this);
+    m_party.Visible = false;
+    m_party.Opacity = 0.f;
+    m_joinButtons.pService = this;
 }
 
 UiService::~UiService() noexcept
@@ -145,42 +157,21 @@ void UiService::Create(IDXGISwapChain* apSwapChain) noexcept
     if (!Rml::LoadFontFace(m_directory + "/fonts/Oswald-Variable.ttf"))
         spdlog::error("UI: font not found in {}", m_directory);
 
+    for (const char* pFont : {"LiberationSans-Regular.ttf", "LiberationSans-Bold.ttf"})
+        if (!Rml::LoadFontFace(m_directory + "/fonts/" + pFont))
+            spdlog::error("UI: font {} not found in {}", pFont, m_directory);
+
     DXGI_SWAP_CHAIN_DESC desc{};
     apSwapChain->GetDesc(&desc);
     m_pContext = Rml::CreateContext("game", {int(desc.BufferDesc.Width), int(desc.BufferDesc.Height)});
 
-    if (Rml::DataModelConstructor party = m_pContext->CreateDataModel("party"))
-    {
-        if (auto member = party.RegisterStruct<Member>())
-        {
-            member.RegisterMember("name", &Member::Name);
-            member.RegisterMember("host", &Member::IsHost);
-            member.RegisterMember("level", &Member::Level);
-            member.RegisterMember("health", &Member::Health);
-        }
-        party.RegisterArray<Rml::Vector<Member>>();
-        party.Bind("members", &m_members);
-        m_partyModel = party.GetModelHandle();
-    }
-
-    if (Rml::DataModelConstructor chat = m_pContext->CreateDataModel("chat"))
-    {
-        if (auto line = chat.RegisterStruct<ChatLine>())
-        {
-            line.RegisterMember("name", &ChatLine::Name);
-            line.RegisterMember("text", &ChatLine::Text);
-            line.RegisterMember("system", &ChatLine::System);
-        }
-        chat.RegisterArray<Rml::Vector<ChatLine>>();
-        chat.Bind("lines", &m_chatShown);
-        chat.Bind("open", &m_chatOpen);
-        chat.Bind("draft", &m_chatDraft);
-        m_chatModel = chat.GetModelHandle();
-    }
+    if (!m_party.Bind(*m_pContext) || !m_chat.Bind(*m_pContext) || !m_join.Bind(*m_pContext))
+        spdlog::error("UI: data models did not bind");
 
     m_lastChange = LastChange();
     LoadDocuments();
-    spdlog::info("UI: RmlUi {} ready, {}x{}, documents from {}", Rml::GetVersion(), desc.BufferDesc.Width, desc.BufferDesc.Height, m_directory);
+    spdlog::info("UI: RmlUi {} ready, {}x{}, documents from {}", Rml::GetVersion(), desc.BufferDesc.Width,
+                 desc.BufferDesc.Height, m_directory);
 }
 
 void UiService::LoadDocuments() noexcept
@@ -196,6 +187,15 @@ void UiService::LoadDocuments() noexcept
         m_pChat->Show();
     else
         spdlog::error("UI: {}/chat.rml did not load", m_directory);
+
+    m_pJoin = m_pContext->LoadDocument(m_directory + "/join.rml");
+    if (m_pJoin)
+    {
+        m_pJoin->AddEventListener(Rml::EventId::Click, &m_joinButtons);
+        m_pJoin->Show();
+    }
+    else
+        spdlog::error("UI: {}/join.rml did not load", m_directory);
 }
 
 void UiService::Reload() noexcept
@@ -246,6 +246,7 @@ void UiService::Render() noexcept
 
     UpdateParty();
     UpdateChat();
+    UpdateJoin();
     m_pContext->Update();
 
     m_pRenderer->BeginFrame(cSize.x, cSize.y);
@@ -256,7 +257,8 @@ void UiService::Render() noexcept
 void UiService::UpdateParty() noexcept
 {
     Rml::Vector<Member> members;
-    if (m_world.GetTransport().IsConnected())
+    const bool cConnected = m_world.GetTransport().IsConnected();
+    if (cConnected)
     {
         // Each other player's character in our game, for its health.
         std::unordered_map<uint32_t, uint32_t> characters;
@@ -267,9 +269,11 @@ void UiService::UpdateParty() noexcept
         {
             Member member;
             member.Name = cPlayer.Name.c_str();
+            member.Color = m_playerColors.ForName(member.Name);
             member.IsHost = cPlayer.IsHost;
             member.Level = cPlayer.Level;
-            if (const auto it = characters.find(cPlayerId); it != characters.end() && m_actorBridge.ActorExists(it->second))
+            if (const auto it = characters.find(cPlayerId);
+                it != characters.end() && m_actorBridge.ActorExists(it->second))
             {
                 const float cMax = m_actorBridge.GetActorPermanentValue(it->second, cHealth);
                 if (cMax > 0.f)
@@ -278,21 +282,36 @@ void UiService::UpdateParty() noexcept
             members.push_back(std::move(member));
         }
         // The host first, then by name.
-        std::sort(members.begin(), members.end(),
-                  [](const Member& acLeft, const Member& acRight) { return std::tie(acRight.IsHost, acLeft.Name) < std::tie(acLeft.IsHost, acRight.Name); });
+        std::sort(members.begin(), members.end(), [](const Member& acLeft, const Member& acRight) {
+            return std::tie(acRight.IsHost, acLeft.Name) < std::tie(acLeft.IsHost, acRight.Name);
+        });
     }
 
-    if (members != m_members)
+    m_partyActivity.Update(members, cConnected, UiInput::IsHudVisible(), std::chrono::steady_clock::now());
+    if (members != m_party.Members)
     {
-        m_members = std::move(members);
-        m_partyModel.DirtyVariable("members");
+        m_party.Members = std::move(members);
+        m_party.Handle.DirtyVariable("members");
+    }
+    const float cOpacity = m_partyActivity.Opacity();
+    if (m_party.Visible != (cOpacity > 0.f))
+    {
+        m_party.Visible = cOpacity > 0.f;
+        m_party.Handle.DirtyVariable("visible");
+    }
+    if (m_party.Opacity != cOpacity)
+    {
+        m_party.Opacity = cOpacity;
+        m_party.Handle.DirtyVariable("opacity");
     }
 }
 
 void UiService::OnChatMessage(const NotifyChatMessageBroadcast& acMessage) noexcept
 {
-    m_chatHistory.push_back({{acMessage.PlayerName.c_str(), acMessage.ChatMessage.c_str(), acMessage.MessageType == kSystemMessage},
-                             std::chrono::steady_clock::now()});
+    ChatLine line{acMessage.PlayerName.c_str(), acMessage.ChatMessage.c_str(), acMessage.MessageType == kSystemMessage};
+    if (!line.System)
+        line.Color = m_playerColors.ForName(line.Name);
+    m_chatHistory.push_back({std::move(line), std::chrono::steady_clock::now()});
     if (m_chatHistory.size() > cChatHistory)
         m_chatHistory.erase(m_chatHistory.begin());
 }
@@ -305,11 +324,114 @@ Rml::Vector<UiService::ChatLine> UiService::GetChatLines() const noexcept
     return lines;
 }
 
+namespace
+{
+// The panel's words for a join on its way; a refusal brings its own (JoinRefusal).
+const char* ProgressMessage(JoinStatus::State aState) noexcept
+{
+    switch (aState)
+    {
+    case JoinStatus::State::kConnecting: return "Connecting to the host's game...";
+    case JoinStatus::State::kChecking: return "Checking your install...";
+    case JoinStatus::State::kReceivingWorld: return "Receiving the host's world...";
+    case JoinStatus::State::kLoading: return "Loading the world...";
+    case JoinStatus::State::kReconnecting: return "Lost connection to the host. Reconnecting...";
+    default: return "";
+    }
+}
+
+bool PanelShows(JoinStatus::State aState) noexcept
+{
+    switch (aState)
+    {
+    case JoinStatus::State::kConnecting:
+    case JoinStatus::State::kChecking:
+    case JoinStatus::State::kReceivingWorld:
+    case JoinStatus::State::kLoading:
+    case JoinStatus::State::kReconnecting:
+    case JoinStatus::State::kRefused:
+    case JoinStatus::State::kEnded: return true;
+    default: return false;
+    }
+}
+
+void CopyToClipboard(const Rml::String& acText) noexcept
+{
+    const int cLength = MultiByteToWideChar(CP_UTF8, 0, acText.c_str(), -1, nullptr, 0);
+    if (cLength <= 0 || !OpenClipboard(nullptr))
+        return;
+    EmptyClipboard();
+    if (HGLOBAL hText = GlobalAlloc(GMEM_MOVEABLE, cLength * sizeof(wchar_t)))
+    {
+        MultiByteToWideChar(CP_UTF8, 0, acText.c_str(), -1, static_cast<wchar_t*>(GlobalLock(hText)), cLength);
+        GlobalUnlock(hText);
+        if (!SetClipboardData(CF_UNICODETEXT, hText))
+            GlobalFree(hText);
+    }
+    CloseClipboard();
+}
+} // namespace
+
+void UiService::UpdateJoin() noexcept
+{
+    const auto* pJoinService = m_world.ctx().find<JoinService>();
+    if (!pJoinService)
+        return;
+    const JoinStatus& cStatus = pJoinService->GetStatus();
+    if (m_dismissed && *m_dismissed != cStatus)
+        m_dismissed.reset();
+
+    Ui::JoinModel next;
+    next.Visible = PanelShows(cStatus.Current) && !m_dismissed;
+    next.State = ToString(cStatus.Current);
+    next.Reason = cStatus.Reason;
+    next.Message = cStatus.Message.empty() ? ProgressMessage(cStatus.Current) : cStatus.Message;
+    next.Details.assign(cStatus.Details.begin(), cStatus.Details.end());
+    next.Progress = cStatus.Current == JoinStatus::State::kReceivingWorld ? cStatus.Progress : -1.f;
+    if (next.Visible != m_join.Visible || next.State != m_join.State || next.Reason != m_join.Reason ||
+        next.Message != m_join.Message || next.Details != m_join.Details || next.Progress != m_join.Progress)
+    {
+        next.Handle = m_join.Handle;
+        m_join = std::move(next);
+        m_join.Handle.DirtyAllVariables();
+    }
+
+    // Copy and Back: the menus' cursor and the left button while they show; Escape is Back where no cursor is up.
+    const bool cButtons =
+        m_join.Visible && (cStatus.Current == JoinStatus::State::kRefused || cStatus.Current == JoinStatus::State::kEnded);
+    UiInput::SetButtonsShown(cButtons);
+    if (!cButtons)
+        return;
+    UI* pUI = UI::Get();
+    if (const MenuCursor* pCursor = MenuCursor::Get(); pCursor && pUI && pUI->GetMenuOpen("Cursor Menu"))
+        m_pContext->ProcessMouseMove(int(pCursor->cursorPosX), int(pCursor->cursorPosY), 0);
+    for (const bool cDown : UiInput::TakeClicks())
+        cDown ? m_pContext->ProcessMouseButtonDown(0, 0) : m_pContext->ProcessMouseButtonUp(0, 0);
+    if (UiInput::TakeEscape())
+        OnJoinButton("back");
+}
+
+void UiService::OnJoinButton(const Rml::String& acId) noexcept
+{
+    if (acId == "copy")
+        CopyToClipboard(m_join.CopyText());
+    else if (acId == "back")
+        if (const auto* pJoinService = m_world.ctx().find<JoinService>())
+            m_dismissed = pJoinService->GetStatus();
+}
+
+void UiService::JoinButtons::ProcessEvent(Rml::Event& aEvent)
+{
+    for (Rml::Element* pTarget = aEvent.GetTargetElement(); pTarget; pTarget = pTarget->GetParentNode())
+        if (!pTarget->GetId().empty())
+            return pService->OnJoinButton(pTarget->GetId());
+}
+
 void UiService::UpdateChat() noexcept
 {
     UiInput::SetChatAvailable(m_pChat && m_world.GetTransport().IsConnected());
 
-    const Rml::String cDraft = m_chatDraft;
+    const Rml::String cDraft = m_chat.Draft;
     for (const auto& cKey : UiInput::TakeKeys())
     {
         switch (cKey.ScanCode)
@@ -319,37 +441,41 @@ void UiService::UpdateChat() noexcept
             SendChat();
             UiInput::CloseChat();
             break;
-        case UiInput::cEscape: UiInput::CloseChat(); break;
-        case UiInput::cBackspace: PopCharacter(m_chatDraft); break;
+        case UiInput::cEscape:
+            UiInput::CloseChat();
+            break;
+        case UiInput::cBackspace:
+            PopCharacter(m_chat.Draft);
+            break;
         default:
-            if (m_chatDraft.size() < kChatMaxLength)
-                m_chatDraft += TypedText(cKey.ScanCode, cKey.Shift);
+            if (m_chat.Draft.size() < kChatMaxLength)
+                m_chat.Draft += TypedText(cKey.ScanCode, cKey.Shift);
             break;
         }
     }
 
     const bool cOpen = UiInput::IsChatOpen();
     if (!cOpen)
-        m_chatDraft.clear();
-    if (cOpen != m_chatOpen)
+        m_chat.Draft.clear();
+    if (cOpen != m_chat.Open)
     {
-        m_chatOpen = cOpen;
-        m_chatModel.DirtyVariable("open");
+        m_chat.Open = cOpen;
+        m_chat.Handle.DirtyVariable("open");
     }
-    if (m_chatDraft != cDraft)
-        m_chatModel.DirtyVariable("draft");
+    if (m_chat.Draft != cDraft)
+        m_chat.Handle.DirtyVariable("draft");
 
     // Open: the last lines. Closed: the last few, while they are recent.
     Rml::Vector<ChatLine> shown;
     const auto cNow = std::chrono::steady_clock::now();
-    const size_t cCount = m_chatOpen ? cChatLinesOpen : cChatLinesShown;
+    const size_t cCount = m_chat.Open ? cChatLinesOpen : cChatLinesShown;
     for (size_t i = m_chatHistory.size() > cCount ? m_chatHistory.size() - cCount : 0; i < m_chatHistory.size(); ++i)
-        if (m_chatOpen || cNow - m_chatHistory[i].At < cChatLineShown)
+        if (m_chat.Open || cNow - m_chatHistory[i].At < cChatLineShown)
             shown.push_back(m_chatHistory[i].Line);
-    if (shown != m_chatShown)
+    if (shown != m_chat.Lines)
     {
-        m_chatShown = std::move(shown);
-        m_chatModel.DirtyVariable("lines");
+        m_chat.Lines = std::move(shown);
+        m_chat.Handle.DirtyVariable("lines");
     }
 }
 
@@ -361,8 +487,8 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
     if (cRead >= 1 && std::strcmp(command, "settime") == 0)
     {
         if (cRead == 3 && hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60)
-            m_world.GetDispatcher().trigger(SetTimeCommandEvent(static_cast<uint8_t>(hours), static_cast<uint8_t>(minutes),
-                                                                m_world.GetTransport().GetLocalPlayerId()));
+            m_world.GetDispatcher().trigger(SetTimeCommandEvent(
+                static_cast<uint8_t>(hours), static_cast<uint8_t>(minutes), m_world.GetTransport().GetLocalPlayerId()));
         else
             ShowSystemLine("Usage: /settime <hours 0-23> <minutes 0-59>");
         return;
@@ -372,29 +498,31 @@ void UiService::RunChatCommand(const Rml::String& acLine) noexcept
 
 void UiService::OnSessionNotice(const SessionNoticeEvent& acNotice) noexcept
 {
-    ShowSystemLine(acNotice.Text);
+    ShowSystemLine(acNotice.Text, acNotice.Perished);
 }
 
-void UiService::ShowSystemLine(const Rml::String& acText) noexcept
+void UiService::ShowSystemLine(const Rml::String& acText, bool aPerished) noexcept
 {
-    m_chatHistory.push_back({{"", acText, true}, std::chrono::steady_clock::now()});
+    ChatLine line{"", acText, true};
+    line.Perished = aPerished;
+    m_chatHistory.push_back({std::move(line), std::chrono::steady_clock::now()});
     if (m_chatHistory.size() > cChatHistory)
         m_chatHistory.erase(m_chatHistory.begin());
 }
 
 void UiService::SendChat() noexcept
 {
-    if (m_chatDraft.empty())
+    if (m_chat.Draft.empty())
         return;
-    if (m_chatDraft[0] == '/')
+    if (m_chat.Draft[0] == '/')
     {
-        RunChatCommand(m_chatDraft);
-        m_chatDraft.clear();
+        RunChatCommand(m_chat.Draft);
+        m_chat.Draft.clear();
         return;
     }
     // Everyone gets it from the host, us too: what shows is what was sent.
     SendChatMessageRequest request;
-    request.ChatMessage = m_chatDraft.c_str();
+    request.ChatMessage = m_chat.Draft.c_str();
     m_world.GetTransport().Send(request);
-    m_chatDraft.clear();
+    m_chat.Draft.clear();
 }

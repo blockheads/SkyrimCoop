@@ -1,0 +1,10 @@
+{
+  "join": {
+    "visible": true,
+    "state": "idle",
+    "step": 0,
+    "completed": 0,
+    "message": "",
+    "address": "203.0.113.5:10578"
+  }
+}

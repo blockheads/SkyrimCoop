@@ -4,6 +4,8 @@
 #include "Party.h"
 
 #include <Events/GameLoadedEvent.h>
+#include <Events/MenuEvent.h>
+#include <Events/NewGameEvent.h>
 #include <Events/SessionNoticeEvent.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
@@ -77,11 +79,25 @@ SCENARIO("A friend accepts the host's Steam invite: its game joins the lobby and
     WHEN("the host leaves")
     {
         party.As(host, [&] { Steam(host).Leave(); });
-        party.Until([&] { return State(guest).State == "failed"; }, "the friend's game loses the host");
-        CHECK(State(guest).Error.starts_with("lost the host"));
-        CHECK(!guest.GetTransport().IsOnline());
         // Its tunnel gone, the host's game drops the friend's session connection at once, not at enet's timeout.
         party.Until([&] { return cPlayerCopies() == 0; }, "the host's game drops the friend's player copy");
+        party.Until([&] { return guest.ctx().at<JoinService>().GetStatus().Current == JoinStatus::State::kEnded; },
+                    "the friend's game tries the lobby again until its tries run out");
+        CHECK(guest.ctx().at<JoinService>().GetStatus().Reason == "lost_connection");
+        CHECK(!guest.GetTransport().IsOnline());
+        CHECK(State(guest).State == "idle");
+    }
+
+    WHEN("the connection between them drops while the host's lobby stays")
+    {
+        party.As(host, [&] { Party::Steam(host).Drop(State(host).Peers[0].Connection); });
+        party.Until([&] { return guest.ctx().at<JoinService>().GetStatus().Current == JoinStatus::State::kReconnecting; },
+                    "the friend's game lost the host: it reconnects");
+        party.Until([&] { return guest.GetTransport().IsOnline(); }, "the friend's game is back, through the same lobby",
+                    [&] { return std::format("the friend's Steam {} ({})", State(guest).State, State(guest).Error); });
+        party.Until([&] { return cPlayerCopies() == 1; }, "the host's game has the friend's player again");
+        party.Agree("each game has the other's player again");
+        CHECK(State(guest).Lobby == cLobby);
     }
 
     WHEN("the friend leaves")
@@ -133,20 +149,50 @@ SCENARIO("Each player loads a save and hosts; a friend accepts the host's invite
     {
         CHECK(!guest.GetHostService().IsHosting());
         CHECK(guestNotices.Has("Joined Dovahkiin's game."));
-        party.Until([&] { return hostNotices.Has("Lydia joined."); }, "the host's player is told the friend joined");
+        party.Until([&] { return hostNotices.Has("Lydia joined the party."); }, "the host's player is told the friend joined");
     }
 
     WHEN("the friend leaves")
     {
         party.As(guest, [&] { Steam(guest).Leave(); });
-        party.Until([&] { return hostNotices.Has("Lydia left."); }, "the host's player is told the friend left");
+        party.Until([&] { return hostNotices.Has("Lydia left the party."); }, "the host's player is told the friend left");
     }
 
     WHEN("the host's game loses Steam")
     {
         party.As(host, [&] { Steam(host).Leave(); });
-        party.Until([&] { return State(guest).State == "failed"; }, "the friend's game loses the host");
-        CHECK(guestNotices.Lines.back().starts_with("Left Dovahkiin's game: lost the host"));
+        party.Until([&] { return guestNotices.Has("Lost connection to the host. Reconnecting..."); },
+                    "the friend's player is told it lost the host");
+        party.Until([&] { return guestNotices.Has("Couldn't reconnect to the host."); },
+                    "the friend's player is told reconnecting failed (the lobby is gone)");
+    }
+}
+
+SCENARIO("A player starts a new game: it hosts once its world is up, and steps down to join a friend's", "[steam]")
+{
+    Party party(1, Plugins, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    party.As(host, [&] { REQUIRE(Steam(host).Host()); });
+    party.Until([&] { return State(host).State == "hosting"; }, "the host's game hosts");
+
+    // New at the main menu (NewGame_Enter), then its loading screen.
+    party.As(guest, [&] {
+        guest.GetDispatcher().trigger(NewGameEvent{});
+        guest.GetDispatcher().trigger(MenuEvent{"Loading Menu", true});
+    });
+    party.Frame();
+    THEN("not while it loads") CHECK(State(guest).State == "idle");
+    party.As(guest, [&] { guest.GetDispatcher().trigger(MenuEvent{"Loading Menu", false}); });
+    party.Until([&] { return State(guest).State == "hosting" && guest.GetHostService().IsHosting(); },
+                "the new game's world is up: it hosts");
+
+    WHEN("its player joins a friend's game from it (JoinService)")
+    {
+        party.As(guest, [&] {
+            REQUIRE(guest.ctx().at<JoinService>().Join(std::format("127.0.0.1:{}", host.GetHostService().GetNetwork()->GetPort())));
+        });
+        THEN("it stopped hosting first") CHECK(!guest.GetHostService().IsHosting());
     }
 }
 

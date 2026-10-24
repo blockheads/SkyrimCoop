@@ -1,0 +1,22 @@
+{
+  "party": [
+    {
+      "name": "Lydia",
+      "host": true,
+      "level": 32,
+      "health": 0.09
+    },
+    {
+      "name": "A player with a longer name",
+      "host": false,
+      "level": 28,
+      "health": 0.68
+    },
+    {
+      "name": "Mjoll",
+      "host": false,
+      "level": 35,
+      "health": -1
+    }
+  ]
+}

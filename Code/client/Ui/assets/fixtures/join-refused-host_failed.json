@@ -1,0 +1,13 @@
+{
+  "join": {
+    "visible": true,
+    "state": "refused",
+    "step": 0,
+    "completed": 0,
+    "message": "Couldn't host a session.",
+    "reason": "host_failed",
+    "details": [
+      "Port 10578 is already in use."
+    ]
+  }
+}

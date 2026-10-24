@@ -4,6 +4,7 @@
 #include <Messages/AuthenticationResponse.h>
 #include <Services/Host/JoinRefusal.h>
 #include <Messages/NotifyPlayerLeft.h>
+#include <Messages/PerishedMessages.h>
 #include <Structs/LoadOrder.h>
 
 #include <map>
@@ -273,7 +274,10 @@ TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, a
     // The newcomer: one each for the three already here.
     std::map<std::string, std::tuple<uint32_t, uint16_t, bool>> known;
     for (const auto* cpJoined : session.SentTo<NotifyPlayerJoined>(kNewcomer))
+    {
         known[cpJoined->Username.c_str()] = {cpJoined->PlayerId, cpJoined->Level, cpJoined->IsHost};
+        CHECK_FALSE(cpJoined->Arrived); // already here: no "joined" line for them
+    }
     CHECK(known.size() == 3);
     CHECK(known["Dovahkiin"] == std::tuple<uint32_t, uint16_t, bool>{session.PlayerId(kHost), 20, true});
     CHECK(known["Lydia"] == std::tuple<uint32_t, uint16_t, bool>{session.PlayerId(kPeer), 12, false});
@@ -288,6 +292,20 @@ TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, a
         CHECK(cAnnounced[0]->Username == "Serana");
         CHECK(cAnnounced[0]->Level == 5);
         CHECK_FALSE(cAnnounced[0]->IsHost);
+        CHECK(cAnnounced[0]->Arrived);
+    }
+}
+
+TEST_CASE("A player going down reaches every game, its own too, with its name", "[HostAuthority][Session]")
+{
+    Session session;
+    session.Receive(kPeer, PlayerPerishedRequest{});
+    for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cPerished = session.SentTo<NotifyPlayerPerished>(cPlayer);
+        REQUIRE(cPerished.size() == 1);
+        CHECK(cPerished[0]->PlayerId == session.PlayerId(kPeer));
+        CHECK(cPerished[0]->Username == "Lydia");
     }
 }
 

@@ -1,0 +1,9 @@
+{
+  "join": {
+    "visible": true,
+    "state": "reconnecting",
+    "step": 6,
+    "completed": 6,
+    "message": "Lost connection to the host. Reconnecting..."
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "join": {
+    "visible": true,
+    "state": "ended",
+    "step": 6,
+    "completed": 6,
+    "message": "The host removed you from the session.",
+    "reason": "kicked",
+    "details": []
+  }
+}

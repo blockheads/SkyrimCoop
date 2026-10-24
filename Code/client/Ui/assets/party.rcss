@@ -1,49 +1,16 @@
-/*
- * The party panel, after SkyUI's HUD widgets: no box and no heading, out of the way at the top
- * left. Each player is a name and level over a thin health bar that empties toward its centre, as Skyrim's.
- */
-
 #party {
     position: absolute;
-    top: 40dp;
+    top: 36dp;
     left: 36dp;
-    width: 170dp;
+    width: 280dp;
+    font-family: Liberation Sans;
+    font-weight: 400;
 }
-
-.member {
-    margin-bottom: 10dp;
-}
-
-.member .name {
-    font-size: 19dp;
-    font-weight: 300;
-    letter-spacing: 0.4dp;
-    font-effect: shadow(1dp 1dp #000000d0);
-}
-
-/* The level at the right end of the name line, smaller and dimmer than the name. */
-.member .level {
-    float: right;
-    font-size: 15dp;
-    margin-top: 3dp;
-    opacity: 0.7;
-}
-
-/* A dark sliver of a track; the red fill is centred in it and shrinks to the middle. */
-.member .health {
-    height: 4dp;
-    margin-top: 2dp;
-    background-color: #00000070;
-}
-
-.member .fill {
-    height: 100%;
-    margin: 0 auto;
-    decorator: linear-gradient(to bottom, #d0493f, #8e2720);
-    transition: width 0.3s quadratic-out;
-}
-
-/* Its character is not in our game (on its way, or loading). */
-.member.away {
-    opacity: 0.5;
-}
+.member { display: flex; align-items: center; margin-bottom: 12dp; }
+.mood { display: block; width: 54dp; height: 50dp; margin-right: 12dp; }
+.member.dead .mood { width: 48dp; height: 50dp; margin-left: 3dp; margin-right: 15dp; }
+.player-info { flex-grow: 1; }
+.name { font-size: 20dp; }
+.level { margin-top: 4dp; font-size: 14dp; font-weight: 700; color: #ffd700; }
+.status { color: #c0c0c0; font-weight: 400; }
+.member.away { opacity: 0.5; }

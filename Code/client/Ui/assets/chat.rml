@@ -1,18 +1,20 @@
 <rml>
 <head>
-    <title>Chat</title>
+    <title>Party Chat</title>
     <link type="text/rcss" href="skyrim.rcss"/>
+    <link type="text/rcss" href="aol-text.rcss"/>
     <link type="text/rcss" href="chat.rcss"/>
 </head>
-<!-- The session's chat (UiService's "chat" model): its last lines, and the line being typed while it is open (Enter). -->
 <body data-model="chat">
-    <div id="chat" data-class-open="open">
-        <div class="line" data-for="line : lines" data-class-system="line.system">
-            <span class="name" data-if="!line.system">{{ line.name }}</span>
-            <span class="text">{{ line.text }}</span>
+    <div id="chat" data-if="open || lines.size > 0" data-class-open="open">
+        <div class="chat-log">
+            <div data-for="line : lines"><div class="line" data-class-system="line.system" data-class-perished="line.perished">
+                <span class="name speaker" data-if="!line.perished" data-style-color="line.color">{{ line.system ? 'OnlineHost:' : line.name + ':' }}</span>
+                <span class="text">{{ line.text }}</span>
+            </div></div>
         </div>
         <div class="entry" data-if="open">
-            <span class="key">Enter</span><span class="draft">{{ draft }}</span><span class="caret"></span>
+            <span class="prompt speaker">&gt;</span><span class="draft">{{ draft }}</span><span class="caret"></span>
         </div>
     </div>
 </body>
