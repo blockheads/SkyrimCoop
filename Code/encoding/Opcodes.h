@@ -58,7 +58,9 @@
     X(BodyPushRequest)              \
     X(BodyFramesRequest)            \
     X(BodyReleaseRequest)           \
-    X(BodyRestRequest)
+    X(BodyRestRequest)              \
+    X(WaitRequest)                  \
+    X(WaitWorldRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -116,7 +118,9 @@
     X(NotifySaveChunk)             \
     X(NotifyPlayerPerished)        \
     X(NotifyBodyFrames)            \
-    X(NotifyBodyRests)
+    X(NotifyBodyRests)             \
+    X(NotifyWaitState)             \
+    X(NotifyWaitWorld)
 
 #define COOP_OPCODE(aName) k##aName,
 

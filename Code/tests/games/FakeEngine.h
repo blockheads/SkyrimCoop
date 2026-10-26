@@ -91,9 +91,11 @@ struct FakeEngine : StillBridges, IJoinBridge
         std::map<uint32_t, int32_t> Items; // a container's count of each item
         bool Door = false;
         bool Open = false; // a door's (BGSOpenCloseForm's open state)
+        uint32_t RecordFlags{};
         bool operator==(const Reference&) const = default;
     };
     std::map<uint32_t, Reference> References;
+    std::set<uint32_t> PendingPlacements; // controlled by shared-rest reconciliation tests
     std::set<uint32_t> Attached;       // the cells loaded here
     std::set<uint32_t> InMemory;       // the cells loaded here once: their references stay in memory
     std::set<uint32_t> Changed;        // the references this game's change records hold

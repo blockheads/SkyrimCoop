@@ -15,6 +15,7 @@
 #include <Services/Host/HostSaveTransfer.h>
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostTimeScale.h>
+#include <Services/Host/HostWait.h>
 #include <Services/Host/HostWeather.h>
 #include <Services/Host/HostWorldState.h>
 
@@ -130,6 +131,7 @@ private:
     HostSession m_session;
     HostCharacters m_characters;
     HostClock m_clock;
+    HostWait m_wait;
     HostWeather m_weather;
     HostWorldState m_worldState;
     HostPhysics m_physics;

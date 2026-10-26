@@ -26,7 +26,7 @@ Calendar::Update(seconds)                                         36291
   GameHour = hour
 
 callers   the frame              36564 Main::Update, 36566 (seconds of the frame)
-          wait / sleep            40485 PlayerCharacter::WaitStep (an hour of game time a step)
+          wait / sleep            40485 PlayerCharacter::WaitStep (900 game seconds per step on the tested build)
           fast travel             40445 (the trip's travel time; measures hours by GameDaysPassed)
           coc                     13328 (+120 s)
 
@@ -54,3 +54,48 @@ is overwritten on the next frame by `rawDaysPassed + GameHour / 24`. Wait, sleep
   own). Calling `Update` with the gap would count every day of a join or a long wait into the stat.
 - The old guest code added each frame's delta to `GameDaysPassed`: host jumps never arrived, and from a
   few hundred days on a frame's delta (4e-6 days) is under the float's spacing, so it stopped adding.
+
+## The Sleep/Wait menu (shared rest)
+
+How the party rests together: `docs/design/shared-wait-sleep.md`. The hooks are in `Bridges/WaitBridge.cpp`,
+the layouts in `Interface/Menus/SleepWaitMenu.h` and `PlayerCharacter::sleepSeconds`. Checked against the AE
+1.6.1170 disassembly, CommonLibSSE-NG's `SleepWaitMenu` and `FxDelegateArgs`, and SkyrimSoulsRE's OK callback.
+
+```text
+OK callback (FxDelegateArgs: handler +0x18, args +0x28)           52488
+  hours = args[0] (GFxValue number +0x10)
+  sleeping ? StartSleep 40414 (bed spell, TESSleepStartEvent)
+           : StartWait 40415 (TESWaitStartEvent)
+  timer = 0, active = true
+Cancel callback                                                    52489
+  queues the menu's Hide
+ProcessMessage                                                     52486
+  update (0): active and a second passed -> WaitStep 40485, slider, label;
+              done -> Hide
+  show (1):   sleeping = BSUIMessageData +0x20
+  hide (3):   an active wait stops (StopSleepWait 40417)
+WaitStep                                                           40485
+  Calendar::Update by one engine step, NPCs, physics, projectiles,
+  effects, Sky; sleepSeconds -= step, or StopSleepWait 40417 at 0
+```
+
+- `SleepWaitMenu`: timer +0x30, root GFxValue +0x38, sleeping +0x50, active +0x51, size 0x58.
+- **A step is 900 game seconds, not an hour.** The menu takes four steps per slider hour, and only the step
+  that crosses an hour resets its one-second timer. So progress is the remaining seconds
+  (`PlayerCharacter::sleepSeconds`, +0x8EC, CommonLibSSE-NG's INFO_RUNTIME_DATA), never a count of steps.
+- **A guest's rest is its player's only.** WaitStep would fast-forward the guest's NPCs, physics and
+  projectiles (`0x140649580`), which are the host's. The guest's step instead moves the effects clock
+  (ProcessLists 400315; GetSystemTimeClock 41337, SetSystemTimeClock 41338) by the elapsed game seconds over
+  the time scale, then runs the player's update 38785 `void(PlayerCharacter*, float)`, then StopSleepWait 40417
+  at zero. A guest's `HookSimulateTime` still stops Calendar::Update, so GuestClock applies the host's calendar.
+- **Starting another game's menu:** the vanilla ActionScript (`reference/plugins/skyrimui/src/sleepwaitmenu/
+  SleepWaitMenu.as`) disables the controls before calling OK. The bridge sets the hours, refreshes the label
+  and question, sets `disableControls` (Cancel stays enabled), and calls the native OK with its own
+  FxDelegateArgs.
+- **The world after a rest:** the fast-forward can reset a guest's reference rows without unloading their
+  cell (seen in QASmoke: `32AFE`, `32AFF`, `32B00`, `101976`). The guest asks for the host's state of each
+  attached cell, and applies the record flags only after the placements settle; otherwise a late node or
+  body update marks a corrected reference moved again.
+
+Sources: [CommonLibSSE-NG SleepWaitMenu](https://github.com/CharmedBaryon/CommonLibSSE-NG/blob/main/include/RE/S/SleepWaitMenu.h),
+[SkyrimSoulsRE SleepWaitMenuEx](https://github.com/Vermunds/SkyrimSoulsRE/blob/master/src/Menus/SleepWaitMenuEx.cpp).

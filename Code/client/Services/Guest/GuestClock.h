@@ -7,6 +7,7 @@
 struct World;
 struct UpdateEvent;
 struct NotifyTimeSettings;
+struct NotifyWaitState;
 class GuestEngine;
 
 /**
@@ -28,6 +29,7 @@ struct GuestClock
 
 private:
     void OnTimeSettings(const NotifyTimeSettings& acMessage) noexcept;
+    void OnWaitState(const NotifyWaitState& acMessage) noexcept;
     // The hour shown while fading from the game's own to the host's.
     float FadedHour() const noexcept;
 
@@ -41,6 +43,7 @@ private:
     float m_fadeTimer = 0.f;
     // This game's: the static is the engine hook's (TimeManager.cpp), one per process.
     bool m_hasHostTime = false;
+    bool m_waiting = false;
     uint64_t m_lastTick = 0;
 
     std::vector<entt::scoped_connection> m_connections;

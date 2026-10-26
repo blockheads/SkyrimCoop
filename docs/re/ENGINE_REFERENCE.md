@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **475** distinct engine addresses used; **177** have code in CommonLib or SKSE; **95** have no community name at all.
-- **163** hooks (these replace engine code, so check them first when the game crashes).
+- **483** distinct engine addresses used; **179** have code in CommonLib or SKSE; **95** have no community name at all.
+- **167** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -119,6 +119,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 40246 | `0x726750` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1611](../../Code/client/Games/Skyrim/Actor.cpp#L1611) |  |
 | 40412 | `0x72db30` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:85](../../Code/client/SkyrimVM64.cpp#L85) |  |
 | 40454 | `0x734250` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Actor.cpp:1622](../../Code/client/Games/Skyrim/Actor.cpp#L1622) |  |
+| 40485 | `0x7369a0` | `PlayerCharacter::WaitStep` | IDA CL PL meh | hook → `HookStep` | `RealStep` | [WaitBridge.cpp:127](../../Code/client/Bridges/WaitBridge.cpp#L127) |  |
 | 40488 | `0x736e20` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `RealAddSkillExperience` | [PlayerCharacter.cpp:364](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L364) |  |
 | 40496 | `0x737310` | `?` | - | hook → `HookTurnToSpeaker` | `RealTurnToSpeaker` | [DialogueBridge.cpp:243](../../Code/client/Bridges/DialogueBridge.cpp#L243) | **undocumented** |
 | 40533 | `0x739990` | `PlayerCharacter::PickUpObject` | meh | hook → `HookPickUpObject` | `RealPickUpObject` | [PlayerCharacter.cpp:362](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L362) |  |
@@ -135,6 +136,9 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 51925 | `0x935230` | `?` | - | hook → `RequestLoadingText` | `s_requestLoadingText` | [LoadingScreen.cpp:49](../../Code/client/Games/Skyrim/LoadingScreen.cpp#L49) | **undocumented** |
 | 51968 | `0x938720` | `LockpickingMenu::Unlock` | IDA meh | hook → `HookLockpickUnlock` | `RealLockpickUnlock` | [TESObjectREFR.cpp:1395](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L1395) |  |
 | 52118 | `0x9426a0` | `NewGame_Enter` | SKSE | hook → `HookNewGameEnter` | `RealNewGameEnter` | [LoadGameEvents.cpp:45](../../Code/client/Games/Skyrim/LoadGameEvents.cpp#L45) |  |
+| 52486 | `0x95db60` | `SleepWaitMenu::ProcessMessage` | IDA PL meh | hook → `HookProcess` | `RealProcess` | [WaitBridge.cpp:126](../../Code/client/Bridges/WaitBridge.cpp#L126) |  |
+| 52488 | `0x95e000` | `SleepWaitMenu::OK` | IDA | hook → `HookOkay` | `RealOkay` | [WaitBridge.cpp:124](../../Code/client/Bridges/WaitBridge.cpp#L124) |  |
+| 52489 | `0x95e0a0` | `SleepWaitMenu::Cancel` | IDA | hook → `HookCancel` | `RealCancel` | [WaitBridge.cpp:125](../../Code/client/Bridges/WaitBridge.cpp#L125) |  |
 | 52538 | `0x9674c0` | `StatsMenu::ModifyPerkPoints` | meh | hook → `HookPerkPoints` | `RealPerkPoints` | [GlobalEvents.cpp:89](../../Code/client/Games/Skyrim/GlobalEvents.cpp#L89) |  |
 | 52626 | `0x96cb00` | `?` | - | hook → `HookShowSubtitle` | `RealShowSubtitle` | [SubtitleManager.cpp:57](../../Code/client/Games/Misc/SubtitleManager.cpp#L57) | **undocumented** |
 | 52853 | `0x976d60` | `?` | - | hook → `HookShowMenu` | `RealShowMenu` | [DialogueBridge.cpp:242](../../Code/client/Bridges/DialogueBridge.cpp#L242) | **undocumented** |
@@ -203,12 +207,21 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 37666 | `0x689f30` | `Actor::GetFactionReaction` | CL meh | data | `s_getFactionReaction` | [SkyrimBridge.cpp:547](../../Code/client/Bridges/SkyrimBridge.cpp#L547) |  |
 | 37671 | `0x68a640` | `Actor::GetAggression` | meh | data | `s_getAggression` | [SkyrimBridge.cpp:589](../../Code/client/Bridges/SkyrimBridge.cpp#L589) |  |
 | 38626 | `0x6ba1d0` | `fUnk_Attacked` | PL meh | call | `s_attacked` | [SkyrimBridge.cpp:591](../../Code/client/Bridges/SkyrimBridge.cpp#L591) |  |
+| 38785 | `0x6c4d90` | `Character::UpdateMagicAndRegen` | IDA meh | call | `s_updatePlayer` | [WaitBridge.cpp:98](../../Code/client/Bridges/WaitBridge.cpp#L98) |  |
+| 40417 | `0x72ea20` | `PlayerCharacter::StopSleepWait` | IDA meh | call | `s_stop` | [WaitBridge.cpp:99](../../Code/client/Bridges/WaitBridge.cpp#L99) |  |
+| 40485 | `0x7369a0` | `PlayerCharacter::WaitStep` | IDA CL PL meh | hook → `HookStep` | `RealStep` | [WaitBridge.cpp:127](../../Code/client/Bridges/WaitBridge.cpp#L127) |  |
 | 40496 | `0x737310` | `?` | - | hook → `HookTurnToSpeaker` | `RealTurnToSpeaker` | [DialogueBridge.cpp:243](../../Code/client/Bridges/DialogueBridge.cpp#L243) | **undocumented** |
+| 41337 | `0x76e190` | `ProcessLists::GetSystemTimeClock` | IDA CL | call | `s_readClock` | [WaitBridge.cpp:96](../../Code/client/Bridges/WaitBridge.cpp#L96) |  |
+| 41338 | `0x76e1a0` | `ProcessLists::SetSystemTimeClock` | IDA | call | `s_setClock` | [WaitBridge.cpp:97](../../Code/client/Bridges/WaitBridge.cpp#L97) |  |
 | 51509 | `0x914880` | `?` | - | hook → `HookTopicClicked` | `RealTopicClicked` | [DialogueBridge.cpp:241](../../Code/client/Bridges/DialogueBridge.cpp#L241) | **undocumented** |
+| 52486 | `0x95db60` | `SleepWaitMenu::ProcessMessage` | IDA PL meh | hook → `HookProcess` | `RealProcess` | [WaitBridge.cpp:126](../../Code/client/Bridges/WaitBridge.cpp#L126) |  |
+| 52488 | `0x95e000` | `SleepWaitMenu::OK` | IDA | hook → `HookOkay` | `RealOkay` | [WaitBridge.cpp:124](../../Code/client/Bridges/WaitBridge.cpp#L124) |  |
+| 52489 | `0x95e0a0` | `SleepWaitMenu::Cancel` | IDA | hook → `HookCancel` | `RealCancel` | [WaitBridge.cpp:125](../../Code/client/Bridges/WaitBridge.cpp#L125) |  |
 | 52844 | `0x976710` | `?` | - | call | `s_showEnemyHealth` | [SkyrimBridge.cpp:1426](../../Code/client/Bridges/SkyrimBridge.cpp#L1426) | **undocumented** |
 | 52853 | `0x976d60` | `?` | - | hook → `HookShowMenu` | `RealShowMenu` | [DialogueBridge.cpp:242](../../Code/client/Bridges/DialogueBridge.cpp#L242) | **undocumented** |
 | 52857 | `0x9770c0` | `?` | - | hook → `HookShowList` | `RealShowList` | [DialogueBridge.cpp:244](../../Code/client/Bridges/DialogueBridge.cpp#L244) | **undocumented** |
 | 52858 | `0x977180` | `?` | - | call | `s_voiceReady` | [DialogueBridge.cpp:209](../../Code/client/Bridges/DialogueBridge.cpp#L209) | **undocumented** |
+| 400315 | `0x20f69b0` | `ProcessLists::singleton` | IDA CL meh | data | `s_processLists` | [WaitBridge.cpp:91](../../Code/client/Bridges/WaitBridge.cpp#L91) |  |
 
 ## Games
 
@@ -262,7 +275,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 381472 | `0x2013e98` | `?` | - | data | `s_difficulty` | [References.cpp:41](../../Code/client/Games/References.cpp#L41) | **undocumented** |
 | 400188 | `0x35f11e0` | `g_mainHeap` | SKSE meh | data | `s_gameHeap` | [Memory.cpp:16](../../Code/client/Games/Memory.cpp#L16) |  |
 | 400269 | `0x20f6320` | `TESDataHandler::singleton` | CL SKSE meh | data | `modManager` | [ModManager.cpp:16](../../Code/client/Games/ModManager.cpp#L16) |  |
-| 400315 | `0x20f69b0` | `ProcessLists::singleton` | CL meh | data | `processLists` | [TES.cpp:31](../../Code/client/Games/TES.cpp#L31) |  |
+| 400315 | `0x20f69b0` | `ProcessLists::singleton` | IDA CL meh | data | `processLists` | [TES.cpp:31](../../Code/client/Games/TES.cpp#L31) |  |
 | 400320 | `0x20f69c8` | `BGSCreatedObjectManager::singleton` | CL SKSE meh | data | `pObjManager` | [BGSCreatedObjectManager.cpp:6](../../Code/client/Games/BGSCreatedObjectManager.cpp#L6) |  |
 | 400441 | `0x20f8930` | `?` | - | data | `tes` | [TES.cpp:12](../../Code/client/Games/TES.cpp#L12) | **undocumented** |
 | 400447 | `0x20f8960` | `Calendar::singleton` | CL meh | data | `s_instance` | [TimeManager.cpp:10](../../Code/client/Games/TimeManager.cpp#L10) |  |

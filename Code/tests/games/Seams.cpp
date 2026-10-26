@@ -1,6 +1,8 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include "FakeDialogue.h"
+#include "FakeWait.h"
+#include <Services/WaitService.h>
 #include "FakeSteam.h"
 #include "FakeEngine.h"
 #include <Games/DeathActions.h>
@@ -66,7 +68,8 @@ void SetCurrentWorld(World* apWorld) noexcept
 
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
-      m_pSteamBridge(std::make_unique<FakeSteam>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pSteamBridge(std::make_unique<FakeSteam>()),
+      m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
     // In the real World's order: TravelService before CharacterService.
@@ -76,6 +79,8 @@ World::World()
                                     ctx().at<IPlayerBridge&>());
     ctx().emplace<ObjectService>(*this, m_dispatcher, m_transport, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
+    ctx().emplace<FakeWait&>(static_cast<FakeWait&>(*m_pWaitBridge));
+    ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -117,6 +122,7 @@ World::~World()
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
     ctx().erase<SessionService>();
+    ctx().erase<WaitService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<CharacterService>();
@@ -152,7 +158,12 @@ void World::Update() noexcept
         }
     }
     ctx().at<GuestSeam>().Update();
-    ctx().at<FakeEngine&>().Frame();
+    auto& waitEngine = ctx().at<FakeEngine&>();
+    const float cTimeScale = waitEngine.Calendar.TimeScale;
+    if (ctx().at<FakeWait&>().Open)
+        waitEngine.Calendar.TimeScale = 0.f;
+    waitEngine.Frame();
+    waitEngine.Calendar.TimeScale = cTimeScale;
 }
 
 RunnerService& World::GetRunner() noexcept

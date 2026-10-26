@@ -4,6 +4,7 @@
 #include <Bridges/IWorldBridge.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/NotifyTimeSettings.h>
+#include <Messages/WaitMessages.h>
 #include <World.h>
 
 namespace
@@ -18,6 +19,7 @@ GuestClock::GuestClock(World& aWorld, entt::dispatcher& aDispatcher, GuestEngine
     , m_engine(aEngine)
 {
     Listen<NotifyTimeSettings, &GuestClock::OnTimeSettings>(m_connections, aDispatcher, this);
+    Listen<NotifyWaitState, &GuestClock::OnWaitState>(m_connections, aDispatcher, this);
 }
 
 GuestClock::~GuestClock() noexcept
@@ -43,7 +45,8 @@ void GuestClock::OnUpdate(const UpdateEvent& acEvent) noexcept
     const uint64_t cNow = m_world.GetTick();
     if (cNow < m_lastTick)
         return;
-    m_hostTime.Update(cNow - m_lastTick);
+    if (!m_waiting)
+        m_hostTime.Update(cNow - m_lastTick);
     m_lastTick = cNow;
 
     TimeModel shown = m_hostTime.m_timeModel;
@@ -62,4 +65,16 @@ float GuestClock::FadedHour() const noexcept
     // Forward through midnight when the host's hour is earlier.
     const float cAhead = cTo < cFrom ? cTo + 24.f - cFrom : cTo - cFrom;
     return std::fmod(cFrom + std::lerp(0.f, cAhead, m_fadeTimer / kFadeSeconds), 24.f);
+}
+
+void GuestClock::OnWaitState(const NotifyWaitState& acMessage) noexcept
+{
+    if (acMessage.Phase == WaitPhase::Refused)
+        return;
+    m_waiting = acMessage.Phase != WaitPhase::Finished;
+    m_hostTime.m_timeModel = acMessage.Calendar;
+    m_hasHostTime = s_hostClock = true;
+    m_lastTick = m_world.GetTick();
+    m_fadeTimer = kFadeSeconds;
+    m_engine.SetCalendar(acMessage.Calendar);
 }

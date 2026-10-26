@@ -38,10 +38,6 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   the others (a spectator camera on a party member) until the party has been out of combat for 10 s, then gets
   up. Replaces upstream's respawn (`PlayerService`'s 5 s timer, `PlayerCharacter::RespawnPlayer`'s move to the
   cell's COC marker), which today only stops pulling the party (`EnterCellRequest::Travel::kRespawn`).
-- **Shared wait and sleep** (user, 2026-10-20). Whoever starts a wait asks the host; every game shows the
-  Wait menu and pauses, and the host's countdown (`PlayerCharacter::WaitStep`, 40485) drives them all, so
-  nobody plays through the jump. Today the host's wait jumps everyone's clock while the others play on, and
-  a guest's wait passes no time (`docs/re/systems/calendar.md`).
 
 ## Sync
 

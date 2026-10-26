@@ -14,6 +14,7 @@
 #include <Services/Guest/GuestPhysics.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
+#include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
 #include <World.h>
 
@@ -139,6 +140,11 @@ void GuestEngine::FreePlaced() noexcept
 {
 }
 
+bool GuestEngine::IsPlacementPending(const GameId& acObject) const noexcept
+{
+    return FakeEngine::Current().PendingPlacements.contains(FormIdOf(acObject));
+}
+
 std::vector<BodyPush> GuestEngine::TakePushes() noexcept
 {
     return std::exchange(FakeEngine::Current().PlayerPushes, {});
@@ -167,7 +173,8 @@ struct GuestSeam::Guest
           Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Physics(aWorld, aWorld.GetDispatcher(), Engine)
+          Physics(aWorld, aWorld.GetDispatcher(), Engine),
+          Wait(aWorld, aWorld.GetDispatcher(), Engine)
     {
     }
 
@@ -178,6 +185,7 @@ struct GuestSeam::Guest
     GuestDialogue Dialogue;
     GuestRecord Record;
     GuestPhysics Physics;
+    GuestWait Wait;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -211,4 +219,5 @@ void GuestSeam::Update() noexcept
     m_pGuest->WorldState.OnUpdate(cUpdate);
     m_pGuest->Record.OnUpdate(cUpdate);
     m_pGuest->Physics.OnUpdate(cUpdate);
+    m_pGuest->Wait.OnUpdate();
 }

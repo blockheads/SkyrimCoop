@@ -416,3 +416,8 @@ bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
     const auto* pCell = Cast<TESObjectCELL>(TESForm::GetById(ToGame(acCell)));
     return pCell && pCell->IsValid();
 }
+
+bool GuestEngine::IsPlacementPending(const GameId& acObject) const noexcept
+{
+    return std::ranges::any_of(m_placed, [&](const auto& acPlaced) { return acPlaced.first.Object == acObject; });
+}

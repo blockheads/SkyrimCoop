@@ -160,7 +160,9 @@ struct PlayerCharacter : Actor
     GameArray<ObjectiveInstance> objectives;
     uint8_t pad5A0[0x8D0 - 0x5A0];
     uint32_t grabbedObject; // handle of what the player holds with Activate (DestroyMouseSprings 40557 clears it)
-    uint8_t pad8D4[0x92C - 0x8D4];
+    uint8_t pad8D4[0x8EC - 0x8D4];
+    uint32_t sleepSeconds; // a Sleep/Wait Menu rest's remaining game seconds (WaitStep 40485 counts it down)
+    uint8_t pad8F0[0x92C - 0x8F0];
     uint32_t playerMapMarker; // handle of the marker placed on the map (40535 sets it, 40536 clears it)
     uint8_t pad930[0x938 - 0x930];
     uint32_t skillTrainingsThisLevel; // TrainingMenu::Train counts each training here
@@ -190,6 +192,7 @@ static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00);
 static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09);
 static_assert(sizeof(PlayerCharacter::PerkRank) == 0x10);
 static_assert(offsetof(PlayerCharacter, grabbedObject) == 0x8D0);
+static_assert(offsetof(PlayerCharacter, sleepSeconds) == 0x8EC);
 static_assert(offsetof(PlayerCharacter, playerMapMarker) == 0x92C);
 static_assert(offsetof(PlayerCharacter, skillTrainingsThisLevel) == 0x938);
 static_assert(offsetof(PlayerCharacter, pSkills) == 0x9B8);

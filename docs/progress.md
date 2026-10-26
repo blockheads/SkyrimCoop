@@ -639,7 +639,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
 | Containers' items (changes, as counts per base item) | works both ways; the host's contents (its leveled roll) when a guest's cell loads (slice 2, 2026-10-21); an item's extra data (enchantment, tempering, poison) does not travel | `chest-take-reaches-others`, `guest-opens-hosts-roll` |
-| Time, weather | works | `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
+| Time, weather | works | `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `shared-wait-host`/`-guest`, `shared-sleep-host`/`-guest`, `shared-wait-cancel`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Player levels (party panel) | works | `party-shows-levels` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
@@ -1447,7 +1447,9 @@ What the first playtest build has besides what works today (the table above):
    Ragdoll physics/settling is feature 5's integration; report: `build/death-spectate-report.md`.
 2. **Shared party bounty** (`docs/ideas.md`): one player's crime is the party's, judged on the host.
 3. **Quest rewards to everyone** (`party-model.md`, "Experience", step 6).
-4. **Shared wait and sleep** (`docs/ideas.md`).
+4. **Shared wait and sleep** (`docs/design/shared-wait-sleep.md`): built 2026-10-26. Any player's wait
+   or sleep opens every game's native menu; the host's countdown drives them all, and only the bed's player
+   sleeps. Fast tests, both lossy network profiles and the Skyrim scenarios (tag `wait`) pass.
 5. **Physics:** objects and ragdolls from the host, live (`docs/ideas.md`, "Havok sync"). Not started.
 6. **Dropped items** (created references), with their extra data; items in chests keep theirs too. This is how
    players give each other items in 1.0 (a trade menu comes later).

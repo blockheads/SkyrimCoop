@@ -71,6 +71,8 @@ public:
     // Each update: the references placed at the host's rest (a move row) an update ago, simulated again and asleep
     // there, once the engine has put their held bodies at their nodes.
     void FreePlaced() noexcept;
+    // Shared rest refreshes restore record flags after their placements have finished.
+    [[nodiscard]] bool IsPlacementPending(const GameId& acObject) const noexcept;
     // This game's player's pushes of the host's references' bodies since the last call (its character's,
     // PlayerHands), one per body.
     [[nodiscard]] std::vector<BodyPush> TakePushes() noexcept;

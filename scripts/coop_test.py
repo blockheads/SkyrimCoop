@@ -7815,6 +7815,114 @@ def scenario_host_wait_reaches_guest():
         raise TestFailure(calendars("[client] days passed and the date are not the host's"))
 
 
+def shared_wait_menu(instance):
+    return game_state(instance).get("wait_hours") is not None
+
+
+def begin_shared_wait(instance, hours, sleeping=False):
+    """Confirm a native wait, then observe both games' menus before the first hour passes."""
+    who = instance or "host"
+    wait_for(f"[{who}] takes input", lambda: takes_input(instance), 10)
+    if sleeping:
+        # Skyrim.esm: the inn's CommonBed01L. The fixture gives the party access to this bed.
+        place_before(instance, 0x5EDA7, 100)
+        activate_on(instance, 0x5EDA7)
+    else:
+        tap_key(instance, WAIT_KEY)
+    wait_for(f"[{who}] chooses hours", lambda: shared_wait_menu(instance), 5)
+    while (shown := game_state(instance).get("wait_hours")) < hours:
+        tap_key(instance, MENU_RIGHT_KEY)
+        wait_for(f"[{who}] the slider moves past {shown:g}",
+                 lambda: (game_state(instance).get("wait_hours") or 0) > shown, 3)
+    if shown != hours:
+        raise TestFailure(f"[{who}] expected {hours} hours, got {shown}")
+    tap_key(instance, MENU_ACCEPT_KEY)
+    wait_for("both games show the shared Wait menu",
+             lambda: all(shared_wait_menu(name) for name in ("", "client")), 5)
+    for name in ("", "client"):
+        question = menu_var(name, "Sleep/Wait Menu", "_root.SleepWaitMenu_mc.QuestionInstance.text")
+        expected = "rest" if sleeping and name == instance else "wait"
+        if not isinstance(question, str) or expected not in question.lower():
+            raise TestFailure(f"[{name or 'host'}] expected {expected}, got {question!r}")
+        if menu_var(name, "Sleep/Wait Menu", "_root.SleepWaitMenu_mc.disableControls") != 1:
+            wait_for(f"[{name or 'host'}] its shared countdown starts",
+                     lambda name=name: menu_var(name, "Sleep/Wait Menu", "_root.SleepWaitMenu_mc.disableControls") == 1, 5)
+
+
+def shared_wait_roundtrip(instance, sleeping=False):
+    """The starter sleeps or waits; both native menus count down across midnight on the host's calendar."""
+    bed_owner = None
+    if sleeping:
+        both_go(INN)
+        bed_owner = player_command("", {"cmd": "form", "form": 0x5EDA7}).get("owner")
+    try:
+        if sleeping:
+            console_on("", "0005EDA7.setownership 00000007")
+            wait_for("the shared bed belongs to the player on both games",
+                     lambda: all(player_command(name, {"cmd": "form", "form": 0x5EDA7}).get("owner") == 7
+                                 for name in ("", "client")), 5)
+        health_before = player_snapshot(instance).get("values", {}).get("health", 0)
+        if health_before <= 30:
+            raise TestFailure(f"[{instance or 'host'}] not healthy enough for the rest fixture: {health_before}")
+        console_on(instance, "player.damageav health 25")
+        wait_for("the starter has lost health before resting",
+                 lambda: player_snapshot(instance).get("values", {}).get("health", 0) < health_before - 20, 5)
+        console_on("", "set gamehour to 22.5")
+        wait_for("the guest is at the host's 22:30", lambda: close(calendar("client").get("hour"), 22.5, 0.1), 10)
+        before = calendar("")
+        begin_shared_wait(instance, 4, sleeping)
+        wait_for("both games finish their shared countdown", lambda: all(takes_input(name) for name in ("", "client")), 20)
+        after = calendar("")
+        if after.get("raw_days") != before.get("raw_days") + 1 or not close(after.get("hour"), 2.5, 0.15):
+            raise TestFailure(calendars("the shared 4-hour countdown did not reach 02:30 the next day"))
+        wait_for("both calendars agree after the shared wait", same_calendar, 5)
+        wait_for("the starter's native rest restores its health",
+                 lambda: player_snapshot(instance).get("values", {}).get("health", 0) >= health_before - 0.5, 5)
+    finally:
+        for name in ("", "client"):
+            if shared_wait_menu(name):
+                tap_key(name, ESCAPE_KEY)
+        if sleeping:
+            # Restore the original bed owner, including no owner, before leaving the fixture.
+            if bed_owner is not None:
+                console_on("", f"0005EDA7.setownership {bed_owner:08X}")
+                wait_for("the bed's original owner is restored on both games",
+                         lambda: all(player_command(name, {"cmd": "form", "form": 0x5EDA7}).get("owner") == bed_owner
+                                     for name in ("", "client")), 5)
+            both_go(HOME_CELL)
+
+
+def scenario_shared_wait_host():
+    """The host waits across midnight; both menus, calendars and native health recovery agree."""
+    shared_wait_roundtrip("")
+
+
+def scenario_shared_wait_guest():
+    """The guest asks for a wait; the host drives both menus and calendars across midnight."""
+    shared_wait_roundtrip("client")
+
+
+def scenario_shared_sleep_host():
+    """The host sleeps in the inn; the guest waits, both calendars jump and the sleeper recovers health."""
+    shared_wait_roundtrip("", sleeping=True)
+
+
+def scenario_shared_sleep_guest():
+    """The guest sleeps in the inn; the host waits and drives both games through the same hours."""
+    shared_wait_roundtrip("client", sleeping=True)
+
+
+def scenario_shared_wait_cancel():
+    """The guest cancels a host wait; both native menus close before all the requested hours pass."""
+    before = calendar("").get("days_passed")
+    begin_shared_wait("", 24)
+    tap_key("client", ESCAPE_KEY)
+    wait_for("a guest's cancel releases both menus", lambda: all(takes_input(name) for name in ("", "client")), 10)
+    if calendar("").get("days_passed") - before >= 0.5:
+        raise TestFailure("the party completed half a day despite the guest's cancellation")
+    wait_for("the calendars agree after cancelling", same_calendar, 5)
+
+
 def scenario_guest_sets_time():
     """At 22:30 the client types `/settime 6 0` in the chat: the host's clock runs on to 06:00 the next day, as
     a wait does, and both games show it, days passed and date included. The command is no chat line."""
@@ -8329,6 +8437,11 @@ SCENARIOS = {
     "map-marker-reaches-everyone": scenario_map_marker_reaches_everyone,
     # world
     "host-time-reaches-client": scenario_host_time_reaches_client,
+    "shared-wait-host": scenario_shared_wait_host,
+    "shared-wait-guest": scenario_shared_wait_guest,
+    "shared-sleep-host": scenario_shared_sleep_host,
+    "shared-sleep-guest": scenario_shared_sleep_guest,
+    "shared-wait-cancel": scenario_shared_wait_cancel,
     "host-wait-reaches-guest": scenario_host_wait_reaches_guest,
     "late-join-gets-calendar": scenario_late_join_gets_calendar,
     "guest-sets-time": scenario_guest_sets_time,
@@ -8479,6 +8592,11 @@ TAGS = {
     "chat-reaches-everyone": {'ui', 'session'},
     "map-marker-reaches-everyone": {'ui', 'world'},
     "host-time-reaches-client": {'world'},
+    "shared-wait-host": {'wait', 'world'},
+    "shared-wait-guest": {'wait', 'world'},
+    "shared-sleep-host": {'wait', 'world'},
+    "shared-sleep-guest": {'wait', 'world'},
+    "shared-wait-cancel": {'wait', 'world'},
     "host-wait-reaches-guest": {'world'},
     "late-join-gets-calendar": {'world', 'session'},
     "guest-sets-time": {'world', 'ui'},
@@ -8578,6 +8696,12 @@ SOURCE_TAGS = [
     ("Code/client/Services/Host/HostPlayerNatives.*", {'scripts', 'quest'}),
     ("Code/client/Services/Host/HostClock.*", {'world'}),
     ("Code/client/Services/Guest/GuestClock.*", {'world'}),
+    ("Code/client/Services/Host/HostWait.*", {'wait'}),
+    ("Code/client/Services/Guest/GuestWait.*", {'wait'}),
+    ("Code/client/Services/WaitService.h", {'wait'}),
+    ("Code/client/Services/Generic/WaitService.*", {'wait'}),
+    ("Code/client/Bridges/WaitBridge.*", {'wait'}),
+    ("Code/encoding/Messages/WaitMessages.*", {'wait'}),
     ("Code/client/Services/Host/HostWeather.*", {'world', 'cells'}),
     ("Code/client/Services/Guest/GuestWeather.*", {'world', 'cells'}),
     ("Code/client/Services/Host/HostTimeScale.*", {'world', 'combat'}),

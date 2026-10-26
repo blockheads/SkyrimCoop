@@ -12,6 +12,7 @@
 #include <Services/Guest/GuestPhysics.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
+#include <Services/Guest/GuestWait.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
 #include <Bridges/IJoinBridge.h>
@@ -31,6 +32,7 @@ struct GuestService::Guest
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
         , Record(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
         , Physics(aWorld, aDispatcher, Engine)
+        , Wait(aWorld, aDispatcher, Engine)
     {
     }
 
@@ -41,6 +43,7 @@ struct GuestService::Guest
     GuestDialogue Dialogue;
     GuestRecord Record;
     GuestPhysics Physics;
+    GuestWait Wait;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
@@ -116,4 +119,5 @@ void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
     m_pGuest->WorldState.OnUpdate(acEvent);
     m_pGuest->Record.OnUpdate(acEvent);
     m_pGuest->Physics.OnUpdate(acEvent);
+    m_pGuest->Wait.OnUpdate();
 }

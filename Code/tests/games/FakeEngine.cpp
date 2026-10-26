@@ -288,6 +288,7 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
     auto& reference = it->second;
     switch (acChange.Type)
     {
+    case ObjectChange::Kind::kRecord: reference.RecordFlags = acChange.Value; break;
     case ObjectChange::Kind::kLock:
         reference.Locked = (acChange.Value & kLocked) != 0;
         reference.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);

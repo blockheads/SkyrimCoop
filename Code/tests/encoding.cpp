@@ -1109,3 +1109,89 @@ TEST_CASE("Physics bodies", "[encoding.physics]")
         CHECK(roundTrip(asked, RequestMessageFactory{}) == asked);
     }
 }
+
+TEST_CASE("Shared wait messages keep generation, authority and the whole calendar", "[encoding.wait]")
+{
+    WaitRequest request;
+    request.Action = WaitAction::Progress;
+    request.Id = 1234;
+    request.Hours = 24;
+    request.RemainingSeconds = 23 * 3600 + 900;
+    request.Sleeping = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == WaitRequest::Opcode);
+    const auto& received = static_cast<const WaitRequest&>(*decoded);
+    CHECK(received.Action == request.Action);
+    CHECK(received.Id == request.Id);
+    CHECK(received.Hours == request.Hours);
+    CHECK(received.RemainingSeconds == request.RemainingSeconds);
+    CHECK(received.Sleeping == request.Sleeping);
+
+    NotifyWaitState state;
+    state.Phase = WaitPhase::Progress;
+    state.Id = 1234;
+    state.Hours = 24;
+    state.RemainingSeconds = 900;
+    state.Sleeping = true;
+    state.Driver = true;
+    state.Calendar.Time = 0.5f;
+    state.Calendar.DaysPassed = 333;
+    state.Calendar.Month = 11;
+    state.Calendar.Day = 31;
+    state.Calendar.Year = 202;
+    Buffer reply;
+    Buffer::Writer replyWriter(&reply);
+    state.Serialize(replyWriter);
+    Buffer::Reader replyReader(&reply);
+    auto notification = NotifyMessageFactory{}.Extract(replyReader);
+    REQUIRE(notification);
+    REQUIRE(notification->GetOpcode() == NotifyWaitState::Opcode);
+    const auto& result = static_cast<const NotifyWaitState&>(*notification);
+    CHECK(result.Phase == state.Phase);
+    CHECK(result.Id == state.Id);
+    CHECK(result.Hours == state.Hours);
+    CHECK(result.RemainingSeconds == state.RemainingSeconds);
+    CHECK(result.Sleeping == state.Sleeping);
+    CHECK(result.Driver == state.Driver);
+    CHECK(result.Calendar == state.Calendar);
+}
+
+TEST_CASE("Shared rest world messages retain the wait id and bounded cell payload", "[encoding.wait]")
+{
+    WaitWorldRequest request;
+    request.Id = 54321;
+    request.State.Cell = GameId(4, 0x31D2E);
+    request.State.Changed = {{GameId(2, 0x1A002), 0x80000002}};
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == WaitWorldRequest::Opcode);
+    const auto& received = static_cast<const WaitWorldRequest&>(*decoded);
+    CHECK(received.Id == request.Id);
+    CHECK(received.State == request.State);
+
+    NotifyWaitWorld reply;
+    reply.Id = request.Id;
+    reply.Last = false;
+    reply.State.Cell = request.State.Cell;
+    reply.State.Changes = {{.Type = ObjectChange::Kind::kRecord, .Object = GameId(2, 0x1A002), .Value = 0x80000002}};
+    Buffer notification;
+    Buffer::Writer notificationWriter(&notification);
+    reply.Serialize(notificationWriter);
+    Buffer::Reader notificationReader(&notification);
+    auto message = NotifyMessageFactory{}.Extract(notificationReader);
+    REQUIRE(message);
+    REQUIRE(message->GetOpcode() == NotifyWaitWorld::Opcode);
+    const auto& result = static_cast<const NotifyWaitWorld&>(*message);
+    CHECK(result.Id == reply.Id);
+    CHECK_FALSE(result.Last);
+    CHECK(result.State == reply.State);
+}
