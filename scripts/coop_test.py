@@ -7841,7 +7841,7 @@ def begin_shared_wait(instance, hours, sleeping=False):
              lambda: all(shared_wait_menu(name) for name in ("", "client")), 5)
     for name in ("", "client"):
         question = menu_var(name, "Sleep/Wait Menu", "_root.SleepWaitMenu_mc.QuestionInstance.text")
-        expected = "rest" if sleeping and name == instance else "wait"
+        expected = "rest" if sleeping and name in (instance, "") else "wait"
         if not isinstance(question, str) or expected not in question.lower():
             raise TestFailure(f"[{name or 'host'}] expected {expected}, got {question!r}")
         if menu_var(name, "Sleep/Wait Menu", "_root.SleepWaitMenu_mc.disableControls") != 1:
@@ -7908,8 +7908,68 @@ def scenario_shared_sleep_host():
 
 
 def scenario_shared_sleep_guest():
-    """The guest sleeps in the inn; the host waits and drives both games through the same hours."""
+    """The guest sleeps in the inn; the host represents the party's sleep and drives the countdown."""
     shared_wait_roundtrip("client", sleeping=True)
+
+
+def scenario_guest_sleep_fires_host_script():
+    """A guest wait grants no host rested bonus; a guest sleep runs the host's vanilla PlayerSleepQuest."""
+    quest, script = 0xFC1A2, "PlayerSleepQuestScript"
+    if not quest_running("", quest):
+        raise TestFailure("[host] PlayerSleepQuest must be running for the native sleep-listener fixture")
+    housekeeping = script_var("", quest, script, "CHScript")
+    if script_var("", housekeeping, "CompanionsHousekeepingScript", "PlayerHasBeastBlood"):
+        raise TestFailure("[host] rested-bonus fixture requires a player without beast blood")
+    lover = script_var("", quest, script, "pDoomLoverAbility")
+    before = set(player_record("")["spells"])
+    if f"0:{lover:X}" in before:
+        raise TestFailure("[host] rested-bonus fixture requires a player without the Lover Stone ability")
+    bonuses = [script_var("", quest, script, name) for name in ("Rested", "WellRested", "MarriageSleepAbility")]
+    if not all(bonuses):
+        raise TestFailure("[host] PlayerSleepQuest has an empty rested-spell property")
+    bonus_keys = {f"0:{spell:X}" for spell in bonuses}
+    both_go(INN)
+    bed_owner = player_command("", {"cmd": "form", "form": 0x5EDA7}).get("owner")
+    try:
+        console_on("", "0005EDA7.setownership 00000007")
+        wait_for("both games allow the guest to use the bed",
+                 lambda: all(player_command(name, {"cmd": "form", "form": 0x5EDA7}).get("owner") == 7
+                             for name in ("", "client")), 5)
+        for spell in bonuses:
+            if f"0:{spell:X}" in before:
+                console_on("", f"player.removespell {spell:08X}")
+        wait_for("[host] has no previous rested bonus", lambda: not bonus_keys.intersection(player_record("")["spells"]), 5)
+
+        begin_shared_wait("client", 1)
+        wait_for("the guest's control wait completes", lambda: all(takes_input(name) for name in ("", "client")), 15)
+        if bonus_keys.intersection(player_record("")["spells"]):
+            raise TestFailure("[host] a guest wait incorrectly ran the sleep-stop bonus handler")
+
+        begin_shared_wait("client", 1, sleeping=True)
+        wait_for("the guest's sleep completes", lambda: all(takes_input(name) for name in ("", "client")), 15)
+        # These are the quest's scripted abilities, not native health regeneration or the bed's furniture spell.
+        wait_for("[host] its vanilla sleep-stop script grants a new rested bonus",
+                 lambda: bool(bonus_keys.intersection(player_record("")["spells"])), 10)
+        wait_for("[host] PlayerSleepQuest finishes its event", lambda: not script_running("", script), 5)
+    finally:
+        for name in ("", "client"):
+            if shared_wait_menu(name):
+                tap_key(name, ESCAPE_KEY)
+        wait_for("both shared rest menus release", lambda: all(takes_input(name) for name in ("", "client")), 10)
+        current = set(player_record("")["spells"])
+        for spell in bonuses:
+            key = f"0:{spell:X}"
+            if (key in current) != (key in before):
+                action = "addspell" if key in before else "removespell"
+                console_on("", f"player.{action} {spell:08X}")
+        wait_for("[host] its original rested abilities are restored",
+                 lambda: bonus_keys.intersection(player_record("")["spells"]) == bonus_keys.intersection(before), 5)
+        if bed_owner is not None:
+            console_on("", f"0005EDA7.setownership {bed_owner:08X}")
+            wait_for("both games restore the bed's owner",
+                     lambda: all(player_command(name, {"cmd": "form", "form": 0x5EDA7}).get("owner") == bed_owner
+                                 for name in ("", "client")), 5)
+        both_go(HOME_CELL)
 
 
 def scenario_shared_wait_cancel():
@@ -8441,6 +8501,7 @@ SCENARIOS = {
     "shared-wait-guest": scenario_shared_wait_guest,
     "shared-sleep-host": scenario_shared_sleep_host,
     "shared-sleep-guest": scenario_shared_sleep_guest,
+    "guest-sleep-fires-host-script": scenario_guest_sleep_fires_host_script,
     "shared-wait-cancel": scenario_shared_wait_cancel,
     "host-wait-reaches-guest": scenario_host_wait_reaches_guest,
     "late-join-gets-calendar": scenario_late_join_gets_calendar,
@@ -8596,6 +8657,7 @@ TAGS = {
     "shared-wait-guest": {'wait', 'world'},
     "shared-sleep-host": {'wait', 'world'},
     "shared-sleep-guest": {'wait', 'world'},
+    "guest-sleep-fires-host-script": {'wait', 'world', 'quests', 'scripts'},
     "shared-wait-cancel": {'wait', 'world'},
     "host-wait-reaches-guest": {'world'},
     "late-join-gets-calendar": {'world', 'session'},

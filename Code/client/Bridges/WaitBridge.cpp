@@ -194,7 +194,8 @@ void WaitBridge::Begin() noexcept
     args.numArgs = 1;
     s_running = true;
     spdlog::info("Shared wait menu: starting {} hours, sleeping {}, driver {}", s_hours, s_sleeping, s_driver);
-    // The native OK callback starts the player's wait/sleep, including its script events and autosave.
+    // HostWait gives the host the party's rest type, so this native start (and its matching stop)
+    // raises the host player's quest events even when a guest used the bed. Other guests wait.
     RealOkay(args);
 }
 

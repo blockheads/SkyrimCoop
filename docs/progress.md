@@ -1448,8 +1448,13 @@ What the first playtest build has besides what works today (the table above):
 2. **Shared party bounty** (`docs/ideas.md`): one player's crime is the party's, judged on the host.
 3. **Quest rewards to everyone** (`party-model.md`, "Experience", step 6).
 4. **Shared wait and sleep** (`docs/design/shared-wait-sleep.md`): built 2026-10-26. Any player's wait
-   or sleep opens every game's native menu; the host's countdown drives them all, and only the bed's player
-   sleeps. Fast tests, both lossy network profiles and the Skyrim scenarios (tag `wait`) pass.
+   or sleep opens every game's native menu; the host's countdown drives them all. The party-event
+   follow-up makes a guest's sleep run the matching native rest on the host's player too, so host scripts
+   receive sleep start/stop; engine sleep callbacks use that host-player context. Vanilla listener/player
+   effects are recorded in the design doc. Fast tests, native/UI/DLL checks and both lossy profiles pass;
+   follow-up rest scenarios pass 3/3 shuffled (18/18), including the host's vanilla sleep-script bonus.
+   Calendar/world/script-context regressions pass; physics regression limitations are recorded in the
+   design doc. Duo stopped and freed; changes remain uncommitted in `.worktrees/party-rest-events`.
 5. **Physics:** objects and ragdolls from the host, live (`docs/ideas.md`, "Havok sync"). Not started.
 6. **Dropped items** (created references), with their extra data; items in chests keep theirs too. This is how
    players give each other items in 1.0 (a trade menu comes later).

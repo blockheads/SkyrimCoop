@@ -38,7 +38,7 @@ TEST_CASE("A shared wait starts only once every game has paused", "[wait]")
     {
         const auto cState = session.SentTo<NotifyWaitState>(cGame).back();
         CHECK(cState->Driver == (cGame == kHost));
-        CHECK(cState->Sleeping == (cGame == kPeer));
+        CHECK(cState->Sleeping == (cGame == kHost || cGame == kPeer));
         CHECK(cState->Hours == 3);
     }
     session.Outbox.clear();
@@ -50,6 +50,45 @@ TEST_CASE("A shared wait starts only once every game has paused", "[wait]")
     session.Receive(kOtherPeer, Request(WaitAction::Ready, cId));
     REQUIRE(session.SentTo<NotifyWaitState>(kHost).size() == 1);
     CHECK(session.SentTo<NotifyWaitState>(kHost).back()->Phase == WaitPhase::Running);
+}
+
+TEST_CASE("The host's native rest represents a guest's sleep to the party's scripts", "[wait][party-rest]")
+{
+    Session session;
+    const auto cId = Start(session, kOtherPeer, true);
+    Ready(session, cId);
+    SECTION("The guest's sleep completes")
+    {
+        session.Receive(kHost, Request(WaitAction::Progress, cId, 0));
+    }
+    SECTION("Another player cancels the guest's sleep")
+    {
+        session.Receive(kPeer, Request(WaitAction::Cancel, cId));
+    }
+    const auto states = session.SentTo<NotifyWaitState>(kHost);
+    REQUIRE(states.size() >= 3);
+    CHECK(states.front()->Phase == WaitPhase::Preparing);
+    CHECK(states[1]->Phase == WaitPhase::Running);
+    CHECK(states.back()->Phase == WaitPhase::Finished);
+    for (const auto* cpState : states)
+    {
+        CHECK(cpState->Id == cId);
+        CHECK(cpState->Driver);
+        CHECK(cpState->Sleeping); // native OK selects 40414; native completion/cancel selects sleep stop
+    }
+    for (const auto* cpState : session.SentTo<NotifyWaitState>(kOtherPeer))
+        CHECK(cpState->Sleeping);
+    for (const auto* cpState : session.SentTo<NotifyWaitState>(kPeer))
+        CHECK_FALSE(cpState->Sleeping);
+
+    // The next guest wait must use 40415 on the host, with no sleeping state carried over.
+    session.Outbox.clear();
+    const auto cNext = Start(session, kPeer, false);
+    Ready(session, cNext);
+    session.Receive(kPeer, Request(WaitAction::Cancel, cNext));
+    for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
+        for (const auto* cpState : session.SentTo<NotifyWaitState>(cPlayer))
+            CHECK_FALSE(cpState->Sleeping);
 }
 
 TEST_CASE("Only the host advances a shared wait by the native remaining seconds", "[wait]")

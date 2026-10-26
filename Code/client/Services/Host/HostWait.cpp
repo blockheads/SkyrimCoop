@@ -96,7 +96,8 @@ void HostWait::Tell(WaitPhase aPhase) const noexcept
     for (const auto cPlayer : m_players.Connections())
     {
         state.Driver = cPlayer == m_players.Host();
-        state.Sleeping = m_wait->Sleeping && cPlayer == m_wait->Requester;
+        // The host's player is the party's avatar for quest sleep events, whoever used the bed.
+        state.Sleeping = m_wait->Sleeping && (state.Driver || cPlayer == m_wait->Requester);
         m_network.Send(cPlayer, state);
     }
 }

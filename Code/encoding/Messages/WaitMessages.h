@@ -55,7 +55,7 @@ struct NotifyWaitState final : NotifyMessage
     uint32_t Id{};
     uint32_t Hours{};
     uint32_t RemainingSeconds{};
-    bool Sleeping{}; // This game's player used the bed; everyone else waits.
+    bool Sleeping{}; // The bed's player, and the host's party avatar for sleep events; other guests wait.
     bool Driver{};   // Only the host's native menu advances on its timer.
     TimeModel Calendar;
 };

@@ -60,7 +60,7 @@ SCENARIO("Either player starts a shared native wait across midnight", "[wait][wo
     CHECK(guest.Open);
     CHECK(host.Driver);
     CHECK_FALSE(guest.Driver);
-    CHECK(host.Sleeping == (sleeping && pStarter == &party.Host()));
+    CHECK(host.Sleeping == sleeping); // the host's scripts see the party's sleep, whoever used the bed
     CHECK(guest.Sleeping == (sleeping && pStarter == &party.Guest()));
     const auto cBefore = Party::Engine(party.Host()).Calendar.DaysPassed;
     for (uint32_t step = 1; step <= cSteps; ++step)

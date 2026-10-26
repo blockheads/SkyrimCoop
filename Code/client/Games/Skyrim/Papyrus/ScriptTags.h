@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Games/EngineNames.h>
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -99,7 +100,8 @@ struct QueuedCall
     std::string_view Event;   // the event or function queued
 };
 
-// Who a queued call runs for, in order: the native queuing it (and its story); a guest's character among its
+// Engine sleep events in a session are the party avatar's story, even if a guest registered the listener.
+// Other queued calls run for, in order: the native queuing them (and its story); a guest's character among their
 // arguments (aGuestArgument(), 0 for none: a guest's activation, hit, trigger); this game's player among them
 // (aPlayerArgument()) for the engine's event of their action, in a session and with no native running; the timer or
 // registration it answers (a single one used up). The arguments are read only if needed.
@@ -107,6 +109,9 @@ template <class TGuestArgument, class TPlayerArgument>
 [[nodiscard]] Cause CauseOfCall(Tags& aTags, const QueuedCall& acCall, TGuestArgument&& aGuestArgument,
                                 TPlayerArgument&& aPlayerArgument)
 {
+    if (acCall.InSession && !acCall.NativeDepth &&
+        (SameName(acCall.Event, "OnSleepStart") || SameName(acCall.Event, "OnSleepStop")))
+        return {kThisPlayer, true};
     Cause cause{acCall.Native.Player, acCall.Native.Player && acCall.Native.Story};
     if (!cause.Player)
         cause.Player = aGuestArgument();

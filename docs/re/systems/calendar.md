@@ -99,3 +99,37 @@ WaitStep                                                           40485
 
 Sources: [CommonLibSSE-NG SleepWaitMenu](https://github.com/CharmedBaryon/CommonLibSSE-NG/blob/main/include/RE/S/SleepWaitMenu.h),
 [SkyrimSoulsRE SleepWaitMenuEx](https://github.com/Vermunds/SkyrimSoulsRE/blob/master/src/Menus/SleepWaitMenuEx.cpp).
+
+
+## Party rest events (2026-10-26)
+
+Listener audit and player effects: `docs/design/shared-wait-sleep.md`, "Party rest events". The host's
+player is the party's Dragonborn. `HostWait` therefore sets `Sleeping` for both the actual sleeper
+and the host when any player requests sleep; other guests wait. A guest wait starts a host wait.
+`WaitBridge` keeps the native menu path: it emits one matching native start/stop pair on the host's
+own player, without a second manually broadcast script event or a guest cause.
+
+Rechecked the AE disassembly:
+
+- **40414**, `0x14072E7F0`, starts sleep on `(PlayerCharacter*, int hours)`. Sets remaining seconds
+  and the waiting flag, applies a furniture spell if the player's occupied furniture provides one
+  (null furniture is allowed), then sends `TESSleepStartEvent` with current and desired end time in
+  game days through `ScriptEventSourceHolder + 0xD68`. Starting the host from a guest's bed does not
+  require placing the host in furniture.
+- **40415**, `0x14072E940`, starts wait on `(PlayerCharacter*, int hours)`. Sends `TESWaitStartEvent`
+  (same two game-day times) through `+0x1130`, marks the native rest as wait, and sets remaining seconds.
+- **40417**, `0x14072EA20`, stops the current rest. Native sleep/wait state selects `TESSleepStopEvent`
+  at `+0xDC0` or `TESWaitStopEvent` at `+0x1188`. The interruption flag comes from the engine's
+  interruption latch, not this function's second argument. The cancel wrapper **40416**,
+  `0x14072EA00`, sets that latch before calling 40417; native completion uses the ordinary stop path.
+
+CommonLibSSE-NG's `ScriptEventSourceHolder` confirms all four sources. `SkyrimVM` consumes the two
+sleep events; the shipped Papyrus `Form`, `Alias` and `ActiveMagicEffect` expose `RegisterForSleep`,
+`OnSleepStart` and `OnSleepStop`, with no corresponding wait registration/events. No vanilla quest
+wait-event handlers were found. Native wait events remain available to native/mod consumers.
+
+A sleep listener can have registered during a guest interaction (for example an activated bed).
+`ScriptTags` otherwise keeps that registration's guest cause. Engine sleep events in a session now
+use the local player as their story cause, so a host quest acts on the host player, its controls
+and fades remain the party's, and follow-up timers keep that context. Other registrations and explicit calls from a running native are unchanged.
+No existing Skyrim hook implementation is edited for this rule.

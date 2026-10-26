@@ -3,6 +3,7 @@
 #include <catch2/catch.hpp>
 
 #include <Papyrus/ScriptTags.h>
+#include <Papyrus/PartyRules.h>
 
 using namespace GuestScripts;
 
@@ -201,6 +202,44 @@ SCENARIO("The story follows a stage a player's scripts set", "[tags]")
     CHECK(Within({kGuest, false}, false) == Cause{kGuest, false});
     THEN("the story stays the story") CHECK(Within({kGuest, true}, false) == Cause{kGuest, true});
     THEN("no player's stack has no story") CHECK(Within({}, true) == Cause{});
+}
+
+TEST_CASE("Party sleep events use the host player even when a guest registered the listener", "[tags][wait][party-rest]")
+{
+    Tags tags;
+    NativeCalled(tags, "RegisterForSleep", kScript, {kGuest, false});
+    CHECK(tags.RegisteredBy(kScript, "OnSleepStart") == kGuest);
+    for (const auto cEvent : {"OnSleepStart", "OnSleepStop", "onsleepstart", "ONSLEEPSTOP"})
+    {
+        int call{};
+        const Cause cSleep = CauseOfCall(tags, EngineEvent(cEvent), cNoGuest, cNoPlayer);
+        CHECK(RunsFor(tags, cSleep, 7, &call) == Cause{kThisPlayer, true});
+        CHECK(PartyRules::Whose(cSleep.Player, cSleep.Story) == PartyRules::Share::kParty);
+        // Follow-up quest timers keep acting on the host player too (e.g. the abduction's continuation).
+        NativeCalled(tags, "RegisterForSingleUpdate", kQuest, cSleep);
+        CHECK(CauseOfCall(tags, EngineEvent("OnUpdate", kQuest), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true});
+    }
+    SECTION("A listener registered by the world also acts on the host player")
+    {
+        NativeCalled(tags, "RegisterForSleep", kScript, {});
+        CHECK_FALSE(tags.HasTimers());
+        CHECK(CauseOfCall(tags, EngineEvent("OnSleepStart"), cNoGuest, cNoPlayer) == Cause{kThisPlayer, true});
+    }
+    SECTION("Ordinary registrations retain their guest context")
+    {
+        NativeCalled(tags, "RegisterForUpdate", kScript, {kGuest, false});
+        CHECK(CauseOfCall(tags, EngineEvent("OnUpdate"), cNoGuest, cNoPlayer) == Cause{kGuest, false});
+    }
+    SECTION("Outside a session the existing registration rules apply")
+    {
+        auto solo = EngineEvent("OnSleepStart");
+        solo.InSession = false;
+        CHECK(CauseOfCall(tags, solo, cNoGuest, cNoPlayer) == Cause{kGuest, false});
+    }
+    SECTION("An explicitly queued native call keeps its caller's context")
+    {
+        CHECK(CauseOfCall(tags, FromNative({kGuest, true}, "OnSleepStop"), cNoGuest, cNoPlayer) == Cause{kGuest, true});
+    }
 }
 
 SCENARIO("A guest's lever to a cutscene: the chain from action to story", "[tags]")
