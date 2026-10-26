@@ -6,7 +6,7 @@ target("HostAuthorityTests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
     -- HostConversation is the host's game in a conversation, not a rule: it needs the game.
-    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp")
+    add_files("*.cpp", "../../client/Services/Host/*.cpp|HostConversation.cpp", "../../client/Physics/*.cpp")
     add_includedirs(".", "../../client")
     add_deps("SkyrimEncoding", "Network", "CommonLib")
     add_packages("catch2", "glm", "spdlog", "rpmalloc", "enet6", "entt", "snappy", "libuv")

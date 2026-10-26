@@ -9,6 +9,7 @@
 #include <Events/WorldCallEvent.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Services/Guest/GuestClock.h>
+#include <Services/Guest/GuestPhysics.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestDialogue.h>
@@ -29,6 +30,7 @@ struct GuestService::Guest
         , WorldState(aWorld, aDispatcher, Engine)
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
         , Record(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
+        , Physics(aWorld, aDispatcher, Engine)
     {
     }
 
@@ -38,6 +40,7 @@ struct GuestService::Guest
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;
+    GuestPhysics Physics;
 };
 
 GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
@@ -112,4 +115,5 @@ void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
     m_pGuest->Weather.OnUpdate(acEvent);
     m_pGuest->WorldState.OnUpdate(acEvent);
     m_pGuest->Record.OnUpdate(acEvent);
+    m_pGuest->Physics.OnUpdate(acEvent);
 }

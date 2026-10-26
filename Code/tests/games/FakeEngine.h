@@ -5,6 +5,7 @@
 // world's references (locks, containers' items) with the change records the engine keeps, and the actors (the
 // player, placed and placeatme NPCs, copies: where, health, death, bleedout, enabled).
 #include "StillBridges.h"
+#include "../FakeFlight.h"
 
 #include <Bridges/IJoinBridge.h>
 
@@ -12,6 +13,7 @@
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <Papyrus/PartyRules.h>
+#include <Services/Host/HostGame.h>
 #include <Structs/ScriptValue.h>
 
 #include <glm/glm.hpp>
@@ -130,6 +132,37 @@ struct FakeEngine : StillBridges, IJoinBridge
     [[nodiscard]] std::optional<std::vector<ObjectChange>> CellState(const GameId& acCell, const std::vector<ChangedReference>& acChanged) const;
     // A guest asking for a loaded cell's state (GuestEngine::ReadCellChanges).
     [[nodiscard]] std::optional<CellStateRequest> CellChanges(uint32_t aCell) const;
+
+    // Physics bodies (docs/design/physics-sync.md), each game's own by key, in its references' cells. The host's fly
+    // (FakeFlight) in its network's time and fall asleep at rest, as Havok's island events report them; a guest's are
+    // held keyframed and moved by the host's frames (GuestEngine::DriveBody / RestBody). One pose stands for body and 3D:
+    // in Skyrim a keyframed body leaves its node behind, so GuestEngine writes the node (FollowBody, the scenario's check),
+    // and so does a host body far from the host's player, so PhysicsBodies writes it too (guest-cast-moves-host).
+    struct Body
+    {
+        FakeFlight Flight;
+        bool Awake = false;
+        bool Held = false;    // keyframed by the host's frames (a guest's; a reference's freed at its rest), or by a guest's hold (the host's)
+        size_t Drives = 0;    // frames of the host's followed
+        size_t Rests = 0;     // rests of the host's placed
+        uint64_t Tick = 0;    // the host's: where its flight is
+        uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
+    };
+    std::map<BodyKey, Body> Bodies;
+    // The host's player knocks it: it wakes and flies off at that velocity.
+    void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
+    // The host's physics steps up to aTick (HostGame::TakeBodies): the awake bodies, and those that fell asleep.
+    HostBodies TakeBodies(uint64_t aTick);
+    // This game's player's hand (a guest's: GuestEngine::TakePushes, ReadHeld): what its character pushed since the
+    // last read (every body a mass of 1), and what it holds. The host's game takes a guest's alike
+    // (HostGame::PushBody, DriveBody, FreeBody); a body a guest holds is keyframed there, so not awake.
+    std::vector<BodyPush> PlayerPushes;
+    std::optional<BodyKey> Grabbed;
+    // A guest's own physics moved these (GuestEngine::TakeOwnMoves): its own blast, not the host's.
+    std::vector<BodyPose> OwnMoves;
+    bool Push(const BodyPush& acPush);
+    bool Drive(const BodyFrame& acFrame);
+    bool Free(const BodyFrame& acFrame);
 
     // Every game's plugins, in one load order: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm.
     std::vector<ModEntry> GetLoadedMods() const noexcept override

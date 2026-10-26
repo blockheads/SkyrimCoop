@@ -11,6 +11,7 @@
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
+#include <Services/Guest/GuestPhysics.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/HostService.h>
@@ -21,6 +22,8 @@ GuestEngine::GuestEngine() noexcept
 }
 
 GuestEngine::~GuestEngine() noexcept = default;
+// Never read here (TakeOwnMoves is the fake's), but GuestEngine holds one.
+PhysicsBodies::PhysicsBodies(bool) noexcept {}
 
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
 {
@@ -89,13 +92,82 @@ bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
     return FakeEngine::Current().Attached.contains(FormIdOf(acCell));
 }
 
+std::optional<BodyPose> GuestEngine::ReadPose(const BodyKey& acKey) noexcept
+{
+    const auto& bodies = FakeEngine::Current().Bodies;
+    const auto it = acKey.Actor ? bodies.end() : bodies.find(acKey);
+    if (it == bodies.end())
+        return std::nullopt;
+    return BodyPose{.Key = acKey, .Position = it->second.Flight.Body.Position, .Rotation = it->second.Flight.Body.Rotation};
+}
+
+bool GuestEngine::DriveBody(const BodyFrame& acFrame, uint32_t) noexcept
+{
+    FakeEngine& engine = FakeEngine::Current();
+    const auto it = engine.Bodies.find(acFrame.Key);
+    if (it == engine.Bodies.end())
+        return false;
+    // A living copy's ragdoll body is its animation's: left until its ragdoll has it (GuestEngine::FindHostBody).
+    if (it->second.RagdollOf && !engine.IsActorDead(it->second.RagdollOf))
+        return true;
+    // Keyframed: put at the frame.
+    it->second.Held = true;
+    it->second.Flight.Body.Position = acFrame.Position;
+    it->second.Flight.Body.Rotation = acFrame.Rotation;
+    ++it->second.Drives;
+    return true;
+}
+
+bool GuestEngine::RestBody(const BodyPose& acPose, uint32_t) noexcept
+{
+    auto& bodies = FakeEngine::Current().Bodies;
+    const auto it = bodies.find(acPose.Key);
+    if (it == bodies.end())
+        return false;
+    FakeEngine::Body& body = it->second;
+    // A reference's body is simulated again at its rest; a ragdoll's stays held.
+    body.Held = body.RagdollOf != 0;
+    body.Flight.Body.Position = acPose.Position;
+    body.Flight.Body.Rotation = acPose.Rotation;
+    body.Flight.Body.LinearVelocity = {};
+    body.Flight.Body.AngularVelocity = {};
+    ++body.Rests;
+    return true;
+}
+
+void GuestEngine::FreePlaced() noexcept
+{
+}
+
+std::vector<BodyPush> GuestEngine::TakePushes() noexcept
+{
+    return std::exchange(FakeEngine::Current().PlayerPushes, {});
+}
+
+std::vector<BodyPose> GuestEngine::TakeOwnMoves() noexcept
+{
+    return std::exchange(FakeEngine::Current().OwnMoves, {});
+}
+
+std::vector<BodyFrame> GuestEngine::ReadHeld() const noexcept
+{
+    FakeEngine& engine = FakeEngine::Current();
+    const auto it = engine.Grabbed ? engine.Bodies.find(*engine.Grabbed) : engine.Bodies.end();
+    if (it == engine.Bodies.end())
+        return {};
+    BodyFrame frame = it->second.Flight.Body;
+    frame.Key = it->first;
+    return {frame};
+}
+
 struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
         : Clock(aWorld, aWorld.GetDispatcher(), Engine),
           Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
-          Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>())
+          Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
+          Physics(aWorld, aWorld.GetDispatcher(), Engine)
     {
     }
 
@@ -105,6 +177,7 @@ struct GuestSeam::Guest
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;
+    GuestPhysics Physics;
 };
 
 GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
@@ -137,4 +210,5 @@ void GuestSeam::Update() noexcept
     m_pGuest->Weather.OnUpdate(cUpdate);
     m_pGuest->WorldState.OnUpdate(cUpdate);
     m_pGuest->Record.OnUpdate(cUpdate);
+    m_pGuest->Physics.OnUpdate(cUpdate);
 }

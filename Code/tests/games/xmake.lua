@@ -6,7 +6,7 @@ target("GameTests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
     add_files("*.cpp")
-    add_files("../../client/Services/Host/*.cpp")
+    add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp")
     add_files("../../client/Services/Generic/TransportService.cpp", "../../client/Services/Generic/CutsceneService.cpp",
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",
               "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp",
@@ -15,7 +15,9 @@ target("GameTests")
               "../../client/Services/Generic/PlayerService.cpp", "../../client/Services/Generic/InventoryService.cpp",
               "../../client/Systems/InterpolationSystem.cpp",
               "../../client/Services/Guest/GuestWorldState.cpp", "../../client/Services/Guest/GuestClock.cpp",
-              "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Generic/MapService.cpp",
+              "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Guest/GuestPhysics.cpp",
+              "../../client/Services/Guest/GuestHands.cpp",
+              "../../client/Services/Generic/MapService.cpp",
               "../../client/Services/Generic/TimeScaleService.cpp", "../../client/Services/Generic/MagicService.cpp",
               "../../client/Services/Generic/EffectVisualsService.cpp", "../../client/Services/Generic/AiStateService.cpp",
               "../../client/Services/Generic/CombatService.cpp",

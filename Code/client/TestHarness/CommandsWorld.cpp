@@ -67,6 +67,17 @@ nlohmann::json IdleConditions(Harness&, const nlohmann::json& acRequest)
 // {"cmd": "anim_trace", "actors": [id, ...], "bools": ["bIsSynced", ...]}: starts recording these actors'
 // animations (AnimationTrace), or adds them; {"cmd": "anim_trace"} alone takes what was recorded so far, and
 // {"cmd": "anim_trace", "stop": true} stops and takes the rest.
+// {"cmd": "body_trace", "refs": [id, ...]}: starts recording these references' physics each frame (BodyTrace), or
+// adds them; {"cmd": "body_trace"} alone takes what was recorded so far, {"cmd": "body_trace", "stop": true} the rest.
+nlohmann::json BodyTraceCommand(Harness& aHarness, const nlohmann::json& acRequest)
+{
+    if (acRequest.value("stop", false))
+        return {{"ok", true}, {"entries", aHarness.Bodies.Stop()}};
+    if (acRequest.contains("refs"))
+        aHarness.Bodies.Watch(acRequest.value("refs", std::set<uint32_t>{}));
+    return {{"ok", true}, {"entries", aHarness.Bodies.Take()}};
+}
+
 nlohmann::json AnimTrace(Harness& aHarness, const nlohmann::json& acRequest)
 {
     if (acRequest.value("stop", false))
@@ -214,6 +225,8 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
         {
             ref["hidden"] = cRef.Hidden;
             ref["position_3d"] = {cRef.Position3D[0], cRef.Position3D[1], cRef.Position3D[2]};
+            ref["branch"] = {{"name", cRef.Branch}, {"index", cRef.BranchIndex}};
+            ref["flags_3d"] = cRef.Flags3D;
         }
         if (cRef.HasLock)
             ref["lock"] = {{"locked", cRef.Locked}, {"level", cRef.LockLevel}};
@@ -252,7 +265,9 @@ nlohmann::json WorldState(Harness&, const nlohmann::json& acRequest)
         {
             auto bodies = nlohmann::json::array();
             for (const auto& cBody : cRef.Collision)
-                bodies.push_back({{"node", cBody.Node}, {"in_world", cBody.InWorld}, {"position", cBody.Position}});
+                bodies.push_back({{"node", cBody.Node}, {"in_world", cBody.InWorld}, {"position", cBody.Position}, {"motion", cBody.Motion},
+                                  {"awake", cBody.Awake}, {"rotation", cBody.Rotation}, {"velocity", cBody.Velocity},
+                                  {"flags", cBody.Flags}, {"offset", cBody.Offset}});
             ref["collision"] = bodies;
         }
         if (!cRef.Graph.empty())
@@ -418,6 +433,79 @@ nlohmann::json ContainerItems(Harness&, const nlohmann::json& acRequest)
     for (const auto& [cItem, cCount] : *cItems)
         items.push_back({{"item", cItem}, {"count", cCount}});
     return {{"ok", true}, {"items", items}};
+}
+
+// {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
+// rotation (x, y, z, w) and velocity in game units.
+nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cBodies = EngineCalls::GetRagdoll(acRequest.value("actor", 0u));
+    if (!cBodies)
+        return Error("no such actor");
+    auto bodies = nlohmann::json::array();
+    for (const auto& cBody : *cBodies)
+        bodies.push_back({{"in_world", cBody.InWorld}, {"motion", cBody.Motion}, {"awake", cBody.Awake}, {"position", cBody.Position},
+                          {"rotation", cBody.Rotation}, {"velocity", cBody.Velocity}});
+    return {{"ok", true}, {"bodies", bodies}};
+}
+
+nlohmann::json RayJson(const EngineCalls::RayHit& acHit)
+{
+    if (!acHit.Hit)
+        return {{"hit", false}, {"distance", acHit.Distance}};
+    return {{"hit", true}, {"point", acHit.Point}, {"normal", acHit.Normal}, {"distance", acHit.Distance},
+            {"ref", acHit.Reference}, {"layer", acHit.Layer}};
+}
+
+// {"cmd": "ray", "from": [x, y, z], "to": [x, y, z], "layer": 30}: the first collision on that line as the layer sees it
+// (30, the character controller's: what stops a player walking): point, normal, distance, its reference and layer.
+nlohmann::json Ray(Harness&, const nlohmann::json& acRequest)
+{
+    if (!acRequest.contains("from") || !acRequest.contains("to"))
+        return Error("from and to needed");
+    const auto cFrom = acRequest["from"].get<std::array<float, 3>>();
+    const auto cTo = acRequest["to"].get<std::array<float, 3>>();
+    const auto cHit = EngineCalls::CastRay(cFrom.data(), cTo.data(), acRequest.value("layer", 30u));
+    if (!cHit)
+        return Error("no physics world, or this frame's picks are spent");
+    return {{"ok", true}, {"ray", RayJson(*cHit)}};
+}
+
+// {"cmd": "surroundings", "at": [x, y, z], "radius": 500}: what is around a spot (the player's feet by default), as a
+// walking player meets it: the floor below and the ceiling above, and rings of rays at knee (30) and chest (100)
+// height in 16 directions (bearing 0 north, 90 east), each the first collision within the radius.
+nlohmann::json Surroundings(Harness&, const nlohmann::json& acRequest)
+{
+    std::array<float, 3> at{};
+    if (acRequest.contains("at"))
+        at = acRequest["at"].get<std::array<float, 3>>();
+    else
+        World::Get().GetActorBridge().GetActorPosition(0x14, at[0], at[1], at[2]);
+    const float cRadius = acRequest.value("radius", 500.f);
+    const auto cCast = [](std::array<float, 3> aFrom, std::array<float, 3> aTo) { return EngineCalls::CastRay(aFrom.data(), aTo.data()); };
+    const auto cFloor = cCast({at[0], at[1], at[2] + 60.f}, {at[0], at[1], at[2] - 1000.f});
+    const auto cCeiling = cCast({at[0], at[1], at[2] + 60.f}, {at[0], at[1], at[2] + 2000.f});
+    if (!cFloor || !cCeiling)
+        return Error("no physics world, or this frame's picks are spent");
+    auto rings = nlohmann::json::object();
+    for (const float cHeight : {30.f, 100.f})
+    {
+        auto ring = nlohmann::json::array();
+        for (int bearing = 0; bearing < 360; bearing += 360 / 16)
+        {
+            const float cRadians = glm::radians(static_cast<float>(bearing));
+            const std::array<float, 3> cFrom{at[0], at[1], at[2] + cHeight};
+            const std::array<float, 3> cTo{at[0] + std::sin(cRadians) * cRadius, at[1] + std::cos(cRadians) * cRadius, at[2] + cHeight};
+            const auto cHit = cCast(cFrom, cTo);
+            if (!cHit)
+                return Error("this frame's picks are spent");
+            auto ray = RayJson(*cHit);
+            ray["bearing"] = bearing;
+            ring.push_back(ray);
+        }
+        rings[cHeight < 50.f ? "knee" : "chest"] = ring;
+    }
+    return {{"ok", true}, {"at", at}, {"floor", RayJson(*cFloor)}, {"ceiling", RayJson(*cCeiling)}, {"rings", rings}};
 }
 
 // {"cmd": "menu_var", "menu": "ContainerMenu", "path": "_root.Menu_mc.bFadedIn"}: a number, boolean or string in an
@@ -655,6 +743,7 @@ constexpr Command cCommands[] = {
     {"graph_bool", true, &GraphBool},
     {"kill_move_check", true, &KillMoveCheckCommand},
     {"anim_trace", true, &AnimTrace},
+    {"body_trace", true, &BodyTraceCommand},
     {"idle_conditions", true, &IdleConditions},
     {"objects", true, &Objects},
     {"world_state", true, &WorldState},
@@ -673,6 +762,9 @@ constexpr Command cCommands[] = {
     {"form", true, &Form},
     {"form_known", true, &FormKnown},
     {"container_items", true, &ContainerItems},
+    {"ragdoll", true, &Ragdoll},
+    {"ray", true, &Ray},
+    {"surroundings", true, &Surroundings},
     {"menu_var", false, &MenuVar},
     {"ref_enabled", true, &RefEnabled},
     {"actor_place", true, &ActorPlace},

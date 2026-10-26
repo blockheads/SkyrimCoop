@@ -54,7 +54,11 @@
     X(WorldCallRequest)             \
     X(DismountRequest)              \
     X(PlayerRecordRequest)          \
-    X(PlayerPerishedRequest)
+    X(PlayerPerishedRequest)        \
+    X(BodyPushRequest)              \
+    X(BodyFramesRequest)            \
+    X(BodyReleaseRequest)           \
+    X(BodyRestRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -110,7 +114,9 @@
     X(NotifyWorldCall)             \
     X(NotifyDismount)              \
     X(NotifySaveChunk)             \
-    X(NotifyPlayerPerished)
+    X(NotifyPlayerPerished)        \
+    X(NotifyBodyFrames)            \
+    X(NotifyBodyRests)
 
 #define COOP_OPCODE(aName) k##aName,
 

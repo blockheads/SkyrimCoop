@@ -102,9 +102,10 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
 - **Saves on a friend's side (experimental).** Only the host saves (`join-flow.md`). A friend saving
   the co-op world locally (to play it alone, or as a backup) raises questions with no answers yet:
   whose world is it then, and what happens on the next join.
-- **Havok sync.** Physics objects and ragdolls from the host, live. Should fix failures where the games'
-  physics disagree. Planned after phase 5 (`docs/design/host-authority-migration.md`, "After: physics sync");
-  rest positions come first with world sync (`docs/progress.md`, "World sync: finishing it", step 5).
+- **Havok sync, later parts.** Built 2026-10-24 (`docs/design/physics-sync.md`): objects and dead NPCs' ragdolls from
+  the host. Later, once a scenario shows the need: damping in the shared guess, each guest's budget weighted by what
+  is near it, Havok's own island listeners if the change funnel's havok move misses bodies, a guest far off in an
+  exterior the host has not loaded.
 - **Animation mods on copies (parked).** Graph variables synced by name from the engine's graph state,
   so behaviour mods need no descriptors; then the mods' animation events and Open Animation Replacer's
   clip choice, which are probably what a modded copy misses first. Start with one modded setup through the

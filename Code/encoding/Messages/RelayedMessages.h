@@ -29,6 +29,9 @@ struct PlayerNativeResult;
 struct PartyNative;
 struct PartyNativeFrom;
 struct WorldCall;
+struct BodyFrames;
+struct BodyRests;
+struct BodyPushes;
 } // namespace Payloads
 
 template <class TPayload, auto cOpcode> struct Relayed;
@@ -79,3 +82,9 @@ using PartyNativeRequest = Relayed<Payloads::PartyNative, kPartyNativeRequest>;
 using NotifyPartyNative = Relayed<Payloads::PartyNativeFrom, kNotifyPartyNative>;
 using WorldCallRequest = Relayed<Payloads::WorldCall, kWorldCallRequest>;
 using NotifyWorldCall = Relayed<Payloads::WorldCall, kNotifyWorldCall>;
+using NotifyBodyFrames = Relayed<Payloads::BodyFrames, kNotifyBodyFrames>;
+using NotifyBodyRests = Relayed<Payloads::BodyRests, kNotifyBodyRests>;
+using BodyPushRequest = Relayed<Payloads::BodyPushes, kBodyPushRequest>;
+using BodyFramesRequest = Relayed<Payloads::BodyFrames, kBodyFramesRequest>;
+using BodyReleaseRequest = Relayed<Payloads::BodyFrames, kBodyReleaseRequest>;
+using BodyRestRequest = Relayed<Payloads::BodyRests, kBodyRestRequest>;

@@ -162,7 +162,11 @@ enum class Button : uint8_t
     ReadyWeapon, // "Ready Weapon": draw or sheathe
     Sneak,       // "Sneak": toggles sneaking (the default mapping)
     Forward,     // "Forward": walks or swims where the camera looks
-    Shout        // "Shout": the equipped shout or power
+    Shout,       // "Shout": the equipped shout or power
+    Activate,    // "Activate": uses what the player looks at; held, grabs a physics object
+    Back,        // "Back": walks backwards, still facing ahead
+    StrafeLeft,  // "Strafe Left"
+    StrafeRight  // "Strafe Right"
 };
 // Sends the button through the game's input dispatch, as its device would (docs/re/systems/input.md):
 // down with aHeldSecs 0 is the press, down with aHeldSecs > 0 the event a device sends every frame while
@@ -193,10 +197,34 @@ void ForcePlayerFirstPerson() noexcept;
 // Turns the player toward an actor, yaw and pitch, in first person (aimed spells fly where the camera
 // looks).
 bool FacePlayerToward(uint32_t aTargetFormId) noexcept;
-// Moves the player aDistance from a reference (an actor, a trigger), on the line toward where the player
-// stands, and faces it.
-// A move, not a teleport: no cell arrival.
-bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
+// Moves the player aDistance from a reference (an actor, a trigger), on the line toward where the player stands (or
+// the bearing's side), and faces it. A move, not a teleport: no cell arrival. The spot is checked with rays first:
+// a floor under it (the player stands on it), headroom, room beside it, and nothing between it and the target; a blocked bearing
+// tries others ever further round. The bearing used, or why none would do.
+struct Placement
+{
+    bool Placed{};
+    float Bearing{};     // degrees, 0 north, 90 east
+    float Position[3]{}; // the player's feet
+    std::string Blocked; // each bearing tried and what stopped it, when none would do
+};
+Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees = std::nullopt) noexcept;
+// Moves the player to that spot (its feet), facing the reference.
+bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept;
+
+// A ray through the player's cell's physics world (bhkWorld::PickObject), as a collision layer sees it (30, the
+// character controller's: what stops a player walking). Game units.
+struct RayHit
+{
+    bool Hit{};
+    float Point[3]{};
+    float Normal[3]{};
+    float Distance{};
+    uint32_t Reference{}; // the hit collision's reference, 0 for none (terrain, the cell's own)
+    uint32_t Layer{};     // the hit collision's layer (COL_LAYER)
+};
+// None: no physics world here, or the frame's picks are spent (bhkPickData::pickFailed; try the next frame).
+std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30) noexcept;
 // Unequips everything in this game only, nothing sent (a copy that drifted).
 void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
@@ -242,6 +270,11 @@ struct ReferenceState
     bool Has3D;
     bool Hidden;            // its 3D's kHidden
     float Position3D[3];    // its 3D's world position (what the player sees)
+    // The node its 3D hangs under and that node's index in its own parent: a cell's static (3) or dynamic (4)
+    // branch; the engine updates only the dynamic one every frame (docs/re/systems/physics.md).
+    std::string Branch;
+    int32_t BranchIndex{-1};
+    uint32_t Flags3D{}; // its 3D's NiAVObject flags (selective update bits among them)
     bool HasLock;
     bool Locked;
     uint8_t LockLevel;
@@ -265,6 +298,14 @@ struct ReferenceState
         std::string Node;
         bool InWorld; // added to the physics world
         float Position[3];
+        // Its Havok body (docs/design/physics-sync.md): hkpMotion::MotionType (4 keyframed), awake (its island
+        // active), rotation (x, y, z, w) and velocity in game units.
+        uint8_t Motion{};
+        bool Awake{};
+        float Rotation[4]{};
+        float Velocity[3]{};
+        uint16_t Flags{};   // its bhkNiCollisionObject's
+        bool Offset{};      // a bhkRigidBodyT: placed apart from its node
     };
     std::vector<Body> Collision;                      // its 3D's physics bodies
     std::vector<std::pair<std::string, uint32_t>> Graph; // its active behavior graph's variables, raw
@@ -273,6 +314,8 @@ struct ReferenceState
 // Every reference in the loaded cells: the interior, or the attached exterior grid (TES). With aDetails, each
 // one's pose, physics, graph and effects too (larger).
 std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept;
+// An actor's ragdoll bodies in the ragdoll's order (Havok/Ragdoll.h), each with its node empty; none for no such actor.
+std::optional<std::vector<ReferenceState::Body>> GetRagdoll(uint32_t aActorFormId) noexcept;
 
 // The effect shaders and art objects the engine is playing on the actor's body.
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept;
@@ -425,6 +468,8 @@ struct GraphWriter
 std::vector<GraphWriter> GetGraphWriters(uint32_t aFormId) noexcept;
 // The character controller's state (hkpCharacterStateType: 0 on the ground, 2 in the air), or -1.
 int32_t GetCharacterState(uint32_t aFormId) noexcept;
+// What the player holds with Activate (a grabbed physics object): its form id, 0 for nothing.
+uint32_t GetGrabbedObject() noexcept;
 // The player's conversation (MenuTopicManager): the speaker and the options in menu order.
 struct DialogueOption
 {

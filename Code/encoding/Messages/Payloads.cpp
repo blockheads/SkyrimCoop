@@ -403,3 +403,64 @@ void PartyNativeFrom::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 } // namespace Payloads
+
+namespace
+{
+// A message's bodies: at most this many (a packet carries ~30).
+constexpr uint64_t kMaxBodies = 4096;
+} // namespace
+
+void Payloads::BodyFrames::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteVarInt(aWriter, Frames.size());
+    for (const auto& cFrame : Frames)
+        cFrame.Serialize(aWriter);
+}
+
+void Payloads::BodyFrames::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Tick = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    if (cCount > kMaxBodies)
+        return;
+    Frames.resize(cCount);
+    for (auto& frame : Frames)
+        frame.Deserialize(aReader);
+}
+
+void Payloads::BodyRests::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Tick);
+    Serialization::WriteVarInt(aWriter, Rests.size());
+    for (const auto& cRest : Rests)
+        cRest.Serialize(aWriter);
+}
+
+void Payloads::BodyRests::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Tick = Serialization::ReadVarInt(aReader);
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    if (cCount > kMaxBodies)
+        return;
+    Rests.resize(cCount);
+    for (auto& rest : Rests)
+        rest.Deserialize(aReader);
+}
+
+void Payloads::BodyPushes::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Pushes.size());
+    for (const auto& cPush : Pushes)
+        cPush.Serialize(aWriter);
+}
+
+void Payloads::BodyPushes::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    const uint64_t cCount = Serialization::ReadVarInt(aReader);
+    if (cCount > kMaxBodies)
+        return;
+    Pushes.resize(cCount);
+    for (auto& push : Pushes)
+        push.Deserialize(aReader);
+}

@@ -76,6 +76,14 @@ for repo in mwilsnd/SkyrimSE-SmoothCam ersh1/TrueDirectionalMovement; do
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Physics (docs/design/physics-sync.md): HIGGS and PLANCK (Skyrim VR, raw VR offsets, Havok 2010 names) read and drive
+# rigid bodies: hard keyframes (hkpKeyFrameUtility::applyHardKeyFrame), motion types, Havok's world listeners (post
+# simulation, island activation, contacts, the player's character proxy), ragdoll drivers and their bodies.
+# DragAndDrop (1.6.1170, CommonLib) drives the vanilla grab: PlayerCharacter's mouse springs, a ragdoll's bodies.
+for repo in adamhynek/higgs adamhynek/activeragdoll Gerkinfeltser/DragAndDrop; do
+    fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
+done
+
 curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"

@@ -141,6 +141,18 @@ uintptr_t s_engineBase = 0;
 uintptr_t s_engineEnd = 0;
 uintptr_t s_ourBase = 0;
 uintptr_t s_ourEnd = 0;
+// Our pass-through hooks' code (IgnoreFrames), set at startup.
+std::pair<uintptr_t, uintptr_t> s_ignored[4]{};
+std::atomic<uint32_t> s_ignoredCount{0};
+
+bool IsIgnored(uintptr_t aFrame) noexcept
+{
+    const uint32_t cCount = std::min<uint32_t>(s_ignoredCount.load(std::memory_order_acquire), std::size(s_ignored));
+    for (uint32_t i = 0; i < cCount; ++i)
+        if (aFrame >= s_ignored[i].first && aFrame < s_ignored[i].second)
+            return true;
+    return false;
+}
 std::atomic<LockOrder::TDescribeLock> s_describe{nullptr};
 
 std::mutex s_reportLock;
@@ -287,7 +299,7 @@ void Report(uint64_t aPattern, std::string aMessage, const PairStack* apOtherSta
         for (USHORT i = 0; i < cCount; ++i)
         {
             const auto cFrame = reinterpret_cast<uint64_t>(frames[i]);
-            const bool cOurFrame = cFrame >= s_ourBase && cFrame < s_ourEnd;
+            const bool cOurFrame = cFrame >= s_ourBase && cFrame < s_ourEnd && !IsIgnored(cFrame);
             belowEngine |= !cOurFrame;
             ours |= belowEngine && cOurFrame;
             stack += std::format("\n  backtrace #{:02} {}", i, FormatAddress(cFrame));
@@ -551,6 +563,19 @@ void LogHeldLocks() noexcept
 Stats GetStats() noexcept
 {
     return {s_enabled, s_edgeCount.load(), s_reportCount.load(), s_tooDeep.load(), s_tableFull.load(), s_tableResets.load()};
+}
+
+void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept
+{
+    auto cStart = reinterpret_cast<uintptr_t>(apFunction);
+    // An incremental link's thunk: jmp rel32 to the body.
+    if (*reinterpret_cast<const uint8_t*>(cStart) == 0xE9)
+        cStart += 5 + *reinterpret_cast<const int32_t*>(cStart + 1);
+    const uint32_t cIndex = s_ignoredCount.load(std::memory_order_relaxed);
+    if (cIndex >= std::size(s_ignored))
+        return;
+    s_ignored[cIndex] = {cStart, cStart + aBytes};
+    s_ignoredCount.store(cIndex + 1, std::memory_order_release);
 }
 
 std::vector<std::string> GetReports() noexcept

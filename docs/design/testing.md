@@ -418,6 +418,20 @@ and fast travel. The engine's `raw_days` remains cumulative and its sync is chec
 cannot rewind it, and setting `GameDaysPassed` alone is overwritten next frame. The per-process midnight counter
 also remains cumulative and is not exposed by the harness. No save load or forced guest calendar conceals this.
 
+Placing a player (`place_before`, the harness's `place`) checks the spot with rays through the physics world first
+(added 2026-10-24, after a bearing put the client inside a wall): a floor under it, which the player stands on
+rather than at the target's height; headroom; 35 units of room around its knees; and nothing between its eyes and
+the target. A blocked bearing gives way to the nearest clear one, 20 degrees at a time, logged; none clear fails,
+naming what blocked each. To see the geometry: `ray` (the first collision between two points: point, normal, its
+reference and layer) and `surroundings` (around a spot, the player's feet by default: floor, ceiling, and rings of
+rays at knee and chest height in 16 directions). Rays use the character controller's layer (30), what stops a
+walking player, and pass through the camera's own collision and the player's. A walk the scenario needs clear
+(`clear_way`) picks a heading those rings show free.
+
+The baseline does not restore clutter: a scenario that moves physics objects puts them back where they were
+(`put_back`, the host's console, so both games get the move), or the next one finds the table's clutter on the floor
+(added 2026-10-24, after repeated fireball runs aimed at a lone ladle pinned on the floor).
+
 QASmoke is an isolated interior; NPCs do not wander in from adjacent exterior cells. Reset removes owned test
 NPCs, restores the recorded cell and player placement, maximum values and depleted pools, stops casts/combat and
 releases held input. Baseline checks reject leftover NPCs or copies. Quests, script timers, effects and arbitrary
@@ -513,9 +527,13 @@ the replay's early exit in that run, not a claim about every mod's crime rules. 
 
 ### Two Steam accounts
 
-Steam invites, lobbies and relayed connections need two accounts, so the duo's client game runs as a second OS
-user, `coop2`, whose own Steam client is logged into a second account (set up 2026-10-23). The harness does the rest
-(`COOP_CLIENT_USER`, default `coop2` when that user exists; `""` runs both games as you):
+The duo runs both games as you, on your Steam account (`urquanstarcontrol`), and the client joins the host over the
+session's own network (`join <port>`), never Steam's (decided 2026-10-24). Only Steam's invites, lobbies and relayed
+connections need two accounts: for those, `COOP_CLIENT_USER=coop2` runs the client game as a second OS user, `coop2`,
+whose own Steam client is logged into a second account (set up 2026-10-23). The scenarios tagged `two-accounts`
+(`guest-joins-by-invite`, `loaded-save-hosts-then-joins-friend`) run only with it, or when named (and then fail,
+saying why). Switching between the two needs the client prefix (`build/coop-test/prefix-client`) owned by whoever runs
+the client game (Wine refuses a prefix another user owns): `sudo chown -R <user>: build/coop-test/prefix-client`.
 
 ```
 main network namespace              "coop2" network namespace

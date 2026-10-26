@@ -1037,3 +1037,75 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         roundTrip(perished, NotifyMessageFactory{});
     }
 }
+
+TEST_CASE("Physics bodies", "[encoding.physics]")
+{
+    const auto roundTrip = []<class TFactory = NotifyMessageFactory>(const auto& acMessage, TFactory aFactory = {}) {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        acMessage.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = aFactory.Extract(reader);
+        REQUIRE(decoded);
+        using Message = std::remove_cvref_t<decltype(acMessage)>;
+        return *CastUnique<Message>(std::move(decoded));
+    };
+
+    BodyFrame frame;
+    frame.Key = {.Object = GameId(0, 0x1A0F3), .Index = 2};
+    frame.Position = {-182345.53f, 90211.2f, -1024.03f};
+    frame.Rotation = glm::normalize(glm::quat(0.3f, -0.6f, 0.2f, 0.7f));
+    frame.LinearVelocity = {120.4f, -310.9f, -686.f};
+    frame.AngularVelocity = {3.1f, -0.25f, 12.f};
+    frame.Gravity = true;
+
+    SECTION("A frame arrives as its quantized self, within a millimetre and a tenth of a degree")
+    {
+        NotifyBodyFrames frames;
+        frames.Tick = 123456789;
+        frames.Frames = {frame, BodyFrame{.Key = {.Actor = 0x22, .Index = 14}}};
+        const auto cDecoded = roundTrip(frames);
+        REQUIRE(cDecoded.Frames.size() == 2);
+        CHECK(cDecoded.Tick == frames.Tick);
+        CHECK(cDecoded.Frames[0] == frame.Quantized());
+        CHECK(cDecoded.Frames[1] == frames.Frames[1].Quantized());
+        CHECK(glm::distance(cDecoded.Frames[0].Position, frame.Position) < 1.f / 32);
+        CHECK(std::abs(glm::dot(cDecoded.Frames[0].Rotation, frame.Rotation)) > std::cos(0.002f));
+        CHECK(glm::distance(cDecoded.Frames[0].LinearVelocity, frame.LinearVelocity) < 0.25f);
+        THEN("a quantized frame quantizes to itself") CHECK(frame.Quantized().Quantized() == frame.Quantized());
+    }
+
+    SECTION("A frame takes about BodyFrame::kWireBytes")
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        frame.Serialize(writer);
+        CHECK(writer.Size() <= BodyFrame::kWireBytes);
+    }
+
+    SECTION("A rest goes exactly")
+    {
+        NotifyBodyRests rests;
+        rests.Tick = 42;
+        rests.Rests = {{.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation}};
+        CHECK(roundTrip(rests) == rests);
+    }
+
+    SECTION("A guest's push, hold and release go to the host")
+    {
+        BodyPushRequest pushes;
+        pushes.Pushes = {{.Key = frame.Key, .Impulse = {-3.5f, 120.25f, 0.5f}, .Point = frame.Position}};
+        CHECK(roundTrip(pushes, RequestMessageFactory{}) == pushes);
+        BodyFramesRequest held;
+        held.Tick = 77;
+        held.Frames = {frame};
+        CHECK(roundTrip(held, RequestMessageFactory{}).Frames[0] == frame.Quantized());
+        BodyReleaseRequest released;
+        released.Tick = 78;
+        released.Frames = {frame};
+        CHECK(roundTrip(released, RequestMessageFactory{}).Frames[0] == frame.Quantized());
+        BodyRestRequest asked;
+        asked.Rests = {{.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation}};
+        CHECK(roundTrip(asked, RequestMessageFactory{}) == asked);
+    }
+}

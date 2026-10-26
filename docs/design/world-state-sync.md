@@ -206,26 +206,24 @@ the host's game raised (opening a door re-sets its lock: `lock_changed` on both)
   data round-trips, `form-state-round-trips`). Entry: `docs/ideas.md`, "Mods' world state through the save
   system".
 
-**Physics objects' rest (2026-10-21).** Each game simulates a flight itself; where it ends is the host's.
+**Physics objects' rest (2026-10-21, live physics since 2026-10-24).** The host's game simulates every body and the
+guests show its flight (`docs/design/physics-sync.md`); where a body rests still goes out as its move row, so a save
+and a cell load keep it.
 
 ```
-host: PhysicsRests (Bridges/)
-  funnel's havok move 0x4 on a REFR -> noted (engine threads; the flag
-    comes every frame while a body is awake, at rest too)
-  each update: watched from where its physics took it until it stays within
-    0.5 units and 0.005 rad for 15 updates; reported only if it rests away
-    from where it started (a settle in place, as every body at a cell
-    load, is none) -> its move row goes out (HostEngine::TakeObjectChanges)
-guest: the host's move -> placed there, bodies held (zero velocity, then
-       keyframed: 78089, 78090, 77866)
+host: PhysicsBodies (Bridges/)
+  funnel's havok move 0x4 on a REFR (or an actor's ragdoll) -> awake
+  each update: its bodies' frames to the guests (HostPhysics); once none is awake (the island's mark), it rests:
+    the bodies' rests (NotifyBodyRests) and, away from where its physics took it (a settle in place, as every body
+    at a cell load, is none), its move row (HostEngine::TakeObjectChanges)
+guest: the host's frames hold it keyframed and move it; the rest and the move row put it there (zero velocity,
+       keyframed: 78089, 78090, 77866), then simulated again, asleep (78182, 60850), for its player to push
 ```
 
 A physics move counts as a move in a reference's record (`ReferenceStates::RecordedRows`): a save keeps its
-position either way. A guest's own push is not sent (decided 2026-10-21): what its player knocks over stays
-where it fell on that guest until its cell loads again, when the cell-state answer puts it at the host's
-(the guest names it as changed). Guest proposals were built and removed the same day: live physics replaces
-them (a push as an impulse to the host), and a held object could not be pushed on the guest anyway. Live
-physics also replaces this rest detection (the stream's last frame is the rest).
+position either way. Before live physics (2026-10-21) each game simulated the flight itself and the host's rest was
+found by watching positions (`PhysicsRests`: within 0.5 units for 15 updates); the island's mark replaced that. A
+guest's own push goes to the host as its impulse since 2026-10-24 (physics sync's step 5).
 
 Excluded: what is already synced live (actor positions, actor values, equipment), actors (`ACHR`), and the
 clock's globals (`HostClock`: hour, date, days passed).

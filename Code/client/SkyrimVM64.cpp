@@ -1,3 +1,4 @@
+#include <BSCore/LockOrder.h>
 #include <HookSwitch.h>
 #include "Plugin.h"
 #include "CrashHandler.h"
@@ -78,6 +79,9 @@ static Hooks::Initializer s_mainHooks(
         const HookGate cGate(__FILE__);
         HOOK_ID(53926, &VMUpdate, HookVMUpdate);
         HOOK_ID(36564, &MainLoop, HookMainLoop);
+        // Every main thread stack runs through them: the engine's own lock orders there are not ours.
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookMainLoop), 0x180);
+        LockOrder::IgnoreFrames(reinterpret_cast<const void*>(&HookVMUpdate), 0x80);
         HOOK_ID(40412, &VMDestructor, HookVMDestructor);
     });
 

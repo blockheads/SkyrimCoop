@@ -1,8 +1,7 @@
 #include <Bridges/GuestEngine.h>
 
 #include <Bridges/ContainerItems.h>
-#include <Havok/bhkCollision.h>
-#include <NetImmerse/NiNode.h>
+#include <Games/Skyrim/PlayerHands.h>
 #include <AiStateEvents.h>
 #include <EffectEvents.h>
 #include <FactionEvents.h>
@@ -152,8 +151,10 @@ void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcep
 } // namespace
 
 GuestEngine::GuestEngine() noexcept
+    : m_moving(false)
 {
     ContainerEvents::Start();
+    PlayerHands::Watch(true);
     AiStateEvents::Start();
     EffectEvents::Start();
     PlayerEvents::Start();
@@ -172,6 +173,7 @@ GuestEngine::~GuestEngine() noexcept
             pMade->SetDelete(true);
         }
     ContainerEvents::Stop();
+    PlayerHands::Watch(false);
     AiStateEvents::Stop();
     EffectEvents::Stop();
     PlayerEvents::Stop();
@@ -376,16 +378,6 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     }
     default: return ReferenceStates::Apply(*pObject, acChange);
     }
-}
-
-bool GuestEngine::PlaceAtHostRest(TESObjectREFR& aObject, const ObjectChange& acMove) noexcept
-{
-    if (!ReferenceStates::Apply(aObject, acMove))
-        return false;
-    // This game's own flight of it ends there, and stays: its physics no longer moves it.
-    if (NiNode* p3D = aObject.GetNiNode())
-        HoldBodies(*p3D);
-    return true;
 }
 
 std::vector<uint32_t> GuestEngine::AttachedCells() const noexcept

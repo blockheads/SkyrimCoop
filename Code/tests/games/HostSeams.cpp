@@ -100,6 +100,32 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.SetItems = [&engine](const GameId& acObject, const GameId& acItem, uint32_t aCount) {
         engine.SetItems(FormIdOf(acObject), FormIdOf(acItem), static_cast<int32_t>(aCount));
     };
+    // An actor's ragdoll goes by its session id, as HostEngine::TakeBodies keys it.
+    game.TakeBodies = [&engine, this] {
+        HostBodies bodies = engine.TakeBodies(m_pNetwork->GetTick());
+        const auto cSession = [this](BodyKey& aKey) {
+            if (!aKey.Actor)
+                return;
+            for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
+                if (m_world.get<FormIdComponent>(cEntity).Id == aKey.Actor)
+                    aKey.Actor = m_world.get<LocalComponent>(cEntity).Id;
+        };
+        for (auto& frame : bodies.Awake)
+            cSession(frame.Key);
+        for (auto& rest : bodies.Rested)
+            cSession(rest.Key);
+        return bodies;
+    };
+    game.PushBody = [&engine](const BodyPush& acPush) { return engine.Push(acPush); };
+    game.DriveBody = [&engine](const BodyFrame& acFrame) { return engine.Drive(acFrame); };
+    game.FreeBody = [&engine](const BodyFrame& acFrame) { return engine.Free(acFrame); };
+    game.ReadBodies = [&engine](const std::vector<BodyKey>& acKeys) {
+        std::vector<BodyPose> poses;
+        for (const BodyKey& cKey : acKeys)
+            if (const auto it = engine.Bodies.find(cKey); it != engine.Bodies.end())
+                poses.push_back({cKey, it->second.Flight.Body.Position, it->second.Flight.Body.Rotation});
+        return poses;
+    };
     game.ReadDifficulty = [&engine] { return engine.GetDifficulty(); };
     game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
     game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };
@@ -164,7 +190,7 @@ void HostService::OnUpdate(const UpdateEvent&) noexcept
 
 // Never made here (the fake engine is the host's reads), but HostService's members name them.
 HostEngine::~HostEngine() noexcept = default;
-PhysicsRests::~PhysicsRests() noexcept = default;
+PhysicsBodies::~PhysicsBodies() noexcept = default;
 // AnimationSystem and FaceGenSystem as their own (their files read the engine too): the components only.
 void AnimationSystem::Setup(World& aWorld, entt::entity aEntity) noexcept
 {
