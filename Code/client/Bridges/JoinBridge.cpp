@@ -178,10 +178,16 @@ PlayerRecord JoinBridge::ReadPlayer() const noexcept
         }
     }
     record.PerkPoints = pPlayer->perkPoints;
+    // Once each (the engine's list can hold a perk twice, from earlier records added on top).
     for (const PlayerCharacter::PerkRank* cpPerk : pPlayer->perkRanks)
         if (cpPerk && cpPerk->perk)
             if (const auto cId = ToSession(cpPerk->perk->formID))
-                record.Perks.push_back({*cId, cpPerk->rank});
+            {
+                if (auto it = std::ranges::find(record.Perks, *cId, &PlayerRecord::Perk::Id); it != record.Perks.end())
+                    it->Rank = std::max(it->Rank, cpPerk->rank);
+                else
+                    record.Perks.push_back({*cId, cpPerk->rank});
+            }
     for (uint32_t i = 0; i < pPlayer->addedSpells.size; ++i)
         if (const SpellItem* cpSpell = pPlayer->addedSpells.Get(i))
             if (const auto cId = ToSession(cpSpell->formID))
@@ -254,8 +260,15 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
         }
     for (BGSPerk* pPerk : drop)
         pPlayer->RemovePerk(pPerk);
+    // One the player kept at that rank is not added again (AddPerk appends another entry, as the record reads it).
+    const auto cHas = [pPlayer](const BGSPerk* apPerk, uint8_t aRank) {
+        for (const PlayerCharacter::PerkRank* cpPerk : pPlayer->perkRanks)
+            if (cpPerk && cpPerk->perk == apPerk && cpPerk->rank >= aRank)
+                return true;
+        return false;
+    };
     for (const PlayerRecord::Perk& cPerk : acRecord.Perks)
-        if (BGSPerk* pPerk = FormOf<BGSPerk>(cPerk.Id))
+        if (BGSPerk* pPerk = FormOf<BGSPerk>(cPerk.Id); pPerk && !cHas(pPerk, cPerk.Rank))
             pPlayer->AddPerk(pPerk, cPerk.Rank);
 
     std::vector<SpellItem*> unlearn;

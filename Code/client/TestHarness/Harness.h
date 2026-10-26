@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnimationTrace.h"
+#include "BodyTrace.h"
 #include "CommandServer.h"
 #include "ControlFiles.h"
 #include "EngineEvents.h"
@@ -19,6 +20,7 @@ struct Harness
     PlayerInput Input;
     CommandServer Commands;
     AnimationTrace Trace;
+    BodyTrace Bodies;
     EngineEvents Events;
     LogTrail Logs;
     InputTrace Inputs;

@@ -16,6 +16,10 @@ namespace LockOrder
 using TDescribeLock = bool (*)(const void* apLock, char* apBuffer, size_t aSize);
 void SetLockDescriber(TDescribeLock apDescribe) noexcept;
 
+// A hook of ours that only passes a frame's engine work through (the main loop's): its frame on a stack does not make
+// a report ours. aBytes: the function's code size, or more.
+void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept;
+
 // Every thread's held locks with the code that took each one (watchdog thread, read-only peeks).
 void LogHeldLocks() noexcept;
 

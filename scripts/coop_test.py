@@ -81,16 +81,9 @@ GAME = Path(os.environ.get("SKYRIM_GAME_DIR",
 PROTON = Path(os.environ.get("SKYRIM_PROTON_DIR", STEAM_LIBRARY / "Proton 10.0"))
 RUNTIME = Path(os.environ.get("SKYRIM_RUNTIME_DIR", STEAM_LIBRARY / "SteamLinuxRuntime_sniper"))
 STEAM = Path(os.environ.get("STEAM_COMPAT_CLIENT_INSTALL_PATH", Path.home() / ".steam/steam"))
-# The client game runs as another OS user, whose Steam is logged into a second account: Steam invites need two
-# (docs/design/join-flow.md, "Steam"). Default: the test user `coop2` when it exists; "" runs both as this user.
-def user_exists(name):
-    try:
-        return bool(pwd.getpwnam(name))
-    except KeyError:
-        return False
-
-
-CLIENT_USER = os.environ.get("COOP_CLIENT_USER", "coop2" if user_exists("coop2") else "")
+# The client game runs as this user, on this user's Steam account; only Steam's invites and lobbies need it to run as
+# another OS user with a second account (`COOP_CLIENT_USER=coop2`; docs/design/testing.md, "Two Steam accounts").
+CLIENT_USER = os.environ.get("COOP_CLIENT_USER", "")
 TEST_HOME = (ROOT / "build/coop-test").resolve()  # one name for the games, from any checkout or worktree
 PREFIX = TEST_HOME / "prefix-host"
 DLL = Path(os.environ.get("COOP_DLL", ROOT / "build/windows/x64/dev/SkyrimTogetherClient.dll"))
@@ -1042,6 +1035,7 @@ def command_duo(args):
 IRON_SWORD = 0x00012EB7
 FLAMES = 0x00012FCD    # concentration spell: synced through spell cast + interrupt messages
 FIREBOLT = 0x00012FD0  # fire-and-forget spell
+FIREBALL = 0x0001C789  # fire-and-forget, its explosion pushes physics objects
 RIGHT_HAND = 1
 LYDIA = "000A2C8E"
 WOLF = "00023ABE"
@@ -1235,6 +1229,24 @@ def face(instance, target):
     player_command(instance, {"cmd": "face", "target": target})
 
 
+def clear_way(instance, bearings, distance):
+    """The first of `bearings` (degrees, 0 north) the player can walk `distance` along: the harness's `surroundings`
+    rays at knee and chest height clear the nearest way and either side of it."""
+    select_instance(instance)
+    response = rpc({"cmd": "surroundings", "radius": distance}) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] no surroundings: {response.get('error', 'no answer')}")
+    knee, chest = response["rings"]["knee"], response["rings"]["chest"]
+    clear = [not k["hit"] and not c["hit"] for k, c in zip(knee, chest)]
+    step = 360 / len(knee)
+    for bearing in bearings:
+        i = round((bearing % 360) / step) % len(knee)
+        if clear[i - 1] and clear[i] and clear[(i + 1) % len(clear)]:
+            return bearing
+    blocked = "; ".join(f"{k['bearing']}: {k['distance']:.0f}" for k in knee if k["hit"])
+    raise TestFailure(f"[{instance or 'host'}] none of {bearings} clear for {distance} units (knee hits by bearing: {blocked})")
+
+
 # hkpCharacterStateType of the player's character controller.
 ON_GROUND = 0
 
@@ -1245,8 +1257,10 @@ def game_frame(instance):
 
 
 def place_before(instance, target, gap, bearing=None):
-    """The player stands `gap` units from `target`, facing it (yaw and pitch, in the same frame).
-    Returns once it stands on the ground and has landed: the move leaves its character controller in
+    """The player stands `gap` units from `target`, facing it (yaw and pitch, in the same frame), on a spot the plugin
+    checked with rays: a floor under it, headroom, nothing between it and the target. A blocked bearing gives way to
+    the nearest clear one (logged); none clear fails, naming what blocked each. Returns once it stands on the ground
+    and has landed: the move leaves its character controller in
     the air for a moment, and a draw or a cast started then, or during the landing animation the
     graph plays after the controller is down (bInJumpState), goes wrong. The controller notices the
     move a frame later, so the ground is checked from a few frames on."""
@@ -1254,7 +1268,9 @@ def place_before(instance, target, gap, bearing=None):
     request = {"cmd": "place", "target": target, "distance": gap}
     if bearing is not None:
         request["bearing"] = bearing  # its side of the target (0 north, 90 east): two players apart
-    player_command(instance, request)
+    placed = player_command(instance, request)
+    if bearing is not None and abs((placed.get("bearing", bearing) - bearing + 180) % 360 - 180) > 1:
+        log(f"[{instance or 'host'}] bearing {bearing:.0f} from {target:X} is blocked: stands at {placed['bearing']:.0f} instead")
     wait_for(f"[{instance or 'host'}] stands on the ground", lambda: game_frame(instance) >= moved + 3
              and local_player(instance).get("character_state") == ON_GROUND
              and not graph_bools(instance, "bInJumpState")["bInJumpState"], 5)
@@ -2469,13 +2485,18 @@ def scenario_guest_joins_from_main_menu_as_kept_character():
     key = player_record("client")["key"]
     console_on("client", "player.setlevel 11")
     console_on("client", "player.addperk BABE4")
-    wait_for("[host] its record of the client is at level 11",
-             lambda: (kept := kept_records("").get(key)) and kept["level"] == 11, 20)
+    # The guest sends its record a few seconds after a change: the level's can go before the perk is in.
+    wait_for("[host] its record of the client is at level 11, with Armsman",
+             lambda: (kept := kept_records("").get(key)) and kept["level"] == 11 and ARMSMAN in kept["perks"], 20)
     restart_client_at_main_menu()
     joins_with_world("from the main menu")
     record = player_record("client")
     if record["level"] != 11 or ARMSMAN not in record["perks"] or record["key"] != key:
         raise TestFailure(f"[client] plays another character than the host's save keeps: {record}")
+    # The load replays the cell's animated objects' last animation (QASmoke's cover plates): they end where the host's are.
+    def poses_agree():
+        return not any("pose" in fields for fields in world_differences(world_state(""), world_state("client")).values())
+    wait_for("[client] the loaded cell's animated objects end as the host's", poses_agree, 10)
 
 
 # The main menu's list (StartMenu.as in reference/plugins/skyrimui): entries carry an index, NEW's is 1; its state
@@ -6345,7 +6366,7 @@ BEAST_FORM, WEREWOLF_CHANGE_EFFECT, WEREWOLF_BEAST_RACE, PLAYER_WEREWOLF_QUEST =
 WORLD_FIELDS = ("base", "cell", "flags", "position", "rotation", "scale", "has_3d", "hidden", "position_3d",
                 "lock", "open_state", "owner", "items", "changes", "pose", "collision", "graph", "effects")
 WORLD_TOLERANCES = {"position": 1.0, "position_3d": 1.0, "rotation": 0.01, "scale": 0.001}
-POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE = 1.0, 0.01, 2.0
+POSE_TOLERANCE, ROTATE_TOLERANCE, BODY_TOLERANCE, BODY_TURN_TOLERANCE = 1.0, 0.01, 2.0, 0.02
 CREATED_ID = 0xFF000000  # references a game made itself, numbered per game
 FORM_DISABLED = 0x800
 FORM_DELETED = 0x20
@@ -6416,14 +6437,22 @@ def pose_difference(a, b, a_again=(), b_again=()):
     return "; ".join(moved[:6]) + (f" (+{len(moved) - 6} more)" if len(moved) > 6 else "")
 
 
+def simulated(ref):
+    """A physics object both games simulate: its first body dynamic (not keyframed by an animation, not fixed)."""
+    return (first_body(ref) or {}).get("motion") in DYNAMIC_MOTIONS
+
+
 def collision_difference(a, b):
-    """Two lists of physics bodies ({node, in_world, position}) that differ, in order."""
+    """Two lists of physics bodies ({node, in_world, position, rotation}) that differ, in order; a simulated body's
+    turn too (an animated one turns on each game's clock)."""
     a, b = a or [], b or []
     if len(a) != len(b):
         return f"{len(a)} bodies vs {len(b)}"
+    def turned(x, y):
+        return x["motion"] in DYNAMIC_MOTIONS and y["motion"] in DYNAMIC_MOTIONS and not same_turn(x["rotation"], y["rotation"], BODY_TURN_TOLERANCE)
     different = [f"{x['node']}: {'in' if x['in_world'] else 'out of'} world at {show_value('position', x['position'])} vs "
-                 f"{'in' if y['in_world'] else 'out of'} at {show_value('position', y['position'])}"
-                 for x, y in zip(a, b) if x["in_world"] != y["in_world"] or not near(x["position"], y["position"], BODY_TOLERANCE)]
+                 f"{'in' if y['in_world'] else 'out of'} at {show_value('position', y['position'])}" + (", turned differently" if turned(x, y) else "")
+                 for x, y in zip(a, b) if x["in_world"] != y["in_world"] or not near(x["position"], y["position"], BODY_TOLERANCE) or turned(x, y)]
     return "; ".join(different[:4])
 
 
@@ -6445,6 +6474,9 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
         if field == "collision":
             if text := collision_difference(a, b):
                 differences[field] = text
+            continue
+        # A physics object's turn is its bodies' (collision, as quaternions): its angles flip near a pitch of 90°.
+        if field == "rotation" and simulated(host) and simulated(guest):
             continue
         if field == "lock":  # no lock reads as unlocked at level 0, as the lock row does
             a, b = (v or {"level": 0, "locked": False} for v in (a, b))
@@ -6757,6 +6789,420 @@ def created_reaches_guest(refs, base):
                 console_on(game, f"{ref:X}.markfordelete")
 
 
+# hkpMotion::MotionType of a physics body (world_state's collision "motion").
+DYNAMIC_MOTIONS = {1, 2, 3, 6}  # dynamic, sphere, box and thin box inertia
+KEYFRAMED_MOTION = 4
+
+
+def first_body(ref):
+    """A reference's first physics body as world_state reads it, or None."""
+    bodies = (ref or {}).get("collision") or []
+    return bodies[0] if bodies else None
+
+
+def body_of(instance, ref):
+    return first_body(world_state(instance, [ref]).get(ref))
+
+
+def same_turn(a, b, tolerance=0.01):
+    """Two quaternions (x, y, z, w) turn alike (q and -q are one rotation)."""
+    return abs(sum(x * y for x, y in zip(a, b))) >= math.cos(tolerance / 2)
+
+
+def resting_clutter_on_both(refs, guest_refs):
+    """A filter for clutter both games have, one body, in the physics world, at rest on the host."""
+    def resting(ref):
+        host, guest = first_body(ref), first_body(guest_refs.get(ref["id"]))
+        return (host and guest and len(ref["collision"]) == 1 and host["in_world"] and guest["in_world"]
+                and host["motion"] in DYNAMIC_MOTIONS and not host["awake"])
+    return resting
+
+
+def guest_follows_and_lies(target, start):
+    """After the host's `target` moved off `start`: the client's 3D follows it held keyframed, and it lies where the
+    host's lies."""
+    seen = []
+    def follows():
+        # What the player sees: its 3D with its body (a keyframed body leaves its node behind, physics-sync.md).
+        ref = world_state("client", [target]).get(target)
+        body = first_body(ref)
+        seen.append(f"motion {body['motion']}, 3D {math.dist(ref['position_3d'], start):.0f} off its start and "
+                    f"{math.dist(ref['position_3d'], body['position']):.1f} from its body")
+        return (body["motion"] == KEYFRAMED_MOTION and not near(ref["position_3d"], start, 5)
+                and near(ref["position_3d"], body["position"], 3))
+    try:
+        wait_for(f"[client] {target:X} and its 3D follow the host's, held keyframed", follows, 5)
+    except TestFailure as failure:
+        changes = [s for i, s in enumerate(seen) if i == 0 or s != seen[i - 1]]
+        raise TestFailure(f"{failure}: the client's was " + "; then ".join(changes[-6:])) from None
+    wait_for(f"[host] {target:X} comes to rest", lambda: not body_of("", target)["awake"], 30)
+    rest = body_of("", target)
+    def lies_as_host():
+        body = body_of("client", target)
+        return near(body["position"], rest["position"], 1.0) and same_turn(body["rotation"], rest["rotation"])
+    wait_for(f"[client] {target:X} lies where the host's does, at {show_value('position', rest['position'])}", lies_as_host, 5)
+
+
+def guest_own_lies_as_host(target, start, how, moved=5):
+    """After the client's player moved `target` (`how`): the client's moved `moved` units off `start` by its own
+    physics (the host's frames of it wait), and once the host's rests it lies where the host's lies, simulated again."""
+    seen = []
+    def own():
+        body = body_of("client", target)
+        seen.append(f"motion {body['motion']}, {math.dist(body['position'], start):.0f} from where it was")
+        return body["motion"] in DYNAMIC_MOTIONS and not near(body["position"], start, moved)
+    try:
+        wait_for(f"[client] {target:X} {how} by its own physics", own, 5)
+    except TestFailure as failure:
+        changes = [s for i, s in enumerate(seen) if i == 0 or s != seen[i - 1]]
+        raise TestFailure(f"{failure}: the client's was " + "; then ".join(changes[-6:])) from None
+    wait_for(f"[host] {target:X} comes to rest", lambda: not body_of("", target)["awake"], 30)
+    rest = body_of("", target)
+    def lies_as_host():
+        body = body_of("client", target)
+        return near(body["position"], rest["position"], 1.0) and same_turn(body["rotation"], rest["rotation"])
+    wait_for(f"[client] {target:X} lies where the host's does, at {show_value('position', rest['position'])}", lies_as_host, 5)
+    wait_for(f"[client] {target:X} is simulated again", lambda: body_of("client", target)["motion"] in DYNAMIC_MOTIONS, 2)
+
+
+def where_now(ids):
+    """The host's references' positions and rotations, to put back after (put_back)."""
+    return {i: (r["position"], r["rotation"]) for i, r in world_state("", list(ids)).items()}
+
+
+def put_back(starts):
+    """The host puts each physics object back where `starts` had it (the console's SetAngle, then SetPos, which
+    updates its 3D; both games get the move), so the next scenario finds the clutter where the cell has it."""
+    for ref, (position, rotation) in starts.items():
+        for axis, value in zip("xyz", rotation):
+            console_on("", f"{ref:X}.setangle {axis} {math.degrees(value):.2f}")
+        for axis, value in zip("xyz", position):
+            console_on("", f"{ref:X}.setpos {axis} {value:.2f}")
+    def back():
+        now = world_state("", list(starts))
+        return all(near(now[i]["position"], p, 3) and not first_body(now[i])["awake"] for i, (p, _) in starts.items() if i in now)
+    wait_for(f"[host] {len(starts)} objects back where they were", back, 30)
+    def client_too():
+        host, guest = world_state("", list(starts)), world_state("client", list(starts))
+        return all(i in guest and near(first_body(guest[i])["position"], first_body(host[i])["position"], 1.0)
+                   and same_turn(first_body(guest[i])["rotation"], first_body(host[i])["rotation"], BODY_TURN_TOLERANCE) for i in host)
+    wait_for(f"[client] shows them back", client_too, 5)
+
+
+def all_rest(ids):
+    """Every one of `ids` the host has comes to rest: a slow roll on the floor can take half a minute, and the guest
+    is 100 ms behind until its rest arrives, so the world is compared only after."""
+    wait_for(f"[host] all {len(ids)} rest", lambda: not any(
+        first_body(r)["awake"] for r in world_state("", list(ids)).values()), 60)
+
+
+class FlightTrace:
+    """Records the host's and the client's physics of some references each frame (the harness's body_trace), and
+    reports how the client's playback follows the host's flight: each client frame's 3D against the host's 3D
+    GuestPhysics::kDelayMs earlier (both on one machine's wall clock), the worst and typical gap, its biggest
+    frame-to-frame jump beyond the host's, and the snap at its rest. Leaves the samples in
+    build/coop-test/traces/<time>-<name>/bodies.json.
+
+        with FlightTrace("fireball", refs) as trace:
+            ...
+        log(trace.report(target))"""
+
+    DELAY = 0.1  # GuestPhysics::kDelayMs
+
+    def __init__(self, name, refs):
+        self.name, self.refs = name, sorted(refs)
+        self.samples = {"": [], "client": []}
+
+    def __enter__(self):
+        for game in self.samples:
+            select_instance(game)
+            if not (rpc({"cmd": "body_trace", "refs": self.refs}) or {}).get("ok"):
+                raise TestFailure(f"[{game or 'host'}] the body trace did not start")
+        return self
+
+    def take(self):
+        for game, samples in self.samples.items():
+            select_instance(game)
+            samples.extend((rpc({"cmd": "body_trace"}, timeout=10) or {}).get("entries", []))
+
+    def __exit__(self, *exc):
+        for game, samples in self.samples.items():
+            select_instance(game)
+            samples.extend((rpc({"cmd": "body_trace", "stop": True}, timeout=10) or {}).get("entries", []))
+        folder = TRACES / f"{time.strftime('%Y%m%d-%H%M%S')}-{self.name}"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "bodies.json").write_text(json.dumps(self.samples))
+        self.folder = folder
+
+    def path(self, game, ref):
+        """[(seconds, 3D position, first body's motion, awake)] of that game's reference, in order."""
+        return [(e["t"] / 1e6, e["position_3d"], (e["bodies"] or [{}])[0].get("motion"), (e["bodies"] or [{}])[0].get("awake"))
+                for e in self.samples[game] if e["id"] == ref]
+
+    @staticmethod
+    def at(path, when):
+        """The path's position at a time, between its samples."""
+        for (t0, p0, *_), (t1, p1, *_) in zip(path, path[1:]):
+            if t0 <= when <= t1:
+                f = (when - t0) / (t1 - t0) if t1 > t0 else 0.0
+                return [a + (b - a) * f for a, b in zip(p0, p1)]
+        return None
+
+    def measure(self, ref):
+        """How the client's 3D followed the host's flight of that reference (see the class), or None without one."""
+        host, guest = self.path("", ref), self.path("client", ref)
+        moving = [t for (t, p, *_), (_, q, *_) in zip(host, host[1:]) if math.dist(p, q) > 0.05]
+        if not moving or not guest:
+            return None
+        start, end = moving[0], moving[-1]
+        gaps, jumps, previous = [], [], None
+        for t, p, *_ in guest:
+            shown = self.at(host, t - self.DELAY) if start + self.DELAY <= t <= end + self.DELAY else None
+            if shown is None:
+                continue
+            gaps.append((math.dist(p, shown), t - start))
+            if previous:
+                jumps.append((abs(math.dist(p, previous[0]) - math.dist(shown, previous[1])), t - start))
+            previous = (p, shown)
+        if not gaps:
+            return None
+        # A flicker: one frame's 3D away from both its neighbours, which agree (it went somewhere and came back).
+        flickers = [(t1 - start, math.dist(p0, p1)) for (_, p0, *_), (t1, p1, *_), (_, p2, *_) in zip(guest, guest[1:], guest[2:])
+                    if math.dist(p0, p1) > 5 and math.dist(p1, p2) > 5 and math.dist(p0, p2) < 0.5 * math.dist(p0, p1)]
+        before = [p for t, p, *_ in guest if t <= end + self.DELAY]
+        return {"seconds": end - start, "distance": math.dist(host[0][1], host[-1][1]), "frames": len(gaps),
+                "typical": sorted(g for g, _ in gaps)[len(gaps) // 2], "worst": max(gaps), "jump": max(jumps, default=(0.0, 0.0)),
+                "snap": math.dist(before[-1], host[-1][1]) if before else float("nan"), "flickers": flickers}
+
+    def report(self, ref):
+        m = self.measure(ref)
+        if not m:
+            return f"{ref:X}: no flight traced"
+        flickers = f" {[f'{a:.2f} s: {d:.0f}' for a, d in m['flickers'][:5]]}" if m["flickers"] else ""
+        return (f"{ref:X} flew {m['seconds']:.2f} s ({m['distance']:.0f} units): the client's 3D is {m['typical']:.1f} units off "
+                f"the host's {self.DELAY * 1000:.0f} ms earlier typically, {m['worst'][0]:.1f} at worst ({m['worst'][1]:.2f} s in), "
+                f"its biggest jump {m['jump'][0]:.1f} beyond the host's ({m['jump'][1]:.2f} s in), {m['snap']:.1f} from the "
+                f"host's rest just before its own; {len(m['flickers'])} flickers{flickers} ({m['frames']} frames; {self.folder.name})")
+
+    # The client's playback never jumps further than this in a frame beyond the host's flight (ours did 10-12 units,
+    # keyframing over a frame's time: docs/re/systems/physics.md), and never flickers.
+    MAX_JUMP = 6.0
+
+    def check(self, ref):
+        m = self.measure(ref)
+        if m and (m["flickers"] or m["jump"][0] > self.MAX_JUMP):
+            raise TestFailure(f"[client] its playback of {self.report(ref)}")
+
+
+def knock_clutter_with_fireball(caster):
+    """The caster's player knocks clutter with a fireball; the object the blast throws furthest follows on the client
+    and lies as the host's. A client's cast reaches the host's world through its copy's replayed cast."""
+    refs, guest_refs = world_state(""), world_state("client")
+    resting = resting_clutter_on_both(refs, guest_refs)
+    clutter = {i: first_body(refs[i])["position"] for i in refs
+               if refs[i]["type"] == refs[pick_reference(refs, "MISC", 0, resting)]["type"] and resting(refs[i])}
+    def around(spot):
+        return {i: p for i, p in clutter.items() if math.dist(p, spot) < 200}
+    # The blast throws whichever of the clutter around the aim it reaches best: aimed at the most of it (a table's,
+    # not one an earlier scenario left alone on the floor).
+    aim = max(sorted(clutter), key=lambda i: len(around(clutter[i])))
+    nearby = around(clutter[aim])
+    starts = where_now(nearby)
+    give_spell(caster, FIREBALL)
+    place_before(caster, aim, 300)
+    trace = FlightTrace(f"fireball-{caster or 'host'}", nearby)
+    try:
+        trace.__enter__()
+        draw(caster)
+        cast_spell(caster, aim, FIREBALL)
+        knocked = {}
+        def flies_off():
+            now = world_state("", list(nearby))
+            moved = {i: math.dist(first_body(now[i])["position"], start) for i, start in nearby.items() if i in now}
+            knocked["target"], distance = max(moved.items(), key=lambda m: m[1])
+            return distance > 5
+        wait_for(f"[host] the {caster or 'host'}'s blast throws one of {len(nearby)} clutter objects around {aim:X}", flies_off, 10)
+        guest_follows_and_lies(knocked["target"], nearby[knocked["target"]])
+        all_rest(nearby)
+    finally:
+        trace.__exit__(None, None, None)
+        sheathe(caster)
+    for ref in sorted(nearby, key=lambda i: i != knocked.get("target")):
+        log("flight: " + trace.report(ref))
+    put_back(starts)
+    for ref in nearby:
+        trace.check(ref)
+
+
+def scenario_physics_push_reaches_guest():
+    """Physics sync (docs/design/physics-sync.md): the host's player knocks clutter with a fireball. The client's
+    object it knocks hardest is held by the host's frames (keyframed, its own physics off), its 3D flies with the
+    host's and lies where the host's lies; everything the blast woke rests before the world is compared."""
+    knock_clutter_with_fireball("")
+
+
+def scenario_guest_cast_moves_host():
+    """Physics sync's step 5 (docs/design/physics-sync.md, "A guest's own actions"): the client's player knocks clutter
+    with a fireball. Its copy's cast is replayed on the host, whose blast throws the host's clutter; the client's
+    follows the host's, held keyframed, and lies where the host's lies."""
+    knock_clutter_with_fireball("client")
+
+
+def stage_on_floor_before(instance, target, ahead=150):
+    """The host puts `target` on the floor `ahead` units in front of that game's player (the console's setpos, a
+    move both games get), away from the other player; returns where it rests once both show it there."""
+    me, other = my_position(instance), other_player_position(instance)
+    away = [me[0] - other[0], me[1] - other[1]]
+    length = math.hypot(*away)
+    away = [away[0] / length, away[1] / length] if length > 1 else [1.0, 0.0]
+    spot = [me[0] + away[0] * ahead, me[1] + away[1] * ahead, me[2] + 20]
+    for axis, value in zip("xyz", spot):
+        console_on("", f"{target:X}.setpos {axis} {value:.0f}")
+    def rests_there():
+        body = body_of("", target)
+        return not body["awake"] and math.dist(body["position"][:2], spot[:2]) < 30
+    wait_for(f"[host] {target:X} rests on the floor at ({spot[0]:.0f}, {spot[1]:.0f})", rests_there, 10)
+    rest = body_of("", target)["position"]
+    wait_for(f"[client] shows {target:X} there", lambda: near(body_of("client", target)["position"], rest, 2), 5)
+    return rest
+
+
+def scenario_guest_bump_moves_host():
+    """Physics sync's step 5 (docs/design/physics-sync.md, "A guest's own actions"): the client's player walks into a
+    ladle on the floor. Its character pushes the client's ladle, and the host pushes its own with the same impulse
+    (copies move by SetPosition and push nothing themselves); the client shows its own push until the host's ladle
+    rests, then lies where the host's lies."""
+    refs, guest_refs = world_state(""), world_state("client")
+    target = pick_reference(refs, "MISC", 0, resting_clutter_on_both(refs, guest_refs))
+    starts = where_now([target])
+    start = stage_on_floor_before("client", target)
+    place_before("client", target, 120)
+    walked_from = my_position("client")
+    seen = {"closest": float("inf")}
+    press("client", "forward")
+    try:
+        def pushed():
+            # How close the client's copy came to it on the host: a miss and a copy that pushes nothing read apart.
+            if (copy := other_player_position("")) is not None:
+                seen["closest"] = min(seen["closest"], math.dist(copy[:2], start[:2]))
+            return not near(body_of("", target)["position"], start, 5)
+        try:
+            wait_for(f"[host] the client's character pushes {target:X}", pushed, 6)
+        except TestFailure:
+            raise TestFailure(f"[host] the client's character does not push {target:X}: the client walked "
+                              f"{math.dist(my_position('client')[:2], walked_from[:2]):.0f} units, its copy came "
+                              f"within {seen['closest']:.0f} of it on the host")
+    finally:
+        release("client", "forward")
+    guest_own_lies_as_host(target, start, "is pushed")
+    put_back(starts)
+
+
+def scenario_guest_throw_lands_on_host():
+    """Physics sync's step 6 (docs/design/physics-sync.md, "A guest's own actions"): the client's player grabs a
+    ladle (Activate held past fZKeyDelay; it stays held after the release), carries it and drops it (Activate again).
+    While it holds it, the host's ladle follows the client's hold (keyframed); dropped, it falls on the host from
+    where the client let go, and the client's own fall shows until the host's ladle rests, then lies as the host's."""
+    refs, guest_refs = world_state(""), world_state("client")
+    target = pick_reference(refs, "MISC", 0, resting_clutter_on_both(refs, guest_refs))
+    start = first_body(refs[target])["position"]
+    starts = where_now([target])
+    place_before("client", target, 90)
+    face("client", target)
+    # A refused grab turns the release into an activation (ActivateHandler::ProcessButton 42420), which would pick
+    # the ladle up: the player looks away from it first.
+    press("client", "activate")
+    try:
+        wait_for(f"[client] grabs {target:X}", lambda: local_player("client").get("grabbed") == target, 3)
+    except TestFailure:
+        console_on("client", "player.setangle x -80")
+        raise
+    finally:
+        release("client", "activate")
+    try:
+        # Carried off facing it (a turn drops it) where the floor is clear: back or to a side.
+        me, at = my_position("client"), first_body(world_state("client", [target])[target])["position"]
+        facing = math.degrees(math.atan2(at[0] - me[0], at[1] - me[1]))
+        ways = {facing + 180: "back", facing - 90: "strafe_left", facing + 90: "strafe_right"}
+        way = ways[clear_way("client", list(ways), 250)]
+        walked_from = my_position("client")
+        press("client", way)
+        try:
+            wait_for(f"[client] carries it off ({way})", lambda: math.dist(my_position("client")[:2], walked_from[:2]) > 100, 6)
+        except TestFailure as failure:
+            raise TestFailure(f"{failure}: walked {math.dist(my_position('client')[:2], walked_from[:2]):.0f} units, "
+                              f"{'still holding it' if local_player('client').get('grabbed') == target else 'no longer holding it'}") from None
+        finally:
+            release("client", way)
+        def follows_hold():
+            host, guest = body_of("", target), body_of("client", target)
+            return (host["motion"] == KEYFRAMED_MOTION and not near(host["position"], start, 20)
+                    and near(host["position"], guest["position"], 10))
+        wait_for(f"[host] {target:X} follows the client's hold, keyframed", follows_hold, 5)
+        held_at = body_of("client", target)["position"]
+    finally:
+        if local_player("client").get("grabbed"):
+            tap("client", "activate")
+    wait_for(f"[client] drops {target:X}", lambda: not local_player("client").get("grabbed"), 3)
+    wait_for(f"[host] {target:X} is simulated again", lambda: body_of("", target)["motion"] in DYNAMIC_MOTIONS, 3)
+    # Carried looking down at it, it hangs just off the floor: its drop is its own physics, however short.
+    guest_own_lies_as_host(target, held_at, "falls", moved=0)
+    put_back(starts)
+
+
+def ragdoll_of(instance, actor):
+    """The actor's ragdoll bodies in order (harness `ragdoll`): motion, awake, position, rotation, velocity."""
+    select_instance(instance)
+    response = rpc({"cmd": "ragdoll", "actor": actor}) or {}
+    if not response.get("ok"):
+        raise TestFailure(f"[{instance or 'host'}] no ragdoll for {actor:X}: {response.get('error', 'no answer')}")
+    return response["bodies"]
+
+
+def ragdoll_apart(host, guest):
+    """The bones where two ragdolls differ, as text (empty: alike within 2 units and 0.05 rad)."""
+    if len(host) != len(guest):
+        return f"{len(host)} bones vs {len(guest)}"
+    apart = [f"bone {i} at {show_value('position', a['position'])} vs {show_value('position', b['position'])}"
+             for i, (a, b) in enumerate(zip(host, guest))
+             if not near(a["position"], b["position"], 2.0) or not same_turn(a["rotation"], b["rotation"], 0.05)]
+    return "; ".join(apart[:4]) + (f" (+{len(apart) - 4} more)" if len(apart) > 4 else "")
+
+
+def scenario_ragdoll_lies_as_host():
+    """Physics sync's ragdolls (docs/design/physics-sync.md): the host's player kills a wolf with fireballs. Its copy
+    dies by the host's death action, then its ragdoll's bodies are the host's frames, and the body lies where the
+    host's lies, bone by bone."""
+    npc, _, copy = spawn_host_npc(WOLF, restrained=True)
+    give_spell("", FIREBALL)
+    place_before("", npc, 400)
+    try:
+        draw("")
+        for _ in range(4):
+            if host_npc_state(npc).get("dead"):
+                break
+            cast_spell("", npc, FIREBALL)
+            with contextlib.suppress(TestFailure):
+                wait_for("[host] the wolf dies", lambda: host_npc_state(npc).get("dead"), 3)
+        wait_for("[host] the wolf is dead", lambda: host_npc_state(npc).get("dead"), 1)
+        wait_on("client", f"its copy {copy:08X} dies", lambda actors: actors.get(str(copy), {}).get("dead"))
+        def host_rests():
+            bodies = ragdoll_of("", npc)
+            return any(b["motion"] in DYNAMIC_MOTIONS for b in bodies) and not any(b["awake"] for b in bodies)
+        wait_for("[host] the wolf's ragdoll comes to rest", host_rests, 30)
+        rest = ragdoll_of("", npc)
+        apart = {}
+        def lies_as_host():
+            apart["now"] = ragdoll_apart(rest, ragdoll_of("client", copy))
+            return not apart["now"]
+        try:
+            wait_for(f"[client] the copy's body lies as the host's ({len(rest)} bones)", lies_as_host, 10)
+        except TestFailure:
+            raise TestFailure(f"[client] the copy's body does not lie as the host's: {apart.get('now')}")
+    finally:
+        sheathe("")
+
+
 def scenario_world_changes_reach_guest():
     """World-state sync's check: every kind of change to a reference the host can make, one at a time, each put
     back after. Reports every kind the client's world does not follow, then what still differs in the whole
@@ -6818,17 +7264,29 @@ def scenario_late_join_gets_cell_state():
 
 def scenario_guest_opens_hosts_roll():
     """A container's leveled entries are the host's roll (world sync step 2b): in the inn, the client opens the
-    container with the most leveled entries as its player would (an open is what rolls them), and it holds what the
-    host's does, which the host's game rolled when the client's inn loaded."""
+    container with the most leveled entries that a player can reach (the merchant's stock chest under the floor is
+    not) as its player would (an open is what rolls them), and it holds what the host's does, which the host's game
+    rolled when the client's inn loaded."""
     try:
         both_go(INN)
         refs = world_state("")
         found = [r for r in refs.values() if r.get("leveled") and r["has_3d"] and not r["flags"] & FORM_DISABLED and r.get("items")]
         if not found:
             raise TestFailure("[host] no container in the inn holds a leveled roll: the test shows nothing")
-        chest = max(found, key=lambda r: (r["leveled"], -r["id"]))["id"]
+        chest, unreachable = None, []
+        for candidate in sorted(found, key=lambda r: (-r["leveled"], r["id"])):
+            try:
+                place_before("client", candidate["id"], 100)
+            except TestFailure as error:
+                unreachable.append(f"{candidate['id']:X} ({error})")
+                continue
+            chest = candidate["id"]
+            break
+        if chest is None:
+            raise TestFailure("[client] no container with a leveled roll it can stand before: " + "; ".join(unreachable))
+        if unreachable:
+            log(f"[client] not reachable: {', '.join(u.split(' ')[0] for u in unreachable)}")
         host = container_items("", chest)
-        place_before("client", chest, 100)
         activate_on("client", chest)
         wait_for(f"[client] {chest:X}'s menu shows its lists",
                  lambda: menu_var("client", "ContainerMenu", ITEM_LISTS + ".currentState") in LISTS_SHOWN, 5)
@@ -7877,6 +8335,11 @@ SCENARIOS = {
     "weather-follows-host": scenario_weather_follows_host,
     "form-state-round-trips": scenario_form_state_round_trips,
     "world-changes-reach-guest": scenario_world_changes_reach_guest,
+    "physics-push-reaches-guest": scenario_physics_push_reaches_guest,
+    "guest-cast-moves-host": scenario_guest_cast_moves_host,
+    "guest-bump-moves-host": scenario_guest_bump_moves_host,
+    "guest-throw-lands-on-host": scenario_guest_throw_lands_on_host,
+    "ragdoll-lies-as-host": scenario_ragdoll_lies_as_host,
     "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
     "guest-opens-hosts-roll": scenario_guest_opens_hosts_roll,
     "placed-leveled-items-are-hosts": scenario_placed_leveled_items_are_hosts,
@@ -7906,8 +8369,8 @@ TAGS = {
     "guest-story-starts-no-quest": {'world', 'quest', 'cells'},
     "guest-spawns-no-critters": {'world', 'scripts', 'objects'},
     "wildlife-takes-hosts-pick": {'spawn', 'cells'},
-    "guest-joins-by-invite": {'session', 'steam', 'spawn', 'ui'},
-    "loaded-save-hosts-then-joins-friend": {'session', 'steam', 'ui'},
+    "guest-joins-by-invite": {'session', 'steam', 'spawn', 'ui', 'two-accounts'},
+    "loaded-save-hosts-then-joins-friend": {'session', 'steam', 'ui', 'two-accounts'},
     "guest-cannot-save": {'session', 'save'},
     "host-save-keeps-guest-character": {'session', 'save', 'join'},
     "guest-brings-character-into-hosts-world": {'session', 'save', 'join'},
@@ -8022,6 +8485,11 @@ TAGS = {
     "weather-follows-host": {'world', 'cells'},
     "form-state-round-trips": {'world', 'objects', 'spawn'},
     "world-changes-reach-guest": {'world', 'objects', 'inventory'},
+    "physics-push-reaches-guest": {'physics', 'objects'},
+    "guest-cast-moves-host": {'physics', 'objects', 'combat'},
+    "guest-bump-moves-host": {'physics', 'objects', 'movement'},
+    "guest-throw-lands-on-host": {'physics', 'objects'},
+    "ragdoll-lies-as-host": {'physics', 'death'},
     "late-join-gets-cell-state": {'world', 'objects', 'session'},
     "guest-opens-hosts-roll": {'world', 'objects', 'inventory', 'cells'},
     "placed-leveled-items-are-hosts": {'world', 'objects', 'cells'},
@@ -8115,6 +8583,14 @@ SOURCE_TAGS = [
     ("Code/client/Services/Host/HostTimeScale.*", {'world', 'combat'}),
     ("Code/client/Services/Host/HostWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
     ("Code/client/Services/Guest/GuestWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
+    ("Code/client/Services/Host/HostPhysics.*", {'physics'}),
+    ("Code/client/Services/Guest/GuestPhysics.*", {'physics'}),
+    ("Code/client/Services/Host/HostHands.*", {'physics'}),
+    ("Code/client/Services/Guest/GuestHands.*", {'physics'}),
+    ("Code/client/Bridges/HostEngineBodies.*", {'physics', 'objects'}),
+    ("Code/client/Bridges/GuestEngineBodies.*", {'physics', 'objects'}),
+    ("Code/client/Bridges/ReferenceBodies.*", {'physics', 'objects'}),
+    ("Code/client/Physics/*", {'physics'}),
 
     # Adapters span systems; the common bridge and actor ownership underpin every scenario.
     ("Code/client/Bridges/SkyrimBridge.*", {'core'}),
@@ -8124,10 +8600,13 @@ SOURCE_TAGS = [
     ("Code/client/Bridges/DialogueBridge.*", {'dialogue'}),
     ("Code/client/Bridges/SteamBridge.*", {'steam'}),
     ("Code/client/Games/Skyrim/LoadGameEvents.*", {'steam'}),
+    ("Code/client/Games/Skyrim/Havok/bhkCollision.*", {'physics', 'objects'}),
     ("Code/client/Events/GameLoadedEvent.h", {'steam'}),
     ("Code/client/Events/SessionNoticeEvent.h", {'steam', 'ui'}),
     ("Code/client/Bridges/ContainerItems.*", {'objects', 'inventory'}),
-    ("Code/client/Bridges/PhysicsRests.*", {'world', 'objects'}),
+    ("Code/client/Bridges/PhysicsBodies.*", {'world', 'objects', 'physics'}),
+    ("Code/client/Games/Skyrim/PlayerHands.*", {'physics'}),
+    ("Code/encoding/Structs/BodyFrame.*", {'physics'}),
     ("Code/client/Components/*AnimationComponent.h", {'animation', 'movement', 'hands'}),
     ("Code/client/Components/*WeaponDrawComponent.h", {'hands'}),
     ("Code/client/Components/*Component.h", {'spawn'}),
@@ -8315,6 +8794,7 @@ SOURCE_TAGS = [
     ("Code/client/TestHarness/CommandsStaging.cpp", {'core', 'inventory', 'movement', 'ai', 'ui'}),
     ("Code/client/TestHarness/Commands.*", {'core'}),
     ("Code/client/TestHarness/AnimationTrace.*", {'animation', 'combat'}),
+    ("Code/client/TestHarness/BodyTrace.*", {'physics'}),
     ("Code/client/TestHarness/PlayerInput.*", {'input', 'hands', 'magic', 'movement', 'combat', 'objects', 'dialogue'}),
     ("Code/client/TestHarness/InputTrace.*", {'input'}),
     ("Code/client/TestHarness/PlayerEvents.cpp", {'scripts'}),
@@ -9104,8 +9584,14 @@ def command_repro(args):
     log(f"Crashed {crashes} of {args.runs} runs")
 
 
+def with_accounts(names, requested=()):
+    """Without a second Steam account (COOP_CLIENT_USER), the scenarios needing one only when named."""
+    return names if CLIENT_USER else [n for n in names if "two-accounts" not in TAGS.get(n, set()) or n in requested]
+
+
 def scenario_names(requested, tag):
     names = requested or [name for name in SCENARIOS if "input" not in TAGS.get(name, set()) or tag]
+    names = with_accounts(names, requested or [])
     if tag:
         wanted = set(tag.split(","))
         # Restarting a game takes minutes: only when named, or asked for by its tag.
@@ -9424,7 +9910,7 @@ def command_soak(args):
     hours = args.hours if args.hours is not None else (6 if args.rounds is None else None)
     if hours is not None and (not math.isfinite(hours) or hours <= 0):
         raise TestFailure("--hours must be finite and positive")
-    names = scenario_names([], args.tag) if args.tag else list(SCENARIOS)
+    names = scenario_names([], args.tag) if args.tag else with_accounts(list(SCENARIOS))
     if not names:
         raise TestFailure("no scenarios selected")
     seed = args.seed if args.seed is not None else random.randrange(1 << 30)

@@ -5,6 +5,7 @@
 // fields and their bytes are written once.
 
 #include <Structs/ActorAiState.h>
+#include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
 #include <Structs/ScriptValue.h>
@@ -312,5 +313,43 @@ struct WorldCall
 
     uint32_t SessionId{}; // the guest's character, the host fills it in
     ScriptCall Call{};
+};
+
+// Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong
+// without, at the host's tick (unreliable). From a guest: the bodies its player holds (unreliable), or the
+// last of them as its player lets go (reliable).
+struct BodyFrames
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const BodyFrames&) const noexcept = default;
+
+    uint64_t Tick{};
+    std::vector<BodyFrame> Frames;
+};
+
+// Bodies that fell asleep on the host's game, where they stay (reliable). From a guest: bodies its own physics moved
+// that the host's did not, where they went; the host answers with its own.
+struct BodyRests
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const BodyRests&) const noexcept = default;
+
+    uint64_t Tick{};
+    std::vector<BodyPose> Rests;
+};
+
+// A guest's player pushed the host's bodies in its game (reliable): the host pushes its own alike.
+struct BodyPushes
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const BodyPushes&) const noexcept = default;
+
+    std::vector<BodyPush> Pushes;
 };
 } // namespace Payloads

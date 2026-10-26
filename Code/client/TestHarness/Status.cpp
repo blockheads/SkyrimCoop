@@ -381,6 +381,8 @@ static nlohmann::json PlayerStatus(const Harness& acHarness)
             {"equip_animations", acHarness.Input.EquipAnimations()},
             // 0 on the ground, 2 in the air (a move with SetPosition leaves the player falling for a moment).
             {"character_state", EngineCalls::GetCharacterState(0x14)},
+            // What it holds with Activate (a grabbed physics object), 0 for nothing.
+            {"grabbed", EngineCalls::GetGrabbedObject()},
             {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()},
             {"enemy_health_target", EngineCalls::GetEnemyHealthTarget()},
             {"combat_skill", {{"skill", EngineCalls::GetCombatSkillExperience().first}, {"xp", EngineCalls::GetCombatSkillExperience().second}}}};

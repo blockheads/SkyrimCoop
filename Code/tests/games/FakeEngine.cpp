@@ -1462,3 +1462,74 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
     Globals.at(BeastPerkGlobals[aVampire ? 1 : 0]) += static_cast<float>(aDelta);
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
 }
+
+void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin)
+{
+    Body& body = Bodies.at(acKey);
+    body.Flight.Resting = false;
+    body.Flight.Body.LinearVelocity = acVelocity;
+    body.Flight.Body.AngularVelocity = acSpin;
+    body.Awake = true;
+    body.Tick = 0;
+}
+
+bool FakeEngine::Push(const BodyPush& acPush)
+{
+    const auto it = Bodies.find(acPush.Key);
+    if (it == Bodies.end() || it->second.Held)
+        return false;
+    Knock(acPush.Key, it->second.Flight.Body.LinearVelocity + acPush.Impulse, it->second.Flight.Body.AngularVelocity);
+    return true;
+}
+
+bool FakeEngine::Drive(const BodyFrame& acFrame)
+{
+    const auto it = Bodies.find(acFrame.Key);
+    if (it == Bodies.end())
+        return false;
+    Body& body = it->second;
+    body.Held = true;
+    body.Awake = false;
+    body.Flight.Body.Position = acFrame.Position;
+    body.Flight.Body.Rotation = acFrame.Rotation;
+    ++body.Drives;
+    return true;
+}
+
+bool FakeEngine::Free(const BodyFrame& acFrame)
+{
+    const auto it = Bodies.find(acFrame.Key);
+    if (it == Bodies.end() || !it->second.Held)
+        return false;
+    Body& body = it->second;
+    body.Held = false;
+    body.Flight.Body = acFrame;
+    body.Flight.Body.Key = {};
+    Knock(acFrame.Key, acFrame.LinearVelocity, acFrame.AngularVelocity);
+    return true;
+}
+
+HostBodies FakeEngine::TakeBodies(uint64_t aTick)
+{
+    constexpr uint64_t cStepMs = 16; // Havok's substeps (fTimePerSubStep)
+    HostBodies bodies;
+    for (auto& [cKey, body] : Bodies)
+    {
+        if (!body.Awake)
+            continue;
+        if (!body.Tick)
+            body.Tick = aTick;
+        for (; body.Tick + cStepMs <= aTick && !body.Flight.Resting; body.Tick += cStepMs)
+            body.Flight.Step(cStepMs / 1000.f);
+        BodyFrame frame = body.Flight.Body;
+        frame.Key = cKey;
+        if (body.Flight.Resting)
+        {
+            body.Awake = false;
+            bodies.Rested.push_back({cKey, frame.Position, frame.Rotation});
+        }
+        else
+            bodies.Awake.push_back(frame);
+    }
+    return bodies;
+}

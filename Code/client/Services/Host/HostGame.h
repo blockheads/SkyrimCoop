@@ -4,6 +4,7 @@
 #include <Messages/JoinMessages.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/WorldState.h>
+#include <Structs/BodyFrame.h>
 #include <Structs/GameVersions.h>
 #include <Structs/PlayerRecord.h>
 #include <Structs/Mods.h>
@@ -11,6 +12,14 @@
 
 #include <functional>
 #include <optional>
+
+// The host's physics bodies since the last read (docs/design/physics-sync.md): those awake, read now, and those that
+// fell asleep, where they rest.
+struct HostBodies
+{
+    std::vector<BodyFrame> Awake;
+    std::vector<BodyPose> Rested;
+};
 
 /**
  * @brief The host's game as HostAuthority sees it: what it reads and changes in the engine. The
@@ -42,6 +51,17 @@ struct HostGame
     // while that cell is not loaded here.
     std::function<std::optional<std::vector<ObjectChange>>(const GameId& acCell, const std::vector<ChangedReference>& acChanged)>
         ReadCellState;
+    // The host's world's physics bodies: awake ones read now, and those that fell asleep since the last call.
+    std::function<HostBodies()> TakeBodies;
+    // Where the host's game shows a guest's character (its copy), by player id; none without one.
+    std::function<std::optional<glm::vec3>(uint32_t aPlayerId)> ReadPlayerPosition;
+    // A guest's player's hand on the host's body: pushed as the guest's character pushed it there; held at the
+    // guest's frame (keyframed, moving so); let go, simulated again from that frame. False: no such body here.
+    std::function<bool(const BodyPush& acPush)> PushBody;
+    std::function<bool(const BodyFrame& acFrame)> DriveBody;
+    std::function<bool(const BodyFrame& acFrame)> FreeBody;
+    // The host's bodies where they are now; none for one not here.
+    std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
     // A guest's container change, accepted: the host's container holds that many (and it goes out as the host's change).

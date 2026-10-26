@@ -6,6 +6,7 @@
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/GameSavingEvent.h>
+#include <Bridges/IActorBridge.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
@@ -18,6 +19,7 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/CharacterService.h>
 #include <Bridges/HostEngine.h>
+#include <Components.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Bridges/IWorldBridge.h>
 #include <RunningGame.h>
@@ -138,6 +140,32 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     game.ReadQuests = [this] { return m_pEngine->ReadQuests(); };
     game.TakeQuestChanges = [this] { return m_pEngine->TakeQuestChanges(); };
     game.TakeObjectChanges = [this] { return m_pEngine->TakeObjectChanges(); };
+    game.TakeBodies = [this] {
+        return m_pEngine->TakeBodies([this](uint32_t aFormId) -> uint32_t {
+            for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
+                if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
+                    return m_world.get<LocalComponent>(cEntity).Id;
+            return 0;
+        });
+    };
+    // A guest's copy, where the host's game shows it (PlayerComponent: its player id).
+    game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {
+        auto& actors = m_world.GetActorBridge();
+        for (const auto cEntity : m_world.view<PlayerComponent, FormIdComponent>())
+        {
+            const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+            if (m_world.get<PlayerComponent>(cEntity).Id != aPlayerId || !actors.ActorHas3D(cFormId))
+                continue;
+            glm::vec3 position{};
+            actors.GetActorPosition(cFormId, position.x, position.y, position.z);
+            return position;
+        }
+        return std::nullopt;
+    };
+    game.PushBody = [this](const BodyPush& acPush) { return m_pEngine->PushBody(acPush); };
+    game.DriveBody = [this](const BodyFrame& acFrame) { return m_pEngine->DriveBody(acFrame); };
+    game.FreeBody = [this](const BodyFrame& acFrame) { return m_pEngine->FreeBody(acFrame); };
+    game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) { return m_pEngine->ReadBodies(acKeys); };
     game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return m_pEngine->ReadCellState(acCell, acChanged);
     };

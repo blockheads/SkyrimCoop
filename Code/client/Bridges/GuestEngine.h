@@ -1,13 +1,17 @@
 #pragma once
 
+#include <Bridges/PhysicsBodies.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/Payloads.h>
 #include <Messages/WorldState.h>
+#include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
 #include <Structs/TimeModel.h>
 
 #include <functional>
+#include <map>
 #include <optional>
+#include <set>
 #include <NoCopyMove.h>
 
 struct TESObjectREFR;
@@ -57,6 +61,25 @@ public:
     // cell no longer loaded or not in the session's mods.
     [[nodiscard]] std::optional<CellStateRequest> ReadCellChanges(uint32_t aCellFormId) const noexcept;
     [[nodiscard]] bool IsCellAttached(const GameId& acCell) const noexcept;
+    // The host's bodies (docs/design/physics-sync.md): a reference's body where this game shows it; a body put at that
+    // frame each update, held keyframed and moving so; a body put at its rest, still. A copy's ragdoll body (aCopyFormId) is taken only once its own ragdoll simulates it, not while its
+    // animation drives it, and stays held; a reference's is simulated again at its rest, asleep until something
+    // touches it, so this game's player can push and grab it. False: that body is not loaded here.
+    [[nodiscard]] std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept;
+    bool DriveBody(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept;
+    bool RestBody(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept;
+    // Each update: the references placed at the host's rest (a move row) an update ago, simulated again and asleep
+    // there, once the engine has put their held bodies at their nodes.
+    void FreePlaced() noexcept;
+    // This game's player's pushes of the host's references' bodies since the last call (its character's,
+    // PlayerHands), one per body.
+    [[nodiscard]] std::vector<BodyPush> TakePushes() noexcept;
+    // The host's reference this game's player holds (Activate held: PlayerCharacter::grabbedObject): its dynamic
+    // bodies read now; none while it holds nothing of the host's (a body the host's frames still move is keyframed, so
+    // the engine's grab refuses it).
+    [[nodiscard]] std::vector<BodyFrame> ReadHeld() const noexcept;
+    // The host's references' bodies this game's own physics moves now (awake and simulated here), where they are.
+    [[nodiscard]] std::vector<BodyPose> TakeOwnMoves() noexcept;
 
 private:
     // The reference here for a session id; the host's created ones (ObjectChange::kCreatedModId) through m_created.
@@ -71,6 +94,27 @@ private:
     // The host's rest of a physics object: put there and held (its bodies keyframed).
     bool PlaceAtHostRest(TESObjectREFR& aObject, const ObjectChange& acMove) noexcept;
 
+    // The host's body here: a reference's by its 3D's order (with its collision object, whose node shows it), a copy's
+    // ragdoll's by the ragdoll's; none for a copy's body its animation still drives (Waiting: a ragdoll body is taken
+    // once, and kept: a corpse kicked again is the host's).
+    struct HostBody
+    {
+        struct bhkWorldObject* pBody{};
+        struct bhkNiCollisionObject* pCollision{};
+        bool Waiting{};
+    };
+    [[nodiscard]] HostBody FindHostBody(const BodyKey& acKey, uint32_t aCopyFormId) noexcept;
+    // The host's id of this game's reference (a created one's through m_created).
+    [[nodiscard]] std::optional<GameId> HostIdOf(const TESObjectREFR& acObject) const noexcept;
+    // Remembers how a reference's body moved before it is first held.
+    void RememberMotion(const BodyKey& acKey, const HostBody& acBody) noexcept;
+    bool FreeBody(const BodyKey& acKey, const HostBody& acBody) noexcept;
+
+    std::map<BodyKey, uint8_t> m_motions; // the reference bodies held for the host: their own motion type
+    std::vector<std::pair<BodyKey, uint32_t>> m_placed; // held at a move row's rest: updates since
+    PhysicsBodies m_moving; // the references this game's physics moves
+
+    std::set<BodyKey> m_ragdolls; // copies' ragdoll bodies taken from their own ragdoll
     // The host's created references' ids (base id part) and this game's, by handle.
     std::unordered_map<uint32_t, uint32_t> m_created;
 };

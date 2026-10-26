@@ -26,7 +26,7 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 | 3b | Character ids, owners, spawns, removal, respawn on the bridge | done (`5e99eae7`) |
 | 4 | Host-decided state | partly, see below |
 | 5 | Delete `Code/server/`; the enet6 listener moves into the bridge | done 2026-10-21 (uncommitted): `HostNetwork` (below) |
-| after | Physics sync on the bridge's unreliable channel | not started (own plan); rest positions come first with world sync (below) |
+| after | Physics sync on the bridge's unreliable channel | objects and ragdolls live from the host, a guest's pushes, casts, grabs and drops to the host, 2026-10-24 (`docs/design/physics-sync.md`, steps 1-6) |
 
 ### Phase 4 parts
 
@@ -122,9 +122,9 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
    not sent, the host's transient bookkeeping while a reference's activate-parent children run (19428).
 5. **Physics objects' rest positions.** Havok moved `0x4`: when the host's body comes to rest (deactivated), its
    position and angle go out through the move row. Each game simulates the flight its own way, then the host's
-   resting spot wins. Built 2026-10-21 (`Bridges/PhysicsRests`); a guest's own push is not sent (its cell's next
-   load puts the object back at the host's): guest proposals were built and removed the same day, live physics
-   sends a push as an impulse instead (`docs/design/world-state-sync.md`, "Physics objects' rest").
+   resting spot wins. Built 2026-10-21 (`Bridges/PhysicsRests`); since 2026-10-24 the flight itself is the host's too
+   (live physics, `Bridges/PhysicsBodies`, below) and the rest is found from Havok's island mark. A guest's own push
+   goes to the host as its impulse (physics sync step 5, 2026-10-24).
 
 World sync is then done: every object ends where the host's is. Live physics (the flight itself, ragdolls, a guest's
 push as an impulse) is its own plan after phase 5 (`docs/design/host-authority-migration.md`, "After: physics sync").
@@ -644,7 +644,8 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Player levels (party panel) | works | `party-shows-levels` |
 | Real input (keyboard, mouse) | works | `input-keyboard-draw`, `input-mouse-cast` |
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
-| Crime, dropped items, followers, physics | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
+| Physics: objects and ragdolls | the host simulates, guests show it live (keyframed by its frames, sent when the guess goes wrong) and rest at the host's spots; a dead NPC's copy lies as the host's bone by bone. A guest's push goes to the host as its character's impulse, its casts through its copy's, what it grabs follows its hands on the host and falls from where it let go; the guest shows its own until the host's rest, and gets the host's pose back for what its own physics moved alone. A guest gets frames only of bodies within 4096 units of its copy, rests of all (2026-10-25). A guest's playback is placed at its pose each frame and blends into frames it has early: no flicker, 0.1 units typical off the host's (2026-10-25, `FlightTrace` in the fireball scenarios). Not yet: a refused second grab, knockdowns the copy did not replay, a dead body's pose at a cell load (`docs/design/physics-sync.md`) | `physics-push-reaches-guest`, `ragdoll-lies-as-host`, `guest-bump-moves-host`, `guest-cast-moves-host`, `guest-throw-lands-on-host` |
+| Crime, dropped items, followers | not synced | crime: shared party bounty decided (`docs/ideas.md`) |
 | World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); quest walks 2026-10-20: `coop_test.py quest-walk` drives real quests (main, side, radiant) from a late save (`scripts/fetch_late_saves.py`) and shows the client never follows (`docs/research/world-state-drift.md`, "Quest walks"); step 4 built: globals and quests from the host (`HostWorldState`, `NotifyGlobals`, `NotifyQuests`; a guest applies with the engine's own calls, stage fragments skipped; scenarios `global-reaches-guest`, `late-join-gets-globals`, `quest-stage-reaches-guest`, `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`), the main-quest walk matches 14 of 14; loose ends below. Step 5 slice 1 built 2026-10-21: a guest's world scripts get no activation or trigger events, the host's run them for its copy, and their doors, animations and spells reach the guest from the host (`Papyrus/WorldEvents.cpp`, `HostWorldState`'s `NotifyObjectChanges`, `MagicTarget.cpp`; `docs/re/systems/guest-world-events.md`; scenarios `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `shrine-blesses-client`). Step 6's enabled state built 2026-10-21: the host's references enabled or disabled reach the guests (`NotifyObjectChanges`; `sword-box-asks-client`, harness `ref_enabled`). Locks the same day: the host's lock changes go out as object changes, a guest's are proposals the host's game takes (`HostAuthority::OnLockChange`; `lock-reaches-others`); the old lock relay is deleted. Both read on the host from the engine's change funnel (`Forms/FormChanges`, `HostEngine::TakeObjectChanges`; `docs/design/world-state-sync.md`, "As built"), built 2026-10-21 (scenarios `lock-reaches-others`, `guest-loads-propose-no-locks`, `sword-box-asks-client` pass); the `Enable`/`Disable` hooks are deleted. Containers slice 1 the same day: a container's item changes travel as its count now (`kItems` object changes from the host; a guest's own a `ContainerChangeRequest` the host's game takes), seen through the engine's `TESContainerChangedEvent` (`ContainerEvents`); `chest-take-reaches-others`; the unused `RequestObjectInventoryChanges`/`NotifyObjectInventoryChanges` deleted. World desync check for references (step 7) 2026-10-21: harness `world_state` (with each reference's change record, pose, physics, graph, effects), `coop_test.py world-diff`, scenario `world-changes-reach-guest` (also each change's object events). Reference sync reworked the same day from what it showed: rows for enabled, lock, open state, move, scale and owner (the engine's calls: swing, events, 3D, collision), the funnel also watching `RemoveChange` and repeat moves; every kind but created references matches in every side effect, items' container event included. The save-data fallback is built but off until mods (with it on, it hid the missing container event); flags with no row are logged once, `coop_test.py unsynced` (now: havok moved, activating children, animation). Open: created references, those rows, whether the guest's scripts should get object events at all, references the guest has not loaded (changes dropped). Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
 | A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; rule 2 never ran until 2026-10-20: `GetPlayer`'s name reads back from the engine's string pool as `getplayer`; engine names are now compared case-insensitively everywhere, `Games/EngineNames.h`, `docs/re/systems/engine-names.md`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. The client's world scripts stop reacting to activations and triggers (world-state sync step 5, slice 1, 2026-10-21); other events still run on both games | `docs/research/player-events.md`, `scripts/spikes/` |
 
@@ -1063,6 +1064,23 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 - Encoding: `TPTests` (`Code/tests/encoding.cpp`), same build.
 
 ## Loose ends
+
+- **Any added hook breaks `guest-brings-character-into-hosts-world` (found 2026-10-24, physics-sync).** With one more
+  `HOOK_ID` (physics-sync's `PlayerHands` 79133, a `StartGrabObject` 40552 hook, or a test hook on 40557, which the
+  join never calls) the scenario's own steps pass, but the baseline finds the host's player ~40 units off its spot
+  (`left behind`); with `SKYRIMCOOP_DISABLE_HOOKS=PlayerHands` it passes 3 of 3. So not the hooks' code: something
+  in hook installation (order or count) the stacked players' arrival depends on. Not traced yet (no overlapping
+  `HOOK_ID` targets). Until then the scenario fails in the physics-sync worktree.
+- **A save load leaves QASmoke's animated cover plates (`ACTI 1BA5A`) at another pose** (2026-10-24): after
+  `guest-joins-from-main-menu-as-kept-character` the client's plates stay ~167° from the host's until the cell reloads;
+  a reference's animation state has no world-state row (`unsynced`: animation). The scenario now waits for the poses
+  and fails naming them.
+- **Fixed 2026-10-24: a player record's perks doubled on every join** (`JoinBridge::ApplyPlayer` added each kept perk
+  again; `ReadPlayer` now lists a perk once). `guest-joins-from-main-menu-as-kept-character` also waits for the perk it
+  adds before restarting (the record goes a few seconds after a change).
+- **The lock-order checker counted our main loop and VM update hooks as "ours"** on every main thread stack: they are
+  pass-through frames now (`LockOrder::IgnoreFrames`); our other pass-through hooks (AI jobs) still count.
+
 
 Everything known to be unfinished, unverified or unexplained. Close an entry by fixing it, proving it
 harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details are in the doc named.

@@ -109,6 +109,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_clock(*this, aNetwork, m_players, m_game)
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
+    , m_physics(*this, aNetwork, m_players, m_game)
+    , m_hands(*this, aNetwork, m_players, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
@@ -174,6 +176,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_timeScale.OnPlayerLeft(aConnection);
         m_dialogue.OnPlayerLeft(aConnection);
         m_worldState.OnPlayerLeft(aConnection);
+        m_physics.OnPlayerLeft(aConnection);
+        m_hands.OnPlayerLeft(aConnection);
     });
 }
 
@@ -183,6 +187,8 @@ void HostAuthority::Update(uint64_t aTick) noexcept
     m_transfer.Update(aTick);
     m_weather.Update();
     m_worldState.Update(aTick);
+    m_hands.Update(aTick);
+    m_physics.Update(aTick);
 }
 
 void HostAuthority::DifficultyChanged(uint32_t aDifficulty) const noexcept

@@ -182,6 +182,12 @@ struct Session
     std::vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
     std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
     std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
+    std::vector<BodyPush> Pushed;   // guests' pushes the host's game took
+    std::vector<BodyFrame> Driven;  // the bodies a guest's player holds, driven
+    std::vector<BodyFrame> Freed;   // and let go
+    std::vector<BodyPose> Bodies;   // the host's bodies where they are
+    HostBodies Moving;              // the host's physics this update, taken by the next frame
+    std::map<uint32_t, glm::vec3> PlayerPositions; // where the host's game shows each guest's character, by player id
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
     std::vector<Sent> Outbox;
 
@@ -220,6 +226,21 @@ private:
         };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { ItemsSet.emplace_back(acObject, acItem, aCount); };
+        game.PushBody = [this](const BodyPush& acPush) { Pushed.push_back(acPush); return true; };
+        game.DriveBody = [this](const BodyFrame& acFrame) { Driven.push_back(acFrame); return true; };
+        game.FreeBody = [this](const BodyFrame& acFrame) { Freed.push_back(acFrame); return true; };
+        game.TakeBodies = [this] { return std::exchange(Moving, {}); };
+        game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {
+            const auto it = PlayerPositions.find(aPlayerId);
+            return it != PlayerPositions.end() ? std::optional(it->second) : std::nullopt;
+        };
+        game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
+            std::vector<BodyPose> poses;
+            for (const auto& cBody : Bodies)
+                if (std::ranges::find(acKeys, cBody.Key) != acKeys.end())
+                    poses.push_back(cBody);
+            return poses;
+        };
         game.ReadDifficulty = [this] { return Difficulty; };
         game.Versions = kHostGame;
         game.Plugins = HostPlugins();

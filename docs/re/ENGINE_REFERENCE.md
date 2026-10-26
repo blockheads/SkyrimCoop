@@ -8,8 +8,8 @@ available; powerof3's fork, else alandtse's NG), **SKSE** = SKSE source, **PL** 
 SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 AddressLibraryDatabase name only,
 **IDA** = our own IDA work (`docs/re/ida_notes.tsv`).
 
-- **467** distinct engine addresses used; **174** have code in CommonLib or SKSE; **95** have no community name at all.
-- **162** hooks (these replace engine code, so check them first when the game crashes).
+- **475** distinct engine addresses used; **177** have code in CommonLib or SKSE; **95** have no community name at all.
+- **163** hooks (these replace engine code, so check them first when the game crashes).
 
 ## Hooks
 
@@ -74,7 +74,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 36047 | `0x626f80` | `BGSSaveGameBuffer::sub_36047` | meh | hook → `BGSSaveFormBuffer_WriteId` | `RealBGSSaveFormBuffer_WriteId` | [SaveLoad.cpp:185](../../Code/client/Games/SaveLoad.cpp#L185) |  |
 | 36048 | `0x627000` | `BGSSaveGameBuffer::WriteFormID` | meh | hook → `BGSSaveFormBuffer_WriteFormId` | `RealBGSSaveFormBuffer_WriteFormId` | [SaveLoad.cpp:184](../../Code/client/Games/SaveLoad.cpp#L184) |  |
 | 36291 | `0x633250` | `Calendar::Update` | IDA | hook → `HookSimulateTime` | `RealSimulateTime` | [TimeManager.cpp:36](../../Code/client/Games/TimeManager.cpp#L36) |  |
-| 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:80](../../Code/client/SkyrimVM64.cpp#L80) |  |
+| 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:81](../../Code/client/SkyrimVM64.cpp#L81) |  |
 | 37198 | `0x660170` | `Actor::AddDeathItems` | CL meh | hook → `HookAddDeathItems` | `RealAddDeathItems` | [Actor.cpp:1629](../../Code/client/Games/Skyrim/Actor.cpp#L1629) |  |
 | 37200 | `0x660410` | `Actor::SetDialogueWithPlayer` | meh | hook → `HookSetDialogueWithPlayer` | `RealSetDialogueWithPlayer` | [DialogueBridge.cpp:238](../../Code/client/Bridges/DialogueBridge.cpp#L238) |  |
 | 37247 | `0x662150` | `Actor::GetCurrentScene` | meh | hook → `HookGetCurrentScene` | `RealGetCurrentScene` | [CopyAiState.cpp:123](../../Code/client/Games/Skyrim/CopyAiState.cpp#L123) |  |
@@ -117,7 +117,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 39643 | `0x6f8020` | `DialogueResponse::Process` | IDA | hook → `HookProcessResponse` | `RealProcessResponse` | [Actor.cpp:1624](../../Code/client/Games/Skyrim/Actor.cpp#L1624) |  |
 | 40245 | `0x726650` | `?` | PL | hook → `HookCharacterConstructor` | `RealCharacterConstructor` | [Actor.cpp:1610](../../Code/client/Games/Skyrim/Actor.cpp#L1610) | **undocumented** |
 | 40246 | `0x726750` | `BSTask::sub_40246` | meh | hook → `HookCharacterConstructor2` | `RealCharacterConstructor2` | [Actor.cpp:1611](../../Code/client/Games/Skyrim/Actor.cpp#L1611) |  |
-| 40412 | `0x72db30` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:81](../../Code/client/SkyrimVM64.cpp#L81) |  |
+| 40412 | `0x72db30` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:85](../../Code/client/SkyrimVM64.cpp#L85) |  |
 | 40454 | `0x734250` | `PlayerCharacter::DropObject` | meh | hook → `HookDropObject` | `RealDropObject` | [Actor.cpp:1622](../../Code/client/Games/Skyrim/Actor.cpp#L1622) |  |
 | 40488 | `0x736e20` | `PlayerCharacter::AddSkillExperience` | CL meh | hook → `HookAddSkillExperience` | `RealAddSkillExperience` | [PlayerCharacter.cpp:364](../../Code/client/Games/Skyrim/PlayerCharacter.cpp#L364) |  |
 | 40496 | `0x737310` | `?` | - | hook → `HookTurnToSpeaker` | `RealTurnToSpeaker` | [DialogueBridge.cpp:243](../../Code/client/Bridges/DialogueBridge.cpp#L243) | **undocumented** |
@@ -140,7 +140,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 52853 | `0x976d60` | `?` | - | hook → `HookShowMenu` | `RealShowMenu` | [DialogueBridge.cpp:242](../../Code/client/Bridges/DialogueBridge.cpp#L242) | **undocumented** |
 | 52857 | `0x9770c0` | `?` | - | hook → `HookShowList` | `RealShowList` | [DialogueBridge.cpp:244](../../Code/client/Bridges/DialogueBridge.cpp#L244) | **undocumented** |
 | 53429 | `0x99b680` | `SkyrimVM::FindQuestFragment` | IDA | hook → `HookFindFragment` | `RealFindFragment` | [QuestFragments.cpp:39](../../Code/client/TestHarness/QuestFragments.cpp#L39) |  |
-| 53926 | `0x9bfb00` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:79](../../Code/client/SkyrimVM64.cpp#L79) |  |
+| 53926 | `0x9bfb00` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:80](../../Code/client/SkyrimVM64.cpp#L80) |  |
 | 53954 | `0x9c33f0` | `SkyrimVM::QueueDelayFunctor` | IDA meh | hook → `HookFunctorQueued` | `RealFunctorQueued` | [GuestScripts.cpp:104](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L104) |  |
 | 53987 | `0x9c6b70` | `SkyrimVM::ProcessQuestStageEvent` | IDA meh | hook → `HookQuestStageEventSink` | `RealQuestStageEventSink` | [TESQuest.cpp:243](../../Code/client/Games/Skyrim/Forms/TESQuest.cpp#L243) |  |
 | 54735 | `0x9e9880` | `papyrus::Actor::RemoveFromAllFactions` | meh | hook → `HookRemoveFromAllFactions` | `RealRemoveFromAllFactions` | [FactionEvents.cpp:83](../../Code/client/Games/Skyrim/FactionEvents.cpp#L83) |  |
@@ -156,10 +156,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68115 | `0xcc40c0` | `MemoryManager::Allocate` | CL SKSE PL meh | hook → `HookFormAllocate` | `RealFormAllocate` | [Memory.cpp:120](../../Code/client/Games/Memory.cpp#L120) |  |
 | 68116 | `0xcc4310` | `MemoryManager::Reallocate` | CL PL meh | hook → `HookFormReallocate` | `RealFormReallocate` | [Memory.cpp:118](../../Code/client/Games/Memory.cpp#L118) |  |
 | 68117 | `0xcc4510` | `MemoryManager::Deallocate` | CL SKSE PL meh | hook → `HookFormFree` | `RealFormFree` | [Memory.cpp:117](../../Code/client/Games/Memory.cpp#L117) |  |
-| 68233 | `0xcc90c0` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:509](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L509) |  |
-| 68234 | `0xcc9140` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:510](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L510) |  |
-| 68239 | `0xcc9380` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:511](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L511) |  |
-| 68240 | `0xcc9390` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:512](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L512) |  |
+| 68233 | `0xcc90c0` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:521](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L521) |  |
+| 68234 | `0xcc9140` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:522](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L522) |  |
+| 68239 | `0xcc9380` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:523](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L523) |  |
+| 68240 | `0xcc9390` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:524](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L524) |  |
 | 68245 | `0xcc97e0` | `BSTimer::SetGlobalTimeMultiplier` | CL meh | hook → `HookSetGlobalTimeMultiplier` | `RealSetGlobalTimeMultiplier` | [BSTimer.cpp:46](../../Code/client/Games/Skyrim/BSTimer.cpp#L46) |  |
 | 68261 | `0xcc9f10` | `BSThread::sub_68261` | meh | hook → `Hook_BSThread_Initialize` | `BSThread_Initialize` | [BSThread.cpp:52](../../Code/client/Games/Skyrim/BSSystem/BSThread.cpp#L52) |  |
 | 68545 | `0xcd5650` | `ControlMap::ToggleControls` | CL | hook → `HookToggleControls` | `RealToggleControls` | [PartyNatives.cpp:64](../../Code/client/Games/Skyrim/Papyrus/PartyNatives.cpp#L64) |  |
@@ -167,6 +167,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | hook → `Hook_InputEventSource_SendEvent` | `InputEventSource_SendEvent` | [BSInputDeviceManager.cpp:38](../../Code/client/Games/Skyrim/BSInput/BSInputDeviceManager.cpp#L38) |  |
 | 77226 | `0xe423e0` | `Renderer::Init` | CL PL | hook → `Hook_Renderer_Init` | `Renderer_Init` | [BSGraphicsRenderer.cpp:114](../../Code/client/Games/Skyrim/BSGraphics/BSGraphicsRenderer.cpp#L114) |  |
 | 78553 | `0xeb6c50` | `bhkCollisionFilter::sub_78553` | meh | hook → `HookCompareFilterInfo` | `RealCompareFilterInfo` | [PlayerCollision.cpp:65](../../Code/client/Games/Skyrim/PlayerCollision.cpp#L65) |  |
+| 79133 | `0xed1620` | `bhkCharProxyController::objectInteractionCallback` | IDA meh | hook → `HookObjectInteraction` | `RealObjectInteraction` | [PlayerHands.cpp:86](../../Code/client/Games/Skyrim/PlayerHands.cpp#L86) |  |
 | 104480 | `0x1432340` | `Stack::Dtor` | CL meh | hook → `HookStackEnded` | `RealStackEnded` | [GuestScripts.cpp:103](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L103) |  |
 | 104651 | `0x143dc00` | `NativeFunctionBase::Call` | CL SKSE meh | hook → `HookNativeCalled` | `RealNativeCalled` | [GuestScripts.cpp:102](../../Code/client/Games/Skyrim/Papyrus/GuestScripts.cpp#L102) |  |
 | 104788 | `0x1445fe0` | `BSScript::Internal::VirtualMachine::BindNativeMethod` | IDA | hook → `HookRegisterPapyrusFunction` | `RealRegisterPapyrusFunction` | [VirtualMachine.cpp:50](../../Code/client/Games/Skyrim/Papyrus/VirtualMachine.cpp#L50) |  |
@@ -182,10 +183,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:80](../../Code/client/SkyrimVM64.cpp#L80) |  |
-| 40412 | `0x72db30` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:81](../../Code/client/SkyrimVM64.cpp#L81) |  |
+| 36564 | `0x645ea0` | `ProcessEvents_Enter` | SKSE PL meh | hook → `HookMainLoop` | `MainLoop` | [SkyrimVM64.cpp:81](../../Code/client/SkyrimVM64.cpp#L81) |  |
+| 40412 | `0x72db30` | `PlayerCharacter::dtor_impl` | meh | hook → `HookVMDestructor` | `VMDestructor` | [SkyrimVM64.cpp:85](../../Code/client/SkyrimVM64.cpp#L85) |  |
 | 52933 | `0x97a5e0` | `SendHUDMessage::ShowHUDMessage` | CL meh | call | `s_showHudMessage` | [Utils.cpp:22](../../Code/client/Utils.cpp#L22) |  |
-| 53926 | `0x9bfb00` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:79](../../Code/client/SkyrimVM64.cpp#L79) |  |
+| 53926 | `0x9bfb00` | `SkyrimVM::ProcessRegisteredUpdates` | meh | hook → `HookVMUpdate` | `VMUpdate` | [SkyrimVM64.cpp:80](../../Code/client/SkyrimVM64.cpp#L80) |  |
 | 380768 | `0x20124d8` | `?` | - | data | `bAlwaysActive` | [Plugin.cpp:79](../../Code/client/Plugin.cpp#L79) | **undocumented** |
 
 ## Bridges
@@ -460,6 +461,7 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 | 68245 | `0xcc97e0` | `BSTimer::SetGlobalTimeMultiplier` | CL meh | hook → `HookSetGlobalTimeMultiplier` | `RealSetGlobalTimeMultiplier` | [BSTimer.cpp:46](../../Code/client/Games/Skyrim/BSTimer.cpp#L46) |  |
 | 70251 | `0xd1bf70` | `NiAVObject::Update` | IDA CL SKSE meh | call | `s_update` | [TESObjectREFR.cpp:440](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L440) |  |
 | 78553 | `0xeb6c50` | `bhkCollisionFilter::sub_78553` | meh | hook → `HookCompareFilterInfo` | `RealCompareFilterInfo` | [PlayerCollision.cpp:65](../../Code/client/Games/Skyrim/PlayerCollision.cpp#L65) |  |
+| 79133 | `0xed1620` | `bhkCharProxyController::objectInteractionCallback` | IDA meh | hook → `HookObjectInteraction` | `RealObjectInteraction` | [PlayerHands.cpp:86](../../Code/client/Games/Skyrim/PlayerHands.cpp#L86) |  |
 | 109278 | `0x152e130` | `BSWin32SaveDataSystemUtility::GetSingleton` | CL meh | call | `s_getUtility` | [SaveLoadManager.cpp:30](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L30) |  |
 | 109357 | `0x15302a0` | `BSWin32SaveDataSystemUtility::PrepareFileSavePath` | meh | call | `s_preparePath` | [SaveLoadManager.cpp:31](../../Code/client/Games/Skyrim/SaveLoadManager.cpp#L31) |  |
 | 400312 | `0x20f699c` | `g_invalidRefHandle` | SKSE PL meh | data | `s_nullHandle` | [TESObjectREFR.cpp:114](../../Code/client/Games/Skyrim/TESObjectREFR.cpp#L114) |  |
@@ -495,10 +497,10 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 68233 | `0xcc90c0` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:509](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L509) |  |
-| 68234 | `0xcc9140` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:510](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L510) |  |
-| 68239 | `0xcc9380` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:511](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L511) |  |
-| 68240 | `0xcc9390` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:512](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L512) |  |
+| 68233 | `0xcc90c0` | `BSReadWriteLock::LockForRead` | CL SKSE meh | hook → `HookLockForRead` | `RealLockForRead` | [LockOrder.cpp:521](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L521) |  |
+| 68234 | `0xcc9140` | `BSReadWriteLock::LockForWrite` | CL SKSE meh | hook → `HookLockForWrite` | `RealLockForWrite` | [LockOrder.cpp:522](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L522) |  |
+| 68239 | `0xcc9380` | `BSReadWriteLock::UnlockForRead` | CL SKSE meh | hook → `HookUnlockForRead` | `RealUnlockForRead` | [LockOrder.cpp:523](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L523) |  |
+| 68240 | `0xcc9390` | `BSReadWriteLock::UnlockForWrite` | CL SKSE meh | hook → `HookUnlockForWrite` | `RealUnlockForWrite` | [LockOrder.cpp:524](../../Code/client/Games/Skyrim/BSCore/LockOrder.cpp#L524) |  |
 
 ## Games/Skyrim/BSGraphics
 
@@ -622,17 +624,24 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
+| 26003 | `0x3fd3d0` | `FindCollidableRef` | CL meh | call | `s_findCollidableRef` | [bhkCollision.cpp:221](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L221) |  |
 | 35999 | `0x624fa0` | `BGSLoadGameBuffer::GetVersion` | IDA meh | call | `s_version` | [AnimationGraphState.cpp:75](../../Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp#L75) |  |
 | 59474 | `0xae5790` | `hkbVariableBindingSet::ResolveBinding` | IDA meh | call | `s_resolve` | [GraphVariableWriters.cpp:38](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L38) |  |
+| 60849 | `0xb2e300` | `hkpEntity::Activate` | CL PL meh | call | `s_activate` | [bhkCollision.cpp:206](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L206) |  |
+| 60850 | `0xb2e3d0` | `hkpEntity::deactivate` | IDA meh | call | `s_deactivate` | [bhkCollision.cpp:184](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L184) |  |
+| 60908 | `0xb30700` | `hkpRigidBody::sub_60908` | PL meh | call | `s_setMotionType` | [bhkCollision.cpp:67](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L67) |  |
 | 63601 | `0xbb3c50` | `BShkbAnimationGraph::SaveState` | IDA meh | call | `s_saveGraphState` | [AnimationGraphState.cpp:171](../../Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp#L171) |  |
 | 63602 | `0xbb4c50` | `BShkbAnimationGraph::LoadState` | IDA meh | call | `s_loadGraphState` | [AnimationGraphState.cpp:196](../../Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp#L196) |  |
 | 63865 | `0xbc3d90` | `hkbNodeIterator::ctor` | IDA PL | call | `s_ctor` | [GraphVariableWriters.cpp:13](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L13) |  |
 | 63867 | `0xbc3f20` | `hkbNodeIterator::Next` | IDA PL | call | `s_next` | [GraphVariableWriters.cpp:30](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L30) |  |
 | 63895 | `0xbc6720` | `hkbNodeIterator::FreeLists` | IDA | call | `s_freeLists` | [GraphVariableWriters.cpp:22](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L22) |  |
 | 68109 | `0xcc3e40` | `ScrapArray::Free` | IDA PL | call | `s_freeBuckets` | [GraphVariableWriters.cpp:21](../../Code/client/Games/Skyrim/Havok/GraphVariableWriters.cpp#L21) |  |
-| 77866 | `0xe87270` | `NiAVObject::SetMotionType` | CL meh | call | `s_setMotionType` | [bhkCollision.cpp:30](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L30) |  |
-| 78089 | `0xe931e0` | `bhkRigidBody::SetLinearVelocity` | CL meh | call | `s_setLinearVelocity` | [bhkCollision.cpp:12](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L12) |  |
-| 78090 | `0xe932b0` | `bhkRigidBody::SetAngularVelocity` | CL meh | call | `s_setAngularVelocity` | [bhkCollision.cpp:13](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L13) |  |
+| 70251 | `0xd1bf70` | `NiAVObject::Update` | IDA CL SKSE meh | call | `s_update` | [bhkCollision.cpp:131](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L131) |  |
+| 77866 | `0xe87270` | `NiAVObject::SetMotionType` | CL meh | call | `s_setMotionType` | [bhkCollision.cpp:88](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L88) |  |
+| 78077 | `0xe92b20` | `bhkRigidBody::SetMotionType` | IDA PL meh | call | `s_setMotionType` | [bhkCollision.cpp:53](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L53) |  |
+| 78082 | `0xe92eb0` | `bhkRigidBody::SetPositionAndRotation` | IDA meh | call | `s_setPositionAndRotation` | [bhkCollision.cpp:162](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L162) |  |
+| 78089 | `0xe931e0` | `bhkRigidBody::SetLinearVelocity` | CL meh | call | `s_setLinearVelocity` | [bhkCollision.cpp:39](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L39) |  |
+| 78090 | `0xe932b0` | `bhkRigidBody::SetAngularVelocity` | CL meh | call | `s_setAngularVelocity` | [bhkCollision.cpp:40](../../Code/client/Games/Skyrim/Havok/bhkCollision.cpp#L40) |  |
 
 ## Games/Skyrim/Interface
 
@@ -810,50 +819,52 @@ SKSE plugin in `reference/plugins` (see the IDA comment), **meh** = meh321 Addre
 
 | ID | RVA | Community name | Sources | Use | Our symbol | Where | Flags |
 |---|---|---|---|---|---|---|---|
-| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:174](../../Code/client/TestHarness/EngineCalls.cpp#L174) |  |
-| 14287 | `0x1d47f0` | `BGSOpenCloseForm::SetOpenState` | CL meh | call | `s_setOpenState` | [EngineCalls.cpp:440](../../Code/client/TestHarness/EngineCalls.cpp#L440) |  |
-| 14639 | `0x1e0a90` | `TESForm::SetPlayerKnows` | CL | call | `s_setPlayerKnows` | [EngineCalls.cpp:1327](../../Code/client/TestHarness/EngineCalls.cpp#L1327) |  |
-| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | data | `s_lockChange` | [EngineCalls.cpp:333](../../Code/client/TestHarness/EngineCalls.cpp#L333) |  |
-| 19516 | `0x2d9670` | `Character::sub_19516` | meh | data | `s_moveToMyEditorLocation` | [EngineCalls.cpp:375](../../Code/client/TestHarness/EngineCalls.cpp#L375) |  |
-| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | data | `s_activate` | [EngineCalls.cpp:321](../../Code/client/TestHarness/EngineCalls.cpp#L321) |  |
-| 21493 | `0x32dbb0` | `GameFunc::native::GetFactionRank` | meh | call | `s_getFactionRank` | [EngineCalls.cpp:1012](../../Code/client/TestHarness/EngineCalls.cpp#L1012) |  |
-| 21529 | `0x32fb80` | `GameFunc::native::GetIsCurrentPackage` | meh | call | `s_getIsCurrentPackage` | [EngineCalls.cpp:998](../../Code/client/TestHarness/EngineCalls.cpp#L998) |  |
-| 21576 | `0x3318a0` | `GameFunc::native::IsInCombat` | meh | call | `s_isInCombat` | [EngineCalls.cpp:985](../../Code/client/TestHarness/EngineCalls.cpp#L985) |  |
-| 21740 | `0x3380d0` | `GameFunc::native::GetCombatState` | meh | call | `s_getCombatState` | [EngineCalls.cpp:964](../../Code/client/TestHarness/EngineCalls.cpp#L964) |  |
+| 13631 | `0x1af260` | `UIMessageQueue::AddMessage` | CL SKSE meh | call | `s_addMessage` | [EngineCalls.cpp:175](../../Code/client/TestHarness/EngineCalls.cpp#L175) |  |
+| 14287 | `0x1d47f0` | `BGSOpenCloseForm::SetOpenState` | CL meh | call | `s_setOpenState` | [EngineCalls.cpp:441](../../Code/client/TestHarness/EngineCalls.cpp#L441) |  |
+| 14639 | `0x1e0a90` | `TESForm::SetPlayerKnows` | CL | call | `s_setPlayerKnows` | [EngineCalls.cpp:1384](../../Code/client/TestHarness/EngineCalls.cpp#L1384) |  |
+| 18995 | `0x2b8d30` | `TESObjectCELL::GetbhkWorld` | CL meh | call | `s_getWorld` | [EngineCalls.cpp:1834](../../Code/client/TestHarness/EngineCalls.cpp#L1834) |  |
+| 19512 | `0x2d92e0` | `TESObjectREFR::AddLockChange` | CL meh | data | `s_lockChange` | [EngineCalls.cpp:334](../../Code/client/TestHarness/EngineCalls.cpp#L334) |  |
+| 19516 | `0x2d9670` | `Character::sub_19516` | meh | data | `s_moveToMyEditorLocation` | [EngineCalls.cpp:376](../../Code/client/TestHarness/EngineCalls.cpp#L376) |  |
+| 19796 | `0x2eac20` | `TESObjectREFR::ActivateRef` | CL meh | data | `s_activate` | [EngineCalls.cpp:322](../../Code/client/TestHarness/EngineCalls.cpp#L322) |  |
+| 21493 | `0x32dbb0` | `GameFunc::native::GetFactionRank` | meh | call | `s_getFactionRank` | [EngineCalls.cpp:1062](../../Code/client/TestHarness/EngineCalls.cpp#L1062) |  |
+| 21529 | `0x32fb80` | `GameFunc::native::GetIsCurrentPackage` | meh | call | `s_getIsCurrentPackage` | [EngineCalls.cpp:1048](../../Code/client/TestHarness/EngineCalls.cpp#L1048) |  |
+| 21576 | `0x3318a0` | `GameFunc::native::IsInCombat` | meh | call | `s_isInCombat` | [EngineCalls.cpp:1035](../../Code/client/TestHarness/EngineCalls.cpp#L1035) |  |
+| 21740 | `0x3380d0` | `GameFunc::native::GetCombatState` | meh | call | `s_getCombatState` | [EngineCalls.cpp:1014](../../Code/client/TestHarness/EngineCalls.cpp#L1014) |  |
 | 22790 | `0x367620` | `BGSStoryEventManager::GetSingleton` | CL | call | `s_getManager` | [PlayerEvents.cpp:108](../../Code/client/TestHarness/PlayerEvents.cpp#L108) |  |
+| 26003 | `0x3fd3d0` | `FindCollidableRef` | CL meh | call | `s_findCollidableRef` | [EngineCalls.cpp:1869](../../Code/client/TestHarness/EngineCalls.cpp#L1869) |  |
 | 32288 | `0x528620` | `?` | - | call | `s_build` | [PlayerEvents.cpp:107](../../Code/client/TestHarness/PlayerEvents.cpp#L107) | **undocumented** |
 | 32359 | `0x52bc80` | `BGSStoryEventManager::AddEvent_Impl` | CL | hook → `HookAddEvent` | `RealAddEvent` | [PlayerEvents.cpp:61](../../Code/client/TestHarness/PlayerEvents.cpp#L61) |  |
 | 32374 | `0x52c990` | `BGSStoryManager::sub_32374` | meh | hook → `HookStoryLog` | `RealStoryLog` | [PlayerEvents.cpp:83](../../Code/client/TestHarness/PlayerEvents.cpp#L83) |  |
-| 37200 | `0x660410` | `Actor::SetDialogueWithPlayer` | meh | call | `s_setDialogueWithPlayer` | [EngineCalls.cpp:1278](../../Code/client/TestHarness/EngineCalls.cpp#L1278) |  |
-| 37229 | `0x661610` | `Character::sub_37229` | meh | call | `s_killable` | [EngineCalls.cpp:1096](../../Code/client/TestHarness/EngineCalls.cpp#L1096) |  |
-| 37247 | `0x662150` | `Actor::GetCurrentScene` | meh | call | `s_getCurrentScene` | [EngineCalls.cpp:954](../../Code/client/TestHarness/EngineCalls.cpp#L954) |  |
-| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | data | `s_getCharacterController` | [EngineCalls.cpp:1218](../../Code/client/TestHarness/EngineCalls.cpp#L1218) |  |
-| 37266 | `0x662a90` | `Actro::IsTalking` | PL meh | call | `s_isTalking` | [EngineCalls.cpp:976](../../Code/client/TestHarness/EngineCalls.cpp#L976) |  |
-| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:1028](../../Code/client/TestHarness/EngineCalls.cpp#L1028) |  |
-| 37488 | `0x675070` | `Actor::SetRestrained` | meh | data | `s_setRestrained` | [EngineCalls.cpp:393](../../Code/client/TestHarness/EngineCalls.cpp#L393) |  |
-| 37818 | `0x693680` | `Actor::StopMovement` | PL meh | data | `s_stopMovement` | [EngineCalls.cpp:394](../../Code/client/TestHarness/EngineCalls.cpp#L394) |  |
-| 38538 | `0x6b5630` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:1100](../../Code/client/TestHarness/EngineCalls.cpp#L1100) |  |
-| 38559 | `0x6b6780` | `Actor::sub_38559` | meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:1095](../../Code/client/TestHarness/EngineCalls.cpp#L1095) |  |
-| 38563 | `0x6b6df0` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [EngineCalls.cpp:1097](../../Code/client/TestHarness/EngineCalls.cpp#L1097) |  |
-| 38697 | `0x6bff90` | `Actor::StopInteractingQuick` | CL | data | `s_stopInteractingQuick` | [EngineCalls.cpp:347](../../Code/client/TestHarness/EngineCalls.cpp#L347) |  |
-| 38706 | `0x6c0c60` | `Character::sub_38706` | meh | call | `s_canRide` | [EngineCalls.cpp:276](../../Code/client/TestHarness/EngineCalls.cpp#L276) |  |
-| 38959 | `0x6cd930` | `?` | - | call | `s_initFromPackage` | [EngineCalls.cpp:911](../../Code/client/TestHarness/EngineCalls.cpp#L911) | **undocumented** |
-| 39451 | `0x6eb440` | `ActorProcess::GetFadeState` | meh | call | `s_getFadeState` | [EngineCalls.cpp:623](../../Code/client/TestHarness/EngineCalls.cpp#L623) |  |
-| 39769 | `0x70bc80` | `?` | - | call | `s_sendPackageEvent` | [EngineCalls.cpp:919](../../Code/client/TestHarness/EngineCalls.cpp#L919) | **undocumented** |
-| 40563 | `0x7419e0` | `?` | - | call | `s_setDifficulty` | [EngineCalls.cpp:284](../../Code/client/TestHarness/EngineCalls.cpp#L284) | **undocumented** |
-| 47272 | `0x851180` | `Actor::sub_47272` | meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:1101](../../Code/client/TestHarness/EngineCalls.cpp#L1101) |  |
-| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:1660](../../Code/client/TestHarness/EngineCalls.cpp#L1660) |  |
+| 37200 | `0x660410` | `Actor::SetDialogueWithPlayer` | meh | call | `s_setDialogueWithPlayer` | [EngineCalls.cpp:1335](../../Code/client/TestHarness/EngineCalls.cpp#L1335) |  |
+| 37229 | `0x661610` | `Character::sub_37229` | meh | call | `s_killable` | [EngineCalls.cpp:1146](../../Code/client/TestHarness/EngineCalls.cpp#L1146) |  |
+| 37247 | `0x662150` | `Actor::GetCurrentScene` | meh | call | `s_getCurrentScene` | [EngineCalls.cpp:1004](../../Code/client/TestHarness/EngineCalls.cpp#L1004) |  |
+| 37258 | `0x6628f0` | `Actor::GetCharacterController` | meh | data | `s_getCharacterController` | [EngineCalls.cpp:1268](../../Code/client/TestHarness/EngineCalls.cpp#L1268) |  |
+| 37266 | `0x662a90` | `Actro::IsTalking` | PL meh | call | `s_isTalking` | [EngineCalls.cpp:1026](../../Code/client/TestHarness/EngineCalls.cpp#L1026) |  |
+| 37448 | `0x673170` | `Actor::GetSubmergedLevel` | IDA CL PL meh | call | `s_getSubmergedLevel` | [EngineCalls.cpp:1078](../../Code/client/TestHarness/EngineCalls.cpp#L1078) |  |
+| 37488 | `0x675070` | `Actor::SetRestrained` | meh | data | `s_setRestrained` | [EngineCalls.cpp:394](../../Code/client/TestHarness/EngineCalls.cpp#L394) |  |
+| 37818 | `0x693680` | `Actor::StopMovement` | PL meh | data | `s_stopMovement` | [EngineCalls.cpp:395](../../Code/client/TestHarness/EngineCalls.cpp#L395) |  |
+| 38538 | `0x6b5630` | `Actor::GetAttackReach` | CL PL meh | call | `s_getAttackReach` | [EngineCalls.cpp:1150](../../Code/client/TestHarness/EngineCalls.cpp#L1150) |  |
+| 38559 | `0x6b6780` | `Actor::sub_38559` | meh | call | `s_shouldAttackKill` | [EngineCalls.cpp:1145](../../Code/client/TestHarness/EngineCalls.cpp#L1145) |  |
+| 38563 | `0x6b6df0` | `Actor::EngagingInCombat` | meh | call | `s_engagingInCombat` | [EngineCalls.cpp:1147](../../Code/client/TestHarness/EngineCalls.cpp#L1147) |  |
+| 38697 | `0x6bff90` | `Actor::StopInteractingQuick` | CL | data | `s_stopInteractingQuick` | [EngineCalls.cpp:348](../../Code/client/TestHarness/EngineCalls.cpp#L348) |  |
+| 38706 | `0x6c0c60` | `Character::sub_38706` | meh | call | `s_canRide` | [EngineCalls.cpp:277](../../Code/client/TestHarness/EngineCalls.cpp#L277) |  |
+| 38959 | `0x6cd930` | `?` | - | call | `s_initFromPackage` | [EngineCalls.cpp:961](../../Code/client/TestHarness/EngineCalls.cpp#L961) | **undocumented** |
+| 39451 | `0x6eb440` | `ActorProcess::GetFadeState` | meh | call | `s_getFadeState` | [EngineCalls.cpp:673](../../Code/client/TestHarness/EngineCalls.cpp#L673) |  |
+| 39769 | `0x70bc80` | `?` | - | call | `s_sendPackageEvent` | [EngineCalls.cpp:969](../../Code/client/TestHarness/EngineCalls.cpp#L969) | **undocumented** |
+| 40563 | `0x7419e0` | `?` | - | call | `s_setDifficulty` | [EngineCalls.cpp:285](../../Code/client/TestHarness/EngineCalls.cpp#L285) | **undocumented** |
+| 47272 | `0x851180` | `Actor::sub_47272` | meh | call | `s_pickAttackTarget` | [EngineCalls.cpp:1151](../../Code/client/TestHarness/EngineCalls.cpp#L1151) |  |
+| 50790 | `0x8e3100` | `PlayerCamera::ForceFirstPerson` | CL meh | call | `s_forceFirstPerson` | [EngineCalls.cpp:1719](../../Code/client/TestHarness/EngineCalls.cpp#L1719) |  |
 | 51110 | `0x8f9220` | `ConsoleLog::VPrint` | IDA CL SKSE PL meh | hook → `HookVPrint` | `RealVPrint` | [ConsoleOutput.cpp:93](../../Code/client/TestHarness/ConsoleOutput.cpp#L93) |  |
 | 53429 | `0x99b680` | `SkyrimVM::FindQuestFragment` | IDA | hook → `HookFindFragment` | `RealFindFragment` | [QuestFragments.cpp:39](../../Code/client/TestHarness/QuestFragments.cpp#L39) |  |
-| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | data | `s_getDuration` | [EngineCalls.cpp:635](../../Code/client/TestHarness/EngineCalls.cpp#L635) |  |
-| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:1555](../../Code/client/TestHarness/EngineCalls.cpp#L1555) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:1461](../../Code/client/TestHarness/EngineCalls.cpp#L1461) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:1559](../../Code/client/TestHarness/EngineCalls.cpp#L1559) |  |
-| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:1601](../../Code/client/TestHarness/EngineCalls.cpp#L1601) |  |
+| 67630 | `0xcaf810` | `BSSoundHandle::GetDuration` | CL | data | `s_getDuration` | [EngineCalls.cpp:685](../../Code/client/TestHarness/EngineCalls.cpp#L685) |  |
+| 68542 | `0xcd4f70` | `ControlMap::MapUserEvents` | IDA | data | `s_mapUserEvents` | [EngineCalls.cpp:1614](../../Code/client/TestHarness/EngineCalls.cpp#L1614) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:1520](../../Code/client/TestHarness/EngineCalls.cpp#L1520) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:1618](../../Code/client/TestHarness/EngineCalls.cpp#L1618) |  |
+| 68655 | `0xcd9e00` | `BSTEventSource_InputEvent__SendEvent` | IDA | data | `s_sendEvent` | [EngineCalls.cpp:1660](../../Code/client/TestHarness/EngineCalls.cpp#L1660) |  |
 | 380069 | `0x2010688` | `?` | - | data | `s_index` | [PlayerEvents.cpp:40](../../Code/client/TestHarness/PlayerEvents.cpp#L40) | **undocumented** |
-| 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:200](../../Code/client/TestHarness/EngineCalls.cpp#L200) |  |
-| 402622 | `0x315cbc0` | `?` | PL | data | `s_shakeStrength` | [EngineCalls.cpp:1348](../../Code/client/TestHarness/EngineCalls.cpp#L1348) | **undocumented** |
-| 402623 | `0x315cbc4` | `?` | PL | data | `s_shakeSeconds` | [EngineCalls.cpp:1349](../../Code/client/TestHarness/EngineCalls.cpp#L1349) | **undocumented** |
+| 388442 | `0x20294f8` | `BSTimer::value` | CL PL meh | data | `s_globalTimeMultiplier` | [EngineCalls.cpp:201](../../Code/client/TestHarness/EngineCalls.cpp#L201) |  |
+| 402622 | `0x315cbc0` | `?` | PL | data | `s_shakeStrength` | [EngineCalls.cpp:1405](../../Code/client/TestHarness/EngineCalls.cpp#L1405) | **undocumented** |
+| 402623 | `0x315cbc4` | `?` | PL | data | `s_shakeSeconds` | [EngineCalls.cpp:1406](../../Code/client/TestHarness/EngineCalls.cpp#L1406) | **undocumented** |
 | 441582 | `0x33d6a0` | `Script::CompileAndRun_Impl` | IDA CL | hook → `HookCompileAndRun` | `RealCompileAndRun` | [ConsoleOutput.cpp:95](../../Code/client/TestHarness/ConsoleOutput.cpp#L95) |  |
-| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:136](../../Code/client/TestHarness/EngineCalls.cpp#L136) | **undocumented** |
+| 442672 | `0x8f3f30` | `?` | - | call | `s_executeCommand` | [EngineCalls.cpp:137](../../Code/client/TestHarness/EngineCalls.cpp#L137) | **undocumented** |
 | 442673 | `0x8f4270` | `Console::RunQueuedCommands` | IDA | hook → `HookRunQueued` | `RealRunQueued` | [ConsoleOutput.cpp:94](../../Code/client/TestHarness/ConsoleOutput.cpp#L94) |  |

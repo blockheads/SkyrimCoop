@@ -32,6 +32,7 @@
 #include <Havok/BShkbAnimationGraph.h>
 #include <Havok/bhkCharacterController.h>
 #include <Havok/bhkCollision.h>
+#include <Havok/Ragdoll.h>
 #include <Interface/FxDelegateArgs.h>
 #include <Interface/GFxMovie.h>
 #include <Interface/IMenu.h>
@@ -478,9 +479,24 @@ void ReadPose(const NiAVObject& acRoot, ReferenceState& aState) noexcept
         }
         if (const bhkNiCollisionObject* pCollision = pObject->collisionObject; pCollision && pCollision->body)
             if (const auto* pBody = Cast<bhkRigidBody>(pCollision->body) ? pCollision->body->referencedObject : nullptr)
-                aState.Collision.push_back({cName, pBody->world != nullptr,
-                                            {pBody->translation[0] * cHavokToGame, pBody->translation[1] * cHavokToGame,
-                                             pBody->translation[2] * cHavokToGame}});
+            {
+                auto& body = aState.Collision.emplace_back(ReferenceState::Body{cName, pBody->world != nullptr,
+                                                           {pBody->translation[0] * cHavokToGame, pBody->translation[1] * cHavokToGame,
+                                                            pBody->translation[2] * cHavokToGame}});
+                body.Motion = pBody->motionType;
+                body.Flags = pCollision->flags;
+                body.Offset = Cast<bhkRigidBodyT>(pCollision->body) != nullptr;
+                if (BodyRead read; ReadBody(*pCollision->body, read))
+                {
+                    body.Awake = read.Active;
+                    body.Rotation[0] = read.Rotation.x;
+                    body.Rotation[1] = read.Rotation.y;
+                    body.Rotation[2] = read.Rotation.z;
+                    body.Rotation[3] = read.Rotation.w;
+                    for (int axis = 0; axis < 3; ++axis)
+                        body.Velocity[axis] = read.LinearVelocity[axis];
+                }
+            }
         if (const auto* pNode = Cast<NiNode>(pObject))
             for (uint16_t child = 0; child < pNode->children.length; ++child)
                 if (const NiAVObject* pChild = pNode->children.data[child])
@@ -508,6 +524,34 @@ void ReadGraph(TESObjectREFR& aRef, ReferenceState& aState) noexcept
     pManager->Release();
 }
 } // namespace
+
+std::optional<std::vector<ReferenceState::Body>> GetRagdoll(uint32_t aActorFormId) noexcept
+{
+    const auto* pActor = Cast<Actor>(TESForm::GetById(aActorFormId));
+    if (!pActor)
+        return std::nullopt;
+    std::vector<ReferenceState::Body> bodies;
+    for (const bhkWorldObject* pBody : RagdollBodiesOf(*pActor))
+    {
+        auto& body = bodies.emplace_back();
+        BodyRead read;
+        if (!pBody || !pBody->referencedObject || !ReadBody(*pBody, read))
+            continue;
+        body.InWorld = pBody->referencedObject->world != nullptr;
+        body.Motion = pBody->referencedObject->motionType;
+        body.Awake = read.Active;
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            body.Position[axis] = read.Position[axis];
+            body.Velocity[axis] = read.LinearVelocity[axis];
+        }
+        body.Rotation[0] = read.Rotation.x;
+        body.Rotation[1] = read.Rotation.y;
+        body.Rotation[2] = read.Rotation.z;
+        body.Rotation[3] = read.Rotation.w;
+    }
+    return bodies;
+}
 
 std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
 {
@@ -545,8 +589,14 @@ std::vector<ReferenceState> GetLoadedReferences(bool aDetails) noexcept
             {
                 state.Has3D = true;
                 state.Hidden = (p3D->flags & 1) != 0;
+                state.Flags3D = p3D->flags;
                 for (int axis = 0; axis < 3; ++axis)
                     state.Position3D[axis] = p3D->world.translate[axis];
+                if (const NiNode* pParent = p3D->parent)
+                {
+                    state.Branch = pParent->name ? pParent->name : "";
+                    state.BranchIndex = pParent->parent ? static_cast<int32_t>(pParent->parentIndex) : -1;
+                }
             }
             if (Lock* pLock = pRef->GetLock())
             {
@@ -1221,6 +1271,13 @@ int32_t GetCharacterState(uint32_t aFormId) noexcept
     return pController ? *reinterpret_cast<const int32_t*>(pController + 0x1E0 + 0x20) : -1;
 }
 
+uint32_t GetGrabbedObject() noexcept
+{
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const TESObjectREFR* pObject = pPlayer && pPlayer->grabbedObject ? TESObjectREFR::GetByHandle(pPlayer->grabbedObject) : nullptr;
+    return pObject ? pObject->formID : 0;
+}
+
 DialogueState GetDialogue() noexcept
 {
     DialogueState state;
@@ -1421,15 +1478,17 @@ bool SendPlayerButton(Button aButton, bool aDown, float aHeldSecs) noexcept
     static_assert(offsetof(RawButtonEvent, UserEvent) == 0x18 && offsetof(RawButtonEvent, IdCode) == 0x20 &&
                   offsetof(RawButtonEvent, Value) == 0x28 && sizeof(RawButtonEvent) == 0x30);
     // The default mapping: the left mouse button is the right hand's, the right one the left hand's, R readies,
-    // left Ctrl sneaks, W moves forward, Z shouts.
+    // left Ctrl sneaks, W moves forward, Z shouts, E activates; S, A and D step back, left and right.
     struct Mapping
     {
         uint32_t UserEventOffset; // in UserEvents (singleton 402638): leftAttack 0x40, rightAttack 0x48, readyWeapon 0x68,
-                                  // sneak 0x90, forward 0x08, shout 0x98
+                                  // sneak 0x90, forward 0x08, shout 0x98, activate 0x38, back 0x10, strafeLeft 0x18,
+                                  // strafeRight 0x20
         uint32_t Device;
         uint32_t IdCode;
     };
-    constexpr Mapping cMappings[] = {{0x48, 1, 0}, {0x40, 1, 1}, {0x68, 0, 0x13}, {0x90, 0, 0x1D}, {0x08, 0, 0x11}, {0x98, 0, 0x2C}};
+    constexpr Mapping cMappings[] = {{0x48, 1, 0}, {0x40, 1, 1}, {0x68, 0, 0x13}, {0x90, 0, 0x1D}, {0x08, 0, 0x11}, {0x98, 0, 0x2C},
+                                   {0x38, 0, 0x12}, {0x10, 0, 0x1F}, {0x18, 0, 0x1E}, {0x20, 0, 0x20}};
     static RawButtonEvent s_events[std::size(cMappings)]{};
 
     VersionDbPtr<uint8_t*> userEvents(402638);
@@ -1669,12 +1728,12 @@ bool FacePlayerToward(uint32_t aTargetFormId) noexcept
     if (!pPlayer || !pTarget || pTarget == pPlayer)
         return false;
     // Skyrim angles: z is the heading clockwise from north (+y), x the pitch (positive looks down).
-    // From the player's eyes to the target's chest.
+    // From the player's eyes to an actor's chest, or to an object itself.
     constexpr float cEyeHeight = 115.f;
-    constexpr float cChestHeight = 85.f;
+    const float cTargetHeight = Cast<Actor>(pTarget) ? 85.f : 0.f;
     const float cDx = pTarget->position.x - pPlayer->position.x;
     const float cDy = pTarget->position.y - pPlayer->position.y;
-    const float cDz = (pPlayer->position.z + cEyeHeight) - (pTarget->position.z + cChestHeight);
+    const float cDz = (pPlayer->position.z + cEyeHeight) - (pTarget->position.z + cTargetHeight);
     const float cHeading = std::atan2(cDx, cDy);
     const float cPitch = std::atan2(cDz, std::sqrt(cDx * cDx + cDy * cDy));
     // In first person the camera looks exactly where the player does; in third person it keeps its
@@ -1684,33 +1743,218 @@ bool FacePlayerToward(uint32_t aTargetFormId) noexcept
     return true;
 }
 
-bool PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees) noexcept
+bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept
 {
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return false;
+    pPlayer->SetPosition(NiPoint3(glm::vec3(acPosition[0], acPosition[1], acPosition[2])), true);
+    return !aTargetFormId || FacePlayerToward(aTargetFormId);
+}
+
+namespace
+{
+// bhkPickData (CommonLibSSE-NG; 1.6.1170: bhkWorld::PickObject 77860 resets the output, casts from `from` to `to`
+// when `ray` is zero, with no collector the closest hit into the output, under the world's read lock).
+struct alignas(16) RawPickData
+{
+    float From[4];        // 00 hkpWorldRayCastInput, Havok units
+    float To[4];          // 10
+    bool EnableShapeCollectionFilter; // 20
+    uint8_t Pad21[3];
+    uint32_t FilterInfo;  // 24: the ray's collision layer in the low 7 bits
+    uint8_t Pad28[8];
+    float Normal[4];      // 30 hkpWorldRayCastOutput
+    float HitFraction;    // 40
+    int32_t ExtraInfo;    // 44
+    uint32_t ShapeKey;    // 48
+    uint32_t Pad4C;
+    uint32_t ShapeKeys[8]; // 50
+    int32_t ShapeKeyIndex; // 70
+    uint8_t Pad74[0x80 - 0x74];
+    const uint8_t* RootCollidable; // 80: the hit's hkpCollidable, null for none
+    uint64_t Pad88;
+    float Ray[4];         // 90
+    void* AabbCache;      // A0
+    void* ClosestCollector; // A8
+    void* AllCollector;   // B0
+    void* AllTempCollector; // B8
+    bool PickFailed;      // C0
+    uint8_t PadC1[0xD0 - 0xC1];
+};
+static_assert(offsetof(RawPickData, FilterInfo) == 0x24 && offsetof(RawPickData, Normal) == 0x30 &&
+              offsetof(RawPickData, HitFraction) == 0x40 && offsetof(RawPickData, RootCollidable) == 0x80 &&
+              offsetof(RawPickData, Ray) == 0x90 && offsetof(RawPickData, PickFailed) == 0xC0 && sizeof(RawPickData) == 0xD0);
+// hkpCollidable's broad phase handle: its collision filter info (the layer in the low 7 bits).
+constexpr size_t cCollidableFilterInfo = 0x2C;
+} // namespace
+
+namespace
+{
+std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept;
+} // namespace
+
+std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept
+{
+    // Past the camera's own collision (kCameraSphere 36, kCameraPick 39) and the player's: they are not the world.
+    const glm::vec3 cStart(acFrom[0], acFrom[1], acFrom[2]);
+    const glm::vec3 cEnd(acTo[0], acTo[1], acTo[2]);
+    const glm::vec3 cDirection = glm::length(cEnd - cStart) > 0.f ? glm::normalize(cEnd - cStart) : glm::vec3(0.f);
+    glm::vec3 from = cStart;
+    for (int skip = 0; skip < 8; ++skip)
+    {
+        const float cFrom[3]{from.x, from.y, from.z};
+        auto hit = CastRayOnce(cFrom, acTo, aLayer);
+        if (!hit || !hit->Hit)
+        {
+            if (hit)
+                hit->Distance = glm::distance(cStart, cEnd);
+            return hit;
+        }
+        if (hit->Layer != 36 && hit->Layer != 39 && hit->Reference != 0x14)
+        {
+            hit->Distance = glm::distance(cStart, glm::vec3(hit->Point[0], hit->Point[1], hit->Point[2]));
+            return hit;
+        }
+        from = glm::vec3(hit->Point[0], hit->Point[1], hit->Point[2]) + cDirection;
+        if (glm::dot(cEnd - from, cDirection) <= 0.f)
+            return RayHit{.Distance = glm::distance(cStart, cEnd)};
+    }
+    return RayHit{.Distance = glm::distance(cStart, cEnd)};
+}
+
+namespace
+{
+std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept
+{
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !pPlayer->parentCell)
+        return std::nullopt;
+    using TGetWorld = void*(TESObjectCELL*);
+    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995); // TESObjectCELL::GetbhkWorld
+    void* pWorld = s_getWorld(pPlayer->parentCell);
+    if (!pWorld)
+        return std::nullopt;
+
+    RawPickData pick{};
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        pick.From[axis] = acFrom[axis] * 0.0142875f;
+        pick.To[axis] = acTo[axis] * 0.0142875f;
+    }
+    pick.FilterInfo = aLayer & 0x7F;
+    pick.HitFraction = 1.f;
+    // bhkWorld::PickObject, vtable 0x33 (77860; bhkWorldM's for exteriors).
+    using TPick = bool(void*, RawPickData*);
+    auto** pVtable = *reinterpret_cast<TPick***>(pWorld);
+    const bool cHit = pVtable[0x33](pWorld, &pick);
+    if (pick.PickFailed)
+        return std::nullopt;
+
+    RayHit hit;
+    const glm::vec3 cFrom(acFrom[0], acFrom[1], acFrom[2]);
+    const glm::vec3 cTo(acTo[0], acTo[1], acTo[2]);
+    hit.Hit = cHit && pick.RootCollidable && pick.HitFraction < 1.f;
+    const float cFraction = hit.Hit ? pick.HitFraction : 1.f;
+    const glm::vec3 cPoint = cFrom + (cTo - cFrom) * cFraction;
+    hit.Distance = glm::distance(cFrom, cPoint);
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        hit.Point[axis] = cPoint[axis];
+        hit.Normal[axis] = pick.Normal[axis];
+    }
+    if (hit.Hit)
+    {
+        using TFindRef = TESObjectREFR*(const uint8_t*);
+        POINTER_SKYRIMSE(TFindRef, s_findCollidableRef, 26003); // TESHavokUtilities::FindCollidableRef
+        if (const TESObjectREFR* pRef = s_findCollidableRef(pick.RootCollidable))
+            hit.Reference = pRef->formID;
+        hit.Layer = *reinterpret_cast<const uint32_t*>(pick.RootCollidable + cCollidableFilterInfo) & 0x7F;
+    }
+    return hit;
+}
+} // namespace
+
+Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees) noexcept
+{
+    Placement placement;
     PlayerCharacter* pPlayer = PlayerCharacter::Get();
     auto* pTarget = Cast<TESObjectREFR>(TESForm::GetById(aTargetFormId));
     if (!pPlayer || !pTarget || pTarget == pPlayer)
-        return false;
-    float dx = pPlayer->position.x - pTarget->position.x;
-    float dy = pPlayer->position.y - pTarget->position.y;
-    // A bearing (0 north, 90 east) picks the side; two players placed on one side push each other away.
+    {
+        placement.Blocked = "no such target";
+        return placement;
+    }
+    const glm::vec3 cTarget(pTarget->position.x, pTarget->position.y, pTarget->position.z);
+    // What the player looks at: an actor's chest, an object's middle.
+    const glm::vec3 cAim = cTarget + glm::vec3(0.f, 0.f, Cast<Actor>(pTarget) ? 100.f : 15.f);
+    float first = 180.f;
     if (aBearingDegrees)
+        first = *aBearingDegrees;
+    else if (const glm::vec2 cAway(pPlayer->position.x - cTarget.x, pPlayer->position.y - cTarget.y); glm::length(cAway) >= 1.f)
+        first = glm::degrees(std::atan2(cAway.x, cAway.y));
+
+    const auto cCast = [](const glm::vec3& acFrom, const glm::vec3& acTo) {
+        const float cFrom[3]{acFrom.x, acFrom.y, acFrom.z};
+        const float cTo[3]{acTo.x, acTo.y, acTo.z};
+        return CastRay(cFrom, cTo);
+    };
+    const auto cWhat = [](const RayHit& acHit) {
+        return acHit.Reference ? std::format("{:X} (layer {})", acHit.Reference, acHit.Layer) : std::format("layer {}", acHit.Layer);
+    };
+    for (int step = 0; step <= 18; ++step)
     {
-        dx = std::sin(glm::radians(*aBearingDegrees));
-        dy = std::cos(glm::radians(*aBearingDegrees));
+        // The bearing asked first, then 20 degrees either way, then 40...
+        const float cBearing = std::fmod(first + static_cast<float>((step + 1) / 2 * 20 * (step % 2 ? 1 : -1)) + 720.f, 360.f);
+        const float cRadians = glm::radians(cBearing);
+        const glm::vec2 cSpot(cTarget.x + std::sin(cRadians) * aDistance, cTarget.y + std::cos(cRadians) * aDistance);
+        const auto cFloor = cCast({cSpot, cTarget.z + 150.f}, {cSpot, cTarget.z - 600.f});
+        const auto cBlocked = [&](std::string aWhy) { placement.Blocked += std::format("{}{:.0f}: {}", placement.Blocked.empty() ? "" : "; ", cBearing, aWhy); };
+        if (!cFloor)
+        {
+            placement.Blocked = "no physics world, or this frame's picks are spent";
+            return placement;
+        }
+        if (!cFloor->Hit)
+        {
+            cBlocked("no floor");
+            continue;
+        }
+        const glm::vec3 cFeet(cSpot, cFloor->Point[2]);
+        if (const auto cHead = cCast(cFeet + glm::vec3(0.f, 0.f, 20.f), cFeet + glm::vec3(0.f, 0.f, 140.f)); cHead && cHead->Hit)
+        {
+            cBlocked("no headroom under " + cWhat(*cHead));
+            continue;
+        }
+        // Room for the player's capsule: nothing within 35 units at knee height.
+        std::optional<RayHit> touching;
+        for (int around = 0; around < 360 && !touching; around += 45)
+        {
+            const glm::vec3 cKnee = cFeet + glm::vec3(0.f, 0.f, 30.f);
+            const glm::vec3 cOut(std::sin(glm::radians(static_cast<float>(around))) * 35.f, std::cos(glm::radians(static_cast<float>(around))) * 35.f, 0.f);
+            if (const auto cHit = cCast(cKnee, cKnee + cOut); cHit && cHit->Hit)
+                touching = cHit;
+        }
+        if (touching)
+        {
+            cBlocked("no room beside " + cWhat(*touching));
+            continue;
+        }
+        const glm::vec3 cEyes = cFeet + glm::vec3(0.f, 0.f, 100.f);
+        if (const auto cSight = cCast(cEyes, cAim); cSight && cSight->Hit && cSight->Reference != aTargetFormId &&
+                                                     glm::distance(glm::vec3(cSight->Point[0], cSight->Point[1], cSight->Point[2]), cAim) > 40.f)
+        {
+            cBlocked(std::format("{} in the way, {:.0f} from the spot", cWhat(*cSight), cSight->Distance));
+            continue;
+        }
+        pPlayer->SetPosition(NiPoint3(cFeet + glm::vec3(0.f, 0.f, 5.f)), true);
+        FacePlayerToward(aTargetFormId);
+        placement.Placed = true;
+        placement.Bearing = cBearing;
+        for (int axis = 0; axis < 3; ++axis)
+            placement.Position[axis] = cFeet[axis];
+        return placement;
     }
-    const float cLength = std::sqrt(dx * dx + dy * dy);
-    if (cLength < 1.f && !aBearingDegrees)
-    {
-        dx = 0.f;
-        dy = -1.f;
-    }
-    else
-    {
-        dx /= cLength;
-        dy /= cLength;
-    }
-    const NiPoint3 cSpot(glm::vec3(pTarget->position.x + dx * aDistance, pTarget->position.y + dy * aDistance, pTarget->position.z));
-    pPlayer->SetPosition(cSpot, true);
-    return FacePlayerToward(aTargetFormId);
+    return placement;
 }
 } // namespace TestHarness::EngineCalls

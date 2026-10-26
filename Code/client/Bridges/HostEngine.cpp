@@ -366,7 +366,7 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
                 changes.push_back(ReferenceStates::Deleted(create->Object));
             m_created[cFormId] = pObject->baseForm->formID;
             QuestEvents::Changes().Reference(cFormId);
-            m_rests.Forget(cFormId); // an id used before: the old one's rest is not this one's
+            m_bodies.Forget(cFormId); // an id used before: the old one's rest is not this one's
             changes.push_back(std::move(*create));
         }
     }
@@ -378,12 +378,12 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
         if (!cId)
             continue;
         const GameId& id = *cId;
-        // A physics move goes out once it rests (m_rests): each game simulates the flight. A graph's live changes
+        // A physics move goes out once it rests (m_bodies), its flight as body frames (HostPhysics). A graph's live changes
         // are the animations scripts play (relayed as events); its state goes with a cell's.
         constexpr uint32_t cNotLive = TESObjectREFR::CHANGE_REFR_HAVOK_MOVE | TESObjectREFR::CHANGE_REFR_ANIMATION;
         ReferenceStates::Read(*pObject, id, cFlags & ~cNotLive, changes);
     }
-    for (const uint32_t cFormId : m_rests.TakeRested())
+    for (const uint32_t cFormId : m_bodies.TakeRested())
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)))
             if (const auto cId = IsShared(cFormId) ? ToSessionOrCreated(cFormId) : std::nullopt)
                 ReferenceStates::Read(*pObject, *cId, TESObjectREFR::CHANGE_REFR_MOVE, changes);
@@ -415,7 +415,7 @@ void HostEngine::TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcep
             continue;
         }
         aChanges.push_back(ReferenceStates::Deleted(CreatedId(cFormId)));
-        m_rests.Forget(cFormId);
+        m_bodies.Forget(cFormId);
         QuestEvents::Changes().Reference(it->first);
         it = m_created.erase(it);
     }

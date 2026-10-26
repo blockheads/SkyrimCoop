@@ -79,19 +79,27 @@ nlohmann::json PutPackage(Harness&, const nlohmann::json& acRequest)
     return EngineCalls::PutPackage(acRequest.value("actor", 0u), acRequest.value("package", 0u)) ? Ok() : Error("no such actor or package, or no AI process");
 }
 
-// {"cmd": "face", "target": id}: the player turns toward the actor (yaw and pitch).
+// {"cmd": "face", "target": id}: the player turns toward an actor's chest or an object (yaw and pitch).
 nlohmann::json Face(Harness&, const nlohmann::json& acRequest)
 {
     return EngineCalls::FacePlayerToward(acRequest.value("target", 0u)) ? Ok() : Error("no such target");
 }
 
 // {"cmd": "place", "target": id, "distance": 120, "bearing": 90}: the player stands that far from the reference (on the
-// bearing's side if given), facing it
-// (a move, not a teleport).
+// bearing's side if given), facing it (a move, not a teleport). With "position": [x, y, z], it stands there (its
+// feet), facing the target if one is given: coop_test.py picks a spot it checked with rays.
 nlohmann::json Place(Harness&, const nlohmann::json& acRequest)
 {
+    if (acRequest.contains("position"))
+    {
+        const auto cPosition = acRequest["position"].get<std::array<float, 3>>();
+        return EngineCalls::PlacePlayerAt(cPosition.data(), acRequest.value("target", 0u)) ? Ok() : Error("no player or no such target");
+    }
     const auto cBearing = acRequest.contains("bearing") ? std::optional<float>(acRequest["bearing"].get<float>()) : std::nullopt;
-    return EngineCalls::PlacePlayerBefore(acRequest.value("target", 0u), acRequest.value("distance", 120.f), cBearing) ? Ok() : Error("no such target");
+    const auto cPlacement = EngineCalls::PlacePlayerBefore(acRequest.value("target", 0u), acRequest.value("distance", 120.f), cBearing);
+    if (!cPlacement.Placed)
+        return Error("no clear spot: " + cPlacement.Blocked);
+    return {{"ok", true}, {"bearing", cPlacement.Bearing}, {"position", cPlacement.Position}};
 }
 
 // {"cmd": "clear_map_marker"}: removes the player's map marker in this game only (outside the map, nothing is sent).
