@@ -4980,6 +4980,8 @@ def death_spectate_respawn(victim):
         def copy_of_victim():
             return actor_snapshot(survivor, other_player(actors_on(survivor)))
         wait_for("the other game's copy dies with its owner", lambda: is_dead(copy_of_victim()), 5)
+        # Its ragdoll is its game's (physics sync's owners): the copy lies as it does.
+        ragdoll_lies_as_owner(victim, 0x14, survivor, other_player(actors_on(survivor)))
         wait_for("spectator camera has a standing player once the player is dead",
                  lambda: death_state(victim).get("spectating"), 10)
         try:
@@ -7086,7 +7088,7 @@ def all_rest(ids):
 class FlightTrace:
     """Records the host's and the client's physics of some references each frame (the harness's body_trace), and
     reports how the client's playback follows the host's flight: each client frame's 3D against the host's 3D
-    GuestPhysics::kDelayMs earlier (both on one machine's wall clock), the worst and typical gap, its biggest
+    BodyService::kDelayMs earlier (both on one machine's wall clock), the worst and typical gap, its biggest
     frame-to-frame jump beyond the host's, and the snap at its rest. Leaves the samples in
     build/coop-test/traces/<time>-<name>/bodies.json.
 
@@ -7094,7 +7096,7 @@ class FlightTrace:
             ...
         log(trace.report(target))"""
 
-    DELAY = 0.1  # GuestPhysics::kDelayMs
+    DELAY = 0.1  # BodyService::kDelayMs
 
     def __init__(self, name, refs):
         self.name, self.refs = name, sorted(refs)
@@ -7346,13 +7348,31 @@ def ragdoll_of(instance, actor):
     return response["bodies"]
 
 
-def ragdoll_apart(host, guest):
-    """The bones where two ragdolls differ, as text (empty: alike within 2 units and 0.05 rad)."""
+def ragdoll_lies_as_owner(owner, actor, other, copy):
+    """Once the owner's game's ragdoll of `actor` comes to rest, the other game's copy lies as it, bone by bone."""
+    who, where = owner or "host", other or "host"
+    def owner_rests():
+        bodies = ragdoll_of(owner, actor)
+        return any(b["motion"] in DYNAMIC_MOTIONS for b in bodies) and not any(b["awake"] for b in bodies)
+    wait_for(f"[{who}] the ragdoll of {actor:X} comes to rest", owner_rests, 30)
+    rest = ragdoll_of(owner, actor)
+    apart = {}
+    def lies_as_owner():
+        apart["now"] = ragdoll_apart(rest, ragdoll_of(other, copy))
+        return not apart["now"]
+    try:
+        wait_for(f"[{where}] the copy {copy:X} lies as the {who}'s body ({len(rest)} bones)", lies_as_owner, 10)
+    except TestFailure:
+        raise TestFailure(f"[{where}] the copy {copy:X} does not lie as the {who}'s body: {apart.get('now')}") from None
+
+
+def ragdoll_apart(host, guest, units=2.0, turn=0.05):
+    """The bones where two ragdolls differ, as text (empty: alike within `units` and `turn` radians)."""
     if len(host) != len(guest):
         return f"{len(host)} bones vs {len(guest)}"
     apart = [f"bone {i} at {show_value('position', a['position'])} vs {show_value('position', b['position'])}"
              for i, (a, b) in enumerate(zip(host, guest))
-             if not near(a["position"], b["position"], 2.0) or not same_turn(a["rotation"], b["rotation"], 0.05)]
+             if not near(a["position"], b["position"], units) or not same_turn(a["rotation"], b["rotation"], turn)]
     return "; ".join(apart[:4]) + (f" (+{len(apart) - 4} more)" if len(apart) > 4 else "")
 
 
@@ -7373,21 +7393,58 @@ def scenario_ragdoll_lies_as_host():
                 wait_for("[host] the wolf dies", lambda: host_npc_state(npc).get("dead"), 3)
         wait_for("[host] the wolf is dead", lambda: host_npc_state(npc).get("dead"), 1)
         wait_on("client", f"its copy {copy:08X} dies", lambda actors: actors.get(str(copy), {}).get("dead"))
-        def host_rests():
-            bodies = ragdoll_of("", npc)
-            return any(b["motion"] in DYNAMIC_MOTIONS for b in bodies) and not any(b["awake"] for b in bodies)
-        wait_for("[host] the wolf's ragdoll comes to rest", host_rests, 30)
-        rest = ragdoll_of("", npc)
-        apart = {}
-        def lies_as_host():
-            apart["now"] = ragdoll_apart(rest, ragdoll_of("client", copy))
-            return not apart["now"]
-        try:
-            wait_for(f"[client] the copy's body lies as the host's ({len(rest)} bones)", lies_as_host, 10)
-        except TestFailure:
-            raise TestFailure(f"[client] the copy's body does not lie as the host's: {apart.get('now')}")
+        ragdoll_lies_as_owner("", npc, "client", copy)
     finally:
         sheathe("")
+
+
+def knocked_down_together(owner, actor, other, copy, knock_down):
+    """Physics sync's owners, living knockdowns (docs/design/physics-sync.md): `knock_down()` knocks the owner's `actor`
+    down. The other game's copy goes down with it, its ragdoll moved by the owner's frames, lies as the owner's does,
+    and gets up with it."""
+    who, where = owner or "host", other or "host"
+    def knock(instance, form):
+        return (actor_snapshot(instance, form).get("state") or {}).get("knock", 0)
+    knock_down()
+    wait_for(f"[{who}] {actor:X} is knocked down", lambda: knock(owner, actor), 3)
+    wait_for(f"[{where}] its copy {copy:X} goes down with it", lambda: knock(other, copy), 3)
+    # The owner's gets up once still, so the copy is compared with where the owner's lay a moment before (the copy
+    # plays the owner's frames 100 ms behind, blended: within 4 units and 0.2 rad of one of them, not at a rest; a
+    # copy left to its own physics lies meters off).
+    owner_poses, closest = [], {"apart": "never compared while both lay"}
+    def lies_as_owner():
+        now = time.monotonic()
+        if knock(owner, actor):
+            owner_poses.append((now, ragdoll_of(owner, actor)))
+        if knock(other, copy):
+            lying = ragdoll_of(other, copy)
+            for at, pose in owner_poses:
+                if now - 0.6 < at < now - 0.05:
+                    if not (apart := ragdoll_apart(pose, lying, 4.0, 0.2)):
+                        closest["alike"] = True
+                    closest["apart"] = apart or closest["apart"]
+        return not knock(owner, actor) and not knock(other, copy) or closest.get("alike")
+    wait_for(f"[{where}] the copy lies as the {who}'s body lay a moment before", lies_as_owner, 20)
+    if not closest.get("alike"):
+        raise TestFailure(f"[{where}] the copy never lay as the {who}'s body: {closest['apart']}")
+    wait_for(f"[{who}] {actor:X} is up again", lambda: not knock(owner, actor), 20)
+    wait_for(f"[{where}] the copy is up with it", lambda: not knock(other, copy), 3)
+
+
+def scenario_knockdown_lies_as_host():
+    """The host's player knocks a living NPC down: the client's copy lies and gets up with it."""
+    npc, _, copy = spawn_host_npc(LYDIA)
+    try:
+        place_before("", npc, 150)
+        knocked_down_together("", npc, "client", copy, lambda: console_on("", f"player.pushactoraway {npc:X} 5"))
+    finally:
+        remove_host_npc(npc)
+
+
+def scenario_guest_knockdown_lies_on_host():
+    """The client's player is knocked down in its game: the host's copy of it lies and gets up with it."""
+    copy = client_on_host()
+    knocked_down_together("client", 0x14, "", copy, lambda: console_on("client", "player.pushactoraway player 5"))
 
 
 def scenario_world_changes_reach_guest():
@@ -8704,6 +8761,8 @@ SCENARIOS = {
     "guest-bump-moves-host": scenario_guest_bump_moves_host,
     "guest-throw-lands-on-host": scenario_guest_throw_lands_on_host,
     "ragdoll-lies-as-host": scenario_ragdoll_lies_as_host,
+    "knockdown-lies-as-host": scenario_knockdown_lies_as_host,
+    "guest-knockdown-lies-on-host": scenario_guest_knockdown_lies_on_host,
     "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
     "guest-opens-hosts-roll": scenario_guest_opens_hosts_roll,
     "placed-leveled-items-are-hosts": scenario_placed_leveled_items_are_hosts,
@@ -8863,6 +8922,8 @@ TAGS = {
     "guest-bump-moves-host": {'physics', 'objects', 'movement'},
     "guest-throw-lands-on-host": {'physics', 'objects'},
     "ragdoll-lies-as-host": {'physics', 'death'},
+    "knockdown-lies-as-host": {'physics'},
+    "guest-knockdown-lies-on-host": {'physics'},
     "late-join-gets-cell-state": {'world', 'objects', 'session'},
     "guest-opens-hosts-roll": {'world', 'objects', 'inventory', 'cells'},
     "placed-leveled-items-are-hosts": {'world', 'objects', 'cells'},
@@ -8971,7 +9032,9 @@ SOURCE_TAGS = [
     ("Code/client/Services/Host/HostWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
     ("Code/client/Services/Guest/GuestWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
     ("Code/client/Services/Host/HostPhysics.*", {'physics'}),
-    ("Code/client/Services/Guest/GuestPhysics.*", {'physics'}),
+    ("Code/client/Services/BodyService.h", {'physics'}),
+    ("Code/client/Services/Generic/BodyService.*", {'physics'}),
+    ("Code/client/Bridges/*BodyBridge.*", {'physics'}),
     ("Code/client/Services/Host/HostHands.*", {'physics'}),
     ("Code/client/Services/Guest/GuestHands.*", {'physics'}),
     ("Code/client/Bridges/HostEngineBodies.*", {'physics', 'objects'}),

@@ -6,6 +6,7 @@
 #include <Havok/bhkCollision.h>
 #include <Havok/Ragdoll.h>
 #include <NetImmerse/NiNode.h>
+#include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 
 #include <glm/glm.hpp>
@@ -42,8 +43,8 @@ bool PhysicsBodies::Pose::IsNear(const Pose& acOther) const noexcept
            glm::all(glm::lessThan(glm::abs(Rotation - acOther.Rotation), glm::vec3(ReferenceBodies::kSameAngle)));
 }
 
-PhysicsBodies::PhysicsBodies(bool aActors) noexcept
-    : m_actors(aActors)
+PhysicsBodies::PhysicsBodies(bool aAllActors) noexcept
+    : m_allActors(aAllActors)
 {
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, physics stays in this game", __FUNCTION__);
@@ -64,8 +65,8 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         moved.swap(s_moved);
     }
     for (const uint32_t cFormId : moved)
-        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); pObject && (m_actors || !Cast<Actor>(pObject)))
-            m_awake.try_emplace(cFormId, Pose::Of(*pObject));
+        if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); pObject && (m_allActors || !Cast<Actor>(pObject) || pObject == PlayerCharacter::Get()))
+            m_awake.try_emplace(cFormId, Moving{Pose::Of(*pObject)});
 
     Update update;
     for (auto it = m_awake.begin(); it != m_awake.end();)
@@ -77,7 +78,10 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
             it = m_awake.erase(it);
             continue;
         }
-        const bool cActor = Cast<Actor>(pObject) != nullptr;
+        const auto* pActor = Cast<Actor>(pObject);
+        const bool cActor = pActor != nullptr;
+        // A living actor's ragdoll is its physics' only while it is knocked down; up again, its animation's.
+        const bool cUp = pActor && !pActor->IsDead() && !pActor->actorState.IsKnockedDown();
         Bodies awake{it->first, cActor};
         Bodies all{it->first, cActor};
         // A reference's: with their collision objects, whose nodes this game writes (below).
@@ -92,28 +96,37 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         for (size_t i = 0; i < cBodies.size(); ++i)
         {
             BodyRead read;
-            if (!cBodies[i] || !ReadBody(*cBodies[i], read) || !read.Dynamic)
+            if (!cBodies[i] || !ReadBody(*cBodies[i], read) || (!read.Dynamic && !cUp))
                 continue;
+            // Up again: where it lay is its rest (read once, below).
+            if (cUp)
+            {
+                all.Read.push_back(ReferenceBodies::FrameOf(read, static_cast<uint8_t>(i)));
+                continue;
+            }
             // The engine sometimes leaves a flying body's 3D (and reference) where it was (docs/re/systems/physics.md);
             // the guests and the record get where it is.
             if (!cActor)
                 FollowBody(*cCollisions[i]);
-            const BodyFrame cFrame = ReferenceBodies::FrameOf(read, static_cast<uint8_t>(i));
+            BodyFrame frame = ReferenceBodies::FrameOf(read, static_cast<uint8_t>(i));
+            frame.Knocked = pActor && !pActor->IsDead();
+            const BodyFrame& cFrame = frame;
             all.Read.push_back(cFrame);
             if (read.Active)
                 awake.Read.push_back(cFrame);
         }
         if (!awake.Read.empty())
         {
+            it->second.Ragdoll |= cActor;
             update.Awake.push_back(std::move(awake));
             ++it;
             continue;
         }
-        // Asleep: where it rests is the host's.
-        if (!all.Read.empty())
+        // Asleep, or an actor up again from lying (an actor standing never lay): where it rests is the owner's.
+        if (!all.Read.empty() && (!cUp || it->second.Ragdoll))
         {
             // An actor's place is its own sync's (movement, the copy contract).
-            if (!cActor && !it->second.IsNear(Pose::Of(*pObject)))
+            if (!cActor && !it->second.At.IsNear(Pose::Of(*pObject)))
                 m_restedAway.push_back(it->first);
             update.Rested.push_back(std::move(all));
         }

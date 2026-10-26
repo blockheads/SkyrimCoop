@@ -4,6 +4,7 @@
 #include "FakeEngine.h"
 
 #include <Bridges/GuestEngine.h>
+#include <Bridges/IBodyBridge.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
@@ -11,19 +12,20 @@
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
-#include <Services/Guest/GuestPhysics.h>
+#include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
 #include <World.h>
 
-GuestEngine::GuestEngine() noexcept
+GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
+    : m_bodyBridge(aBodies)
 {
 }
 
 GuestEngine::~GuestEngine() noexcept = default;
-// Never read here (TakeOwnMoves is the fake's), but GuestEngine holds one.
+// Never read here (TakeOwnBodies is the fake's), but GuestEngine holds one.
 PhysicsBodies::PhysicsBodies(bool) noexcept {}
 
 void GuestEngine::SetDecidesWorld(bool aOn) noexcept
@@ -93,49 +95,6 @@ bool GuestEngine::IsCellAttached(const GameId& acCell) const noexcept
     return FakeEngine::Current().Attached.contains(FormIdOf(acCell));
 }
 
-std::optional<BodyPose> GuestEngine::ReadPose(const BodyKey& acKey) noexcept
-{
-    const auto& bodies = FakeEngine::Current().Bodies;
-    const auto it = acKey.Actor ? bodies.end() : bodies.find(acKey);
-    if (it == bodies.end())
-        return std::nullopt;
-    return BodyPose{.Key = acKey, .Position = it->second.Flight.Body.Position, .Rotation = it->second.Flight.Body.Rotation};
-}
-
-bool GuestEngine::DriveBody(const BodyFrame& acFrame, uint32_t) noexcept
-{
-    FakeEngine& engine = FakeEngine::Current();
-    const auto it = engine.Bodies.find(acFrame.Key);
-    if (it == engine.Bodies.end())
-        return false;
-    // A living copy's ragdoll body is its animation's: left until its ragdoll has it (GuestEngine::FindHostBody).
-    if (it->second.RagdollOf && !engine.IsActorDead(it->second.RagdollOf))
-        return true;
-    // Keyframed: put at the frame.
-    it->second.Held = true;
-    it->second.Flight.Body.Position = acFrame.Position;
-    it->second.Flight.Body.Rotation = acFrame.Rotation;
-    ++it->second.Drives;
-    return true;
-}
-
-bool GuestEngine::RestBody(const BodyPose& acPose, uint32_t) noexcept
-{
-    auto& bodies = FakeEngine::Current().Bodies;
-    const auto it = bodies.find(acPose.Key);
-    if (it == bodies.end())
-        return false;
-    FakeEngine::Body& body = it->second;
-    // A reference's body is simulated again at its rest; a ragdoll's stays held.
-    body.Held = body.RagdollOf != 0;
-    body.Flight.Body.Position = acPose.Position;
-    body.Flight.Body.Rotation = acPose.Rotation;
-    body.Flight.Body.LinearVelocity = {};
-    body.Flight.Body.AngularVelocity = {};
-    ++body.Rests;
-    return true;
-}
-
 void GuestEngine::FreePlaced() noexcept
 {
 }
@@ -150,9 +109,24 @@ std::vector<BodyPush> GuestEngine::TakePushes() noexcept
     return std::exchange(FakeEngine::Current().PlayerPushes, {});
 }
 
-std::vector<BodyPose> GuestEngine::TakeOwnMoves() noexcept
+// The player's ragdoll is keyed by its form id here (0x14), by index alone out of GuestEngine.
+GuestEngine::OwnBodies GuestEngine::TakeOwnBodies() noexcept
 {
-    return std::exchange(FakeEngine::Current().OwnMoves, {});
+    FakeEngine& engine = FakeEngine::Current();
+    OwnBodies own;
+    own.Moved = std::exchange(engine.OwnMoves, {});
+    auto ragdoll = engine.TakeBodies(World::Get().GetTransport().GetTick(), [](const BodyKey& acKey) { return acKey.Actor == 0x14; });
+    for (BodyFrame& frame : ragdoll.Awake)
+    {
+        frame.Key = {.Index = frame.Key.Index};
+        own.Ragdoll.push_back(frame);
+    }
+    for (BodyPose& rest : ragdoll.Rested)
+    {
+        rest.Key = {.Index = rest.Key.Index};
+        own.RagdollRested.push_back(rest);
+    }
+    return own;
 }
 
 std::vector<BodyFrame> GuestEngine::ReadHeld() const noexcept
@@ -169,11 +143,11 @@ std::vector<BodyFrame> GuestEngine::ReadHeld() const noexcept
 struct GuestSeam::Guest
 {
     explicit Guest(World& aWorld)
-        : Clock(aWorld, aWorld.GetDispatcher(), Engine),
+        : Engine(aWorld.ctx().at<IBodyBridge&>()), Clock(aWorld, aWorld.GetDispatcher(), Engine),
           Weather(aWorld.GetDispatcher(), Engine), WorldState(aWorld, aWorld.GetDispatcher(), Engine),
           Dialogue(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<DialogueService>()),
           Record(aWorld, aWorld.GetDispatcher(), aWorld.ctx().at<IJoinBridge&>()),
-          Physics(aWorld, aWorld.GetDispatcher(), Engine),
+          Hands(aWorld, Engine),
           Wait(aWorld, aWorld.GetDispatcher(), Engine)
     {
     }
@@ -184,7 +158,7 @@ struct GuestSeam::Guest
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;
-    GuestPhysics Physics;
+    GuestHands Hands;
     GuestWait Wait;
 };
 
@@ -218,6 +192,6 @@ void GuestSeam::Update() noexcept
     m_pGuest->Weather.OnUpdate(cUpdate);
     m_pGuest->WorldState.OnUpdate(cUpdate);
     m_pGuest->Record.OnUpdate(cUpdate);
-    m_pGuest->Physics.OnUpdate(cUpdate);
+    m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
 }

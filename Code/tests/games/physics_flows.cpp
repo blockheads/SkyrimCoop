@@ -2,7 +2,8 @@
 // host's: held keyframed, following the host's flight a little behind, resting exactly where the host's rests.
 #include "Party.h"
 
-#include <Services/Guest/GuestPhysics.h>
+#include <Services/BodyService.h>
+#include <Services/Guest/GuestHands.h>
 
 namespace
 {
@@ -127,9 +128,13 @@ SCENARIO("A guest's player carries the plate and lets go: the host's follows its
     Party::Engine(party.Guest()).Grabbed = kPlate;
     const auto cBegan = std::chrono::steady_clock::now();
     const auto cCarried = [&] { return std::chrono::duration<float>(std::chrono::steady_clock::now() - cBegan).count(); };
-    // The guest's hands move it (its own mouse spring).
+    // The guest's hands move it (its own mouse spring), in wall time: the longest frame (a loaded machine's) is how far
+    // behind a frame may show it, besides the playback's delay.
+    float lastMove = 0.f, longestFrame = 0.f;
     const auto cMove = [&] {
-        guestPlate.Flight.Body.Position = cStart + cCarry * cCarried();
+        const float cNow = cCarried();
+        longestFrame = std::max(longestFrame, cNow - std::exchange(lastMove, cNow));
+        guestPlate.Flight.Body.Position = cStart + cCarry * cNow;
         guestPlate.Flight.Body.LinearVelocity = cCarry;
     };
     party.Until([&] { cMove(); return hostPlate.Drives > 0 && cCarried() > 0.5f; }, "the host's plate follows the guest's hands");
@@ -137,7 +142,9 @@ SCENARIO("A guest's player carries the plate and lets go: the host's follows its
     {
         CHECK(hostPlate.Held);
         CHECK_FALSE(hostPlate.Awake);
-        CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < glm::length(cCarry) * 0.3f);
+        const float cBehind = glm::length(cCarry) * (BodyService::kDelayMs / 1000.f + 2.f * longestFrame) + 5.f;
+        INFO("longest frame " << longestFrame << " s");
+        CHECK(glm::distance(hostPlate.Flight.Body.Position, guestPlate.Flight.Body.Position) < cBehind);
     }
 
     const glm::vec3 cLetGo = guestPlate.Flight.Body.Position;
@@ -186,7 +193,7 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
     REQUIRE(cSession == SessionOf(party.Guest(), cCopy));
 
     // Each game's guard has its ragdoll's bodies: the host's by its form id (HostEngine keys them by session id), the
-    // copy's by the session id GuestPhysics resolves to it.
+    // copy's by the session id BodyService resolves to it.
     for (uint8_t i = 0; i < kRagdollBodies; ++i)
     {
         FakeEngine::Body bone;
@@ -213,6 +220,7 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
                 return guest.IsActorDead(cCopy);
             }, "the guest's copy dies");
             CHECK_FALSE(drivenAlive);
+            CHECK_FALSE(guest.Actors.at(cCopy).KnockedDown);
             party.Until([&] {
                 for (uint8_t i = 0; i < kRagdollBodies; ++i)
                     if (host.Bodies.at({.Actor = guard, .Index = i}).Awake)
@@ -229,4 +237,100 @@ SCENARIO("A host NPC dies and ragdolls: its copy's body lies as the host's, bone
             }
         }
     }
+}
+
+SCENARIO("A host NPC is knocked down alive: its copy goes down with it and lies as the host's, bone by bone", "[physics]")
+{
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {20.f, 20.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the host's guard");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    const uint32_t cSession = SessionOf(party.Host(), guard);
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        FakeEngine::Body bone;
+        bone.Flight.Body.Position = {20.f, 20.f, 40.f + 20.f * i};
+        bone.RagdollOf = guard;
+        host.Bodies[{.Actor = guard, .Index = i}] = bone;
+        bone.RagdollOf = cCopy;
+        guest.Bodies[{.Actor = cSession, .Index = i}] = bone;
+    }
+
+    party.As(party.Host(), [&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            host.Knock({.Actor = guard, .Index = i}, {40.f * i, 30.f, 50.f}, {0.f, 2.f, 1.f});
+    });
+    const BodyKey cHead{.Actor = cSession, .Index = kRagdollBodies - 1};
+    party.Until([&] { return guest.Actors.at(cCopy).KnockedDown; }, "the copy goes down with the host's guard");
+    party.Until([&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            if (host.Bodies.at({.Actor = guard, .Index = i}).Awake)
+                return false;
+        return guest.Bodies.at(cHead).Rests > 0;
+    }, "the guard's ragdoll rests on both games");
+    CHECK_FALSE(guest.IsActorDead(cCopy));
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        INFO("bone " << int(i));
+        CHECK(glm::distance(guest.Bodies.at({.Actor = cSession, .Index = i}).Flight.Body.Position,
+                            host.Bodies.at({.Actor = guard, .Index = i}).Flight.Body.Position) < 0.01f);
+    }
+}
+
+SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's copies lie as its body, bone by bone", "[physics][death]")
+{
+    Party party(2, Plugins);
+    FakeEngine& guest = Party::Engine(party.Guest());
+    party.Agree("all players are present");
+    const uint32_t cSession = SessionOf(party.Guest(), FakeEngine::kPlayer);
+    REQUIRE(cSession != 0);
+    // The guest's player's ragdoll by its form id (GuestEngine keys it by index), each copy's by the session id.
+    const std::vector<World*> cOthers{&party.Host(), &party.Guest(1)};
+    // Each other game's copy of the guest's player now (its death spawns it again).
+    const auto cCopyOn = [&](World& aGame) {
+        for (const uint32_t cId : Party::Engine(aGame).CopiesOf())
+            if (SessionOf(aGame, cId) == cSession)
+                return cId;
+        return 0u;
+    };
+    party.Until([&] { return std::ranges::all_of(cOthers, [&](World* apGame) { return cCopyOn(*apGame) != 0; }); },
+                "each other game has the guest's copy");
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        FakeEngine::Body bone;
+        bone.Flight.Body.Position = {20.f, 20.f, 40.f + 20.f * i};
+        bone.RagdollOf = FakeEngine::kPlayer;
+        guest.Bodies[{.Actor = FakeEngine::kPlayer, .Index = i}] = bone;
+        for (World* pGame : cOthers)
+        {
+            bone.RagdollOf = cCopyOn(*pGame);
+            Party::Engine(*pGame).Bodies[{.Actor = cSession, .Index = i}] = bone;
+        }
+    }
+
+    party.As(party.Guest(), [&] {
+        guest.Hit(FakeEngine::kPlayer, 200.f);
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            guest.Knock({.Actor = FakeEngine::kPlayer, .Index = i}, {40.f * i, 30.f, 50.f}, {0.f, 2.f, 1.f});
+    });
+    const BodyKey cHead{.Actor = cSession, .Index = kRagdollBodies - 1};
+    party.Until([&] {
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            if (guest.Bodies.at({.Actor = FakeEngine::kPlayer, .Index = i}).Awake)
+                return false;
+        return std::ranges::all_of(cOthers, [&](World* apGame) { return Party::Engine(*apGame).Bodies.at(cHead).Rests > 0; });
+    }, "the guest's ragdoll rests on every game");
+    for (World* pGame : cOthers)
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+        {
+            const auto& cOwnBone = guest.Bodies.at({.Actor = FakeEngine::kPlayer, .Index = i});
+            const auto& cCopyBone = Party::Engine(*pGame).Bodies.at({.Actor = cSession, .Index = i});
+            INFO((pGame == &party.Host() ? "the host's copy" : "the other guest's copy") << ", bone " << int(i));
+            CHECK(Party::Engine(*pGame).IsActorDead(cCopyOn(*pGame)));
+            CHECK(cCopyBone.Drives > 0);
+            CHECK(glm::distance(cCopyBone.Flight.Body.Position, cOwnBone.Flight.Body.Position) < 0.01f);
+        }
 }

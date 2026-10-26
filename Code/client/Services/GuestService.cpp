@@ -9,12 +9,13 @@
 #include <Events/WorldCallEvent.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Services/Guest/GuestClock.h>
-#include <Services/Guest/GuestPhysics.h>
+#include <Services/Guest/GuestHands.h>
 #include <Services/Guest/GuestWeather.h>
 #include <Services/Guest/GuestWorldState.h>
 #include <Services/Guest/GuestWait.h>
 #include <Services/Guest/GuestDialogue.h>
 #include <Services/Guest/GuestRecord.h>
+#include <Bridges/IBodyBridge.h>
 #include <Bridges/IJoinBridge.h>
 #include <Services/HostService.h>
 #include <Services/RunnerService.h>
@@ -26,12 +27,13 @@
 struct GuestService::Guest
 {
     Guest(World& aWorld, entt::dispatcher& aDispatcher) noexcept
-        : Clock(aWorld, aDispatcher, Engine)
+        : Engine(aWorld.ctx().at<IBodyBridge&>())
+        , Clock(aWorld, aDispatcher, Engine)
         , Weather(aDispatcher, Engine)
         , WorldState(aWorld, aDispatcher, Engine)
         , Dialogue(aWorld, aDispatcher, aWorld.ctx().at<DialogueService>())
         , Record(aWorld, aDispatcher, aWorld.ctx().at<IJoinBridge&>())
-        , Physics(aWorld, aDispatcher, Engine)
+        , Hands(aWorld, Engine)
         , Wait(aWorld, aDispatcher, Engine)
     {
     }
@@ -42,7 +44,7 @@ struct GuestService::Guest
     GuestWorldState WorldState;
     GuestDialogue Dialogue;
     GuestRecord Record;
-    GuestPhysics Physics;
+    GuestHands Hands;
     GuestWait Wait;
 };
 
@@ -118,6 +120,7 @@ void GuestService::OnUpdate(const UpdateEvent& acEvent) noexcept
     m_pGuest->Weather.OnUpdate(acEvent);
     m_pGuest->WorldState.OnUpdate(acEvent);
     m_pGuest->Record.OnUpdate(acEvent);
-    m_pGuest->Physics.OnUpdate(acEvent);
+    // The host's rests a world state row placed: simulated again, asleep (BodyService plays the rest).
+    m_pGuest->Engine.FreePlaced();
     m_pGuest->Wait.OnUpdate();
 }

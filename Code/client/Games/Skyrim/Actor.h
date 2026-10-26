@@ -404,7 +404,9 @@ public:
     // Voice line state (CommonLib soundCallBackSet): 3 queued, -1 playing, 1/2 ended.
     int8_t soundCallBackSet;
     uint8_t unk195;
-    uint8_t unk196;
+    // Character vfunc 0xC5 (40292) reads it, 0xC4 (40295) sets it: AIProcess::KnockExplosion (39895) knocks the
+    // actor into its ragdoll only with it, else pushes its controller.
+    uint8_t knockRagdolls;
     uint8_t flag197;
 
     uint8_t pad198[8];
@@ -420,6 +422,7 @@ static_assert(offsetof(Actor, actorValueOwner) == 0xB8);
 static_assert(offsetof(Actor, actorState) == 0xC0);
 static_assert(offsetof(Actor, flags2) == 0x204);
 static_assert(offsetof(Actor, soundCallBackSet) == 0x278);
+static_assert(offsetof(Actor, knockRagdolls) == 0x27A);
 static_assert(offsetof(Actor, fVoiceTimer) == 0x110);
 static_assert(offsetof(Actor, fUnderWaterTimer) == 0x114);
 static_assert(offsetof(Actor, unk84) == 0xF0);

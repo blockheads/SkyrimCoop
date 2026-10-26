@@ -1,6 +1,6 @@
 #include <Services/Guest/GuestHands.h>
 
-#include <Bridges/GuestEngine.h>
+#include <Components.h>
 #include <Messages/Relayed.h>
 #include <Services/TransportService.h>
 #include <Services/WorldStateLog.h>
@@ -10,18 +10,36 @@ GuestHands::GuestHands(World& aWorld, GuestEngine& aEngine) noexcept
     : m_world(aWorld)
     , m_engine(aEngine)
 {
+    m_world.ctx().at<BodyService>().SetKeeper(this);
+}
+
+GuestHands::~GuestHands() noexcept
+{
+    m_world.ctx().at<BodyService>().SetKeeper(nullptr);
 }
 
 std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>& acPlayed) noexcept
 {
     std::vector<BodyKey> owned;
-    SendHands(aTick, owned);
-    TrackMoved(aTick, acPlayed);
+    std::vector<BodyFrame> frames;
+    auto own = m_engine.TakeOwnBodies();
+    SendHands(aTick, owned, frames);
+    SendRagdoll(aTick, own, frames);
+    // Its frames, where the others' guess of them goes wrong (the host's send rule).
+    if (!frames.empty())
+    {
+        BodyFramesRequest sent;
+        sent.Tick = aTick;
+        sent.Frames = m_sends.Due(frames, aTick);
+        if (!sent.Frames.empty())
+            m_world.GetTransport().Send(sent);
+    }
+    TrackMoved(aTick, acPlayed, own.Moved);
     AskHost(aTick);
     return owned;
 }
 
-bool GuestHands::TakesHostFrame(const BodyKey& acKey) noexcept
+bool GuestHands::TakesFrame(const BodyKey& acKey) noexcept
 {
     // This game's player's: its own flight shows until the host's rest.
     if (const auto it = m_own.find(acKey); it != m_own.end())
@@ -34,7 +52,7 @@ bool GuestHands::TakesHostFrame(const BodyKey& acKey) noexcept
     return true;
 }
 
-void GuestHands::OnHostRest(const BodyPose& acRest) noexcept
+void GuestHands::OnRest(const BodyPose& acRest) noexcept
 {
     m_own.erase(acRest.Key);
     m_moved.erase(acRest.Key);
@@ -53,7 +71,7 @@ void GuestHands::Own(const BodyKey& acKey, uint64_t aTick, const char* acpHow, s
     spdlog::info("GuestHands: this game's player {} the host's {}", acpHow, WorldStateLog::DescribeBody(acKey));
 }
 
-void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned) noexcept
+void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned, std::vector<BodyFrame>& aFrames) noexcept
 {
     auto& transport = m_world.GetTransport();
     // Pushes: the impulse its character gave, for the host to give alike (what it holds moves with its hands only).
@@ -78,32 +96,61 @@ void GuestHands::SendHands(uint64_t aTick, std::vector<BodyKey>& aOwned) noexcep
         }
         spdlog::info("GuestHands: this game's player let go of the host's {}", WorldStateLog::DescribeBody(it->first));
         released.Frames.push_back(it->second);
-        m_holdSends.Forget(it->first);
+        m_sends.Forget(it->first);
         it = m_holding.erase(it);
     }
     if (!released.Frames.empty())
         transport.Send(released);
 
-    // Held: its frames, where the host's guess of them goes wrong (the host's send rule).
-    if (cHeld.empty())
-        return;
     for (const auto& cFrame : cHeld)
     {
         Own(cFrame.Key, aTick, "holds", aOwned);
         m_holding[cFrame.Key] = cFrame;
+        aFrames.push_back(cFrame);
     }
-    BodyFramesRequest held;
-    held.Tick = aTick;
-    held.Frames = m_holdSends.Due(cHeld, aTick);
-    if (!held.Frames.empty())
-        transport.Send(held);
 }
 
-void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed) noexcept
+uint32_t GuestHands::PlayerId() const noexcept
+{
+    for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
+        if (m_world.get<FormIdComponent>(cEntity).Id == 0x14)
+            return m_world.get<LocalComponent>(cEntity).Id;
+    return 0;
+}
+
+void GuestHands::SendRagdoll(uint64_t aTick, GuestEngine::OwnBodies& aOwn, std::vector<BodyFrame>& aFrames) noexcept
+{
+    if (aOwn.Ragdoll.empty() && aOwn.RagdollRested.empty())
+        return;
+    const uint32_t cPlayer = PlayerId();
+    if (!cPlayer)
+        return;
+    for (BodyFrame& frame : aOwn.Ragdoll)
+        frame.Key.Actor = cPlayer;
+    m_motions.Mark(aOwn.Ragdoll, aTick);
+    if (!aOwn.Ragdoll.empty() && m_ragdollFrames++ == 0)
+        spdlog::info("GuestHands: this game's player's ragdoll moves ({} bodies awake)", aOwn.Ragdoll.size());
+    aFrames.insert(aFrames.end(), aOwn.Ragdoll.begin(), aOwn.Ragdoll.end());
+    if (aOwn.RagdollRested.empty())
+        return;
+    BodyRestsRequest rests;
+    rests.Tick = aTick;
+    for (BodyPose& rest : aOwn.RagdollRested)
+    {
+        rest.Key.Actor = cPlayer;
+        m_sends.Forget(rest.Key);
+        m_motions.Forget(rest.Key);
+        rests.Rests.push_back(rest);
+    }
+    spdlog::info("GuestHands: this game's player's ragdoll rests ({} bodies, {} updates moving)", rests.Rests.size(), std::exchange(m_ragdollFrames, 0));
+    m_world.GetTransport().Send(rests);
+}
+
+void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed, const std::vector<BodyPose>& acMoved) noexcept
 {
     for (auto& [cKey, moved] : m_moved)
         moved.Seen = false;
-    for (const auto& cMove : m_engine.TakeOwnMoves())
+    for (const auto& cMove : acMoved)
     {
         if (m_own.contains(cMove.Key) || acPlayed.contains(cMove.Key))
             continue;
@@ -122,7 +169,7 @@ void GuestHands::TrackMoved(uint64_t aTick, const std::set<BodyKey>& acPlayed) n
 
 void GuestHands::AskHost(uint64_t aTick) noexcept
 {
-    BodyRestRequest asked;
+    BodyPoseRequest asked;
     for (auto it = m_own.begin(); it != m_own.end();)
     {
         if (m_holding.contains(it->first) || it->second.HostMoved || aTick - it->second.Touched < kOwnMs)

@@ -24,6 +24,8 @@
 #include <Bridges/SteamBridge.h>
 #include <Bridges/JoinBridge.h>
 #include <Bridges/WaitBridge.h>
+#include <Bridges/BodyBridge.h>
+#include <Services/BodyService.h>
 #include <Services/WaitService.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
@@ -78,6 +80,7 @@ World::World()
     , m_pSteamBridge(std::make_unique<SteamBridge>())
     , m_pJoinBridge(std::make_unique<JoinBridge>())
     , m_pWaitBridge(std::make_unique<WaitBridge>())
+    , m_pBodyBridge(std::make_unique<BodyBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -96,6 +99,8 @@ World::World()
                                   ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
     ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
+    ctx().emplace<IBodyBridge&>(*m_pBodyBridge);
+    ctx().emplace<BodyService>(*this, m_dispatcher, *m_pBodyBridge);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -147,6 +152,7 @@ World::~World()
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
     ctx().erase<SessionService>();
+    ctx().erase<BodyService>();
     ctx().erase<WaitService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();

@@ -25,6 +25,7 @@
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
+#include <Services/BodyService.h>
 #include <Systems/AnimationSystem.h>
 #include <Systems/FaceGenSystem.h>
 #include <Components.h>
@@ -110,25 +111,29 @@ void HostService::MakeAuthority() noexcept
     game.SetItems = [&engine](const GameId& acObject, const GameId& acItem, uint32_t aCount) {
         engine.SetItems(FormIdOf(acObject), FormIdOf(acItem), static_cast<int32_t>(aCount));
     };
-    // An actor's ragdoll goes by its session id, as HostEngine::TakeBodies keys it.
+    // An actor's ragdoll goes by its session id, as HostEngine::TakeBodies keys it; only this game's own actors' (a
+    // copy's is keyed by session id here, and played).
     game.TakeBodies = [&engine, this] {
-        HostBodies bodies = engine.TakeBodies(m_pNetwork->GetTick());
-        const auto cSession = [this](BodyKey& aKey) {
-            if (!aKey.Actor)
-                return;
+        const auto cSessionOf = [this](uint32_t aFormId) -> uint32_t {
             for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
-                if (m_world.get<FormIdComponent>(cEntity).Id == aKey.Actor)
-                    aKey.Actor = m_world.get<LocalComponent>(cEntity).Id;
+                if (m_world.get<FormIdComponent>(cEntity).Id == aFormId)
+                    return m_world.get<LocalComponent>(cEntity).Id;
+            return 0;
         };
+        HostBodies bodies = engine.TakeBodies(m_pNetwork->GetTick(), [&](const BodyKey& acKey) { return !acKey.Actor || cSessionOf(acKey.Actor); });
         for (auto& frame : bodies.Awake)
-            cSession(frame.Key);
+            if (frame.Key.Actor)
+                frame.Key.Actor = cSessionOf(frame.Key.Actor);
         for (auto& rest : bodies.Rested)
-            cSession(rest.Key);
+            if (rest.Key.Actor)
+                rest.Key.Actor = cSessionOf(rest.Key.Actor);
         return bodies;
     };
     game.PushBody = [&engine](const BodyPush& acPush) { return engine.Push(acPush); };
-    game.DriveBody = [&engine](const BodyFrame& acFrame) { return engine.Drive(acFrame); };
-    game.FreeBody = [&engine](const BodyFrame& acFrame) { return engine.Free(acFrame); };
+    game.FreeBody = [&engine, this](const BodyFrame& acFrame) {
+        m_world.ctx().at<BodyService>().Forget(acFrame.Key);
+        return engine.Free(acFrame);
+    };
     game.ReadBodies = [&engine](const std::vector<BodyKey>& acKeys) {
         std::vector<BodyPose> poses;
         for (const BodyKey& cKey : acKeys)

@@ -198,7 +198,16 @@ real death replaced it, `docs/design/death.md`); the engine's side holds for any
   essential-down hold); the stillness test (37689) never passes for it either. Its rest is read from its ragdoll's
   bodies instead: all asleep (their islands inactive), as for any body at rest.
 - A copy is not bleeding out: its knock update runs (the removed hook skipped it for a held one while lying). Its
-  replayed actions carry the owner's flags1 (`AnimationSystem::PlayReplayedAction`), knock bits too.
+  replayed actions carry the owner's flags1 (`AnimationSystem::PlayReplayedAction`) but not the knock bits (since
+  2026-10-26): set from an owner's action, a copy's knock state went to lying or getting up with its ragdoll never
+  added to the world (its bodies read motion 0 at the origin).
+- Knocking a copy down (checked 2026-10-26, `BodyBridge::KnockedDown`): `KnockExplosion` refuses a dead actor, an
+  immobile or no-knockdown race, a restrained one, and one whose high process reads 9 at `+0x2D8`
+  (`Character` 37485). It ragdolls only when `Character` vfunc 0xC5 (40292) reads true: the byte at `Actor+0x27A`
+  (`knockRagdolls`, set by vfunc 0xC4 40295), else it pushes the character controller. Copies read 1. Off the main
+  thread it goes through the task queue, so the knock state can still read 0 right after the call.
+- A knocked down actor's ragdoll bodies stay dynamic while it gets up (knock states 5 and 6); its animation drives
+  them again. `PhysicsBodies` reads a living actor's ragdoll only in knock states 1 to 4.
 - Moving the actor (the party's travel, PositionPlayer) leaves its ragdoll's bodies where they lie; getting up then
   puts the actor back at its ragdoll. The bodies can be moved with it (78082, motion types kept; the removed
   `KnockDown::Carry` did).

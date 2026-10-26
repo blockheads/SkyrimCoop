@@ -26,7 +26,8 @@ struct BodyKey
 };
 
 // Where a body is and how it moves, in game units (positions, units/s) and radians; Gravity: it is falling freely,
-// so a guess adds the world's gravity (else it goes on as it moves).
+// so a guess adds the world's gravity (else it goes on as it moves). Knocked: an actor's ragdoll whose owner lives,
+// knocked down (its copies go down with it; a dead one's wait for its death).
 struct BodyFrame
 {
     BodyKey Key{};
@@ -35,6 +36,7 @@ struct BodyFrame
     glm::vec3 LinearVelocity{};
     glm::vec3 AngularVelocity{};
     bool Gravity{};
+    bool Knocked{};
 
     bool operator==(const BodyFrame& acRhs) const noexcept = default;
 

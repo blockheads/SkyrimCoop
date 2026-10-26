@@ -8,6 +8,7 @@
 #include "../FakeFlight.h"
 
 #include <Bridges/IJoinBridge.h>
+#include <Bridges/IBodyBridge.h>
 
 #include <Games/QuestChanges.h>
 #include <Messages/CellStateRequest.h>
@@ -31,7 +32,7 @@
 
 struct World;
 
-struct FakeEngine : StillBridges, IJoinBridge
+struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
 {
     static constexpr uint32_t kAllControls = 0xFFFFFFFF;
 
@@ -155,18 +156,25 @@ struct FakeEngine : StillBridges, IJoinBridge
     std::map<BodyKey, Body> Bodies;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
-    // The host's physics steps up to aTick (HostGame::TakeBodies): the awake bodies, and those that fell asleep.
-    HostBodies TakeBodies(uint64_t aTick);
+    // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
+    // bodies, and those that fell asleep; acWhich: only those (a guest's player's ragdoll).
+    HostBodies TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich = {});
     // This game's player's hand (a guest's: GuestEngine::TakePushes, ReadHeld): what its character pushed since the
-    // last read (every body a mass of 1), and what it holds. The host's game takes a guest's alike
-    // (HostGame::PushBody, DriveBody, FreeBody); a body a guest holds is keyframed there, so not awake.
+    // last read (every body a mass of 1), and what it holds. Another game's hand on this game's bodies comes through
+    // IBodyBridge (a push, a held body played keyframed, so not awake, then let go).
     std::vector<BodyPush> PlayerPushes;
     std::optional<BodyKey> Grabbed;
-    // A guest's own physics moved these (GuestEngine::TakeOwnMoves): its own blast, not the host's.
+    // A guest's own physics moved these (GuestEngine::TakeOwnBodies): its own blast, not the host's.
     std::vector<BodyPose> OwnMoves;
-    bool Push(const BodyPush& acPush);
-    bool Drive(const BodyFrame& acFrame);
-    bool Free(const BodyFrame& acFrame);
+    // IBodyBridge: the bodies other games own, played here as Skyrim's would be (BodyBridge).
+    void SetReferences(std::function<uint32_t(const GameId& acId)>) noexcept override {}
+    std::optional<BodyPose> ReadPose(const BodyKey& acKey) noexcept override;
+    bool Drive(const BodyFrame& acFrame, uint32_t aCopyFormId = 0) noexcept override;
+    bool Rest(const BodyPose& acPose, uint32_t aCopyFormId = 0) noexcept override;
+    bool Free(const BodyFrame& acFrame) noexcept override;
+    bool Push(const BodyPush& acPush) noexcept override;
+    bool KeepMotion(const BodyKey&) noexcept override { return false; }
+    bool Settle(const BodyKey&) noexcept override { return false; }
 
     // Every game's plugins, in one load order: Skyrim.esm, Update.esm, a light ccBGSSSE001-Fish.esm.
     std::vector<ModEntry> GetLoadedMods() const noexcept override
@@ -192,6 +200,7 @@ struct FakeEngine : StillBridges, IJoinBridge
         float Position[3]{};
         float Rotation[3]{};
         bool Dead = false;
+        bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown)
         bool Bleeding = false; // essential and down (ActorState's bleedout)
         bool Disabled = false;
         bool Deleted = false;    // marked deleted (DisableActor's aDelete)

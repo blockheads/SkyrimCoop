@@ -111,7 +111,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_physics(*this, aNetwork, m_players, m_game)
-    , m_hands(*this, aNetwork, m_players, m_game)
+    , m_hands(*this, m_players, m_characters, m_game)
     , m_timeScale(*this, aNetwork, m_players)
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)

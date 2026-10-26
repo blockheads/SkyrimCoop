@@ -1,6 +1,8 @@
 #include <Events/GameLoadFailedEvent.h>
 #include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
+#include <Bridges/IBodyBridge.h>
+#include <Services/BodyService.h>
 #include <Services/DialogueService.h>
 #include <Services/Host/HostConversation.h>
 
@@ -139,7 +141,7 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
 
 void HostService::MakeAuthority() noexcept
 {
-    m_pEngine = std::make_unique<HostEngine>();
+    m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
     HostGame game;
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
@@ -173,10 +175,19 @@ void HostService::MakeAuthority() noexcept
         }
         return std::nullopt;
     };
-    game.PushBody = [this](const BodyPush& acPush) { return m_pEngine->PushBody(acPush); };
-    game.DriveBody = [this](const BodyFrame& acFrame) { return m_pEngine->DriveBody(acFrame); };
-    game.FreeBody = [this](const BodyFrame& acFrame) { return m_pEngine->FreeBody(acFrame); };
-    game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) { return m_pEngine->ReadBodies(acKeys); };
+    game.PushBody = [this](const BodyPush& acPush) { return m_world.ctx().at<IBodyBridge&>().Push(acPush); };
+    game.FreeBody = [this](const BodyFrame& acFrame) {
+        // The holder's frames this game played end here (BodyService); its own physics has the body again.
+        m_world.ctx().at<BodyService>().Forget(acFrame.Key);
+        return m_world.ctx().at<IBodyBridge&>().Free(acFrame);
+    };
+    game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
+        std::vector<BodyPose> poses;
+        for (const BodyKey& cKey : acKeys)
+            if (const auto cPose = m_world.ctx().at<IBodyBridge&>().ReadPose(cKey))
+                poses.push_back(*cPose);
+        return poses;
+    };
     game.ReadCellState = [this](const GameId& acCell, const std::vector<ChangedReference>& acChanged) {
         return m_pEngine->ReadCellState(acCell, acChanged);
     };

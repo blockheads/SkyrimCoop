@@ -316,8 +316,8 @@ struct WorldCall
 };
 
 // Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong
-// without, at the host's tick (unreliable). From a guest: the bodies its player holds (unreliable), or the
-// last of them as its player lets go (reliable).
+// without, at the host's tick (unreliable). From a guest: the bodies its player holds and its player's ragdoll
+// (unreliable), or the last of what it held as its player lets go (reliable).
 struct BodyFrames
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
@@ -329,8 +329,8 @@ struct BodyFrames
     std::vector<BodyFrame> Frames;
 };
 
-// Bodies that fell asleep on the host's game, where they stay (reliable). From a guest: bodies its own physics moved
-// that the host's did not, where they went; the host answers with its own.
+// Bodies that fell asleep on their owner's game, where they stay (reliable). Asked by a guest (BodyPoseRequest):
+// bodies its own physics moved that the host's did not, where they went; the host answers with its own.
 struct BodyRests
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

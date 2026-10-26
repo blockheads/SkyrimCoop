@@ -21,10 +21,10 @@ HostPhysics::HostPhysics(HostAuthority& aAuthority, HostNetwork& aNetwork, const
     , m_players(acPlayers)
     , m_game(acGame)
 {
-    aAuthority.On(*this, &HostPhysics::OnRestAsked);
+    aAuthority.On(*this, &HostPhysics::OnPoseAsked);
 }
 
-void HostPhysics::OnRestAsked(const BodyRestRequest& acMessage, ConnectionId_t aSender) noexcept
+void HostPhysics::OnPoseAsked(const BodyPoseRequest& acMessage, ConnectionId_t aSender) noexcept
 {
     if (!m_game.ReadBodies)
         return;

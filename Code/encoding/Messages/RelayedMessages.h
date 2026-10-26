@@ -87,4 +87,5 @@ using NotifyBodyRests = Relayed<Payloads::BodyRests, kNotifyBodyRests>;
 using BodyPushRequest = Relayed<Payloads::BodyPushes, kBodyPushRequest>;
 using BodyFramesRequest = Relayed<Payloads::BodyFrames, kBodyFramesRequest>;
 using BodyReleaseRequest = Relayed<Payloads::BodyFrames, kBodyReleaseRequest>;
-using BodyRestRequest = Relayed<Payloads::BodyRests, kBodyRestRequest>;
+using BodyPoseRequest = Relayed<Payloads::BodyRests, kBodyPoseRequest>;
+using BodyRestsRequest = Relayed<Payloads::BodyRests, kBodyRestsRequest>;

@@ -115,6 +115,8 @@ void BodyFrame::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     WriteVector(aWriter, LinearVelocity, kVelocityScale, kVelocityBits);
     WriteVector(aWriter, AngularVelocity, kAngularScale, kVelocityBits);
     Serialization::WriteBool(aWriter, Gravity);
+    if (Key.Actor)
+        Serialization::WriteBool(aWriter, Knocked);
 }
 
 void BodyFrame::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -127,6 +129,7 @@ void BodyFrame::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     LinearVelocity = ReadVector(aReader, kVelocityScale, kVelocityBits);
     AngularVelocity = ReadVector(aReader, kAngularScale, kVelocityBits);
     Gravity = Serialization::ReadBool(aReader);
+    Knocked = Key.Actor && Serialization::ReadBool(aReader);
 }
 
 BodyFrame BodyFrame::Quantized() const noexcept

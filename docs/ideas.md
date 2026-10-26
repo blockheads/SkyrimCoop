@@ -104,6 +104,11 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   the host. Later, once a scenario shows the need: damping in the shared guess, each guest's budget weighted by what
   is near it, Havok's own island listeners if the change funnel's havok move misses bodies, a guest far off in an
   exterior the host has not loaded.
+- **A corpse's pose at a cell load or join (small bug).** A body killed or spawned while a guest was elsewhere is
+  killed again on the guest's game as its cell loads, so it drops in place on the guest's own physics: lootable, about
+  where the host's lies, but a different pose (a corpse from the save lies as the save has it). Fix: the host sends
+  the ragdoll's rest pose with the copy's spawn (`NotifyCharacterSpawn`), placed as a rest once the copy's 3D is in
+  (`docs/design/physics-sync.md`, the dead actor at a cell load).
 - **Animation mods on copies (parked).** Graph variables synced by name from the engine's graph state,
   so behaviour mods need no descriptors; then the mods' animation events and Open Animation Replacer's
   clip choice, which are probably what a modded copy misses first. Start with one modded setup through the

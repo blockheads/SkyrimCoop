@@ -1,10 +1,70 @@
 # Physics sync
 
-Status: **steps 1 to 6 built 2026-10-24** (below, "As built" and "A guest's hand, as built"): objects and ragdolls
+Status: **steps 1 to 6 built 2026-10-24; owners (every game streams its own bodies) built 2026-10-26** (below, "As built" and "A guest's hand, as built"): objects and ragdolls
 from the host, live; a guest's bumps, casts, grabs and drops reach the host. Design approved 2026-10-24 (the guest
 holds what it grabs; only the host's loaded cells; frames sent on prediction error, not at a rate). v1.0.0 feature 5
 (`docs/progress.md`, "v1.0.0 features"). Replaced the rest detection of `docs/design/world-state-sync.md`, "Physics
 objects' rest" (`Bridges/PhysicsRests`, now `PhysicsBodies`), keeps its move rows.
+
+## Owners (2026-10-26, built)
+
+The game that simulates a body streams it; every other game plays it; the host relays. Today the split is by role
+(the host sends, a guest plays, a guest's hands a path of their own), so the one body a guest simulates, its own
+player's ragdoll, reaches nobody, and a copy takes ragdoll frames only once its own death put it in its ragdoll.
+
+```text
+who owns a body
+  a reference (world object)     the host; while a guest's player holds it, that guest
+  an actor's ragdoll             the actor's owner (HostCharacters): the host's NPCs and player the host,
+                                 a guest's player its game
+
+every game (BodyService, Services/Generic)
+  frames and rests of bodies it does not own -> BodyPlayback, 100 ms behind -> IBodyBridge drives/rests them
+  (references; copies' ragdolls, a copy not in its ragdoll yet put there)
+
+a guest (GuestHands)
+  its own bodies: its player's ragdoll while it simulates (dead, knocked down), what its player holds
+    -> BodyFramesRequest (its send rule), their rests -> BodyRestsRequest, a held one let go -> BodyReleaseRequest
+  pushes on the host's bodies, and what its own physics moved alone (as today)
+
+the host (HostPhysics, HostHands)
+  its own bodies to each guest (as today: near it, its send rule and budget)
+  a game's own bodies (the sender owns them, checked) to every other game, the host's own game included
+```
+
+Build order:
+
+1. **One body bridge for every game** (built 2026-10-26): `IBodyBridge` (`Bridges/BodyBridge`; the fake engine's in
+   GameTests) finds, drives, rests, frees and pushes a body by its key, references and copies' ragdolls alike, out of
+   `GuestEngine` and `HostEngine` (each sets how its references are found). `BodyService` (every game) took
+   GuestPhysics' playback; `GuestHands` is its keeper on a guest. HostHands forwards a holder's frames to every
+   other game, the host's included, which plays them in its `BodyService` (its own playback went; a holder silent
+   for 2 s drops the body). Fast tiers pass; physics scenarios pass (`guest-cast-moves-host` once 0.4 units over its
+   jump limit, then 2/2).
+2. **A guest's player's ragdoll** to the others (built 2026-10-26): `PhysicsBodies` on a guest also watches its
+   player (`GuestEngine::TakeOwnBodies`); `GuestHands` sends the ragdoll's frames with its held ones (one send rule,
+   `BodyFramesRequest`) and its rest (`BodyRestsRequest`, new; the guest's question for the host's pose is now
+   `BodyPoseRequest`). `HostHands` passes them on to every other game when the sender owns the character
+   (`HostCharacters::OwnerOf`). `death-spectate-guest` and `death-spectate-host` check that the copy lies as its
+   owner's body.
+3. **Living knockdowns** (built 2026-10-26): an actor's frames carry `Knocked` (its owner lives, knocked down). A
+   living copy whose owner's frame says so is knocked down with no force (`BodyBridge::KnockedDown`,
+   `AIProcess::KnockExplosion`), and its ragdoll plays the frames once its own ragdoll has it. The owner's game counts
+   a living actor's ragdoll only while it is knocked down (knock state 1-4); up again, where it lay is its rest. The
+   copy gets up by its own knock update once its ragdoll is still (no hold hook needed). Replayed actions keep the
+   copy's knock state (`AnimationSystem::PlayReplayedAction`): the owner's would put the copy in a knock state
+   without a ragdoll. `knockdown-lies-as-host`, `guest-knockdown-lies-on-host` (3/3 each).
+
+Found on the way:
+
+- A dying owner's frames reached its copy before its death did, and knocking that living copy down left it with no
+  ragdoll once it died (0 bodies): hence `Knocked`, false for a dead owner's frames (the copy waits for its death).
+- Step 1's engines asked `World::Get()` for the body bridge in their destructors, which runs while World is being
+  destroyed (hot reload unloading): a crash. `HostEngine` and `GuestEngine` now take the bridge by reference.
+- A knocked down owner gets up as soon as its ragdoll is still, often before every body sleeps: the copy's checks
+  compare it with where the owner's lay a moment before (within 4 units, 0.2 rad), not at an exact rest.
+
+Still open: a dead body's pose when a guest loads its cell or joins, a small bug parked in `docs/ideas.md`.
 
 ## As built (2026-10-24, split 2026-10-25)
 
@@ -14,7 +74,7 @@ Where each part lives:
 host   HostPhysics (Services/Host/)   the host's bodies out to each guest: send rule, relevance, rests
        HostHands                      a guest's player's hands on the host's bodies: push, hold, let go
        HostEngine (Bridges/)          the engine side: HostEngineBodies.cpp, PhysicsBodies (what physics moves)
-guest  GuestPhysics (Services/Guest/) plays the host's bodies (BodyPlayback, 100 ms behind)
+every  BodyService (Services/Generic/) plays the bodies other games own (BodyPlayback, 100 ms behind), IBodyBridge
        GuestHands                     this player's pushes, holds and let gos, and bodies its own physics moved
        GuestEngine (Bridges/)         the engine side: GuestEngineBodies.cpp
 both   Physics/                       the pure halves (ClientTests): BodyPrediction, BodySends, BodyPlayback,
@@ -38,12 +98,12 @@ host game
     units of that guest's copy (BodyRelevance)
     -> NotifyBodyFrames (unreliable, ~1 KB packets) to that guest; NotifyBodyRests (reliable) to everyone
 guest game
-  GuestPhysics (Services/Guest/): BodyPlayback, 100 ms behind the host's clock: the last frame's guess blended
+  BodyService (Services/Generic/): BodyPlayback, 100 ms behind the host's clock: the last frame's guess blended
     into the next frame (or the rest) when that is already here, a late frame's correction blended out over
     100 ms, the first frame blended from where this game's own physics put it, a rest placed once
-    -> GuestEngine::DriveBody: keyframed (78077), put at the frame (SetPositionAndRotation 78082) moving at its
+    -> IBodyBridge::Drive: keyframed (78077), put at the frame (SetPositionAndRotation 78082) moving at its
        velocities, then its node and reference to the body (FollowBody: a keyframed body never moves its node)
-    -> GuestEngine::RestBody: bhkRigidBody::SetPositionAndRotation (78082), velocities 0, the node likewise; a
+    -> IBodyBridge::Rest: bhkRigidBody::SetPositionAndRotation (78082), velocities 0, the node likewise; a
        reference's then simulated again, asleep (steps 5-6: its player's to push and grab)
     a copy's ragdoll body is taken only once its own ragdoll simulates it (the copy dead by its owner's action)
 ```
@@ -58,9 +118,9 @@ guest game
   rests at the host's spots), `ragdoll-lies-as-host` (a wolf killed by fireballs: the copy's bones as the host's).
 - Readouts: `world_state`'s `collision` gives each body's motion type, awake, rotation and velocity; `ragdoll`
   (harness command) an actor's ragdoll bodies. Log lines: `HostPhysics: <guest> gets the frames of ...`,
-  `HostPhysics: sent N rests`, `HostPhysics: <guest> got N frames of ...` (at its rest), `GuestPhysics: follows the
-  host's ...`, `GuestPhysics: placed the host's rest ... after N frames`, `GuestPhysics: lost the host's ...` (no
-  frame for 2 s and no rest), `GuestPhysics: the host's ... is not in this game`. `world_state`'s `collision` also
+  `HostPhysics: sent N rests`, `HostPhysics: <guest> got N frames of ...` (at its rest), `BodyService: follows the
+  owner's ...`, `BodyService: placed the owner's rest ... after N frames`, `BodyService: lost ...` (no
+  frame for 2 s and no rest), `BodyService: ... is not in this game`. `world_state`'s `collision` also
   gives each collision object's flags and whether its body is offset from its node (`bhkRigidBodyT`).
 - Engine notes: `docs/re/systems/physics.md`.
 
@@ -103,7 +163,7 @@ guest game: a reference's body at rest is dynamic, asleep (the host's frames hol
   a pushed, held or dropped body is the guest's own until the host's rest: its own physics shows it, the host's
     frames of it wait, the rest places it (then dynamic again, asleep: hkpEntity::deactivate 60850)
   its own physics moves one the host's frames never follow (its copy of a cast exploded elsewhere, a settle 2 units
-    or 0.05 rad off) -> after 1 s BodyRestRequest: the host answers that guest with its bodies' poses as rests
+    or 0.05 rad off) -> after 1 s BodyPoseRequest: the host answers that guest with its bodies' poses as rests
 host game: a held body is keyframed, so not read as awake; a holder that leaves or goes silent for 2 s drops it
 ```
 
@@ -362,8 +422,9 @@ action, and the stream takes over only once the host's ragdoll does, so the two 
 As built (2026-10-24), dead actors only: no `RagdollStart` message. The host's actor streams once its ragdoll
 bodies are dynamic and awake (a living actor's are keyframed by its animation, so they never stream). The guest
 takes a copy's ragdoll body once its own ragdoll simulates it (dynamic), which follows the copy's death action, and
-keeps it, so a corpse kicked again follows the host's too. Still open: a knockdown the copy did not replay (its
-bones stay its animation's: the frames wait), and a dead actor's pose at a cell load or join (below).
+keeps it, so a corpse kicked again follows the host's too. Living knockdowns since 2026-10-26 ("Owners", step 3):
+the copy is knocked down by its owner's frames, not by a replayed action. Still open: a dead actor's pose at a cell
+load or join (below).
 
 A dead actor already lying when a guest loads its cell (or joins): its copy spawns dead, ragdolled by the guest's
 engine where it stands. The host adds the ragdoll's rest pose to the copy's spawn (`NotifyCharacterSpawn`, the dead

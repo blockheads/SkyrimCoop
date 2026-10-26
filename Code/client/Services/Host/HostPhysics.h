@@ -34,7 +34,7 @@ struct HostPhysics
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
 private:
-    void OnRestAsked(const BodyRestRequest& acMessage, ConnectionId_t aSender) noexcept;
+    void OnPoseAsked(const BodyPoseRequest& acMessage, ConnectionId_t aSender) noexcept;
     void SendBodies(uint64_t aTick) noexcept;
 
     HostNetwork& m_network;

@@ -1,21 +1,27 @@
 #include <Services/Host/HostHands.h>
 
 #include <Services/Host/HostAuthority.h>
+#include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostGame.h>
-#include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/Relayed.h>
 #include <Services/WorldStateLog.h>
 
-HostHands::HostHands(HostAuthority& aAuthority, HostNetwork& aNetwork, const HostPlayers& acPlayers, const HostGame& acGame) noexcept
-    : m_network(aNetwork)
-    , m_players(acPlayers)
+HostHands::HostHands(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
+    : m_players(acPlayers)
+    , m_characters(acCharacters)
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostHands::OnPushes);
     aAuthority.On(*this, &HostHands::OnHeld);
     aAuthority.On(*this, &HostHands::OnReleased);
+    aAuthority.On(*this, &HostHands::OnRests);
+}
+
+bool HostHands::OwnsRagdoll(const BodyKey& acKey, ConnectionId_t aSender) const noexcept
+{
+    return acKey.Actor && m_characters.OwnerOf(acKey.Actor) == aSender;
 }
 
 void HostHands::OnPushes(const BodyPushRequest& acMessage, ConnectionId_t aSender) noexcept
@@ -25,7 +31,7 @@ void HostHands::OnPushes(const BodyPushRequest& acMessage, ConnectionId_t aSende
     for (const auto& cPush : acMessage.Pushes)
     {
         // What a player holds moves with its hands only.
-        if (m_holders.contains(cPush.Key) || !m_game.PushBody(cPush))
+        if (m_holds.contains(cPush.Key) || !m_game.PushBody(cPush))
             continue;
         // Logged once a run of pushes (a second without one ends it).
         const auto [it, cNew] = m_pushed.insert_or_assign(cPush.Key, m_tick);
@@ -40,38 +46,68 @@ void HostHands::OnHeld(const BodyFramesRequest& acMessage, ConnectionId_t aSende
     std::vector<BodyFrame> taken;
     for (const auto& cFrame : acMessage.Frames)
     {
-        if (const auto cReleased = m_released.find(cFrame.Key); cReleased != m_released.end())
+        if (cFrame.Key.Actor)
         {
-            if (acMessage.Tick <= cReleased->second)
+            if (!OwnsRagdoll(cFrame.Key, aSender))
                 continue;
-            m_released.erase(cReleased);
+            if (++m_ragdolls[cFrame.Key] == 1)
+                spdlog::info("HostHands: {:x}'s {} moves", aSender, WorldStateLog::DescribeBody(cFrame.Key));
         }
-        const auto [it, cNew] = m_holders.try_emplace(cFrame.Key, aSender);
-        if (it->second != aSender)
+        else if (!TakeHeld(cFrame, acMessage.Tick, aSender))
             continue;
-        if (cNew)
-            spdlog::info("HostHands: {:x} holds {}", aSender, WorldStateLog::DescribeBody(cFrame.Key));
-        m_lastHeld[cFrame.Key] = cFrame;
         taken.push_back(cFrame);
     }
     if (taken.empty())
         return;
-    m_heldPlayback.Add(acMessage.Tick, taken);
-    // The other guests see it in the holder's hands as the host does.
+    // Every other game sees it as its owner's game does, the host's too.
     NotifyBodyFrames frames;
     frames.Tick = acMessage.Tick;
     frames.Frames = std::move(taken);
-    for (const ConnectionId_t cGuest : m_players.Connections())
-        if (cGuest != aSender && cGuest != m_players.Host())
-            m_network.Send(cGuest, frames, Net::kUnreliable);
+    m_players.SendToOthers(frames, aSender, Net::kUnreliable);
+}
+
+bool HostHands::TakeHeld(const BodyFrame& acFrame, uint64_t aTick, ConnectionId_t aSender) noexcept
+{
+    if (const auto cReleased = m_released.find(acFrame.Key); cReleased != m_released.end())
+    {
+        if (aTick <= cReleased->second)
+            return false;
+        m_released.erase(cReleased);
+    }
+    const auto [it, cNew] = m_holds.try_emplace(acFrame.Key, Hold{.Holder = aSender});
+    if (it->second.Holder != aSender)
+        return false;
+    if (cNew)
+        spdlog::info("HostHands: {:x} holds {}", aSender, WorldStateLog::DescribeBody(acFrame.Key));
+    it->second.Last = acFrame;
+    it->second.At = m_tick;
+    return true;
+}
+
+void HostHands::OnRests(const BodyRestsRequest& acMessage, ConnectionId_t aSender) noexcept
+{
+    NotifyBodyRests rests;
+    rests.Tick = acMessage.Tick;
+    for (const auto& cRest : acMessage.Rests)
+        if (OwnsRagdoll(cRest.Key, aSender))
+        {
+            rests.Rests.push_back(cRest);
+            const auto it = m_ragdolls.find(cRest.Key);
+            spdlog::info("HostHands: {:x}'s {} rests at ({:.0f}, {:.0f}, {:.0f}) after {} frames", aSender, WorldStateLog::DescribeBody(cRest.Key),
+                         cRest.Position.x, cRest.Position.y, cRest.Position.z, it != m_ragdolls.end() ? it->second : 0);
+            if (it != m_ragdolls.end())
+                m_ragdolls.erase(it);
+        }
+    if (!rests.Rests.empty())
+        m_players.SendToOthers(rests, aSender, Net::kReliable);
 }
 
 void HostHands::OnReleased(const BodyReleaseRequest& acMessage, ConnectionId_t aSender) noexcept
 {
     for (const auto& cFrame : acMessage.Frames)
     {
-        const auto it = m_holders.find(cFrame.Key);
-        if (it == m_holders.end() || it->second != aSender)
+        const auto it = m_holds.find(cFrame.Key);
+        if (it == m_holds.end() || it->second.Holder != aSender)
             continue;
         spdlog::info("HostHands: {:x} let go of {} at ({:.0f}, {:.0f}, {:.0f}), moving {:.0f}", aSender, WorldStateLog::DescribeBody(cFrame.Key),
                      cFrame.Position.x, cFrame.Position.y, cFrame.Position.z, glm::length(cFrame.LinearVelocity));
@@ -82,9 +118,7 @@ void HostHands::OnReleased(const BodyReleaseRequest& acMessage, ConnectionId_t a
 
 void HostHands::Free(const BodyFrame& acFrame) noexcept
 {
-    m_holders.erase(acFrame.Key);
-    m_lastHeld.erase(acFrame.Key);
-    m_heldPlayback.Forget(acFrame.Key);
+    m_holds.erase(acFrame.Key);
     if (m_game.FreeBody && !m_game.FreeBody(acFrame))
         spdlog::warn("HostHands: {} is not here to let go of", WorldStateLog::DescribeBody(acFrame.Key));
 }
@@ -93,30 +127,30 @@ void HostHands::Update(uint64_t aTick) noexcept
 {
     m_tick = aTick;
     std::erase_if(m_pushed, [aTick](const auto& acPushed) { return aTick - acPushed.second > 1000; });
-    if (!m_heldPlayback.Count() || !m_game.DriveBody || aTick <= kHeldDelayMs)
-        return;
-    for (const auto& cPose : m_heldPlayback.At(aTick - kHeldDelayMs, 0.f))
-        if (!cPose.Rest)
-            m_game.DriveBody(cPose.Body);
-    // A holder gone silent (its game stalled, or a lost release): it falls where it was last held.
-    for (const auto& cLost : m_heldPlayback.TakeLost())
-        if (const auto it = m_lastHeld.find(cLost.Key); it != m_lastHeld.end())
+    // A holder gone silent (its game stalled, or a lost let go): it falls where it was last held.
+    std::vector<BodyFrame> dropped;
+    for (const auto& [cKey, cHold] : m_holds)
+        if (aTick - cHold.At > kSilentMs)
         {
-            spdlog::warn("HostHands: no frame of {} from its holder for {} ms: let go", WorldStateLog::DescribeBody(cLost.Key), BodyPlayback::kLostMs);
-            BodyFrame frame = it->second;
-            frame.LinearVelocity = frame.AngularVelocity = {};
-            Free(frame);
+            spdlog::warn("HostHands: no frame of {} from its holder for {} ms: let go", WorldStateLog::DescribeBody(cKey), kSilentMs);
+            dropped.push_back(cHold.Last);
         }
+    for (BodyFrame& frame : dropped)
+    {
+        frame.LinearVelocity = frame.AngularVelocity = {};
+        Free(frame);
+    }
 }
 
 void HostHands::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
 {
+    // Its characters left with it (HostCharacters goes first).
+    std::erase_if(m_ragdolls, [this](const auto& acRagdoll) { return !m_characters.OwnerOf(acRagdoll.first.Actor); });
     // What it held falls where it was.
     std::vector<BodyFrame> dropped;
-    for (const auto& [cKey, cHolder] : m_holders)
-        if (cHolder == aPlayer)
-            if (const auto it = m_lastHeld.find(cKey); it != m_lastHeld.end())
-                dropped.push_back(it->second);
+    for (const auto& [cKey, cHold] : m_holds)
+        if (cHold.Holder == aPlayer)
+            dropped.push_back(cHold.Last);
     for (BodyFrame& frame : dropped)
     {
         frame.LinearVelocity = frame.AngularVelocity = {};

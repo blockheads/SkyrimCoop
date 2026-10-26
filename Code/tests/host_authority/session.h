@@ -185,7 +185,6 @@ struct Session
     std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
     std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
     std::vector<BodyPush> Pushed;   // guests' pushes the host's game took
-    std::vector<BodyFrame> Driven;  // the bodies a guest's player holds, driven
     std::vector<BodyFrame> Freed;   // and let go
     std::vector<BodyPose> Bodies;   // the host's bodies where they are
     HostBodies Moving;              // the host's physics this update, taken by the next frame
@@ -229,7 +228,6 @@ private:
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
         game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { ItemsSet.emplace_back(acObject, acItem, aCount); };
         game.PushBody = [this](const BodyPush& acPush) { Pushed.push_back(acPush); return true; };
-        game.DriveBody = [this](const BodyFrame& acFrame) { Driven.push_back(acFrame); return true; };
         game.FreeBody = [this](const BodyFrame& acFrame) { Freed.push_back(acFrame); return true; };
         game.TakeBodies = [this] { return std::exchange(Moving, {}); };
         game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {

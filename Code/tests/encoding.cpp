@@ -1086,9 +1086,10 @@ TEST_CASE("Physics bodies", "[encoding.physics]")
     {
         NotifyBodyFrames frames;
         frames.Tick = 123456789;
-        frames.Frames = {frame, BodyFrame{.Key = {.Actor = 0x22, .Index = 14}}};
+        frames.Frames = {frame, BodyFrame{.Key = {.Actor = 0x22, .Index = 14}, .Knocked = true}};
         const auto cDecoded = roundTrip(frames);
         REQUIRE(cDecoded.Frames.size() == 2);
+        CHECK(cDecoded.Frames[1].Knocked);
         CHECK(cDecoded.Tick == frames.Tick);
         CHECK(cDecoded.Frames[0] == frame.Quantized());
         CHECK(cDecoded.Frames[1] == frames.Frames[1].Quantized());
@@ -1127,9 +1128,13 @@ TEST_CASE("Physics bodies", "[encoding.physics]")
         released.Tick = 78;
         released.Frames = {frame};
         CHECK(roundTrip(released, RequestMessageFactory{}).Frames[0] == frame.Quantized());
-        BodyRestRequest asked;
+        BodyPoseRequest asked;
         asked.Rests = {{.Key = frame.Key, .Position = frame.Position, .Rotation = frame.Rotation}};
         CHECK(roundTrip(asked, RequestMessageFactory{}) == asked);
+        BodyRestsRequest rests;
+        rests.Tick = 79;
+        rests.Rests = asked.Rests;
+        CHECK(roundTrip(rests, RequestMessageFactory{}) == rests);
     }
 }
 

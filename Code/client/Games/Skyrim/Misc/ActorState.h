@@ -30,8 +30,11 @@ struct ActorState : IMovementState
     static constexpr uint8_t kLifeRestrained = 6;
     static uint8_t LifeStateOf(uint32_t aFlags1) noexcept { return aFlags1 >> 21 & 0xF; }
 
-    // ActorState1::knockState (CommonLibSSE-NG KNOCK_STATE_ENUM): 1 explode and 3 out lie in the ragdoll.
+    // ActorState1::knockState (CommonLibSSE-NG KNOCK_STATE_ENUM): 1 explode and 3 out lie in the ragdoll, 2 and 4
+    // their lead-ins, 5 and 6 getting up.
+    static constexpr uint32_t kKnockMask = 7u << 25;
     uint8_t GetKnockState() const noexcept { return flags1 >> 25 & 7; }
+    bool IsKnockedDown() const noexcept { return GetKnockState() >= 1 && GetKnockState() <= 4; }
 
     bool IsBleedingOut() const noexcept { return (flags1 & 0x1E00000) == 0x1000000 || (flags1 & 0x1E00000) == 0xE00000; }
 

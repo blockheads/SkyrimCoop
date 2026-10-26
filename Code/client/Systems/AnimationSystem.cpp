@@ -192,10 +192,11 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     const auto pAction = Cast<BGSAction>(TESForm::GetById(cAction.ActionId));
     const auto pTarget = Cast<TESObjectREFR>(TESForm::GetById(cAction.TargetId));
 
-    // The action is played from the owner's state just before it performed it.
+    // The action is played from the owner's state just before it performed it, but for the knock state: the copy's
+    // own, knocked down with its owner's ragdoll (BodyBridge; the owner's would claim a ragdoll it never took).
     const uint32_t cPreviousFlags1 = apActor->actorState.flags1;
     const uint32_t cPreviousFlags2 = apActor->actorState.flags2;
-    apActor->actorState.flags1 = cAction.State1;
+    apActor->actorState.flags1 = (cAction.State1 & ~ActorState::kKnockMask) | (cPreviousFlags1 & ActorState::kKnockMask);
     apActor->actorState.flags2 = cAction.State2;
 
     TESActionData actionData(cAction.Type & 0x3, apActor, pAction, pTarget);

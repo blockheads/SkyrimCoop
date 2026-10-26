@@ -55,10 +55,9 @@ struct HostGame
     std::function<HostBodies()> TakeBodies;
     // Where the host's game shows a guest's character (its copy), by player id; none without one.
     std::function<std::optional<glm::vec3>(uint32_t aPlayerId)> ReadPlayerPosition;
-    // A guest's player's hand on the host's body: pushed as the guest's character pushed it there; held at the
-    // guest's frame (keyframed, moving so); let go, simulated again from that frame. False: no such body here.
+    // A guest's player's hand on the host's body: pushed as the guest's character pushed it there; let go (its holder's
+    // frames the host's game played, BodyService), simulated again from that frame. False: no such body here.
     std::function<bool(const BodyPush& acPush)> PushBody;
-    std::function<bool(const BodyFrame& acFrame)> DriveBody;
     std::function<bool(const BodyFrame& acFrame)> FreeBody;
     // The host's bodies where they are now; none for one not here.
     std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;

@@ -1,4 +1,4 @@
-// HostHands: a guest's player's hand on the host's bodies (docs/design/physics-sync.md, "A guest's own actions").
+// HostHands: a guest's own bodies, its player's hand on the host's and its ragdoll (docs/design/physics-sync.md, "Owners").
 #include "session.h"
 
 namespace
@@ -28,20 +28,17 @@ TEST_CASE("Physics: a guest's push pushes the host's body, unless a player holds
     CHECK(session.Pushed.size() == 1);
 }
 
-TEST_CASE("Physics: a guest's player holds a body, the host's follows it and the others see it", "[HostAuthority][Physics]")
+TEST_CASE("Physics: a guest's player holds a body, every other game plays the holder's frames", "[HostAuthority][Physics]")
 {
     Session session;
     session.Receive(kPeer, Held(1000, 10.f));
     session.Receive(kPeer, Held(1050, 12.5f));
-    session.Frame(1160);
-    REQUIRE_FALSE(session.Driven.empty());
-    CHECK(session.Driven.back().Key == kLadle);
-    CHECK(session.Driven.back().Position.x == Approx(12.5f + 50.f * 0.01f));
-    THEN("the other guest gets the holder's frames, the holder and the host none")
+    THEN("the host's game and the other guest get the holder's frames, the holder none")
     {
+        REQUIRE(session.SentTo<NotifyBodyFrames>(kHost).size() == 2);
+        CHECK(session.SentTo<NotifyBodyFrames>(kHost).back()->Frames[0].Position.x == 12.5f);
         CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).size() == 2);
         CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
-        CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
     }
     THEN("a second guest's hold of it is not taken")
     {
@@ -64,16 +61,29 @@ TEST_CASE("Physics: a guest's player lets go, the host simulates it from there",
 
     THEN("a frame of the hold that comes after the release does not take it again")
     {
+        session.Outbox.clear();
         session.Receive(kPeer, Held(1090, 14.f));
-        session.Frame(1300);
-        CHECK(session.Driven.empty());
+        CHECK(session.SentTo<NotifyBodyFrames>(kHost).empty());
     }
     THEN("anyone may hold it again")
     {
+        session.Outbox.clear();
         session.Receive(kOtherPeer, Held(1200, 30.f));
-        session.Frame(1400);
-        CHECK_FALSE(session.Driven.empty());
+        CHECK(session.SentTo<NotifyBodyFrames>(kHost).size() == 1);
     }
+}
+
+TEST_CASE("Physics: a holder whose frames stop drops what it held where it was", "[HostAuthority][Physics]")
+{
+    Session session;
+    session.Frame(1000);
+    session.Receive(kPeer, Held(1000, 10.f));
+    session.Frame(1000 + HostHands::kSilentMs);
+    CHECK(session.Freed.empty());
+    session.Frame(1001 + HostHands::kSilentMs);
+    REQUIRE(session.Freed.size() == 1);
+    CHECK(session.Freed[0].Position.x == 10.f);
+    CHECK(session.Freed[0].LinearVelocity == glm::vec3(0.f));
 }
 
 TEST_CASE("Physics: a holder leaving drops what it held where it was", "[HostAuthority][Physics]")
@@ -90,7 +100,7 @@ TEST_CASE("Physics: a guest whose own physics moved the host's body gets the hos
 {
     Session session;
     session.Bodies = {{.Key = kLadle, .Position = {10.f, 20.f, 30.f}}};
-    BodyRestRequest asked;
+    BodyPoseRequest asked;
     asked.Rests = {{.Key = kLadle, .Position = {400.f, 20.f, 0.f}}, {.Key = {.Object = GameId(0, 0x1234)}}};
     session.Receive(kPeer, asked);
     REQUIRE(session.SentTo<NotifyBodyRests>(kPeer).size() == 1);
@@ -122,4 +132,33 @@ TEST_CASE("Physics: a guest gets the frames of the bodies near its character, ev
     session.Frame(1100);
     CHECK(session.SentTo<NotifyBodyRests>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyBodyRests>(kOtherPeer).size() == 1);
+}
+
+TEST_CASE("Physics: a guest's own ragdoll goes to every other game; another's ragdoll from it does not", "[HostAuthority][Physics]")
+{
+    Session session;
+    const uint32_t cOwn = session.Character(kPeer);
+    const uint32_t cOther = session.Character(kOtherPeer);
+    BodyFramesRequest frames;
+    frames.Tick = 1000;
+    frames.Frames = {{.Key = {.Actor = cOwn, .Index = 2}, .Position = {5.f, 0.f, 80.f}},
+                     {.Key = {.Actor = cOther, .Index = 2}, .Position = {9.f, 0.f, 80.f}}};
+    session.Receive(kPeer, frames);
+    REQUIRE(session.SentTo<NotifyBodyFrames>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyBodyFrames>(kHost)[0]->Frames.size() == 1);
+    CHECK(session.SentTo<NotifyBodyFrames>(kHost)[0]->Frames[0].Key.Actor == cOwn);
+    CHECK(session.SentTo<NotifyBodyFrames>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyBodyFrames>(kPeer).empty());
+
+    BodyRestsRequest rests;
+    rests.Tick = 1200;
+    rests.Rests = {{.Key = {.Actor = cOwn, .Index = 2}, .Position = {6.f, 0.f, 10.f}},
+                   {.Key = {.Actor = cOther, .Index = 2}, .Position = {9.f, 0.f, 10.f}},
+                   {.Key = kLadle, .Position = {1.f, 0.f, 10.f}}};
+    session.Receive(kPeer, rests);
+    REQUIRE(session.SentTo<NotifyBodyRests>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyBodyRests>(kHost)[0]->Rests == std::vector<BodyPose>{rests.Rests[0]});
+    CHECK(session.SentTo<NotifyBodyRests>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
+    CHECK(session.Freed.empty());
 }

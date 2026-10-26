@@ -56,10 +56,11 @@
     X(BodyPushRequest)              \
     X(BodyFramesRequest)            \
     X(BodyReleaseRequest)           \
-    X(BodyRestRequest)              \
+    X(BodyPoseRequest)              \
     X(WaitRequest)                  \
     X(WaitWorldRequest)             \
-    X(PlayerDeathRequest)
+    X(PlayerDeathRequest)           \
+    X(BodyRestsRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \

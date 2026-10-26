@@ -1,5 +1,7 @@
 #include <Bridges/GuestEngine.h>
 
+#include <Bridges/IBodyBridge.h>
+
 #include <Bridges/ContainerItems.h>
 #include <Games/Skyrim/PlayerHands.h>
 #include <AiStateEvents.h>
@@ -150,9 +152,14 @@ void PlayAnimation(TESObjectREFR& aObject, const ObjectChange& acChange) noexcep
 
 } // namespace
 
-GuestEngine::GuestEngine() noexcept
-    : m_moving(false)
+GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
+    : m_bodyBridge(aBodies)
+    , m_moving(false)
 {
+    m_bodyBridge.SetReferences([this](const GameId& acId) {
+        const TESObjectREFR* pObject = FindReference(acId);
+        return pObject ? pObject->formID : 0u;
+    });
     ContainerEvents::Start();
     PlayerHands::Watch(true);
     AiStateEvents::Start();
@@ -165,6 +172,7 @@ GuestEngine::GuestEngine() noexcept
 
 GuestEngine::~GuestEngine() noexcept
 {
+    m_bodyBridge.SetReferences({});
     // The host's created objects go with the session: a next one makes them again.
     for (const auto& [cHostId, cHandle] : m_created)
         if (TESObjectREFR* pMade = TESObjectREFR::GetByHandle(cHandle); pMade && !pMade->IsDeleted())
@@ -320,6 +328,8 @@ void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const 
             aQuest.ClearLocationAlias(pAlias);
     }
 }
+
+
 
 TESObjectREFR* GuestEngine::FindReference(const GameId& acId) const noexcept
 {

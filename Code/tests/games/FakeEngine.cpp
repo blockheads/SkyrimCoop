@@ -1532,7 +1532,15 @@ void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const 
     body.Tick = 0;
 }
 
-bool FakeEngine::Push(const BodyPush& acPush)
+std::optional<BodyPose> FakeEngine::ReadPose(const BodyKey& acKey) noexcept
+{
+    const auto it = acKey.Actor ? Bodies.end() : Bodies.find(acKey);
+    if (it == Bodies.end())
+        return std::nullopt;
+    return BodyPose{.Key = acKey, .Position = it->second.Flight.Body.Position, .Rotation = it->second.Flight.Body.Rotation};
+}
+
+bool FakeEngine::Push(const BodyPush& acPush) noexcept
 {
     const auto it = Bodies.find(acPush.Key);
     if (it == Bodies.end() || it->second.Held)
@@ -1541,11 +1549,19 @@ bool FakeEngine::Push(const BodyPush& acPush)
     return true;
 }
 
-bool FakeEngine::Drive(const BodyFrame& acFrame)
+bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
     if (it == Bodies.end())
         return false;
+    // A living copy's ragdoll body is its animation's: knocked down with its owner's, else left until its own death
+    // (BodyBridge::Find).
+    if (acFrame.Key.Actor && !IsActorDead(aCopyFormId))
+    {
+        if (!acFrame.Knocked)
+            return true;
+        Actors.at(aCopyFormId).KnockedDown = true;
+    }
     Body& body = it->second;
     body.Held = true;
     body.Awake = false;
@@ -1555,7 +1571,26 @@ bool FakeEngine::Drive(const BodyFrame& acFrame)
     return true;
 }
 
-bool FakeEngine::Free(const BodyFrame& acFrame)
+bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
+{
+    const auto it = Bodies.find(acPose.Key);
+    if (it == Bodies.end())
+        return false;
+    // A living copy's: only while it lies with its owner (its getting up is its graph's, not modelled).
+    if (acPose.Key.Actor && !IsActorDead(aCopyFormId) && !Actors.at(aCopyFormId).KnockedDown)
+        return true;
+    Body& body = it->second;
+    // A reference's body is simulated again at its rest; a ragdoll's stays held.
+    body.Held = body.RagdollOf != 0;
+    body.Flight.Body.Position = acPose.Position;
+    body.Flight.Body.Rotation = acPose.Rotation;
+    body.Flight.Body.LinearVelocity = {};
+    body.Flight.Body.AngularVelocity = {};
+    ++body.Rests;
+    return true;
+}
+
+bool FakeEngine::Free(const BodyFrame& acFrame) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
     if (it == Bodies.end() || !it->second.Held)
@@ -1568,13 +1603,13 @@ bool FakeEngine::Free(const BodyFrame& acFrame)
     return true;
 }
 
-HostBodies FakeEngine::TakeBodies(uint64_t aTick)
+HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const BodyKey&)>& acWhich)
 {
     constexpr uint64_t cStepMs = 16; // Havok's substeps (fTimePerSubStep)
     HostBodies bodies;
     for (auto& [cKey, body] : Bodies)
     {
-        if (!body.Awake)
+        if (!body.Awake || (acWhich && !acWhich(cKey)))
             continue;
         if (!body.Tick)
             body.Tick = aTick;
@@ -1582,6 +1617,8 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick)
             body.Flight.Step(cStepMs / 1000.f);
         BodyFrame frame = body.Flight.Body;
         frame.Key = cKey;
+        // A living actor's ragdoll simulated: knocked down (PhysicsBodies).
+        frame.Knocked = body.RagdollOf && !IsActorDead(body.RagdollOf);
         if (body.Flight.Resting)
         {
             body.Awake = false;

@@ -1,6 +1,7 @@
 #include <Bridges/HostEngine.h>
 
 #include <Bridges/ContainerItems.h>
+#include <Bridges/IBodyBridge.h>
 #include <AiStateEvents.h>
 #include <EffectEvents.h>
 #include <FactionEvents.h>
@@ -195,8 +196,14 @@ ObjectChange ReadRecord(const TESObjectREFR& acRef, const GameId& acId) noexcept
 }
 } // namespace
 
-HostEngine::HostEngine() noexcept
+HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
+    : m_bodyBridge(aBodies)
 {
+    // The bodies of the references the guests have (IBodyBridge: a guest's player's hand on them).
+    m_bodyBridge.SetReferences([this](const GameId& acId) {
+        const uint32_t cFormId = acId.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acId.BaseId : ToGame(acId);
+        return cFormId && IsShared(cFormId) ? cFormId : 0u;
+    });
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
     ContainerEvents::Start();
@@ -213,6 +220,7 @@ HostEngine::HostEngine() noexcept
 
 HostEngine::~HostEngine() noexcept
 {
+    m_bodyBridge.SetReferences({});
     ModManager::WatchCreated(nullptr);
     FormChanges::Unwatch(&OnFormChange);
     s_log.Take();

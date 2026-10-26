@@ -3,6 +3,7 @@
 #include <Bridges/IDialogueBridge.h>
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IWaitBridge.h>
+#include <Bridges/IBodyBridge.h>
 #include <Bridges/ISteamBridge.h>
 
 #include <memory>
@@ -81,6 +82,7 @@ private:
     std::unique_ptr<ISteamBridge> m_pSteamBridge;
     std::unique_ptr<IJoinBridge> m_pJoinBridge;
     std::unique_ptr<IWaitBridge> m_pWaitBridge;
+    std::unique_ptr<IBodyBridge> m_pBodyBridge;
     RunnerService m_runner;
     TransportService m_transport;
 

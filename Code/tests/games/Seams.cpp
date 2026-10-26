@@ -3,6 +3,7 @@
 #include "FakeDialogue.h"
 #include "FakeWait.h"
 #include <Services/WaitService.h>
+#include <Services/BodyService.h>
 #include "FakeSteam.h"
 #include "FakeEngine.h"
 #include <Games/DeathActions.h>
@@ -60,6 +61,7 @@ std::unique_ptr<SkyrimBridge> CreateBridgeContext(World& aWorld)
     aWorld.ctx().emplace<IPlayerBridge&>(static_cast<IPlayerBridge&>(engine));
     aWorld.ctx().emplace<IWorldBridge&>(static_cast<IWorldBridge&>(engine));
     aWorld.ctx().emplace<IJoinBridge&>(static_cast<IJoinBridge&>(engine));
+    aWorld.ctx().emplace<IBodyBridge&>(static_cast<IBodyBridge&>(engine));
     return bridge;
 }
 } // namespace
@@ -84,6 +86,7 @@ World::World()
     ctx().emplace<TimeScaleService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeWait&>(static_cast<FakeWait&>(*m_pWaitBridge));
     ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
+    ctx().emplace<BodyService>(*this, m_dispatcher, ctx().at<IBodyBridge&>());
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -126,6 +129,7 @@ World::~World()
     ctx().erase<InventoryService>();
     ctx().erase<ActorValueService>();
     ctx().erase<SessionService>();
+    ctx().erase<BodyService>();
     ctx().erase<WaitService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
