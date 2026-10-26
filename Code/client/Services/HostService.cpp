@@ -1,3 +1,5 @@
+#include <Events/GameLoadFailedEvent.h>
+#include <Events/GameLoadedEvent.h>
 #include <Services/HostService.h>
 #include <Services/DialogueService.h>
 #include <Services/Host/HostConversation.h>
@@ -38,6 +40,8 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<ScriptAnimationEvent, &HostService::OnScriptAnimation>(m_connections, m_dispatcher, this);
     Listen<ContainerChangeEvent, &HostService::OnContainerChange>(m_connections, m_dispatcher, this);
     Listen<DifficultyChangeEvent, &HostService::OnDifficultyChange>(m_connections, m_dispatcher, this);
+    Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
+    Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
     Listen<PlayerNativeEvent, &HostService::OnPlayerNative>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
@@ -128,6 +132,13 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
     }
     m_pNetwork = std::move(pNetwork);
 
+    MakeAuthority();
+    spdlog::info("HostService: hosting on port {}", m_pNetwork->GetPort());
+    return true;
+}
+
+void HostService::MakeAuthority() noexcept
+{
     m_pEngine = std::make_unique<HostEngine>();
     HostGame game;
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
@@ -180,20 +191,24 @@ bool HostService::StartHosting(uint16_t aPort) noexcept
             return std::nullopt;
         return SaveTransfer::Split(SaveTransfer::Pack(*files));
     };
-    game.StorePlace = [this](const std::string& acKey, const GameId& acCell, const std::array<float, 3>& acPosition) {
-        m_world.ctx().at<SaveService>().GetRecords().SetPlace(acKey, acCell, acPosition);
+    game.StorePlace = [this](const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell,
+                             const std::array<float, 3>& acPosition) {
+        m_world.ctx().at<SaveService>().GetRecords().SetPlace(acKey, acWorldSpace, acCell, acPosition);
     };
+    game.PartyWipe = [this] { m_reloadRequested = true; };
     game.Versions = RunningGame::GetVersions();
     game.Plugins = RunningGame::Plugins(m_world.GetFormBridge());
     m_pAuthority = std::make_unique<HostAuthority>(*m_pNetwork, std::move(game));
     m_pConversation = std::make_unique<HostConversation>(m_world, m_dispatcher, m_world.ctx().at<DialogueService>());
 
-    spdlog::info("HostService: hosting on port {}", m_pNetwork->GetPort());
-    return true;
+    InstallFrontDoor();
 }
 
 void HostService::StopHosting() noexcept
 {
+    m_reloadRequested = m_readCheckpoint = m_loadingPrevious = false;
+    m_checkpoint.reset();
+    m_reloadJoins.clear();
     if (!IsHosting())
         return;
     // Our own in-process connection goes through it.
@@ -217,10 +232,11 @@ uint32_t HostService::NewCharacterId() noexcept
     return m_pAuthority ? m_pAuthority->NewCharacterId() : 0;
 }
 
-void HostService::OnUpdate(const UpdateEvent&) noexcept
+void HostService::OnUpdate(const UpdateEvent& acEvent) noexcept
 {
     if (!IsHosting())
         return;
     m_pNetwork->Update();
-    m_pAuthority->Update(m_pNetwork->GetTick());
+    m_pAuthority->Update(m_pNetwork->GetTick(), acEvent.Delta);
+    UpdateReload();
 }

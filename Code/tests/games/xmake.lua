@@ -6,13 +6,14 @@ target("GameTests")
     set_languages("cxx23")
     set_pcxxheader("Pch.h")
     add_files("*.cpp")
-    add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp")
+    add_files("../../client/Services/Host/*.cpp", "../../client/Physics/*.cpp", "../../client/Services/HostServiceReload.cpp")
     add_files("../../client/Services/Generic/TransportService.cpp", "../../client/Services/Generic/CutsceneService.cpp",
               "../../client/Services/Generic/RunnerService.cpp", "../../client/TaskQueue.cpp",
               "../../client/ScriptValues.cpp", "../../client/SessionIds.cpp",
               "../../client/Services/Generic/CharacterService.cpp", "../../client/Services/Generic/TravelService.cpp",
               "../../client/Services/Generic/SessionService.cpp", "../../client/Services/Generic/ActorValueService.cpp",
-              "../../client/Services/Generic/PlayerService.cpp", "../../client/Services/Generic/InventoryService.cpp",
+              "../../client/Services/Generic/PlayerService.cpp", "../../client/Services/Generic/DeathService.cpp",
+              "../../client/Services/Generic/InventoryService.cpp",
               "../../client/Systems/InterpolationSystem.cpp",
               "../../client/Services/Guest/GuestWorldState.cpp", "../../client/Services/Guest/GuestClock.cpp",
               "../../client/Services/Guest/GuestWeather.cpp", "../../client/Services/Guest/GuestPhysics.cpp",

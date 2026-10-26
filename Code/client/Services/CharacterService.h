@@ -32,6 +32,7 @@ struct MountEvent;
 struct DismountEvent;
 struct NotifyRespawn;
 struct PlayerLooksChangeEvent;
+struct PlayerRevivedEvent;
 struct AddExperienceEvent;
 struct DialogueEvent;
 struct SubtitleEvent;
@@ -79,6 +80,8 @@ struct CharacterService
     void OnNotifyRespawn(const NotifyRespawn& acMessage) const noexcept;
     // Our player's looks changed: the host makes its copies again from them (HostCharacters::OnRespawn).
     void OnPlayerLooksChange(const PlayerLooksChangeEvent& acEvent) const noexcept;
+    // Its copies on the other games are made again, alive (a resurrected copy's graph stays dead).
+    void OnPlayerRevived(const PlayerRevivedEvent&) const noexcept;
     void OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept;
     void OnNotifySyncExperience(const NotifySyncExperience& acMessage) noexcept;
     void OnDialogueEvent(const DialogueEvent& acEvent) noexcept;
@@ -95,8 +98,8 @@ struct CharacterService
      */
     std::vector<NotifyCharacterSpawn> BuildSpawnRequests(uint32_t aExcludedSessionId) const noexcept;
     /**
-     * @brief Hosting: our copy of another player's character as it is now (position, values,
-     * items, hands, action) into aSpawn; false when we have no copy of it.
+     * @brief Hosting: our copy of another player's character as it is now (position, items, hands, action) into
+     * aSpawn; its values stay its owner's. False when we have no copy of it.
      */
     bool ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) const noexcept;
 

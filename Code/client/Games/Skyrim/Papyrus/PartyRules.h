@@ -77,6 +77,14 @@ class ControlHolds
 
     [[nodiscard]] uint32_t HeldBy(uint32_t aHolder) const noexcept;
     [[nodiscard]] uint32_t Held() const noexcept;
+    [[nodiscard]] uint32_t HeldExcept(uint32_t aHolder) const noexcept
+    {
+        uint32_t flags = 0;
+        for (const auto& [cHolder, cHeld] : m_holds)
+            if (cHolder != aHolder)
+                flags |= cHeld;
+        return flags;
+    }
 
   private:
     std::map<uint32_t, uint32_t> m_holds;

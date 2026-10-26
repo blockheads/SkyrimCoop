@@ -31,6 +31,9 @@ struct HostSaveTransfer
     void Want(ConnectionId_t aConnection) noexcept;
     // Every frame (the session's tick, in milliseconds).
     void Update(uint64_t aTick) noexcept;
+    // A party wipe's save to acGuests and to every game still joining, each told first (NotifyPartyReload).
+    void Checkpoint(std::vector<NotifySaveChunk> aChunks, const std::vector<ConnectionId_t>& acGuests) noexcept;
+    [[nodiscard]] bool Empty() const noexcept { return m_receivers.empty(); }
     void OnDisconnected(ConnectionId_t aConnection) noexcept;
     [[nodiscard]] bool IsSending(ConnectionId_t aConnection) const noexcept { return m_receivers.contains(aConnection); }
 

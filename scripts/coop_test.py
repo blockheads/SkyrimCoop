@@ -2521,7 +2521,6 @@ FINISH_NAMING_OK = (587, 389)     # "Finish and name your character?"
 NAME_ACCEPT = (580, 316)          # the name box's "Accept"
 BEFRIEND_HADVAR = (542, 489)      # Quick Start's "Who did you befriend...?"
 JOIN_BASE_FLAGS = 0x03000E36      # the base's sections a character takes along (JoinBridge kBaseFlags)
-NPC_BASE_DATA, ESSENTIAL_FLAG = 0x2, 0x2  # the TESActorBaseData section, which starts with its flags
 NPC_SKILLS = 0x200                # the skills section: skills, offsets, health, magicka, stamina, ... (52 bytes)
 NPC_RACE = 0x2000000              # the race section: the race, then the original race (TESNPC::SaveGame 24777)
 
@@ -2728,11 +2727,7 @@ def scenario_guest_makes_character_then_joins():
         sections = [1 << bit for bit in range(32) if JOIN_BASE_FLAGS & (1 << bit)]
 
         def section(flag):
-            data = form_save("client", 0x14, base=True, flags=flag)["data"]
-            if flag == NPC_BASE_DATA:  # in a session the player is essential (respawn mode), not by its character
-                flags = int.from_bytes(bytes.fromhex(data[:8]), "little") & ~ESSENTIAL_FLAG
-                data = flags.to_bytes(4, "little").hex() + data[8:]
-            return data
+            return form_save("client", 0x14, base=True, flags=flag)["data"]
         base_sections = lambda: {flag: section(flag) for flag in sections}
         mine = base_sections()
         made_tints = player_record("client")["tints"]
@@ -4918,6 +4913,198 @@ def scenario_health_host_npc():
     npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
     health_roundtrip("", f"{npc:08X}", lambda: host_npc_health(npc), "client",
                      lambda actors: copy if str(copy) in actors else None, f"NPC copy {copy:08X}")
+
+
+def actor_snapshot(instance, actor):
+    select_instance(instance)
+    return ((read_status() or {}).get("world") or {}).get(str(actor), {})
+
+
+def death_state(instance):
+    return game_state(instance).get("death", {})
+
+
+def is_dead(snapshot):
+    return bool((snapshot.get("state") or {}).get("dead"))
+
+
+def effect_spells(instance):
+    return sorted(e["spell"] for e in (player_snapshot(instance).get("effects") or []))
+
+
+def death_spectate_respawn(victim):
+    """An enemy kills the player; they spectate through combat (their game never reloads) and are revived beside the
+    standing party with every ability back."""
+    survivor = "client" if victim == "" else ""
+    for instance in ("", "client"):
+        console_on(instance, "player.restoreav health 10000")
+    give_sword(survivor)
+    give_sword(victim)
+    # The host's enemy picks its own target among those it detects, and the host's player stands beside the stage: it
+    # stays unseen (Invisibility) from before the enemy comes until its turn, or the enemy never reaches the guest.
+    hidden_host = survivor == ""
+    if hidden_host:
+        console_on("", "player.setav invisibility 1")
+    npc, _, copy = spawn_host_npc(WOLF)
+    target = 0x14 if victim == "" else client_on_host()
+    observer_target = client_on_host() if survivor == "client" else 0x14
+    old_magicka = (player_snapshot(victim).get("values") or {}).get("magicka")
+    abilities = effect_spells(victim)
+    hands = (player_snapshot(victim).get("state") or {}).get("hands")
+    try:
+        console_on("", "set KillMoveRandom to 0")
+        health = (player_snapshot(victim).get("values") or {}).get("health", 100)
+        if health > 5:
+            console_on(victim, f"player.damageav health {health - 5:.6f}")
+        place_before(victim, npc if victim == "" else copy, MELEE_GAP)
+        console_on("", f"{npc:X}.startcombat {target:X}")
+        def fight():
+            wolf = actor_snapshot("", npc)
+            seen = actor_snapshot(victim, npc if victim == "" else copy)
+            seen_at = (seen.get("placement") or {}).get("position")
+            gap = distance(seen_at, my_position(victim)) if seen_at else -1
+            return (f"the host's enemy targets {(wolf.get('ai') or {}).get('combat_target', 0):X}, last event "
+                    f"{(wolf.get('animation') or {}).get('event')!r}; on the victim's game it stands {gap:.0f} units off, "
+                    f"last event {(seen.get('animation') or {}).get('event')!r}; the victim's health "
+                    f"{(player_snapshot(victim).get('values') or {}).get('health')}")
+        try:
+            wait_for("the enemy's hit kills the player", lambda: death_state(victim).get("down"), 15)
+        except TestFailure as failure:
+            raise TestFailure(f"{failure} ({fight()})") from None
+        freeze("", npc)
+        if hidden_host:
+            console_on("", "player.setav invisibility 0")
+        console_on("", f"{npc:X}.startcombat {observer_target:X}")
+        if not is_dead(player_snapshot(victim)):
+            raise TestFailure("the downed player is not dead (essential, or bleeding out)")
+        def copy_of_victim():
+            return actor_snapshot(survivor, other_player(actors_on(survivor)))
+        wait_for("the other game's copy dies with its owner", lambda: is_dead(copy_of_victim()), 5)
+        wait_for("spectator camera has a standing player once the player is dead",
+                 lambda: death_state(victim).get("spectating"), 10)
+        try:
+            wait_for("the host counts combat against the standing player",
+                     lambda: death_state(victim).get("status") == "Party in combat", 5)
+        except TestFailure as failure:
+            raise TestFailure(f"{failure} (status {death_state(victim).get('status')!r}, the wolf's target "
+                              f"{host_npc_state(npc).get('ai', {}).get('combat_target')})") from None
+        started = time.monotonic()
+        def still_down_in_combat():
+            if not game_state(victim).get("online") or not death_state(victim).get("down"):
+                raise TestFailure("the player respawned, or its game reloaded, while the party was fighting")
+            if not is_dead(player_snapshot(victim)):
+                raise TestFailure("the dead player came back alive")
+            if not is_dead(copy_of_victim()):
+                raise TestFailure("the other game's copy came back alive")
+            return time.monotonic() - started >= 6
+        wait_for("the vanilla five-second death reload never fires", still_down_in_combat, 8)
+        # Drive spectator controls as player input; with a duo the sole standing target stays selected.
+        watched = death_state(victim)["spectating"]
+        tap_key(victim, 0xCD)
+        player_command(victim, {"cmd": "mouse", "button": 0, "down": True})
+        player_command(victim, {"cmd": "mouse", "button": 0, "down": False})
+        if death_state(victim).get("spectating") != watched:
+            raise TestFailure("cycling lost the only standing player")
+        # The surviving player ends the fight by actually swinging their weapon.
+        console_on("", f"{npc:X}.forceav health 1")
+        freeze("", npc, False)
+        console_on("", f"{npc:X}.setrestrained 1")
+        place_before(survivor, copy if survivor == "client" else npc, MELEE_GAP)
+        # Drawn only now: a standing player with a weapon out draws the enemy off the victim while it is staged.
+        draw(survivor)
+        attack(survivor)
+        wait_for("the standing player's blow kills the enemy", lambda: host_npc_state(npc).get("dead"), 8)
+        wait_for("the party leaves combat",
+                 lambda: death_state(victim).get("status", "").startswith("Respawning in"), 10)
+        clear_since = time.monotonic()
+        wait_for("the player respawns beside the standing party", lambda: not death_state(victim).get("down"), 14)
+        wait_for("the living player recovers engine state and controls",
+                 lambda: not is_dead(player_snapshot(victim))
+                 and (player_snapshot(victim).get("values") or {}).get("health", 0) > 0
+                 and (player_snapshot(victim).get("state") or {}).get("knock") == 0
+                 and takes_input(victim), 8)
+        if time.monotonic() - clear_since < 9:
+            raise TestFailure("respawn did not wait ten continuous seconds out of combat")
+        if distance(my_position(victim), my_position(survivor)) > 250:
+            raise TestFailure("the player did not respawn beside the standing party")
+        if death_state(victim).get("spectating"):
+            raise TestFailure("the camera did not return to the respawned player")
+        start = my_position(victim)
+        press(victim, "forward")
+        try:
+            wait_for("the respawned player can walk again", lambda: distance(my_position(victim)[:2], start[:2]) > 12, 5)
+        finally:
+            release(victim, "forward")
+        wait_for("the revived player holds what it held", lambda: (player_snapshot(victim).get("state") or {}).get("hands") == hands, 3)
+        # Its behavior graph runs again (KillImpl stops it: no draw or swing would ever play out).
+        draw(victim)
+        attack(victim)
+        sheathe(victim)
+        if effect_spells(victim) != abilities:
+            raise TestFailure(f"the revived player's effects {effect_spells(victim)} are not its abilities before {abilities}")
+        observer = "client" if victim == "" else ""
+        if is_dead(actor_snapshot(observer, other_player(actors_on(observer)))):
+            raise TestFailure("the other game still shows the revived player dead")
+        wait_for("the copy retains its owner's magicka after respawn",
+                 lambda: close((actor_snapshot(observer, other_player(actors_on(observer))).get("values") or {}).get("magicka"), old_magicka, 1), 5)
+    finally:
+        if hidden_host:
+            console_on("", "player.setav invisibility 0")
+        console_on("", f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+        console_on(victim, "player.restoreav health 10000")
+        remove_host_npc(npc)
+
+
+def scenario_death_spectate_host():
+    """The host is downed by an enemy, spectates and respawns beside the guest after ten clear seconds."""
+    death_spectate_respawn("")
+
+
+def scenario_death_spectate_guest():
+    """The guest is downed by an enemy, spectates and respawns beside the host after ten clear seconds."""
+    death_spectate_respawn("client")
+
+
+def scenario_death_wipe_checkpoint():
+    """Enemy blows down both players; both games load the previous host save and keep their saved characters."""
+    names = {instance: player_record(instance)["name"] for instance in ("", "client")}
+    for instance in ("", "client"):
+        console_on(instance, "player.restoreav health 10000")
+    console_on("", "set gamehour to 12")
+    checkpoint = save_game("", f"DeathSpectateCheckpoint_{int(time.time())}")
+    wait_for("the checkpoint and co-save are written", saves_written(checkpoint), 15)
+    console_on("", "set gamehour to 17")
+    npc, _, copy = spawn_host_npc(WOLF)
+    for instance in ("", "client"):
+        health = (player_snapshot(instance).get("values") or {}).get("health", 100)
+        if health > 1:
+            console_on(instance, f"player.damageav health {health - 1:.6f}")
+        place_before(instance, npc if instance == "" else copy, MELEE_GAP)
+    console_on("", f"{npc:X}.startcombat player")
+    wait_for("the host is downed by the enemy", lambda: death_state("").get("down"), 12)
+    console_on("", f"{npc:X}.startcombat {client_on_host():X}")
+    def restored_party():
+        return all(game_state(instance).get("online") and not death_state(instance).get("down")
+                   for instance in ("", "client")) and abs(game_state("").get("time", {}).get("hour", 24) - 12) < 0.3
+    wait_for("a wipe reloads the checkpoint on both games", restored_party, 120)
+    wait_for("the restored party shows both players", both_see_each_other, 30)
+    for instance in ("", "client"):
+        if player_record(instance)["name"] != names[instance]:
+            raise TestFailure(f"[{instance or 'host'}] the wipe restored another player's character")
+    if str(npc) in local_player("").get("local_actors", {}):
+        raise TestFailure("the wolf created after the checkpoint survived the world rollback")
+    rested = [comes_to_rest(lambda instance=instance: my_position(instance), still=1)
+              for instance in ("", "client")]
+    start = {instance: my_position(instance) for instance in ("", "client")}
+    try:
+        wait_for("the restored players finish landing before cleanup", lambda: all([test() for test in rested]), 10)
+    except TestFailure as failure:
+        moved = {instance or "host": (round(distance(start[instance], my_position(instance))),
+                                      (player_snapshot(instance).get("animation") or {}).get("event"))
+                 for instance in ("", "client")}
+        at = {instance or "host": [round(x) for x in my_position(instance)] for instance in ("", "client")}
+        raise TestFailure(f"{failure} (moved in 10 s, latest action: {moved}; now at {at}, "
+                          f"{distance(my_position(''), my_position('client')):.0f} units apart)") from None
 
 
 def scenario_death_host_npc():
@@ -8450,6 +8637,9 @@ SCENARIOS = {
     "health-client-player": scenario_health_client_player,
     "health-host-npc": scenario_health_host_npc,
     "death-host-npc": scenario_death_host_npc,
+    "death-spectate-host": scenario_death_spectate_host,
+    "death-spectate-guest": scenario_death_spectate_guest,
+    "death-wipe-checkpoint": scenario_death_wipe_checkpoint,
     # combat
     "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
     "firebolt-client-hits-host-npc": scenario_firebolt_client_hits_host_npc,
@@ -8611,6 +8801,9 @@ TAGS = {
     "health-client-player": {'values'},
     "health-host-npc": {'values'},
     "death-host-npc": {'values', 'spawn'},
+    "death-spectate-host": {'death', 'combat', 'values', 'input'},
+    "death-spectate-guest": {'death', 'combat', 'values', 'input'},
+    "death-wipe-checkpoint": {'death', 'combat', 'join', 'save'},
     "melee-client-hits-host-npc": {'combat', 'values'},
     "firebolt-client-hits-host-npc": {'combat', 'magic', 'values'},
     "flames-client-hits-host-npc": {'combat', 'magic', 'values'},
@@ -8720,6 +8913,14 @@ SOURCE_TAGS = [
     ("Code/client/Services/*CutsceneService.*", {'scripts'}),
     ("Code/client/Services/*PapyrusService.*", {'scripts', 'reload'}),
     ("Code/client/Services/*PlayerService.*", {'session', 'values', 'spawn'}),
+    ("Code/client/Services/*DeathService.*", {'death'}),
+    ("Code/client/Services/Host/HostDeath.*", {'death'}),
+    ("Code/client/Services/HostServiceReload.*", {'death', 'join'}),
+    ("Code/encoding/Messages/DeathMessages.*", {'death'}),
+    ("Code/client/Events/PlayerDeathEvent.h", {'death'}),
+    ("Code/client/Events/GameLoadFailedEvent.h", {'join', 'death'}),
+    ("Code/ui_models/*", {'ui'}),
+    ("Code/ui_workbench/*", {'ui'}),
     ("Code/client/Services/*SessionService.*", {'session'}),
     ("Code/client/Services/*SteamService.*", {'steam'}),
     ("Code/client/Services/*MapService.*", {'ui', 'world'}),
@@ -9173,6 +9374,10 @@ def compare_field(field, owner, copy, owner_snapshot):
         return None  # a package the engine made has no id the other game shares: the copy holds do-nothing
     if field == "effects":
         return None  # copies never hold effects (their owner applies them); what shows is "visuals"
+    if field == "state.knock":
+        return None  # each game's ragdoll is its own physics: a knocked copy lies and gets up on its own frames
+    if field in ("state.deferred_kill", "state.kill_queued"):
+        return None  # a living copy is always in deferred kill (it dies by its owner's death action)
     if field == "visuals":
         missing, extra = set(owner or []) - set(copy or []), set(copy or []) - set(owner or [])
         if not missing and not extra:

@@ -13,6 +13,7 @@
 #include <Events/DismountEvent.h>
 #include <Events/AiStateChangeEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
+#include <Events/PlayerDeathEvent.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
@@ -91,6 +92,7 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
     Listen<PlayerLooksChangeEvent, &CharacterService::OnPlayerLooksChange>(m_connections, m_dispatcher, this);
+    Listen<PlayerRevivedEvent, &CharacterService::OnPlayerRevived>(m_connections, m_dispatcher, this);
 
     Listen<AddExperienceEvent, &CharacterService::OnAddExperienceEvent>(m_connections, m_dispatcher, this);
     Listen<NotifySyncExperience, &CharacterService::OnNotifySyncExperience>(m_connections, m_dispatcher, this);
@@ -423,7 +425,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
         // (docs/design/copy-contract.md, "Players' copies").
         m_actorBridge.SetActorPersistent(actorFormId);
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
-        m_actorBridge.SetActorPlayerRespawnMode(actorFormId);
+        m_actorBridge.SetActorPlayerFaction(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
     }
 
@@ -734,6 +736,25 @@ void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const 
     request.Data = cState.Data;
 
     spdlog::info("Player looks changed: our copies respawn as race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
+    m_transport.Send(request);
+}
+
+void CharacterService::OnPlayerRevived(const PlayerRevivedEvent&) const noexcept
+{
+    if (!m_transport.IsOnline())
+        return;
+    auto view = m_world.view<FormIdComponent, LocalComponent>();
+    const auto it = std::ranges::find_if(view, [&view](auto aEntity) { return view.get<FormIdComponent>(aEntity).Id == 0x14; });
+    if (it == view.end())
+        return;
+
+    const auto state = ReadLiveState(0x14);
+    RequestRespawn request;
+    request.ActorId = view.get<LocalComponent>(*it).Id;
+    request.HasState = true;
+    request.LatestAction = state.LatestAction;
+    request.GraphState = state.GraphState;
+    request.Data = state.Data;
     m_transport.Send(request);
 }
 
@@ -1160,7 +1181,6 @@ bool CharacterService::ReadCopy(uint32_t aSessionId, NotifyCharacterSpawn& aSpaw
         aSpawn.Position = cState.Position;
         aSpawn.Rotation = cState.Rotation;
         aSpawn.InventoryContent = cState.Data.InitialInventory;
-        aSpawn.InitialActorValues = cState.Data.InitialActorValues;
         aSpawn.IsDead = cState.Data.IsDead;
         aSpawn.IsWeaponDrawn = cState.Data.IsWeaponDrawn;
         aSpawn.LatestAction = cState.LatestAction;
@@ -1442,7 +1462,6 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
                  cWorldSpaceId,
                  request.How == EnterCellRequest::Travel::kOwn      ? "leading the party"
                  : request.How == EnterCellRequest::Travel::kTether ? "following"
-                 : request.How == EnterCellRequest::Travel::kRespawn ? "respawning"
                                                                     : "from before joining");
 }
 

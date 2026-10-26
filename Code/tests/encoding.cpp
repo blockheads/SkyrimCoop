@@ -1030,11 +1030,34 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         joined.Level = 5;
         joined.Arrived = true;
         roundTrip(joined, NotifyMessageFactory{});
-        roundTrip(PlayerPerishedRequest{}, RequestMessageFactory{});
         NotifyPlayerPerished perished;
         perished.PlayerId = 3;
         perished.Username = "Serana";
         roundTrip(perished, NotifyMessageFactory{});
+    }
+    SECTION("A player's fall, the party's death state, a respawn and a wipe's reload carry who, which fall and where")
+    {
+        PlayerDeathRequest down;
+        down.SessionId = 7;
+        down.Generation = 2;
+        down.Down = true;
+        roundTrip(down, RequestMessageFactory{});
+        NotifyPartyDeath party;
+        party.Players = {{7, 2, true}, {9, 0, false}};
+        party.Combat = true;
+        party.RemainingMs = 4500;
+        party.Error = "No previous gameplay save";
+        roundTrip(party, NotifyMessageFactory{});
+        NotifyPlayerRespawn respawn;
+        respawn.SessionId = 7;
+        respawn.Generation = 2;
+        respawn.AnchorId = 9;
+        respawn.CellId = GameId(0, 0x3C);
+        respawn.WorldSpaceId = GameId(0, 0x3C);
+        respawn.Position = {100.f, -200.f, 50.f};
+        respawn.Heading = 1.5f;
+        roundTrip(respawn, NotifyMessageFactory{});
+        roundTrip(NotifyPartyReload{}, NotifyMessageFactory{});
     }
 }
 

@@ -346,6 +346,14 @@ int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 bool GetGraphBool(uint32_t aFormId, const char* acpName) noexcept;
 // The actor is in a kill move, either half (Actor::IsInKillMove 38615).
 bool IsInKillMove(uint32_t aFormId) noexcept;
+// Its kill held off (a deferred kill, Character 38619) or queued on the task queue (ActorProcess 40011): either way it
+// stays alive at any health until that ends.
+struct KillState
+{
+    bool Deferred;
+    bool Queued;
+};
+KillState GetKillState(uint32_t aFormId) noexcept;
 // What decides a kill move for an attack (the ShouldAttackKill condition, 21744).
 struct KillMoveCheck
 {
@@ -435,6 +443,8 @@ std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noe
 bool IsSneaking(uint32_t aFormId) noexcept;
 // ActorState1::sitSleepState: 0 normal, 3 sitting, 7 sleeping (CommonLibSSE-NG SIT_SLEEP_STATE).
 uint8_t GetSitSleepState(uint32_t aFormId) noexcept;
+// ActorState1::knockState: 0 standing, 1 and 3 lying in the ragdoll, 6 getting up (CommonLibSSE-NG KNOCK_STATE_ENUM).
+uint8_t GetKnockState(uint32_t aFormId) noexcept;
 // The actor in water: how deep (Actor::GetSubmergedLevel, 0 dry .. 1; Actor::Update counts the head under at
 // 0.875), swimming (ActorState1), the head under (boolFlags kUnderwater) and for how long (underWaterTimer).
 struct Water

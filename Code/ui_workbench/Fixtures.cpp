@@ -48,7 +48,7 @@ template <class T> bool Number(const Json& acObject, const char* acKey, T& aValu
     return true;
 }
 
-bool Parse(const Json& acData, Ui::PartyModel& aParty, Ui::ChatModel& aChat, Ui::JoinModel& aJoin)
+bool Parse(const Json& acData, Ui::PartyModel& aParty, Ui::ChatModel& aChat, Ui::JoinModel& aJoin, Ui::DeathModel& aDeath)
 {
     if (!acData.is_object())
         return false;
@@ -113,19 +113,27 @@ bool Parse(const Json& acData, Ui::PartyModel& aParty, Ui::ChatModel& aChat, Ui:
         if ((aJoin.State == "refused" || aJoin.State == "ended") && (aJoin.Reason.empty() || aJoin.Message.empty()))
             return false;
     }
+    if (acData.contains("death"))
+    {
+        const auto& death = acData["death"];
+        if (!death.is_object() || !Boolean(death, "visible", aDeath.Visible) ||
+            !String(death, "name", aDeath.Name) ||
+            !String(death, "status", aDeath.Status)) return false;
+    }
     return true;
 }
 } // namespace
 
 bool LoadFixture(const std::filesystem::path& acPath, Ui::PartyModel& aParty, Ui::ChatModel& aChat,
-                 Ui::JoinModel& aJoin, Ui::PlayerColors& aColors)
+                 Ui::JoinModel& aJoin, Ui::DeathModel& aDeath, Ui::PlayerColors& aColors)
 {
     std::ifstream stream(acPath);
     Ui::PartyModel party;
     Ui::ChatModel chat;
     Ui::JoinModel join;
+    Ui::DeathModel death;
     const auto data = Json::parse(stream, nullptr, false);
-    if (!stream || !Parse(data, party, chat, join))
+    if (!stream || !Parse(data, party, chat, join, death))
     {
         std::fprintf(stderr, "Invalid UI fixture: %s\n", acPath.c_str());
         return false;
@@ -147,5 +155,9 @@ bool LoadFixture(const std::filesystem::path& acPath, Ui::PartyModel& aParty, Ui
     aParty.Handle.DirtyAllVariables();
     aChat.Handle.DirtyAllVariables();
     aJoin.Handle.DirtyAllVariables();
+    const auto deathHandle = aDeath.Handle;
+    aDeath = std::move(death);
+    aDeath.Handle = deathHandle;
+    aDeath.Handle.DirtyAllVariables();
     return true;
 }

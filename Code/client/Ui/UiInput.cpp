@@ -1,3 +1,5 @@
+#include <Events/PlayerDeathEvent.h>
+#include <World.h>
 #include <Ui/UiInput.h>
 
 #include <Games/Skyrim/BSInput/InputEvent.h>
@@ -9,10 +11,14 @@ namespace
 {
 constexpr uint32_t cLeftShift = 0x2A;
 constexpr uint32_t cRightShift = 0x36;
+constexpr uint32_t cLeftArrow = 0xCB;
+constexpr uint32_t cRightArrow = 0xCD;
 
 constexpr uint32_t cLeftButton = 0;
+constexpr uint32_t cRightButton = 1;
 
 bool s_available = false;
+bool s_spectating = false;
 bool s_open = false;
 bool s_shift = false;
 std::vector<UiInput::Key> s_keys;
@@ -86,6 +92,22 @@ bool Take(const InputEvent* apChain) noexcept
         if (pEvent->eventType != InputEvent::kButton)
             continue;
         const auto& cButton = *reinterpret_cast<const ButtonEvent*>(pEvent);
+        if (s_spectating && !s_open && !s_buttons && OnlyHudOpen())
+        {
+            // A downed player's spectator cycle: a left click or the right arrow the next standing player, the others back.
+            int direction = 0;
+            if (pEvent->device == InputEvent::kMouse && (cButton.idCode == cLeftButton || cButton.idCode == cRightButton))
+                direction = cButton.idCode == cLeftButton ? 1 : -1;
+            if (pEvent->device == InputEvent::kKeyboard && (cButton.idCode == cLeftArrow || cButton.idCode == cRightArrow))
+                direction = cButton.idCode == cRightArrow ? 1 : -1;
+            if (direction)
+            {
+                if (cButton.IsPress())
+                    World::Get().GetRunner().Trigger(SpectateCycleEvent{direction});
+                buttons = true;
+                continue;
+            }
+        }
         if (s_buttons && pEvent->device == InputEvent::kMouse && cButton.idCode == cLeftButton)
         {
             if (cButton.IsPress() || cButton.IsRelease())
@@ -138,6 +160,11 @@ std::vector<bool> TakeClicks() noexcept
 bool TakeEscape() noexcept
 {
     return std::exchange(s_escape, false);
+}
+
+void SetSpectatorAvailable(bool aAvailable) noexcept
+{
+    s_spectating = aAvailable;
 }
 
 void SetChatAvailable(bool aAvailable) noexcept

@@ -1111,6 +1111,12 @@ uint8_t GetSitSleepState(uint32_t aFormId) noexcept
     return pActor ? pActor->actorState.GetSitSleepState() : 0;
 }
 
+uint8_t GetKnockState(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor ? pActor->actorState.GetKnockState() : 0;
+}
+
 bool IsSneaking(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
@@ -1132,6 +1138,18 @@ bool IsInKillMove(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
     return pActor && pActor->IsInKillMove();
+}
+
+KillState GetKillState(uint32_t aFormId) noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    if (!pActor || !pActor->currentProcess)
+        return {};
+    using TIsInDeferredKill = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInDeferredKill, s_isInDeferredKill, 38619);
+    using TIsKillQueued = bool(const AIProcess*);
+    POINTER_SKYRIMSE(TIsKillQueued, s_isKillQueued, 40011);
+    return {s_isInDeferredKill(pActor), s_isKillQueued(pActor->currentProcess)};
 }
 
 KillMoveCheck CheckKillMove(uint32_t aAttackerFormId, uint32_t aVictimFormId) noexcept

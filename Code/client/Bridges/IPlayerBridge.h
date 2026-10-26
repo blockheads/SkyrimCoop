@@ -36,16 +36,13 @@ public:
 
     // --- State ---
     virtual bool IsPlayerAlive() const noexcept = 0;
-    virtual bool IsPlayerBleedingOut() const noexcept = 0;
-    virtual void SetPlayerGodMode(bool aEnable) noexcept = 0;
-    virtual void SetPlayerRespawnMode(bool aEnable) noexcept = 0;
-    virtual void RespawnPlayer() noexcept = 0;
-    virtual void KnockdownPlayer(float aForce) noexcept = 0;
-    virtual void FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration,
-                             bool aWithSound, float aDelay) noexcept = 0;
-
-    // --- Economy ---
-    virtual void PlayerPayCrimeGoldToAllFactions() noexcept = 0;
+    // In a session a dead player waits for the party instead of loading the last save.
+    virtual void HoldPlayerDeathReload(bool aHold) noexcept = 0;
+    // Back alive from a real death (docs/design/death.md, "Real death").
+    virtual void RevivePlayer() noexcept = 0;
+    virtual void SetSpectatorTarget(uint32_t aFormId) noexcept = 0;
+    virtual void HoldDeathControls(bool aHold) noexcept = 0;
+    [[nodiscard]] virtual bool IsScriptCameraHeld() const noexcept = 0;
 
     // --- Difficulty / settings ---
     virtual uint32_t GetDifficulty() const noexcept = 0;

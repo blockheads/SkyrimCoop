@@ -24,7 +24,6 @@
 #include <Messages/ReferencesMoveRequest.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyRespawn.h>
-#include <Messages/PlayerRespawnRequest.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/NotifyFactionsChanges.h>
@@ -139,7 +138,10 @@ struct Session
         m_games.erase(aPlayer);
         m_network.CloseRoute(aPlayer);
     }
-    void Frame(uint64_t aTick) { m_authority.Update(aTick); }
+    void Frame(uint64_t aTick)
+    {
+        m_authority.Update(aTick, static_cast<double>(aTick - std::exchange(m_lastTick, aTick)) / 1000.0);
+    }
     // The host's player picks a difficulty (its game's DifficultyChangeEvent).
     void ChooseDifficulty(uint32_t aDifficulty)
     {
@@ -255,6 +257,7 @@ private:
     }
 
     uint32_t m_npcs = 0;
+    uint64_t m_lastTick = 0;
     std::map<ConnectionId_t, uint32_t> m_playerIds;
     std::map<ConnectionId_t, uint32_t> m_characterIds;
     std::set<ConnectionId_t> m_games;

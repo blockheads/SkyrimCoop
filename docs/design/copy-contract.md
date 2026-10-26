@@ -48,8 +48,7 @@ inherited from upstream Tilted Online and listed here so they stay choices:
 
 | What | Why | Where |
 |---|---|---|
-| Essential, no bleedout recovery | it goes down like a player instead of dying; its owner decides | `Actor::SetPlayerRespawnMode`, `SkyrimBridge::SetActorPlayerRespawnMode` |
-| Member of PlayerFaction (0xDB1, rank 1) | NPCs friendly to the player treat it as a friend; faction conditions in quests and mods count it as "on the player's side" (not as the player) | `Actor::SetPlayerRespawnMode` |
+| Member of PlayerFaction (0xDB1, rank 1) | the player's enemies fight it and its friends treat it as a friend (`ReactToAttack` tolerates a friend's hits by that reaction); faction conditions in quests and mods count it as "on the player's side" (not as the player). Not essential since 2026-10-26: it dies by its owner's death action (`docs/design/death.md`) | `Actor::JoinPlayerFaction`, `SkyrimBridge::SetActorPlayerFaction` |
 | A healer's Restoration perks carried to it | the target's owner applies the heal, so the caster's Regeneration (0x581F8) and Respite (0x581F9) go along with the request | `HookAddTarget`, `HookAdjustForPerks`, `HookHasPerk` (MagicTarget.cpp) |
 | Fleeing always false; it speaks no AI dialogue responses | AI patches from before copies ran no AI: re-check whether they still do anything (actor-ai-and-copies.md, "Still open") | `HookIsFleeing`, `HookProcessResponse` (Actor.cpp) |
 

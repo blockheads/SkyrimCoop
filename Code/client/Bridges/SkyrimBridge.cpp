@@ -1,3 +1,5 @@
+#include <Camera/PlayerCamera.h>
+#include <Papyrus/PartyNatives.h>
 /// SkyrimBridge.cpp — Real SKSE-backed implementation.
 ///
 /// With HostEngine.cpp and GuestEngine.cpp, the only places in the bridge layer that include SKSE headers.
@@ -1230,52 +1232,20 @@ bool SkyrimBridge::IsPlayerAlive() const noexcept
     return false;
 }
 
-bool SkyrimBridge::IsPlayerBleedingOut() const noexcept
+void SkyrimBridge::HoldPlayerDeathReload(bool aHold) noexcept
 {
+    Breadcrumbs::Record("HoldPlayerDeathReload", static_cast<uint32_t>(aHold));
+    PlayerCharacter::HoldDeathReload(aHold);
+    // Older builds saved the player essential (going down instead of dying in a session).
+    if (PlayerCharacter* pPlayer = PlayerCharacter::Get(); aHold && pPlayer)
+        pPlayer->SetEssentialEx(false);
+}
+
+void SkyrimBridge::RevivePlayer() noexcept
+{
+    Breadcrumbs::Record("RevivePlayer", 0);
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
-        return pPlayer->actorState.IsBleedingOut();
-    return false;
-}
-
-void SkyrimBridge::SetPlayerGodMode(bool aEnable) noexcept
-{
-    Breadcrumbs::Record("SetPlayerGodMode", static_cast<uint32_t>(aEnable));
-    PlayerCharacter::SetGodMode(aEnable);
-}
-
-void SkyrimBridge::SetPlayerRespawnMode(bool aEnable) noexcept
-{
-    Breadcrumbs::Record("SetPlayerRespawnMode", static_cast<uint32_t>(aEnable));
-    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
-        pPlayer->SetPlayerRespawnMode(aEnable);
-}
-
-void SkyrimBridge::RespawnPlayer() noexcept
-{
-    Breadcrumbs::Record("RespawnPlayer", 0);
-    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
-        pPlayer->RespawnPlayer();
-}
-
-void SkyrimBridge::KnockdownPlayer(float aForce) noexcept
-{
-    Breadcrumbs::Record("KnockdownPlayer", 0);
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (pPlayer && pPlayer->currentProcess)
-        pPlayer->currentProcess->KnockExplosion(pPlayer, &pPlayer->position, aForce);
-}
-
-void SkyrimBridge::FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration,
-                               bool aWithSound, float aDelay) noexcept
-{
-    FadeOutGame(aFadeOut, aToBlack, aFadeDuration, aWithSound, aDelay);
-}
-
-void SkyrimBridge::PlayerPayCrimeGoldToAllFactions() noexcept
-{
-    Breadcrumbs::Record("PlayerPayCrimeGoldToAllFactions", 0);
-    if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
-        pPlayer->PayCrimeGoldToAllFactions();
+        pPlayer->Revive();
 }
 
 uint32_t SkyrimBridge::GetDifficulty() const noexcept
@@ -1688,12 +1658,11 @@ void SkyrimBridge::SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noe
         pActor->SetIgnoreFriendlyHit(aIgnore);
 }
 
-void SkyrimBridge::SetActorPlayerRespawnMode(uint32_t aFormId) noexcept
+void SkyrimBridge::SetActorPlayerFaction(uint32_t aFormId) noexcept
 {
-    Breadcrumbs::Record("SetActorPlayerRespawnMode", aFormId);
-    Actor* pActor = GetActor(aFormId);
-    if (pActor)
-        pActor->SetPlayerRespawnMode();
+    Breadcrumbs::Record("SetActorPlayerFaction", aFormId);
+    if (Actor* pActor = GetActor(aFormId))
+        pActor->JoinPlayerFaction();
 }
 
 void SkyrimBridge::SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept
@@ -2086,19 +2055,6 @@ void SkyrimBridge::StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId
         pProcessLists->StopArtObject(pActor, cVisuals.pArt);
 }
 
-void SkyrimBridge::PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept
-{
-    Breadcrumbs::Record("PlayerKnockExplosion", aFormId);
-    Actor* pActor = GetActor(aFormId);
-    if (!pActor)
-        return;
-    NiPoint3 pos;
-    pos.x = aX;
-    pos.y = aY;
-    pos.z = aZ;
-    pActor->currentProcess->KnockExplosion(pActor, &pos, aForce);
-}
-
 // ---------------------------------------------------------------------------
 // IFormBridge — extended (Plan 03)
 // ---------------------------------------------------------------------------
@@ -2231,4 +2187,22 @@ bool SkyrimBridge::IsLoadDoor(uint32_t aObjectFormId) const noexcept
     const TESObjectREFR* pObject = GetRefr(aObjectFormId);
     return pObject && pObject->baseForm && pObject->baseForm->formType == FormType::Door &&
            pObject->extraData.Contains(ExtraDataType::Teleport);
+}
+
+void SkyrimBridge::HoldDeathControls(bool aHold) noexcept
+{
+    PartyNatives::HoldDeathControls(aHold);
+}
+
+bool SkyrimBridge::IsScriptCameraHeld() const noexcept
+{
+    return PartyNatives::ScriptControlsHeld();
+}
+
+void SkyrimBridge::SetSpectatorTarget(uint32_t aFormId) noexcept
+{
+    PlayerCamera* pCamera = PlayerCamera::Get();
+    Actor* pWatched = aFormId ? GetActor(aFormId) : nullptr;
+    if (pCamera && (pWatched || !aFormId))
+        pCamera->Spectate(pWatched);
 }

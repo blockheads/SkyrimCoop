@@ -10,7 +10,6 @@
 #include <Messages/NotifyPartyTravel.h>
 #include <Messages/NotifyRemoveCharacter.h>
 #include <Messages/NotifyRespawn.h>
-#include <Messages/PlayerRespawnRequest.h>
 #include <Messages/RequestRemoveCharacter.h>
 #include <Messages/RequestRespawn.h>
 #include <Messages/NotifyReferencesMove.h>
@@ -32,10 +31,11 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostCharacters::OnAnnounceCharacter);
     aAuthority.On(*this, &HostCharacters::OnRemoveCharacter);
     aAuthority.On(*this, &HostCharacters::OnRespawn);
-    aAuthority.On(*this, &HostCharacters::OnPlayerRespawn);
     aAuthority.On(*this, &HostCharacters::OnMount);
     aAuthority.On(*this, &HostCharacters::OnDismount);
     aAuthority.On(*this, &HostCharacters::OnActiveEffects);
+    aAuthority.Watch(*this, &HostCharacters::OnValues);
+    aAuthority.Watch(*this, &HostCharacters::OnMaxValues);
     aAuthority.On(*this, &HostCharacters::OnMovement);
     aAuthority.On(*this, &HostCharacters::OnEnterCell);
 }
@@ -104,6 +104,7 @@ void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acReque
     {
         m_places[aSender] = PlaceOf(acRequest.CellId, acRequest.WorldSpaceId);
         character.PlayerRecord = cSpawn;
+        m_authority.PlayerBodyEntered(aSender, cSessionId);
         if (aSender != m_players.Host())
         {
             m_authority.PlayerEntered(aSender, cSessionId);
@@ -112,6 +113,7 @@ void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acReque
         }
     }
 
+    m_authority.ActorAnnounced(cSessionId, cSpawn.AiState);
     SendToOthersWithHost(cSpawn, aSender);
     spdlog::info("HostCharacters: {:x} announced {:x}:{:x} as {:x}", aSender, acRequest.ReferenceId.ModId, acRequest.ReferenceId.BaseId, cSessionId);
 }
@@ -214,20 +216,6 @@ void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, Conn
     NotifyActiveEffects notify;
     static_cast<Payloads::ActiveEffects&>(notify) = acRequest;
     m_players.SendToOthers(notify, aSender);
-}
-
-void HostCharacters::OnPlayerRespawn(const PlayerRespawnRequest&, ConnectionId_t aSender) const noexcept
-{
-    // Its copies come back from death badly otherwise: everyone else spawns it again.
-    for (const auto& [cSessionId, cCharacter] : m_characters)
-    {
-        if (cCharacter.Owner == aSender && cCharacter.PlayerRecord)
-        {
-            NotifyRespawn notify;
-            notify.ActorId = cSessionId;
-            m_players.SendToOthers(notify, aSender, Net::kReliable);
-        }
-    }
 }
 
 void HostCharacters::OnPlayerLeft(ConnectionId_t aPlayer) noexcept
@@ -488,4 +476,44 @@ void HostCharacters::RemoveCharacter(uint32_t aSessionId, const ActorWhereabouts
     m_players.SendToOthers(notify, it->second.Owner, Net::kReliable);
 
     m_characters.erase(it);
+}
+
+std::optional<NotifyPartyTravel> HostCharacters::CharacterPlace(uint32_t aSessionId) const noexcept
+{
+    const auto it = m_characters.find(aSessionId);
+    if (it == m_characters.end() || !it->second.PlayerRecord)
+        return std::nullopt;
+    // The host's own player's record is its announcement's: its engine has where it is now.
+    const auto cBody = it->second.Owner == m_players.Host() ? BuildSpawn(aSessionId) : it->second.PlayerRecord;
+    const auto cPlace = m_places.find(it->second.Owner);
+    if (!cBody || cPlace == m_places.end())
+        return std::nullopt;
+    NotifyPartyTravel place;
+    place.WorldSpaceId = cPlace->second.WorldSpaceId;
+    place.CellId = cBody->CellId;
+    place.Position = cBody->Position;
+    place.Heading = cBody->Rotation.y;
+    return place;
+}
+
+void HostCharacters::OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept
+{
+    KeepValues(acRequest.Id, acRequest.Values, false, aSender);
+}
+
+void HostCharacters::OnMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) noexcept
+{
+    KeepValues(acRequest.Id, acRequest.Values, true, aSender);
+}
+
+void HostCharacters::KeepValues(uint32_t aSessionId, const std::map<uint32_t, float>& acValues, bool aMaximum,
+                                ConnectionId_t aSender) noexcept
+{
+    const auto it = m_characters.find(aSessionId);
+    if (it == m_characters.end() || it->second.Owner != aSender || !it->second.PlayerRecord)
+        return;
+    auto& kept = it->second.PlayerRecord->InitialActorValues;
+    auto& values = aMaximum ? kept.ActorMaxValuesList : kept.ActorValuesList;
+    for (const auto& [cKey, cValue] : acValues)
+        values[cKey] = cValue;
 }

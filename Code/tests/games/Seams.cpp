@@ -14,6 +14,8 @@
 #include <RunningGame.h>
 #include <Components/RemoteAnimationComponent.h>
 #include <Components/FormIdComponent.h>
+#include <Components/SpawnGraphStateComponent.h>
+#include <Components/WaitingFor3D.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
 #include <Services/EffectVisualsService.h>
@@ -28,6 +30,7 @@
 #include <Services/ObjectService.h>
 #include <Services/TimeScaleService.h>
 #include <Services/PlayerService.h>
+#include <Services/DeathService.h>
 #include <Services/TravelService.h>
 #include <Services/RunnerService.h>
 #include <Services/JoinService.h>
@@ -90,8 +93,8 @@ World::World()
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
-    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(),
-                                 ctx().at<IActorBridge&>());
+    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
+    ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
@@ -113,6 +116,7 @@ World::~World()
     ctx().erase<HostService>();
     ctx().erase<MapService>();
     ctx().erase<CombatService>();
+    ctx().erase<DeathService>();
     ctx().erase<PlayerService>();
     ctx().erase<DialogueService>();
     ctx().erase<CutsceneService>();
@@ -143,6 +147,18 @@ void World::Update() noexcept
     const uint64_t cTick = GetTransport().GetTick();
     for (auto&& [cEntity, animation, form] : view<RemoteAnimationComponent, FormIdComponent>().each())
     {
+        if (!engine.ActorExists(form.Id)) continue;
+        if (auto* spawn = try_get<SpawnGraphStateComponent>(cEntity))
+        {
+            if (all_of<WaitingFor3D>(cEntity)) continue;
+            engine.LoadActorGraphState(form.Id, spawn->State);
+            if (!animation.TimePoints.empty())
+            {
+                engine.SetActorLatestAnimation(form.Id, animation.TimePoints.front());
+                animation.TimePoints.pop_front();
+            }
+            remove<SpawnGraphStateComponent>(cEntity);
+        }
         for (auto it = animation.TimePoints.begin(); it != animation.TimePoints.end();)
         {
             if (DeathActions::IsDying(it->State1))
@@ -154,6 +170,8 @@ void World::Update() noexcept
                 }
                 engine.ReplayDeathAction(form.Id, *it);
             }
+            else if (engine.Actors.at(form.Id).GraphState != "recovering")
+                engine.SetActorLatestAnimation(form.Id, *it);
             it = animation.TimePoints.erase(it);
         }
     }

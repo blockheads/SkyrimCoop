@@ -250,32 +250,31 @@ void Actor::SetWeaponDrawnEx(bool aDraw) noexcept
     g_forceAnimation = false;
 }
 
-void Actor::SetPlayerRespawnMode(bool aSet) noexcept
-{
-    SetEssentialEx(aSet);
-    // Makes the player go in an unrecoverable bleedout state
-    SetNoBleedoutRecovery(aSet);
-
-    if (formID != 0x14)
-    {
-        auto pPlayerFaction = Cast<TESFaction>(TESForm::GetById(0xDB1));
-        SetFactionRank(pPlayerFaction, 1);
-    }
-}
-
 void Actor::SetEssentialEx(bool aSet) noexcept
 {
     SetEssential(aSet);
-    TESNPC* pBase = Cast<TESNPC>(baseForm);
-    if (pBase)
+    if (TESNPC* pBase = Cast<TESNPC>(baseForm))
         pBase->actorData.SetEssential(aSet);
 }
 
-void Actor::SetNoBleedoutRecovery(bool aSet) noexcept
+void Actor::JoinPlayerFaction() noexcept
 {
-    using TSetNoBleedoutRecovery = void(Actor*, bool);
-    POINTER_SKYRIMSE(TSetNoBleedoutRecovery, s_setNoBleedoutRecovery, 38533);
-    s_setNoBleedoutRecovery(this, aSet);
+    if (auto* pPlayerFaction = Cast<TESFaction>(TESForm::GetById(0xDB1)))
+        SetFactionRank(pPlayerFaction, 1);
+}
+
+void Actor::CastPermanentMagic(bool aWornItemEnchantments, bool aBaseSpells, bool aRaceSpells, bool aEveryActorAbility) noexcept
+{
+    using TCastPermanentMagic = void(Actor*, bool, bool, bool, bool);
+    POINTER_SKYRIMSE(TCastPermanentMagic, s_castPermanentMagic, 38753);
+    s_castPermanentMagic(this, aWornItemEnchantments, aBaseSpells, aRaceSpells, aEveryActorAbility);
+}
+
+void Actor::DoReset3D(bool aUpdateWeight) noexcept
+{
+    using TDoReset3D = void(Actor*, bool);
+    POINTER_SKYRIMSE(TDoReset3D, s_doReset3D, 40255);
+    s_doReset3D(this, aUpdateWeight);
 }
 
 void Actor::DispelAllSpells(bool aNow) noexcept
@@ -866,9 +865,9 @@ bool Actor::IsHeldByKillMove() const noexcept
 
 void Actor::Kill() noexcept
 {
-    // Never kill players
+    // Never this game's player; a player's copy dies as its owner did.
     ActorExtension* pExtension = GetExtension();
-    if (pExtension->IsPlayer())
+    if (pExtension->IsLocalPlayer())
         return;
 
     EndDeferredKill();
@@ -886,7 +885,7 @@ void Actor::Kill() noexcept
 bool Actor::KillWithDeathAction(const ActionEvent& acAction) noexcept
 {
     ActorExtension* pExtension = GetExtension();
-    if (pExtension->IsPlayer())
+    if (pExtension->IsLocalPlayer())
         return false;
 
     // KillImpl (37896) performs the death animation, or RagdollInstant when told to ragdoll at once; a

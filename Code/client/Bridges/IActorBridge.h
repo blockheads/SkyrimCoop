@@ -180,7 +180,7 @@ public:
 
     // --- Player actor properties ---
     virtual void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept = 0;
-    virtual void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept = 0;
+    virtual void SetActorPlayerFaction(uint32_t aFormId) noexcept = 0;
     virtual void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept = 0;
     virtual uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept = 0;
 
@@ -248,10 +248,6 @@ public:
     virtual void ActorUpdateAnimation(uint32_t aFormId, uint64_t aTick) noexcept = 0;
     /// Run facegen update for a remote actor.
     virtual void ActorUpdateFaceGen(uint32_t aFormId) noexcept = 0;
-
-
-    // --- Player-specific (knockdown) ---
-    virtual void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept = 0;
 
     // --- Effect visuals: what a magic effect shows on its target (burning, frost, a glow) ---
     // Whether that magic effect shows on its target while it runs (a hit shader or hit art, FX Persist).

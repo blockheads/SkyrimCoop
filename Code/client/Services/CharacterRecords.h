@@ -20,7 +20,7 @@ struct CharacterRecords
     [[nodiscard]] const PlayerRecord* Find(std::string_view aKey) const noexcept;
     [[nodiscard]] const std::map<std::string, PlayerRecord, std::less<>>& All() const noexcept { return m_records; }
     // A loaded record's place, from where the host's game shows that player now.
-    void SetPlace(std::string_view aKey, const GameId& acCell, const std::array<float, 3>& acPosition) noexcept;
+    void SetPlace(std::string_view aKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition) noexcept;
     void Clear() noexcept { m_records.clear(); }
     // A player whose character the save no longer keeps.
     void Remove(std::string_view aKey) noexcept;

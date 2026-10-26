@@ -79,6 +79,7 @@ struct UiService
 
   private:
     void UpdateParty() noexcept;
+    void UpdateDeath() noexcept;
     // The join panel follows JoinService's status; its buttons take the mouse while they show.
     void UpdateJoin() noexcept;
     void OnJoinButton(const Rml::String& acId) noexcept;
@@ -102,6 +103,8 @@ struct UiService
     Rml::ElementDocument* m_pParty = nullptr;
     Rml::ElementDocument* m_pChat = nullptr;
     Rml::ElementDocument* m_pJoin = nullptr;
+    Rml::ElementDocument* m_pDeath = nullptr;
+    Ui::DeathModel m_death;
     Rml::String m_directory;
     std::filesystem::file_time_type m_lastChange{};
     std::chrono::steady_clock::time_point m_nextCheck{};

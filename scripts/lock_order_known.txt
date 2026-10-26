@@ -27,6 +27,15 @@ SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1831f8 vs SkyrimSE.exe+0x182e91 > SkyrimS
 # player's reference lock, main thread). Never at once, as above: ApplyPlayer runs on the GameLoadedEvent after the
 # load. Both stacks read 2026-10-24 (guest-makes-character-then-joins).
 SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x17928d vs SkyrimSE.exe+0x170402 > SkyrimSE.exe+0x182bca
+# A revived player's abilities cast again (PlayerCharacter::Revive -> Actor::CastPermanentMagic 38753 ->
+# CastAliasSpellVisitor under the ExtraAliasInstanceArray read -> MagicCaster::FindTargets -> Actor::IsGhost, the
+# player's reference lock; our update thread) against that load, as above. Vanilla takes the same order whenever an
+# actor's 3D loads (Actor::Load3D, Set3D and SwitchRace call 38753). Both stacks read 2026-10-26 (death-spectate-guest).
+SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x662cd4 vs SkyrimSE.exe+0x170402 > SkyrimSE.exe+0x182bca
+# The same revive against a coc's cell load (CenterOnCell -> TES::SetCurrentCell -> TESQuest ->
+# BGSRefAlias::InitializeRefAlias -> ExtraAliasInstanceArray write, main thread), as the ApplyFills entries above: never at
+# once. Both stacks read 2026-10-26 (death-spectate-host, the duo's start coc).
+SkyrimSE.exe+0x182315 > SkyrimSE.exe+0x662cd4 vs SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef
 # One main thread at two times: a save load (BGSSaveLoadGame::InitAndFinishLoadedForms -> Actor::FinishLoadGame ->
 # ExtraAliasInstanceArray, then TESQuest) against an earlier coc (CenterOnCell -> TES::SetCurrentCell ->
 # BGSRefAlias::InitializeRefAlias -> ExtraAliasInstanceArray write). Ours: only the main loop and the harness's console

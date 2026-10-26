@@ -14,6 +14,8 @@ struct AuthenticationResponse;
 struct ConnectedEvent;
 struct DisconnectedEvent;
 struct GameLoadedEvent;
+struct GameLoadFailedEvent;
+struct NotifyPartyReload;
 struct NotifySaveChunk;
 struct UpdateEvent;
 struct World;
@@ -77,6 +79,9 @@ private:
     void OnConnected(const ConnectedEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;
+    void OnGameLoadFailed(const GameLoadFailedEvent&) noexcept;
+    // The party wiped (docs/design/death.md): the host's previous save comes as a join's does, and this game loads it.
+    void OnPartyReload(const NotifyPartyReload&) noexcept;
 
     void To(Step aStep, JoinStatus::State aState) noexcept;
     // The save is loaded: this player's character on its player, then the usual join to the same host.
@@ -95,6 +100,8 @@ private:
     Step m_step{Step::kIdle};
     JoinStatus m_status;
     std::string m_endpoint;
+    bool m_partyReload{};
+    std::optional<PlayerRecord> m_joinedCharacter;
     std::optional<PlayerRecord> m_brought; // the character of the game the join started in
     SaveTransfer::Assembly m_save;
     double m_waited{}; // seconds in the current step, or since the last chunk

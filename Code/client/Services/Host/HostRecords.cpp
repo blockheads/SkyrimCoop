@@ -32,13 +32,13 @@ void HostRecords::OnPlayerRecord(const PlayerRecordRequest& acRequest, Connectio
 
 void HostRecords::OnSaving() const noexcept
 {
-    if (!m_game.StorePlace || !m_game.ReadCopy)
+    if (!m_game.StorePlace)
         return;
     m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
         if (acPlayer.IsHost || acPlayer.Key.empty())
             return;
-        NotifyCharacterSpawn copy;
-        if (const uint32_t cCharacter = m_characters.PlayerCharacterOf(aConnection); cCharacter && m_game.ReadCopy(cCharacter, copy))
-            m_game.StorePlace(acPlayer.Key, copy.CellId, {copy.Position.x, copy.Position.y, copy.Position.z});
+        if (const auto cPlace = m_characters.CharacterPlace(m_characters.PlayerCharacterOf(aConnection)))
+            m_game.StorePlace(acPlayer.Key, cPlace->WorldSpaceId, cPlace->CellId,
+                              {cPlace->Position.x, cPlace->Position.y, cPlace->Position.z});
     });
 }

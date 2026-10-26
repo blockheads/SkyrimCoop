@@ -172,3 +172,46 @@ grabs a resting body (dynamic, asleep), not one the host's frames still move (a 
 `docs/progress.md`, loose ends). A grab holds the object where
 the crosshair was (carried looking down at the floor, it hangs just off it); turning the player at once
 (`setangle`) drops it, as does jamming it against something that does not give.
+
+## Knockdown
+
+Checked in IDA 2026-10-25 for a downed player held in its ragdoll (`Games/Skyrim/KnockDown`, removed 2026-10-26 when
+real death replaced it, `docs/design/death.md`); the engine's side holds for any living actor's knockdown.
+
+- `AIProcess::KnockExplosion` / PushActorAway (39895, `0x140710c80`; process, actor, source point, force): refused
+  for a dead or dying actor, a restrained one (life state 6), a race with `kImmobile` or `kNoKnockdowns`, or when
+  `Character` vfunc 0xC5 (40292: the byte at `Actor+0x27A`, set by vfunc 0xC4 40295) is zero. With the graph's
+  ragdoll (below) it adds the ragdoll to the world and sets the knock state (`ActorState` flags1 bits 25-27) to 2,
+  explode lead-in; without one it only makes the 3D dynamic.
+- The knock update (39896, `0x140711020`; process, actor, from `Actor::UpdateAnimation` and the animation jobs):
+  - lead-in (2, 4): once the graph has its ragdoll, ragdoll-driven, state 1 (explode) or 3 (out), and the
+    down timer (`middleProcess+0x2B0`) set from `dword_142006858`;
+  - lying (1, 3): counts the timer down; gets up (5 queued, 6 getting up, 0) once the ragdoll is still (37689: its
+    root's and torso's squared speeds under 0.025) or the timer runs out. It stays down while `IsDead(false)`
+    (37483), which counts essential down (life state 7), and state 3 also stays while essential down.
+- "The graph has its ragdoll": every graph of the actor's manager asked `BShkbAnimationGraph` vfunc 1 (63620):
+  its `hkbRagdollDriver` (`+0xF0`) has a ragdoll instance. **A bleeding-out player has none**: knocked after it went
+  down (the TESEnterBleedoutEvent), it stays in lead-in for good. Knocked first, it lies through its bleedout. So the
+  knock comes in `Actor::SetLifeState` (37612, `0x140680740`; actor, state), before a living player's state
+  becomes 7 or 8, with one knock update run there to take the ragdoll while it still exists.
+- While the player bleeds out the knock update is not run for it at all (it lies on, the engine's
+  essential-down hold); the stillness test (37689) never passes for it either. Its rest is read from its ragdoll's
+  bodies instead: all asleep (their islands inactive), as for any body at rest.
+- A copy is not bleeding out: its knock update runs (the removed hook skipped it for a held one while lying). Its
+  replayed actions carry the owner's flags1 (`AnimationSystem::PlayReplayedAction`), knock bits too.
+- Moving the actor (the party's travel, PositionPlayer) leaves its ragdoll's bodies where they lie; getting up then
+  puts the actor back at its ragdoll. The bodies can be moved with it (78082, motion types kept; the removed
+  `KnockDown::Carry` did).
+  `BShkbAnimationGraph` vfunc 5 (63624) only resets the driver (`hkbRagdollDriver::reset` 58294), it does not move
+  the bodies.
+- The fall's push (checked 2026-10-26): `Actor::KillImpl` gives a dying actor's ragdoll the force a projectile
+  recorded (`HighProcessData` `+0x27C` direction, `+0x288` force, 1.0 when none), through `Character` 38630 (an
+  `AddExplosionImpulse` from 1024-2048 units back along it, scaled by `fDeathForceSpellImpactMult`). Only the
+  projectile impact handler (`0x1407EC3F0`, from arrows, cones and missiles) records it, and only for a hit that
+  kills: never for the essential player. Otherwise the body moves on at `fDeathForceForceMin` (Skyrim.esm: 4 units/s),
+  the way its controller was going, or standing, forward along its heading (`NiAVObject` 26008, the 3D's bodies'
+  velocity in game units). A real death gets this push from the engine itself.
+- Real death instead (`docs/design/death.md`, "Real death"): the reload is `PlayerCharacter` 40748 counting
+  `fPlayerDeathReloadTime` down while dying or dead. `Actor::Resurrect` (37321) dispels every effect (abilities too)
+  and leaves the player's skeleton in the death ragdoll and its camera in the bleedout state (11); the revive there
+  puts all of them back.

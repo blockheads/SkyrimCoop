@@ -1,0 +1,8 @@
+{
+  "party": [{"name": "Lydia", "level": 7, "health": 0.6}],
+  "death": {
+    "visible": true,
+    "name": "Lydia",
+    "status": "Party in combat"
+  }
+}

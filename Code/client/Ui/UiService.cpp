@@ -1,3 +1,5 @@
+#include <Services/DeathService.h>
+#include <Events/PlayerDeathEvent.h>
 #include <Ui/UiInput.h>
 #include <Ui/UiRenderer.h>
 #include <Ui/UiService.h>
@@ -165,7 +167,7 @@ void UiService::Create(IDXGISwapChain* apSwapChain) noexcept
     apSwapChain->GetDesc(&desc);
     m_pContext = Rml::CreateContext("game", {int(desc.BufferDesc.Width), int(desc.BufferDesc.Height)});
 
-    if (!m_party.Bind(*m_pContext) || !m_chat.Bind(*m_pContext) || !m_join.Bind(*m_pContext))
+    if (!m_party.Bind(*m_pContext) || !m_chat.Bind(*m_pContext) || !m_join.Bind(*m_pContext) || !m_death.Bind(*m_pContext))
         spdlog::error("UI: data models did not bind");
 
     m_lastChange = LastChange();
@@ -176,6 +178,9 @@ void UiService::Create(IDXGISwapChain* apSwapChain) noexcept
 
 void UiService::LoadDocuments() noexcept
 {
+    m_pDeath = m_pContext->LoadDocument(m_directory + "/death.rml");
+    if (m_pDeath)
+        m_pDeath->Show();
     m_pParty = m_pContext->LoadDocument(m_directory + "/party.rml");
     if (m_pParty)
         m_pParty->Show();
@@ -247,6 +252,7 @@ void UiService::Render() noexcept
     UpdateParty();
     UpdateChat();
     UpdateJoin();
+    UpdateDeath();
     m_pContext->Update();
 
     m_pRenderer->BeginFrame(cSize.x, cSize.y);
@@ -525,4 +531,16 @@ void UiService::SendChat() noexcept
     request.ChatMessage = m_chat.Draft.c_str();
     m_world.GetTransport().Send(request);
     m_chat.Draft.clear();
+}
+
+void UiService::UpdateDeath() noexcept
+{
+    const auto* cpDeath = m_world.ctx().find<DeathService>();
+    const bool cDown = cpDeath && cpDeath->IsDown();
+    m_death.Visible = cDown && !UiInput::GetHudVisibility().BlockingMenu;
+    m_death.Name = cpDeath ? cpDeath->SpectatingName() : "";
+    m_death.Status = cpDeath ? cpDeath->Status() : "";
+    UiInput::SetSpectatorAvailable(cDown && cpDeath->Spectating());
+    if (m_death.Handle)
+        m_death.Handle.DirtyAllVariables();
 }

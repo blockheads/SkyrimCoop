@@ -26,7 +26,6 @@
     X(SyncExperienceRequest)        \
     X(RequestEquipmentChanges)      \
     X(SendChatMessageRequest)       \
-    X(PlayerRespawnRequest)         \
     X(DialogueRequest)              \
     X(SubtitleRequest)              \
     X(PlayerLevelRequest)           \
@@ -54,13 +53,13 @@
     X(WorldCallRequest)             \
     X(DismountRequest)              \
     X(PlayerRecordRequest)          \
-    X(PlayerPerishedRequest)        \
     X(BodyPushRequest)              \
     X(BodyFramesRequest)            \
     X(BodyReleaseRequest)           \
     X(BodyRestRequest)              \
     X(WaitRequest)                  \
-    X(WaitWorldRequest)
+    X(WaitWorldRequest)             \
+    X(PlayerDeathRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -120,7 +119,10 @@
     X(NotifyBodyFrames)            \
     X(NotifyBodyRests)             \
     X(NotifyWaitState)             \
-    X(NotifyWaitWorld)
+    X(NotifyWaitWorld)             \
+    X(NotifyPartyDeath)            \
+    X(NotifyPlayerRespawn)         \
+    X(NotifyPartyReload)
 
 #define COOP_OPCODE(aName) k##aName,
 

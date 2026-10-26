@@ -520,13 +520,12 @@ TEST_CASE("Party tether: a player joining outdoors out of the host's grid is sen
     CHECK(session.SentTo<NotifyPartyTravel>(kOtherPeer).empty());
 }
 
-TEST_CASE("Party tether: a follower's, a joiner's or a respawn's arrival takes nobody along", "[HostAuthority][Characters]")
+TEST_CASE("Party tether: a follower's or a joiner's arrival takes nobody along", "[HostAuthority][Characters]")
 {
     Session session;
     BothInQASmoke(session);
 
-    for (const auto cHow : {EnterCellRequest::Travel::kTether, EnterCellRequest::Travel::kBeforeJoining,
-                            EnterCellRequest::Travel::kRespawn})
+    for (const auto cHow : {EnterCellRequest::Travel::kTether, EnterCellRequest::Travel::kBeforeJoining})
     {
         session.Receive(kPeer, Arrival(0x9732, 0x3C, {}, cHow));
         for (const auto cTo : {kHost, kPeer, kOtherPeer})
@@ -581,17 +580,6 @@ TEST_CASE("Arriving: a fresh spawn of a player is as it arrived, not as it joine
     REQUIRE(cToHost.size() == 1);
     CHECK(cToHost[0]->InventoryContent == arrival.Data.InitialInventory);
     CHECK(cToHost[0]->IsWeaponDrawn);
-}
-
-TEST_CASE("Player respawn: everyone else respawns its character", "[HostAuthority][Characters]")
-{
-    Session session;
-    const uint32_t cPeerPlayer = session.Character(kPeer);
-
-    session.Receive(kPeer, PlayerRespawnRequest{});
-    REQUIRE(session.SentTo<NotifyRespawn>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyRespawn>(kHost)[0]->ActorId == cPeerPlayer);
-    CHECK(session.SentTo<NotifyRespawn>(kPeer).empty());
 }
 
 TEST_CASE("Names: actions and face tints arrive as sent, with nothing shared first", "[HostAuthority][Characters]")

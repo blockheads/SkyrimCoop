@@ -180,7 +180,7 @@ The game loads the party, chat and join documents.
 - **Chat lines about the session** (`SessionNoticeEvent`, worded by `SessionService`): "Lydia joined the
   party." for a player arriving (`NotifyPlayerJoined::Arrived`; not for the players a newcomer is told
   about), "Lydia left the party.", and "Lydia has perished." in red (`ChatLine::Perished`) on every game
-  when a player goes down (`PlayerPerishedRequest`, relayed by `HostSession` as `NotifyPlayerPerished`).
+  when a player goes down (`PlayerDeathRequest`; the host's `HostDeath` sends `NotifyPlayerPerished`).
 - **Checks:** GameTests "A player joining, going down and leaving"; HostAuthorityTests (arrived, perished);
   scenario `join-panel-shows-refusal` (harness `ui_element`, `clipboard`).
 

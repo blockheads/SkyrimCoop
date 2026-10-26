@@ -5,6 +5,7 @@
 #include <Opcodes.h>
 #include <Services/Host/HostCharacters.h>
 #include <Services/Host/HostClock.h>
+#include <Services/Host/HostDeath.h>
 #include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostHands.h>
@@ -63,8 +64,13 @@ struct HostAuthority
 
     // True when the message was handled here.
     bool Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept;
-    // Every frame.
-    void Update(uint64_t aTick) noexcept;
+    // Every frame: the session's tick (milliseconds) and the game time it took (seconds, none while paused).
+    void Update(uint64_t aTick, double aDelta) noexcept;
+    // A party wipe (HostServiceReload.cpp): the previous save to every guest, delivered once every guest has it and
+    // has left to load it; a failed reload's reason to every player.
+    void SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept;
+    [[nodiscard]] bool CheckpointDelivered() const noexcept { return m_transfer.Empty() && m_players.Count() <= 1; }
+    void FailReload(const std::string& acError) noexcept { m_death.FailReload(acError); }
 
     // For the parts: TRequest is handled by aOwner's member function.
     template <class TOwner, class TRequest> void On(TOwner& aOwner, void (TOwner::*apRule)(const TRequest&, ConnectionId_t) noexcept) noexcept
@@ -79,9 +85,19 @@ struct HostAuthority
             (aOwner.*apRule)(static_cast<const TRequest&>(acMessage), aSender);
         };
     }
+    // For the parts: also told of TRequest before its rule runs (another part's, or a relay).
+    template <class TOwner, class TRequest> void Watch(TOwner& aOwner, void (TOwner::*apWatcher)(const TRequest&, ConnectionId_t) noexcept) noexcept
+    {
+        m_watchers[TRequest::Opcode].push_back([&aOwner, apWatcher](const RequestMessage& acMessage, ConnectionId_t aSender) {
+            (aOwner.*apWatcher)(static_cast<const TRequest&>(acMessage), aSender);
+        });
+    }
 
     // A player's own character is in the world: everything it must know about the session.
     void PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept;
+    // A player's character is in the host's world, and the AI state a character arrived with: they count for death.
+    void PlayerBodyEntered(ConnectionId_t aPlayer, uint32_t aId) noexcept { m_death.Entered(aPlayer, aId); }
+    void ActorAnnounced(uint32_t aId, const ActorAiState& aState) noexcept { m_death.InitialAi(aId, aState); }
     // The host removes a player from the session.
     void Kick(uint32_t aPlayerId) noexcept;
     // The host's game set its difficulty (DifficultyChangeEvent).
@@ -125,6 +141,7 @@ private:
     HostNetwork& m_network;
     HostGame m_game;
     std::array<Rule, kRequestOpcodeMax> m_rules{};
+    std::array<std::vector<Rule>, kRequestOpcodeMax> m_watchers{};
     // The parts, after the rules they register into, and the players first: the others read them.
     HostPlayers m_players;
     HostSaveTransfer m_transfer;
@@ -140,6 +157,7 @@ private:
     HostDialogue m_dialogue;
     HostPlayerNatives m_playerNatives;
     HostRecords m_records;
+    HostDeath m_death;
 };
 
 // A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.

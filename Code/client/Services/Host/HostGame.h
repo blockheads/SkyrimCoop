@@ -29,8 +29,8 @@ struct HostGame
 {
     // The host's own actors as its engine shows them now, but aExcludedSessionId.
     std::function<std::vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
-    // The host's copy of another player's character (position, values, items, hands, action) into
-    // the spawn; false when it has no copy.
+    // The host's copy of another player's character (position, items, hands, action) into the spawn, its values left
+    // as its owner sent them; false when it has no copy.
     std::function<bool(uint32_t aSessionId, NotifyCharacterSpawn& aSpawn)> ReadCopy;
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
@@ -72,9 +72,11 @@ struct HostGame
     // The guests' characters for the host's save (CharacterRecords): a guest's record, and its place at a save.
     std::function<void(const PlayerRecord& acRecord)> StoreRecord;
     std::function<bool(const std::string& acKey)> HasRecord;
-    std::function<void(const std::string& acKey, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
+    std::function<void(const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.
     std::function<uint32_t()> ReadDifficulty;
+    // The whole party is down: the host's game loads its previous save (HostService's wipe reload).
+    std::function<void()> PartyWipe;
     // The host's Skyrim and SKSE, and its plugins in load order: every player's must be the same.
     GameVersions Versions;
     Mods Plugins;

@@ -18,7 +18,6 @@
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/SendChatMessageRequest.h>
 #include <Messages/SetTimeCommandRequest.h>
-#include <Messages/PlayerRespawnRequest.h>
 #include <Messages/PlayerLevelRequest.h>
 #include <Messages/TimeScaleRequest.h>
 #include <Messages/SharedDialogue.h>
@@ -26,8 +25,8 @@
 #include <Messages/RequestSetWaypoint.h>
 #include <Messages/RequestRemoveWaypoint.h>
 #include <Messages/JoinMessages.h>
-#include <Messages/PerishedMessages.h>
 #include <Messages/WaitMessages.h>
+#include <Messages/DeathMessages.h>
 
 struct RequestMessageFactory
 {

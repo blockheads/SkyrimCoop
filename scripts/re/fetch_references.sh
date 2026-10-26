@@ -84,6 +84,12 @@ for repo in adamhynek/higgs adamhynek/activeragdoll Gerkinfeltser/DragAndDrop; d
     fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
 done
 
+# Death and spectating (docs/design/death.md): actor camera targets and restoration, free camera lifecycle,
+# and bleedout/recovery with combat disengagement. DDS and TrueHUD above cover life-state hooks and bleedout events.
+for repo in NasiRawon/AlternateConversationCamera powerof3/PhotoMode KrisV-777/Acheron; do
+    fetch "$repo" "$ROOT/reference/plugins/${repo#*/}"
+done
+
 curl -sfL -o "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename" \
     https://raw.githubusercontent.com/meh321/AddressLibraryDatabase/main/skyrimae.rename
 echo "meh321 names: $(wc -l < "$ROOT/reference/AddressLibraryDatabase/skyrimae.rename") entries"

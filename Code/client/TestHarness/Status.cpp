@@ -1,3 +1,4 @@
+#include <Services/DeathService.h>
 #include "Status.h"
 #include "EngineCalls.h"
 #include "Harness.h"
@@ -232,6 +233,9 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                    {"weapon_state", static_cast<int>(actors.GetWeaponState(aFormId))},
                    {"sneaking", EngineCalls::IsSneaking(aFormId)},
                    {"sit_sleep", EngineCalls::GetSitSleepState(aFormId)},
+                   {"knock", EngineCalls::GetKnockState(aFormId)},
+                   {"deferred_kill", EngineCalls::GetKillState(aFormId).Deferred},
+                   {"kill_queued", EngineCalls::GetKillState(aFormId).Queued},
                    {"casting", CastingSpells(aFormId)},
                    {"hands", {actors.GetEquippedWeaponFormId(aFormId, 0), actors.GetEquippedWeaponFormId(aFormId, 1)}}}},
         {"values", {{"health", actors.GetActorValue(aFormId, 24)}, {"magicka", actors.GetActorValue(aFormId, 25)},
@@ -343,6 +347,7 @@ static nlohmann::json GameStatus()
     const auto nullable = [](std::optional<bool> value) -> nlohmann::json {
         return value ? nlohmann::json(*value) : nlohmann::json(nullptr);
     };
+    const auto& death = world.ctx().at<DeathService>();
     const nlohmann::json hud = {{"menu_system_visible", cHud.MenuSystemVisible}, {"hud_menu_open", cHud.HudMenuOpen},
         {"movie_ready", cHud.MovieReady}, {"blocking_menu", cHud.BlockingMenu},
         {"root_visible", nullable(cHud.RootVisible)}, {"hud_clip_visible", nullable(cHud.HudClipVisible)},
@@ -357,6 +362,11 @@ static nlohmann::json GameStatus()
             {"party_panel_opacity", pPartyUi ? pPartyUi->PartyPanelOpacity() : 0.f},
             {"hud", hud},
             {"chat", chat}, {"join", join}, {"map_marker", mapMarker}, {"map_ready", EngineCalls::IsMapReady()}, {"cursor", cursor},
+            {"death", {{"down", death.IsDown()},
+                       {"generation", death.DownGeneration()},
+                       {"spectating", death.Spectating()},
+                       {"name", death.SpectatingName()},
+                       {"status", death.Status()}}},
             {"build", BuildCommit()}, {"online", world.GetTransport().IsOnline()}, {"hosting", world.GetHostService().IsHosting()},
             {"main_menu", EngineCalls::IsMenuOpen("Main Menu")}};
 }

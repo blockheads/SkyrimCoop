@@ -22,6 +22,7 @@ bool Take(const InputEvent* apChain) noexcept;
 
 // For UiService, once a frame: whether Enter may open the chat (connected, the chat document up).
 void SetChatAvailable(bool aAvailable) noexcept;
+void SetSpectatorAvailable(bool aAvailable) noexcept;
 [[nodiscard]] bool IsChatOpen() noexcept;
 void CloseChat() noexcept;
 

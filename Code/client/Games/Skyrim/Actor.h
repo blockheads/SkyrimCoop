@@ -141,7 +141,7 @@ struct Actor : TESObjectREFR
     virtual void sub_FE();
     virtual void sub_FF();
     virtual void sub_100();
-    virtual void sub_101();
+    virtual void ApplyPerksFromBase(); // CommonLibSSE-NG 0x101: its perks' abilities cast again
     virtual void sub_102();
     virtual void sub_103();
     virtual void HandleHealthDamage(Actor* apAttacker, float aDamage); // 38606
@@ -243,9 +243,14 @@ struct Actor : TESObjectREFR
     [[nodiscard]] uint8_t GetOwnCombatState() const noexcept;
     void SetActorInventory(const Inventory& aInventory) noexcept;
     void SetMagicEquipment(const MagicEquipment& acEquipment) noexcept;
+    // Its own flag and its base's.
     void SetEssentialEx(bool aSet) noexcept;
-    void SetNoBleedoutRecovery(bool aSet) noexcept;
-    void SetPlayerRespawnMode(bool aSet = true) noexcept;
+    // A player's copy: in the player's faction (0xDB1), as the player's allies take the player.
+    void JoinPlayerFaction() noexcept;
+    // Its abilities and worn enchantments cast again (CommonLibSSE-NG CastPermanentMagic, 38753).
+    void CastPermanentMagic(bool aWornItemEnchantments, bool aBaseSpells, bool aRaceSpells, bool aEveryActorAbility) noexcept;
+    // Its 3D rebuilt from its reference (CommonLibSSE-NG DoReset3D, 40255).
+    void DoReset3D(bool aUpdateWeight) noexcept;
     void SetPlayerTeammate(bool aSet) noexcept;
 
     // Actions
@@ -289,6 +294,8 @@ struct Actor : TESObjectREFR
     {
         IS_A_MOUNT = 1 << 1,
         GETTING_ON_OFF_MOUNT = 1 << 3, // from InitiateMountPackage or Dismount until MountDismountEndHandler (42881)
+        SHOULD_ANIM_GRAPH_UPDATE = 1 << 8, // its graph runs (holder vfunc 0x0E, 37985); KillImpl clears it
+        CAN_SPEAK = 1 << 13,               // cleared for the dead (Character::UpdateAI 37347)
         IS_COMMANDED_ACTOR = 1 << 16,
         IS_ESSENTIAL = 1 << 18,
     };

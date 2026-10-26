@@ -116,6 +116,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_dialogue(*this, aNetwork, m_players, m_characters)
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
     , m_records(*this, m_players, m_characters, m_game)
+    , m_death(*this, aNetwork, m_players, m_characters, m_game)
 {
     using enum Delivery;
 
@@ -180,11 +181,19 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_worldState.OnPlayerLeft(aConnection);
         m_physics.OnPlayerLeft(aConnection);
         m_hands.OnPlayerLeft(aConnection);
+        m_death.Left(aConnection);
     });
 }
 
-void HostAuthority::Update(uint64_t aTick) noexcept
+void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
 {
+    // A wipe: only the previous save's transfer runs until the host's game loads it.
+    if (m_death.Wiped())
+    {
+        m_transfer.Update(aTick);
+        return;
+    }
+    m_death.Update(aDelta);
     m_wait.Update(aTick);
     m_clock.Update(aTick);
     m_transfer.Update(aTick);
@@ -217,12 +226,16 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
+    if (m_death.Wiped())
+        return false;
     // A game that is not a player may only ask to join; anything else from it is dropped.
     if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))
         return false;
 
     if (cOpcode >= m_rules.size() || !m_rules[cOpcode])
         return false;
+    for (const Rule& cWatcher : m_watchers[cOpcode])
+        cWatcher(acMessage, aSender);
     m_rules[cOpcode](acMessage, aSender);
     return true;
 }
@@ -322,4 +335,14 @@ std::string ChatText(std::string_view aText) noexcept
         if (static_cast<unsigned char>(c) >= 0x20 && c != 0x7F)
             text += c;
     return text;
+}
+
+void HostAuthority::SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept
+{
+    std::vector<ConnectionId_t> guests;
+    m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
+        if (!acPlayer.IsHost)
+            guests.push_back(aConnection);
+    });
+    m_transfer.Checkpoint(std::move(aChunks), guests);
 }

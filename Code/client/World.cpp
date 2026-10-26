@@ -34,6 +34,7 @@
 #include <Services/CommandService.h>
 #include <Services/TimeScaleService.h>
 #include <Services/PlayerService.h>
+#include <Services/DeathService.h>
 #include <Services/CombatService.h>
 #include <Services/GuestService.h>
 #include <Services/MapService.h>
@@ -105,8 +106,8 @@ World::World()
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<DialogueService>(*this, m_dispatcher, m_transport, *m_pDialogueBridge);
     ctx().emplace<CommandService>(m_transport, m_dispatcher);
-    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport,
-                                  ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>());
+    ctx().emplace<PlayerService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IFormBridge&>());
+    ctx().emplace<DeathService>(*this, m_dispatcher, m_transport, ctx().at<IPlayerBridge&>(), ctx().at<IActorBridge&>());
     ctx().emplace<CombatService>(*this, m_transport, m_dispatcher, ctx().at<IFormBridge&>(), ctx().at<IActorBridge&>(),
                                  ctx().at<IPlayerBridge&>());
     ctx().emplace<MapService>(*this, m_dispatcher, m_transport);
@@ -135,6 +136,7 @@ World::~World()
     ctx().erase<HostService>();
     ctx().erase<MapService>();
     ctx().erase<CombatService>();
+    ctx().erase<DeathService>();
     ctx().erase<PlayerService>();
     ctx().erase<CommandService>();
     ctx().erase<DialogueService>();

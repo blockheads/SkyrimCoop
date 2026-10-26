@@ -628,6 +628,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Casting | works: copies replay in step with their graph and cast for free | `cast-*`, `input-mouse-cast`, `firebolt-*`, `flames-*` |
 | Health | works | `health-*` |
 | NPC death and removal | works: a copy dies with its owner's death action | `remove-host-npc`, `death-host-npc` |
+| A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26, uncommitted); after a wipe each guest stands where it stood at the checkpoint; the host's ragdoll streams to the guests, a guest's falls on each game on its own | `death-spectate-host`, `death-spectate-guest`, `death-wipe-checkpoint`, GameTests `[death]` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
 | Kill moves | works, both ways, with kill credit | `host-kill-move`, `client-kill-move` |
 | Hostility | works | `client-angers-host-ally` |
@@ -1445,6 +1446,8 @@ What the first playtest build has besides what works today (the table above):
    party-wipe checkpoint reload replace the old 5 s/COC respawn. GameTests, UI fixtures, plugin build and the
    host-death, guest-death and wipe Skyrim scenarios pass. Fixed stale copy magicka and recovery graph state.
    Ragdoll physics/settling is feature 5's integration; report: `build/death-spectate-report.md`.
+   Real death since 2026-10-26 (uncommitted): the player really dies in a session (mods' `OnDeath` fires) and is
+   revived. The guest's place after a wipe and `death-spectate-guest`'s staging fixed the same day (`death.md`).
 2. **Shared party bounty** (`docs/ideas.md`): one player's crime is the party's, judged on the host.
 3. **Quest rewards to everyone** (`party-model.md`, "Experience", step 6).
 4. **Shared wait and sleep** (`docs/design/shared-wait-sleep.md`): built 2026-10-26. Any player's wait
@@ -1455,7 +1458,11 @@ What the first playtest build has besides what works today (the table above):
    follow-up rest scenarios pass 3/3 shuffled (18/18), including the host's vanilla sleep-script bonus.
    Calendar/world/script-context regressions pass; physics regression limitations are recorded in the
    design doc. Duo stopped and freed; changes remain uncommitted in `.worktrees/party-rest-events`.
-5. **Physics:** objects and ragdolls from the host, live (`docs/ideas.md`, "Havok sync"). Not started.
+5. **Physics:** objects and ragdolls from the host, live (`docs/design/physics-sync.md`): steps 1-6 built 2026-10-24
+   (dead actors' ragdolls stream from the host). Next, in this order:
+   - a guest's own player's ragdoll to the others (today each game's copy falls on its own physics);
+   - living knockdowns (`RagdollStart`, players and NPCs): shouts, explosions, power bashes, a giant's club;
+   - a dead body's pose when a guest loads its cell or joins (its copy ragdolls on the guest's own physics).
 6. **Dropped items** (created references), with their extra data; items in chests keep theirs too. This is how
    players give each other items in 1.0 (a trade menu comes later).
 7. **Followers:** to be planned.
@@ -1470,11 +1477,28 @@ What the first playtest build has besides what works today (the table above):
     on the host for its copy.
 13. **Party travel gaps** (Loose ends, "Tether gaps"): a guest's fast travel passes time only on its game; a guest's
     jail or scripted move takes the party along; loads start after the leader's arrival.
-14. **Small visible bugs:** a joining guest stands on the host's spot; a copy's level stays its spawn's; instant
+14. **Small visible bugs:** a copy resurrected with its owner (an NPC the host resurrects) likely refuses every
+    replayed action after (its graph left as death left it; seen on a player's copy 2026-10-26, `death.md`); a guest
+    joining with a character from its own game stands on the host's spot (a kept one arrives where the host's save
+    left it, since 2026-10-26); a copy's level stays its spawn's; instant
     effects (a shrine's glow) show nothing on copies; a look change remakes the copy instead of updating it.
 15. **Menus that pause the game:** the host's map, journal (pause menu), crafting, lockpicking, barter, books or training
     pause its world, and with it every guest's NPCs (`UI.cpp`'s `kAllowList` unpauses only inventory, magic, stats,
     favourites, containers, message boxes, the console). Decide (no pause, or the party's pause) and test it.
+16. **The host's loads take the party along** (added 2026-10-26): the host's quickload or a save it loads from the
+    menu in a session loads only its own game today; the guests stay in the old world, still connected. Reuse the
+    party wipe's reload (`HostServiceReload.cpp`: the save to every guest, loaded on the host, the host's rules made
+    again, the guests load it and rejoin as their kept characters) with the chosen save instead of `PreviousSave()`,
+    caught where quickload and the load menu start loading (`Load_Impl` 35728). A guest's own loads are refused in
+    1.0, as its saves are already (`SaveService`; decided 2026-10-26: quickload and the load menu do nothing on a
+    guest's game, and the chat says why). Each guest comes back where the save left it (the wipe's fix,
+    2026-10-26).
+17. **Friendly fire, always on** (decided 2026-10-26; replaces the fixed "PvP off" rule, `join-flow.md`): players hurt,
+    knock down and kill each other as NPCs would. A player's weapon hit on another player's copy goes to that player's
+    game (as hits on the host's NPCs go to the host; `HookDamageActor` drops it today); hostile spells and shouts
+    reach other players (`IsBlockedPvp` in `MagicTarget.cpp` drops them today; friendly ones already go); knockdowns
+    come with item 5's `RagdollStart`. A teammate's kill is a real death (spectate, respawn). To decide while building:
+    kill credit, and whether hitting a teammate is a crime or makes followers turn on them.
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation

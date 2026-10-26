@@ -16,7 +16,6 @@ struct ReferencesMoveRequest;
 struct AnnounceCharacterRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
-struct PlayerRespawnRequest;
 struct EnterCellRequest;
 
 struct HostNetwork;
@@ -50,6 +49,9 @@ struct HostCharacters
     [[nodiscard]] uint32_t ReservePlayerCharacter(ConnectionId_t aPlayer) noexcept;
     // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
+    // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its
+    // game's announcement, arrivals and movement (the host's own from its engine). None for any other character.
+    [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
     // Every character but aPlayer's own (aOwnSessionId), as it is now.
     void SendExistingCharacters(ConnectionId_t aPlayer, uint32_t aOwnSessionId) noexcept;
     // Its characters leave with it.
@@ -73,8 +75,11 @@ private:
     void GiveBack(uint32_t aMountId, uint32_t aRiderId) noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
     void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
-    // A player came back from death: everyone else respawns its character.
-    void OnPlayerRespawn(const PlayerRespawnRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    // A player's character's values from its owner (the relayed requests, watched): into its record for its later
+    // spawns, which a read of the host's copy never overwrites (docs/design/death.md, "Copies").
+    void OnValues(const RequestActorValueChanges& acRequest, ConnectionId_t aSender) noexcept;
+    void OnMaxValues(const RequestActorMaxValueChanges& acRequest, ConnectionId_t aSender) noexcept;
+    void KeepValues(uint32_t aSessionId, const std::map<uint32_t, float>& acValues, bool aMaximum, ConnectionId_t aSender) noexcept;
     // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
     void OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
     // A player's game arrived somewhere: with the host, it gets everyone there and they get it.

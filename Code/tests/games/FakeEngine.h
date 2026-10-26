@@ -61,6 +61,8 @@ struct FakeEngine : StillBridges, IJoinBridge
     bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
+    std::optional<SaveFiles> PreviousSave() noexcept override;
+    std::map<std::string, SaveFiles> SavedFiles;
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
 
@@ -79,7 +81,7 @@ struct FakeEngine : StillBridges, IJoinBridge
     // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall).
     void Queue(LocalCall aCall, uint32_t aCause);
     void RunQueued();
-    // One frame: the shake wears off, the VM runs what is queued.
+    // One frame: the shake wears off, knocked-down ragdolls come to rest, the VM runs what is queued.
     void Frame();
 
     // A world reference (every game has the same load order: a form id is the same everywhere).
@@ -195,10 +197,12 @@ struct FakeEngine : StillBridges, IJoinBridge
         bool Deleted = false;    // marked deleted (DisableActor's aDelete)
         bool Created = false;    // made by Actor::Create (a copy): deleted with its cell unless persistent
         bool Persistent = false; // kept when its cell unloads (SetActorPersistent)
-        bool Essential = false;  // goes down at 0 health instead of dying (SetPlayerRespawnMode)
+        bool Essential = false;  // goes down at 0 health instead of dying
         bool Copy = false;   // another game owns it (SetActorCopy)
         bool Player = false; // a player's character, this game's or a copy (SetActorPlayer)
         bool Loaded = true;  // its 3D is loaded (in the process lists)
+        uint32_t DyingFrames = 0;  // the player's: dying until its ragdoll comes to rest, then dead
+        uint32_t DeadFrames = 0;   // the player's: dying or dead, the reload's countdown (40748)
         WeaponState Weapon = WeaponState::Sheathed;
         uint32_t KilledBy = 0;            // the attacker of the hit that killed it (the engine's kill credit)
         ActorAiFields Ai;                 // package, scene, combat (a copy's set by AiStateService)
@@ -208,6 +212,7 @@ struct FakeEngine : StillBridges, IJoinBridge
         std::map<uint32_t, float> Bases = FullValues().ActorMaxValuesList;
         Inventory Items;
         ActionEvent LatestAnimation;
+        std::string GraphState;
         bool BlockResurrect = false;
         uint32_t ResurrectCalls = 0;
         uint32_t ValueWrites = 0;
@@ -230,6 +235,15 @@ struct FakeEngine : StillBridges, IJoinBridge
     void ReplayDeathAction(uint32_t aFormId, const ActionEvent& acAction);
     void FinishDeath(uint32_t aFormId);
     ActionEvent GetActorLatestAnimation(uint32_t aFormId) const noexcept override;
+    std::string SaveActorGraphState(uint32_t aFormId) const noexcept override
+    { const auto it = Actors.find(aFormId); return it == Actors.end() ? std::string{} : it->second.GraphState; }
+    bool LoadActorGraphState(uint32_t aFormId, const std::string& aState) noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        if (it == Actors.end()) return false;
+        it->second.GraphState = aState;
+        return true;
+    }
     void SetActorLatestAnimation(uint32_t aFormId, const ActionEvent& acAction) noexcept override;
 
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
@@ -460,10 +474,16 @@ struct FakeEngine : StillBridges, IJoinBridge
     bool DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept override;
     bool IsBleedingOut(uint32_t aFormId) const noexcept override;
     bool IsActorBleedingOut(uint32_t aFormId) const noexcept override { return IsBleedingOut(aFormId); }
+    // The dying player's ragdoll comes to rest this many frames after its death (TESDeathEvent, dead).
+    static constexpr uint32_t kDyingFrames = 30;
+    // fPlayerDeathReloadTime (5 s): a dead player not held loads the last save then (Reloaded).
+    static constexpr uint32_t kDeathReloadFrames = 300;
+    bool DeathReloadHeld = false;
+    bool Reloaded = false;
     bool IsOtherPlayer(uint32_t aFormId) const noexcept override;
     bool IsTemporaryActor(uint32_t aFormId) const noexcept override { return IsActorTemporary(aFormId); }
     void SetActorPersistent(uint32_t aFormId) noexcept override;
-    void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override;
+    void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
                              const AnimationVariables& aVariables) noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
@@ -501,7 +521,6 @@ struct FakeEngine : StillBridges, IJoinBridge
     float GetPlayerHeading() const noexcept override { return Heading; }
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }
-    bool IsPlayerBleedingOut() const noexcept override { return Actors.at(kPlayer).Bleeding; }
     float GetPlayerActorValue(int32_t aIndex) const noexcept override { return GetActorValue(kPlayer, aIndex); }
     void ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept override
     {
@@ -511,8 +530,14 @@ struct FakeEngine : StillBridges, IJoinBridge
     void SetDifficulty(uint32_t aDifficulty) noexcept override { Difficulty = aDifficulty; }
     float GetGreetDistance() const noexcept override { return GreetDistance; }
     void SetGreetDistance(float aDistance) noexcept override { GreetDistance = aDistance; }
-    void SetPlayerRespawnMode(bool aEnable) noexcept override { Actors.at(kPlayer).Essential = aEnable; }
-    void RespawnPlayer() noexcept override;
+    void HoldPlayerDeathReload(bool aHold) noexcept override { DeathReloadHeld = aHold; }
+    void RevivePlayer() noexcept override;
+    uint32_t CameraTarget = kPlayer;
+    uint32_t DeathControlsBefore{};
+    bool DeathControlsHeld{};
+    void SetSpectatorTarget(uint32_t aFormId) noexcept override { CameraTarget = aFormId ? aFormId : kPlayer; }
+    void HoldDeathControls(bool aHold) noexcept override;
+    bool IsScriptCameraHeld() const noexcept override { return (Holds.HeldExcept(0xFFFFFFFE) & PartyRules::kMovement) != 0; }
 
     // Equipment. An item's form: a weapon held in a hand, or an armor and the biped slots it covers.
     struct ItemForm

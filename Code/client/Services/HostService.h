@@ -2,6 +2,9 @@
 
 #include <Events/Listen.h>
 #include <memory>
+#include <network/ENetInterface.h>
+#include <Bridges/IJoinBridge.h>
+#include <Messages/AuthenticationRequest.h>
 #include <spdlog/spdlog.h>
 #include <NoCopyMove.h>
 #include <Messages/RelayedMessages.h>
@@ -14,6 +17,8 @@ struct ContainerChangeEvent;
 struct DifficultyChangeEvent;
 struct PlayerNativeEvent;
 struct GameSavingEvent;
+struct GameLoadedEvent;
+struct GameLoadFailedEvent;
 
 struct HostAuthority;
 struct HostNetwork;
@@ -62,6 +67,21 @@ protected:
     void OnWorldCall(const NotifyWorldCall& acMessage) noexcept;
 
 private:
+    void MakeAuthority() noexcept;
+    // The listener's front door: a join waits while a wipe reload runs, everything else goes to the host's rules.
+    void InstallFrontDoor() noexcept;
+
+    // A party wipe (HostServiceReload.cpp, docs/design/death.md "Wipe reload"): the previous save goes to the guests,
+    // then this game loads it, and its rules are made again on the same listener, taking the joins that waited.
+    void UpdateReload() noexcept;
+    void OnGameLoaded(const GameLoadedEvent&) noexcept;
+    void OnGameLoadFailed(const GameLoadFailedEvent&) noexcept;
+    bool m_reloadRequested{}; // the host's rules saw the whole party down
+    bool m_readCheckpoint{};  // the previous save read (m_checkpoint, or none to load)
+    bool m_loadingPrevious{}; // delivered to the guests, loading here
+    std::optional<IJoinBridge::SaveFiles> m_checkpoint;
+    std::map<Net::ConnectionId_t, AuthenticationRequest> m_reloadJoins; // joins (the guests again) that came meanwhile
+
     World& m_world;
     entt::dispatcher& m_dispatcher;
 

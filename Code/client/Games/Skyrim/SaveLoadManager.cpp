@@ -35,3 +35,26 @@ std::filesystem::path BGSSaveLoadManager::SaveFilePath(const char* apName) noexc
         return {};
     return path;
 }
+
+std::optional<std::string> BGSSaveLoadManager::PreviousGameplaySave() noexcept
+{
+    // The catalogue of save files, read again (35760).
+    using TPopulate = void(BGSSaveLoadManager*);
+    POINTER_SKYRIMSE(TPopulate, s_populate, 35760);
+    s_populate(this);
+    const GameplaySaveEntry* pNewest = nullptr;
+    for (const GameplaySaveEntry* cpEntry : saveGameList)
+    {
+        // This character's, not ours (a join's or a wipe's scratch save), and still on disk.
+        if (!cpEntry || cpEntry->characterId != currentCharacterId || !cpEntry->fileName.AsAscii())
+            continue;
+        if (std::string_view(cpEntry->fileName.AsAscii()).starts_with("SkyrimCoop"))
+            continue;
+        std::error_code error;
+        if (!std::filesystem::is_regular_file(SaveFilePath(cpEntry->fileName.AsAscii()), error))
+            continue;
+        if (!pNewest || cpEntry->fileTime > pNewest->fileTime)
+            pNewest = cpEntry;
+    }
+    return pNewest ? std::optional<std::string>(pNewest->fileName.AsAscii()) : std::nullopt;
+}

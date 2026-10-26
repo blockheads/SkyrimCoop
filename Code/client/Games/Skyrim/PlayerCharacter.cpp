@@ -21,6 +21,13 @@
 #include <Games/Skyrim/Forms/ActorValueInfo.h>
 #include <Games/ActorExtension.h>
 #include <Games/TES.h>
+#include <Camera/PlayerCamera.h>
+#include <Forms/SpellItem.h>
+#include <Forms/TESObjectWEAP.h>
+#include <AI/AIProcess.h>
+#include <DefaultObjectManager.h>
+#include <EquipManager.h>
+#include <Magic/MagicCaster.h>
 #include <Games/References.h>
 #include <Forms/TESWorldSpace.h>
 
@@ -33,6 +40,11 @@
 #include <RTTI.h>
 #include <VersionDb.h>
 #include <FormIds.h>
+
+#include <algorithm>
+#include <bit>
+#include <optional>
+#include <utility>
 
 int32_t PlayerCharacter::LastUsedCombatSkill = -1;
 
@@ -74,12 +86,6 @@ void PlayerCharacter::RebuildTintMasks() noexcept
     s_rebuildTintMasks(this);
 }
 
-void PlayerCharacter::SetGodMode(bool aSet) noexcept
-{
-    POINTER_SKYRIMSE(bool, bGodMode, 404238);
-    *bGodMode.Get() = aSet;
-}
-
 void PlayerCharacter::SetDifficulty(const int32_t aDifficulty, bool aForceUpdate, bool aExpectGameDataLoaded) noexcept
 {
     if (aDifficulty > 5 || aDifficulty < 0)
@@ -119,41 +125,66 @@ void PlayerCharacter::RememberSaid(const TESTopicInfo* apInfo) noexcept
         (s_rememberSaid.Get())(this, apInfo);
 }
 
-NiPoint3 PlayerCharacter::RespawnPlayer() noexcept
+void PlayerCharacter::Revive() noexcept
 {
-    // Make bleedout state recoverable
-    SetNoBleedoutRecovery(false);
-
-    DispelAllSpells();
-
-    // Reset health to max
-    // TODO(cosideci): there's a cleaner way to do this
-    ForceActorValue(ActorValueOwner::ForceMode::DAMAGE, ActorValueInfo::kHealth, 1000000);
-
-    TESObjectCELL* pCell = nullptr;
-
-    if (GetWorldSpace())
+    // What its hands hold: still marked worn after Resurrect, but no longer in hand.
+    TESForm* hands[2]{};
+    if (currentProcess)
+        std::copy_n(currentProcess->equippedObject, 2, hands);
+    // Timed effects stay gone; abilities (base, race, perks, AddSpell) and enchantments come back.
+    Resurrect(false);
+    CastPermanentMagic(false, true, true, true);
+    CastPermanentMagic(true, false, false, false);
+    ApplyPerksFromBase();
+    if (MagicCaster* pCaster = GetMagicCaster(MagicSystem::INSTANT))
     {
-        // TP to Whiterun temple when killed in world space
-        TES* pTes = TES::Get();
-        pCell = ModManager::Get()->GetCellFromCoordinates(pTes->centerGridX, pTes->centerGridY, GetWorldSpace(), false);
+        // MagicCaster's permanent cast (34402), as CastPermanentMagic casts the base's.
+        using TCastPermanent = void(MagicCaster*, SpellItem*, bool);
+        POINTER_SKYRIMSE(TCastPermanent, s_castPermanent, 34402);
+        for (uint32_t i = 0; i < addedSpells.size; ++i)
+            if (SpellItem* pSpell = addedSpells.Get(i))
+                s_castPermanent(pCaster, pSpell, true);
+    }
+    DoReset3D(true);
+    // Its graph runs and it speaks again: death stopped both, and only a load sets them for the player.
+    flags2 |= ActorFlags::SHOULD_ANIM_GRAPH_UPDATE | ActorFlags::CAN_SPEAK;
+    // Back in its hands.
+    for (uint32_t hand = 0; hand < 2; ++hand)
+    {
+        TESForm* pItem = hands[hand];
+        // A two-handed weapon is in both: equipped once.
+        if (!pItem || (hand == 0 && pItem == hands[1]) || (currentProcess && currentProcess->equippedObject[hand] == pItem))
+            continue;
+        if (Cast<SpellItem>(pItem))
+            EquipManager::Get()->EquipSpell(this, pItem, hand);
+        else
+        {
+            // Still marked worn: taken off first, or the inventory keeps a stale worn entry.
+            const auto& cObjects = DefaultObjectManager::Get();
+            TESForm* pSlot = Cast<TESObjectWEAP>(pItem) ? (hand ? cObjects.rightEquipSlot : cObjects.leftEquipSlot) : nullptr;
+            EquipManager::Get()->UnEquip(this, pItem, nullptr, 1, pSlot, false, false, false, false, nullptr);
+            EquipManager::Get()->Equip(this, pItem, nullptr, 1, pSlot, false, false, false, false);
+        }
+    }
+    if (PlayerCamera* pCamera = PlayerCamera::Get())
+        pCamera->LeaveBleedout(false);
+    // Its death action is over: a copy made now starts standing.
+    GetExtension()->LatestAnimation = {};
+}
+
+void PlayerCharacter::HoldDeathReload(bool aHold) noexcept
+{
+    POINTER_SKYRIMSE(Setting, s_reloadTime, 371051);
+    static std::optional<uint64_t> s_saved;
+    if (aHold == s_saved.has_value())
+        return;
+    if (aHold)
+    {
+        s_saved = s_reloadTime->data;
+        s_reloadTime->data = std::bit_cast<uint32_t>(1e9f);
     }
     else
-    {
-        // TP to start of cell when killed in an interior
-        pCell = GetParentCell();
-    }
-
-    NiPoint3 pos{};
-    NiPoint3 rot{};
-    pCell->GetCOCPlacementInfo(&pos, &rot, true);
-
-    MoveTo(pCell, pos);
-
-    // Make bleedout state unrecoverable again for when the player goes down the next time
-    SetNoBleedoutRecovery(true);
-
-    return pos;
+        s_reloadTime->data = *std::exchange(s_saved, std::nullopt);
 }
 
 void PlayerCharacter::PayCrimeGoldToAllFactions() noexcept

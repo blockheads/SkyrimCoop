@@ -1,3 +1,5 @@
+#include <Events/GameLoadFailedEvent.h>
+#include <World.h>
 #include <Bridges/JoinBridge.h>
 
 #include <Breadcrumbs.h>
@@ -6,7 +8,10 @@
 #include <Forms/SpellItem.h>
 #include <Forms/TESNPC.h>
 #include <Forms/TESRace.h>
+#include <Forms/TESObjectCELL.h>
+#include <Forms/TESWorldSpace.h>
 #include <Games/FormState.h>
+#include <Structs/GridCellCoords.h>
 #include <Interface/UI.h>
 #include <Misc/TintMask.h>
 #include <PlayerCharacter.h>
@@ -48,6 +53,18 @@ TESNPC* PlayerBase(PlayerCharacter* apPlayer) noexcept
 template <class T> T* FormOf(const GameId& acId) noexcept
 {
     return Cast<T>(TESForm::GetById(ToGame(acId)));
+}
+
+// The record's place in this game: outdoors its worldspace's cell at its position, indoors its cell.
+TESObjectCELL* PlaceCell(const PlayerRecord& acRecord) noexcept
+{
+    if (acRecord.WorldSpace)
+    {
+        TESWorldSpace* pWorldSpace = FormOf<TESWorldSpace>(acRecord.WorldSpace);
+        const auto cCoordinates = GridCellCoords::CalculateGridCellCoords(acRecord.Position[0], acRecord.Position[1]);
+        return pWorldSpace ? pWorldSpace->LoadCell(cCoordinates.X, cCoordinates.Y) : nullptr;
+    }
+    return acRecord.Cell ? FormOf<TESObjectCELL>(acRecord.Cell) : nullptr;
 }
 } // namespace
 
@@ -139,7 +156,10 @@ bool JoinBridge::WriteAndLoad(const std::string& acName, const SaveFiles& acFile
         BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get();
         spdlog::info("JoinBridge: loading {}", cPath);
         if (!pManager || !pManager->Load(cName.c_str()))
+        {
             spdlog::error("JoinBridge: the engine did not load {}", cPath);
+            World::Get().GetRunner().Trigger(GameLoadFailedEvent{cName});
+        }
     });
     return true;
 }
@@ -284,6 +304,30 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     pPlayer->SetActorInventory(acRecord.Items);
     // The head again from the base's face and the tints (DoReset3D).
     pPlayer->QueueUpdate();
+    // Where the host's save left this character; the save's player stands where the host's did.
+    if (TESObjectCELL* pCell = PlaceCell(acRecord))
+    {
+        NiPoint3 position;
+        position.x = acRecord.Position[0];
+        position.y = acRecord.Position[1];
+        position.z = acRecord.Position[2];
+        pPlayer->MoveTo(pCell, position);
+    }
     spdlog::info("JoinBridge: the player is {} now (level {}, {} perks, {} spells added, {} items)", acRecord.Name, acRecord.Level,
                  acRecord.Perks.size(), acRecord.Spells.size(), acRecord.Items.Entries.size());
+}
+
+std::optional<IJoinBridge::SaveFiles> JoinBridge::PreviousSave() noexcept
+{
+    BGSSaveLoadManager* pManager = BGSSaveLoadManager::Get();
+    const auto cName = pManager ? pManager->PreviousGameplaySave() : std::nullopt;
+    if (!cName)
+        return std::nullopt;
+    const auto cGame = BGSSaveLoadManager::SaveFilePath(cName->c_str());
+    auto game = ReadFile(cGame);
+    if (!game)
+        return std::nullopt;
+    auto coSave = cGame;
+    coSave.replace_extension(".skse");
+    return SaveFiles{std::move(*game), ReadFile(coSave).value_or("")};
 }

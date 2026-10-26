@@ -111,8 +111,6 @@ struct PlayerCharacter : Actor
 
     static PlayerCharacter* Get() noexcept;
 
-    static void SetGodMode(bool aSet) noexcept;
-
     const GameArray<TintMask*>& GetTints() const noexcept;
     // baseTints again from its race's tint layers for its sex, at their default colours (40696, as the race menu).
     void RebuildTintMasks() noexcept;
@@ -127,7 +125,11 @@ struct PlayerCharacter : Actor
     void RememberSaid(const TESTopicInfo* apInfo) noexcept;
     float GetSkillExperience(Skills::Skill aSkill) const noexcept { return (*pSkills)->skills[aSkill].xp; }
 
-    NiPoint3 RespawnPlayer() noexcept;
+    // Back from a real death (docs/design/death.md, "Real death"): alive, every permanent effect cast again, its
+    // skeleton out of the death ragdoll and the camera its own.
+    void Revive() noexcept;
+    // While held, a dying or dead player never reloads (fPlayerDeathReloadTime raised; 40748 counts it down).
+    static void HoldDeathReload(bool aHold) noexcept;
 
     void PayCrimeGoldToAllFactions() noexcept;
 

@@ -36,8 +36,8 @@
 #include <Messages/NotifySetWaypoint.h>
 #include <Messages/NotifyRemoveWaypoint.h>
 #include <Messages/JoinMessages.h>
-#include <Messages/PerishedMessages.h>
 #include <Messages/WaitMessages.h>
+#include <Messages/DeathMessages.h>
 
 struct NotifyMessageFactory
 {

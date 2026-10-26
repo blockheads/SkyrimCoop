@@ -98,7 +98,7 @@ public:
     void ActorStopCurrentDialogue(uint32_t aFormId) noexcept override;
     void ActorShowSubtitle(uint32_t aFormId, const std::string& acText, uint32_t aTopicInfoFormId, bool aForce) noexcept override;
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override;
-    void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override;
+    void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
     uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override;
@@ -132,7 +132,6 @@ public:
     void StopEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
     bool IsPlayingEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) const noexcept override;
     bool FlashEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override;
-    void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept override;
 
     // -----------------------------------------------------------------
     // IFormBridge
@@ -226,14 +225,11 @@ public:
     std::string GetPlayerLocationName() const noexcept override;
     std::string GetPlayerWorldSpaceName() const noexcept override;
     bool IsPlayerAlive() const noexcept override;
-    bool IsPlayerBleedingOut() const noexcept override;
-    void SetPlayerGodMode(bool aEnable) noexcept override;
-    void SetPlayerRespawnMode(bool aEnable) noexcept override;
-    void RespawnPlayer() noexcept override;
-    void KnockdownPlayer(float aForce) noexcept override;
-    void FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration,
-                     bool aWithSound, float aDelay) noexcept override;
-    void PlayerPayCrimeGoldToAllFactions() noexcept override;
+    void HoldPlayerDeathReload(bool aHold) noexcept override;
+    void RevivePlayer() noexcept override;
+    void SetSpectatorTarget(uint32_t aFormId) noexcept override;
+    void HoldDeathControls(bool aHold) noexcept override;
+    bool IsScriptCameraHeld() const noexcept override;
     uint32_t GetDifficulty() const noexcept override;
     void SetDifficulty(uint32_t aDifficulty) noexcept override;
     float GetGreetDistance() const noexcept override;

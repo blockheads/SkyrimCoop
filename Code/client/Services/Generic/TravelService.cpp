@@ -79,14 +79,13 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
     }
     if (m_playerBridge.ConsumeTeleported())
     {
-        m_respawned = std::chrono::steady_clock::now() < std::exchange(m_respawnMoveUntil, {});
         m_arriving = true;
-        m_leading = !m_respawned;
+        m_leading = true;
     }
     else if (std::exchange(m_teleportedOffline, false))
     {
         m_arriving = true;
-        m_leading = m_respawned = false;
+        m_leading = false;
     }
     const uint32_t cCellId = m_playerBridge.GetPlayerParentCellFormId();
     if (!m_arriving || !cCellId)
@@ -118,43 +117,38 @@ void TravelService::OnUpdate(const UpdateEvent&) noexcept
     using Travel = EnterCellRequest::Travel;
     const Travel cHow = cFollowing  ? Travel::kTether
                         : m_leading  ? Travel::kOwn
-                        : m_respawned ? Travel::kRespawn
                                       : Travel::kBeforeJoining;
     m_dispatcher.trigger(PlayerArrivedEvent{cCellId, m_playerBridge.GetPlayerWorldSpaceId(), cHow});
 }
 
-void TravelService::OnRespawnMove() noexcept
-{
-    m_respawnMoveUntil = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-}
-
 void TravelService::OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept
 {
+    FollowTo(acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position, acMessage.Heading);
+}
+
+void TravelService::FollowTo(const GameId& aWorld, const GameId& aCell, const glm::vec3& aPosition, float aHeading, bool aForce) noexcept
+{
     // Already there, unless a move of the tether's is still to come: that one would take it away again.
-    if (m_tetherTargets.empty() && IsAroundPlayer(acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position))
+    if (!aForce && m_tetherTargets.empty() && IsAroundPlayer(aWorld, aCell, aPosition))
     {
-        spdlog::info("Party travel to cell {:X} (worldspace {:X}): already there", acMessage.CellId.BaseId,
-                     acMessage.WorldSpaceId.BaseId);
+        spdlog::info("Party travel to cell {:X} (worldspace {:X}): already there", aCell.BaseId, aWorld.BaseId);
         return;
     }
     // On its way there already (the host sends a follower on when it stops elsewhere first).
-    if (!m_tetherTargets.empty() &&
+    if (!aForce && !m_tetherTargets.empty() &&
         SamePlace(m_tetherTargets.back().WorldSpaceId, m_tetherTargets.back().CellId, m_tetherTargets.back().Position,
-                  acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position))
+                  aWorld, aCell, aPosition))
         return;
-    const uint32_t cCellId = CellAt(acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position);
+    const uint32_t cCellId = CellAt(aWorld, aCell, aPosition);
     if (!cCellId)
     {
-        spdlog::error("Party travel to cell {:X} (worldspace {:X}): no such cell here", acMessage.CellId.BaseId,
-                      acMessage.WorldSpaceId.BaseId);
+        spdlog::error("Party travel to cell {:X} (worldspace {:X}): no such cell here", aCell.BaseId, aWorld.BaseId);
         return;
     }
     // A MoveTo of the player is a travel like a door's (TESObjectREFR::MoveTo_Impl 56626 queues it, 40442).
-    m_tetherTargets.push_back({acMessage.WorldSpaceId, acMessage.CellId, acMessage.Position, acMessage.Heading});
-    spdlog::info("Party travel: following to cell {:X} (worldspace {:X})", acMessage.CellId.BaseId,
-                 acMessage.WorldSpaceId.BaseId);
-    m_actorBridge.MoveActorTo(m_playerBridge.GetPlayerFormId(), cCellId, acMessage.Position.x, acMessage.Position.y,
-                              acMessage.Position.z);
+    m_tetherTargets.push_back({aWorld, aCell, aPosition, aHeading});
+    spdlog::info("Party travel: following to cell {:X} (worldspace {:X})", aCell.BaseId, aWorld.BaseId);
+    m_actorBridge.MoveActorTo(m_playerBridge.GetPlayerFormId(), cCellId, aPosition.x, aPosition.y, aPosition.z);
 }
 
 void TravelService::StackOn(const glm::vec3& acSpot) noexcept

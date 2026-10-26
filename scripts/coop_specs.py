@@ -171,7 +171,7 @@ def run_step(spec, index, step, cleanup=False, actors=None):
     elif expect == "together":
         holds = lambda: ct.player_cell("") == ct.player_cell("client") and bool(ct.both_see_each_other())
     elif expect == "down":
-        holds = lambda: ct.player_snapshot(game).get("state", {}).get("bleeding_out") == step["down"]
+        holds = lambda: ct.player_snapshot(game).get("state", {}).get("dead") == step["down"]
     else:
         raise ct.TestFailure(f"{what}: no such expectation")
     if step.get("now"):

@@ -4,7 +4,7 @@
 #include <Messages/AuthenticationResponse.h>
 #include <Services/Host/JoinRefusal.h>
 #include <Messages/NotifyPlayerLeft.h>
-#include <Messages/PerishedMessages.h>
+#include <Messages/DeathMessages.h>
 #include <Structs/LoadOrder.h>
 
 #include <map>
@@ -299,7 +299,11 @@ TEST_CASE("Player list: a newcomer learns everyone here, with the host marked, a
 TEST_CASE("A player going down reaches every game, its own too, with its name", "[HostAuthority][Session]")
 {
     Session session;
-    session.Receive(kPeer, PlayerPerishedRequest{});
+    PlayerDeathRequest down;
+    down.SessionId = session.Character(kPeer);
+    down.Generation = 1;
+    down.Down = true;
+    session.Receive(kPeer, down);
     for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
     {
         const auto cPerished = session.SentTo<NotifyPlayerPerished>(cPlayer);

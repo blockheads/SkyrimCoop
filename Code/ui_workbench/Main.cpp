@@ -108,6 +108,7 @@ struct Workbench final : Rml::EventListener
     Ui::PartyModel Party;
     Ui::ChatModel Chat;
     Ui::JoinModel Join;
+    Ui::DeathModel Death;
     Ui::PlayerColors PlayerColors;
     Rml::ElementDocument* JoinDocument = nullptr;
     std::vector<fs::path> Fixtures;
@@ -122,7 +123,7 @@ struct Workbench final : Rml::EventListener
         Rml::Factory::ClearStyleSheetCache();
         Rml::Factory::ClearTemplateCache();
         JoinDocument = nullptr;
-        for (const char* pName : {"party.rml", "chat.rml", "join.rml"})
+        for (const char* pName : {"party.rml", "chat.rml", "join.rml", "death.rml"})
         {
             auto* pDocument = Context->LoadDocument((Directory / pName).string());
             if (!pDocument)
@@ -139,7 +140,7 @@ struct Workbench final : Rml::EventListener
 
     bool Select(const fs::path& acFixture)
     {
-        if (!LoadFixture(acFixture, Party, Chat, Join, PlayerColors))
+        if (!LoadFixture(acFixture, Party, Chat, Join, Death, PlayerColors))
             return false;
         Fixture = acFixture;
         const auto title = "UiWorkbench | " + Fixture.stem().string() + " | F6/F7 fixture, F5 reload, F9 size";
@@ -419,7 +420,7 @@ int Run(GLFWwindow* apWindow, const Options& acOptions)
             Rml::Shutdown();
             return 1;
         }
-        if (!app.Party.Bind(*app.Context) || !app.Chat.Bind(*app.Context) || !app.Join.Bind(*app.Context))
+        if (!app.Party.Bind(*app.Context) || !app.Chat.Bind(*app.Context) || !app.Join.Bind(*app.Context) || !app.Death.Bind(*app.Context))
         {
             Rml::Shutdown();
             return 1;

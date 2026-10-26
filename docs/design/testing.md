@@ -161,15 +161,7 @@ restored):
   guest joining elsewhere (the bug below). Without the pull, or the host's actors sent on its arrival, it fails.
 - `death_flows.cpp`: the host's player kills a guard; the copy shows its health at -100 and stays alive (deferred
   kill), then dies with the owner's death state (without the relay, or `ApplyPendingDeathStates`' kill, it fails).
-  A guest's player takes a deadly hit, goes down (the session's death system makes it essential), gets up at
-  QASmoke's COC marker after `PlayerService`'s 5 s, and the host spawns its copy again (without
-  `PlayerRespawnRequest`, or the copy's `RequestRespawn`, it fails). Tier 2 has no animation replay, so the copy
-  never goes down itself; the check is that it is a new actor (`FakeEngine::Actor::Made`, a fresh extension in
-  Skyrim), as the respawn is what ends a copy's replayed bleedout there. Outdoors (the fake's exteriors: a
-  worldspace's cells on the 4096-unit grid, the 5 by 5 grid loaded around the player's cell, walking without a
-  teleport), a guest's player gets up in its own cell and the host stays put, next to it and three cells away; the
-  second failed first: the respawn's move led the party (bug 5). Without `PlayerService`'s `OnRespawnMove`, or
-  `TravelService`'s `kRespawn`, it fails.
+  A player's real death, spectating, the respawn beside the party and the wipe: `docs/design/death.md`, "Tests".
 - `travel_flows.cpp`: a placed NPC stays with its cell, held as a copy, when the host leads away, and when the guest
   leads (its arrival drops its copies first; without `CancelServerAssignment`'s hold it fails), and is the host's
   copy again on the party's return; an NPC the host's game loads in the frame a following guest's arrival reaches
@@ -196,6 +188,7 @@ Bugs they found, each fixed with the flow failing without the fix (and a `HostAu
 5. **A respawn outdoors pulled the party** to the respawned player when they were out of its loaded grid:
    upstream's `RespawnPlayer` moves the player, and the arrival led. `PlayerService` tells `TravelService` before
    it (`OnRespawnMove`), and the arrival is sent as `EnterCellRequest::Travel::kRespawn`, which leads nobody.
+   (Gone with real death, 2026-10-26: a respawn is a follower's move beside the party.)
 6. **A guest joining outdoors four cells from the host stayed there** (found in Skyrim, 2026-10-23): outdoors
    the place is the worldspace, so it counted as with the host. A joiner out of the host's player's loaded grid
    is sent to it too now (`HostCharacters::InHostGrid`; flow "A guest joins outdoors four cells from the host",

@@ -1,3 +1,4 @@
+#include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 
 #include <Events/ContainerChangeEvent.h>
@@ -105,6 +106,7 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
             Holds.Take(cHolder, flags);
     }
     Controls = cEnable ? Controls | flags : Controls & ~flags;
+    World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
     if (InSession && ShareOf(Kind::kControls, aCause, aStory, cAsked) == Share::kParty)
         World::Get().GetRunner().Trigger(PartyNativeEvent{acCall});
 }
@@ -122,6 +124,13 @@ void FakeEngine::Frame()
         Calendar.Time -= 24.f;
         ++Calendar.Day;
         ++Calendar.DaysPassed;
+    }
+    if (auto& player = Actors.at(kPlayer); player.Dead)
+    {
+        if (player.DyingFrames && !--player.DyingFrames)
+            World::Get().GetRunner().Trigger(ActorDeathChangeEvent{kPlayer});
+        if (++player.DeadFrames >= kDeathReloadFrames && !DeathReloadHeld)
+            Reloaded = true;
     }
     RunQueued();
 }
@@ -367,6 +376,11 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
     if (aActor.Dead)
     {
+        if (aFormId == kPlayer)
+        {
+            aActor.DyingFrames = kDyingFrames;
+            aActor.DeadFrames = 0;
+        }
         auto& action = aActor.LatestAnimation;
         action.Tick = World::Get().GetTransport().GetTick();
         action.ActorId = aFormId;
@@ -601,10 +615,9 @@ void FakeEngine::SetActorPersistent(uint32_t aFormId) noexcept
         it->second.Persistent = true;
 }
 
-void FakeEngine::SetActorPlayerRespawnMode(uint32_t aFormId) noexcept
+// The player's faction is not modelled.
+void FakeEngine::SetActorPlayerFaction(uint32_t) noexcept
 {
-    if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Essential = true;
 }
 
 // ForcePosition and SetRotation; the graph's variables are not modelled.
@@ -887,19 +900,37 @@ void FakeEngine::SetActorValues(uint32_t aFormId, const ActorValues& acValues) n
         it->second.Values.ActorValuesList[cIndex] = cValue;
 }
 
-// PlayerCharacter::RespawnPlayer: up from bleedout, health restored, moved to the COC marker of its cell (outdoors the
-// loaded grid's centre cell, its own here).
-void FakeEngine::RespawnPlayer() noexcept
+// Resurrect: alive, its pools full (its maximums kept), its death action over, reported as the Resurrect hook reports
+// it; placement is the party follower move.
+void FakeEngine::RevivePlayer() noexcept
 {
     auto& player = Actors.at(kPlayer);
-    player.Bleeding = false;
-    ForceActorValue(kPlayer, 2, kHealth, 1000000.f);
-    glm::vec3 to{};
-    if (const auto cMarker = CocMarkers.find(player.Cell); cMarker != CocMarkers.end())
-        to = cMarker->second;
-    else if (const auto cExterior = Exteriors.find(player.Cell); cExterior != Exteriors.end())
-        to = {cExterior->second.X * 4096.f + 2048.f, cExterior->second.Y * 4096.f + 2048.f, 0.f};
-    MoveActorTo(kPlayer, player.Cell, to.x, to.y, to.z);
+    if (!player.Dead)
+        return;
+    player.Dead = false;
+    player.DyingFrames = player.DeadFrames = 0;
+    for (const uint32_t cIndex : {kHealth, kMagicka, kStamina})
+    {
+        player.Values.ActorValuesList[cIndex] = player.Values.ActorMaxValuesList[cIndex];
+        World::Get().GetRunner().Trigger(ActorValueChangeEvent{kPlayer, cIndex});
+    }
+    const auto cAction = std::exchange(player.LatestAnimation, {});
+    World::Get().GetRunner().Trigger(ActorDeathChangeEvent{kPlayer, true, true,
+        cAction.ActionId && DeathActions::IsDying(cAction.State1) ? std::optional<uint64_t>{cAction.Tick} : std::nullopt});
+}
+
+void FakeEngine::HoldDeathControls(bool aHold) noexcept
+{
+    constexpr uint32_t flags = 0x1 | 0x4 | 0x20 | 0x40 | 0x80 | 0x400;
+    if (aHold && !DeathControlsHeld)
+    {
+        DeathControlsBefore = Controls & flags;
+        Holds.Take(0xFFFFFFFE, flags);
+        Controls &= ~flags;
+    }
+    else if (!aHold && DeathControlsHeld)
+        Controls |= Holds.GiveBack(0xFFFFFFFE, flags) & DeathControlsBefore;
+    DeathControlsHeld = aHold;
 }
 
 // PartyNatives' entry points (Papyrus/PartyNatives.h) on the current game's fake engine.
@@ -1227,11 +1258,10 @@ std::string FakeEngine::PlayerId() noexcept
 PlayerRecord FakeEngine::ReadPlayer() const noexcept
 {
     PlayerRecord record = Player;
+    if (record.Name.empty()) record.Name = Name;
     const Actor& cPlayer = Actors.at(kPlayer);
-    // As JoinBridge: what the player carries, from its inventory.
+    // As JoinBridge: what the player carries, from its inventory; no place.
     record.Items = cPlayer.Items;
-    record.Cell = GameId(0, cPlayer.Cell);
-    record.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
     return record;
 }
 
@@ -1242,10 +1272,15 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     Player.Key.clear();
     Player.Items = {};
     cPlayer.Items = acRecord.Items;
-    // As JoinBridge: the joining player stands where the save put it, beside the host.
-    Player.Cell = GameId(0, cPlayer.Cell);
+    // As JoinBridge: at the record's place (kept in the host's save), else where the save put it, the host's spot.
+    if (acRecord.Cell)
+    {
+        cPlayer.Cell = acRecord.Cell.BaseId;
+        std::ranges::copy(acRecord.Position, cPlayer.Position);
+    }
+    Player.Cell = {};
     Player.WorldSpace = {};
-    Player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+    Player.Position = {};
 }
 
 std::optional<IJoinBridge::SaveFiles> FakeEngine::SaveNow(const std::string& acName) noexcept
@@ -1275,8 +1310,20 @@ void FakeEngine::RunMainLoop() noexcept
             Saves.push_back(*cName);
             Wire::Buffer buffer;
             Wire::Buffer::Writer writer(&buffer);
-            ReadPlayer().Serialize(writer);
+            // The save holds where its player stands.
+            PlayerRecord player = ReadPlayer();
+            const Actor& cPlayer = Actors.at(kPlayer);
+            player.Cell = GameId(0, cPlayer.Cell);
+            player.Position = {cPlayer.Position[0], cPlayer.Position[1], cPlayer.Position[2]};
+            player.Serialize(writer);
+            Serialization::WriteVarInt(writer, References.size());
+            for (const auto& [id, r] : References)
+            {
+                Serialization::WriteVarInt(writer, id);
+                Serialization::WriteBool(writer, r.Locked);
+            }
             MadeSave = SaveFiles{{reinterpret_cast<const char*>(buffer.GetData()), writer.Size()}, World::Get().ctx().at<SaveService>().WriteCoSave()};
+            SavedFiles[*cName] = **MadeSave;
         }
     }
     const auto cLoad = std::exchange(PendingLoad, std::nullopt);
@@ -1286,9 +1333,20 @@ void FakeEngine::RunMainLoop() noexcept
     Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(cFiles.Game.data()), cFiles.Game.size()));
     PlayerRecord saved;
     saved.Deserialize(reader);
+    const auto count = Serialization::ReadVarInt(reader);
+    for (size_t i = 0; i < count; ++i)
+    {
+        const uint32_t id = Serialization::ReadVarInt(reader);
+        References[id].Locked = Serialization::ReadBool(reader);
+    }
     Player = saved;
     Player.Items = {};
+    Player.Cell = {};
+    Player.Position = {};
     Actor& player = Actors.at(kPlayer);
+    player.Bleeding = player.Dead = false;
+    player.DyingFrames = player.DeadFrames = 0;
+    player.Values = FullValues();
     player.Items = saved.Items;
     player.Cell = saved.Cell.BaseId;
     std::copy(saved.Position.begin(), saved.Position.end(), player.Position);
@@ -1533,4 +1591,12 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick)
             bodies.Awake.push_back(frame);
     }
     return bodies;
+}
+
+std::optional<IJoinBridge::SaveFiles> FakeEngine::PreviousSave() noexcept
+{
+    for (auto i = Saves.rbegin(); i != Saves.rend(); ++i)
+        if (!i->starts_with("SkyrimCoop"))
+            if (const auto f = SavedFiles.find(*i); f != SavedFiles.end()) return f->second;
+    return std::nullopt;
 }

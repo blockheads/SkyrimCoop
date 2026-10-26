@@ -6,7 +6,7 @@
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifyPlayerLevel.h>
-#include <Messages/PerishedMessages.h>
+#include <Messages/DeathMessages.h>
 
 SessionService::SessionService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     : m_dispatcher(aDispatcher)

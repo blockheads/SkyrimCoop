@@ -26,11 +26,13 @@ void CharacterRecords::Remove(std::string_view aKey) noexcept
         m_records.erase(it);
 }
 
-void CharacterRecords::SetPlace(std::string_view aKey, const GameId& acCell, const std::array<float, 3>& acPosition) noexcept
+void CharacterRecords::SetPlace(std::string_view aKey, const GameId& acWorldSpace, const GameId& acCell,
+                                const std::array<float, 3>& acPosition) noexcept
 {
     const auto it = m_records.find(aKey);
     if (it == m_records.end())
         return;
+    it->second.WorldSpace = acWorldSpace;
     it->second.Cell = acCell;
     it->second.Position = acPosition;
 }

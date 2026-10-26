@@ -4,6 +4,7 @@
 #include <Services/Host/HostNetwork.h>
 
 #include <Messages/AuthenticationResponse.h>
+#include <Messages/DeathMessages.h>
 
 HostSaveTransfer::HostSaveTransfer(HostNetwork& aNetwork, const HostGame& acGame) noexcept
     : m_network(aNetwork)
@@ -64,5 +65,17 @@ void HostSaveTransfer::Update(uint64_t aTick) noexcept
             }
         }
         ++it;
+    }
+}
+
+void HostSaveTransfer::Checkpoint(std::vector<NotifySaveChunk> aChunks, const std::vector<ConnectionId_t>& acGuests) noexcept
+{
+    for (const ConnectionId_t cGuest : acGuests)
+        m_receivers.try_emplace(cGuest);
+    const auto cpSave = std::make_shared<const Chunks>(std::move(aChunks));
+    for (auto& [cConnection, receiver] : m_receivers)
+    {
+        m_network.Send(cConnection, NotifyPartyReload{});
+        receiver = {cpSave};
     }
 }

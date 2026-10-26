@@ -1,0 +1,16 @@
+<rml>
+<head>
+    <title>Spectating</title>
+    <link type="text/rcss" href="skyrim.rcss"/>
+    <link type="text/rcss" href="aol-text.rcss"/>
+    <link type="text/rcss" href="death.rcss"/>
+</head>
+<body data-model="death">
+    <div id="death" data-if="visible">
+        <div class="watching" data-if="name != ''">Spectating {{ name }}</div>
+        <div data-if="name == ''">{{ status }}</div>
+        <div class="hint" data-if="name != ''">Left/right arrow or click to change player</div>
+        <div class="hint" data-if="name != ''">Party must be out of combat for 10 seconds to respawn</div>
+    </div>
+</body>
+</rml>

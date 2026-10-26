@@ -1,5 +1,8 @@
 #include <Services/JoinService.h>
 
+#include <Events/GameLoadFailedEvent.h>
+#include <Messages/DeathMessages.h>
+
 #include <Bridges/IJoinBridge.h>
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
@@ -24,7 +27,9 @@ JoinService::JoinService(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
     Listen<NotifySaveChunk, &JoinService::OnSaveChunk>(m_connections, aDispatcher, this);
     Listen<ConnectedEvent, &JoinService::OnConnected>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &JoinService::OnDisconnected>(m_connections, aDispatcher, this);
+    Listen<GameLoadFailedEvent, &JoinService::OnGameLoadFailed>(m_connections, aDispatcher, this);
     Listen<GameLoadedEvent, &JoinService::OnGameLoaded>(m_connections, aDispatcher, this);
+    Listen<NotifyPartyReload, &JoinService::OnPartyReload>(m_connections, aDispatcher, this);
 }
 
 std::string JoinService::PlayerKey() const noexcept
@@ -53,6 +58,7 @@ bool JoinService::Join(const std::string& acEndpoint) noexcept
         spdlog::warn("JoinService: no join (joining {}, connected {})", IsJoining(), m_world.GetTransport().IsConnected());
         return false;
     }
+    m_partyReload = false;
     m_brought.reset();
     if (!m_bridge.IsAtMainMenu())
     {
@@ -112,7 +118,7 @@ void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
     case Step::kConnecting:
     case Step::kChecking:
     case Step::kJoining:
-        if (m_waited > kConnectSeconds)
+        if (m_waited > (m_partyReload ? kLoadSeconds : kConnectSeconds))
             Fail(m_reached ? "lost_connection" : "unreachable");
         break;
     case Step::kReceiving:
@@ -205,6 +211,8 @@ void JoinService::Arrive() noexcept
 
 void JoinService::OnConnected(const ConnectedEvent&) noexcept
 {
+    m_joinedCharacter = m_bridge.ReadPlayer();
+    m_partyReload = false;
     if (m_step == Step::kReconnecting)
     {
         spdlog::info("JoinService: reconnected (try {})", m_tries);
@@ -285,4 +293,20 @@ void JoinService::Retry() noexcept
     m_step = Step::kIdle;
     m_status = JoinRefusal::Ended("lost_connection");
     m_dispatcher.trigger(SessionNoticeEvent{"Couldn't reconnect to the host."});
+}
+
+void JoinService::OnPartyReload(const NotifyPartyReload&) noexcept
+{
+    m_partyReload = true;
+    m_endpoint = m_world.GetTransport().GetEndpoint();
+    if (!m_brought)
+        m_brought = m_joinedCharacter;
+    m_save = {};
+    To(Step::kReceiving, JoinStatus::State::kReceivingWorld);
+}
+
+void JoinService::OnGameLoadFailed(const GameLoadFailedEvent& acEvent) noexcept
+{
+    if (m_step == Step::kLoading && acEvent.Name == kJoinSave)
+        Fail("transfer_failed");
 }

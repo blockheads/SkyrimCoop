@@ -18,6 +18,10 @@ using PartyRules::IsMirrored;
 
 // On while this game is in a session (CutsceneService): outside one, nothing is the party's.
 void SetInSession(bool aInSession) noexcept;
+// A downed player's controls (movement, attacks, activation, POV) held or given back, beside the scripts' holds.
+void HoldDeathControls(bool aHold) noexcept;
+// A script (a cutscene) holds the player's movement: it has the camera, spectating waits.
+[[nodiscard]] bool ScriptControlsHeld() noexcept;
 [[nodiscard]] bool InSession() noexcept;
 
 // Runs another game's party call here, on this game's player and screen; aSource is that game's player id (its stack

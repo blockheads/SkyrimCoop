@@ -92,6 +92,15 @@ bool ChatModel::Bind(Rml::Context& aContext)
     return true;
 }
 
+bool DeathModel::Bind(Rml::Context& aContext)
+{
+    auto model = aContext.CreateDataModel("death");
+    if (!model || !model.Bind("visible", &Visible) || !model.Bind("name", &Name) || !model.Bind("status", &Status))
+        return false;
+    Handle = model.GetModelHandle();
+    return true;
+}
+
 bool JoinModel::Bind(Rml::Context& aContext)
 {
     auto model = aContext.CreateDataModel("join");

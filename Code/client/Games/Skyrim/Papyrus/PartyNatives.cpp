@@ -1,3 +1,4 @@
+#include <Events/PlayerDeathEvent.h>
 #include <Papyrus/PartyNativesScope.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
@@ -32,12 +33,29 @@ std::atomic<bool> s_inSession{false};
 std::mutex s_lock;
 PartyRules::ControlHolds s_holds;
 
+// A downed player's hold (docs/design/death.md): what it may not do while it spectates; it looks and cycles on.
+constexpr uint32_t kDeathHolder = 0xFFFFFFFE;
+constexpr uint32_t kDeathControls = BSInputEnableManager::kMovement | BSInputEnableManager::kFighting | BSInputEnableManager::kActivate |
+                                    BSInputEnableManager::kSneaking | BSInputEnableManager::kPOVSwitch | BSInputEnableManager::kJumping;
+bool s_deathHeld = false;
+uint32_t s_beforeDeath = 0; // which of them were enabled when it went down
+
 // The controls call running on this thread (Scope), none outside one.
 thread_local ControlsCall* t_pCall = nullptr;
 
 // ControlMap::ToggleControls (68545, CommonLibSSE-NG `ToggleControls(UEFlag, bool a_enable, bool a_storeState)`).
 using TToggleControls = void(BSInputEnableManager*, uint32_t aFlags, bool aEnable, bool aStoreState);
 TToggleControls* RealToggleControls = nullptr;
+
+// aHolder takes the controls, or gives them back: what changes then is what no other holder still has.
+uint32_t Hold(uint32_t aHolder, uint32_t aFlags, bool aEnable) noexcept
+{
+    std::scoped_lock _{s_lock};
+    if (aEnable)
+        return s_holds.GiveBack(aHolder, aFlags);
+    s_holds.Take(aHolder, aFlags);
+    return aFlags;
+}
 
 // In a script's controls call, the controls are held for its holder: giving back skips what another still holds.
 void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEnable, bool aStoreState)
@@ -46,17 +64,11 @@ void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEna
     if (!pCall)
         return RealToggleControls(apThis, aFlags, aEnable, aStoreState);
     pCall->Asked |= aFlags;
-    uint32_t flags = aFlags;
-    {
-        std::scoped_lock _{s_lock};
-        if (aEnable)
-            flags = s_holds.GiveBack(pCall->Holder, aFlags);
-        else
-            s_holds.Take(pCall->Holder, aFlags);
-    }
+    const uint32_t flags = Hold(pCall->Holder, aFlags, aEnable);
     if (flags != aFlags)
         spdlog::debug("PartyNatives: controls {:X} stay taken, another cutscene holds them", aFlags & ~flags);
     RealToggleControls(apThis, flags, aEnable, aStoreState);
+    World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
 }
 
 Hooks::Initializer s_hooks([]() {
@@ -64,6 +76,25 @@ Hooks::Initializer s_hooks([]() {
     HOOK_ID(68545, &RealToggleControls, HookToggleControls);
 });
 } // namespace
+
+void HoldDeathControls(bool aHold) noexcept
+{
+    auto* pControls = BSInputEnableManager::Get();
+    if (!pControls || !RealToggleControls || aHold == s_deathHeld)
+        return;
+    // Given back: only what was enabled when it went down, and none a script still holds (a cutscene keeps its own).
+    if (aHold)
+        s_beforeDeath = pControls->enabledControls & kDeathControls;
+    const uint32_t cChange = Hold(kDeathHolder, kDeathControls, !aHold) & (aHold ? kDeathControls : s_beforeDeath);
+    s_deathHeld = aHold;
+    RealToggleControls(pControls, cChange, !aHold, false);
+}
+
+bool ScriptControlsHeld() noexcept
+{
+    std::scoped_lock _{s_lock};
+    return (s_holds.HeldExcept(kDeathHolder) & PartyRules::kMovement) != 0;
+}
 
 void SetInSession(bool aInSession) noexcept
 {

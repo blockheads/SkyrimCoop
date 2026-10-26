@@ -216,7 +216,7 @@ struct SpecRun
         {
             // "within" is Skyrim's wait (a respawn takes seconds there); the fake's frames are quicker than its 2 s.
             const bool cDown = acStep["down"].get<bool>();
-            holds = [&cEngine, cDown] { return cEngine.IsPlayerBleedingOut() == cDown; };
+            holds = [&cEngine, cDown] { return !cEngine.IsPlayerAlive() == cDown; };
         }
         else if (cExpect == "items")
         {

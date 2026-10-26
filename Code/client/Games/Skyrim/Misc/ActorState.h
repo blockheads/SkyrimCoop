@@ -26,8 +26,12 @@ struct ActorState : IMovementState
 
     // ActorState1::lifeState (CommonLibSSE-NG ACTOR_LIFE_STATE): 0 alive, 1 dying, 2 dead, ...
     static constexpr uint8_t kLifeDying = 1;
+    static constexpr uint8_t kLifeDead = 2;
     static constexpr uint8_t kLifeRestrained = 6;
     static uint8_t LifeStateOf(uint32_t aFlags1) noexcept { return aFlags1 >> 21 & 0xF; }
+
+    // ActorState1::knockState (CommonLibSSE-NG KNOCK_STATE_ENUM): 1 explode and 3 out lie in the ragdoll.
+    uint8_t GetKnockState() const noexcept { return flags1 >> 25 & 7; }
 
     bool IsBleedingOut() const noexcept { return (flags1 & 0x1E00000) == 0x1000000 || (flags1 & 0x1E00000) == 0xE00000; }
 

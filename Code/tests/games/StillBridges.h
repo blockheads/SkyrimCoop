@@ -55,28 +55,15 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    bool IsPlayerBleedingOut() const noexcept override
-    {
-        return {};
-    }
-    void SetPlayerGodMode(bool aEnable) noexcept override
+    void HoldPlayerDeathReload(bool) noexcept override
     {
     }
-    void SetPlayerRespawnMode(bool aEnable) noexcept override
+    void RevivePlayer() noexcept override
     {
     }
-    void RespawnPlayer() noexcept override
-    {
-    }
-    void KnockdownPlayer(float aForce) noexcept override
-    {
-    }
-    void FadeScreen(bool aFadeOut, bool aToBlack, float aFadeDuration, bool aWithSound, float aDelay) noexcept override
-    {
-    }
-    void PlayerPayCrimeGoldToAllFactions() noexcept override
-    {
-    }
+    void SetSpectatorTarget(uint32_t) noexcept override {}
+    void HoldDeathControls(bool) noexcept override {}
+    bool IsScriptCameraHeld() const noexcept override { return false; }
     uint32_t GetDifficulty() const noexcept override
     {
         return {};
@@ -693,7 +680,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetActorIgnoreFriendlyHit(uint32_t aFormId, bool aIgnore) noexcept override
     {
     }
-    void SetActorPlayerRespawnMode(uint32_t aFormId) noexcept override
+    void SetActorPlayerFaction(uint32_t aFormId) noexcept override
     {
     }
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override
@@ -791,9 +778,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     void ActorUpdateFaceGen(uint32_t aFormId) noexcept override
-    {
-    }
-    void PlayerKnockExplosion(uint32_t aFormId, float aX, float aY, float aZ, float aForce) noexcept override
     {
     }
     bool EffectHasHitVisuals(uint32_t aEffectFormId) const noexcept override

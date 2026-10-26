@@ -74,13 +74,6 @@ float CalculateRealDamage(Actor* apHittee, float aDamage, bool aKillMove) noexce
 
 } // namespace GameplayFormulas
 
-void FadeOutGame(bool aFadingOut, bool aBlackFade, float aFadeDuration, bool aRemainVisible, float aSecondsToFade) noexcept
-{
-    using TFadeOutGame = void(bool, bool, float, bool, float);
-    POINTER_SKYRIMSE(TFadeOutGame, fadeOutGame, 52847);
-    fadeOutGame.Get()(aFadingOut, aBlackFade, aFadeDuration, aRemainVisible, aSecondsToFade);
-}
-
 using TCheckForNewPackage = bool(void*, Actor* apActor, uint64_t aUnk1);
 static TCheckForNewPackage* RealCheckForNewPackage = nullptr;
 

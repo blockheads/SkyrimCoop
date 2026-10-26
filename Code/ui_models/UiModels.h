@@ -64,6 +64,14 @@ struct ChatModel
     bool Bind(Rml::Context& aContext);
 };
 
+struct DeathModel
+{
+    bool Visible = false;
+    Rml::String Name, Status;
+    Rml::DataModelHandle Handle;
+    bool Bind(Rml::Context& aContext);
+};
+
 // Presentation data only; the session owns transitions and refusal wording.
 struct JoinModel
 {

@@ -15,7 +15,6 @@
 #include <Messages/NotifyPlayerJoined.h>
 #include <Messages/NotifyPlayerLeft.h>
 #include <Messages/NotifySettingsChange.h>
-#include <Messages/PerishedMessages.h>
 #include <Structs/LoadOrder.h>
 
 HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostPlayers& aPlayers, HostCharacters& aCharacters,
@@ -27,7 +26,6 @@ HostSession::HostSession(HostAuthority& aAuthority, HostNetwork& aNetwork, HostP
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostSession::OnAuthentication);
-    aAuthority.On(*this, &HostSession::OnPlayerPerished);
 }
 
 void HostSession::OnDifficultyChange(uint32_t aDifficulty) const noexcept
@@ -146,13 +144,3 @@ void HostSession::OnPlayerLeft(ConnectionId_t aPlayer) const noexcept
     m_players.SendToOthers(notify, aPlayer);
 }
 
-void HostSession::OnPlayerPerished(const PlayerPerishedRequest&, ConnectionId_t aSender) const noexcept
-{
-    const auto* cpPlayer = m_players.Find(aSender);
-    if (!cpPlayer)
-        return;
-    NotifyPlayerPerished notify;
-    notify.PlayerId = cpPlayer->Id;
-    notify.Username = cpPlayer->Name;
-    m_players.SendToAll(notify);
-}
