@@ -17,6 +17,8 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   player to own (`party-model.md`, "Items and gold").
 - **Giving items between players** (2026-10-22). Each player has their own inventory: a guest hands a quest item
   to the host to turn it in (dialogue conditions ask the host's inventory). `party-model.md`, "Items and gold".
+  A trade menu (user, 2026-10-24): the barter menu showing each player's inventory. After 1.0; in 1.0 players
+  drop items or leave them in chests.
 - **Shared dialogue: others' cursors, picks and names on each menu.** Each menu shows only its own player's
   highlight; another player's pick shows in chat, and the menu waits for the next list. Built and dropped
   2026-10-19: a shared cursor, other players' options marked `[Name]`, and showing a pick on every menu with

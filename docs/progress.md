@@ -638,7 +638,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Furniture (live, while the copy is loaded) | works | `furniture-*` |
 | Voice lines, subtitles, lip sync | works | `copy-ends-voice-line` |
 | Doors, locks | works | `door-opens-for-both`, `lock-reaches-others`, `load-door-not-replayed` |
-| Containers' items (changes, as counts per base item) | works both ways; contents at a cell's load not yet (slice 2) | `chest-take-reaches-others` |
+| Containers' items (changes, as counts per base item) | works both ways; the host's contents (its leveled roll) when a guest's cell loads (slice 2, 2026-10-21); an item's extra data (enchantment, tempering, poison) does not travel | `chest-take-reaches-others`, `guest-opens-hosts-roll` |
 | Time, weather | works | `host-time-reaches-client`, `guest-sets-time`, `host-wait-reaches-guest`, `late-join-gets-calendar`, `party-fast-travels` (days passed), `weather-follows-host` |
 | Party panel (RmlUi) | works alone; fails after other scenarios | `party-panel` |
 | Player levels (party panel) | works | `party-shows-levels` |
@@ -1417,6 +1417,43 @@ Notes: `docs/re/systems/actor-ai-and-copies.md` ("Still open"), `docs/design/cop
 - Harness console lines other than cell changes run unpaused, unlike a typed line.
 - `scripts/re/ida_export.py` exported 58,317 rows (every named address) instead of the ~100 hand-set ones
   (2026-10-12); the six new rows were added to `docs/re/ida_notes.tsv` by hand.
+
+## v1.0.0 features (decided 2026-10-24)
+
+What the first playtest build has besides what works today (the table above):
+
+1. **Death: spectate, then respawn beside the party** (`docs/design/death.md`, `.worktrees/death-spectate`):
+   built 2026-10-24; host authorizes recovery after 10 continuous seconds clear, spectator camera/UI and
+   party-wipe checkpoint reload replace the old 5 s/COC respawn. GameTests, UI fixtures, plugin build and the
+   host-death, guest-death and wipe Skyrim scenarios pass. Fixed stale copy magicka and recovery graph state.
+   Ragdoll physics/settling is feature 5's integration; report: `build/death-spectate-report.md`.
+2. **Shared party bounty** (`docs/ideas.md`): one player's crime is the party's, judged on the host.
+3. **Quest rewards to everyone** (`party-model.md`, "Experience", step 6).
+4. **Shared wait and sleep** (`docs/ideas.md`).
+5. **Physics:** objects and ragdolls from the host, live (`docs/ideas.md`, "Havok sync"). Not started.
+6. **Dropped items** (created references), with their extra data; items in chests keep theirs too. This is how
+   players give each other items in 1.0 (a trade menu comes later).
+7. **Followers:** to be planned.
+8. **Vampirism and diseases on guests** (`party-model.md`, "Still open").
+9. **Cutscenes, step 2:** each player's own character in a scene.
+10. **Mounts:** seen working; a scenario to keep them so.
+11. **The party is the Dragonborn** (`party-model.md`, "One rule"): words of power and dragon souls for everyone (a
+    word taught through a guest's action is only its own today; souls on a guest's kill not traced), and identity
+    changes (titles, marriage, beast blood).
+12. **Script rules 3 to 5** (`party-model.md`): the host's messages (notifications, message boxes) on every game;
+    position questions without a cause ask about the party; a guest's story events (locations, crafts, kills) raised
+    on the host for its copy.
+13. **Party travel gaps** (Loose ends, "Tether gaps"): a guest's fast travel passes time only on its game; a guest's
+    jail or scripted move takes the party along; loads start after the leader's arrival.
+14. **Small visible bugs:** a joining guest stands on the host's spot; a copy's level stays its spawn's; instant
+    effects (a shrine's glow) show nothing on copies; a look change remakes the copy instead of updating it.
+15. **Menus that pause the game:** the host's map, journal (pause menu), crafting, lockpicking, barter, books or training
+    pause its world, and with it every guest's NPCs (`UI.cpp`'s `kAllowList` unpauses only inventory, magic, stats,
+    favourites, containers, message boxes, the console). Decide (no pause, or the party's pause) and test it.
+
+Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
+players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation
+mods, mod sync).
 
 ## Product pieces not started
 
