@@ -158,38 +158,33 @@ TContainerTake* RealContainerTake{};
 bool HookContainerTake(void* aMenu, ExtraContainerChanges::Entry* aEntry, uint32_t aCount, bool aTaking)
 {
     static VersionDbPtr<uint32_t> mode(405937);
-    const bool observe = s_role == ICrimeBridge::Role::Guest && *mode.Get() == 1 && aEntry && aEntry->form;
+    if (s_role != ICrimeBridge::Role::Guest || *mode.Get() != 1 || !aEntry || !aEntry->form)
+        return RealContainerTake(aMenu, aEntry, aCount, aTaking);
     CrimeItem line;
     auto* value = &static_cast<CrimeEngine::ContainerMenu*>(aMenu)->StealValue;
     const auto before = *value;
-    if (observe)
-    {
-        line.Item.BaseId = ToSession(aEntry->form->formID).value_or(GameId{});
-        line.Taking = aTaking;
-        if (aEntry->dataList)
-            for (auto* extra : *aEntry->dataList)
-                if (extra)
-                {
-                    if (line.Owners.empty())
-                        TESObjectREFR::GetItemFromExtraData(line.Item, extra);
-                    auto* ownership = static_cast<ExtraOwnership*>(extra->GetByType(ExtraDataType::Ownership));
-                    auto* count = static_cast<ExtraCount*>(extra->GetByType(ExtraDataType::Count));
-                    line.Owners.push_back({ownership && ownership->owner
-                                               ? ToSession(ownership->owner->formID).value_or(GameId{})
-                                               : GameId{},
-                                           count ? static_cast<uint32_t>(count->count) : 1u});
-                }
-        line.Item.Count = static_cast<int32_t>(aCount);
-    }
+    line.Item.BaseId = ToSession(aEntry->form->formID).value_or(GameId{});
+    line.Taking = aTaking;
+    if (aEntry->dataList)
+        for (auto* extra : *aEntry->dataList)
+            if (extra)
+            {
+                if (line.Owners.empty())
+                    TESObjectREFR::GetItemFromExtraData(line.Item, extra);
+                auto* ownership = static_cast<ExtraOwnership*>(extra->GetByType(ExtraDataType::Ownership));
+                auto* count = static_cast<ExtraCount*>(extra->GetByType(ExtraDataType::Count));
+                line.Owners.push_back({ownership && ownership->owner
+                                           ? ToSession(ownership->owner->formID).value_or(GameId{})
+                                           : GameId{},
+                                       count ? static_cast<uint32_t>(count->count) : 1u});
+            }
+    line.Item.Count = static_cast<int32_t>(aCount);
     const bool result = RealContainerTake(aMenu, aEntry, aCount, aTaking);
-    if (observe)
-    {
-        std::lock_guard lock(s_mutex);
-        if (!before)
-            s_containerItems.clear();
-        if (*value > before && line.Item.BaseId && line.Item.Count > 0)
-            s_containerItems.push_back(std::move(line));
-    }
+    std::lock_guard lock(s_mutex);
+    if (!before)
+        s_containerItems.clear();
+    if (*value > before && line.Item.BaseId && line.Item.Count > 0)
+        s_containerItems.push_back(std::move(line));
     return result;
 }
 

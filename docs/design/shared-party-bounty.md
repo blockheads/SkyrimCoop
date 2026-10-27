@@ -1,7 +1,7 @@
 # Shared party bounty
 
 v1.0 feature 2. Branch `shared-party-bounty`, worktree `.worktrees/shared-party-bounty`, based on
-`dev` at `526cff31`. Uncommitted. Party rule: one player's crime counts against the party, judged
+`dev` at `526cff31`. Party rule: one player's crime counts against the party, judged
 by the host's world (`party-model.md`, `copy-contract.md`).
 
 ## Authority and boundaries
