@@ -323,7 +323,12 @@ std::optional<IJoinBridge::SaveFiles> JoinBridge::PreviousSave() noexcept
     const auto cName = pManager ? pManager->PreviousGameplaySave() : std::nullopt;
     if (!cName)
         return std::nullopt;
-    const auto cGame = BGSSaveLoadManager::SaveFilePath(cName->c_str());
+    return ReadSave(*cName);
+}
+
+std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& acName) noexcept
+{
+    const auto cGame = BGSSaveLoadManager::SaveFilePath(acName.c_str());
     auto game = ReadFile(cGame);
     if (!game)
         return std::nullopt;

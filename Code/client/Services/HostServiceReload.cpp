@@ -1,4 +1,4 @@
-// HostService's half for a party wipe (docs/design/death.md, "Wipe reload"): the previous save to the guests, then
+// A host load or party wipe: the chosen save to the guests, then
 // loaded here, and the host's rules made again on the same listener.
 #include <Services/HostService.h>
 
@@ -15,36 +15,49 @@
 
 namespace
 {
-constexpr const char* kWipeSave = "SkyrimCoopWipe";
+constexpr const char* kReloadSave = "SkyrimCoopWipe";
 constexpr const char* kNoSave = "No previous gameplay save could be loaded. Choose a save or return to the menu.";
-constexpr const char* kLoadFailed = "The previous save could not be loaded. Choose a save or return to the menu.";
+constexpr const char* kChosenMissing = "The selected save could not be read. Choose another save.";
+constexpr const char* kLoadFailed = "The save could not be loaded. Choose a save or return to the menu.";
 } // namespace
+
+void HostService::LoadSave(const std::string& acName) noexcept
+{
+    if (!IsHosting() || m_loadingSave || m_checkpoint)
+        return;
+    m_checkpoint = m_world.ctx().at<IJoinBridge&>().ReadSave(acName);
+    if (!m_checkpoint)
+    {
+        m_dispatcher.trigger(SessionNoticeEvent{kChosenMissing});
+        return;
+    }
+    m_reloadRequested = true;
+    m_readCheckpoint = false;
+}
 
 void HostService::UpdateReload() noexcept
 {
-    if (!m_reloadRequested || m_loadingPrevious)
+    if (!m_reloadRequested || m_loadingSave)
         return;
     if (!m_readCheckpoint)
     {
         m_readCheckpoint = true;
-        m_checkpoint = m_world.ctx().at<IJoinBridge&>().PreviousSave();
+        if (!m_checkpoint)
+            m_checkpoint = m_world.ctx().at<IJoinBridge&>().PreviousSave();
         if (!m_checkpoint)
         {
             m_pAuthority->FailReload(kNoSave);
+            m_dispatcher.trigger(SessionNoticeEvent{kNoSave});
             return;
         }
         m_pAuthority->SendCheckpoint(SaveTransfer::Split(SaveTransfer::Pack(*m_checkpoint)));
     }
     if (!m_checkpoint || !m_pAuthority->CheckpointDelivered())
         return;
-    m_loadingPrevious = true;
+    m_loadingSave = true;
     m_world.GetTransport().Close();
-    if (!m_world.ctx().at<IJoinBridge&>().WriteAndLoad(kWipeSave, *m_checkpoint))
-    {
-        m_loadingPrevious = false;
-        m_checkpoint.reset();
-        m_pAuthority->FailReload(kLoadFailed);
-    }
+    if (!m_world.ctx().at<IJoinBridge&>().WriteAndLoad(kReloadSave, *m_checkpoint))
+        OnGameLoadFailed(GameLoadFailedEvent{kReloadSave});
 }
 
 void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
@@ -54,7 +67,7 @@ void HostService::OnGameLoaded(const GameLoadedEvent&) noexcept
     m_pConversation.reset();
     m_pAuthority.reset();
     m_pEngine.reset();
-    m_reloadRequested = m_readCheckpoint = m_loadingPrevious = false;
+    m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     MakeAuthority();
     m_world.GetTransport().ConnectLocal(*m_pNetwork);
@@ -68,6 +81,13 @@ void HostService::InstallFrontDoor() noexcept
     m_pNetwork->SetFrontDoor([this](const RequestMessage& acRequest, Net::ConnectionId_t aConnection) {
         if (m_reloadRequested && acRequest.GetOpcode() == kAuthenticationRequest)
         {
+            if (m_readCheckpoint && !m_checkpoint)
+            {
+                AuthenticationResponse failed;
+                failed.Type = AuthenticationResponse::ResponseType::kTransferFailed;
+                m_pNetwork->Send(aConnection, failed);
+                return true;
+            }
             m_reloadJoins.insert_or_assign(aConnection, static_cast<const AuthenticationRequest&>(acRequest));
             return true;
         }
@@ -77,9 +97,9 @@ void HostService::InstallFrontDoor() noexcept
 
 void HostService::OnGameLoadFailed(const GameLoadFailedEvent& acEvent) noexcept
 {
-    if (!IsHosting() || !m_loadingPrevious || acEvent.Name != kWipeSave)
+    if (!IsHosting() || !m_loadingSave || acEvent.Name != kReloadSave)
         return;
-    m_loadingPrevious = false;
+    m_loadingSave = false;
     m_checkpoint.reset();
     m_pAuthority->FailReload(kLoadFailed);
     m_dispatcher.trigger(SessionNoticeEvent{kLoadFailed});

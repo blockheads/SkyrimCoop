@@ -63,6 +63,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
     // The engine's main loop between frames, before our update (HookMainLoop's MainLoopTasks).
     void RunMainLoop() noexcept;
+    std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
     std::optional<SaveFiles> PreviousSave() noexcept override;
     std::map<std::string, SaveFiles> SavedFiles;
     PlayerRecord ReadPlayer() const noexcept override;
@@ -71,6 +72,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // This game's player saves (a menu, quick, auto or console save) through Save_Impl's hook (SaveGameHooks.cpp): made
     // unless SaveService refuses it. The saves made, by name.
     bool PlayerSaves(const std::string& acName);
+    // A quickload, menu or console load through Load_Impl's policy.
+    bool PlayerLoads(const std::string& acName);
     // The engine's own autosave (a load door, fast travel, waiting), through the same hook.
     bool Autosaves(const std::string& acName);
     std::vector<std::string> Saves;

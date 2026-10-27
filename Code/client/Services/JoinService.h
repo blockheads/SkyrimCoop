@@ -80,7 +80,7 @@ private:
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnGameLoaded(const GameLoadedEvent&) noexcept;
     void OnGameLoadFailed(const GameLoadFailedEvent&) noexcept;
-    // The party wiped (docs/design/death.md): the host's previous save comes as a join's does, and this game loads it.
+    // The host loaded a save or the party wiped: the save comes as a join's does, and this game loads it.
     void OnPartyReload(const NotifyPartyReload&) noexcept;
 
     void To(Step aStep, JoinStatus::State aState) noexcept;

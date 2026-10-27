@@ -2380,6 +2380,152 @@ def scenario_guest_cannot_save():
         host_save.with_suffix(".skse").unlink(missing_ok=True)
 
 
+QUICKLOAD_KEY = 0x43  # F9
+LOAD_REFUSAL = "Only the host loads saves: your game can't load while you're in a co-op session."
+
+
+def make_host_quicksave():
+    before = save_files("")
+    press_key("", QUICKSAVE_KEY)
+    written = wait_for("the host's quicksave appears", lambda: save_files("") - before, 15)
+    select_instance("")
+    path = MY_GAMES / "Saves" / next(iter(written))
+    wait_for("the quicksave and co-save finish writing", saves_written(path), 15)
+    return path
+
+
+def scenario_guest_cannot_load():
+    """A guest's load does nothing and explains why in chat, even when a real save exists."""
+    disconnect_client()
+    joins_with_world("stages an authorized load before refusing player loads")
+    name = f"GuestLoadRefused_{int(time.time())}"
+    checkpoint = save_game("", name)
+    wait_for("the host writes a real save to try loading", saves_written(checkpoint), 15)
+    # A real file ensures the refusal precedes the engine opening it. This is test setup, not a guest save.
+    target = save_file("client", name)
+    shutil.copy2(checkpoint, target)
+    shutil.copy2(checkpoint.with_suffix(".skse"), target.with_suffix(".skse"))
+    # A quicksave of the loaded character gives the guest's Load menu a genuine selectable entry.
+    quick = make_host_quicksave()
+    quick_target = save_file("client", quick.stem)
+    copied = []
+    for source in (quick, quick.with_suffix(".skse")):
+        destination = quick_target.with_suffix(source.suffix)
+        if not destination.exists():
+            shutil.copy2(source, destination)
+            copied.append(destination)
+    before = system_chat("client").count(LOAD_REFUSAL)
+    try:
+        console_on("client", f"load {name}")
+        wait_for("the guest's chat explains its refused load",
+                 lambda: system_chat("client").count(LOAD_REFUSAL) == before + 1, 10)
+        press_key("client", QUICKLOAD_KEY)
+        wait_for("the guest's chat explains its refused quickload",
+                 lambda: system_chat("client").count(LOAD_REFUSAL) == before + 2, 10)
+        load_latest_from_menu("client")
+        wait_for("the guest's chat explains its refused menu load",
+                 lambda: system_chat("client").count(LOAD_REFUSAL) == before + 3, 10)
+        wait_for("the refused menu load gives control back to the guest",
+                 lambda: not ({"Journal Menu", "Fader Menu"} & menus("client")) and takes_input("client"), 10)
+        if not game_state("client").get("online"):
+            raise TestFailure("the refused load disconnected the guest")
+    finally:
+        for path in (target, target.with_suffix(".skse"), checkpoint, checkpoint.with_suffix(".skse"), *copied):
+            path.unlink(missing_ok=True)
+
+
+def host_loads_party(quick, menu=False):
+    """The host's chosen save rolls back the whole party, keeping each character and saved place."""
+    names = {instance: player_record(instance)["name"] for instance in ("", "client")}
+    guest_level = player_record("client")["level"]
+    console_on("", "set gamehour to 12")
+    positions = {instance: my_position(instance) for instance in ("", "client")}
+    if quick or menu:
+        make_host_quicksave()
+    else:
+        name = f"HostLoadSelected_{int(time.time())}"
+        checkpoint = save_game("", name)
+        wait_for("the chosen save and its co-save are written", saves_written(checkpoint), 15)
+    console_on("client", f"player.setlevel {guest_level + 1}")
+    console_on("", "set gamehour to 17")
+    wait_for("the party moves beyond the chosen save", lambda: game_state("client").get("time", {}).get("hour", 0) > 16, 10)
+    if quick:
+        press_key("", QUICKLOAD_KEY)
+    elif menu:
+        load_latest_from_menu("")
+    else:
+        # A later save catches accidentally choosing PreviousSave() instead of the selected one.
+        newer = save_game("", name + "_newer")
+        wait_for("the newer save is written", saves_written(newer), 15)
+        console_on("", f"load {name}")
+    def restored():
+        return all(game_state(instance).get("online") and
+                   abs(game_state(instance).get("time", {}).get("hour", 24) - 12) < 0.3
+                   for instance in ("", "client")) and player_record("client")["level"] == guest_level
+    wait_for("the whole party loads and rejoins in the saved world", restored, 120)
+    wait_for("both games show their restored characters", both_see_each_other, 30)
+    if player_record("client")["level"] != guest_level:
+        raise TestFailure("the guest did not load its saved character: its later level survived")
+    for instance in ("", "client"):
+        if player_record(instance)["name"] != names[instance]:
+            raise TestFailure(f"[{instance or 'host'}] the load restored another player's character")
+        if distance(my_position(instance), positions[instance]) > 100:
+            raise TestFailure(f"[{instance or 'host'}] did not return to its saved place")
+
+
+JOURNAL_ROOT = "_root.QuestJournalFader.Menu_mc"
+JOURNAL_SYSTEM = JOURNAL_ROOT + ".SystemFader.Page_mc."
+
+
+def load_latest_from_menu(instance):
+    """The player opens System, Load, selects the newest save and confirms through menu input."""
+    value = lambda field: menu_var(instance, "Journal Menu", JOURNAL_SYSTEM + field)
+    tap_key(instance, 0x01)
+    wait_for("the journal opens", lambda: "Journal Menu" in menus(instance), 5)
+    move_cursor(instance, (910, 100))
+    click(instance)
+    wait_for("the system tab opens", lambda: menu_var(instance, "Journal Menu", JOURNAL_ROOT + ".iCurrentTab") == 2, 5)
+    move_cursor(instance, (700, 300))
+    for _ in range(12):
+        selected = value("CategoryList.selectedIndex")
+        if value(f"CategoryList.entryList.{int(selected)}.text") == "$LOAD":
+            break
+        tap_key(instance, DOWN_KEY)
+        wait_for("the category highlight moves", lambda: value("CategoryList.selectedIndex") != selected, 5)
+    else:
+        raise TestFailure("Load is absent from the system menu")
+    tap_key(instance, 0x12)  # E, the menu's Accept action
+    wait_for("the load list opens", lambda: value("SaveLoadListHolder.List_mc.entryList.length") and value("iCurrentState") == 1, 10)
+    move_cursor(instance, (700, 150))
+    for _ in range(40):
+        selected = value("SaveLoadListHolder.List_mc.selectedIndex")
+        if selected == 0:
+            break
+        tap_key(instance, DOWN_KEY if selected < 0 else UP_KEY)
+        wait_for("the save highlight moves", lambda: value("SaveLoadListHolder.List_mc.selectedIndex") != selected, 5)
+    else:
+        raise TestFailure("couldn't select the newest save")
+    tap_key(instance, 0x12)
+    wait_for("the load confirmation opens", lambda: value("iCurrentState") == 2, 5)
+    move_cursor(instance, (700, 560))  # the confirmation's Yes button
+    click(instance)
+
+
+def scenario_host_menu_loads_party():
+    """The host selects a save from the System Load menu; both games load it and keep their saved characters."""
+    host_loads_party(False, menu=True)
+
+
+def scenario_host_loads_party():
+    """A chosen host load restores an older save on both games, with each player's own character and place."""
+    host_loads_party(False)
+
+
+def scenario_host_quickloads_party():
+    """The host presses quicksave then quickload: both games load it and rejoin as their saved characters."""
+    host_loads_party(True)
+
+
 GOLD_ITEM, ARMSMAN, FIREBOLT_SPELL = "0:F", "0:BABE4", "0:12FD0"  # as player_record lists them
 
 
@@ -9226,6 +9372,10 @@ SCENARIOS = {
     "guest-joins-by-invite": scenario_guest_joins_by_invite,
     "loaded-save-hosts-then-joins-friend": scenario_loaded_save_hosts_then_joins_friend,
     "guest-cannot-save": scenario_guest_cannot_save,
+    "guest-cannot-load": scenario_guest_cannot_load,
+    "host-loads-party": scenario_host_loads_party,
+    "host-quickloads-party": scenario_host_quickloads_party,
+    "host-menu-loads-party": scenario_host_menu_loads_party,
     "host-save-keeps-guest-character": scenario_host_save_keeps_guest_character,
     "guest-brings-character-into-hosts-world": scenario_guest_brings_character_into_hosts_world,
     "guest-joins-from-main-menu-as-kept-character": scenario_guest_joins_from_main_menu_as_kept_character,
@@ -9404,6 +9554,10 @@ TAGS = {
     "guest-joins-by-invite": {'session', 'steam', 'spawn', 'ui', 'two-accounts'},
     "loaded-save-hosts-then-joins-friend": {'session', 'steam', 'ui', 'two-accounts'},
     "guest-cannot-save": {'session', 'save'},
+    "guest-cannot-load": {'session', 'save', 'join'},
+    "host-loads-party": {'session', 'save', 'join'},
+    "host-quickloads-party": {'session', 'save', 'join'},
+    "host-menu-loads-party": {'session', 'save', 'join'},
     "host-save-keeps-guest-character": {'session', 'save', 'join'},
     "guest-brings-character-into-hosts-world": {'session', 'save', 'join'},
     "guest-joins-from-main-menu-as-kept-character": {'session', 'save', 'join'},

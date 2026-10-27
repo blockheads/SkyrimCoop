@@ -12,7 +12,8 @@ struct ConnectedEvent;
 /**
  * @brief Saving in a session (docs/design/join-flow.md, "Saving: only the host"): a guest's game, and one joining a
  * session, refuses every save and says why; the host's game saves as usual, with every player's character in its
- * SKSE co-save (CharacterRecords).
+ * SKSE co-save (CharacterRecords). Loads follow the host's selected save through the party reload; a guest's own
+ * loads are refused in chat too.
  */
 struct SaveService
 {
@@ -23,6 +24,10 @@ struct SaveService
     // The engine is about to save: false refuses it, and the chat says why (for the engine's own autosaves, once a
     // session).
     [[nodiscard]] bool OnSaveRequested(bool aAutosave = false) noexcept;
+    // Player-initiated loads: guests refuse; the host defers to the party reload. Internal transfers bypass this.
+    [[nodiscard]] bool OnLoadRequested(const std::string& acName) noexcept;
+    static constexpr const char* kLoadRefusal = "Only the host loads saves: your game can't load while you're in a co-op session.";
+
     // Whether this game may save now: not as a guest, nor while joining a session.
     [[nodiscard]] bool MaySave() const noexcept;
 

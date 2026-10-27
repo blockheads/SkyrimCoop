@@ -1724,3 +1724,17 @@ std::optional<IJoinBridge::SaveFiles> FakeEngine::PreviousSave() noexcept
             if (const auto f = SavedFiles.find(*i); f != SavedFiles.end()) return f->second;
     return std::nullopt;
 }
+
+std::optional<IJoinBridge::SaveFiles> FakeEngine::ReadSave(const std::string& acName) noexcept
+{
+    const auto it = SavedFiles.find(acName);
+    return it != SavedFiles.end() ? std::optional(it->second) : std::nullopt;
+}
+
+bool FakeEngine::PlayerLoads(const std::string& acName)
+{
+    if (!World::Get().ctx().at<SaveService>().OnLoadRequested(acName))
+        return false;
+    const auto cFiles = ReadSave(acName);
+    return cFiles && WriteAndLoad(acName, *cFiles);
+}

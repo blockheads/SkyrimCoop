@@ -28,12 +28,21 @@ struct BGSSaveLoadManager
     uint32_t currentCharacterId;
     uint8_t padD4[0x2C];
     GameArray<GameplaySaveEntry*> saveGameList;
+    // CommonLibSSE-NG SaveEntry: per-character catalogue, including the exact save quickload selects.
+    struct SaveEntry
+    {
+        uint8_t pad00[0x40];
+        BSFixedString lastQuicksave;
+    };
+    static_assert(offsetof(SaveEntry, lastQuicksave) == 0x40);
+    static_assert(sizeof(SaveEntry) == 0x48);
+    [[nodiscard]] std::string QuickSaveName() noexcept;
     [[nodiscard]] std::optional<std::string> PreviousGameplaySave() noexcept;
     static BGSSaveLoadManager* Get() noexcept;
 
     // Save_Impl(2, 0, name) (35727): a named save, written before it returns; false when the engine refused.
     bool Save(const char* apName) noexcept;
-    // Load_Impl(name, -1, 0, true) (35728): starts loading the save (TESLoadGameEvent follows).
+    // Internal party load through Load_Impl (35728), bypassing the player-load gate; TESLoadGameEvent follows.
     bool Load(const char* apName) noexcept;
 
     // Where a save of that name is written (.ess): BSWin32SaveDataSystemUtility::PrepareFileSavePath (109357).

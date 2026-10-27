@@ -1502,14 +1502,13 @@ What the first playtest build has besides what works today (the table above):
 15. **Menus that pause the game:** the host's map, journal (pause menu), crafting, lockpicking, barter, books or training
     pause its world, and with it every guest's NPCs (`UI.cpp`'s `kAllowList` unpauses only inventory, magic, stats,
     favourites, containers, message boxes, the console). Decide (no pause, or the party's pause) and test it.
-16. **The host's loads take the party along** (added 2026-10-26): the host's quickload or a save it loads from the
-    menu in a session loads only its own game today; the guests stay in the old world, still connected. Reuse the
-    party wipe's reload (`HostServiceReload.cpp`: the save to every guest, loaded on the host, the host's rules made
-    again, the guests load it and rejoin as their kept characters) with the chosen save instead of `PreviousSave()`,
-    caught where quickload and the load menu start loading (`Load_Impl` 35728). A guest's own loads are refused in
-    1.0, as its saves are already (`SaveService`; decided 2026-10-26: quickload and the load menu do nothing on a
-    guest's game, and the chat says why). Each guest comes back where the save left it (the wipe's fix,
-    2026-10-26).
+16. **The host's loads take the party along** (built 2026-10-26; [host-loads.md](design/host-loads.md)): host
+    quickload, menu and console loads send the chosen save to every guest through the wipe's reload and rebuild
+    the host's rules on the same listener. Each guest rejoins as its saved character at its saved place. A guest's
+    own loads are refused in chat, and a refused menu load releases its journal and loading fade. Quickload
+    bypasses `Load_Impl` (35728): it queues `0xD0000400` through 35769; its exact quicksave comes from the engine's
+    per-character `SaveEntry` (35789). GameTests cover three guests, an older chosen save and repeated loads;
+    Skyrim scenarios cover quickload, the Load menu, console loading, guest refusals and the shared wipe.
 17. **Friendly fire, always on** (`docs/design/friendly-fire.md`; built 2026-10-26, uncommitted, `.worktrees/friendly-fire`):
     players hurt, knock down and kill each other as NPCs would. A player's weapon hit on another player's copy is a
     request to that player's game (`HitRules`, the damage hook's rule), and hostile spells and shouts reach other

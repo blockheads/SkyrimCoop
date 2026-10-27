@@ -33,6 +33,18 @@ checkForMods)`), as CommonLibSSE-NG's `Load(name)`: `Load_Impl(name, -1, 0, true
 `BSWin32SaveDataSystemUtility` (vfunc 0x10 to open it, 0x88 to load it). `TESLoadGameEvent` follows the load
 (`LoadGameEvents`), after SKSE's co-save load.
 
+`SaveLoadManager.cpp` hooks this entry and quickload requests (35769) for [host loads](../../design/host-loads.md): a guest's own load is refused in
+chat; a host's selected save goes through the party wipe's transfer and rejoin. The bridge's internal `Load` calls
+the original trampoline so authorized party and join loads pass. The five-argument signature was checked against
+CommonLibSSE-NG and the 1.6.1170 disassembly at `0x140610480`.
+
+Quickload bypasses `Load_Impl`. `QuickSaveLoadHandler::ProcessButton` (52251) queues `0xD0000400` through 35769
+(`0x140612D70`, `void(BGSSaveLoadManager*, uint32_t)`). `Thread::ProcessEvents_Internal` (35772) inlines the load,
+selecting the character's `SaveEntry::lastQuicksave` through 35789 (`0x140617390`,
+`SaveEntry*(BGSSaveLoadManager*, const uint32_t*)`). `SaveEntry` is CommonLibSSE-NG's per-character catalogue;
+`lastQuicksave` has checked offset `0x40`. `LoadMostRecentSaveGame` (35766) has no direct callers in this build.
+The real quickload scenario checks the guest's own level rolls back, as well as the clock and saved positions.
+
 The manager is `BGSSaveLoadManager::singleton` (403340).
 
 ## Where a save or load can run (2026-10-24)

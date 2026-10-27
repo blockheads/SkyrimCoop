@@ -18,6 +18,7 @@ public:
     std::optional<SaveFiles> SaveNow(const std::string& acName) noexcept override;
     bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept override;
 
+    std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept override;
     std::optional<SaveFiles> PreviousSave() noexcept override;
 
     PlayerRecord ReadPlayer() const noexcept override;

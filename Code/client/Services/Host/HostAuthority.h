@@ -67,7 +67,7 @@ struct HostAuthority
     bool Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept;
     // Every frame: the session's tick (milliseconds) and the game time it took (seconds, none while paused).
     void Update(uint64_t aTick, double aDelta) noexcept;
-    // A party wipe (HostServiceReload.cpp): the previous save to every guest, delivered once every guest has it and
+    // A party reload (HostServiceReload.cpp): the selected save to every guest, delivered once every guest has it and
     // has left to load it; a failed reload's reason to every player.
     void SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept;
     [[nodiscard]] bool CheckpointDelivered() const noexcept { return m_transfer.Empty() && m_players.Count() <= 1; }
@@ -160,6 +160,7 @@ private:
     HostPlayerNatives m_playerNatives;
     HostRecords m_records;
     HostDeath m_death;
+    bool m_reloading{};
 };
 
 // A player's text as chat shows it: at most kChatMaxLength bytes (whole characters), no control characters.

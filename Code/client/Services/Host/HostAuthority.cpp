@@ -189,8 +189,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
 void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
 {
-    // A wipe: only the previous save's transfer runs until the host's game loads it.
-    if (m_death.Wiped())
+    // Only the save transfer runs until the host's game loads it.
+    if (m_reloading || m_death.Wiped())
     {
         m_transfer.Update(aTick);
         return;
@@ -230,7 +230,7 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
 {
     const auto cOpcode = acMessage.GetOpcode();
-    if (m_death.Wiped())
+    if (m_reloading || m_death.Wiped())
         return false;
     // A game that is not a player may only ask to join; anything else from it is dropped.
     if (cOpcode != kAuthenticationRequest && !m_players.IsPlayer(aSender))
@@ -343,6 +343,7 @@ std::string ChatText(std::string_view aText) noexcept
 
 void HostAuthority::SendCheckpoint(std::vector<NotifySaveChunk> aChunks) noexcept
 {
+    m_reloading = true;
     std::vector<ConnectionId_t> guests;
     m_players.ForEach([&](ConnectionId_t aConnection, const HostPlayers::Player& acPlayer) {
         if (!acPlayer.IsHost)

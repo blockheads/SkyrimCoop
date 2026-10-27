@@ -168,7 +168,7 @@ void HostService::MakeAuthority() noexcept
 
 void HostService::StopHosting() noexcept
 {
-    m_reloadRequested = m_readCheckpoint = m_loadingPrevious = false;
+    m_reloadRequested = m_readCheckpoint = m_loadingSave = false;
     m_checkpoint.reset();
     m_reloadJoins.clear();
     if (!IsHosting())

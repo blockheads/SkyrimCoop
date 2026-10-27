@@ -34,6 +34,20 @@ bool SaveService::OnSaveRequested(bool aAutosave) noexcept
     return false;
 }
 
+bool SaveService::OnLoadRequested(const std::string& acName) noexcept
+{
+    if (!MaySave())
+    {
+        m_dispatcher.trigger(SessionNoticeEvent{kLoadRefusal});
+        return false;
+    }
+    auto& host = m_world.GetHostService();
+    if (!host.IsHosting())
+        return true;
+    host.LoadSave(acName);
+    return false;
+}
+
 std::string SaveService::WriteCoSave() noexcept
 {
     m_dispatcher.trigger(GameSavingEvent{});

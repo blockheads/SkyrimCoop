@@ -28,6 +28,8 @@ public:
     // Writes a save's files under acName; the engine loads it on a main loop frame after (TESLoadGameEvent follows).
     virtual bool WriteAndLoad(const std::string& acName, const SaveFiles& acFiles) noexcept = 0;
 
+    // An existing save and its co-save, selected by the host.
+    [[nodiscard]] virtual std::optional<SaveFiles> ReadSave(const std::string& acName) noexcept = 0;
     // Most recent gameplay save of the current host character, excluding internal transfer saves.
     [[nodiscard]] virtual std::optional<SaveFiles> PreviousSave() noexcept = 0;
     // This game's player's character (no key, no place): docs/design/join-flow.md, "The character record".
