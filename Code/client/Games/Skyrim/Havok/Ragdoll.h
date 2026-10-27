@@ -23,6 +23,9 @@ struct hkbRagdollDriver
 };
 
 [[nodiscard]] std::vector<bhkWorldObject*> RagdollBodiesOf(const TESObjectREFR& acActor) noexcept;
+// Takes every graph's ragdoll out of the physics world, as Papyrus ObjectReference.ForceRemoveRagdollFromWorld does
+// (56128: BShkbAnimationGraph::RemoveRagdollFromWorld 63622 per graph, under the manager's lock).
+bool RemoveRagdollFromWorld(TESObjectREFR& aActor) noexcept;
 
 static_assert(offsetof(hkaRagdollInstance, rigidBodies) == 0x10);
 static_assert(offsetof(hkaRagdollInstance, rigidBodyCount) == 0x18);

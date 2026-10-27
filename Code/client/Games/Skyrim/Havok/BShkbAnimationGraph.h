@@ -13,6 +13,10 @@ struct Actor;
 struct BShkbAnimationGraph
 {
     virtual ~BShkbAnimationGraph(){};
+    // BSIRagdollDriver (CommonLibSSE-NG; 63620-63622 on 1.6.1170).
+    virtual bool HasRagdoll();             // 01
+    virtual bool AddRagdollToWorld();      // 02
+    virtual bool RemoveRagdollFromWorld(); // 03
 
     volatile LONG refCount; // 08, BSIntrusiveRefCounted
     uint8_t padC[0x68 - 0xC];

@@ -414,3 +414,26 @@ SCENARIO("Rebuilding a player's copy retains its owner's latest magicka", "[deat
     party.Agree("a fresh copy still has the owner's accepted values");
     CHECK(host.GetActorValue(PlayerCopy(host), FakeEngine::kMagicka) == 5000.f);
 }
+
+SCENARIO("Spectating is third person only: a view dropped into the watched player's head goes back out", "[death]")
+{
+    Party party(1, Plugins);
+    auto& guest = Party::Engine(party.Guest());
+    party.Agree("both players are present");
+    auto& death = party.Guest().ctx().at<DeathService>();
+    party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+    party.Until([&] { return death.Spectating() != 0; }, "the dead guest spectates the host");
+
+    guest.FirstPerson = true; // the POV key, or a zoom all the way in
+    party.Until([&] { return !guest.FirstPerson; }, "the view goes back to third person");
+
+    WHEN("the guest stands again")
+    {
+        party.As(party.Host(), [] {});
+        Frames(party, 660);
+        party.Until([&] { return !death.IsDown(); }, "the guest respawns");
+        guest.FirstPerson = true;
+        Frames(party, 5);
+        THEN("its own first person view is its to keep") CHECK(guest.FirstPerson);
+    }
+}

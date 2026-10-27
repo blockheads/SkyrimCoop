@@ -350,8 +350,8 @@ void MagicService::OnNotifyAddTarget(const NotifyAddTarget& acMessage) noexcept
                                        acMessage.ApplyHealPerkBonus, acMessage.ApplyStaminaPerkBonus);
 
     // A harmful spell from another player: our actor reacts as if it had physically been hit
-    // (fights back, flees, raises the alarm), against that player's character here.
-    if (cCasterFormId && !m_formBridge.IsHealingSpell(cSpellId) && !m_formBridge.IsBuffSpell(cSpellId))
+    // (fights back, flees, raises the alarm), against that player's character here. Our player does not.
+    if (cCasterFormId && cTargetFormId != 0x14 && !m_formBridge.IsHealingSpell(cSpellId) && !m_formBridge.IsBuffSpell(cSpellId))
         m_actorBridge.ReactToAttack(cTargetFormId, cCasterFormId);
     spdlog::debug("Applied remote magic effect");
 }

@@ -11,6 +11,7 @@
 #include <Bridges/IBodyBridge.h>
 
 #include <Games/QuestChanges.h>
+#include <Games/Skyrim/HitRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
 #include <Papyrus/PartyRules.h>
@@ -82,7 +83,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall).
     void Queue(LocalCall aCall, uint32_t aCause);
     void RunQueued();
-    // One frame: the shake wears off, knocked-down ragdolls come to rest, the VM runs what is queued.
+    // One frame: the shake wears off, knocked-down ragdolls come to rest, the VM runs what is queued; copies are drawn,
+    // then their graphs update (one lying in its ragdoll put on its root body, as the engine keeps any actor).
     void Frame();
 
     // A world reference (every game has the same load order: a form id is the same everywhere).
@@ -154,6 +156,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         uint32_t RagdollOf = 0; // an actor's ragdoll body: its animation drives it while the actor lives
     };
     std::map<BodyKey, Body> Bodies;
+    // A ragdolled actor's heading as this engine turns it with its root body: where the body's y axis points, about z.
+    static float HeadingOf(const glm::quat& acRotation) noexcept;
     // The host's player knocks it: it wakes and flies off at that velocity.
     void Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin = {});
     // This game's physics steps up to aTick (HostGame::TakeBodies, a guest's GuestEngine::TakeOwnBodies): the awake
@@ -200,7 +204,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         float Position[3]{};
         float Rotation[3]{};
         bool Dead = false;
-        bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown)
+        bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
+                                   // owner on its ragdoll before it simulates (knock state 2)
+        uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
         bool Bleeding = false; // essential and down (ActorState's bleedout)
         bool Disabled = false;
         bool Deleted = false;    // marked deleted (DisableActor's aDelete)
@@ -226,7 +232,13 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         uint32_t ResurrectCalls = 0;
         uint32_t ValueWrites = 0;
         uint32_t Made = 0; // which actor at this form id: a reused id is a new one (a fresh ActorExtension)
+        // Where it stood at its last graph update (Frame). A skeleton its ragdoll poses, its actor moved after the graph
+        // update, is drawn in its old pose at the new place for a frame: a snap.
+        float GraphPlace[4]{}; // x, y, z, heading
+        uint32_t Snaps = 0;
+        float WorstSnap = 0.f; // units: the move, and the turn at a body's reach (kSnapReach)
     };
+    static constexpr float kSnapReach = 60.f;
     struct Npc
     {
         std::string Name;
@@ -276,10 +288,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         bool Concentration = false;
         bool Healing = false;
         bool Buff = false;
+        bool Damage = false; // its effect damages health
     };
     std::map<uint32_t, SpellForm> SpellForms{{0x00012FCD, {.Concentration = true}},                  // Flames
                                              {0x00012FCC, {.Concentration = true, .Healing = true}}, // Healing
-                                             {0x0005AD5C, {.Buff = true}}};                          // Oakflesh
+                                             {0x0005AD5C, {.Buff = true}},                           // Oakflesh
+                                             {0x0001C789, {.Damage = true}}};                        // Firebolt
     // A cast this game's engine made (ActorMagicCaster::SpellCast), and an effect it applied (MagicTarget::AddTarget).
     struct Cast
     {
@@ -317,6 +331,14 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
                               bool aApplyStaminaPerkBonus) noexcept override
     {
         Effects.push_back({aTargetFormId, aCasterFormId, aSpellFormId, aEffectFormId});
+        // A damaging effect's value goes through the damage hook while applied (HookApplyActorEffect).
+        if (Spell(aSpellFormId).Damage)
+            TakesDamage(aTargetFormId, aCasterFormId, aMagnitude, true);
+    }
+    uint32_t GetKillerFormId(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() && it->second.Dead ? it->second.KilledBy : 0;
     }
     void ReactToAttack(uint32_t aVictimFormId, uint32_t aAttackerFormId) noexcept override
     {
@@ -346,6 +368,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // Combat. A melee hit, as our hook on Actor::DamageActor (Actor.cpp) takes it: raised as a hit, and a hit of this
     // game's player on another's actor raised as a health change and not applied here (its owner applies it).
     void Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage);
+    // Damage reaching an actor as HookDamageActor takes it (HitRules), from a swing or an effect being applied.
+    void TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect);
+    [[nodiscard]] HitRules::Party PartyOf(uint32_t aFormId) const noexcept;
     // A projectile this game's actor launched (our hook on Projectile::Launch raises it); one another game's actor
     // launched, relaunched here (LaunchProjectile).
     void Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin);
@@ -463,6 +488,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // IActorBridge, IPlayerBridge: the actor model's.
     std::vector<uint32_t> GetLoadedActorFormIds() const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
+    // A copy's skeleton is posed by its ragdoll: lying knocked down, or dead with the owner's ragdoll held.
+    [[nodiscard]] bool RagdollPosed(uint32_t aFormId) const noexcept;
+
     bool ActorExists(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId); }
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
@@ -475,6 +503,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
+    // Dead with a ragdoll, or its ragdoll's bodies awake (knocked down): as Actor::LiesInRagdoll.
+    bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     bool IsActorDead(uint32_t aFormId) const noexcept override;
     void KillActor(uint32_t aFormId) noexcept override;
@@ -494,7 +524,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetActorPersistent(uint32_t aFormId) noexcept override;
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
-                             const AnimationVariables& aVariables) noexcept override;
+                             const AnimationVariables& aVariables, bool aPlace) noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     void SetActorValue(uint32_t aFormId, int32_t aIndex, float aValue) noexcept override;
@@ -545,6 +575,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     uint32_t DeathControlsBefore{};
     bool DeathControlsHeld{};
     void SetSpectatorTarget(uint32_t aFormId) noexcept override { CameraTarget = aFormId ? aFormId : kPlayer; }
+    bool FirstPerson{}; // the camera's view: in its target's head (PlayerCamera::KeepSpectating)
+    void KeepSpectatorView() noexcept override
+    {
+        if (CameraTarget != kPlayer)
+            FirstPerson = false;
+    }
     void HoldDeathControls(bool aHold) noexcept override;
     bool IsScriptCameraHeld() const noexcept override { return (Holds.HeldExcept(0xFFFFFFFE) & PartyRules::kMovement) != 0; }
 

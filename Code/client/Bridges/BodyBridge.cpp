@@ -7,6 +7,7 @@
 #include <Actor.h>
 #include <FormIds.h>
 #include <Messages/WorldState.h>
+#include <Physics/BodyPrediction.h>
 #include <TESObjectREFR.h>
 
 #include <RTTI.h>
@@ -94,6 +95,13 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
         return true;
     if (!cFound.pBody)
         return false;
+    // A ragdoll's body steered onto the frame, not placed: its ragdoll driver makes a placed (keyframed) body simulated
+    // again each update, so the two would fight (physics-sync.md, "A copy's ragdoll, steered"). Placed when far off.
+    if (BodyRead read; acFrame.Key.Actor && ReadBody(*cFound.pBody, read) && glm::distance(read.Position, acFrame.Position) < kSteerDistance)
+    {
+        const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame);
+        return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
+    }
     RememberMotion(acFrame.Key, cFound);
     if (!PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation, acFrame.LinearVelocity, acFrame.AngularVelocity))
         return false;
@@ -110,6 +118,11 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         return true;
     if (!cFound.pBody)
         return false;
+    // A living copy's rest is its owner's getting up: its own ragdoll, steered there, gets up as the owner's does. Held
+    // there instead, its bodies stay at the rest while it stands, and its next knock flings them from it.
+    if (acPose.Key.Actor)
+        if (const auto* pCopy = Cast<Actor>(TESForm::GetById(aCopyFormId)); pCopy && !pCopy->IsDead())
+            return true;
     // A reference's body not held and already there (the owner's settle in place): moving it would record a move
     // here the owner's game has not.
     if (BodyRead read; cFound.pCollision && !m_motions.contains(acPose.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic &&

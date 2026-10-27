@@ -1313,8 +1313,8 @@ void HookRotateZ(TESObjectREFR* apThis, float aAngle)
     if (apThis->formType == Actor::Type)
     {
         const auto pActor = static_cast<Actor*>(apThis);
-        // We don't allow remotes to move
-        if (pActor->GetExtension()->IsCopy())
+        // We don't allow remotes to move, but where we let the engine (a copy lying in its ragdoll: HookTransformDelta)
+        if (pActor->GetExtension()->IsCopy() && !ScopedReferencesOverride::IsOverriden())
             return;
     }
 

@@ -76,6 +76,8 @@ void DeathService::OnUpdate(const UpdateEvent& acEvent) noexcept
             GoDown(false);
     }
     m_remaining = std::max(0.0, m_remaining - acEvent.Delta);
+    if (m_shown)
+        m_playerBridge.KeepSpectatorView();
 }
 
 void DeathService::OnConnected(const ConnectedEvent& acEvent) noexcept
@@ -170,6 +172,10 @@ void DeathService::SendDeathState() const noexcept
     request.SessionId = m_characterId;
     request.Generation = m_generation;
     request.Down = m_down;
+    // Who killed it, for the chat line (another player: friendly-fire.md).
+    if (m_down)
+        if (const uint32_t cKiller = m_actorBridge.GetKillerFormId(0x14))
+            request.KillerId = Utils::GetSessionIdByFormId(cKiller).value_or(0);
     m_transport.Send(request);
 }
 

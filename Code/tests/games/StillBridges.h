@@ -62,6 +62,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     void SetSpectatorTarget(uint32_t) noexcept override {}
+    void KeepSpectatorView() noexcept override {}
     void HoldDeathControls(bool) noexcept override {}
     bool IsScriptCameraHeld() const noexcept override { return false; }
     uint32_t GetDifficulty() const noexcept override
@@ -484,9 +485,13 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
     }
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
-                             const AnimationVariables& aVariables) noexcept override
+                             const AnimationVariables& aVariables, bool aPlace) noexcept override
     {
         return {};
+    }
+    bool IsLyingInRagdoll(uint32_t) const noexcept override
+    {
+        return false;
     }
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override
     {

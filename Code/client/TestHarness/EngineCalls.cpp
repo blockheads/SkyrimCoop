@@ -549,6 +549,7 @@ std::optional<std::vector<ReferenceState::Body>> GetRagdoll(uint32_t aActorFormI
         body.Rotation[1] = read.Rotation.y;
         body.Rotation[2] = read.Rotation.z;
         body.Rotation[3] = read.Rotation.w;
+        body.HasBone = BoneOf(*pBody, body.Bone);
     }
     return bodies;
 }
@@ -1440,6 +1441,67 @@ bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction,
     return GlobalCall::QueueCall(cCall);
 }
 
+namespace
+{
+// A node of the reference's 3D by name (NiAVObject::GetObjectByName), in world space.
+std::optional<glm::vec3> NodePosition(TESObjectREFR* apRef, const BSFixedString& acName) noexcept
+{
+    NiNode* pRoot = apRef->GetNiNode();
+    const NiAVObject* pNode = pRoot ? pRoot->GetByName(acName) : nullptr;
+    if (!pNode)
+        return std::nullopt;
+    return glm::vec3(pNode->world.translate.x, pNode->world.translate.y, pNode->world.translate.z);
+}
+} // namespace
+
+bool BoneOf(const bhkWorldObject& acBody, float aPosition[3]) noexcept
+{
+    using TFindCollidableObject = NiAVObject*(const void*);
+    POINTER_SKYRIMSE(TFindCollidableObject, s_findCollidableObject, 15870);
+    const NiAVObject* pNode = acBody.referencedObject ? s_findCollidableObject(acBody.referencedObject->collidable) : nullptr;
+    if (!pNode)
+        return false;
+    aPosition[0] = pNode->world.translate.x;
+    aPosition[1] = pNode->world.translate.y;
+    aPosition[2] = pNode->world.translate.z;
+    return true;
+}
+
+bool IsInRagdollState(uint32_t aFormId) noexcept
+{
+    using TIsInRagdollState = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && s_isInRagdollState.Get()(pActor);
+}
+
+std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor)
+        return std::nullopt;
+    static const BSFixedString s_pelvis("NPC Pelvis [Pelv]");
+    static const BSFixedString s_head("NPC Head [Head]");
+    const auto cPelvis = NodePosition(pActor, s_pelvis);
+    const auto cHead = NodePosition(pActor, s_head);
+    if (!cPelvis || !cHead)
+        return std::nullopt;
+    // Down from above its feet (a body lying on its back starts in its own collision: passed through).
+    const glm::vec3 cFeet(pActor->position.x, pActor->position.y, pActor->position.z);
+    const float cFrom[3]{cFeet.x, cFeet.y, cFeet.z + 50.f};
+    const float cTo[3]{cFeet.x, cFeet.y, cFeet.z - 2000.f};
+    const auto cFloor = CastRay(cFrom, cTo, 30, aFormId);
+    if (!cFloor || !cFloor->Hit)
+        return std::nullopt;
+    const float cFloorZ = cFloor->Point[2];
+    static const BSFixedString s_skeleton("NPC Root [Root]");
+    NiNode* pRoot = pActor->GetNiNode();
+    const float cRootZ = pRoot ? pRoot->world.translate.z : cFeet.z;
+    return BodyPose{.FloorGap = cFeet.z - cFloorZ, .Root = cRootZ - cFloorZ,
+                    .Skeleton = NodePosition(pActor, s_skeleton).value_or(glm::vec3(cFeet.x, cFeet.y, cRootZ)).z - cFloorZ,
+                    .Pelvis = cPelvis->z - cFloorZ, .Head = cHead->z - cFloorZ, .Floor = cFloor->Reference};
+}
+
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept
 {
     PlayerCamera* pCamera = PlayerCamera::Get();
@@ -1454,12 +1516,35 @@ std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept
     view.Position[1] = cWorld.translate.y;
     view.Position[2] = cWorld.translate.z;
     // A NiCamera looks along its local x axis: the first column of its world rotation.
-    const glm::vec3 cForward(cWorld.rotate[0][0], cWorld.rotate[1][0], cWorld.rotate[2][0]);
+    const glm::vec3 cForward = glm::normalize(glm::vec3(cWorld.rotate[0][0], cWorld.rotate[1][0], cWorld.rotate[2][0]));
+    for (int axis = 0; axis < 3; ++axis)
+        view.Forward[axis] = cForward[axis];
     view.Yaw = glm::degrees(std::atan2(cForward.x, cForward.y));
     view.Pitch = glm::degrees(std::asin(std::clamp(-cForward.z, -1.f, 1.f)));
     if (const CrosshairPickData* pPick = CrosshairPickData::Get())
         if (TESObjectREFR* pRef = TESObjectREFR::GetByHandle(pPick->targetHandle))
             view.Crosshair = pRef->formID;
+
+    const glm::vec3 cCamera(cWorld.translate.x, cWorld.translate.y, cWorld.translate.z);
+    const glm::vec3 cAhead = cCamera + cForward * 4096.f;
+    const float cFrom[3]{cCamera.x, cCamera.y, cCamera.z};
+    const float cTo[3]{cAhead.x, cAhead.y, cAhead.z};
+    view.Looking = CastRay(cFrom, cTo);
+    if (TESObjectREFR* pFollowed = TESObjectREFR::GetByHandle(pCamera->cameraTarget))
+    {
+        view.Following = pFollowed->formID;
+        static const BSFixedString s_head("NPC Head [Head]");
+        const glm::vec3 head = NodePosition(pFollowed, s_head)
+                                   .value_or(glm::vec3(pFollowed->position.x, pFollowed->position.y, pFollowed->position.z + 115.f));
+        for (int axis = 0; axis < 3; ++axis)
+            view.FollowedHead[axis] = head[axis];
+        // First person sits in the head: nothing to see between them.
+        if (glm::distance(head, cCamera) > 20.f)
+        {
+            const float cHead[3]{head.x, head.y, head.z};
+            view.Sight = CastRay(cHead, cFrom, 30, pFollowed->formID);
+        }
+    }
 
     if (Actor* pTarget = aTargetFormId ? GetActor(aTargetFormId) : nullptr)
     {
@@ -1812,7 +1897,7 @@ namespace
 std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept;
 } // namespace
 
-std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept
+std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer, uint32_t aThrough) noexcept
 {
     // Past the camera's own collision (kCameraSphere 36, kCameraPick 39) and the player's: they are not the world.
     const glm::vec3 cStart(acFrom[0], acFrom[1], acFrom[2]);
@@ -1829,7 +1914,7 @@ std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32
                 hit->Distance = glm::distance(cStart, cEnd);
             return hit;
         }
-        if (hit->Layer != 36 && hit->Layer != 39 && hit->Reference != 0x14)
+        if (hit->Layer != 36 && hit->Layer != 39 && hit->Reference != 0x14 && (!aThrough || hit->Reference != aThrough))
         {
             hit->Distance = glm::distance(cStart, glm::vec3(hit->Point[0], hit->Point[1], hit->Point[2]));
             return hit;

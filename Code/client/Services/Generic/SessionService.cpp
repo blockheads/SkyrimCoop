@@ -35,7 +35,9 @@ void SessionService::OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept
 
 void SessionService::OnPlayerPerished(const NotifyPlayerPerished& acMessage) const noexcept
 {
-    m_dispatcher.trigger(SessionNoticeEvent{acMessage.Username + " has perished.", true});
+    m_dispatcher.trigger(SessionNoticeEvent{acMessage.KillerName.empty() ? acMessage.Username + " has perished."
+                                                                         : acMessage.Username + " was killed by " + acMessage.KillerName + ".",
+                                            true});
 }
 
 void SessionService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) noexcept

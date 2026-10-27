@@ -56,6 +56,7 @@ default to this machine; override with SKYRIM_GAME_DIR, SKYRIM_PROTON_DIR,
 SKYRIM_RUNTIME_DIR. Every game run keeps its logs in build/coop-test/runs/<time>/.
 """
 import argparse
+import bisect
 import collections
 import contextlib
 import fnmatch
@@ -3279,6 +3280,102 @@ def camera_view(instance):
     return v["state"], v["yaw"], v["pitch"], v["position"]
 
 
+# COL_LAYER of characters' controllers (an actor), as the harness's rays report it.
+CHARACTER_LAYER = 30
+
+# TESCameraState::Id
+CAMERA_STATES = ["first person", "auto vanity", "VATS", "free", "iron sights", "furniture", "transition", "tween",
+                 "animated", "third person", "mount", "bleedout", "dragon"]
+
+
+def camera(instance):
+    """That game's camera (harness `camera`): where it is and looks, what its view ray meets, whom it follows and
+    whether a ray from their head reaches it (`sight`: a hit puts the camera behind or inside a wall or ceiling)."""
+    return player_command(instance, {"cmd": "camera"})
+
+
+def hit_name(ray):
+    """What a harness ray hit: its reference, or the cell's own collision."""
+    return f"{ray['ref']:08X}" if ray.get("ref") else "the cell"
+
+
+def camera_report(instance, view=None):
+    """One line on that game's camera, as a person would say what the screen shows."""
+    v = view or camera(instance)
+    state = v["state"]
+    mode = CAMERA_STATES[state] if state < len(CAMERA_STATES) else f"state {state}"
+    at = [round(x) for x in v["position"]]
+    looking = v.get("looking") or {}
+    if looking.get("hit"):
+        meets = f"meets {hit_name(looking)} (layer {looking['layer']}) {looking['distance']:.0f} units ahead"
+    else:
+        meets = "meets nothing within 4096 units" if looking else "no ray"
+    line = f"{mode} at {at}, yaw {v['yaw']:.0f} pitch {v['pitch']:.0f}, {meets}"
+    if v.get("crosshair"):
+        line += f", crosshair on {v['crosshair']:08X}"
+    if v.get("following"):
+        sight = v.get("sight")
+        if sight is None:
+            seen = "sight not cast (in its head, or no physics world)"
+        elif sight.get("hit") and sight["layer"] == CHARACTER_LAYER:
+            seen = f"sees its head past {hit_name(sight)} (an actor in the way, {sight['distance']:.0f} units from its head)"
+        elif sight.get("hit"):
+            seen = (f"BLOCKED by {hit_name(sight)} (layer {sight['layer']}) "
+                    f"{sight['distance']:.0f} units from its head, {distance(v['followed_head'], v['position']):.0f} from the camera")
+        else:
+            seen = "sees its head"
+        line += f"; follows {v['following']:08X}: {seen}"
+    return line
+
+
+def spectating_stays_third_person(instance):
+    """A spectating player switches to first person (the POV key): the view goes back to third person behind the
+    watched player, not into its head."""
+    player_command(instance, {"cmd": "first_person"})
+    third_person = CAMERA_STATES.index("third person")
+    wait_for(f"[{instance or 'host'}] the spectator's view goes back to third person",
+             lambda: camera(instance)["state"] == third_person, 3)
+    camera_sees_followed(instance, "spectating, after the POV key")
+
+
+def screen_lines(instance):
+    """What that game's screen shows of the party: its camera and every player's body there (own and copies)."""
+    who = instance or "host"
+    try:
+        lines = [f"  [{who}] camera: {camera_report(instance)}"]
+    except (TestFailure, OSError, KeyError) as error:
+        return [f"  [{who}] camera: none ({error})"]
+    select_instance(instance)
+    for form_id, snapshot in ((read_status() or {}).get("world") or {}).items():
+        if snapshot.get("player"):
+            whose = "its player" if int(form_id) == 0x14 else f"copy {int(form_id):08X}"
+            lines.append(f"  [{who}] {whose}: {body_report(snapshot)}")
+    return lines
+
+
+def command_look(args):
+    """What both screens show now: each camera (where it is, what it looks at, whether it sees whom it follows) and
+    each player's body (on the floor, standing, lying), with what looks wrong in capitals."""
+    while True:
+        report = "\n".join(screen_lines("") + screen_lines("client"))
+        if not args.follow:
+            print(report)
+            return
+        print("\033[2J\033[H" + time.strftime("%H:%M:%S\n") + report + "\n\n(Ctrl+C to stop)", flush=True)
+        time.sleep(0.5)
+
+
+def camera_sees_followed(instance, what):
+    """The camera is in the open with whoever it follows: a ray from their head reaches it (not in a ceiling, wall or
+    floor; an actor in between is fine). Fails naming what is in between."""
+    view = camera(instance)
+    sight = view.get("sight")
+    if view.get("following") and sight and sight.get("hit") and sight["layer"] != CHARACTER_LAYER:
+        raise TestFailure(f"[{instance or 'host'}] {what}: the camera is cut off from {view['following']:08X}: "
+                          f"{camera_report(instance, view)}")
+    return view
+
+
 def same_view(what, degrees=2, units=15):
     """Both games show the same view: the camera in the same mode, at the same spot, turned the same way. The
     spot within 15 units: a follower goes where the leader arrived, and the leader settles a few units after."""
@@ -4977,6 +5074,7 @@ def death_spectate_respawn(victim):
         console_on("", f"{npc:X}.startcombat {observer_target:X}")
         if not is_dead(player_snapshot(victim)):
             raise TestFailure("the downed player is not dead (essential, or bleeding out)")
+        camera_sees_followed(victim, "the death camera")
         def copy_of_victim():
             return actor_snapshot(survivor, other_player(actors_on(survivor)))
         wait_for("the other game's copy dies with its owner", lambda: is_dead(copy_of_victim()), 5)
@@ -4984,6 +5082,8 @@ def death_spectate_respawn(victim):
         ragdoll_lies_as_owner(victim, 0x14, survivor, other_player(actors_on(survivor)))
         wait_for("spectator camera has a standing player once the player is dead",
                  lambda: death_state(victim).get("spectating"), 10)
+        camera_sees_followed(victim, "spectating")
+        spectating_stays_third_person(victim)
         try:
             wait_for("the host counts combat against the standing player",
                      lambda: death_state(victim).get("status") == "Party in combat", 5)
@@ -5031,6 +5131,7 @@ def death_spectate_respawn(victim):
             raise TestFailure("the player did not respawn beside the standing party")
         if death_state(victim).get("spectating"):
             raise TestFailure("the camera did not return to the respawned player")
+        camera_sees_followed(victim, "after the respawn")
         start = my_position(victim)
         press(victim, "forward")
         try:
@@ -5120,7 +5221,196 @@ def scenario_death_host_npc():
         hold()
 
 
-# --- Combat: the client hits the host's NPC; its owner applies it ---------------------------
+# --- Friendly fire: a player's hit on another player goes to that player's game (friendly-fire.md) -----
+
+def player_health(instance):
+    return (player_snapshot(instance).get("values") or {}).get("health")
+
+
+def friendly_fire(attacker, weapon):
+    """The attacker's player hits the other player's copy with `weapon` ("sword" or "firebolt"): the victim's own
+    player loses health on its game, the attacker's copy of it shows that value, and the victim's game runs no NPC's
+    reaction to its player (no combat against the attacker)."""
+    victim = "client" if attacker == "" else ""
+    for instance in ("", "client"):
+        console_on(instance, "player.restoreav health 10000")
+    copy = other_player(actors_on(attacker))
+    if copy is None:
+        raise TestFailure(f"[{attacker or 'host'}] no copy of the other player")
+    if weapon == "sword":
+        give_sword(attacker)
+        place_before(attacker, copy, MELEE_GAP)
+    else:
+        give_spell(attacker, FIREBOLT)
+        place_before(attacker, copy, SPELL_GAP)
+    draw(attacker)
+    before = player_health(victim)
+    if weapon == "sword":
+        attack(attacker)
+    else:
+        cast_spell(attacker, copy, FIREBOLT)
+    after = wait_for(f"[{victim or 'host'}] the victim's own player takes the {weapon}",
+                     lambda: (h := player_health(victim)) is not None and h < before - 0.5 and h, 3)
+    log(f"[{victim or 'host'}] player health {before:.0f} -> {after:.0f}")
+    wait_on(attacker, "the attacker's copy of the victim shows its health",
+            lambda actors: close(actors.get(str(copy), {}).get("health"), player_health(victim)), 5)
+    if (player_snapshot(victim).get("ai") or {}).get("combat_target"):
+        raise TestFailure(f"[{victim or 'host'}] the victim's player went into combat with its teammate")
+    sheathe(attacker)
+    console_on(victim, "player.restoreav health 10000")
+    hold()
+
+
+def scenario_friendly_fire_guest_sword():
+    """The guest's sword on the host's player: the host's game applies it."""
+    friendly_fire("client", "sword")
+
+
+def scenario_friendly_fire_host_sword():
+    """The host's sword on the guest's player: the guest's game applies it."""
+    friendly_fire("", "sword")
+
+
+def scenario_friendly_fire_guest_firebolt():
+    """The guest's Firebolt on the host's player: the host's game applies it."""
+    friendly_fire("client", "firebolt")
+
+
+def scenario_friendly_fire_host_firebolt():
+    """The host's Firebolt on the guest's player: the guest's game applies it."""
+    friendly_fire("", "firebolt")
+
+
+def scenario_friendly_fire_kill():
+    """The host's sword kills the guest: a real death on the guest's game (its copy dies with it), the guest spectates,
+    and both chats name the killer."""
+    attacker, victim = "", "client"
+    names = {instance: player_record(instance)["name"] for instance in ("", "client")}
+    for instance in ("", "client"):
+        console_on(instance, "player.restoreav health 10000")
+    copy = other_player(actors_on(attacker))
+    try:
+        console_on(attacker, "set KillMoveRandom to 0")
+        give_sword(attacker)
+        give_sword(victim)
+        health = player_health(victim) or 100
+        if health > 3:
+            console_on(victim, f"player.damageav health {health - 3:.6f}")
+        wait_on(attacker, "the attacker's copy shows the victim nearly dead",
+                lambda actors: (actors.get(str(copy), {}).get("health") or 100) <= 3.5, 5)
+        place_before(attacker, copy, MELEE_GAP)
+        draw(attacker)
+        attack(attacker)
+        wait_for("[client] the host's blow kills the guest", lambda: death_state(victim).get("down"), 5)
+        if not is_dead(player_snapshot(victim)):
+            raise TestFailure("the downed guest is not dead (essential, or bleeding out)")
+        camera_sees_followed(victim, "the death camera")
+        wait_for("the host's copy of the guest dies with it", lambda: is_dead(actor_snapshot(attacker, copy)), 5)
+        line = f"{names[victim]} was killed by {names[attacker]}."
+        for instance in ("", "client"):
+            wait_for(f"[{instance or 'host'}] the chat names the killer", lambda: line in system_chat(instance), 5)
+        killer = (player_snapshot(victim).get("ai") or {}).get("killer")
+        if killer != other_player(actors_on(victim)):
+            raise TestFailure(f"[client] the engine's killer is {killer or 0:08X}, not the host's copy")
+        wait_for("[client] the dead guest spectates the host", lambda: death_state(victim).get("spectating"), 10)
+        camera_sees_followed(victim, "spectating")
+        spectating_stays_third_person(victim)
+        sheathe(attacker)
+        wait_for("[client] the guest respawns beside the host once the party is clear",
+                 lambda: not death_state(victim).get("down"), 20)
+        wait_for("[client] the respawned guest is alive", lambda: not is_dead(player_snapshot(victim))
+                 and (player_health(victim) or 0) > 0, 8)
+        camera_sees_followed(victim, "after the respawn")
+    finally:
+        console_on(attacker, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+        console_on(victim, "player.restoreav health 10000")
+
+
+def scenario_kill_move_kills_guest():
+    """The host's kill move kills the guest: one pair on both games, a real death named in both chats, the guest's
+    ragdoll on its game and its copy's on the host's move as bodies do (no back and forth, no flickers), and the guest
+    stands on its feet after the respawn."""
+    attacker, victim = "", "client"
+    names = {instance: player_record(instance)["name"] for instance in ("", "client")}
+    for instance in ("", "client"):
+        console_on(instance, "player.restoreav health 10000")
+    copy = other_player(actors_on(attacker))
+    try:
+        console_on(attacker, "set KillMoveRandom to 100")
+        give_sword(attacker)
+        health = player_health(victim) or 100
+        if health > 3:
+            console_on(victim, f"player.damageav health {health - 3:.6f}")
+        wait_on(attacker, "the attacker's copy shows the victim nearly dead",
+                lambda actors: (actors.get(str(copy), {}).get("health") or 100) <= 3.5, 5)
+        place_before(attacker, copy, MELEE_GAP)
+        draw(attacker)
+        with RagdollTrace("kill-move-kills-guest", {victim: {0x14: "the guest's body"}, attacker: {copy: "the host's copy of the guest"}}) as trace:
+            attack(attacker)
+            wait_for("[host] the kill move pairs the host with the guest's copy",
+                     lambda: graph_bools(attacker, "bIsSynced")["bIsSynced"], 3)
+            wait_for("[client] the guest dies in the kill move", lambda: death_state(victim).get("down") and is_dead(player_snapshot(victim)), 8)
+            def at_rest():
+                trace.take()
+                bodies = ragdoll_of(victim, 0x14) + ragdoll_of(attacker, copy)
+                return bodies and not any(b["awake"] for b in bodies)
+            try:
+                wait_for("both games' bodies of the guest come to rest", at_rest, 15)
+            except TestFailure:
+                pass  # the trace says what kept moving
+            rested = time.monotonic()
+            wait_for("two seconds at rest", lambda: time.monotonic() - rested >= 2, 3)
+        log(trace.report())
+        line = f"{names[victim]} was killed by {names[attacker]}."
+        for instance in ("", "client"):
+            wait_for(f"[{instance or 'host'}] the chat names the killer", lambda: line in system_chat(instance), 5)
+        sheathe(attacker)
+        wait_for("[client] the guest respawns beside the host", lambda: not death_state(victim).get("down"), 25)
+        settled = time.monotonic()
+        wait_for("three seconds standing", lambda: time.monotonic() - settled >= 3, 4)
+        problems = []
+        for instance, actor in ((victim, 0x14), (attacker, other_player(actors_on(attacker)))):
+            snapshot = actor_snapshot(instance, actor)
+            if body_problems(snapshot):
+                problems.append(f"[{instance or 'host'}] the respawned guest's body: {body_report(snapshot)}")
+        try:
+            trace.check()
+        except TestFailure as failure:
+            problems.append(str(failure))
+        if problems:
+            raise TestFailure(" | ".join(problems))
+    finally:
+        console_on(attacker, f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+        console_on(victim, "player.restoreav health 10000")
+
+
+def scenario_spectator_watches_kill_move():
+    """The guest is dead and spectates the host while the host kills a wolf with a kill move: the guest's view stays
+    third person behind the host, with nothing between them, through the whole kill move."""
+    npc, _, copy = spawn_host_npc(WOLF, restrained=True)
+    third_person = CAMERA_STATES.index("third person")
+    try:
+        console_on("", "set KillMoveRandom to 100")
+        give_sword("")
+        draw("")
+        console_on("client", "player.kill")
+        wait_for("[client] the dead guest spectates the host", lambda: death_state("client").get("spectating"), 15)
+        console_on("", f"{npc:08X}.damageav health {host_world(npc)['values']['health'] - 3:.0f}")
+        front = math.degrees(host_world(npc)["placement"]["rotation"][2])
+        place_before("", npc, MELEE_GAP, front)
+        attack("")
+        wait_for("[host] the kill move pairs the host with the wolf", lambda: graph_bools("", "bIsSynced")["bIsSynced"], 3)
+        while graph_bools("", "bIsSynced")["bIsSynced"]:
+            view = camera_sees_followed("client", "spectating a kill move")
+            if view["state"] != third_person:
+                raise TestFailure(f"[client] the spectator's view left third person during the kill move: {camera_report('client', view)}")
+        wait_for("[host] the wolf dies", lambda: host_world(npc).get("state", {}).get("dead"), 8)
+        sheathe("")
+        wait_for("[client] the guest respawns beside the host", lambda: not death_state("client").get("down"), 30)
+    finally:
+        console_on("", f"set KillMoveRandom to {KILL_MOVE_RANDOM}")
+        console_on("client", "player.restoreav health 10000")
+        remove_host_npc(npc)
 
 def scenario_melee_client_hits_host_npc():
     """Client hits the host's NPC with a sword: the host's real NPC loses health, the client's copy
@@ -7183,6 +7473,245 @@ class FlightTrace:
             raise TestFailure(f"[client] its playback of {self.report(ref)}")
 
 
+class RagdollTrace:
+    """Records actors' ragdolls frame by frame on their games (the harness's body_trace: each ragdoll body, and the
+    skeleton's pelvis and head nodes, what a person sees) and says how each moved without a video: per series (a body,
+    or a node) how often it turned back on itself (back and forth), its flickers (a frame away from both neighbours,
+    which agree), when everything came to rest, and how far the skeleton strayed from its ragdoll. Leaves the samples
+    in build/coop-test/traces/<time>-<name>/ragdoll.json.
+
+        with RagdollTrace("kill-move", {"client": {0x14: "the guest"}, "": {copy: "the host's copy of the guest"}}) as trace:
+            ...
+        log(trace.report()); trace.check()"""
+
+    MOVE = 0.5           # units a frame: smaller moves are rest, not motion
+    TURN = -0.5          # cosine between two frames' moves: below it, the second turns back on the first
+    MAX_SHAKE = 6        # turn-backs within any second of one series before it is jitter (a fall bounces once or twice)
+    MAX_STRAY = 25.0     # units between a simulated ragdoll body and the bone it moves (the skeleton left behind)
+
+    def __init__(self, name, actors):
+        self.name, self.actors = name, actors
+        self.samples = {game: [] for game in actors}
+
+    def __enter__(self):
+        for game, actors in self.actors.items():
+            select_instance(game)
+            if not (rpc({"cmd": "body_trace", "refs": sorted(actors)}) or {}).get("ok"):
+                raise TestFailure(f"[{game or 'host'}] the body trace did not start")
+        return self
+
+    def take(self):
+        """Fetches what was recorded so far (keeps the games' buffers small on long traces)."""
+        for game, samples in self.samples.items():
+            select_instance(game)
+            samples.extend((rpc({"cmd": "body_trace"}, timeout=10) or {}).get("entries", []))
+
+    def __exit__(self, *exc):
+        for game, samples in self.samples.items():
+            select_instance(game)
+            samples.extend((rpc({"cmd": "body_trace", "stop": True}, timeout=10) or {}).get("entries", []))
+        self.folder = TRACES / f"{time.strftime('%Y%m%d-%H%M%S')}-{self.name}"
+        self.folder.mkdir(parents=True, exist_ok=True)
+        (self.folder / "ragdoll.json").write_text(json.dumps(self.samples))
+
+    def frames(self, game, actor):
+        return [e for e in self.samples[game] if e["id"] == actor]
+
+    def series(self, frames):
+        """{name: [(seconds, position or None)]}: each ragdoll body, then the pelvis and head nodes."""
+        out = {}
+        count = max((len(f["bodies"]) for f in frames), default=0)
+        for index in range(count):
+            out[f"body {index}"] = [(f["t"] / 1e6, (f["bodies"][index] or {}).get("position") if index < len(f["bodies"]) else None)
+                                   for f in frames]
+        for index in range(count):
+            out[f"bone {index}"] = [(f["t"] / 1e6, (f["bodies"][index] or {}).get("bone") if index < len(f["bodies"]) else None)
+                                   for f in frames]
+        for node in ("pelvis", "head"):
+            out[f"{node} node"] = [(f["t"] / 1e6, f.get(node)) for f in frames]
+        return out
+
+    @classmethod
+    def shake(cls, path):
+        """Turn-backs of one series: [(seconds, size of the move that turned back)], and its flickers [(seconds, units)]."""
+        points = [(t, p) for t, p in path if p]
+        turns, flickers = [], []
+        for (_, a), (t, b), (_, c) in zip(points, points[1:], points[2:]):
+            first, second = [y - x for x, y in zip(a, b)], [y - x for x, y in zip(b, c)]
+            n1, n2 = math.hypot(*first), math.hypot(*second)
+            if n1 > cls.MOVE and n2 > cls.MOVE and sum(x * y for x, y in zip(first, second)) / (n1 * n2) < cls.TURN:
+                turns.append((t, min(n1, n2)))
+            if n1 > 5 and n2 > 5 and math.dist(a, c) < 0.5 * n1:
+                flickers.append((t, n1))
+        return turns, flickers
+
+    @staticmethod
+    def worst_second(turns):
+        """The most turn-backs within any one second: (count, starting at)."""
+        best, start = (0, None), 0
+        for end in range(len(turns)):
+            while turns[end][0] - turns[start][0] > 1.0:
+                start += 1
+            if end - start + 1 > best[0]:
+                best = (end - start + 1, turns[start][0])
+        return best
+
+    def measure(self, game, actor):
+        frames = self.frames(game, actor)
+        if len(frames) < 3:
+            return None
+        t0 = frames[0]["t"] / 1e6
+        per = {}
+        for name, path in self.series(frames).items():
+            turns, flickers = self.shake(path)
+            count, at = self.worst_second(turns)
+            per[name] = {"turns": len(turns), "worst": count, "at": (at - t0) if at else None,
+                         "size": sum(s for _, s in turns) / len(turns) if turns else 0.0, "flickers": [(t - t0, d) for t, d in flickers]}
+        awake = [any((b or {}).get("awake") for b in f["bodies"]) for f in frames]
+        rest = next((f["t"] / 1e6 - t0 for i, f in enumerate(frames) if not any(awake[i:])), None)
+        stray = 0.0
+        for f in frames:
+            for b in f["bodies"]:
+                if b and b.get("bone") and b.get("motion") in DYNAMIC_MOTIONS:
+                    stray = max(stray, math.dist(b["bone"], b["position"]))
+        return {"seconds": frames[-1]["t"] / 1e6 - t0, "frames": len(frames), "rest": rest, "stray": stray, "series": per}
+
+    def describe(self, game, actor, label):
+        m = self.measure(game, actor)
+        if not m:
+            return f"[{game or 'host'}] {label}: not traced"
+        worst = max(m["series"].items(), key=lambda kv: kv[1]["worst"])
+        flick = sum(len(v["flickers"]) for v in m["series"].values())
+        rest = f"came to rest {m['rest']:.1f} s in" if m["rest"] is not None else "NEVER came to rest"
+        name, w = worst
+        shake = (f"{name} turned back {w['worst']} times within a second ({w['at']:.1f} s in, moves of {w['size']:.1f} units), "
+                 f"{w['turns']} in all" if w["worst"] else "nothing turned back on itself")
+        return (f"[{game or 'host'}] {label}: {rest}; {shake}; {flick} flickers; a bone up to {m['stray']:.0f} units off its "
+                f"body ({m['frames']} frames over {m['seconds']:.1f} s)")
+
+    SPIN = 25.0          # degrees between the copy's facing (pelvis to head, seen from above) and its owner's
+    LEVEL = 20.0         # units of pelvis to head seen from above below which a body stands too upright to face
+    GETUP_APART = 0.25   # seconds between the owner's getting up and its copy's, its playback delay taken out
+
+    def compare(self, owner_game, owner, copy_game, copy):
+        """The copy against its owner as a person sees them, with the copy's playback delay taken out (the delay at
+        which their pelvises lie closest): the stretches where the copy's skeleton faces away from the owner's (a spin,
+        then a snap back), and when each began to get up (knock state 5). None without both traced."""
+        own = [f for f in self.frames(owner_game, owner) if f.get("pelvis") and f.get("head")]
+        cop = [f for f in self.frames(copy_game, copy) if f.get("pelvis") and f.get("head")]
+        if len(own) < 3 or len(cop) < 3:
+            return None
+        times = [f["t"] for f in own]
+        def owner_at(t):
+            i = min(max(bisect.bisect_left(times, t), 1), len(times) - 1)
+            return own[i] if abs(own[i]["t"] - t) < abs(own[i - 1]["t"] - t) else own[i - 1]
+        def gap(delay):
+            gaps = sorted(math.dist(f["pelvis"], owner_at(f["t"] - delay)["pelvis"]) for f in cop[::5])
+            return gaps[len(gaps) // 2]
+        delay = min(range(0, 800_000, 10_000), key=gap)
+        def facing(f):
+            x, y = f["head"][0] - f["pelvis"][0], f["head"][1] - f["pelvis"][1]
+            return math.degrees(math.atan2(x, y)), math.hypot(x, y)
+        t0, spins = cop[0]["t"], []
+        for f in cop:
+            o = owner_at(f["t"] - delay)
+            (cf, cl), (of, ol) = facing(f), facing(o)
+            turn = abs((cf - of + 180) % 360 - 180)
+            if turn > self.SPIN and cl > self.LEVEL and ol > self.LEVEL:
+                t = (f["t"] - t0) / 1e6
+                if spins and t - spins[-1]["end"] < 0.1:
+                    spins[-1].update(end=t, worst=max(spins[-1]["worst"], turn))
+                else:
+                    spins.append({"start": t, "end": t, "worst": turn, "knock": (f["knock"], o["knock"])})
+        def getups(frames, shift):
+            return [(f["t"] - shift - t0) / 1e6 for a, f in zip(frames, frames[1:]) if f["knock"] == 5 and a["knock"] != 5]
+        owner_ups, copy_ups = getups(own, -delay), getups(cop, 0)
+        pairs = [(o, min(copy_ups, key=lambda c: abs(c - o)) if copy_ups else None) for o in owner_ups]
+        return {"delay": delay / 1000, "spins": spins, "getups": pairs, "copy_getups": copy_ups}
+
+    SNAP = 12.0          # units a bone jumps in one frame, to come back within SNAP_FRAMES (half way at least)
+    SNAP_FRAMES = 4
+
+    def snaps(self, game, actor):
+        """Its skeleton's snaps: a frame where its bones jump and come back within a few frames (what a person sees as
+        a pop or a quick spin), each with what else changed in that frame: [{t, frames, jump, ref, heading, bodies,
+        knock}], t in seconds from its first frame."""
+        frames = [f for f in self.frames(game, actor) if f["bodies"] and any(f["bodies"]) and f.get("pelvis")]
+        def apart(a, b, key):
+            gaps = [math.dist(x[key], y[key]) for x, y in zip(a["bodies"], b["bodies"]) if x and y and x.get(key) and y.get(key)]
+            return max(gaps, default=0.0)
+        found = []
+        for i in range(1, len(frames) - 1):
+            before, now = frames[i - 1], frames[i]
+            jump = apart(now, before, "bone")
+            if jump <= self.SNAP:
+                continue
+            back = next((k for k in range(i + 1, min(i + 1 + self.SNAP_FRAMES, len(frames)))
+                         if apart(frames[k], before, "bone") < jump * 0.5), None)
+            if back is None:
+                continue
+            found.append({"t": (now["t"] - frames[0]["t"]) / 1e6, "wall": now["t"], "frames": back - i, "jump": jump,
+                          "ref": math.dist(now["position"], before["position"]),
+                          "heading": abs((math.degrees(now.get("angle", 0) - before.get("angle", 0)) + 180) % 360 - 180),
+                          "bodies": apart(now, before, "position"), "knock": (before["knock"], now["knock"])})
+        return found
+
+    def copy_snaps(self, owner_game, owner, copy_game, copy):
+        """The copy's snaps its owner does not have (Skyrim's own show on both, its playback delay apart)."""
+        c = self.compare(owner_game, owner, copy_game, copy)
+        delay = (c["delay"] if c else 300) * 1000
+        owners = [s["wall"] for s in self.snaps(owner_game, owner)]
+        return [s for s in self.snaps(copy_game, copy) if not any(abs(s["wall"] - delay - w) < 60_000 for w in owners)]
+
+    def snaps_report(self, owner_game, owner, copy_game, copy):
+        snaps = self.copy_snaps(owner_game, owner, copy_game, copy)
+        return f"{len(snaps)} snaps the owner does not have" + "".join(
+            f"\n  {s['t']:6.2f} s: bones jump {s['jump']:.0f} units for {s['frames']} frame(s); that frame the copy moved "
+            f"{s['ref']:.1f}, turned {s['heading']:.1f} deg, its bodies moved {s['bodies']:.1f}, knock {s['knock'][0]}->{s['knock'][1]}"
+            for s in snaps)
+
+    def compare_report(self, owner_game, owner, copy_game, copy):
+        c = self.compare(owner_game, owner, copy_game, copy)
+        if not c:
+            return "not traced on both games"
+        spins = "; ".join(f"{s['start']:.2f} s for {(s['end'] - s['start']) * 1000 + 17:.0f} ms ({s['worst']:.0f} deg, knock "
+                          f"copy {s['knock'][0]} owner {s['knock'][1]})" for s in c["spins"])
+        ups = "; ".join(f"owner {o:.2f} s, copy {'never' if u is None else f'{u:.2f} s ({u - o:+.2f})'}" for o, u in c["getups"])
+        return (f"the copy {c['delay']:.0f} ms behind its owner; it turned away from the owner's facing "
+                f"{len(c['spins'])} times{': ' + spins if spins else ''}; got up: {ups or 'never, nor the owner'}")
+
+    def check_copy(self, owner_game, owner, copy_game, copy):
+        """Fails when the copy spins away from its owner or gets up apart from it."""
+        c = self.compare(owner_game, owner, copy_game, copy)
+        if not c:
+            return
+        apart = [(o, u) for o, u in c["getups"] if u is None or abs(u - o) > self.GETUP_APART]
+        if c["spins"] or apart:
+            raise TestFailure("the copy does not move as its owner: " + self.compare_report(owner_game, owner, copy_game, copy) +
+                              f" (samples: {self.folder.name})")
+
+    def report(self):
+        return "\n".join(self.describe(game, actor, label) for game, actors in self.actors.items() for actor, label in actors.items()) + \
+            f"\n(samples: {self.folder.name})"
+
+    def check(self, games=None):
+        """Fails on the traced games' jitter (`games`: only those, say a copy's; the owner's own is Skyrim's)."""
+        problems = []
+        for game, actors in self.actors.items():
+            if games is not None and game not in games:
+                continue
+            for actor, label in actors.items():
+                m = self.measure(game, actor)
+                if not m:
+                    continue
+                shaking = [n for n, v in m["series"].items() if v["worst"] > self.MAX_SHAKE]
+                flickering = [n for n, v in m["series"].items() if v["flickers"]]
+                if shaking or flickering or m["stray"] > self.MAX_STRAY:
+                    problems.append(self.describe(game, actor, label))
+        if problems:
+            raise TestFailure("bodies did not move as bodies do: " + " | ".join(problems) + f" (samples: {self.folder.name})")
+
+
 def knock_clutter_with_fireball(caster):
     """The caster's player knocks clutter with a fireball; the object the blast throws furthest follows on the client
     and lies as the host's. A client's cast reaches the host's world through its copy's replayed cast."""
@@ -7357,13 +7886,40 @@ def ragdoll_lies_as_owner(owner, actor, other, copy):
     wait_for(f"[{who}] the ragdoll of {actor:X} comes to rest", owner_rests, 30)
     rest = ragdoll_of(owner, actor)
     apart = {}
+    owner_dead = is_dead(actor_snapshot(owner, actor))
     def lies_as_owner():
-        apart["now"] = ragdoll_apart(rest, ragdoll_of(other, copy))
+        bodies = ragdoll_of(other, copy)
+        if owner_dead and not is_dead(actor_snapshot(other, copy)):
+            apart["now"] = "the owner's actor is dead and the copy lives"
+            return False
+        # What a person sees too: each bone on its body, and the bones where the owner's lie.
+        apart["now"] = "; ".join(filter(None, [ragdoll_apart(rest, bodies), bones_off_bodies(bodies, "the copy's"),
+                                                bones_apart(rest, bodies)]))
         return not apart["now"]
     try:
         wait_for(f"[{where}] the copy {copy:X} lies as the {who}'s body ({len(rest)} bones)", lies_as_owner, 10)
     except TestFailure:
         raise TestFailure(f"[{where}] the copy {copy:X} does not lie as the {who}'s body: {apart.get('now')}") from None
+
+
+BONE_ON_BODY = 15.0   # units between a ragdoll body and the bone it moves (a bone's pivot is off its body's centre)
+BONE_APART = 10.0     # units between a copy's bone and its owner's at rest
+
+
+def bones_off_bodies(bodies, whose):
+    """The bones not on their bodies, as text: the skeleton a person sees is not where the physics lies."""
+    off = [(i, math.dist(b["bone"], b["position"])) for i, b in enumerate(bodies) if b.get("bone")]
+    off = [(i, d) for i, d in off if d > BONE_ON_BODY]
+    return (f"{whose} visible body is not on its ragdoll: {len(off)} bones off their bodies, up to "
+            f"{max(d for _, d in off):.0f} units (bone {max(off, key=lambda x: x[1])[0]})") if off else ""
+
+
+def bones_apart(owner, copy):
+    """The copy's bones away from the owner's, as text."""
+    pairs = [(i, math.dist(a["bone"], b["bone"])) for i, (a, b) in enumerate(zip(owner, copy)) if a.get("bone") and b.get("bone")]
+    off = [(i, d) for i, d in pairs if d > BONE_APART]
+    return (f"the copy's visible body lies {max(d for _, d in off):.0f} units from the owner's ({len(off)} of {len(pairs)} bones)"
+            if off else "")
 
 
 def ragdoll_apart(host, guest, units=2.0, turn=0.05):
@@ -7383,7 +7939,9 @@ def scenario_ragdoll_lies_as_host():
     npc, _, copy = spawn_host_npc(WOLF, restrained=True)
     give_spell("", FIREBALL)
     place_before("", npc, 400)
+    trace = RagdollTrace("ragdoll-lies-as-host", {"": {npc: "the host's wolf"}, "client": {copy: "the client's copy"}})
     try:
+        trace.__enter__()
         draw("")
         for _ in range(4):
             if host_npc_state(npc).get("dead"):
@@ -7395,7 +7953,10 @@ def scenario_ragdoll_lies_as_host():
         wait_on("client", f"its copy {copy:08X} dies", lambda actors: actors.get(str(copy), {}).get("dead"))
         ragdoll_lies_as_owner("", npc, "client", copy)
     finally:
+        trace.__exit__(None, None, None)
         sheathe("")
+    log("ragdoll: " + trace.report())
+    trace.check(["client"])
 
 
 def knocked_down_together(owner, actor, other, copy, knock_down):
@@ -7434,11 +7995,50 @@ def knocked_down_together(owner, actor, other, copy, knock_down):
 def scenario_knockdown_lies_as_host():
     """The host's player knocks a living NPC down: the client's copy lies and gets up with it."""
     npc, _, copy = spawn_host_npc(LYDIA)
+    trace = RagdollTrace("knockdown-lies-as-host", {"": {npc: "the host's Lydia"}, "client": {copy: "the client's copy"}})
     try:
         place_before("", npc, 150)
-        knocked_down_together("", npc, "client", copy, lambda: console_on("", f"player.pushactoraway {npc:X} 5"))
+        with trace:
+            knocked_down_together("", npc, "client", copy, lambda: console_on("", f"player.pushactoraway {npc:X} 5"))
     finally:
         remove_host_npc(npc)
+    log("ragdoll: " + trace.report())
+    log("copy vs owner: " + trace.compare_report("", npc, "client", copy))
+    trace.check_copy("", npc, "client", copy)
+    trace.check(["client"])
+
+
+def scenario_knockdown_smoke():
+    """Lydia stands between the two players, both facing her (watch both games: `watch`, `watch --instance client`);
+    the host knocks her down and she gets up, three times. Her copy must not snap where she does not: a frame where
+    its skeleton jumps and comes back (RagdollTrace.snaps)."""
+    npc, _, copy = spawn_host_npc(LYDIA)
+    def knock(instance, form):
+        return (actor_snapshot(instance, form).get("state") or {}).get("knock", 0)
+    trace = RagdollTrace("knockdown-smoke", {"": {npc: "the host's Lydia"}, "client": {copy: "the client's copy"}})
+    try:
+        place_before("", npc, 250, bearing=0)
+        place_before("client", copy, 300, bearing=90)
+        trace.__enter__()
+        anims = AnimTrace("knockdown-smoke", {"": {npc: "lydia"}, "client": {copy: "lydia"}}, video=False).__enter__()
+        for round in range(3):
+            face("", npc)
+            face("client", copy)
+            console_on("", f"player.pushactoraway {npc:X} 5")
+            wait_for(f"[host] Lydia goes down ({round + 1} of 3)", lambda: knock("", npc), 3)
+            wait_for("[host] Lydia is up again", lambda: not knock("", npc), 20)
+            wait_for("[client] her copy is up again", lambda: not knock("client", copy), 5)
+    finally:
+        trace.__exit__(None, None, None)
+        if "anims" in locals():
+            anims.__exit__(None, None, None)
+        remove_host_npc(npc)
+    log("ragdoll: " + trace.report())
+    log("copy vs owner: " + trace.compare_report("", npc, "client", copy))
+    log("snaps: " + trace.snaps_report("", npc, "client", copy))
+    if trace.copy_snaps("", npc, "client", copy):
+        raise TestFailure("the copy snaps where its owner does not: " + trace.snaps_report("", npc, "client", copy) +
+                          f" (samples: {trace.folder.name})")
 
 
 def scenario_guest_knockdown_lies_on_host():
@@ -7677,6 +8277,7 @@ def failure_digest(marks, started, failed_at, keep=60, context=10):
         shown = {line["seq"] for line in earlier[-context:]}
         earlier = [line for line in earlier if line["seq"] in shown or line["level"] != "info"]
         left_out = len(lines) - len(in_step) - len(earlier)
+        out.extend(screen_lines(name))
         out.append(f"  [{who}] menus open: {', '.join(open_menus) or 'none'}; log lines: {len(in_step)} in the failing step, "
                    f"{len(earlier)} before it" + (f" ({left_out} more left out)" if left_out else "") + ":")
         for line in earlier + in_step:
@@ -8698,6 +9299,13 @@ SCENARIOS = {
     "death-spectate-guest": scenario_death_spectate_guest,
     "death-wipe-checkpoint": scenario_death_wipe_checkpoint,
     # combat
+    "friendly-fire-guest-sword": scenario_friendly_fire_guest_sword,
+    "friendly-fire-host-sword": scenario_friendly_fire_host_sword,
+    "friendly-fire-guest-firebolt": scenario_friendly_fire_guest_firebolt,
+    "friendly-fire-host-firebolt": scenario_friendly_fire_host_firebolt,
+    "friendly-fire-kill": scenario_friendly_fire_kill,
+    "kill-move-kills-guest": scenario_kill_move_kills_guest,
+    "spectator-watches-kill-move": scenario_spectator_watches_kill_move,
     "melee-client-hits-host-npc": scenario_melee_client_hits_host_npc,
     "firebolt-client-hits-host-npc": scenario_firebolt_client_hits_host_npc,
     "flames-client-hits-host-npc": scenario_flames_client_hits_host_npc,
@@ -8763,6 +9371,7 @@ SCENARIOS = {
     "ragdoll-lies-as-host": scenario_ragdoll_lies_as_host,
     "knockdown-lies-as-host": scenario_knockdown_lies_as_host,
     "guest-knockdown-lies-on-host": scenario_guest_knockdown_lies_on_host,
+    "knockdown-smoke": scenario_knockdown_smoke,
     "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
     "guest-opens-hosts-roll": scenario_guest_opens_hosts_roll,
     "placed-leveled-items-are-hosts": scenario_placed_leveled_items_are_hosts,
@@ -8863,6 +9472,13 @@ TAGS = {
     "death-spectate-host": {'death', 'combat', 'values', 'input'},
     "death-spectate-guest": {'death', 'combat', 'values', 'input'},
     "death-wipe-checkpoint": {'death', 'combat', 'join', 'save'},
+    "friendly-fire-guest-sword": {'combat', 'values'},
+    "friendly-fire-host-sword": {'combat', 'values'},
+    "friendly-fire-guest-firebolt": {'combat', 'magic', 'values'},
+    "friendly-fire-host-firebolt": {'combat', 'magic', 'values'},
+    "friendly-fire-kill": {'combat', 'death', 'values'},
+    "kill-move-kills-guest": {'combat', 'death', 'physics'},
+    "spectator-watches-kill-move": {'combat', 'death', 'camera'},
     "melee-client-hits-host-npc": {'combat', 'values'},
     "firebolt-client-hits-host-npc": {'combat', 'magic', 'values'},
     "flames-client-hits-host-npc": {'combat', 'magic', 'values'},
@@ -8924,6 +9540,7 @@ TAGS = {
     "ragdoll-lies-as-host": {'physics', 'death'},
     "knockdown-lies-as-host": {'physics'},
     "guest-knockdown-lies-on-host": {'physics'},
+    "knockdown-smoke": {'physics'},
     "late-join-gets-cell-state": {'world', 'objects', 'session'},
     "guest-opens-hosts-roll": {'world', 'objects', 'inventory', 'cells'},
     "placed-leveled-items-are-hosts": {'world', 'objects', 'cells'},
@@ -9164,7 +9781,8 @@ SOURCE_TAGS = [
     ("Code/client/Games/Skyrim/FactionEvents.*", {'ai'}),
     ("Code/client/Games/Skyrim/AI/*", {'ai', 'movement', 'scripts'}),
     ("Code/client/Games/Skyrim/BSInput/*", {'input', 'hands', 'magic', 'scripts'}),
-    ("Code/client/Games/Skyrim/Camera/*", {'scripts', 'combat'}),
+    ("Code/client/Games/Skyrim/Camera/*", {'scripts', 'combat', 'camera'}),
+    ("Code/client/Games/Skyrim/HitRules.h", {'combat', 'values'}),
     ("Code/client/Games/Skyrim/Combat/*", {'combat', 'ai'}),
     ("Code/client/Games/*Magic/*", {'magic', 'combat'}),
     ("Code/client/Games/Skyrim/Effects/*", {'magic', 'values'}),
@@ -9415,6 +10033,11 @@ def status_table():
 POSITION_TOLERANCE = 50.0   # units; copies trail the owner by the interpolation delay
 ANGLE_TOLERANCE = 0.35      # radians
 VALUE_TOLERANCE = 1.0       # actor values
+POSE_TOLERANCE = 20.0       # units; a copy's pelvis and head against its owner's (harness `pose`)
+# A standing humanoid's body above its feet (vanilla races, scale ~1): pelvis ~71, head ~124.
+FLOAT_TOLERANCE = 15.0      # feet this far above (or below) the floor float (or sink)
+RAISED_PELVIS = 85.0        # a standing body's pelvis higher above its feet: its skeleton is lifted off them
+LOW_PELVIS = 40.0           # lower, alive and not sneaking, knocked down or seated: it lies or kneels
 
 
 def flatten(tree, prefix=""):
@@ -9451,6 +10074,13 @@ def compare_field(field, owner, copy, owner_snapshot):
         return None  # players and leveled spawns are rebuilt on a new base: name and race are compared
     if field == "identity.name" and owner_snapshot["player"]:
         return None  # a player's copy shows the player's name, its own base is unnamed
+    if field.startswith("ragdoll."):
+        return None  # each game's physics, shown (`look`); how bodies move over time is RagdollTrace's
+    if field.startswith("pose."):
+        if field == "pose.floor" or owner is None or copy is None:
+            return None  # what it stands on, or no reading (no 3D, no floor found)
+        gap = abs(owner - copy)
+        return None if gap <= POSE_TOLERANCE else f"{gap:.0f} units apart (how its body stands)"
     if field == "placement.position":
         gap = distance(owner, copy)
         return None if gap <= POSITION_TOLERANCE else f"{gap:.0f} units apart"
@@ -9478,6 +10108,49 @@ def mod_problems(snapshot, role):
     return problems
 
 
+def body_problems(snapshot):
+    """What looks wrong with a player's body as a person would see it (harness `pose`): floating or sunk feet, a
+    skeleton lifted off its feet, or lying while it should stand. Nothing for NPCs, the dead, the knocked down,
+    the seated, riders and swimmers."""
+    pose, state, placement = snapshot.get("pose"), snapshot.get("state") or {}, snapshot.get("placement") or {}
+    water = (snapshot.get("mod") or {}).get("water") or {}
+    if not snapshot.get("player") or not pose or state.get("dead") or state.get("knock") or state.get("sit_sleep"):
+        return []
+    if placement.get("riding") or placement.get("getting_on_off") or water.get("swimming"):
+        return []
+    problems = []
+    if pose["floor_gap"] > FLOAT_TOLERANCE:
+        problems.append(f"body: floats {pose['floor_gap']:.0f} units above the floor")
+    elif pose["floor_gap"] < -FLOAT_TOLERANCE:
+        problems.append(f"body: sunk {-pose['floor_gap']:.0f} units into the floor")
+    pelvis = pose["pelvis"] - pose["floor_gap"]  # above its own feet
+    if pelvis > RAISED_PELVIS:
+        problems.append(f"body: skeleton lifted off its feet (pelvis {pelvis:.0f} above them, ~71 standing)")
+    elif pelvis < LOW_PELVIS and not state.get("sneaking"):
+        problems.append(f"body: lies or kneels while it should stand (pelvis {pelvis:.0f} above its feet)")
+    return problems
+
+
+def problem_kind(problem):
+    """A problem's words without its measurements: the same problem in every sample of a desync check."""
+    return re.sub(r"[-+]?\d+(\.\d+)?", "#", problem)
+
+
+def body_report(snapshot):
+    """One line on how an actor's body looks (harness `pose`)."""
+    pose, state = snapshot.get("pose"), snapshot.get("state") or {}
+    if not pose:
+        return "no body reading (no 3D, no floor under it, or not a humanoid skeleton)"
+    how = ", ".join(filter(None, ["dead" if state.get("dead") else "", f"knock {state['knock']}" if state.get("knock") else "",
+                                  "sneaking" if state.get("sneaking") else "", f"seated {state['sit_sleep']}" if state.get("sit_sleep") else ""]))
+    line = (f"feet {pose['floor_gap']:+.0f} from the floor, pelvis {pose['pelvis']:.0f}, head {pose['head']:.0f} above it"
+            + (f" ({how})" if how else ""))
+    if (ragdoll := snapshot.get("ragdoll")) and ragdoll.get("awake"):
+        line += f", {ragdoll['awake']} of {ragdoll['bodies']} ragdoll bodies awake (fastest {ragdoll['fastest']:.0f} units/s)"
+    problems = body_problems(snapshot)
+    return line + ("; " + "; ".join(p.removeprefix("body: ") for p in problems).upper() if problems else "")
+
+
 def describe_actor(snapshot, form_id, game):
     name = snapshot["identity"].get("name") or ("player" if snapshot["player"] else "?")
     return f"{name} [{game} {int(form_id):08X}, sid {snapshot['mod']['session_id']}]"
@@ -9502,8 +10175,8 @@ def find_desyncs():
             if owned["role"] != "own":
                 continue
             who = describe_actor(owned, form_id, game)
-            for problem in mod_problems(owned, "own"):
-                problems.append((f"{who} {problem}", f"{who} (owned by {game}): {problem}"))
+            for problem in mod_problems(owned, "own") + body_problems(owned):
+                problems.append((f"{who} {problem_kind(problem)}", f"{who} (owned by {game}): {problem}"))
             sid = owned["mod"]["session_id"]
             if sid < 0:
                 problems.append((f"{who} unlinked", f"{who}: owned by {game} but never registered with the server"))
@@ -9513,8 +10186,8 @@ def find_desyncs():
                 continue
             copy_id, copy = copies[other][sid]
             paired[other].add(sid)
-            for problem in mod_problems(copy, "copy"):
-                problems.append((f"{who} {problem}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
+            for problem in mod_problems(copy, "copy") + body_problems(copy):
+                problems.append((f"{who} copy {problem_kind(problem)}", f"{who}: {other}'s copy {int(copy_id):08X} {problem}"))
             mine, theirs = flatten(owned), flatten(copy)
             for field in sorted(set(mine) | set(theirs)):
                 reason = compare_field(field, mine.get(field), theirs.get(field), owned)
@@ -10593,6 +11266,8 @@ def main():
     commands.add_parser("unsynced", help="the reference change flags the host had with no row to send them")
     world_diff = commands.add_parser("world-diff", help="compare every reference in the loaded cells between the two games")
     world_diff.add_argument("--details", type=int, default=40, help="references listed (0: all)")
+    look = commands.add_parser("look", help="what both screens show: each camera and each player's body")
+    look.add_argument("--follow", "-f", action="store_true", help="keep looking")
     desync = commands.add_parser("desync", help="compare every actor's full state between the two games")
     desync.add_argument("--follow", "-f", action="store_true", help="keep checking")
     desync.add_argument("--samples", type=int, default=3, help="a difference must persist this many samples")
@@ -10642,6 +11317,8 @@ def main():
             command_world_diff(args)
         elif args.command == "desync":
             command_desync(args)
+        elif args.command == "look":
+            command_look(args)
         elif args.command == "status":
             command_status(args)
         elif args.command == "watch":

@@ -1,4 +1,5 @@
 #include <Services/CharacterService.h>
+#include <Services/CopyClock.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
 
@@ -523,6 +524,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Rotation = {movement.Rotation.x, 0.f, movement.Rotation.y};
         point.Variables = movement.Variables;
         point.Direction = movement.Direction;
+        point.Lying = movement.Lying;
 
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
@@ -1276,9 +1278,11 @@ void CharacterService::RunLocalUpdates() noexcept
         auto& formIdComponent = animatedLocalView.get<FormIdComponent>(entity);
 
         AnimationSystem::Serialize(m_world, message, localComponent, animationComponent, formIdComponent);
-        if (m_jumped.erase(formIdComponent.Id))
-            if (const auto it = message.Updates.find(localComponent.Id); it != message.Updates.end())
-                it->second.UpdatedMovement.Teleported = true;
+        const auto it = message.Updates.find(localComponent.Id);
+        if (m_jumped.erase(formIdComponent.Id) && it != message.Updates.end())
+            it->second.UpdatedMovement.Teleported = true;
+        if (it != message.Updates.end())
+            it->second.UpdatedMovement.Lying = m_actorBridge.IsLyingInRagdoll(formIdComponent.Id);
     }
     m_jumped.clear(); // jumps of actors that are not ours
 
@@ -1287,9 +1291,9 @@ void CharacterService::RunLocalUpdates() noexcept
 
 void CharacterService::RunRemoteUpdates() noexcept
 {
-    // Delay by 300ms to let the interpolation system accumulate interpolation points
+    // Behind the owners' time, to have points to interpolate between; a copy's ragdoll plays on the same clock.
     const auto currentTick = m_transport.GetTick();
-    const auto tick = currentTick > 300 ? currentTick - 300 : 0;
+    const auto tick = currentTick > kCopyDelayMs ? currentTick - kCopyDelayMs : 0;
 
     // Interpolation has to keep running even if the actor is not in view, otherwise we will never know if we need to spawn it
     auto interpolatedEntities = m_world.view<RemoteComponent, InterpolationComponent>();
@@ -1332,9 +1336,25 @@ void CharacterService::RunRemoteUpdates() noexcept
                 }
                 pVariables = &pAnimation->Variables;
             }
+            // Its owner lying, or the copy itself: its own ragdoll places it. Up again, it is eased from where its
+            // engine stood it onto its owner's place (physics-sync.md, "A copy's ragdoll, steered").
+            auto& ease = interpolationComponent.Ease;
+            const bool cOwnerLies = tick >= second.Tick ? second.Lying : first.Lying;
+            const bool cPlace = !cOwnerLies && !m_actorBridge.IsLyingInRagdoll(pFormIdComponent->Id);
+            if (!cPlace)
+                ease.Held = true;
+            else if (std::exchange(ease.Held, false))
+            {
+                glm::vec3 own{}, ownRotation{};
+                m_actorBridge.GetActorPosition(pFormIdComponent->Id, own.x, own.y, own.z);
+                m_actorBridge.GetActorRotation(pFormIdComponent->Id, ownRotation.x, ownRotation.y, ownRotation.z);
+                ease.Begin(own - position, ownRotation.z - rotation.z, currentTick);
+            }
+            if (cPlace)
+                ease.Apply(currentTick, position, rotation.z);
             const float cPosition[3]{position.x, position.y, position.z};
             const float cRotation[3]{rotation.x, rotation.y, rotation.z};
-            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables);
+            m_actorBridge.ApplyRemoteMovement(pFormIdComponent->Id, cPosition, cRotation, second.Direction, *pVariables, cPlace);
         }
     }
 

@@ -83,7 +83,8 @@ back would have looped between the games (the guest's proposal, the host's chang
 - **Spells the host's world casts on a guest's character**: `MagicTarget::AddTarget` dropped every effect on
   a copy whose caster was a copy or nothing, and every hostile one between players with PvP off. On the host,
   an effect on a guest's character goes to its owner when the caster is not an actor (a statue, a trap) or
-  is the copy cast by a script running for a guest; PvP only covers a player's own casts.
+  is the copy cast by a script running for a guest; PvP only covers a player's own casts. The PvP block itself
+  is gone since 2026-10-26 (friendly fire, `docs/design/friendly-fire.md`).
 
 ## Containers: changes as counts
 

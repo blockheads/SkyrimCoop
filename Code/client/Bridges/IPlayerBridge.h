@@ -41,6 +41,8 @@ public:
     // Back alive from a real death (docs/design/death.md, "Real death").
     virtual void RevivePlayer() noexcept = 0;
     virtual void SetSpectatorTarget(uint32_t aFormId) noexcept = 0;
+    // Each frame while spectating: the view stays third person (docs/design/death.md, "Spectating").
+    virtual void KeepSpectatorView() noexcept = 0;
     virtual void HoldDeathControls(bool aHold) noexcept = 0;
     [[nodiscard]] virtual bool IsScriptCameraHeld() const noexcept = 0;
 

@@ -1,4 +1,5 @@
 #include <Services/BodyService.h>
+#include <Services/CopyClock.h>
 
 #include <Bridges/IBodyBridge.h>
 #include <Components.h>
@@ -21,13 +22,13 @@ BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBrid
 
 void BodyService::Forget(const BodyKey& acKey) noexcept
 {
-    m_playback.Forget(acKey);
+    PlaybackOf(acKey).Forget(acKey);
     m_following.erase(acKey);
 }
 
 void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
 {
-    std::vector<BodyFrame> frames;
+    std::vector<BodyFrame> frames, ragdolls;
     for (const auto& cFrame : acMessage.Frames)
     {
         if (m_pKeeper && !m_pKeeper->TakesFrame(cFrame.Key))
@@ -36,23 +37,26 @@ void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
         if (!m_playback.Has(cFrame.Key))
             if (const auto cShown = m_bridge.ReadPose(cFrame.Key))
                 m_playback.StartFrom(*cShown);
-        frames.push_back(cFrame);
+        (cFrame.Key.Actor ? ragdolls : frames).push_back(cFrame);
     }
     m_playback.Add(acMessage.Tick, frames);
+    m_ragdolls.Add(acMessage.Tick, ragdolls);
 }
 
 void BodyService::OnRests(const NotifyBodyRests& acMessage) noexcept
 {
-    std::vector<BodyPose> rests;
+    std::vector<BodyPose> rests, ragdolls;
     for (const auto& cRest : acMessage.Rests)
         if (!m_pKeeper || !m_pKeeper->KeepsRest(cRest.Key))
-            rests.push_back(cRest);
+            (cRest.Key.Actor ? ragdolls : rests).push_back(cRest);
     m_playback.Rest(acMessage.Tick, rests);
+    m_ragdolls.Rest(acMessage.Tick, ragdolls);
 }
 
 void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
 {
     m_playback = {};
+    m_ragdolls = {};
     m_following.clear();
     m_missing.clear();
 }
@@ -72,14 +76,15 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
     if (m_pKeeper)
         for (const BodyKey& cKey : m_pKeeper->Update(cTick, m_following))
             Forget(cKey);
-    Show(cTick);
+    Show(m_playback, cTick > kDelayMs ? cTick - kDelayMs : 0);
+    Show(m_ragdolls, cTick > kCopyDelayMs ? cTick - kCopyDelayMs : 0);
 }
 
-void BodyService::Show(uint64_t aTick) noexcept
+void BodyService::Show(BodyPlayback& aPlayback, uint64_t aTick) noexcept
 {
-    if (!m_playback.Count() || aTick <= kDelayMs)
+    if (!aPlayback.Count() || !aTick)
         return;
-    for (const auto& cPose : m_playback.At(aTick - kDelayMs))
+    for (const auto& cPose : aPlayback.At(aTick))
     {
         const BodyKey& cKey = cPose.Body.Key;
         const uint32_t cCopy = cKey.Actor ? CopyOf(cKey.Actor) : 0;
@@ -88,7 +93,7 @@ void BodyService::Show(uint64_t aTick) noexcept
         // Not loaded here (its cell, or its 3D): nothing to show; its cell's load gets the owner's rest.
         if (!cDone)
         {
-            m_playback.Forget(cKey);
+            aPlayback.Forget(cKey);
             if (m_missing.insert(cKey).second)
                 spdlog::warn("BodyService: {} is not in this game", WorldStateLog::DescribeBody(cKey));
             continue;
@@ -105,7 +110,7 @@ void BodyService::Show(uint64_t aTick) noexcept
         else if (m_following.insert(cKey).second)
             spdlog::info("BodyService: follows the owner's {}", WorldStateLog::DescribeBody(cKey));
     }
-    for (const auto& cLost : m_playback.TakeLost())
+    for (const auto& cLost : aPlayback.TakeLost())
     {
         m_following.erase(cLost.Key);
         spdlog::warn("BodyService: lost {}: no frame for {} ms and no rest, after {} frames", WorldStateLog::DescribeBody(cLost.Key),

@@ -12,7 +12,7 @@ bool InterpolationSystem::Interpolate(const InterpolationComponent::TimePoint& a
     float fraction = 0.f;
     if (aTick >= acSecond.Tick)
         fraction = 1.f;
-    else if (aTick > acFirst.Tick && acSecond.Tick > acFirst.Tick)
+    else if (aTick > acFirst.Tick && acSecond.Tick > acFirst.Tick && acFirst.Lying == acSecond.Lying)
         fraction = static_cast<float>(static_cast<double>(aTick - acFirst.Tick) / static_cast<double>(acSecond.Tick - acFirst.Tick));
 
     for (int axis = 0; axis < 3; ++axis)

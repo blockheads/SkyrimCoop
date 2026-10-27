@@ -145,8 +145,8 @@ No table is kept (3d, 2026-10-23).
 - The host's difficulty is sent on joining (`AuthenticationResponse::Difficulty`) and on changes
   (`NotifySettingsChange::Difficulty`). A guest holds it while joined and gets its own back on leaving;
   the host's is never changed.
-- Session rules are fixed: greetings off, the death system on. PvP is off in the code today; friendly fire is to be
-  always on in 1.0 (decided 2026-10-26, `progress.md` v1.0.0 item 17). Homes and calendar sync have no
+- Session rules are fixed: greetings off, the death system on, friendly fire always on (built 2026-10-26,
+  `friendly-fire.md`; no setting). Homes and calendar sync have no
   settings flags. The host's clock is shared by the guest clock, independently of difficulty.
 
 ### Saving: only the host

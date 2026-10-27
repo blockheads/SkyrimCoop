@@ -17,6 +17,9 @@ struct PlayerCamera : public TESCamera
     // A downed player's view (docs/design/death.md): another's character from behind, free look; null gives the camera
     // back to the player unless something else (a script) took it meanwhile.
     void Spectate(Actor* apWatched) noexcept;
+    // Spectating is third person only: back to it when the view drops into the watched one's head (the POV key, a
+    // zoom all the way in).
+    void KeepSpectating() noexcept;
     // Out of the bleedout state (a dying player's death camera) into the one under it (50824).
     void LeaveBleedout(bool aInstant) noexcept;
 

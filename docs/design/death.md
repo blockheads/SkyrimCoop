@@ -85,6 +85,7 @@ Actor::CastPermanentMagic(true, false, false, false)        worn enchantments
 Actor::ApplyPerksFromBase (vfunc 0x101)                     perks' abilities (no duplicates on a repeat)
 addedSpells through the instant caster               34402  AddSpell abilities, diseases too
 Actor::DoReset3D(true)                               40255  the skeleton out of the death ragdoll
+RemoveRagdollFromWorld on every graph                63622  the ragdoll out of the physics world (below)
 boolFlags |= kShouldAnimGraphUpdate | kCanSpeak             the graph runs, it speaks
 the hands again (UnEquip, Equip; EquipSpell)                PlayerCharacter::Resurrect 40491 replaced the process
 PlayerCamera::LeaveBleedout                          50824  the death camera (bleedout state 11) back to the player
@@ -106,6 +107,20 @@ LatestAnimation cleared                                     a copy made now star
 - Re-casting the abilities takes the alias array's lock before the player's reference lock, as vanilla does whenever
   an actor's 3D loads (`Actor::Load3D`, `Set3D`, `SwitchRace` call 38753); a save load takes them the other way, never
   at the same time (`scripts/lock_order_known.txt`).
+
+- **The ragdoll** (2026-10-26). After a death by kill move, `DoReset3D` left the player's ragdoll in the physics
+  world: 18 bodies dynamic and awake at 300-500 units/s while the revived player stood, its skeleton half driven by
+  them (pelvis 90-104 above its feet, 71 standing; the body seen floating and twitching). A plain death left it too
+  once a kill-move death had. A living player has no ragdoll in the world (0 bodies), so Revive takes it out as
+  Papyrus `ObjectReference.ForceRemoveRagdollFromWorld` does: the functor (56128) calls
+  `BShkbAnimationGraph::RemoveRagdollFromWorld` (vfunc 3, 63622; CommonLibSSE-NG `BSIRagdollDriver`) on every graph
+  under the manager's lock (`Havok/Ragdoll.cpp`). `kill-move-kills-guest` checks the respawned body (fails without it:
+  pelvis 95, 18 bodies awake; passes with it).
+
+Open (2026-10-26, on dev as well): a revived player knocked down later stays in knock state 6 (getting up) and its
+copies never go down: `guest-knockdown-lies-on-host` passes before the guest's death and revive, fails after it
+(`scenario guest-knockdown-lies-on-host spectator-watches-kill-move guest-knockdown-lies-on-host`), with or without
+the ragdoll removal above.
 
 Untested: a spell in hand at death (Revive's `EquipSpell` branch), dying as a werewolf or while mounted.
 
@@ -140,6 +155,10 @@ Party must be out of combat for 10 seconds to respawn
   `TESCamera::SetState` 33026), free look (`ThirdPersonState` +0xD4/+0xDC). The first standing player with a loaded
   copy, in session id order; a left click or the right arrow the next, the others back (`UiInput`). Chosen again when
   the watched player falls, leaves, or its copy unloads or is made again; never an actor pointer kept.
+- Third person only (2026-10-26): the POV key, or a zoom all the way in, would drop the view into the watched
+  copy's head, where its kill move or ragdoll throws it around. `DeathService` keeps it out each frame
+  (`PlayerCamera::KeepSpectating`). GameTests "Spectating is third person only", `friendly-fire-kill` (presses first
+  person while spectating) and `spectator-watches-kill-move` (the view through the watched player's kill move).
 - Spectating is this player's own moment (`cutscenes.md`): movement, attacks, activation, sneaking, jumping and POV are
   held beside the scripts' holds, and given back only as they were (a cutscene keeps its own). A script holding the
   player's movement has the camera: the choice is kept and shown once it gives it back.

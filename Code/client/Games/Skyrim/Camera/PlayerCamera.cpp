@@ -97,6 +97,12 @@ void PlayerCamera::Spectate(Actor* apWatched) noexcept
     s_spectating = true;
 }
 
+void PlayerCamera::KeepSpectating() noexcept
+{
+    if (s_spectating && cameraTarget == s_watched && state && state->id == TESCameraState::kFirstPerson)
+        SetMode(TESCameraState::kThirdPerson);
+}
+
 void PlayerCamera::LeaveBleedout(bool aInstant) noexcept
 {
     using TLeaveBleedout = void(PlayerCamera*, bool);

@@ -167,6 +167,14 @@ bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::qu
     return true;
 }
 
+bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept
+{
+    if (!aBody.referencedObject || !WorldOf(*aBody.referencedObject))
+        return false;
+    SetVelocities(aBody, acLinearVelocity, acAngularVelocity);
+    return true;
+}
+
 bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion, const glm::vec3& acLinearVelocity,
               const glm::vec3& acAngularVelocity, bool aAsleep) noexcept
 {

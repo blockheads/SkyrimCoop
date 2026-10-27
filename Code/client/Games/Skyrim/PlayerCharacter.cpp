@@ -1,6 +1,7 @@
 #include <PlayerCharacter.h>
 
 #include <Forms/TESTopicInfo.h>
+#include <Havok/Ragdoll.h>
 #include <HookSwitch.h>
 #include <Games/ActorExtension.h>
 
@@ -146,6 +147,8 @@ void PlayerCharacter::Revive() noexcept
                 s_castPermanent(pCaster, pSpell, true);
     }
     DoReset3D(true);
+    // A death ending a kill move leaves the ragdoll simulating through the reset: out of the world, as a living player's is.
+    RemoveRagdollFromWorld(*this);
     // Its graph runs and it speaks again: death stopped both, and only a load sets them for the player.
     flags2 |= ActorFlags::SHOULD_ANIM_GRAPH_UPDATE | ActorFlags::CAN_SPEAK;
     // Back in its hands.

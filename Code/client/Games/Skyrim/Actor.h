@@ -207,6 +207,8 @@ struct Actor : TESObjectREFR
     Factions GetFactions() const noexcept;
     ActorValues GetEssentialActorValues() const noexcept;
     [[nodiscard]] bool IsDead() const noexcept;
+    // It lies in its ragdoll, dead or knocked down (Actor::IsInRagdollState 37491): the engine keeps it on the ragdoll.
+    [[nodiscard]] bool LiesInRagdoll() const noexcept;
     [[nodiscard]] bool IsDragon() const noexcept;
     [[nodiscard]] bool IsPlayerSummon() const noexcept;
     [[nodiscard]] bool IsInCombat() const noexcept;
@@ -416,6 +418,7 @@ public:
 };
 
 static_assert(offsetof(Actor, currentProcess) == 0xF8);
+static_assert(offsetof(Actor, tdEvent) == 0xD0); // BSTEventSink<BSTransformDeltaEvent> (CommonLib-NG)
 static_assert(offsetof(Actor, combatHandle) == 0x104); // currentCombatTarget, what GetCombatTarget reads (54680, 22318)
 static_assert(offsetof(Actor, flags1) == 0xE8);
 static_assert(offsetof(Actor, actorValueOwner) == 0xB8);

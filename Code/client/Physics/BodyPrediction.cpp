@@ -27,6 +27,19 @@ Error Between(const BodyFrame& acA, const BodyFrame& acB) noexcept
     return {glm::distance(acA.Position, acB.Position), 2.f * std::acos(cDot)};
 }
 
+Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget, float aSeconds) noexcept
+{
+    Velocities velocities{acTarget.LinearVelocity + (acTarget.Position - acPosition) / aSeconds, acTarget.AngularVelocity};
+    // The world-space turn from where it is to the frame's, the short way round.
+    glm::quat turn = glm::normalize(acTarget.Rotation * glm::inverse(acRotation));
+    if (turn.w < 0.f)
+        turn = -turn;
+    const float cSin = glm::length(glm::vec3(turn.x, turn.y, turn.z));
+    if (cSin > 1e-6f)
+        velocities.Angular += glm::vec3(turn.x, turn.y, turn.z) / cSin * (2.f * std::atan2(cSin, turn.w) / aSeconds);
+    return velocities;
+}
+
 bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds, float aGravity) noexcept
 {
     if (aSeconds <= 0.f)

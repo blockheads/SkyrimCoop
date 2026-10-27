@@ -92,12 +92,6 @@ bool IsCopy(Actor* apActor) noexcept
     return apActor && apActor->GetExtension()->IsCopy();
 }
 
-// Our player, or another player's copy.
-bool IsPlayer(Actor* apActor) noexcept
-{
-    return apActor && (apActor == PlayerCharacter::Get() || apActor->GetExtension()->IsPlayer());
-}
-
 // Cast by one of our actors (or our player): ours to send to the target's owner.
 bool IsOurCast(Actor* apCaster) noexcept
 {
@@ -116,12 +110,6 @@ bool IsWorldCast(Actor* apTarget, Actor* apCaster) noexcept
         return false;
     const uint32_t cGuest = GuestScripts::NativeGuest();
     return !apCaster || (IsCopy(apCaster) && cGuest && cGuest != 0x14); // 0x14: the host's own player's script
-}
-
-// A player's hostile spell cannot harm another player.
-bool IsBlockedPvp(Actor* apCaster, const MagicItem* apSpell) noexcept
-{
-    return IsPlayer(apCaster) && !IsFriendly(apSpell);
 }
 } // namespace
 
@@ -165,17 +153,11 @@ bool HookAddTarget(MagicTarget* apThis, MagicTarget::AddTargetData& arData)
         if (!IsOurCast(pCasterActor) && !cWorldCast)
             return false;
 
-        if (pTargetActorEx->IsOtherPlayer())
+        // Friendly fire: a hostile spell on another player goes to its game like any other (friendly-fire.md).
+        if (pTargetActorEx->IsOtherPlayer() && arData.pSpell->IsHealingSpell() && pCasterActor)
         {
-            // PvP is a player's own cast; the world's (a script making the copy cast) is not.
-            if (!cWorldCast && IsBlockedPvp(pCasterActor, arData.pSpell))
-                return false;
-
-            if (arData.pSpell->IsHealingSpell() && pCasterActor)
-            {
-                addTargetEvent.ApplyHealPerkBonus = pCasterActor->HasPerk(0x581f8);
-                addTargetEvent.ApplyStaminaPerkBonus = pCasterActor->HasPerk(0x581f9);
-            }
+            addTargetEvent.ApplyHealPerkBonus = pCasterActor->HasPerk(0x581f8);
+            addTargetEvent.ApplyStaminaPerkBonus = pCasterActor->HasPerk(0x581f9);
         }
 
         // Our spell hit their actor: ask the owner to apply it. A hostile one is a hit for the

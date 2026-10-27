@@ -162,6 +162,8 @@ private:
     // The mount our player rides, given to this game by the host (its session id), or 0.
     uint32_t m_riddenMount{};
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
+    // Ours lying in their ragdolls at the last snapshot, and the snapshots since they lay down or got up: the first two
+    // are jumps (the engine moves it onto or off its ragdoll in its graph update, within a frame of the state).
     std::chrono::steady_clock::time_point m_lastSnapshot; // our actors' last movement snapshot sent
 
     std::vector<entt::scoped_connection> m_connections;
