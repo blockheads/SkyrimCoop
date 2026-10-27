@@ -185,7 +185,10 @@ struct Session
     std::vector<QuestState> QuestChanges;
     std::vector<QuestState> Quests;                               // the host's quests
     std::vector<std::tuple<GameId, bool, uint8_t>> LocksSet; // guests' lock changes the host's game took
-    std::vector<std::tuple<GameId, GameId, uint32_t>> ItemsSet; // guests' container changes the host's game took
+    std::vector<ObjectChange> ItemsSet;                      // guests' container changes the host's game took
+    std::unordered_map<GameId, Inventory::Entry> Loose;              // the host's loose items it made for guests' drops
+    uint32_t LooseMade = 0;
+    uint32_t CreateCalls = 0;
     std::vector<ObjectChange> ObjectChanges;                      // the host's world objects' changes, not yet taken
     std::map<uint32_t, std::vector<ObjectChange>> LoadedCells;    // the cells loaded in the host's game (by base id), their state
     std::vector<ChangedReference> GuestChanged;                   // what the last cell read was told a guest changed
@@ -237,7 +240,26 @@ private:
             return it->second;
         };
         game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { LocksSet.emplace_back(acObject, aLocked, aLevel); };
-        game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { ItemsSet.emplace_back(acObject, acItem, aCount); };
+        game.SetItems = [this](const ObjectChange& acItems) { ItemsSet.push_back(acItems); };
+        // A drop is made in a cell the host's game has loaded.
+        game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) -> std::optional<GameId> {
+            ++CreateCalls;
+            if (!LoadedCells.contains(acPlacement.Cell.BaseId))
+                return std::nullopt;
+            if (acItem.BaseId == GameId{})
+                return GameId{}; // not in this game
+            const GameId cId(ObjectChange::kCreatedModId, 0x800 + ++LooseMade);
+            Loose[cId] = acItem;
+            return cId;
+        };
+        game.TakeItem = [this](const GameId& acObject) -> std::optional<Inventory::Entry> {
+            const auto it = Loose.find(acObject);
+            if (it == Loose.end())
+                return std::nullopt;
+            auto item = it->second;
+            Loose.erase(it);
+            return item;
+        };
         game.PushBody = [this](const BodyPush& acPush) { Pushed.push_back(acPush); return true; };
         game.FreeBody = [this](const BodyFrame& acFrame) { Freed.push_back(acFrame); return true; };
         game.TakeBodies = [this] { return std::exchange(Moving, {}); };

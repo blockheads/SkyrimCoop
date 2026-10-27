@@ -4,6 +4,7 @@
 #include "Status.h"
 
 #include <World.h>
+#include <FormIds.h>
 #include <Papyrus/GuestScripts.h>
 #include <Bridges/IActorBridge.h>
 #include <Bridges/IFormBridge.h>
@@ -435,6 +436,72 @@ nlohmann::json ContainerItems(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"items", items}};
 }
 
+// An item with its extra data as the commands read and write it: base and enchantment (and poison) form ids, health
+// (tempering, 1 none), enchantment charge, its name.
+nlohmann::json StackJson(const Inventory::Entry& acItem)
+{
+    return {{"item", ToGame(acItem.BaseId)},
+            {"count", acItem.Count},
+            {"health", acItem.ExtraHealth},
+            {"enchantment", acItem.ExtraEnchantId.ModId == 0xFFFFFFFF ? 0xFF000000 | acItem.ExtraEnchantId.BaseId : ToGame(acItem.ExtraEnchantId)},
+            {"enchant_charge", acItem.ExtraEnchantCharge},
+            {"charge", acItem.ExtraCharge},
+            {"poison", ToGame(acItem.ExtraPoisonId)},
+            {"poison_count", acItem.ExtraPoisonCount},
+            {"soul", acItem.ExtraSoulLevel},
+            {"name", acItem.ExtraName}};
+}
+
+// {"cmd": "item_stacks", "object": id}: a loose item's own count and extra data, or each stack with extra data a
+// container or actor holds (StackJson's fields).
+nlohmann::json ItemStacks(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cStacks = EngineCalls::GetItemStacks(acRequest.value("object", 0x14u));
+    if (!cStacks)
+        return Error("no such object");
+    auto stacks = nlohmann::json::array();
+    for (const auto& cStack : *cStacks)
+        stacks.push_back(StackJson(cStack));
+    return {{"ok", true}, {"stacks", stacks}};
+}
+
+// {"cmd": "give_item", "item": id, "count": 1, "health": 1.4, "enchantment": id, "enchant_charge": 1000, "charge": 800,
+// "name": "Old Friend"}: the player gets it with that extra data (as an enchanting table's or a forge's).
+nlohmann::json GiveItem(Harness&, const nlohmann::json& acRequest)
+{
+    Inventory::Entry item;
+    item.BaseId = ToSession(acRequest.value("item", 0u)).value_or(GameId{});
+    item.Count = acRequest.value("count", 1);
+    item.ExtraHealth = acRequest.value("health", 0.f);
+    item.ExtraEnchantId = ToSession(acRequest.value("enchantment", 0u)).value_or(GameId{});
+    item.ExtraEnchantCharge = static_cast<uint16_t>(acRequest.value("enchant_charge", 0u));
+    item.ExtraCharge = acRequest.value("charge", 0.f);
+    item.ExtraName = acRequest.value("name", std::string());
+    if (!EngineCalls::GiveItem(item))
+        return Error("no such item");
+    return Ok();
+}
+
+// {"cmd": "drop", "item": id, "count": 1, "plain": false}: the player drops it as the inventory's Drop does, its stack
+// with extra data (or a plain one); the loose item it made.
+nlohmann::json Drop(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cDropped = EngineCalls::PlayerDrops(acRequest.value("item", 0u), acRequest.value("count", 1), acRequest.value("plain", false));
+    if (!cDropped)
+        return Error("the player holds no such stack, or the drop made no loose item");
+    return {{"ok", true}, {"object", *cDropped}};
+}
+
+// {"cmd": "store", "item": id, "count": 1, "container": id, "plain": false}: the player stores it in the container as the
+// container menu's Store does, its stack with extra data (or a plain one); no container: removes that stack.
+nlohmann::json Store(Harness&, const nlohmann::json& acRequest)
+{
+    if (!EngineCalls::PlayerStores(acRequest.value("item", 0u), acRequest.value("count", 1), acRequest.value("container", 0u),
+                                   acRequest.value("plain", false)))
+        return Error("the player holds no such stack, or no such container");
+    return Ok();
+}
+
 // {"cmd": "ragdoll", "actor": id}: the actor's ragdoll bodies in order: motion type (4 keyframed), awake, position,
 // rotation (x, y, z, w) and velocity in game units.
 nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
@@ -781,6 +848,10 @@ constexpr Command cCommands[] = {
     {"is_current_package", true, &IsCurrentPackage},
     {"faction_rank", true, &FactionRank},
     {"activate", true, &Activate},
+    {"item_stacks", true, &ItemStacks},
+    {"give_item", true, &GiveItem},
+    {"drop", true, &Drop},
+    {"store", true, &Store},
     {"lock", true, &Lock},
     {"door_open", true, &DoorOpen},
     {"graph_state", true, &GraphState},

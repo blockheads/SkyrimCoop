@@ -45,8 +45,16 @@ public:
     void RecordItems(uint32_t aObjectFormId, uint32_t aItemFormId) noexcept;
     // A guest's lock change, accepted: the host's object takes it, and the others get it as the host's change.
     void SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLevel) noexcept;
-    // A guest's container change, accepted: the host's container holds that many, and the others get it.
-    void SetItems(const GameId& acObject, const GameId& acItem, uint32_t aCount) noexcept;
+    // A guest's container change (kItems), accepted: the host's container holds that many, its stacks with extra data
+    // as given, and the others get it.
+    void SetItems(const ObjectChange& acItems) noexcept;
+    // A guest's drop (docs/design/dropped-items.md): made here with its count and extra data, where its cell is loaded;
+    // its created id (it goes out with this game's created references); none while the cell is not loaded here, an empty
+    // id when its base or cell is not in this game.
+    [[nodiscard]] std::optional<GameId> CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept;
+    // A guest's pickup granted: the party's loose item taken out of this world (disabled and deleted, the deletion goes
+    // out), what it held; none when it is gone.
+    [[nodiscard]] std::optional<Inventory::Entry> TakeItem(const GameId& acObject) noexcept;
     // Since the last call: each reference the game created, the state of each one the funnel saw change, the
     // physics objects that came to rest, the records that lost rows, then the scripts' events in order.
     [[nodiscard]] std::vector<ObjectChange> TakeObjectChanges() noexcept;

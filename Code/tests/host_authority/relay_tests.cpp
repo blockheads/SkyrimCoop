@@ -503,7 +503,10 @@ TEST_CASE("Objects: an activation reaches everyone else; a guest's lock and cont
     items.Count = 1;
     session.Receive(kPeer, items);
     REQUIRE(session.ItemsSet.size() == 1);
-    CHECK(session.ItemsSet[0] == std::tuple{GameId(0, 0xA05B5), GameId(0, 0x64B3D), 1u});
+    CHECK(session.ItemsSet[0].Object == GameId(0, 0xA05B5));
+    CHECK(session.ItemsSet[0].Item == GameId(0, 0x64B3D));
+    CHECK(session.ItemsSet[0].Value == 1u);
+    CHECK(session.ItemsSet[0].Stacks == items.Stacks);
     CHECK(session.Outbox.empty());
 
     // The host's own containers go out with its object changes.

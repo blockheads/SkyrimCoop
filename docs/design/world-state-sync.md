@@ -132,7 +132,8 @@ guest: GuestEngine::ApplyObjectChange; save data loaded, then its flags marked
 guest: a cell loads (TESCellFullyLoadedEvent; each loaded cell on joining)
   -> CellStateRequest {cell, [ref, row flags its record holds]}
 host HostWorldState: cell attached here? no -> kept, retried each update
-  HostEngine::ReadCellState: the host's created refs (kCreate, rows); each
+  HostEngine::ReadCellState: the host's created refs (kCreate with an item's count and
+    extra data, rows; dropped-items.md); each
     ref with row changes in either game -> its rows and kRecord (the rows
     the host's record holds: the guest's is made the same); then each
     container: rolled here (16038), kContents
@@ -392,8 +393,9 @@ guest's VM: OnActivate on the lever → dropped          host's script runs (rul
    (`lock-reaches-others`, `guest-loads-propose-no-locks`). Containers slice 1 built 2026-10-21: a container's change
    travels as its count of the item now (`kItems`, an event kind: item and count), the host's to everyone, a guest's
    as a proposal the host's game takes (`ContainerChangeRequest`); every add and remove is seen through the engine's
-   `TESContainerChangedEvent` (`chest-take-reaches-others`, `docs/re/systems/guest-world-events.md`). Per base item
-   (extra data, such as enchantments, does not travel). Slice 2 (2026-10-21): a container's contents are the host's
+   `TESContainerChangedEvent` (`chest-take-reaches-others`, `docs/re/systems/guest-world-events.md`). Per base item,
+   with the stacks that carry extra data (enchantment, tempering, a name) since 2026-10-26 (`ObjectChange::Stacks`,
+   `docs/design/dropped-items.md`, "Chests"). Slice 2 (2026-10-21): a container's contents are the host's
    roll. Answering a guest's cell state, the host's game rolls each container there as opening it would
    (`InitInventoryIfRequired` 16038) and sends all it holds (`kContents`: item and count each); the guest makes its
    container hold exactly that, raising nothing. While a guest, a game rolls no leveled entries of a world

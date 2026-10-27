@@ -5,8 +5,10 @@
 #include <Events/UpdateEvent.h>
 #include <Events/ContainerChangeEvent.h>
 #include <Events/LockChangeEvent.h>
+#include <Events/LooseItemEvents.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/ContainerChangeRequest.h>
+#include <Messages/DroppedItems.h>
 #include <Messages/LockChangeRequest.h>
 #include <Services/TransportService.h>
 #include <Services/WorldStateLog.h>
@@ -22,6 +24,10 @@ GuestWorldState::GuestWorldState(World& aWorld, entt::dispatcher& aDispatcher, G
     Listen<NotifyObjectChanges, &GuestWorldState::OnObjectChanges>(m_connections, aDispatcher, this);
     Listen<LockChangeEvent, &GuestWorldState::OnLockChange>(m_connections, aDispatcher, this);
     Listen<ContainerChangeEvent, &GuestWorldState::OnContainerChange>(m_connections, aDispatcher, this);
+    Listen<ItemDroppedEvent, &GuestWorldState::OnItemDropped>(m_connections, aDispatcher, this);
+    Listen<NotifyItemDropped, &GuestWorldState::OnItemDroppedNotify>(m_connections, aDispatcher, this);
+    Listen<ItemPickUpEvent, &GuestWorldState::OnItemPickUp>(m_connections, aDispatcher, this);
+    Listen<NotifyPickUp, &GuestWorldState::OnPickUpNotify>(m_connections, aDispatcher, this);
     // this is what stops guests (clients connected to the host) from starting their own quests or running
     // their own world scripts: the host's game decides
     m_engine.SetDecidesWorld(false);
@@ -109,8 +115,45 @@ void GuestWorldState::OnContainerChange(const ContainerChangeEvent& acEvent) noe
     request.Container = cChange->Object;
     request.Item = cChange->Item;
     request.Count = cChange->Value;
+    request.Stacks = cChange->Stacks;
     spdlog::info("GuestWorldState: proposed {}", WorldStateLog::Describe(*cChange));
     m_world.GetTransport().Send(request);
+}
+
+void GuestWorldState::OnItemDropped(const ItemDroppedEvent& acEvent) noexcept
+{
+    const auto cRequest = m_engine.ReadDrop(acEvent.ObjectId);
+    if (!cRequest)
+        return;
+    spdlog::info("GuestWorldState: dropped {:X} ({} of {:X}), asked the host to make it", cRequest->Tag, cRequest->Item.Count,
+                 cRequest->Item.BaseId.LogFormat());
+    m_world.GetTransport().Send(*cRequest);
+}
+
+void GuestWorldState::OnItemDroppedNotify(const NotifyItemDropped& acMessage) noexcept
+{
+    if (acMessage.Object == GameId{})
+        spdlog::warn("GuestWorldState: the host's game cannot make drop {:X}: it stays this game's own", acMessage.Tag);
+    if (m_engine.AdoptDrop(acMessage.Tag, acMessage.Object))
+        spdlog::info("GuestWorldState: the host made drop {:X} as {:X}", acMessage.Tag, acMessage.Object.LogFormat());
+    else
+        spdlog::warn("GuestWorldState: the host made drop {:X} as {:X}, no longer here", acMessage.Tag, acMessage.Object.LogFormat());
+}
+
+void GuestWorldState::OnItemPickUp(const ItemPickUpEvent& acEvent) noexcept
+{
+    const auto cRequest = m_engine.ReadPickUp(acEvent.ObjectId);
+    if (!cRequest)
+        return;
+    spdlog::info("GuestWorldState: asked the host for {:X} (tag {:X})", cRequest->Object.LogFormat(), cRequest->Tag);
+    m_world.GetTransport().Send(*cRequest);
+}
+
+void GuestWorldState::OnPickUpNotify(const NotifyPickUp& acMessage) noexcept
+{
+    m_engine.PickUp(acMessage);
+    spdlog::info("GuestWorldState: picked up {:X} (tag {:X}): {} of {:X}", acMessage.Object.LogFormat(), acMessage.Tag, acMessage.Item.Count,
+                 acMessage.Item.BaseId.LogFormat());
 }
 
 void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept

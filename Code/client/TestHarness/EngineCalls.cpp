@@ -4,7 +4,10 @@
 #include <Actor.h>
 #include <Forms/TESNPC.h>
 #include <BSAnimationGraphManager.h>
+#include <Bridges/ContainerItems.h>
 #include <Bridges/IFormBridge.h>
+#include <Bridges/LooseItems.h>
+#include <ExtraData/ExtraContainerChanges.h>
 #include <Camera/PlayerCamera.h>
 #include <Camera/VATS.h>
 #include <Effects/ReferenceEffect.h>
@@ -57,6 +60,7 @@
 #include <Games/TES.h>
 #include <NetImmerse/NiCamera.h>
 #include <NetImmerse/NiNode.h>
+#include <FormIds.h>
 #include <PlayerCharacter.h>
 #include <SaveLoad.h>
 #include <TESObjectREFR.h>
@@ -843,6 +847,94 @@ std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint3
     for (const auto& [pItem, cCount] : pObject->GetContainerItems())
         items.emplace_back(pItem->formID, cCount);
     return items;
+}
+
+std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormId) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aObjectFormId));
+    if (!pObject)
+        return std::nullopt;
+    std::vector<Inventory::Entry> stacks;
+    if (!pObject->GetContainer())
+    {
+        if (auto item = ReadLooseItem(*pObject))
+            stacks.push_back(std::move(*item));
+        return stacks;
+    }
+    for (const auto& [pItem, cCount] : pObject->GetContainerItems())
+        std::ranges::move(ReadContainerStacks(*pObject, *pItem), std::back_inserter(stacks));
+    return stacks;
+}
+
+bool GiveItem(const Inventory::Entry& acItem) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !Cast<TESBoundObject>(TESForm::GetById(ToGame(acItem.BaseId))))
+        return false;
+    pPlayer->AddOrRemoveItem(acItem);
+    return true;
+}
+
+namespace
+{
+// The player's stack of the item the inventory menus name: its first with item extra data, or (aPlain) none, the
+// plain ones; false when it holds no such stack.
+bool FindPlayerStack(TESBoundObject& aItem, bool aPlain, ExtraDataList*& apStack) noexcept
+{
+    apStack = nullptr;
+    if (aPlain)
+        return true;
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const auto* pChanges = pPlayer ? pPlayer->FindContainerChanges() : nullptr;
+    if (!pChanges || !pChanges->entries)
+        return false;
+    for (auto* pEntry : *pChanges->entries)
+        if (pEntry && pEntry->form == &aItem && pEntry->dataList)
+            for (ExtraDataList* pList : *pEntry->dataList)
+            {
+                Inventory::Entry stack;
+                if (!pList)
+                    continue;
+                TESObjectREFR::GetItemFromExtraData(stack, pList);
+                stack.ExtraWorn = stack.ExtraWornLeft = stack.IsQuestItem = false;
+                if (stack.ContainsExtraData())
+                {
+                    apStack = pList;
+                    return true;
+                }
+            }
+    return false;
+}
+} // namespace
+
+std::optional<uint32_t> PlayerDrops(uint32_t aItemFormId, int32_t aCount, bool aPlain) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItemFormId));
+    ExtraDataList* pStack = nullptr;
+    if (!pPlayer || !pItem || !FindPlayerStack(*pItem, aPlain, pStack))
+        return std::nullopt;
+    // Its address, which our hook patched: the drop as the menu makes it.
+    using TDropObject = void*(PlayerCharacter*, uint32_t* apResult, TESBoundObject*, ExtraDataList*, int32_t, const NiPoint3*, const NiPoint3*);
+    POINTER_SKYRIMSE(TDropObject, s_dropObject, 40454);
+    uint32_t handle = 0;
+    (s_dropObject.Get())(pPlayer, &handle, pItem, pStack, aCount, nullptr, nullptr);
+    const TESObjectREFR* pDropped = TESObjectREFR::GetByHandle(handle);
+    if (!pDropped)
+        return std::nullopt;
+    return pDropped->formID;
+}
+
+bool PlayerStores(uint32_t aItemFormId, int32_t aCount, uint32_t aContainerFormId, bool aPlain) noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    auto* pItem = Cast<TESBoundObject>(TESForm::GetById(aItemFormId));
+    auto* pContainer = aContainerFormId ? Cast<TESObjectREFR>(TESForm::GetById(aContainerFormId)) : nullptr;
+    ExtraDataList* pStack = nullptr;
+    if (!pPlayer || !pItem || (aContainerFormId && (!pContainer || !pContainer->GetContainer())) || !FindPlayerStack(*pItem, aPlain, pStack))
+        return false;
+    pPlayer->RemoveItem(pItem, aCount, pContainer ? ITEM_REMOVE_REASON::kStoreInContainer : ITEM_REMOVE_REASON::kRemove, pStack, pContainer);
+    return true;
 }
 
 std::optional<float> GetGlobalValue(uint32_t aGlobalId) noexcept

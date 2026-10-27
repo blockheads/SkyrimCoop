@@ -20,6 +20,7 @@
 #include <Events/HealthChangeEvent.h>
 #include <Events/ActorDeathChangeEvent.h>
 #include <Events/InventoryChangeEvent.h>
+#include <Events/LooseItemEvents.h>
 #include <Events/MountEvent.h>
 #include <Events/DismountEvent.h>
 #include <Events/DialogueEvent.h>
@@ -1194,7 +1195,11 @@ void* HookDropObject(Actor* apThis, void* apResult, TESBoundObject* apObject, Ex
 
     ScopedInventoryOverride _;
 
-    return RealDropObject(apThis, apResult, apObject, apExtraData, aCount, apLocation, apRotation);
+    void* pResult = RealDropObject(apThis, apResult, apObject, apExtraData, aCount, apLocation, apRotation);
+    // The loose item it made (none when it went into a container instead), by its handle.
+    if (const TESObjectREFR* pDropped = apResult ? TESObjectREFR::GetByHandle(*static_cast<uint32_t*>(apResult)) : nullptr)
+        World::Get().GetRunner().Trigger(ItemDroppedEvent{pDropped->formID});
+    return pResult;
 }
 
 void Actor::DropOrPickUpObject(const Inventory::Entry& arEntry, NiPoint3* apLocation, NiPoint3* apRotation) noexcept

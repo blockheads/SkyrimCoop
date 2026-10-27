@@ -722,15 +722,13 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
         arEntry.ExtraSoulLevel = (int32_t)pExtraSoul->cSoul;
     }
 
-    /*
-    if (ExtraTextDisplayData* pExtraTextDisplayData = Cast<ExtraTextDisplayData>(apExtraDataList->GetByType(ExtraDataType::TextDisplayData)))
+    // A player's name, without the temper suffix the engine appends.
+    if (const auto* pText = static_cast<const ExtraTextDisplayData*>(apExtraDataList->GetByType(ExtraDataType::TextDisplayData));
+        pText && pText->iOwnerInstance == ExtraTextDisplayData::kCustomName && pText->DisplayName.data)
     {
-        if (pExtraTextDisplayData->DisplayName)
-            arEntry.ExtraTextDisplayName = pExtraTextDisplayData->DisplayName;
-        else
-            arEntry.ExtraTextDisplayName = "";
+        const std::string_view cName(pText->DisplayName.data);
+        arEntry.ExtraName = std::string(cName.substr(0, pText->usCustomNameLength ? pText->usCustomNameLength : cName.size()));
     }
-    */
 
     arEntry.ExtraWorn = apExtraDataList->Contains(ExtraDataType::Worn);
     arEntry.ExtraWornLeft = apExtraDataList->Contains(ExtraDataType::WornLeft);
@@ -738,86 +736,21 @@ void TESObjectREFR::GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataLis
     arEntry.IsQuestItem = apExtraDataList->HasQuestObjectAlias();
 }
 
-ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEntry) noexcept
+ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEntry, bool aCounted) noexcept
 {
-
-    ExtraDataList* pExtraDataList = nullptr;
-
     if (!arEntry.ContainsExtraData())
-        return pExtraDataList;
+        return nullptr;
 
-    pExtraDataList = ExtraDataList::New();
-
-    if (arEntry.ExtraCharge > 0.f)
-    {
-        pExtraDataList->SetChargeData(arEntry.ExtraCharge);
-    }
-
-    if (arEntry.ExtraEnchantId != 0)
-    {
-        EnchantmentItem* pEnchantment = nullptr;
-        if (arEntry.ExtraEnchantId.ModId == 0xFFFFFFFF)
-        {
-            pEnchantment = EnchantmentItem::Create(arEntry.EnchantData);
-        }
-        else
-        {
-            uint32_t enchantId = ToGame(arEntry.ExtraEnchantId);
-            pEnchantment = Cast<EnchantmentItem>(TESForm::GetById(enchantId));
-        }
-
-        Utils::Assert(pEnchantment, "No Enchantment created or found.");
-
-        pExtraDataList->SetEnchantmentData(pEnchantment, arEntry.ExtraEnchantCharge, arEntry.ExtraEnchantRemoveUnequip);
-    }
-
-    if (arEntry.ExtraPoisonId != 0)
-    {
-        // TODO: does poison have the same temp problem as enchants?
-        // doesn't seem to be the case, there are only like 3 poisons, and no custom ones
-        Utils::Assert(arEntry.ExtraPoisonId.ModId != 0xFFFFFFFF, "Poison is sent as temp!");
-
-        uint32_t poisonId = ToGame(arEntry.ExtraPoisonId);
-        if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(poisonId)))
-        {
-            pExtraDataList->SetPoison(pPoison, arEntry.ExtraPoisonCount);
-        }
-    }
-
-    if (arEntry.ExtraHealth > 0.f)
-    {
-        pExtraDataList->SetHealth(arEntry.ExtraHealth);
-    }
-
-    if (arEntry.ExtraSoulLevel > 0 && arEntry.ExtraSoulLevel <= 5)
-    {
-        pExtraDataList->SetSoulData(static_cast<SOUL_LEVEL>(arEntry.ExtraSoulLevel));
-    }
+    ExtraDataList* pExtraDataList = ExtraDataList::New();
+    SetItemExtraData(*pExtraDataList, arEntry);
+    // A list stands for one item unless it holds a count: adding 2 with a list of none adds one plain.
+    if (aCounted && arEntry.Count > 1)
+        pExtraDataList->SetCount(static_cast<uint16_t>(std::min(arEntry.Count, 0xFFFF)));
 
     if (arEntry.ExtraWorn)
-    {
         pExtraDataList->SetWorn(false);
-    }
-
     if (arEntry.ExtraWornLeft)
-    {
         pExtraDataList->SetWorn(true);
-    }
-
-    // TODO: this is causing crashes
-    /*
-    if (!arEntry.ExtraTextDisplayName.empty())
-    {
-        ExtraTextDisplayData* pExtraText = Memory::Allocate<ExtraTextDisplayData>();
-        *((uint64_t*)pExtraText) = 0x1416244D0;
-        pExtraText->next = nullptr;
-        pExtraText->DisplayName = arEntry.ExtraTextDisplayName.c_str();
-        pExtraText->usCustomNameLength = arEntry.ExtraTextDisplayName.length();
-        pExtraText->iOwnerInstance = -2;
-        pExtraText->fTemperFactor = 1.0F;
-        pExtraDataList->Add(ExtraDataType::TextDisplayData, pExtraText);
-    }
-    */
 
     if (pExtraDataList->data == nullptr)
     {
@@ -827,6 +760,39 @@ ExtraDataList* TESObjectREFR::GetExtraDataFromItem(const Inventory::Entry& arEnt
     }
 
     return pExtraDataList;
+}
+
+void TESObjectREFR::SetItemExtraData(ExtraDataList& aList, const Inventory::Entry& acEntry) noexcept
+{
+    if (acEntry.ExtraCharge > 0.f)
+        aList.SetChargeData(acEntry.ExtraCharge);
+
+    if (acEntry.ExtraEnchantId != 0)
+    {
+        EnchantmentItem* pEnchantment = nullptr;
+        if (acEntry.ExtraEnchantId.ModId == 0xFFFFFFFF)
+            pEnchantment = EnchantmentItem::Create(acEntry.EnchantData);
+        else
+            pEnchantment = Cast<EnchantmentItem>(TESForm::GetById(ToGame(acEntry.ExtraEnchantId)));
+
+        Utils::Assert(pEnchantment, "No Enchantment created or found.");
+        if (pEnchantment)
+            aList.SetEnchantmentData(pEnchantment, acEntry.ExtraEnchantCharge, acEntry.ExtraEnchantRemoveUnequip);
+    }
+
+    // Poisons are plugins' forms (no player-made ones).
+    if (acEntry.ExtraPoisonId != 0)
+        if (AlchemyItem* pPoison = Cast<AlchemyItem>(TESForm::GetById(ToGame(acEntry.ExtraPoisonId))))
+            aList.SetPoison(pPoison, acEntry.ExtraPoisonCount);
+
+    if (acEntry.ExtraHealth > 0.f)
+        aList.SetHealth(acEntry.ExtraHealth);
+
+    if (acEntry.ExtraSoulLevel > 0 && acEntry.ExtraSoulLevel <= 5)
+        aList.SetSoulData(static_cast<SOUL_LEVEL>(acEntry.ExtraSoulLevel));
+
+    if (!acEntry.ExtraName.empty())
+        aList.SetCustomName(acEntry.ExtraName.c_str());
 }
 
 Inventory TESObjectREFR::GetInventory() const noexcept
@@ -1022,7 +988,7 @@ void TESObjectREFR::AddOrRemoveItem(const Inventory::Entry& arEntry, bool aIsSet
         return;
     }
 
-    ExtraDataList* pExtraDataList = GetExtraDataFromItem(arEntry);
+    ExtraDataList* pExtraDataList = GetExtraDataFromItem(arEntry, arEntry.Count > 0);
 
     if (arEntry.Count > 0)
     {

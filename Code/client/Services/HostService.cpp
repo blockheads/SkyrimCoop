@@ -196,7 +196,11 @@ void HostService::MakeAuthority() noexcept
         return m_pEngine->ReadCellState(acCell, acChanged);
     };
     game.SetLock = [this](const GameId& acObject, bool aLocked, uint8_t aLevel) { m_pEngine->SetLock(acObject, aLocked, aLevel); };
-    game.SetItems = [this](const GameId& acObject, const GameId& acItem, uint32_t aCount) { m_pEngine->SetItems(acObject, acItem, aCount); };
+    game.SetItems = [this](const ObjectChange& acItems) { m_pEngine->SetItems(acItems); };
+    game.CreateItem = [this](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
+        return m_pEngine->CreateItem(acItem, acPlacement);
+    };
+    game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
     game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };

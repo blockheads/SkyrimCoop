@@ -112,9 +112,13 @@ void HostService::MakeAuthority() noexcept
     game.SetLock = [&engine](const GameId& acObject, bool aLocked, uint8_t aLevel) {
         engine.SetLock(FormIdOf(acObject), aLocked, aLevel);
     };
-    game.SetItems = [&engine](const GameId& acObject, const GameId& acItem, uint32_t aCount) {
-        engine.SetItems(FormIdOf(acObject), FormIdOf(acItem), static_cast<int32_t>(aCount));
+    game.SetItems = [&engine](const ObjectChange& acItems) {
+        engine.SetItems(FormIdOf(acItems.Object), FormIdOf(acItems.Item), static_cast<int32_t>(acItems.Value), acItems.Stacks);
     };
+    game.CreateItem = [&engine](const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) {
+        return engine.CreateLoose(acItem, FormIdOf(acPlacement.Cell));
+    };
+    game.TakeItem = [&engine](const GameId& acObject) { return engine.TakeLoose(acObject); };
     // An actor's ragdoll goes by its session id, as HostEngine::TakeBodies keys it; only this game's own actors' (a
     // copy's is keyed by session id here, and played).
     game.TakeBodies = [&engine, this] {

@@ -30,6 +30,11 @@ struct ExtraDataList
     void SetPoison(AlchemyItem* apItem, uint32_t aCount) noexcept;
     void SetHealth(float aHealth) noexcept;
     void SetEnchantmentData(EnchantmentItem* apItem, uint16_t aCharge, bool aRemoveOnUnequip) noexcept;
+    // How many the reference or stack stands for (ExtraCount; 1 removes it), as ExtraDataList::SetCount (11617).
+    void SetCount(uint16_t aCount) noexcept;
+    // A player's name for the item (ExtraTextDisplayData, custom), as CommonLib's SetOverrideName; none over a quest's
+    // or a message's name.
+    void SetCustomName(const char* acpName) noexcept;
 
     [[nodiscard]] bool HasQuestObjectAlias() noexcept;
 

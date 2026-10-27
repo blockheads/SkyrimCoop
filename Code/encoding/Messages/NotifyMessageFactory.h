@@ -38,6 +38,7 @@
 #include <Messages/JoinMessages.h>
 #include <Messages/WaitMessages.h>
 #include <Messages/CrimeMessages.h>
+#include <Messages/DroppedItems.h>
 #include <Messages/DeathMessages.h>
 
 struct NotifyMessageFactory

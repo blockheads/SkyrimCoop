@@ -9,6 +9,7 @@
 #include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
 #include <Services/Host/HostHands.h>
+#include <Services/Host/HostItems.h>
 #include <Services/Host/HostPhysics.h>
 #include <Services/Host/HostPlayerNatives.h>
 #include <Services/Host/HostPlayers.h>
@@ -50,8 +51,9 @@ struct HostNetwork;
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
  * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
  * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
- * loading), HostPlayerNatives (natives the host's scripts ran for a guest) and HostPhysics (the host's bodies) and
- * HostHands (a guest's player's pushes and holds of them); HostWeather has no rules.
+ * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (natives the host's scripts ran for a guest),
+ * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather has no
+ * rules.
  */
 struct HostAuthority
 {
@@ -153,6 +155,7 @@ private:
     HostCrime m_crime;
     HostWeather m_weather;
     HostWorldState m_worldState;
+    HostItems m_items;
     HostPhysics m_physics;
     HostHands m_hands;
     HostTimeScale m_timeScale;

@@ -8,6 +8,8 @@
 #include <Events/ConnectedEvent.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
+#include <Events/InventoryChangeEvent.h>
+#include <Games/Overrides.h>
 #include <Services/DialogueService.h>
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestDialogue.h>
@@ -63,7 +65,111 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool) noexcept
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
 {
-    return FakeEngine::Current().Apply(acChange, aLoad);
+    FakeEngine& engine = FakeEngine::Current();
+    if (acChange.Object.ModId != ObjectChange::kCreatedModId)
+        return engine.Apply(acChange, aLoad);
+    // The host's loose items: a twin made once (Create), deleted with the host's.
+    const auto cTwin = m_created.find(acChange.Object.BaseId);
+    const bool cHere = cTwin != m_created.end() && engine.Loose.contains(cTwin->second);
+    if (acChange.Type == ObjectChange::Kind::kCreate)
+    {
+        if (cHere)
+            return true;
+        ObjectChange::Placement placement;
+        if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
+            return false;
+        Inventory::Entry item = acChange.Stacks.empty() ? Inventory::Entry{.BaseId = acChange.Item, .Count = 1} : acChange.Stacks[0];
+        const uint32_t cId = engine.PlaceLoose(FormIdOf(placement.Cell), item);
+        m_created[acChange.Object.BaseId] = cId;
+        engine.HostDecides.insert(cId);
+        return true;
+    }
+    if (!cHere)
+        return false;
+    if (acChange.Type == ObjectChange::Kind::kEnabled && acChange.Value & 2)
+    {
+        engine.Loose.erase(cTwin->second);
+        engine.HostDecides.erase(cTwin->second);
+        m_created.erase(cTwin);
+    }
+    return true;
+}
+
+std::optional<DropItemRequest> GuestEngine::ReadDrop(uint32_t aFormId) noexcept
+{
+    const auto& cLoose = FakeEngine::Current().Loose;
+    const auto it = cLoose.find(aFormId);
+    if (it == cLoose.end())
+        return std::nullopt;
+    m_ownDrops[aFormId] = aFormId;
+    FakeEngine::Current().HostDecides.insert(aFormId);
+    DropItemRequest drop;
+    drop.Tag = aFormId;
+    drop.Item = it->second.Item;
+    drop.Placement.Cell = SessionIdOf(it->second.Cell);
+    return drop;
+}
+
+bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
+{
+    const auto it = m_ownDrops.find(aTag);
+    if (it == m_ownDrops.end() || !FakeEngine::Current().Loose.contains(it->second))
+        return false;
+    const uint32_t cOwn = it->second;
+    m_ownDrops.erase(it);
+    if (acObject == GameId{})
+    {
+        FakeEngine::Current().HostDecides.erase(cOwn);
+        return true;
+    }
+    m_created[acObject.BaseId] = cOwn;
+    m_adopted.push_back({.Object = acObject});
+    return true;
+}
+
+std::vector<BodyKey> GuestEngine::TakeAdoptedDrops() noexcept
+{
+    return std::exchange(m_adopted, {});
+}
+
+std::optional<PickUpRequest> GuestEngine::ReadPickUp(uint32_t aFormId) const noexcept
+{
+    PickUpRequest request;
+    for (const auto& [cHostId, cOwn] : m_created)
+        if (cOwn == aFormId)
+            request.Object = GameId(ObjectChange::kCreatedModId, cHostId);
+    if (m_ownDrops.contains(aFormId))
+        request.Tag = aFormId;
+    if (request.Object == GameId{} && !request.Tag)
+        return std::nullopt;
+    return request;
+}
+
+void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
+{
+    FakeEngine& engine = FakeEngine::Current();
+    uint32_t twin = 0;
+    if (const auto it = m_created.find(acGrant.Object.BaseId); acGrant.Object.ModId == ObjectChange::kCreatedModId && it != m_created.end())
+    {
+        twin = it->second;
+        m_created.erase(it);
+    }
+    if (const auto it = m_ownDrops.find(acGrant.Tag); acGrant.Tag && it != m_ownDrops.end())
+    {
+        twin = it->second;
+        m_ownDrops.erase(it);
+    }
+    if (twin && engine.Loose.contains(twin))
+    {
+        engine.PickUpGranted = true;
+        engine.PicksUp(twin);
+        engine.PickUpGranted = false;
+        return;
+    }
+    // Its twin gone already: the item itself, raised as a pickup is.
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(FakeEngine::kPlayer, acGrant.Item));
+    ScopedInventoryOverride _;
+    engine.ObjectAddOrRemoveItem(FakeEngine::kPlayer, acGrant.Item);
 }
 
 std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectFormId, uint32_t aItemFormId) const noexcept
@@ -76,6 +182,9 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
     ObjectChange change{
         .Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aObjectFormId), .Item = SessionIdOf(aItemFormId)};
     change.Value = cItem != it->second.Items.end() ? static_cast<uint32_t>(cItem->second) : 0;
+    for (const auto& cStack : it->second.Stacks)
+        if (cStack.BaseId == change.Item)
+            change.Stacks.push_back(cStack);
     return change;
 }
 

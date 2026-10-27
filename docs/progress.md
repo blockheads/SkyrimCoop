@@ -115,7 +115,8 @@ Before AI state and dialogue (below), world sync is finished while its pieces ar
    zone `0x20000000` (`664DE`) not identified: not in memory since.
 3. **Created objects** (`0xFF` ids, each game's own): dropped items, placed objects, loot. A mapping between the
    host's and each guest's ids, made when the host creates one; also what quest fills of created objects need
-   (loose ends, "Created objects in quest alias fills").
+   (loose ends, "Created objects in quest alias fills"). Dropped items built on it 2026-10-26 (`dropped-items.md`): a guest's
+   drop made by the host's game, its own reference adopted as the twin; pickups through the host.
 4. **The rest of `unsynced`:** done 2026-10-21. Animation `0x10000000`: the graph row (`kGraph`, the graphs' save
    data, ~130 bytes each) goes with a cell's state only (live changes are the relayed animation events);
    `late-join-gets-ring-pose` (a claw ring turned while the client was away). Activating children `0x4000000`:
@@ -648,7 +649,8 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | Mount, AI package, dialogue, factions | relayed, no scenario | |
 | Physics: objects and ragdolls | the host simulates, guests show it live (keyframed by its frames, sent when the guess goes wrong) and rest at the host's spots; a dead NPC's copy lies as the host's bone by bone. A guest's push goes to the host as its character's impulse, its casts through its copy's, what it grabs follows its hands on the host and falls from where it let go; the guest shows its own until the host's rest, and gets the host's pose back for what its own physics moved alone. A guest gets frames only of bodies within 4096 units of its copy, rests of all (2026-10-25). A guest's playback is placed at its pose each frame and blends into frames it has early: no flicker, 0.1 units typical off the host's (2026-10-25, `FlightTrace` in the fireball scenarios). Since 2026-10-26 every game streams its own bodies (a guest's player's ragdoll, what it holds), and a living actor's copy is knocked down with it and lies as its ragdoll does. Not yet: a refused second grab, a dead body's pose at a cell load (`docs/design/physics-sync.md`) | `physics-push-reaches-guest`, `ragdoll-lies-as-host`, `knockdown-lies-as-host`, `guest-knockdown-lies-on-host`, `guest-bump-moves-host`, `guest-cast-moves-host`, `guest-throw-lands-on-host` |
 | Crime / party bounty | host-authoritative | shared totals, guest alarms and personal-purse fines; native coverage and jail/trespass-AI limits: `docs/design/shared-party-bounty.md` |
-| Dropped items, followers | not synced | |
+| Dropped items | one in the host's world with their extra data; pickups granted by the host (feature 6, 2026-10-26) | `docs/design/dropped-items.md` |
+| Followers | not synced | |
 | World state (quests, globals, containers, mods' state) | not synced; what drifts and how often is measured (world-state sync steps 1-2: `save-diff`, `change-rate`, `docs/research/world-state-drift.md`); a form's save data round-trips in a running game (step 3, 2026-10-20: `Games/FormState.cpp`, `form-state-round-trips`; the copies' appearance uses it); quest walks 2026-10-20: `coop_test.py quest-walk` drives real quests (main, side, radiant) from a late save (`scripts/fetch_late_saves.py`) and shows the client never follows (`docs/research/world-state-drift.md`, "Quest walks"); step 4 built: globals and quests from the host (`HostWorldState`, `NotifyGlobals`, `NotifyQuests`; a guest applies with the engine's own calls, stage fragments skipped; scenarios `global-reaches-guest`, `late-join-gets-globals`, `quest-stage-reaches-guest`, `quest-completes-for-guest`, `quest-roles-match-host`, `late-join-gets-quests`), the main-quest walk matches 14 of 14; loose ends below. Step 5 slice 1 built 2026-10-21: a guest's world scripts get no activation or trigger events, the host's run them for its copy, and their doors, animations and spells reach the guest from the host (`Papyrus/WorldEvents.cpp`, `HostWorldState`'s `NotifyObjectChanges`, `MagicTarget.cpp`; `docs/re/systems/guest-world-events.md`; scenarios `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `shrine-blesses-client`). Step 6's enabled state built 2026-10-21: the host's references enabled or disabled reach the guests (`NotifyObjectChanges`; `sword-box-asks-client`, harness `ref_enabled`). Locks the same day: the host's lock changes go out as object changes, a guest's are proposals the host's game takes (`HostAuthority::OnLockChange`; `lock-reaches-others`); the old lock relay is deleted. Both read on the host from the engine's change funnel (`Forms/FormChanges`, `HostEngine::TakeObjectChanges`; `docs/design/world-state-sync.md`, "As built"), built 2026-10-21 (scenarios `lock-reaches-others`, `guest-loads-propose-no-locks`, `sword-box-asks-client` pass); the `Enable`/`Disable` hooks are deleted. Containers slice 1 the same day: a container's item changes travel as its count now (`kItems` object changes from the host; a guest's own a `ContainerChangeRequest` the host's game takes), seen through the engine's `TESContainerChangedEvent` (`ContainerEvents`); `chest-take-reaches-others`; the unused `RequestObjectInventoryChanges`/`NotifyObjectInventoryChanges` deleted. World desync check for references (step 7) 2026-10-21: harness `world_state` (with each reference's change record, pose, physics, graph, effects), `coop_test.py world-diff`, scenario `world-changes-reach-guest` (also each change's object events). Reference sync reworked the same day from what it showed: rows for enabled, lock, open state, move, scale and owner (the engine's calls: swing, events, 3D, collision), the funnel also watching `RemoveChange` and repeat moves; every kind but created references matches in every side effect, items' container event included. The save-data fallback is built but off until mods (with it on, it hid the missing container event); flags with no row are logged once, `coop_test.py unsynced` (now: havok moved, activating children, animation). Open: created references, those rows, whether the guest's scripts should get object events at all, references the guest has not loaded (changes dropped). Rewritten 2026-10-20: save transfer at join, plain messages while playing (step 4: globals and quests), save data per form only for mods later; AI state travels on its own | `docs/design/world-state-sync.md`, `docs/re/systems/form-state.md` |
 | A client's actions counting on the host ("who is the player") | spikes 1-5 and a script scan done; decided (`docs/design/party-model.md`): every party member is the player in the host's scripts, "the player" is the member whose action started the script, position questions without a cause ask about the party, story events judged for their member, messages to everyone. Rules 1-2 built (`Games/Skyrim/Papyrus/GuestScripts.cpp`; rule 2 never ran until 2026-10-20: `GetPlayer`'s name reads back from the engine's string pool as `getplayer`; engine names are now compared case-insensitively everywhere, `Games/EngineNames.h`, `docs/re/systems/engine-names.md`; scenarios `plate-counts-client`, `sword-box-asks-client`, `statue-fires-at-client`, `ring-turns-for-client`, `keyhole-asks-client`, `shrine-blesses-client`, `vilkas-counts-client-hits`); upstream's patched vanilla scripts and `SkyrimTogetherUtils` natives removed; rules 3-5 not built. The client's world scripts stop reacting to activations and triggers (world-state sync step 5, slice 1, 2026-10-21); other events still run on both games | `docs/research/player-events.md`, `scripts/spikes/` |
 
@@ -1087,6 +1089,7 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 Everything known to be unfinished, unverified or unexplained. Close an entry by fixing it, proving it
 harmless, or moving it to `docs/ideas.md`; say where the evidence went. Details are in the doc named.
+Bugs we chose to ship with in 1.0 are listed in `docs/bugs.md`.
 
 ### Mounts (2026-10-23)
 
@@ -1481,7 +1484,18 @@ What the first playtest build has besides what works today (the table above):
    knockdowns knock the copies down with their owners. A dead body's pose at a cell load is parked in
    `docs/ideas.md` (it drops in place on the guest, lootable).
 6. **Dropped items** (created references), with their extra data; items in chests keep theirs too. This is how
-   players give each other items in 1.0 (a trade menu comes later).
+   players give each other items in 1.0 (a trade menu comes later). Built 2026-10-26, merged into dev after a
+   review (uncommitted; [dropped-items.md](design/dropped-items.md)): a guest's drop is made by the host's game
+   and the dropper's own reference becomes its twin (its fall its own until the host's rest); a guest's pickup asks
+   the host, the first request wins and the item is gone for everyone; the host's own drops and pickups are its
+   world's. The item's enchantment (player-made too), charge, tempering, poison, soul and custom name travel
+   (`Inventory::Entry`, name added), and containers' changes carry their stacks with extra data. A guest's drop where
+   the host's game has no cell loaded waits for it. Tiers 1-2 pass (`[Items]`, `[loose]`, both lossy profiles);
+   scenarios `host-drop-reaches-guest`, `guest-drop-reaches-host`, `guest-pickup-race`, `chest-keeps-tempered-item`
+   3/3 shuffled. Skyrim found two engine gaps, fixed: a deleted reference was still picked up (both players got the
+   item), and a stack with extra data added with a count needs its `ExtraCount` (else one plain). The review fixed a
+   player-made enchantment comparing unequal across games (chests rebuilt such stacks on every sync), a drop the
+   host's game cannot make (now told, stays the dropper's), and a pickup in the frame its drop was made.
 7. **Followers:** to be planned.
 8. **Vampirism and diseases on guests** (`party-model.md`, "Still open").
 9. **Cutscenes, step 2:** each player's own character in a scene.
@@ -1521,9 +1535,8 @@ What the first playtest build has besides what works today (the table above):
     camera, body pose and ragdoll motion readouts, `coop_test.py look` (`testing.md`). Open: melee stagger is not sent
     (as for host NPCs); a copy's ragdoll (any actor's) no longer fights its owner's frames (steered), and the engine keeps a lying
     copy on it as its owner (its spins and snaps fixed; `physics-sync.md`, "A copy's ragdoll, steered"); knock-start
-    pops fixed (never placed where its owner lies, eased off its ragdoll); open: a copy getting up on its own timing
-    (`knockdown-smoke` fails on it now and then); a
-    revived player knocked down stays getting up (knock 6) and its copies never go down (on dev too; `death.md`).
+    pops fixed (never placed where its owner lies, eased off its ragdoll). Left for after 1.0 (`docs/bugs.md`): a
+    copy getting up on its own timing, a little shaking while it lies, and a revived player knocked down stays getting up.
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation

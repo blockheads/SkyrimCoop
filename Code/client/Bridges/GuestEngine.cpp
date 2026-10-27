@@ -3,6 +3,7 @@
 #include <Bridges/IBodyBridge.h>
 
 #include <Bridges/ContainerItems.h>
+#include <Bridges/LooseItems.h>
 #include <Games/Skyrim/PlayerHands.h>
 #include <AiStateEvents.h>
 #include <EffectEvents.h>
@@ -31,6 +32,7 @@
 #include <Games/TES.h>
 #include <Sky/Sky.h>
 #include <Actor.h>
+#include <PlayerCharacter.h>
 #include <TESObjectREFR.h>
 #include <TimeManager.h>
 #include <RTTI.h>
@@ -160,6 +162,7 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
         const TESObjectREFR* pObject = FindReference(acId);
         return pObject ? pObject->formID : 0u;
     });
+    PlayerCharacter::SetPickUpGate([this](TESObjectREFR& aObject) { return IsPartyItem(aObject); });
     ContainerEvents::Start();
     PlayerHands::Watch(true);
     AiStateEvents::Start();
@@ -173,6 +176,7 @@ GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
 GuestEngine::~GuestEngine() noexcept
 {
     m_bodyBridge.SetReferences({});
+    PlayerCharacter::SetPickUpGate({});
     // The host's created objects go with the session: a next one makes them again.
     for (const auto& [cHostId, cHandle] : m_created)
         if (TESObjectREFR* pMade = TESObjectREFR::GetByHandle(cHandle); pMade && !pMade->IsDeleted())
@@ -344,21 +348,100 @@ bool GuestEngine::Create(const ObjectChange& acChange) noexcept
     if (const TESObjectREFR* pMade = FindReference(acChange.Object); pMade && !pMade->IsDeleted())
         return true;
     ObjectChange::Placement placement;
-    auto* pBase = Cast<TESBoundObject>(TESForm::GetById(ToGame(acChange.Item)));
-    if (!pBase || !ObjectChange::UnpackPlacement(acChange.Data, placement))
+    if (!ObjectChange::UnpackPlacement(acChange.Data, placement))
         return false;
-    auto* pCell = placement.Cell ? Cast<TESObjectCELL>(TESForm::GetById(ToGame(placement.Cell))) : nullptr;
-    auto* pWorldSpace = placement.WorldSpace ? Cast<TESWorldSpace>(TESForm::GetById(ToGame(placement.WorldSpace))) : nullptr;
-    ModManager* pManager = ModManager::Get();
-    if ((!pCell && !pWorldSpace) || !pManager)
+    // An item with its count and extra data (a drop), else its base alone.
+    TESObjectREFR* pMade = MakeLooseItem(acChange.Item, acChange.Stacks.empty() ? nullptr : &acChange.Stacks[0], placement);
+    if (!pMade)
         return false;
-    const NiPoint3 cPosition(glm::vec3(placement.Position[0], placement.Position[1], placement.Position[2]));
-    const NiPoint3 cRotation(glm::vec3(placement.Rotation[0], placement.Rotation[1], placement.Rotation[2]));
-    const uint32_t cHandle = pManager->CreateReference(pBase, cPosition, cRotation, pCell, pWorldSpace);
-    if (!TESObjectREFR::GetByHandle(cHandle))
-        return false;
-    m_created[acChange.Object.BaseId] = cHandle;
+    m_created[acChange.Object.BaseId] = pMade->GetHandle().handle.iBits;
     return true;
+}
+
+std::optional<DropItemRequest> GuestEngine::ReadDrop(uint32_t aFormId) noexcept
+{
+    auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    const auto cItem = pObject ? ReadLooseItem(*pObject) : std::nullopt;
+    const auto cPlacement = cItem ? ReadPlacement(*pObject) : std::nullopt;
+    if (!cPlacement)
+        return std::nullopt;
+    m_ownDrops[aFormId] = pObject->GetHandle().handle.iBits;
+    DropItemRequest drop;
+    drop.Tag = aFormId;
+    drop.Item = *cItem;
+    drop.Placement = *cPlacement;
+    return drop;
+}
+
+bool GuestEngine::AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept
+{
+    const auto it = m_ownDrops.find(aTag);
+    if (it == m_ownDrops.end())
+        return false;
+    const uint32_t cHandle = it->second;
+    m_ownDrops.erase(it);
+    const TESObjectREFR* pOwn = TESObjectREFR::GetByHandle(cHandle);
+    if (!pOwn || pOwn->IsDeleted())
+        return false;
+    if (acObject == GameId{})
+        return true;
+    m_created[acObject.BaseId] = cHandle;
+    m_adopted.push_back({.Object = acObject});
+    return true;
+}
+
+std::vector<BodyKey> GuestEngine::TakeAdoptedDrops() noexcept
+{
+    return std::exchange(m_adopted, {});
+}
+
+bool GuestEngine::IsPartyItem(const TESObjectREFR& acObject) const noexcept
+{
+    if (!IsCreatedForm(acObject.formID))
+        return false;
+    if (m_ownDrops.contains(acObject.formID))
+        return true;
+    return std::ranges::any_of(m_created, [&](const auto& acCreated) { return TESObjectREFR::GetByHandle(acCreated.second) == &acObject; });
+}
+
+std::optional<PickUpRequest> GuestEngine::ReadPickUp(uint32_t aFormId) const noexcept
+{
+    const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    if (!pObject || !IsPartyItem(*pObject))
+        return std::nullopt;
+    PickUpRequest request;
+    if (m_ownDrops.contains(aFormId))
+        request.Tag = aFormId;
+    else
+        request.Object = HostIdOf(*pObject).value_or(GameId{});
+    return request;
+}
+
+void GuestEngine::PickUp(const NotifyPickUp& acGrant) noexcept
+{
+    uint32_t handle = 0;
+    if (const auto it = m_created.find(acGrant.Object.BaseId); acGrant.Object.ModId == ObjectChange::kCreatedModId && it != m_created.end())
+    {
+        handle = it->second;
+        m_created.erase(it);
+        m_taken.insert(acGrant.Object.BaseId);
+    }
+    if (const auto it = m_ownDrops.find(acGrant.Tag); acGrant.Tag && it != m_ownDrops.end())
+    {
+        handle = it->second;
+        m_ownDrops.erase(it);
+    }
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer)
+        return;
+    TESObjectREFR* pTwin = handle ? TESObjectREFR::GetByHandle(handle) : nullptr;
+    if (pTwin && !pTwin->IsDeleted() && !pTwin->IsDisabled())
+    {
+        pPlayer->PickUpGranted(*pTwin, ReadLooseItem(*pTwin).value_or(acGrant.Item).Count);
+        return;
+    }
+    // Its twin is gone here (the host's deletion came first): the item itself, as a pickup raises it.
+    pPlayer->AddOrRemoveItem(acGrant.Item);
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
@@ -368,6 +451,9 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
     if (acChange.Type == ObjectChange::Kind::kCreate)
         return Create(acChange);
     auto* pObject = FindReference(acChange.Object);
+    // The host's deletion of one this game's player picked up: done already.
+    if (!pObject && acChange.Object.ModId == ObjectChange::kCreatedModId && m_taken.erase(acChange.Object.BaseId))
+        return true;
     if (!pObject)
         return false;
     if (aLoad && ReferenceStates::Matches(*pObject, acChange))
@@ -381,11 +467,7 @@ bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) no
         ReferenceStates::RecordRows(*pObject, acChange.Value);
         return true;
     case ObjectChange::Kind::kContents: return ApplyContainerContents(*pObject, acChange);
-    case ObjectChange::Kind::kItems:
-    {
-        auto* pItem = Cast<TESBoundObject>(TESForm::GetById(ToGame(acChange.Item)));
-        return !Cast<Actor>(pObject) && pObject->SetContainerCount(pItem, static_cast<int32_t>(acChange.Value));
-    }
+    case ObjectChange::Kind::kItems: return ApplyContainerItems(*pObject, acChange);
     default: return ReferenceStates::Apply(*pObject, acChange);
     }
 }

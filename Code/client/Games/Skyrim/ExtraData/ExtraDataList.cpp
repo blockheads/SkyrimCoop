@@ -1,6 +1,10 @@
 #include "ExtraDataList.h"
+#include "ExtraTextDisplayData.h"
 
+#include <Games/Memory.h>
 #include <Games/Overrides.h>
+
+#include <cstring>
 #include <VersionDb.h>
 
 ExtraDataList* ExtraDataList::New() noexcept
@@ -141,6 +145,35 @@ void ExtraDataList::SetEnchantmentData(EnchantmentItem* apItem, uint16_t aCharge
     using TSetEnchantmentData = void(ExtraDataList*, EnchantmentItem* apItem, uint16_t aCharge, bool aRemoveOnUnequip);
     POINTER_SKYRIMSE(TSetEnchantmentData, setEnchantmentData, 12060);
     setEnchantmentData(this, apItem, aCharge, aRemoveOnUnequip);
+}
+
+void ExtraDataList::SetCount(uint16_t aCount) noexcept
+{
+    using TSetCount = void(ExtraDataList*, uint16_t aCount);
+    POINTER_SKYRIMSE(TSetCount, s_setCount, 11617);
+    s_setCount(this, aCount);
+}
+
+void ExtraDataList::SetCustomName(const char* acpName) noexcept
+{
+    auto* pText = static_cast<ExtraTextDisplayData*>(GetByType(ExtraDataType::TextDisplayData));
+    if (!pText)
+    {
+        // As SKSE's ExtraTextDisplayData::Create: its vtable (186855), no owner instance, temper factor 1.
+        POINTER_SKYRIMSE(uint8_t, s_vtable, 186855);
+        pText = static_cast<ExtraTextDisplayData*>(Memory::Allocate(sizeof(ExtraTextDisplayData)));
+        std::memset(static_cast<void*>(pText), 0, sizeof(ExtraTextDisplayData));
+        *reinterpret_cast<void**>(pText) = s_vtable.Get();
+        pText->iOwnerInstance = -1;
+        pText->fTemperFactor = 1.f;
+        Add(ExtraDataType::TextDisplayData, pText);
+    }
+    if (pText->pDisplayNameText || pText->pOwnerQuest)
+        return;
+    pText->DisplayName.Set(acpName);
+    pText->usCustomNameLength = static_cast<uint16_t>(std::strlen(acpName));
+    pText->iOwnerInstance = ExtraTextDisplayData::kCustomName;
+    pText->fTemperFactor = 1.f;
 }
 
 bool ExtraDataList::HasQuestObjectAlias() noexcept

@@ -3,6 +3,7 @@
 #include "Message.h"
 
 #include <Structs/GameId.h>
+#include <Structs/Inventory.h>
 
 #include <cstring>
 #include <Wire/Buffer.h>
@@ -123,7 +124,7 @@ struct ObjectChange
     {
         kActivate,
         kAnimation,
-        kItems, // a container holds Value of Item now
+        kItems, // a container holds Value of Item now, Stacks those of them with extra data
         // States, from here on: Value.
         kEnabled,
         kLock,
@@ -132,9 +133,11 @@ struct ObjectChange
         kMove,      // Data: position and angle, 6 floats
         kScale,     // Value: percent
         kOwner,     // Item: the owner, none for no owner
-        kContents,  // Data: every item a container holds (ItemCount each, PackContents), the host's leveled roll
+        kContents,  // Data: every item a container holds (ItemCount each, PackContents), the host's leveled roll;
+                    // Stacks: those with extra data
         kBase,      // Item: its base, the host's pick for one placed with a leveled base
-        kCreate,    // the host's game made Object (kCreatedModId): Item its base, Data where (PackPlacement)
+        kCreate,    // the host's game made Object (kCreatedModId): Item its base, Data where (PackPlacement);
+                    // an item's count and extra data in Stacks (one)
         kRecord,    // Value: the row flags the host's change record holds; a guest's record is made the same
         kGraph,     // Data: its behaviour graphs' state as a save keeps it (a lever's, a claw ring's), at a cell load
     };
@@ -150,6 +153,8 @@ struct ObjectChange
         GameId WorldSpace{};
         float Position[3]{};
         float Rotation[3]{};
+
+        bool operator==(const Placement&) const noexcept = default;
     };
 
     static std::string PackPlacement(const Placement& acPlacement) noexcept
@@ -220,6 +225,11 @@ struct ObjectChange
     {
         return aKind == Kind::kItems || aKind == Kind::kOwner || aKind == Kind::kBase || aKind == Kind::kCreate;
     }
+    // The kinds that carry items' extra data (enchantment, tempering, a name...).
+    static bool HasStacks(Kind aKind) noexcept
+    {
+        return aKind == Kind::kItems || aKind == Kind::kContents || aKind == Kind::kCreate;
+    }
 
     Kind Type{};
     GameId Object{};
@@ -230,11 +240,13 @@ struct ObjectChange
     GameId Item{};                   // kItems: the base item; kOwner: the owner; kBase: the base
     uint32_t Value{};                // a state's; kItems: the count
     std::string Data;      // kSaveData, kMove, kContents
+    std::vector<Inventory::Entry> Stacks; // HasStacks: items with extra data, each its count
 
     bool operator==(const ObjectChange& acRhs) const noexcept
     {
         return Type == acRhs.Type && Object == acRhs.Object && Activator == acRhs.Activator && OpenState == acRhs.OpenState &&
-               Animation == acRhs.Animation && Event == acRhs.Event && Item == acRhs.Item && Value == acRhs.Value && Data == acRhs.Data;
+               Animation == acRhs.Animation && Event == acRhs.Event && Item == acRhs.Item && Value == acRhs.Value && Data == acRhs.Data &&
+               Stacks == acRhs.Stacks;
     }
 };
 

@@ -501,10 +501,12 @@ a guest's cell loads (CellStateRequest, as today)
   dead actors        their copies' spawns carry the ragdolls' rest poses (above)
 ```
 
-## Dropped items later (feature 6)
+## Dropped items (feature 6, built 2026-10-26)
 
-Created references (0xFF ids) differ per game. Feature 6 gives each a host id; the body key's owner gains that
-id and nothing else changes: a dropped item is a body like any other, awake while it falls.
+A created reference goes by its host id (`kCreatedModId`), mapped on each guest to its twin, so a dropped item is a
+body like any other, awake while it falls (`docs/design/dropped-items.md`). A guest's own drop is made by the host's
+game and the dropper's reference becomes its twin; its body stays the dropper's own until the host's rest
+(`GuestHands`, as a push or a hold), everyone else plays the host's frames.
 
 ## Engine pieces
 

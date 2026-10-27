@@ -68,8 +68,15 @@ struct HostGame
     std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
     std::function<void(const GameId& acObject, bool aLocked, uint8_t aLockLevel)> SetLock;
-    // A guest's container change, accepted: the host's container holds that many (and it goes out as the host's change).
-    std::function<void(const GameId& acObject, const GameId& acItem, uint32_t aCount)> SetItems;
+    // A guest's container change, accepted (a kItems change): the host's container holds that many, its stacks with
+    // extra data as given (and it goes out as the host's change).
+    std::function<void(const ObjectChange& acItems)> SetItems;
+    // A guest's drop: the host's game makes the item (its count and extra data) there, the party's one reference; its
+    // created id, none while that cell is not loaded here, an empty id when it cannot be made (no such item here).
+    std::function<std::optional<GameId>(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement)> CreateItem;
+    // A guest picks up the party's loose item: taken out of the host's world (the deletion goes out), what it held;
+    // none when it is gone (another player was first).
+    std::function<std::optional<Inventory::Entry>(const GameId& acObject)> TakeItem;
     // Saves the host's game now for a game joining from the main menu: the save in chunks, none when the engine
     // refused to save (HostSaveTransfer tries again next update).
     std::function<std::optional<std::vector<NotifySaveChunk>>()> SaveWorld;

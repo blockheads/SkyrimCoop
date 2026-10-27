@@ -22,6 +22,7 @@
 #include <Messages/NotifyMessageFactory.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/WorldState.h>
+#include <Messages/DroppedItems.h>
 #include <Structs/Vector2_NetQuantize.h>
 
 #include <numbers>
@@ -618,6 +619,11 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendMessage.Container = GameId(0, 0xA05B5);
         sendMessage.Item = GameId(2, 0x64B3D);
         sendMessage.Count = 70000;
+        Inventory::Entry tempered;
+        tempered.BaseId = sendMessage.Item;
+        tempered.Count = 2;
+        tempered.ExtraHealth = 1.6f;
+        sendMessage.Stacks.push_back(tempered);
         Buffer::Writer writer(&buff);
         sendMessage.Serialize(writer);
 
@@ -979,6 +985,19 @@ TEST_CASE("Packets", "[encoding.packets]")
         create.Item = GameId(0, 0x319E5);
         ObjectChange::Placement placement{GameId(0, 0x32AE7), {}, {-383.f, 2093.f, 6980.f}, {0.f, 0.f, 1.5f}};
         create.Data = ObjectChange::PackPlacement(placement);
+        Inventory::Entry sword;
+        sword.BaseId = create.Item;
+        sword.Count = 1;
+        sword.ExtraEnchantId = GameId(ObjectChange::kCreatedModId, 0x88A);
+        sword.ExtraEnchantCharge = 2000;
+        sword.EnchantData.IsWeapon = true;
+        sword.EnchantData.Effects.push_back({25.f, 0, 1, 12.5f, GameId(0, 0x4605A)});
+        sword.ExtraCharge = 1450.f;
+        sword.ExtraHealth = 1.2f;
+        sword.ExtraPoisonId = GameId(0, 0x73F34);
+        sword.ExtraPoisonCount = 3;
+        sword.ExtraName = "Dawnfang's Cousin";
+        create.Stacks.push_back(sword);
         ObjectChange::Placement unpacked;
         REQUIRE(ObjectChange::UnpackPlacement(create.Data, unpacked));
         CHECK(unpacked.Cell == placement.Cell);
@@ -1000,6 +1019,11 @@ TEST_CASE("Packets", "[encoding.packets]")
         ObjectChange items{ObjectChange::Kind::kItems, GameId(0, 0xA05B5)};
         items.Item = GameId(0, 0x64B3D);
         items.Value = 300;
+        Inventory::Entry soulGem;
+        soulGem.BaseId = items.Item;
+        soulGem.Count = 4;
+        soulGem.ExtraSoulLevel = 3;
+        items.Stacks.push_back(soulGem);
         sendMessage.Changes.push_back(items);
         ObjectChange saveData{ObjectChange::Kind::kSaveData, GameId(0, 0x32AEC)};
         saveData.Value = 0x11; // form flags, scale
@@ -1371,4 +1395,81 @@ TEST_CASE("Shared rest world messages retain the wait id and bounded cell payloa
     CHECK(result.Id == reply.Id);
     CHECK_FALSE(result.Last);
     CHECK(result.State == reply.State);
+}
+
+TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
+{
+    Inventory::Entry item;
+    item.BaseId = GameId(0, 0x12EB7);
+    item.Count = 1;
+    item.ExtraHealth = 1.3f;
+    item.ExtraEnchantId = GameId(0, 0x4605A);
+    item.ExtraEnchantCharge = 500;
+    item.ExtraName = "Old Friend";
+
+    DropItemRequest drop;
+    drop.Tag = 0xFF000A31;
+    drop.Item = item;
+    drop.Placement = {GameId(4, 0x31D2E), {}, {12.f, -40.5f, 64.f}, {0.f, 0.f, 3.1f}};
+    PickUpRequest pickUp;
+    pickUp.Object = GameId(ObjectChange::kCreatedModId, 0xA31);
+    pickUp.Tag = 0xFF000A31;
+    for (const RequestMessage* pSent : std::initializer_list<const RequestMessage*>{&drop, &pickUp})
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        pSent->Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == pSent->GetOpcode());
+        if (pSent == &drop)
+            CHECK(static_cast<const DropItemRequest&>(*decoded) == drop);
+        else
+            CHECK(static_cast<const PickUpRequest&>(*decoded) == pickUp);
+    }
+
+    NotifyItemDropped dropped;
+    dropped.Tag = drop.Tag;
+    dropped.Object = pickUp.Object;
+    NotifyPickUp picked;
+    picked.Object = pickUp.Object;
+    picked.Item = item;
+    for (const NotifyMessage* pSent : std::initializer_list<const NotifyMessage*>{&dropped, &picked})
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        pSent->Serialize(writer);
+        Buffer::Reader reader(&buffer);
+        auto decoded = NotifyMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        REQUIRE(decoded->GetOpcode() == pSent->GetOpcode());
+        if (pSent == &dropped)
+            CHECK(static_cast<const NotifyItemDropped&>(*decoded) == dropped);
+        else
+            CHECK(static_cast<const NotifyPickUp&>(*decoded) == picked);
+    }
+}
+
+TEST_CASE("A player-made enchantment is the same item in every game", "[encoding.items]")
+{
+    // Each game makes its own form for it (a created 0xFF id): the same effects are the same enchantment.
+    Inventory::Entry host;
+    host.BaseId = GameId(0, 0x12EB7);
+    host.Count = 1;
+    host.ExtraEnchantId = GameId(ObjectChange::kCreatedModId, 0x88A);
+    host.EnchantData.IsWeapon = true;
+    host.EnchantData.Effects.push_back({25.f, 0, 1, 12.5f, GameId(0, 0x4605A)});
+    Inventory::Entry guest = host;
+    guest.ExtraEnchantId = GameId(ObjectChange::kCreatedModId, 0x913);
+    CHECK(host == guest);
+    CHECK(host.CanBeMerged(guest));
+
+    guest.EnchantData.Effects[0].Magnitude = 30.f;
+    CHECK_FALSE(host.CanBeMerged(guest));
+    // A plugin's enchantment is its id.
+    host.ExtraEnchantId = GameId(0, 0x49BB7);
+    guest = host;
+    guest.ExtraEnchantId = GameId(0, 0x45C2A);
+    CHECK_FALSE(host.CanBeMerged(guest));
 }

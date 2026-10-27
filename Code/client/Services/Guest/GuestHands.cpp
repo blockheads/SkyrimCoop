@@ -23,6 +23,9 @@ std::vector<BodyKey> GuestHands::Update(uint64_t aTick, const std::set<BodyKey>&
     std::vector<BodyKey> owned;
     std::vector<BodyFrame> frames;
     auto own = m_engine.TakeOwnBodies();
+    // Its player's drop falls as this game's physics drops it until the host's rest.
+    for (const BodyKey& cKey : m_engine.TakeAdoptedDrops())
+        Own(cKey, aTick, "dropped", owned);
     SendHands(aTick, owned, frames);
     SendRagdoll(aTick, own, frames);
     // Its frames, where the others' guess of them goes wrong (the host's send rule).

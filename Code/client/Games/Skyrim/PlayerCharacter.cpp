@@ -12,6 +12,7 @@
 
 #include <Games/Events.h>
 #include <Events/InventoryChangeEvent.h>
+#include <Events/LooseItemEvents.h>
 #include <Events/AddExperienceEvent.h>
 #include <Events/SetWaypointEvent.h>
 #include <Events/RemoveWaypointEvent.h>
@@ -218,8 +219,20 @@ void PlayerCharacter::RemoveWaypoint() noexcept
     return RealRemoveWaypoint(this);
 }
 
+static std::function<bool(TESObjectREFR&)> s_pickUpGate;
+static thread_local bool t_pickUpGranted = false;
+
 char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2)
 {
+    // Taken already (the host granted it to another player this frame): the engine would hand it out again.
+    if (apObject && apObject->IsDeleted())
+        return false;
+    // A guest's reach for the party's loose item: the host's game decides who gets it.
+    if (!t_pickUpGranted && s_pickUpGate && apObject && s_pickUpGate(*apObject))
+    {
+        World::Get().GetRunner().Trigger(ItemPickUpEvent{apObject->formID});
+        return false;
+    }
 
     Inventory::Entry item{};
     item.BaseId = ToSession(apObject->baseForm->formID).value_or(GameId{});
@@ -240,6 +253,18 @@ char HookPickUpObject(PlayerCharacter* apThis, TESObjectREFR* apObject, int32_t 
     ScopedInventoryOverride _;
 
     return RealPickUpObject(apThis, apObject, aCount, aUnk1, aUnk2);
+}
+
+void PlayerCharacter::SetPickUpGate(std::function<bool(TESObjectREFR&)> aGate) noexcept
+{
+    s_pickUpGate = std::move(aGate);
+}
+
+void PlayerCharacter::PickUpGranted(TESObjectREFR& aObject, int32_t aCount) noexcept
+{
+    t_pickUpGranted = true;
+    HookPickUpObject(this, &aObject, aCount, false, true);
+    t_pickUpGranted = false;
 }
 
 void HookSetBeastForm(void* apThis, void* apUnk1, void* apUnk2, bool aEntering)

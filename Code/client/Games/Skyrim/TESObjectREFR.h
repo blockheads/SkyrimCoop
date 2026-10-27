@@ -69,7 +69,10 @@ struct TESObjectREFR : TESForm
     static uint32_t* GetNullHandle() noexcept;
 
     static void GetItemFromExtraData(Inventory::Entry& arEntry, ExtraDataList* apExtraDataList) noexcept;
-    static ExtraDataList* GetExtraDataFromItem(const Inventory::Entry& arEntry) noexcept;
+    // A new list with the item's extra data, none without any; aCounted: holding its count too, for an add.
+    static ExtraDataList* GetExtraDataFromItem(const Inventory::Entry& arEntry, bool aCounted = false) noexcept;
+    // The item's extra data (enchantment, charge, poison, tempering, soul, name) onto a list: a loose item's own.
+    static void SetItemExtraData(ExtraDataList& aList, const Inventory::Entry& acEntry) noexcept;
 
     virtual void sub_3B();
     virtual void sub_3C();

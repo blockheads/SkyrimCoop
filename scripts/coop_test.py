@@ -1034,6 +1034,7 @@ def command_duo(args):
 # first one that does not hold; nothing is retried to hide a miss. Real keyboard and mouse input is
 # exercised only by the `input` group (not in a default run).
 IRON_SWORD = 0x00012EB7
+FIRE_DAMAGE_ENCHANTMENT = 0x49BB7  # EnchWeaponFireDamage01
 FLAMES = 0x00012FCD    # concentration spell: synced through spell cast + interrupt messages
 FIREBOLT = 0x00012FD0  # fire-and-forget spell
 FIREBALL = 0x0001C789  # fire-and-forget, its explosion pushes physics objects
@@ -6926,6 +6927,185 @@ def scenario_chest_take_all():
             wait_for("[guest] the chest is as it was", lambda: container_items("client", chest) == before, 5)
 
 
+# Dropped items (docs/design/dropped-items.md): an iron sword with every kind of extra data a player gives an item
+# (an enchantment's, a forge's tempering, a name), as the harness's give_item makes it.
+HEIRLOOM = {"item": IRON_SWORD, "count": 1, "health": 1.4, "enchantment": FIRE_DAMAGE_ENCHANTMENT,
+            "enchant_charge": 1000, "charge": 800.0, "name": "Old Friend"}
+
+
+def item_stacks(instance, holder=0x14):
+    """A loose item's own count and extra data, or each stack with extra data a container or actor holds."""
+    return player_command(instance, {"cmd": "item_stacks", "object": holder})["stacks"]
+
+
+def is_heirloom(stack):
+    """The stack is HEIRLOOM's sword, every piece of its extra data kept."""
+    return (stack["item"] == IRON_SWORD and stack["name"] == HEIRLOOM["name"] and stack["enchantment"] == HEIRLOOM["enchantment"]
+            and abs(stack["health"] - HEIRLOOM["health"]) < 0.01 and abs(stack["charge"] - HEIRLOOM["charge"]) < 1
+            and stack["enchant_charge"] == HEIRLOOM["enchant_charge"])
+
+
+def heirlooms(instance, holder=0x14):
+    return sum(stack["count"] for stack in item_stacks(instance, holder) if is_heirloom(stack))
+
+
+def loose_swords(instance):
+    """The iron swords lying in that game's loaded cells that it made at run time (0xFF ids), by id; a deleted or
+    disabled one (picked up) is not lying there."""
+    return {ref: fields for ref, fields in world_state(instance).items()
+            if fields["base"] == IRON_SWORD and ref >> 24 == 0xFF and not fields["flags"] & (FORM_DELETED | FORM_DISABLED)}
+
+
+def describe_stacks(stacks):
+    return "; ".join(f"{s['count']}x {s['item']:X} health {s['health']:.2f} ench {s['enchantment']:X} ({s['enchant_charge']}, "
+                     f"charge {s['charge']:.0f}) name '{s['name']}'" for s in stacks) or "none"
+
+
+def new_loose_sword(instance, before):
+    """The one iron sword lying in that game that was not there before, else None (two fail: a duplicate)."""
+    made = set(loose_swords(instance)) - before
+    if len(made) > 1:
+        raise TestFailure(f"[{instance or 'host'}] {len(made)} new iron swords lie in its world, not one: "
+                          + ", ".join(f"{ref:X}" for ref in sorted(made)))
+    return next(iter(made), None)
+
+
+def put_back_heirlooms(swords_before, held, heirlooms_held):
+    """Clean-up: the players carry what they did before (the heirlooms removed as their own stacks), and no sword made
+    here is left lying."""
+    for name in ("", "client"):
+        if (extra := heirlooms(name) - heirlooms_held[name]) > 0:
+            player_command(name, {"cmd": "store", "item": IRON_SWORD, "count": extra, "container": 0})
+        if (extra := (item_count(name, 0x14, IRON_SWORD) or 0) - held[name]) > 0:
+            console_on(name, f"player.removeitem {IRON_SWORD:X} {extra}")
+        for ref in set(loose_swords(name)) - swords_before[name]:
+            console_on(name, f"{ref:X}.disable")
+            console_on(name, f"{ref:X}.markfordelete")
+
+
+def heirloom_start():
+    """What a dropped-items scenario puts back: the loose swords lying, the swords and heirlooms each player carries."""
+    return ({name: set(loose_swords(name)) for name in ("", "client")},
+            {name: item_count(name, 0x14, IRON_SWORD) or 0 for name in ("", "client")},
+            {name: heirlooms(name) for name in ("", "client")})
+
+
+def scenario_host_drop_reaches_guest():
+    """Feature 6: the host's player drops an enchanted, tempered, renamed sword. The guest's world shows one sword
+    with all of it; the guest's player picks it up, and it is gone from both worlds, in the guest's player's inventory
+    (extra data and all) and on the host's copy of it."""
+    swords, held, carried = heirloom_start()
+    try:
+        player_command("", {"cmd": "give_item", **HEIRLOOM})
+        wait_for("[host] the player carries the heirloom", lambda: heirlooms("") == carried[""] + 1, 5)
+        dropped = player_command("", {"cmd": "drop", "item": IRON_SWORD})["object"]
+        stacks = item_stacks("", dropped)
+        if not stacks or not is_heirloom(stacks[0]):
+            raise TestFailure(f"[host] the dropped sword {dropped:X} lost its extra data: {describe_stacks(stacks)}")
+        twin = wait_for("[guest] one sword like the host's dropped one lies in its world",
+                        lambda: new_loose_sword("client", swords["client"]), 10)
+        try:
+            wait_for("[guest] its sword carries the heirloom's extra data", lambda: is_heirloom(item_stacks("client", twin)[0]), 5)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: {describe_stacks(item_stacks('client', twin))}") from None
+        player_command("client", {"cmd": "activate", "object": twin})
+        wait_for("[guest] its player carries the heirloom", lambda: heirlooms("client") == carried["client"] + 1, 10)
+        wait_for("[host] the dropped sword is gone from its world", lambda: dropped not in loose_swords(""), 10)
+        wait_for("[guest] the sword is gone from its world", lambda: twin not in loose_swords("client"), 10)
+        copy = client_on_host()
+        wait_for("[host] the guest player's copy carries the sword", lambda: (item_count("", copy, IRON_SWORD) or 0) > held["client"], 5)
+        if heirlooms("") != carried[""] or heirlooms("client") != carried["client"] + 1:
+            raise TestFailure(f"[both] the heirloom is carried {heirlooms('') - carried['']} more times on the host, "
+                              f"{heirlooms('client') - carried['client']} on the guest")
+    finally:
+        put_back_heirlooms(swords, held, carried)
+
+
+def scenario_guest_drop_reaches_host():
+    """Feature 6: the guest's player drops the heirloom. The host's world makes the one sword the party sees, with all
+    its extra data; the guest's own stays its twin (one sword, not two); the host's player picks it up and it is gone
+    from both worlds."""
+    swords, held, carried = heirloom_start()
+    try:
+        player_command("client", {"cmd": "give_item", **HEIRLOOM})
+        wait_for("[guest] the player carries the heirloom", lambda: heirlooms("client") == carried["client"] + 1, 5)
+        dropped = player_command("client", {"cmd": "drop", "item": IRON_SWORD})["object"]
+        made = wait_for("[host] one sword like the guest's dropped one lies in its world",
+                        lambda: new_loose_sword("", swords[""]), 10)
+        try:
+            wait_for("[host] its sword carries the heirloom's extra data", lambda: is_heirloom(item_stacks("", made)[0]), 5)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: {describe_stacks(item_stacks('', made))}") from None
+        # The host's creation came back to the guest: its own drop is the twin, no second sword.
+        settled(made)
+        if (now := set(loose_swords("client")) - swords["client"]) != {dropped}:
+            raise TestFailure(f"[guest] lying in its world: {', '.join(f'{r:X}' for r in sorted(now))}, not its own drop {dropped:X} alone")
+        player_command("", {"cmd": "activate", "object": made})
+        wait_for("[host] its player carries the heirloom", lambda: heirlooms("") == carried[""] + 1, 10)
+        wait_for("[guest] its dropped sword is gone from its world", lambda: dropped not in loose_swords("client"), 10)
+        if heirlooms("client") != carried["client"]:
+            raise TestFailure("[guest] the player carries the heirloom again")
+    finally:
+        put_back_heirlooms(swords, held, carried)
+
+
+def scenario_guest_pickup_race():
+    """Feature 6: the host's player drops the heirloom and both players reach for it at once. The host's game is the
+    first to decide: one player carries it, the other nothing, and it lies in neither world."""
+    swords, held, carried = heirloom_start()
+    try:
+        player_command("", {"cmd": "give_item", **HEIRLOOM})
+        wait_for("[host] the player carries the heirloom", lambda: heirlooms("") == carried[""] + 1, 5)
+        dropped = player_command("", {"cmd": "drop", "item": IRON_SWORD})["object"]
+        twin = wait_for("[guest] the sword lies in its world", lambda: new_loose_sword("client", swords["client"]), 10)
+        _, since = log_trail("")
+        player_command("client", {"cmd": "activate", "object": twin})
+        player_command("", {"cmd": "activate", "object": dropped})
+        wait_for("[both] the sword lies in neither world",
+                 lambda: dropped not in loose_swords("") and twin not in loose_swords("client"), 10)
+        gained = lambda: heirlooms("") - carried[""] + heirlooms("client") - carried["client"]
+        wait_for("[both] one player carries it", lambda: gained() == 1, 5)
+        if heirlooms("") > carried[""]:
+            # The host's own pickup was first: the guest's request, handled after it, gets nothing.
+            wait_for("[host] the guest's request found the sword gone", lambda: any(
+                "already gone" in line["text"] for line in log_trail("", since)[0] if line["text"].startswith("HostItems:")), 5)
+        if gained() != 1:
+            raise TestFailure(f"[both] the heirloom is carried {gained()} more times")
+        log(f"the race went to the {'host' if heirlooms('') > carried[''] else 'guest'}")
+    finally:
+        put_back_heirlooms(swords, held, carried)
+
+
+def scenario_chest_keeps_tempered_item():
+    """Feature 6: a chest keeps its items' extra data. The host's player stores the heirloom in the small chest: the
+    guest's chest holds it as it is. The guest's player stores a second one: the host's chest holds both as they are."""
+    chest = SMALL_CHEST
+    swords, held, carried = heirloom_start()
+    in_chest = item_count("", chest, IRON_SWORD) or 0
+    stored = heirlooms("", chest)
+    try:
+        player_command("", {"cmd": "give_item", **HEIRLOOM})
+        wait_for("[host] the player carries the heirloom", lambda: heirlooms("") == carried[""] + 1, 5)
+        player_command("", {"cmd": "store", "item": IRON_SWORD, "container": chest})
+        wait_for(f"[host] chest {chest:X} holds the heirloom", lambda: heirlooms("", chest) == stored + 1, 5)
+        try:
+            wait_for(f"[guest] chest {chest:X} holds the heirloom as it is", lambda: heirlooms("client", chest) == stored + 1, 5)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: {describe_stacks(item_stacks('client', chest))}") from None
+        player_command("client", {"cmd": "give_item", **HEIRLOOM})
+        wait_for("[guest] the player carries the heirloom", lambda: heirlooms("client") == carried["client"] + 1, 5)
+        player_command("client", {"cmd": "store", "item": IRON_SWORD, "container": chest})
+        try:
+            wait_for(f"[host] chest {chest:X} holds both heirlooms as they are", lambda: heirlooms("", chest) == stored + 2, 5)
+        except TestFailure as error:
+            raise TestFailure(f"{error}: {describe_stacks(item_stacks('', chest))}") from None
+        wait_for(f"[guest] chest {chest:X} holds both", lambda: heirlooms("client", chest) == stored + 2, 5)
+    finally:
+        if (extra := (item_count("", chest, IRON_SWORD) or 0) - in_chest) > 0:
+            console_on("", f"{chest:X}.removeitem {IRON_SWORD:X} {extra}")
+        put_back_heirlooms(swords, held, carried)
+
+
 def guest_locks_taken(since):
     """The guests' lock proposals the host's game took since that trail number (its log trail)."""
     lines, _ = log_trail("", since)
@@ -9473,6 +9653,10 @@ SCENARIOS = {
     # objects
     "door-opens-for-both": scenario_door_opens_for_both,
     "chest-take-all": scenario_chest_take_all,
+    "host-drop-reaches-guest": scenario_host_drop_reaches_guest,
+    "guest-drop-reaches-host": scenario_guest_drop_reaches_host,
+    "guest-pickup-race": scenario_guest_pickup_race,
+    "chest-keeps-tempered-item": scenario_chest_keeps_tempered_item,
     "guest-loads-propose-no-locks": scenario_guest_loads_propose_no_locks,
     "load-door-not-replayed": scenario_load_door_not_replayed,
     "plate-counts-client": scenario_plate_counts_client,
@@ -9648,6 +9832,10 @@ TAGS = {
     "copy-flashes-one-shot-effects": {'magic', 'spawn'},
     "door-opens-for-both": {'objects'},
     "chest-take-all": {'objects', 'inventory'},
+    "host-drop-reaches-guest": {'objects', 'inventory', 'physics'},
+    "guest-drop-reaches-host": {'objects', 'inventory', 'physics'},
+    "guest-pickup-race": {'objects', 'inventory'},
+    "chest-keeps-tempered-item": {'objects', 'inventory'},
     "guest-loads-propose-no-locks": {'objects', 'cells'},
     "load-door-not-replayed": {'objects', 'cells'},
     "plate-counts-client": {'objects', 'scripts', 'cells'},
@@ -9801,6 +9989,7 @@ SOURCE_TAGS = [
     ("Code/client/Services/Guest/GuestWeather.*", {'world', 'cells'}),
     ("Code/client/Services/Host/HostTimeScale.*", {'world', 'combat'}),
     ("Code/client/Services/Host/HostWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
+    ("Code/client/Services/Host/HostItems.*", {'objects', 'inventory'}),
     ("Code/client/Services/Guest/GuestWorldState.*", {'world', 'quest', 'objects', 'cells', 'inventory'}),
     ("Code/client/Services/Host/HostPhysics.*", {'physics'}),
     ("Code/client/Services/BodyService.h", {'physics'}),
@@ -9825,6 +10014,8 @@ SOURCE_TAGS = [
     ("Code/client/Events/GameLoadedEvent.h", {'steam'}),
     ("Code/client/Events/SessionNoticeEvent.h", {'steam', 'ui'}),
     ("Code/client/Bridges/ContainerItems.*", {'objects', 'inventory'}),
+    ("Code/client/Bridges/LooseItems.*", {'objects', 'inventory', 'physics'}),
+    ("Code/client/Events/LooseItemEvents.h", {'objects', 'inventory'}),
     ("Code/client/Bridges/PhysicsBodies.*", {'world', 'objects', 'physics'}),
     ("Code/client/Games/Skyrim/PlayerHands.*", {'physics'}),
     ("Code/encoding/Structs/BodyFrame.*", {'physics'}),
@@ -10080,6 +10271,7 @@ SOURCE_TAGS = [
     ("Code/encoding/Messages/*Time*", {'world', 'combat'}),
     ("Code/encoding/Messages/*Weather*", {'world', 'cells'}),
     ("Code/encoding/Messages/*WorldState*", {'world', 'quest', 'objects'}),
+    ("Code/encoding/Messages/DroppedItems.*", {'objects', 'inventory'}),
     ("Code/encoding/Messages/*CellState*", {'world', 'objects', 'cells'}),
     ("Code/encoding/Messages/*Activate*", {'objects'}),
     ("Code/encoding/Messages/*LockChange*", {'objects'}),

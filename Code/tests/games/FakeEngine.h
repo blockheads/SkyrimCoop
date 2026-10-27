@@ -97,6 +97,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         bool Locked = false;
         uint8_t LockLevel = 0;
         std::map<uint32_t, int32_t> Items; // a container's count of each item
+        std::vector<Inventory::Entry> Stacks; // those of them with extra data (an enchantment, tempering...)
         bool Door = false;
         bool Open = false; // a door's (BGSOpenCloseForm's open state)
         uint32_t RecordFlags{};
@@ -116,10 +117,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // This game's player picks a lock or takes from a container, as the engine's hooks report it: the host's game
     // records it, a guest's raises LockChangeEvent / ContainerChangeEvent.
     void PlayerSetsLock(uint32_t aReference, bool aLocked, uint8_t aLevel);
-    void PlayerSetsItems(uint32_t aContainer, uint32_t aItem, int32_t aCount);
+    void PlayerSetsItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks = {});
     // The host's game takes a change (a guest's proposal accepted, HostGame::SetLock / SetItems): made and recorded.
     void SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel);
-    void SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount);
+    void SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks = {});
     // The host's game opens or closes a door (its player, a replayed activation): made and recorded.
     void SetOpen(uint32_t aDoor, bool aOpen);
     // The global variables (TESGlobal), by form id: the host's read (HostGame::ReadGlobals), a guest's set to them.
@@ -134,6 +135,38 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void QuestChanged(uint32_t aId) { QuestWrites.Quest(aId); }
     void ClearReferenceAlias(uint32_t aQuest, uint32_t aAlias);
     void ClearLocationAlias(uint32_t aQuest, uint32_t aAlias);
+    // Loose items (docs/design/dropped-items.md): references made at run time holding an item (its count and extra
+    // data), each game's own 0xFF ids. The host's go out as kCreate and their deletion; a guest's are its player's
+    // drops, or twins of the host's (GuestEngine's m_created, the seams').
+    struct LooseItem
+    {
+        uint32_t Cell = 0;
+        Inventory::Entry Item;
+    };
+    std::map<uint32_t, LooseItem> Loose;
+    // A guest's loose items the host decides (twins, its own drops not answered yet), as GuestEngine's pickup gate
+    // reads them; and GuestEngine::PickUp's own pickup, past the gate.
+    std::set<uint32_t> HostDecides;
+    bool PickUpGranted = false;
+    // Forms the host's game lacks: a drop of one cannot be made there (HostGame::CreateItem's empty id).
+    std::set<uint32_t> MissingForms;
+    // A loose item made here: its id (the engine's next temporary).
+    uint32_t PlaceLoose(uint32_t aCell, const Inventory::Entry& acItem);
+    // The player drops some of what it carries (aItem: its base, extra data and count) where it stands, as
+    // PlayerCharacter::DropObject: the inventory's removal raised as a drop; the host's made reference recorded, a
+    // guest's raised (ItemDroppedEvent). Returns the loose item's id here.
+    uint32_t DropsInWorld(const Inventory::Entry& acItem);
+    // The player picks a loose item up (PlayerCharacter::PickUpObject): the host's game takes it (its deletion
+    // recorded, the item raised as an inventory change); a guest's asks the host first for one the host decides
+    // (ItemPickUpEvent).
+    void PicksUp(uint32_t aObject);
+    // The host's game makes a loose item where the placement says (HostGame::CreateItem): none while that cell is not
+    // loaded here, an empty id for a missing form. And takes one out of its world (HostGame::TakeItem).
+    std::optional<GameId> CreateLoose(const Inventory::Entry& acItem, uint32_t aCell);
+    std::optional<Inventory::Entry> TakeLoose(const GameId& acObject);
+    // The actor's entries of that item, extra data and all.
+    [[nodiscard]] std::vector<Inventory::Entry> EntriesOf(uint32_t aActor, uint32_t aItem) const;
+
     // The rows of a reference's state (ReferenceStates' encoding: a lock's level, kLocked above it; items' counts).
     [[nodiscard]] std::vector<ObjectChange> RowsOf(uint32_t aReference) const;
     // Another game's change made here (GuestEngine::ApplyObjectChange); false: no such reference.
@@ -616,6 +649,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // AddInventoryItem and RemoveItem: raised (InventoryChangeEvent) unless under ScopedInventoryOverride; the last of
     // a worn item comes off first (through UnEquipHook).
     void GetsItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // One with extra data (an enchantment, tempering...), its own stack.
+    void GetsItem(uint32_t aActor, const Inventory::Entry& acItem);
     void LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount);
     // Dropped into the world, as HookDropObject: raised as a drop, the removal under ScopedInventoryOverride.
     void Drops(uint32_t aActor, uint32_t aItem, int32_t aCount);
@@ -659,6 +694,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     Inventory::Entry& EntryOf(Actor& aActor, uint32_t aItem);
     // aCount more (or fewer) of the item; an entry at 0 goes, a worn one unequipped first.
     void AddItems(uint32_t aActor, uint32_t aItem, int32_t aCount);
+    // An entry with extra data is its own stack (merged only with one alike), as the engine's extra data lists are.
+    void AddEntry(uint32_t aActor, const Inventory::Entry& acItem);
+    // The host's record of a loose item it made or took (kCreate, the deletion).
+    void RecordCreated(uint32_t aObject);
 
     std::deque<std::pair<LocalCall, uint32_t>> m_queued;
     std::chrono::steady_clock::time_point m_lastFrame;

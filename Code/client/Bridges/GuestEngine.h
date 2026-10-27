@@ -2,6 +2,7 @@
 
 #include <Bridges/PhysicsBodies.h>
 #include <Messages/CellStateRequest.h>
+#include <Messages/DroppedItems.h>
 #include <Messages/Payloads.h>
 #include <Messages/WorldState.h>
 #include <Structs/BodyFrame.h>
@@ -12,6 +13,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <unordered_set>
 #include <NoCopyMove.h>
 
 struct TESObjectREFR;
@@ -85,6 +87,19 @@ public:
     };
     [[nodiscard]] OwnBodies TakeOwnBodies() noexcept;
 
+    // Dropped items (docs/design/dropped-items.md). This game's player's drop: the item (count, extra data) and where,
+    // tagged with its reference here, now a drop of its own until the host's answer; none for no loose item.
+    [[nodiscard]] std::optional<DropItemRequest> ReadDrop(uint32_t aFormId) noexcept;
+    // The host made drop aTag as acObject: this game's reference is its twin (an empty id: its own again, not the
+    // host's to grant). False: no longer here (picked up).
+    bool AdoptDrop(uint32_t aTag, const GameId& acObject) noexcept;
+    // The bodies of drops adopted since the last call: this game's own until the host's rest (GuestHands).
+    [[nodiscard]] std::vector<BodyKey> TakeAdoptedDrops() noexcept;
+    // This game's player reached for a loose item the host decides (a twin, or its own drop): what to ask for.
+    [[nodiscard]] std::optional<PickUpRequest> ReadPickUp(uint32_t aFormId) const noexcept;
+    // The host granted it: this game's player picks up its twin, or gets the item when the twin is gone.
+    void PickUp(const NotifyPickUp& acGrant) noexcept;
+
 private:
     // The reference here for a session id; the host's created ones (ObjectChange::kCreatedModId) through m_created.
     [[nodiscard]] TESObjectREFR* FindReference(const GameId& acId) const noexcept;
@@ -105,4 +120,11 @@ private:
     PhysicsBodies m_moving; // the references and player's ragdoll this game's physics moves
     // The host's created references' ids (base id part) and this game's, by handle.
     std::unordered_map<uint32_t, uint32_t> m_created;
+    // This game's player's drops the host has not made yet: form id (the tag), by handle.
+    std::unordered_map<uint32_t, uint32_t> m_ownDrops;
+    std::vector<BodyKey> m_adopted;
+    // The host's created ids this game's player picked up: their deletion has nothing left to delete.
+    std::unordered_set<uint32_t> m_taken;
+    // Whether the reference is a loose item the host decides: a twin of the host's, or an own drop.
+    [[nodiscard]] bool IsPartyItem(const TESObjectREFR& acObject) const noexcept;
 };

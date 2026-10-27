@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Structs/Inventory.h>
 #include <Structs/ScriptValue.h>
 
 #include <cstdint>
@@ -149,6 +150,18 @@ std::optional<int64_t> GetItemCount(uint32_t aObjectFormId, uint32_t aItemFormId
 // Every item the reference's container lists or its changes hold, with its count (a leveled list's not rolled);
 // none for no container.
 std::optional<std::vector<std::pair<uint32_t, int32_t>>> GetContainerItems(uint32_t aObjectFormId) noexcept;
+// The reference's items with extra data (an enchantment, tempering, a name...): a loose item's own (count and
+// extra data, extra data or not), else each stack with extra data its container holds; none: no such reference.
+std::optional<std::vector<Inventory::Entry>> GetItemStacks(uint32_t aObjectFormId) noexcept;
+// The player gets the item with its extra data, as an enchanting table's or a forge's item (our hooks see it).
+bool GiveItem(const Inventory::Entry& acItem) noexcept;
+// The player drops that many of the item as the inventory's Drop does (PlayerCharacter::DropObject 40454): its first
+// stack with extra data, or with aPlain one without; the loose item made, none when it made none.
+std::optional<uint32_t> PlayerDrops(uint32_t aItemFormId, int32_t aCount, bool aPlain) noexcept;
+// The player stores that many of the item in the container as the container menu's Store does (RemoveItem into it,
+// kStoreInContainer), the same stack as PlayerDrops; no container (0): removed, as the console's RemoveItem; false for
+// no such stack or container.
+bool PlayerStores(uint32_t aItemFormId, int32_t aCount, uint32_t aContainerFormId, bool aPlain) noexcept;
 // Whether the reference is enabled (its disabled flag, TESForm 0x800); none: no such reference.
 std::optional<bool> IsReferenceEnabled(uint32_t aFormId) noexcept;
 

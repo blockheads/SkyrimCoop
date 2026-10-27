@@ -110,6 +110,11 @@ struct PlayerCharacter : Actor
     static void StopTeleportEvents() noexcept;
 
     static PlayerCharacter* Get() noexcept;
+    // A guest's (docs/design/dropped-items.md): true for a loose item the host grants, whose pickup the engine then
+    // leaves (ItemPickUpEvent raised instead); empty for none.
+    static void SetPickUpGate(std::function<bool(TESObjectREFR&)> aGate) noexcept;
+    // Picks it up as the player does (PickUpObject 40533, our hook's events), past the gate: a granted pickup.
+    void PickUpGranted(TESObjectREFR& aObject, int32_t aCount) noexcept;
 
     const GameArray<TintMask*>& GetTints() const noexcept;
     // baseTints again from its race's tint layers for its sex, at their default colours (40696, as the race menu).

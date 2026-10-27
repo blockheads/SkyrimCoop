@@ -111,6 +111,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_crime(*this, aNetwork, m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
+    , m_items(*this, aNetwork, m_players, m_game)
     , m_physics(*this, aNetwork, m_players, m_game)
     , m_hands(*this, m_players, m_characters, m_game)
     , m_timeScale(*this, aNetwork, m_players)
@@ -181,6 +182,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         m_timeScale.OnPlayerLeft(aConnection);
         m_dialogue.OnPlayerLeft(aConnection);
         m_worldState.OnPlayerLeft(aConnection);
+        m_items.OnPlayerLeft(aConnection);
         m_physics.OnPlayerLeft(aConnection);
         m_hands.OnPlayerLeft(aConnection);
         m_death.Left(aConnection);
@@ -202,6 +204,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
     m_transfer.Update(aTick);
     m_weather.Update();
     m_worldState.Update(aTick);
+    m_items.Update();
     m_hands.Update(aTick);
     m_physics.Update(aTick);
 }
@@ -260,8 +263,13 @@ void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionI
 void HostAuthority::OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
     // The host's own containers go out as its object changes (HostWorldState).
-    if (aSender != m_players.Host() && m_game.SetItems)
-        m_game.SetItems(acRequest.Container, acRequest.Item, acRequest.Count);
+    if (aSender == m_players.Host() || !m_game.SetItems)
+        return;
+    ObjectChange items{ObjectChange::Kind::kItems, acRequest.Container};
+    items.Item = acRequest.Item;
+    items.Value = acRequest.Count;
+    items.Stacks = acRequest.Stacks;
+    m_game.SetItems(items);
 }
 
 void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept

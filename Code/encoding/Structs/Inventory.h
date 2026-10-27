@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <optional>
+#include <string>
 #include "MagicEquipment.h"
 #include <Wire/Buffer.h>
 
@@ -17,6 +18,8 @@ struct Inventory
         float RawCost{};
         GameId EffectId{};
 
+        bool operator==(const EffectItem&) const noexcept = default;
+
         void Serialize(Wire::Buffer::Writer& aWriter) const noexcept;
         void Deserialize(Wire::Buffer::Reader& aReader) noexcept;
     };
@@ -25,6 +28,8 @@ struct Inventory
     {
         bool IsWeapon{};
         std::vector<EffectItem> Effects{};
+
+        bool operator==(const EnchantmentData&) const noexcept = default;
     };
 
     struct Entry
@@ -44,6 +49,8 @@ struct Inventory
         uint32_t ExtraPoisonCount{};
 
         int32_t ExtraSoulLevel{};
+
+        std::string ExtraName{}; // a player's name for it (ExtraTextDisplayData, custom), no temper suffix
 
         bool ExtraEnchantRemoveUnequip{};
         bool ExtraWorn{};
@@ -65,11 +72,20 @@ struct Inventory
             // TODO: the whole server side state thing is very flawed
             // since many of these things can and will change, like poison id or charge
             // or the fact that the enchant id can be temp
-            return ExtraCharge == acRhs.ExtraCharge && ExtraEnchantId == acRhs.ExtraEnchantId && ExtraEnchantCharge == acRhs.ExtraEnchantCharge && ExtraEnchantRemoveUnequip == acRhs.ExtraEnchantRemoveUnequip && ExtraHealth == acRhs.ExtraHealth && ExtraPoisonId == acRhs.ExtraPoisonId &&
-                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
+            return ExtraCharge == acRhs.ExtraCharge && IsSameEnchantment(acRhs) && ExtraEnchantCharge == acRhs.ExtraEnchantCharge && ExtraEnchantRemoveUnequip == acRhs.ExtraEnchantRemoveUnequip && ExtraHealth == acRhs.ExtraHealth && ExtraPoisonId == acRhs.ExtraPoisonId &&
+                   ExtraPoisonCount == acRhs.ExtraPoisonCount && ExtraSoulLevel == acRhs.ExtraSoulLevel && ExtraName == acRhs.ExtraName && ExtraWorn == acRhs.ExtraWorn && ExtraWornLeft == acRhs.ExtraWornLeft && IsQuestItem == acRhs.IsQuestItem;
         }
 
         bool IsWorn() const noexcept { return ExtraWorn || ExtraWornLeft; }
+
+        // A player-made enchantment is each game's own form (a created id): the same effects are the same one.
+        bool IsSameEnchantment(const Entry& acRhs) const noexcept
+        {
+            constexpr uint32_t cCreated = 0xFFFFFFFF;
+            if (ExtraEnchantId.ModId == cCreated && acRhs.ExtraEnchantId.ModId == cCreated)
+                return EnchantData == acRhs.EnchantData;
+            return ExtraEnchantId == acRhs.ExtraEnchantId;
+        }
     };
 
     bool operator==(const Inventory& acRhs) const noexcept;

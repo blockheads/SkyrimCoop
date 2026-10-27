@@ -17,6 +17,7 @@
 #include <Events/SpellCastEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LockChangeEvent.h>
+#include <Events/LooseItemEvents.h>
 #include <Events/PartyNativeEvent.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/SetWaypointEvent.h>
@@ -220,6 +221,24 @@ void SetCount(FakeEngine::Reference& aReference, uint32_t aItem, int32_t aCount)
         aReference.Items.erase(aItem);
 }
 
+// And its stacks with extra data, as given (ContainerItems' SetContainerStacks).
+void SetCount(FakeEngine::Reference& aReference, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks)
+{
+    SetCount(aReference, aItem, aCount);
+    std::erase_if(aReference.Stacks, [&](const Inventory::Entry& acStack) { return acStack.BaseId == SessionIdOf(aItem); });
+    for (auto& stack : aStacks)
+        aReference.Stacks.push_back(std::move(stack));
+}
+
+std::vector<Inventory::Entry> StacksOf(const FakeEngine::Reference& acReference, uint32_t aItem)
+{
+    std::vector<Inventory::Entry> stacks;
+    for (const auto& cStack : acReference.Stacks)
+        if (cStack.BaseId == SessionIdOf(aItem))
+            stacks.push_back(cStack);
+    return stacks;
+}
+
 // ReferenceStates' lock row: the level in the low byte, kLocked above it.
 constexpr uint32_t kLocked = 0x100;
 
@@ -238,10 +257,12 @@ ObjectChange OpenRow(uint32_t aDoor, const FakeEngine::Reference& acReference)
     return row;
 }
 
-ObjectChange ItemsRow(uint32_t aContainer, uint32_t aItem, int32_t aCount)
+ObjectChange ItemsRow(uint32_t aContainer, const FakeEngine::Reference& acReference, uint32_t aItem)
 {
     ObjectChange row{.Type = ObjectChange::Kind::kItems, .Object = SessionIdOf(aContainer), .Item = SessionIdOf(aItem)};
-    row.Value = static_cast<uint32_t>(aCount);
+    const auto it = acReference.Items.find(aItem);
+    row.Value = it != acReference.Items.end() ? static_cast<uint32_t>(it->second) : 0;
+    row.Stacks = StacksOf(acReference, aItem);
     return row;
 }
 } // namespace
@@ -278,16 +299,16 @@ void FakeEngine::PlayerSetsLock(uint32_t aReference, bool aLocked, uint8_t aLeve
     SetLock(aReference, aLocked, aLevel);
 }
 
-void FakeEngine::PlayerSetsItems(uint32_t aContainer, uint32_t aItem, int32_t aCount)
+void FakeEngine::PlayerSetsItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks)
 {
     if (IsGuest)
     {
-        SetCount(References.at(aContainer), aItem, aCount);
+        SetCount(References.at(aContainer), aItem, aCount, std::move(aStacks));
         Changed.insert(aContainer);
         World::Get().GetDispatcher().trigger(ContainerChangeEvent{aContainer, aItem});
         return;
     }
-    SetItems(aContainer, aItem, aCount);
+    SetItems(aContainer, aItem, aCount, std::move(aStacks));
 }
 
 void FakeEngine::SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
@@ -299,11 +320,12 @@ void FakeEngine::SetLock(uint32_t aReference, bool aLocked, uint8_t aLevel)
     Recorded.push_back(LockRow(aReference, reference));
 }
 
-void FakeEngine::SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount)
+void FakeEngine::SetItems(uint32_t aContainer, uint32_t aItem, int32_t aCount, std::vector<Inventory::Entry> aStacks)
 {
-    SetCount(References.at(aContainer), aItem, aCount);
+    auto& reference = References.at(aContainer);
+    SetCount(reference, aItem, aCount, std::move(aStacks));
     Changed.insert(aContainer);
-    Recorded.push_back(ItemsRow(aContainer, aItem, aCount));
+    Recorded.push_back(ItemsRow(aContainer, reference, aItem));
 }
 
 void FakeEngine::SetOpen(uint32_t aDoor, bool aOpen)
@@ -332,7 +354,7 @@ std::vector<ObjectChange> FakeEngine::RowsOf(uint32_t aReference) const
     if (cReference.Door)
         rows.push_back(OpenRow(aReference, cReference));
     for (const auto& [cItem, cCount] : cReference.Items)
-        rows.push_back(ItemsRow(aReference, cItem, cCount));
+        rows.push_back(ItemsRow(aReference, cReference, cItem));
     return rows;
 }
 
@@ -349,7 +371,9 @@ bool FakeEngine::Apply(const ObjectChange& acChange, bool aLoad)
         reference.Locked = (acChange.Value & kLocked) != 0;
         reference.LockLevel = static_cast<uint8_t>(acChange.Value & 0xFF);
         break;
-    case ObjectChange::Kind::kItems: SetCount(reference, FormIdOf(acChange.Item), static_cast<int32_t>(acChange.Value)); break;
+    case ObjectChange::Kind::kItems:
+        SetCount(reference, FormIdOf(acChange.Item), static_cast<int32_t>(acChange.Value), acChange.Stacks);
+        break;
     case ObjectChange::Kind::kOpenState: reference.Open = acChange.Value != 0; break;
     default: break;
     }
@@ -1204,6 +1228,13 @@ void FakeEngine::GetsItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
     AddItems(aActor, aItem, aCount);
 }
 
+void FakeEngine::GetsItem(uint32_t aActor, const Inventory::Entry& acItem)
+{
+    if (!ScopedInventoryOverride::IsOverriden())
+        World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, acItem));
+    AddEntry(aActor, acItem);
+}
+
 void FakeEngine::LosesItem(uint32_t aActor, uint32_t aItem, int32_t aCount)
 {
     if (!ScopedInventoryOverride::IsOverriden())
@@ -1224,6 +1255,120 @@ void FakeEngine::Drops(uint32_t aActor, uint32_t aItem, int32_t aCount)
     World::Get().GetRunner().Trigger(InventoryChangeEvent(aActor, item, true));
     ScopedInventoryOverride _;
     AddItems(aActor, aItem, -aCount);
+}
+
+uint32_t FakeEngine::DropsInWorld(const Inventory::Entry& acItem)
+{
+    Inventory::Entry removed = acItem;
+    removed.Count = -acItem.Count;
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(kPlayer, removed, true));
+    {
+        ScopedInventoryOverride _;
+        AddEntry(kPlayer, removed);
+    }
+    const uint32_t cId = PlaceLoose(Actors.at(kPlayer).Cell, acItem);
+    if (IsGuest)
+        World::Get().GetRunner().Trigger(ItemDroppedEvent{cId});
+    else
+        RecordCreated(cId);
+    return cId;
+}
+
+void FakeEngine::PicksUp(uint32_t aObject)
+{
+    const auto it = Loose.find(aObject);
+    if (it == Loose.end())
+        return;
+    if (IsGuest && !PickUpGranted && HostDecides.contains(aObject))
+    {
+        World::Get().GetRunner().Trigger(ItemPickUpEvent{aObject});
+        return;
+    }
+    const Inventory::Entry cItem = it->second.Item;
+    Loose.erase(it);
+    HostDecides.erase(aObject);
+    m_freedTemporary.insert(aObject);
+    World::Get().GetRunner().Trigger(InventoryChangeEvent(kPlayer, cItem));
+    {
+        ScopedInventoryOverride _;
+        AddEntry(kPlayer, cItem);
+    }
+    if (!IsGuest)
+        RecordCreated(aObject);
+}
+
+std::optional<GameId> FakeEngine::CreateLoose(const Inventory::Entry& acItem, uint32_t aCell)
+{
+    if (!Attached.contains(aCell))
+        return std::nullopt;
+    if (MissingForms.contains(ToGame(acItem.BaseId)))
+        return GameId{};
+    const uint32_t cId = PlaceLoose(aCell, acItem);
+    RecordCreated(cId);
+    return CreatedId(cId);
+}
+
+uint32_t FakeEngine::PlaceLoose(uint32_t aCell, const Inventory::Entry& acItem)
+{
+    const uint32_t cId = NewTemporary();
+    Loose[cId] = {aCell, acItem};
+    return cId;
+}
+
+std::optional<Inventory::Entry> FakeEngine::TakeLoose(const GameId& acObject)
+{
+    const uint32_t cId = 0xFF000000 | acObject.BaseId;
+    const auto it = acObject.ModId == ObjectChange::kCreatedModId ? Loose.find(cId) : Loose.end();
+    if (it == Loose.end())
+        return std::nullopt;
+    const Inventory::Entry cItem = it->second.Item;
+    Loose.erase(it);
+    m_freedTemporary.insert(cId);
+    RecordCreated(cId);
+    return cItem;
+}
+
+void FakeEngine::RecordCreated(uint32_t aObject)
+{
+    const auto it = Loose.find(aObject);
+    if (it == Loose.end())
+    {
+        // ReferenceStates::Deleted
+        Recorded.push_back({.Type = ObjectChange::Kind::kEnabled, .Object = CreatedId(aObject), .Value = 2});
+        return;
+    }
+    ObjectChange create{.Type = ObjectChange::Kind::kCreate, .Object = CreatedId(aObject), .Item = it->second.Item.BaseId};
+    create.Data = ObjectChange::PackPlacement({.Cell = SessionIdOf(it->second.Cell)});
+    create.Stacks = {it->second.Item};
+    Recorded.push_back(std::move(create));
+}
+
+std::vector<Inventory::Entry> FakeEngine::EntriesOf(uint32_t aActor, uint32_t aItem) const
+{
+    std::vector<Inventory::Entry> entries;
+    for (const auto& cEntry : Actors.at(aActor).Items.Entries)
+        if (cEntry.BaseId == ServerId(aItem))
+            entries.push_back(cEntry);
+    return entries;
+}
+
+void FakeEngine::AddEntry(uint32_t aActor, const Inventory::Entry& acItem)
+{
+    Inventory::Entry stack = acItem;
+    stack.ExtraWorn = stack.ExtraWornLeft = false;
+    if (!stack.ContainsExtraData())
+        return AddItems(aActor, ToGame(acItem.BaseId), acItem.Count);
+    auto& entries = Actors.at(aActor).Items.Entries;
+    const auto it = std::ranges::find_if(entries, [&](const Inventory::Entry& acEntry) { return acEntry.CanBeMerged(stack); });
+    if (it == entries.end())
+    {
+        if (stack.Count > 0)
+            entries.push_back(stack);
+        return;
+    }
+    it->Count += stack.Count;
+    if (it->Count <= 0)
+        entries.erase(it);
 }
 
 int32_t FakeEngine::CountOf(uint32_t aActor, uint32_t aItem) const
@@ -1249,7 +1394,7 @@ std::map<std::pair<uint32_t, uint32_t>, int32_t> FakeEngine::Carried(uint32_t aA
 void FakeEngine::ObjectAddOrRemoveItem(uint32_t aObjectFormId, const Inventory::Entry& aItem) noexcept
 {
     const uint32_t cItem = ToGame(aItem.BaseId);
-    AddItems(aObjectFormId, cItem, aItem.Count);
+    AddEntry(aObjectFormId, aItem);
     if (aItem.Count > 0 && aItem.IsWorn())
     {
         ScopedEquipOverride _;

@@ -16,8 +16,8 @@ struct World;
  * @brief This game's own bodies: its player's hand on the host's, its player's ragdoll, and this game's own physics
  * (docs/design/physics-sync.md, "A guest's own actions", "Owners"):
  *
- *   push, hold    the body is this game's own until the host's rest: its own physics shows it, the pushes and the
- *                 held frames go to the host (then a let go), and the host's frames of it wait
+ *   push, hold,   the body is this game's own until the host's rest: its own physics shows it, the pushes and the
+ *   drop          held frames go to the host (then a let go), and the host's frames of it wait
  *   ragdoll       its player's while it simulates (dead): its frames, then its rest, to the host for the others
  *   moved alone   a body this game's physics moved by itself (its copy of a blast, a bump of its own body) that the
  *                 host's frames never follow asks the host where it is, kOwnMs later

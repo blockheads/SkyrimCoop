@@ -163,6 +163,12 @@ void NotifyObjectChanges::SerializeRaw(Wire::Buffer::Writer& aWriter) const noex
             Serialization::WriteVarInt(aWriter, cChange.Value);
             if (ObjectChange::HasData(cChange.Type))
                 Serialization::WriteString(aWriter, cChange.Data);
+            if (ObjectChange::HasStacks(cChange.Type))
+            {
+                Serialization::WriteVarInt(aWriter, cChange.Stacks.size());
+                for (const auto& cStack : cChange.Stacks)
+                    cStack.Serialize(aWriter);
+            }
         }
     }
 }
@@ -199,6 +205,15 @@ void NotifyObjectChanges::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
             change.Value = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
             if (ObjectChange::HasData(change.Type))
                 change.Data = Serialization::ReadString(aReader);
+            if (ObjectChange::HasStacks(change.Type))
+            {
+                const uint64_t cStacks = Serialization::ReadVarInt(aReader);
+                if (cStacks > kMaxObjectChanges)
+                    return;
+                change.Stacks.resize(cStacks);
+                for (auto& stack : change.Stacks)
+                    stack.Deserialize(aReader);
+            }
         }
     }
 }

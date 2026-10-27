@@ -1,6 +1,7 @@
 #include <Bridges/HostEngine.h>
 
 #include <Bridges/ContainerItems.h>
+#include <Bridges/LooseItems.h>
 #include <Bridges/IBodyBridge.h>
 #include <AiStateEvents.h>
 #include <EffectEvents.h>
@@ -161,29 +162,22 @@ void OnFormChange(const TESForm& acForm, uint32_t aFlags, bool aForced, bool aRe
     s_log.Changed(acForm.formID, cFlags, pSaveLoad && !pSaveLoad->HasChange(acForm, cFlags));
 }
 
-// A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs.
-std::optional<ObjectChange> ReadCreate(const TESObjectREFR& acRef) noexcept
+// A world object the host's game made (not an actor, a projectile or an explosion), as the guests make theirs: an
+// item with its count and extra data (a drop).
+std::optional<ObjectChange> ReadCreate(TESObjectREFR& aRef) noexcept
 {
-    const TESObjectCELL* pCell = acRef.GetParentCellEx();
-    if (acRef.formType != FormType::Reference || acRef.IsDeleted() || !acRef.baseForm || !Cast<TESBoundObject>(acRef.baseForm) || !pCell)
+    if (aRef.formType != FormType::Reference || aRef.IsDeleted() || !aRef.baseForm || !Cast<TESBoundObject>(aRef.baseForm))
         return std::nullopt;
-    const auto cObject = ToSessionOrCreated(acRef.formID);
-    const auto cItem = ToSession(acRef.baseForm->formID);
-    if (!cObject || !cItem)
+    const auto cObject = ToSessionOrCreated(aRef.formID);
+    const auto cItem = ToSession(aRef.baseForm->formID);
+    const auto cPlacement = ReadPlacement(aRef);
+    if (!cObject || !cItem || !cPlacement)
         return std::nullopt;
     ObjectChange change{ObjectChange::Kind::kCreate, *cObject};
     change.Item = *cItem;
-    ObjectChange::Placement placement;
-    if (pCell->worldspace)
-        placement.WorldSpace = ToSession(pCell->worldspace->formID).value_or(GameId{});
-    else
-        placement.Cell = ToSession(pCell->formID).value_or(GameId{});
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        placement.Position[axis] = acRef.position[axis];
-        placement.Rotation[axis] = acRef.rotation[axis];
-    }
-    change.Data = ObjectChange::PackPlacement(placement);
+    change.Data = ObjectChange::PackPlacement(*cPlacement);
+    if (const auto cLoose = ReadLooseItem(aRef); cLoose && (cLoose->Count != 1 || cLoose->ContainsExtraData()))
+        change.Stacks.push_back(*cLoose);
     return change;
 }
 
@@ -344,18 +338,47 @@ void HostEngine::SetLock(const GameId& acObject, bool aLocked, uint8_t aLockLeve
         spdlog::warn("HostEngine: a guest's lock {:X}: no such object here", acObject.LogFormat());
 }
 
-void HostEngine::SetItems(const GameId& acObject, const GameId& acItem, uint32_t aCount) noexcept
+void HostEngine::SetItems(const ObjectChange& acItems) noexcept
 {
-    const uint32_t cObjectId = ToGame(acObject);
-    const uint32_t cItemId = ToGame(acItem);
+    const uint32_t cObjectId = ToGame(acItems.Object);
     auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cObjectId));
-    if (pObject && !Cast<Actor>(pObject) && pObject->SetContainerCount(Cast<TESBoundObject>(TESForm::GetById(cItemId)), static_cast<int32_t>(aCount)))
+    if (pObject && ApplyContainerItems(*pObject, acItems))
     {
-        spdlog::info("HostEngine: took a guest's items {:X} holds {} of {:X}", acObject.LogFormat(), aCount, acItem.LogFormat());
-        RecordItems(cObjectId, cItemId);
+        spdlog::info("HostEngine: took a guest's items {:X} holds {} of {:X} ({} with extra data)", acItems.Object.LogFormat(), acItems.Value,
+                     acItems.Item.LogFormat(), acItems.Stacks.size());
+        RecordItems(cObjectId, ToGame(acItems.Item));
     }
     else
-        spdlog::warn("HostEngine: a guest's items {:X} holds {} of {:X}: no such container or item here", acObject.LogFormat(), aCount, acItem.LogFormat());
+        spdlog::warn("HostEngine: a guest's items {:X} holds {} of {:X}: no such container or item here", acItems.Object.LogFormat(),
+                     acItems.Value, acItems.Item.LogFormat());
+}
+
+std::optional<GameId> HostEngine::CreateItem(const Inventory::Entry& acItem, const ObjectChange::Placement& acPlacement) noexcept
+{
+    if (!IsPlacementLoaded(acPlacement))
+        return std::nullopt;
+    TESObjectREFR* pMade = MakeLooseItem(acItem.BaseId, &acItem, acPlacement);
+    if (!pMade)
+        return GameId{};
+    // Made past our watch of the engine's creations: it goes out with them.
+    OnCreated(pMade->formID);
+    return CreatedId(pMade->formID);
+}
+
+std::optional<Inventory::Entry> HostEngine::TakeItem(const GameId& acObject) noexcept
+{
+    // Not IsShared: a drop made for a guest this frame goes out with the next update, and may be asked for first.
+    const uint32_t cFormId = acObject.ModId == ObjectChange::kCreatedModId ? 0xFF000000 | acObject.BaseId : 0;
+    auto* pObject = cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr;
+    if (!pObject || pObject->IsDeleted() || pObject->IsDisabled())
+        return std::nullopt;
+    auto item = ReadLooseItem(*pObject);
+    if (!item)
+        return std::nullopt;
+    // Gone as ReferenceStates' deletion does it; TakeDeletedCreated sends the deletion.
+    pObject->DisableImpl();
+    pObject->SetDelete(true);
+    return item;
 }
 
 std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
@@ -366,7 +389,7 @@ std::vector<ObjectChange> HostEngine::TakeObjectChanges() noexcept
     // Created next: the changes after refer to them.
     for (const uint32_t cFormId : created)
     {
-        const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
+        auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId));
         if (auto create = pObject ? ReadCreate(*pObject) : std::nullopt)
         {
             // An id still out: its old reference was deleted and the id used again since the last update.
@@ -442,7 +465,7 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
     std::vector<ObjectChange> changes;
     const auto cReferences = pCell->GetReferences();
     // The host's created ones there first, so the guest makes its own, with their rows.
-    for (const TESObjectREFR* pRef : cReferences)
+    for (TESObjectREFR* pRef : cReferences)
     {
         if (!pRef->IsTemporary() || !IsShared(pRef->formID))
             continue;
