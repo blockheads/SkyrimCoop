@@ -194,6 +194,39 @@ std::vector<std::string> GetOpenMenus() noexcept
     return names;
 }
 
+uint32_t GetMenuPauseCount() noexcept
+{
+    const UI* cpUI = UI::Get();
+    return cpUI ? cpUI->numPausesGame : 0;
+}
+
+std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept
+{
+    UI* pUI = UI::Get();
+    const auto* cpMenu = pUI && pUI->GetMenuOpen(acpMenu) ? pUI->FindMenuByName(acpMenu) : nullptr;
+    return cpMenu ? std::optional(cpMenu->uiMenuFlags) : std::nullopt;
+}
+
+std::optional<bool> IsFirstPersonModelHidden() noexcept
+{
+    const auto* cpPlayer = PlayerCharacter::Get();
+    return cpPlayer && cpPlayer->firstPerson3D ? std::optional((cpPlayer->firstPerson3D->flags & 1) != 0) : std::nullopt;
+}
+
+std::optional<bool> IsLocalMapShown() noexcept
+{
+    UI* pUI = UI::Get();
+    const auto* cpMap = pUI && pUI->GetMenuOpen("MapMenu") ? static_cast<const MapMenu*>(pUI->FindMenuByName("MapMenu")) : nullptr;
+    return cpMap ? std::optional(cpMap->localMapShown) : std::nullopt;
+}
+
+std::optional<bool> IsLocalMapReady() noexcept
+{
+    UI* pUI = UI::Get();
+    const auto* cpMap = pUI && pUI->GetMenuOpen("MapMenu") ? static_cast<const MapMenu*>(pUI->FindMenuByName("MapMenu")) : nullptr;
+    return cpMap ? std::optional(cpMap->localMapControlsReady) : std::nullopt;
+}
+
 bool IsKillCamPlaying() noexcept
 {
     const VATS* pVATS = VATS::Get();

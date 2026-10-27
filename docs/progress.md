@@ -1513,9 +1513,14 @@ What the first playtest build has besides what works today (the table above):
     joining with a character from its own game stands on the host's spot (a kept one arrives where the host's save
     left it, since 2026-10-26); a copy's level stays its spawn's; instant
     effects (a shrine's glow) show nothing on copies; a look change remakes the copy instead of updating it.
-15. **Menus that pause the game:** the host's map, journal (pause menu), crafting, lockpicking, barter, books or training
-    pause its world, and with it every guest's NPCs (`UI.cpp`'s `kAllowList` unpauses only inventory, magic, stats,
-    favourites, containers, message boxes, the console). Decide (no pause, or the party's pause) and test it.
+15. **Menus that pause the game** (merged into dev 2026-10-27; [pausing-menus.md](design/pausing-menus.md)):
+    decided with the user that personal menus keep the world running.
+    The host's map, journal, crafting, lockpicking, barter, books and training leave its world and guests' NPCs live;
+    a guest's menus leave its own simulated player live too. Map/local-view rendering and first-person return are
+    handled, books render unpaused, and journal saves run between frames on the main thread. Shared rest/loads keep
+    their pauses; offline menus stay native. Three unit cases, all 18 native menu scenarios shuffled, three marker
+    regressions, shared rest, host loads, guest load refusals and dialogue training pass; plugin/UI checks pass.
+    All 132 other GameTests pass; the gate's existing plate-carry physics failure also reproduces on unchanged dev.
 16. **The host's loads take the party along** (built 2026-10-26; [host-loads.md](design/host-loads.md)): host
     quickload, menu and console loads send the chosen save to every guest through the wipe's reload and rebuild
     the host's rules on the same listener. Each guest rejoins as its saved character at its saved place. A guest's

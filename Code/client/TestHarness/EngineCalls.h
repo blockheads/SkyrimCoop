@@ -29,6 +29,12 @@ bool IsMenuOpen(const char* acpMenu) noexcept;
 void SetMenuShown(const char* acpMenu, bool aShown) noexcept;
 // Names of the open menus (what blocks input: popups, console, menus).
 std::vector<std::string> GetOpenMenus() noexcept;
+// UI's pause count and the flags of one open menu, for live-menu regressions.
+uint32_t GetMenuPauseCount() noexcept;
+std::optional<uint32_t> GetMenuFlags(const char* acpMenu) noexcept;
+std::optional<bool> IsFirstPersonModelHidden() noexcept;
+std::optional<bool> IsLocalMapShown() noexcept;
+std::optional<bool> IsLocalMapReady() noexcept;
 // A kill cam plays: the game ignores the player's buttons until it ends.
 bool IsKillCamPlaying() noexcept;
 // How fast the game's clock runs (BSTimer, 1 normal): a kill cam, Slow Time or a bow zoom slow it.

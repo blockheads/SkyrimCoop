@@ -39,6 +39,19 @@ nlohmann::json Menu(Harness&, const nlohmann::json& acRequest)
     return Ok();
 }
 
+nlohmann::json MenuFlags(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cFlags = EngineCalls::GetMenuFlags(acRequest.value("name", std::string()).c_str());
+    const auto cHidden = EngineCalls::IsFirstPersonModelHidden();
+    const auto cLocal = EngineCalls::IsLocalMapShown();
+    const auto cReady = EngineCalls::IsLocalMapReady();
+    return {{"ok", true}, {"flags", cFlags ? nlohmann::json(*cFlags) : nlohmann::json(nullptr)},
+            {"pauses", EngineCalls::GetMenuPauseCount()},
+            {"first_person_hidden", cHidden ? nlohmann::json(*cHidden) : nlohmann::json(nullptr)},
+            {"local_map", cLocal ? nlohmann::json(*cLocal) : nlohmann::json(nullptr)},
+            {"local_map_ready", cReady ? nlohmann::json(*cReady) : nlohmann::json(nullptr)}};
+}
+
 // {"cmd": "first_person"}: the player's camera to first person.
 nlohmann::json FirstPerson(Harness&, const nlohmann::json&)
 {
@@ -110,7 +123,7 @@ nlohmann::json ClearMapMarker(Harness&, const nlohmann::json&)
 }
 
 constexpr Command cCommands[] = {
-    {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"first_person", true, &FirstPerson},
+    {"console", true, &Console}, {"console_result", false, &ConsoleResult}, {"menu", false, &Menu}, {"menu_flags", false, &MenuFlags}, {"first_person", true, &FirstPerson},
     {"strip", true, &Strip},     {"face", true, &Face},  {"place", true, &Place},
     {"freeze", true, &Freeze},   {"move_actor", true, &MoveActor}, {"put_package", true, &PutPackage}, {"clear_map_marker", true, &ClearMapMarker},
 };

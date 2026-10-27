@@ -375,7 +375,7 @@ static nlohmann::json GameStatus()
     return {{"time", {{"hour", bridge.GetGameTimeHours()}, {"day", bridge.GetGameDay()}, {"month", bridge.GetGameMonth()},
                       {"year", bridge.GetGameYear()}, {"scale", bridge.GetGameTimeScale()},
                       {"days_passed", EngineCalls::GetGlobalValue(cGameDaysPassed).value_or(0.f)}, {"raw_days", EngineCalls::GetRawDaysPassed()}}},
-            {"wait_hours", waitHours},
+            {"wait_hours", waitHours}, {"menu_pause_count", EngineCalls::GetMenuPauseCount()},
             {"weather", bridge.GetCurrentWeatherId()}, {"level", world.GetPlayerBridge().GetPlayerLevel()}, {"difficulty", world.GetPlayerBridge().GetDifficulty()},
             {"players", players}, {"party_panel", party},
             {"party_panel_visible", pPartyUi && pPartyUi->IsPartyPanelVisible()},

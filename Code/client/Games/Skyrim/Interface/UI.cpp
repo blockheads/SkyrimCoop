@@ -1,6 +1,7 @@
 #include <Games/Skyrim/Interface/IMenu.h>
 #include <HookSwitch.h>
 #include <Games/Skyrim/Interface/UI.h>
+#include <Interface/MenuPauseRules.h>
 #include <Misc/BSFixedString.h>
 #include <Events/EventDispatcher.h>
 #include <Interface/MenuOpenCloseEvent.h>
@@ -9,8 +10,6 @@
 #include <VersionDb.h>
 #include <Hooks/Memory.h>
 #include <Hooks/FunctionHook.h>
-
-static bool g_RequestUnpauseAll{false};
 
 UI* UI::Get()
 {
@@ -71,44 +70,22 @@ void UI::DebugLogAllMenus()
     }
 }
 
-static void UnfreezeMenu(IMenu* apEntry)
+static_assert(MenuPauseRules::kPauseFlags ==
+              (IMenu::kPausesGame | IMenu::kFreezeFrameBackground | IMenu::kFreezeFramePause));
+
+// UI::ProcessMessages (82082+0x682): searches the stack, returning whether the menu is already on it.
+static bool (*UI_FindOnStack)(UI*, IMenu*, IMenu***);
+
+static bool UI_FindOnStack_Hook(UI* apSelf, IMenu* apMenu, IMenu*** appFoundItem)
 {
-    if (apEntry->PausesGame())
-        apEntry->ClearFlag(IMenu::kPausesGame);
-
-    if (apEntry->FreezesBackground())
-        apEntry->ClearFlag(IMenu::kFreezeFrameBackground);
-
-    if (apEntry->FreezesFramePause())
-        apEntry->ClearFlag(IMenu::kFreezeFramePause);
-}
-
-static constexpr const char* kAllowList[] = {
-    "TweenMenu",     "MagicMenu",     "StatsMenu",     "InventoryMenu", "MessageBoxMenu",
-    "ContainerMenu", "FavoritesMenu", "Tutorial Menu", "Console"
-    //"MapMenu", // MapMenu is disabled till we find a proper fix for first person.
-    //"Journal Menu", // Journal menu, aka pause menu, is disabled until we find a fix for manual save crashing while unpaused.
-};
-
-static void* (*UI_AddToActiveQueue)(UI*, IMenu*, void*);
-
-static void* UI_AddToActiveQueue_Hook(UI* apSelf, IMenu* apMenu, void* apFoundItem /*In reality a reference*/)
-{
-    // if the menu is empty we let the real function handle it.
-    if (!apMenu || !World::Get().GetTransport().IsConnected())
-        return UI_AddToActiveQueue(apSelf, apMenu, apFoundItem);
-
-    // NOTE(Force): could also compare by RTTI later on...
-    for (const char* item : kAllowList)
+    const bool cOnStack = UI_FindOnStack(apSelf, apMenu, appFoundItem);
+    if (apMenu && !cOnStack && entt::locator<World>::has_value())
     {
-        if (auto* pMenu = apSelf->FindMenuByName(item))
-        {
-            if (pMenu == apMenu)
-                UnfreezeMenu(apMenu);
-        }
+        if (const auto* cpName = apSelf->LookupMenuNameByInstance(apMenu))
+            apMenu->uiMenuFlags = MenuPauseRules::Flags(cpName->AsAscii(), apMenu->uiMenuFlags,
+                                                      World::Get().GetTransport().IsConnected());
     }
-
-    return UI_AddToActiveQueue(apSelf, apMenu, apFoundItem);
+    return cOnStack;
 }
 
 UIMessageQueue* UIMessageQueue::Get() noexcept
@@ -146,9 +123,8 @@ static Hooks::Initializer s_s(
     []()
     {
         const HookGate cGate(__FILE__);
-        // pray that this doesnt fail!
         VersionDbPtr<uint8_t> ProcessHook(82082);
-        Hooks::SwapCall(ProcessHook.Get() + 0x682, UI_AddToActiveQueue, &UI_AddToActiveQueue_Hook);
+        Hooks::SwapCall(ProcessHook.Get() + 0x682, UI_FindOnStack, &UI_FindOnStack_Hook);
 
         // Ignore startup movie
         // TODO: Move me later.

@@ -8816,12 +8816,26 @@ def map_takes_input(instance):
     return (status.get("game") or {}).get("map_ready") and set(status.get("menus") or []) <= {"HUD Menu", "MapMenu", "Cursor Menu"}
 
 
+def open_world_map(instance):
+    """M opens the remembered view; L returns a remembered local view to the world map."""
+    wait_for(f"[{instance or 'host'}] the game takes input", lambda: takes_input(instance), 10)
+    tap_key(instance, QUICK_MAP_KEY)
+    def ready():
+        if "MapMenu" not in menus(instance) or menus(instance) - {"HUD Menu", "MapMenu", "Cursor Menu"}:
+            return False
+        state = player_command(instance, {"cmd": "menu_flags", "name": "MapMenu"})
+        return state["local_map_ready"] if state["local_map"] else map_takes_input(instance)
+    wait_for(f"[{instance or 'host'}] the map finishes opening", ready, 10)
+    if player_command(instance, {"cmd": "menu_flags", "name": "MapMenu"})["local_map"]:
+        tap_key(instance, 0x26)
+    wait_for(f"[{instance or 'host'}] the world map takes input", lambda: map_takes_input(instance), 10)
+
+
 def place_map_marker(instance):
     """The player opens the map (M), places a marker where it is centred (P) and closes it (Tab)."""
     who = f"[{instance or 'host'}]"
-    wait_for(f"{who} the game takes input", lambda: takes_input(instance), 10)
-    tap_key(instance, QUICK_MAP_KEY)
-    wait_for(f"{who} the map is open and takes input", lambda: map_takes_input(instance), 10)
+    open_world_map(instance)
+    move_cursor(instance, (640, 360))
     tap_key(instance, PLACE_MARKER_KEY)
     wait_for(f"{who} its marker is on the map", lambda: map_marker(instance), 5)
     tap_key(instance, TWEEN_MENU_KEY)
@@ -8869,9 +8883,7 @@ def answer_marker_box(instance, button):
 def remove_map_marker(instance):
     """The player opens the map (M), presses P on its marker and clicks "Remove It", then closes the map."""
     who = f"[{instance or 'host'}]"
-    wait_for(f"{who} the game takes input", lambda: takes_input(instance), 10)
-    tap_key(instance, QUICK_MAP_KEY)
-    wait_for(f"{who} the map is open and takes input", lambda: map_takes_input(instance), 10)
+    open_world_map(instance)
     tap_key(instance, PLACE_MARKER_KEY)
     wait_for(f"{who} asks to move or remove the marker", lambda: "MessageBoxMenu" in menus(instance), 5)
     answer_marker_box(instance, REMOVE_IT_BUTTON)
@@ -10161,7 +10173,7 @@ SOURCE_TAGS = [
     ("Code/client/Games/Skyrim/Fixes/*", {'cells'}),
     ("Code/client/Games/Skyrim/BSTimer.*", {'world', 'combat'}),
     ("Code/client/Games/Skyrim/Sky/*", {'world', 'cells'}),
-    ("Code/client/Games/Skyrim/Interface/*", {'ui', 'dialogue', 'input', 'scripts'}),
+    ("Code/client/Games/Skyrim/Interface/*", {'menus', 'ui', 'dialogue', 'input', 'scripts'}),
     ("Code/client/Games/Skyrim/Components/*", {'spawn', 'inventory', 'magic', 'ai', 'quest'}),
     ("Code/client/Games/Skyrim/ExtraData/*", {'inventory', 'objects', 'ai'}),
 
@@ -11504,6 +11516,8 @@ def main():
     register(SCENARIOS, TAGS)
     from coop_crime import register as register_crime
     register_crime(SCENARIOS, TAGS)
+    from coop_menus import register as register_menus
+    register_menus(SCENARIOS, TAGS)
     for name in ("spec:cutscene-controls-reach-party", "spec:leaver-cutscene-gives-back"):
         if name in TAGS:
             TAGS[name].add("session")
