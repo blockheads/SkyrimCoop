@@ -313,6 +313,34 @@ TEST_CASE("A player going down reaches every game, its own too, with its name", 
     }
 }
 
+TEST_CASE("A player killed by another player: every game's chat names the killer; an NPC's kill names no one",
+          "[HostAuthority][Session]")
+{
+    Session session;
+    const uint32_t cKiller = session.Character(kOtherPeer);
+    PlayerDeathRequest down;
+    down.SessionId = session.Character(kPeer);
+    down.Generation = 1;
+    down.Down = true;
+    down.KillerId = cKiller;
+    session.Receive(kPeer, down);
+    for (const auto cPlayer : {kHost, kPeer, kOtherPeer})
+    {
+        const auto cPerished = session.SentTo<NotifyPlayerPerished>(cPlayer);
+        REQUIRE(cPerished.size() == 1);
+        CHECK(cPerished[0]->Username == "Lydia");
+        CHECK(cPerished[0]->KillerName == "Aela");
+    }
+
+    session.Outbox.clear();
+    down.Generation = 2;
+    down.KillerId = session.Character(kHost); // the host's NPC
+    session.Receive(kPeer, down);
+    const auto cByNpc = session.SentTo<NotifyPlayerPerished>(kHost);
+    REQUIRE(cByNpc.size() == 1);
+    CHECK(cByNpc[0]->KillerName.empty());
+}
+
 TEST_CASE("Player list: the others drop a player who leaves; a refused game was never in it", "[HostAuthority][Session]")
 {
     Session session;

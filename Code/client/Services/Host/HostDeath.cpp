@@ -76,6 +76,11 @@ void HostDeath::OnDeath(const PlayerDeathRequest& acRequest, ConnectionId_t aSen
         NotifyPlayerPerished notice;
         notice.PlayerId = m_players.PlayerIdOf(aSender);
         notice.Username = m_players.PlayerNameOf(aSender);
+        // Friendly fire: another player's character killed it (friendly-fire.md).
+        const ConnectionId_t cKiller = m_characters.OwnerOf(acRequest.KillerId);
+        if (acRequest.KillerId && cKiller != aSender && m_players.IsPlayer(cKiller) &&
+            m_characters.PlayerCharacterOf(cKiller) == acRequest.KillerId)
+            notice.KillerName = m_players.PlayerNameOf(cKiller);
         m_players.SendToAll(notice);
     }
     else

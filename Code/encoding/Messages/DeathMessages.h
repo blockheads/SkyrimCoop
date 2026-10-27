@@ -24,12 +24,13 @@ struct PlayerDeathRequest final : RequestMessage
 
     bool operator==(const PlayerDeathRequest& acRhs) const noexcept
     {
-        return SessionId == acRhs.SessionId && Generation == acRhs.Generation && Down == acRhs.Down;
+        return SessionId == acRhs.SessionId && Generation == acRhs.Generation && Down == acRhs.Down && KillerId == acRhs.KillerId;
     }
 
     uint32_t SessionId{};
     uint32_t Generation{};
     bool Down{};
+    uint32_t KillerId{}; // the engine's killer of a fall, by session id (0: none, or not a character)
 };
 
 // A player's character in the party's death state: down or not, in which fall.
@@ -131,9 +132,11 @@ struct NotifyPlayerPerished final : NotifyMessage
 
     bool operator==(const NotifyPlayerPerished& acRhs) const noexcept
     {
-        return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username;
+        return GetOpcode() == acRhs.GetOpcode() && PlayerId == acRhs.PlayerId && Username == acRhs.Username &&
+               KillerName == acRhs.KillerName;
     }
 
     uint32_t PlayerId{};
     std::string Username;
+    std::string KillerName; // another player who killed it (friendly fire), else empty
 };

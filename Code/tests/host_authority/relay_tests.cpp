@@ -233,6 +233,40 @@ TEST_CASE("Hits: go to the actor's owner alone", "[HostAuthority][Values]")
     CHECK(session.Outbox.empty());
 }
 
+TEST_CASE("Friendly fire: a player's hit or spell on another player goes to that player's game alone",
+          "[HostAuthority][Values][Magic]")
+{
+    Session session;
+    const uint32_t cPeerPlayer = session.Character(kPeer);
+    const uint32_t cOtherPlayer = session.Character(kOtherPeer);
+
+    RequestHealthChangeBroadcast hit;
+    hit.Id = cOtherPlayer;
+    hit.DeltaHealth = -20.f;
+    hit.HasAttacker = true;
+    hit.AttackerId = cPeerPlayer;
+    session.Receive(kPeer, hit);
+    const auto cHit = session.SentTo<NotifyHealthChangeBroadcast>(kOtherPeer);
+    REQUIRE(cHit.size() == 1);
+    CHECK(cHit[0]->AttackerId == cPeerPlayer);
+    CHECK(session.SentTo<NotifyHealthChangeBroadcast>(kHost).empty());
+
+    AddTargetRequest effect;
+    effect.TargetId = cOtherPlayer;
+    effect.CasterId = cPeerPlayer;
+    effect.Magnitude = 25.f;
+    session.Receive(kPeer, effect);
+    REQUIRE(session.SentTo<NotifyAddTarget>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyAddTarget>(kHost).empty());
+
+    // The host's own player hits a guest the same way.
+    session.Outbox.clear();
+    hit.AttackerId = session.CharacterId(kHost);
+    session.Receive(kHost, hit);
+    CHECK(session.SentTo<NotifyHealthChangeBroadcast>(kOtherPeer).size() == 1);
+    CHECK(session.SentTo<NotifyHealthChangeBroadcast>(kPeer).empty());
+}
+
 TEST_CASE("Casts and shots: replayed everywhere else, from the caster's owner only", "[HostAuthority][Magic]")
 {
     Session session;

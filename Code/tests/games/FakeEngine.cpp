@@ -111,8 +111,55 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
         World::Get().GetRunner().Trigger(PartyNativeEvent{acCall});
 }
 
+bool FakeEngine::IsLyingInRagdoll(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return false;
+    if (it->second.Copy)
+        return RagdollPosed(aFormId);
+    return it->second.KnockedDown || std::ranges::any_of(Bodies, [&](const auto& acBody) {
+        return acBody.second.RagdollOf == aFormId && (acBody.second.Awake || it->second.Dead);
+    });
+}
+
+bool FakeEngine::RagdollPosed(uint32_t aFormId) const noexcept
+{
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end() || !it->second.Copy)
+        return false;
+    return it->second.KnockedDown ||
+           (it->second.Dead && std::ranges::any_of(Bodies, [&](const auto& acBody) { return acBody.second.RagdollOf == aFormId && acBody.second.Held; }));
+}
+
 void FakeEngine::Frame()
 {
+    for (auto& [cId, actor] : Actors)
+    {
+        if (!actor.Copy)
+            continue;
+        if (actor.KnockIn && !--actor.KnockIn)
+            actor.KnockedDown = true;
+        // Drawn: moved since its graph update while its ragdoll poses it, its old pose shows at the new place.
+        const float cTurn = std::abs(std::remainder(actor.Rotation[2] - actor.GraphPlace[3], 6.28318531f));
+        const float cSnap = glm::distance(glm::vec3(actor.Position[0], actor.Position[1], actor.Position[2]),
+                                          glm::vec3(actor.GraphPlace[0], actor.GraphPlace[1], actor.GraphPlace[2])) + cTurn * kSnapReach;
+        if (cSnap > 0.5f && RagdollPosed(cId))
+        {
+            ++actor.Snaps;
+            actor.WorstSnap = std::max(actor.WorstSnap, cSnap);
+        }
+        // Its graph update: lying in its ragdoll, the engine keeps it on its root body, turned with it (37996).
+        if (RagdollPosed(cId))
+            for (const auto& [cKey, cBody] : Bodies)
+                if (cBody.RagdollOf == cId && cKey.Index == 0)
+                {
+                    std::copy_n(&cBody.Flight.Body.Position.x, 3, actor.Position);
+                    actor.Rotation[2] = HeadingOf(cBody.Flight.Body.Rotation);
+                }
+        std::copy_n(actor.Position, 3, actor.GraphPlace);
+        actor.GraphPlace[3] = actor.Rotation[2];
+    }
     ShakeSeconds = std::max(0.f, ShakeSeconds - 1.f / 60);
     // Game time at the time scale for the real time since the last frame, as the engine's frame delta is.
     const auto cNow = std::chrono::steady_clock::now();
@@ -591,9 +638,10 @@ bool FakeEngine::DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, f
     const bool cWasDead = it->second.Dead;
     it->second.Values.ActorValuesList[kHealth] -= aDamage;
     World::Get().GetRunner().Trigger(ActorValueChangeEvent{aFormId, kHealth});
-    CheckHealth(aFormId, it->second);
-    if (!cWasDead && it->second.Dead)
+    // The engine names the killer before its death event.
+    if (!cWasDead && it->second.Values.ActorValuesList[kHealth] <= 0.f)
         it->second.KilledBy = aAttackerFormId;
+    CheckHealth(aFormId, it->second);
     return true;
 }
 
@@ -620,13 +668,16 @@ void FakeEngine::SetActorPlayerFaction(uint32_t) noexcept
 {
 }
 
-// ForcePosition and SetRotation; the graph's variables are not modelled.
+// ForcePosition and SetRotation when placing, never of a copy lying in its ragdoll (the engine keeps it on its ragdoll,
+// as its owner: SkyrimBridge); the graph's variables are not modelled.
 bool FakeEngine::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float,
-                                     const AnimationVariables&) noexcept
+                                     const AnimationVariables&, bool aPlace) noexcept
 {
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return false;
+    if (!aPlace || RagdollPosed(aFormId))
+        return true;
     std::copy_n(aPosition, 3, it->second.Position);
     std::copy_n(aRotation, 3, it->second.Rotation);
     // Outdoors its parent cell follows where it stands.
@@ -1447,27 +1498,39 @@ std::vector<IActorBridge::ActiveEffectInfo> FakeEngine::GetActorActiveEffects(ui
     return effects;
 }
 
-void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
+HitRules::Party FakeEngine::PartyOf(uint32_t aFormId) const noexcept
 {
-    const auto cHittee = Actors.find(aHittee);
-    if (cHittee == Actors.end())
-        return;
-    World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
-    if (aHittee == kPlayer)
+    using enum HitRules::Party;
+    const auto it = Actors.find(aFormId);
+    if (it == Actors.end())
+        return None;
+    if (aFormId == kPlayer)
+        return LocalPlayer;
+    if (it->second.Copy)
+        return it->second.Player ? OtherPlayer : Copy;
+    return Local;
+}
+
+void FakeEngine::TakesDamage(uint32_t aHittee, uint32_t aHitter, float aDamage, bool aApplyingEffect)
+{
+    switch (HitRules::Of(PartyOf(aHittee), PartyOf(aHitter), aApplyingEffect))
     {
+    case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage));
         DamageActorHealth(aHittee, aHitter, aDamage);
+        break;
+    case HitRules::Route::AskOwner: World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage, aHitter)); break;
+    case HitRules::Route::Mirror:
+    case HitRules::Route::Drop: break;
+    }
+}
+
+void FakeEngine::Strikes(uint32_t aHitter, uint32_t aHittee, float aDamage)
+{
+    if (!Actors.contains(aHittee))
         return;
-    }
-    if (cHittee->second.Copy && cHittee->second.Player)
-        return; // another game's player: its own game takes the hit
-    if (aHitter == kPlayer)
-    {
-        World::Get().GetRunner().Trigger(HealthChangeEvent(aHittee, -aDamage, aHitter));
-        if (cHittee->second.Copy)
-            return;
-    }
-    DamageActorHealth(aHittee, aHitter, aDamage);
+    World::Get().GetRunner().Trigger(HitEvent(aHitter, aHittee));
+    TakesDamage(aHittee, aHitter, aDamage, false);
 }
 
 void FakeEngine::Shoots(uint32_t aShooter, uint32_t aSpell, const glm::vec3& acOrigin)
@@ -1522,6 +1585,13 @@ void FakeEngine::ModifyBeastPerks(bool aVampire, int32_t aDelta)
     GlobalWrites.insert(BeastPerkGlobals.begin(), BeastPerkGlobals.end());
 }
 
+float FakeEngine::HeadingOf(const glm::quat& acRotation) noexcept
+{
+    const glm::vec3 cForward = acRotation * glm::vec3(0.f, 1.f, 0.f);
+    const float cHeading = std::atan2(cForward.x, cForward.y);
+    return cHeading < 0.f ? cHeading + 6.28318531f : cHeading;
+}
+
 void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin)
 {
     Body& body = Bodies.at(acKey);
@@ -1558,9 +1628,13 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
     // (BodyBridge::Find).
     if (acFrame.Key.Actor && !IsActorDead(aCopyFormId))
     {
-        if (!acFrame.Knocked)
+        auto& copy = Actors.at(aCopyFormId);
+        if (!acFrame.Knocked || !copy.KnockedDown)
+        {
+            if (acFrame.Knocked && !copy.KnockIn)
+                copy.KnockIn = 2;
             return true;
-        Actors.at(aCopyFormId).KnockedDown = true;
+        }
     }
     Body& body = it->second;
     body.Held = true;
@@ -1576,9 +1650,14 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
     const auto it = Bodies.find(acPose.Key);
     if (it == Bodies.end())
         return false;
-    // A living copy's: only while it lies with its owner (its getting up is its graph's, not modelled).
-    if (acPose.Key.Actor && !IsActorDead(aCopyFormId) && !Actors.at(aCopyFormId).KnockedDown)
+    // A living copy's: only while it lies with its owner (its getting up is its graph's, not modelled), and not placed:
+    // its own ragdoll gets up from where it was steered (BodyBridge::Rest).
+    if (acPose.Key.Actor && !IsActorDead(aCopyFormId))
+    {
+        if (Actors.at(aCopyFormId).KnockedDown)
+            ++it->second.Rests;
         return true;
+    }
     Body& body = it->second;
     // A reference's body is simulated again at its rest; a ragdoll's stays held.
     body.Held = body.RagdollOf != 0;
@@ -1617,6 +1696,14 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const
             body.Flight.Step(cStepMs / 1000.f);
         BodyFrame frame = body.Flight.Body;
         frame.Key = cKey;
+        // Skyrim keeps a ragdolled actor on its ragdoll's root body, turned with it (Actor's BSTransformDeltaEvent sink,
+        // 37996).
+        if (body.RagdollOf && cKey.Index == 0)
+            if (const auto it = Actors.find(body.RagdollOf); it != Actors.end())
+            {
+                std::copy_n(&frame.Position.x, 3, it->second.Position);
+                it->second.Rotation[2] = HeadingOf(frame.Rotation);
+            }
         // A living actor's ragdoll simulated: knocked down (PhysicsBodies).
         frame.Knocked = body.RagdollOf && !IsActorDead(body.RagdollOf);
         if (body.Flight.Resting)

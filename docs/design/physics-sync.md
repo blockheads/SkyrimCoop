@@ -430,6 +430,68 @@ A dead actor already lying when a guest loads its cell (or joins): its copy spaw
 engine where it stands. The host adds the ragdoll's rest pose to the copy's spawn (`NotifyCharacterSpawn`, the dead
 actor's bodies), applied as a rest once the copy's 3D is in.
 
+### A copy's ragdoll, steered (2026-10-26)
+
+Seen as bodies going back and forth, or heading one way and snapping back. `RagdollTrace` (`coop_test.py`; the
+harness's `body_trace` with each body's bone, motion type, life and ragdoll state, and the actor's reference) now
+runs in `ragdoll-lies-as-host`, `knockdown-lies-as-host` and `kill-move-kills-guest`, and fails on a copy's jitter
+(an owner's own is Skyrim's). Two causes, one fixed:
+
+```
+1. placed vs simulated (fixed)
+   playback: PlaceBody keyframes each body at the frame, every update
+   the copy's ragdoll driver: makes them simulated again (motion 2/3 in every sample, not 4)
+   -> Havok moves them on between placements; the skeleton follows one side, then the other
+   now: BodyBridge::Drive steers a copy's ragdoll body (BodyPrediction::Steer: the frame's velocities plus its gap
+        closed over 50 ms; SteerBody sets them, 78089/78090, which wake it); placed only when 64+ units off
+   wolf killed by fireballs: 61 flickers -> 0; Lydia knocked down: 24 -> 4-7
+
+2. the engine kept from moving the copy (fixed 2026-10-26)
+   owner: the engine keeps an actor lying in its ragdoll on its root body, turned with it, in its graph update:
+     Actor's BSTransformDeltaEvent sink (37996): its controller, SetRotationZ (19789), SetPosition (19790)
+   copy: HookSetPosition and HookRotateZ dropped every engine move of a copy, that one too; position sync moved it
+     instead, 300 ms behind at 10 a second: its skeleton strayed from its ragdoll (60-120 units on a knockdown), and
+     any move of ours came after the graph update, so the skeleton showed its old pose at the new place for a frame
+     (the spins and snaps seen at a get-up's start and while lying)
+   now: HookTransformDelta lets 37996's moves through for a copy that LiesInRagdoll (dead or knocked down, 37491),
+     and position sync leaves its place alone then (SkyrimBridge::ApplyRemoteMovement)
+
+3. its owner's lying place taken (fixed 2026-10-26)
+   owner: lying in its ragdoll, its place is its pelvis (~70 units above its feet)
+   copy: position sync swept to that place, or (stepped) jumped there a frame before its own knock landed
+     (KnockExplosion runs on the task queue): it stood 70 units up, and its ragdoll started from there (a pop)
+   now: each snapshot says Movement::Lying (LiesInRagdoll); a copy is never placed from a lying point, and steps
+     between lying and standing points (InterpolationSystem); its own ragdoll places it meanwhile
+
+5. a jump onto its owner's place at its get-up (fixed 2026-10-26)
+   copy: up from its own ragdoll (knock state 5 -> 6) it stood ~16 units from its owner; placed there at once, Skyrim
+     drew its skeleton there for a frame
+   now: CopyEase: from where its engine stood it onto its owner's place over 500 ms (CharacterService)
+
+4. a living copy's rest held (fixed 2026-10-26)
+   its owner's rest is its getting up; placed there (keyframed), its bodies stayed at the rest while it stood, and its
+   next knock flung them from it (3400 units/s up, a 70-170 unit pop): BodyBridge::Rest leaves a living copy's ragdoll
+   to get up from where it was steered
+```
+
+Also: a copy's ragdoll plays on the copies' clock (`Services/CopyClock.h`, kCopyDelayMs, as its movement); references
+stay at 100 ms.
+
+Readouts: `knockdown-smoke` (Lydia knocked down three times between the two players): `RagdollTrace.snaps` (a frame
+its skeleton jumps and comes back) and `compare` (the copy against its owner, its delay taken out: facing, getting
+up), failing on the copy's snaps its owner does not have. GameTests "A host NPC knocked down hard": the fake draws a
+copy before its graph update (a lying copy moved after it counts a snap) and keeps a lying actor on its root body;
+the copy stays on its ragdoll, never rises before it falls, never snaps.
+
+After 3 and 5: four of five knockdown-smoke runs with no copy-only snap (before: one or two in every run).
+
+Open (2026-10-26): the copy gets up on its own engine's timing and way (now and then 1.6 s early or 7 s late, or a
+different get-up facing 40-110 degrees away for up to 2 s): its get-up follows its own knock update, not its owner's.
+Skyrim pops a getting-up skeleton onto its reference for one frame at knock state 6 (owners too, up to 80 units);
+a copy getting up apart from its owner shows it at another time, and knockdown-smoke counts it as the copy's own.
+death-spectate-guest failed once after these changes (the host's copy of the dead guest 16 units from its body; it
+passed before the physics work): not looked into.
+
 ## What a cell load sends
 
 ```
@@ -458,7 +520,7 @@ CommonLibSSE-NG and IDA. Ids checked in IDA (1.6.1170) unless marked:
 | 77866 | `NiAVObject::SetMotionType` | guest: hold, release | in use (`HoldBodies`) |
 | 78077 | `bhkRigidBody::SetMotionType` | one body | Precision |
 | 78088 | `bhkRigidBody::SetActivated` | wake a body to keyframe it | Precision |
-| 78089 / 78090 | `bhkRigidBody::SetLinear/AngularVelocity` | a release's velocity | in use |
+| 78089 / 78090 | `bhkRigidBody::SetLinear/AngularVelocity` | a release's velocity; a copy's ragdoll steered (`SteerBody`) | IDA: the world's write lock, `hkpEntity::Activate`, then the motion's setter |
 | 60849 | `hkpEntity::activate` | | meh321, Precision |
 | 58286 | `hkbRagdollDriver::getRagdoll` | a ragdoll's bodies | Precision, PLANCK |
 | 39068 | `Job_Ragdoll_post_physics` | runs for copies (bodies to skeleton) | `actor-ai-and-copies.md` |

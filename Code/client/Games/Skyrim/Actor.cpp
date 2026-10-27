@@ -24,6 +24,7 @@
 #include <Events/DismountEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
+#include <Games/Skyrim/HitRules.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
@@ -825,6 +826,13 @@ bool Actor::IsDead() const noexcept
     return s_pIsDead(this);
 }
 
+bool Actor::LiesInRagdoll() const noexcept
+{
+    using TIsInRagdollState = bool(const Actor*);
+    POINTER_SKYRIMSE(TIsInRagdollState, s_isInRagdollState, 37491);
+    return (IsDead() || actorState.GetKnockState() != 0) && s_isInRagdollState.Get()(this);
+}
+
 bool Actor::IsDragon() const noexcept
 {
     const ActorExtension* pExtension = const_cast<Actor*>(this)->GetExtension();
@@ -994,6 +1002,23 @@ char HookSetPosition(Actor* apThis, NiPoint3& aPosition)
     return 1;
 }
 
+// Actor's BSTEventSink<BSTransformDeltaEvent>::ProcessEvent (37996): its graph's root motion, and an actor in its
+// ragdoll kept on it (its controller, SetRotationZ, SetPosition). A copy lying in its ragdoll is let through, as its
+// owner is: moved anywhere else in the frame, its skeleton shows its old pose at the new place (physics-sync.md).
+using TTransformDelta = uint32_t(void*, const void*, void*);
+static TTransformDelta* RealTransformDelta = nullptr;
+
+uint32_t HookTransformDelta(void* apSink, const void* apEvent, void* apSource)
+{
+    auto* pActor = reinterpret_cast<Actor*>(static_cast<uint8_t*>(apSink) - offsetof(Actor, tdEvent));
+    if (const auto* pExtension = pActor->GetExtension(); pExtension && pExtension->IsCopy() && pActor->LiesInRagdoll())
+    {
+        ScopedReferencesOverride engineMoves;
+        return RealTransformDelta(apSink, apEvent, apSource);
+    }
+    return RealTransformDelta(apSink, apEvent, apSource);
+}
+
 using TForceState = void(Actor*, const NiPoint3&, float, float, TESObjectCELL*, TESWorldSpace*, bool);
 static TForceState* RealForceState = nullptr;
 
@@ -1020,6 +1045,22 @@ static TDamageActor* RealDamageActor = nullptr;
 // effect this game owns, never from a replayed melee swing.
 static thread_local bool s_applyingEffect = false;
 
+namespace
+{
+HitRules::Party PartyOf(Actor* apActor) noexcept
+{
+    using enum HitRules::Party;
+    if (!apActor)
+        return None;
+    const auto* pEx = apActor->GetExtension();
+    if (pEx->IsLocalPlayer())
+        return LocalPlayer;
+    if (pEx->IsOtherPlayer())
+        return OtherPlayer;
+    return pEx->IsLocal() ? Local : Copy;
+}
+} // namespace
+
 bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
 {
     if (apHitter)
@@ -1030,55 +1071,20 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
     float currentHealth = apThis->GetActorValue(ActorValueInfo::kHealth);
     bool wouldKill = (currentHealth - realDamage) <= 0.f;
 
-    const auto* pExHittee = apThis->GetExtension();
-    if (pExHittee->IsLocalPlayer())
+    // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
+    // player) is a request to that owner, and the copy mirrors the owner's health instead.
+    switch (HitRules::Of(PartyOf(apThis), PartyOf(apHitter), s_applyingEffect))
     {
-        if (apHitter && apHitter->GetExtension()->IsOtherPlayer())
-            return false;
-
+    case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
         return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
-    }
-    else if (pExHittee->IsOtherPlayer())
-    {
+    case HitRules::Route::AskOwner:
+        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter->formID));
         return wouldKill;
+    case HitRules::Route::Mirror: return wouldKill;
+    case HitRules::Route::Drop: return false;
     }
-
-    if (apHitter)
-    {
-        const auto* pExHitter = apHitter->GetExtension();
-        if (pExHitter->IsLocalPlayer())
-        {
-            World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage, apHitter->formID));
-            // Direct authority: a hit on an actor someone else owns (e.g. a host NPC) is only a
-            // request to that owner. Our copy mirrors the owner's health instead of applying it.
-            if (pExHittee->IsCopy())
-                return wouldKill;
-            return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
-        }
-        if (pExHitter->IsOtherPlayer())
-        {
-            // Our actor, damaged by an effect we applied at that player's request (see HookAddTarget):
-            // apply it with them as the attacker, so the game handles aggro and kill credit.
-            if (s_applyingEffect && pExHittee->IsLocal())
-            {
-                World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
-                return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
-            }
-            // Otherwise their replayed swing hit our actor; their game already sent the request.
-            return wouldKill;
-        }
-    }
-
-    if (pExHittee->IsLocal())
-    {
-        World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));
-        return RealDamageActor(apThis, aDamage, apHitter, aKillMove);
-    }
-    else
-    {
-        return wouldKill;
-    }
+    return false;
 }
 
 using TApplyActorEffect = void(ActiveEffect*, Actor* apTarget, float aEffectValue, unsigned int unk1);
@@ -1605,6 +1611,7 @@ static Hooks::Initializer s_actorHooks(
         HOOK_ID(37322, &RealResetInventory, HookResetInventory);
         HOOK_ID(37347, &RealUpdateAI, HookUpdateAI);
         HOOK_ID(19790, &RealSetPosition, HookSetPosition);
+        HOOK_ID(37996, &RealTransformDelta, HookTransformDelta);
         HOOK_ID(38717, &RealRemoveSpell, HookRemoveSpell);
         HOOK_ID(40245, &RealCharacterConstructor, HookCharacterConstructor);
         HOOK_ID(40246, &RealCharacterConstructor2, HookCharacterConstructor2);

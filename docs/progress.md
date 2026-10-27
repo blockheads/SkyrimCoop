@@ -630,6 +630,7 @@ Each verified system has a two-game scenario (`scripts/coop_test.py scenario <na
 | NPC death and removal | works: a copy dies with its owner's death action | `remove-host-npc`, `death-host-npc` |
 | A player going down (`docs/design/death.md`) | works: a real death in a session (`OnDeath` and `TESDeathEvent` fire, the reload held), copies die by their owner's death action, spectating once dead, revived beside the party (abilities, hands, graph and camera back; 2026-10-26, uncommitted); after a wipe each guest stands where it stood at the checkpoint; each player's ragdoll streams from its own game to the others (2026-10-26) | `death-spectate-host`, `death-spectate-guest`, `death-wipe-checkpoint`, GameTests `[death]` |
 | Melee and spells on host NPCs | works, with kill credit | `melee-client-hits-host-npc`, `firebolt-*`, `flames-*`, `client-*-kill-credit` |
+| Friendly fire (`docs/design/friendly-fire.md`) | built 2026-10-26 (uncommitted): a player's sword or spell on another player is applied by the victim's game; a kill is a real death named in every chat; not a crime; kill moves on players work (a copy's ragdoll steered, and kept on it by the engine as its owner; a copy getting up on its own timing: open) | `friendly-fire-*`, `spectator-watches-kill-move`, `kill-move-kills-guest` (fails on the open jitter), GameTests `[friendly-fire]` |
 | Kill moves | works, both ways, with kill credit | `host-kill-move`, `client-kill-move` |
 | Hostility | works | `client-angers-host-ally` |
 | Effect visuals (burning, hit shaders) | works | `burning-shows-on-copy` |
@@ -1509,12 +1510,21 @@ What the first playtest build has besides what works today (the table above):
     1.0, as its saves are already (`SaveService`; decided 2026-10-26: quickload and the load menu do nothing on a
     guest's game, and the chat says why). Each guest comes back where the save left it (the wipe's fix,
     2026-10-26).
-17. **Friendly fire, always on** (decided 2026-10-26; replaces the fixed "PvP off" rule, `join-flow.md`): players hurt,
-    knock down and kill each other as NPCs would. A player's weapon hit on another player's copy goes to that player's
-    game (as hits on the host's NPCs go to the host; `HookDamageActor` drops it today); hostile spells and shouts
-    reach other players (`IsBlockedPvp` in `MagicTarget.cpp` drops them today; friendly ones already go); knockdowns
-    come with item 5's `RagdollStart`. A teammate's kill is a real death (spectate, respawn). To decide while building:
-    kill credit, and whether hitting a teammate is a crime or makes followers turn on them.
+17. **Friendly fire, always on** (`docs/design/friendly-fire.md`; built 2026-10-26, uncommitted, `.worktrees/friendly-fire`):
+    players hurt, knock down and kill each other as NPCs would. A player's weapon hit on another player's copy is a
+    request to that player's game (`HitRules`, the damage hook's rule), and hostile spells and shouts reach other
+    players (`IsBlockedPvp` deleted). The victim's game applies a spell's damage to its own player, and a shout's
+    push knocks it down (its ragdoll streams). A teammate's kill is a real death (spectate, respawn), and every chat
+    names the killer ("was killed by"). Decided with the user: no XP or kill counts, not a crime, and nobody turns
+    on the attacker (the victim's game runs no NPC reaction for its player). Kill moves on players work. Found on the
+    way and fixed: a player revived after a kill-move death floated (its ragdoll left in the physics world;
+    `death.md`, "The ragdoll"), and spectating could drop into first person (third person only now). Harness:
+    camera, body pose and ragdoll motion readouts, `coop_test.py look` (`testing.md`). Open: melee stagger is not sent
+    (as for host NPCs); a copy's ragdoll (any actor's) no longer fights its owner's frames (steered), and the engine keeps a lying
+    copy on it as its owner (its spins and snaps fixed; `physics-sync.md`, "A copy's ragdoll, steered"); knock-start
+    pops fixed (never placed where its owner lies, eased off its ragdoll); open: a copy getting up on its own timing
+    (`knockdown-smoke` fails on it now and then); a
+    revived player knocked down stays getting up (knock 6) and its copies never go down (on dev too; `death.md`).
 
 Not in 1.0: a player list with kick and a settings screen (players join by Steam invite), the trade menu, other
 players on the world map and compass (the tether keeps the party close), mod support (RaceMenu adapter, animation

@@ -22,6 +22,19 @@ struct Error
 };
 [[nodiscard]] Error Between(const BodyFrame& acA, const BodyFrame& acB) noexcept;
 
+// How long a steered body takes to close its gap to its frame's path (Steer).
+constexpr float kSteerSeconds = 0.05f;
+
+// The velocities that take a simulated body from where it is onto acTarget's path: the frame's own, plus its gap
+// closed over aSeconds. A copy's ragdoll is steered so, not placed: its ragdoll driver keeps it simulated.
+struct Velocities
+{
+    glm::vec3 Linear{};
+    glm::vec3 Angular{};
+};
+[[nodiscard]] Velocities Steer(const glm::vec3& acPosition, const glm::quat& acRotation, const BodyFrame& acTarget,
+                               float aSeconds = kSteerSeconds) noexcept;
+
 // Whether a body falls freely: its velocity changed by gravity alone between two reads aSeconds apart (a body on
 // the ground, sliding or rolling, goes on as it moves instead).
 [[nodiscard]] bool FallsFreely(const glm::vec3& acPreviousVelocity, const glm::vec3& acVelocity, float aSeconds,

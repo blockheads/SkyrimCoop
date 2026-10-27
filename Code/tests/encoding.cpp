@@ -1085,6 +1085,7 @@ TEST_CASE("Packets", "[encoding.packets]")
 
         move.Variables = vars;
         move.Teleported = true;
+        move.Lying = true;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);
@@ -1167,7 +1168,7 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         roundTrip(request, RequestMessageFactory{});
     }
 
-    SECTION("A player joining now is marked, and a player going down carries its name")
+    SECTION("A player joining now is marked, and a player going down carries its name and its killer's")
     {
         NotifyPlayerJoined joined;
         joined.PlayerId = 3;
@@ -1179,13 +1180,16 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         perished.PlayerId = 3;
         perished.Username = "Serana";
         roundTrip(perished, NotifyMessageFactory{});
+        perished.KillerName = "Lydia";
+        roundTrip(perished, NotifyMessageFactory{});
     }
-    SECTION("A player's fall, the party's death state, a respawn and a wipe's reload carry who, which fall and where")
+    SECTION("A player's fall, the party's death state, a respawn and a wipe's reload carry who, which fall, its killer and where")
     {
         PlayerDeathRequest down;
         down.SessionId = 7;
         down.Generation = 2;
         down.Down = true;
+        down.KillerId = 9;
         roundTrip(down, RequestMessageFactory{});
         NotifyPartyDeath party;
         party.Players = {{7, 2, true}, {9, 0, false}};

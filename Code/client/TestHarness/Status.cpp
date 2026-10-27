@@ -219,8 +219,28 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                                {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}};
     if (const auto cLooks = EngineCalls::GetBaseLooks(aFormId))
         identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}});
+    // Its ragdoll now: how many bodies are awake and the fastest one's speed (a body still moving or jittering).
+    nlohmann::json ragdoll;
+    if (const auto cBodies = EngineCalls::GetRagdoll(aFormId); cBodies && !cBodies->empty())
+    {
+        int awake = 0;
+        float fastest = 0.f;
+        for (const auto& cBody : *cBodies)
+        {
+            awake += cBody.Awake;
+            fastest = std::max(fastest, std::hypot(cBody.Velocity[0], cBody.Velocity[1], cBody.Velocity[2]));
+        }
+        ragdoll = {{"bodies", cBodies->size()}, {"awake", awake}, {"fastest", fastest}};
+    }
+    nlohmann::json pose; // null: no 3D or no floor found
+    if (const auto cPose = EngineCalls::GetBodyPose(aFormId))
+        pose = {{"floor_gap", cPose->FloorGap}, {"root", cPose->Root}, {"skeleton", cPose->Skeleton}, {"pelvis", cPose->Pelvis},
+                {"head", cPose->Head}, {"floor", cPose->Floor}};
     return {
         {"identity", identity},
+        // How its body stands, compared: a copy stuck half down or floating differs from its owner.
+        {"pose", pose},
+        {"ragdoll", ragdoll},
         {"placement", {{"position", {position[0], position[1], position[2]}}, {"rotation", ActorRotation(aFormId)},
                        {"cell", actors.GetActorParentCellFormId(aFormId)},
                        {"riding", !actors.IsActorMount(aFormId) && EngineCalls::HasMountInteraction(aFormId)},

@@ -393,7 +393,8 @@ void ActorValueService::OnHealthChangeBroadcast(const NotifyHealthChangeBroadcas
     spdlog::debug("Applied forwarded hit on {:X}: delta {:f}, health now {:f}, attacker {:X}", formId, acMessage.DeltaHealth,
                   m_actorBridge.GetActorValue(formId, 24), cAttackerFormId);
 
-    if (cAttackerFormId && acMessage.DeltaHealth < 0.f && m_actorBridge.GetActorValue(formId, 24) > 0.f)
+    // A player is a person: a teammate's hit turns no one on the attacker (friendly-fire.md).
+    if (cAttackerFormId && formId != 0x14 && acMessage.DeltaHealth < 0.f && m_actorBridge.GetActorValue(formId, 24) > 0.f)
     {
         // The hit happened in the attacker's game: react here as if it had landed here.
         m_actorBridge.ReactToAttack(formId, cAttackerFormId);

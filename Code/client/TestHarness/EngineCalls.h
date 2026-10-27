@@ -223,8 +223,9 @@ struct RayHit
     uint32_t Reference{}; // the hit collision's reference, 0 for none (terrain, the cell's own)
     uint32_t Layer{};     // the hit collision's layer (COL_LAYER)
 };
-// None: no physics world here, or the frame's picks are spent (bhkPickData::pickFailed; try the next frame).
-std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30) noexcept;
+// None: no physics world here, or the frame's picks are spent (bhkPickData::pickFailed; try the next frame). The
+// player's own collision is passed through, and aThrough's (an actor the ray starts in).
+std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0) noexcept;
 // Unequips everything in this game only, nothing sent (a copy that drifted).
 void UnequipAllUnsynced(uint32_t aFormId) noexcept;
 // As the game does them, through its own entry points, so our hooks see them as they see the game's
@@ -306,6 +307,8 @@ struct ReferenceState
         float Velocity[3]{};
         uint16_t Flags{};   // its bhkNiCollisionObject's
         bool Offset{};      // a bhkRigidBodyT: placed apart from its node
+        bool HasBone{};     // the node it moves (TESHavokUtilities::FindCollidableObject 15870): what a person sees
+        float Bone[3]{};
     };
     std::vector<Body> Collision;                      // its 3D's physics bodies
     std::vector<std::pair<std::string, uint32_t>> Graph; // its active behavior graph's variables, raw
@@ -526,19 +529,45 @@ std::optional<bool> GetPlayerKnows(uint32_t aFormId) noexcept;
 bool SetPlayerKnows(uint32_t aFormId, bool aKnows) noexcept;
 
 // What the player's camera shows: its mode, where it is and looks (the world camera's transform), what the
-// crosshair is on, and, given an actor, where its head is on screen and how far from the middle of the view.
+// crosshair is on, whom it follows and whether it sees them, and, given an actor, where its head is on screen and how
+// far from the middle of the view.
 struct CameraView
 {
     uint32_t State = 0;         // TESCameraState::Id
     float Position[3]{};
+    float Forward[3]{};         // the view's direction, a unit vector
     float Yaw = 0.f;            // degrees clockwise from north, as an actor's heading
     float Pitch = 0.f;          // degrees, positive looks down
     uint32_t Crosshair = 0;     // the reference under the crosshair, 0 for none
+    uint32_t Following = 0;     // the actor the camera follows (PlayerCamera::cameraTarget), 0 for none
+    float FollowedHead[3]{};    // its head node's (NPC Head [Head]) world position, or its position + 115
+    std::optional<RayHit> Looking; // what the view meets, up to 4096 units ahead (CastRay's world)
+    std::optional<RayHit> Sight;   // from the followed head to the camera: a hit puts the camera behind or inside
+                                   // a wall, floor or ceiling
     bool TargetOnScreen = false;
     float TargetScreen[2]{};    // 0..1 from the left and the bottom
     float TargetOffCenter = 0.f; // degrees between the view and the target's head
 };
 std::optional<CameraView> GetCameraView(uint32_t aTargetFormId) noexcept;
+
+// How an actor's body stands, as a person sees it: its feet's height above the floor under it (a ray down past its
+// own collision), and its pelvis and head nodes' (NPC Pelvis [Pelv], NPC Head [Head]) above that floor. Standing:
+// feet ~0, pelvis ~70, head ~120; lying: pelvis and head near the floor. None: no 3D, no floor found within 2000
+// units, or the frame's picks are spent.
+struct BodyPose
+{
+    float FloorGap{}; // its position above the floor: > 0 floats, < 0 sinks
+    float Root{};     // its 3D's root node (where its body is placed)
+    float Skeleton{}; // NPC Root [Root], under which the animation moves the bones
+    float Pelvis{};
+    float Head{};
+    uint32_t Floor{}; // what it stands on (CastRay's reference), 0 for the cell's own
+};
+std::optional<BodyPose> GetBodyPose(uint32_t aFormId) noexcept;
+// Its ragdoll has its body (dead, knocked down, a kill move's victim): Actor::IsInRagdollState 37491.
+bool IsInRagdollState(uint32_t aFormId) noexcept;
+// The node a physics body moves (a ragdoll body's bone), in world space: TESHavokUtilities::FindCollidableObject 15870.
+bool BoneOf(const bhkWorldObject& acBody, float aPosition[3]) noexcept;
 
 // What a cutscene does to this game's screen: the enabled controls (ControlMap, UEFlag bits), the forms of the
 // image-space modifiers running (TES's list), and the camera's shake (strength and seconds left; 402622, 402623, set by

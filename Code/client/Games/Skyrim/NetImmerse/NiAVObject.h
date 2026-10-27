@@ -8,11 +8,12 @@ struct NiAVObject : NiObjectNET
 {
     virtual ~NiAVObject();
 
+    virtual void sub_25(); // 25-29: UpdateControllers ... SetDefaultMaterialNeedsUpdateFlag (CommonLibSSE-NG)
     virtual void sub_26();
     virtual void sub_27();
     virtual void sub_28();
     virtual void sub_29();
-    virtual NiAVObject* GetByName(BSFixedString& aName);
+    virtual NiAVObject* GetByName(const BSFixedString& acName); // 2A, GetObjectByName
 
     // Rotation (row-major), position and scale, relative to the parent (local) or the world (CommonLibSSE-NG).
     struct Transform

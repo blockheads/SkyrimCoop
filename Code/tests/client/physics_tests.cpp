@@ -7,6 +7,7 @@
 #include <Physics/BodyPlayback.h>
 #include <Physics/BodyRelevance.h>
 #include <Physics/BodySends.h>
+#include <Systems/CopyEase.h>
 
 using namespace BodyPrediction;
 
@@ -73,6 +74,74 @@ TEST_CASE("Every game's guess flies a free fall's arc and spins on", "[physics]"
     frame.Gravity = false;
     CHECK(Predict(frame, 0.5f).Position.z == Approx(200.f));
     THEN("a guess stops after kMaxSeconds") CHECK(Predict(frame, 5.f).Position == Predict(frame, kMaxSeconds).Position);
+}
+
+TEST_CASE("A steered body joins its frame's path from where it is, without overshooting", "[physics]")
+{
+    // A copy's ragdoll body 20 units off and a quarter turn away from the owner's, which slides and spins.
+    BodyFrame target;
+    target.Position = {0.f, 0.f, 50.f};
+    target.LinearVelocity = {60.f, 0.f, 0.f};
+    target.AngularVelocity = {0.f, 0.f, 1.f};
+    glm::vec3 position{0.f, 20.f, 50.f};
+    glm::quat rotation = glm::angleAxis(-1.5707963f, glm::vec3(0.f, 0.f, 1.f));
+
+    // Havok's steps at 60 Hz, two of them on a slow frame: steered once a frame, moved by the velocities alone.
+    float gap = glm::distance(position, target.Position);
+    for (int frame = 0; frame < 30; ++frame)
+    {
+        const BodyFrame cDue = Predict(target, frame * 2.f / 60.f);
+        const auto cSteer = Steer(position, rotation, cDue);
+        for (int step = 0; step < 2; ++step)
+        {
+            position += cSteer.Linear / 60.f;
+            if (const float cSpeed = glm::length(cSteer.Angular); cSpeed > 1e-6f)
+                rotation = glm::normalize(glm::angleAxis(cSpeed / 60.f, cSteer.Angular / cSpeed) * rotation);
+        }
+        const BodyFrame cThen = Predict(target, (frame + 1) * 2.f / 60.f);
+        const float cGap = glm::distance(position, cThen.Position);
+        CHECK(cGap <= gap + 1e-3f);
+        gap = cGap;
+        if (frame == 29)
+        {
+            CHECK(cGap < 0.01f);
+            CHECK(Between({.Position = position, .Rotation = rotation}, cThen).Angle < 1e-3f);
+        }
+    }
+    THEN("on its path it moves as its frame") CHECK(Steer(target.Position, target.Rotation, target).Linear == target.LinearVelocity);
+    THEN("steered over the update's time, it is on its path when the update ends")
+    {
+        const auto cSteer = Steer({0.f, 20.f, 50.f}, target.Rotation, target, 2.f / 60.f);
+        CHECK(glm::distance(glm::vec3(0.f, 20.f, 50.f) + cSteer.Linear * (2.f / 60.f), Predict(target, 2.f / 60.f).Position) < 1e-3f);
+    }
+}
+
+TEST_CASE("A copy up from its own ragdoll is eased onto its owner's place, never jumped there", "[physics]")
+{
+    // Its engine stood it 16 units off and a little turned from its owner (knockdown-smoke).
+    const glm::vec3 cOwner{-747.f, 1501.f, 6957.f};
+    const glm::vec3 cOwn{-755.f, 1514.7f, 6957.f};
+    CopyEase ease;
+    ease.Begin(cOwn - cOwner, 6.2f - 0.1f, 1000);
+    glm::vec3 last = cOwn;
+    for (uint64_t tick = 1000; tick <= 1000 + CopyEase::kMs; tick += 16)
+    {
+        glm::vec3 position = cOwner;
+        float heading = 0.1f;
+        ease.Apply(tick, position, heading);
+        if (tick == 1000)
+        {
+            CHECK(glm::distance(position, cOwn) < 1e-3f);
+            CHECK(heading == Approx(6.2f));
+        }
+        CHECK(glm::distance(position, last) < 1.f);
+        last = position;
+    }
+    glm::vec3 position = cOwner;
+    float heading = 0.1f;
+    ease.Apply(1000 + CopyEase::kMs, position, heading);
+    THEN("on its owner's place after kMs") CHECK(position == cOwner);
+    THEN("turned the short way round") CHECK(heading == Approx(0.1f));
 }
 
 TEST_CASE("A body falls freely while gravity alone changes its speed", "[physics]")

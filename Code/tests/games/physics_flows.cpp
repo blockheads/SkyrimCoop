@@ -280,6 +280,77 @@ SCENARIO("A host NPC is knocked down alive: its copy goes down with it and lies 
     }
 }
 
+SCENARIO("A host NPC knocked down hard: its copy stays on its own ragdoll while it lies", "[physics]")
+{
+    // Skyrim pins a ragdolled actor's skeleton to its reference: a copy's reference away from its ragdoll shows the
+    // body that far from where its bodies lie (knockdown-lies-as-host, physics-sync.md "A copy's ragdoll, steered").
+    Party party(1, Plugins);
+    FakeEngine& host = Party::Engine(party.Host());
+    FakeEngine& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {20.f, 20.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the host's guard");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    const uint32_t cSession = SessionOf(party.Host(), guard);
+    for (uint8_t i = 0; i < kRagdollBodies; ++i)
+    {
+        FakeEngine::Body bone;
+        bone.Flight.Body.Position = {20.f, 20.f, 40.f + 20.f * i};
+        bone.RagdollOf = guard;
+        host.Bodies[{.Actor = guard, .Index = i}] = bone;
+        bone.RagdollOf = cCopy;
+        guest.Bodies[{.Actor = cSession, .Index = i}] = bone;
+    }
+
+    // It stands a moment first: its copy has its movement to play, as in a game.
+    const auto cStood = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    party.Until([&] { return std::chrono::steady_clock::now() > cStood; }, "the guard stands a moment");
+    // Its knock puts it on its ragdoll (feet to pelvis) before its bodies simulate and send (knock state 2): its lying
+    // point can reach the copy before the copy's knock (knockdown-smoke).
+    party.As(party.Host(), [&] {
+        host.Actors.at(guard).KnockedDown = true;
+        std::copy_n(&host.Bodies.at({.Actor = guard, .Index = 0}).Flight.Body.Position.x, 3, host.Actors.at(guard).Position);
+    });
+    const auto cKeyframed = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+    party.Until([&] { return std::chrono::steady_clock::now() > cKeyframed; }, "the guard lies on its ragdoll, keyframed");
+    // A shout's push: the whole body thrown back and up, spinning, sliding to a stop (its spin halved at each bounce).
+    party.As(party.Host(), [&] {
+        host.Actors.at(guard).KnockedDown = false;
+        for (uint8_t i = 0; i < kRagdollBodies; ++i)
+            host.Knock({.Actor = guard, .Index = i}, {150.f, 0.f, 80.f}, {0.f, 0.f, 8.f});
+    });
+    const BodyKey cRoot{.Actor = cSession, .Index = 0};
+    float worst = 0.f, worstTurn = 0.f, risen = 0.f;
+    const auto cWatch = [&](const std::function<bool()>& acDone) {
+        return [&, acDone] {
+            // Standing until it falls: never placed where its owner lies (its pelvis).
+            if (!guest.Actors.at(cCopy).KnockedDown)
+                risen = std::max(risen, guest.Actors.at(cCopy).Position[2]);
+            if (guest.Actors.at(cCopy).KnockedDown && guest.Bodies.at(cRoot).Drives > 0)
+            {
+                const float* cpAt = guest.Actors.at(cCopy).Position;
+                worst = std::max(worst, glm::distance(glm::vec3(cpAt[0], cpAt[1], cpAt[2]), guest.Bodies.at(cRoot).Flight.Body.Position));
+                const float cTurn = guest.Actors.at(cCopy).Rotation[2] - FakeEngine::HeadingOf(guest.Bodies.at(cRoot).Flight.Body.Rotation);
+                worstTurn = std::max(worstTurn, std::abs(std::remainder(cTurn, 6.28318531f)));
+            }
+            return acDone();
+        };
+    };
+    party.Until(cWatch([&] { return guest.Bodies.at(cRoot).Drives > 0; }), "the copy's ragdoll follows the host's");
+    party.Until(cWatch([&] { return !host.Bodies.at({.Actor = guard, .Index = 0}).Awake; }), "the host's ragdoll rests");
+    party.Until(cWatch([&] { return guest.Bodies.at(cRoot).Rests > 0; }), "the copy's ragdoll rests");
+    INFO("the copy's reference strayed up to " << worst << " units and " << worstTurn << " rad from its root body");
+    CHECK(worst < 1.f);
+    CHECK(worstTurn < 0.03f);
+    THEN("it stands until it falls, never rising toward its owner's pelvis first (knockdown-smoke)")
+        CHECK(risen < 1.f);
+    THEN("it is moved where the engine moves an actor, so its skeleton never snaps (knockdown-smoke)")
+    {
+        INFO(guest.Actors.at(cCopy).Snaps << " snaps, the worst " << guest.Actors.at(cCopy).WorstSnap << " units");
+        CHECK(guest.Actors.at(cCopy).Snaps == 0);
+    }
+}
+
 SCENARIO("A guest's player dies and ragdolls: the host's and the other guest's copies lie as its body, bone by bone", "[physics][death]")
 {
     Party party(2, Plugins);

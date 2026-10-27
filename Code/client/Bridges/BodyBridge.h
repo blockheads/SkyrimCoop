@@ -22,6 +22,9 @@ public:
     bool Settle(const BodyKey& acKey) noexcept override;
 
 private:
+    // Units between a copy's ragdoll body and its frame past which it is placed there rather than steered.
+    static constexpr float kSteerDistance = 64.f;
+
     // A body here: a reference's by its 3D's order (with its collision object, whose node shows it), a copy's
     // ragdoll's by the ragdoll's; none for a copy's body its animation still drives (Waiting).
     struct Found

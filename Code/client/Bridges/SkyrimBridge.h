@@ -43,8 +43,9 @@ public:
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
-        const float aRotation[3], float aDirection, const AnimationVariables& aVariables) noexcept override;
+        const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
+    bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
     float GetActorPermanentValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
@@ -228,6 +229,7 @@ public:
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;
     void SetSpectatorTarget(uint32_t aFormId) noexcept override;
+    void KeepSpectatorView() noexcept override;
     void HoldDeathControls(bool aHold) noexcept override;
     bool IsScriptCameraHeld() const noexcept override;
     uint32_t GetDifficulty() const noexcept override;

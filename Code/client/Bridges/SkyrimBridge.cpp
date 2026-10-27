@@ -227,7 +227,7 @@ void SkyrimBridge::SetActorRotation(uint32_t aFormId, float aX, float aZ) noexce
 }
 
 bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
-    const float aRotation[3], float aDirection, const AnimationVariables& aVariables) noexcept
+    const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept
 {
     Breadcrumbs::Record("ApplyRemoteMovement", aFormId);
     auto* actor = GetActor(aFormId);
@@ -236,11 +236,15 @@ bool SkyrimBridge::ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3
     position.x = aPosition[0];
     position.y = aPosition[1];
     position.z = aPosition[2];
-    actor->ForcePosition(position);
+    // A copy lying in its ragdoll is kept on it by the engine in its graph update, as its owner (HookTransformDelta).
+    const bool cPlace = aPlace && !actor->LiesInRagdoll();
+    if (cPlace)
+        actor->ForcePosition(position);
     actor->LoadAnimationVariables(aVariables);
     if (actor->currentProcess && actor->currentProcess->middleProcess)
         actor->currentProcess->middleProcess->direction = aDirection;
-    actor->SetRotation(aRotation[0], aRotation[1], aRotation[2]);
+    if (cPlace)
+        actor->SetRotation(aRotation[0], aRotation[1], aRotation[2]);
     return true;
 }
 
@@ -252,6 +256,12 @@ void SkyrimBridge::GetActorPosition(uint32_t aFormId, float& aX, float& aY, floa
         aY = pActor->position.y;
         aZ = pActor->position.z;
     }
+}
+
+bool SkyrimBridge::IsLyingInRagdoll(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && pActor->LiesInRagdoll();
 }
 
 void SkyrimBridge::GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept
@@ -2197,6 +2207,12 @@ void SkyrimBridge::HoldDeathControls(bool aHold) noexcept
 bool SkyrimBridge::IsScriptCameraHeld() const noexcept
 {
     return PartyNatives::ScriptControlsHeld();
+}
+
+void SkyrimBridge::KeepSpectatorView() noexcept
+{
+    if (PlayerCamera* pCamera = PlayerCamera::Get())
+        pCamera->KeepSpectating();
 }
 
 void SkyrimBridge::SetSpectatorTarget(uint32_t aFormId) noexcept

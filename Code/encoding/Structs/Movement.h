@@ -28,4 +28,7 @@ struct Movement
     float Direction{};
     // Put there at once (a script's MoveTo, the console's setpos): the copy jumps, never slides across.
     bool Teleported{};
+    // Lying in its ragdoll, its place its ragdoll's (the engine puts it there, feet to pelvis): a copy lies by its own
+    // ragdoll, never placed here.
+    bool Lying{};
 };

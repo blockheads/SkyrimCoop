@@ -411,6 +411,22 @@ and fast travel. The engine's `raw_days` remains cumulative and its sync is chec
 cannot rewind it, and setting `GameDaysPassed` alone is overwritten next frame. The per-process midnight counter
 also remains cumulative and is not exposed by the harness. No save load or forced guest calendar conceals this.
 
+What a person sees, without a video (2026-10-26): problems seen on screen (a floating body, a camera in a wall,
+a corpse twitching) are readouts and checks, so a scenario fails naming them in numbers.
+
+- `coop_test.py look [-f]`: both screens in words: each camera and each player's body, what looks wrong in capitals.
+  Every failed scenario prints the same under "what each game saw".
+- The camera (harness `camera`): mode, position, direction, what its view ray meets, whom it follows and whether a
+  ray from their head reaches it (`camera_sees_followed`: a wall, floor or ceiling between fails; an actor does not).
+- A body (status `pose`, every actor): its feet above the floor under it, its 3D root, skeleton root, pelvis and head
+  above that floor. Compared owner against copy, and checked after every scenario for players (`body_problems`:
+  floating, sunk, a skeleton lifted off its feet, lying while it should stand). Status `ragdoll`: bodies awake and
+  the fastest one's speed.
+- Motion over time (`RagdollTrace`, the harness's `body_trace`): each ragdoll body and the bone it moves, each frame,
+  with the actor's life and ragdoll state; how often each turned back on itself in a second (back and forth),
+  flickers, when it came to rest, and how far a bone strayed from its body. `ragdoll_lies_as_owner` checks the bones
+  too (a copy whose physics lies as its owner's while its skeleton stands now fails).
+
 Placing a player (`place_before`, the harness's `place`) checks the spot with rays through the physics world first
 (added 2026-10-24, after a bearing put the client inside a wall): a floor under it, which the player stands on
 rather than at the target's height; headroom; 35 units of room around its knees; and nothing between its eyes and

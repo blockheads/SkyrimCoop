@@ -18,7 +18,8 @@ class IBodyBridge;
  * @brief Every game plays the bodies other games own (docs/design/physics-sync.md, "Owners"):
  *
  *   frames   played kDelayMs behind the session's time (BodyPlayback): each body put at the pose each update, held
- *            keyframed, its node with it; a body this game's own physics moved first is blended from there
+ *            keyframed, its node with it; a body this game's own physics moved first is blended from there. A copy's
+ *            ragdoll plays on the copies' clock (kCopyDelayMs, with its movement), steered
  *   rest     placed exactly; a reference's simulated again (asleep) so this game's player can push and grab it
  *
  * A guest gets the host's bodies and the others' held ones; the host a guest's held ones. The bodies this game owns
@@ -26,7 +27,8 @@ class IBodyBridge;
  */
 struct BodyService
 {
-    // Behind the owner's time: a frame due now has arrived (half a round trip and a step's jitter).
+    // A reference's frames, behind the owner's time: a frame due now has arrived (half a round trip and a step's
+    // jitter). A copy's ragdoll's: kCopyDelayMs (CopyClock.h).
     static constexpr uint64_t kDelayMs = 100;
 
     // This game's own bodies among the session's (a guest's hands, GuestHands): none of them is played here.
@@ -57,14 +59,16 @@ private:
     void OnRests(const NotifyBodyRests& acMessage) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
-    void Show(uint64_t aTick) noexcept;
+    void Show(BodyPlayback& aPlayback, uint64_t aTick) noexcept;
+    [[nodiscard]] BodyPlayback& PlaybackOf(const BodyKey& acKey) noexcept { return acKey.Actor ? m_ragdolls : m_playback; }
     // This game's copy of that character (its form id), 0 for none.
     [[nodiscard]] uint32_t CopyOf(uint32_t aSessionId) const noexcept;
 
     World& m_world;
     IBodyBridge& m_bridge;
     Keeper* m_pKeeper{};
-    BodyPlayback m_playback;
+    BodyPlayback m_playback; // references
+    BodyPlayback m_ragdolls; // copies' ragdolls
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
     std::set<BodyKey> m_missing;   // not in this game (logged once)
     std::vector<entt::scoped_connection> m_connections;

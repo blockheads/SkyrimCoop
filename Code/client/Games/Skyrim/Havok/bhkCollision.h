@@ -142,6 +142,9 @@ struct BodyRead
 // keyframe toward a pose over the frame's time (applyHardKeyFrame) overshoots when Havok's step is longer.
 bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::quat& acRotation, const glm::vec3& acLinearVelocity = {},
                const glm::vec3& acAngularVelocity = {}) noexcept;
+// Moving so, simulated as it is: woken, its velocities set (78089, 78090 take the world's write lock). A copy's ragdoll
+// body is steered so each update, which its ragdoll driver keeps (Find in BodyBridge).
+bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;
 // Simulated again as aMotion (the type it had before it was keyframed), moving so: through its collision object
 // (bhkCollisionObject::SetMotionType 78182, vfunc 0x2E), which sets kSetLocal back for a dynamic body, then 78089,
 // 78090; aAsleep: still, never woken (hkpRigidBody::setMotionType 60908 not activating; hkpEntity::deactivate 60850)

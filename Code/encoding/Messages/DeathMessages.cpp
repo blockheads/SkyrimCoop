@@ -6,6 +6,7 @@ void PlayerDeathRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexc
     Serialization::WriteVarInt(aWriter, SessionId);
     Serialization::WriteVarInt(aWriter, Generation);
     Serialization::WriteBool(aWriter, Down);
+    Serialization::WriteVarInt(aWriter, KillerId);
 }
 
 void PlayerDeathRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -15,6 +16,7 @@ void PlayerDeathRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Generation = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Down = Serialization::ReadBool(aReader);
+    KillerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }
 
 void NotifyPartyDeath::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
@@ -91,6 +93,7 @@ void NotifyPlayerPerished::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
 {
     Serialization::WriteVarInt(aWriter, PlayerId);
     Serialization::WriteString(aWriter, Username);
+    Serialization::WriteString(aWriter, KillerName);
 }
 
 void NotifyPlayerPerished::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -99,4 +102,5 @@ void NotifyPlayerPerished::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
 
     PlayerId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     Username = Serialization::ReadString(aReader);
+    KillerName = Serialization::ReadString(aReader);
 }

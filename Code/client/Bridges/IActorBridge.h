@@ -66,10 +66,13 @@ public:
     // --- Position / movement ---
     virtual void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept = 0;
     virtual void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept = 0;
-    // Resident game-thread operation; no pointers into a reloadable DLL retained.
+    // Resident game-thread operation; no pointers into a reloadable DLL retained. Not aPlace: only its graph's variables
+    // (its ragdoll places it).
     virtual bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
-        const float aRotation[3], float aDirection, const AnimationVariables& aVariables) noexcept = 0;
+        const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept = 0;
     virtual void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
+    // It lies in its ragdoll, dead or knocked down: the engine keeps it on the ragdoll (Actor::LiesInRagdoll).
+    [[nodiscard]] virtual bool IsLyingInRagdoll(uint32_t aFormId) const noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
 
     // --- Actor values ---

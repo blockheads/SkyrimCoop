@@ -445,7 +445,8 @@ nlohmann::json Ragdoll(Harness&, const nlohmann::json& acRequest)
     auto bodies = nlohmann::json::array();
     for (const auto& cBody : *cBodies)
         bodies.push_back({{"in_world", cBody.InWorld}, {"motion", cBody.Motion}, {"awake", cBody.Awake}, {"position", cBody.Position},
-                          {"rotation", cBody.Rotation}, {"velocity", cBody.Velocity}});
+                          {"rotation", cBody.Rotation}, {"velocity", cBody.Velocity},
+                          {"bone", cBody.HasBone ? nlohmann::json(cBody.Bone) : nlohmann::json()}});
     return {{"ok", true}, {"bodies", bodies}};
 }
 
@@ -668,8 +669,9 @@ nlohmann::json Trainings(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"count", EngineCalls::GetPlayerTrainings()}};
 }
 
-// {"cmd": "camera", "target": id}: what the player's camera shows (EngineCalls::GetCameraView); with a target,
-// where its head is on screen.
+// {"cmd": "camera", "target": id}: what the player's camera shows (EngineCalls::GetCameraView): where it is and looks,
+// what its view ray meets, whom it follows and whether a ray from their head reaches it; with a target, where its head
+// is on screen.
 nlohmann::json Camera(Harness&, const nlohmann::json& acRequest)
 {
     const auto cView = EngineCalls::GetCameraView(acRequest.value("target", 0u));
@@ -678,9 +680,17 @@ nlohmann::json Camera(Harness&, const nlohmann::json& acRequest)
     nlohmann::json response = {{"ok", true},
                                {"state", cView->State},
                                {"position", {cView->Position[0], cView->Position[1], cView->Position[2]}},
+                               {"forward", {cView->Forward[0], cView->Forward[1], cView->Forward[2]}},
                                {"yaw", cView->Yaw},
                                {"pitch", cView->Pitch},
-                               {"crosshair", cView->Crosshair}};
+                               {"crosshair", cView->Crosshair},
+                               {"following", cView->Following},
+                               {"looking", cView->Looking ? RayJson(*cView->Looking) : nlohmann::json()}};
+    if (cView->Following)
+    {
+        response["followed_head"] = {cView->FollowedHead[0], cView->FollowedHead[1], cView->FollowedHead[2]};
+        response["sight"] = cView->Sight ? RayJson(*cView->Sight) : nlohmann::json();
+    }
     if (acRequest.contains("target"))
         response["target"] = {{"on_screen", cView->TargetOnScreen},
                               {"screen", {cView->TargetScreen[0], cView->TargetScreen[1]}},
