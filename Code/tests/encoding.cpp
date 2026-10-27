@@ -692,78 +692,61 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK(recvOpened.Greeting == sendOpened.Greeting);
     }
 
-    SECTION("PlayerNativeRequest and NotifyPlayerNative")
+    SECTION("RoutedCallRequest and NotifyRoutedCall: every destination")
     {
-        Buffer buff(1000);
+        Buffer buff(2000);
 
-        PlayerNativeRequest sendRequest, recvRequest;
-        sendRequest.SessionId = 0x21;
-        sendRequest.Call.Class = "Game";
-        sendRequest.Call.Function = "AdvanceSkill";
-        sendRequest.Call.Arguments = {std::string("Speechcraft"), 2.5f, int32_t(-3), true, ScriptForm{.SessionId = 0x22},
-                                 ScriptForm{.Form = GameId(1, 0x803)}, std::monostate{}};
-        NotifyPlayerNative sendNotify, recvNotify;
-        static_cast<Payloads::PlayerNative&>(sendNotify) = sendRequest;
-        sendNotify.Call.Function = "QueryStat";
-        sendNotify.ReplyId = 0x4D2;
-
-        Buffer::Writer writer(&buff);
-        sendRequest.Serialize(writer);
-        sendNotify.Serialize(writer);
-
-        Buffer::Reader reader(&buff);
-        uint64_t trash;
-        reader.ReadBits(trash, 8); // pop opcode
-        recvRequest.DeserializeRaw(reader);
-        reader.ReadBits(trash, 8);
-        recvNotify.DeserializeRaw(reader);
-
-        CHECK(recvRequest == sendRequest);
-        CHECK(recvNotify == sendNotify);
-    }
-
-    SECTION("PartyNativeRequest and NotifyPartyNative")
-    {
-        Buffer buff(1000);
-
-        PartyNativeRequest sendRequest, recvRequest;
-        sendRequest.Call.Class = "Game";
-        sendRequest.Call.Function = "DisablePlayerControls";
-        sendRequest.Call.Arguments = {true, false, true, false, false, true, true, false};
-        NotifyPartyNative sendNotify, recvNotify;
-        sendNotify.Call.Class = "ImageSpaceModifier";
-        sendNotify.Call.Function = "ApplyCrossFade";
-        sendNotify.Call.Self = ScriptForm{.Form = GameId(0, 0xF756D)};
-        sendNotify.Call.Arguments = {2.5f};
+        RoutedCallRequest toOwner, toHost, toOthers;
+        toOwner.To = CallTo::kOwner;
+        toOwner.SessionId = 0x21;
+        toOwner.ReplyId = 0x4D2;
+        toOwner.Call.Class = "Game";
+        toOwner.Call.Function = "QueryStat";
+        toOwner.Call.Arguments = {std::string("Speechcraft"), 2.5f, int32_t(-3), true, ScriptForm{.SessionId = 0x22},
+                                  ScriptForm{.Form = GameId(1, 0x803)}, std::monostate{}};
+        toHost.To = CallTo::kHost;
+        toHost.Call.Class = "Quest";
+        toHost.Call.Function = "SetCurrentStageID";
+        toHost.Call.Self = ScriptForm{.Form = GameId(0, 0x1F258)};
+        toHost.Call.Arguments = {int32_t(15)};
+        toOthers.To = CallTo::kOthers;
+        toOthers.Call.Class = "ImageSpaceModifier";
+        toOthers.Call.Function = "ApplyCrossFade";
+        toOthers.Call.Self = ScriptForm{.Form = GameId(0, 0xF756D)};
+        toOthers.Call.Arguments = {2.5f};
+        NotifyRoutedCall sendNotify, recvNotify;
+        static_cast<Payloads::RoutedCall&>(sendNotify) = toOthers;
         sendNotify.Source = 3;
 
         Buffer::Writer writer(&buff);
-        sendRequest.Serialize(writer);
+        for (const RoutedCallRequest* cpRequest : {&toOwner, &toHost, &toOthers})
+            cpRequest->Serialize(writer);
         sendNotify.Serialize(writer);
 
         Buffer::Reader reader(&buff);
         uint64_t trash;
-        reader.ReadBits(trash, 8); // pop opcode
-        recvRequest.DeserializeRaw(reader);
+        for (const RoutedCallRequest* cpRequest : {&toOwner, &toHost, &toOthers})
+        {
+            RoutedCallRequest received;
+            reader.ReadBits(trash, 8); // pop opcode
+            received.DeserializeRaw(reader);
+            CHECK(received == *cpRequest);
+        }
         reader.ReadBits(trash, 8);
         recvNotify.DeserializeRaw(reader);
-
-        CHECK(recvRequest == sendRequest);
         CHECK(recvNotify == sendNotify);
     }
 
-    SECTION("WorldCallRequest and NotifyWorldCall")
+    SECTION("CallEndedRequest and NotifyCallEnded")
     {
         Buffer buff(1000);
 
-        WorldCallRequest sendRequest, recvRequest;
-        sendRequest.Call.Class = "Quest";
-        sendRequest.Call.Function = "SetCurrentStageID";
-        sendRequest.Call.Self = ScriptForm{.Form = GameId(0, 0x1F258)};
-        sendRequest.Call.Arguments = {int32_t(15)};
-        NotifyWorldCall sendNotify, recvNotify;
-        sendNotify.SessionId = 0x22;
-        sendNotify.Call = sendRequest.Call;
+        CallEndedRequest sendRequest, recvRequest;
+        sendRequest.Key = 0x5A;
+        sendRequest.Result = int32_t(2);
+        NotifyCallEnded sendNotify, recvNotify;
+        static_cast<Payloads::CallEnded&>(sendNotify) = sendRequest;
+        sendNotify.Source = 3;
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);

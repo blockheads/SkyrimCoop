@@ -1,3 +1,6 @@
+#include "HudMessages.h"
+#include <map>
+#include <mutex>
 #include "Commands.h"
 #include "EngineCalls.h"
 #include "Harness.h"
@@ -593,6 +596,12 @@ nlohmann::json MenuVar(Harness&, const nlohmann::json& acRequest)
     return Error("no such menu open, or no number, boolean or string there");
 }
 
+// {"cmd": "hud_messages"}: the HUD's latest notifications here, the newest last (TestHarness::HudMessages).
+nlohmann::json HudMessagesShown(Harness&, const nlohmann::json&)
+{
+    return {{"ok", true}, {"messages", HudMessages::Recent()}};
+}
+
 // {"cmd": "ref_enabled", "object": id}: whether the reference is enabled in this game.
 nlohmann::json RefEnabled(Harness&, const nlohmann::json& acRequest)
 {
@@ -798,6 +807,8 @@ nlohmann::json Screen(Harness&, const nlohmann::json&)
     return {{"ok", true}, {"controls", cState.Controls}, {"imods", cState.Imods}, {"shake", {{"strength", cState.ShakeStrength}, {"seconds", cState.ShakeSeconds}}}};
 }
 
+std::function<std::optional<nlohmann::json>(uint32_t)> s_papyrusResults;
+
 // {"cmd": "papyrus_call", "class": name, "function": name, "self"?: form id, "args": [...], "player_action"?: bool}:
 // queues the call as a script's: a quest's with no player's action behind it, or (player_action) one this game's
 // player's action started (GuestScripts' cause 0x14). Arguments: null (None), bools, integers, floats, strings,
@@ -826,9 +837,41 @@ nlohmann::json PapyrusCall(Harness&, const nlohmann::json& acRequest)
     std::optional<GuestScripts::ScopedCause> cause;
     if (acRequest.value("player_action", false))
         cause.emplace(0x14u);
-    if (!EngineCalls::QueuePapyrusCall(acRequest.value("class", std::string()), acRequest.value("function", std::string()), cSelf, arguments))
+    // What it returns is kept under its id for papyrus_result (script threads write it).
+    static std::mutex s_resultsLock;
+    static std::map<uint32_t, nlohmann::json> s_results;
+    static uint32_t s_nextId = 1;
+    const uint32_t cId = s_nextId++;
+    const auto cOnReturn = [cId](LocalValue aResult) {
+        nlohmann::json value = std::visit(
+            [](const auto& acValue) -> nlohmann::json {
+                using T = std::decay_t<decltype(acValue)>;
+                if constexpr (std::is_same_v<T, std::monostate>)
+                    return nullptr;
+                else if constexpr (std::is_same_v<T, LocalForm>)
+                    return {{"form", acValue.FormId}};
+                else
+                    return acValue;
+            },
+            aResult);
+        std::scoped_lock _{s_resultsLock};
+        s_results[cId] = std::move(value);
+    };
+    if (!EngineCalls::QueuePapyrusCall(acRequest.value("class", std::string()), acRequest.value("function", std::string()), cSelf, arguments, cOnReturn))
         return Error("the VM did not queue the call");
-    return Ok();
+    s_papyrusResults = [](uint32_t aId) -> std::optional<nlohmann::json> {
+        std::scoped_lock _{s_resultsLock};
+        const auto it = s_results.find(aId);
+        return it != s_results.end() ? std::optional(it->second) : std::nullopt;
+    };
+    return {{"ok", true}, {"id", cId}};
+}
+
+// {"cmd": "papyrus_result", "id": n}: what papyrus_call n returned, once it has ("done").
+nlohmann::json PapyrusResult(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cValue = s_papyrusResults ? s_papyrusResults(acRequest.value("id", 0u)) : std::nullopt;
+    return {{"ok", true}, {"done", cValue.has_value()}, {"value", cValue.value_or(nullptr)}};
 }
 
 constexpr Command cCommands[] = {
@@ -836,6 +879,7 @@ constexpr Command cCommands[] = {
     {"camera", true, &Camera},
     {"screen", true, &Screen},
     {"papyrus_call", true, &PapyrusCall},
+    {"papyrus_result", false, &PapyrusResult},
     {"dialogue", true, &Dialogue},
     {"dialogue_pick", true, &DialoguePick},
     {"item_count", true, &ItemCount},
@@ -869,6 +913,7 @@ constexpr Command cCommands[] = {
     {"ray", true, &Ray},
     {"surroundings", true, &Surroundings},
     {"menu_var", false, &MenuVar},
+    {"hud_messages", false, &HudMessagesShown},
     {"ref_enabled", true, &RefEnabled},
     {"actor_place", true, &ActorPlace},
     {"is_current_package", true, &IsCurrentPackage},

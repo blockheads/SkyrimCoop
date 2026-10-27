@@ -15,12 +15,22 @@ HostPlayerNatives::HostPlayerNatives(HostAuthority& aAuthority, HostNetwork& aNe
                                      const HostCharacters& acCharacters) noexcept
     : m_network(aNetwork), m_players(acPlayers), m_characters(acCharacters)
 {
-    aAuthority.On(*this, &HostPlayerNatives::OnPlayerNative);
+    aAuthority.On(*this, &HostPlayerNatives::OnCall);
     aAuthority.On(*this, &HostPlayerNatives::OnPlayerNativeResult);
-    aAuthority.On(*this, &HostPlayerNatives::OnWorldCall);
+    aAuthority.On(*this, &HostPlayerNatives::OnCallEnded);
 }
 
-void HostPlayerNatives::OnPlayerNative(const PlayerNativeRequest& acRequest, ConnectionId_t aSender) noexcept
+void HostPlayerNatives::OnCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    switch (acRequest.To)
+    {
+    case CallTo::kOwner: ToOwner(acRequest, aSender); return;
+    case CallTo::kHost: ToHost(acRequest, aSender); return;
+    case CallTo::kOthers: ToOthers(acRequest, aSender); return;
+    }
+}
+
+void HostPlayerNatives::ToOwner(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept
 {
     // Only the host's game runs scripts for another player.
     if (aSender != m_players.Host())
@@ -37,8 +47,8 @@ void HostPlayerNatives::OnPlayerNative(const PlayerNativeRequest& acRequest, Con
             Answer(acRequest.ReplyId, {});
         return;
     }
-    NotifyPlayerNative notify;
-    static_cast<Payloads::PlayerNative&>(notify) = acRequest;
+    NotifyRoutedCall notify;
+    static_cast<Payloads::RoutedCall&>(notify) = acRequest;
     if (acRequest.ReplyId)
         m_waiting[acRequest.ReplyId] = cOwner;
     m_network.Send(cOwner, notify);
@@ -57,7 +67,7 @@ void HostPlayerNatives::OnPlayerNativeResult(const PlayerNativeResultRequest& ac
     Answer(acRequest.ReplyId, acRequest.Result);
 }
 
-void HostPlayerNatives::OnWorldCall(const WorldCallRequest& acRequest, ConnectionId_t aSender) const noexcept
+void HostPlayerNatives::ToHost(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
     const uint32_t cCharacter = aSender != cHost ? m_characters.PlayerCharacterOf(aSender) : 0;
@@ -66,10 +76,32 @@ void HostPlayerNatives::OnWorldCall(const WorldCallRequest& acRequest, Connectio
         spdlog::warn("HostPlayerNatives: {:x} has no character to run {}.{} for", aSender, acRequest.Call.Class, acRequest.Call.Function);
         return;
     }
-    NotifyWorldCall notify;
+    NotifyRoutedCall notify;
+    static_cast<Payloads::RoutedCall&>(notify) = acRequest;
     notify.SessionId = cCharacter;
-    notify.Call = acRequest.Call;
     m_network.Send(cHost, notify);
+}
+
+void HostPlayerNatives::ToOthers(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const auto* cpPlayer = m_players.Find(aSender);
+    if (!cpPlayer)
+        return;
+    NotifyRoutedCall notify;
+    static_cast<Payloads::RoutedCall&>(notify) = acRequest;
+    notify.Source = cpPlayer->Id;
+    m_players.SendToOthers(notify, aSender);
+}
+
+void HostPlayerNatives::OnCallEnded(const CallEndedRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    const auto* cpPlayer = m_players.Find(aSender);
+    if (!cpPlayer)
+        return;
+    NotifyCallEnded notify;
+    static_cast<Payloads::CallEnded&>(notify) = acRequest;
+    notify.Source = cpPlayer->Id;
+    m_players.SendToOthers(notify, aSender);
 }
 
 void HostPlayerNatives::OnPlayerLeft(ConnectionId_t aPlayer) noexcept

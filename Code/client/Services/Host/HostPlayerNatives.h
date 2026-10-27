@@ -13,10 +13,11 @@ struct HostNetwork;
 struct HostPlayers;
 
 /**
- * @brief Natives on "the player" the host's script called for a guest (Game.AdvanceSkill, Game.QueryStat): that
- * guest's game runs them (docs/design/party-model.md, rule 2). One returning a value keeps the host's script waiting
- * until that game answers, or leaves. The other way, a guest's own script changing the world (a quest's stage) is
- * the host's game's to make, for that guest.
+ * @brief The script calls one game sends to others (docs/design/party-calls.md): a native on "the player" the host's
+ * script called for a guest (Game.AdvanceSkill, Game.QueryStat) goes to that guest's game (docs/design/party-model.md,
+ * rule 2), and one returning a value keeps the host's script waiting until that game answers, or leaves; a guest's own
+ * script changing the world (a quest's stage) goes to the host's game, made there for that guest; the party's (the
+ * screen, shows, progression) to every other game, named as the sender's.
  */
 struct HostPlayerNatives
 {
@@ -27,16 +28,20 @@ struct HostPlayerNatives
 
     NO_COPY_MOVE(HostPlayerNatives);
 
-    // Only from the host's game: the native goes to the owner of the character it ran for.
-    void OnPlayerNative(const PlayerNativeRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // To a guest's character's owner: only from the host's game. To the host's game: only from a guest, for its
+    // character. To the others: from any game, with its player id.
+    void OnCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
+    // A latent party call's original returned on the sender's game: to the others, with its player id.
+    void OnCallEnded(const CallEndedRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Only from the game it was sent to: back to the host's game.
     void OnPlayerNativeResult(const PlayerNativeResultRequest& acRequest, ConnectionId_t aSender) noexcept;
-    // Only from a guest: to the host's game, for that guest's character.
-    void OnWorldCall(const WorldCallRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Before the player is off the list: what its game was asked goes unanswered (the host's script gets none).
     void OnPlayerLeft(ConnectionId_t aPlayer) noexcept;
 
   private:
+    void ToOwner(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
+    void ToHost(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept;
+    void ToOthers(const RoutedCallRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // The host's game: the script waiting on aReplyId gets what the guest's game returned (None: its default).
     void Answer(uint32_t aReplyId, const ScriptValue& acResult) const noexcept;
 

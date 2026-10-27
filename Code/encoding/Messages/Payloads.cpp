@@ -344,18 +344,39 @@ void EffectFlash::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     EffectId.Deserialize(aReader);
 }
 
-void PlayerNative::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+void RoutedCall::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
+    aWriter.WriteBits(static_cast<uint8_t>(To), 2);
     Serialization::WriteVarInt(aWriter, SessionId);
-    SerializeScriptCall(aWriter, Call);
+    Serialization::WriteVarInt(aWriter, Source);
     Serialization::WriteVarInt(aWriter, ReplyId);
+    SerializeScriptCall(aWriter, Call);
 }
 
-void PlayerNative::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+void RoutedCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
 {
+    uint64_t to = 0;
+    aReader.ReadBits(to, 2);
+    To = to <= static_cast<uint64_t>(CallTo::kOthers) ? static_cast<CallTo>(to) : CallTo::kOthers;
     SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    DeserializeScriptCall(aReader, Call);
+    Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
     ReplyId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    DeserializeScriptCall(aReader, Call);
+}
+
+void CallEnded::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Source);
+    Serialization::WriteVarInt(aWriter, Key);
+    SerializeScriptValue(aWriter, Result);
+}
+
+void CallEnded::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Key = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    if (!DeserializeScriptValue(aReader, Result))
+        Result = std::monostate{};
 }
 
 void PlayerNativeResult::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
@@ -371,39 +392,6 @@ void PlayerNativeResult::DeserializePayload(Wire::Buffer::Reader& aReader) noexc
         Result = std::monostate{};
 }
 
-void WorldCall::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteVarInt(aWriter, SessionId);
-    SerializeScriptCall(aWriter, Call);
-}
-
-void WorldCall::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-    DeserializeScriptCall(aReader, Call);
-}
-
-void PartyNative::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    SerializeScriptCall(aWriter, Call);
-}
-
-void PartyNative::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    DeserializeScriptCall(aReader, Call);
-}
-
-void PartyNativeFrom::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    PartyNative::SerializePayload(aWriter);
-    Serialization::WriteVarInt(aWriter, Source);
-}
-
-void PartyNativeFrom::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    PartyNative::DeserializePayload(aReader);
-    Source = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
-}
 } // namespace Payloads
 
 namespace

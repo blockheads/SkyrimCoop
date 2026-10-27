@@ -1532,7 +1532,16 @@ What the first playtest build has besides what works today (the table above):
     reward scenarios and their regressions, 21/21 after the rebuild.
 12. **Script rules 3 to 5** (`party-model.md`): the host's messages (notifications, message boxes) on every game;
     position questions without a cause ask about the party; a guest's story events (locations, crafts, kills) raised
-    on the host for its copy.
+    on the host for its copy. Rules 5 and 3 built 2026-10-27, merged into dev uncommitted. First the party's
+    calls became one router ([party-calls.md](design/party-calls.md)): every native's call is routed by one decision
+    (`PartyRules::RouteOf`) from what its code reaches, read once with Zydis, its virtual calls resolved against the
+    player's vtables; the progression name list became engine functions with the party's policy flag, and three relay
+    messages one (`RoutedCall`). Behaviour unchanged: 24 of 24 regression scenarios. Rule 5 built: the story's messages
+    on every game, a player's own on its game, a story's box answered by the host with the others' copies closing
+    (`story-message-reaches-party`, `story-box-host-answers`; a guest's lever's box is the guest's now:
+    `relief-takes-client-relics`). Rule 3 built: a quest's question about the player asks the party (yes/no: any
+    player; else the player nearest what it names; `timer-asks-party-position`). Next: rule 4 (a guest's story
+    events), then features 8 and 9 (plan: `build/prompts/party-scripts.md`, design in party-calls.md).
 13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); available for review on dev (uncommitted): guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are deferred known issues in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
 14. **Small visible bugs** (built 2026-10-27, merged into dev uncommitted): the same resurrected NPC
     copy draws and attacks again; a brought character gets checked placement beside the host; a copy's base level

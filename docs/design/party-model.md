@@ -72,12 +72,14 @@ numbers: `docs/research/player-events.md` (spikes, "Script scan"). Built: rules 
 3. **With no member's action behind it, position questions ask about the party.** Timers and loads that ask
    where the player is (`GetDistance`, `IsInLocation`, `GetCurrentLocation`, about 15 engine functions):
    true if any member is, the nearest member for a distance. Anything else without a cause is the host's
-   player, mirrored to the party for what it shares.
+   player, mirrored to the party for what it shares. Built 2026-10-27 (`party-calls.md`, "Questions"): a yes/no question to every
+   player until one says yes; any other to the player nearest what the question or its script names.
 4. **A member's story events are judged for that member.** A peer's location change (or craft, or kill) is
    raised on the host for its copy, and the story manager tests its conditions against that copy, not the
    host's player (its node and quest visitors, 32429 and 32430).
 5. **Messages go to everyone:** `Debug.Notification`, `Debug.MessageBox`, `Message.Show` on the host are
-   shown on every game.
+   shown on every game. Built 2026-10-27 (`party-calls.md`, "Messages"): the story's on every game, a player's own
+   action's on its game; a story's box with buttons is the host's to answer, the others' copies close with its answer.
 
 **Required for it to work fully: a peer's own world scripts stop changing the world.** A peer's game also
 runs the world's scripts for its own player today, so a lever or trigger fires on both games and the

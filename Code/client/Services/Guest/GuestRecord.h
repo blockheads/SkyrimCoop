@@ -33,7 +33,6 @@ private:
     void OnInventory(const InventoryChangeEvent&) noexcept { m_changed = true; }
     void OnEquipment(const EquipmentChangeEvent&) noexcept { m_changed = true; }
     void OnProgress(const PlayerProgressEvent&) noexcept { m_changed = true; }
-    void OnPartyNative(const NotifyPartyNative& acMessage) noexcept;
     void OnPartyGold(const NotifyPartyGold&) noexcept { m_changed = true; }
     void OnMenu(const MenuEvent& acEvent) noexcept;
     void OnLeaving(const SessionLeavingEvent&) noexcept;

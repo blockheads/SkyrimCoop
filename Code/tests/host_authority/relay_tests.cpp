@@ -88,7 +88,8 @@ TEST_CASE("Effect flashes: relayed from the owner only, to everyone else", "[Hos
 TEST_CASE("Cutscenes: a game's party call reaches every other game, named as that game's player's", "[HostAuthority][Scripts]")
 {
     Session session;
-    PartyNativeRequest call;
+    RoutedCallRequest call;
+    call.To = CallTo::kOthers;
     call.Call.Class = "ImageSpaceModifier";
     call.Call.Function = "Apply";
     call.Call.Self = ScriptForm{.Form = GameId(0, 0xF756D)};
@@ -97,15 +98,32 @@ TEST_CASE("Cutscenes: a game's party call reaches every other game, named as tha
     session.Receive(kPeer, call);
     for (const ConnectionId_t cOther : {kHost, kOtherPeer})
     {
-        REQUIRE(session.SentTo<NotifyPartyNative>(cOther).size() == 1);
-        CHECK(*session.SentTo<NotifyPartyNative>(cOther)[0] == [&] {
-            NotifyPartyNative notify;
-            static_cast<Payloads::PartyNative&>(notify) = call;
+        REQUIRE(session.SentTo<NotifyRoutedCall>(cOther).size() == 1);
+        CHECK(*session.SentTo<NotifyRoutedCall>(cOther)[0] == [&] {
+            NotifyRoutedCall notify;
+            static_cast<Payloads::RoutedCall&>(notify) = call;
             notify.Source = session.PlayerId(kPeer);
             return notify;
         }());
     }
-    CHECK(session.SentTo<NotifyPartyNative>(kPeer).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kPeer).empty());
+}
+
+TEST_CASE("A latent party call's original returned: its copies' games get the result, named as the sender's", "[HostAuthority][Scripts]")
+{
+    Session session;
+    CallEndedRequest ended;
+    ended.Key = 0x5A;
+    ended.Result = int32_t(1);
+
+    session.Receive(kHost, ended);
+    for (const ConnectionId_t cGuest : {kPeer, kOtherPeer})
+    {
+        const auto cSent = session.SentTo<NotifyCallEnded>(cGuest);
+        REQUIRE(cSent.size() == 1);
+        CHECK((cSent[0]->Key == 0x5A && cSent[0]->Result == ended.Result && cSent[0]->Source == session.PlayerId(kHost)));
+    }
+    CHECK(session.SentTo<NotifyCallEnded>(kHost).empty());
 }
 
 TEST_CASE("The party is the Dragonborn: the story's progression call reaches every guest once", "[HostAuthority][Scripts][rewards]")
@@ -113,7 +131,8 @@ TEST_CASE("The party is the Dragonborn: the story's progression call reaches eve
     // A dragon's absorb run for the guest on the host: AbsorbActor.ModActorValue("DragonSouls", 1), its player each
     // game's own (dragonborn.md, "The party's calls").
     Session session;
-    PartyNativeRequest call;
+    RoutedCallRequest call;
+    call.To = CallTo::kOthers;
     call.Call.Class = "Actor";
     call.Call.Function = "ModActorValue";
     call.Call.Self = ScriptForm{.Form = GameId(0, 0x14)};
@@ -122,34 +141,35 @@ TEST_CASE("The party is the Dragonborn: the story's progression call reaches eve
     session.Receive(kHost, call);
     for (const ConnectionId_t cGuest : {kPeer, kOtherPeer})
     {
-        const auto cSent = session.SentTo<NotifyPartyNative>(cGuest);
+        const auto cSent = session.SentTo<NotifyRoutedCall>(cGuest);
         REQUIRE(cSent.size() == 1);
         CHECK(cSent[0]->Call == call.Call);
     }
-    CHECK(session.SentTo<NotifyPartyNative>(kHost).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kHost).empty());
 }
 
 TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, for that guest", "[HostAuthority][Scripts]")
 {
     Session session;
     const uint32_t cCharacter = session.Character(kPeer);
-    WorldCallRequest call;
+    RoutedCallRequest call;
+    call.To = CallTo::kHost;
     call.Call.Class = "Quest";
     call.Call.Function = "SetCurrentStageID";
     call.Call.Self = ScriptForm{.Form = GameId(0, 0x1F258)};
     call.Call.Arguments = {int32_t(15)};
 
     session.Receive(kPeer, call);
-    const auto cSent = session.SentTo<NotifyWorldCall>(kHost);
+    const auto cSent = session.SentTo<NotifyRoutedCall>(kHost);
     REQUIRE(cSent.size() == 1);
     CHECK(cSent[0]->SessionId == cCharacter);
     CHECK(cSent[0]->Call == call.Call);
-    CHECK(session.SentTo<NotifyWorldCall>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kOtherPeer).empty());
 
     // The host's game makes its own calls.
     session.Receive(kHost, call);
-    CHECK(session.SentTo<NotifyWorldCall>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyWorldCall>(kPeer).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kHost).size() == 1);
+    CHECK(session.SentTo<NotifyRoutedCall>(kPeer).empty());
 }
 
 TEST_CASE("Items: anyone may change an actor's, the owner's game applies it", "[HostAuthority][Inventory]")
@@ -403,7 +423,8 @@ TEST_CASE("Subtitles, experience: reach everyone else", "[HostAuthority][Charact
 TEST_CASE("Scripts: a native on the player the host's script ran for a guest runs on that guest's game", "[HostAuthority][Scripts]")
 {
     Session session;
-    PlayerNativeRequest request;
+    RoutedCallRequest request;
+    request.To = CallTo::kOwner;
     request.SessionId = session.Character(kPeer);
     request.Call.Class = "Game";
     request.Call.Function = "AdvanceSkill";
@@ -411,28 +432,29 @@ TEST_CASE("Scripts: a native on the player the host's script ran for a guest run
 
     // Only the host's game runs scripts for other players.
     session.Receive(kOtherPeer, request);
-    CHECK(session.SentTo<NotifyPlayerNative>(kPeer).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kPeer).empty());
 
     session.Receive(kHost, request);
-    const auto cSent = session.SentTo<NotifyPlayerNative>(kPeer);
+    const auto cSent = session.SentTo<NotifyRoutedCall>(kPeer);
     REQUIRE(cSent.size() == 1);
     CHECK(cSent[0]->Call == request.Call);
-    CHECK(session.SentTo<NotifyPlayerNative>(kHost).empty());
-    CHECK(session.SentTo<NotifyPlayerNative>(kOtherPeer).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kHost).empty());
+    CHECK(session.SentTo<NotifyRoutedCall>(kOtherPeer).empty());
 }
 
 TEST_CASE("Scripts: a native on the player returning a value answers the host's waiting script", "[HostAuthority][Scripts]")
 {
     Session session;
-    PlayerNativeRequest request;
+    RoutedCallRequest request;
+    request.To = CallTo::kOwner;
     request.SessionId = session.Character(kPeer);
     request.Call.Class = "Game";
     request.Call.Function = "QueryStat";
     request.Call.Arguments = {std::string("Bribes")};
     request.ReplyId = 77;
     session.Receive(kHost, request);
-    REQUIRE(session.SentTo<NotifyPlayerNative>(kPeer).size() == 1);
-    CHECK(session.SentTo<NotifyPlayerNative>(kPeer)[0]->ReplyId == 77);
+    REQUIRE(session.SentTo<NotifyRoutedCall>(kPeer).size() == 1);
+    CHECK(session.SentTo<NotifyRoutedCall>(kPeer)[0]->ReplyId == 77);
 
     PlayerNativeResultRequest result;
     result.ReplyId = 77;
@@ -453,7 +475,8 @@ TEST_CASE("Scripts: a native on the player returning a value answers the host's 
 TEST_CASE("Scripts: a guest leaving before it answers leaves the host's script with none", "[HostAuthority][Scripts]")
 {
     Session session;
-    PlayerNativeRequest request;
+    RoutedCallRequest request;
+    request.To = CallTo::kOwner;
     request.SessionId = session.Character(kPeer);
     request.Call.Class = "Game";
     request.Call.Function = "QueryStat";

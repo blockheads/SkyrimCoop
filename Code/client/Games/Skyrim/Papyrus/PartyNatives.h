@@ -25,8 +25,13 @@ void HoldDeathControls(bool aHold) noexcept;
 [[nodiscard]] bool InSession() noexcept;
 
 // Runs another game's party call here, on this game's player and screen; aSource is that game's player id (its stack
-// is tagged mirrored from it). False: not queued.
-bool Run(const LocalCall& acCall, uint32_t aSource) noexcept;
+// is tagged mirrored from it), aKey a latent call's key there (0: none). False: not queued.
+bool Run(const LocalCall& acCall, uint32_t aSource, uint32_t aKey = 0) noexcept;
+// aSource's latent party call with aKey returned acResult there: its copy here ends with it (a message box answered as
+// the host's player answered it; docs/design/party-calls.md, "A box's answer").
+void EndCopy(uint32_t aSource, uint32_t aKey, const LocalValue& acResult) noexcept;
+// aSource's game left (none: every other game's): its calls' copies here are forgotten.
+void ForgetCopies(std::optional<uint32_t> aSource = std::nullopt) noexcept;
 
 // What a game's cutscene still holds here comes back (Game.EnablePlayerControls, for what no one else holds): that
 // player left (aSource), or the session ended (none: every other game's).

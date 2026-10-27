@@ -13,12 +13,12 @@ Share Whose(uint32_t aCause, bool aStory) noexcept
     return Share::kParty;
 }
 
-Share ShareOf(Kind aKind, uint32_t aCause, bool aStory, uint32_t aAsked) noexcept
+Share ShareOf(Call aKind, uint32_t aCause, bool aStory, uint32_t aAsked) noexcept
 {
-    if (aKind == Kind::kShow)
+    if (aKind == Call::kShow)
         return IsMirrored(aCause) ? Share::kHere : Share::kParty;
     const Share cShare = Whose(aCause, aStory);
-    if (cShare == Share::kParty && aKind == Kind::kControls && !(aAsked & kMovement))
+    if (cShare == Share::kParty && aKind == Call::kControls && !(aAsked & kMovement))
         return Share::kHere; // fighting, sneaking or menus only: a restriction
     return cShare;
 }
@@ -36,46 +36,60 @@ void MarkEachPlayer(LocalCall& aCall, uint32_t aCause) noexcept
         cMark(argument);
 }
 
-std::optional<Progress> ProgressOf(std::string_view aClass, std::string_view aFunction) noexcept
+Routing RouteOf(const CallFacts& acFacts) noexcept
 {
-    struct Native
+    const Call cKind = acFacts.Reach.Kind;
+    if (IsMirrored(acFacts.Cause))
+        return {};
+    if (acFacts.Guest && cKind == Call::kWorld && !acFacts.OwnQuest)
+        return {.To = Destination::kHost, .Original = false};
+    // Where the player is, with no player's action behind it: the party's (rule 3). Only the host's scripts.
+    if (cKind == Call::kQuestion && acFacts.Hosting && acFacts.PlayerInCall && !acFacts.Cause)
+        return {.Ask = true};
+    // A player's progression: any script's but a body's, or only the story's (dragonborn.md). Only the host's scripts.
+    const Progress& cProgress = acFacts.Reach.Progress;
+    if (cKind == Call::kProgress && acFacts.Hosting && acFacts.Target != Target::kNone && !acFacts.Body &&
+        (cProgress.AnyScript || Whose(acFacts.Cause, acFacts.Story) == Share::kParty))
     {
-        std::string_view Class;
-        std::string_view Function;
-        Progress Is;
-    };
-    // A persuade's AdvanceSkill is its picker's own (rule 2), a lever's faction its puller's: the story's only.
-    static constexpr Native cNatives[] = {
-        {"Game", "TeachWord", {.AnyScript = true}},
-        {"Game", "UnlockWord", {.AnyScript = true}},
-        {"Game", "AdvanceSkill", {}},
-        {"Game", "IncrementSkill", {.AnyScript = true}},
-        {"Game", "IncrementSkillBy", {.AnyScript = true}},
-        {"Game", "AddPerkPoints", {.AnyScript = true}},
-        {"Actor", "AddPerk", {.AnyScript = true}},
-        {"Actor", "RemovePerk", {.AnyScript = true}},
-        {"Actor", "ModActorValue", {.AnyScript = true}}, // the permanent modifier: souls, a stat
-        {"Actor", "AddToFaction", {.OnCopy = true}},
-        {"Actor", "RemoveFromFaction", {.OnCopy = true}},
-        {"Actor", "SetFactionRank", {.OnCopy = true}},
-        {"Actor", "AddSpell", {.OnCopy = true}},
-        {"Actor", "RemoveSpell", {.OnCopy = true}},
-    };
-    for (const Native& cNative : cNatives)
-        if (SameName(aClass, cNative.Class) && SameName(aFunction, cNative.Function))
-            return cNative.Is;
+        if (acFacts.Target == Target::kThisPlayer)
+            return {.To = Destination::kEveryGame, .Mark = true, .MarkFor = acFacts.TargetId};
+        return {.To = Destination::kEveryGame, .Original = cProgress.OnCopy, .ThisPlayer = true, .Mark = true, .MarkFor = acFacts.TargetId};
+    }
+    // The controls, the screen and shows: the party's for the story (cutscenes.md); a show whoever's action ran it.
+    if (cKind == Call::kControls || cKind == Call::kScreen || cKind == Call::kShow)
+    {
+        const Share cWhose = Whose(acFacts.Cause, acFacts.Story);
+        if ((cKind == Call::kShow ? ShareOf(cKind, acFacts.Cause, acFacts.Story, 0) : cWhose) == Share::kParty)
+            return {.To = Destination::kEveryGame, .Mark = cWhose == Share::kParty, .MarkFor = acFacts.Cause};
+    }
+    // On the player, or its screen (a message box, an image-space modifier), in a script a guest's action ran: that
+    // guest's game runs it (rule 2; cutscenes.md, a player's moment).
+    if (acFacts.GuestCause && (acFacts.PlayerNative || cKind == Call::kControls || cKind == Call::kScreen))
+        return {.To = Destination::kCauseGame, .Original = false};
+    return {};
+}
+
+std::optional<uint32_t> AskedPlayer(const std::vector<Asked>& acPlayers) noexcept
+{
+    const Asked* pNearest = nullptr;
+    for (const Asked& cAsked : acPlayers)
+        if (cAsked.Distance && (!pNearest || *cAsked.Distance < *pNearest->Distance))
+            pNearest = &cAsked;
+    if (pNearest)
+        return pNearest->Player;
+    for (const Asked& cAsked : acPlayers)
+        if (cAsked.InPlace)
+            return cAsked.Player;
     return std::nullopt;
 }
 
-Route RouteOf(const Progress& acProgress, Target aTarget, uint32_t aCause, bool aStory, bool aBody, bool aHosting) noexcept
+std::vector<uint32_t> PlayersToAsk(bool aYesNo, std::optional<uint32_t> aPicked, const std::vector<uint32_t>& acGuests) noexcept
 {
-    if (!aHosting || aTarget == Target::kNone || aBody || IsMirrored(aCause))
-        return {};
-    if (!acProgress.AnyScript && Whose(aCause, aStory) != Share::kParty)
-        return {};
-    if (aTarget == Target::kThisPlayer)
-        return {.Relay = true};
-    return {.Original = acProgress.OnCopy, .ThisPlayer = true, .Relay = true};
+    if (!aYesNo)
+        return {aPicked.value_or(kThisPlayerFormId)};
+    std::vector<uint32_t> players{kThisPlayerFormId};
+    players.insert(players.end(), acGuests.begin(), acGuests.end());
+    return players;
 }
 
 LocalCall OnThisPlayer(LocalCall aCall) noexcept
@@ -137,6 +151,50 @@ uint32_t ControlHolds::Held() const noexcept
     for (const auto& [cHolder, cHeld] : m_holds)
         held |= cHeld;
     return held;
+}
+
+void LatentCopies::Sent(uint32_t aSource, uint32_t aKey) noexcept
+{
+    m_queued[aSource].push_back({aKey, std::nullopt});
+}
+
+std::optional<LocalValue> LatentCopies::Started(uint32_t aSource, uint32_t aStack) noexcept
+{
+    auto it = m_queued.find(aSource);
+    if (it == m_queued.end() || it->second.empty())
+        return std::nullopt;
+    Queued call = std::move(it->second.front());
+    it->second.erase(it->second.begin());
+    if (call.Result)
+        return call.Result;
+    m_waiting[{aSource, call.Key}] = aStack;
+    return std::nullopt;
+}
+
+std::optional<uint32_t> LatentCopies::Ended(uint32_t aSource, uint32_t aKey, const LocalValue& acResult) noexcept
+{
+    if (const auto it = m_waiting.find({aSource, aKey}); it != m_waiting.end())
+    {
+        const uint32_t cStack = it->second;
+        m_waiting.erase(it);
+        return cStack;
+    }
+    if (auto it = m_queued.find(aSource); it != m_queued.end())
+        for (Queued& call : it->second)
+            if (call.Key == aKey)
+                call.Result = acResult;
+    return std::nullopt;
+}
+
+void LatentCopies::Returned(uint32_t aStack) noexcept
+{
+    std::erase_if(m_waiting, [aStack](const auto& acEntry) { return acEntry.second == aStack; });
+}
+
+void LatentCopies::Left(uint32_t aSource) noexcept
+{
+    m_queued.erase(aSource);
+    std::erase_if(m_waiting, [aSource](const auto& acEntry) { return acEntry.first.first == aSource; });
 }
 
 EnableControls EnableFor(uint32_t aFree, bool aNoneElse) noexcept

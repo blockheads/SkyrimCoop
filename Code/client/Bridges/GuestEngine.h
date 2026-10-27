@@ -41,7 +41,7 @@ public:
     // Runs a native on the player the host's script called for this game's player (Game.AdvanceSkill,
     // Game.QueryStat; party-model.md, rule 2), as a script's call does; aOnReturn is told what it returned. False: a
     // form it names is not here.
-    bool RunPlayerNative(const Payloads::PlayerNative& acCall, std::function<void(LocalValue)> aOnReturn = {}) noexcept;
+    bool RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn = {}) noexcept;
     // Sets it as Papyrus' GlobalVariable.SetValue (55923) does; false for none or a constant.
     bool SetGlobal(const GlobalValue& acGlobal) noexcept;
     // Makes the quest so, each stage without its fragment (docs/re/systems/quest-apply.md); aAsLoad: as a save

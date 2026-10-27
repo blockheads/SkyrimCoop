@@ -88,9 +88,24 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
 
     // A script's call on this game, run now in a stack whose cause is aCause (GuestScripts': 0 for no player's action).
     void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false, bool aBody = false);
+    uint32_t Perform(const LocalCall& acCall, PartyRules::Call aKind, uint32_t aSelf, uint32_t aCause);
     // What actors show (VisualEffect, EffectShader, Actor.PlaySubGraphAnimation: NativeReach's kShow): by actor, the
     // calls run on it here.
     std::map<uint32_t, std::vector<std::string>> Shows;
+    // The messages this game's screen showed (Debug.Notification, Debug.MessageBox, Message.Show): text, or the form.
+    std::vector<std::string> Messages;
+    // Message.Show's boxes open here by the stack waiting on them (latent), the answers they got, and the latent party
+    // calls: this game's originals and other games' copies (PartyNatives).
+    std::map<uint32_t, std::string> Boxes;
+    std::map<uint32_t, int32_t> Answers;
+    std::set<uint32_t> LatentOriginals;
+    PartyRules::LatentCopies Copies;
+    // What the last question a script asked here answered (ObjectReference.GetDistance).
+    std::optional<LocalValue> LastAnswer;
+    [[nodiscard]] LocalValue Answer(const LocalCall& acCall, bool aAsksParty) const;
+    // This game's player answers the box in aStack: its stack returns (ReturnFromLatent's hook: an original's result
+    // goes to its copies, CallEndedEvent).
+    void AnswerBox(uint32_t aStack, int32_t aButton);
     // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall).
     void Queue(LocalCall aCall, uint32_t aCause);
     void RunQueued();
@@ -761,6 +776,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     static FakeEngine& Current() noexcept;
 
   private:
+    uint32_t m_nextStack = 1; // the stacks this game's boxes wait in
+    uint32_t m_openedBox = 0; // the box the running script opened (Message.Show)
     // A new temporary form id: the lowest a deleted reference gave back, as the engine reuses them, else the next.
     uint32_t NewTemporary() noexcept;
     // At 0 health: dead, or down if essential; a copy is in deferred kill.

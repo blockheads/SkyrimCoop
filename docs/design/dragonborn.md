@@ -8,7 +8,7 @@ is, happens to every player, whoever's action caused it. Built 2026-10-27; rebui
 the host: a script calls a native that changes a player's progression (TeachWord, ModActorValue, AddToFaction...)
   on "the player" (the cause's character, or the host's own), and it is the party's (PartyRules::RouteOf)
   -> it runs there (or, on a guest's character, on the host's own player instead or as well)
-  -> PartyNativeRequest -> every guest (NotifyPartyNative): the same native on that game's own player
+  -> RoutedCallRequest -> every guest (NotifyRoutedCall): the same native on that game's own player
 ```
 
 ## What is shared, and what stays a player's
@@ -38,7 +38,7 @@ events and mods' listeners fire there as the engine's own; nothing is hooked per
 kind. A mod's scripts reach the same natives.
 
 ```text
-which natives: PartyRules::ProgressOf (one row each)
+which natives: the engine functions their code calls (NativeReach's table, party-calls.md), the natives:
   Game.TeachWord, UnlockWord, IncrementSkill(By), AddPerkPoints     any script's but a body's
   Game.AdvanceSkill                                                   the story's (a persuade's is its picker's)
   Actor.AddPerk, RemovePerk, ModActorValue (souls, a stat)            any script's but a body's
@@ -108,7 +108,7 @@ HUD comes from each game's own sink.
 
 ```text
 PartyNatives::Scope, around every native call in a session:
-  progress = ProgressOf(class, function); none -> as before (controls, screen, shows, PlayerNatives)
+  progress = NativeReach::CallOf(native) is kProgress (party-calls.md: the router); none -> its other rows
   call = the native's call; player = its object, or 0x14 for a global
   target = 0x14 -> this player | a guest's character (host) -> guest character | else none
   route = RouteOf(progress, target, cause, story, BodyScripts::IsBody(caller script), hosting)
@@ -116,7 +116,7 @@ PartyNatives::Scope, around every native call in a session:
       MarkEachPlayer(call, player)                 # sent as 0x14: each game's own
       if route.ThisPlayer: Run(OnThisPlayer(call)) # the host's player, mirrored (not sent again)
       if not route.Original: skip the native
-      PartyNativeEvent(call) -> CutsceneService -> PartyNativeRequest -> HostAuthority -> NotifyPartyNative
+      RoutedCallEvent(call) -> CutsceneService -> RoutedCallRequest -> HostPlayerNatives -> NotifyRoutedCall
 each guest: PartyNatives::Run(call): GlobalCall::QueueCall, mirrored -> the native on its own player
 ```
 
@@ -135,12 +135,12 @@ each guest: PartyNatives::Run(call): GlobalCall::QueueCall, mirrored -> the nati
 
 ## For feature 3 (quest rewards)
 
-Built on the same calls: [quest-rewards.md](quest-rewards.md). Its natives are rows of `ProgressOf`; vampirism
+Built on the same calls: [quest-rewards.md](quest-rewards.md). Its natives' engine functions are rows of the progression table (party-calls.md); vampirism
 (feature 8, `Actor.SetRace` and its spells) will be more rows and their route.
 
 ## Tests
 
-- Tier 1: `PartyRules::ProgressOf`, `RouteOf`, `OnThisPlayer`, `MarkEachPlayer` and `ShareOf(kShow)` (`ClientTests`,
+- Tier 1: the progression rows read from code (`code_reach_tests.cpp`), `RouteOf`, `OnThisPlayer`, `MarkEachPlayer` and `ShareOf(kShow)` (`ClientTests`,
   `party_tests.cpp`, `quest_reward_tests.cpp`), a death as the story (`script_tags_tests.cpp`), a show's natives
   (`code_reach_tests.cpp`); the relay of the host's progression call (`HostAuthorityTests`, `relay_tests.cpp`); a
   record's words and souls (`encoding.cpp`).

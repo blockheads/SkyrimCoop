@@ -16,7 +16,6 @@
 #include <Bridges/IJoinBridge.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
-#include <Events/PlayerNativeEvent.h>
 #include <Events/ScriptAnimationEvent.h>
 #include <Events/UpdateEvent.h>
 #include <World.h>
@@ -47,9 +46,8 @@ HostService::HostService(World& aWorld, entt::dispatcher& aDispatcher) noexcept
     Listen<GameLoadFailedEvent, &HostService::OnGameLoadFailed>(m_connections, m_dispatcher, this);
     Listen<GameLoadedEvent, &HostService::OnGameLoaded>(m_connections, m_dispatcher, this);
     Listen<GameSavingEvent, &HostService::OnGameSaving>(m_connections, m_dispatcher, this);
-    Listen<PlayerNativeEvent, &HostService::OnPlayerNative>(m_connections, m_dispatcher, this);
     Listen<NotifyPlayerNativeResult, &HostService::OnPlayerNativeResult>(m_connections, m_dispatcher, this);
-    Listen<NotifyWorldCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
+    Listen<NotifyRoutedCall, &HostService::OnWorldCall>(m_connections, m_dispatcher, this);
 }
 
 void HostService::OnActivate(const ActivateEvent& acEvent) noexcept
@@ -83,19 +81,6 @@ void HostService::OnGameSaving(const GameSavingEvent&) const noexcept
         m_pAuthority->Saving();
 }
 
-void HostService::OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept
-{
-    const auto cGuest = Utils::GetSessionIdByFormId(acEvent.GuestFormId);
-    if (!IsHosting() || !cGuest)
-        return;
-    PlayerNativeRequest request;
-    request.SessionId = *cGuest;
-    request.Call = Utils::ToScriptCall(acEvent.Call);
-    request.ReplyId = acEvent.ReplyId;
-    spdlog::info("HostService: {}.{} from a script run for guest {:X} goes to its game", request.Call.Class, request.Call.Function, acEvent.GuestFormId);
-    m_world.GetTransport().Send(request);
-}
-
 void HostService::OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept
 {
     if (!IsHosting())
@@ -104,8 +89,10 @@ void HostService::OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage
     PlayerNatives::Answer(acMessage.ReplyId, Utils::ToLocalValue(acMessage.Result).value_or(std::monostate{}));
 }
 
-void HostService::OnWorldCall(const NotifyWorldCall& acMessage) noexcept
+void HostService::OnWorldCall(const NotifyRoutedCall& acMessage) noexcept
 {
+    if (acMessage.To != CallTo::kHost)
+        return;
     const uint32_t cGuest = Utils::GetFormIdBySessionId(acMessage.SessionId);
     const auto cCall = Utils::ToLocalCall(acMessage.Call);
     if (!IsHosting() || !cGuest || !cCall)

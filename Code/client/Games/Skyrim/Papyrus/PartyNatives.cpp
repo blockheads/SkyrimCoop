@@ -1,11 +1,21 @@
 #include <Events/PlayerDeathEvent.h>
+#include <Events/CallEndedEvent.h>
+#include <Events/PlayerProgressEvent.h>
 #include <Papyrus/PartyNativesScope.h>
 #include <Papyrus/BodyScripts.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/NativeReach.h>
+#include <Papyrus/PlayerNatives.h>
 
 #include <AI/Movement/PlayerControls.h>
+#include <Games/EngineNames.h>
+#include <Games/Skyrim/Interface/Menus/MessageBoxMenu.h>
+#include <Forms/BGSLocation.h>
+#include <Forms/TESObjectCELL.h>
+#include <Actor.h>
+#include <RTTI.h>
+#include <Misc/GameVM.h>
 #include <HookSwitch.h>
 #include <Services/HostService.h>
 #include <World.h>
@@ -13,6 +23,7 @@
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <set>
 #include <shared_mutex>
 #include <unordered_map>
 #include <utility>
@@ -44,22 +55,18 @@ constexpr uint32_t kDeathControls = BSInputEnableManager::kMovement | BSInputEna
 bool s_deathHeld = false;
 uint32_t s_beforeDeath = 0; // which of them were enabled when it went down
 
-// Whether a native changes a player's progression (PartyRules::ProgressOf), once per function: Scope asks on every call.
-std::optional<PartyRules::Progress> ProgressOf(BSScript::IFunction* apFunction) noexcept
+uint32_t FormIdOf(const BSScript::Variable& acValue) noexcept
 {
-    static std::shared_mutex s_knownLock;
-    static std::unordered_map<BSScript::IFunction*, std::optional<PartyRules::Progress>> s_known;
-    {
-        std::shared_lock _{s_knownLock};
-        if (const auto it = s_known.find(apFunction); it != s_known.end())
-            return it->second;
-    }
+    auto* pObject = acValue.GetObject();
+    return pObject ? BSScript::FormIdOfHandle(pObject->GetHandle()) : 0;
+}
+
+// Game.GetPlayer is rule 2's own (GuestScripts, HookGetPlayer).
+bool IsGetPlayer(BSScript::IFunction* apFunction) noexcept
+{
     const char* cpClass = apFunction->GetObjectTypeName().AsAscii();
     const char* cpName = apFunction->GetName().AsAscii();
-    const auto cProgress = cpClass && cpName ? PartyRules::ProgressOf(cpClass, cpName) : std::nullopt;
-    std::unique_lock _{s_knownLock};
-    s_known.emplace(apFunction, cProgress);
-    return cProgress;
+    return cpClass && cpName && SameName(cpClass, "Game") && SameName(cpName, "GetPlayer");
 }
 
 // The controls call running on this thread (Scope), none outside one.
@@ -93,9 +100,48 @@ void HookToggleControls(BSInputEnableManager* apThis, uint32_t aFlags, bool aEna
     World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
 }
 
+// The latent party calls: this game's originals by their stack (the key their copies go by), and other games' copies
+// here. Its lock is a leaf.
+std::mutex s_latentLock;
+std::set<uint32_t> s_originals;
+PartyRules::LatentCopies s_copies;
+
+// VirtualMachine::ReturnFromLatent (104807, CommonLibSSE-NG): a stack waiting on a latent call goes on with its result.
+using TReturnFromLatent = void(BSScript::IVirtualMachine*, uint32_t aStackId, const BSScript::Variable& acValue);
+TReturnFromLatent* RealReturnFromLatent = nullptr;
+
+// An original's result goes to its copies' games (CallEndedEvent); a copy its player answered here is forgotten.
+void HookReturnFromLatent(BSScript::IVirtualMachine* apThis, uint32_t aStackId, const BSScript::Variable& acValue)
+{
+    bool original = false;
+    {
+        std::scoped_lock _{s_latentLock};
+        original = s_originals.erase(aStackId) != 0;
+        s_copies.Returned(aStackId);
+    }
+    if (original)
+        World::Get().GetRunner().Trigger(CallEndedEvent{aStackId, GlobalCall::Read(acValue).value_or(std::monostate{})});
+    RealReturnFromLatent(apThis, aStackId, acValue);
+}
+
+// A copy waiting in aStack ends with acResult: the box it opened answered with it, else the stack returns it.
+void EndWaiting(uint32_t aStack, const LocalValue& acResult) noexcept
+{
+    const auto* cpButton = std::get_if<int32_t>(&acResult);
+    if (cpButton && MessageBoxes::AnswerStack(aStack, static_cast<uint8_t>(*cpButton)))
+        return;
+    auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
+    if (!pVm || !pVm->IsWaitingOnLatent(aStack))
+        return;
+    BSScript::Variable result;
+    GlobalCall::Write(result, acResult);
+    pVm->ReturnFromLatent(aStack, result);
+}
+
 Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
     HOOK_ID(68545, &RealToggleControls, HookToggleControls);
+    HOOK_ID(104807, &RealReturnFromLatent, HookReturnFromLatent);
 });
 } // namespace
 
@@ -129,33 +175,134 @@ bool InSession() noexcept
     return s_inSession.load(std::memory_order_relaxed);
 }
 
-Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, uint32_t aPlayer, bool aStory) noexcept
-    : m_cause(aPlayer)
+// The values a frame holds: its self, then its function's arguments.
+template <class TVisit> void EachValue(BSScript::StackFrame& aFrame, TVisit&& aVisit) noexcept
+{
+    aVisit(aFrame.self);
+    const uint32_t cCount = aFrame.pFunction ? aFrame.pFunction->GetParamCount() : 0;
+    const uint32_t cPage = cCount ? aFrame.GetPageForFrame() : 0;
+    for (uint32_t i = 0; i < cCount; ++i)
+        if (const BSScript::Variable* pValue = aFrame.GetStackFrameVariable(i, cPage))
+            aVisit(*pValue);
+}
+
+bool IsPlayer(uint32_t aFormId) noexcept
+{
+    return aFormId == PartyRules::kThisPlayerFormId || GuestScripts::IsGuestCharacter(aFormId);
+}
+
+// What a question measures from (party-calls.md, "Questions"): another reference in the call, else the asking
+// scripts' own reference up the stack, else a location they name.
+struct Asker
+{
+    TESObjectREFR* pReference = nullptr;
+    BGSLocation* pLocation = nullptr;
+};
+
+Asker AskerOf(BSScript::Stack& aStack) noexcept
+{
+    Asker asker;
+    const auto cNote = [&asker](const BSScript::Variable& acValue, bool aReferences) {
+        const uint32_t cFormId = FormIdOf(acValue);
+        TESForm* pForm = cFormId && !IsPlayer(cFormId) ? TESForm::GetById(cFormId) : nullptr;
+        if (!pForm)
+            return;
+        if (auto* pReference = aReferences && !asker.pReference ? Cast<TESObjectREFR>(pForm) : nullptr)
+            asker.pReference = pReference;
+        else if (!asker.pLocation)
+            asker.pLocation = Cast<BGSLocation>(pForm);
+    };
+    EachValue(*aStack.pTop, [&](const BSScript::Variable& acValue) { cNote(acValue, true); });
+    for (BSScript::StackFrame* pFrame = aStack.pTop->pPrevious; pFrame; pFrame = pFrame->pPrevious)
+    {
+        cNote(pFrame->self, true);
+        EachValue(*pFrame, [&](const BSScript::Variable& acValue) { cNote(acValue, false); });
+    }
+    return asker;
+}
+
+// Each player, measured from the asker: its distance in the same worldspace or interior, or whether it is in the
+// location named.
+std::vector<PartyRules::Asked> PlayersAsked(const Asker& acAsker) noexcept
+{
+    std::vector<uint32_t> players = GuestScripts::GuestCharacters();
+    players.insert(players.begin(), PartyRules::kThisPlayerFormId);
+    std::vector<PartyRules::Asked> asked;
+    for (const uint32_t cPlayer : players)
+    {
+        auto* pActor = Cast<Actor>(TESForm::GetById(cPlayer));
+        if (!pActor)
+            continue;
+        PartyRules::Asked entry{.Player = cPlayer};
+        const TESObjectCELL* cpCell = pActor->parentCell;
+        const TESObjectCELL* cpAskerCell = acAsker.pReference ? acAsker.pReference->parentCell : nullptr;
+        if (cpCell && cpAskerCell &&
+            (cpAskerCell->IsInterior() ? cpCell == cpAskerCell : !cpCell->IsInterior() && cpCell->worldspace == cpAskerCell->worldspace))
+            entry.Distance = glm::distance(glm::vec3(pActor->position.x, pActor->position.y, pActor->position.z),
+                                           glm::vec3(acAsker.pReference->position.x, acAsker.pReference->position.y,
+                                                     acAsker.pReference->position.z));
+        if (acAsker.pLocation)
+            entry.InPlace = acAsker.pLocation->Holds(Cast<BGSLocation>(pActor->GetCurrentLocation()));
+        asked.push_back(entry);
+    }
+    return asked;
+}
+
+PartyRules::CallFacts Scope::FactsOf(BSScript::IFunction* apFunction, const BSScript::Stack& acStack) const noexcept
+{
+    using PartyRules::Target;
+    PartyRules::CallFacts facts{.Reach = NativeReach::CallOf(apFunction), .Cause = m_cause, .Story = m_story};
+    facts.Hosting = World::Get().GetHostService().IsHosting();
+    facts.Guest = PlayerNatives::IsGuest();
+    facts.GuestCause = GuestScripts::IsGuestCharacter(m_cause);
+    const bool cStatic = apFunction->GetIsStatic();
+    // A global's player is this game's; a method's, its object if that is a player (a guest's: rule 2's swap).
+    const uint32_t cSelf = cStatic ? PartyRules::kThisPlayerFormId : FormIdOf(acStack.pTop->self);
+    facts.TargetId = cSelf;
+    facts.Target = cSelf == PartyRules::kThisPlayerFormId     ? Target::kThisPlayer
+                   : GuestScripts::IsGuestCharacter(cSelf) ? Target::kGuestCharacter
+                                                           : Target::kNone;
+    facts.OwnQuest = !cStatic && PlayerNatives::IsOwnQuest(cSelf);
+    const BSScript::StackFrame* cpCaller = acStack.pTop->pPrevious;
+    auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
+    facts.Body = BodyScripts::IsBody(pScript ? pScript->GetHandle() : 0);
+    EachValue(*acStack.pTop, [&facts](const BSScript::Variable& acValue) {
+        facts.PlayerInCall = facts.PlayerInCall || FormIdOf(acValue) == PartyRules::kThisPlayerFormId;
+    });
+    // Read from the code only where the rule asks: in a stack a guest's action ran (its lock is not on every call).
+    facts.PlayerNative = facts.GuestCause && cStatic && !IsGetPlayer(apFunction) && NativeReach::ReachesThisPlayer(apFunction);
+    return facts;
+}
+
+Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript::IVirtualMachine* apVm, uint32_t aCause, bool aStory) noexcept
+    : m_cause(aCause)
     , m_story(aStory)
 {
+    using PartyRules::Destination;
     if (!s_inSession.load(std::memory_order_relaxed) || !apStack || !apStack->pTop)
         return;
-    if (const auto cProgress = ProgressOf(apFunction))
+    const PartyRules::CallFacts cFacts = FactsOf(apFunction, *apStack);
+    if (cFacts.Reach.Kind == NativeReach::Call::kControls)
     {
-        Progress(apFunction, *apStack, *cProgress);
-        return;
-    }
-    const NativeReach::Call cCall = NativeReach::CallOf(apFunction);
-    if (cCall != NativeReach::Call::kControls && cCall != NativeReach::Call::kScreen && cCall != NativeReach::Call::kShow)
-        return;
-    if (cCall == NativeReach::Call::kControls)
-    {
-        m_controls = ControlsCall{PartyRules::HolderOf(aPlayer)};
+        m_controls = ControlsCall{PartyRules::HolderOf(aCause)};
         m_pOuter = std::exchange(t_pCall, &*m_controls);
     }
-    const Share cWhose = PartyRules::Whose(aPlayer, aStory);
-    switch (cCall == NativeReach::Call::kShow ? PartyRules::ShareOf(PartyRules::Kind::kShow, aPlayer, aStory, 0) : cWhose)
+    m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress && PartyRules::IsMirrored(aCause);
+    const PartyRules::Routing cRouting = PartyRules::RouteOf(cFacts);
+    if (cRouting.Ask)
     {
-    case Share::kHere: return; // another game's call
-    case Share::kPlayer:
-        spdlog::debug("PartyNatives: {}.{} is player {:X}'s moment", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(), aPlayer);
+        const bool cYesNo = apFunction->GetReturnType().type == BSScript::Variable::kBoolean;
+        const auto cPicked = cYesNo ? std::nullopt : PartyRules::AskedPlayer(PlayersAsked(AskerOf(*apStack)));
+        m_asks = PartyRules::PlayersToAsk(cYesNo, cPicked, GuestScripts::GuestCharacters());
+        spdlog::debug("PartyNatives: {}.{} is asked of {} player(s), the first {:X}", apFunction->GetObjectTypeName().AsAscii(),
+                      apFunction->GetName().AsAscii(), m_asks.size(), m_asks.front());
         return;
-    case Share::kParty: break;
+    }
+    if (cRouting.To == Destination::kHere)
+    {
+        if (cFacts.Reach.Kind != NativeReach::Call::kNone && cFacts.Reach.Kind != NativeReach::Call::kWorld && !PartyRules::IsMirrored(aCause))
+            spdlog::debug("PartyNatives: {}.{} is player {:X}'s moment", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(), aCause);
+        return;
     }
 
     auto call = GlobalCall::ReadCall(apFunction, *apStack->pTop);
@@ -165,42 +312,58 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, uint32_t
                      apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii());
         return;
     }
-    if (cWhose == Share::kParty)
-        PartyRules::MarkEachPlayer(*call, aPlayer);
-    m_event = PartyNativeEvent{std::move(*call)};
+    switch (cRouting.To)
+    {
+    case Destination::kHere: return;
+    case Destination::kHost: m_result = PlayerNatives::SendToHost(apFunction, *apStack, std::move(*call)); return;
+    case Destination::kCauseGame: m_result = PlayerNatives::SendToGuest(apFunction, *apStack, apVm, aCause, std::move(*call)); return;
+    case Destination::kEveryGame: break;
+    }
+    if (cFacts.Reach.Kind == NativeReach::Call::kProgress)
+        spdlog::info("PartyNatives: {}.{} on player {:X} is the party's progress", call->Class, call->Function, cFacts.TargetId);
+    if (cRouting.Mark)
+        PartyRules::MarkEachPlayer(*call, cRouting.MarkFor);
+    if (cRouting.ThisPlayer)
+        m_onThisPlayer = PartyRules::OnThisPlayer(*call);
+    if (!cRouting.Original)
+    {
+        apStack->returnValue.Clear();
+        m_result = BSScript::CallResult::kCompleted;
+    }
+    m_event = RoutedCallEvent{.To = CallTo::kOthers, .Call = std::move(*call)};
 }
 
-void Scope::Progress(BSScript::IFunction* apFunction, BSScript::Stack& aStack, const PartyRules::Progress& acProgress) noexcept
+void Scope::Ran(BSScript::CallResult aResult, uint32_t aStackId) noexcept
 {
-    auto call = GlobalCall::ReadCall(apFunction, *aStack.pTop);
-    if (!call)
+    if (aResult != BSScript::CallResult::kInProgress)
         return;
-    // A global's player is this game's; a method's, its object if that is a player.
-    const auto* cpSelf = std::get_if<LocalForm>(&call->Self);
-    const uint32_t cPlayer = cpSelf ? cpSelf->FormId : 0x14;
-    const PartyRules::Target cTarget = cPlayer == 0x14                         ? PartyRules::Target::kThisPlayer
-                                       : GuestScripts::IsGuestCharacter(cPlayer) ? PartyRules::Target::kGuestCharacter
-                                                                                 : PartyRules::Target::kNone;
-    const BSScript::StackFrame* cpCaller = aStack.pTop->pPrevious;
-    auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
-    const bool cBody = BodyScripts::IsBody(pScript ? pScript->GetHandle() : 0);
-    const auto cRoute = PartyRules::RouteOf(acProgress, cTarget, m_cause, m_story, cBody, World::Get().GetHostService().IsHosting());
-    if (!cRoute.Relay)
+    if (m_event)
+    {
+        std::scoped_lock _{s_latentLock};
+        s_originals.insert(aStackId);
+        m_event->ReplyId = aStackId;
         return;
-    spdlog::info("PartyNatives: {}.{} on player {:X} is the party's progress", call->Class, call->Function, cPlayer);
-    PartyRules::MarkEachPlayer(*call, cPlayer);
-    if (cRoute.ThisPlayer)
-        m_onThisPlayer = PartyRules::OnThisPlayer(*call);
-    m_skip = !cRoute.Original;
-    m_event = PartyNativeEvent{std::move(*call)};
+    }
+    if (!PartyRules::IsMirrored(m_cause))
+        return;
+    std::optional<LocalValue> ended;
+    {
+        std::scoped_lock _{s_latentLock};
+        ended = s_copies.Started(PartyRules::PlayerOf(m_cause), aStackId);
+    }
+    // Its original already returned: ended once this frame lets it wait.
+    if (ended)
+        World::Get().GetRunner().Queue([aStackId, cResult = std::move(*ended)] { EndWaiting(aStackId, cResult); });
 }
 
 Scope::~Scope() noexcept
 {
+    if (m_progressed)
+        World::Get().GetRunner().Trigger(PlayerProgressEvent{});
     if (m_controls)
     {
         t_pCall = m_pOuter;
-        if (m_event && PartyRules::ShareOf(PartyRules::Kind::kControls, m_cause, m_story, m_controls->Asked) != Share::kParty)
+        if (m_event && PartyRules::ShareOf(NativeReach::Call::kControls, m_cause, m_story, m_controls->Asked) != Share::kParty)
         {
             spdlog::debug("PartyNatives: {}.{} leaves movement ({:X}): this game's only", m_event->Call.Class, m_event->Call.Function, m_controls->Asked);
             return;
@@ -212,10 +375,35 @@ Scope::~Scope() noexcept
         World::Get().GetRunner().Trigger(std::move(*m_event));
 }
 
-bool Run(const LocalCall& acCall, uint32_t aSource) noexcept
+bool Run(const LocalCall& acCall, uint32_t aSource, uint32_t aKey) noexcept
 {
+    if (aKey)
+    {
+        std::scoped_lock _{s_latentLock};
+        s_copies.Sent(aSource, aKey);
+    }
     const GuestScripts::ScopedCause cMirrored(PartyRules::MirroredTag(aSource)); // the call it queues is tagged so (HookCallQueued)
     return GlobalCall::QueueCall(acCall);
+}
+
+void EndCopy(uint32_t aSource, uint32_t aKey, const LocalValue& acResult) noexcept
+{
+    std::optional<uint32_t> stack;
+    {
+        std::scoped_lock _{s_latentLock};
+        stack = s_copies.Ended(aSource, aKey, acResult);
+    }
+    if (stack)
+        EndWaiting(*stack, acResult);
+}
+
+void ForgetCopies(std::optional<uint32_t> aSource) noexcept
+{
+    std::scoped_lock _{s_latentLock};
+    if (aSource)
+        s_copies.Left(*aSource);
+    else
+        s_copies = {};
 }
 
 void GiveBackControls(std::optional<uint32_t> aSource) noexcept

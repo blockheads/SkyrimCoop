@@ -52,7 +52,7 @@ struct HostNetwork;
  * receives it (Delivery). The parts that keep state register their own rules: HostSession (who
  * gets in), HostCharacters (ids, owners, spawns), HostClock (the session's time), HostTimeScale
  * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
- * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (natives the host's scripts ran for a guest),
+ * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (the script calls one game sends to others),
  * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather has no
  * rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
  */
@@ -135,8 +135,6 @@ private:
     void OnContainerChange(const ContainerChangeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A chat line goes to everyone, the sender too (its chat shows what it sent), under its name.
     void OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept;
-    // A script's party call (cutscenes.md): every other game runs it, told whose game's script it was.
-    void OnPartyNative(const PartyNativeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // A player's character levelled up: kept for the player list (late joiners) and sent to the others.
     void OnPlayerLevel(const PlayerLevelRequest& acRequest, ConnectionId_t aSender) noexcept;
 

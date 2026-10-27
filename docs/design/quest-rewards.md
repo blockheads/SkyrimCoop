@@ -10,7 +10,7 @@ host: picked line / quest fragment / book script
     -> GuestScripts' native boundary: PartyNatives::Scope, before PlayerNatives can send a global to just the picker
     -> PartyRules::RouteOf: the party's? (its cause, story and source)
     -> on the host's player: the original runs; on a guest's character: skipped, run on the host's player instead
-    -> PartyNativeRequest -> HostAuthority -> NotifyPartyNative -> every guest
+    -> RoutedCallRequest -> HostPlayerNatives -> NotifyRoutedCall -> every guest
     -> PartyNatives::Run: the same native, tagged mirrored, on that game's own player
 
   player.AddItem / RemoveItem
@@ -33,7 +33,7 @@ otherwise:
 Searched CommonLibSSE-NG and [Papyrus Extender](https://github.com/powerof3/PapyrusExtenderSSE) first; the existing
 local checkouts are under `reference/`. Vanilla scripts below are in `build/re/scripts/Source/Scripts`.
 No new native hooks or addresses are needed for grants: GuestScripts already intercepts NativeFunctionBase::Call
-(104651), whose frame holds the call; the natives are rows of `PartyRules::ProgressOf`, tested in ClientTests.
+(104651), whose frame holds the call; the natives' engine functions are rows of the progression table (party-calls.md), tested in ClientTests.
 
 | Input | Engine path (1.6.1170) | Shared |
 |---|---|---|

@@ -232,7 +232,7 @@ void GuestEngine::ReleaseWeather() noexcept
         pSky->ReleaseWeatherOverride();
 }
 
-bool GuestEngine::RunPlayerNative(const Payloads::PlayerNative& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
+bool GuestEngine::RunPlayerNative(const Payloads::RoutedCall& acCall, std::function<void(LocalValue)> aOnReturn) noexcept
 {
     const auto cCall = Utils::ToLocalCall(acCall.Call);
     return cCall && GlobalCall::QueueCall(*cCall, std::move(aOnReturn));

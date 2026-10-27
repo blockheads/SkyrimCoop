@@ -37,7 +37,7 @@ std::unordered_map<BSScript::IFunction*, bool> s_natives;
 std::unordered_map<uintptr_t, Facts> s_functions;
 
 std::shared_mutex s_callsLock; // a leaf; CallOf reads it on every native call
-std::unordered_map<BSScript::IFunction*, Call> s_calls;
+std::unordered_map<BSScript::IFunction*, Reach> s_calls;
 
 // This game's per-player objects: the player, its stats and its screen.
 const std::unordered_set<uintptr_t>& PerPlayer() noexcept
@@ -68,9 +68,11 @@ const std::unordered_set<uintptr_t>& PerPlayer() noexcept
     return s_addresses;
 }
 
-// The engine functions a script's call ends in: a cutscene's (docs/design/cutscenes.md), the world's, and what a
-// reference shows (docs/design/dragonborn.md: VisualEffect.Play/Stop, EffectShader.Play/Stop, PlaySubGraphAnimation).
-const std::unordered_map<uintptr_t, Call>& CallFunctions() noexcept
+// The engine functions a script's call ends in: a cutscene's (docs/design/cutscenes.md), the world's, what a reference
+// shows (docs/design/dragonborn.md: VisualEffect.Play/Stop, EffectShader.Play/Stop, PlaySubGraphAnimation), and a
+// player's progression, with how the party shares it (dragonborn.md, "The party's calls"; the virtual ones as the
+// player's vtables resolve them).
+const Sinks& EngineSinks() noexcept
 {
     POINTER_SKYRIMSE(void, s_toggleControls, 68545);   // ControlMap::ToggleControls
     POINTER_SKYRIMSE(void, s_fade, 52847);             // the fade FadeOutGame and the menus use
@@ -91,19 +93,72 @@ const std::unordered_map<uintptr_t, Call>& CallFunctions() noexcept
     POINTER_SKYRIMSE(void, s_stopArtObject, 41396);    // ProcessLists: a reference's art object stops
     POINTER_SKYRIMSE(void, s_stopShader, 41395);       // ProcessLists: a reference's effect shader stops
     POINTER_SKYRIMSE(void, s_subGraphEvent, 63372);    // BSAnimationGraphManager: an event to a sub-graph
-    static const std::unordered_map<uintptr_t, Call> s_functions = [] {
-        std::unordered_map<uintptr_t, Call> functions;
-        functions[reinterpret_cast<uintptr_t>(s_toggleControls.GetPtr())] = Call::kControls;
-        functions[reinterpret_cast<uintptr_t>(s_setStage.GetPtr())] = Call::kWorld;
+    // The screen's messages (party-model.md rule 5): the HUD's, a message box, a help message.
+    POINTER_SKYRIMSE(void, s_hudMessage, 52933);       // SendHUDMessage::ShowHUDMessage (Debug.Notification, Message.Show)
+    POINTER_SKYRIMSE(void, s_messageBox, 52269);       // Debug.MessageBox's box
+    POINTER_SKYRIMSE(void, s_messageShow, 442726);     // Message.Show's box
+    POINTER_SKYRIMSE(void, s_helpMessage, 51587);      // HelpMessageManager (Message.ShowAsHelpMessage)
+    // An actor's items.
+    POINTER_SKYRIMSE(void, s_equipObject, 38894);      // ActorEquipManager::EquipObject
+    POINTER_SKYRIMSE(void, s_unequipObject, 38901);    // ActorEquipManager::UnequipObject
+    // Where a reference is (rule 3's questions).
+    POINTER_SKYRIMSE(void, s_getDistance, 19823);         // TESObjectREFR::GetDistance
+    POINTER_SKYRIMSE(void, s_getCurrentLocation, 19812);  // TESObjectREFR::GetCurrentLocation
+    POINTER_SKYRIMSE(void, s_hasLineOfSight, 53829);      // Actor::HasLineOfSight
+    POINTER_SKYRIMSE(void, s_detectionLevel, 37764);      // Actor::RequestDetectionLevel
+    POINTER_SKYRIMSE(void, s_lightLevel, 37775);          // Actor::GetLightLevel
+    // A player's progression: any script's but a body's (rewards), or the story's only (kept on a guest's character).
+    POINTER_SKYRIMSE(void, s_setPlayerKnows, 14639);      // TESForm::SetPlayerKnows: a word taught or unlocked
+    POINTER_SKYRIMSE(void, s_incrementSkill, 55616);      // IncrementSkillFromPapyrus
+    POINTER_SKYRIMSE(void, s_addPerk, 40681);             // PlayerCharacter::AddPerk (Actor vtable 0x7D8)
+    POINTER_SKYRIMSE(void, s_removePerk, 40682);          // PlayerCharacter::RemovePerk (0x7E0)
+    POINTER_SKYRIMSE(void, s_modActorValue, 38467);       // ActorValueOwner::ModActorValue: the permanent modifier (0)
+    POINTER_SKYRIMSE(void, s_addSkillExperience, 40488);  // PlayerCharacter::AddSkillExperience (0x7B8)
+    POINTER_SKYRIMSE(void, s_addSpell, 38716);            // Actor::AddSpell
+    POINTER_SKYRIMSE(void, s_queueRemoveSpell, 36962);    // TaskQueueInterface::QueueRemoveSpell
+    POINTER_SKYRIMSE(void, s_setFactionRank, 37677);      // Actor::SetFactionRank (Papyrus SetFactionRank, AddToFaction)
+    POINTER_SKYRIMSE(void, s_removeFromFaction, 37688);   // Actor::RemoveFromFaction
+    static const Sinks s_sinks = [] {
+        constexpr uint32_t cPerkPoints = 0xB09; // PlayerCharacter's perk points (Game.AddPerkPoints writes it)
+        Sinks sinks;
+        const auto cAdd = [&](const auto& acFunction, Reach aIs, std::optional<uint64_t> aSecond = std::nullopt) {
+            if (const auto cAddress = reinterpret_cast<uintptr_t>(acFunction.GetPtr()))
+                sinks.Functions[cAddress] = {aIs, aSecond};
+        };
+        cAdd(s_toggleControls, {Call::kControls});
+        cAdd(s_setStage, {Call::kWorld});
         for (const auto* pFunction : {&s_applyArtObject, &s_applyShader, &s_stopArtObject, &s_stopShader, &s_subGraphEvent})
-            functions[reinterpret_cast<uintptr_t>(pFunction->GetPtr())] = Call::kShow;
+            cAdd(*pFunction, {Call::kShow});
         for (const auto* pFunction : {&s_fade, &s_imodTrigger, &s_imodCrossFade, &s_imodStop, &s_imodStopCrossFade, &s_shakeCamera, &s_forceFirstPerson,
-                                      &s_forceThirdPerson, &s_setCameraTarget, &s_musicAdd, &s_musicRemove, &s_rumble})
-            functions[reinterpret_cast<uintptr_t>(pFunction->GetPtr())] = Call::kScreen;
-        functions.erase(0);
-        return functions;
+                                      &s_forceThirdPerson, &s_setCameraTarget, &s_musicAdd, &s_musicRemove, &s_rumble, &s_hudMessage,
+                                      &s_messageBox, &s_messageShow, &s_helpMessage})
+            cAdd(*pFunction, {Call::kScreen});
+        cAdd(s_equipObject, {Call::kItem});
+        cAdd(s_unequipObject, {Call::kItem});
+        constexpr Reach cReward{Call::kProgress, {.AnyScript = true}};
+        constexpr Reach cStory{Call::kProgress, {}};
+        constexpr Reach cStoryOnCopy{Call::kProgress, {.OnCopy = true}};
+        for (const auto* pFunction : {&s_setPlayerKnows, &s_incrementSkill, &s_addPerk, &s_removePerk})
+            cAdd(*pFunction, cReward);
+        cAdd(s_modActorValue, cReward, 0);
+        cAdd(s_addSkillExperience, cStory);
+        for (const auto* pFunction : {&s_addSpell, &s_queueRemoveSpell, &s_setFactionRank, &s_removeFromFaction})
+            cAdd(*pFunction, cStoryOnCopy);
+        sinks.PlayerFields[cPerkPoints] = {cReward};
+        for (const auto* pFunction : {&s_getDistance, &s_getCurrentLocation, &s_hasLineOfSight, &s_detectionLevel, &s_lightLevel})
+            cAdd(*pFunction, {Call::kQuestion});
+        for (const uint32_t cField : {0x54u, 0x58u, 0x5Cu, 0x60u}) // TESObjectREFR's position and parentCell
+            sinks.SelfFields[cField] = {{Call::kQuestion}};
+        return sinks;
     }();
-    return s_functions;
+    return s_sinks;
+}
+
+// The player's object: what a virtual call in a native is resolved against.
+uintptr_t ThePlayer() noexcept
+{
+    POINTER_SKYRIMSE(uintptr_t, s_thePlayer, 403521);
+    return s_thePlayer.GetPtr() ? *s_thePlayer.Get() : 0;
 }
 
 // The screen's objects read where no function says it: the movie player (Game.PlayBink).
@@ -211,10 +266,32 @@ class ProcessCode final : public Code
     bool IsCode(uintptr_t aAddress) const noexcept override { return NativeReach::IsCode(aAddress); }
 };
 
+// The cells holding the player's pointer.
+const std::unordered_set<uintptr_t>& PlayerCells() noexcept
+{
+    POINTER_SKYRIMSE(void, s_thePlayer, 403521);
+    POINTER_SKYRIMSE(void, s_playerCharacter, 401069);
+    static const std::unordered_set<uintptr_t> s_cells{reinterpret_cast<uintptr_t>(s_thePlayer.GetPtr()),
+                                                       reinterpret_cast<uintptr_t>(s_playerCharacter.GetPtr())};
+    return s_cells;
+}
+
 const Objects& EngineObjects() noexcept
 {
-    static const Objects s_objects{PerPlayer(), ScreenObjects()};
+    static const Objects s_objects{PerPlayer(), ScreenObjects(), PlayerCells()};
     return s_objects;
+}
+
+// A virtual call's function, as this game's player's vtable at its offset holds it (a native's self is resolved as the
+// player too: progression is routed only when it is one). None: no player, or memory not readable.
+std::optional<uintptr_t> Resolve(const VirtualCall& acCall) noexcept
+{
+    const uintptr_t cPlayer = ThePlayer();
+    if (!cPlayer)
+        return std::nullopt;
+    const std::optional<uintptr_t> cTable = HeldBy(cPlayer + acCall.Offset);
+    const std::optional<uintptr_t> cFunction = cTable && Game().Contains(*cTable) ? HeldBy(*cTable + acCall.Slot) : std::nullopt;
+    return cFunction && IsCode(*cFunction) ? cFunction : std::nullopt;
 }
 
 // The facts of a function, read once (under s_lock).
@@ -230,10 +307,10 @@ const Facts& FactsOf(uintptr_t aFunction, const Module& acGame, const Module& ac
     return it->second;
 }
 
-Call ClassifyCallback(uintptr_t aCallback) noexcept
+Reach ClassifyCallback(uintptr_t aCallback) noexcept
 {
     const std::optional<Module> cOwn = ModuleOf(aCallback);
-    return cOwn ? ClassifyCall(FactsOf(aCallback, Game(), *cOwn), CallFunctions()) : Call::kNone;
+    return cOwn ? ClassifyCall(FactsOf(aCallback, Game(), *cOwn), EngineSinks(), Resolve) : Reach{};
 }
 
 // The engine's code and the native's own plugin are followed; never other modules (imports, the CRT).
@@ -249,22 +326,25 @@ bool Classify(uintptr_t aCallback) noexcept
 }
 } // namespace
 
-Call CallOf(BSScript::IFunction* apFunction) noexcept
+Reach CallOf(BSScript::IFunction* apFunction) noexcept
 {
     {
         std::shared_lock _{s_callsLock};
         if (const auto it = s_calls.find(apFunction); it != s_calls.end())
             return it->second;
     }
-    Call call = Call::kNone;
+    Reach call;
     {
         std::scoped_lock _{s_lock};
         if (const uintptr_t cCallback = CallbackOf(apFunction))
             call = ClassifyCallback(cCallback);
     }
-    if (call != Call::kNone)
+    if (call.Kind == Call::kQuestion && apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
+        call = {}; // an action reading a place (a move), no question
+    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question"};
+    if (call.Kind != Call::kNone)
         spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),
-                      call == Call::kWorld ? "world" : call == Call::kControls ? "controls" : call == Call::kShow ? "show" : "screen");
+                      cNames[static_cast<size_t>(call.Kind)]);
     std::unique_lock _{s_callsLock};
     s_calls.emplace(apFunction, call);
     return call;

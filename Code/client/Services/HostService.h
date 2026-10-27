@@ -16,7 +16,6 @@ struct ActivateEvent;
 struct ScriptAnimationEvent;
 struct ContainerChangeEvent;
 struct DifficultyChangeEvent;
-struct PlayerNativeEvent;
 struct GameSavingEvent;
 struct GameLoadedEvent;
 struct GameLoadFailedEvent;
@@ -63,12 +62,10 @@ protected:
     void OnDifficultyChange(const DifficultyChangeEvent& acEvent) const noexcept;
     // The host's save is being written: the guests' records take their characters' places first.
     void OnGameSaving(const GameSavingEvent&) const noexcept;
-    // A native on "the player" a script ran for a guest: to that guest's game (party-model.md, rule 2).
-    void OnPlayerNative(const PlayerNativeEvent& acEvent) noexcept;
     // That guest's game answered one returning a value: the script waiting on it goes on.
     void OnPlayerNativeResult(const NotifyPlayerNativeResult& acMessage) noexcept;
     // A guest's own script changed the world (a quest's stage): this game makes the call, for that guest (rule 2).
-    void OnWorldCall(const NotifyWorldCall& acMessage) noexcept;
+    void OnWorldCall(const NotifyRoutedCall& acMessage) noexcept;
 
 private:
     void MakeAuthority() noexcept;

@@ -1620,10 +1620,11 @@ ScreenState GetScreenState() noexcept
     return state;
 }
 
-bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction, std::optional<uint32_t> aSelf, const std::vector<LocalValue>& acArguments) noexcept
+bool QueuePapyrusCall(const std::string& acClass, const std::string& acFunction, std::optional<uint32_t> aSelf, const std::vector<LocalValue>& acArguments,
+                      std::function<void(LocalValue)> aOnReturn) noexcept
 {
     const LocalCall cCall{.Class = acClass, .Function = acFunction, .Self = aSelf ? LocalValue{LocalForm{*aSelf}} : LocalValue{}, .Arguments = acArguments};
-    return GlobalCall::QueueCall(cCall);
+    return GlobalCall::QueueCall(cCall, std::move(aOnReturn));
 }
 
 namespace

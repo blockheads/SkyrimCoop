@@ -306,8 +306,8 @@ bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall)
 }
 
 // While a native runs for a guest, what it queues runs for them too; a timer it sets fires for them. The player in its
-// frame is the guest's character, and one on the player runs on the guest's game instead (PlayerNatives). A cutscene's
-// call, or a change to a player's progression, runs here and on every other game (PartyNatives), on any game. A quest's stage set in a stack run for a player
+// frame is the guest's character. Where the call runs (here, the host's game, the guest's, every game) is
+// PartyNatives::Scope's (PartyRules::RouteOf). A quest's stage set in a stack run for a player
 // is the story: its fragment, and what that queues, run for that player as the story.
 BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
 {
@@ -321,35 +321,44 @@ BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Sta
         if (auto* pScript = cpName && pStack->pTop ? pStack->pTop->self.GetObject() : nullptr)
             NativeCalled(s_tags, cpName, pScript->GetHandle(), cause);
     }
-    if (const auto cResult = PlayerNatives::SendToHost(apThis, pStack, guest))
-        return *cResult;
     Actor* pGuest = guest ? GuestCharacter(guest) : nullptr;
     const PlayerInFrame cPlayer(apThis, pGuest ? pStack->pTop : nullptr, pGuest, apVm);
-    const PartyNatives::Scope cParty(apThis, pStack, guest, cause.Story);
-    if (cParty.SkipsOriginal())
-    {
-        pStack->returnValue.Clear();
-        return BSScript::CallResult::kCompleted;
-    }
-    if (pGuest && !cParty.IsParty())
-        if (const auto cResult = PlayerNatives::SendToGuest(apThis, *pStack, apVm, guest))
-            return *cResult;
+    PartyNatives::Scope cRoute(apThis, pStack, apVm, guest, cause.Story);
+    if (const auto cResult = cRoute.Result())
+        return *cResult;
     const uint32_t cOuter = t_nativeGuest;
     const bool cOuterStory = t_nativeStory;
     const uint64_t cOuterScript = t_nativeScript;
-    const Cause cWithin = Within(cause, NativeReach::CallOf(apThis) == NativeReach::Call::kWorld);
+    const Cause cWithin = Within(cause, NativeReach::CallOf(apThis).Kind == NativeReach::Call::kWorld);
     t_nativeGuest = cWithin.Player;
     t_nativeStory = cWithin.Story;
     const BSScript::StackFrame* cpCaller = pStack && pStack->pTop ? pStack->pTop->pPrevious : nullptr;
     auto* pCallerScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
     t_nativeScript = pCallerScript ? pCallerScript->GetHandle() : 0;
     ++t_nativeDepth;
-    const auto cResult = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
+    // Rule 3: a question with no player's action is put to the players it asks, each in this game's player's place,
+    // until a yes/no one says yes.
+    BSScript::CallResult result{};
+    if (cRoute.Asks().empty())
+        result = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
+    for (const uint32_t cAsked : cRoute.Asks())
+    {
+        Actor* pAsked = cAsked != cPlayerFormId ? GuestCharacter(cAsked) : nullptr;
+        if (cAsked != cPlayerFormId && !pAsked)
+            continue;
+        const PlayerInFrame cInPlace(apThis, pAsked ? pStack->pTop : nullptr, pAsked, apVm);
+        result = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
+        const BSScript::Variable& cAnswer = pStack->returnValue;
+        if (result != BSScript::CallResult::kCompleted || cAnswer.type != BSScript::Variable::kBoolean || cAnswer.data.b)
+            break;
+    }
+    if (pStack)
+        cRoute.Ran(result, pStack->stackId);
     --t_nativeDepth;
     t_nativeGuest = cOuter;
     t_nativeStory = cOuterStory;
     t_nativeScript = cOuterScript;
-    return cResult;
+    return result;
 }
 
 bool HookFunctorQueued(void* apThis, DelayFunctor** appFunctor)
@@ -440,6 +449,16 @@ uint64_t NativeScript() noexcept
 bool IsGuestCharacter(uint32_t aFormId) noexcept
 {
     return IsHosting() && GuestCharacter(aFormId) != nullptr;
+}
+
+std::vector<uint32_t> GuestCharacters() noexcept
+{
+    std::vector<uint32_t> characters;
+    if (IsHosting())
+        for (const auto& cSlot : s_guests)
+            if (const uint32_t cFormId = cSlot.load(std::memory_order_relaxed); cFormId && GuestCharacter(cFormId))
+                characters.push_back(cFormId);
+    return characters;
 }
 
 ScopedCause::ScopedCause(uint32_t aPlayer) noexcept

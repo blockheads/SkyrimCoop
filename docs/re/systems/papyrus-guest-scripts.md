@@ -67,7 +67,7 @@ the timers they set.
   `HookNativeCalled` does not run them: it reads their arguments from the native's frame (numbers, bools,
   strings, forms, None), clears the stack's return value (`Stack::returnValue`, +0x70; they return None) and returns
   `kCompleted`, as the original does after a call (read in IDA: 104651 sets +0x70 and returns 0). The host's game
-  sends them to that guest's game (`PlayerNativeEvent` → `PlayerNativeRequest` → `NotifyPlayerNative`, only from
+  sends them to that guest's game (`RoutedCallEvent` → `RoutedCallRequest` → `NotifyRoutedCall`, to the owner, only from
   the host's game, `HostPlayerNatives`), which queues the same call on its VM (`IVirtualMachine::DispatchStaticCall`,
   slot 0x26, read in IDA: class and function looked up, the arguments filled at once by `IFunctionArguments`' slot 1,
   then the stack queued through 104848), so its own player, perks and mods take it. An argument the session cannot

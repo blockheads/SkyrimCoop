@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Papyrus/CodeReach.h>
 #include <Structs/ScriptValue.h>
 
 #include <cstdint>
@@ -8,9 +9,9 @@
 #include <string_view>
 #include <vector>
 
-// PartyNatives' rules with no engine (docs/design/cutscenes.md): whose a controls or screen call is, and who holds
-// which controls; and where a call changing a player's progression runs (docs/design/dragonborn.md). Checked by
-// ClientTests on Linux; PartyNatives.cpp gathers the inputs and acts.
+// PartyNatives' rules with no engine: where a native's call runs (RouteOf: here, on the host's game, on the game of the
+// player whose action ran it, on every game; docs/design/party-calls.md), whose a controls or screen call is, and who
+// holds which controls. Checked by ClientTests on Linux; PartyNatives.cpp gathers the inputs and acts.
 namespace PartyRules
 {
 // ControlMap's user event flags used here (BSInputEnableManager::UserEvent; PartyNatives.cpp asserts they agree).
@@ -23,6 +24,7 @@ inline constexpr uint32_t kMainFour = 1 << 8;
 // GuestScripts' tag of a stack running a party call another game sent (kMirrored | that game's player id): it runs
 // here only. A holder of controls is this game's own scripts (kThisGame) or another game's mirrored tag.
 inline constexpr uint32_t kMirrored = 0xFFFE0000;
+inline constexpr uint32_t kThisPlayerFormId = 0x14;
 inline constexpr uint32_t kThisGame = 0xFFFFFFFF;
 [[nodiscard]] constexpr bool IsMirrored(uint32_t aTag) noexcept
 {
@@ -42,12 +44,9 @@ inline constexpr uint32_t kThisGame = 0xFFFFFFFF;
     return IsMirrored(aCause) ? aCause : kThisGame;
 }
 
-enum class Kind : uint8_t
-{
-    kControls, // ControlMap::ToggleControls
-    kScreen,   // fades, camera, shakes, music, video
-    kShow,     // what a reference shows: an art object, an effect shader, a sub-graph animation
-};
+using NativeReach::Call;
+using NativeReach::Progress;
+using NativeReach::Reach;
 
 enum class Share : uint8_t
 {
@@ -61,24 +60,13 @@ enum class Share : uint8_t
 [[nodiscard]] Share Whose(uint32_t aCause, bool aStory) noexcept;
 // The whole rule, once a controls call ran and asked ControlMap for aAsked: the party's only if it took movement. A
 // show is the world's look: every game's, whoever's action ran it (docs/design/dragonborn.md).
-[[nodiscard]] Share ShareOf(Kind aKind, uint32_t aCause, bool aStory, uint32_t aAsked) noexcept;
+[[nodiscard]] Share ShareOf(Call aKind, uint32_t aCause, bool aStory, uint32_t aAsked) noexcept;
 
 // In the story's party call, the stack's player (aCause's character; this game's player 0x14 for no cause) is each
 // game's own: the absorb's streams reach every player (docs/design/dragonborn.md).
 void MarkEachPlayer(LocalCall& aCall, uint32_t aCause) noexcept;
 
-// A native that changes a player's progression: its words of power, souls, skills, perks, permanent values, factions
-// and spells (docs/design/dragonborn.md, "The party's calls"). A party call of one runs on every game, each on its own
-// player, as the engine's own native there.
-struct Progress
-{
-    bool AnyScript = false; // any script's call but a body's (a word wall, a book); else only the story's (Whose)
-    bool OnCopy = false;    // on the host a guest's character takes it too: the host's conditions read it there
-};
-// The natives that change it; none for others (a body's, an item's, a read).
-[[nodiscard]] std::optional<Progress> ProgressOf(std::string_view aClass, std::string_view aFunction) noexcept;
-
-// Whom a progression call names: this game's player (a global's is always), a guest's character on the host, or none.
+// Whom a call names: this game's player (a global's is always), a guest's character on the host, or none.
 enum class Target : uint8_t
 {
     kNone,
@@ -86,18 +74,60 @@ enum class Target : uint8_t
     kGuestCharacter,
 };
 
-// Where it runs: the original here, the call on this game's own player too (it named a guest's character), and every
-// other game.
-struct Route
+// What the router knows of a native's call, before it runs.
+struct CallFacts
 {
-    bool Original = true;
-    bool ThisPlayer = false;
-    bool Relay = false;
+    Reach Reach;
+    bool PlayerNative = false; // a global acting on this game's player (NativeReach::ReachesThisPlayer)
+    Target Target = Target::kNone;
+    uint32_t TargetId = 0;   // its form id
+    uint32_t Cause = 0;      // GuestScripts' cause: a guest, this game's player 0x14, a mirrored tag, 0 for none
+    bool Story = false;      // a stage that player's action set runs it
+    bool Body = false;       // a body's script calls it: an effect, equipment, a script on the player, a body's quest
+    bool GuestCause = false; // the cause is a guest whose character is on this game (the host)
+    bool Hosting = false;
+    bool Guest = false;    // this game is a guest in a session
+    bool OwnQuest = false; // its object is a quest of this guest's own
+    bool PlayerInCall = false; // this game's player (0x14) is its object or an argument
 };
-// aBody: a body's script calls it (an effect, equipment, a script on the player, a quest its body started): that
-// player's own. Only the host's scripts are the story; another game's call (mirrored) runs here only.
-[[nodiscard]] Route RouteOf(const Progress& acProgress, Target aTarget, uint32_t aCause, bool aStory, bool aBody,
-                            bool aHosting) noexcept;
+
+enum class Destination : uint8_t
+{
+    kHere,      // this game's only
+    kHost,      // a guest's world change: the host's game makes it, for that guest
+    kCauseGame, // the game of the guest whose action ran it, on its own player
+    kEveryGame, // here, and on every other game
+};
+
+struct Routing
+{
+    Destination To = Destination::kHere;
+    bool Original = true;    // the native runs here too
+    bool ThisPlayer = false; // on the host it runs on this game's player too (it named a guest's character)
+    bool Mark = false;       // the player in it (MarkFor's) is each game's own (MarkEachPlayer)
+    uint32_t MarkFor = 0;
+    bool Ask = false;        // a question with no player's action: asked of the party's player nearest the asker (rule 3)
+    bool operator==(const Routing&) const = default;
+};
+// Where a call runs (docs/design/party-calls.md). Another game's call (mirrored) runs here only.
+[[nodiscard]] Routing RouteOf(const CallFacts& acFacts) noexcept;
+
+// A player a question may be asked of (rule 3): 0x14 or a guest's character, with its distance to the reference the
+// question measures from, or whether it is in the location the asking script names.
+struct Asked
+{
+    uint32_t Player = 0;
+    std::optional<float> Distance; // none: no such reference, or not in its worldspace or interior
+    bool InPlace = false;
+};
+// Who answers: the nearest to the reference; else the first in the named place; else none (this game's player).
+[[nodiscard]] std::optional<uint32_t> AskedPlayer(const std::vector<Asked>& acPlayers) noexcept;
+
+// Whom a question asked of the party is put to, in order (rule 3): a yes/no question to every player, this game's
+// first, until one says yes; any other (a distance, a location, a cell) to the one AskedPlayer picks (none: this
+// game's player).
+[[nodiscard]] std::vector<uint32_t> PlayersToAsk(bool aYesNo, std::optional<uint32_t> aPicked,
+                                                 const std::vector<uint32_t>& acGuests) noexcept;
 
 // The call as this game's player takes it: each player's form (MarkEachPlayer) is 0x14.
 [[nodiscard]] LocalCall OnThisPlayer(LocalCall aCall) noexcept;
@@ -133,6 +163,35 @@ class ControlHolds
 
   private:
     std::map<uint32_t, uint32_t> m_holds;
+};
+
+// The copies of other games' latent party calls running here (a story's Message.Show): each source's calls arrive in
+// order with their key (the sender's stack id), and start waiting here in that order. When the original returns, its
+// copy here ends with the same result (docs/design/party-calls.md, "A box's answer").
+class LatentCopies
+{
+  public:
+    // aSource's call with aKey was queued here.
+    void Sent(uint32_t aSource, uint32_t aKey) noexcept;
+    // A copy from aSource started waiting in aStack: the oldest of its calls not yet started. Its original's result
+    // when that already came: the copy ends with it at once.
+    [[nodiscard]] std::optional<LocalValue> Started(uint32_t aSource, uint32_t aStack) noexcept;
+    // aSource's original with aKey returned acResult: the stack its copy waits in, if it does (forgotten); a copy not
+    // started yet keeps the result for its start.
+    [[nodiscard]] std::optional<uint32_t> Ended(uint32_t aSource, uint32_t aKey, const LocalValue& acResult) noexcept;
+    // aStack returned here (its player answered, or the original's result came): forgotten.
+    void Returned(uint32_t aStack) noexcept;
+    // aSource left: its calls are forgotten.
+    void Left(uint32_t aSource) noexcept;
+
+  private:
+    struct Queued
+    {
+        uint32_t Key;
+        std::optional<LocalValue> Result; // its original already returned
+    };
+    std::map<uint32_t, std::vector<Queued>> m_queued;                   // source -> calls sent, not started
+    std::map<std::pair<uint32_t, uint32_t>, uint32_t> m_waiting;        // (source, key) -> the stack here
 };
 
 // Game.EnablePlayerControls' arguments to give back aFree. Camera switch, activate and the journal are not in

@@ -39,7 +39,7 @@ struct ScriptForm
     GameId Form{};
 };
 
-// A value as the session carries it (Payloads::PlayerNative).
+// A value as the session carries it (Payloads::RoutedCall).
 using ScriptValue = ScriptValueOf<ScriptForm>;
 
 // A form of one game, by its id there.
@@ -55,6 +55,16 @@ struct LocalForm
 
 // A value as one game's script has it.
 using LocalValue = ScriptValueOf<LocalForm>;
+
+// Where a script's call goes (docs/design/party-calls.md): the host's game (a guest's own world change, made there for
+// that guest), the game of a guest's character's owner (a native on "the player" the host's script called for it,
+// party-model.md rule 2), or every other game (the party's: the screen, shows, progression; each on its own player).
+enum class CallTo : uint8_t
+{
+    kHost,
+    kOwner,
+    kOthers,
+};
 
 // A script's call of a native, made on another game: its class and name, its object (a method's form; None for a
 // global native) and its arguments, forms as TForm.

@@ -253,18 +253,34 @@ struct EffectFlash
     GameId EffectId{};
 };
 
-// A native on "the player" the host's script called for a guest's character, which that guest's game runs instead
-// (docs/design/party-model.md, rule 2).
-struct PlayerNative
+// A script's call one game sends to others, as PartyRules::RouteOf decided.
+struct RoutedCall
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
     void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
 
-    bool operator==(const PlayerNative&) const noexcept = default;
+    bool operator==(const RoutedCall&) const noexcept = default;
 
-    uint32_t SessionId{}; // the guest's character
-    ScriptCall Call{};    // a global native's
-    uint32_t ReplyId{};   // a native returning a value: the host's script waits for PlayerNativeResult under this id; 0: none
+    CallTo To{};
+    uint32_t SessionId{}; // kHost: the sender's character (the host fills it in); kOwner: the guest's character
+    uint32_t Source{};    // kOthers: the sending game's player id (the host fills it in), whose cutscene it is
+    uint32_t ReplyId{};   // kOwner, a native returning a value: the host's script waits for PlayerNativeResult; kOthers,
+                          // a latent call: its key, the sender's stack (CallEnded); 0: none
+    ScriptCall Call{};    // its self: an image-space modifier, a music type, an actor; None for a global native
+};
+
+// A latent party call returned on the game that made it (a story's Message.Show answered): its copies on the other
+// games end with the same result (docs/design/party-calls.md, "A box's answer").
+struct CallEnded
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const CallEnded&) const noexcept = default;
+
+    uint32_t Source{}; // the sending game's player id (the host fills it in)
+    uint32_t Key{};    // RoutedCall::ReplyId
+    ScriptValue Result{};
 };
 
 // What a native on the player returned on the guest's game, for the host's script waiting on it (PlayerNative::ReplyId).
@@ -277,43 +293,6 @@ struct PlayerNativeResult
 
     uint32_t ReplyId{};
     ScriptValue Result{}; // None also when it did not run there (the guest left, an argument not there)
-};
-
-// A script's call on one game's controls or screen (a fade, the camera, a shake, music, a video), which every other
-// game runs on its own player and screen (docs/design/cutscenes.md).
-struct PartyNative
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const PartyNative&) const noexcept = default;
-
-    ScriptCall Call{}; // its self: an image-space modifier, a music type; None for a global native
-};
-
-// A party native as the other games get it: Source is the player whose script called it (its PlayerId), whose
-// cutscene it is.
-struct PartyNativeFrom : PartyNative
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const PartyNativeFrom&) const noexcept = default;
-
-    uint32_t Source{};
-};
-
-// A guest's own script changed the world (a quest's stage): the host's game makes the call instead, for that guest
-// (docs/design/world-state-sync.md, "Only the host's game decides").
-struct WorldCall
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const WorldCall&) const noexcept = default;
-
-    uint32_t SessionId{}; // the guest's character, the host fills it in
-    ScriptCall Call{};
 };
 
 // Physics bodies moving on the host's game (docs/design/physics-sync.md): the frames a guest would guess wrong

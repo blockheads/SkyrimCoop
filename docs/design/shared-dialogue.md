@@ -121,7 +121,7 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    it), and the hook queues the fragment under rule 2's cause (`GuestScripts::ScopedCause`), so the script and
    everything it starts run for the picker. Natives on the player in it (`Game.AdvanceSkill`,
    `IncrementSkill(By)`, `IncrementStat`, `ShowTrainingMenu`) are skipped there and run on the picker's game
-   (`PlayerNativeRequest` → `NotifyPlayerNative`; `docs/re/systems/papyrus-guest-scripts.md`).
+   (`RoutedCallRequest` → `NotifyRoutedCall`, to the owner; `docs/re/systems/papyrus-guest-scripts.md`).
 6. **Leave and end.** The peer who asked for the conversation is in it from the open. Any other game's menu
    open on the conversation's NPC sends `DialogueJoinRequest`; its menu closing (Tab, Esc) sends
    `DialogueCloseRequest`: that player left. `HostDialogue` keeps the players in it; when the last one leaves
@@ -174,7 +174,7 @@ All carry the conversation id and step where they apply; forms go as `GameId`.
 | `DialogueCloseRequest` / `NotifyDialogueClosed` | game → host → all | conversation; `Ended`: the host's game ended it, else this player left |
 | `DialogueStartFailedRequest` / `NotifyDialogueRefused` | host's game → host → the asker | NPC: its start will not happen (also for the bridge's own refusals) |
 | `DialogueOpenedRequest` / `NotifyDialogueOpen` `Everyone` | host's game → host → all | the NPC started it (a force greet): every peer opens its menu |
-| `PlayerNativeRequest` / `NotifyPlayerNative` | host's game → host → that guest | a native on the player a script ran for a guest (rule 2; not dialogue's own) |
+| `RoutedCallRequest` / `NotifyRoutedCall` (to the owner) | host's game → host → that guest | a native on the player a script ran for a guest (rule 2; not dialogue's own) |
 
 All in `Messages/SharedDialogue.h`, the option in `Structs/DialogueOption.h`. They are not relays, so
 `wire_tests.cpp` does not pin them; the bridge cases send and read each one through the server.

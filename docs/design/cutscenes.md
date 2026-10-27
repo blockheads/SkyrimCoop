@@ -14,7 +14,7 @@ and screen, whoever's game runs the script. So a cutscene plays for everyone, wi
 any game's script: Game.DisablePlayerControls / ImageSpaceModifier.Apply / ShakeCamera / MusicType.Add ...
         |
         v
-runs there, then goes to the host (PartyNativeRequest), which relays it to every other game (NotifyPartyNative)
+runs there, then goes to the host (RoutedCallRequest, to the others), which relays it to every other game (NotifyRoutedCall)
         |
         v
 each game runs the same call on its own VM, on its own player and screen (a stack tagged kMirrored, never resent)
@@ -41,7 +41,7 @@ each game runs the same call on its own VM, on its own player and screen (a stac
 - **Each game's cutscene holds its own controls** (built 2026-10-23): the engine keeps the controls as one bitmask
   (`ControlMap::ToggleControls`, 68545, no owner or count), so two cutscenes at once used to mix: the first to give
   back gave back both. Every game now keeps who took what (`PartyRules::ControlHolds`, under `PartyNatives`' hook: its own scripts, and each other
-  game's by its player id, `NotifyPartyNative::Source`, filled in by the host). A script's give-back gives back only
+  game's by its player id, `NotifyRoutedCall::Source`, filled in by the host). A script's give-back gives back only
   what no other holder still holds there. The engine's own toggles (menus, furniture) pass untouched.
 - **Ends for sure:** a player leaving gives back, on every other game, what that player's cutscene still held there
   (`NotifyPlayerLeft`, `PartyNatives::GiveBackControls`). A game leaving the session gives back what every other
@@ -85,7 +85,7 @@ and a controls call is shared only if it asks for movement (ControlMap::ToggleCo
 The Elder Scroll's reading is the scroll's item script, run on the reader's game: its `MQ206.SetStage(20)` would
 change the quest on a guest only (decided 2026-10-22: the host's to make). On a guest, a native whose own code calls
 `TESQuest::SetStage` (25004; `Quest.SetCurrentStageID`, `NativeReach::Call::kWorld`) does not run there: it goes to
-the host (`WorldCallRequest`, `HostPlayerNatives::OnWorldCall` adds the guest's character, `NotifyWorldCall` to the
+the host (`RoutedCallRequest` to the host, `HostPlayerNatives::OnCall` adds the guest's character, `NotifyRoutedCall` to the
 host's game), which makes the call for that guest (rule 2: its fragment runs for them) and sends the stage back as
 world state (fragments skipped). The guest's script gets true at once.
 

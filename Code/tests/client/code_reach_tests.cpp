@@ -5,7 +5,9 @@
 
 #include <Papyrus/CodeReach.h>
 
+#include <algorithm>
 #include <map>
+#include <string>
 
 using namespace NativeReach;
 
@@ -21,6 +23,8 @@ constexpr uintptr_t kShakeCamera = 0x140500000;
 constexpr uintptr_t kSetStage = 0x140300000;
 constexpr uintptr_t kElsewhere = 0x140900000;
 constexpr uintptr_t kApplyArtObject = 0x140366B20; // some engine function
+constexpr uintptr_t kHudMessage = 0x14097A5E0;     // SendHUDMessage::ShowHUDMessage
+constexpr uintptr_t kEquipObject = 0x1406C9820;    // ActorEquipManager::EquipObject
 
 // x64 assembled into a function at Base.
 struct Asm
@@ -128,11 +132,37 @@ class FakeCode final : public Code
     std::map<uintptr_t, uintptr_t> m_cells;
 };
 
-const std::unordered_set<uintptr_t> cPerPlayer{kThePlayer};
+constexpr uintptr_t kPlayerCell = 0x1431874F8; // g_thePlayer (403521) in 1.6.1170, as the natives below load it
+
+const std::unordered_set<uintptr_t> cPerPlayer{kThePlayer, kPlayerCell};
 const std::unordered_set<uintptr_t> cScreen{kMoviePlayer};
-const Objects cObjects{cPerPlayer, cScreen};
-const std::unordered_map<uintptr_t, Call> cCalls{
-    {kToggleControls, Call::kControls}, {kShakeCamera, Call::kScreen}, {kSetStage, Call::kWorld}, {kApplyArtObject, Call::kShow}};
+const std::unordered_set<uintptr_t> cPlayer{kPlayerCell};
+const Objects cObjects{cPerPlayer, cScreen, cPlayer};
+const Sinks cSinks{.Functions = {{kToggleControls, {{Call::kControls}}},
+                                 {kShakeCamera, {{Call::kScreen}}},
+                                 {kSetStage, {{Call::kWorld}}},
+                                 {kApplyArtObject, {{Call::kShow}}},
+                                 {kHudMessage, {{Call::kScreen}}},
+                                 {kEquipObject, {{Call::kItem}}}}};
+
+// A native's real code (1.6.1170, read from IDA), at its own address so its RIP-relative operands hold.
+Asm Native(uintptr_t aAddress, std::string_view aHex)
+{
+    Asm code{aAddress};
+    for (size_t i = 0; i + 1 < aHex.size(); i += 2)
+        code.Bytes.push_back(static_cast<uint8_t>(std::stoi(std::string(aHex.substr(i, 2)), nullptr, 16)));
+    return code;
+}
+
+// The native read over its unwind entry, as the game reads it.
+Facts ReadNative(uintptr_t aAddress, std::string_view aHex)
+{
+    FakeCode code;
+    const Asm cNative = Native(aAddress, aHex);
+    code.Add(cNative);
+    code.AddEntry(cNative.Extent(), cNative.Base);
+    return Read(cNative.Base, kGame, false, code, cObjects);
+}
 } // namespace
 
 SCENARIO("Reading a leaf function (no unwind data)", "[reach]")
@@ -224,19 +254,131 @@ SCENARIO("A native reading the movie player is the screen's", "[reach]")
     code.Add(playBink);
     const Facts cFacts = Read(playBink.Base, kGame, false, code, cObjects);
     CHECK(cFacts.ReadsScreen);
-    CHECK(ClassifyCall(cFacts, cCalls) == Call::kScreen);
+    CHECK(ClassifyCall(cFacts, cSinks).Kind == Call::kScreen);
 }
 
 SCENARIO("Which of the party's calls a native makes", "[reach]")
 {
     THEN("the world comes first")
-    CHECK(ClassifyCall({false, true, {kShakeCamera, kToggleControls, kSetStage}}, cCalls) == Call::kWorld);
+    CHECK(ClassifyCall({false, true, {kShakeCamera, kToggleControls, kSetStage}}, cSinks).Kind == Call::kWorld);
     THEN("then the controls")
-    CHECK(ClassifyCall({false, false, {kShakeCamera, kToggleControls}}, cCalls) == Call::kControls);
+    CHECK(ClassifyCall({false, false, {kShakeCamera, kToggleControls}}, cSinks).Kind == Call::kControls);
     THEN("then the screen")
-    CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject, kShakeCamera}}, cCalls) == Call::kScreen);
-    THEN("then what a reference shows") CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject}}, cCalls) == Call::kShow);
-    THEN("none of them") CHECK(ClassifyCall({true, false, {kElsewhere}}, cCalls) == Call::kNone);
+    CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject, kShakeCamera}}, cSinks).Kind == Call::kScreen);
+    THEN("then what a reference shows")
+    CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject}}, cSinks).Kind == Call::kShow);
+    THEN("none of them") CHECK(ClassifyCall({true, false, {kElsewhere}}, cSinks).Kind == Call::kNone);
+    THEN("a notification is the screen's (Debug.Notification)")
+    CHECK(ClassifyCall({false, false, {kHudMessage}}, cSinks).Kind == Call::kScreen);
+    THEN("an equip showing its HUD message is an item change, not the screen's (Actor.EquipItem)")
+    CHECK(ClassifyCall({false, false, {kHudMessage, kEquipObject}}, cSinks).Kind == Call::kItem);
+}
+
+// docs/design/party-calls.md, "Which natives are progression"
+SCENARIO("A native's virtual calls and writes on the player, followed through its registers", "[reach][dragonborn]")
+{
+    THEN("Actor.AddPerk: a tail call through its self's vtable (0x7D8)")
+    {
+        const Facts cFacts = ReadNative(0x1409E7520, "4d8bd04d85c97413498b00498bd14533c0498bca48ffa0d8070000488b01448bc241b902000000488d152aeaf20048ff6010");
+        CHECK(cFacts.Virtuals == std::vector<VirtualCall>{{false, 0, 0x7D8, std::nullopt}});
+    }
+    THEN("Actor.ModActorValue: its self's actor values (+0xB8), slot 0x30, the permanent modifier (0) behind a branch")
+    {
+        const Facts cFacts = ReadNative(
+            0x1409E90F0,
+            "48895c240848896c24104889742418574883ec20488bf1498bd9498b09498be88bfae8892da5ff4c63c04181f8a40000007509488d1526d1f200eb34488b05"
+            "ddd170014a8b4cc0088b4160c1e80ea8017517f30f105c2450488d8db8000000488b0133d2ff5030eb15488d1500d1f200488b0b448bcf4c8bc6e8b2d2000048"
+            "8b5c2430488b6c2438488b7424404883c4205fc3");
+        CHECK(cFacts.Virtuals == std::vector<VirtualCall>{{false, 0xB8, 0x30, 0}});
+    }
+    THEN("Actor.ForceActorValue sets the same permanent modifier; DamageActorValue the damage one (2), after its return")
+    {
+        const Facts cForce = ReadNative(
+            0x1409E81E0,
+            "48895c240848896c2410488974241848897c242041564883ec20488be9498bd9498b094d8bf08bf2e8933ca5ff4863f881ffa40000007509488d1531e0f200eb"
+            "52488b05e8e07001488b4cf8088b4160c1e80ea8017535498b86b8000000498d8eb80000008bd7ff5008f30f105c2450498d8eb8000000498b86b8000000f30f"
+            "5cd8448bc733d2ff5030eb15488d15eddff200488b0b448bce4c8bc5e89fe10000488b5c2430488b6c2438488b742440488b7c24484883c420415ec3");
+        CHECK(std::ranges::count(cForce.Virtuals, VirtualCall{false, 0xB8, 0x30, 0}) == 1);
+        const Facts cDamage = ReadNative(
+            0x1409E7D00,
+            "48895c240848896c2410488974241848897c242041564883ec304c8bf1498bf1498b09498bd88beae87341a5ff4863f881ffa40000007517488b0e488d150ee5"
+            "f200448bcd4d8bc6e8d3e60000eb68488b05bae57001488b4cf8088b51608bc2c1e80ea8010f85810000000f29742420f30f107424600f543593c6d800c1ea09"
+            "f6c20175070f5735a4b30e0183ff187541488b03488bcbff90f002000084c07431488b030f28d633d2488bcbff90200800000f28742420488b5c2440488b6c24"
+            "48488b742450488b7c24584883c430415ec3488d8bb80000000f28de488b01448bc7ba02000000ff5030ebc6488b0e488d156ae4f200448bcd4d8bc6e81fe6"
+            "0000ebb4");
+        CHECK(std::ranges::count(cDamage.Virtuals, VirtualCall{false, 0xB8, 0x30, 2}) == 1);
+        CHECK(std::ranges::count(cDamage.Virtuals, VirtualCall{false, 0xB8, 0x30, 0}) == 0);
+    }
+    THEN("Game.AdvanceSkill: the player's vtable (g_thePlayer), slot 0x7B8")
+    {
+        const Facts cFacts = ReadNative(
+            0x140A0BAF0,
+            "48895c24084889742410574881ec30010000488bd9498bf1498b098bfae88e03a3ff8bd0448d40fa4183f81176204c8b0e4c8d05404af100ba00010000488d4c"
+            "2430e8c9ed77ff488d542430eb35f30f109424600100000f57c00f2fd0761d488b0da2b977024533c9c744242000000000488b01ff90b8070000eb19488d151d"
+            "4af100488b0341b902000000448bc7488bcbff50104c8d9c2430010000498b5b10498b7318498be35fc3");
+        CHECK(cFacts.Virtuals == std::vector<VirtualCall>{{true, 0, 0x7B8, std::nullopt}});
+    }
+    THEN("Game.AddPerkPoints: a write of the player's perk points (+0xB09), no call")
+    {
+        FakeCode code;
+        code.Add(Native(0x140A0BC20, "488b15d1b8770241b8ff0000000fb682090b0000413bc073184585c97e134103c1413bc00fb6c8410f4fc8888a090b0000c3"));
+        const Facts cFacts = Read(0x140A0BC20, kGame, false, code, cObjects);
+        CHECK(cFacts.PlayerWrites == std::vector<uint32_t>{0xB09});
+        CHECK(cFacts.Virtuals.empty());
+    }
+}
+
+SCENARIO("A getter of where a reference is: a question", "[reach][route]")
+{
+    Sinks sinks = cSinks;
+    sinks.SelfFields[0x54] = {{Call::kQuestion}};
+    THEN("ObjectReference.GetPositionX reads its self's position, calling nothing")
+    {
+        FakeCode code;
+        code.Add(Native(0x140A2E000, "f3410f104054c3")); // movss xmm0, [r8+54h]; ret
+        const Facts cFacts = Read(0x140A2E000, kGame, false, code, cObjects);
+        CHECK(cFacts.SelfReads == std::vector<uint32_t>{0x54});
+        CHECK(ClassifyCall(cFacts, sinks).Kind == Call::kQuestion);
+    }
+    THEN("a native that also calls something is no getter (a move reading where it is)")
+    CHECK(ClassifyCall({.Callees = {kElsewhere}, .SelfReads = {0x54}}, sinks).Kind == Call::kNone);
+}
+
+SCENARIO("A player's progression, read from the engine functions a native ends in", "[reach][dragonborn]")
+{
+    constexpr uintptr_t cAddPerk = 0x140748F20;       // PlayerCharacter::AddPerk, the player's vtable at 0x7D8
+    constexpr uintptr_t cModActorValue = 0x1406B2770; // ActorValueOwner::ModActorValue
+    constexpr uintptr_t cAddSpell = 0x1406C12A0;
+    constexpr Reach cReward{Call::kProgress, {.AnyScript = true}};
+    constexpr Reach cStoryOnCopy{Call::kProgress, {.OnCopy = true}};
+    Sinks sinks = cSinks;
+    sinks.Functions[cAddPerk] = {cReward};
+    sinks.Functions[cModActorValue] = {cReward, 0};
+    sinks.Functions[cAddSpell] = {cStoryOnCopy};
+    sinks.PlayerFields[0xB09] = {cReward};
+    // The player's vtables: +0 slot 0x7D8 is AddPerk, +0xB8 slot 0x30 ModActorValue.
+    const auto cResolve = [&](const VirtualCall& acCall) -> std::optional<uintptr_t> {
+        if (acCall.Offset == 0 && acCall.Slot == 0x7D8)
+            return cAddPerk;
+        if (acCall.Offset == 0xB8 && acCall.Slot == 0x30)
+            return cModActorValue;
+        return std::nullopt;
+    };
+    const auto cOf = [&](const Facts& acFacts) { return ClassifyCall(acFacts, sinks, cResolve); };
+
+    THEN("a virtual call resolved to a reward")
+    CHECK(cOf({.Virtuals = {{false, 0, 0x7D8, std::nullopt}}}) == cReward);
+    THEN("a direct call: the story's, kept on a copy") CHECK(cOf({.Callees = {cAddSpell}}) == cStoryOnCopy);
+    THEN("a write of the player's field") CHECK(cOf({.PlayerWrites = {0xB09}}) == cReward);
+    THEN("the permanent modifier only: damage (2) or an unknown modifier is none")
+    {
+        CHECK(cOf({.Virtuals = {{false, 0xB8, 0x30, 0}}}) == cReward);
+        CHECK(cOf({.Virtuals = {{false, 0xB8, 0x30, 2}}}).Kind == Call::kNone);
+        CHECK(cOf({.Virtuals = {{false, 0xB8, 0x30, std::nullopt}}}).Kind == Call::kNone);
+        CHECK(cOf({.Callees = {cModActorValue}}).Kind == Call::kNone);
+    }
+    THEN("a call no vtable resolves is none") CHECK(cOf({.Virtuals = {{false, 0, 0x10, std::nullopt}}}).Kind == Call::kNone);
+    THEN("progression comes before the world") CHECK(cOf({.Callees = {kSetStage, cAddSpell}}) == cStoryOnCopy);
 }
 
 SCENARIO("Reaching this game's player through calls", "[reach]")

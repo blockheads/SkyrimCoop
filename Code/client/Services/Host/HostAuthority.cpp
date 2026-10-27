@@ -153,9 +153,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
     Relay<EffectFlashRequest, NotifyEffectFlash>(FromOwner, &EffectFlashRequest::SessionId);
-    // A script's call on the controls or the screen (fades, camera, shakes, music, cutscenes.md), or on a player's
-    // progression (dragonborn.md): every other game runs it too.
-    On(*this, &HostAuthority::OnPartyNative);
+    // A script's call one game sends to others (party-calls.md): HostPlayerNatives.
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     Relay<ActivateRequest, NotifyActivate>(FromAnyone);
@@ -284,17 +282,6 @@ void HostAuthority::OnFactionsChanges(const RequestFactionsChanges& acRequest, C
             notify.Changes[cSessionId] = cFactions;
     if (!notify.Changes.empty())
         m_players.SendToOthers(notify, aSender, Net::kReliable);
-}
-
-void HostAuthority::OnPartyNative(const PartyNativeRequest& acRequest, ConnectionId_t aSender) const noexcept
-{
-    const auto* cpPlayer = m_players.Find(aSender);
-    if (!cpPlayer)
-        return;
-    NotifyPartyNative notify;
-    static_cast<Payloads::PartyNative&>(notify) = acRequest;
-    notify.Source = cpPlayer->Id;
-    Deliver(notify, Delivery::FromAnyone, 0, aSender);
 }
 
 void HostAuthority::OnChatMessage(const SendChatMessageRequest& acRequest, ConnectionId_t aSender) const noexcept

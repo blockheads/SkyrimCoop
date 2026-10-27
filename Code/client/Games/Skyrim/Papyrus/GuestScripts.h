@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
 // On the host, every guest's character is the player in scripts, and Game.GetPlayer() is the guest whose
 // action started the script (docs/design/party-model.md, "A guest's actions on the host"). On a guest, the
@@ -19,6 +20,8 @@ bool InNative() noexcept;
 uint64_t NativeScript() noexcept;
 // On the host, whether aFormId is a guest's character (the copy its scripts treat as the player).
 bool IsGuestCharacter(uint32_t aFormId) noexcept;
+// On the host, every guest's character. Script threads only.
+[[nodiscard]] std::vector<uint32_t> GuestCharacters() noexcept;
 
 // While it lives, the calls this thread queues on scripts run for aPlayer (an event sent on their behalf).
 class ScopedCause

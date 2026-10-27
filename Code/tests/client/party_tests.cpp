@@ -2,9 +2,9 @@
 // docs/design/dragonborn.md).
 #include <catch2/catch.hpp>
 
-#include <Papyrus/PartyRules.h>
+#include "Routes.h"
 
-using namespace PartyRules;
+using namespace Routes;
 
 namespace
 {
@@ -57,33 +57,33 @@ SCENARIO("What a reference shows is every game's, whoever's action ran it", "[pa
 {
     THEN("a player's moment's show (the killer's dragon dissolving) is the party's")
     {
-        CHECK(ShareOf(Kind::kShow, kGuest, false, 0) == Share::kParty);
-        CHECK(ShareOf(Kind::kShow, kThisPlayer, false, 0) == Share::kParty);
-        CHECK(ShareOf(Kind::kShow, 0, false, 0) == Share::kParty);
+        CHECK(ShareOf(Call::kShow, kGuest, false, 0) == Share::kParty);
+        CHECK(ShareOf(Call::kShow, kThisPlayer, false, 0) == Share::kParty);
+        CHECK(ShareOf(Call::kShow, 0, false, 0) == Share::kParty);
     }
-    THEN("another game's, mirrored here, runs here only") CHECK(ShareOf(Kind::kShow, kHostsGame, false, 0) == Share::kHere);
+    THEN("another game's, mirrored here, runs here only") CHECK(ShareOf(Call::kShow, kHostsGame, false, 0) == Share::kHere);
 }
 
 SCENARIO("A controls call is shared only if it takes movement", "[party]")
 {
     WHEN("a world script takes the movement")
-    THEN("the party's") CHECK(ShareOf(Kind::kControls, 0, false, kCutscene) == Share::kParty);
+    THEN("the party's") CHECK(ShareOf(Call::kControls, 0, false, kCutscene) == Share::kParty);
 
     WHEN("it takes fighting only (a restriction)")
-    THEN("this game's alone") CHECK(ShareOf(Kind::kControls, 0, false, kFighting) == Share::kHere);
+    THEN("this game's alone") CHECK(ShareOf(Call::kControls, 0, false, kFighting) == Share::kHere);
 
     WHEN("it takes sneaking and menus")
-    THEN("this game's alone") CHECK(ShareOf(Kind::kControls, 0, false, kSneaking | kMainFour) == Share::kHere);
+    THEN("this game's alone") CHECK(ShareOf(Call::kControls, 0, false, kSneaking | kMainFour) == Share::kHere);
 
     WHEN("a screen call (a fade) asks for no controls")
-    THEN("still the party's") CHECK(ShareOf(Kind::kScreen, 0, false, 0) == Share::kParty);
+    THEN("still the party's") CHECK(ShareOf(Call::kScreen, 0, false, 0) == Share::kParty);
 
     WHEN("a player's own moment takes the movement")
-    THEN("still theirs") CHECK(ShareOf(Kind::kControls, kThisPlayer, false, kMovement) == Share::kPlayer);
+    THEN("still theirs") CHECK(ShareOf(Call::kControls, kThisPlayer, false, kMovement) == Share::kPlayer);
 
     WHEN("a restriction is a player's own")
     THEN("theirs, not a restriction of this game")
-    CHECK(ShareOf(Kind::kControls, kGuest, false, kFighting) == Share::kPlayer);
+    CHECK(ShareOf(Call::kControls, kGuest, false, kFighting) == Share::kPlayer);
 }
 
 SCENARIO("Overlapping cutscenes each keep their controls", "[party]")
@@ -256,39 +256,34 @@ SCENARIO("Holds: partial give-backs, several leavers, taking again", "[party]")
 
 SCENARIO("The party is the Dragonborn: which calls on a player's progression every player takes", "[party][dragonborn]")
 {
-    const auto cRoute = [](std::string_view aClass, std::string_view aFunction, Target aTarget, uint32_t aCause, bool aStory = false,
-                           bool aBody = false, bool aHosting = true) {
-        const auto cProgress = ProgressOf(aClass, aFunction);
-        REQUIRE(cProgress);
-        return RouteOf(*cProgress, aTarget, aCause, aStory, aBody, aHosting);
-    };
-    GIVEN("a word of power taught or unlocked by a script")
+    GIVEN("a word of power taught or unlocked by a script (a reward)")
     {
         THEN("it is the party's, whoever's action ran it (a guest's word wall, Paarthurnax)")
         {
-            CHECK(cRoute("Game", "TeachWord", Target::kThisPlayer, 0).Relay);
-            CHECK(cRoute("Game", "teachword", Target::kThisPlayer, kGuest).Relay);
-            CHECK(cRoute("Game", "UnlockWord", Target::kThisPlayer, kThisPlayer).Relay);
+            CHECK(Relays(ProgressRoute(kReward, Target::kThisPlayer, 0)));
+            CHECK(Relays(ProgressRoute(kReward, Target::kThisPlayer, kGuest)));
+            CHECK(Relays(ProgressRoute(kReward, Target::kThisPlayer, kThisPlayer)));
         }
         THEN("the host's own player takes it there as the original: nothing more runs here")
         {
-            const Route cRun = cRoute("Game", "TeachWord", Target::kThisPlayer, kGuest);
+            const Routing cRun = ProgressRoute(kReward, Target::kThisPlayer, kGuest);
             CHECK(cRun.Original);
             CHECK(!cRun.ThisPlayer);
+            CHECK(cRun.MarkFor == kThisPlayer);
         }
         THEN("another game's, run here, is not sent again; a guest's game's own scripts are not the story")
         {
-            CHECK(!cRoute("Game", "TeachWord", Target::kThisPlayer, kHostsGame).Relay);
-            CHECK(!cRoute("Game", "UnlockWord", Target::kThisPlayer, kGuestsGame).Relay);
-            CHECK(!cRoute("Game", "TeachWord", Target::kThisPlayer, 0, false, false, false).Relay);
+            CHECK(!Relays(ProgressRoute(kReward, Target::kThisPlayer, kHostsGame)));
+            CHECK(!Relays(ProgressRoute(kReward, Target::kThisPlayer, kGuestsGame)));
+            CHECK(!Relays(ProgressRoute(kReward, Target::kThisPlayer, 0, false, false, false)));
         }
     }
     GIVEN("a dragon's soul absorbed into a guest's character (MQKillDragonScript: AbsorbActor.ModActorValue)")
     {
-        const Route cRun = cRoute("Actor", "ModActorValue", Target::kGuestCharacter, kGuest, true);
+        const Routing cRun = ProgressRoute(kReward, Target::kGuestCharacter, kGuest, true);
         THEN("every game's own player gains it; the character itself not: its owner's game supplies its values")
         {
-            CHECK(cRun.Relay);
+            CHECK(Relays(cRun));
             CHECK(cRun.ThisPlayer);
             CHECK(!cRun.Original);
         }
@@ -297,33 +292,22 @@ SCENARIO("The party is the Dragonborn: which calls on a player's progression eve
     {
         THEN("the story's is the party's: no player behind it, or a stage a player's action set")
         {
-            CHECK(cRoute("Actor", "SetFactionRank", Target::kThisPlayer, 0).Relay);
-            CHECK(cRoute("Actor", "AddSpell", Target::kGuestCharacter, kGuest, true).Relay);
+            CHECK(Relays(ProgressRoute(kStoryOnCopy, Target::kThisPlayer, 0)));
+            CHECK(Relays(ProgressRoute(kStoryOnCopy, Target::kGuestCharacter, kGuest, true)));
         }
         THEN("on a guest's character the original runs too: the host's conditions read it there")
         {
-            const Route cRun = cRoute("Actor", "AddToFaction", Target::kGuestCharacter, kGuest, true);
+            const Routing cRun = ProgressRoute(kStoryOnCopy, Target::kGuestCharacter, kGuest, true);
             CHECK(cRun.Original);
             CHECK(cRun.ThisPlayer);
         }
         THEN("a player's own moment stays theirs: its own action (a lever), or a body's script (its beast form's quest)")
         {
-            CHECK(!cRoute("Actor", "AddToFaction", Target::kGuestCharacter, kGuest).Relay);
-            CHECK(!cRoute("Actor", "SetFactionRank", Target::kThisPlayer, kThisPlayer, true, true).Relay);
-            CHECK(!cRoute("Actor", "RemoveSpell", Target::kThisPlayer, 0, false, true).Relay);
+            CHECK(!Relays(ProgressRoute(kStoryOnCopy, Target::kGuestCharacter, kGuest)));
+            CHECK(!Relays(ProgressRoute(kStoryOnCopy, Target::kThisPlayer, kThisPlayer, true, true)));
+            CHECK(!Relays(ProgressRoute(kStoryOnCopy, Target::kThisPlayer, 0, false, true)));
         }
-        THEN("on an NPC it is no player's") CHECK(!cRoute("Actor", "AddToFaction", Target::kNone, 0).Relay);
-    }
-    GIVEN("what is not progression")
-    {
-        THEN("a body's values, items and reads are no party call")
-        {
-            CHECK(!ProgressOf("Actor", "DamageActorValue"));
-            CHECK(!ProgressOf("Actor", "ForceActorValue"));
-            CHECK(!ProgressOf("ObjectReference", "AddItem"));
-            CHECK(!ProgressOf("Actor", "GetFactionRank"));
-            CHECK(!ProgressOf("Game", "ShowTrainingMenu"));
-        }
+        THEN("on an NPC it is no player's") CHECK(!Relays(ProgressRoute(kStoryOnCopy, Target::kNone, 0)));
     }
     GIVEN("the call a guest's character took, as the host's player takes it")
     {
@@ -350,5 +334,162 @@ SCENARIO("In the story's party call, the player is each game's own", "[party][dr
         LocalCall shake{.Class = "Game", .Function = "ShakeCamera", .Arguments = {LocalForm{kThisPlayer}, 0.5f, 2.f}};
         MarkEachPlayer(shake, 0);
         THEN("marked") CHECK(std::get<LocalForm>(shake.Arguments[0]).EachPlayer);
+    }
+}
+
+// docs/design/party-calls.md: one decision for every native's call.
+SCENARIO("Where a native's call runs", "[party][route]")
+{
+    GIVEN("a guest's own script changing the world (a quest's stage)")
+    {
+        const CallFacts cFacts{.Reach = {Call::kWorld}, .Cause = kThisPlayer, .Guest = true};
+        THEN("the host's game makes it, not this one") CHECK(RouteOf(cFacts) == Routing{.To = Destination::kHost, .Original = false});
+        THEN("a quest of its own keeps its stages here")
+        {
+            CallFacts own = cFacts;
+            own.OwnQuest = true;
+            CHECK(RouteOf(own) == Routing{});
+        }
+        THEN("on the host it is made here") CHECK(RouteOf({.Reach = {Call::kWorld}, .Hosting = true}) == Routing{});
+    }
+    GIVEN("a native on the player in a script a guest's action ran on the host")
+    {
+        const CallFacts cFacts{.PlayerNative = true, .Cause = kGuest, .GuestCause = true, .Hosting = true};
+        THEN("that guest's game runs it, on its own player")
+        CHECK(RouteOf(cFacts) == Routing{.To = Destination::kCauseGame, .Original = false});
+        THEN("a native not on the player runs here")
+        {
+            CallFacts other = cFacts;
+            other.PlayerNative = false;
+            CHECK(RouteOf(other) == Routing{});
+        }
+        THEN("a screen call of its own moment goes to it too, a method's too (its lever's Message.Show, answered there)")
+        {
+            CallFacts box = cFacts;
+            box.Reach = {Call::kScreen};
+            box.PlayerNative = false;
+            CHECK(RouteOf(box) == Routing{.To = Destination::kCauseGame, .Original = false});
+        }
+        THEN("an item change in its stack runs here: the copy carries its items (party-model.md, Items)")
+        {
+            CallFacts equip = cFacts;
+            equip.Reach = {Call::kItem};
+            equip.PlayerNative = false;
+            CHECK(RouteOf(equip) == Routing{});
+        }
+    }
+    GIVEN("the screen, the controls or a show")
+    {
+        THEN("the story's runs on every game, its player each game's own")
+        {
+            CHECK(RouteOf({.Reach = {Call::kScreen}, .Hosting = true}) ==
+                  Routing{.To = Destination::kEveryGame, .Mark = true, .MarkFor = 0});
+            CHECK(RouteOf({.Reach = {Call::kControls}, .Cause = kGuest, .Story = true}).To == Destination::kEveryGame);
+        }
+        THEN("a player's own moment stays here") CHECK(RouteOf({.Reach = {Call::kScreen}, .Cause = kThisPlayer}) == Routing{});
+        THEN("a show is every game's whoever's action ran it, its player not marked")
+        CHECK(RouteOf({.Reach = {Call::kShow}, .Cause = kThisPlayer}) == Routing{.To = Destination::kEveryGame, .MarkFor = kThisPlayer});
+    }
+    THEN("another game's call, run here, runs here only")
+    {
+        CHECK(RouteOf({.Reach = {Call::kShow}, .Cause = kHostsGame}) == Routing{});
+        CHECK(RouteOf({.Reach = {Call::kWorld}, .Cause = kHostsGame, .Guest = true}) == Routing{});
+        CHECK(RouteOf({.PlayerNative = true, .Cause = kGuestsGame, .GuestCause = true}) == Routing{});
+    }
+    THEN("a native nothing reaches runs here") CHECK(RouteOf({.Cause = kGuest, .Hosting = true}) == Routing{});
+}
+
+// docs/design/party-calls.md, "A box's answer": a story's message box on the guest closes with the host's answer.
+SCENARIO("Another game's latent call here ends with its original's result", "[party][messages]")
+{
+    LatentCopies copies;
+    constexpr uint32_t cHost = 0;
+    constexpr uint32_t cOther = 2;
+    const LocalValue cYes = int32_t{1};
+    GIVEN("two of the host's boxes, sent and started in order")
+    {
+        copies.Sent(cHost, 101);
+        copies.Sent(cHost, 102);
+        CHECK(!copies.Started(cHost, 7));
+        CHECK(!copies.Started(cHost, 8));
+        THEN("each original's end finds its own copy, once, in any order")
+        {
+            CHECK(copies.Ended(cHost, 102, cYes) == 8u);
+            CHECK(copies.Ended(cHost, 101, cYes) == 7u);
+            CHECK(!copies.Ended(cHost, 101, cYes));
+        }
+        THEN("a copy its player answered here first is forgotten")
+        {
+            copies.Returned(7);
+            CHECK(!copies.Ended(cHost, 101, cYes));
+            CHECK(copies.Ended(cHost, 102, cYes) == 8u);
+        }
+        THEN("another game's keys are its own")
+        {
+            CHECK(!copies.Ended(cOther, 101, cYes));
+            copies.Left(cHost);
+            CHECK(!copies.Ended(cHost, 102, cYes));
+        }
+    }
+    GIVEN("an original that ended before its copy started here")
+    {
+        copies.Sent(cHost, 101);
+        copies.Sent(cHost, 102);
+        CHECK(!copies.Ended(cHost, 101, cYes));
+        THEN("its copy ends with the result as it starts; the next copy is the next call's")
+        {
+            CHECK(copies.Started(cHost, 9) == cYes);
+            CHECK(!copies.Started(cHost, 10));
+            CHECK(copies.Ended(cHost, 102, cYes) == 10u);
+        }
+    }
+}
+
+// party-model.md rule 3; party-calls.md, "Questions".
+SCENARIO("A question about the player with no player's action is asked of the party", "[party][route]")
+{
+    const CallFacts cTimer{.Reach = {Call::kQuestion}, .Hosting = true, .PlayerInCall = true};
+    THEN("a quest's timer asks the party") CHECK(RouteOf(cTimer) == Routing{.Ask = true});
+    THEN("a player's own action asks about that player (rule 2), the story too")
+    {
+        CallFacts own = cTimer;
+        own.Cause = kGuest;
+        CHECK(RouteOf(own) == Routing{});
+        own.Story = true;
+        CHECK(RouteOf(own) == Routing{});
+    }
+    THEN("not about the player, or not the host's script, or another game's: as it is")
+    {
+        CallFacts npc = cTimer;
+        npc.PlayerInCall = false;
+        CHECK(RouteOf(npc) == Routing{});
+        CallFacts guest = cTimer;
+        guest.Hosting = false;
+        CHECK(RouteOf(guest) == Routing{});
+        CallFacts mirrored = cTimer;
+        mirrored.Cause = kHostsGame;
+        CHECK(RouteOf(mirrored) == Routing{});
+    }
+}
+
+SCENARIO("Which player a question asks about", "[party][route]")
+{
+    THEN("the nearest to the reference it measures from")
+    CHECK(AskedPlayer({{kThisPlayer, 900.f}, {kGuest, 120.f}, {0xFF000802, std::nullopt}}) == kGuest);
+    THEN("with no reference, one in the location the script names")
+    CHECK(AskedPlayer({{kThisPlayer, std::nullopt, false}, {kGuest, std::nullopt, true}}) == kGuest);
+    THEN("a reference counts over a place") CHECK(AskedPlayer({{kThisPlayer, 50.f, false}, {kGuest, std::nullopt, true}}) == kThisPlayer);
+    THEN("nothing named: this game's player") CHECK(!AskedPlayer({{kThisPlayer}, {kGuest}}));
+}
+
+SCENARIO("Whom a question asked of the party is put to", "[party][route]")
+{
+    const std::vector<uint32_t> cGuests{kGuest, 0xFF000802};
+    THEN("a yes/no question: every player, this game's first, until one says yes")
+    CHECK(PlayersToAsk(true, std::nullopt, cGuests) == std::vector<uint32_t>{kThisPlayer, kGuest, 0xFF000802});
+    THEN("any other: the one picked, else this game's player")
+    {
+        CHECK(PlayersToAsk(false, kGuest, cGuests) == std::vector<uint32_t>{kGuest});
+        CHECK(PlayersToAsk(false, std::nullopt, cGuests) == std::vector<uint32_t>{kThisPlayer});
     }
 }

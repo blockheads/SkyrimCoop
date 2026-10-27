@@ -6,7 +6,6 @@
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/Relayed.h>
-#include <Events/WorldCallEvent.h>
 #include <Papyrus/PlayerNatives.h>
 #include <Services/Guest/GuestClock.h>
 #include <Services/Guest/GuestHands.h>
@@ -55,8 +54,7 @@ GuestService::GuestService(World& aWorld, entt::dispatcher& aDispatcher) noexcep
     Listen<ConnectedEvent, &GuestService::OnConnected>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &GuestService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &GuestService::OnUpdate>(m_connections, aDispatcher, this);
-    Listen<NotifyPlayerNative, &GuestService::OnPlayerNative>(m_connections, aDispatcher, this);
-    Listen<WorldCallEvent, &GuestService::OnWorldCall>(m_connections, aDispatcher, this);
+    Listen<NotifyRoutedCall, &GuestService::OnPlayerNative>(m_connections, aDispatcher, this);
 }
 
 GuestService::~GuestService() noexcept = default;
@@ -76,9 +74,9 @@ void GuestService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_pGuest.reset();
 }
 
-void GuestService::OnPlayerNative(const NotifyPlayerNative& acMessage) noexcept
+void GuestService::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
 {
-    if (!m_pGuest)
+    if (!m_pGuest || acMessage.To != CallTo::kOwner)
         return;
     spdlog::info("GuestService: the host's script runs {}.{} for this game's player", acMessage.Call.Class, acMessage.Call.Function);
     // One returning a value: the host's script waits for it.
@@ -93,15 +91,6 @@ void GuestService::OnPlayerNative(const NotifyPlayerNative& acMessage) noexcept
     spdlog::warn("GuestService: {}.{} did not run", acMessage.Call.Class, acMessage.Call.Function);
     if (cReplyId)
         SendNativeResult(cReplyId, {});
-}
-
-void GuestService::OnWorldCall(const WorldCallEvent& acEvent) noexcept
-{
-    if (!m_pGuest)
-        return;
-    WorldCallRequest request;
-    request.Call = Utils::ToScriptCall(acEvent.Call);
-    m_world.GetTransport().Send(request);
 }
 
 void GuestService::SendNativeResult(uint32_t aReplyId, const LocalValue& acResult) noexcept

@@ -1,11 +1,12 @@
 #pragma once
 
-#include <Events/PartyNativeEvent.h>
+#include <Events/RoutedCallEvent.h>
 #include <Misc/BSScript.h>
 #include <Papyrus/PartyNatives.h>
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 namespace PartyNatives
 {
@@ -16,28 +17,36 @@ struct ControlsCall
     uint32_t Asked = 0;
 };
 
-// Around a native's call in a stack run for aPlayer (GuestScripts' cause: a guest, this game's player 0x14, a mirrored
-// tag, 0 for none) and maybe the story: a party call runs here, and after it goes to the other games
-// (PartyNativeEvent). A controls call is held for its game's cutscene: giving back gives back only what no other
-// game's cutscene still holds here. A progression call on a guest's character runs on this game's player too, and
-// the original is skipped when the character's owner supplies what it changes (PartyRules::RouteOf).
+// Around a native's call in a stack run for aCause (GuestScripts' cause: a guest, this game's player 0x14, a mirrored
+// tag, 0 for none) and maybe the story: where it runs (PartyRules::RouteOf, docs/design/party-calls.md). On the host's
+// game, a guest's world change; on the game of the guest whose action ran it, a native on the player; or here and on
+// every other game (RoutedCallEvent), after it ran. A controls call is held for its game's cutscene: giving back gives
+// back only what no other game's cutscene still holds here.
 class Scope
 {
   public:
-    Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, uint32_t aPlayer, bool aStory) noexcept;
+    Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript::IVirtualMachine* apVm, uint32_t aCause,
+          bool aStory) noexcept;
     ~Scope() noexcept;
 
     Scope(const Scope&) = delete;
     Scope& operator=(const Scope&) = delete;
 
-    [[nodiscard]] bool IsParty() const noexcept
+    // The native ran here with aResult in aStack: a latent party call's original keys its copies by its stack (the
+    // host's box), and another game's latent call here starts waiting for its original's result.
+    void Ran(BSScript::CallResult aResult, uint32_t aStackId) noexcept;
+
+    // A question with no player's action is put to these players, in order (rule 3; PartyRules::PlayersToAsk): a
+    // yes/no one until one says yes. Empty: asked as called.
+    [[nodiscard]] const std::vector<uint32_t>& Asks() const noexcept
     {
-        return m_event.has_value();
+        return m_asks;
     }
-    // The native must not run here: its call runs on this game's player instead.
-    [[nodiscard]] bool SkipsOriginal() const noexcept
+
+    // The native does not run here: it went to another game, or runs on this game's player instead.
+    [[nodiscard]] std::optional<BSScript::CallResult> Result() const noexcept
     {
-        return m_skip;
+        return m_result;
     }
 
   private:
@@ -45,10 +54,12 @@ class Scope
     bool m_story = false;
     std::optional<ControlsCall> m_controls;
     ControlsCall* m_pOuter = nullptr;
-    std::optional<PartyNativeEvent> m_event;
+    std::optional<RoutedCallEvent> m_event;
     std::optional<LocalCall> m_onThisPlayer;
-    bool m_skip = false;
+    std::optional<BSScript::CallResult> m_result;
+    bool m_progressed = false; // another game's progression call runs here: this player's record changes
+    std::vector<uint32_t> m_asks;
 
-    void Progress(BSScript::IFunction* apFunction, BSScript::Stack& aStack, const PartyRules::Progress& acProgress) noexcept;
+    [[nodiscard]] PartyRules::CallFacts FactsOf(BSScript::IFunction* apFunction, const BSScript::Stack& acStack) const noexcept;
 };
 } // namespace PartyNatives

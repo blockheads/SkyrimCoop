@@ -45,11 +45,10 @@
     X(ContainerChangeRequest)       \
     X(CellStateRequest)             \
     X(DialogueStartFailedRequest)   \
-    X(PlayerNativeRequest)          \
+    X(RoutedCallRequest)            \
+    X(CallEndedRequest)             \
     X(PlayerNativeResultRequest)    \
     X(EffectFlashRequest)           \
-    X(PartyNativeRequest)           \
-    X(WorldCallRequest)             \
     X(DismountRequest)              \
     X(PlayerRecordRequest)          \
     X(BodyPushRequest)              \
@@ -112,11 +111,10 @@
     X(NotifyQuests)                \
     X(NotifyObjectChanges)         \
     X(NotifyDialogueRefused)       \
-    X(NotifyPlayerNative)          \
+    X(NotifyRoutedCall)            \
+    X(NotifyCallEnded)             \
     X(NotifyPlayerNativeResult)    \
     X(NotifyEffectFlash)           \
-    X(NotifyPartyNative)           \
-    X(NotifyWorldCall)             \
     X(NotifyDismount)              \
     X(NotifySaveChunk)             \
     X(NotifyPlayerPerished)        \

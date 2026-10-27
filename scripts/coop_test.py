@@ -6883,12 +6883,104 @@ def scenario_screen_reaches_party():
         script_call("", "ImageSpaceModifier", "Remove", [], on=FADE_TO_BLACK_IMOD)
 
 
+def hud_messages(instance):
+    """The HUD's latest notifications on that game, the newest last (the harness's hud_messages)."""
+    return player_command(instance, {"cmd": "hud_messages"}).get("messages") or []
+
+
+def scenario_story_message_reaches_party():
+    """The host's messages go to everyone (party-model.md rule 5, party-calls.md): a quest's notification (no player's
+    action behind it) shows on every game. The client's own action's notification stays on the client: a quest's
+    notification on the client after it reaches the host, and the client's own never did."""
+    stamp = int(time.time())
+    story, own, after = f"The ground shakes {stamp}", f"You feel lighter {stamp}", f"A cold wind {stamp}"
+    script_call("", "Debug", "Notification", [story])
+    for name in ("", "client"):
+        wait_for(f"[{name or 'host'}] shows the host's quest notification", lambda name=name: story in hud_messages(name), 5)
+    player_script_call("client", "Debug", "Notification", [own])
+    wait_for("[client] shows its own action's notification", lambda: own in hud_messages("client"), 5)
+    script_call("client", "Debug", "Notification", [after])
+    wait_for("[host] shows the client's quest notification", lambda: after in hud_messages(""), 5)
+    if own in hud_messages(""):
+        raise TestFailure("[host] showed the client's own action's notification")
+
+
+# A standing stone's box (doomWarriorMSG, Skyrim.esm MESG): "Accept Sign" / "Cancel".
+STONE_MESSAGE, STONE_CANCEL = 0x16869, 1
+
+
+def box_button(instance, index):
+    """The open message box's button `index`, in window pixels: the movie centres the box on its stage (the test games'
+    1280x720 window) and places each button by its centre (MessageBox.as, reference/plugins/skyrimui)."""
+    def at(path):
+        value = menu_var(instance, "MessageBoxMenu", f"_root.MessageMenu.{path}")
+        if value is None:
+            raise TestFailure(f"[{instance or 'host'}] the message box has no {path}")
+        return value
+    return (round(at("_x") + at("Buttons._x") + at(f"Buttons.Button{index}._x")),
+            round(at("_y") + at("Buttons._y") + at(f"Buttons.Button{index}._y")))
+
+
+def presses_box_button(instance, index):
+    """The player points at the box's button and clicks it (vanilla boxes take the mouse)."""
+    button = box_button(instance, index)
+    move_cursor(instance, (button[0], button[1] + 40))
+    move_cursor(instance, button)
+    click(instance)
+
+
+def scenario_story_box_host_answers():
+    """A quest's message box with buttons (Message.Show, no player's action behind it) shows on every game; the host's
+    player answers it (Cancel), and the client's copy closes with the host's answer (party-calls.md, "A box's answer";
+    the user's choice, 2026-10-27: the host answers, the others see it)."""
+    try:
+        script_call("", "Message", "Show", [0.0] * 9, on=STONE_MESSAGE)
+        for name in ("", "client"):
+            wait_for(f"[{name or 'host'}] shows the quest's box", lambda name=name: "MessageBoxMenu" in menus(name), 5)
+        presses_box_button("", STONE_CANCEL)
+        wait_for("[host] its player's answer closes its box", lambda: "MessageBoxMenu" not in menus(""), 5)
+        wait_for("[client] the host's answer closes its copy", lambda: "MessageBoxMenu" not in menus("client"), 5)
+    finally:
+        for name in ("", "client"):
+            if "MessageBoxMenu" in menus(name):
+                presses_box_button(name, STONE_CANCEL)
+
+
+def script_answer(instance, klass, function, args=(), on=None, player_action=False):
+    """That game's script call, as a quest's (or its player's action's), and what it returned."""
+    request = {"cmd": "papyrus_call", "class": klass, "function": function, "args": list(args), "player_action": player_action}
+    if on is not None:
+        request["self"] = on
+    call = player_command(instance, request)["id"]
+    return wait_for(f"[{instance or 'host'}] {klass}.{function} returns",
+                    lambda: (r := player_command(instance, {"cmd": "papyrus_result", "id": call})).get("done") and [r["value"]], 5)[0]
+
+
+def scenario_timer_asks_party_position():
+    """Where the player is, asked with no player's action behind it (a quest's timer), is asked of the party (party-model.md
+    rule 3, party-calls.md "Questions"): Lydia stands with the client close and the host across the room; a quest asking
+    her distance to the player gets the client's, the nearer; the host's own action asking it gets the host's."""
+    npc, _, copy = spawn_host_npc(LYDIA, restrained=True)
+    place_before("client", copy, 150)
+    place_before("", npc, 900)
+    wait_for("[host] the client's character stands by Lydia", lambda: distance(host_world(client_on_host())["placement"]["position"], host_npc_state(npc)["position"]) < 250, 5)
+    # The player as the call's object, not an argument: a call naming this game's player that no script queued is
+    # that player's own event (GuestScripts' cause), as a quest's timer asking from its own stack is not.
+    asked = script_answer("", "ObjectReference", "GetDistance", [{"form": npc}], on=0x14)
+    if not asked < 250:
+        raise TestFailure(f"[host] a quest's question measured {asked:.0f} units: not the nearer client's")
+    own = script_answer("", "ObjectReference", "GetDistance", [{"form": npc}], on=0x14, player_action=True)
+    if not own > 600:
+        raise TestFailure(f"[host] the host's own action's question measured {own:.0f} units: not the host's own")
+
+
 def scenario_relief_takes_client_relics():
     """The client, carrying Volunruud's ceremonial axe, puts it in the relief. On the host the door's script holds the
     host's player (stored when its cell loaded) and asks that variable for the relics: in a stack run for the client,
     the native sees the client's character in its place (party-model.md, rule 2: a stored player), so the axe is
-    taken from the client and the relief shows it on both games, though the host's player holds none; the host's box
-    says the sword is still missing (the host's until messages go to everyone). The quest is set to stage 10 first
+    taken from the client and the relief shows it on both games, though the host's player holds none; the box saying
+    the sword is still missing is the client's (its action's Message.Show runs on its game, party-calls.md), the host
+    shows none. The quest is set to stage 10 first
     (a first activation sets it, with a box) and stays there: stages only go forward. The relief is emptied after."""
     try:
         both_go(VOLUNRUUD_CELL)
@@ -6911,13 +7003,16 @@ def scenario_relief_takes_client_relics():
         wait_for("[client] the player gave up the axe", lambda: item_count("client", 0x14, VOLUNRUUD_AXE) == 0, 10)
         for name in ("", "client"):
             wait_for(f"[{name or 'host'}] the axe stands in the relief", lambda name=name: ref_enabled(name, VOLUNRUUD_AXE_SHOWN), 5)
-        wait_for("[host] the relief says the sword is still missing", lambda: "MessageBoxMenu" in menus(""), 5)
-        close_message_box("")
+        wait_for("[client] the relief says the sword is still missing", lambda: "MessageBoxMenu" in menus("client"), 5)
+        if "MessageBoxMenu" in menus(""):
+            raise TestFailure("[host] shows the client's box: its action's message is the client's")
+        close_message_box("client")
         if item_count("", 0x14, VOLUNRUUD_AXE):
             raise TestFailure("[host] the host's player holds an axe it never had")
     finally:
-        if "MessageBoxMenu" in menus(""):
-            close_message_box("")
+        for name in ("", "client"):
+            if "MessageBoxMenu" in menus(name):
+                close_message_box(name)
         if count := item_count("client", 0x14, VOLUNRUUD_AXE):
             console_on("client", f"player.removeitem {VOLUNRUUD_AXE:08X} {count}")
         if ref_enabled("", VOLUNRUUD_AXE_SHOWN):
@@ -10113,6 +10208,9 @@ SCENARIOS = {
     "cutscene-fade-reaches-party": scenario_cutscene_fade_reaches_party,
     "guest-cutscene-reaches-host": scenario_guest_cutscene_reaches_host,
     "screen-reaches-party": scenario_screen_reaches_party,
+    "story-message-reaches-party": scenario_story_message_reaches_party,
+    "story-box-host-answers": scenario_story_box_host_answers,
+    "timer-asks-party-position": scenario_timer_asks_party_position,
     "player-moment-stays-theirs": scenario_player_moment_stays_theirs,
     "player-stage-cutscene-reaches-party": scenario_player_stage_cutscene_reaches_party,
     "guest-script-stage-reaches-host": scenario_guest_script_stage_reaches_host,
@@ -10307,6 +10405,9 @@ TAGS = {
     "cutscene-fade-reaches-party": {'scripts'},
     "guest-cutscene-reaches-host": {'scripts'},
     "screen-reaches-party": {'scripts'},
+    "story-message-reaches-party": {'scripts'},
+    "story-box-host-answers": {'scripts'},
+    "timer-asks-party-position": {'scripts'},
     "player-moment-stays-theirs": {'scripts'},
     "player-stage-cutscene-reaches-party": {'scripts', 'quests'},
     "guest-script-stage-reaches-host": {'scripts', 'quests', 'world'},

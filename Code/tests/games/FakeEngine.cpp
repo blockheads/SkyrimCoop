@@ -21,7 +21,9 @@
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LockChangeEvent.h>
 #include <Events/LooseItemEvents.h>
-#include <Events/PartyNativeEvent.h>
+#include <Events/CallEndedEvent.h>
+#include <Events/RoutedCallEvent.h>
+#include <Events/PlayerProgressEvent.h>
 #include <Games/EngineNames.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/SetWaypointEvent.h>
@@ -84,73 +86,200 @@ LocalCall EnablePlayerControls(bool aMovement, bool aFighting, bool aCamSwitch, 
                         {aMovement, aFighting, aCamSwitch, aLooking, aSneaking, aMenu, aActivate, true});
 }
 
-// PartyNatives::Scope around the native, the native (one ControlMap::ToggleControls) and HookToggleControls inside it.
+// What a native's code reaches, as NativeReach reads it from the engine's code (the fake has none: by name). Matched
+// in any case; an empty function is any of its class's.
+Reach FakeReachOf(const LocalCall& acCall)
+{
+    struct Row
+    {
+        std::string_view Class;
+        std::string_view Function;
+        Reach Is;
+    };
+    static constexpr Reach cReward{Call::kProgress, {.AnyScript = true}};
+    static constexpr Reach cStory{Call::kProgress, {}};
+    static constexpr Reach cStoryOnCopy{Call::kProgress, {.OnCopy = true}};
+    static constexpr Row cRows[] = {
+        {"Game", "TeachWord", cReward},          {"Game", "UnlockWord", cReward},     {"Game", "IncrementSkill", cReward},
+        {"Game", "IncrementSkillBy", cReward},   {"Game", "AddPerkPoints", cReward},  {"Actor", "AddPerk", cReward},
+        {"Actor", "RemovePerk", cReward},        {"Actor", "ModActorValue", cReward}, {"Actor", "ForceActorValue", cReward},
+        {"Game", "AdvanceSkill", cStory},        {"Actor", "AddSpell", cStoryOnCopy}, {"Actor", "RemoveSpell", cStoryOnCopy},
+        {"Actor", "AddToFaction", cStoryOnCopy}, {"Actor", "SetFactionRank", cStoryOnCopy},
+        {"Actor", "RemoveFromFaction", cStoryOnCopy},
+        {"VisualEffect", "", {Call::kShow}},     {"EffectShader", "", {Call::kShow}}, {"Actor", "PlaySubGraphAnimation", {Call::kShow}},
+        {"Game", "ShakeCamera", {Call::kScreen}},
+        {"Debug", "Notification", {Call::kScreen}},  {"Debug", "MessageBox", {Call::kScreen}}, {"Message", "Show", {Call::kScreen}},
+        {"Actor", "EquipItem", {Call::kItem}},     {"Actor", "UnequipItem", {Call::kItem}},
+        {"ObjectReference", "GetDistance", {Call::kQuestion}}, {"Actor", "HasLOS", {Call::kQuestion}},
+        {"Game", "DisablePlayerControls", {Call::kControls}}, {"Game", "EnablePlayerControls", {Call::kControls}},
+    };
+    for (const Row& cRow : cRows)
+        if (SameName(acCall.Class, cRow.Class) && (cRow.Function.empty() || SameName(acCall.Function, cRow.Function)))
+            return cRow.Is;
+    return {};
+}
+
+// PartyNatives::Scope around the native (PartyRules::RouteOf), the native's own effect here, and the party call after.
 void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory, bool aBody)
 {
-    // A player's progression: Scope's route, then the native's write (PartyRules::RouteOf).
-    if (const auto cProgress = ProgressOf(acCall.Class, acCall.Function))
+    const Reach cReach = FakeReachOf(acCall);
+    const auto* cpSelf = std::get_if<LocalForm>(&acCall.Self);
+    const uint32_t cSelf = cpSelf ? cpSelf->FormId : kPlayer; // a global's player is this game's
+    const auto cIsGuestCharacter = [this](uint32_t aActor) {
+        const auto cIt = Actors.find(aActor);
+        return !IsGuest && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
+    };
+    const auto cIsPlayer = [&](const LocalValue& acValue) {
+        const auto* cpForm = std::get_if<LocalForm>(&acValue);
+        return cpForm && cpForm->FormId == kPlayer;
+    };
+    const CallFacts cFacts{.Reach = cReach,
+                           .Target = cSelf == kPlayer ? Target::kThisPlayer : cIsGuestCharacter(cSelf) ? Target::kGuestCharacter : Target::kNone,
+                           .TargetId = cSelf,
+                           .Cause = aCause,
+                           .Story = aStory,
+                           .Body = aBody,
+                           .GuestCause = cIsGuestCharacter(aCause),
+                           .Hosting = !IsGuest,
+                           .Guest = IsGuest,
+                           .PlayerInCall = cIsPlayer(acCall.Self) || std::ranges::any_of(acCall.Arguments, cIsPlayer)};
+    const Routing cRouting = InSession ? RouteOf(cFacts) : Routing{};
+    if (cReach.Kind == Call::kQuestion)
     {
-        const auto* cpSelf = std::get_if<LocalForm>(&acCall.Self);
-        const uint32_t cActor = cpSelf ? cpSelf->FormId : kPlayer;
-        const auto cIt = Actors.find(cActor);
-        const bool cGuestCharacter = !IsGuest && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
-        const Target cTarget = cActor == kPlayer ? Target::kThisPlayer : cGuestCharacter ? Target::kGuestCharacter : Target::kNone;
-        const Route cRoute = InSession ? RouteOf(*cProgress, cTarget, aCause, aStory, aBody, !IsGuest) : Route{};
-        if (cRoute.Original)
-            TakeProgress(acCall, cActor);
-        if (!cRoute.Relay)
-            return;
-        LocalCall call = acCall;
-        MarkEachPlayer(call, cActor);
-        if (cRoute.ThisPlayer)
-            Queue(OnThisPlayer(call), MirroredTag(0));
-        World::Get().GetRunner().Trigger(PartyNativeEvent{std::move(call)});
+        LastAnswer = Answer(acCall, cRouting.Ask);
         return;
     }
-    // What a reference shows: an effect form's call on the actor it names, or the actor's own sub-graph animation.
-    if (acCall.Class == "VisualEffect" || acCall.Class == "EffectShader" || (acCall.Class == "Actor" && acCall.Function == "PlaySubGraphAnimation"))
-    {
-        const LocalValue* cpOn = acCall.Class == "Actor" || acCall.Arguments.empty() ? nullptr : &acCall.Arguments[0];
-        const auto* cpForm = cpOn ? std::get_if<LocalForm>(cpOn) : std::get_if<LocalForm>(&acCall.Self);
-        if (cpForm)
-            Shows[cpForm->FormId].push_back(acCall.Class + "." + acCall.Function);
-        if (InSession && ShareOf(Kind::kShow, aCause, aStory, 0) == Share::kParty)
+    uint32_t asked = 0;
+    m_openedBox = 0;
+    if (cRouting.Original)
+        asked = Perform(acCall, cReach.Kind, cSelf, aCause);
+    // A box waits for its answer (latent): another game's copy for its original's (Scope::Ran).
+    if (m_openedBox && IsMirrored(aCause))
+        if (const auto cEnded = Copies.Started(PlayerOf(aCause), m_openedBox))
+            AnswerBox(m_openedBox, std::get<int32_t>(*cEnded));
+    if (InSession && cReach.Kind == Call::kProgress && IsMirrored(aCause))
+        World::Get().GetRunner().Trigger(PlayerProgressEvent{});
+    if (cRouting.To == Destination::kCauseGame)
+        World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .Call = acCall});
+    if (cRouting.To != Destination::kEveryGame)
+        return;
+    if (cReach.Kind == Call::kControls && ShareOf(Call::kControls, aCause, aStory, asked) != Share::kParty)
+        return; // fighting, sneaking or menus only: a restriction
+    LocalCall call = acCall;
+    if (cRouting.Mark)
+        MarkEachPlayer(call, cRouting.MarkFor);
+    if (cRouting.ThisPlayer)
+        Queue(OnThisPlayer(call), MirroredTag(0));
+    if (m_openedBox)
+        LatentOriginals.insert(m_openedBox);
+    World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOthers, .ReplyId = m_openedBox, .Call = std::move(call)});
+}
+
+// ObjectReference.GetDistance between its self and its argument, Actor.HasLOS (in sight within 1000 units). A question
+// asked of the party is put to the players PartyRules::PlayersToAsk names: a distance to the nearest (Scope's asker),
+// a yes/no one to each until one says yes.
+LocalValue FakeEngine::Answer(const LocalCall& acCall, bool aAsksParty) const
+{
+    const auto cIdOf = [](const LocalValue& acValue) {
+        const auto* cpForm = std::get_if<LocalForm>(&acValue);
+        return cpForm ? cpForm->FormId : 0u;
+    };
+    uint32_t self = cIdOf(acCall.Self);
+    uint32_t other = acCall.Arguments.empty() ? 0 : cIdOf(acCall.Arguments[0]);
+    const auto cDistance = [this](uint32_t aFrom, uint32_t aTo) -> std::optional<float> {
+        const auto cFrom = Actors.find(aFrom);
+        const auto cTo = Actors.find(aTo);
+        if (cFrom == Actors.end() || cTo == Actors.end() || cFrom->second.Cell != cTo->second.Cell)
+            return std::nullopt;
+        return glm::distance(glm::vec3(cFrom->second.Position[0], cFrom->second.Position[1], cFrom->second.Position[2]),
+                             glm::vec3(cTo->second.Position[0], cTo->second.Position[1], cTo->second.Position[2]));
+    };
+    const bool cYesNo = acCall.Function == "HasLOS";
+    const auto cAnswerFor = [&](uint32_t aPlayer) -> LocalValue {
+        const uint32_t cSelf = self == kPlayer ? aPlayer : self;
+        const uint32_t cOther = other == kPlayer ? aPlayer : other;
+        const float cDistanceNow = cDistance(cSelf, cOther).value_or(1e9f);
+        return cYesNo ? LocalValue{cDistanceNow < 1000.f} : LocalValue{cDistanceNow};
+    };
+    if (!aAsksParty)
+        return cAnswerFor(kPlayer);
+    const uint32_t cAsker = self == kPlayer ? other : self;
+    std::vector<Asked> players{{kPlayer, cDistance(kPlayer, cAsker)}};
+    std::vector<uint32_t> guests;
+    for (const uint32_t cCopy : CopiesOf())
+        if (Actors.at(cCopy).Player)
         {
-            LocalCall call = acCall;
-            if (Whose(aCause, aStory) == Share::kParty)
-                MarkEachPlayer(call, aCause);
-            World::Get().GetRunner().Trigger(PartyNativeEvent{std::move(call)});
+            players.push_back({cCopy, cDistance(cCopy, cAsker)});
+            guests.push_back(cCopy);
         }
+    LocalValue answer;
+    for (const uint32_t cAsked : PlayersToAsk(cYesNo, cYesNo ? std::nullopt : AskedPlayer(players), guests))
+        if (answer = cAnswerFor(cAsked); !cYesNo || std::get<bool>(answer))
+            break;
+    return answer;
+}
+
+void FakeEngine::AnswerBox(uint32_t aStack, int32_t aButton)
+{
+    if (!Boxes.erase(aStack))
         return;
-    }
-    if (acCall.Class != "Game")
-        return;
-    if (acCall.Function == "ShakeCamera")
+    Answers[aStack] = aButton;
+    Copies.Returned(aStack);
+    if (LatentOriginals.erase(aStack))
+        World::Get().GetRunner().Trigger(CallEndedEvent{aStack, aButton});
+}
+
+// The native's own effect on this game: a progression write, what an actor shows, the shake, or the controls (one
+// ControlMap::ToggleControls, held for the stack's cutscene). The flags a controls call asked for.
+uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf, uint32_t aCause)
+{
+    switch (aKind)
     {
-        // Game.ShakeCamera(source, strength, duration): the screen's.
+    case Call::kProgress: TakeProgress(acCall, aSelf); return 0;
+    case Call::kShow:
+    {
+        // An effect form's call on the actor it names, or the actor's own sub-graph animation.
+        const LocalValue* cpOn = acCall.Class == "Actor" || acCall.Arguments.empty() ? nullptr : &acCall.Arguments[0];
+        if (const auto* cpForm = cpOn ? std::get_if<LocalForm>(cpOn) : std::get_if<LocalForm>(&acCall.Self))
+            Shows[cpForm->FormId].push_back(acCall.Class + "." + acCall.Function);
+        return 0;
+    }
+    case Call::kScreen:
+    {
+        if (acCall.Function != "ShakeCamera")
+        {
+            // A message: the HUD's notification, a message box (its text, or the message form it shows).
+            const auto* cpText = acCall.Arguments.empty() ? nullptr : std::get_if<std::string>(&acCall.Arguments[0]);
+            const auto* cpForm = std::get_if<LocalForm>(&acCall.Self);
+            Messages.push_back(cpText ? *cpText : std::format("{:X}", cpForm ? cpForm->FormId : 0));
+            if (acCall.Class == "Message" && acCall.Function == "Show")
+                Boxes[m_openedBox = m_nextStack++] = Messages.back(); // latent: its stack waits for the answer
+            return 0;
+        }
+        // Game.ShakeCamera(source, strength, duration).
         const auto* pSeconds = acCall.Arguments.size() > 2 ? std::get_if<float>(&acCall.Arguments[2]) : nullptr;
         ShakeSeconds = pSeconds ? *pSeconds : 0.f;
-        if (InSession && ShareOf(Kind::kScreen, aCause, aStory, 0) == Share::kParty)
-            World::Get().GetRunner().Trigger(PartyNativeEvent{acCall});
-        return;
+        return 0;
     }
-    const bool cEnable = acCall.Function == "EnablePlayerControls";
-    if (!cEnable && acCall.Function != "DisablePlayerControls")
-        return;
-    uint32_t flags = FlagsOf(acCall);
-    const uint32_t cAsked = flags;
-    if (InSession)
+    case Call::kControls:
     {
-        const uint32_t cHolder = HolderOf(aCause);
-        if (cEnable)
-            flags = Holds.GiveBack(cHolder, flags);
-        else
-            Holds.Take(cHolder, flags);
+        const bool cEnable = acCall.Function == "EnablePlayerControls";
+        uint32_t flags = FlagsOf(acCall);
+        const uint32_t cAsked = flags;
+        if (InSession)
+        {
+            const uint32_t cHolder = HolderOf(aCause);
+            if (cEnable)
+                flags = Holds.GiveBack(cHolder, flags);
+            else
+                Holds.Take(cHolder, flags);
+        }
+        Controls = cEnable ? Controls | flags : Controls & ~flags;
+        World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
+        return cAsked;
     }
-    Controls = cEnable ? Controls | flags : Controls & ~flags;
-    World::Get().GetRunner().Trigger(SpectatorRefreshEvent{});
-    if (InSession && ShareOf(Kind::kControls, aCause, aStory, cAsked) == Share::kParty)
-        World::Get().GetRunner().Trigger(PartyNativeEvent{acCall});
+    default: return 0;
+    }
 }
 
 bool FakeEngine::IsLyingInRagdoll(uint32_t aFormId) const noexcept
@@ -1096,10 +1225,29 @@ bool InSession() noexcept
     return FakeEngine::Current().InSession;
 }
 
-bool Run(const LocalCall& acCall, uint32_t aSource) noexcept
+bool Run(const LocalCall& acCall, uint32_t aSource, uint32_t aKey) noexcept
 {
-    FakeEngine::Current().Queue(acCall, MirroredTag(aSource));
+    auto& engine = FakeEngine::Current();
+    if (aKey)
+        engine.Copies.Sent(aSource, aKey);
+    engine.Queue(acCall, MirroredTag(aSource));
     return true;
+}
+
+void EndCopy(uint32_t aSource, uint32_t aKey, const LocalValue& acResult) noexcept
+{
+    auto& engine = FakeEngine::Current();
+    if (const auto cStack = engine.Copies.Ended(aSource, aKey, acResult))
+        engine.AnswerBox(*cStack, std::get<int32_t>(acResult));
+}
+
+void ForgetCopies(std::optional<uint32_t> aSource) noexcept
+{
+    auto& engine = FakeEngine::Current();
+    if (aSource)
+        engine.Copies.Left(*aSource);
+    else
+        engine.Copies = {};
 }
 
 void GiveBackControls(std::optional<uint32_t> aSource) noexcept

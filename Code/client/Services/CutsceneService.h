@@ -8,13 +8,14 @@ struct World;
 struct TransportService;
 struct ConnectedEvent;
 struct DisconnectedEvent;
-struct PartyNativeEvent;
+struct RoutedCallEvent;
+struct CallEndedEvent;
 struct NotifyPlayerLeft;
 
 /**
- * @brief Cutscenes for the whole party (docs/design/cutscenes.md): the calls on the controls and the screen this game's
- * scripts made (fades, camera, shakes, music; PartyNatives) go to the other games, and theirs run here, on this
- * game's player.
+ * @brief The script calls this game sends away (docs/design/party-calls.md): every RoutedCallEvent goes to the host as
+ * a RoutedCallRequest. The party's from the other games (cutscenes.md: the controls and the screen; shows,
+ * progression) run here, on this game's player.
  */
 struct CutsceneService
 {
@@ -26,8 +27,10 @@ struct CutsceneService
 protected:
     void OnConnected(const ConnectedEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
-    void OnPartyNative(const PartyNativeEvent& acEvent) noexcept;
-    void OnNotifyPartyNative(const NotifyPartyNative& acMessage) noexcept;
+    void OnRoutedCall(const RoutedCallEvent& acEvent) noexcept;
+    void OnNotifyRoutedCall(const NotifyRoutedCall& acMessage) noexcept;
+    void OnCallEnded(const CallEndedEvent& acEvent) noexcept;
+    void OnNotifyCallEnded(const NotifyCallEnded& acMessage) noexcept;
     void OnPlayerLeft(const NotifyPlayerLeft& acMessage) noexcept;
 
 private:
