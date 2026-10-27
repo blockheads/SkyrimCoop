@@ -59,7 +59,8 @@
     X(BodyRestRequest)              \
     X(WaitRequest)                  \
     X(WaitWorldRequest)             \
-    X(PlayerDeathRequest)
+    X(PlayerDeathRequest)          \
+    X(CrimeRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -122,7 +123,10 @@
     X(NotifyWaitWorld)             \
     X(NotifyPartyDeath)            \
     X(NotifyPlayerRespawn)         \
-    X(NotifyPartyReload)
+    X(NotifyPartyReload)           \
+    X(NotifyCrimeState)            \
+    X(NotifyLockCrime)             \
+    X(NotifyCrimeConfiscation)
 
 #define COOP_OPCODE(aName) k##aName,
 

@@ -63,6 +63,9 @@ namespace Hooks
         void RemoveAllHooks() noexcept;
 
         void Add(FunctionHook aFunctionHook, bool aDelayed = false) noexcept;
+        // Adds an opt-in layer after ordinary hooks are installed. An existing
+        // hook keeps its entry point; this layer wraps its original trampoline.
+        bool AddChained(FunctionHook aFunctionHook) noexcept;
         // A probe: the engine function runs as before, but every call is reported to the hook
         // observer first (name, first argument). False when it cannot be hooked (already hooked
         // by MinHook, say) or there is no observer.

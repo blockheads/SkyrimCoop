@@ -84,7 +84,12 @@ bool ReplaceOptions(MenuTopicManager& aManager, const std::vector<IDialogueBridg
         auto* pTopic = FormAs<TESTopic>(cOption.Topic);
         auto* pInfo = FormAs<TESTopicInfo>(cOption.Info);
         if (EngineOption* pBuilt = pTopic && pInfo ? aManager.BuildOption(pTopic, pInfo) : nullptr)
+        {
+            using TSetText = bool(BSString*, const char*, uint32_t);
+            static VersionDbPtr<TSetText> setText(439876);
+            setText(&pBuilt->topicText, cOption.Text.c_str(), 0);
             options.push_back(pBuilt);
+        }
         else
             spdlog::warn("Dialogue: option {:X} (info {:X}) cannot be shown here", cOption.Topic, cOption.Info);
     }
@@ -293,14 +298,22 @@ bool DialogueBridge::IsChoices() const noexcept
 
 // ---- Starting and ending it ----
 
-bool DialogueBridge::Start(uint32_t aActorFormId, bool aShowMenu) noexcept
+uint32_t DialogueBridge::GetGreeting() const noexcept
+{
+    const auto* manager = Conversation();
+    return manager ? IdOf(manager->currentTopicInfo) : 0;
+}
+
+bool DialogueBridge::Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting) noexcept
 {
     // Nobody talks while fighting or dead, as talking to them does; a start from code would run all the same.
     Actor* pActor = FormAs<Actor>(aActorFormId);
     if (!pActor || pActor->IsDead() || pActor->IsInCombat())
         return false;
     s_startingHidden = !aShowMenu;
-    const bool cStarted = RealSetDialogueWithPlayer(pActor, true, false, nullptr);
+    // Arrest greetings depend on alarm AI that copies do not run (37200).
+    // An explicit host-selected INFO takes the native force-greet path without reselecting it.
+    const bool cStarted = RealSetDialogueWithPlayer(pActor, true, aGreeting != 0, FormAs<TESTopicInfo>(aGreeting));
     s_startingHidden = false;
     s_hidden = cStarted && !aShowMenu;
     return cStarted;

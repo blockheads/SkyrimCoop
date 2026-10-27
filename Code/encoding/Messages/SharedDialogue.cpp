@@ -25,6 +25,7 @@ void DialogueOpenedRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const no
 {
     Serialization::WriteVarInt(aWriter, NpcId);
     Serialization::WriteBool(aWriter, Everyone);
+    Greeting.Serialize(aWriter);
 }
 
 void DialogueOpenedRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -32,6 +33,7 @@ void DialogueOpenedRequest::DeserializeRaw(Wire::Buffer::Reader& aReader) noexce
     RequestMessage::DeserializeRaw(aReader);
     NpcId = ReadId(aReader);
     Everyone = Serialization::ReadBool(aReader);
+    Greeting.Deserialize(aReader);
 }
 
 void DialogueOptionsRequest::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
@@ -110,6 +112,7 @@ void NotifyDialogueOpen::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexc
     Serialization::WriteVarInt(aWriter, Conversation);
     Serialization::WriteVarInt(aWriter, NpcId);
     Serialization::WriteBool(aWriter, Everyone);
+    Greeting.Serialize(aWriter);
 }
 
 void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -118,6 +121,7 @@ void NotifyDialogueOpen::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     Conversation = ReadId(aReader);
     NpcId = ReadId(aReader);
     Everyone = Serialization::ReadBool(aReader);
+    Greeting.Deserialize(aReader);
 }
 
 void NotifyDialogueList::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept

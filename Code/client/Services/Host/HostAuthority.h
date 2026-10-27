@@ -17,6 +17,7 @@
 #include <Services/Host/HostSession.h>
 #include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWait.h>
+#include <Services/Host/HostCrime.h>
 #include <Services/Host/HostWeather.h>
 #include <Services/Host/HostWorldState.h>
 
@@ -149,6 +150,7 @@ private:
     HostCharacters m_characters;
     HostClock m_clock;
     HostWait m_wait;
+    HostCrime m_crime;
     HostWeather m_weather;
     HostWorldState m_worldState;
     HostPhysics m_physics;

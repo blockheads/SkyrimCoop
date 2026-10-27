@@ -31,6 +31,7 @@ struct DialogueOpenedRequest final : RequestMessage
 
     uint32_t NpcId{};
     bool Everyone{};
+    GameId Greeting{}; // host-selected INFO; copies have no arrest/alarm AI to select it
 };
 
 // The host's game showed a step's list: its options in menu order (Choices: a line's choices).
@@ -128,6 +129,7 @@ struct NotifyDialogueOpen final : NotifyMessage
     uint32_t Conversation{};
     uint32_t NpcId{};
     bool Everyone{};
+    GameId Greeting{};
 };
 
 // The host's list for a step: every game's menu shows these options (Choices: a line's choices).

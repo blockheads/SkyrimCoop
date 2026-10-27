@@ -2,6 +2,7 @@
 
 #include <Messages/CellStateRequest.h>
 #include <Messages/JoinMessages.h>
+#include <Messages/CrimeMessages.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/WorldState.h>
 #include <Structs/BodyFrame.h>
@@ -27,6 +28,10 @@ struct HostBodies
  */
 struct HostGame
 {
+    // Native host adjudication of a guest action, and the party's per-faction bounty.
+    std::function<bool(uint32_t, const CrimeRequest&)> JudgeCrime;
+    std::function<std::vector<CrimeGold>()> ReadCrimeGold;
+    std::function<std::vector<CrimeConfiscation>()> TakeCrimeConfiscations;
     // The host's own actors as its engine shows them now, but aExcludedSessionId.
     std::function<std::vector<NotifyCharacterSpawn>(uint32_t aExcludedSessionId)> OwnSpawns;
     // The host's copy of another player's character (position, items, hands, action) into the spawn, its values left

@@ -169,6 +169,11 @@ struct Session
         return found;
     }
 
+    bool CrimeCaught{};
+    std::vector<CrimeGold> Bounty;
+    std::vector<std::pair<uint32_t, CrimeRequest>> Crimes;
+    std::function<void(uint32_t, const CrimeRequest&)> CrimeJudge;
+
     std::vector<NotifyCharacterSpawn> Spawns;                // the host's own actors in its game
     std::unordered_map<uint32_t, Vector3_NetQuantize> Copies; // where the host's copies of players stand
     TimeModel HostClock;                                     // the host's game clock
@@ -210,6 +215,12 @@ private:
                 if (cSpawn.SessionId != aExcludedSessionId)
                     spawns.push_back(cSpawn);
             return spawns;
+        };
+        game.ReadCrimeGold = [this] { return Bounty; };
+        game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) {
+            Crimes.emplace_back(aActor, aCrime);
+            if (CrimeJudge) CrimeJudge(aActor, aCrime);
+            return CrimeCaught;
         };
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };

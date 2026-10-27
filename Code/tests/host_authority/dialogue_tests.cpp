@@ -533,10 +533,12 @@ TEST_CASE("Dialogue: an NPC greeting the party puts every player in it", "[HostA
     DialogueOpenedRequest opened;
     opened.NpcId = cNpc;
     opened.Everyone = true;
+    opened.Greeting = GameId(0, 0x2A37C);
     session.Receive(kHost, opened);
     const auto cOpen = session.SentTo<NotifyDialogueOpen>(kPeer);
     REQUIRE(cOpen.size() == 1);
     CHECK(cOpen[0]->Everyone);
+    CHECK(cOpen[0]->Greeting == opened.Greeting);
     const uint32_t cId = cOpen[0]->Conversation;
 
     // Each guest is in it: the conversation ends once both have left.
