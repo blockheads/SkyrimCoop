@@ -132,6 +132,10 @@ void HostService::MakeAuthority() noexcept
 {
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
     HostGame game;
+    game.ReadFollowers = [this] { return m_pEngine->ReadFollowers(); };
+    game.TakeFollowerOrders = [this] { return m_pEngine->TakeFollowerOrders(); };
+    game.SetFollowerTargets = [this](const auto& acTargets) { m_pEngine->SetFollowerTargets(acTargets); };
+    game.FollowerAnchors = [this]() -> Followers::Anchors& { return m_world.ctx().at<SaveService>().GetFollowerAnchors(); };
     game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
     game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
     game.ReadPartyGold = [this] { return m_world.ctx().at<InventoryService>().GoldOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId()); };

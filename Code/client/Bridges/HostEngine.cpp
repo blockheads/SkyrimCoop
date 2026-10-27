@@ -1,5 +1,7 @@
 #include <Bridges/HostEngine.h>
 #include <MainLoopTasks.h>
+#include <AI/FollowerTargets.h>
+#include <SessionIds.h>
 
 #include <Bridges/ContainerItems.h>
 #include <Bridges/LooseItems.h>
@@ -201,6 +203,7 @@ HostEngine::HostEngine(IBodyBridge& aBodies) noexcept
     });
     if (!FormChanges::Watch(&OnFormChange))
         spdlog::error("{}: no slot left to watch the change funnel, the references' state stays here", __FUNCTION__);
+    FollowerTargets::Start();
     ContainerEvents::Start();
     AiStateEvents::Start();
     EffectEvents::Start();
@@ -219,6 +222,7 @@ HostEngine::~HostEngine() noexcept
     ModManager::WatchCreated(nullptr);
     FormChanges::Unwatch(&OnFormChange);
     s_log.Take();
+    FollowerTargets::Stop();
     ContainerEvents::Stop();
     AiStateEvents::Stop();
     EffectEvents::Stop();
@@ -509,3 +513,29 @@ void HostEngine::AdvanceTime(float aHours) noexcept
             pTime->Advance(aHours);
     });
 }
+
+std::optional<std::vector<Followers::State>> HostEngine::ReadFollowers() const noexcept
+{
+    auto* pQuest = Cast<TESQuest>(TESForm::GetById(0x750BA));
+    if (!pQuest)
+        return std::nullopt;
+    std::vector<Followers::State> followers;
+    for (uint32_t alias : {0u, 1u})
+        if (auto* pActor = Cast<Actor>(pQuest->GetAliasedRef(alias)))
+        {
+            Followers::State state;
+            state.Reference = pActor->formID;
+            state.Session = Utils::GetSessionIdByFormId(pActor->formID).value_or(0);
+            state.At.Position = {pActor->position.x, pActor->position.y, pActor->position.z};
+            const auto* pCell = pActor->GetParentCellEx();
+            state.At.Cell = pCell ? pCell->formID : 0;
+            state.At.World = pCell && pCell->worldspace ? pCell->worldspace->formID : 0;
+            state.Waiting = pActor->GetActorValue(95) != 0.f;
+            state.Dead = pActor->IsDead();
+            followers.push_back(state);
+        }
+    return followers;
+}
+
+std::vector<Followers::Order> HostEngine::TakeFollowerOrders() const noexcept { return FollowerTargets::TakeOrders(); }
+void HostEngine::SetFollowerTargets(const std::vector<Followers::Target>& acTargets) const noexcept { FollowerTargets::Set(acTargets); }

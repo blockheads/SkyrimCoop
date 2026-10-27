@@ -26,6 +26,10 @@ public:
     HostEngine(const HostEngine&) = delete;
     HostEngine& operator=(const HostEngine&) = delete;
 
+    [[nodiscard]] std::optional<std::vector<Followers::State>> ReadFollowers() const noexcept;
+    [[nodiscard]] std::vector<Followers::Order> TakeFollowerOrders() const noexcept;
+    void SetFollowerTargets(const std::vector<Followers::Target>& acTargets) const noexcept;
+
     // The weather the game shows; none for no sky, or the world map's own.
     [[nodiscard]] std::optional<GameId> ReadWeather() const noexcept;
     // Every global but the constants; the calendar's are marked.

@@ -8,6 +8,7 @@
 #include <Services/Host/HostDeath.h>
 #include <Services/Host/HostDialogue.h>
 #include <Services/Host/HostGame.h>
+#include <Services/Host/HostFollowers.h>
 #include <Services/Host/HostHands.h>
 #include <Services/Host/HostItems.h>
 #include <Services/Host/HostPhysics.h>
@@ -39,6 +40,7 @@ struct SendChatMessageRequest;
 struct PlayerLevelRequest;
 
 struct HostNetwork;
+struct ActivateRequest;
 
 /**
  * @brief The host's side of the session: handles what players send (docs/design/host-authority-migration.md).
@@ -127,6 +129,7 @@ private:
     // Anyone may change an actor's items (a peer handing its follower a sword); the owner's game
     // applies it like every other copy.
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Each actor's factions from its owner (one message carries many actors).
     void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;
     // A guest's lock change (its player picked it, or a key): a proposal the host's world takes (step 6).
@@ -163,6 +166,7 @@ private:
     HostPlayerNatives m_playerNatives;
     HostRecords m_records;
     HostDeath m_death;
+    HostFollowers m_followers;
     bool m_reloading{};
 };
 

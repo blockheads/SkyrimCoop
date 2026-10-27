@@ -50,6 +50,16 @@ below, together with the travel-related physics/death failures under packet loss
 are deferred known issues. They do not block party travel from entering v1.0.0 testing; their failing checks
 and evidence remain recorded.
 
+- **A ridden horse's AI-package snapshot can disagree after ownership changes** (2026-10-27, follower regression run).
+  The guest mounts, owns and sits on the horse, and the host shows the rider seated. The scenario's state audit
+  then reads package 0 on the owner versus 109AB2 on the host's copy. No horse deletion was observed. This remains
+  unresolved; the current follower changes are not claimed to fix it. A single unchanged-dev DLL control passed,
+  so that control alone does not establish the cause or exclude an integration regression.
+  - Evidence: `build/followers-review/followers-dev-native.log` (both early and late riding checks),
+    `followers-reviewed-native.log`; control `followers-baseline-horse.log`.
+  - Start: AI-state publication and application during mount ownership changes, including temporary/empty packages;
+    the rider's log sends package 0 before dismount. Preserve the owner/copy split.
+  - Test: `guest-rides-host-horse`; a faithful GameTests reproduction is needed before a production fix.
 - **An AI/quest lock inversion was reported during travel** (2026-10-27, party-travel). The departure timing
   assertions pass, but `party-loads-overlap` fails the scenario's final lock audit. The reported path is native
   low-actor AI/package evaluation -> `TESQuest::sub_25066`, through the existing `HookUpdateAI`; the opposite

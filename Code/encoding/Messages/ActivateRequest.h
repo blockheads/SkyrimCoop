@@ -17,9 +17,10 @@ struct ActivateRequest final : RequestMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const ActivateRequest& acRhs) const noexcept { return Id == acRhs.Id && ActivatorId == acRhs.ActivatorId && CellId == acRhs.CellId && PreActivationOpenState == acRhs.PreActivationOpenState && GetOpcode() == acRhs.GetOpcode(); }
+    bool operator==(const ActivateRequest& acRhs) const noexcept { return Id == acRhs.Id && NpcId == acRhs.NpcId && ActivatorId == acRhs.ActivatorId && CellId == acRhs.CellId && PreActivationOpenState == acRhs.PreActivationOpenState && GetOpcode() == acRhs.GetOpcode(); }
 
     GameId Id;
+    uint32_t NpcId{};
     GameId CellId;
     uint32_t ActivatorId;
     uint8_t PreActivationOpenState;

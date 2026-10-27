@@ -48,6 +48,11 @@ struct HostDeath
     void Left(ConnectionId_t aPlayer) noexcept;
     // The wipe's reload failed: every player is told why.
     void FailReload(const std::string& acError) noexcept;
+    [[nodiscard]] bool Standing(ConnectionId_t aPlayer) const noexcept
+    {
+        const auto it = m_party.find(aPlayer);
+        return it != m_party.end() && it->second.Known && !it->second.Body.Down;
+    }
     [[nodiscard]] bool Wiped() const noexcept { return m_wiped; }
 
 private:

@@ -9,6 +9,7 @@
 #include <Bridges/IActorBridge.h>
 #include <Messages/ReferencesMoveRequest.h>
 #include <FormIds.h>
+#include <SessionIds.h>
 #include <Events/DifficultyChangeEvent.h>
 #include <Events/GameSavingEvent.h>
 #include <Bridges/IJoinBridge.h>
@@ -68,6 +69,23 @@ void HostService::MakeAuthority() noexcept
 {
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     HostGame game;
+    game.ReadFollowers = [&engine]() -> std::optional<std::vector<Followers::State>> {
+        auto followers = engine.PartyFollowers;
+        for (auto& follower : followers)
+        {
+            const auto it = engine.Actors.find(follower.Reference);
+            if (it == engine.Actors.end())
+                continue;
+            follower.Session = Utils::GetSessionIdByFormId(follower.Reference).value_or(0);
+            follower.At = {it->second.WorldSpace, it->second.Cell, {it->second.Position[0], it->second.Position[1], it->second.Position[2]}};
+            follower.Waiting = engine.GetActorValue(follower.Reference, 95) != 0.f;
+            follower.Dead = engine.IsActorDead(follower.Reference);
+        }
+        return followers;
+    };
+    game.TakeFollowerOrders = [&engine] { return std::exchange(engine.FollowerOrders, {}); };
+    game.SetFollowerTargets = [&engine](const auto& acTargets) { engine.FollowerTargets = acTargets; };
+    game.FollowerAnchors = [this]() -> Followers::Anchors& { return m_world.ctx().at<SaveService>().GetFollowerAnchors(); };
     game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
     game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
     game.ReadPartyGold = [this] { return m_world.ctx().at<InventoryService>().GoldOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId()); };

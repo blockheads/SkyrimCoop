@@ -10452,6 +10452,12 @@ TAGS = {
 
 # All matching globs contribute; core asks for a full suite without selecting it.
 SOURCE_TAGS = [
+    ("Code/client/Followers/*", {"followers"}),
+    ("Code/client/Services/FollowerService.h", {"followers"}),
+    ("Code/client/Services/Generic/FollowerService.cpp", {"followers"}),
+    ("Code/encoding/Messages/FollowerMessages.h", {"followers"}),
+    ("Code/client/Services/Host/HostFollowers.*", {"followers"}),
+    ("Code/client/Games/Skyrim/AI/FollowerTargets.*", {"followers"}),
     ("Code/client/Games/Skyrim/Papyrus/PartyRules.*", {'dragonborn', 'rewards', 'scripts'}),
     ("Code/client/Games/Skyrim/Papyrus/PartyNatives*", {'dragonborn', 'rewards', 'scripts'}),
     ("Code/client/Games/Skyrim/Papyrus/BodyScripts.*", {'dragonborn', 'rewards', 'scripts'}),
@@ -10622,6 +10628,8 @@ SOURCE_TAGS = [
     ("Code/client/Events/PlayerFormChangeEvent.h", {'session', 'spawn'}),
     ("Code/client/Events/*NativeEvent.h", {'scripts'}),
     ("Code/client/Events/WorldCallEvent.h", {'scripts', 'quest'}),
+    ("Code/client/Events/CallEndedEvent.h", {'scripts'}),
+    ("Code/client/Events/RoutedCallEvent.h", {'scripts'}),
     ("Code/client/Events/Papyrus*Event.h", {'scripts'}),
     ("Code/client/Events/ScriptAnimationEvent.h", {'scripts', 'objects'}),
     ("Code/client/Events/*Inventory*Event.h", {'inventory'}),
@@ -10808,6 +10816,7 @@ SOURCE_TAGS = [
     ("Code/client/TestHarness/Harness.h", {'core'}),
     ("Code/client/TestHarness/LogTrail.*", {'core'}),
     ("Code/client/TestHarness/Status.*", {'core'}),
+    ("Code/client/TestHarness/HudMessages.*", {'scripts'}),
     ("Code/client/TestHarness/TestHarness.*", {'core'}),
     ("Code/client/HotReload/*", {'core', 'reload'}),
     ("Code/hotreload/*", {'core', 'reload'}),
@@ -12088,6 +12097,8 @@ def command_soak(args):
 def main():
     from coop_specs import register
     register(SCENARIOS, TAGS)
+    from coop_followers import register as register_followers
+    register_followers()
     from coop_crime import register as register_crime
     register_crime(SCENARIOS, TAGS)
     from coop_menus import register as register_menus

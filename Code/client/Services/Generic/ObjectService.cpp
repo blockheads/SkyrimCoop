@@ -47,9 +47,13 @@ void ObjectService::OnActivate(const ActivateEvent& acEvent) noexcept
     ActivateRequest request;
 
     const auto cObject = ToSession(acEvent.ObjectFormId);
-    if (!cObject)
+    const auto cNpc = m_actorBridge.ActorExists(acEvent.ObjectFormId) ? Utils::GetSessionIdByFormId(acEvent.ObjectFormId) : std::nullopt;
+    if (!cObject && !cNpc)
         return;
-    request.Id = *cObject;
+    if (cNpc)
+        request.NpcId = *cNpc;
+    else
+        request.Id = *cObject;
 
     if (acEvent.ObjectParentCellFormId == 0)
     {
@@ -89,7 +93,9 @@ void ObjectService::OnActivateNotify(const NotifyActivate& acMessage) noexcept
         return;
     }
 
-    const uint32_t cObjectId = ToGame(acMessage.Id);
+    const uint32_t cObjectId = acMessage.NpcId ? Utils::GetFormIdBySessionId(acMessage.NpcId) : ToGame(acMessage.Id);
+    if (acMessage.NpcId && m_actorBridge.IsActorCopy(cObjectId))
+        return;
     if (!m_formBridge.FormExists(cObjectId))
     {
         spdlog::error("Failed to retrieve object to activate.");

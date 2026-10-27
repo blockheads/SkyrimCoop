@@ -7,6 +7,7 @@
 /// test targets.
 
 #include <Bridges/SkyrimBridge.h>
+#include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
 #include <MainLoopTasks.h>
 
@@ -2277,3 +2278,5 @@ void SkyrimBridge::SetSpectatorTarget(uint32_t aFormId) noexcept
     if (pCamera && (pWatched || !aFormId))
         pCamera->Spectate(pWatched);
 }
+
+bool SkyrimBridge::OpenFollowerInventory(uint32_t aNpcFormId) noexcept { return FollowerTargets::OpenInventory(aNpcFormId); }

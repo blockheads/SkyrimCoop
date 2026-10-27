@@ -39,6 +39,7 @@
 #include <Services/RunnerService.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/FollowerService.h>
 #include <Services/SessionService.h>
 #include <Services/SteamService.h>
 #include <Structs/GameVersions.h>
@@ -113,11 +114,13 @@ World::World()
     ctx().emplace<SteamService>(*this, m_dispatcher, *m_pSteamBridge);
     ctx().emplace<JoinService>(*this, m_dispatcher, ctx().at<IJoinBridge&>());
     ctx().emplace<SaveService>(*this, m_dispatcher);
+    ctx().emplace<FollowerService>(*this, m_dispatcher, ctx().at<IPlayerBridge&>());
 }
 
 // As the real World: the services go first, newest first, while the dispatcher and the engine they use still live.
 World::~World()
 {
+    ctx().erase<FollowerService>();
     ctx().erase<SaveService>();
     ctx().erase<JoinService>();
     ctx().erase<SteamService>();

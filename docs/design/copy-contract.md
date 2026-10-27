@@ -39,7 +39,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Combat decisions, dialogue, reservations | no (audit when touched) | to check when syncing combat or dialogue |
 | Crime | the party's, judged on the host | `CrimeService`, `HostCrime` and `CrimeBridge` (2026-10-26, shared-party-bounty.md): guest theft/pickpocket/lock proposals are judged by host witnesses; host-native alarms adapt a guest culprit's detection without changing the native crime's host-player handle. The service refreshes guest-copy trespass state separately from decision-making AI. Absolute per-faction bounty mirrors to guests; guest fines debit the party's purse once (`party-purse.md`) with owner-side stolen-item confiscation. Native coverage and remaining jail/trespass-AI limits are recorded in the design doc |
 | Player mounts | rider-owned while ridden, host-owned after dismount; copies retained through party travel | `CharacterService`, `HostCharacters`; a native MoveTo can dismount implicitly, and the handoff includes the horse's last owned placement (`party-travel.md`) |
-| NPC followers | design approved; implementation deferred | `followers.md` |
+| NPC followers | host-owned shared vanilla slots; recruiter/latest Follow picker is the pathing anchor; standing-party fallback | `followers.md`, `HostFollowers`, `FollowerTargets` |
 | Quests | undecided | decide when the system is synced |
 
 ## A remote player's copy: the deliberate exceptions

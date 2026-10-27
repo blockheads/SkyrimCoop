@@ -218,6 +218,7 @@ public:
     // -----------------------------------------------------------------
     // IPlayerBridge
     // -----------------------------------------------------------------
+    bool OpenFollowerInventory(uint32_t aNpcFormId) noexcept override;
     uint32_t GetPlayerFormId() const noexcept override;
     uint32_t GetPlayerBaseNpcFormId() const noexcept override;
     void GetPlayerPosition(float& aX, float& aY, float& aZ) const noexcept override;

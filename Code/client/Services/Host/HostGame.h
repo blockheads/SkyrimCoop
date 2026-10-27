@@ -11,6 +11,7 @@
 #include <Structs/Mods.h>
 #include <Structs/TimeModel.h>
 
+#include <Followers/State.h>
 #include <functional>
 #include <optional>
 
@@ -28,6 +29,11 @@ struct HostBodies
  */
 struct HostGame
 {
+    // Vanilla follower aliases and completed native commands; only the host save keeps their desired anchors.
+    std::function<std::optional<std::vector<Followers::State>>()> ReadFollowers;
+    std::function<std::vector<Followers::Order>()> TakeFollowerOrders;
+    std::function<Followers::Anchors&()> FollowerAnchors;
+    std::function<void(const std::vector<Followers::Target>&)> SetFollowerTargets;
     // Native host adjudication of a guest action, and the party's per-faction bounty.
     std::function<bool(uint32_t, const CrimeRequest&)> JudgeCrime;
     std::function<std::vector<CrimeGold>()> ReadCrimeGold;

@@ -21,6 +21,14 @@ SkyrimSE.exe+0x1823d0 > SkyrimSE.exe+0x161ef7 vs SkyrimSE.exe+0x170402 > SkyrimS
 SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
 SkyrimSE.exe+0x16d3bb > SkyrimSE.exe+0x1820ef vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x16d4cb
 SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x1831f8 vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
+# Native follower dismissal (TESQuest::ClearRefAlias -> ExtraAliasInstanceArray) after FinishLoadGame's reverse
+# alias -> quest order. The first pair is a Papyrus worker, the load pair the main thread during loading; our
+# hooks only pass through. Both stacks read and reproduced with unchanged dev's DLL (no follower hooks),
+# 2026-10-27: build/followers-review/followers-baseline-alias.log and -host.log; docs/re/systems/followers.md.
+SkyrimSE.exe+0x3cdb45 > SkyrimSE.exe+0x182241 vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
+# The same ClearRefAlias under ForceRefIntoAlias's outer quest lock (3cdf46). Both stacks read 2026-10-27:
+# build/followers-review/followers-dev-native.log; native ForceRef -> ClearRef -> alias removal, versus FinishLoadGame.
+SkyrimSE.exe+0x3cdf46 > SkyrimSE.exe+0x182241 vs SkyrimSE.exe+0x182e91 > SkyrimSE.exe+0x3d1507
 # A joining guest putting its character on after the host's save loaded (JoinBridge::ApplyPlayer -> Actor::SwitchRace
 # -> Character::sub_38754 -> ExtraAliasInstanceArray read, then a condition's ExtraDataList::GetExtraData on the
 # player, our update thread) against that load (TESObjectREFR::LoadGame -> ExtraAliasInstanceArray write under the

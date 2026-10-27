@@ -5,6 +5,7 @@ void NotifyActivate::SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept
     Id.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, ActivatorId);
     aWriter.WriteBits(PreActivationOpenState, 8);
+    Serialization::WriteVarInt(aWriter, NpcId);
 }
 
 void NotifyActivate::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
@@ -16,4 +17,5 @@ void NotifyActivate::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept
     uint64_t preActivationOpenState = 0;
     aReader.ReadBits(preActivationOpenState, 8);
     PreActivationOpenState = preActivationOpenState & 0xFF;
+    NpcId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
 }

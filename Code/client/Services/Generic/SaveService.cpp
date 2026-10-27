@@ -64,4 +64,5 @@ void SaveService::ReadCoSave(std::string_view aData, uint32_t aVersion) noexcept
 void SaveService::RevertCoSave() noexcept
 {
     m_records.Clear();
+    m_followers.Clear();
 }

@@ -59,6 +59,7 @@ NotifyActivate ToNotify(const ActivateRequest& acRequest)
 {
     NotifyActivate notify;
     notify.Id = acRequest.Id;
+    notify.NpcId = acRequest.NpcId;
     notify.ActivatorId = acRequest.ActivatorId;
     notify.PreActivationOpenState = acRequest.PreActivationOpenState;
     return notify;
@@ -120,6 +121,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_playerNatives(*this, aNetwork, m_players, m_characters)
     , m_records(*this, m_players, m_characters, m_game)
     , m_death(*this, aNetwork, m_players, m_characters, m_game)
+    , m_followers(*this, aNetwork, m_players, m_characters, m_death, m_game)
 {
     using enum Delivery;
 
@@ -156,7 +158,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     // A script's call one game sends to others (party-calls.md): HostPlayerNatives.
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
-    Relay<ActivateRequest, NotifyActivate>(FromAnyone);
+    On(*this, &HostAuthority::OnActivate);
     On(*this, &HostAuthority::OnLockChange);
     On(*this, &HostAuthority::OnContainerChange);
 
@@ -196,6 +198,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
         return;
     }
     m_death.Update(aDelta);
+    m_followers.Update(aTick);
     m_wait.Update(aTick);
     m_crime.Update();
     m_clock.Update(aTick);
@@ -253,6 +256,20 @@ void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest,
         return;
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+}
+
+void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (!acRequest.NpcId)
+    {
+        Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+        return;
+    }
+    if (m_characters.OwnerOf(acRequest.ActivatorId) != aSender || m_characters.IsPlayerCharacter(acRequest.NpcId))
+        return;
+    const auto cOwner = m_characters.OwnerOf(acRequest.NpcId);
+    if (cOwner == m_players.Host() && cOwner != aSender)
+        m_network.Send(cOwner, ToNotify(acRequest));
 }
 
 void HostAuthority::OnLockChange(const LockChangeRequest& acRequest, ConnectionId_t aSender) const noexcept

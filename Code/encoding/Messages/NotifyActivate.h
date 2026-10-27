@@ -16,9 +16,10 @@ struct NotifyActivate final : NotifyMessage
     void SerializeRaw(Wire::Buffer::Writer& aWriter) const noexcept override;
     void DeserializeRaw(Wire::Buffer::Reader& aReader) noexcept override;
 
-    bool operator==(const NotifyActivate& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Id == acRhs.Id && ActivatorId == acRhs.ActivatorId && PreActivationOpenState == acRhs.PreActivationOpenState; }
+    bool operator==(const NotifyActivate& acRhs) const noexcept { return GetOpcode() == acRhs.GetOpcode() && Id == acRhs.Id && NpcId == acRhs.NpcId && ActivatorId == acRhs.ActivatorId && PreActivationOpenState == acRhs.PreActivationOpenState; }
 
     GameId Id;
+    uint32_t NpcId{};
     uint32_t ActivatorId;
     uint8_t PreActivationOpenState;
 };

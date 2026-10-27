@@ -92,12 +92,18 @@ struct Sent
 
 struct Session
 {
-    Session()
+    explicit Session(bool aFollowerKeys = false)
         : m_authority(m_network, Game())
     {
-        Join(kHost, JoinRequest("Dovahkiin", 20));
-        Join(kPeer, JoinRequest("Lydia", 12));
-        Join(kOtherPeer, JoinRequest("Aela", 8));
+        const auto join = [&](ConnectionId_t aConnection, const char* acpName, uint16_t aLevel, const char* acpKey) {
+            auto request = JoinRequest(acpName, aLevel);
+            if (aFollowerKeys)
+                request.PlayerKey = acpKey;
+            Join(aConnection, request);
+        };
+        join(kHost, "Dovahkiin", 20, "host");
+        join(kPeer, "Lydia", 12, "guest");
+        join(kOtherPeer, "Aela", 8, "other");
         Outbox.clear();
     }
 
@@ -201,6 +207,10 @@ struct Session
     HostBodies Moving;              // the host's physics this update, taken by the next frame
     std::map<uint32_t, glm::vec3> PlayerPositions; // where the host's game shows each guest's character, by player id
     uint32_t Difficulty = 3;                                 // the host's difficulty (Expert)
+    std::optional<std::vector<Followers::State>> Followers;
+    std::vector<Followers::Order> FollowerOrders;
+    Followers::Anchors FollowerBindings;
+    std::vector<Followers::Target> FollowerTargets;
     std::vector<Sent> Outbox;
 
 private:
@@ -214,6 +224,10 @@ private:
     HostGame Game()
     {
         HostGame game;
+        game.ReadFollowers = [this] { return Followers; };
+        game.TakeFollowerOrders = [this] { return std::exchange(FollowerOrders, {}); };
+        game.FollowerAnchors = [this]() -> Followers::Anchors& { return FollowerBindings; };
+        game.SetFollowerTargets = [this](const auto& acTargets) { FollowerTargets = acTargets; };
         game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
             std::vector<NotifyCharacterSpawn> spawns;
             for (const auto& cSpawn : Spawns)

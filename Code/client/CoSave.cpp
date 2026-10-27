@@ -2,6 +2,7 @@
 
 #include <Services/SaveService.h>
 #include <World.h>
+#include <Followers/Records.h>
 
 namespace CoSave
 {
@@ -23,6 +24,8 @@ struct SerializationInterface
     bool (*WriteRecordData)(const void*, uint32_t);
     bool (*GetNextRecordInfo)(uint32_t*, uint32_t*, uint32_t*);
     uint32_t (*ReadRecordData)(void*, uint32_t);
+    bool (*ResolveHandle)(uint64_t, uint64_t*);
+    bool (*ResolveFormID)(uint32_t, uint32_t*);
 };
 
 constexpr uint32_t Tag(const char (&acTag)[5]) noexcept
@@ -33,6 +36,7 @@ constexpr uint32_t Tag(const char (&acTag)[5]) noexcept
 
 constexpr uint32_t kUniqueId = Tag("SKCP");
 constexpr uint32_t kCharacters = Tag("CHAR");
+constexpr uint32_t kFollowers = Tag("FOLL");
 
 SerializationInterface* s_pInterface = nullptr;
 uint32_t s_handle = 0;
@@ -49,6 +53,9 @@ void OnSave(SerializationInterface* apInterface)
         const std::string cData = pSaves->WriteCoSave();
         if (!apInterface->WriteRecord(kCharacters, CharacterRecords::kVersion, cData.data(), static_cast<uint32_t>(cData.size())))
             spdlog::error("CoSave: the players' characters were not written ({} bytes)", cData.size());
+        const std::string cFollowers = Followers::Encode(pSaves->GetFollowerAnchors());
+        if (!apInterface->WriteRecord(kFollowers, 1, cFollowers.data(), static_cast<uint32_t>(cFollowers.size())))
+            spdlog::error("CoSave: follower anchors were not written");
     }
 }
 
@@ -58,11 +65,16 @@ void OnLoad(SerializationInterface* apInterface)
     uint32_t type = 0, version = 0, length = 0;
     while (pSaves && apInterface->GetNextRecordInfo(&type, &version, &length))
     {
-        if (type != kCharacters)
+        if (type != kCharacters && type != kFollowers)
             continue;
         std::string data(length, '\0');
         apInterface->ReadRecordData(data.data(), length);
-        pSaves->ReadCoSave(data, version);
+        if (type == kCharacters)
+            pSaves->ReadCoSave(data, version);
+        else
+            Followers::Decode(pSaves->GetFollowerAnchors(), data, version, [apInterface](uint32_t aOld, uint32_t& aNew) {
+                return apInterface->ResolveFormID(aOld, &aNew);
+            });
     }
 }
 

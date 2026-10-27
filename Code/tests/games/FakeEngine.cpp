@@ -1,3 +1,4 @@
+#include <Events/MenuEvent.h>
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
@@ -2082,7 +2083,7 @@ void FakeEngine::Activates(uint32_t aActor, uint32_t aObject)
     ActivateEvent event;
     event.ObjectFormId = aObject;
     event.ActivatorFormId = aActor;
-    event.ObjectParentCellFormId = References.at(aObject).Cell;
+    event.ObjectParentCellFormId = Actors.contains(aObject) ? Actors.at(aObject).Cell : References.at(aObject).Cell;
     World::Get().GetRunner().Trigger(event);
     Activations.emplace_back(aObject, aActor);
     ToggleDoor(aObject);
@@ -2302,5 +2303,14 @@ bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearan
     auto& base = Npcs.at(GetActorBaseFormId(aFormId));
     base.Looks = acAppearance;
     base.Weight = aWeight;
+    return true;
+}
+
+bool FakeEngine::OpenFollowerInventory(uint32_t aNpcFormId) noexcept
+{
+    if (FollowerTradeNpc || !Actors.contains(aNpcFormId))
+        return false;
+    FollowerTradeNpc = aNpcFormId;
+    World::Get().GetRunner().Trigger(MenuEvent{"ContainerMenu", true});
     return true;
 }

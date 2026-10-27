@@ -250,6 +250,11 @@ void CharacterService::RunActorDiscovery() noexcept
     if (m_world.GetHostService().IsHosting())
         for (const uint32_t cFormId : m_actorBridge.GetLoadedActorFormIds())
             loaded.insert(cFormId);
+    else if (m_transport.IsOnline())
+        for (const uint32_t cFormId : m_actorBridge.GetLoadedActorFormIds())
+            if (cFormId != cPlayerId && m_actorBridge.IsActorTemporary(cFormId) &&
+                !m_actorBridge.IsActorCopy(cFormId) && !Utils::GetSessionIdByFormId(cFormId))
+                m_actorBridge.DeleteActor(cFormId); // saved NPCs can finish loading after connection; their copies come separately
 
     // Removals first, as the original DiscoveryService did.
     std::vector<uint32_t> removed;
@@ -285,8 +290,8 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexc
     for (auto entity : entities)
     {
         auto& formIdComponent = m_world.get<FormIdComponent>(entity);
-        // Delete all temporary actors on connect
-        if (formIdComponent.Id > 0xFF000000)
+        // The host's saved temporary NPCs belong to its world too; only guests discard their own.
+        if (!m_world.GetHostService().IsHosting() && formIdComponent.Id >= 0xFF000000)
         {
             m_actorBridge.DeleteActor(formIdComponent.Id);
             continue;

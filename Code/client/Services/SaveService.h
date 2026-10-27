@@ -3,6 +3,7 @@
 #include <Events/Listen.h>
 #include <NoCopyMove.h>
 #include <Services/CharacterRecords.h>
+#include <Followers/Anchors.h>
 
 #include <string>
 
@@ -31,6 +32,8 @@ struct SaveService
     // Whether this game may save now: not as a guest, nor while joining a session.
     [[nodiscard]] bool MaySave() const noexcept;
 
+    [[nodiscard]] Followers::Anchors& GetFollowerAnchors() noexcept { return m_followers; }
+
     // The players' characters the loaded save keeps, and the host's game keeps up to date.
     [[nodiscard]] CharacterRecords& GetRecords() noexcept { return m_records; }
     [[nodiscard]] const CharacterRecords& GetRecords() const noexcept { return m_records; }
@@ -48,6 +51,7 @@ private:
     World& m_world;
     entt::dispatcher& m_dispatcher;
     CharacterRecords m_records;
+    Followers::Anchors m_followers;
     bool m_toldAutosave{};
     std::vector<entt::scoped_connection> m_connections;
 };

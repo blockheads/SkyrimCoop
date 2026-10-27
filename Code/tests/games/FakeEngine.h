@@ -1,4 +1,5 @@
 #pragma once
+#include <Followers/State.h>
 
 // One game's engine in tier 2 (docs/design/testing.md): the player's controls (ControlMap's bitmask), a script VM
 // running Game.DisablePlayerControls / EnablePlayerControls through what PartyNatives' glue does around them, the
@@ -683,6 +684,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetActorInventory(uint32_t aFormId, const Inventory& acInventory) noexcept override;
     ActorValues GetActorEssentialValues(uint32_t aFormId) const noexcept override;
     void SetActorValues(uint32_t aFormId, const ActorValues& acValues) noexcept override;
+    bool OpenFollowerInventory(uint32_t aNpcFormId) noexcept override;
+    std::vector<Followers::State> PartyFollowers;
+    std::vector<Followers::Order> FollowerOrders;
+    std::vector<Followers::Target> FollowerTargets;
+    uint32_t FollowerTradeNpc{};
     uint32_t GetPlayerFormId() const noexcept override { return kPlayer; }
     uint32_t GetPlayerParentCellId() const noexcept override { return Actors.at(kPlayer).Cell; }
     uint32_t GetPlayerParentCellFormId() const noexcept override { return Actors.at(kPlayer).Cell; }

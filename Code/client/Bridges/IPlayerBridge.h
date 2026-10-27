@@ -14,6 +14,9 @@ class IPlayerBridge
 public:
     virtual ~IPlayerBridge() = default;
 
+    // Opens the authorized follower trade menu on this player's game.
+    virtual bool OpenFollowerInventory(uint32_t aNpcFormId) noexcept = 0;
+
     // --- Identity ---
     virtual uint32_t GetPlayerFormId() const noexcept = 0;
     virtual uint32_t GetPlayerBaseNpcFormId() const noexcept = 0;

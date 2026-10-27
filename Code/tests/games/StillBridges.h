@@ -14,6 +14,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     std::string Name;
     uint16_t Level = 1;
 
+    bool OpenFollowerInventory(uint32_t) noexcept override { return false; }
     uint32_t GetPlayerFormId() const noexcept override
     {
         return {};

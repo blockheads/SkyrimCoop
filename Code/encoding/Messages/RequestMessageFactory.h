@@ -1,4 +1,5 @@
 #pragma once
+#include <Messages/FollowerMessages.h>
 
 #include <Messages/Message.h>
 #include <MetaMessage.h>

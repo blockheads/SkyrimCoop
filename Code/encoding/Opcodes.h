@@ -63,7 +63,8 @@
     X(DropItemRequest)              \
     X(PickUpRequest)                \
     X(TravelTimeRequest)            \
-    X(PartyTravelRequest)
+    X(PartyTravelRequest)            \
+    X(FollowerTradeClosedRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -130,7 +131,8 @@
     X(NotifyCrimeConfiscation)     \
     X(NotifyItemDropped)           \
     X(NotifyPickUp)                \
-    X(NotifyPartyGold)
+    X(NotifyPartyGold)             \
+    X(NotifyFollowerTrade)
 
 #define COOP_OPCODE(aName) k##aName,
 

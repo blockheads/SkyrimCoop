@@ -31,6 +31,7 @@
 #include <Services/WaitService.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
+#include <Services/FollowerService.h>
 #include <Services/SteamService.h>
 #include <LoadGameEvents.h>
 #include <MenuEvents.h>
@@ -126,6 +127,7 @@ World::World()
     ctx().emplace<IJoinBridge&>(*m_pJoinBridge);
     ctx().emplace<JoinService>(*this, m_dispatcher, *m_pJoinBridge);
     ctx().emplace<SaveService>(*this, m_dispatcher);
+    ctx().emplace<FollowerService>(*this, m_dispatcher, ctx().at<IPlayerBridge&>());
     LoadGameEvents::Start();
 
     BehaviorVar::Get()->Init();
@@ -138,6 +140,7 @@ World::~World()
     // hot reloads now and then). They go first, newest first.
     LoadGameEvents::Stop();
     MenuEvents::Stop();
+    ctx().erase<FollowerService>();
     ctx().erase<SaveService>();
     ctx().erase<JoinService>();
     ctx().erase<SteamService>();

@@ -24,8 +24,38 @@
 #include <Messages/WorldState.h>
 #include <Messages/DroppedItems.h>
 #include <Structs/Vector2_NetQuantize.h>
+#include <Messages/ActivateRequest.h>
+#include <Messages/NotifyActivate.h>
 
 #include <numbers>
+
+TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]")
+{
+    ActivateRequest request;
+    request.Id = {};
+    request.CellId = GameId(0, 0x32AE7);
+    request.NpcId = 1234;
+    request.ActivatorId = 42;
+    request.PreActivationOpenState = 0;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(static_cast<const ActivateRequest&>(*decoded) == request);
+    NotifyActivate notice;
+    notice.NpcId = request.NpcId;
+    notice.ActivatorId = request.ActivatorId;
+    notice.PreActivationOpenState = 0;
+    Buffer result;
+    Buffer::Writer resultWriter(&result);
+    notice.Serialize(resultWriter);
+    Buffer::Reader resultReader(&result);
+    auto received = NotifyMessageFactory{}.Extract(resultReader);
+    REQUIRE(received);
+    CHECK(static_cast<const NotifyActivate&>(*received) == notice);
+}
 
 TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encoding.crime]")
 {
@@ -1569,4 +1599,28 @@ TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding
     auto message = RequestMessageFactory{}.Extract(reader);
     REQUIRE(message);
     CHECK(*CastUnique<DismountRequest>(std::move(message)) == dismount);
+}
+
+TEST_CASE("Follower trade grants and releases retain the NPC session id", "[encoding.followers]")
+{
+    NotifyFollowerTrade grant;
+    grant.NpcId = 98765;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    grant.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == NotifyFollowerTrade::Opcode);
+    CHECK(static_cast<const NotifyFollowerTrade&>(*decoded).NpcId == grant.NpcId);
+    FollowerTradeClosedRequest close;
+    close.NpcId = grant.NpcId;
+    Buffer request;
+    Buffer::Writer requestWriter(&request);
+    close.Serialize(requestWriter);
+    Buffer::Reader requestReader(&request);
+    auto received = RequestMessageFactory{}.Extract(requestReader);
+    REQUIRE(received);
+    REQUIRE(received->GetOpcode() == FollowerTradeClosedRequest::Opcode);
+    CHECK(static_cast<const FollowerTradeClosedRequest&>(*received).NpcId == close.NpcId);
 }

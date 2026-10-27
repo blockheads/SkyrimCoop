@@ -1,14 +1,15 @@
 # NPC followers
 
-Shared-slot/member-anchor design approved by the user, 2026-10-27. Feature 7 has **no implementation**.
-Implementation is deferred while the party travel changes are reviewed on dev.
+Shared vanilla followers with a member as their anchor, approved 2026-10-27.
+Implemented on dev; changes are uncommitted for review.
 NPC simulation and the world remain the host's; a follower's trading partner is the player who picked the line
 ([party-model.md](party-model.md)). A player following the travel tether is a separate concept.
 
 ## What vanilla does
 
 Measured on AE 1.6.1170 with two games, using the guest's real dialogue menu and its recruitment choice on a
-host-created Lydia. Evidence: `build/follower-measurement.log` and `build/follower-records.log` in party-travel.
+host-created Lydia. Evidence: `follower-measurement.log` and `follower-records.log`, preserved in
+`build/followers-review/`.
 
 ```text
 guest activates Lydia's copy and picks "Follow me. I need your help." (topic B0EE6)
@@ -38,8 +39,7 @@ Read from the installed vanilla `Data/Scripts.zip` and Skyrim.esm:
 - Dismissal clears teammate/hireling state, removes the vanilla hunting bow/arrows and clears the alias/count.
   Hireling scripts charge gold and then call the same `SetFollower` path. The party's purse must pay once.
 
-Only Lydia's guest recruitment and native follow target were measured live. Housecarls, hired followers and
-dogs still require their own live acceptance cases before follower implementation can be called complete.
+Native acceptance uses real activation and dialogue choices. Coverage and outstanding checks are listed below.
 
 ## Choices
 
@@ -72,7 +72,8 @@ member picks "trade"
 
 - **Recruiting and following:** recruitment establishes the anchor. Any member may ask a party follower to
   follow them, wait, perform a supported favor, trade or leave. A follow command changes the anchor to its
-  picker; trading alone does not. The host orders competing commands once.
+  picker; trading alone does not. The host orders competing commands once. For v1, keep vanilla’s
+  **Wait here → Follow me** sequence to switch the member being followed (user decision, 2026-10-27).
 - **Package targeting:** resolve only the active party follower's follow target to its member's current
   reference on the host. Preserve waiting, dismissal, furniture, combat, scenes and quest override packages.
   Do not globally replace player references or treat all NPC movement as party travel. The mechanism must
@@ -115,17 +116,65 @@ on anchor actor replaced, member leaves/returns, or host world loads:
     evaluate the appropriate native package without replaying recruitment
 ```
 
-## Implementation follow-up
+## Implementation
 
-The user approved recruitment and Follow choosing the physical pathing target, shared access to other commands,
-and automatic fallback when the anchor dies or disconnects. Vanilla host targeting remains an acceptable
-fallback if native retargeting proves too costly. No follower service, package hook, new follower message,
-recruitment rule or trading implementation has been added.
+`HostFollowers` reads the host's two vanilla aliases and binds successful recruitment/Follow commands to the
+picker's stable player key. Its pure `Followers::Anchors` chooser resolves current player actors and standing-party
+fallbacks. Waiting leaves the saved desire intact and suppresses following; the next Follow command chooses
+its picker. Clearing an alias or follower death removes its binding. Host save co-record `FOLL` version 1 stores
+host reference IDs and stable member keys, with SKSE reference remapping on load; it stores no temporary fallback.
 
-When implementation resumes, first test binding and picker inventory rules in fast tests, then run native cases for Lydia,
-a housecarl, a paid hireling and a dog: host/guest recruitment, slot contention, switching anchors, wait/timeouts,
-favors, trading, dismissal, combat/death, doors/fast travel/jail, three players, host save/load, and reconnect
-with a replacement player copy. Verify NPC inventories and the number of NPCs after every reconnect.
+`FollowerTargets` observes native teammate and WaitingForPlayer writes using the existing script cause. It
+changes the active vanilla follow package's specific-player reference on the host. Rebuilding that package's
+cached procedure is needed when the selected actor changes; it is guarded against combat and other packages.
+See [native contracts and evidence](../re/systems/followers.md).
 
-Package targeting and picker inventory routing may require coordination with the script-layer agent. Those
-changes, cutscenes, message natives and story-event hooks remain outside this worktree's implementation scope.
+Follower trading is serialized per NPC by the host. `FollowerService` closes the picker's dialogue before opening
+its follower container, and releases the interaction on close, failed opening or disconnect. Existing inventory
+replication moves items between the NPC and the picker's inventory. It does not change the anchor.
+
+Native findings also have GameTests regressions: temporary NPCs already in the host's loaded save must
+survive its session connection; guests must discard late-loading unowned temporary NPCs; activation of an
+NPC copy must resolve its session ID to the owner's actor.
+The latter lets activation-based animal recruitment reach the host instead of sending a local copy's form ID.
+Only the NPC owner replays it. Actor activations validate the sender owns the activator and the target is a host NPC.
+
+No Papyrus, cutscene, message-native or story-event hooks were changed. The implementation reads the existing
+script cause and lets vanilla own recruitment, slots, waiting, dismissal, favors and combat.
+
+## Acceptance and limits
+
+Implementation gate before integration: `followers-dev-gate.log` (433 cases plus UI fixtures and DLL),
+`followers-dev-network.log` (all four follower flows under both loss/jitter profiles).
+The final native run is `followers-dev-native.log`: nine follower cases pass outright; the door's behavior
+passes and its audit reports the reviewed ForceRefIntoAlias -> ClearRefAlias load-order variant.
+`followers-dev-door-reviewed.log` passes that case after reviewing the exact pair: ten follower native cases
+pass in total. The ordinary riding regression still fails an AI-package snapshot comparison, recorded in
+[known bugs](../bugs.md#party-travel).
+
+Fast coverage includes desired-anchor selection, death/disconnect/return, nearest-standing selection and ties,
+newer Follow orders, two independent vanilla slots, alias cleanup, record validation/remapping, exclusive trading,
+and a three-player flow checking personal inventories and anchor changes. The native suite is `follower-*` in
+`scripts/coop_followers.py`. Implementation logs below are preserved in `build/followers-review/`;
+integration checks are in `build/followers-integration/`.
+
+- Real guest recruitment and walking: `followers-live-core3.log`.
+- Host and guest Wait → Follow switches, guest dismissal: `followers-commands-native.log`.
+- Guest item transfer, host trade after close, unchanged anchor: `followers-cache-native.log`.
+- Disconnect fallback and replacement-copy return: `followers-restart-package-native.log`.
+- Death fallback/return, another housecarl and a paid hireling: `followers-life-native2.log`.
+- Animal recruitment by guest activation: `followers-activation-native.log`.
+- Placed Lydia save/load and guest-led real load door: `followers-save-travel.log` and
+  `followers-fresh-save-door.log`. The placed save assertion passed; the latter run's final audit reported
+  a native alias/load lock inversion during fixture dismissal. The identical pair was reproduced on unchanged
+  dev (`followers-baseline-alias.log`), reviewed and added to the existing known load patterns.
+
+A debug `coc` from doorless QASmoke to the inn left a following NPC behind; the real inn load door passed.
+This implementation does not add an NPC teleport tether. Quest teleports, jail, fast travel, waiting through
+72 game hours, directed favors, combat during fallback and a native three/four-player run still need explicit
+acceptance. Temporary quest companions and custom follower frameworks keep their own aliases/packages; they
+are outside the shared vanilla slots. The fake's three-player check does not prove those native engine paths.
+
+An outdoor run also crashed in native horse/Noble follow AI before loading a save
+(`followers-first-crash.log`, 39136, horse FF000AE0). That actor was not the recruited follower and the new target
+hook was absent from the crash stack. Cause remains unconfirmed; do not count the interrupted cases as passes.
