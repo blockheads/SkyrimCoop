@@ -43,6 +43,29 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md).
   - Start: `GuestEngine::ApplyQuest` and its direct running/starting flag writes; preserve the rule that only
     the host rolls and runs world quests.
 
+## Party travel
+
+Accepted for v1.0.0 testing by the user on 2026-10-27. The jail cleanup failure and intermittent lock reports
+below, together with the travel-related physics/death failures under packet loss in "Physics and ragdolls",
+are deferred known issues. They do not block party travel from entering v1.0.0 testing; their failing checks
+and evidence remain recorded.
+
+- **An AI/quest lock inversion was reported during travel** (2026-10-27, party-travel). The departure timing
+  assertions pass, but `party-loads-overlap` fails the scenario's final lock audit. The reported path is native
+  low-actor AI/package evaluation -> `TESQuest::sub_25066`, through the existing `HookUpdateAI`; the opposite
+  pair is quest alias processing. No deadlock occurred in that run. Evidence:
+  `.worktrees/party-travel/build/final-native-lock.log` and `build/regression-final-native.log`.
+  - Start: reproduce the pair on unchanged dev and inspect quest/AI lock ordering; that baseline comparison
+    has not been performed. This is not evidence that the new destination announcement itself holds these locks.
+- **The guest jail regression cannot clean up its guard after release** (2026-10-27, party-travel).
+  The guest's actual arrest choice takes both players inside jail cell `4A376`, within one unit of each other,
+  with native faction `267EA` and a positive sentence. Serving the sentence releases both players, but fixture
+  cleanup's `reset_alarm` rejects the old guard as a missing actor, leaving stale fixture/session entries and
+  preventing a clean scenario pass. Reproduced twice; no baseline comparison yet.
+  - Test: `guest-guard-arrest-jail`; `.worktrees/party-travel/build/regression-final-native.log`.
+  - Start: temporary guard lifetime and session cleanup across jail/release, then re-run the whole scenario.
+    The verified jail arrival alone does not prove the release/cleanup path clean.
+
 ## Physics and ragdolls
 
 - **A knocked-down copy gets up on its own timing** (2026-10-26, friendly-fire). The copy's get-up is its own
@@ -71,6 +94,11 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md).
   before friendly fire too. `docs/design/death.md`, "The ragdoll" (open).
 - **The host's jail release reported a lock inversion** (2026-10-26, shared-party-bounty): GuestPhysics
   `FreePlaced`/`FreeBody` during the release, symbolized in that worktree's `build/crime-re/guard-jail/`.
+  - Seen again after repeated party travel (2026-10-27, party-travel): `BodyService::Show` ->
+    `BodyBridge::Rest` -> `FreeBody` / `SetMotionTypeAsleep` takes Havok then extra-data locks while native
+    `ProcessQueuedTravel` unloads a cell in the opposite order. Both games continued, but the scenario correctly
+    fails its lock check. Evidence: `.worktrees/party-travel/build/persistent-cell-lock.log`; the final horse
+    persistence fix is already present in that run. Start with body playback during cell unload.
 - **A physics carry check fails in the full gate** (seen by shared-party-bounty, 2026-10-26, "baseline physics carry
   failure"), and pickpocketing ended once with the QA ladles at another pose on the guest. Not traced.
   - Measured 2026-10-26 (dropped-items): `physics_flows.cpp:147` ("A guest's player carries the plate and lets go"),
@@ -88,6 +116,11 @@ visible actor bugs are in [small-bugs.md](design/small-bugs.md).
   - Start: the order of the death state and the ragdoll's frames on the copy's game (`ActorValueService`'s death
     replay waits for the owner's action; `BodyService` drives the bones meanwhile).
   - Test: that flow under `COOP_NET="delay=50,jitter=30,loss=5,seed=1"`.
+  - Party-travel audit (2026-10-27): confirmed-death fallback now includes player copies after attempting
+    the exact action (direct regression was red first), but the wider death/physics network run still fails
+    copy-death, standing-member combat and checkpoint/wipe waits. Earlier dead-follower checks also
+    exposed the copy-alive state under severe loss. See `.worktrees/party-travel/build/verified-network.log`;
+    ordinary gate and scoped non-death travel/mount profiles pass. Do not count those passes as death/loss coverage.
 
 ## Combat
 

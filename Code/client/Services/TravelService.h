@@ -8,6 +8,8 @@
 
 struct World;
 struct UpdateEvent;
+struct FastTravelEvent;
+struct PlayerTravelQueuedEvent;
 struct NotifyPartyTravel;
 struct TransportService;
 class IActorBridge;
@@ -40,6 +42,8 @@ struct TravelService
     // The party arrived on one spot: the players on it pass through each other until each walks off it.
     void StackOn(const glm::vec3& acSpot) noexcept;
     void OnUpdate(const UpdateEvent&) noexcept;
+    void OnTravelQueued(const PlayerTravelQueuedEvent& acEvent) noexcept;
+    void OnFastTravel(const FastTravelEvent& acEvent) noexcept;
     // Another player travelled by itself: ours goes where it arrived, unless already there.
     void OnPartyTravel(const NotifyPartyTravel& acMessage) noexcept;
     // Who is still on the stack (a player leaves it once it walks off it in this cell, or if it never came

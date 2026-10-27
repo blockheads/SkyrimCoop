@@ -36,6 +36,7 @@ public:
 
     // --- State ---
     virtual bool IsPlayerAlive() const noexcept = 0;
+    virtual bool IsPlayerMounted() const noexcept = 0;
     // In a session a dead player waits for the party instead of loading the last save.
     virtual void HoldPlayerDeathReload(bool aHold) noexcept = 0;
     // Back alive from a real death (docs/design/death.md, "Real death").
@@ -73,7 +74,7 @@ public:
 
     // --- 3D loaded ---
     virtual bool IsPlayerLoaded() const noexcept = 0;
-    // Whether the engine teleported the player since the last call (experimental: coc only so far).
+    // Whether the engine teleported the player since the last call (PositionPlayerEvent).
     virtual bool ConsumeTeleported() noexcept = 0;
     // The way the player faces (radians clockwise from north).
     virtual float GetPlayerHeading() const noexcept = 0;

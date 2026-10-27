@@ -133,3 +133,10 @@ A sleep listener can have registered during a guest interaction (for example an 
 use the local player as their story cause, so a host quest acts on the host player, its controls
 and fades remain the party's, and follow-up timers keep that context. Other registrations and explicit calls from a running native are unchanged.
 No existing Skyrim hook implementation is edited for this rule.
+
+## Guest fast-travel time (2026-10-27)
+
+40445 scopes native fast travel around its call to Calendar::Update (36291). Even while GuestClock suppresses
+that update, its seconds times TimeScale / 3600 give the trip's game hours. A guest sends those hours to
+HostClock, which advances the host's native calendar. Host trips are already applied and are not forwarded.
+Ordinary frame time and rest do not enter this route. `docs/design/party-travel.md` records validation.

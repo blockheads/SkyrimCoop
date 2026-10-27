@@ -51,6 +51,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    bool IsPlayerMounted() const noexcept override { return false; }
     bool IsPlayerAlive() const noexcept override
     {
         return {};
@@ -441,8 +442,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override
     {
     }
-    void SetActorPersistent(uint32_t aFormId) noexcept override
+    bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept override
     {
+        return false;
     }
     bool IsActorCopy(uint32_t aFormId) const noexcept override
     {

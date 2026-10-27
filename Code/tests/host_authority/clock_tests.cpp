@@ -1,6 +1,8 @@
 // HostClock: the session's time is the host's clock.
 #include "session.h"
 
+#include <limits>
+
 TEST_CASE("Time: a joining player gets the host's clock", "[HostAuthority][Time]")
 {
     Session session;
@@ -101,4 +103,22 @@ TEST_CASE("Time: peers' clocks count the days passed at midnight themselves", "[
     session.Frame(61500);
     REQUIRE(session.SentTo<NotifyTimeSettings>(kPeer).size() == 1);
     CHECK(session.SentTo<NotifyTimeSettings>(kPeer)[0]->timeModel.DaysPassed == 302);
+}
+
+TEST_CASE("Travel time: only a guest's finite positive native step advances the host", "[HostAuthority][Time]")
+{
+    Session session;
+    const float cBefore = session.HostClock.Time;
+    TravelTimeRequest travel;
+    travel.Hours = 3.f;
+    session.Receive(kHost, travel);
+    CHECK(session.HostClock.Time == cBefore);
+    session.Receive(kPeer, travel);
+    CHECK(session.HostClock.Time == cBefore + 3.f);
+    for (const float cInvalid : {0.f, -1.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN()})
+    {
+        travel.Hours = cInvalid;
+        session.Receive(kPeer, travel);
+        CHECK(session.HostClock.Time == cBefore + 3.f);
+    }
 }

@@ -38,6 +38,7 @@ public:
     [[nodiscard]] std::vector<QuestState> TakeQuestChanges() const noexcept;
     // Runs the clock on to that hour, the next day's if it is earlier, as a wait does.
     void SetHour(float aHours) noexcept;
+    void AdvanceTime(float aHours) noexcept;
     // A world script's event on an object, kept for the others: it activated a door (by a reference) or played an
     // animation on it; or a container's items changed (not an actor's).
     void RecordActivation(uint32_t aObjectFormId, uint32_t aActivatorFormId, uint8_t aOpenState) noexcept;

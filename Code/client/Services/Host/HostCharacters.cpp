@@ -1,5 +1,7 @@
 #include <Services/Host/HostCharacters.h>
 
+#include <Messages/TravelMessages.h>
+
 #include <Services/Host/HostNetwork.h>
 #include <Services/Host/HostAuthority.h>
 
@@ -38,6 +40,7 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.Watch(*this, &HostCharacters::OnMaxValues);
     aAuthority.On(*this, &HostCharacters::OnMovement);
     aAuthority.On(*this, &HostCharacters::OnEnterCell);
+    aAuthority.On(*this, &HostCharacters::OnTravelQueued);
 }
 
 void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -201,19 +204,21 @@ void HostCharacters::OnDismount(const DismountRequest& acRequest, ConnectionId_t
         spdlog::warn("HostCharacters: {:x} took {:x} off {:x}, which it cannot", aSender, acRequest.RiderId, acRequest.MountId);
         return;
     }
-    GiveBack(acRequest.MountId, acRequest.RiderId);
+    GiveBack(acRequest.MountId, acRequest.RiderId, acRequest.Whereabouts);
 }
 
-void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId) noexcept
+void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts) noexcept
 {
     const ConnectionId_t cHost = m_players.Host();
     const auto cMount = m_characters.find(aMountId);
-    if (!cHost || cMount == m_characters.end() || std::exchange(cMount->second.Owner, cHost) == cHost)
+    if (!cHost || cMount == m_characters.end())
         return;
+    cMount->second.Owner = cHost;
     spdlog::info("HostCharacters: {:x} is the host's again", aMountId);
     NotifyDismount notify;
     notify.RiderId = aRiderId;
     notify.MountId = aMountId;
+    notify.Whereabouts = acWhereabouts;
     m_players.SendToAll(notify);
 }
 
@@ -527,4 +532,12 @@ void HostCharacters::KeepValues(uint32_t aSessionId, const std::map<uint32_t, fl
     auto& values = aMaximum ? kept.ActorMaxValuesList : kept.ActorValuesList;
     for (const auto& [cKey, cValue] : acValues)
         values[cKey] = cValue;
+}
+
+void HostCharacters::OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (!PlayerCharacterOf(aSender))
+        return;
+    m_partyTravel = acRequest.Destination;
+    m_players.SendToOthers(*m_partyTravel, aSender, Net::kReliableNoNagle);
 }

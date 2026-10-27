@@ -29,6 +29,7 @@
 #include <Messages/CrimeMessages.h>
 #include <Messages/DroppedItems.h>
 #include <Messages/DeathMessages.h>
+#include <Messages/TravelMessages.h>
 
 struct RequestMessageFactory
 {

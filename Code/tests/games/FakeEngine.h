@@ -317,6 +317,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // This game's player travels by itself (a door, coc): to aCell at aPosition, that cell loaded and the one it
     // left unloaded, a teleport the engine reports once (ConsumeTeleported).
     void PlayerTravels(uint32_t aCell, const glm::vec3& acPosition);
+    // The native mount interaction, replayed for copies by CharacterService.
+    std::map<uint32_t, uint32_t> Mounts;
+    void ActorPutOnMount(uint32_t aRider, uint32_t aMount) noexcept override { Mounts[aRider] = aMount; }
     bool Teleported = false;
     float Heading = 0.f; // the player's (SetPlayerHeading)
     size_t Travels = 0;  // the player's teleports, ever
@@ -621,7 +624,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     bool Reloaded = false;
     bool IsOtherPlayer(uint32_t aFormId) const noexcept override;
     bool IsTemporaryActor(uint32_t aFormId) const noexcept override { return IsActorTemporary(aFormId); }
-    void SetActorPersistent(uint32_t aFormId) noexcept override;
+    bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept override;
     void SetActorPlayerFaction(uint32_t aFormId) noexcept override;
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3], const float aRotation[3], float aDirection,
                              const AnimationVariables& aVariables, bool aPlace) noexcept override;
@@ -674,6 +677,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     bool ConsumeTeleported() noexcept override { return std::exchange(Teleported, false); }
     float GetPlayerHeading() const noexcept override { return Heading; }
     void SetPlayerHeading(float aHeading) noexcept override { Heading = aHeading; }
+    bool IsPlayerMounted() const noexcept override { return Mounts.contains(kPlayer); }
     bool IsPlayerAlive() const noexcept override { return !Actors.at(kPlayer).Dead; }
     float GetPlayerActorValue(int32_t aIndex) const noexcept override { return GetActorValue(kPlayer, aIndex); }
     void ForcePlayerActorValue(int32_t aForceMode, int32_t aIndex, float aValue) noexcept override

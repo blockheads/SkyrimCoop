@@ -171,11 +171,22 @@ uint32_t SkyrimBridge::GetCommandingActor(uint32_t aFormId) const noexcept
     return 0;
 }
 
-void SkyrimBridge::SetActorPersistent(uint32_t aFormId) noexcept
+bool SkyrimBridge::SetActorPersistent(uint32_t aFormId, bool aPersistent) noexcept
 {
-    Breadcrumbs::Record("SetActorPersistent", aFormId);
+    Breadcrumbs::Record("SetActorPersistent", aFormId, aPersistent);
     if (Actor* pActor = GetActor(aFormId))
-        pActor->SetPersistent();
+    {
+        const bool cWasPersistent = (pActor->flags & TESForm::PERSISTENT) != 0;
+        // 19597 updates the flag and the world's persistent-cell membership together.
+        if (cWasPersistent != aPersistent)
+        {
+            using TSetPersistent = uintptr_t(TESObjectREFR*, bool);
+            POINTER_SKYRIMSE(TSetPersistent, s_setPersistent, 19597);
+            s_setPersistent(pActor, aPersistent);
+        }
+        return cWasPersistent;
+    }
+    return false;
 }
 
 void SkyrimBridge::KillActor(uint32_t aFormId) noexcept
@@ -1277,6 +1288,12 @@ bool SkyrimBridge::IsPlayerAlive() const noexcept
     if (PlayerCharacter* pPlayer = PlayerCharacter::Get())
         return !pPlayer->IsDead();
     return false;
+}
+
+bool SkyrimBridge::IsPlayerMounted() const noexcept
+{
+    const auto* pPlayer = PlayerCharacter::Get();
+    return pPlayer && pPlayer->extraData.Contains(ExtraDataType::Interaction);
 }
 
 void SkyrimBridge::HoldPlayerDeathReload(bool aHold) noexcept

@@ -17,6 +17,7 @@ struct AnnounceCharacterRequest;
 struct RequestRemoveCharacter;
 struct RequestRespawn;
 struct EnterCellRequest;
+struct PartyTravelRequest;
 
 struct HostNetwork;
 
@@ -73,7 +74,7 @@ private:
     void OnMount(const MountRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its rider got off: the mount is the host's again (its game simulates it), and every game hears of it.
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
-    void GiveBack(uint32_t aMountId, uint32_t aRiderId) noexcept;
+    void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
     void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
     // A player's character's values from its owner (the relayed requests, watched): into its record for its later
@@ -84,6 +85,7 @@ private:
     // Owners' movement goes straight to everyone else (unreliable: only the latest matters).
     void OnMovement(const ReferencesMoveRequest& acRequest, ConnectionId_t aSender) noexcept;
     // A player's game arrived somewhere: with the host, it gets everyone there and they get it.
+    void OnTravelQueued(const PartyTravelRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnEnterCell(const EnterCellRequest& acRequest, ConnectionId_t aSender) noexcept;
     // Its game is where the host's is (not still on the way).
     [[nodiscard]] bool WithHost(ConnectionId_t aPlayer) const noexcept;

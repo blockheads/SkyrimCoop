@@ -5,6 +5,7 @@
 // fields and their bytes are written once.
 
 #include <Structs/ActorAiState.h>
+#include <Structs/ActorWhereabouts.h>
 #include <Structs/BodyFrame.h>
 #include <Structs/GameId.h>
 #include <Structs/Inventory.h>
@@ -183,6 +184,15 @@ struct Mount
 };
 
 // An actor's AI state, when its owner's changed.
+// Ownership returns with the last owner's current placement, including a native travel's implicit dismount.
+struct Dismount : Mount
+{
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+    bool operator==(const Dismount&) const noexcept = default;
+    ActorWhereabouts Whereabouts;
+};
+
 struct AiState
 {
     void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;

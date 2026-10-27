@@ -210,6 +210,8 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
     }
 
     const auto cId = *entityIt;
+    if (const auto cSession = Utils::GetSessionId(cId); cSession && m_partyMounts.contains(*cSession))
+        return;
     // Another player's copy left the loaded area with our travel: it travels with the party, not its cell.
     if (m_world.all_of<RemoteComponent, PlayerComponent>(cId) && m_actorBridge.IsActorCopy(acEvent.FormId))
         return;
@@ -297,6 +299,9 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexc
 void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept
 {
     m_pendingLooks.clear();
+    const auto cMounts = m_mountPersistence;
+    for (const auto& [cFormId, cPersistent] : cMounts)
+        ReleaseMount(cFormId);
     // The session's copies go: the ones we spawned are deleted, the game's own actors are its own again.
     DropCopies([](uint32_t) { return true; });
     const auto cHeld = m_world.view<HeldCopyComponent>();
@@ -312,6 +317,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
     m_playerId = 0;
     m_characterId = 0;
     m_riddenMount = 0;
+    m_partyMounts.clear();
 }
 
 CharacterService::~CharacterService() noexcept
@@ -823,7 +829,7 @@ void CharacterService::OnPlayerRevived(const PlayerRevivedEvent&) const noexcept
     m_transport.Send(request);
 }
 
-void CharacterService::OnMountEvent(const MountEvent& acEvent) const noexcept
+void CharacterService::OnMountEvent(const MountEvent& acEvent) noexcept
 {
     auto view = m_world.view<FormIdComponent>();
 
@@ -861,12 +867,20 @@ void CharacterService::OnMountEvent(const MountEvent& acEvent) const noexcept
     MountRequest request;
     request.MountId = mountSessionIdRes.value();
     request.RiderId = cpRider->Id;
-
+    if (acEvent.RiderID == m_playerBridge.GetPlayerFormId())
+    {
+        m_riddenMount = request.MountId;
+        m_partyMounts.insert(request.MountId);
+        KeepMount(acEvent.MountID);
+    }
     m_transport.Send(request);
 }
 
 void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
 {
+    for (const auto cPlayer : m_world.view<PlayerComponent>())
+        if (Utils::GetSessionId(cPlayer) == acMessage.RiderId)
+            m_partyMounts.insert(acMessage.MountId);
     // Our player got on it: the host gave the mount to this game.
     for (const auto cRider : m_world.view<LocalComponent>())
     {
@@ -875,7 +889,10 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
         for (const auto cMount : m_world.view<RemoteComponent, FormIdComponent>())
             if (m_world.get<RemoteComponent>(cMount).Id == acMessage.MountId &&
                 TakeOwnership(m_world.get<FormIdComponent>(cMount).Id, acMessage.MountId, cMount))
+            {
                 m_riddenMount = acMessage.MountId;
+                KeepMount(m_world.get<FormIdComponent>(cMount).Id);
+            }
         return;
     }
 
@@ -911,6 +928,8 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
         if (sessionId == acMessage.MountId)
         {
             mountFormId = m_world.get<FormIdComponent>(entity).Id;
+            if (m_partyMounts.contains(acMessage.MountId))
+                KeepMount(mountFormId);
             GiveUpOwnership(entity, acMessage.MountId, mountFormId);
             break;
         }
@@ -920,27 +939,38 @@ void CharacterService::OnNotifyMount(const NotifyMount& acMessage) noexcept
         m_actorBridge.ActorPutOnMount(cRiderFormId, mountFormId);
 }
 
-void CharacterService::OnDismountEvent(const DismountEvent& acEvent) const noexcept
+void CharacterService::OnDismountEvent(const DismountEvent& acEvent) noexcept
 {
     if (!m_riddenMount || acEvent.RiderId != m_playerBridge.GetPlayerFormId())
         return;
     DismountRequest request;
     request.RiderId = m_characterId;
-    request.MountId = m_riddenMount;
+    request.MountId = std::exchange(m_riddenMount, 0u);
+    for (const auto cMount : m_world.view<LocalComponent, FormIdComponent>())
+        if (m_world.get<LocalComponent>(cMount).Id == request.MountId)
+            request.Whereabouts = ReadWhereabouts(m_world.get<FormIdComponent>(cMount).Id);
     m_transport.Send(request);
 }
 
 void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcept
 {
+    m_partyMounts.erase(acMessage.MountId);
     for (const auto cEntity : m_world.view<FormIdComponent>())
     {
         if (Utils::GetSessionId(cEntity) != acMessage.MountId)
             continue;
         const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
-        if (m_world.all_of<LocalComponent>(cEntity))
+        // The rider can arrive before the horse's last movement snapshot. Place it before the host takes it.
+        if (acMessage.Whereabouts.Where == ActorWhereabouts::State::kPlaced)
+            FollowOwner(cEntity, cFormId, acMessage.Whereabouts);
+        if (m_world.GetHostService().IsHosting())
+        {
+            if (!m_world.all_of<LocalComponent>(cEntity))
+                TakeOwnership(cFormId, acMessage.MountId, cEntity);
+        }
+        else if (m_world.all_of<LocalComponent>(cEntity))
             GiveUpOwnership(cEntity, acMessage.MountId, cFormId);
-        else if (m_world.GetHostService().IsHosting())
-            TakeOwnership(cFormId, acMessage.MountId, cEntity);
+        ReleaseMount(cFormId);
         break;
     }
     if (m_riddenMount == acMessage.MountId)
@@ -1485,19 +1515,23 @@ void CharacterService::OnPlayerArrived(const PlayerArrivedEvent& acEvent) noexce
 {
     const uint32_t cCellId = acEvent.CellId;
     const uint32_t cWorldSpaceId = acEvent.WorldSpaceId;
+    // MoveTo can unlink the mount interaction without calling Actor::Dismount.
+    if (m_riddenMount && !m_playerBridge.IsPlayerMounted())
+        OnDismountEvent(DismountEvent{m_playerBridge.GetPlayerFormId()});
 
-    // The other players' copies travel with the party (RunPresence moves each to its owner); the others stay with
-    // their cell.
-    std::unordered_set<uint32_t> playerCopies;
-    for (const auto cEntity : m_world.view<RemoteComponent, PlayerComponent, FormIdComponent>())
+    // Players and their ridden horses travel with the party; other copies stay with their cell.
+    std::unordered_set<uint32_t> partyCopies;
+    for (const auto cEntity : m_world.view<RemoteComponent, FormIdComponent>())
     {
-        playerCopies.insert(m_world.get<FormIdComponent>(cEntity).Id);
+        if (!m_world.all_of<PlayerComponent>(cEntity) && !m_partyMounts.contains(m_world.get<RemoteComponent>(cEntity).Id))
+            continue;
+        partyCopies.insert(m_world.get<FormIdComponent>(cEntity).Id);
         // Moved at once, not after the spacing between two moves of the same copy.
         if (auto* pPlace = m_world.try_get<OwnerPlaceComponent>(cEntity))
             pPlace->LastMove = {};
     }
     DropCopies([&](uint32_t aFormId) {
-        if (playerCopies.count(aFormId) && m_actorBridge.IsActorCopy(aFormId))
+        if (partyCopies.count(aFormId) && m_actorBridge.IsActorCopy(aFormId))
             return false;
         // Interiors: the same cell. Exteriors: the same worldspace, loaded around the player.
         const bool cHere = cWorldSpaceId ? m_actorBridge.GetActorWorldSpaceFormId(aFormId) == cWorldSpaceId
@@ -1611,5 +1645,33 @@ void CharacterService::DropCopies(const std::function<bool(uint32_t)>& acShouldD
             m_world.remove<FormIdComponent>(entity);
         if (m_world.orphan(entity))
             m_world.destroy(entity);
+    }
+}
+
+void CharacterService::CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept
+{
+    if (!m_riddenMount)
+        return;
+    for (const auto cEntity : m_world.view<LocalComponent, FormIdComponent>())
+        if (m_world.get<LocalComponent>(cEntity).Id == m_riddenMount)
+        {
+            const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id;
+            m_actorBridge.MoveActorTo(cFormId, aCellId, acPosition.x, acPosition.y, acPosition.z);
+            return;
+        }
+}
+
+void CharacterService::KeepMount(uint32_t aFormId) noexcept
+{
+    const bool cWasPersistent = m_actorBridge.SetActorPersistent(aFormId);
+    m_mountPersistence.try_emplace(aFormId, cWasPersistent);
+}
+
+void CharacterService::ReleaseMount(uint32_t aFormId) noexcept
+{
+    if (const auto it = m_mountPersistence.find(aFormId); it != m_mountPersistence.end())
+    {
+        m_actorBridge.SetActorPersistent(aFormId, it->second);
+        m_mountPersistence.erase(it);
     }
 }

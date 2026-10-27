@@ -31,7 +31,7 @@ public:
     bool IsTemporaryActor(uint32_t aFormId) const noexcept override;
     bool IsOtherPlayer(uint32_t aFormId) const noexcept override;
     void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept override;
-    void SetActorPersistent(uint32_t aFormId) noexcept override;
+    bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept override;
     bool IsActorCopy(uint32_t aFormId) const noexcept override;
     void SetActorPlayer(uint32_t aFormId, bool aPlayer) noexcept override;
     uint32_t GetCommandingActor(uint32_t aFormId) const noexcept override;
@@ -229,6 +229,7 @@ public:
     std::string GetPlayerLocationName() const noexcept override;
     std::string GetPlayerWorldSpaceName() const noexcept override;
     bool IsPlayerAlive() const noexcept override;
+    bool IsPlayerMounted() const noexcept override;
     void HoldPlayerDeathReload(bool aHold) noexcept override;
     void RevivePlayer() noexcept override;
     void SetSpectatorTarget(uint32_t aFormId) noexcept override;

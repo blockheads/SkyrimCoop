@@ -173,3 +173,24 @@ SCENARIO("A newer death action is not undone by an older alive state", "[death][
     CHECK(guest.IsActorDead(cCopy));
     CHECK(guest.Actors.at(cCopy).ResurrectCalls == 0);
 }
+
+SCENARIO("A following player's copy applies the confirmed death after a refused native action", "[death][travel]")
+{
+    Party party(1, Plugins);
+    party.Agree("the players are present");
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t copy = 0;
+    for (const auto& [cId, cActor] : guest.Actors)
+        if (cActor.Player && cActor.Copy)
+            copy = cId;
+    REQUIRE(copy);
+    NotifyDeathStateChange death;
+    death.Id = SessionOf(party.Guest(), copy);
+    death.IsDead = true;
+    death.DeathActionTick = 123;
+    party.As(party.Guest(), [&] {
+        party.Guest().GetDispatcher().trigger(death);
+        party.Guest().GetDispatcher().trigger(DeathActionReplayedEvent{copy, 123});
+    });
+    CHECK(guest.IsActorDead(copy));
+}

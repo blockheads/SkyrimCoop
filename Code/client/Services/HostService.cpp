@@ -154,6 +154,7 @@ void HostService::MakeAuthority() noexcept
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.ReadTime = [this] { return m_world.ctx().at<IWorldBridge&>().GetGameTime(); };
     game.SetHour = [this](float aHours) { m_pEngine->SetHour(aHours); };
+    game.AdvanceTime = [this](float aHours) { m_pEngine->AdvanceTime(aHours); };
     game.ReadWeather = [this] { return m_pEngine->ReadWeather(); };
     game.ReadGlobals = [this] { return m_pEngine->ReadGlobals(); };
     game.TakeGlobalChanges = [this] { return m_pEngine->TakeGlobalChanges(); };

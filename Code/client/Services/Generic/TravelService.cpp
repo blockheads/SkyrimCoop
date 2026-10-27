@@ -2,6 +2,9 @@
 
 #include <Events/PlayerArrivedEvent.h>
 #include <Events/UpdateEvent.h>
+#include <Events/FastTravelEvent.h>
+#include <Events/PlayerTravelQueuedEvent.h>
+#include <Messages/TravelMessages.h>
 
 #include <Messages/NotifyPartyTravel.h>
 #include <Structs/GridCellCoords.h>
@@ -10,6 +13,7 @@
 #include <Bridges/IFormBridge.h>
 #include <Bridges/IPlayerBridge.h>
 #include <Services/TransportService.h>
+#include <Services/CharacterService.h>
 #include <Components.h>
 #include <World.h>
 #include <FormIds.h>
@@ -37,6 +41,8 @@ TravelService::TravelService(World& aWorld, entt::dispatcher& aDispatcher, Trans
     : m_world(aWorld), m_dispatcher(aDispatcher), m_transport(aTransport), m_actorBridge(aActorBridge),
       m_formBridge(aFormBridge), m_playerBridge(aPlayerBridge)
 {
+    Listen<PlayerTravelQueuedEvent, &TravelService::OnTravelQueued>(m_connections, aDispatcher, this);
+    Listen<FastTravelEvent, &TravelService::OnFastTravel>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &TravelService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<NotifyPartyTravel, &TravelService::OnPartyTravel>(m_connections, aDispatcher, this);
 }
@@ -148,6 +154,7 @@ void TravelService::FollowTo(const GameId& aWorld, const GameId& aCell, const gl
     // A MoveTo of the player is a travel like a door's (TESObjectREFR::MoveTo_Impl 56626 queues it, 40442).
     m_tetherTargets.push_back({aWorld, aCell, aPosition, aHeading});
     spdlog::info("Party travel: following to cell {:X} (worldspace {:X})", aCell.BaseId, aWorld.BaseId);
+    m_world.GetCharacterService().CarryMountTo(cCellId, aPosition);
     m_actorBridge.MoveActorTo(m_playerBridge.GetPlayerFormId(), cCellId, aPosition.x, aPosition.y, aPosition.z);
 }
 
@@ -228,4 +235,34 @@ std::unordered_map<uint32_t, glm::vec3> TravelService::PlayersHere() const noexc
         players[cFormId] = position;
     }
     return players;
+}
+
+void TravelService::OnFastTravel(const FastTravelEvent& acEvent) noexcept
+{
+    if (!m_transport.IsOnline() || m_transport.IsConnectedLocally())
+        return;
+    TravelTimeRequest request;
+    request.Hours = acEvent.Hours;
+    m_transport.Send(request);
+}
+
+void TravelService::OnTravelQueued(const PlayerTravelQueuedEvent& acEvent) noexcept
+{
+    if (!m_transport.IsOnline())
+        return;
+    const auto cWorld = acEvent.WorldSpaceId ? ToSession(acEvent.WorldSpaceId) : std::optional(GameId{});
+    const auto cCell = acEvent.CellId ? ToSession(acEvent.CellId) : std::optional(GameId{});
+    if (!cWorld || !cCell || (!*cWorld && !*cCell))
+        return;
+    // A queued tether MoveTo follows; it never starts a new party trip.
+    for (const auto& cTarget : m_tetherTargets)
+        if (SamePlace(*cWorld, *cCell, acEvent.Position, cTarget.WorldSpaceId, cTarget.CellId, cTarget.Position))
+            return;
+    PartyTravelRequest request;
+    request.Destination.WorldSpaceId = *cWorld;
+    request.Destination.CellId = *cCell;
+    request.Destination.Position = acEvent.Position;
+    request.Destination.Heading = acEvent.Heading;
+    m_transport.Send(request);
+    spdlog::info("Party travel: queued destination sent before loading");
 }

@@ -247,6 +247,18 @@ void RemoveSpell::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     SpellId.Deserialize(aReader);
 }
 
+void Dismount::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Mount::SerializePayload(aWriter);
+    Whereabouts.Serialize(aWriter);
+}
+
+void Dismount::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Mount::DeserializePayload(aReader);
+    Whereabouts.Deserialize(aReader);
+}
+
 void Mount::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, RiderId);

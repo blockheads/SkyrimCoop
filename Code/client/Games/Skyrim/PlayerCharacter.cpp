@@ -17,6 +17,8 @@
 #include <Events/SetWaypointEvent.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/DifficultyChangeEvent.h>
+#include <Events/PlayerTravelQueuedEvent.h>
+#include <Services/TransportService.h>
 
 #include <World.h>
 
@@ -44,6 +46,7 @@
 #include <FormIds.h>
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <optional>
 #include <utility>
@@ -366,10 +369,49 @@ void PlayerCharacter::StopTeleportEvents() noexcept
         pSource->UnRegisterSink(&s_positionPlayerSink);
 }
 
+using TProcessQueuedTravel = uintptr_t(PlayerCharacter*);
+static TProcessQueuedTravel* RealProcessQueuedTravel;
+static uint64_t s_queuedTravel = 0;
+static std::atomic<uint64_t> s_announcedTravel = 0;
+static std::optional<PlayerTargetLocation> s_pendingTravel;
+
+static uintptr_t HookProcessQueuedTravel(PlayerCharacter* apPlayer)
+{
+    const auto& cTarget = apPlayer->queuedTarget;
+    if (!cTarget.Valid || !World::Get().GetTransport().IsOnline())
+    {
+        s_pendingTravel.reset();
+        return RealProcessQueuedTravel(apPlayer);
+    }
+    // coc writes queuedTarget inline, bypassing 40442. Observe it where every move is consumed (40438).
+    if (!s_pendingTravel || s_pendingTravel->World != cTarget.World || s_pendingTravel->Interior != cTarget.Interior ||
+        s_pendingTravel->Position.x != cTarget.Position.x || s_pendingTravel->Position.y != cTarget.Position.y ||
+        s_pendingTravel->Position.z != cTarget.Position.z || s_pendingTravel->Angle.z != cTarget.Angle.z)
+    {
+        s_pendingTravel = cTarget;
+        const uint64_t cQueued = ++s_queuedTravel;
+        const auto& cAt = cTarget.Position;
+        const PlayerTravelQueuedEvent cEvent{
+            cTarget.World ? cTarget.World->formID : 0,
+            cTarget.Interior ? cTarget.Interior->formID : 0,
+            {cAt.x, cAt.y, cAt.z}, cTarget.Angle.z};
+        World::Get().GetRunner().Queue([cEvent, cQueued] {
+            World::Get().GetDispatcher().trigger(cEvent);
+            s_announcedTravel = cQueued;
+        });
+    }
+    // Send the destination before the native load blocks this game's updates.
+    if (s_announcedTravel.load() != s_queuedTravel)
+        return 0;
+    s_pendingTravel.reset();
+    return RealProcessQueuedTravel(apPlayer);
+}
+
 static Hooks::Initializer s_playerCharacterHooks(
     []()
     {
         const HookGate cGate(__FILE__);
+        HOOK_ID(40438, &RealProcessQueuedTravel, HookProcessQueuedTravel);
         HOOK_ID(40533, &RealPickUpObject, HookPickUpObject);
         HOOK_ID(55497, &RealSetBeastForm, HookSetBeastForm);
         HOOK_ID(40488, &RealAddSkillExperience, HookAddSkillExperience);

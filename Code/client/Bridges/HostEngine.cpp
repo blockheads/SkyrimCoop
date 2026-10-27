@@ -1,4 +1,5 @@
 #include <Bridges/HostEngine.h>
+#include <MainLoopTasks.h>
 
 #include <Bridges/ContainerItems.h>
 #include <Bridges/LooseItems.h>
@@ -498,4 +499,13 @@ std::optional<std::vector<ObjectChange>> HostEngine::ReadCellState(const GameId&
             changes.push_back(std::move(*contents));
     }
     return changes;
+}
+
+void HostEngine::AdvanceTime(float aHours) noexcept
+{
+    // The host may already be loading after following the guest. Run calendar work outside its VM update job.
+    MainLoopTasks::Queue([aHours] {
+        if (auto* pTime = TimeData::Get())
+            pTime->Advance(aHours);
+    });
 }

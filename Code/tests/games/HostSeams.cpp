@@ -79,6 +79,16 @@ void HostService::MakeAuthority() noexcept
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) {
         return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn);
     };
+    game.AdvanceTime = [&engine](float aHours) {
+        MainLoopTasks::Queue([&engine, aHours] {
+            DateTime time(engine.Calendar);
+            const float cScale = time.m_timeModel.TimeScale;
+            time.m_timeModel.TimeScale = 3600.f;
+            time.Update(static_cast<uint64_t>(aHours * 1000.f));
+            time.m_timeModel.TimeScale = cScale;
+            engine.Calendar = time.m_timeModel;
+        });
+    };
     game.ReadTime = [&engine] { return engine.Calendar; };
     game.SetHour = [&engine](float aHours) { engine.Calendar.Time = aHours; };
     game.ReadWeather = [&engine] {

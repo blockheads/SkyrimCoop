@@ -2,8 +2,11 @@
 // a player who travels by itself leads, everyone else follows; the players' copies travel with the party, the
 // NPCs' stay with their cells.
 #include "Party.h"
+#include "FakeDialogue.h"
 
 #include <Components.h>
+#include <Events/FastTravelEvent.h>
+#include <Events/PlayerTravelQueuedEvent.h>
 
 #include <format>
 
@@ -215,4 +218,86 @@ SCENARIO("An NPC the host's game loads as a following guest's arrival reaches it
         party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest gets a copy of the guard");
         party.Agree("the games agree on the guard");
     }
+}
+
+SCENARIO("A guest's native fast travel advances the party calendar once across midnight", "[travel][world]")
+{
+    Party party(2, Plugins);
+    auto& host = Party::Engine(party.Host());
+    host.Calendar.Time = 23.f;
+    host.Calendar.DaysPassed = 230;
+    host.Calendar.Day = 17;
+    party.Until([&] { return Party::Engine(party.Guest()).Calendar.DaysPassed == 230; }, "the guests have the host's date");
+    party.As(party.Guest(), [&] {
+        party.Guest().GetRunner().Trigger(FastTravelEvent{3.f});
+        Party::Engine(party.Guest()).PlayerTravels(kSinkhole, {});
+    });
+    party.Until([&] { return host.Calendar.DaysPassed == 231; }, "the guest's three-hour trip advances the host across midnight");
+    CHECK(host.Calendar.Time >= 2.f);
+    CHECK(host.Calendar.Time < 2.05f);
+    CHECK(host.Calendar.Day == 18);
+    party.Until([&] { return Together(party, 3, kSinkhole) &&
+                           Party::Engine(party.Guest()).Calendar.DaysPassed == 231 &&
+                           Party::Engine(party.Guest(1)).Calendar.DaysPassed == 231; }, "the party and its calendar arrive together");
+    party.Agree("the three games agree after fast travel");
+}
+
+SCENARIO("A queued guest travel starts the other games before its own arrival", "[travel]")
+{
+    Party party(2, Plugins);
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the party starts together");
+    const auto cTravels = Party::Engine(party.Guest()).Travels;
+    party.As(party.Guest(), [&] {
+        party.Guest().GetRunner().Trigger(PlayerTravelQueuedEvent{0, kSinkhole, {30.f, 40.f, 0.f}, 1.f});
+    });
+    party.Until([&] { return Party::Engine(party.Host()).GetPlayerParentCellId() == kSinkhole &&
+                           Party::Engine(party.Guest(1)).GetPlayerParentCellId() == kSinkhole; },
+                "the host and the other guest begin their moves before the leader arrives");
+    CHECK(Party::Engine(party.Guest()).Travels == cTravels);
+    CHECK(Party::Engine(party.Guest()).GetPlayerParentCellId() == kSmoke);
+    party.As(party.Guest(), [&] { Party::Engine(party.Guest()).PlayerTravels(kSinkhole, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return Together(party, 3, kSinkhole); }, "the party converges on the actual arrival");
+    party.Agree("the copies converge too");
+}
+
+SCENARIO("A dead following player travels with the party and stays dead", "[travel][death]")
+{
+    Party party(2, Plugins);
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the three players start together");
+    party.Until([&] {
+        for (World* pGame : {&party.Host(), &party.Guest(), &party.Guest(1)})
+            for (const auto cEntity : pGame->view<RemoteComponent, PlayerComponent, FormIdComponent>())
+                if (pGame->any_of<WaitingFor3D, SpawnGraphStateComponent>(cEntity) ||
+                    !Party::Engine(*pGame).ActorHas3D(pGame->get<FormIdComponent>(cEntity).Id))
+                    return false;
+        return true;
+    }, "the initial player copies finish loading before the trip");
+    party.As(party.Host(), [&] {
+        auto& host = Party::Engine(party.Host());
+        const uint32_t cEnemy = host.LoadNpc(kGuard, kSmoke);
+        host.Fights(FakeEngine::kPlayer, cEnemy);
+    });
+    party.As(party.Guest(), [&] { guest.Hit(FakeEngine::kPlayer, 200.f); });
+    REQUIRE(guest.IsActorDead(FakeEngine::kPlayer));
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerTravels(kSinkhole, {}); });
+    party.Until([&] { return Together(party, 3, kSinkhole); }, "the dead guest follows the living party", [&] { return Why(party, 3); });
+    CHECK(guest.IsActorDead(FakeEngine::kPlayer));
+    CHECK_FALSE(guest.Reloaded);
+    party.Agree("the copies agree on the travelling dead player");
+}
+
+SCENARIO("Party travel closes a following guest's dialogue and takes both guests along", "[travel][dialogue]")
+{
+    Party party(2, Plugins);
+    party.Until([&] { return Together(party, 3, kSmoke); }, "the three players start together");
+    uint32_t speaker = 0;
+    party.As(party.Host(), [&] { speaker = Party::Engine(party.Host()).LoadNpc(kGuard, kSmoke); });
+    party.Until([&] { return !Party::Engine(party.Guest()).CopiesOf(kGuard).empty(); }, "the guest can talk to the guard");
+    auto& dialogue = party.Guest().ctx().at<FakeDialogue&>();
+    party.As(party.Guest(), [&] { dialogue.PlayerTalksTo(Party::Engine(party.Guest()).CopiesOf(kGuard)[0]); });
+    party.Until([&] { return dialogue.MenuOpen; }, "the guest's dialogue opens");
+    party.As(party.Host(), [&] { Party::Engine(party.Host()).PlayerTravels(kSinkhole, {}); });
+    party.Until([&] { return Together(party, 3, kSinkhole) && !dialogue.MenuOpen; }, "the dialogue ends as its player follows", [&] { return Why(party, 3) + (dialogue.MenuOpen ? "menu still open" : "menu closed"); });
+    party.Agree("the three games agree after leaving the dialogue");
 }

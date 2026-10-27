@@ -154,3 +154,20 @@ points and a copy's stat reward; `quest-rewards-kept-on-rejoin` loads the host's
 Fast coverage: `client/quest_reward_tests.cpp`, `games/quest_reward_flows.cpp` (four players), the early host
 begin-fragment case in `games/dialogue_flows.cpp`, relay/encoding and character record flows. See
 [quest-rewards.md](quest-rewards.md) for source rules, event measurements and validation.
+
+### Party travel and mounts (2026-10-27)
+
+| Native scenario | Fast coverage / native-only part |
+|---|---|
+| `host-rides-horse`, `guest-rides-host-horse` | `games/mount_flows.cpp`: host/guest ownership and observer interactions; native seating/exit animations |
+| `guest-rides-across-border` | Native exterior streaming and actual horse steering; ownership handoff covered by mount flows |
+| `mounted-guest-leaves` | Mount flows and host character rules: disconnect returns the horse without deleting it |
+| `party-loads-overlap` | `games/travel_flows.cpp`: three-player departure before leader arrival; native hook timing reported separately |
+| `guest-quest-teleport` | Existing host/guest tether flows; native quest MoveTo path |
+| `party-travel-with-menu`, `dialogue-ends-on-travel` | Native inventory menu and native conversation ending; three-player dialogue travel flow on the fake |
+| `party-travel-mounted-guest` | Horse follows the rider, native implicit dismount, handoff placement and ownership retention in mount flows |
+| `party-travel-dead-guest` | Three-player dead-follower flow; native death/spectator state across the load |
+| `party-fast-travels` | Three-player three-hour/midnight calendar flow; native scenario now asserts guest trip time on the host |
+
+Request/placement encoding lives in `encoding.cpp`; invalid/host travel-time inputs are checked in
+`host_authority/clock_tests.cpp`. Native timings, validation logs and limits: `party-travel.md`.

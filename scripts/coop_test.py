@@ -4784,13 +4784,92 @@ def scenario_party_fast_travels():
 
         both_go("river", RIVER_CELL)
         host_before = player_cell("")
+        trip_start = hour("")
         travel("client", lambda: console_on("client", f"fasttravel {INN_DOOR_OUTSIDE:X}"), player_cell("client"))
         follows("", host_before)
         players_together("in Riverwood, the client leading")
+        wait_for("the guest's trip advances the host clock", lambda: (hour("") - trip_start) % 24 > 0.5, 10)
+        wait_for("the guest's trip keeps the party date", same_calendar, 10)
         wait_for("[client] keeps the host's time after its own trip", lambda: close(hour("client"), hour(""), 0.1), 10)
         hold()
     finally:
         both_go(HOME_CELL)
+
+
+def scenario_party_loads_overlap():
+    """Both leaders announce the destination before loading, so followers queue without waiting for arrival."""
+    home = player_cell("")
+    try:
+        for leader, follower in (("", "client"), ("client", "")):
+            both_go(INN)
+            marks = {name: log_trail(name, 1 << 62)[1] for name in (leader, follower)}
+            before = player_cell(follower)
+            travel(leader, lambda: console_on(leader, f"coc {HOME_CELL}"), player_cell(leader))
+            follows(follower, before)
+            players_together("the overlapping loads arrive together")
+            phases = {}
+            announcement = None
+            for name in (leader, follower):
+                entries = log_trail(name, marks[name])[0]
+                if name == leader:
+                    announcement = next((e["time_ms"] for e in entries
+                                         if "queued destination sent before loading" in e["text"]), None)
+                phases[name] = [(int(e["text"].rsplit(" ", 1)[-1]), e["time_ms"])
+                                for e in entries if "PositionPlayerEvent phase " in e["text"]]
+            starts = {name: next((ms for phase, ms in phases[name] if phase == 0), None)
+                      for name in (leader, follower)}
+            finish = next((ms for phase, ms in phases[leader] if phase == 4), None)
+            log(f"load timing: leader={leader or 'host'}, starts={starts}, leader_finish={finish}")
+            if announcement is None or starts[leader] is None or announcement > starts[leader]:
+                raise TestFailure(f"the destination was not sent before the leader's load: sent={announcement}, phases={phases}")
+            if starts[follower] is None:
+                raise TestFailure(f"the follower never began loading: {phases}")
+    finally:
+        if player_cell("") != home or player_cell("client") != home:
+            both_go(HOME_CELL)
+
+
+def scenario_guest_quest_teleport():
+    """The quest MoveTo native on a guest's own body leads the party to its destination."""
+    try:
+        before = player_cell("")
+        player_command("client", {"cmd": "papyrus_call", "class": "ObjectReference", "function": "MoveTo",
+                                  "self": 0x14, "args": [{"form": INN_DOOR_INSIDE}, 0.0, 0.0, 0.0, True],
+                                  "player_action": True})
+        wait_for("the guest's quest-native teleport arrives", lambda: player_cell("client") != before, 30)
+        follows("", before)
+        players_together("the guest's quest teleport carries the party")
+    finally:
+        both_go(HOME_CELL)
+
+
+def scenario_party_travel_with_menu():
+    """A following player can be in the inventory menu when the leader travels."""
+    home = player_cell("")
+    try:
+        for leader, follower in (("", "client"), ("client", "")):
+            both_go(INN)
+            before = player_cell(follower)
+            tap_key(follower, 0x17)  # I: the native inventory shortcut
+            wait_for("the follower opens InventoryMenu", lambda: "InventoryMenu" in open_menus(follower), 10)
+            travel(leader, lambda: console_on(leader, f"coc {HOME_CELL}"), player_cell(leader))
+            follows(follower, before)
+            players_together("the player in the menu follows the leader")
+            if "InventoryMenu" in open_menus(follower):
+                tap_key(follower, 0x0F)
+                wait_for("the follower closes its inventory", lambda: "InventoryMenu" not in open_menus(follower), 10)
+    finally:
+        for name in ("", "client"):
+            if "InventoryMenu" in open_menus(name):
+                tap_key(name, 0x0F)
+        if player_cell("") != home or player_cell("client") != home:
+            both_go(HOME_CELL)
+
+
+def open_menus(instance):
+    select_instance(instance)
+    return (read_status() or {}).get("menus") or []
+
 
 # --- Inventory ------------------------------------------------------------------------------
 
@@ -4860,14 +4939,14 @@ def player_copy(instance):
     return next((int(k) for k, v in world.items() if v.get("player") and k != "20"), None)
 
 
-def scenario_guest_rides_host_horse():
-    """Outdoors (no riding indoors), the client's player gets on the host's horse: the host gives the horse to
-    the client's game to move, and the host's copy of the rider sits on it. Getting off gives it back to the host,
-    the copy getting off with it."""
-    both_go(OUTDOOR_CELL)
+def mount_roundtrip(riding_game="client", cross_border=False, leave=False, follow=False):
+    """A player rides the host's horse while the other game shows its rider and horse copies.
+    Dismounting or disconnecting returns the horse to the host; travel carries it with the party."""
+    both_go("Whiterun plains", "cow Tamriel 0 -4") if cross_border else both_go(OUTDOOR_CELL)
+    observer = "" if riding_game == "client" else "client"
     horse = None
     try:
-        rider = player_copy("")
+        rider = player_copy(observer)
         before = set(local_player("").get("local_actors", {}))
         console_on("", f"player.placeatme {HORSE} 1")
         horse = int(next(iter(wait_for("[host] the horse loaded",
@@ -4875,39 +4954,117 @@ def scenario_guest_rides_host_horse():
         sid = wait_for("[host] the horse has a session id",
                        lambda: (s := host_npc_state(horse).get("session_id")) is not None and s >= 0 and (s,), 10)[0]
         copy = copy_of("client", sid)
+        ridden_horse = copy if riding_game == "client" else horse
+        observed_horse = horse if observer == "" else copy
         # A placed actor fades in, and nothing activates it until it has (TESNPC::Activate).
         wait_for("[client] the horse has faded in", lambda: actor_state("client", copy).get("mod", {}).get("fade_state") == 0, 10)
-        activate_on("client", copy)
+        activate_on(riding_game, ridden_horse)
         wait_for("[client] its player rides the horse, now its game's to move",
-                 lambda: actor_state("client", 0x14).get("placement", {}).get("riding")
-                 and actor_state("client", copy).get("role") == "own", 15)
+                 lambda: actor_state(riding_game, 0x14).get("placement", {}).get("riding")
+                 and actor_state(riding_game, ridden_horse).get("role") == "own", 15)
         # A player gets off once seated: until the mount animation ends the engine refuses (Actor::Dismount).
-        wait_for("[client] its player is seated", lambda: not actor_state("client", 0x14).get("placement", {}).get("getting_on_off"), 10)
+        wait_for("[client] its player is seated", lambda: not actor_state(riding_game, 0x14).get("placement", {}).get("getting_on_off"), 10)
         wait_for("[host] the client's player sits on the horse, a copy here",
-                 lambda: actor_state("", rider).get("placement", {}).get("riding")
-                 and actor_state("", horse).get("role") == "copy"
-                 and actor_state("", horse).get("placement", {}).get("ridden"), 10)
+                 lambda: actor_state(observer, rider).get("placement", {}).get("riding")
+                 and actor_state(observer, observed_horse).get("role") == "copy"
+                 and actor_state(observer, observed_horse).get("placement", {}).get("ridden"), 10)
         # While riding, the horse and the rider agree with their copies (the rest of Riverwood is not this scenario's).
         riding = [p for p in check_desync() if f", sid {sid}]" in p or "[client 00000014," in p]
         if riding:
             raise TestFailure("while riding: " + " | ".join(riding))
-        tap_key("client", ACTIVATE_KEY)
+        if follow:
+            both_go("river", RIVER_CELL)
+            for name, form in ((riding_game, 0x14), (riding_game, ridden_horse), (observer, observed_horse)):
+                state = actor_state(name, form)
+                log(f"mounted arrival [{name or 'host'}] {form:X}: role={state.get('role')}, placement={state.get('placement')}")
+            if actor_state(riding_game, 0x14).get("placement", {}).get("riding"):
+                wait_for("the ridden horse arrives with its following player",
+                         lambda: actor_state(riding_game, ridden_horse).get("placement", {}).get("cell") == player_cell(riding_game), 10)
+        if cross_border:
+            start = my_position(riding_game)
+            # Select a straight path to a grid boundary using the game's collision rays.
+            candidates = []
+            for bearing in range(0, 360, 45):
+                dx, dy = math.sin(math.radians(bearing)), math.cos(math.radians(bearing))
+                limits = []
+                for coordinate, step in zip(start[:2], (dx, dy)):
+                    if abs(step) > 0.001:
+                        edge = (math.floor(coordinate / 4096) + (1 if step > 0 else 0)) * 4096
+                        limits.append((edge - coordinate) / step)
+                candidates.append((min(limits) + 200, bearing))
+            bearing = None
+            for reach, direction in sorted(candidates):
+                try:
+                    bearing = clear_way(riding_game, [direction], reach)
+                    break
+                except TestFailure:
+                    continue
+            if bearing is None:
+                raise TestFailure("no clear mounted route crosses this cell's border")
+            # Stage a straight ride along the measured clear path; the border crossing below uses held input.
+            # Strafe controls are camera-relative on horseback and do not reliably turn to an absolute heading.
+            console_on(riding_game, f"{ridden_horse:08X}.setangle z {bearing}")
+            console_on(riding_game, f"player.setangle z {bearing}")
+            before_cell = tuple(math.floor(v / 4096) for v in my_position(riding_game)[:2])
+            before_position = my_position(riding_game)
+            press(riding_game, "forward")
+            try:
+                wait_for("the mounted player rides across an exterior cell border",
+                         lambda: tuple(math.floor(v / 4096) for v in my_position(riding_game)[:2]) != before_cell, 30)
+            finally:
+                release(riding_game, "forward")
+            wait_for("the observer's horse follows the ride across the border",
+                     lambda: distance(actor_state(observer, observed_horse).get("placement", {}).get("position", [])[:2],
+                                      my_position(riding_game)[:2]) < 200, 10)
+            if distance(before_position[:2], my_position(riding_game)[:2]) < 100:
+                raise TestFailure("the ride crossed no ground")
+        if leave:
+            disconnect_client()
+            wait_for("the disconnected rider's horse returns to the host",
+                     lambda: actor_state("", horse).get("role") == "own", 10)
+            return
+        if actor_state(riding_game, 0x14).get("placement", {}).get("riding"):
+            tap_key(riding_game, ACTIVATE_KEY)
         wait_for("[client] its player got off, the horse a copy again",
-                 lambda: not actor_state("client", 0x14).get("placement", {}).get("riding")
+                 lambda: not actor_state(riding_game, 0x14).get("placement", {}).get("riding")
                  and actor_state("client", copy).get("role") == "copy", 15)
         wait_for("[host] the horse is its own again, the client's player off it",
                  lambda: actor_state("", horse).get("role") == "own"
-                 and not actor_state("", rider).get("placement", {}).get("riding")
+                 and not actor_state(observer, rider).get("placement", {}).get("riding")
                  and not actor_state("", horse).get("placement", {}).get("ridden"), 10)
     finally:
-        if actor_state("client", 0x14).get("placement", {}).get("riding"):
-            tap_key("client", ACTIVATE_KEY)
+        if actor_state(riding_game, 0x14).get("placement", {}).get("riding"):
+            tap_key(riding_game, ACTIVATE_KEY)
             wait_for("[client] its player got off for the cleanup",
-                     lambda: not actor_state("client", 0x14).get("placement", {}).get("riding"), 15)
+                     lambda: not actor_state(riding_game, 0x14).get("placement", {}).get("riding"), 15)
+        if leave and not game_state("client").get("online"):
+            rejoin_client()
         if horse is not None:
             console_on("", f"{horse:08X}.disable")
             console_on("", f"{horse:08X}.markfordelete")
         both_go(HOME_CELL)
+        saved = save_game("", "PartyMountCleanup")
+        wait_for("the horse cleanup can be saved", saves_written(saved), 15)
+
+
+def scenario_guest_rides_host_horse():
+    mount_roundtrip()
+
+
+def scenario_host_rides_horse():
+    mount_roundtrip("")
+
+
+def scenario_guest_rides_across_border():
+    mount_roundtrip(cross_border=True)
+
+
+def scenario_mounted_guest_leaves():
+    mount_roundtrip(leave=True)
+
+
+def scenario_party_travel_mounted_guest():
+    mount_roundtrip(follow=True)
 
 
 # --- Hands: draw, cast, sheathe -------------------------------------------------------------
@@ -5161,7 +5318,7 @@ def effect_spells(instance):
     return sorted(e["spell"] for e in (player_snapshot(instance).get("effects") or []))
 
 
-def death_spectate_respawn(victim):
+def death_spectate_respawn(victim, travel_down=False):
     """An enemy kills the player; they spectate through combat (their game never reloads) and are revived beside the
     standing party with every ability back."""
     survivor = "client" if victim == "" else ""
@@ -5211,7 +5368,8 @@ def death_spectate_respawn(victim):
             return actor_snapshot(survivor, other_player(actors_on(survivor)))
         wait_for("the other game's copy dies with its owner", lambda: is_dead(copy_of_victim()), 5)
         # Its ragdoll is its game's (physics sync's owners): the copy lies as it does.
-        ragdoll_lies_as_owner(victim, 0x14, survivor, other_player(actors_on(survivor)))
+        if not travel_down:
+            ragdoll_lies_as_owner(victim, 0x14, survivor, other_player(actors_on(survivor)))
         wait_for("spectator camera has a standing player once the player is dead",
                  lambda: death_state(victim).get("spectating"), 10)
         camera_sees_followed(victim, "spectating")
@@ -5232,6 +5390,12 @@ def death_spectate_respawn(victim):
                 raise TestFailure("the other game's copy came back alive")
             return time.monotonic() - started >= 6
         wait_for("the vanilla five-second death reload never fires", still_down_in_combat, 8)
+        if travel_down:
+            both_go(INN)
+            if not is_dead(player_snapshot(victim)) or not death_state(victim).get("down"):
+                raise TestFailure("party travel revived the dead follower")
+            camera_sees_followed(victim, "the dead follower after party travel")
+            both_go(HOME_CELL)
         # Drive spectator controls as player input; with a duo the sole standing target stays selected.
         watched = death_state(victim)["spectating"]
         tap_key(victim, 0xCD)
@@ -5257,7 +5421,7 @@ def death_spectate_respawn(victim):
                  and (player_snapshot(victim).get("values") or {}).get("health", 0) > 0
                  and (player_snapshot(victim).get("state") or {}).get("knock") == 0
                  and takes_input(victim), 8)
-        if time.monotonic() - clear_since < 9:
+        if not travel_down and time.monotonic() - clear_since < 9:
             raise TestFailure("respawn did not wait ten continuous seconds out of combat")
         if distance(my_position(victim), my_position(survivor)) > 250:
             raise TestFailure("the player did not respawn beside the standing party")
@@ -5298,6 +5462,11 @@ def scenario_death_spectate_host():
 def scenario_death_spectate_guest():
     """The guest is downed by an enemy, spectates and respawns beside the host after ten clear seconds."""
     death_spectate_respawn("client")
+
+
+def scenario_party_travel_dead_guest():
+    """A killed guest follows the living leader through a load and retains its death and spectator state."""
+    death_spectate_respawn("client", travel_down=True)
 
 
 def scenario_death_wipe_checkpoint():
@@ -9858,12 +10027,20 @@ SCENARIOS = {
     "party-uses-door": scenario_party_uses_door,
     "party-quick-travel": scenario_party_quick_travel,
     "party-fast-travels": scenario_party_fast_travels,
+    "party-loads-overlap": scenario_party_loads_overlap,
+    "guest-quest-teleport": scenario_guest_quest_teleport,
+    "party-travel-with-menu": scenario_party_travel_with_menu,
     # inventory
     "equip-host-player": scenario_equip_host_player,
     "equip-client-player": scenario_equip_client_player,
     "equip-host-npc": scenario_equip_host_npc,
     "repair-equipment-drift": scenario_repair_equipment_drift,
     "guest-rides-host-horse": scenario_guest_rides_host_horse,
+    "host-rides-horse": scenario_host_rides_horse,
+    "guest-rides-across-border": scenario_guest_rides_across_border,
+    "mounted-guest-leaves": scenario_mounted_guest_leaves,
+    "party-travel-mounted-guest": scenario_party_travel_mounted_guest,
+    "party-travel-dead-guest": scenario_party_travel_dead_guest,
     # hands
     "draw-host-player": scenario_draw_host_player,
     "draw-client-player": scenario_draw_client_player,
@@ -10049,11 +10226,19 @@ TAGS = {
     "party-uses-door": {'spawn', 'cells', 'objects'},
     "party-quick-travel": {'spawn', 'cells', 'objects'},
     "party-fast-travels": {'spawn', 'cells', 'world'},
+    "party-loads-overlap": {'cells', 'travel'},
+    "guest-quest-teleport": {'cells', 'travel'},
+    "party-travel-with-menu": {'cells', 'travel'},
     "equip-host-player": {'inventory'},
     "equip-client-player": {'inventory'},
     "equip-host-npc": {'inventory'},
     "repair-equipment-drift": {'inventory'},
     "guest-rides-host-horse": {'spawn', 'movement'},
+    "host-rides-horse": {'spawn', 'movement'},
+    "guest-rides-across-border": {'spawn', 'movement', 'cells'},
+    "mounted-guest-leaves": {'spawn', 'movement', 'session'},
+    "party-travel-mounted-guest": {'spawn', 'movement', 'cells', 'travel'},
+    "party-travel-dead-guest": {'spawn', 'death', 'cells', 'travel'},
     "draw-host-player": {'hands'},
     "draw-client-player": {'hands'},
     "sneak-host-player": {'movement', 'ai'},
@@ -10240,6 +10425,9 @@ SOURCE_TAGS = [
     ("Code/client/Services/*SessionService.*", {'session'}),
     ("Code/client/Services/*SteamService.*", {'steam'}),
     ("Code/client/Services/*MapService.*", {'ui', 'world'}),
+    ("Code/client/Events/PlayerTravelQueuedEvent.h", {'cells', 'travel'}),
+    ("Code/client/Events/FastTravelEvent.h", {'world', 'travel'}),
+    ("Code/encoding/Messages/TravelMessages.h", {'world', 'cells', 'travel'}),
     ("Code/client/Services/*TravelService.*", {'cells', 'travel'}),
     ("Code/client/Services/*TimeScaleService.*", {'world', 'combat'}),
     ("Code/client/Services/*CommandService.*", {'world', 'ui'}),

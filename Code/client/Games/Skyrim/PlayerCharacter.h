@@ -4,6 +4,30 @@
 #include <Misc/TintMask.h>
 #include <Forms/ActorValueInfo.h>
 
+struct TESWorldSpace;
+struct TESObjectCELL;
+
+// CommonLibSSE-NG PLAYER_TARGET_LOC, copied by 40442 (AE 1.6.1170).
+struct PlayerTargetLocation
+{
+    TESWorldSpace* World;
+    TESObjectCELL* Interior;
+    NiPoint3 Position;
+    NiPoint3 Angle;
+    void (*Arrival)(int64_t);
+    int64_t ArrivalData;
+    uint32_t Furniture;
+    uint32_t FastTravelMarker;
+    bool ResetWeather;
+    bool AutoSave;
+    bool Valid;
+    uint8_t Pad43;
+    uint32_t Pad44;
+};
+static_assert(sizeof(PlayerTargetLocation) == 0x48);
+static_assert(offsetof(PlayerTargetLocation, Position) == 0x10);
+static_assert(offsetof(PlayerTargetLocation, Valid) == 0x42);
+
 struct Skills
 {
     enum Skill : std::uint32_t
@@ -163,7 +187,9 @@ struct PlayerCharacter : Actor
     GameArray<PerkRank*> perkRanks; // CommonLib addedPerks: what PlayerCharacter::AddPerk (40681) adds
     uint8_t pad4D0[0x588 - 0x4D0];
     GameArray<ObjectiveInstance> objectives;
-    uint8_t pad5A0[0x8D0 - 0x5A0];
+    uint8_t pad5A0[0x648 - 0x5A0];
+    PlayerTargetLocation queuedTarget;
+    uint8_t pad690[0x8D0 - 0x690];
     uint32_t grabbedObject; // handle of what the player holds with Activate (DestroyMouseSprings 40557 clears it)
     uint8_t pad8D4[0x8EC - 0x8D4];
     uint32_t sleepSeconds; // a Sleep/Wait Menu rest's remaining game seconds (WaitStep 40485 counts it down)
@@ -194,6 +220,7 @@ struct PlayerCharacter : Actor
 
 static_assert(offsetof(PlayerCharacter, perkRanks) == 0x4B8);
 static_assert(offsetof(PlayerCharacter, objectives) == 0x588);
+static_assert(offsetof(PlayerCharacter, queuedTarget) == 0x648);
 static_assert(offsetof(PlayerCharacter, difficulty) == 0xB00);
 static_assert(offsetof(PlayerCharacter, perkPoints) == 0xB09);
 static_assert(sizeof(PlayerCharacter::PerkRank) == 0x10);

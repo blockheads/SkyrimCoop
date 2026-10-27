@@ -43,6 +43,7 @@ struct HostGame
     // The host's clock (the session's) and setting its hour.
     std::function<TimeModel()> ReadTime;
     std::function<void(float aHours)> SetHour;
+    std::function<void(float aHours)> AdvanceTime;
     // The host's weather, when it shows one to share (none: no sky, or the map's).
     std::function<std::optional<GameId>()> ReadWeather;
     // The host's global variables but the constants.

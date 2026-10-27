@@ -8,9 +8,9 @@ one engine call, which sends `PositionPlayerEvent`. That event is what our arriv
 
 | Step | ID | What |
 |---|---|---|
-| Queue the move | 40442 | Copies a `PLAYER_TARGET_LOC` (CommonLibSSE-NG `PlayerCharacter.h`) into the player's `queuedTargetLoc` (`+0x648` on 1.6.1170: world `+0x648`, interior `+0x650`, location `+0x658`, `resetWeather` `+0x688`, `allowAutoSave` `+0x689`). Every travel source calls it. |
+| Queue the move | 40442 | Copies a `PLAYER_TARGET_LOC` (CommonLibSSE-NG `PlayerCharacter.h`) into the player's `queuedTargetLoc` (`+0x648` on 1.6.1170: world `+0x648`, interior `+0x650`, location `+0x658`, `resetWeather` `+0x688`, `allowAutoSave` `+0x689`). Doors, fast travel and MoveTo call it; coc writes these fields inline. |
 | Carry it out | 40438 | `ProcessEvents_Enter` (36564) calls it at the top of every frame; it does nothing unless a move is queued. Sends `PositionPlayerEvent` through the player's event source at `+0x388`: phases 0, 3, 4 (a `coc` or a door), 0 to 4 (fast travel, which also updates packages). Autosaves on the way when the target allows it (`Actor` 40445 → `BGSSaveLoadManager::Save_Impl`). |
-| `coc` / `coe` / `cow` | 40437 `CenterOnCell_Impl` | Queues through 40442, then calls 40438 at once. |
+| `coc` / `coe` / `cow` | 40437 `CenterOnCell_Impl` | Writes queuedTargetLoc inline, then calls 40438 at once (rechecked 2026-10-27). |
 
 ### Who queues a move (every caller of 40442)
 
@@ -31,8 +31,8 @@ loading a save.
 So the arrival needs no hook per kind of travel. What differs between kinds is what happens around the move:
 
 - A door's arrival autosaves; `coc` does not (new vanilla lock patterns on that path, `scripts/lock_order_known.txt`).
-- Fast travel passes game time on the traveler's game (measured: 1.2 h for ~16,000 units, the river to
-  Riverwood). Under `HostClock` the client keeps the host's time even after its own trip.
+- Fast travel measures a calendar step on the traveler's game (1.2 h for ~16,000 units, the river to Riverwood).
+  A guest sends that skipped native step to HostClock; the host advances once and shares its calendar (2026-10-27).
 - A `MoveTo` within the cell sends the event too; the arrival keeps the copies when the cell is the same
   (`CharacterService::OnPlayerArrived`, `teleport-keeps-copies`), and nobody follows (already there).
 
@@ -62,3 +62,11 @@ around us but which is elsewhere, without 3D or gone is moved there or spawned a
 Since 2026-10-14 players' copies are persistent and travel with the party, so this only applies to the host's
 actors (NPC copies); a copy is the actor at its form id only while flagged a copy
 (`docs/re/crashes/2026-10-14-reused-copy-form-id.md`).
+
+## Departure before arrival (2026-10-27)
+
+`HookProcessQueuedTravel` (40438) observes the typed `PlayerCharacter::queuedTarget` at +648 before the native
+load, queues `PlayerTravelQueuedEvent` for the rules and releases loading only after the destination has been
+sent. It catches coc's inline queue as well as 40442's callers. No networking runs in the native cell-lock path.
+The actual arrival still reconciles the tether. Timings and cached-load/network limits:
+`docs/design/party-travel.md`.

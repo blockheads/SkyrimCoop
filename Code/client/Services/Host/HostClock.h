@@ -10,6 +10,7 @@ struct HostAuthority;
 struct HostGame;
 struct HostPlayers;
 struct SetTimeCommandRequest;
+struct TravelTimeRequest;
 
 struct HostNetwork;
 
@@ -32,6 +33,7 @@ struct HostClock
 
 private:
     // Any player's: sets the host's clock, which everyone else then follows.
+    void OnTravelTime(const TravelTimeRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnSetTimeCommand(const SetTimeCommandRequest& acRequest, ConnectionId_t) const noexcept;
 
     HostNetwork& m_network;

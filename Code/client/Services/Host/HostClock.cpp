@@ -5,6 +5,7 @@
 
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
+#include <Messages/TravelMessages.h>
 
 #include <cmath>
 
@@ -29,6 +30,7 @@ HostClock::HostClock(HostAuthority& aAuthority, HostNetwork& aNetwork, const Hos
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostClock::OnSetTimeCommand);
+    aAuthority.On(*this, &HostClock::OnTravelTime);
 }
 
 void HostClock::Update(uint64_t aTick) noexcept
@@ -68,4 +70,11 @@ void HostClock::OnSetTimeCommand(const SetTimeCommandRequest& acRequest, Connect
 {
     if (acRequest.Hours < 24 && acRequest.Minutes < 60)
         m_game.SetHour(static_cast<float>(acRequest.Hours) + static_cast<float>(acRequest.Minutes) / 60.f);
+}
+
+void HostClock::OnTravelTime(const TravelTimeRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    // The host's native trip has already advanced its calendar; only a guest's skipped step belongs here.
+    if (aSender != m_players.Host() && std::isfinite(acRequest.Hours) && acRequest.Hours > 0.f && m_game.AdvanceTime)
+        m_game.AdvanceTime(acRequest.Hours);
 }

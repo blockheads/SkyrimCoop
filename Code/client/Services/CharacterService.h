@@ -1,5 +1,6 @@
 #pragma once
 #include <Events/Listen.h>
+#include <glm/vec3.hpp>
 #include "Structs/Inventory.h"
 #include "Structs/ActorData.h"
 #include <Messages/AnnounceCharacterRequest.h>
@@ -74,10 +75,12 @@ struct CharacterService
     // An actor of ours put somewhere at once: its next snapshot says so (Movement::Teleported).
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
     void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
-    void OnMountEvent(const MountEvent& acEvent) const noexcept;
+    void OnMountEvent(const MountEvent& acEvent) noexcept;
+    // The player's owned horse accompanies a tether move.
+    void CarryMountTo(uint32_t aCellId, const glm::vec3& acPosition) noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) noexcept;
     // Our player got off the mount the host gave this game: the host takes it back.
-    void OnDismountEvent(const DismountEvent& acEvent) const noexcept;
+    void OnDismountEvent(const DismountEvent& acEvent) noexcept;
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.
     void OnNotifyDismount(const NotifyDismount& acMessage) noexcept;
     void OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept;
@@ -154,6 +157,8 @@ private:
     void RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept;
     // Drops our entities for the copies acShouldDrop picks (by form id).
     void DropCopies(const std::function<bool(uint32_t)>& acShouldDrop) noexcept;
+    void KeepMount(uint32_t aFormId) noexcept;
+    void ReleaseMount(uint32_t aFormId) noexcept;
 
     World& m_world;
     entt::dispatcher& m_dispatcher;
@@ -170,6 +175,8 @@ private:
     uint32_t m_characterId{};
     // The mount our player rides, given to this game by the host (its session id), or 0.
     uint32_t m_riddenMount{};
+    std::unordered_map<uint32_t, bool> m_mountPersistence; // form id -> persistence before this ride
+    std::unordered_set<uint32_t> m_partyMounts; // session ids: ridden by a player, kept through cell loads
     std::unordered_set<uint32_t> m_jumped; // form ids, until their next snapshot
     // Ours lying in their ragdolls at the last snapshot, and the snapshots since they lay down or got up: the first two
     // are jumps (the engine moves it onto or off its ragdoll in its graph update, within a frame of the state).

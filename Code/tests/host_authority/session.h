@@ -19,6 +19,7 @@
 #include <Messages/WorldState.h>
 #include <Messages/NotifyTimeSettings.h>
 #include <Messages/SetTimeCommandRequest.h>
+#include <Messages/TravelMessages.h>
 #include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
 #include <Messages/ReferencesMoveRequest.h>
@@ -230,6 +231,7 @@ private:
         };
         game.ReadTime = [this] { return HostClock; };
         game.SetHour = [this](float aHours) { HostClock.Time = aHours; };
+        game.AdvanceTime = [this](float aHours) { HostClock.Time += aHours; };
         game.ReadWeather = [this] { return Weather; };
         game.ReadGlobals = [this] { ++GlobalReads; return Globals; };
         game.TakeGlobalChanges = [this] { return std::exchange(GlobalChanges, {}); };

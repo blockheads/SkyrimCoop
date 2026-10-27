@@ -74,10 +74,9 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   Keep a slow full scan as the backstop for writers no hook sees, such as a plugin writing the fields
   directly. Globals have no event at all (`docs/re/systems/quest-apply.md`, `world-state-sync.md`).
 
-- **Everyone's load starts with the leader's** (2026-10-19): today a follower starts travelling once the
-  leader has arrived, so the trip costs the leader's load and then its own (`docs/progress.md`, "Tether
-  gaps"). Start every game's load when the leader's starts (`coc`, a load door, fast travel), from the
-  queued move (40442) rather than the arrival (40438), so the loads overlap.
+- **Everyone's load starts with the leader's:** departure announcement built 2026-10-27
+  ([party-travel.md](design/party-travel.md)). The engine's queued destination is sent before its native load;
+  actual loading-screen onsets retain network/frame skew. A cached load can finish within that skew.
 - **Mods' world state through the save system.** A mod's forms changed on the host sent as their save data
   (`FormState`), for what no message covers. Vanilla state goes as messages and the join as save transfer;
   design: `docs/design/world-state-sync.md`.

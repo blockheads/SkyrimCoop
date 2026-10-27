@@ -43,7 +43,8 @@ public:
     virtual bool IsOtherPlayer(uint32_t aFormId) const noexcept = 0;
     virtual void SetActorCopy(uint32_t aFormId, bool aCopy) noexcept = 0;
     // Kept by the engine when its cell unloads: another player's copy, which travels with the party.
-    virtual void SetActorPersistent(uint32_t aFormId) noexcept = 0;
+    // Sets persistence and returns its previous value.
+    virtual bool SetActorPersistent(uint32_t aFormId, bool aPersistent = true) noexcept = 0;
     /// True for copies (another game owns them), false for actors this game simulates.
     virtual bool IsActorCopy(uint32_t aFormId) const noexcept = 0;
     // A player's character, here or a copy.

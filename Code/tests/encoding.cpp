@@ -1544,3 +1544,46 @@ TEST_CASE("A player-made enchantment is the same item in every game", "[encoding
     guest.ExtraEnchantId = GameId(0, 0x45C2A);
     CHECK_FALSE(host.CanBeMerged(guest));
 }
+
+TEST_CASE("Party travel preserves queued destinations and native travel hours", "[encoding.travel]")
+{
+    const auto roundTrip = [](const auto& acMessage) {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        acMessage.Serialize(writer);
+        Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        auto decoded = RequestMessageFactory{}.Extract(reader);
+        REQUIRE(decoded);
+        using Message = std::remove_cvref_t<decltype(acMessage)>;
+        CHECK(*CastUnique<Message>(std::move(decoded)) == acMessage);
+        CHECK(reader.GetBitPosition() == writer.GetBitPosition());
+    };
+    TravelTimeRequest time;
+    time.Hours = 27.25f;
+    roundTrip(time);
+    PartyTravelRequest travel;
+    travel.Destination.CellId = GameId(1, 0xABC);
+    travel.Destination.WorldSpaceId = GameId(2, 0x123);
+    travel.Destination.Position = {30.f, -40.f, 50.f};
+    travel.Destination.Heading = 2.1f;
+    roundTrip(travel);
+}
+
+TEST_CASE("Dismount carries the horse's placement to its next owner", "[encoding.travel]")
+{
+    DismountRequest dismount;
+    dismount.RiderId = 8;
+    dismount.MountId = 9;
+    dismount.Whereabouts.Where = ActorWhereabouts::State::kPlaced;
+    dismount.Whereabouts.CellId = GameId(0, 0x9C5E1);
+    dismount.Whereabouts.WorldSpaceId = GameId(0, 0x3C);
+    dismount.Whereabouts.Position = {100.f, 200.f, -30.f};
+    dismount.Whereabouts.Heading = 0.5f;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    dismount.Serialize(writer);
+    Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+    auto message = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(message);
+    CHECK(*CastUnique<DismountRequest>(std::move(message)) == dismount);
+}

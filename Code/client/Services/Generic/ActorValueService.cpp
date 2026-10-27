@@ -511,7 +511,7 @@ void ActorValueService::ApplyDeathState(uint32_t aSessionId) noexcept
     const auto& cDesired = it->second;
     if (!cFormId || !m_actorBridge.ActorExists(cFormId))
         return;
-    if (!m_actorBridge.IsActorCopy(cFormId) || m_actorBridge.IsOtherPlayer(cFormId))
+    if (!m_actorBridge.IsActorCopy(cFormId) || (!cDesired.IsDead && m_actorBridge.IsOtherPlayer(cFormId)))
     {
         m_copyDeathStates.erase(it);
         return;

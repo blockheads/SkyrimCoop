@@ -1,6 +1,8 @@
 #include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
+#include "FakeDialogue.h"
+#include <Events/PlayerTravelQueuedEvent.h>
 
 #include <Events/ContainerChangeEvent.h>
 #include <Events/DifficultyChangeEvent.h>
@@ -747,10 +749,11 @@ bool FakeEngine::IsOtherPlayer(uint32_t aFormId) const noexcept
     return it != Actors.end() && it->second.Copy && it->second.Player;
 }
 
-void FakeEngine::SetActorPersistent(uint32_t aFormId) noexcept
+bool FakeEngine::SetActorPersistent(uint32_t aFormId, bool aPersistent) noexcept
 {
     if (const auto it = Actors.find(aFormId); it != Actors.end())
-        it->second.Persistent = true;
+        return std::exchange(it->second.Persistent, aPersistent);
+    return false;
 }
 
 // The player's faction is not modelled.
@@ -907,6 +910,8 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     const auto it = Actors.find(aFormId);
     if (it == Actors.end())
         return;
+    // MoveTo tears down the native mount interaction, including when the moved reference is the horse.
+    std::erase_if(Mounts, [&](const auto& acMount) { return acMount.first == aFormId || acMount.second == aFormId; });
     const uint32_t cFrom = it->second.Cell;
     const auto cExterior = Exteriors.find(aCellId);
     it->second.WorldSpace = cExterior != Exteriors.end() ? cExterior->second.WorldSpace : 0;
@@ -925,6 +930,10 @@ void FakeEngine::MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float
     }
     if (aFormId == kPlayer)
     {
+        if (World::Get().GetTransport().IsOnline())
+            World::Get().GetRunner().Trigger(PlayerTravelQueuedEvent{
+                it->second.WorldSpace, it->second.WorldSpace ? 0u : it->second.Cell, {aX, aY, aZ}, Heading});
+        World::Get().ctx().at<FakeDialogue&>().End();
         LoadAroundPlayer(cFrom);
         Teleported = true;
         ++Travels;

@@ -198,11 +198,12 @@ struct Party
     }
 
     // Frames until aDone; fails naming acStep if it is not done within 2 s (enet's loopback takes real time; 20 s
-    // under COOP_NET, for its resends), with what acWhy reads then. With apOnly, only that game's frames.
+    // under COOP_NET, for its resends), or aTimeout if longer, with acWhy read then. With apOnly, only that game's frames.
     void Until(const std::function<bool()>& aDone, const std::string& acStep,
-               const std::function<std::string()>& acWhy = {}, World* apOnly = nullptr)
+               const std::function<std::string()>& acWhy = {}, World* apOnly = nullptr,
+               std::chrono::seconds aTimeout = std::chrono::seconds{0})
     {
-        const auto cDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(m_net.Any() ? 20 : 2);
+        const auto cDeadline = std::chrono::steady_clock::now() + std::max(std::chrono::seconds(m_net.Any() ? 20 : 2), aTimeout);
         size_t frames = 0;
         while (!aDone())
         {

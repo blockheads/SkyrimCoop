@@ -148,7 +148,7 @@ bool TransportService::Send(const RequestMessage& acMessage) const noexcept
 
         Net::PacketView packet(reinterpret_cast<char*>(buffer.GetWriteData()), writer.Size());
 
-        Client::Send(&packet);
+        Client::Send(&packet, acMessage.GetOpcode() == kPartyTravelRequest ? Net::kReliableNoNagle : Net::kReliable);
 
         return true;
     }

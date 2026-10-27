@@ -62,7 +62,9 @@
     X(BodyRestsRequest)             \
     X(CrimeRequest)                 \
     X(DropItemRequest)              \
-    X(PickUpRequest)
+    X(PickUpRequest)                \
+    X(TravelTimeRequest)            \
+    X(PartyTravelRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
