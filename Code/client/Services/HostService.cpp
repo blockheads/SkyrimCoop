@@ -3,6 +3,7 @@
 #include <Services/HostService.h>
 #include <Bridges/IBodyBridge.h>
 #include <Services/BodyService.h>
+#include <Services/CrimeService.h>
 #include <Services/DialogueService.h>
 #include <Services/Host/HostConversation.h>
 
@@ -143,6 +144,9 @@ void HostService::MakeAuthority() noexcept
 {
     m_pEngine = std::make_unique<HostEngine>(m_world.ctx().at<IBodyBridge&>());
     HostGame game;
+    game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
+    game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
+    game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) { return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId); };
     game.ReadCopy = [this](uint32_t aSessionId, NotifyCharacterSpawn& aSpawn) { return m_world.GetCharacterService().ReadCopy(aSessionId, aSpawn); };
     game.ReadTime = [this] { return m_world.ctx().at<IWorldBridge&>().GetGameTime(); };

@@ -15,8 +15,9 @@ public:
     bool IsMenuOpen() const noexcept override;
     std::vector<Option> GetOptions() const noexcept override;
     bool IsChoices() const noexcept override;
+    uint32_t GetGreeting() const noexcept override;
 
-    bool Start(uint32_t aActorFormId, bool aShowMenu) noexcept override;
+    bool Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting = 0) noexcept override;
     bool ShowMenu() noexcept override;
     void CloseMenu() noexcept override;
     void SetMenuCloseEnds(bool aEnds) noexcept override;

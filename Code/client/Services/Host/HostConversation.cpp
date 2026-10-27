@@ -82,6 +82,9 @@ void HostConversation::OnStart(const NotifyDialogueStart& acMessage) noexcept
 
 std::optional<std::vector<IDialogueBridge::Option>> HostConversation::OnListBuilt() noexcept
 {
+    // Native arrest greetings can rebuild their choices before anyone picks.
+    if (m_dialogue.Conversation())
+        m_awaitingList = true;
     m_world.GetRunner().Queue([this] {
         if (std::exchange(m_awaitingList, false))
             SendOptions();
@@ -137,6 +140,7 @@ void HostConversation::OnUpdate(bool aMenuOpen, uint32_t aSpeaker) noexcept
             DialogueOpenedRequest opened;
             opened.NpcId = *cSessionId;
             opened.Everyone = aSpeaker == m_greeter;
+            opened.Greeting = ToSession(m_dialogue.Bridge().GetGreeting()).value_or(GameId{});
             transport.Send(opened);
         }
     }

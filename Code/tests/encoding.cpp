@@ -26,6 +26,138 @@
 
 #include <numbers>
 
+TEST_CASE("Crime messages retain actions and absolute faction buckets", "[encoding.crime]")
+{
+    CrimeRequest request;
+    request.Sequence = 1234;
+    request.Action = CrimeAction::ContainerTheft;
+    request.Target = GameId(0xFE, 0x100812);
+    request.TargetActor = 987;
+    request.Item = GameId(2, 0xABC);
+    request.Count = 81;
+    CrimeItem item;
+    item.Item.BaseId = GameId(0, 0x12EB7);
+    item.Item.Count = 3;
+    item.Item.ExtraHealth = 1.2f;
+    item.Owners = {{GameId(0, 0x13477), 1}, {GameId{}, 2}};
+    item.Taking = true;
+    request.Items.push_back(item);
+    request.GoToJail = request.RemoveStolenItems = request.AllowWarning = true;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == CrimeRequest::Opcode);
+    const auto& received = static_cast<const CrimeRequest&>(*decoded);
+    CHECK(received.IsValid());
+    CHECK(received.Sequence == request.Sequence);
+    CHECK(received.Action == request.Action);
+    CHECK(received.Target == request.Target);
+    CHECK(received.TargetActor == request.TargetActor);
+    CHECK(received.Item == request.Item);
+    CHECK(received.Count == request.Count);
+    CHECK(received.GoToJail);
+    CHECK(received.RemoveStolenItems);
+    CHECK(received.AllowWarning);
+    REQUIRE(received.Items.size() == 1);
+    CHECK(received.Items[0].Item == item.Item);
+    CHECK(received.Items[0].Taking);
+    REQUIRE(received.Items[0].Owners.size() == 2);
+    CHECK(received.Items[0].Owners[0].Owner == item.Owners[0].Owner);
+    CHECK(received.Items[0].Owners[1].Count == 2);
+
+    NotifyCrimeState state;
+    state.Gold = {{GameId(0, 0x28170), 1000, 25, 75, 3000, true}, {GameId(0xFE, 0x100812), 0, 50, 80, 0},
+                  {GameId(0, 0x2816B), 0, 0, 0, 0, true}};
+    Buffer reply;
+    Buffer::Writer replyWriter(&reply);
+    state.Serialize(replyWriter);
+    Buffer::Reader replyReader(&reply);
+    auto notification = NotifyMessageFactory{}.Extract(replyReader);
+    REQUIRE(notification);
+    REQUIRE(notification->GetOpcode() == NotifyCrimeState::Opcode);
+    CHECK(static_cast<const NotifyCrimeState&>(*notification).Gold == state.Gold);
+
+    NotifyLockCrime caught;
+    caught.Attempt = 81;
+    Buffer lock;
+    Buffer::Writer lockWriter(&lock);
+    caught.Serialize(lockWriter);
+    Buffer::Reader lockReader(&lock);
+    auto decision = NotifyMessageFactory{}.Extract(lockReader);
+    REQUIRE(decision);
+    REQUIRE(decision->GetOpcode() == NotifyLockCrime::Opcode);
+    CHECK(static_cast<const NotifyLockCrime&>(*decision).Attempt == 81);
+
+    NotifyCrimeConfiscation confiscation;
+    confiscation.Id = 19;
+    confiscation.Faction = GameId(0, 0x28170);
+    Buffer fine;
+    Buffer::Writer fineWriter(&fine);
+    confiscation.Serialize(fineWriter);
+    Buffer::Reader fineReader(&fine);
+    auto due = NotifyMessageFactory{}.Extract(fineReader);
+    REQUIRE(due);
+    REQUIRE(due->GetOpcode() == NotifyCrimeConfiscation::Opcode);
+    CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).Id == confiscation.Id);
+    CHECK(static_cast<const NotifyCrimeConfiscation&>(*due).Faction == confiscation.Faction);
+}
+
+TEST_CASE("Crime requests initialize omitted IDs and reject invalid ownership stacks", "[encoding.crime]")
+{
+    CrimeRequest request;
+    CHECK_FALSE(request.Target);
+    CHECK_FALSE(request.Item);
+    request.Sequence = 1;
+    request.Action = CrimeAction::ContainerTheft;
+    request.Target = GameId(0, 0x1234);
+    CrimeItem line;
+    line.Item.BaseId = GameId(0, 0x64B3D);
+    line.Item.Count = 7;
+    line.Owners = {{GameId(0, 0x13479), 7}};
+    request.Items.push_back(line);
+    SECTION("A real stack quantity survives the wire")
+    {
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        request.SerializeRaw(writer);
+        Buffer::Reader reader(&buffer);
+        CrimeRequest decoded;
+        decoded.DeserializeRaw(reader);
+        REQUIRE(decoded.IsValid());
+        REQUIRE(decoded.Items.size() == 1);
+        REQUIRE(decoded.Items[0].Owners.size() == 1);
+        CHECK(decoded.Items[0].Owners[0].Count == 7);
+    }
+    SECTION("Quantities cannot wrap into the native signed 16-bit count")
+    {
+        for (auto count : {0u, 0x8000u, 0x10001u, 0xFFFFFFFFu})
+        {
+            request.Items[0].Owners[0].Count = count;
+            Buffer buffer;
+            Buffer::Writer writer(&buffer);
+            request.SerializeRaw(writer);
+            Buffer::Reader reader(&buffer);
+            CrimeRequest decoded;
+            decoded.DeserializeRaw(reader);
+            CHECK_FALSE(decoded.IsValid());
+        }
+    }
+    SECTION("The entry budget covers nested stacks as well as item lines")
+    {
+        request.Items[0].Owners.assign(CrimeRequest::kMaxEntries, {GameId{}, 1});
+        Buffer buffer;
+        Buffer::Writer writer(&buffer);
+        request.SerializeRaw(writer);
+        Buffer::Reader reader(&buffer);
+        CrimeRequest decoded;
+        decoded.DeserializeRaw(reader);
+        CHECK_FALSE(decoded.IsValid());
+    }
+}
+
 using namespace Wire;
 
 TEST_CASE("Buffer", "[encoding.buffer]")
@@ -521,6 +653,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         sendOpen.Conversation = 4;
         sendOpen.NpcId = 0x21;
         sendOpen.Everyone = true;
+        sendOpen.Greeting = GameId(2, 0x803);
 
         Buffer::Writer writer(&buff);
         sendRequest.Serialize(writer);
@@ -539,6 +672,18 @@ TEST_CASE("Packets", "[encoding.packets]")
         CHECK((recvRequest.Conversation == 3 && recvRequest.Step == 7 && recvRequest.Choices && recvRequest.Options == sendRequest.Options));
         CHECK((recvList.Step == 8 && !recvList.Choices && recvList.Options == sendList.Options));
         CHECK((recvOpen.Conversation == 4 && recvOpen.NpcId == 0x21 && recvOpen.Everyone));
+        CHECK(recvOpen.Greeting == sendOpen.Greeting);
+        DialogueOpenedRequest sendOpened, recvOpened;
+        sendOpened.NpcId = 0x21;
+        sendOpened.Everyone = true;
+        sendOpened.Greeting = GameId(0xFE, 0x123ABC);
+        Buffer greetingBuffer(100);
+        Buffer::Writer greetingWriter(&greetingBuffer);
+        sendOpened.Serialize(greetingWriter);
+        Buffer::Reader greetingReader(&greetingBuffer);
+        greetingReader.ReadBits(trash, 8);
+        recvOpened.DeserializeRaw(greetingReader);
+        CHECK(recvOpened.Greeting == sendOpened.Greeting);
     }
 
     SECTION("PlayerNativeRequest and NotifyPlayerNative")

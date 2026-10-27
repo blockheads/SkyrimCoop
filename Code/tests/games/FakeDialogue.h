@@ -17,6 +17,10 @@ struct FakeDialogue final : IDialogueBridge
     std::map<uint32_t, std::vector<Option>> After;
     // The speaker's topics when a conversation starts.
     std::vector<Option> Greeting;
+    uint32_t GreetingInfo{};
+    bool RequiresGreeting{}; // native arrest greetings depend on alarm AI absent on copies
+    uint32_t StartedGreeting{};
+    std::function<void(const Option&)> OnSaid;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
 
@@ -35,6 +39,15 @@ struct FakeDialogue final : IDialogueBridge
         if (m_filters.Start && !m_filters.Start(aActorFormId, false))
             return;
         Start(aActorFormId, true);
+    }
+    void NpcGreets(uint32_t aActorFormId)
+    {
+        if (!m_filters.Start || m_filters.Start(aActorFormId, true))
+            Start(aActorFormId, true);
+    }
+    void RebuildOptions(const std::vector<Option>& aOptions)
+    {
+        Build(aOptions);
     }
     // This game's player clicks the menu's option: the Pick filter first, else the engine says it.
     void PlayerPicks(uint32_t aIndex)
@@ -71,10 +84,17 @@ struct FakeDialogue final : IDialogueBridge
     {
         return Choices;
     }
-    bool Start(uint32_t aActorFormId, bool aShowMenu) noexcept override
+    uint32_t GetGreeting() const noexcept override
+    {
+        return GreetingInfo;
+    }
+    bool Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting = 0) noexcept override
     {
         if (!aActorFormId || !CanTalk(aActorFormId))
             return false;
+        if (RequiresGreeting && !aGreeting)
+            return true; // native start accepted, but no eligible local greeting opens a menu
+        StartedGreeting = aGreeting;
         Speaker = aActorFormId;
         MenuOpen = aShowMenu;
         Choices = false;
@@ -132,6 +152,8 @@ struct FakeDialogue final : IDialogueBridge
     void Say(const Option& acOption)
     {
         Said.push_back(acOption);
+        if (OnSaid)
+            OnSaid(Said.back());
         const auto cNext = After.find(acOption.Topic);
         if (cNext == After.end() || cNext->second.empty())
         {

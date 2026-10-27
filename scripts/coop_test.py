@@ -10483,6 +10483,8 @@ def command_soak(args):
 def main():
     from coop_specs import register
     register(SCENARIOS, TAGS)
+    from coop_crime import register as register_crime
+    register_crime(SCENARIOS, TAGS)
     for name in ("spec:cutscene-controls-reach-party", "spec:leaver-cutscene-gives-back"):
         if name in TAGS:
             TAGS[name].add("session")

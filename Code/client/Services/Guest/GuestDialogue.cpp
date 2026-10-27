@@ -48,12 +48,13 @@ bool GuestDialogue::OnTalk(uint32_t aActorFormId) noexcept
     if (m_dialogue.Bridge().IsMenuOpen() || !m_dialogue.Conversation() || m_dialogue.CopySessionId(aActorFormId) != m_dialogue.NpcSessionId())
         return false;
     spdlog::info("Dialogue: joining conversation {} (copy {:X})", m_dialogue.Conversation(), aActorFormId);
-    m_dialogue.Bridge().Start(aActorFormId, true);
+    m_dialogue.Bridge().Start(aActorFormId, true, m_greeting);
     return true;
 }
 
 void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
 {
+    m_greeting = ToGame(acMessage.Greeting);
     m_step = 0;
     m_options.clear();
     m_shownStep = 0;
@@ -63,7 +64,7 @@ void GuestDialogue::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
         return;
     auto& bridge = m_dialogue.Bridge();
     const uint32_t cCopy = Utils::GetFormIdBySessionId(acMessage.NpcId);
-    if (cCopy && bridge.Start(cCopy, true))
+    if (cCopy && bridge.Start(cCopy, true, m_greeting))
     {
         spdlog::info("Dialogue: conversation {} opens on copy {:X}", acMessage.Conversation, cCopy);
         m_dialogue.Opening();
@@ -93,6 +94,7 @@ void GuestDialogue::OnList(const NotifyDialogueList& acMessage) noexcept
 
 void GuestDialogue::OnClosed() noexcept
 {
+    m_greeting = 0;
     m_step = 0;
     m_shownStep = 0;
 }

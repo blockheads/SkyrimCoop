@@ -26,6 +26,7 @@
 #include <Services/Host/HostNetwork.h>
 #include <Services/HostService.h>
 #include <Services/BodyService.h>
+#include <Services/CrimeService.h>
 #include <Systems/AnimationSystem.h>
 #include <Systems/FaceGenSystem.h>
 #include <Components.h>
@@ -65,6 +66,9 @@ void HostService::MakeAuthority() noexcept
 {
     FakeEngine& engine = m_world.ctx().at<FakeEngine&>();
     HostGame game;
+    game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
+    game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
+    game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
         return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId);
     };

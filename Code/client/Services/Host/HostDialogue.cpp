@@ -79,6 +79,7 @@ void HostDialogue::OnOpened(const DialogueOpenedRequest& acRequest, ConnectionId
     open.Conversation = m_conversation->Id;
     open.NpcId = acRequest.NpcId;
     open.Everyone = acRequest.Everyone;
+    open.Greeting = acRequest.Greeting;
     m_players.SendToAll(open);
 }
 

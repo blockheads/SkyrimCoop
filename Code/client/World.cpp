@@ -26,6 +26,8 @@
 #include <Bridges/WaitBridge.h>
 #include <Bridges/BodyBridge.h>
 #include <Services/BodyService.h>
+#include <Bridges/CrimeBridge.h>
+#include <Services/CrimeService.h>
 #include <Services/WaitService.h>
 #include <Services/JoinService.h>
 #include <Services/SaveService.h>
@@ -81,6 +83,7 @@ World::World()
     , m_pJoinBridge(std::make_unique<JoinBridge>())
     , m_pWaitBridge(std::make_unique<WaitBridge>())
     , m_pBodyBridge(std::make_unique<BodyBridge>())
+    , m_pCrimeBridge(std::make_unique<CrimeBridge>())
     , m_runner(m_dispatcher)
     , m_transport(*this, m_dispatcher)
     , m_lastFrameTime{std::chrono::high_resolution_clock::now()}
@@ -101,6 +104,7 @@ World::World()
     ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
     ctx().emplace<IBodyBridge&>(*m_pBodyBridge);
     ctx().emplace<BodyService>(*this, m_dispatcher, *m_pBodyBridge);
+    ctx().emplace<CrimeService>(*this, m_dispatcher, m_transport, *m_pCrimeBridge);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -154,6 +158,7 @@ World::~World()
     ctx().erase<SessionService>();
     ctx().erase<BodyService>();
     ctx().erase<WaitService>();
+    ctx().erase<CrimeService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<PapyrusService>();

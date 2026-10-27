@@ -48,6 +48,7 @@ private:
     DialogueService& m_dialogue;
 
     uint32_t m_asked{}; // the NPC this guest asked the host to talk to (session id), until it opens
+    uint32_t m_greeting{};
     bool m_menuOpen{};
     // The host's list for a step (this game's form ids), and which step this game's menu shows.
     uint32_t m_step{};

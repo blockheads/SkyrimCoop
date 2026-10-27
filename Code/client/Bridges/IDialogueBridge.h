@@ -51,13 +51,16 @@ public:
     virtual std::vector<Option> GetOptions() const noexcept = 0;
     /// Whether the list is a line's choices (35287 sets rootTopicInfo), not the speaker's topics.
     virtual bool IsChoices() const noexcept = 0;
+    /// The greeting selected by this game's engine; copies use the host's selected INFO.
+    virtual uint32_t GetGreeting() const noexcept = 0;
 
     // Starting and ending it.
 
     /// Starts the player's conversation with an actor as talking to it does, without asking the Start filter
     /// (false: it is fighting or dead, or the engine did not start it). Without the menu, the player is not turned
     /// to it and plays on; the conversation runs all the same.
-    virtual bool Start(uint32_t aActorFormId, bool aShowMenu) noexcept = 0;
+    /// An explicit greeting INFO starts the host-selected line without evaluating a copy's greeting conditions.
+    virtual bool Start(uint32_t aActorFormId, bool aShowMenu, uint32_t aGreeting = 0) noexcept = 0;
     /// Opens the menu on the conversation under way without it, turning the player to the speaker.
     virtual bool ShowMenu() noexcept = 0;
     /// Closes the dialogue menu as leaving it does (its fade-out). Once per menu: a second call restarts the fade.

@@ -2,6 +2,8 @@
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include "FakeDialogue.h"
 #include "FakeWait.h"
+#include "FakeCrime.h"
+#include <Services/CrimeService.h>
 #include <Services/WaitService.h>
 #include <Services/BodyService.h>
 #include "FakeSteam.h"
@@ -74,7 +76,8 @@ void SetCurrentWorld(World* apWorld) noexcept
 World::World()
     : m_pSkyrimBridge(CreateBridgeContext(*this)), m_pDialogueBridge(std::make_unique<FakeDialogue>()),
       m_pSteamBridge(std::make_unique<FakeSteam>()),
-      m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
+      m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
+      m_pCrimeBridge(std::make_unique<FakeCrime>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
     // In the real World's order: TravelService before CharacterService.
@@ -87,6 +90,8 @@ World::World()
     ctx().emplace<FakeWait&>(static_cast<FakeWait&>(*m_pWaitBridge));
     ctx().emplace<WaitService>(*this, m_dispatcher, m_transport, *m_pWaitBridge);
     ctx().emplace<BodyService>(*this, m_dispatcher, ctx().at<IBodyBridge&>());
+    ctx().emplace<FakeCrime&>(static_cast<FakeCrime&>(*m_pCrimeBridge));
+    ctx().emplace<CrimeService>(*this, m_dispatcher, m_transport, *m_pCrimeBridge);
     ctx().emplace<SessionService>(*this, m_dispatcher);
     ctx().emplace<ActorValueService>(*this, m_dispatcher, m_transport);
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
@@ -131,6 +136,7 @@ World::~World()
     ctx().erase<SessionService>();
     ctx().erase<BodyService>();
     ctx().erase<WaitService>();
+    ctx().erase<CrimeService>();
     ctx().erase<TimeScaleService>();
     ctx().erase<ObjectService>();
     ctx().erase<CharacterService>();

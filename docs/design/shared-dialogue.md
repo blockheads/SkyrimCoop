@@ -96,11 +96,16 @@ in-process route like any player. `HostDialogue` (the bridge rule) decides; game
    turning to another NPC ends the old one first) and sends `NotifyDialogueOpen` to everyone. The peer that
    asked is in it and opens its menu on its copy (`SetDialogueWithPlayer`, past the hook), or leaves when that
    fails; the others only learn the id. A peer's menu on a copy outside a conversation closes.
+   The opening also carries the host's selected greeting INFO (2026-10-26, guard arrest): copies do
+   not run alarm AI and may find no eligible local greeting. The guest uses the explicit native
+   force-greet entry with that INFO, including when joining later.
 3. **Lists.** The host's game sends its engine's list for the step (`DialogueOptionsRequest`: conversation,
-   step, whether it is a line's choices, per option its topic, info, quest and text) once per step: at the open,
-   and after a pick once its engine shows the next one (52857: the NPC has answered). `HostDialogue` keeps it and
+   step, whether it is a line's choices, per option its topic, info, quest and text) at the open,
+   and whenever its engine rebuilds the list (52857), including before a pick. `HostDialogue` keeps it and
    sends it (`NotifyDialogueList`) to the games in the conversation and to each one joining. The host's menu shows
    its own list; a guest's shows the host's (`DialogueBridge::ShowList`), in place of its engine's own.
+   The copy receives the host's rendered text too: native option construction otherwise recalculates
+   tokens locally, such as showing a 0-gold arrest fine (BSString::Set 439876).
 4. **Pick.** `TopicClicked` (51509) is hooked on every game. A pick sends `DialoguePickRequest` (conversation,
    step, the option's topic and line, its text); a guest's own menu does not say it. `HostDialogue` takes the
    first pick of a step that is an option of the host's list (topic and line both) and sends

@@ -108,6 +108,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_characters(*this, aNetwork, m_players, m_game)
     , m_clock(*this, aNetwork, m_players, m_game)
     , m_wait(*this, aNetwork, m_players, m_game)
+    , m_crime(*this, aNetwork, m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_physics(*this, aNetwork, m_players, m_game)
@@ -172,6 +173,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
         if (!m_players.IsPlayer(aConnection))
             return;
         m_wait.OnPlayerLeft(aConnection);
+        m_crime.Left(aConnection);
         m_session.OnPlayerLeft(aConnection);
         m_playerNatives.OnPlayerLeft(aConnection);
         m_characters.OnPlayerLeft(aConnection);
@@ -195,6 +197,7 @@ void HostAuthority::Update(uint64_t aTick, double aDelta) noexcept
     }
     m_death.Update(aDelta);
     m_wait.Update(aTick);
+    m_crime.Update();
     m_clock.Update(aTick);
     m_transfer.Update(aTick);
     m_weather.Update();
@@ -216,6 +219,7 @@ void HostAuthority::Kick(uint32_t aPlayerId) noexcept
 void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSessionId) noexcept
 {
     m_wait.OnPlayerEntered();
+    m_crime.Entered(aPlayer);
     m_clock.SendTime(aPlayer);
     m_weather.SendWeather(aPlayer);
     m_worldState.SendWorldState(aPlayer);

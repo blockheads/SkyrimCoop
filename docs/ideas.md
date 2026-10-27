@@ -27,8 +27,8 @@ Move an entry out when work on it starts (into a design doc in `docs/design/`).
   together, as a menu feature with a fallback for replaced SWFs. Notes: `docs/re/systems/dialogue.md` (the
   SWF, "Showing a pick from elsewhere").
 - **Shared party bounty.** One player's crime counts for the whole party, judged on the host (its NPCs are
-  the witnesses). Decided 2026-10-12; today a remote player cannot commit a crime on the host at all.
-  Notes: `docs/design/copy-contract.md` (crime row).
+  the witnesses). Decided 2026-10-12; implementation and measured native coverage:
+  `docs/design/shared-party-bounty.md` (merged into dev 2026-10-26).
 - **Peer teleport requests.** Teleport is host-only today. Later a peer can ask for one as a
   Borderlands-style request that anyone can cancel, like leaving a cell under the party tether.
   Notes: `docs/design/host-authority-migration.md` (Decisions, 2).

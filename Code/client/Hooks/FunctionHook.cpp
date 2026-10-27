@@ -233,6 +233,29 @@ namespace Hooks
             m_installedHooks.emplace_back(std::move(aFunctionHook));
     }
 
+    bool FunctionHookManager::AddChained(FunctionHook aHook) noexcept
+    {
+        if (!PatchesSuppressed())
+        {
+            for (const auto& installed : m_installedHooks)
+                if (aHook.m_pSystemFunction == installed.m_pSystemFunction && installed.m_ppDetourFunction)
+                    aHook.m_pSystemFunction = *installed.m_ppDetourFunction;
+            if (MH_CreateHook(aHook.m_pSystemFunction, aHook.m_pHookFunction, aHook.m_ppDetourFunction) == MH_OK)
+            {
+                if (MH_EnableHook(aHook.m_pSystemFunction) == MH_OK)
+                {
+                    m_installedHooks.emplace_back(std::move(aHook));
+                    return true;
+                }
+                MH_RemoveHook(aHook.m_pSystemFunction);
+            }
+        }
+        // A failed layer does not own the target; its destructor must not remove
+        // an existing hook (including one installed by another plugin).
+        aHook.m_ppDetourFunction = nullptr;
+        return false;
+    }
+
     void* FunctionHookManager::Add(void* apFunctionDetour, const char* acpLibraryName, const char* acpMethod) noexcept
     {
         const auto pRealFunctionThunk = GetImportedFunction(nullptr, acpLibraryName, acpMethod);
