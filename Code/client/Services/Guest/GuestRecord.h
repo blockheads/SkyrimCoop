@@ -1,10 +1,11 @@
 #pragma once
 
 #include <Events/Listen.h>
+#include <Messages/RelayedMessages.h>
 #include <NoCopyMove.h>
 
 class IJoinBridge;
-struct AddExperienceEvent;
+struct PlayerProgressEvent;
 struct EquipmentChangeEvent;
 struct InventoryChangeEvent;
 struct MenuEvent;
@@ -14,7 +15,8 @@ struct World;
 
 /**
  * @brief This guest's character for the host's save (docs/design/join-flow.md, "As built"): sent on joining, after it
- * changes (items, equipment, experience, a menu closing) at most once in kSeconds, and on leaving.
+ * changes (items, the party's gold, equipment, experience, the party's progression, a menu closing) at most once
+ * in kSeconds, and on leaving.
  */
 struct GuestRecord
 {
@@ -30,7 +32,9 @@ struct GuestRecord
 private:
     void OnInventory(const InventoryChangeEvent&) noexcept { m_changed = true; }
     void OnEquipment(const EquipmentChangeEvent&) noexcept { m_changed = true; }
-    void OnExperience(const AddExperienceEvent&) noexcept { m_changed = true; }
+    void OnProgress(const PlayerProgressEvent&) noexcept { m_changed = true; }
+    void OnPartyNative(const NotifyPartyNative& acMessage) noexcept;
+    void OnPartyGold(const NotifyPartyGold&) noexcept { m_changed = true; }
     void OnMenu(const MenuEvent& acEvent) noexcept;
     void OnLeaving(const SessionLeavingEvent&) noexcept;
     bool Send() noexcept;

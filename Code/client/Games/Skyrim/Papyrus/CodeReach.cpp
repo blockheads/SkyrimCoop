@@ -104,9 +104,13 @@ Call ClassifyCall(const Facts& acFacts, const std::unordered_map<uintptr_t, Call
     bool world = false;
     bool controls = false;
     bool screen = acFacts.ReadsScreen;
+    bool show = false;
     for (const uintptr_t cCallee : acFacts.Callees)
         if (const auto it = acCalls.find(cCallee); it != acCalls.end())
-            (it->second == Call::kWorld ? world : it->second == Call::kControls ? controls : screen) = true;
-    return world ? Call::kWorld : controls ? Call::kControls : screen ? Call::kScreen : Call::kNone;
+            (it->second == Call::kWorld      ? world
+             : it->second == Call::kControls ? controls
+             : it->second == Call::kShow     ? show
+                                             : screen) = true;
+    return world ? Call::kWorld : controls ? Call::kControls : screen ? Call::kScreen : show ? Call::kShow : Call::kNone;
 }
 } // namespace NativeReach

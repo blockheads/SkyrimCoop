@@ -1,13 +1,15 @@
 #include <Services/Guest/GuestRecord.h>
 
 #include <Bridges/IJoinBridge.h>
-#include <Events/AddExperienceEvent.h>
+#include <Events/PlayerProgressEvent.h>
 #include <Events/EquipmentChangeEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/MenuEvent.h>
 #include <Events/SessionLeavingEvent.h>
 #include <Events/UpdateEvent.h>
 #include <Messages/JoinMessages.h>
+#include <Messages/Relayed.h>
+#include <Papyrus/PartyRules.h>
 #include <Services/JoinService.h>
 #include <Services/TransportService.h>
 #include <World.h>
@@ -18,7 +20,9 @@ GuestRecord::GuestRecord(World& aWorld, entt::dispatcher& aDispatcher, IJoinBrid
 {
     Listen<InventoryChangeEvent, &GuestRecord::OnInventory>(m_connections, aDispatcher, this);
     Listen<EquipmentChangeEvent, &GuestRecord::OnEquipment>(m_connections, aDispatcher, this);
-    Listen<AddExperienceEvent, &GuestRecord::OnExperience>(m_connections, aDispatcher, this);
+    Listen<PlayerProgressEvent, &GuestRecord::OnProgress>(m_connections, aDispatcher, this);
+    Listen<NotifyPartyNative, &GuestRecord::OnPartyNative>(m_connections, aDispatcher, this);
+    Listen<NotifyPartyGold, &GuestRecord::OnPartyGold>(m_connections, aDispatcher, this);
     Listen<MenuEvent, &GuestRecord::OnMenu>(m_connections, aDispatcher, this);
     Listen<SessionLeavingEvent, &GuestRecord::OnLeaving>(m_connections, aDispatcher, this);
 }
@@ -27,6 +31,15 @@ void GuestRecord::OnLeaving(const SessionLeavingEvent&) noexcept
 {
     if (m_changed)
         Send();
+}
+
+// The party's progression reached this game's player (dragonborn.md): sent once its queued native has run.
+void GuestRecord::OnPartyNative(const NotifyPartyNative& acMessage) noexcept
+{
+    if (!PartyRules::ProgressOf(acMessage.Call.Class, acMessage.Call.Function))
+        return;
+    m_changed = true;
+    m_sinceSent = 0.0;
 }
 
 // Perks, spells, training and books change through menus.

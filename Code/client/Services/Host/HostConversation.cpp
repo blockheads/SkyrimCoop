@@ -48,6 +48,12 @@ bool HostConversation::OnTalk(uint32_t aActorFormId) noexcept
     return true;
 }
 
+void HostConversation::OnPickSent() noexcept
+{
+    m_pickerSpeaker = m_dialogue.Bridge().GetSpeaker();
+    m_picker = 0x14;
+}
+
 uint32_t HostConversation::LineFor(uint32_t aSpeakerFormId) noexcept
 {
     return aSpeakerFormId == m_pickerSpeaker ? m_picker.load() : 0;

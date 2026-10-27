@@ -21,6 +21,7 @@ struct FakeDialogue final : IDialogueBridge
     bool RequiresGreeting{}; // native arrest greetings depend on alarm AI absent on copies
     uint32_t StartedGreeting{};
     std::function<void(const Option&)> OnSaid;
+    uint32_t LastLineFor = 0;
     // Actors that cannot talk (dead, fighting): Start refuses them.
     std::function<bool(uint32_t aActorFormId)> CanTalk = [](uint32_t) { return true; };
 
@@ -152,6 +153,7 @@ struct FakeDialogue final : IDialogueBridge
     void Say(const Option& acOption)
     {
         Said.push_back(acOption);
+        LastLineFor = m_filters.LineFor ? m_filters.LineFor(Speaker) : 0;
         if (OnSaid)
             OnSaid(Said.back());
         const auto cNext = After.find(acOption.Topic);

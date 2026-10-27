@@ -27,7 +27,7 @@ struct HostConversation final : DialogueService::Role
     [[nodiscard]] bool RunsWithoutMenu() const noexcept override { return true; }
     [[nodiscard]] bool SaysPicksElsewhere() const noexcept override { return false; }
     // Its own player's pick, which its menu says at once: its lines are its own player's.
-    void OnPickSent() noexcept override { m_picker = 0; }
+    void OnPickSent() noexcept override;
     // A guest's pick: the speaker's lines run for that guest's character until the next pick (any thread).
     uint32_t LineFor(uint32_t aSpeakerFormId) noexcept override;
     std::optional<std::vector<IDialogueBridge::Option>> OnListBuilt() noexcept override;

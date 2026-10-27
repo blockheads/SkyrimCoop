@@ -27,6 +27,11 @@ each game runs the same call on its own VM, on its own player and screen (a stac
   native's own code counts: `Actor.Kill` reaches the controls deep in `Actor::SetLifeState`, `Weapon.Fire` the
   rumble through firing, and neither is the screen's. IDA reads 16 such natives in vanilla
   (`docs/research/cutscenes.md`, "The calls").
+- **What a reference shows** (built 2026-10-27, `dragonborn.md`, "What every game shows"): art objects, effect
+  shaders and sub-graph events (`Call::kShow`) run on every game too, on each game's copy of the reference.
+- **Run as the parameter's type:** each game queues the call with every object argument typed as its parameter
+  declares (`GlobalCall`). The VM rejects an `Actor` passed to an `ObjectReference` parameter, so a shake with an
+  actor as its source, or an effect on an actor, used to be dropped there.
 - **What it costs, accepted:** a world script's fade outside a cutscene tints everyone (a vampire in the sun,
   survival's freezing water), a shake without a source shakes everyone at full strength (one with a source fades
   with each player's distance), and a boss's music plays for everyone. A kind can be gated again if play shows it

@@ -59,7 +59,7 @@ struct PlayerRecord
     uint8_t PerkPoints{};
     std::vector<Perk> Perks;
     std::vector<GameId> Spells; // added to the player, beyond its base's
-    std::vector<Value> Values;  // base actor values
+    std::vector<Value> Values;  // base actor values; DragonSouls (133) its current value, each player's own
 
     Inventory Items{}; // with what is worn and held; gold is an item
 
@@ -69,6 +69,12 @@ struct PlayerRecord
     GameId Cell{};
     GameId WorldSpace{};
     std::array<float, 3> Position{};
+
+    // The words of power this player has unlocked: its own, bought with its souls (docs/design/dragonborn.md). A record
+    // an older build saved has none.
+    std::vector<GameId> Words;
+    // Own permanent totals (base + permanent modifier), excluding temporary effects and damage.
+    std::vector<Value> PermanentValues;
 
     bool operator==(const PlayerRecord& acRhs) const noexcept;
 

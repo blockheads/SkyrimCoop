@@ -1,6 +1,7 @@
 // What the real client links from engine files, for games in this process: World (only the services a flow needs, on
 // the fake engine) and RunningGame (the host's game; the plugins the fake engine lists).
 #include "FakeDialogue.h"
+#include <MainLoopTasks.h>
 #include "FakeWait.h"
 #include "FakeCrime.h"
 #include <Services/CrimeService.h>
@@ -150,6 +151,10 @@ World& World::Get() noexcept
 
 void World::Update() noexcept
 {
+    auto& mainEngine = ctx().at<FakeEngine&>();
+    mainEngine.AtMainLoop = true;
+    MainLoopTasks::Run();
+    mainEngine.AtMainLoop = false;
     ctx().at<FakeEngine&>().RunMainLoop();
     m_dispatcher.trigger(UpdateEvent(1.0 / 60));
     // The real AnimationSystem replays a dying owner's action 300 ms behind its tick.
@@ -180,7 +185,8 @@ void World::Update() noexcept
                 }
                 engine.ReplayDeathAction(form.Id, *it);
             }
-            else if (engine.Actors.at(form.Id).GraphState != "recovering")
+            else if (engine.Actors.at(form.Id).GraphUpdating && engine.Actors.at(form.Id).GraphState != "dead" &&
+                     engine.Actors.at(form.Id).GraphState != "recovering")
                 engine.SetActorLatestAnimation(form.Id, *it);
             it = animation.TimePoints.erase(it);
         }
@@ -258,3 +264,18 @@ Mods Plugins(const IFormBridge& acForms)
     return plugins;
 }
 } // namespace RunningGame
+
+// Each real game has its own main-loop queue. The fake runs it before starting that game's jobs.
+namespace MainLoopTasks
+{
+void Queue(std::function<void()> aTask) noexcept
+{
+    World::Get().ctx().at<FakeEngine&>().MainTasks.push_back(std::move(aTask));
+}
+void Run() noexcept
+{
+    auto tasks = std::move(World::Get().ctx().at<FakeEngine&>().MainTasks);
+    World::Get().ctx().at<FakeEngine&>().MainTasks.clear();
+    for (auto& task : tasks) task();
+}
+} // namespace MainLoopTasks

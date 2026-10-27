@@ -40,7 +40,8 @@ bool PlayerRecord::operator==(const PlayerRecord& acRhs) const noexcept
     return Key == acRhs.Key && Name == acRhs.Name && Level == acRhs.Level && Base == acRhs.Base && BaseFlags == acRhs.BaseFlags &&
            FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && LevelExperience == acRhs.LevelExperience && LevelThreshold == acRhs.LevelThreshold &&
            Skills == acRhs.Skills && PerkPoints == acRhs.PerkPoints && Perks == acRhs.Perks && Spells == acRhs.Spells && Values == acRhs.Values &&
-           Items == acRhs.Items && Extras == acRhs.Extras && Cell == acRhs.Cell && WorldSpace == acRhs.WorldSpace && Position == acRhs.Position;
+           Items == acRhs.Items && Extras == acRhs.Extras && Cell == acRhs.Cell && WorldSpace == acRhs.WorldSpace && Position == acRhs.Position &&
+           Words == acRhs.Words && PermanentValues == acRhs.PermanentValues;
 }
 
 void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
@@ -91,6 +92,13 @@ void PlayerRecord::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     WorldSpace.Serialize(aWriter);
     for (const float cValue : Position)
         Serialization::WriteFloat(aWriter, cValue);
+    WriteIds(aWriter, Words);
+    Serialization::WriteVarInt(aWriter, PermanentValues.size());
+    for (const Value& cValue : PermanentValues)
+    {
+        Serialization::WriteVarInt(aWriter, cValue.Index);
+        Serialization::WriteFloat(aWriter, cValue.Base);
+    }
 }
 
 void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -144,4 +152,17 @@ void PlayerRecord::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     WorldSpace.Deserialize(aReader);
     for (float& value : Position)
         value = Serialization::ReadFloat(aReader);
+    Words.clear();
+    if (!aReader.Eof())
+        Words = ReadIds(aReader);
+    PermanentValues.clear();
+    if (!aReader.Eof())
+    {
+        PermanentValues.resize(Serialization::ReadVarInt(aReader) & 0xFF);
+        for (Value& value : PermanentValues)
+        {
+            value.Index = Serialization::ReadVarInt(aReader) & 0xFF;
+            value.Base = Serialization::ReadFloat(aReader);
+        }
+    }
 }

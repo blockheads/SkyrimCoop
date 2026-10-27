@@ -13,7 +13,7 @@
 #include <Games/Events.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/LooseItemEvents.h>
-#include <Events/AddExperienceEvent.h>
+#include <Events/PlayerProgressEvent.h>
 #include <Events/SetWaypointEvent.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/DifficultyChangeEvent.h>
@@ -48,12 +48,9 @@
 #include <optional>
 #include <utility>
 
-int32_t PlayerCharacter::LastUsedCombatSkill = -1;
-
 using TPickUpObject = char(PlayerCharacter*, TESObjectREFR* apObject, int32_t aCount, bool aUnk1, bool aUnk2);
 using TSetBeastForm = void(void*, void* apUnk1, void* apUnk2, bool aEntering);
-using TAddSkillExperience = void(PlayerCharacter*, int32_t aSkill, float aExperience);
-using TCalculateExperience = bool(int32_t*, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2);
+using TAddSkillExperience = void(PlayerCharacter*, int32_t aSkill, float aExperience, TESForm* apAdvanceObject, uint32_t aAdvanceAction);
 using TSetWaypoint = void(PlayerCharacter*, NiPoint3* apPosition, TESForm* apWorldOrCell);
 using TRemoveWaypoint = void(PlayerCharacter*);
 using TSetDifficulty = void(PlayerCharacter*, int32_t aDifficulty);
@@ -61,7 +58,6 @@ using TSetDifficulty = void(PlayerCharacter*, int32_t aDifficulty);
 static TPickUpObject* RealPickUpObject = nullptr;
 static TSetBeastForm* RealSetBeastForm = nullptr;
 static TAddSkillExperience* RealAddSkillExperience = nullptr;
-static TCalculateExperience* RealCalculateExperience = nullptr;
 static TSetWaypoint* RealSetWaypoint = nullptr;
 static TRemoveWaypoint* RealRemoveWaypoint = nullptr;
 static TSetDifficulty* RealSetDifficulty = nullptr;
@@ -95,21 +91,6 @@ void PlayerCharacter::SetDifficulty(const int32_t aDifficulty, bool aForceUpdate
 
     int32_t* difficultySetting = Settings::GetDifficulty();
     *difficultySetting = difficulty = aDifficulty;
-}
-
-void PlayerCharacter::AddSkillExperience(int32_t aSkill, float aExperience) noexcept
-{
-    Skills::Skill skill = Skills::GetSkillFromActorValue(aSkill);
-    float oldExperience = GetSkillExperience(skill);
-
-    ScopedExperienceOverride _;
-
-    RealAddSkillExperience(this, aSkill, aExperience);
-
-    float newExperience = GetSkillExperience(skill);
-    float deltaExperience = newExperience - oldExperience;
-
-    spdlog::debug("Added {} experience to skill {}", deltaExperience, aSkill);
 }
 
 bool PlayerCharacter::SaidRecently(const TESTopicInfo* apInfo) const noexcept
@@ -276,41 +257,12 @@ void HookSetBeastForm(void* apThis, void* apUnk1, void* apUnk2, bool aEntering)
     RealSetBeastForm(apThis, apUnk1, apUnk2, aEntering);
 }
 
-void HookAddSkillExperience(PlayerCharacter* apThis, int32_t aSkill, float aExperience)
+// PlayerCharacter::AddSkillExperience (40488, CommonLibSSE-NG): the advance object is r9, action the fifth argument.
+void HookAddSkillExperience(PlayerCharacter* apThis, int32_t aSkill, float aExperience, TESForm* apAdvanceObject, uint32_t aAdvanceAction)
 {
-    // TODO: armor skills? sneak?
-    static const std::unordered_set<int32_t> combatSkills{ActorValueInfo::kAlteration, ActorValueInfo::kConjuration, ActorValueInfo::kDestruction, ActorValueInfo::kIllusion, ActorValueInfo::kRestoration, ActorValueInfo::kOneHanded, ActorValueInfo::kTwoHanded, ActorValueInfo::kMarksman, ActorValueInfo::kBlock};
-
-    Skills::Skill skill = Skills::GetSkillFromActorValue(aSkill);
-    float oldExperience = apThis->GetSkillExperience(skill);
-
-    RealAddSkillExperience(apThis, aSkill, aExperience);
-
-    float newExperience = apThis->GetSkillExperience(skill);
-    float deltaExperience = newExperience - oldExperience;
-
-    spdlog::debug("Skill (AVI): {}, experience: {}", aSkill, deltaExperience);
-
-    if (combatSkills.contains(aSkill))
-    {
-        spdlog::debug("Set new last used combat skill to {}.", aSkill);
-        PlayerCharacter::LastUsedCombatSkill = aSkill;
-
-        World::Get().GetRunner().Trigger(AddExperienceEvent(deltaExperience));
-    }
-}
-
-bool HookCalculateExperience(int32_t* apThis, float* aFactor, float* aBonus, float* aUnk1, float* aUnk2)
-{
-    bool result = RealCalculateExperience(apThis, aFactor, aBonus, aUnk1, aUnk2);
-
-    if (ScopedExperienceOverride::IsOverriden())
-    {
-        *aFactor = 1.f;
-        *aBonus = 0.f;
-    }
-
-    return result;
+    RealAddSkillExperience(apThis, aSkill, aExperience, apAdvanceObject, aAdvanceAction);
+    if (aExperience > 0.f && aSkill >= ActorValueInfo::kOneHanded && aSkill <= ActorValueInfo::kEnchanting)
+        World::Get().GetRunner().Trigger(PlayerProgressEvent{});
 }
 
 // The map menu places the player's marker (MapMenu::PlaceMarker 53113, then the terrain pick 53114).
@@ -421,7 +373,6 @@ static Hooks::Initializer s_playerCharacterHooks(
         HOOK_ID(40533, &RealPickUpObject, HookPickUpObject);
         HOOK_ID(55497, &RealSetBeastForm, HookSetBeastForm);
         HOOK_ID(40488, &RealAddSkillExperience, HookAddSkillExperience);
-        HOOK_ID(27244, &RealCalculateExperience, HookCalculateExperience);
         HOOK_ID(40535, &RealSetWaypoint, HookSetWaypoint);
         HOOK_ID(40536, &RealRemoveWaypoint, HookRemoveWaypoint);
         HOOK_ID(40563, &RealSetDifficulty, HookSetDifficulty);

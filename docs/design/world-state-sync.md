@@ -434,3 +434,9 @@ data for the forms no message covers, once mods are taken on.
 - `Code/client/Games/Skyrim/Havok/AnimationGraphState.cpp`: the same save-data technique for animation graphs.
 - Scripts checking `== Game.GetPlayer()`: handled on the host by the party model's rules
   (`docs/design/party-model.md`, "A guest's actions on the host"); upstream's per-script patches are gone.
+
+Quest rewards (2026-10-27): [quest-rewards.md](quest-rewards.md). A guest still skips the host's stage fragment.
+The fragment's skill/character reward is an input carried separately on the existing party-share path, with no
+second execution of inventory rewards. Real host/guest dialogue turn-ins measure TESQuestStageEvent,
+TESQuestStageItemDoneEvent and QuestStatus completion on the guest; no reward fragment runs there. Mods listening
+to those native events see the live completion, while historical joins restore quest state silently.

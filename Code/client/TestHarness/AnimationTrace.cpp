@@ -159,7 +159,8 @@ void AnimationTrace::Sample(uint32_t aFormId, Watched& aWatched)
         aWatched.Action = std::move(action);
     }
 
-    nlohmann::json state = {{"life", ActorState::LifeStateOf(pActor->actorState.flags1)},
+    nlohmann::json state = {{"graph_updates", (pActor->flags2 & Actor::ActorFlags::SHOULD_ANIM_GRAPH_UPDATE) != 0},
+                            {"life", ActorState::LifeStateOf(pActor->actorState.flags1)},
                             {"weapon", pActor->actorState.GetWeaponState()},
                             {"kill_move", EngineCalls::IsInKillMove(aFormId)},
                             {"health", std::round(actors.GetActorValue(aFormId, 24) * 10.f) / 10.f}};

@@ -5,10 +5,10 @@ IDA 2026-10-19). The co-op rule built on it is in `docs/design/party-model.md` (
 
 | ID | Name | What |
 |---|---|---|
-| 40488 | `PlayerCharacter::AddSkillExperience` | The player's skill use (in the vtable). `(this, av, xp, advanceObject, advanceAction)`; for `xp > 0` calls 41561 with `useModifier = 1`. **We hook it** (`HookAddSkillExperience`, `Code/client/Games/Skyrim/PlayerCharacter.cpp`). |
+| 40488 | `PlayerCharacter::AddSkillExperience` | The player's skill use (in the vtable). `(this, av, xp, advanceObject, advanceAction)`; for `xp > 0` calls 41561 with `useModifier = 1`. **We hook it** only to dirty the character record (`PlayerProgressEvent`); the full signature is forwarded. |
 | 41561 | `PlayerSkills::AdvanceSkill` | `(skills, av, xp, advanceObject, advanceAction, useModifier, hideNotification)`. Skills only (av 6-23), skill < 100. With `useModifier`, `xp = useMult * xp + useOffset` (27244). Stores av / object / action on the player (+0xAF0 / +0x9F8 / +0xAF4), runs perk entry point 22 (`ModSkillUse`) on `xp`, clears them. Adds to the skill's xp; while it reaches the threshold: skill +1, Story Manager skill-increase event, threshold `= improveMult * (level+1)^fSkillUseCurve + improveOffset`, level xp `+= fXPPerSkillRank * new level`. Then the "skill increased" message. |
-| 41562 | `PlayerSkills::IncrementSkill` (called by `PlayerCharacter::IncrementSkill`) | `(skills, av, count)`: calls 41561 with each level's remaining xp, `useModifier = 0`, keeping the progress ratio. Trainers (Uncapper's name for it); skill books and `Game.IncrementSkill` likely too, not checked. **Does not pass through 40488.** |
-| 27244 | ours: `GetSkillUseData` | `(av, &useMult, &useOffset, &improveMult, &improveOffset)` from the `ActorValueInfo`'s skill data (+0x108); false for a non-skill. Hooked as `HookCalculateExperience` for upstream's `ScopedExperienceOverride`. |
+| 41562 | `PlayerSkills::IncrementSkill` (called by `PlayerCharacter::IncrementSkill`) | `(skills, av, count)`: calls 41561 with each level's remaining xp, `useModifier = 0`, keeping the progress ratio. Trainers, books and Papyrus IncrementSkillFromPapyrus (55616, called by Game.IncrementSkill / IncrementSkillBy 55476 / 55477). **Does not pass through 40488.** |
+| 27244 | ours: `GetSkillUseData` | `(av, &useMult, &useOffset, &improveMult, &improveOffset)` from the `ActorValueInfo`'s skill data (+0x108); false for a non-skill. The upstream multiplier override was removed 2026-10-27; receiver-native rewards leave this unchanged. |
 
 Perk entry 22 is where perk-based experience bonuses apply (perk overhauls add many; which vanilla
 bonuses use it, against skill-rate actor values, not checked). Its conditions may read the advance object
@@ -27,14 +27,21 @@ So a gain measured after 41561 already carries the player's perks and every mod'
 another player through 40488 applies the receiver's again. Sending the input of 40488 (skill, base amount,
 object, action) does not.
 
-## Upstream's shared experience (to be removed)
+## Shared rewards, personal skill use (2026-10-27)
 
-`HookAddSkillExperience` measures the skill's xp before and after, and for nine combat skills sends the
-difference once a second (`SyncExperienceRequest`); each receiver adds it to its last used combat skill
-through 40488 with 27244 forced to `useMult 1, useOffset 0`. Faults besides the double perks and mods:
+[Quest rewards](../../design/quest-rewards.md) send the Papyrus input on the existing PartyChange path before
+PlayerNatives could route it to only the picker. Each game's own native reaches 40488 / 41561 (XP) or 55616 /
+41562 (direct levels), with its own player's perks and mods. The Skyrim input scenario calibrates each game with
+one local native call, then compares the shared input with that gain. Installed Uncapper / Experience integration
+remains a separate test; this establishes the native path and once-only input, not those DLLs' full compatibility.
 
-- A skill raise inside the call subtracts the threshold, so the measured gain is negative and cancels other
-  gains in that second.
-- Amounts cross skills (Destruction's into One-Handed) with different thresholds.
-- The hook and `TAddSkillExperience` declare `(this, av, xp)` only: the object and action reach 41561 as
-  whatever the hook leaves in r9 and its stack slot. Not yet confirmed in our DLL's disassembly.
+The old measured combat XP sender, receiver and host relay are removed, along with LastUsedCombatSkill and the
+27244 override. Its legacy wire types/slots remain reserved, with no handler. Retaining the relay made a 0.75
+Alteration reward become 2.25 after the games' own gains returned; the calibrated scenario caught it. Besides
+crossing builds and skills, a before/after difference loses XP when the skill crosses a threshold.
+
+40488's former three-argument hook also omitted the advance object and action. It now forwards all five arguments,
+checked against CommonLibSSE-NG PlayerCharacter.h and 1.6.1170 disassembly: the function at RVA 0x736E20 passes
+r9 through and copies its fifth argument to PlayerSkills::AdvanceSkill. Only PlayerProgressEvent remains for the
+guest's character record, with no measured XP payload. Direct reward levels/points/perks/stat changes also dirty
+the record through the party notification, after allowing the queued native to finish.

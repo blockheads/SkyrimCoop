@@ -39,6 +39,7 @@ public:
     bool DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept override;
     void RespawnActor(uint32_t aFormId) noexcept override;
     void ResurrectActor(uint32_t aFormId) noexcept override;
+    void ResumeActorAnimation(uint32_t aFormId) noexcept override;
     void DeleteActor(uint32_t aFormId) noexcept override;
     void MoveActorTo(uint32_t aFormId, uint32_t aCellId, float aX, float aY, float aZ) noexcept override;
     void SetActorRotation(uint32_t aFormId, float aX, float aZ) noexcept override;
@@ -72,6 +73,7 @@ public:
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
     float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
+    void SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept override;
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     bool ActorHas3D(uint32_t aFormId) const noexcept override;
     bool IsAnimationGraphReady(uint32_t aFormId) const noexcept override;
@@ -118,6 +120,7 @@ public:
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
     uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override;
+    bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetActorNpcTemplateBaseFormId(uint32_t aFormId) const noexcept override;
@@ -254,8 +257,6 @@ public:
     void ShowHudMessage(const std::string& aMessage) noexcept override;
     void ShowEnemyHealth(uint32_t aActorFormId) noexcept override;
     Tints GetPlayerFaceTints() const noexcept override;
-    void AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept override;
-    int32_t GetPlayerLastUsedCombatSkill() const noexcept override;
     uint32_t GetPlayerParentCellFormId() const noexcept override;
     bool IsActorBleedingOut(uint32_t aFormId) const noexcept override;
 

@@ -527,5 +527,9 @@ void ActorValueService::ApplyDeathState(uint32_t aSessionId) noexcept
     if (cDesired.IsDead)
         m_actorBridge.KillActor(cFormId);
     else
+    {
         m_actorBridge.ResurrectActor(cFormId);
+        if (!m_actorBridge.IsActorDead(cFormId))
+            m_actorBridge.ResumeActorAnimation(cFormId);
+    }
 }

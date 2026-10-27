@@ -29,6 +29,7 @@ std::span<const Command> SessionCommands();
 // The engine's change records (ChangeLog.h).
 std::span<const Command> ChangeLogCommands();
 std::span<const Command> QuestFragmentsCommands();
+void StopQuestTrace() noexcept;
 // Spikes kept for measuring: story events, engine probes (PlayerEvents.cpp).
 std::span<const Command> PlayerEventsCommands();
 

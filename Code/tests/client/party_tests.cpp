@@ -1,4 +1,5 @@
-// PartyRules: whose a controls or screen call is, and who holds the controls (docs/design/cutscenes.md).
+// PartyRules: whose a controls, screen or progression call is, and who holds the controls (docs/design/cutscenes.md,
+// docs/design/dragonborn.md).
 #include <catch2/catch.hpp>
 
 #include <Papyrus/PartyRules.h>
@@ -50,6 +51,17 @@ SCENARIO("A player's moment stays theirs; the story is the party's", "[party]")
         CHECK(Whose(kGuestsGame, false) == Share::kHere);
         CHECK(Whose(kGuestsGame, true) == Share::kHere);
     }
+}
+
+SCENARIO("What a reference shows is every game's, whoever's action ran it", "[party][dragonborn]")
+{
+    THEN("a player's moment's show (the killer's dragon dissolving) is the party's")
+    {
+        CHECK(ShareOf(Kind::kShow, kGuest, false, 0) == Share::kParty);
+        CHECK(ShareOf(Kind::kShow, kThisPlayer, false, 0) == Share::kParty);
+        CHECK(ShareOf(Kind::kShow, 0, false, 0) == Share::kParty);
+    }
+    THEN("another game's, mirrored here, runs here only") CHECK(ShareOf(Kind::kShow, kHostsGame, false, 0) == Share::kHere);
 }
 
 SCENARIO("A controls call is shared only if it takes movement", "[party]")
@@ -239,5 +251,104 @@ SCENARIO("Holds: partial give-backs, several leavers, taking again", "[party]")
         holds.Take(kThisGame, kMovement);
         holds.Take(kThisGame, kMovement);
         THEN("one give-back frees them (ControlMap keeps no count)") CHECK(holds.GiveBack(kThisGame, kMovement) == kMovement);
+    }
+}
+
+SCENARIO("The party is the Dragonborn: which calls on a player's progression every player takes", "[party][dragonborn]")
+{
+    const auto cRoute = [](std::string_view aClass, std::string_view aFunction, Target aTarget, uint32_t aCause, bool aStory = false,
+                           bool aBody = false, bool aHosting = true) {
+        const auto cProgress = ProgressOf(aClass, aFunction);
+        REQUIRE(cProgress);
+        return RouteOf(*cProgress, aTarget, aCause, aStory, aBody, aHosting);
+    };
+    GIVEN("a word of power taught or unlocked by a script")
+    {
+        THEN("it is the party's, whoever's action ran it (a guest's word wall, Paarthurnax)")
+        {
+            CHECK(cRoute("Game", "TeachWord", Target::kThisPlayer, 0).Relay);
+            CHECK(cRoute("Game", "teachword", Target::kThisPlayer, kGuest).Relay);
+            CHECK(cRoute("Game", "UnlockWord", Target::kThisPlayer, kThisPlayer).Relay);
+        }
+        THEN("the host's own player takes it there as the original: nothing more runs here")
+        {
+            const Route cRun = cRoute("Game", "TeachWord", Target::kThisPlayer, kGuest);
+            CHECK(cRun.Original);
+            CHECK(!cRun.ThisPlayer);
+        }
+        THEN("another game's, run here, is not sent again; a guest's game's own scripts are not the story")
+        {
+            CHECK(!cRoute("Game", "TeachWord", Target::kThisPlayer, kHostsGame).Relay);
+            CHECK(!cRoute("Game", "UnlockWord", Target::kThisPlayer, kGuestsGame).Relay);
+            CHECK(!cRoute("Game", "TeachWord", Target::kThisPlayer, 0, false, false, false).Relay);
+        }
+    }
+    GIVEN("a dragon's soul absorbed into a guest's character (MQKillDragonScript: AbsorbActor.ModActorValue)")
+    {
+        const Route cRun = cRoute("Actor", "ModActorValue", Target::kGuestCharacter, kGuest, true);
+        THEN("every game's own player gains it; the character itself not: its owner's game supplies its values")
+        {
+            CHECK(cRun.Relay);
+            CHECK(cRun.ThisPlayer);
+            CHECK(!cRun.Original);
+        }
+    }
+    GIVEN("a faction or a spell on a player")
+    {
+        THEN("the story's is the party's: no player behind it, or a stage a player's action set")
+        {
+            CHECK(cRoute("Actor", "SetFactionRank", Target::kThisPlayer, 0).Relay);
+            CHECK(cRoute("Actor", "AddSpell", Target::kGuestCharacter, kGuest, true).Relay);
+        }
+        THEN("on a guest's character the original runs too: the host's conditions read it there")
+        {
+            const Route cRun = cRoute("Actor", "AddToFaction", Target::kGuestCharacter, kGuest, true);
+            CHECK(cRun.Original);
+            CHECK(cRun.ThisPlayer);
+        }
+        THEN("a player's own moment stays theirs: its own action (a lever), or a body's script (its beast form's quest)")
+        {
+            CHECK(!cRoute("Actor", "AddToFaction", Target::kGuestCharacter, kGuest).Relay);
+            CHECK(!cRoute("Actor", "SetFactionRank", Target::kThisPlayer, kThisPlayer, true, true).Relay);
+            CHECK(!cRoute("Actor", "RemoveSpell", Target::kThisPlayer, 0, false, true).Relay);
+        }
+        THEN("on an NPC it is no player's") CHECK(!cRoute("Actor", "AddToFaction", Target::kNone, 0).Relay);
+    }
+    GIVEN("what is not progression")
+    {
+        THEN("a body's values, items and reads are no party call")
+        {
+            CHECK(!ProgressOf("Actor", "DamageActorValue"));
+            CHECK(!ProgressOf("Actor", "ForceActorValue"));
+            CHECK(!ProgressOf("ObjectReference", "AddItem"));
+            CHECK(!ProgressOf("Actor", "GetFactionRank"));
+            CHECK(!ProgressOf("Game", "ShowTrainingMenu"));
+        }
+    }
+    GIVEN("the call a guest's character took, as the host's player takes it")
+    {
+        LocalCall absorb{.Class = "Actor", .Function = "ModActorValue", .Self = LocalForm{kGuest}, .Arguments = {std::string("DragonSouls"), 1.f}};
+        MarkEachPlayer(absorb, kGuest);
+        THEN("its player is this game's own") CHECK(std::get<LocalForm>(OnThisPlayer(absorb).Self) == LocalForm{kThisPlayer});
+    }
+}
+
+SCENARIO("In the story's party call, the player is each game's own", "[party][dragonborn]")
+{
+    // MQKillDragonScript.DeathSequence for a guest's kill: DragonAbsorbEffect.Play(dragon, 8, AbsorbActor).
+    LocalCall absorb{.Class = "VisualEffect", .Function = "Play", .Self = LocalForm{0x280C0},
+                     .Arguments = {LocalForm{0xFF000900}, 8.f, LocalForm{kGuest}}};
+    MarkEachPlayer(absorb, kGuest);
+    THEN("the absorber is marked, the dragon and the effect are not")
+    {
+        CHECK(std::get<LocalForm>(absorb.Arguments[2]).EachPlayer);
+        CHECK(!std::get<LocalForm>(absorb.Arguments[0]).EachPlayer);
+        CHECK(!std::get<LocalForm>(absorb.Self).EachPlayer);
+    }
+    GIVEN("no player's action behind it: the player is this game's")
+    {
+        LocalCall shake{.Class = "Game", .Function = "ShakeCamera", .Arguments = {LocalForm{kThisPlayer}, 0.5f, 2.f}};
+        MarkEachPlayer(shake, 0);
+        THEN("marked") CHECK(std::get<LocalForm>(shake.Arguments[0]).EachPlayer);
     }
 }

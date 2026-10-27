@@ -218,15 +218,6 @@ struct Subtitle
     bool Force{}; // shown at any distance (the engine's forceDisplay, as for a line said to the player)
 };
 
-struct SyncExperience
-{
-    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
-    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
-
-    bool operator==(const SyncExperience&) const noexcept = default;
-
-    float Experience{};
-};
 // An actor's active magic effects that show on it (a hit shader or hit art: burning, frost,
 // a healing glow), from its owner. Copies play only those visuals; the owner applies the effects.
 struct ActiveEffects
@@ -351,5 +342,18 @@ struct BodyPushes
     bool operator==(const BodyPushes&) const noexcept = default;
 
     std::vector<BodyPush> Pushes;
+};
+
+// The party's gold (docs/design/party-purse.md): every player carries this many of Gold001 (0xF).
+struct PartyGold
+{
+    static inline const GameId kGold{0, 0xF};
+
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+
+    bool operator==(const PartyGold&) const noexcept = default;
+
+    uint32_t Gold{};
 };
 } // namespace Payloads

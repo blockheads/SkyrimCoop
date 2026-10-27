@@ -93,9 +93,6 @@ public:
 
     virtual Tints GetPlayerFaceTints() const noexcept = 0;
 
-    // --- Experience ---
-    virtual void AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept = 0;
-    virtual int32_t GetPlayerLastUsedCombatSkill() const noexcept = 0;
 
     // --- Player parent cell for actor MoveTo ---
     virtual uint32_t GetPlayerParentCellFormId() const noexcept = 0;

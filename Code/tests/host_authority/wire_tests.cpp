@@ -199,11 +199,6 @@ std::map<std::string, std::pair<std::string, std::string>> Encode()
         m.Force = true;
         add("Subtitle", m, (NotifySubtitle*)nullptr);
     }
-    {
-        SyncExperienceRequest m;
-        m.Experience = 12.5f;
-        add("SyncExperience", m, (NotifySyncExperience*)nullptr);
-    }
     return out;
 }
 } // namespace
@@ -231,7 +226,6 @@ TEST_CASE("Relayed messages keep their bytes", "[Wire]")
         {"RemoveSpell", {"81de03cddf0402", "81de03cddf0402"}},
         {"SpellCast", {"ab9302cddf040102796b0500", "ab9302cddf040102796b0500"}},
         {"Subtitle", {"d6680f4c6574206d652067756573732e2e2ee78a0101", "d6680f4c6574206d652067756573732e2e2ee78a0101"}},
-        {"SyncExperience", {"00004841", "00004841"}},
     };
 
     const auto cEncoded = Encode();

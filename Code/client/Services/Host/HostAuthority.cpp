@@ -109,6 +109,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     , m_clock(*this, aNetwork, m_players, m_game)
     , m_wait(*this, aNetwork, m_players, m_game)
     , m_crime(*this, aNetwork, m_players, m_characters, m_game)
+    , m_purse(m_players, m_characters, m_game)
     , m_weather(aNetwork, m_players, m_game)
     , m_worldState(*this, aNetwork, m_players, m_game)
     , m_items(*this, aNetwork, m_players, m_game)
@@ -131,7 +132,6 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<AiStateRequest, NotifyAiState>(FromOwner, &AiStateRequest::SessionId);
     Relay<DialogueRequest, NotifyDialogue>(FromAnyone);
     Relay<SubtitleRequest, NotifySubtitle>(FromAnyone);
-    Relay<SyncExperienceRequest, NotifySyncExperience>(FromAnyone); // everyone is in the host's party
 
     // Inventory and hands
     On(*this, &HostAuthority::OnInventoryChanges);
@@ -153,8 +153,8 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
     Relay<RemoveSpellRequest, NotifyRemoveSpell>(FromAnyone);
     // What shows on an actor (burning, frost): its owner's active effects, played as visuals only.
     Relay<EffectFlashRequest, NotifyEffectFlash>(FromOwner, &EffectFlashRequest::SessionId);
-    // A script's call on the controls or the screen (fades, camera, shakes, music): every other game runs it too
-    // (cutscenes.md).
+    // A script's call on the controls or the screen (fades, camera, shakes, music, cutscenes.md), or on a player's
+    // progression (dragonborn.md): every other game runs it too.
     On(*this, &HostAuthority::OnPartyNative);
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
@@ -228,6 +228,8 @@ void HostAuthority::PlayerEntered(ConnectionId_t aPlayer, uint32_t aCharacterSes
     m_worldState.SendWorldState(aPlayer);
     m_timeScale.SendTimeScale(aPlayer);
     m_characters.SendExistingCharacters(aPlayer, aCharacterSessionId);
+    // Its player and every copy carry the party's gold, its own brought in replaced.
+    m_purse.Send();
 }
 
 bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSender) noexcept
@@ -249,6 +251,8 @@ bool HostAuthority::Handle(const RequestMessage& acMessage, ConnectionId_t aSend
 
 void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept
 {
+    if (m_purse.Change(acRequest, aSender))
+        return;
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
 }

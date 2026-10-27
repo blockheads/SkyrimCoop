@@ -125,6 +125,12 @@ void JoinService::OnUpdate(const UpdateEvent& acEvent) noexcept
         if (m_waited > kChunkSeconds)
             Fail("transfer_failed");
         break;
+    case Step::kPlacing:
+        if (m_bridge.PlaceBesideHost())
+            JoinSession();
+        else if (m_waited > kConnectSeconds)
+            Fail("placement_failed");
+        break;
     case Step::kLoading:
         if (m_waited > kLoadSeconds)
             Fail("transfer_failed");
@@ -202,7 +208,16 @@ void JoinService::Arrive() noexcept
                  cpKept ? "kept in the host's save" : "brought from its own game");
     m_bridge.ApplyPlayer(*cpCharacter);
     m_brought.reset();
+    if (!cpKept)
+    {
+        To(Step::kPlacing, JoinStatus::State::kCreatingCharacter);
+        return;
+    }
+    JoinSession();
+}
 
+void JoinService::JoinSession() noexcept
+{
     To(Step::kJoining, JoinStatus::State::kConnecting);
     m_reached = false;
     if (!m_world.GetTransport().Connect(m_endpoint))

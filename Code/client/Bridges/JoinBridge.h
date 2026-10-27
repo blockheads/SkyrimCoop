@@ -23,6 +23,7 @@ public:
 
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
+    bool PlaceBesideHost() noexcept override;
 
 private:
     // The save the main loop makes for SaveNow.

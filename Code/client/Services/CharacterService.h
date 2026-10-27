@@ -4,8 +4,11 @@
 #include "Structs/ActorData.h"
 #include <Messages/AnnounceCharacterRequest.h>
 #include <Messages/NotifyCharacterSpawn.h>
+#include <Messages/NotifyRespawn.h>
 #include <Structs/ActorWhereabouts.h>
 #include <NoCopyMove.h>
+#include <atomic>
+#include <memory>
 #include <Messages/RelayedMessages.h>
 
 struct ActorAddedEvent;
@@ -17,6 +20,7 @@ struct EquipmentChangeEvent;
 struct FormIdComponent;
 struct ActionEvent;
 struct NotifyCharacterSpawn;
+struct NotifyPlayerLevel;
 struct NotifyReferencesMove;
 struct NotifyInventoryChanges;
 struct NotifyFactionsChanges;
@@ -33,7 +37,6 @@ struct DismountEvent;
 struct NotifyRespawn;
 struct PlayerLooksChangeEvent;
 struct PlayerRevivedEvent;
-struct AddExperienceEvent;
 struct DialogueEvent;
 struct SubtitleEvent;
 
@@ -70,20 +73,23 @@ struct CharacterService
     void OnFactionsChange(const FactionsChangeEvent& acEvent) const noexcept;
     // An actor of ours put somewhere at once: its next snapshot says so (Movement::Teleported).
     void OnReferenceJump(const ReferenceJumpEvent& acEvent) noexcept;
-    void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept;
+    void OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept;
     void OnMountEvent(const MountEvent& acEvent) const noexcept;
     void OnNotifyMount(const NotifyMount& acMessage) noexcept;
     // Our player got off the mount the host gave this game: the host takes it back.
     void OnDismountEvent(const DismountEvent& acEvent) const noexcept;
     // The mount is the host's again: a copy in its rider's game, the host's game's to simulate.
     void OnNotifyDismount(const NotifyDismount& acMessage) noexcept;
-    void OnNotifyRespawn(const NotifyRespawn& acMessage) const noexcept;
-    // Our player's looks changed: the host makes its copies again from them (HostCharacters::OnRespawn).
+    void OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept;
+    void QueuePendingLooks() noexcept;
+    void ApplyPendingLooks() noexcept;
+    void OnPlayerLevel(const NotifyPlayerLevel& acMessage) const noexcept;
+    // A player's copy at its owner's level (SessionService's roster).
+    void SetCopyLevel(uint32_t aFormId, uint32_t aPlayerId) const noexcept;
+    // Its base, build and tints reach the existing copies through the host.
     void OnPlayerLooksChange(const PlayerLooksChangeEvent& acEvent) const noexcept;
     // Its copies on the other games are made again, alive (a resurrected copy's graph stays dead).
     void OnPlayerRevived(const PlayerRevivedEvent&) const noexcept;
-    void OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept;
-    void OnNotifySyncExperience(const NotifySyncExperience& acMessage) noexcept;
     void OnDialogueEvent(const DialogueEvent& acEvent) noexcept;
     void OnNotifyDialogue(const NotifyDialogue& acMessage) noexcept;
     void OnSubtitleEvent(const SubtitleEvent& acEvent) noexcept;
@@ -156,6 +162,9 @@ private:
     IFormBridge& m_formBridge;
     IPlayerBridge& m_playerBridge;
     std::unordered_set<uint32_t> m_discoveredActors;
+    std::unordered_map<uint32_t, NotifyRespawn> m_pendingLooks;
+    std::shared_ptr<std::atomic<bool>> m_alive{std::make_shared<std::atomic<bool>>(true)};
+    bool m_looksQueued{};
     // This game's player in the session (ConnectedEvent): its player id and its character's session id.
     uint32_t m_playerId{};
     uint32_t m_characterId{};

@@ -1,3 +1,4 @@
+#include <Games/CheckedPlacement.h>
 #include <Events/PlayerDeathEvent.h>
 #include "FakeEngine.h"
 
@@ -19,11 +20,13 @@
 #include <Events/LockChangeEvent.h>
 #include <Events/LooseItemEvents.h>
 #include <Events/PartyNativeEvent.h>
+#include <Games/EngineNames.h>
 #include <Events/RemoveWaypointEvent.h>
 #include <Events/SetWaypointEvent.h>
 #include <Events/TimeScaleEvent.h>
 #include <Structs/GridCellCoords.h>
 #include <Papyrus/PartyNatives.h>
+#include <array>
 #include <Games/Overrides.h>
 #include <Events/GameLoadedEvent.h>
 #include <Events/MenuEvent.h>
@@ -80,8 +83,44 @@ LocalCall EnablePlayerControls(bool aMovement, bool aFighting, bool aCamSwitch, 
 }
 
 // PartyNatives::Scope around the native, the native (one ControlMap::ToggleControls) and HookToggleControls inside it.
-void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory)
+void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory, bool aBody)
 {
+    // A player's progression: Scope's route, then the native's write (PartyRules::RouteOf).
+    if (const auto cProgress = ProgressOf(acCall.Class, acCall.Function))
+    {
+        const auto* cpSelf = std::get_if<LocalForm>(&acCall.Self);
+        const uint32_t cActor = cpSelf ? cpSelf->FormId : kPlayer;
+        const auto cIt = Actors.find(cActor);
+        const bool cGuestCharacter = !IsGuest && cIt != Actors.end() && cIt->second.Copy && cIt->second.Player;
+        const Target cTarget = cActor == kPlayer ? Target::kThisPlayer : cGuestCharacter ? Target::kGuestCharacter : Target::kNone;
+        const Route cRoute = InSession ? RouteOf(*cProgress, cTarget, aCause, aStory, aBody, !IsGuest) : Route{};
+        if (cRoute.Original)
+            TakeProgress(acCall, cActor);
+        if (!cRoute.Relay)
+            return;
+        LocalCall call = acCall;
+        MarkEachPlayer(call, cActor);
+        if (cRoute.ThisPlayer)
+            Queue(OnThisPlayer(call), MirroredTag(0));
+        World::Get().GetRunner().Trigger(PartyNativeEvent{std::move(call)});
+        return;
+    }
+    // What a reference shows: an effect form's call on the actor it names, or the actor's own sub-graph animation.
+    if (acCall.Class == "VisualEffect" || acCall.Class == "EffectShader" || (acCall.Class == "Actor" && acCall.Function == "PlaySubGraphAnimation"))
+    {
+        const LocalValue* cpOn = acCall.Class == "Actor" || acCall.Arguments.empty() ? nullptr : &acCall.Arguments[0];
+        const auto* cpForm = cpOn ? std::get_if<LocalForm>(cpOn) : std::get_if<LocalForm>(&acCall.Self);
+        if (cpForm)
+            Shows[cpForm->FormId].push_back(acCall.Class + "." + acCall.Function);
+        if (InSession && ShareOf(Kind::kShow, aCause, aStory, 0) == Share::kParty)
+        {
+            LocalCall call = acCall;
+            if (Whose(aCause, aStory) == Share::kParty)
+                MarkEachPlayer(call, aCause);
+            World::Get().GetRunner().Trigger(PartyNativeEvent{std::move(call)});
+        }
+        return;
+    }
     if (acCall.Class != "Game")
         return;
     if (acCall.Function == "ShakeCamera")
@@ -447,6 +486,8 @@ void FakeEngine::CheckHealth(uint32_t aFormId, Actor& aActor) noexcept
     (aActor.Essential ? aActor.Bleeding : aActor.Dead) = true;
     if (aActor.Dead)
     {
+        aActor.GraphUpdating = false;
+        aActor.GraphState = "dead";
         if (aFormId == kPlayer)
         {
             aActor.DyingFrames = kDyingFrames;
@@ -593,6 +634,11 @@ void FakeEngine::KillActor(uint32_t aFormId) noexcept
     {
         const bool cWasDead = it->second.Dead;
         (it->second.Essential ? it->second.Bleeding : it->second.Dead) = true;
+        if (it->second.Dead)
+        {
+            it->second.GraphUpdating = false;
+            it->second.GraphState = "dead";
+        }
         if (!cWasDead && it->second.Dead)
             World::Get().GetRunner().Trigger(ActorDeathChangeEvent{aFormId});
     }
@@ -633,6 +679,8 @@ void FakeEngine::RespawnActor(uint32_t aFormId) noexcept
         const auto cAction = it->second.LatestAnimation;
         it->second.Dead = it->second.Bleeding = false;
         it->second.LatestAnimation = {};
+        it->second.GraphState.clear();
+        it->second.GraphUpdating = true;
         it->second.Values = FullValues();
         it->second.Bases = FullValues().ActorMaxValuesList;
         for (const uint32_t cIndex : {kHealth, kMagicka, kStamina})
@@ -650,7 +698,25 @@ void FakeEngine::ResurrectActor(uint32_t aFormId) noexcept
         ++it->second.ResurrectCalls;
         if (it->second.BlockResurrect)
             return;
-        RespawnActor(aFormId);
+        bool forced = false;
+        DeathActions::WithLocalReset(forced, [&] {
+            if (it->second.Dead && !forced)
+            {
+                ActionEvent reset = it->second.LatestAnimation;
+                reset.Tick = World::Get().GetTransport().GetTick();
+                reset.ActionId = 0xD1FDE;
+                reset.EventName = "IdleForceDefaultState";
+                World::Get().GetDispatcher().trigger(reset);
+            }
+            const auto cGraph = it->second.GraphState;
+            const bool cUpdating = it->second.GraphUpdating;
+            RespawnActor(aFormId);
+            if (it->second.Copy)
+            {
+                it->second.GraphState = cGraph;
+                it->second.GraphUpdating = cUpdating;
+            }
+        });
     }
 }
 
@@ -1451,13 +1517,134 @@ std::string FakeEngine::PlayerId() noexcept
     return std::format("id:{:016x}", std::hash<std::string>{}(Name));
 }
 
+namespace
+{
+// The skills' actor values from 6 on, as Papyrus names them (ActorValueInfo).
+constexpr std::array<std::string_view, 18> kSkills{
+    "OneHanded",  "TwoHanded",  "Marksman",    "Block",    "Smithing",    "HeavyArmor",
+    "LightArmor", "Pickpocket", "Lockpicking", "Sneak",    "Alchemy",     "Speechcraft",
+    "Alteration", "Conjuration", "Destruction", "Illusion", "Restoration", "Enchanting"};
+constexpr std::array<std::pair<std::string_view, int32_t>, 4> kStats{{{"Health", 24}, {"Magicka", 25}, {"Stamina", 26}, {"CarryWeight", 32}}};
+
+template <class T> T ArgumentOf(const LocalCall& acCall, size_t aIndex, T aDefault = {})
+{
+    const auto* pValue = aIndex < acCall.Arguments.size() ? std::get_if<T>(&acCall.Arguments[aIndex]) : nullptr;
+    return pValue ? *pValue : aDefault;
+}
+
+int32_t SkillOf(const LocalCall& acCall)
+{
+    const auto cName = ArgumentOf<std::string>(acCall, 0);
+    const auto cIt = std::ranges::find_if(kSkills, [&](std::string_view aSkill) { return SameName(cName, aSkill); });
+    return cIt == kSkills.end() ? -1 : 6 + static_cast<int32_t>(cIt - kSkills.begin());
+}
+} // namespace
+
+void FakeEngine::TakeProgress(const LocalCall& acCall, uint32_t aActor)
+{
+    const auto cIs = [&](std::string_view aFunction) { return SameName(acCall.Function, aFunction); };
+    const uint32_t cForm = ArgumentOf<LocalForm>(acCall, 0).FormId;
+    const bool cPlayer = aActor == kPlayer;
+    if (cIs("TeachWord") || cIs("UnlockWord"))
+    {
+        if (cIs("TeachWord"))
+            ++WordsLearnedShown;
+        WordsKnown.insert(cForm);
+        if (cIs("UnlockWord"))
+            WordsUnlocked.insert(cForm);
+        return;
+    }
+    if (cIs("AddToFaction") || cIs("SetFactionRank"))
+        Factions[aActor][cForm] = ArgumentOf<int32_t>(acCall, 1);
+    else if (cIs("RemoveFromFaction"))
+        Factions[aActor].erase(cForm);
+    else if (cIs("AddSpell"))
+        AddedSpells[aActor].insert(cForm);
+    else if (cIs("RemoveSpell"))
+        AddedSpells[aActor].erase(cForm);
+    else if (cIs("ModActorValue") && SameName(ArgumentOf<std::string>(acCall, 0), "DragonSouls"))
+    {
+        const float cAmount = ArgumentOf<float>(acCall, 1);
+        Souls[aActor] += cAmount;
+        if (cPlayer && cAmount > 0.f)
+            ++SoulsAbsorbedShown;
+    }
+    else if (cPlayer)
+    {
+        RewardCalls.push_back(acCall);
+        if (cIs("AdvanceSkill"))
+            RewardExperience[SkillOf(acCall)] += ArgumentOf<float>(acCall, 1) * RewardMultiplier;
+        else if (cIs("IncrementSkill") || cIs("IncrementSkillBy"))
+            RewardLevels[SkillOf(acCall)] += cIs("IncrementSkill") ? 1u : static_cast<uint32_t>(ArgumentOf<int32_t>(acCall, 1));
+        else if (cIs("AddPerkPoints"))
+            RewardPoints += ArgumentOf<int32_t>(acCall, 0);
+        else if (cIs("AddPerk"))
+            RewardPerks.insert(cForm);
+        else if (cIs("RemovePerk"))
+            RewardPerks.erase(cForm);
+        else if (cIs("ModActorValue"))
+            for (const auto& [cName, cValue] : kStats)
+                if (SameName(ArgumentOf<std::string>(acCall, 0), cName))
+                    RewardStats[cValue] += ArgumentOf<float>(acCall, 1);
+    }
+}
+
+void FakeEngine::TeachesWord(uint32_t aWord, uint32_t aCause)
+{
+    RunScript({.Class = "Game", .Function = "TeachWord", .Arguments = {LocalForm{aWord}}}, aCause);
+}
+
+void FakeEngine::UnlocksWord(uint32_t aWord, uint32_t aCause)
+{
+    RunScript({.Class = "Game", .Function = "UnlockWord", .Arguments = {LocalForm{aWord}}}, aCause);
+}
+
+// The engine's own, in the Magic menu: no script, so this player's own.
+void FakeEngine::SpendsSoul(uint32_t aWord)
+{
+    if (Souls[kPlayer] < 1.f || !WordsKnown.contains(aWord) || !WordsUnlocked.insert(aWord).second)
+        return;
+    Souls[kPlayer] -= 1.f;
+}
+
+void FakeEngine::ModifiesSouls(uint32_t aActor, float aAmount, uint32_t aCause)
+{
+    RunScript({.Class = "Actor", .Function = "ModActorValue", .Self = LocalForm{aActor}, .Arguments = {std::string("DragonSouls"), aAmount}},
+              aCause);
+}
+
+void FakeEngine::SetsFaction(uint32_t aActor, uint32_t aFaction, int32_t aRank, uint32_t aCause, bool aStory, uint32_t aQuest)
+{
+    LocalCall call{.Class = "Actor", .Function = aRank < 0 ? "RemoveFromFaction" : "SetFactionRank", .Self = LocalForm{aActor},
+                   .Arguments = {LocalForm{aFaction}}};
+    if (aRank >= 0)
+        call.Arguments.emplace_back(aRank);
+    RunScript(call, aCause, aStory, BodyQuests.contains(aQuest));
+}
+
+void FakeEngine::AddsSpell(uint32_t aActor, uint32_t aSpell, bool aAdded, uint32_t aCause, bool aStory, uint32_t aQuest)
+{
+    RunScript({.Class = "Actor", .Function = aAdded ? "AddSpell" : "RemoveSpell", .Self = LocalForm{aActor}, .Arguments = {LocalForm{aSpell}}},
+              aCause, aStory, BodyQuests.contains(aQuest));
+}
+
 PlayerRecord FakeEngine::ReadPlayer() const noexcept
 {
     PlayerRecord record = Player;
     if (record.Name.empty()) record.Name = Name;
     const Actor& cPlayer = Actors.at(kPlayer);
-    // As JoinBridge: what the player carries, from its inventory; no place.
+    // As JoinBridge: what the player carries, from its inventory; no place. Its souls and the words it unlocked.
     record.Items = cPlayer.Items;
+    std::erase_if(record.Values, [](const PlayerRecord::Value& acValue) { return acValue.Index == 133; });
+    record.Values.push_back({133, Souls.contains(kPlayer) ? Souls.at(kPlayer) : 0.f});
+    for (const auto& [cIndex, cValue] : RewardStats)
+    {
+        std::erase_if(record.PermanentValues, [&](const PlayerRecord::Value& acValue) { return acValue.Index == cIndex; });
+        record.PermanentValues.push_back({static_cast<uint8_t>(cIndex), cValue});
+    }
+    record.Words.clear();
+    for (const uint32_t cWord : WordsUnlocked)
+        record.Words.push_back(GameId(0, cWord));
     return record;
 }
 
@@ -1468,6 +1655,16 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     Player.Key.clear();
     Player.Items = {};
     cPlayer.Items = acRecord.Items;
+    // As JoinBridge: its own souls, set with no HUD; the words it unlocked on top of the save's.
+    for (const PlayerRecord::Value& cValue : acRecord.Values)
+        if (cValue.Index == 133)
+            Souls[kPlayer] = cValue.Base;
+    for (const GameId& cWord : acRecord.Words)
+        WordsUnlocked.insert(cWord.BaseId);
+    RewardStats.clear();
+    for (const PlayerRecord::Value& cValue : acRecord.PermanentValues)
+        RewardStats[cValue.Index] = cValue.Base;
+    Player.Words.clear();
     // As JoinBridge: at the record's place (kept in the host's save), else where the save put it, the host's spot.
     if (acRecord.Cell)
     {
@@ -1518,6 +1715,20 @@ void FakeEngine::RunMainLoop() noexcept
                 Serialization::WriteVarInt(writer, id);
                 Serialization::WriteBool(writer, r.Locked);
             }
+            // The words' flags (the world's), the player's own factions (its base's, kept with the save).
+            for (const auto* pWords : {&WordsKnown, &WordsUnlocked})
+            {
+                Serialization::WriteVarInt(writer, pWords->size());
+                for (const uint32_t cWord : *pWords)
+                    Serialization::WriteVarInt(writer, cWord);
+            }
+            const auto& cFactions = Factions[kPlayer];
+            Serialization::WriteVarInt(writer, cFactions.size());
+            for (const auto& [cFaction, cRank] : cFactions)
+            {
+                Serialization::WriteVarInt(writer, cFaction);
+                Serialization::WriteVarInt(writer, static_cast<uint32_t>(cRank));
+            }
             MadeSave = SaveFiles{{reinterpret_cast<const char*>(buffer.GetData()), writer.Size()}, World::Get().ctx().at<SaveService>().WriteCoSave()};
             SavedFiles[*cName] = **MadeSave;
         }
@@ -1535,6 +1746,26 @@ void FakeEngine::RunMainLoop() noexcept
         const uint32_t id = Serialization::ReadVarInt(reader);
         References[id].Locked = Serialization::ReadBool(reader);
     }
+    for (auto* pWords : {&WordsKnown, &WordsUnlocked})
+    {
+        pWords->clear();
+        const auto cWords = Serialization::ReadVarInt(reader);
+        for (size_t i = 0; i < cWords; ++i)
+            pWords->insert(static_cast<uint32_t>(Serialization::ReadVarInt(reader)));
+    }
+    auto& factions = Factions[kPlayer];
+    factions.clear();
+    const auto cFactions = Serialization::ReadVarInt(reader);
+    for (size_t i = 0; i < cFactions; ++i)
+    {
+        const auto cFaction = static_cast<uint32_t>(Serialization::ReadVarInt(reader));
+        factions[cFaction] = static_cast<int32_t>(Serialization::ReadVarInt(reader));
+    }
+    // The save's player's souls: its value in the save (the record sets the joining character's own).
+    Souls[kPlayer] = 0.f;
+    for (const PlayerRecord::Value& cValue : saved.Values)
+        if (cValue.Index == 133)
+            Souls[kPlayer] = cValue.Base;
     Player = saved;
     Player.Items = {};
     Player.Cell = {};
@@ -1767,7 +1998,8 @@ bool FakeEngine::Push(const BodyPush& acPush) noexcept
 bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
-    if (it == Bodies.end())
+    // An actor's body needs its copy here (BodyBridge::Find): none yet, or gone, is not loaded here.
+    if (it == Bodies.end() || (acFrame.Key.Actor && !Actors.contains(aCopyFormId)))
         return false;
     // A living copy's ragdoll body is its animation's: knocked down with its owner's, else left until its own death
     // (BodyBridge::Find).
@@ -1793,7 +2025,7 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
 bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 {
     const auto it = Bodies.find(acPose.Key);
-    if (it == Bodies.end())
+    if (it == Bodies.end() || (acPose.Key.Actor && !Actors.contains(aCopyFormId)))
         return false;
     // A living copy's: only while it lies with its owner (its getting up is its graph's, not modelled), and not placed:
     // its own ragdoll gets up from where it was steered (BodyBridge::Rest).
@@ -1882,4 +2114,36 @@ bool FakeEngine::PlayerLoads(const std::string& acName)
         return false;
     const auto cFiles = ReadSave(acName);
     return cFiles && WriteAndLoad(acName, *cFiles);
+}
+
+bool FakeEngine::PlaceBesideHost() noexcept
+{
+    ++PlacementChecks;
+    auto& player = Actors.at(kPlayer);
+    const glm::vec3 cAnchor(player.Position[0], player.Position[1], player.Position[2]);
+    const auto cSpot = CheckedPlacement::Beside(cAnchor, [&](const glm::vec3& acFrom, const glm::vec3& acTo) {
+        if (acTo.z < acFrom.z - 200.f)
+            return std::optional{CheckedPlacement::Hit{true, {acFrom.x, acFrom.y, cAnchor.z}, {0.f, 0.f, 1.f}}};
+        return std::optional{CheckedPlacement::Hit{!PlacementClear, acTo}};
+    });
+    if (!cSpot) return false;
+    std::copy_n(&cSpot->x, 3, player.Position);
+    return true;
+}
+
+void FakeEngine::StartsHitVisuals(uint32_t aActor, uint32_t aEffect, float aDuration, uint32_t aCastingType)
+{
+    const bool cFlash = HitVisualsRules::Flash(EffectVisualFlags[aEffect], true, aDuration, aCastingType);
+    World::Get().GetRunner().Trigger(EffectVisualsChangeEvent{aActor, cFlash ? aEffect : 0});
+}
+
+bool FakeEngine::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept
+{
+    ++AppearanceAttempts;
+    if (!AtMainLoop || BlockAppearance || !Actors.contains(aFormId) || !Actors.at(aFormId).Copy)
+        return false;
+    auto& base = Npcs.at(GetActorBaseFormId(aFormId));
+    base.Looks = acAppearance;
+    base.Weight = aWeight;
+    return true;
 }

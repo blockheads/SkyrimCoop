@@ -27,6 +27,8 @@
 #include <Services/HostService.h>
 #include <Services/BodyService.h>
 #include <Services/CrimeService.h>
+#include <Services/InventoryService.h>
+#include <Bridges/IPlayerBridge.h>
 #include <Systems/AnimationSystem.h>
 #include <Systems/FaceGenSystem.h>
 #include <Components.h>
@@ -68,6 +70,8 @@ void HostService::MakeAuthority() noexcept
     HostGame game;
     game.TakeCrimeConfiscations = [this] { return m_world.ctx().at<CrimeService>().TakeConfiscations(); };
     game.ReadCrimeGold = [this] { return m_world.ctx().at<CrimeService>().ReadGold(); };
+    game.ReadPartyGold = [this] { return m_world.ctx().at<InventoryService>().GoldOf(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId()); };
+    game.AddPartyGold = [this](int32_t aCount) { m_world.ctx().at<InventoryService>().AddGold(m_world.ctx().at<IPlayerBridge&>().GetPlayerFormId(), aCount); };
     game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) { return m_world.ctx().at<CrimeService>().Judge(aActor, aCrime); };
     game.OwnSpawns = [this](uint32_t aExcludedSessionId) {
         return m_world.GetCharacterService().BuildSpawnRequests(aExcludedSessionId);

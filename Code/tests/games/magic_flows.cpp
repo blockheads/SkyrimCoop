@@ -111,3 +111,23 @@ SCENARIO("A host NPC fighting the guest's player fights it on the guest's game t
     party.Until([&] { return guest.GetActorAiFields(cCopy()).CombatState == 0 && guest.CopiesFightingPlayer == 0; },
                 "the fight ends on both");
 }
+
+SCENARIO("An instant FX Persist effect gone before the frame still flashes on copies", "[magic][instant-visuals]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    constexpr uint32_t cCure = 0xFBFF5;
+    host.EffectVisualFlags[cCure] = guest.EffectVisualFlags[cCure] = HitVisualsRules::kPersist;
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guard has a copy");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    party.As(party.Host(), [&] { host.StartsHitVisuals(guard, cCure, 0.f, 1); });
+    REQUIRE(host.GetActorActiveEffects(guard).empty());
+    party.Until([&] { return !guest.FlashedVisuals.empty(); }, "the copy plays the instant effect once");
+    CHECK(guest.FlashedVisuals == std::vector<std::pair<uint32_t, uint32_t>>{{cCopy, cCure}});
+    for (int i = 0; i < 5; ++i) party.Frame();
+    CHECK(guest.FlashedVisuals.size() == 1);
+    CHECK_FALSE(guest.IsPlayingEffectHitVisuals(cCopy, cCure));
+}

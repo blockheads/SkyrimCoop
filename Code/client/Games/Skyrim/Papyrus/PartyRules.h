@@ -1,12 +1,16 @@
 #pragma once
 
+#include <Structs/ScriptValue.h>
+
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 // PartyNatives' rules with no engine (docs/design/cutscenes.md): whose a controls or screen call is, and who holds
-// which controls. Checked by ClientTests on Linux; PartyNatives.cpp gathers the inputs and acts.
+// which controls; and where a call changing a player's progression runs (docs/design/dragonborn.md). Checked by
+// ClientTests on Linux; PartyNatives.cpp gathers the inputs and acts.
 namespace PartyRules
 {
 // ControlMap's user event flags used here (BSInputEnableManager::UserEvent; PartyNatives.cpp asserts they agree).
@@ -42,6 +46,7 @@ enum class Kind : uint8_t
 {
     kControls, // ControlMap::ToggleControls
     kScreen,   // fades, camera, shakes, music, video
+    kShow,     // what a reference shows: an art object, an effect shader, a sub-graph animation
 };
 
 enum class Share : uint8_t
@@ -54,8 +59,48 @@ enum class Share : uint8_t
 // Before the call runs. aCause is GuestScripts' (a guest, this game's player 0x14, a mirrored tag, 0 for no player's
 // action); aStory, a stage that player's action set runs it.
 [[nodiscard]] Share Whose(uint32_t aCause, bool aStory) noexcept;
-// The whole rule, once a controls call ran and asked ControlMap for aAsked: the party's only if it took movement.
+// The whole rule, once a controls call ran and asked ControlMap for aAsked: the party's only if it took movement. A
+// show is the world's look: every game's, whoever's action ran it (docs/design/dragonborn.md).
 [[nodiscard]] Share ShareOf(Kind aKind, uint32_t aCause, bool aStory, uint32_t aAsked) noexcept;
+
+// In the story's party call, the stack's player (aCause's character; this game's player 0x14 for no cause) is each
+// game's own: the absorb's streams reach every player (docs/design/dragonborn.md).
+void MarkEachPlayer(LocalCall& aCall, uint32_t aCause) noexcept;
+
+// A native that changes a player's progression: its words of power, souls, skills, perks, permanent values, factions
+// and spells (docs/design/dragonborn.md, "The party's calls"). A party call of one runs on every game, each on its own
+// player, as the engine's own native there.
+struct Progress
+{
+    bool AnyScript = false; // any script's call but a body's (a word wall, a book); else only the story's (Whose)
+    bool OnCopy = false;    // on the host a guest's character takes it too: the host's conditions read it there
+};
+// The natives that change it; none for others (a body's, an item's, a read).
+[[nodiscard]] std::optional<Progress> ProgressOf(std::string_view aClass, std::string_view aFunction) noexcept;
+
+// Whom a progression call names: this game's player (a global's is always), a guest's character on the host, or none.
+enum class Target : uint8_t
+{
+    kNone,
+    kThisPlayer,
+    kGuestCharacter,
+};
+
+// Where it runs: the original here, the call on this game's own player too (it named a guest's character), and every
+// other game.
+struct Route
+{
+    bool Original = true;
+    bool ThisPlayer = false;
+    bool Relay = false;
+};
+// aBody: a body's script calls it (an effect, equipment, a script on the player, a quest its body started): that
+// player's own. Only the host's scripts are the story; another game's call (mirrored) runs here only.
+[[nodiscard]] Route RouteOf(const Progress& acProgress, Target aTarget, uint32_t aCause, bool aStory, bool aBody,
+                            bool aHosting) noexcept;
+
+// The call as this game's player takes it: each player's form (MarkEachPlayer) is 0x14.
+[[nodiscard]] LocalCall OnThisPlayer(LocalCall aCall) noexcept;
 
 // Who holds which ControlMap flags here: the engine keeps one bitmask, so each cutscene's holds are kept apart.
 class ControlHolds

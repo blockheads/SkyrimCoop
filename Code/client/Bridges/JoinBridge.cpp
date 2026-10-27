@@ -8,9 +8,12 @@
 #include <Forms/SpellItem.h>
 #include <Forms/TESNPC.h>
 #include <Forms/TESRace.h>
+#include <Forms/TESShout.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESWorldSpace.h>
 #include <Games/FormState.h>
+#include <Games/CheckedPlacement.h>
+#include <Havok/Raycast.h>
 #include <Structs/GridCellCoords.h>
 #include <Interface/UI.h>
 #include <Misc/TintMask.h>
@@ -19,6 +22,7 @@
 #include <SaveLoadManager.h>
 #include <Utils.h>
 #include <MainLoopTasks.h>
+#include <DragonSouls.h>
 
 #include <fstream>
 #include <random>
@@ -28,6 +32,23 @@ namespace
 constexpr uint32_t kFactions = 1u << 6;
 constexpr uint32_t kStamina = 26;
 constexpr uint32_t kFirstSkill = 6;
+constexpr uint32_t kCarryWeight = 32;
+constexpr uint32_t kDragonSouls = 133;
+// Health, magicka, stamina and carry weight: their permanent values too (a reward's ModActorValue raises them).
+constexpr uint32_t kPermanentValues[] = {24, 25, kStamina, kCarryWeight};
+
+// The shouts on a player's base (its TESSpellList, the record's base section).
+std::vector<TESShout*> ShoutsOf(const TESNPC& acBase) noexcept
+{
+    const auto* cpLists = acBase.spellList.lists;
+    if (!cpLists || !cpLists->shouts)
+        return {};
+    std::vector<TESShout*> shouts;
+    for (uint32_t i = 0; i < cpLists->shoultCount; ++i)
+        if (cpLists->shouts[i])
+            shouts.push_back(cpLists->shouts[i]);
+    return shouts;
+}
 
 std::optional<std::string> ReadFile(const std::filesystem::path& acPath) noexcept
 {
@@ -216,6 +237,17 @@ PlayerRecord JoinBridge::ReadPlayer() const noexcept
     ActorValueOwner& values = EngineVirtual(pPlayer->actorValueOwner);
     for (uint32_t i = kFirstSkill; i <= kStamina; ++i)
         record.Values.push_back({static_cast<uint8_t>(i), values.GetBaseValue(i)});
+    record.Values.push_back({static_cast<uint8_t>(kCarryWeight), values.GetBaseValue(kCarryWeight)});
+    for (const uint32_t cIndex : kPermanentValues)
+        record.PermanentValues.push_back({static_cast<uint8_t>(cIndex), values.GetPermanentValue(cIndex)});
+    // Its own souls and the words it unlocked (docs/design/dragonborn.md): the save's are another player's.
+    record.Values.push_back({static_cast<uint8_t>(kDragonSouls), values.GetValue(kDragonSouls)});
+    if (const TESNPC* cpBase = PlayerBase(pPlayer))
+        for (const TESShout* cpShout : ShoutsOf(*cpBase))
+            for (const TESShout::Variation& cVariation : cpShout->variations)
+                if (cVariation.word && (cVariation.word->flags & TESForm::UNLOCKED))
+                    if (const auto cId = ToSession(cVariation.word->formID))
+                        record.Words.push_back(*cId);
 
     record.Items = pPlayer->GetActorInventory();
     return record;
@@ -229,6 +261,8 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     if (!pBase)
         return;
 
+    // The save's shouts are the party's words' (docs/design/dragonborn.md): the record's base brings only its own.
+    const std::vector<TESShout*> cPartyShouts = ShoutsOf(*pBase);
     // The base first: name, race, sex, face, level, base spells and shouts; recorded as changed for saves and copies.
     const uint32_t cFlags = acRecord.BaseFlags & ~kFactions;
     if (!acRecord.Base.empty() && FormState::Load(*pBase, cFlags, acRecord.Base))
@@ -265,8 +299,23 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     }
     ActorValueOwner& values = EngineVirtual(pPlayer->actorValueOwner);
     for (const PlayerRecord::Value& cValue : acRecord.Values)
-        if (cValue.Index >= kFirstSkill && cValue.Index <= kStamina)
+        if ((cValue.Index >= kFirstSkill && cValue.Index <= kStamina) || cValue.Index == kCarryWeight)
             values.SetBaseValue(cValue.Index, cValue.Base);
+    {
+        // Its own souls and unlocked words, with no HUD or DragonSoulsGained: nothing was gained.
+        const DragonSouls::ScopedSilence cSilence;
+        for (const PlayerRecord::Value& cValue : acRecord.Values)
+            if (cValue.Index == kDragonSouls)
+                pPlayer->ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, kDragonSouls, cValue.Base);
+        for (const GameId& cWord : acRecord.Words)
+            if (TESForm* pWord = TESForm::GetById(ToGame(cWord)); pWord && pWord->formType == FormType::WordOfPower)
+                pPlayer->UnlockWord(pWord);
+        for (TESShout* pShout : cPartyShouts)
+            pPlayer->AddShout(pShout);
+    }
+    for (const PlayerRecord::Value& cValue : acRecord.PermanentValues)
+        if (std::ranges::find(kPermanentValues, cValue.Index) != std::end(kPermanentValues))
+            pPlayer->ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, cValue.Index, cValue.Base);
     pPlayer->perkPoints = acRecord.PerkPoints;
 
     // Perks and added spells: the save's player's go, the record's come (a perk's removal is queued, so shared ones stay).
@@ -335,4 +384,25 @@ std::optional<IJoinBridge::SaveFiles> JoinBridge::ReadSave(const std::string& ac
     auto coSave = cGame;
     coSave.replace_extension(".skse");
     return SaveFiles{std::move(*game), ReadFile(coSave).value_or("")};
+}
+
+bool JoinBridge::PlaceBesideHost() noexcept
+{
+    PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    if (!pPlayer || !pPlayer->parentCell || !pPlayer->parentCell->IsFullyLoaded())
+        return false;
+    const glm::vec3 cAnchor(pPlayer->position.x, pPlayer->position.y, pPlayer->position.z);
+    const auto cSpot = CheckedPlacement::Beside(cAnchor, [](const glm::vec3& acFrom, const glm::vec3& acTo)
+        -> std::optional<CheckedPlacement::Hit> {
+        const float cFrom[3]{acFrom.x, acFrom.y, acFrom.z};
+        const float cTo[3]{acTo.x, acTo.y, acTo.z};
+        const auto cHit = GameRaycast::CastRay(cFrom, cTo);
+        if (!cHit) return std::nullopt;
+        return CheckedPlacement::Hit{cHit->Hit, {cHit->Point[0], cHit->Point[1], cHit->Point[2]},
+                                    {cHit->Normal[0], cHit->Normal[1], cHit->Normal[2]}};
+    });
+    if (!cSpot)
+        return false;
+    pPlayer->SetPosition(NiPoint3(*cSpot), true);
+    return true;
 }

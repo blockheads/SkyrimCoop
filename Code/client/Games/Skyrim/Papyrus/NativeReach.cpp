@@ -68,7 +68,8 @@ const std::unordered_set<uintptr_t>& PerPlayer() noexcept
     return s_addresses;
 }
 
-// The engine functions a script's call ends in: a cutscene's (docs/design/cutscenes.md), and the world's.
+// The engine functions a script's call ends in: a cutscene's (docs/design/cutscenes.md), the world's, and what a
+// reference shows (docs/design/dragonborn.md: VisualEffect.Play/Stop, EffectShader.Play/Stop, PlaySubGraphAnimation).
 const std::unordered_map<uintptr_t, Call>& CallFunctions() noexcept
 {
     POINTER_SKYRIMSE(void, s_toggleControls, 68545);   // ControlMap::ToggleControls
@@ -85,10 +86,17 @@ const std::unordered_map<uintptr_t, Call>& CallFunctions() noexcept
     POINTER_SKYRIMSE(void, s_musicRemove, 35146);
     POINTER_SKYRIMSE(void, s_rumble, 68528);           // the gamepad's rumble queues
     POINTER_SKYRIMSE(void, s_setStage, 25004);         // TESQuest::SetStage
+    POINTER_SKYRIMSE(void, s_applyArtObject, 22769);   // TESObjectREFR::ApplyArtObject
+    POINTER_SKYRIMSE(void, s_applyShader, 19872);      // TESObjectREFR::ApplyEffectShader
+    POINTER_SKYRIMSE(void, s_stopArtObject, 41396);    // ProcessLists: a reference's art object stops
+    POINTER_SKYRIMSE(void, s_stopShader, 41395);       // ProcessLists: a reference's effect shader stops
+    POINTER_SKYRIMSE(void, s_subGraphEvent, 63372);    // BSAnimationGraphManager: an event to a sub-graph
     static const std::unordered_map<uintptr_t, Call> s_functions = [] {
         std::unordered_map<uintptr_t, Call> functions;
         functions[reinterpret_cast<uintptr_t>(s_toggleControls.GetPtr())] = Call::kControls;
         functions[reinterpret_cast<uintptr_t>(s_setStage.GetPtr())] = Call::kWorld;
+        for (const auto* pFunction : {&s_applyArtObject, &s_applyShader, &s_stopArtObject, &s_stopShader, &s_subGraphEvent})
+            functions[reinterpret_cast<uintptr_t>(pFunction->GetPtr())] = Call::kShow;
         for (const auto* pFunction : {&s_fade, &s_imodTrigger, &s_imodCrossFade, &s_imodStop, &s_imodStopCrossFade, &s_shakeCamera, &s_forceFirstPerson,
                                       &s_forceThirdPerson, &s_setCameraTarget, &s_musicAdd, &s_musicRemove, &s_rumble})
             functions[reinterpret_cast<uintptr_t>(pFunction->GetPtr())] = Call::kScreen;
@@ -256,7 +264,7 @@ Call CallOf(BSScript::IFunction* apFunction) noexcept
     }
     if (call != Call::kNone)
         spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),
-                      call == Call::kWorld ? "world" : call == Call::kControls ? "controls" : "screen");
+                      call == Call::kWorld ? "world" : call == Call::kControls ? "controls" : call == Call::kShow ? "show" : "screen");
     std::unique_lock _{s_callsLock};
     s_calls.emplace(apFunction, call);
     return call;

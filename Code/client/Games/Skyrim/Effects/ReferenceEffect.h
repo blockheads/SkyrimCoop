@@ -1,6 +1,7 @@
 #pragma once
 
 struct TESForm;
+struct NiAVObject;
 
 // The temp effects ProcessLists keeps for magic: an effect shader or an art object played on a reference
 // (1.6.1170, layouts from CommonLibSSE-NG). They are NiObjects: use Cast<> to tell them apart.
@@ -55,7 +56,11 @@ struct ReferenceEffect : BSTempEffect
 struct ModelReferenceEffect : ReferenceEffect
 {
     uint8_t pad48[0xB8 - 0x48];
-    TESForm* pArtObject; // B8 - BGSArtObject
+    TESForm* pArtObject;     // B8 - BGSArtObject
+    void* pCloneTask;        // C0 - the art's model while it loads
+    NiAVObject* pArtObject3D; // C8 - the art's model, once loaded
+    uint32_t uiFlags;        // D0 - 1 attached, 2 third person
+    uint32_t padD4;
 };
 
 struct ShaderReferenceEffect : ReferenceEffect
@@ -67,4 +72,6 @@ struct ShaderReferenceEffect : ReferenceEffect
 static_assert(offsetof(ReferenceEffect, hTarget) == 0x38);
 static_assert(offsetof(ReferenceEffect, bFinished) == 0x40);
 static_assert(offsetof(ModelReferenceEffect, pArtObject) == 0xB8);
+static_assert(offsetof(ModelReferenceEffect, pArtObject3D) == 0xC8);
+static_assert(sizeof(ModelReferenceEffect) == 0xD8);
 static_assert(offsetof(ShaderReferenceEffect, pEffectShader) == 0x108);

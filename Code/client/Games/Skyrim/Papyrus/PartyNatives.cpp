@@ -1,16 +1,20 @@
 #include <Events/PlayerDeathEvent.h>
 #include <Papyrus/PartyNativesScope.h>
+#include <Papyrus/BodyScripts.h>
 #include <Papyrus/GlobalCall.h>
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/NativeReach.h>
 
 #include <AI/Movement/PlayerControls.h>
 #include <HookSwitch.h>
+#include <Services/HostService.h>
 #include <World.h>
 
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <shared_mutex>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <Hooks/FunctionHook.h>
@@ -39,6 +43,24 @@ constexpr uint32_t kDeathControls = BSInputEnableManager::kMovement | BSInputEna
                                     BSInputEnableManager::kSneaking | BSInputEnableManager::kPOVSwitch | BSInputEnableManager::kJumping;
 bool s_deathHeld = false;
 uint32_t s_beforeDeath = 0; // which of them were enabled when it went down
+
+// Whether a native changes a player's progression (PartyRules::ProgressOf), once per function: Scope asks on every call.
+std::optional<PartyRules::Progress> ProgressOf(BSScript::IFunction* apFunction) noexcept
+{
+    static std::shared_mutex s_knownLock;
+    static std::unordered_map<BSScript::IFunction*, std::optional<PartyRules::Progress>> s_known;
+    {
+        std::shared_lock _{s_knownLock};
+        if (const auto it = s_known.find(apFunction); it != s_known.end())
+            return it->second;
+    }
+    const char* cpClass = apFunction->GetObjectTypeName().AsAscii();
+    const char* cpName = apFunction->GetName().AsAscii();
+    const auto cProgress = cpClass && cpName ? PartyRules::ProgressOf(cpClass, cpName) : std::nullopt;
+    std::unique_lock _{s_knownLock};
+    s_known.emplace(apFunction, cProgress);
+    return cProgress;
+}
 
 // The controls call running on this thread (Scope), none outside one.
 thread_local ControlsCall* t_pCall = nullptr;
@@ -99,6 +121,7 @@ bool ScriptControlsHeld() noexcept
 void SetInSession(bool aInSession) noexcept
 {
     s_inSession = aInSession;
+    BodyScripts::SetInSession(aInSession);
 }
 
 bool InSession() noexcept
@@ -112,15 +135,21 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, uint32_t
 {
     if (!s_inSession.load(std::memory_order_relaxed) || !apStack || !apStack->pTop)
         return;
+    if (const auto cProgress = ProgressOf(apFunction))
+    {
+        Progress(apFunction, *apStack, *cProgress);
+        return;
+    }
     const NativeReach::Call cCall = NativeReach::CallOf(apFunction);
-    if (cCall != NativeReach::Call::kControls && cCall != NativeReach::Call::kScreen)
+    if (cCall != NativeReach::Call::kControls && cCall != NativeReach::Call::kScreen && cCall != NativeReach::Call::kShow)
         return;
     if (cCall == NativeReach::Call::kControls)
     {
         m_controls = ControlsCall{PartyRules::HolderOf(aPlayer)};
         m_pOuter = std::exchange(t_pCall, &*m_controls);
     }
-    switch (PartyRules::Whose(aPlayer, aStory))
+    const Share cWhose = PartyRules::Whose(aPlayer, aStory);
+    switch (cCall == NativeReach::Call::kShow ? PartyRules::ShareOf(PartyRules::Kind::kShow, aPlayer, aStory, 0) : cWhose)
     {
     case Share::kHere: return; // another game's call
     case Share::kPlayer:
@@ -136,6 +165,33 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, uint32_t
                      apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii());
         return;
     }
+    if (cWhose == Share::kParty)
+        PartyRules::MarkEachPlayer(*call, aPlayer);
+    m_event = PartyNativeEvent{std::move(*call)};
+}
+
+void Scope::Progress(BSScript::IFunction* apFunction, BSScript::Stack& aStack, const PartyRules::Progress& acProgress) noexcept
+{
+    auto call = GlobalCall::ReadCall(apFunction, *aStack.pTop);
+    if (!call)
+        return;
+    // A global's player is this game's; a method's, its object if that is a player.
+    const auto* cpSelf = std::get_if<LocalForm>(&call->Self);
+    const uint32_t cPlayer = cpSelf ? cpSelf->FormId : 0x14;
+    const PartyRules::Target cTarget = cPlayer == 0x14                         ? PartyRules::Target::kThisPlayer
+                                       : GuestScripts::IsGuestCharacter(cPlayer) ? PartyRules::Target::kGuestCharacter
+                                                                                 : PartyRules::Target::kNone;
+    const BSScript::StackFrame* cpCaller = aStack.pTop->pPrevious;
+    auto* pScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
+    const bool cBody = BodyScripts::IsBody(pScript ? pScript->GetHandle() : 0);
+    const auto cRoute = PartyRules::RouteOf(acProgress, cTarget, m_cause, m_story, cBody, World::Get().GetHostService().IsHosting());
+    if (!cRoute.Relay)
+        return;
+    spdlog::info("PartyNatives: {}.{} on player {:X} is the party's progress", call->Class, call->Function, cPlayer);
+    PartyRules::MarkEachPlayer(*call, cPlayer);
+    if (cRoute.ThisPlayer)
+        m_onThisPlayer = PartyRules::OnThisPlayer(*call);
+    m_skip = !cRoute.Original;
     m_event = PartyNativeEvent{std::move(*call)};
 }
 
@@ -150,6 +206,8 @@ Scope::~Scope() noexcept
             return;
         }
     }
+    if (m_onThisPlayer && !Run(*m_onThisPlayer, 0))
+        spdlog::warn("PartyNatives: {}.{} could not be queued on this game's player", m_onThisPlayer->Class, m_onThisPlayer->Function);
     if (m_event)
         World::Get().GetRunner().Trigger(std::move(*m_event));
 }

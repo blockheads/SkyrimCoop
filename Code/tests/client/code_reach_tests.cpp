@@ -19,7 +19,8 @@ constexpr uintptr_t kMoviePlayer = 0x142F00100;    // a screen object
 constexpr uintptr_t kToggleControls = 0x140C00000; // ControlMap::ToggleControls
 constexpr uintptr_t kShakeCamera = 0x140500000;
 constexpr uintptr_t kSetStage = 0x140300000;
-constexpr uintptr_t kElsewhere = 0x140900000; // some engine function
+constexpr uintptr_t kElsewhere = 0x140900000;
+constexpr uintptr_t kApplyArtObject = 0x140366B20; // some engine function
 
 // x64 assembled into a function at Base.
 struct Asm
@@ -131,7 +132,7 @@ const std::unordered_set<uintptr_t> cPerPlayer{kThePlayer};
 const std::unordered_set<uintptr_t> cScreen{kMoviePlayer};
 const Objects cObjects{cPerPlayer, cScreen};
 const std::unordered_map<uintptr_t, Call> cCalls{
-    {kToggleControls, Call::kControls}, {kShakeCamera, Call::kScreen}, {kSetStage, Call::kWorld}};
+    {kToggleControls, Call::kControls}, {kShakeCamera, Call::kScreen}, {kSetStage, Call::kWorld}, {kApplyArtObject, Call::kShow}};
 } // namespace
 
 SCENARIO("Reading a leaf function (no unwind data)", "[reach]")
@@ -232,7 +233,9 @@ SCENARIO("Which of the party's calls a native makes", "[reach]")
     CHECK(ClassifyCall({false, true, {kShakeCamera, kToggleControls, kSetStage}}, cCalls) == Call::kWorld);
     THEN("then the controls")
     CHECK(ClassifyCall({false, false, {kShakeCamera, kToggleControls}}, cCalls) == Call::kControls);
-    THEN("then the screen") CHECK(ClassifyCall({false, false, {kElsewhere, kShakeCamera}}, cCalls) == Call::kScreen);
+    THEN("then the screen")
+    CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject, kShakeCamera}}, cCalls) == Call::kScreen);
+    THEN("then what a reference shows") CHECK(ClassifyCall({false, false, {kElsewhere, kApplyArtObject}}, cCalls) == Call::kShow);
     THEN("none of them") CHECK(ClassifyCall({true, false, {kElsewhere}}, cCalls) == Call::kNone);
 }
 

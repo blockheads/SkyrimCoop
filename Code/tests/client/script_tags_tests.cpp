@@ -282,3 +282,24 @@ TEST_CASE("Timer natives and their events, any spelling", "[tags]")
     CHECK(TimerEvent("ONUPDATEGAMETIME") == "OnUpdateGameTime");
     CHECK(TimerEvent("OnActivate").empty());
 }
+
+SCENARIO("An NPC's death is the world's event: it runs for its killer, as the story", "[tags][dragonborn]")
+{
+    Tags tags;
+    GIVEN("a dragon killed by a guest (its killer an argument), or by this game's player")
+    {
+        const Cause cByGuest = CauseOfCall(tags, EngineEvent("OnDeath"), [] { return kGuest; }, cNoPlayer);
+        const Cause cByHost = CauseOfCall(tags, EngineEvent("onDeath"), cNoGuest, [] { return true; });
+        THEN("Game.GetPlayer() is the killer, and its screen calls (the absorb's) are the party's")
+        {
+            CHECK(cByGuest == Cause{kGuest, true});
+            CHECK(cByHost == Cause{kThisPlayer, true});
+            CHECK(PartyRules::Whose(cByGuest.Player, cByGuest.Story) == PartyRules::Share::kParty);
+        }
+    }
+    GIVEN("this game's player's own death, a script on it")
+    THEN("it stays its own moment")
+    CHECK(CauseOfCall(tags, EngineEvent("OnDeath", 0x0000FFFF00000014), cNoGuest, [] { return true; }) == Cause{kThisPlayer, false});
+    GIVEN("a death no player caused") THEN("it is the world's, as before")
+    CHECK(CauseOfCall(tags, EngineEvent("OnDying"), cNoGuest, cNoPlayer) == Cause{});
+}

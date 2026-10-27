@@ -17,6 +17,7 @@
 #include <atomic>
 
 static_assert((DeathActions::kDying >> 21) == ActorState::kLifeDying);
+extern thread_local bool g_forceAnimation;
 
 namespace ActorValueEvents
 {
@@ -52,7 +53,7 @@ void HookResurrect(Actor* apActor, bool aResetInventory)
     std::optional<uint64_t> tick;
     if (cAction.ActionId && DeathActions::IsDying(cAction.State1))
         tick = cAction.Tick;
-    RealResurrect(apActor, aResetInventory);
+    DeathActions::WithLocalReset(g_forceAnimation, [&] { RealResurrect(apActor, aResetInventory); });
     if (s_active && cWasDead != apActor->IsDead())
         World::Get().GetRunner().Trigger(ActorDeathChangeEvent{apActor->formID, true, true, tick});
 }

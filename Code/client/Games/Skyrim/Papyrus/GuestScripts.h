@@ -15,6 +15,10 @@ void SetGuest(uint32_t aFormId, bool aIsGuest) noexcept;
 uint32_t NativeGuest() noexcept;
 // Whether a native is running on this thread (what is queued now is its script's, not the engine's event).
 bool InNative() noexcept;
+// The script that called the running native (its VM handle, 0 for none).
+uint64_t NativeScript() noexcept;
+// On the host, whether aFormId is a guest's character (the copy its scripts treat as the player).
+bool IsGuestCharacter(uint32_t aFormId) noexcept;
 
 // While it lives, the calls this thread queues on scripts run for aPlayer (an event sent on their behalf).
 class ScopedCause

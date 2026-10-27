@@ -59,6 +59,11 @@ the main thread if the value differs from the last sent. The modules are on whil
   instant FX Persist effect (progress.md, Copies loose ends). Gift of Charity's `AlchFortifyPersuasion` (`0xD6947`,
   an hour, `HealMysticFXS` `0x4E220`) is a one-shot one.
 - `EffectSetting` (ours, asserted against CommonLib): `flags` `+0x68`, `effectShader` `+0x98`, `hitEffectArt` `+0xF0`.
+- **Instant FX Persist (2026-10-27).** A zero-duration fire-and-forget effect now sends a flash from 34094 even
+  with FX Persist. The receiver's flash filter must allow it too: the earlier sender-only experiment was rejected
+  by `GetHitVisuals(..., false)`. Constant abilities and concentration are not instant flashes. ClientTests and
+  GameTests `[instant-visuals]`, Skyrim `copy-flashes-instant-effects` (the shrine's cure glow, then its fade) and
+  `copy-flashes-one-shot-effects` (Gift of Charity). Hook signature checked again in 1.6.1170's disassembly.
 - A copy's visuals drop with its 3D: `TESObjectLoadedEvent` (ReferenceEvents) replays them.
 - An NPC moved to its unloaded home cell loses its active effects (Oakflesh ended), so "a copy made later" is
   tested with the guest leaving and joining again instead.

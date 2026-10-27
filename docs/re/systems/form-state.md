@@ -135,3 +135,14 @@ What the change funnel (`AddChangeFlags`) does and does not see of a reference, 
 - A quest's fill of a reference not in memory reads it from its plugin: `QueuedPromoteQuestTask` (25212) →
   `QueuedPromoteReferencesTask` (15319) → 15328 → 15360 (seek the cell or worldspace grid cell's records, load the
   one) → `PromoteReference` 15330 for the quest. A guest calls 15328 directly with the host's reference and parent.
+
+## Updating a copy's appearance (2026-10-27)
+
+A look change uses `FormState::Load` on the copy's existing temporary TESNPC base. Weight is separate, as at spawn;
+its runtime race follows the new base, then its 3D and FaceGen tints are rebuilt. This runs through `MainLoopTasks`
+between frames, with retries while a save/load holds FormState. The graph descriptor is invalidated so a new race
+cannot write variables using the old race's indices. The actor and base form ids remain unchanged.
+
+GameTests models the main-loop restriction and deferred loads. Skyrim's RaceMenu/vampire scenario compares the
+same actor's base sections and painted tints; Beast Form checks the different graph and return to human. Findings
+and validation: [small-bugs.md](../../design/small-bugs.md).

@@ -19,6 +19,7 @@
 #include <Services/Host/HostTimeScale.h>
 #include <Services/Host/HostWait.h>
 #include <Services/Host/HostCrime.h>
+#include <Services/Host/HostPurse.h>
 #include <Services/Host/HostWeather.h>
 #include <Services/Host/HostWorldState.h>
 
@@ -53,7 +54,7 @@ struct HostNetwork;
  * (how fast everyone's clock runs), HostDialogue (the party's conversation), HostWorldState (a guest's cell
  * loading), HostItems (a guest's drops and pickups), HostPlayerNatives (natives the host's scripts ran for a guest),
  * HostPhysics (the host's bodies) and HostHands (a guest's player's pushes and holds of them); HostWeather has no
- * rules.
+ * rules, and HostPurse (the party's gold) takes a player's gold out of the item relay.
  */
 struct HostAuthority
 {
@@ -153,6 +154,7 @@ private:
     HostClock m_clock;
     HostWait m_wait;
     HostCrime m_crime;
+    HostPurse m_purse;
     HostWeather m_weather;
     HostWorldState m_worldState;
     HostItems m_items;

@@ -3,6 +3,7 @@
 #include <Games/Skyrim/BSCore/BSSpinLock.h>
 #include <Games/Skyrim/BSCore/BSTHashMap.h>
 #include <Misc/BSFixedString.h>
+#include <span>
 #include <tuple>
 #include <VersionDb.h>
 #include <Games/Primitives.h>
@@ -14,6 +15,7 @@ struct BSScript
 {
     struct IVirtualMachine;
     struct Variable;
+    struct IFunction;
 
     // A script's compiled type (CommonLibSSE-NG ObjectTypeInfo.h).
     struct ObjectTypeInfo
@@ -29,6 +31,14 @@ struct BSScript
         {
             return reinterpret_cast<const VariableInfo*>(static_cast<const uint8_t*>(data) + userFlagCount * 8);
         }
+        // Its global functions, then its empty state's methods: after the user flags (8 bytes each), variables (0x10),
+        // initial values (0x18) and properties (0x48) in data, each a BSTSmartPointer<IFunction>. Linked types only.
+        std::span<IFunction* const> GetGlobalFunctions() const noexcept;
+        std::span<IFunction* const> GetMemberFunctions() const noexcept;
+        // A global function or method the type itself declares, by name (any case).
+        IFunction* GetFunction(const char* acpName) const noexcept;
+        // This type or one it extends is aType.
+        bool IsA(const ObjectTypeInfo* apType) const noexcept;
 
         uint8_t unk00[0x8];
         BSFixedString name;          // 08
@@ -43,7 +53,10 @@ struct BSScript
         uint32_t propertyCount : 10;
         uint32_t staticFunctionCount : 9;
         uint32_t pad24 : 3;
-        uint8_t unk28[0x30 - 0x28];
+        uint32_t memberFunctionCount : 11; // 28, the empty state's
+        uint32_t namedStateCount : 7;
+        uint32_t pad28 : 14;
+        uint32_t pad2C;
         void* data; // 30
     };
 

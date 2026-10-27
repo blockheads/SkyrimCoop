@@ -131,8 +131,11 @@ Untested: a spell in hand at death (Revive's `EquipSpell` branch), dying as a we
 - On a revive the other games make the copy again from the owner's live state (`RequestRespawn` with its action,
   graph and values; `CharacterService::OnPlayerRevived`). Resurrecting the copy instead (the death state sync, tried
   2026-10-26) left its graph as death left it: it refused every replayed action after (`moveStart`, `WeapEquip`,
-  `attackStart`). An NPC copy the host resurrects likely does the same (not checked: `death-host-npc` checks only the
-  dead flag).
+  `attackStart`). NPC resurrection is now checked separately: the same NPC copy resumes graph updates and speech,
+  then takes `IdleForceDefaultState` once its asynchronously loaded 3D accepts it. Rebuilding its model alone did
+  not leave the graph's death state. The native resurrection reset action stays local even on its owner (it still
+  carries a dying state). `death-host-npc` checks the revived copy drawing and swinging;
+  fast regressions and engine findings: [small-bugs.md](small-bugs.md), NPC resurrection.
 - Player copies are in the player's faction (0xDB1), so enemies take them as the player's party.
 - **Copies' values.** The host keeps each player's values as its owner sends them (`HostCharacters` watches the
   relayed value changes into the player's record); a spawn from the host's copy never reads its values, which can be

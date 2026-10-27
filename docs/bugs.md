@@ -3,7 +3,45 @@
 Bugs we have seen and chose to ship with in 1.0. Each entry: what a player sees, the evidence, where to start, and the
 test that shows it. Fixing one: a test in the fastest tier that can show it first (CLAUDE.md), then the fix, then
 delete the entry and say where the evidence went. Unfinished work and unexplained behaviour stay in
-`docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`.
+`docs/progress.md` ("Loose ends"); ideas in `docs/ideas.md`. The fixes and regression evidence for feature 14's
+visible actor bugs are in [small-bugs.md](design/small-bugs.md).
+
+## The party is the Dragonborn
+
+- **A spell the story gave while a guest was away does not reach it** (2026-10-27, dragonborn). A joining character's
+  spells are its record's (`PlayerRecord::Spells`), so Beast Form given by C03 while that player was offline is
+  missing on its game until the story gives it again; factions and words come with the host's save.
+  - Start: keep the story's spells beside the host's records (`HostRecords`), or mark them in the save.
+  - Test: a `join_flows.cpp` case (the fake's `AddsSpell` while the guest is at the main menu).
+- **A joining guest gets the host's soul-bought unlocks** (2026-10-27, dragonborn). A word's unlocked flag is the
+  word form's (one per save), so the host's Magic menu unlocks arrive with its save; the guest's own come back from
+  its record (`PlayerRecord::Words`).
+  - Test: `join_flows.cpp`, the host spending a soul before the guest joins.
+
+## Quest rewards and copies
+
+- **A player's copy does not carry its earned player perks** (2026-10-27, quest-rewards). After a shared
+  Agent of Mara grant, both actual players report `HasPerk CC799` rank 1, while the guest's copy on the host
+  reports rank 0. Character rewards are on both owners; a host script or condition querying the copy's perk
+  list can still read false. Actor values (including the carry-weight reward) do follow the owner.
+  - Evidence: `.worktrees/quest-rewards/build/reward-copy-perk-probe.log`; the real T02 turn-ins assert both
+    owners' perk lists. Reproduce by a host `Actor.AddPerk(CC799)` on the guest's copy, then the console's
+    `player.hasperk CC799` on each game and `<copy>.hasperk CC799` on the host.
+  - Start: the copy's perk list from its owner, including initial spawn/rejoin and later changes; do not grant
+    a reward only to the copy or turn all personal perks into party shares.
+- **A quest alias filled with a created actor stays host-only** (2026-10-27, quest-rewards staging). The guest
+  has the actor's copy, but its quest role can retain the old fill. The turn-in tests therefore use placed givers.
+  - Reproduce: spawn an Inge clone, `quest_force_alias` into BardsCollegeLute alias 17, compare quest snapshots.
+  - Start: HostEngine::ReadAliasFill marks temporary references HostOnly unless the loose-object creation path
+    knows them; actor fills need the session actor mapping instead. A Skyrim scenario is needed until the fake
+    models this engine distinction.
+- **Quest start/stop events are not completion events on a guest** (2026-10-27, quest-rewards). Real turn-ins
+  consistently emit the guest's native stage, stage-item-done and QuestStatus completion events, but a T02
+  turn-in recorded host stop 1 / guest stop 0. A plugin using only TESQuestStartStopEvent can miss that stop
+  although the guest journal is completed. Experience's DLL is not installed/tested here.
+  - Test/readout: `quest-perk-turn-in-guest`, `quest_fragments`' start/stop and completion counters.
+  - Start: `GuestEngine::ApplyQuest` and its direct running/starting flag writes; preserve the rule that only
+    the host rolls and runs world quests.
 
 ## Physics and ragdolls
 
@@ -41,6 +79,15 @@ delete the entry and say where the evidence went. Unfinished work and unexplaine
     `physics_flows.cpp:279` (a knocked-down NPC's copy's bones) and abort in `:354` (a guest's player's ragdoll), on dev
     too.
   - Start: the flow under CPU load (the gate's shards); its timing assumptions against `BodyPlayback`'s 100 ms.
+- **A guest's ragdoll can rest before its copies are dead** (2026-10-27, found merging into dev). Under
+  `scripts/net_check.sh`'s first profile (delay 50, jitter 30, loss 5%), `physics_flows.cpp`'s "A guest's player dies
+  and ragdolls" ends with every copy's bones on the owner's pose but the copies alive (`IsActorDead` false on both
+  other games). It fails the same on dev with only the purse added; it used to crash the fake instead
+  (`FakeEngine::Drive` took a body frame for a copy not yet made, which the real `BodyBridge` treats as not loaded
+  here, fixed the same day). Without the bad line it passes.
+  - Start: the order of the death state and the ragdoll's frames on the copy's game (`ActorValueService`'s death
+    replay waits for the owner's action; `BodyService` drives the bones meanwhile).
+  - Test: that flow under `COOP_NET="delay=50,jitter=30,loss=5,seed=1"`.
 
 ## Combat
 

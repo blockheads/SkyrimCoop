@@ -53,6 +53,8 @@ JoinStatus Failed(std::string_view aReason) noexcept
         status.Message = "The connection to the host dropped while joining. Try again.";
     else if (aReason == "transfer_failed")
         status.Message = "The host's world didn't arrive or didn't load. Try joining again.";
+    else if (aReason == "placement_failed")
+        status.Message = "Couldn't find room beside the host. Ask the host to move to an open spot, then join again.";
     else if (aReason == "no_character")
         status.Message = "The host's game has no character of yours yet: start or load a game of your own, then join from it.";
     else

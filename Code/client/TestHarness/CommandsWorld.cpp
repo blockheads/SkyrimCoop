@@ -395,7 +395,7 @@ nlohmann::json GlobalNatives(Harness&, const nlohmann::json& acRequest)
 }
 
 // {"cmd": "form", "form": id}: the form's type (TESForm::formType), name, owner (a reference's) and whether the player
-// knows it (a word of power).
+// knows it and has it unlocked (a word of power).
 nlohmann::json Form(Harness&, const nlohmann::json& acRequest)
 {
     auto& forms = World::Get().GetFormBridge();
@@ -403,14 +403,18 @@ nlohmann::json Form(Harness&, const nlohmann::json& acRequest)
     if (!forms.FormExists(cForm))
         return Error("no such form");
     return {{"ok", true}, {"type", forms.GetFormType(cForm)}, {"name", forms.GetFormName(cForm)}, {"owner", EngineCalls::GetOwner(cForm)},
-            {"known", EngineCalls::GetPlayerKnows(cForm).value_or(false)}};
+            {"known", EngineCalls::GetPlayerKnows(cForm).value_or(false)}, {"unlocked", EngineCalls::GetUnlocked(cForm).value_or(false)}};
 }
 
-// {"cmd": "form_known", "form": id, "known": bool}: the player knows the form (a word of power) or not.
+// {"cmd": "form_known", "form": id, "known": bool, "unlocked"?: bool}: the player knows the form (a word of power) or
+// not, and has it unlocked or not.
 nlohmann::json FormKnown(Harness&, const nlohmann::json& acRequest)
 {
-    if (!EngineCalls::SetPlayerKnows(acRequest.value("form", 0u), acRequest.value("known", false)))
+    const uint32_t cForm = acRequest.value("form", 0u);
+    if (!EngineCalls::SetPlayerKnows(cForm, acRequest.value("known", false)))
         return Error("no such form");
+    if (acRequest.contains("unlocked"))
+        EngineCalls::SetUnlocked(cForm, acRequest.value("unlocked", false));
     return {{"ok", true}};
 }
 
@@ -635,6 +639,28 @@ nlohmann::json FactionRank(Harness&, const nlohmann::json& acRequest)
     return {{"ok", true}, {"result", *cResult}};
 }
 
+// {"cmd": "relationship_rank", "actor": id, "other": id}: the condition GetRelationshipRank of the actor with the other.
+nlohmann::json RelationshipRank(Harness&, const nlohmann::json& acRequest)
+{
+    const auto cResult = EngineCalls::GetRelationshipRank(acRequest.value("actor", 0u), acRequest.value("other", 0u));
+    if (!cResult)
+        return Error("no such actor");
+    return {{"ok", true}, {"result", *cResult}};
+}
+
+// {"cmd": "reference_effects", "form": id}: the reference effects playing on the reference or facing it.
+nlohmann::json ReferenceEffects(Harness&, const nlohmann::json& acRequest)
+{
+    nlohmann::json effects = nlohmann::json::array();
+    for (const auto& cEffect : EngineCalls::GetReferenceEffects(acRequest.value("form", 0u)))
+        effects.push_back({{"shader", cEffect.Shader}, {"form", cEffect.Form}, {"target", cEffect.Target},
+                           {"aim_target", cEffect.AimTarget}, {"finished", cEffect.Finished}, {"at_camera", cEffect.AtCamera},
+                           {"attached", cEffect.Attached}, {"loaded", cEffect.Loaded}, {"in_scene", cEffect.InScene},
+                           {"hidden", cEffect.Hidden},
+                           {"position", {cEffect.Position.x, cEffect.Position.y, cEffect.Position.z}}});
+    return {{"ok", true}, {"effects", effects}};
+}
+
 // {"cmd": "activate", "object": id}: the player activates it (as pressing E on it).
 nlohmann::json Activate(Harness&, const nlohmann::json& acRequest)
 {
@@ -847,6 +873,8 @@ constexpr Command cCommands[] = {
     {"actor_place", true, &ActorPlace},
     {"is_current_package", true, &IsCurrentPackage},
     {"faction_rank", true, &FactionRank},
+    {"relationship_rank", true, &RelationshipRank},
+    {"reference_effects", true, &ReferenceEffects},
     {"activate", true, &Activate},
     {"item_stacks", true, &ItemStacks},
     {"give_item", true, &GiveItem},

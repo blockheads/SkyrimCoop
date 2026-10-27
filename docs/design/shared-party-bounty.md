@@ -16,7 +16,7 @@ world (`party-model.md`, `copy-contract.md`).
 - Host permissions use the party's player; witness detection uses the actual guest actor and position.
   A guest copy has a created NPC base, so directly testing its ownership against player base 7
   incorrectly marks the party's own property as trespass.
-- A fine charges the chooser's personal purse once. Stolen-stack ownership is retained only in its
+- A fine charges the party's purse once (`party-purse.md`, since 2026-10-27; the chooser's own before). Stolen-stack ownership is retained only in its
   own game, so a numbered, deduplicated host notification performs native confiscation there.
 - Existing Games/Skyrim hooks, copy AI suppression, death/body, physics, character lifetime and
   record finalization are outside this feature. Their files are unchanged.
@@ -61,7 +61,7 @@ serialization or its enchantment decoding.
 
 A host guard witnessing a guest's real container theft starts its native arrest force greet. The
 host owns the conversation; every player's menu receives the same fine, jail and resist choices.
-A guest can pay from its own purse, submit to jail, or resist and become the guard's combat target,
+A guest can pay from the party's purse, submit to jail, or resist and become the guard's combat target,
 including while the host is invisible. No harness force greet or StartCombat supplies those reactions.
 
 The guard tests found three shared-dialogue defects, fixed in the existing dialogue path:
@@ -103,7 +103,7 @@ Native scenarios in `scripts/coop_crime.py` use the ordinary runner and world co
 | Scenario | Coverage |
 | --- | --- |
 | party-bounty-totals | Two holds, violent/nonviolent writes and clears, guest overwrite correction |
-| guest-pays-party-fine | One guest debit, host purse unchanged, shared clear |
+| guest-pays-party-fine | One debit of the party's purse, shared clear |
 | guest-theft-host-witnesses | Positive host control, unseen host/visible guest, detection-off negative control |
 | guest-container-theft-and-fine | Real container UI/Take All, host valuation, selective confiscation |
 | guest-pickpocket-party-alarm | Guest caught-pickpocket entry, host judgment and result |

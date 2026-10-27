@@ -102,7 +102,6 @@ struct BGSPerk;
 struct PlayerCharacter : Actor
 {
     static constexpr FormType Type = FormType::Character;
-    static int32_t LastUsedCombatSkill;
     // The engine repositioned the player (coc) since the last call: its PositionPlayerEvent.
     // Experimental: only coc is validated; doors and fast travel may need a more generic hook.
     static bool ConsumeTeleported() noexcept;
@@ -123,7 +122,6 @@ struct PlayerCharacter : Actor
     // TODO: there's an in game function for this in fallout 4, maybe also for skyrim?
     void SetDifficulty(const int32_t aDifficulty, bool aForceUpdate = true, bool aExpectGameDataLoaded = true) noexcept;
 
-    void AddSkillExperience(int32_t aSkill, float aExperience) noexcept;
     // Whether the player heard this line within its reset hours (40694; TESTopic 25544 skips it then).
     [[nodiscard]] bool SaidRecently(const TESTopicInfo* apInfo) const noexcept;
     // Remembers the line as heard now, as saying it does (40692, from TESTopicInfo::Begin 25616).

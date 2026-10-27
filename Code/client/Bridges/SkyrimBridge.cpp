@@ -8,6 +8,7 @@
 
 #include <Bridges/SkyrimBridge.h>
 #include <Breadcrumbs.h>
+#include <MainLoopTasks.h>
 
 // SKSE / game headers (allowed only here)
 #include <Actor.h>
@@ -24,6 +25,8 @@
 #include <Games/ActorExtension.h>
 #include <Games/CopyAiState.h>
 #include <Games/EngineNames.h>
+#include <Games/HitVisualsRules.h>
+#include <Games/FormState.h>
 #include <Games/Overrides.h>
 #include <Games/References.h>
 #include <Games/TES.h>
@@ -78,6 +81,21 @@ namespace
 static Actor* GetActor(uint32_t aFormId) noexcept
 {
     return Cast<Actor>(TESForm::GetById(aFormId));
+}
+
+void ResumeCopyGraph(uint32_t aHandle, uint32_t aAttempt) noexcept
+{
+    auto* pActor = Cast<Actor>(TESObjectREFR::GetByHandle(aHandle));
+    if (!pActor || pActor->IsDead() || !pActor->GetExtension()->IsCopy())
+        return;
+    pActor->flags2 |= Actor::ActorFlags::SHOULD_ANIM_GRAPH_UPDATE | Actor::ActorFlags::CAN_SPEAK;
+    BSFixedString reset("IdleForceDefaultState");
+    if (pActor->SendAnimationEvent(&reset))
+        spdlog::debug("Copy {:X}: resumed its resurrected graph after {} frames", pActor->formID, aAttempt);
+    else if (aAttempt < 120)
+        MainLoopTasks::Queue([aHandle, aAttempt] { ResumeCopyGraph(aHandle, aAttempt + 1); });
+    else
+        spdlog::warn("Copy {:X}: the resurrected graph refused its reset", pActor->formID);
 }
 
 static ActorExtension* GetExtension(uint32_t aFormId) noexcept
@@ -191,6 +209,15 @@ void SkyrimBridge::ResurrectActor(uint32_t aFormId) noexcept
     Breadcrumbs::Record("ResurrectActor", aFormId);
     if (Actor* pActor = GetActor(aFormId))
         pActor->Resurrect(false);
+}
+
+void SkyrimBridge::ResumeActorAnimation(uint32_t aFormId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || pActor->IsDead())
+        return;
+    const uint32_t cHandle = pActor->GetHandle().handle.iBits;
+    MainLoopTasks::Queue([cHandle] { ResumeCopyGraph(cHandle, 0); });
 }
 
 void SkyrimBridge::DeleteActor(uint32_t aFormId) noexcept
@@ -477,6 +504,16 @@ std::string SkyrimBridge::GetActorBaseName(uint32_t aFormId) const noexcept
         if (pActor->baseForm)
             return pActor->baseForm->GetName();
     return {};
+}
+
+void SkyrimBridge::SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept
+{
+    if (Actor* pActor = GetActor(aFormId); pActor && pActor->GetExtension()->IsCopy())
+        if (auto* pNpc = Cast<TESNPC>(pActor->baseForm))
+        {
+            pNpc->actorData.level = aLevel;
+            pNpc->MarkChanged(0x2); // TESActorBaseData::SetLevel (14385): CHANGE_ACTOR_BASE_DATA
+        }
 }
 
 float SkyrimBridge::GetActorBaseWeight(uint32_t aFormId) const noexcept
@@ -1857,6 +1894,20 @@ void SkyrimBridge::DeserializeActorNpc(uint32_t aFormId, const std::string& acAp
     pNpc->Deserialize(acAppearance, aChangeFlags);
 }
 
+bool SkyrimBridge::ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    TESNPC* pNpc = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+    if (!pNpc || !pNpc->IsTemporary() || !pActor->GetExtension()->IsCopy() || !FormState::Load(*pNpc, aChangeFlags, acAppearance))
+        return false;
+    pNpc->weight = aWeight;
+    if (pActor->race != pNpc->raceForm.race)
+        pActor->SwitchRace(pNpc->raceForm.race, false);
+    else
+        pActor->DoReset3D(true);
+    return true;
+}
+
 uint32_t SkyrimBridge::SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept
 {
     Breadcrumbs::Record("SerializeActorNpc", aFormId);
@@ -1988,7 +2039,7 @@ struct HitVisuals
 HitVisuals GetHitVisuals(uint32_t aEffectFormId, bool aPersisting = true) noexcept
 {
     const auto* pEffect = Cast<EffectSetting>(TESForm::GetById(aEffectFormId));
-    if (!pEffect || (pEffect->flags & EffectSetting::kNoHitEffect) || ((pEffect->flags & EffectSetting::kFXPersist) != 0) != aPersisting)
+    if (!pEffect || !HitVisualsRules::Allowed(pEffect->flags, aPersisting))
         return {};
     return {pEffect->pHitShader, pEffect->pHitArt};
 }
@@ -2161,19 +2212,6 @@ Tints SkyrimBridge::GetPlayerFaceTints() const noexcept
     if (!pPlayer)
         return {};
     return GetActorFaceTints(pPlayer->formID);
-}
-
-void SkyrimBridge::AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept
-{
-    Breadcrumbs::Record("AddPlayerSkillExperience", static_cast<uint32_t>(aSkillId));
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (pPlayer)
-        pPlayer->AddSkillExperience(aSkillId, aExperience);
-}
-
-int32_t SkyrimBridge::GetPlayerLastUsedCombatSkill() const noexcept
-{
-    return PlayerCharacter::LastUsedCombatSkill;
 }
 
 uint32_t SkyrimBridge::GetPlayerParentCellFormId() const noexcept

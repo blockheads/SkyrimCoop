@@ -8,6 +8,7 @@
 #include <Papyrus/GuestScripts.h>
 #include <Papyrus/OwnEvents.h>
 #include <Papyrus/PartyNatives.h>
+#include <Papyrus/BodyScripts.h>
 #include <Games/EngineNames.h>
 #include <HookSwitch.h>
 #include <Misc/GameVM.h>
@@ -45,6 +46,8 @@ bool HookQuestStarted(TESQuest* apThis, bool* apResult, bool aNow)
     const bool cOk = RealQuestStarted(apThis, apResult, aNow);
     if (apThis && s_ownQuests.Started(apThis->formID, cWasRunning, cOk, s_isGuest.load(std::memory_order_relaxed), GuestScripts::NativeGuest()))
         spdlog::info("PlayerNatives: quest {:X} started by this guest's own script: its own", apThis->formID);
+    if (apThis && cOk && !cWasRunning)
+        BodyScripts::QuestStarted(apThis->formID, GuestScripts::NativeScript());
     return cOk;
 }
 

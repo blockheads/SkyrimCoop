@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Havok/Raycast.h>
+
 #include <Structs/Inventory.h>
 #include <Structs/ScriptValue.h>
 
@@ -233,15 +235,7 @@ bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept;
 
 // A ray through the player's cell's physics world (bhkWorld::PickObject), as a collision layer sees it (30, the
 // character controller's: what stops a player walking). Game units.
-struct RayHit
-{
-    bool Hit{};
-    float Point[3]{};
-    float Normal[3]{};
-    float Distance{};
-    uint32_t Reference{}; // the hit collision's reference, 0 for none (terrain, the cell's own)
-    uint32_t Layer{};     // the hit collision's layer (COL_LAYER)
-};
+using RayHit = GameRaycast::RayHit;
 // None: no physics world here, or the frame's picks are spent (bhkPickData::pickFailed; try the next frame). The
 // player's own collision is passed through, and aThrough's (an actor the ray starts in).
 std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer = 30, uint32_t aThrough = 0) noexcept;
@@ -349,19 +343,35 @@ struct BaseLooks
 {
     bool Female{};
     float Weight{};
+    uint16_t Level{};
 };
 std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept;
 // Every shader and art object in the engine's list on the actor, the finished ones still fading out too: a hit
 // shader without FX Persist is finished from its start (ShaderReferenceEffect::Init) and plays one pass.
 std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept;
+// Every reference effect playing on the reference or aimed at it (a VisualEffect's facing target): what shows, and
+// whether its art's model loaded, hangs in the scene and is hidden.
+struct ReferenceEffectReadout
+{
+    bool Shader{};
+    uint32_t Form{};      // the effect shader or art object
+    uint32_t Target{};    // the reference it plays on
+    uint32_t AimTarget{}; // the one it faces
+    bool Finished{};
+    bool AtCamera{};
+    bool Attached{};
+    bool Loaded{};   // the art's model
+    bool InScene{};  // the model has a parent
+    bool Hidden{};
+    NiPoint3 Position{};
+};
+std::vector<ReferenceEffectReadout> GetReferenceEffects(uint32_t aFormId) noexcept;
 // The player may get on the mount now: what offers "Ride" and what InitiateMountPackage checks first (38706).
 bool PlayerCanRide(uint32_t aMountFormId) noexcept;
 // Sets the difficulty as the settings menu does (53310): iDifficulty, then PlayerCharacter::SetDifficulty (40563).
 void ChooseDifficulty(uint32_t aDifficulty) noexcept;
 // The actor whose health bar the HUD shows, or 0.
 uint32_t GetEnemyHealthTarget() noexcept;
-// The player's last used combat skill (an actor value, -1 none yet) and its experience: where shared XP goes.
-std::pair<int32_t, float> GetCombatSkillExperience() noexcept;
 // The magic caster's state for a casting source (MagicCaster::State; 3 = charged), or -1.
 int32_t GetCasterState(uint32_t aFormId, uint32_t aCastingSource) noexcept;
 // A boolean of the actor's behavior graph by name ("IsEquipping"), false if it has none.
@@ -546,6 +556,12 @@ uint32_t GetOwner(uint32_t aRefFormId) noexcept;
 // (TESForm::SetPlayerKnows, 14639).
 std::optional<bool> GetPlayerKnows(uint32_t aFormId) noexcept;
 bool SetPlayerKnows(uint32_t aFormId, bool aKnows) noexcept;
+// The condition GetRelationshipRank (21679): aActor's relationship with aOther (-3 archnemesis to 4 lover); none for
+// no such actor.
+std::optional<int32_t> GetRelationshipRank(uint32_t aActor, uint32_t aOther) noexcept;
+// A word of power's unlocked flag (0x10000), and setting it (14640).
+std::optional<bool> GetUnlocked(uint32_t aFormId) noexcept;
+bool SetUnlocked(uint32_t aFormId, bool aUnlocked) noexcept;
 
 // What the player's camera shows: its mode, where it is and looks (the world camera's transform), what the
 // crosshair is on, whom it follows and whether it sees them, and, given an actor, where its head is on screen and how

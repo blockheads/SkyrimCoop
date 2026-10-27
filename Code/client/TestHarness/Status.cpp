@@ -110,7 +110,7 @@ static nlohmann::json Identity(uint32_t aFormId)
     nlohmann::json identity = {{"base", actors.GetActorBaseFormId(aFormId)}, {"name", actors.GetActorBaseName(aFormId)},
                                {"race", actors.GetActorRaceFormId(aFormId)}};
     if (const auto cLooks = EngineCalls::GetBaseLooks(aFormId))
-        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}});
+        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}, {"level", cLooks->Level}});
     return identity;
 }
 
@@ -218,7 +218,7 @@ static nlohmann::json Snapshot(uint32_t aFormId)
                                {"temporary_base", actors.IsActorNpcTemporary(aFormId)},
                                {"mount", actors.IsActorMount(aFormId)}, {"dragon", actors.IsActorDragon(aFormId)}};
     if (const auto cLooks = EngineCalls::GetBaseLooks(aFormId))
-        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}});
+        identity.update({{"female", cLooks->Female}, {"weight", cLooks->Weight}, {"level", cLooks->Level}});
     // Its ragdoll now: how many bodies are awake and the fastest one's speed (a body still moving or jittering).
     nlohmann::json ragdoll;
     if (const auto cBodies = EngineCalls::GetRagdoll(aFormId); cBodies && !cBodies->empty())
@@ -414,8 +414,7 @@ static nlohmann::json PlayerStatus(const Harness& acHarness)
             // What it holds with Activate (a grabbed physics object), 0 for nothing.
             {"grabbed", EngineCalls::GetGrabbedObject()},
             {"health", actors.GetActorValue(0x14, 24 /* kHealth */)}, {"local_actors", LocalActors()},
-            {"enemy_health_target", EngineCalls::GetEnemyHealthTarget()},
-            {"combat_skill", {{"skill", EngineCalls::GetCombatSkillExperience().first}, {"xp", EngineCalls::GetCombatSkillExperience().second}}}};
+            {"enemy_health_target", EngineCalls::GetEnemyHealthTarget()}};
 }
 
 // The copies this game shows of other games' actors (players and NPCs), read from the engine: where

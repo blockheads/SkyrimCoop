@@ -23,7 +23,6 @@
     X(MountRequest)                 \
     X(AiStateRequest)               \
     X(RequestRespawn)               \
-    X(SyncExperienceRequest)        \
     X(RequestEquipmentChanges)      \
     X(SendChatMessageRequest)       \
     X(DialogueRequest)              \
@@ -87,7 +86,6 @@
     X(NotifyMount)                 \
     X(NotifyAiState)               \
     X(NotifyRespawn)               \
-    X(NotifySyncExperience)        \
     X(NotifyEquipmentChanges)      \
     X(NotifyChatMessageBroadcast)  \
     X(NotifyDialogue)              \
@@ -131,7 +129,8 @@
     X(NotifyLockCrime)             \
     X(NotifyCrimeConfiscation)     \
     X(NotifyItemDropped)           \
-    X(NotifyPickUp)
+    X(NotifyPickUp)                \
+    X(NotifyPartyGold)
 
 #define COOP_OPCODE(aName) k##aName,
 

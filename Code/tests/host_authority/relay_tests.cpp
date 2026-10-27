@@ -108,6 +108,27 @@ TEST_CASE("Cutscenes: a game's party call reaches every other game, named as tha
     CHECK(session.SentTo<NotifyPartyNative>(kPeer).empty());
 }
 
+TEST_CASE("The party is the Dragonborn: the story's progression call reaches every guest once", "[HostAuthority][Scripts][rewards]")
+{
+    // A dragon's absorb run for the guest on the host: AbsorbActor.ModActorValue("DragonSouls", 1), its player each
+    // game's own (dragonborn.md, "The party's calls").
+    Session session;
+    PartyNativeRequest call;
+    call.Call.Class = "Actor";
+    call.Call.Function = "ModActorValue";
+    call.Call.Self = ScriptForm{.Form = GameId(0, 0x14)};
+    call.Call.Arguments = {std::string("DragonSouls"), 1.f};
+
+    session.Receive(kHost, call);
+    for (const ConnectionId_t cGuest : {kPeer, kOtherPeer})
+    {
+        const auto cSent = session.SentTo<NotifyPartyNative>(cGuest);
+        REQUIRE(cSent.size() == 1);
+        CHECK(cSent[0]->Call == call.Call);
+    }
+    CHECK(session.SentTo<NotifyPartyNative>(kHost).empty());
+}
+
 TEST_CASE("World calls: a guest's script's quest stage goes to the host's game, for that guest", "[HostAuthority][Scripts]")
 {
     Session session;
@@ -376,12 +397,7 @@ TEST_CASE("Subtitles, experience: reach everyone else", "[HostAuthority][Charact
     CHECK(cSubtitles[0]->TopicFormId == 0x1234);
     CHECK(cSubtitles[0]->Force);
 
-    SyncExperienceRequest experience;
-    experience.Experience = 12.5f;
-    session.Receive(kPeer, experience);
-    REQUIRE(session.SentTo<NotifySyncExperience>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifySyncExperience>(kOtherPeer)[0]->Experience == 12.5f);
-    CHECK(session.SentTo<NotifySyncExperience>(kPeer).empty());
+
 }
 
 TEST_CASE("Scripts: a native on the player the host's script ran for a guest runs on that guest's game", "[HostAuthority][Scripts]")
@@ -536,3 +552,4 @@ TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "
     }
     CHECK(session.SentTo<NotifyAiState>(kHost).empty());
 }
+

@@ -1,4 +1,5 @@
 #include <EffectEvents.h>
+#include <Games/HitVisualsRules.h>
 #include <HookSwitch.h>
 
 #include <Actor.h>
@@ -14,6 +15,9 @@
 
 #include <atomic>
 
+// The rules' bits are the engine's (EffectSetting's flags).
+static_assert(HitVisualsRules::kPersist == EffectSetting::kFXPersist && HitVisualsRules::kNoHit == EffectSetting::kNoHitEffect);
+
 namespace EffectEvents
 {
 namespace
@@ -27,12 +31,13 @@ void Raise(uint32_t aFormId, uint32_t aFlashEffectId = 0) noexcept
         World::Get().GetRunner().Trigger(EffectVisualsChangeEvent{aFormId, aFlashEffectId});
 }
 
-// Its effect when its visuals play once (no FX Persist), else 0.
+// A one-shot visual, including an instant fire-and-forget effect with FX Persist.
 uint32_t FlashEffectOf(const ActiveEffect* apEffect) noexcept
 {
     const auto* pItem = static_cast<const EffectItem*>(apEffect->pEffect);
     const EffectSetting* pSetting = pItem ? pItem->pEffectSetting : nullptr;
-    if (!pSetting || (pSetting->flags & (EffectSetting::kFXPersist | EffectSetting::kNoHitEffect)) || !(pSetting->pHitShader || pSetting->pHitArt))
+    if (!pSetting || !HitVisualsRules::Flash(pSetting->flags, pSetting->pHitShader || pSetting->pHitArt,
+                                            apEffect->fDuration, pSetting->castType))
         return 0;
     return pSetting->formID;
 }

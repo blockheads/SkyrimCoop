@@ -2,6 +2,7 @@
 // guest talking to its copy of a host NPC starts the host's game's conversation with the NPC, its menu shows the
 // host's game's list, its pick is said by the host's game, and the conversation ends for everyone.
 #include "FakeDialogue.h"
+#include <Services/DialogueService.h>
 #include "Party.h"
 
 namespace
@@ -63,4 +64,30 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
 
     party.As(party.Guest(), [&] { guestTalk.PlayerPicks(1); });
     party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the goodbye ends it on both games");
+}
+
+SCENARIO("The host's begin fragment knows its picker before the picked notification returns", "[dialogue][rewards]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& talk = Dialogue(party.Host());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the guard");
+    party.As(party.Host(), [&] { talk.PlayerTalksTo(guard); });
+    party.Until([&] { return party.Host().ctx().at<DialogueService>().Conversation() != 0; }, "the conversation is shared");
+    party.Frame();
+    talk.OnSaid = [&](const auto&) {
+        host.RunScript({.Class = "Game", .Function = "AdvanceSkill", .Arguments = {std::string("Speechcraft"), 10.f}}, talk.LastLineFor);
+    };
+    party.As(party.Host(), [&] { talk.PlayerPicks(0); });
+    // As Skyrim: the fragment is queued synchronously, before the host processes NotifyDialoguePicked.
+    CHECK(talk.LastLineFor == FakeEngine::kPlayer);
+    party.As(party.Host(), [&] { host.TeachesWord(0x13E22); });
+    party.Until([&] { return guest.WordsKnown.contains(0x13E22); }, "the guest processed everything before the word marker");
+    CHECK(host.RewardExperience[17] == 10.f);
+    CHECK(guest.RewardExperience[17] == 0.f);
 }

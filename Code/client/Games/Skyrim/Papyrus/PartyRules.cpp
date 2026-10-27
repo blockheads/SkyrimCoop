@@ -1,5 +1,7 @@
 #include <Papyrus/PartyRules.h>
 
+#include <Games/EngineNames.h>
+
 namespace PartyRules
 {
 Share Whose(uint32_t aCause, bool aStory) noexcept
@@ -13,10 +15,79 @@ Share Whose(uint32_t aCause, bool aStory) noexcept
 
 Share ShareOf(Kind aKind, uint32_t aCause, bool aStory, uint32_t aAsked) noexcept
 {
+    if (aKind == Kind::kShow)
+        return IsMirrored(aCause) ? Share::kHere : Share::kParty;
     const Share cShare = Whose(aCause, aStory);
     if (cShare == Share::kParty && aKind == Kind::kControls && !(aAsked & kMovement))
         return Share::kHere; // fighting, sneaking or menus only: a restriction
     return cShare;
+}
+
+void MarkEachPlayer(LocalCall& aCall, uint32_t aCause) noexcept
+{
+    constexpr uint32_t cThisPlayer = 0x14;
+    const uint32_t cPlayer = aCause && !IsMirrored(aCause) ? aCause : cThisPlayer;
+    const auto cMark = [cPlayer](LocalValue& aValue) {
+        if (auto* pForm = std::get_if<LocalForm>(&aValue); pForm && pForm->FormId == cPlayer)
+            pForm->EachPlayer = true;
+    };
+    cMark(aCall.Self);
+    for (LocalValue& argument : aCall.Arguments)
+        cMark(argument);
+}
+
+std::optional<Progress> ProgressOf(std::string_view aClass, std::string_view aFunction) noexcept
+{
+    struct Native
+    {
+        std::string_view Class;
+        std::string_view Function;
+        Progress Is;
+    };
+    // A persuade's AdvanceSkill is its picker's own (rule 2), a lever's faction its puller's: the story's only.
+    static constexpr Native cNatives[] = {
+        {"Game", "TeachWord", {.AnyScript = true}},
+        {"Game", "UnlockWord", {.AnyScript = true}},
+        {"Game", "AdvanceSkill", {}},
+        {"Game", "IncrementSkill", {.AnyScript = true}},
+        {"Game", "IncrementSkillBy", {.AnyScript = true}},
+        {"Game", "AddPerkPoints", {.AnyScript = true}},
+        {"Actor", "AddPerk", {.AnyScript = true}},
+        {"Actor", "RemovePerk", {.AnyScript = true}},
+        {"Actor", "ModActorValue", {.AnyScript = true}}, // the permanent modifier: souls, a stat
+        {"Actor", "AddToFaction", {.OnCopy = true}},
+        {"Actor", "RemoveFromFaction", {.OnCopy = true}},
+        {"Actor", "SetFactionRank", {.OnCopy = true}},
+        {"Actor", "AddSpell", {.OnCopy = true}},
+        {"Actor", "RemoveSpell", {.OnCopy = true}},
+    };
+    for (const Native& cNative : cNatives)
+        if (SameName(aClass, cNative.Class) && SameName(aFunction, cNative.Function))
+            return cNative.Is;
+    return std::nullopt;
+}
+
+Route RouteOf(const Progress& acProgress, Target aTarget, uint32_t aCause, bool aStory, bool aBody, bool aHosting) noexcept
+{
+    if (!aHosting || aTarget == Target::kNone || aBody || IsMirrored(aCause))
+        return {};
+    if (!acProgress.AnyScript && Whose(aCause, aStory) != Share::kParty)
+        return {};
+    if (aTarget == Target::kThisPlayer)
+        return {.Relay = true};
+    return {.Original = acProgress.OnCopy, .ThisPlayer = true, .Relay = true};
+}
+
+LocalCall OnThisPlayer(LocalCall aCall) noexcept
+{
+    const auto cOwn = [](LocalValue& aValue) {
+        if (auto* pForm = std::get_if<LocalForm>(&aValue); pForm && pForm->EachPlayer)
+            *pForm = LocalForm{0x14};
+    };
+    cOwn(aCall.Self);
+    for (LocalValue& argument : aCall.Arguments)
+        cOwn(argument);
+    return aCall;
 }
 
 void ControlHolds::Take(uint32_t aHolder, uint32_t aFlags) noexcept

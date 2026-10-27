@@ -100,6 +100,17 @@ struct QueuedCall
     std::string_view Event;   // the event or function queued
 };
 
+// An actor's death (OnDeath, OnDying) is the world's event: its scripts run for the killer (rule 2), as the story, so
+// what they show on the screen is the party's (docs/design/dragonborn.md: a dragon's absorb). This game's player's own
+// death (a script on it or its effect) stays its own.
+[[nodiscard]] constexpr bool IsWorldDeath(const QueuedCall& acCall) noexcept
+{
+    const auto cKind = static_cast<uint16_t>(acCall.Self >> 48);
+    const bool cOnThisPlayer = static_cast<uint32_t>(acCall.Self) == kThisPlayer &&
+                               ((cKind == 0 && static_cast<uint16_t>(acCall.Self >> 32) == 0xFFFF) || cKind == 2);
+    return !acCall.NativeDepth && !cOnThisPlayer && (SameName(acCall.Event, "OnDeath") || SameName(acCall.Event, "OnDying"));
+}
+
 // Engine sleep events in a session are the party avatar's story, even if a guest registered the listener.
 // Other queued calls run for, in order: the native queuing them (and its story); a guest's character among their
 // arguments (aGuestArgument(), 0 for none: a guest's activation, hit, trigger); this game's player among them
@@ -117,6 +128,8 @@ template <class TGuestArgument, class TPlayerArgument>
         cause.Player = aGuestArgument();
     if (!cause.Player && !acCall.NativeDepth && acCall.InSession && aPlayerArgument())
         cause.Player = kThisPlayer;
+    if (cause.Player && IsWorldDeath(acCall))
+        cause.Story = true;
     if (!cause.Player && acCall.Self && !acCall.Event.empty() && aTags.HasTimers())
         if (const auto cEvent = TimerEvent(acCall.Event); !cEvent.empty())
             cause = aTags.TakeTimer(acCall.Self, cEvent);

@@ -37,7 +37,7 @@ The copy shows the result and takes part in what *other* actors do to it, nothin
 | Showing effects (burning, frost, glows) | visuals only | the owner lists its actors' active effects whose visuals last (FX Persist) when its engine starts or stops them, a spawn carrying the list; the copy plays just their hit shader and art while listed, again on its 3D loading; visuals that play once go out as their effect starts, and the copy plays them once (EffectVisualsService). Visuals the engine plays at a game's camera on its player's behalf (a VisualEffect attached to the camera, `FXCameraAttachScript`'s fluff 0xB94EC; the effect's controller answers `EffectAttachesToCamera`, vtable 0x1A) are that screen's: no copy shows them, and the harness reports them apart (`mod.camera_visuals`) |
 | Hit feedback for the attacker (enemy health bar) | in the attacker's game | our player's hit on a copy shows its health bar at once, from the owner's health (CombatService::OnHitEvent) |
 | Combat decisions, dialogue, reservations | no (audit when touched) | to check when syncing combat or dialogue |
-| Crime | the party's, judged on the host | `CrimeService`, `HostCrime` and `CrimeBridge` (2026-10-26, shared-party-bounty.md): guest theft/pickpocket/lock proposals are judged by host witnesses; host-native alarms adapt a guest culprit's detection without changing the native crime's host-player handle. The service refreshes guest-copy trespass state separately from decision-making AI. Absolute per-faction bounty mirrors to guests; guest fines use the chooser's purse and owner-side stolen-item confiscation. Native coverage and remaining jail/trespass-AI limits are recorded in the design doc |
+| Crime | the party's, judged on the host | `CrimeService`, `HostCrime` and `CrimeBridge` (2026-10-26, shared-party-bounty.md): guest theft/pickpocket/lock proposals are judged by host witnesses; host-native alarms adapt a guest culprit's detection without changing the native crime's host-player handle. The service refreshes guest-copy trespass state separately from decision-making AI. Absolute per-faction bounty mirrors to guests; guest fines debit the party's purse once (`party-purse.md`) with owner-side stolen-item confiscation. Native coverage and remaining jail/trespass-AI limits are recorded in the design doc |
 | Followers, quests | undecided | decide when the system is synced |
 
 ## A remote player's copy: the deliberate exceptions
@@ -59,6 +59,16 @@ host"; `Games/Skyrim/Papyrus/GuestScripts.cpp`). Upstream made only the comparis
 check landed on the wrong body). Upstream's patched vanilla scripts (claw doors, temple shrines, Vilkas's trial)
 and their `SkyrimTogetherUtils` natives were removed for it (2026-10-20); each has a scenario
 (`docs/re/systems/papyrus-guest-scripts.md`, "Tests").
+
+## Changes on an existing copy
+
+An owner's level notification writes its player's copy's NPC base level, with change flag `0x2`; a later spawn
+uses the latest roster level. A look change updates the same actor and temporary NPC base through FormState,
+weight, runtime race/3D and FaceGen tints. Rebuilding happens between frames and invalidates the old graph's
+variable descriptor. Dialogue and follower references keep the same actor. Player recovery remains a replacement.
+Instant fire-and-forget FX Persist effects use a flash when the active-effect list cannot retain them.
+
+Tests and engine details: [small-bugs.md](small-bugs.md).
 
 ## Players' copies travel with the party (decided 2026-10-14)
 

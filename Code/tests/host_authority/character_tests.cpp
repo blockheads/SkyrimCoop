@@ -163,7 +163,12 @@ TEST_CASE("Respawn: the owner's reaches everyone; anyone else gets a fresh spawn
     respawn.Weight = 0.f;
     session.Receive(kPeer, respawn);
     REQUIRE(session.SentTo<NotifyRespawn>(kHost).size() == 1);
-    CHECK(session.SentTo<NotifyRespawn>(kOtherPeer)[0]->ActorId == cPeerPlayer);
+    const auto* cpLooks = session.SentTo<NotifyRespawn>(kOtherPeer)[0];
+    CHECK(cpLooks->ActorId == cPeerPlayer);
+    CHECK(cpLooks->AppearanceBuffer == respawn.AppearanceBuffer);
+    CHECK(cpLooks->ChangeFlags == respawn.ChangeFlags);
+    CHECK(cpLooks->FaceTints == respawn.FaceTints);
+    CHECK(cpLooks->Weight == respawn.Weight);
 
     // The host dropped its copy and asks again: the new appearance, where the player last moved.
     ReferencesMoveRequest movement;

@@ -299,16 +299,6 @@ void Subtitle::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
     Force = Serialization::ReadBool(aReader);
 }
 
-void SyncExperience::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
-{
-    Serialization::WriteFloat(aWriter, Experience);
-}
-
-void SyncExperience::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
-{
-    Experience = Serialization::ReadFloat(aReader);
-}
-
 void ActiveEffects::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);
@@ -463,4 +453,14 @@ void Payloads::BodyPushes::DeserializePayload(Wire::Buffer::Reader& aReader) noe
     Pushes.resize(cCount);
     for (auto& push : Pushes)
         push.Deserialize(aReader);
+}
+
+void Payloads::PartyGold::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, Gold);
+}
+
+void Payloads::PartyGold::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    Gold = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
 }

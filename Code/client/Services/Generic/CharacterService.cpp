@@ -1,4 +1,5 @@
 #include <Services/CharacterService.h>
+#include <MainLoopTasks.h>
 #include <Services/CopyClock.h>
 #include <Services/TransportService.h>
 #include <Services/SessionService.h>
@@ -15,7 +16,6 @@
 #include <Events/AiStateChangeEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
 #include <Events/PlayerDeathEvent.h>
-#include <Events/AddExperienceEvent.h>
 #include <Events/FactionsChangeEvent.h>
 #include <Events/ReferenceJumpEvent.h>
 #include <Events/DialogueEvent.h>
@@ -35,6 +35,7 @@
 #include <Messages/RequestRespawn.h>
 #include <Messages/EnterCellRequest.h>
 #include <Messages/NotifyRespawn.h>
+#include <Messages/NotifyPlayerLevel.h>
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
 #include <Services/AiStateService.h>
@@ -92,11 +93,9 @@ CharacterService::CharacterService(World& aWorld, entt::dispatcher& aDispatcher,
 
     Listen<NotifyRespawn, &CharacterService::OnNotifyRespawn>(m_connections, m_dispatcher, this);
     Listen<PlayerArrivedEvent, &CharacterService::OnPlayerArrived>(m_connections, m_dispatcher, this);
+    Listen<NotifyPlayerLevel, &CharacterService::OnPlayerLevel>(m_connections, m_dispatcher, this);
     Listen<PlayerLooksChangeEvent, &CharacterService::OnPlayerLooksChange>(m_connections, m_dispatcher, this);
     Listen<PlayerRevivedEvent, &CharacterService::OnPlayerRevived>(m_connections, m_dispatcher, this);
-
-    Listen<AddExperienceEvent, &CharacterService::OnAddExperienceEvent>(m_connections, m_dispatcher, this);
-    Listen<NotifySyncExperience, &CharacterService::OnNotifySyncExperience>(m_connections, m_dispatcher, this);
 
     Listen<DialogueEvent, &CharacterService::OnDialogueEvent>(m_connections, m_dispatcher, this);
     Listen<NotifyDialogue, &CharacterService::OnNotifyDialogue>(m_connections, m_dispatcher, this);
@@ -229,6 +228,7 @@ void CharacterService::OnActorRemoved(const ActorRemovedEvent& acEvent) noexcept
 
 void CharacterService::OnUpdate(const UpdateEvent& acUpdateEvent) noexcept
 {
+    QueuePendingLooks();
     RunActorDiscovery();
     RunPresence();
     RunLocalUpdates();
@@ -296,6 +296,7 @@ void CharacterService::OnConnected(const ConnectedEvent& acConnectedEvent) noexc
 
 void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEvent) noexcept
 {
+    m_pendingLooks.clear();
     // The session's copies go: the ones we spawned are deleted, the game's own actors are its own again.
     DropCopies([](uint32_t) { return true; });
     const auto cHeld = m_world.view<HeldCopyComponent>();
@@ -315,6 +316,7 @@ void CharacterService::OnDisconnected(const DisconnectedEvent& acDisconnectedEve
 
 CharacterService::~CharacterService() noexcept
 {
+    m_alive->store(false);
     m_playerBridge.StopTeleportEvents();
 }
 
@@ -428,6 +430,7 @@ void CharacterService::OnCharacterSpawn(const NotifyCharacterSpawn& acMessage) c
         m_actorBridge.SetActorIgnoreFriendlyHit(actorFormId, true);
         m_actorBridge.SetActorPlayerFaction(actorFormId);
         m_world.emplace_or_replace<PlayerComponent>(*entity, acMessage.PlayerId);
+        SetCopyLevel(actorFormId, acMessage.PlayerId);
     }
 
     const bool cIsDead = m_actorBridge.IsActorDead(actorFormId);
@@ -585,8 +588,9 @@ void CharacterService::OnFactionsChanges(const NotifyFactionsChanges& acEvent) c
     }
 }
 
-void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) const noexcept
+void CharacterService::OnRemoveCharacter(const NotifyRemoveCharacter& acMessage) noexcept
 {
+    m_pendingLooks.erase(acMessage.SessionId);
     auto view = m_world.view<RemoteComponent>();
 
     const auto itor = std::find_if(std::begin(view), std::end(view), [id = acMessage.SessionId, view](entt::entity entity) { return view.get<RemoteComponent>(entity).Id == id; });
@@ -688,8 +692,15 @@ ActorWhereabouts CharacterService::ReadWhereabouts(uint32_t aFormId) const noexc
     return where;
 }
 
-void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) const noexcept
+void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) noexcept
 {
+    if (!acMessage.AppearanceBuffer.empty())
+    {
+        m_pendingLooks[acMessage.ActorId] = acMessage;
+        QueuePendingLooks();
+        return;
+    }
+    m_pendingLooks.erase(acMessage.ActorId);
     auto view = m_world.view<FormIdComponent, RemoteComponent>();
     const auto entityIt = std::find_if(view.begin(), view.end(), [view, id = acMessage.ActorId](auto aEntity) { return view.get<RemoteComponent>(aEntity).Id == id; });
 
@@ -700,6 +711,44 @@ void CharacterService::OnNotifyRespawn(const NotifyRespawn& acMessage) const noe
     }
 
     RespawnCopy(*entityIt, acMessage.ActorId);
+}
+
+void CharacterService::QueuePendingLooks() noexcept
+{
+    if (m_pendingLooks.empty() || m_looksQueued)
+        return;
+    m_looksQueued = true;
+    MainLoopTasks::Queue([this, alive = m_alive] {
+        if (!alive->load())
+            return;
+        m_looksQueued = false;
+        ApplyPendingLooks();
+    });
+}
+
+void CharacterService::ApplyPendingLooks() noexcept
+{
+    for (auto it = m_pendingLooks.begin(); it != m_pendingLooks.end();)
+    {
+        const uint32_t cFormId = Utils::GetFormIdBySessionId(it->first);
+        const auto& cLooks = it->second;
+        if (!cFormId || !m_actorBridge.ApplyActorLooks(cFormId, cLooks.AppearanceBuffer, cLooks.ChangeFlags, cLooks.Weight))
+        {
+            ++it;
+            continue;
+        }
+        // A different race has a different variable layout; derive it from the rebuilt graph.
+        m_actorBridge.SetAnimationGraphDescriptorHash(cFormId, 0);
+        for (auto&& [cEntity, form, copy] : m_world.view<FormIdComponent, RemoteComponent>().each())
+            if (form.Id == cFormId)
+            {
+                m_world.remove<FaceGenComponent>(cEntity);
+                FaceGenSystem::Setup(m_world, cEntity, cLooks.FaceTints);
+                if (const auto* cpPlayer = m_world.try_get<PlayerComponent>(cEntity))
+                    SetCopyLevel(cFormId, cpPlayer->Id);
+            }
+        it = m_pendingLooks.erase(it);
+    }
 }
 
 void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) const noexcept
@@ -715,6 +764,20 @@ void CharacterService::RespawnCopy(entt::entity aEntity, uint32_t aSessionId) co
     RequestRespawn request;
     request.ActorId = aSessionId;
     m_transport.Send(request);
+}
+
+void CharacterService::SetCopyLevel(uint32_t aFormId, uint32_t aPlayerId) const noexcept
+{
+    const auto& cPlayers = m_world.ctx().at<SessionService>().GetPlayers();
+    if (const auto it = cPlayers.find(aPlayerId); it != cPlayers.end())
+        m_actorBridge.SetActorBaseLevel(aFormId, it->second.Level);
+}
+
+void CharacterService::OnPlayerLevel(const NotifyPlayerLevel& acMessage) const noexcept
+{
+    for (auto&& [cEntity, form, player, copy] : m_world.view<FormIdComponent, PlayerComponent, RemoteComponent>().each())
+        if (player.Id == acMessage.PlayerId)
+            m_actorBridge.SetActorBaseLevel(form.Id, acMessage.NewLevel);
 }
 
 void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const noexcept
@@ -737,7 +800,7 @@ void CharacterService::OnPlayerLooksChange(const PlayerLooksChangeEvent&) const 
     request.GraphState = cState.GraphState;
     request.Data = cState.Data;
 
-    spdlog::info("Player looks changed: our copies respawn as race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
+    spdlog::info("Player looks changed: our copies take race {:X}", m_actorBridge.GetActorRaceFormId(0x14));
     m_transport.Send(request);
 }
 
@@ -882,25 +945,6 @@ void CharacterService::OnNotifyDismount(const NotifyDismount& acMessage) noexcep
     }
     if (m_riddenMount == acMessage.MountId)
         m_riddenMount = 0;
-}
-
-void CharacterService::OnAddExperienceEvent(const AddExperienceEvent& acEvent) noexcept
-{
-    if (!m_transport.IsConnected())
-        return;
-    SyncExperienceRequest message;
-    message.Experience = acEvent.Experience;
-    m_transport.Send(message);
-    spdlog::debug("Sending over experience {}", message.Experience);
-}
-
-void CharacterService::OnNotifySyncExperience(const NotifySyncExperience& acMessage) noexcept
-{
-    const int32_t cLastSkill = m_playerBridge.GetPlayerLastUsedCombatSkill();
-    if (cLastSkill == -1)
-        return;
-
-    m_playerBridge.AddPlayerSkillExperience(cLastSkill, acMessage.Experience);
 }
 
 void CharacterService::OnDialogueEvent(const DialogueEvent& acEvent) noexcept

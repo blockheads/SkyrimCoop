@@ -11,6 +11,8 @@
 #include <Bridges/IBodyBridge.h>
 
 #include <Games/QuestChanges.h>
+#include <Games/HitVisualsRules.h>
+#include <MainLoopTasks.h>
 #include <Games/Skyrim/HitRules.h>
 #include <Messages/CellStateRequest.h>
 #include <Messages/WorldState.h>
@@ -68,6 +70,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::map<std::string, SaveFiles> SavedFiles;
     PlayerRecord ReadPlayer() const noexcept override;
     void ApplyPlayer(const PlayerRecord& acRecord) noexcept override;
+    bool PlacementClear = true;
+    uint32_t PlacementChecks = 0;
+    bool PlaceBesideHost() noexcept override;
 
     // This game's player saves (a menu, quick, auto or console save) through Save_Impl's hook (SaveGameHooks.cpp): made
     // unless SaveService refuses it. The saves made, by name.
@@ -82,7 +87,10 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::optional<std::pair<std::string, SaveFiles>> PendingLoad;
 
     // A script's call on this game, run now in a stack whose cause is aCause (GuestScripts': 0 for no player's action).
-    void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false);
+    void RunScript(const LocalCall& acCall, uint32_t aCause = 0, bool aStory = false, bool aBody = false);
+    // What actors show (VisualEffect, EffectShader, Actor.PlaySubGraphAnimation: NativeReach's kShow): by actor, the
+    // calls run on it here.
+    std::map<uint32_t, std::vector<std::string>> Shows;
     // A call the VM runs on its next frame, its stack tagged aCause (GlobalCall::QueueCall).
     void Queue(LocalCall aCall, uint32_t aCause);
     void RunQueued();
@@ -240,6 +248,8 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         float Position[3]{};
         float Rotation[3]{};
         bool Dead = false;
+        uint64_t GraphHash = 0;
+        bool GraphUpdating = true; // KillImpl clears kShouldAnimGraphUpdate; resurrection leaves it stopped.
         bool KnockedDown = false;  // a living copy lying in its ragdoll with its owner's (BodyBridge::KnockedDown); an
                                    // owner on its ragdoll before it simulates (knock state 2)
         uint8_t KnockIn = 0;       // frames until its queued knock lands (KnockExplosion on the task queue): drawn first
@@ -281,6 +291,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
         uint32_t Race = 0;
         float Weight = 50.f; // this game's player's is its record's (Player.Weight)
         std::string Looks;   // a copy's: the save data it was made from (CreateCustomActor)
+        uint16_t Level = 1;
     };
     std::map<uint32_t, Npc> Npcs;
     std::map<uint32_t, Actor> Actors{{kPlayer, Actor{.Base = 0x7, .Player = true}}};
@@ -380,6 +391,33 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     {
         Reactions.emplace_back(aVictimFormId, aAttackerFormId);
     }
+    // A player's progression (docs/design/dragonborn.md, "The party's calls"): what its natives write. Words are the
+    // world's (form flags, in a save); souls, factions and spells each actor's; the rewards this game's player's.
+    std::set<uint32_t> WordsKnown;
+    std::set<uint32_t> WordsUnlocked;
+    std::map<uint32_t, float> Souls;                          // DragonSouls (133) by actor
+    std::map<uint32_t, std::map<uint32_t, int32_t>> Factions; // by actor: each faction it is in, at its rank
+    std::map<uint32_t, std::set<uint32_t>> AddedSpells;       // by actor (Actor::AddSpell)
+    std::set<uint32_t> BodyQuests;                            // started by a player's body here (a beast form's)
+    uint32_t WordsLearnedShown = 0; // "Word of power learned" (51648): Game.TeachWord's HUD
+    uint32_t SoulsAbsorbedShown = 0; // "Dragon soul absorbed" (51649): the soul sink, this game's player's gains
+    float RewardMultiplier = 1.f;    // this game's experience mods' (AdvanceSkill's input times it)
+    std::map<int32_t, float> RewardExperience, RewardStats; // by actor value: skill experience, permanent stats
+    std::map<int32_t, uint32_t> RewardLevels;
+    int32_t RewardPoints = 0;
+    std::set<uint32_t> RewardPerks;
+    std::vector<LocalCall> RewardCalls; // the skill, perk and stat natives this game's player took
+    // A script's call of them (RunScript), its stack's cause aCause (0: no player's action) and story; aQuest: the
+    // script's quest (a body's, when in BodyQuests).
+    void TeachesWord(uint32_t aWord, uint32_t aCause = 0);  // Game.TeachWord
+    void UnlocksWord(uint32_t aWord, uint32_t aCause = 0);  // Game.UnlockWord
+    void SpendsSoul(uint32_t aWord);                         // the Magic menu's unlock (SpendSoulCallback): no script
+    void ModifiesSouls(uint32_t aActor, float aAmount, uint32_t aCause = 0); // Actor.ModActorValue("DragonSouls")
+    void SetsFaction(uint32_t aActor, uint32_t aFaction, int32_t aRank, uint32_t aCause = 0, bool aStory = false,
+                     uint32_t aQuest = 0); // Actor.SetFactionRank; -1: RemoveFromFaction
+    void AddsSpell(uint32_t aActor, uint32_t aSpell, bool aAdded, uint32_t aCause = 0, bool aStory = false, uint32_t aQuest = 0);
+    // The native's own write on aActor, as the engine makes it.
+    void TakeProgress(const LocalCall& acCall, uint32_t aActor);
     // Objects: an actor activates one by itself (opens a door, pulls a lever), as our hook on TESObjectREFR::Activate
     // raises it; another game's activation replayed here (ActivateObjectFromActor), recorded.
     void Activates(uint32_t aActor, uint32_t aObject);
@@ -452,6 +490,17 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override { CopiesFightingPlayer = aCount; }
     // Effect visuals: an effect with hit visuals (burning) starts or ends on the actor (EffectEvents raises it).
     void Burns(uint32_t aActor, uint32_t aEffect, bool aOn);
+    std::map<uint32_t, uint32_t> EffectVisualFlags;
+    std::vector<std::pair<uint32_t, uint32_t>> FlashedVisuals;
+    void StartsHitVisuals(uint32_t aActor, uint32_t aEffect, float aDuration, uint32_t aCastingType);
+    bool FlashEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
+    {
+        if (!Actors.contains(aFormId) || !Actors.at(aFormId).Loaded ||
+            !HitVisualsRules::Allowed(EffectVisualFlags[aEffectFormId], false))
+            return false;
+        FlashedVisuals.emplace_back(aFormId, aEffectFormId);
+        return true;
+    }
     std::vector<ActiveEffectInfo> GetActorActiveEffects(uint32_t aFormId) const noexcept override;
     bool EffectHasHitVisuals(uint32_t) const noexcept override { return true; }
     bool PlayEffectHitVisuals(uint32_t aFormId, uint32_t aEffectFormId) noexcept override
@@ -535,6 +584,11 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     bool SetActorBaseFormId(uint32_t aFormId, uint32_t aBaseFormId) noexcept override;
     std::string GetActorBaseName(uint32_t aFormId) const noexcept override;
     float GetActorBaseWeight(uint32_t aFormId) const noexcept override;
+    void SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept override
+    {
+        if (const auto it = Npcs.find(GetActorBaseFormId(aFormId)); it != Npcs.end())
+            it->second.Level = aLevel;
+    }
     uint32_t GetActorRaceFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorParentCellFormId(uint32_t aFormId) const noexcept override;
     uint32_t GetActorWorldSpaceFormId(uint32_t aFormId) const noexcept override;
@@ -546,6 +600,16 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void KillActor(uint32_t aFormId) noexcept override;
     void RespawnActor(uint32_t aFormId) noexcept override;
     void ResurrectActor(uint32_t aFormId) noexcept override;
+    void ResumeActorAnimation(uint32_t aFormId) noexcept override
+    {
+        MainLoopTasks::Queue([this, aFormId] {
+            if (auto it = Actors.find(aFormId); it != Actors.end() && !it->second.Dead)
+            {
+                it->second.GraphUpdating = true;
+                it->second.GraphState.clear();
+            }
+        });
+    }
     bool DamageActorHealth(uint32_t aFormId, uint32_t aAttackerFormId, float aDamage) noexcept override;
     bool IsBleedingOut(uint32_t aFormId) const noexcept override;
     bool IsActorBleedingOut(uint32_t aFormId) const noexcept override { return IsBleedingOut(aFormId); }
@@ -573,6 +637,21 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     uint32_t SpawnActorFromNpc(uint32_t aNpcFormId) noexcept override;
     uint32_t CreateCustomActor(const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     // The player's base save data is its record's (Player.Base, BaseFlags), its tints too.
+    uint64_t GetAnimationGraphDescriptorHash(uint32_t aFormId) const noexcept override
+    {
+        const auto it = Actors.find(aFormId);
+        return it != Actors.end() ? it->second.GraphHash : 0;
+    }
+    void SetAnimationGraphDescriptorHash(uint32_t aFormId, uint64_t aHash) noexcept override
+    {
+        if (const auto it = Actors.find(aFormId); it != Actors.end())
+            it->second.GraphHash = aHash;
+    }
+    bool BlockAppearance = false;
+    bool AtMainLoop = false;
+    std::deque<std::function<void()>> MainTasks;
+    uint32_t AppearanceAttempts = 0;
+    bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept override;
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override;
     void MarkActorNpcChanged(uint32_t aFormId, uint32_t aFlags) noexcept override;
     uint32_t GetPlayerRaceFormId() const noexcept override { return GetActorRaceFormId(kPlayer); }

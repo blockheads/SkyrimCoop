@@ -19,7 +19,8 @@ struct ControlsCall
 // Around a native's call in a stack run for aPlayer (GuestScripts' cause: a guest, this game's player 0x14, a mirrored
 // tag, 0 for none) and maybe the story: a party call runs here, and after it goes to the other games
 // (PartyNativeEvent). A controls call is held for its game's cutscene: giving back gives back only what no other
-// game's cutscene still holds here.
+// game's cutscene still holds here. A progression call on a guest's character runs on this game's player too, and
+// the original is skipped when the character's owner supplies what it changes (PartyRules::RouteOf).
 class Scope
 {
   public:
@@ -33,6 +34,11 @@ class Scope
     {
         return m_event.has_value();
     }
+    // The native must not run here: its call runs on this game's player instead.
+    [[nodiscard]] bool SkipsOriginal() const noexcept
+    {
+        return m_skip;
+    }
 
   private:
     uint32_t m_cause = 0;
@@ -40,5 +46,9 @@ class Scope
     std::optional<ControlsCall> m_controls;
     ControlsCall* m_pOuter = nullptr;
     std::optional<PartyNativeEvent> m_event;
+    std::optional<LocalCall> m_onThisPlayer;
+    bool m_skip = false;
+
+    void Progress(BSScript::IFunction* apFunction, BSScript::Stack& aStack, const PartyRules::Progress& acProgress) noexcept;
 };
 } // namespace PartyNatives

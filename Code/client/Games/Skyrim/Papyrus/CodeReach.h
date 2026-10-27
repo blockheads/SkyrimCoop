@@ -14,13 +14,15 @@
 namespace NativeReach
 {
 // What a native's own code calls: the controls (ControlMap::ToggleControls) or the screen (fades, camera, shakes,
-// music, video), the party's (docs/design/cutscenes.md); or the world (a quest's stage), the host's to change.
+// music, video), the party's (docs/design/cutscenes.md); the world (a quest's stage), the host's to change; or what a
+// reference shows (an art object, an effect shader, a sub-graph animation), every game's (docs/design/dragonborn.md).
 enum class Call : uint8_t
 {
     kNone,
     kControls,
     kScreen,
     kWorld,
+    kShow,
 };
 
 struct Range
@@ -80,7 +82,7 @@ inline constexpr uintptr_t kLeafBytes = 0x400;
                          const Objects& acObjects) noexcept;
 
 // The native's own calls (not its callees': Actor.Kill reaches the controls deep in SetLifeState) of the engine's
-// functions acCalls names, or a screen object it reads. The world comes first, then the controls, then the screen.
+// functions acCalls names, or a screen object it reads. The world comes first, then the controls, the screen, a show.
 [[nodiscard]] Call ClassifyCall(const Facts& acFacts, const std::unordered_map<uintptr_t, Call>& acCalls) noexcept;
 
 // Calls followed from a native's function: deeper reaches unrelated engine code (papyrus_natives.py, depth 2-6).

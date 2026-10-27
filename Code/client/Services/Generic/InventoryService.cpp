@@ -9,6 +9,7 @@
 #include <Events/UpdateEvent.h>
 #include <Events/InventoryChangeEvent.h>
 #include <Events/EquipmentChangeEvent.h>
+#include <Events/DisconnectedEvent.h>
 
 #include <World.h>
 #include <Bridges/IActorBridge.h>
@@ -22,6 +23,7 @@
 #include <Components/RemoteWeaponDrawComponent.h>
 #include <SessionIds.h>
 #include <Components/FormIdComponent.h>
+#include <Components/WaitingFor3D.h>
 #include <FormIds.h>
 
 InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher, TransportService& aTransport,
@@ -39,6 +41,9 @@ InventoryService::InventoryService(World& aWorld, entt::dispatcher& aDispatcher,
     Listen<NotifyEquipmentChanges, &InventoryService::OnNotifyEquipmentChanges>(m_connections, m_dispatcher, this);
     Listen<NotifyEquipmentSnapshot, &InventoryService::OnNotifyEquipmentSnapshot>(m_connections, m_dispatcher, this);
     Listen<NotifyDrawWeapon, &InventoryService::OnNotifyDrawWeapon>(m_connections, m_dispatcher, this);
+    Listen<NotifyPartyGold, &InventoryService::OnNotifyPartyGold>(m_connections, m_dispatcher, this);
+    Listen<DisconnectedEvent, &InventoryService::OnDisconnected>(m_connections, m_dispatcher, this);
+    Listen<&InventoryService::OnSpawnItemsApplied>(m_connections, m_world.on_destroy<WaitingFor3D>(), this);
     Listen<&InventoryService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
     Listen<&InventoryService::OnRemoteComponentRemoved>(m_connections, m_world.on_destroy<RemoteComponent>(), this);
 }
@@ -355,6 +360,45 @@ void InventoryService::RunWeaponDrawConvergence(double aDelta) noexcept
         m_actorBridge.SetActorWeaponDrawnEx(cFormId, owner.HandsUp);
         owner.DriftSeconds = 0.0;
     }
+}
+
+void InventoryService::OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexcept
+{
+    m_partyGold = acMessage.Gold;
+    SetGold(0x14, acMessage.Gold);
+    for (const auto cEntity : m_world.view<FormIdComponent>())
+        if (const uint32_t cFormId = m_world.get<FormIdComponent>(cEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))
+            SetGold(cFormId, acMessage.Gold);
+}
+
+uint32_t InventoryService::GoldOf(uint32_t aActorFormId) const noexcept
+{
+    int64_t gold = 0;
+    for (const auto& cEntry : m_actorBridge.GetActorInventory(aActorFormId).Entries)
+        if (cEntry.BaseId == Payloads::PartyGold::kGold)
+            gold += cEntry.Count;
+    return static_cast<uint32_t>(std::max<int64_t>(gold, 0));
+}
+
+void InventoryService::SetGold(uint32_t aActorFormId, uint32_t aGold) const noexcept
+{
+    if (!m_actorBridge.ActorExists(aActorFormId))
+        return;
+    Inventory::Entry change;
+    change.BaseId = Payloads::PartyGold::kGold;
+    change.Count = static_cast<int32_t>(static_cast<int64_t>(aGold) - GoldOf(aActorFormId));
+    if (change.Count == 0)
+        return;
+    ScopedInventoryOverride _;
+    m_formBridge.ObjectAddOrRemoveItem(aActorFormId, change);
+}
+
+void InventoryService::OnSpawnItemsApplied(entt::registry& aRegistry, entt::entity aEntity) noexcept
+{
+    if (!m_partyGold || !aRegistry.all_of<FormIdComponent>(aEntity))
+        return;
+    if (const uint32_t cFormId = aRegistry.get<FormIdComponent>(aEntity).Id; m_actorBridge.IsOtherPlayer(cFormId))
+        SetGold(cFormId, *m_partyGold);
 }
 
 void InventoryService::OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept

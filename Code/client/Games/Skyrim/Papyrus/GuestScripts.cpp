@@ -93,6 +93,15 @@ using TSetOwnerForm = void(void*, TESForm*);
 TSetOwnerForm* RealSetOwnerForm = nullptr;
 void HookSetOwnerForm(void* apThis, TESForm* apOwner);
 
+// Relationships: BGSRelationship between two NPC bases, set (24075, Actor.SetRelationshipRank 54759) and read
+// (BGSRelationship::GetRelationship 24084). A guest's character's base is a temporary form.
+using TSetRelationship = void*(TESForm*, TESForm*, int32_t);
+TSetRelationship* RealSetRelationship = nullptr;
+void* HookSetRelationship(TESForm* apFirst, TESForm* apSecond, int32_t aRank);
+using TGetRelationship = void*(TESForm*, TESForm*);
+TGetRelationship* RealGetRelationship = nullptr;
+void* HookGetRelationship(TESForm* apFirst, TESForm* apSecond);
+
 Hooks::Initializer s_hooks([]() {
     const HookGate cGate(__FILE__);
     HOOK_ID(105220, &RealCompare, HookCompare);
@@ -104,6 +113,8 @@ Hooks::Initializer s_hooks([]() {
     HOOK_ID(53954, &RealFunctorQueued, HookFunctorQueued);
     HOOK_ID(55744, &RealCastRun, HookCastRun);
     HOOK_ID(11609, &RealSetOwnerForm, HookSetOwnerForm);
+    HOOK_ID(24075, &RealSetRelationship, HookSetRelationship);
+    HOOK_ID(24084, &RealGetRelationship, HookGetRelationship);
     // Hooks install later: this is still the engine's own address.
     s_castRun = reinterpret_cast<void*>(RealCastRun);
 });
@@ -221,6 +232,7 @@ Tags s_tags;
 thread_local uint32_t t_nativeGuest = 0;
 thread_local bool t_nativeStory = false;
 thread_local uint32_t t_nativeDepth = 0; // natives running on this thread
+thread_local uint64_t t_nativeScript = 0; // the script object whose function called the running native
 
 Cause CauseOf(const BSScript::Stack* apStack) noexcept
 {
@@ -295,7 +307,7 @@ bool HookStackCreated(void* apThis, BSScript::Stack* apStack, void** appCall)
 
 // While a native runs for a guest, what it queues runs for them too; a timer it sets fires for them. The player in its
 // frame is the guest's character, and one on the player runs on the guest's game instead (PlayerNatives). A cutscene's
-// call runs here and on every other game (PartyNatives), on any game. A quest's stage set in a stack run for a player
+// call, or a change to a player's progression, runs here and on every other game (PartyNatives), on any game. A quest's stage set in a stack run for a player
 // is the story: its fragment, and what that queues, run for that player as the story.
 BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Stack** appStack, void* apLogger, BSScript::IVirtualMachine* apVm, bool aArg4)
 {
@@ -314,19 +326,29 @@ BSScript::CallResult HookNativeCalled(BSScript::IFunction* apThis, BSScript::Sta
     Actor* pGuest = guest ? GuestCharacter(guest) : nullptr;
     const PlayerInFrame cPlayer(apThis, pGuest ? pStack->pTop : nullptr, pGuest, apVm);
     const PartyNatives::Scope cParty(apThis, pStack, guest, cause.Story);
+    if (cParty.SkipsOriginal())
+    {
+        pStack->returnValue.Clear();
+        return BSScript::CallResult::kCompleted;
+    }
     if (pGuest && !cParty.IsParty())
         if (const auto cResult = PlayerNatives::SendToGuest(apThis, *pStack, apVm, guest))
             return *cResult;
     const uint32_t cOuter = t_nativeGuest;
     const bool cOuterStory = t_nativeStory;
+    const uint64_t cOuterScript = t_nativeScript;
     const Cause cWithin = Within(cause, NativeReach::CallOf(apThis) == NativeReach::Call::kWorld);
     t_nativeGuest = cWithin.Player;
     t_nativeStory = cWithin.Story;
+    const BSScript::StackFrame* cpCaller = pStack && pStack->pTop ? pStack->pTop->pPrevious : nullptr;
+    auto* pCallerScript = cpCaller ? cpCaller->self.GetObject() : nullptr;
+    t_nativeScript = pCallerScript ? pCallerScript->GetHandle() : 0;
     ++t_nativeDepth;
     const auto cResult = RealNativeCalled(apThis, appStack, apLogger, apVm, aArg4);
     --t_nativeDepth;
     t_nativeGuest = cOuter;
     t_nativeStory = cOuterStory;
+    t_nativeScript = cOuterScript;
     return cResult;
 }
 
@@ -367,6 +389,30 @@ void HookSetOwnerForm(void* apThis, TESForm* apOwner)
     RealSetOwnerForm(apThis, apOwner);
 }
 
+// A guest's character's base, as an NPC's relationship's other side, is the player's (0x7): the party's
+// (docs/design/dragonborn.md, marriage). Only temporary bases are looked at: these run in NPC AI.
+TESForm* PartyBase(TESForm* apBase) noexcept
+{
+    constexpr uint32_t cPlayerBaseFormId = 0x7;
+    if (!apBase || !apBase->IsTemporary() || !IsHosting())
+        return apBase;
+    const auto cIsGuestBase = [apBase](const std::atomic<uint32_t>& acSlot) {
+        const Actor* pGuest = GuestCharacter(acSlot.load(std::memory_order_relaxed));
+        return pGuest && pGuest->baseForm == apBase;
+    };
+    return std::ranges::any_of(s_guests, cIsGuestBase) ? TESForm::GetById(cPlayerBaseFormId) : apBase;
+}
+
+void* HookSetRelationship(TESForm* apFirst, TESForm* apSecond, int32_t aRank)
+{
+    return RealSetRelationship(PartyBase(apFirst), PartyBase(apSecond), aRank);
+}
+
+void* HookGetRelationship(TESForm* apFirst, TESForm* apSecond)
+{
+    return RealGetRelationship(PartyBase(apFirst), PartyBase(apSecond));
+}
+
 void* HookStackEnded(BSScript::Stack* apThis)
 {
     if (s_tags.Any())
@@ -384,6 +430,16 @@ uint32_t NativeGuest() noexcept
 bool InNative() noexcept
 {
     return t_nativeDepth != 0;
+}
+
+uint64_t NativeScript() noexcept
+{
+    return t_nativeScript;
+}
+
+bool IsGuestCharacter(uint32_t aFormId) noexcept
+{
+    return IsHosting() && GuestCharacter(aFormId) != nullptr;
 }
 
 ScopedCause::ScopedCause(uint32_t aPlayer) noexcept

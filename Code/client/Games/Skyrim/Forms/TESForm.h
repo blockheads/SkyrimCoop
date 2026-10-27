@@ -24,6 +24,8 @@ enum class FormType : uint8_t
     WorldSpace = 71,
     Quest = 77,
     QuestItem = Quest,
+    WordOfPower = 118, // CommonLibSSE-NG FormType::WordOfPower (WOOP)
+    Shout = 119,
     Count = 0x87
 };
 
@@ -46,6 +48,7 @@ struct TESForm : BaseFormComponent
         DELETED = 1 << 0x5,
         PERSISTENT = 1 << 0xA, // TESForm::IsPersistent (19593): a reference the engine keeps when its cell unloads
         DISABLED = 1 << 0xB,
+        UNLOCKED = 1 << 0x10, // a word of power's (14640; Game.IsWordUnlocked 55502 reads it)
         IGNORE_FRIENDLY_HITS = 1 << 0x14,
     };
 

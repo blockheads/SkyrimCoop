@@ -11,7 +11,9 @@ ScriptValue ToScriptValue(const LocalValue& acValue) noexcept
 {
     const auto cToSession = [](const LocalForm& acForm) {
         ScriptForm form;
-        if (const auto cSessionId = GetSessionIdByFormId(acForm.FormId))
+        if (acForm.EachPlayer)
+            form.Form = GameId(0, 0x14);
+        else if (const auto cSessionId = GetSessionIdByFormId(acForm.FormId))
             form.SessionId = *cSessionId;
         else
             form.Form = ToSession(acForm.FormId).value_or(GameId{});

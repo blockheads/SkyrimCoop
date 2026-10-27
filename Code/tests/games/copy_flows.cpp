@@ -6,6 +6,7 @@
 #include <Components.h>
 #include <Events/DialogueEvent.h>
 #include <Events/PlayerLooksChangeEvent.h>
+#include <Messages/PlayerLevelRequest.h>
 
 #include <ranges>
 
@@ -189,7 +190,7 @@ SCENARIO("A guest's player gets a copy on the host's game", "[copies]")
     }
 }
 
-SCENARIO("A player's looks change: its copies are made again from them", "[copies]")
+SCENARIO("A player's looks change on the existing copies", "[copies][copy-looks]")
 {
     Party party(1, PaintedPlayers);
     FakeEngine& host = Party::Engine(party.Host());
@@ -197,15 +198,19 @@ SCENARIO("A player's looks change: its copies are made again from them", "[copie
     party.Until([&] { return WearsLooks(party.Host(), guest) && WearsLooks(party.Guest(), host); },
                 "each game's copy of the other's player wears its looks");
     party.Agree("each game has the other's player");
+    const uint32_t cHostCopy = PlayerCopy(host);
+    const uint32_t cGuestCopy = PlayerCopy(guest);
 
     WHEN("the guest's player catches vampirism: its race switches, its skin with it")
     {
+        host.SetAnimationGraphDescriptorHash(cHostCopy, 0x1234);
         party.As(party.Guest(), [&] {
             guest.Player.FaceTints = PaintedTints(0x101010);
             guest.PlayerSwitchesRace(kNordVampireRace);
         });
-        party.Until([&] { return WearsLooks(party.Host(), guest); }, "the host's copy is made again as a vampire, in its new skin");
+        party.Until([&] { return WearsLooks(party.Host(), guest); }, "the host's existing copy wears the vampire skin");
         party.Agree("the games agree on the guest's player");
+        CHECK(host.GetAnimationGraphDescriptorHash(cHostCopy) == 0);
     }
 
     WHEN("the guest's player tries races in the race menu, then a new build and war paint, and closes it")
@@ -222,19 +227,44 @@ SCENARIO("A player's looks change: its copies are made again from them", "[copie
         });
         party.Until([&] { return WearsLooks(party.Host(), guest); }, "the host's copy wears what the menu made");
         party.Agree("the games agree on the guest's player");
-        THEN("the copy is made again once, when the menu closes, not for each race tried")
+        THEN("the existing copy changes once, when the menu closes")
         {
             CHECK(cChanges.Count == 1);
-            CHECK(CopiesMade(host) == cMade + 1);
+            CHECK(CopiesMade(host) == cMade);
         }
+    }
+
+    WHEN("a same-race barber change waits for a save to finish, then removes the old tints")
+    {
+        host.BlockAppearance = true;
+        const std::string cBefore = host.Npcs.at(host.GetActorBaseFormId(cHostCopy)).Looks;
+        party.As(party.Guest(), [&] {
+            guest.PlayerUsesRaceMenu([&] {
+                guest.Player.Base = "barber's new face";
+                guest.Player.FaceTints = {};
+                guest.Player.Weight = 25.f;
+            });
+        });
+        party.Until([&] { return host.AppearanceAttempts > 0; }, "the look update waits for the save");
+        CHECK(host.Npcs.at(host.GetActorBaseFormId(cHostCopy)).Looks == cBefore);
+        host.BlockAppearance = false;
+        party.Until([&] { return host.Npcs.at(host.GetActorBaseFormId(cHostCopy)).Looks == guest.Player.Base; },
+                    "the existing copy takes the barber's looks after the save");
+        CHECK(host.Npcs.at(host.GetActorBaseFormId(cHostCopy)).Weight == 25.f);
+        for (auto&& [cEntity, form] : party.Host().view<FormIdComponent>().each())
+            if (form.Id == cHostCopy)
+                CHECK_FALSE(party.Host().all_of<FaceGenComponent>(cEntity));
     }
 
     WHEN("the host's player switches race")
     {
         party.As(party.Host(), [&] { host.PlayerSwitchesRace(kKhajiitRace); });
-        party.Until([&] { return WearsLooks(party.Guest(), host); }, "the guest's copy of the host's player is made again as a Khajiit");
+        party.Until([&] { return WearsLooks(party.Guest(), host); }, "the guest's existing copy wears the Khajiit looks");
         party.Agree("the games agree on the host's player");
     }
+    CHECK(PlayerCopy(host) == cHostCopy);
+    CHECK(PlayerCopy(guest) == cGuestCopy);
+
 }
 
 SCENARIO("The host's NPC goes away: its copy does what it does", "[copies]")
@@ -370,4 +400,28 @@ SCENARIO("A guest joins outdoors four cells from the host, out of its grid: it i
     party.Until([&] { return cFromHost() < 64.f; }, "the guest is brought to the host's player",
                 [&] { return std::format("the guest's player {} units from the host's", cFromHost()); });
     party.Agree("the games agree on the players");
+}
+
+SCENARIO("A player's level follows its owner on the existing copy", "[copies][copy-level]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    party.Until([&] { return PlayerCopy(host) && PlayerCopy(guest); }, "both games have the other player's copy");
+    for (auto* pOwner : {&party.Guest(), &party.Host()})
+    {
+        auto& shown = pOwner == &party.Guest() ? host : guest;
+        const uint32_t cCopy = PlayerCopy(shown);
+        for (uint16_t level : {13, 2})
+        {
+            party.As(*pOwner, [&] {
+                PlayerLevelRequest request;
+                request.NewLevel = level;
+                REQUIRE(pOwner->GetTransport().Send(request));
+            });
+            party.Until([&] { return shown.Npcs.at(shown.GetActorBaseFormId(cCopy)).Level == level; },
+                        "the existing copy's base follows level " + std::to_string(level));
+            CHECK(PlayerCopy(shown) == cCopy);
+        }
+    }
 }

@@ -49,6 +49,8 @@ struct HostCharacters
     [[nodiscard]] uint32_t ReservePlayerCharacter(ConnectionId_t aPlayer) noexcept;
     // The player's own character (its session id), or none.
     [[nodiscard]] uint32_t PlayerCharacterOf(ConnectionId_t aPlayer) const noexcept;
+    // One of the players' characters.
+    [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
     // Where a player's character stands now: its cell (outdoors its worldspace too), position and heading, from its
     // game's announcement, arrivals and movement (the host's own from its engine). None for any other character.
     [[nodiscard]] std::optional<NotifyPartyTravel> CharacterPlace(uint32_t aSessionId) const noexcept;
@@ -61,11 +63,10 @@ private:
     // A player's own character, or (the host only) one of the host's actors, under the id the host gave it:
     // everyone else gets a spawn.
     void OnAnnounceCharacter(const AnnounceCharacterRequest& acRequest, ConnectionId_t aSender) noexcept;
-    [[nodiscard]] bool IsPlayerCharacter(uint32_t aSessionId) const noexcept;
     // The owner stopped simulating the actor; its copies go where it went.
     void OnRemoveCharacter(const RequestRemoveCharacter& acRequest, ConnectionId_t aSender) noexcept;
-    // The owner respawns its actor everywhere (a new appearance after a beast form); anyone else
-    // lost its copy and asks for a fresh spawn.
+    // The owner's looks update its existing copies; a revival remakes them. Anyone else lost its copy and asks
+    // for a fresh spawn.
     void OnRespawn(const RequestRespawn& acRequest, ConnectionId_t aSender) noexcept;
     // A player's character got on a mount: the rider's game simulates it from here on (its movement is the rider's
     // input), so it becomes that game's; every game hears of it, the rider's to take it.

@@ -871,6 +871,30 @@ TEST_CASE("Packets", "[encoding.packets]")
         }
     }
 
+    SECTION("NotifyRespawn distinguishes a replacement from an in-place look change")
+    {
+        for (const bool cLooks : {false, true})
+        {
+            Buffer buff(1000);
+            NotifyRespawn sent, received;
+            sent.ActorId = 7;
+            if (cLooks)
+            {
+                sent.AppearanceBuffer = std::string("face\0race", 9);
+                sent.ChangeFlags = 0x3000800;
+                sent.FaceTints.Entries.push_back({"WarPaint", 0.75f, 0xABCDEF, 7});
+                sent.Weight = 0.f;
+            }
+            Buffer::Writer writer(&buff);
+            sent.Serialize(writer);
+            Buffer::Reader reader(&buff);
+            uint64_t opcode;
+            reader.ReadBits(opcode, 8);
+            received.DeserializeRaw(reader);
+            REQUIRE(sent == received);
+        }
+    }
+
     SECTION("AnnounceCharacterRequest")
     {
         Buffer buff(1000);
@@ -1158,7 +1182,9 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         record.PerkPoints = 2;
         record.Perks = {{GameId(0, 0xBABE4), 1}, {GameId(0, 0x79342), 3}};
         record.Spells = {GameId(0, 0x12FCD), GameId(0, 0x12FD0)};
-        record.Values = {{24, 250.f}, {25, 110.f}, {26, 180.f}};
+        record.Values = {{24, 250.f}, {25, 110.f}, {26, 180.f}, {133, 3.f}};
+        record.PermanentValues = {{24, 275.f}, {25, 110.f}, {26, 180.f}, {32, 325.f}};
+        record.Words = {GameId(0, 0x13E22), GameId(0, 0x13E23)}; // WordFus, WordRo
         record.Extras["racemenu"] = std::string(70000, 'm'); // past a string's 64 KB
         Inventory::Entry sword;
         sword.BaseId = GameId(0, 0x12EB7);
@@ -1172,6 +1198,37 @@ TEST_CASE("Joining from the main menu", "[encoding.join]")
         record.WorldSpace = GameId(0, 0x3C);
         record.Position = {1024.5f, -2048.25f, 64.f};
         roundTrip(request, RequestMessageFactory{});
+    }
+
+    SECTION("A record an older build saved has no words, and reads whole")
+    {
+        PlayerRecord record;
+        record.Name = "Lydia";
+        record.Position = {1.f, 2.f, 3.f};
+        Wire::Buffer buffer;
+        Wire::Buffer::Writer writer(&buffer);
+        record.Serialize(writer);
+        // An older build wrote nothing past the place: omit the two trailing empty lists.
+        const size_t cOlder = writer.Size() - 2;
+        PlayerRecord read;
+        read.Words = {GameId(0, 1)};
+        Wire::Buffer::Reader reader(std::span(buffer.GetData(), cOlder));
+        read.Deserialize(reader);
+        CHECK(read == record);
+    }
+
+    SECTION("A Dragonborn record with words predates permanent stat totals")
+    {
+        PlayerRecord record;
+        record.Words = {GameId(0, 0x13E22)};
+        Wire::Buffer buffer;
+        Wire::Buffer::Writer writer(&buffer);
+        record.Serialize(writer);
+        PlayerRecord read;
+        read.PermanentValues = {{24, 999.f}};
+        Wire::Buffer::Reader reader(std::span(buffer.GetData(), writer.Size() - 1));
+        read.Deserialize(reader);
+        CHECK(read == record);
     }
 
     SECTION("A save chunk carries its place and bytes")
@@ -1449,6 +1506,20 @@ TEST_CASE("Dropped items keep their extra data on the wire", "[encoding.items]")
         else
             CHECK(static_cast<const NotifyPickUp&>(*decoded) == picked);
     }
+}
+
+TEST_CASE("The party's gold goes to every game", "[encoding.items]")
+{
+    NotifyPartyGold sent;
+    sent.Gold = 123456;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    sent.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    auto decoded = NotifyMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    REQUIRE(decoded->GetOpcode() == kNotifyPartyGold);
+    CHECK(static_cast<const NotifyPartyGold&>(*decoded) == sent);
 }
 
 TEST_CASE("A player-made enchantment is the same item in every game", "[encoding.items]")

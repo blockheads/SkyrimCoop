@@ -242,6 +242,14 @@ struct TESQuestStartStopEvent
 };
 static_assert(offsetof(TESQuestStartStopEvent, started) == 0x4);
 
+// CommonLibSSE-NG QuestStatus::Event (QuestStatus::GetEventSource, 25196).
+struct QuestStatusEvent
+{
+    struct TESQuest* quest;
+    uint32_t status; // 0 completed, 1 started, 2 reset
+};
+static_assert(offsetof(QuestStatusEvent, status) == 0x8);
+
 struct TESQuestStageItemDoneEvent
 {
     uint32_t formId;

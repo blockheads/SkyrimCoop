@@ -27,7 +27,7 @@ struct JoinStatus
 
     State Current = State::kIdle;
     // When refused or ended, a stable code: wrong_build, wrong_game, full, mods_differ, unreachable, lost_connection,
-    // transfer_failed, kicked.
+    // transfer_failed, placement_failed, kicked.
     std::string Reason;
     // When refused, one sentence the player can act on, and a line per difference.
     std::string Message;

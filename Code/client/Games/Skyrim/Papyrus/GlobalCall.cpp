@@ -11,11 +11,37 @@ namespace GlobalCall
 {
 namespace
 {
-// The call's arguments, filled by the VM within the dispatch (IFunctionArguments, CommonLibSSE-NG).
+bool IsObjectType(uintptr_t aType) noexcept
+{
+    return aType >= BSScript::Variable::kMax && !(aType & 1);
+}
+
+// The function's parameters' types; none for a function the class does not declare.
+std::vector<uintptr_t> ParameterTypes(BSScript::IVirtualMachine* apVm, std::string_view aClass, std::string_view aFunction) noexcept
+{
+    BSScript::ObjectTypeInfo* pType = nullptr;
+    std::vector<uintptr_t> types;
+    if (!apVm->GetScriptObjectType1(BSFixedString(std::string(aClass).c_str()), &pType) || !pType)
+        return types;
+    if (BSScript::IFunction* pFunction = pType->GetFunction(std::string(aFunction).c_str()))
+        for (uint32_t i = 0; i < pFunction->GetParamCount(); ++i)
+        {
+            BSFixedString name;
+            BSScript::Variable::Type type{};
+            pFunction->GetParam(i, name, type);
+            types.push_back(type);
+        }
+    _InterlockedDecrement(reinterpret_cast<volatile long*>(pType)); // the lookup's; the VM keeps its types
+    return types;
+}
+
+// The call's arguments, filled by the VM within the dispatch (IFunctionArguments, CommonLibSSE-NG). An object goes as
+// its parameter's type: the VM takes no other (an Actor for an ObjectReference fails, 141461D00).
 struct Arguments final : BSScript::IFunctionArguments
 {
-    explicit Arguments(std::span<const LocalValue> aValues) noexcept
+    Arguments(std::span<const LocalValue> aValues, std::vector<uintptr_t> aTypes) noexcept
         : m_values(aValues)
+        , m_types(std::move(aTypes))
     {
     }
 
@@ -24,12 +50,20 @@ struct Arguments final : BSScript::IFunctionArguments
         if (!apArguments->SetSize(static_cast<uint32_t>(m_values.size())))
             return false;
         for (size_t i = 0; i < m_values.size(); ++i)
-            Write(apArguments->vars[i], m_values[i]);
+        {
+            BSScript::Variable& variable = apArguments->vars[i];
+            Write(variable, m_values[i]);
+            const uintptr_t cParameter = i < m_types.size() ? m_types[i] : 0;
+            if (IsObjectType(variable.type) && IsObjectType(cParameter) &&
+                reinterpret_cast<const BSScript::ObjectTypeInfo*>(variable.type)->IsA(reinterpret_cast<const BSScript::ObjectTypeInfo*>(cParameter)))
+                variable.type = static_cast<BSScript::Variable::Type>(cParameter);
+        }
         return true;
     }
 
 private:
     std::span<const LocalValue> m_values;
+    std::vector<uintptr_t> m_types;
 };
 
 // The call's result, told on a script thread (IStackCallbackFunctor), held by the VM's smart pointer until then.
@@ -52,7 +86,7 @@ bool Dispatch(uint64_t aSelf, std::string_view aClass, std::string_view aFunctio
     auto* pVm = GameVM::Get() ? GameVM::Get()->virtualMachine : nullptr;
     if (!pVm)
         return false;
-    Arguments arguments(aArguments);
+    Arguments arguments(aArguments, ParameterTypes(pVm, aClass, aFunction));
     // BSTSmartPointer: refCount at 08; ours released once the VM holds its own.
     ReturnFunctor* pCallback = aOnReturn ? new ReturnFunctor(std::move(aOnReturn)) : nullptr;
     if (pCallback)
@@ -83,6 +117,9 @@ bool QueueCall(const LocalCall& acCall, OnReturn aOnReturn) noexcept
     if (!pVm || !pForm)
         return false;
     const uint64_t cHandle = pVm->GetObjectHandlePolicy()->GetHandleForObject(static_cast<uint32_t>(pForm->formType), pForm);
+    // A method needs the form's script object: one with no script of its own (a plain NPC) is bound to its type's first.
+    BSScript::Variable self;
+    self.SetForm(pForm, pVm);
     return Dispatch(cHandle, acCall.Class, acCall.Function, acCall.Arguments, std::move(aOnReturn));
 }
 

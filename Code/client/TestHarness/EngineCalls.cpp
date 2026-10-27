@@ -1,4 +1,5 @@
 #include "EngineCalls.h"
+#include <Havok/Raycast.h>
 
 #include <AI/AIProcess.h>
 #include <Actor.h>
@@ -284,6 +285,49 @@ std::vector<uint32_t> VisualFormIds(uint32_t aFormId, Visuals aWhich) noexcept
 }
 } // namespace
 
+std::vector<ReferenceEffectReadout> GetReferenceEffects(uint32_t aFormId) noexcept
+{
+    auto* pRef = Cast<TESObjectREFR>(TESForm::GetById(aFormId));
+    ProcessLists* pProcessLists = ProcessLists::Get();
+    if (!pRef || !pProcessLists)
+        return {};
+    const uint32_t cHandle = pRef->GetHandle().handle.iBits;
+    const auto cFormOf = [](uint32_t aHandle) -> uint32_t {
+        const TESObjectREFR* pOther = aHandle ? TESObjectREFR::GetByHandle(aHandle) : nullptr;
+        return pOther ? pOther->formID : 0;
+    };
+    std::vector<ReferenceEffectReadout> result;
+    BSScopedLock<BSRecursiveLock> _(pProcessLists->magicEffectsLock);
+    for (uint32_t i = 0; pProcessLists->magicEffects.data && i < pProcessLists->magicEffects.length; ++i)
+    {
+        const auto* pEffect = Cast<ReferenceEffect>(pProcessLists->magicEffects[i]);
+        if (!pEffect || (pEffect->hTarget != cHandle && pEffect->hAimTarget != cHandle))
+            continue;
+        ReferenceEffectReadout readout{.Target = cFormOf(pEffect->hTarget), .AimTarget = cFormOf(pEffect->hAimTarget),
+                                       .Finished = pEffect->bFinished,
+                                       .AtCamera = pEffect->pController && pEffect->pController->EffectAttachesToCamera()};
+        if (const auto* pShader = Cast<ShaderReferenceEffect>(pProcessLists->magicEffects[i]))
+        {
+            readout.Shader = true;
+            readout.Form = pShader->pEffectShader ? pShader->pEffectShader->formID : 0;
+        }
+        else if (const auto* pModel = Cast<ModelReferenceEffect>(pProcessLists->magicEffects[i]))
+        {
+            readout.Form = pModel->pArtObject ? pModel->pArtObject->formID : 0;
+            readout.Attached = pModel->uiFlags & 1;
+            if (const NiAVObject* p3D = pModel->pArtObject3D)
+            {
+                readout.Loaded = true;
+                readout.InScene = p3D->parent != nullptr;
+                readout.Hidden = p3D->flags & 1;
+                readout.Position = p3D->world.translate;
+            }
+        }
+        result.push_back(readout);
+    }
+    return result;
+}
+
 std::vector<uint32_t> GetPlayingVisualFormIds(uint32_t aFormId) noexcept
 {
     return VisualFormIds(aFormId, Visuals::OnBody);
@@ -297,15 +341,6 @@ std::vector<uint32_t> GetCameraVisualFormIds(uint32_t aFormId) noexcept
 std::vector<uint32_t> GetShownVisualFormIds(uint32_t aFormId) noexcept
 {
     return VisualFormIds(aFormId, Visuals::Shown);
-}
-
-std::pair<int32_t, float> GetCombatSkillExperience() noexcept
-{
-    PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    const int32_t cSkill = PlayerCharacter::LastUsedCombatSkill;
-    if (!pPlayer || cSkill == -1)
-        return {-1, 0.f};
-    return {cSkill, pPlayer->GetSkillExperience(Skills::GetSkillFromActorValue(cSkill))};
 }
 
 bool PlayerCanRide(uint32_t aMountFormId) noexcept
@@ -792,14 +827,9 @@ std::optional<std::vector<GlobalNative>> GetGlobalNatives(const char* acpClass) 
     BSScript::ObjectTypeInfo* pType = nullptr;
     if (!pVm || !pVm->GetScriptObjectType1(BSFixedString(acpClass), &pType) || !pType)
         return std::nullopt;
-    // The type's tables in data, in order (CommonLibSSE-NG ObjectTypeInfo): user flags (8 bytes each), variables
-    // (0x10), initial values (0x18), properties (0x48), then the global functions (a BSTSmartPointer<IFunction> each).
-    const size_t cOffset = pType->userFlagCount * 0x8 + pType->variableCount * 0x10 + pType->initialValueCount * 0x18 +
-                           pType->propertyCount * 0x48;
-    auto* const* ppFunctions = reinterpret_cast<BSScript::IFunction* const*>(static_cast<const uint8_t*>(pType->data) + cOffset);
     std::vector<GlobalNative> natives;
-    for (uint32_t i = 0; i < pType->staticFunctionCount; ++i)
-        if (BSScript::IFunction* pFunction = ppFunctions[i]; pFunction && pFunction->GetIsNative())
+    for (BSScript::IFunction* pFunction : pType->GetGlobalFunctions())
+        if (pFunction && pFunction->GetIsNative())
             natives.push_back({pFunction->GetName().AsAscii(), NativeReach::ReachesThisPlayer(pFunction)});
     _InterlockedDecrement(reinterpret_cast<volatile long*>(pType)); // the lookup's reference (refCount at 00)
     return natives;
@@ -1195,6 +1225,20 @@ std::optional<int32_t> GetFactionRank(uint32_t aFormId, uint32_t aFactionId) noe
     return static_cast<int32_t>(result);
 }
 
+std::optional<int32_t> GetRelationshipRank(uint32_t aActor, uint32_t aOther) noexcept
+{
+    // GameFunc::native::GetRelationshipRank (subject, the other actor, unused, the result).
+    using TCondition = bool(TESObjectREFR*, TESForm*, void*, double*);
+    POINTER_SKYRIMSE(TCondition, s_getRelationshipRank, 21679);
+    auto* pActor = Cast<Actor>(TESForm::GetById(aActor));
+    auto* pOther = Cast<Actor>(TESForm::GetById(aOther));
+    if (!pActor || !pOther)
+        return std::nullopt;
+    double result = 0.0;
+    s_getRelationshipRank(pActor, pOther, nullptr, &result);
+    return static_cast<int32_t>(result);
+}
+
 Water GetWater(uint32_t aFormId) noexcept
 {
     const Actor* pActor = GetActor(aFormId);
@@ -1529,6 +1573,22 @@ bool SetPlayerKnows(uint32_t aFormId, bool aKnows) noexcept
     TESForm* pForm = TESForm::GetById(aFormId);
     if (pForm)
         s_setPlayerKnows(pForm, aKnows);
+    return pForm != nullptr;
+}
+
+std::optional<bool> GetUnlocked(uint32_t aFormId) noexcept
+{
+    const TESForm* pForm = TESForm::GetById(aFormId);
+    return pForm ? std::optional((pForm->flags & TESForm::UNLOCKED) != 0) : std::nullopt;
+}
+
+bool SetUnlocked(uint32_t aFormId, bool aUnlocked) noexcept
+{
+    using TSetUnlocked = bool(TESForm*, bool);
+    POINTER_SKYRIMSE(TSetUnlocked, s_setUnlocked, 14640);
+    TESForm* pForm = TESForm::GetById(aFormId);
+    if (pForm)
+        s_setUnlocked(pForm, aUnlocked);
     return pForm != nullptr;
 }
 
@@ -1916,7 +1976,7 @@ std::optional<BaseLooks> GetBaseLooks(uint32_t aFormId) noexcept
     const auto* pNpc = pActor && pActor->baseForm ? Cast<TESNPC>(pActor->baseForm) : nullptr;
     if (!pNpc)
         return std::nullopt;
-    return BaseLooks{.Female = (pNpc->actorData.flags & TESActorBaseData::IS_FEMALE) != 0, .Weight = pNpc->weight};
+    return BaseLooks{.Female = (pNpc->actorData.flags & TESActorBaseData::IS_FEMALE) != 0, .Weight = pNpc->weight, .Level = pNpc->actorData.level};
 }
 
 std::optional<InputState> GetInputState() noexcept
@@ -1980,128 +2040,10 @@ bool PlacePlayerAt(const float acPosition[3], uint32_t aTargetFormId) noexcept
     return !aTargetFormId || FacePlayerToward(aTargetFormId);
 }
 
-namespace
-{
-// bhkPickData (CommonLibSSE-NG; 1.6.1170: bhkWorld::PickObject 77860 resets the output, casts from `from` to `to`
-// when `ray` is zero, with no collector the closest hit into the output, under the world's read lock).
-struct alignas(16) RawPickData
-{
-    float From[4];        // 00 hkpWorldRayCastInput, Havok units
-    float To[4];          // 10
-    bool EnableShapeCollectionFilter; // 20
-    uint8_t Pad21[3];
-    uint32_t FilterInfo;  // 24: the ray's collision layer in the low 7 bits
-    uint8_t Pad28[8];
-    float Normal[4];      // 30 hkpWorldRayCastOutput
-    float HitFraction;    // 40
-    int32_t ExtraInfo;    // 44
-    uint32_t ShapeKey;    // 48
-    uint32_t Pad4C;
-    uint32_t ShapeKeys[8]; // 50
-    int32_t ShapeKeyIndex; // 70
-    uint8_t Pad74[0x80 - 0x74];
-    const uint8_t* RootCollidable; // 80: the hit's hkpCollidable, null for none
-    uint64_t Pad88;
-    float Ray[4];         // 90
-    void* AabbCache;      // A0
-    void* ClosestCollector; // A8
-    void* AllCollector;   // B0
-    void* AllTempCollector; // B8
-    bool PickFailed;      // C0
-    uint8_t PadC1[0xD0 - 0xC1];
-};
-static_assert(offsetof(RawPickData, FilterInfo) == 0x24 && offsetof(RawPickData, Normal) == 0x30 &&
-              offsetof(RawPickData, HitFraction) == 0x40 && offsetof(RawPickData, RootCollidable) == 0x80 &&
-              offsetof(RawPickData, Ray) == 0x90 && offsetof(RawPickData, PickFailed) == 0xC0 && sizeof(RawPickData) == 0xD0);
-// hkpCollidable's broad phase handle: its collision filter info (the layer in the low 7 bits).
-constexpr size_t cCollidableFilterInfo = 0x2C;
-} // namespace
-
-namespace
-{
-std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept;
-} // namespace
-
 std::optional<RayHit> CastRay(const float acFrom[3], const float acTo[3], uint32_t aLayer, uint32_t aThrough) noexcept
 {
-    // Past the camera's own collision (kCameraSphere 36, kCameraPick 39) and the player's: they are not the world.
-    const glm::vec3 cStart(acFrom[0], acFrom[1], acFrom[2]);
-    const glm::vec3 cEnd(acTo[0], acTo[1], acTo[2]);
-    const glm::vec3 cDirection = glm::length(cEnd - cStart) > 0.f ? glm::normalize(cEnd - cStart) : glm::vec3(0.f);
-    glm::vec3 from = cStart;
-    for (int skip = 0; skip < 8; ++skip)
-    {
-        const float cFrom[3]{from.x, from.y, from.z};
-        auto hit = CastRayOnce(cFrom, acTo, aLayer);
-        if (!hit || !hit->Hit)
-        {
-            if (hit)
-                hit->Distance = glm::distance(cStart, cEnd);
-            return hit;
-        }
-        if (hit->Layer != 36 && hit->Layer != 39 && hit->Reference != 0x14 && (!aThrough || hit->Reference != aThrough))
-        {
-            hit->Distance = glm::distance(cStart, glm::vec3(hit->Point[0], hit->Point[1], hit->Point[2]));
-            return hit;
-        }
-        from = glm::vec3(hit->Point[0], hit->Point[1], hit->Point[2]) + cDirection;
-        if (glm::dot(cEnd - from, cDirection) <= 0.f)
-            return RayHit{.Distance = glm::distance(cStart, cEnd)};
-    }
-    return RayHit{.Distance = glm::distance(cStart, cEnd)};
+    return GameRaycast::CastRay(acFrom, acTo, aLayer, aThrough);
 }
-
-namespace
-{
-std::optional<RayHit> CastRayOnce(const float acFrom[3], const float acTo[3], uint32_t aLayer) noexcept
-{
-    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
-    if (!pPlayer || !pPlayer->parentCell)
-        return std::nullopt;
-    using TGetWorld = void*(TESObjectCELL*);
-    POINTER_SKYRIMSE(TGetWorld, s_getWorld, 18995); // TESObjectCELL::GetbhkWorld
-    void* pWorld = s_getWorld(pPlayer->parentCell);
-    if (!pWorld)
-        return std::nullopt;
-
-    RawPickData pick{};
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        pick.From[axis] = acFrom[axis] * 0.0142875f;
-        pick.To[axis] = acTo[axis] * 0.0142875f;
-    }
-    pick.FilterInfo = aLayer & 0x7F;
-    pick.HitFraction = 1.f;
-    // bhkWorld::PickObject, vtable 0x33 (77860; bhkWorldM's for exteriors).
-    using TPick = bool(void*, RawPickData*);
-    auto** pVtable = *reinterpret_cast<TPick***>(pWorld);
-    const bool cHit = pVtable[0x33](pWorld, &pick);
-    if (pick.PickFailed)
-        return std::nullopt;
-
-    RayHit hit;
-    const glm::vec3 cFrom(acFrom[0], acFrom[1], acFrom[2]);
-    const glm::vec3 cTo(acTo[0], acTo[1], acTo[2]);
-    hit.Hit = cHit && pick.RootCollidable && pick.HitFraction < 1.f;
-    const float cFraction = hit.Hit ? pick.HitFraction : 1.f;
-    const glm::vec3 cPoint = cFrom + (cTo - cFrom) * cFraction;
-    hit.Distance = glm::distance(cFrom, cPoint);
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        hit.Point[axis] = cPoint[axis];
-        hit.Normal[axis] = pick.Normal[axis];
-    }
-    if (hit.Hit)
-    {
-        using TFindRef = TESObjectREFR*(const uint8_t*);
-        POINTER_SKYRIMSE(TFindRef, s_findCollidableRef, 26003); // TESHavokUtilities::FindCollidableRef
-        if (const TESObjectREFR* pRef = s_findCollidableRef(pick.RootCollidable))
-            hit.Reference = pRef->formID;
-        hit.Layer = *reinterpret_cast<const uint32_t*>(pick.RootCollidable + cCollidableFilterInfo) & 0x7F;
-    }
-    return hit;
-}
-} // namespace
 
 Placement PlacePlayerBefore(uint32_t aTargetFormId, float aDistance, std::optional<float> aBearingDegrees) noexcept
 {

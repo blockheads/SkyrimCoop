@@ -31,6 +31,12 @@ bool OwnerReady(World& aGame, uint32_t aFormId)
     return false;
 }
 
+struct ResetLog
+{
+    bool Sent = false;
+    void Receive(const ActionEvent& acAction) { Sent |= acAction.EventName == "IdleForceDefaultState"; }
+};
+
 struct DeathLog
 {
     uint32_t Id;
@@ -149,4 +155,38 @@ SCENARIO("A copy's refused resurrection follows its owner's confirmed revival",
          "[death][write-events][resurrect-events]")
 {
     ResurrectOwner(false, true);
+}
+
+SCENARIO("A resurrected NPC copy draws and attacks on its living graph", "[death][resurrect-animation]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t guard = 0;
+    party.As(party.Host(), [&] { guard = host.LoadNpc(kGuard, kSmoke, {}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1 && OwnerReady(party.Host(), guard); },
+                "the guard and its copy are ready");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    party.As(party.Host(), [&] { host.Hit(guard, 200.f); });
+    party.Until([&] { return guest.IsActorDead(cCopy); }, "the copy dies by the owner's action");
+    REQUIRE_FALSE(guest.Actors.at(cCopy).GraphUpdating);
+    ResetLog reset;
+    entt::scoped_connection connection = party.Host().GetDispatcher().sink<ActionEvent>().connect<&ResetLog::Receive>(&reset);
+    party.As(party.Host(), [&] { host.ResurrectActor(guard); });
+    REQUIRE_FALSE(reset.Sent);
+    party.Until([&] { return !guest.IsActorDead(cCopy); }, "the copy is resurrected");
+    party.Until([&] { return guest.Actors.at(cCopy).GraphUpdating && guest.Actors.at(cCopy).GraphState != "dead"; },
+                "the resurrected copy has a living graph");
+    for (const char* cpEvent : {"WeapEquip", "attackStart"})
+    {
+        ActionEvent action;
+        action.ActorId = guard;
+        action.ActionId = 0x1338;
+        action.EventName = cpEvent;
+        action.Tick = party.Host().GetTransport().GetTick();
+        party.As(party.Host(), [&] { party.Host().GetDispatcher().trigger(action); });
+        party.Until([&] { return guest.GetActorLatestAnimation(cCopy).EventName == action.EventName; },
+                    "the revived copy replays " + action.EventName);
+    }
+    CHECK(guest.CopiesOf(kGuard) == std::vector<uint32_t>{cCopy});
 }

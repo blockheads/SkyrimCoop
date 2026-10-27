@@ -61,6 +61,8 @@ public:
     virtual void RespawnActor(uint32_t aFormId) noexcept = 0;
     // Brings a dead actor back where it is (the console's `resurrect`), without a Reset.
     virtual void ResurrectActor(uint32_t aFormId) noexcept = 0;
+    // Death stops graph updates and speech; resume them after a confirmed resurrection.
+    virtual void ResumeActorAnimation(uint32_t aFormId) noexcept = 0;
     virtual void DeleteActor(uint32_t aFormId) noexcept = 0;
 
     // --- Position / movement ---
@@ -122,6 +124,7 @@ public:
     // Its NPC base's weight (TESNPC, 0 to 100); 50 without an NPC base. The engine saves it with the actor
     // (Actor::SaveGame 37649), not in the base's sections, so it travels beside AppearanceBuffer.
     virtual float GetActorBaseWeight(uint32_t aFormId) const noexcept = 0;
+    virtual void SetActorBaseLevel(uint32_t aFormId, uint16_t aLevel) noexcept = 0;
 
     // --- Node / 3D ---
     virtual bool ActorHas3D(uint32_t aFormId) const noexcept = 0;
@@ -228,6 +231,8 @@ public:
     /// acAppearance is a raw byte buffer stored as std::string.
     virtual void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance,
                                       uint32_t aChangeFlags) noexcept = 0;
+    // On the main thread between frames: loads a copy's base and rebuilds its 3D. False while a save/load holds FormState.
+    virtual bool ApplyActorLooks(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags, float aWeight) noexcept = 0;
     /// Serialize the actor's NPC base form into a std::string buffer. Returns change flags.
     virtual uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept = 0;
     /// Mark NPC changed flags (for appearance marking).

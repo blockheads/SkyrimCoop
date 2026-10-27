@@ -1,5 +1,5 @@
 // Items across games (InventoryService): what an owner's actor gets, loses or drops, its copies carry; a player's
-// items stay its own (docs/design/party-model.md). Each ends with the actor checksum (Party::Agree), which
+// items stay its own (docs/design/party-model.md), its gold is the party's (purse_flows.cpp). Each ends with the actor checksum (Party::Agree), which
 // compares what each copy carries with its owner's actor.
 #include "Party.h"
 
@@ -12,6 +12,7 @@ constexpr uint32_t kGuard = 0x0001A67C;
 constexpr uint32_t kGold = 0x0000000F;
 constexpr uint32_t kIronSword = 0x00012EB7;
 constexpr uint32_t kApple = 0x00064B31;
+constexpr uint32_t kLockpick = 0x0000000A;
 
 void Plugins(FakeEngine& aEngine)
 {
@@ -47,16 +48,16 @@ SCENARIO("A player's items reach its copy and stay its own", "[items]")
                 "each game has the other's player");
     const auto cCopy = [&] { return PlayerCopies(host)[0]; };
 
-    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kGold, 100); });
-    party.Until([&] { return host.CountOf(cCopy(), kGold) == 100; }, "the host's copy of the guest carries its gold");
-    THEN("the host's player has none of it") CHECK(host.CountOf(FakeEngine::kPlayer, kGold) == 0);
-    party.Agree("the games agree on the gold");
+    party.As(party.Guest(), [&] { guest.GetsItem(FakeEngine::kPlayer, kLockpick, 10); });
+    party.Until([&] { return host.CountOf(cCopy(), kLockpick) == 10; }, "the host's copy of the guest carries its lockpicks");
+    THEN("the host's player has none of them") CHECK(host.CountOf(FakeEngine::kPlayer, kLockpick) == 0);
+    party.Agree("the games agree on the lockpicks");
 
-    WHEN("the guest's player spends some")
+    WHEN("the guest's player breaks some")
     {
-        party.As(party.Guest(), [&] { guest.LosesItem(FakeEngine::kPlayer, kGold, 40); });
-        party.Until([&] { return host.CountOf(cCopy(), kGold) == 60; }, "the copy carries what is left");
-        party.Agree("the games agree on the gold left");
+        party.As(party.Guest(), [&] { guest.LosesItem(FakeEngine::kPlayer, kLockpick, 4); });
+        party.Until([&] { return host.CountOf(cCopy(), kLockpick) == 6; }, "the copy carries what is left");
+        party.Agree("the games agree on the lockpicks left");
     }
 
     WHEN("the guest's player draws a sword and drops it")

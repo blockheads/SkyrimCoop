@@ -95,11 +95,17 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
         perks.push_back(std::format("{:X}:{:X}", cPerk.Id.ModId, cPerk.Id.BaseId));
     for (const auto& cSpell : acRecord.Spells)
         spells.push_back(std::format("{:X}:{:X}", cSpell.ModId, cSpell.BaseId));
+    nlohmann::json words = nlohmann::json::array();
+    for (const auto& cWord : acRecord.Words)
+        words.push_back(std::format("{:X}:{:X}", cWord.ModId, cWord.BaseId));
     for (const auto& cSkill : acRecord.Skills)
         skills.push_back(cSkill.Level);
     nlohmann::json values = nlohmann::json::object();
     for (const auto& cValue : acRecord.Values)
         values[std::to_string(cValue.Index)] = cValue.Base;
+    nlohmann::json permanent = nlohmann::json::object();
+    for (const auto& cValue : acRecord.PermanentValues)
+        permanent[std::to_string(cValue.Index)] = cValue.Base;
     nlohmann::json tints = nlohmann::json::array();
     for (const auto& cTint : acRecord.FaceTints.Entries)
         tints.push_back({{"name", cTint.Name}, {"type", cTint.Type}, {"color", cTint.Color}, {"alpha", cTint.Alpha}});
@@ -111,7 +117,7 @@ nlohmann::json Describe(const PlayerRecord& acRecord)
     }
     return {{"key", acRecord.Key}, {"name", acRecord.Name}, {"level", acRecord.Level}, {"base_bytes", acRecord.Base.size()},
             {"perk_points", acRecord.PerkPoints}, {"perks", perks}, {"spells", spells}, {"skills", skills}, {"values", values},
-            {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}};
+            {"permanent_values", permanent}, {"items", items}, {"tints", tints}, {"weight", acRecord.Weight}, {"words", words}};
 }
 
 // {"cmd": "player_record"}: this game's player's character as the join flow reads it (IJoinBridge::ReadPlayer), and

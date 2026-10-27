@@ -44,6 +44,7 @@ PlayerRecord LydiasCharacter()
     record.Perks = {{GameId(0, 0xBABE4), 1}};
     record.Spells = {GameId(0, 0x12FCD)};
     record.Values = {{24, 180.f}};
+    record.PermanentValues = {{24, 195.f}, {32, 350.f}};
     record.Items.Entries = {Item(0xF, 300)};
     return record;
 }
@@ -82,13 +83,24 @@ std::string KeyOf(World& aGame)
     return Party::Engine(aGame).PlayerId();
 }
 
-// The character as the record compares, without its place and key.
+// The character as the record compares, without its place and key, its souls and words (party_share_flows.cpp).
 PlayerRecord Character(PlayerRecord aRecord)
 {
     aRecord.Key.clear();
     aRecord.Cell = {};
     aRecord.WorldSpace = {};
     aRecord.Position = {};
+    std::erase_if(aRecord.Values, [](const PlayerRecord::Value& acValue) { return acValue.Index == 133; });
+    aRecord.Words.clear();
+    return aRecord;
+}
+
+// The record with the party's gold in place of its own (party-purse.md): aGold of Gold001, none at 0.
+PlayerRecord WithGold(PlayerRecord aRecord, int32_t aGold)
+{
+    std::erase_if(aRecord.Items.Entries, [](const Inventory::Entry& acEntry) { return acEntry.BaseId == GameId(0, 0xF); });
+    if (aGold)
+        aRecord.Items.Entries.push_back(Item(0xF, aGold));
     return aRecord;
 }
 
@@ -195,7 +207,8 @@ SCENARIO("A guest's character reaches the host's save, and loading that save bri
                     count += cEntry.Count;
             return count;
         };
-        party.Until([&] { return gold(*Records(host).Find(cKey)) == 300 + 123; }, "the host's record of the guest has the gold");
+        // The party's gold: the host's none, the guest's 300 left behind at its joining, and the 123.
+        party.Until([&] { return gold(*Records(host).Find(cKey)) == 123; }, "the host's record of the guest has the party's gold");
     }
 
     WHEN("a game sends a record under another player's key")
@@ -231,12 +244,13 @@ SCENARIO("A friend brings its character from a game of its own into the host's w
 
     party.Until([&] { return guest.GetTransport().IsOnline() && !Join(guest).IsJoining(); }, "the friend's game loads the host's save and joins",
                 [&] { return Describe(Join(guest).GetStatus()); });
+    party.Until([&] { return Party::Engine(guest).CountOf(FakeEngine::kPlayer, 0xF) == 0; }, "its gold is the party's: the host's none");
     THEN("its game loaded the host's save once, and its player is the character it brought, where the save put it, "
-         "without its own world's quest items")
+         "without its own world's quest items, carrying the party's gold")
     {
         CHECK(Party::Engine(guest).Loaded == std::vector<std::string>{JoinService::kJoinSave});
         CHECK(Party::Engine(host).Saves == std::vector<std::string>{JoinService::kTransferSave});
-        CHECK(Character(Party::Engine(guest).ReadPlayer()) == Character(LydiasCharacter()));
+        CHECK(Character(Party::Engine(guest).ReadPlayer()) == Character(WithGold(LydiasCharacter(), 0)));
         CHECK(Party::Engine(guest).Actors.at(FakeEngine::kPlayer).Cell == Party::Engine(host).Actors.at(FakeEngine::kPlayer).Cell);
         CHECK(Join(guest).GetStatus().Current == JoinStatus::State::kJoined);
     }
@@ -250,9 +264,9 @@ SCENARIO("A friend brings its character from a game of its own into the host's w
         party.Until([&] { return Records(host).Find(cKey)->Level == 13; }, "the host's game has the friend's new level");
         ToMainMenu(party, guest);
         JoinsWithWorld(party, host, guest, "the friend's game joins from the main menu");
-        THEN("it plays the character the host's save keeps, at its new level")
+        THEN("it plays the character the host's save keeps, at its new level, with the party's gold")
         {
-            PlayerRecord expected = LydiasCharacter();
+            PlayerRecord expected = WithGold(LydiasCharacter(), 0);
             expected.Level = 13;
             CHECK(Character(Party::Engine(guest).ReadPlayer()) == Character(expected));
         }
@@ -268,6 +282,51 @@ SCENARIO("A friend brings its character from a game of its own into the host's w
         JoinsWithWorld(party, host, guest, "the friend's game joins from another game of its own");
         THEN("the host's save's character wins over the one it brought")
         CHECK(Character(Party::Engine(guest).ReadPlayer()) == Character(LydiasCharacter()));
+    }
+}
+
+SCENARIO("A character joining again keeps its own souls and the words it unlocked; the party's words come with the host's save",
+         "[join][dragonborn]")
+{
+    constexpr uint32_t kFus = 0x13E22;
+    constexpr uint32_t kRo = 0x13E23;
+    Party party(1, Plugins, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    FakeEngine& hostEngine = Party::Engine(host);
+    FakeEngine& guestEngine = Party::Engine(guest);
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    JoinsWithWorld(party, host, guest, "the friend's game joins with the host's world");
+    const std::string cKey = KeyOf(guest);
+
+    // A word from the host's script, a dragon's soul for both; the friend spends its own on the word.
+    party.As(host, [&] { hostEngine.TeachesWord(kFus); });
+    party.As(host, [&] { hostEngine.ModifiesSouls(FakeEngine::kPlayer, 1.f, FakeEngine::kPlayer); });
+    party.Until([&] { return guestEngine.WordsKnown.contains(kFus) && guestEngine.Souls[FakeEngine::kPlayer] == 1.f; },
+                "the friend's player learns the word and gains the soul");
+    party.As(guest, [&] {
+        guestEngine.SpendsSoul(kFus);
+        guest.GetDispatcher().trigger(MenuEvent{"MagicMenu", false});
+    });
+    party.Until([&] { const auto* cpRecord = Records(host).Find(cKey); return cpRecord && !cpRecord->Words.empty(); },
+                "the host's game keeps the friend's unlocked word");
+
+    WHEN("the host's script teaches another word while the friend is away, and the friend joins again from the main menu")
+    {
+        ToMainMenu(party, guest);
+        party.As(host, [&] { hostEngine.TeachesWord(kRo); });
+        JoinsWithWorld(party, host, guest, "the friend's game joins again from the main menu");
+        THEN("the friend's player knows both words, has Fus unlocked and no soul; the host's player keeps its own")
+        {
+            CHECK(guestEngine.WordsKnown.contains(kFus));
+            CHECK(guestEngine.WordsKnown.contains(kRo));
+            CHECK(guestEngine.WordsUnlocked.contains(kFus));
+            CHECK(guestEngine.Souls[FakeEngine::kPlayer] == 0.f);
+            CHECK(hostEngine.Souls[FakeEngine::kPlayer] == 1.f);
+            CHECK(!hostEngine.WordsUnlocked.contains(kFus));
+            CHECK(guestEngine.SoulsAbsorbedShown == 1); // the dragon's, not the join's
+        }
     }
 }
 
@@ -307,4 +366,33 @@ SCENARIO("A join that cannot finish says why", "[join]")
         CHECK(Join(guest).GetStatus().Reason == "lost_connection");
         THEN("its game can save again") CHECK(guest.ctx().at<SaveService>().MaySave());
     }
+}
+
+SCENARIO("A brought character lands beside the host after checked placement", "[join][join-placement]")
+{
+    Party party(1, Plugins, false);
+    auto& host = party.Host();
+    auto& guest = party.Guest();
+    auto& engine = Party::Engine(guest);
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    SECTION("there is room immediately")
+    {
+        JoinsWithWorld(party, host, guest, "the guest brings its character into the host's world");
+    }
+    SECTION("joining waits until checked placement finds room")
+    {
+        engine.PlacementClear = false;
+        party.As(guest, [&] { REQUIRE(Join(guest).Join(HostEndpoint(host))); });
+        party.Until([&] { return engine.PlacementChecks > 0; }, "the loaded world's first checked placement");
+        CHECK_FALSE(guest.GetTransport().IsOnline());
+        CHECK(Join(guest).GetStatus().Current == JoinStatus::State::kCreatingCharacter);
+        engine.PlacementClear = true;
+        party.Until([&] { return guest.GetTransport().IsOnline() && !Join(guest).IsJoining(); },
+                    "joining finishes after a clear spot is found");
+    }
+    const auto& cHost = Party::Engine(host).Actors.at(FakeEngine::kPlayer);
+    const auto& cGuest = engine.Actors.at(FakeEngine::kPlayer);
+    CHECK(std::hypot(cHost.Position[0] - cGuest.Position[0], cHost.Position[1] - cGuest.Position[1]) >= 100.f);
+    CHECK(engine.PlacementChecks > 0);
 }

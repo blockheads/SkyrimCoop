@@ -23,8 +23,11 @@ Shared by the party:
 
 - Rewards: a quest's skill raise or a mod's quest experience reaches every player (experience itself
   is personal, see Experience).
-- Words of power (dragon souls likely too, since they unlock words).
+- Words of power, and every dragon soul gained (each player spends its own).
 - Identity changes: beast blood, vampirism, titles (Thane, Harbinger, Arch-Mage), marriage.
+
+Built 2026-10-27 but vampirism (feature 8): `dragonborn.md`. The story's changes to a player's factions and spells
+are the party's; a quest a player's body started (its beast form) is that player's moment.
 
 ## The clean line
 
@@ -86,10 +89,11 @@ Measured, not yet ruled: engine code (not scripts) that checks the player while 
 (55 functions in melee, spells, kills and a trigger: kill credit, crime, faction reaction, detection).
 Default: treat the copy as the player; each checked for player-only code paths.
 
-## Items and gold: each player's own
+## Items: each player's own; gold: the party's
 
 Decided 2026-10-22, replacing one shared inventory and purse (2026-10-19). Each player keeps their own
-inventory and gold, as on their own game today. Items a script gives or takes follow rule 2 (below, "A guest's
+inventory, as on their own game today. Gold is the party's since 2026-10-27 (the user: "everyone shares the same
+gold"): one purse, the host's player's gold, which every player carries ([party-purse.md](party-purse.md)). Items a script gives or takes follow rule 2 (below, "A guest's
 actions on the host"): `Game.GetPlayer()` in a script a guest's action started is that guest's copy, which
 carries its player's inventory on the host, and an `AddItem` or `RemoveItem` on it reaches that player
 (`sword-box-asks-client`). The copy follows its player's changes as they are made: `TESObjectREFR::RemoveItem` and
@@ -103,8 +107,9 @@ a shared stack, and carry weight would be one. Personal loot is also what co-op 
 and conditions would have been right whoever acted; with each player's own, three gaps stay:
 
 - **Conditions are the host's player's.** The host's engine builds a dialogue list for its player (shared
-  dialogue's rule), so an item or gold condition asks the host's inventory: a guest holding Lucan's claw sees
-  no option to hand it in. The guest gives it to the host, or the host talks.
+  dialogue's rule), so an item condition asks the host's inventory: a guest holding Lucan's claw sees
+  no option to hand it in. The guest gives it to the host, or the host talks. (A gold condition is right for
+  everyone since the purse: every player carries the same.)
 - **Items with no player's action behind them** (a timer, a stage set by the world) go to the host's player
   (rule 3), who shares them out.
 - **What a guest's script gives the player to own is the party's** (decided 2026-10-22, the user: "exactly right").
@@ -116,8 +121,7 @@ and conditions would have been right whoever acted; with each player's own, thre
   S" beside the engine for S's game alone, unless play shows players wanting their own rooms or horses.
 
 A picked line's fragments run for its picker (rule 2 for dialogue, built 2026-10-22: `shared-dialogue.md`, What
-players see). To build: giving items between players. A shared purse comes back only if play shows sharing gold out is a
-chore.
+players see). To build: giving items between players. The shared purse came back on 2026-10-27 (party-purse.md).
 
 ## Dialogue
 
@@ -162,6 +166,11 @@ experience for kills, quests or discoveries, so there is no pool to share.
 - **Upstream's shared combat experience is dropped** (everyone's combat gains added to the receiver's last
   used combat skill): it mixes builds, and a measured gain carries the sender's perks and mod multipliers,
   which the receiver's game applies again.
+
+Built 2026-10-27: [quest-rewards.md](quest-rewards.md). Explicit script skill-level, perk-point, perk and permanent
+attribute grants share through the Dragonborn path; a body's effects and equipment remain personal. Rewards are
+for players present, with no retroactive grant on rejoining. Character records preserve already-earned progress.
+Native guest stage/completion events are measured; Experience itself is not installed/tested.
 
 Engine path and how the mods hook it: `docs/re/systems/experience.md`.
 

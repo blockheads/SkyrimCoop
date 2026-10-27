@@ -4,6 +4,7 @@
 #include <NoCopyMove.h>
 
 #include <chrono>
+#include <optional>
 #include <utility>
 #include <vector>
 #include <Messages/RelayedMessages.h>
@@ -19,6 +20,7 @@ struct NotifyInventoryChanges;
 struct InventoryChangeEvent;
 struct EquipmentChangeEvent;
 struct NotifyEquipmentChanges;
+struct DisconnectedEvent;
 
 /**
  * @brief Manages actors' inventories.
@@ -63,6 +65,19 @@ struct InventoryService
      * @brief A copy's owner raised or lowered its hands.
      */
     void OnNotifyDrawWeapon(const NotifyDrawWeapon& acMessage) noexcept;
+    /**
+     * @brief The party's gold (docs/design/party-purse.md): this game's player and every copy of a player carry it.
+     */
+    void OnNotifyPartyGold(const NotifyPartyGold& acMessage) noexcept;
+
+    // How much gold (Gold001) the actor carries, and setting it, silently (not sent).
+    [[nodiscard]] uint32_t GoldOf(uint32_t aActorFormId) const noexcept;
+    void SetGold(uint32_t aActorFormId, uint32_t aGold) const noexcept;
+    // aCount more or fewer, silently; a removal takes at most what it has.
+    void AddGold(uint32_t aActorFormId, int32_t aCount) const noexcept
+    {
+        SetGold(aActorFormId, static_cast<uint32_t>(std::max<int64_t>(int64_t{GoldOf(aActorFormId)} + aCount, 0)));
+    }
 
 private:
     /**
@@ -77,6 +92,9 @@ private:
     void RunWeaponDrawConvergence(double aDelta) noexcept;
     void OnLocalComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     void OnRemoteComponentRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    // A copy's spawn items are on it now (CharacterService): a player's carries the party's gold, not its spawn's.
+    void OnSpawnItemsApplied(entt::registry& aRegistry, entt::entity aEntity) noexcept;
+    void OnDisconnected(const DisconnectedEvent&) noexcept { m_partyGold.reset(); }
     void RunEquipmentSnapshots() noexcept;
     /**
     * Checks whether an NPC's (local or remote) equipment is bugged (i.e. naked NPCS)
@@ -92,6 +110,7 @@ private:
 
     std::chrono::steady_clock::time_point m_lastSnapshotSend;
     std::chrono::steady_clock::time_point m_lastNakedCheck;
+    std::optional<uint32_t> m_partyGold;
 
     std::vector<entt::scoped_connection> m_connections;
 };

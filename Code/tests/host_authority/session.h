@@ -30,6 +30,7 @@
 #include <Messages/RequestFactionsChanges.h>
 #include <Messages/NotifyEquipmentChanges.h>
 #include <Messages/NotifyInventoryChanges.h>
+#include <Messages/RelayedMessages.h>
 #include <Messages/RequestEquipmentChanges.h>
 #include <Messages/RequestInventoryChanges.h>
 #include <Messages/NotifyChatMessageBroadcast.h>
@@ -171,6 +172,7 @@ struct Session
 
     bool CrimeCaught{};
     std::vector<CrimeGold> Bounty;
+    uint32_t PartyGold{}; // the host's player's gold, the purse
     std::vector<std::pair<uint32_t, CrimeRequest>> Crimes;
     std::function<void(uint32_t, const CrimeRequest&)> CrimeJudge;
 
@@ -219,6 +221,8 @@ private:
             return spawns;
         };
         game.ReadCrimeGold = [this] { return Bounty; };
+        game.ReadPartyGold = [this] { return PartyGold; };
+        game.AddPartyGold = [this](int32_t aCount) { PartyGold = static_cast<uint32_t>(std::max<int64_t>(int64_t{PartyGold} + aCount, 0)); };
         game.JudgeCrime = [this](uint32_t aActor, const CrimeRequest& aCrime) {
             Crimes.emplace_back(aActor, aCrime);
             if (CrimeJudge) CrimeJudge(aActor, aCrime);

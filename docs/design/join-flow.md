@@ -194,6 +194,8 @@ guest (in its own game, or at the main menu)   host (in game, hosting)
    TESLoadGameEvent: the record under PlayerKey,
      else the character it brought, is applied to
      this game's player (the save's is the host's)
+   a brought character: checked placement beside
+     the host, then connect (a kept one: saved place)
    AuthenticationRequest{PlayerKey} ───────────► HostSession: accepted as a player (as today);
                                                    HostPlayers keeps its key
                          ◄───────────────────── AuthenticationResponse{kAccepted}, copies, world
@@ -209,6 +211,10 @@ Over Steam the same runs through the Steam connection's tunnel: `SteamService` h
 the tunnel's loopback endpoint, and both connections go through it. A game Steam starts with `+connect_lobby <id>`
 joins that lobby once its main menu is up.
 
+A brought character reconnects only after floor and clearance checks place it 120 units beside the save's player
+position. Missing physics waits; blocked bearings try others. Kept characters use their saved position. Details and
+regressions: [small-bugs.md](small-bugs.md), Joining beside the host.
+
 ### The character record
 
 `PlayerRecord` (`Code/encoding/Structs/PlayerRecord.h`), one per player, keyed by `Key`:
@@ -222,7 +228,9 @@ joins that lobby once its main menu is up.
 - `Skills`: the engine's skill block as it is (`PlayerSkills`: level experience and threshold, each skill's level,
   experience and threshold, legendary counts); `PerkPoints`
 - `Perks`: the player's perks (`PlayerCharacter::AddPerk`'s list); `Spells`: spells added to the player
-- `Values`: base actor values (health, magicka, stamina, the skills)
+- `Values`: base actor values (health, magicka, stamina, carry weight, the skills)
+- `PermanentValues`: health, magicka, stamina and carry-weight permanent totals, excluding temporary buffs and
+  damage; optional in older records. Earned quest rewards survive loading another player's world (`quest-rewards.md`).
 - `Items`: inventory with equipment (`Inventory`, as copies carry it), gold among them; quest items are left out when
   the character comes from another world
 - `Extras`: a named blob per adapter (`racemenu`: RaceMenu's preset of the player), for mods
@@ -241,6 +249,7 @@ list) when the host saves; read back, into `CharacterRecords`, when any game loa
 | the host's game cannot save within 60 s, or the transfer breaks | `transfer_failed` |
 | the connection drops before joining | `lost_connection` |
 | the save does not load | `transfer_failed` |
+| no checked spot beside the host within 20 s | `placement_failed`: the host should move to an open spot |
 
 ## Leaving and kick
 

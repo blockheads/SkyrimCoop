@@ -27,6 +27,7 @@ struct CombatController;
 struct TESIdleForm;
 struct SpellItem;
 struct BGSPerk;
+struct TESShout;
 
 struct Actor : TESObjectREFR
 {
@@ -89,8 +90,8 @@ struct Actor : TESObjectREFR
     virtual void sub_CC();
     virtual void AttachArrow();
     virtual void sub_CE();
-    virtual void sub_CF();
-    virtual void sub_D0();
+    virtual bool AddShout(TESShout* apShout);         // CF (CommonLibSSE-NG): a player's, onto its base's spell list
+    virtual void UnlockWord(TESForm* apWordOfPower); // D0: PlayerCharacter's 40630 sets the word's unlocked flag
     virtual void sub_D1();
     virtual bool sub_D2() const;
     virtual void sub_D3();

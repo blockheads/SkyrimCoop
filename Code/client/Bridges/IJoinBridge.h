@@ -37,4 +37,7 @@ public:
     // Makes this game's player the record's character (the loaded save's player is another's), standing at the
     // record's place when it has one (a character kept in the host's save).
     virtual void ApplyPlayer(const PlayerRecord& acRecord) noexcept = 0;
+    // The loaded save left its player on the host's spot. Move beside it only after floor and clearance checks.
+    // False while physics is unavailable or no spot is clear; leaves the player where it was.
+    [[nodiscard]] virtual bool PlaceBesideHost() noexcept = 0;
 };

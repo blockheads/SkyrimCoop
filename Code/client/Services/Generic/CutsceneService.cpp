@@ -56,7 +56,13 @@ void CutsceneService::OnNotifyPartyNative(const NotifyPartyNative& acMessage) no
         spdlog::warn("CutsceneService: {}.{} from another game names a form not here", cWire.Class, cWire.Function);
         return;
     }
-    spdlog::info("CutsceneService: another game's script runs {}.{} here", cWire.Class, cWire.Function);
+    std::string forms;
+    if (const auto* cpSelf = std::get_if<LocalForm>(&cCall->Self))
+        forms += std::format(" on {:X}", cpSelf->FormId);
+    for (const auto& cArgument : cCall->Arguments)
+        if (const auto* cpForm = std::get_if<LocalForm>(&cArgument))
+            forms += std::format(" {:X}", cpForm->FormId);
+    spdlog::info("CutsceneService: another game's script runs {}.{} here{}", cWire.Class, cWire.Function, forms);
     if (!PartyNatives::Run(*cCall, acMessage.Source))
         spdlog::warn("CutsceneService: {}.{} could not be queued", cWire.Class, cWire.Function);
 }

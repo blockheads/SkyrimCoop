@@ -48,6 +48,9 @@ struct LocalForm
     bool operator==(const LocalForm&) const noexcept = default;
 
     uint32_t FormId{};
+    // "The player" of the story's party call: each game's own player, sent as the player's form (0x14), not as this
+    // game's character (docs/design/dragonborn.md, the absorb).
+    bool EachPlayer{};
 };
 
 // A value as one game's script has it.

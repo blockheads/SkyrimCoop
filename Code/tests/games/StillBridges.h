@@ -143,13 +143,6 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
-    void AddPlayerSkillExperience(int32_t aSkillId, float aExperience) noexcept override
-    {
-    }
-    int32_t GetPlayerLastUsedCombatSkill() const noexcept override
-    {
-        return {};
-    }
     uint32_t GetPlayerParentCellFormId() const noexcept override
     {
         return {};
@@ -475,6 +468,9 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void ResurrectActor(uint32_t aFormId) noexcept override
     {
     }
+    void ResumeActorAnimation(uint32_t aFormId) noexcept override
+    {
+    }
     void DeleteActor(uint32_t aFormId) noexcept override
     {
     }
@@ -583,6 +579,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     {
         return {};
     }
+    void SetActorBaseLevel(uint32_t, uint16_t) noexcept override {}
     float GetActorBaseWeight(uint32_t aFormId) const noexcept override
     {
         return 50.f;
@@ -751,6 +748,7 @@ struct StillBridges : IActorBridge, IPlayerBridge, IFormBridge, IWorldBridge
     void DeserializeActorNpc(uint32_t aFormId, const std::string& acAppearance, uint32_t aChangeFlags) noexcept override
     {
     }
+    bool ApplyActorLooks(uint32_t, const std::string&, uint32_t, float) noexcept override { return false; }
     uint32_t SerializeActorNpc(uint32_t aFormId, std::string& aBuffer) noexcept override
     {
         return {};

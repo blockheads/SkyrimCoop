@@ -68,6 +68,7 @@ private:
         kChecking,
         kReceiving,
         kLoading,
+        kPlacing,
         kJoining,
         kReconnectWait, // until the next try
         kReconnecting,
@@ -86,6 +87,7 @@ private:
     void To(Step aStep, JoinStatus::State aState) noexcept;
     // The save is loaded: this player's character on its player, then the usual join to the same host.
     void Arrive() noexcept;
+    void JoinSession() noexcept;
     void Fail(const char* acpReason) noexcept;
     void Fail(JoinStatus aStatus) noexcept;
     // The session dropped: tries the same host again (SteamService's lobby, else the transport's endpoint).

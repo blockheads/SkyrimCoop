@@ -149,15 +149,26 @@ void HostCharacters::OnRespawn(const RequestRespawn& acRequest, ConnectionId_t a
             record->IsDead = acRequest.Data.IsDead;
             record->IsWeaponDrawn = acRequest.Data.IsWeaponDrawn;
         }
-        else
+        else if (acRequest.AppearanceBuffer.empty())
             m_game.ReadCopy(acRequest.ActorId, *record);
-        if (!acRequest.AppearanceBuffer.empty())
-        {
-            record->AppearanceBuffer = acRequest.AppearanceBuffer;
-            record->ChangeFlags = acRequest.ChangeFlags;
-            record->FaceTints = acRequest.FaceTints;
-            record->Weight = acRequest.Weight;
-        }
+    }
+    if (!acRequest.AppearanceBuffer.empty())
+    {
+        auto& record = it->second.PlayerRecord;
+        if (!record)
+            return;
+        record->AppearanceBuffer = acRequest.AppearanceBuffer;
+        record->ChangeFlags = acRequest.ChangeFlags;
+        record->FaceTints = acRequest.FaceTints;
+        record->Weight = acRequest.Weight;
+        NotifyRespawn notify;
+        notify.ActorId = acRequest.ActorId;
+        notify.AppearanceBuffer = acRequest.AppearanceBuffer;
+        notify.ChangeFlags = acRequest.ChangeFlags;
+        notify.FaceTints = acRequest.FaceTints;
+        notify.Weight = acRequest.Weight;
+        m_players.SendToOthers(notify, aSender, Net::kReliable);
+        return;
     }
     spdlog::info("HostCharacters: {:x} respawns its {}", aSender, acRequest.ActorId);
     NotifyRespawn notify;

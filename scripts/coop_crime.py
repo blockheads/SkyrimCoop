@@ -66,32 +66,25 @@ def totals():
 
 
 def guest_pays():
-    """A guest pays the shared native fine once, from its personal purse; the host keeps its gold."""
+    """A guest pays the shared native fine once, from the party's purse (party-purse.md): every player carries less."""
     before, hostile = bounty(), enemies()
-    gold = {g: ct.item_count(g, 0x14, 0xF) for g in ("", "client")}
+    gold = ct.party_gold()
     amount = 110
     try:
-        if gold["client"] < amount:
-            ct.console_on("client", f"player.additem f {amount}")
-        ct.wait_for("the guest's copy holds its payer's gold",
-                    lambda: ct.item_count("", ct.player_copy(""), 0xF) == ct.item_count("client", 0x14, 0xF), 10)
-        payer_gold = ct.item_count("client", 0x14, 0xF)
+        if gold < amount:
+            ct.set_party_gold(amount)
+        payer_gold = ct.party_gold()
         crime(action="set", faction=FALKREATH, violent=75, nonviolent=35)
         shared(FALKREATH, (75, 35))
         crime("client", "pay", faction=FALKREATH)
         shared(FALKREATH, (0, 0))
-        ct.wait_for("the chooser alone pays the fine",
-                    lambda: ct.item_count("client", 0x14, 0xF) == payer_gold - amount
-                    and ct.item_count("", 0x14, 0xF) == gold[""], 10)
+        ct.wait_party_gold("the party pays the fine", payer_gold - amount)
         time.sleep(1)
-        if ct.item_count("client", 0x14, 0xF) != payer_gold - amount:
-            raise ct.TestFailure("the guest was charged more than once")
+        if ct.party_gold() != payer_gold - amount:
+            raise ct.TestFailure(f"the party was charged more than once: it carries {ct.party_gold()}")
     finally:
         restore(before, hostile)
-        for game, wanted in gold.items():
-            have = ct.item_count(game, 0x14, 0xF)
-            if have != wanted:
-                ct.console_on(game, f"player.{'additem' if have < wanted else 'removeitem'} f {abs(have - wanted)}")
+        ct.set_party_gold(gold, wait=False)
 
 
 def guest_theft(from_menu=False, alarm=None):
@@ -198,17 +191,13 @@ def guest_theft(from_menu=False, alarm=None):
             charged = [(f, v + n) for f, (v, n) in bounty().items() if v or n]
             if len(charged) != 1: raise ct.TestFailure(f"expected one crime faction, saw {charged}")
             faction, fine = charged[0]
-            have = ct.item_count("client", 0x14, 0xF)
-            if have < fine: ct.console_on("client", f"player.additem f {fine - have}")
-            coins = ct.item_count("client", 0x14, 0xF)
-            host_coins = ct.item_count("", 0x14, 0xF)
+            if ct.party_gold() < fine: ct.set_party_gold(fine)
+            coins = ct.party_gold()
             crime("client", "pay", faction=faction, stolen=True)
             shared(faction, (0, 0))
             ct.wait_for("the fine confiscates stolen rolls and keeps the unowned one",
                         lambda: ct.item_count("client", 0x14, ct.SWEETROLL) == guest_before[ct.SWEETROLL] + 1, 10)
-            ct.wait_for("only the guest pays the real container theft's fine once",
-                        lambda: ct.item_count("client", 0x14, 0xF) == coins - fine
-                        and ct.item_count("", 0x14, 0xF) == host_coins, 10)
+            ct.wait_party_gold("the party pays the real container theft's fine once", coins - fine)
         restore({})
         ct.console_on("", "tdetect")
         disabled_detection = True
@@ -366,8 +355,9 @@ def guard_arrest(outcome="jail", offender="client"):
     spawned = []
     old_cell = ct.player_cell("")
     chest_before = ct.container_items("", ct.SMALL_CHEST)
-    inventory = {g: {item: ct.item_count(g, 0x14, item) for item in set(chest_before) | {0xF}}
+    inventory = {g: {item: ct.item_count(g, 0x14, item) for item in set(chest_before) - {0xF}}
                  for g in ("", "client")}
+    gold = ct.party_gold()
     refs = ct.player_command("", {"cmd": "world_state"})["references"]
     owner = next(r.get("owner", 0) for r in refs if r["id"] == ct.SMALL_CHEST)
     try:
@@ -401,7 +391,7 @@ def guard_arrest(outcome="jail", offender="client"):
             crime(action="theft", target=ct.SMALL_CHEST, item=0xF, count=100)
         ct.wait_for("the witnessed theft charges the party", lambda: sum(bounty().get(faction, (0, 0))) > 0, 10)
         amount = sum(bounty()[faction])
-        purse = {g: ct.item_count(g, 0x14, 0xF) for g in ("", "client")}
+        purse = ct.party_gold()
         ct.wait_for("the guard arrests the party without being activated", lambda: ct.talking_to("", guard), 20)
         ct.wait_for("the arrested guest gets the guard dialogue", lambda: ct.talking_to("client", guard_copy), 10)
         choices = ct.client_shows_hosts_list("for the guard arrest")
@@ -431,9 +421,7 @@ def guard_arrest(outcome="jail", offender="client"):
             if state["sentence"]:
                 raise ct.TestFailure("paying a fine started a jail sentence")
             shared(faction, (0, 0))
-            ct.wait_for("the choosing player alone paid once",
-                        lambda: all(ct.item_count(g, 0x14, 0xF) == purse[g] - (amount if g == offender else 0)
-                                    for g in ("", "client")), 10)
+            ct.wait_party_gold("the party paid the fine once", purse - amount)
     finally:
         if crime(action="jail_state")["sentence"]:
             prison = ct.player_cell("")
@@ -465,6 +453,7 @@ def guard_arrest(outcome="jail", offender="client"):
                 have = ct.item_count(game, 0x14, item)
                 if have != wanted:
                     ct.console_on(game, f"player.{'additem' if have < wanted else 'removeitem'} {item:X} {abs(have - wanted)}")
+        ct.set_party_gold(gold, wait=False)
 
 
 def guest_guard_jail():
@@ -478,7 +467,7 @@ def host_guard_jail():
 
 
 def guest_guard_fine():
-    """An arrested guest pays through vanilla guard dialogue, from its own purse, with no jail sentence."""
+    """An arrested guest pays through vanilla guard dialogue, from the party's purse, with no jail sentence."""
     guard_arrest(outcome="fine")
 
 

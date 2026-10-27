@@ -146,9 +146,10 @@ host). Natives with a self are not read: they act on what they are given (below,
   the bound object or a new one bound, `ObjectBindPolicy::BindObject` 104184), so ours does the same with the form's
   type (VM slots 0x0A, 0x15, 0x1C, 0x2D, 0x2F, read in IDA; CommonLibSSE-NG `PackHandle`). Not carried, so the native
   stays on the host with a warning: arrays, and a temporary reference that is not an actor (no other game knows
-  it). Scenario `words-reach-client`: the client presses Dragonborn's QA shout button in QASmoke
-  (`DLC2QALearnShouts`), the host's script teaches and unlocks its twelve words for the client, and only the
-  client's game learns them.
+  it). Scenario `words-reach-party`: the client presses Dragonborn's QA shout button in QASmoke
+  (`DLC2QALearnShouts`), the host's script teaches and unlocks its twelve words for the client, the client's game
+  learns them, and (feature 11, `docs/design/dragonborn.md`) its player's words are the party's: the host's learns
+  them too.
 - `ClearPrison` and `SetPlayerReportCrime` change the guest's own state; the party's bounty (the `Faction` crime
   gold natives, with a self) stays the host's. Natives with another actor as their self that open this player's
   menus on it or read this player against it (`Actor.ShowGiftMenu`, `ShowBarterMenu`, `OpenInventory`,
@@ -275,3 +276,9 @@ Shout key (a power fires on release) → spell_cast 92C48 Beast Form
 
 `script_stacks` reads frames another thread may be changing; it runs where harness commands run (the game
 thread, outside the VM's update), where the VM leaves its stacks alone.
+
+Quest rewards (2026-10-27): [quest-rewards.md](../../design/quest-rewards.md). Before SendToGuest selects the
+picker's game for a global native, PartyNatives::Scope routes a progression native (PartyRules::RouteOf: its
+cause, story and source); a shared grant is relayed as the call and runs on every game's own player, tagged mirrored
+(`dragonborn.md`, "The party's calls"). Non-rewards still use PlayerNatives. HostConversation::OnPickSent sets 0x14 before the native menu picks: a begin fragment can queue
+before NotifyDialoguePicked returns, so clearing the picker there misclassifies the host's persuade as the story.

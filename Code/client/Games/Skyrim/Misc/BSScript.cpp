@@ -85,6 +85,39 @@ void BSScript::Variable::SetActor(Actor* apActor, IVirtualMachine* apVm) noexcep
     s_assign(this, &packed);
 }
 
+std::span<BSScript::IFunction* const> BSScript::ObjectTypeInfo::GetGlobalFunctions() const noexcept
+{
+    if (linkedValid < 2 || !data)
+        return {};
+    const size_t cOffset = userFlagCount * 0x8 + variableCount * 0x10 + initialValueCount * 0x18 + propertyCount * 0x48;
+    return {reinterpret_cast<IFunction* const*>(static_cast<const uint8_t*>(data) + cOffset), staticFunctionCount};
+}
+
+std::span<BSScript::IFunction* const> BSScript::ObjectTypeInfo::GetMemberFunctions() const noexcept
+{
+    const auto cGlobals = GetGlobalFunctions();
+    if (!cGlobals.data())
+        return {};
+    return {cGlobals.data() + cGlobals.size(), memberFunctionCount};
+}
+
+BSScript::IFunction* BSScript::ObjectTypeInfo::GetFunction(const char* acpName) const noexcept
+{
+    for (const auto cFunctions : {GetGlobalFunctions(), GetMemberFunctions()})
+        for (IFunction* pFunction : cFunctions)
+            if (const char* cpName = pFunction ? pFunction->GetName().AsAscii() : nullptr; cpName && _stricmp(cpName, acpName) == 0)
+                return pFunction;
+    return nullptr;
+}
+
+bool BSScript::ObjectTypeInfo::IsA(const ObjectTypeInfo* apType) const noexcept
+{
+    for (const ObjectTypeInfo* pType = this; pType; pType = pType->pParent)
+        if (pType == apType)
+            return true;
+    return false;
+}
+
 void BSScript::Variable::SetForm(TESForm* apForm, IVirtualMachine* apVm) noexcept
 {
     if (Actor* pActor = Cast<Actor>(apForm))
