@@ -287,7 +287,7 @@ Scope::Scope(BSScript::IFunction* apFunction, BSScript::Stack* apStack, BSScript
         m_controls = ControlsCall{PartyRules::HolderOf(aCause)};
         m_pOuter = std::exchange(t_pCall, &*m_controls);
     }
-    m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress && PartyRules::IsMirrored(aCause);
+    m_progressed = cFacts.Reach.Kind == NativeReach::Call::kProgress;
     const PartyRules::Routing cRouting = PartyRules::RouteOf(cFacts);
     if (cRouting.Ask)
     {

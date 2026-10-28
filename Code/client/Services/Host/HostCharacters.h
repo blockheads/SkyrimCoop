@@ -76,6 +76,7 @@ private:
     void OnDismount(const DismountRequest& acRequest, ConnectionId_t aSender) noexcept;
     void GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorWhereabouts& acWhereabouts = {}) noexcept;
     // The owner's actor's effects with visuals: to everyone else, and into a player's record for its later spawns.
+    void OnPerks(const ActorPerksRequest& acRequest, ConnectionId_t aSender) noexcept;
     void OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept;
     // A player's character's values from its owner (the relayed requests, watched): into its record for its later
     // spawns, which a read of the host's copy never overwrites (docs/design/death.md, "Copies").

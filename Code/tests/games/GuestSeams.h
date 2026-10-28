@@ -1,6 +1,7 @@
 #pragma once
 
 #include <entt/entt.hpp>
+#include <Messages/RelayedMessages.h>
 
 #include <memory>
 
@@ -23,9 +24,11 @@ struct GuestSeam
 
     void OnConnected(const ConnectedEvent&) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
+    void OnPlayerNative(const NotifyRoutedCall&) noexcept;
 
     World& m_world;
     std::unique_ptr<Guest> m_pGuest;
     entt::scoped_connection m_connected;
     entt::scoped_connection m_disconnected;
+    entt::scoped_connection m_playerNative;
 };

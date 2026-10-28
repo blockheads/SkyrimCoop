@@ -5,6 +5,7 @@
 #include <NetImmerse/NiNode.h>
 #include <RTTI.h>
 #include <VersionDb.h>
+#include <TESObjectREFR.h>
 
 namespace
 {
@@ -59,15 +60,25 @@ bool Keyframe(bhkWorldObject& aBody) noexcept
 // the engine's motion type lock 411545), but not woken: a woken island runs the engine's activation listener (25857),
 // which takes its reference's extra data lock under the world's (docs/re/systems/physics.md, "Motion type and
 // kSetLocal"). Then kSetLocal as bhkCollisionObject::SetMotionType (78182) sets it.
-void SetMotionTypeAsleep(bhkNiCollisionObject& aCollision, hkpRigidBody& aBody, hkpRigidBody::MotionType aMotion) noexcept
+bool SetMotionTypeAsleep(bhkNiCollisionObject& aCollision, hkpRigidBody& aBody, hkpRigidBody::MotionType aMotion) noexcept
 {
     constexpr int cDoNotActivate = 0;
     constexpr int cFilterUpdateFullCheck = 0;
     using TSetMotionType = void(hkpRigidBody*, uint32_t, int aActivation, int aFilterUpdate, int);
     POINTER_SKYRIMSE(TSetMotionType, s_setMotionType, 60908);
     VersionDbPtr<BSSpinLock> motionTypeLock(411545);
+    TESObjectREFR* pReference = ReferenceOf(aBody);
+    BSWriteLockGuard worldLock(WorldOf(aBody)->worldLock);
+    // The callback needs extra data. A cell unload may hold it while waiting for this world: defer, never wait here.
+    BSReadWriteLock* pExtra = pReference ? &pReference->extraData.lock : nullptr;
+    if (pExtra && !pExtra->TryLockForWrite())
+        return false;
+    struct UnlockExtra
     {
-        BSWriteLockGuard _(WorldOf(aBody)->worldLock);
+        BSReadWriteLock* pLock;
+        ~UnlockExtra() { if (pLock) pLock->UnlockForWrite(); }
+    } extraLock{pExtra};
+    {
         BSSpinLock& lock = *motionTypeLock.Get();
         lock.Lock(1);
         s_setMotionType(&aBody, aMotion, cDoNotActivate, cFilterUpdateFullCheck, -2);
@@ -77,6 +88,7 @@ void SetMotionTypeAsleep(bhkNiCollisionObject& aCollision, hkpRigidBody& aBody, 
         aCollision.flags |= bhkNiCollisionObject::kSetLocal;
     else
         aCollision.flags &= ~bhkNiCollisionObject::kSetLocal;
+    return true;
 }
 } // namespace
 
@@ -153,10 +165,10 @@ bool ReadBody(const bhkWorldObject& acBody, BodyRead& aRead) noexcept
 }
 
 bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::quat& acRotation, const glm::vec3& acLinearVelocity,
-               const glm::vec3& acAngularVelocity) noexcept
+               const glm::vec3& acAngularVelocity, bool aSimulated) noexcept
 {
     hkpRigidBody* pBody = aBody.referencedObject;
-    if (!pBody || !WorldOf(*pBody) || !Keyframe(aBody))
+    if (!pBody || !WorldOf(*pBody) || (!aSimulated && !Keyframe(aBody)))
         return false;
     using TSetPositionAndRotation = void(bhkWorldObject*, const HavokVector*, const HavokVector*);
     POINTER_SKYRIMSE(TSetPositionAndRotation, s_setPositionAndRotation, 78082);
@@ -185,7 +197,8 @@ bool FreeBody(bhkNiCollisionObject& aCollision, hkpRigidBody::MotionType aMotion
     if (aAsleep)
     {
         // Still from its hold; a rest at a teetering pose woken would roll off again.
-        SetMotionTypeAsleep(aCollision, *pBody, aMotion);
+        if (!SetMotionTypeAsleep(aCollision, *pBody, aMotion))
+            return false;
         if (!pBody->IsDynamic())
             return false;
         using TDeactivate = void(hkpRigidBody*);

@@ -12,6 +12,7 @@ struct InterpolationComponent
         glm::vec3 Rotation{};
         AnimationVariables Variables{};
         float Direction{};
+        bool Knocked{};
         bool Lying{}; // its owner lying in its ragdoll (Movement::Lying)
 
         TimePoint() = default;

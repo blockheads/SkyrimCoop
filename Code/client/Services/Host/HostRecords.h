@@ -2,6 +2,7 @@
 
 #include <network/ENetInterface.h>
 #include <NoCopyMove.h>
+#include <Messages/RelayedMessages.h>
 
 struct HostAuthority;
 struct HostCharacters;
@@ -28,6 +29,7 @@ struct HostRecords
     void OnSaving() const noexcept;
 
 private:
+    void OnPartyCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept;
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
     const HostGame& m_game;

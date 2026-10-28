@@ -64,6 +64,7 @@ private:
     };
 
     bool m_allActors;
+    bool m_playerRagdoll{};
     std::unordered_map<uint32_t, Moving> m_awake; // each moving reference
     std::vector<uint32_t> m_restedAway;
 };

@@ -28,6 +28,7 @@ public:
         BodyFrame Body{};  // where it shows and how it moves there (a rest: still)
         bool Rest{};       // placed exactly, no longer played
         uint32_t Frames{}; // a rest's: the frames that came since the last rest
+        uint64_t Tick{};
     };
     struct Lost
     {
@@ -43,6 +44,8 @@ public:
     // The pose each body shows at aTick (the host's time, behind it): the moving ones each update, a rest once.
     [[nodiscard]] std::vector<Pose> At(uint64_t aTick, float aGravity = BodyPrediction::kGravity) noexcept;
     void Forget(const BodyKey& acKey) noexcept;
+    // A release already applied locally: queued older frames must not restart its playback.
+    void ForgetUntil(const BodyKey& acKey, uint64_t aTick) noexcept;
     // The bodies left since the last call: no frame for kLostMs and no rest.
     [[nodiscard]] std::vector<Lost> TakeLost() noexcept;
     [[nodiscard]] size_t Count() const noexcept { return m_tracks.size(); }
@@ -72,5 +75,6 @@ private:
     };
 
     std::map<BodyKey, Track> m_tracks;
+    std::map<BodyKey, uint64_t> m_ended;
     std::vector<Lost> m_lost;
 };

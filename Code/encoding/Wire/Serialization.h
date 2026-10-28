@@ -11,6 +11,7 @@ namespace Wire
         static void WriteString(Buffer::Writer& aWriter, const std::string& acString);
 
         static uint64_t ReadVarInt(Buffer::Reader& aReader);
+        static bool TryReadVarInt(Buffer::Reader& aReader, uint64_t& aValue) noexcept;
         static void WriteVarInt(Buffer::Writer& aWriter, uint64_t aValue);
 
         static bool ReadBool(Buffer::Reader& aReader);

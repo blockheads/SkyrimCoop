@@ -9,6 +9,7 @@ struct DefaultObjectManager
     static DefaultObjectManager& Get();
     enum Object : uint32_t
     {
+        kActionGetUp = 108,
         kWerewolfAvailablePerks = 320,
         kVampireAvailablePerks = 321,
     };

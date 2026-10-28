@@ -4,9 +4,11 @@
 #include <Games/Animation/ActorMediator.h>
 
 #include <Games/References.h>
+#include <Games/KnockReplay.h>
 
 #include <Forms/BGSAction.h>
 #include <AI/AIProcess.h>
+#include <AI/KnockState.h>
 #include <Misc/MiddleProcess.h>
 
 #include <Messages/ReferencesMoveRequest.h>
@@ -119,7 +121,8 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
 
         ActionEvent first = *it;
         TargetFromNetwork(first);
-
+        const auto* pGetUp = DefaultObjectManager::GetObject(DefaultObjectManager::kActionGetUp);
+        const bool cGetUp = pGetUp && first.ActionId == pGetUp->formID;
         // The owner's kill performed this action: the copy dies the same way, on the owner's timeline.
         if (ActorState::LifeStateOf(first.State1) == ActorState::kLifeDying && !apActor->IsDead())
         {
@@ -155,10 +158,10 @@ void AnimationSystem::Update(World& aWorld, entt::entity aEntity, Actor* apActor
         step.Retries = 0;
         aAnimationComponent.StagedUpdates = 0;
 
-        // A paired action (a kill move) on an actor of this game: started here, on the game thread, as its
-        // owner's game started it; in the copy's animation job the partner's graph may be updating elsewhere.
+        // BeginGetUp (40150) sets its input and performs the action together. A graph update between them advances
+        // the copy's get-up before the action. Paired actions also start here, with a partner this game owns.
         auto* pPartner = first.TargetEventName.empty() ? nullptr : Cast<Actor>(TESForm::GetById(first.TargetId));
-        if (pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount())
+        if (cGetUp || (pPartner && !pPartner->GetExtension()->IsCopy() && !pPartner->IsMount()))
         {
             step.Phase.store(ReplayStep::kBusy, std::memory_order_release);
             apActor->LoadAnimationVariables(step.Variables);
@@ -209,7 +212,18 @@ bool AnimationSystem::PlayReplayedAction(Actor* apActor, const ActorExtension::R
     actionData.idleForm = Cast<TESIdleForm>(TESForm::GetById(cAction.IdleId));
     actionData.someFlag = ((cAction.Type & 0x4) != 0) ? 1 : 0;
 
-    const bool cTaken = ActorMediator::Get()->ForceAction(&actionData);
+    const bool cGetUp = pAction && pAction == DefaultObjectManager::GetObject(DefaultObjectManager::kActionGetUp);
+    const uint8_t cKnockBefore = apActor->actorState.GetKnockState();
+    if (KnockReplay::AfterAction(cKnockBefore, cGetUp, true) != cKnockBefore)
+    {
+        // BeginGetUp (40150) prepares before the action, but changes knock state only after it.
+        PrepareCopyGetUp(*apActor);
+        apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (uint32_t(cKnockBefore) << 25);
+    }
+    const bool cTaken = cGetUp ? ActorMediator::Get()->PerformAction(&actionData) : ActorMediator::Get()->ForceAction(&actionData);
+    const uint8_t cKnockAfter = KnockReplay::AfterAction(cKnockBefore, cGetUp, cTaken);
+    if (cKnockAfter != cKnockBefore)
+        apActor->actorState.flags1 = (apActor->actorState.flags1 & ~ActorState::kKnockMask) | (uint32_t(cKnockAfter) << 25);
     if (!cTaken)
     {
         // Refused: the copy keeps its own state flags (the owner's would claim e.g. hands it never drew).

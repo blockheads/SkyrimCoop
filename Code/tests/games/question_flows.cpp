@@ -24,6 +24,10 @@ SCENARIO("A quest's timer asks how far the player is: the nearest player answers
     party.As(party.Host(), [&] { host.PlayerStands(kSmoke, {2000.f, 0.f, 0.f}); });
     party.As(party.Guest(), [&] { guest.PlayerStands(kSmoke, {110.f, 0.f, 0.f}); });
     party.Agree("the guest's movement reaches its copy");
+    party.Until([&] {
+        const auto cCopies = host.CopiesOf();
+        return !cCopies.empty() && std::abs(host.Actors.at(cCopies[0]).Position[0] - 110.f) < 1.f;
+    }, "the player's copy reaches the distance fixture");
     uint32_t marker{};
     party.As(party.Host(), [&] { marker = host.LoadNpc(kGuard, kSmoke, {100.f, 0.f, 0.f}); });
     const LocalCall cAsks{.Class = "ObjectReference",

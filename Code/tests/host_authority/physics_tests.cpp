@@ -162,3 +162,28 @@ TEST_CASE("Physics: a guest's own ragdoll goes to every other game; another's ra
     CHECK(session.SentTo<NotifyBodyRests>(kPeer).empty());
     CHECK(session.Freed.empty());
 }
+
+TEST_CASE("Physics: a reliable release survives lost held frames and rejects older input", "[HostAuthority][Physics][release-order]")
+{
+    Session session;
+    BodyReleaseRequest released;
+    released.Tick = 1100;
+    released.Frames = {{.Key = kLadle, .Position = {15.f, 0.f, 100.f}, .LinearVelocity = {200.f, 0.f, 50.f}}};
+    SECTION("every held frame was lost")
+    {
+        session.Receive(kPeer, released);
+        REQUIRE(session.Freed.size() == 1);
+        CHECK(session.Freed[0] == released.Frames[0].Quantized());
+        session.Outbox.clear();
+        session.Receive(kPeer, Held(1050, 10.f));
+        CHECK(session.Outbox.empty());
+        session.Receive(kPeer, released);
+        CHECK(session.Freed.size() == 1);
+    }
+    SECTION("a new grab reached the host before an older release")
+    {
+        session.Receive(kPeer, Held(1200, 25.f));
+        session.Receive(kPeer, released);
+        CHECK(session.Freed.empty());
+    }
+}

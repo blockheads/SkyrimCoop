@@ -244,7 +244,68 @@ def book_runs(game):
             ct.console_on("", f"{ref:X}.markfordelete")
 
 
+def barter_speech(game):
+    """A real merchant line opens barter on the picker, whose purchase earns Speech on that game alone."""
+    ct.both_go("WhiterunBelethorsGeneralGoods")
+    actors = set(ct.local_player("").get("local_actors", {}))
+    ct.console_on("", "player.placeatme 13BA1 1")
+    npc = int(next(iter(ct.wait_for("a merchant is loaded inside the shop", lambda:
+                  set(ct.local_player("").get("local_actors", {})) - actors, 15))))
+    ct.console_on("", f"{npc:X}.setrestrained 1")
+    ct.wait_for("the merchant has a session id", lambda: ct.host_npc_state(npc).get("session_id", -1) >= 0, 10)
+    copy = ct.copy_of("client", ct.host_npc_state(npc)["session_id"])
+    gold = ct.party_gold()
+    other = "" if game else "client"
+    target = copy if game else npc
+    menu = "BarterMenu"
+    root = "_root.Menu_mc."
+    lists = root + "InventoryLists_mc."
+    before = {g: ct.skill(g, ct.SPEECH_SKILL) for g in ("", "client")}
+    try:
+        ct.set_party_gold(max(gold, 10000))
+        ct.place_before(game, target, 110)
+        ct.wait_for("the merchant has faded in and can be activated", lambda:
+                    ct.actor_state(game, target).get("mod", {}).get("fade_state") == 0, 10)
+        ct.activate_on(game, target)
+        try:
+            ct.wait_for("the merchant offers its barter line", lambda: any(
+                "sale" in o.get("text", "").lower() for o in ct.dialogue(game).get("options", [])), 30)
+        except ct.TestFailure:
+            ct.log(f"merchant {npc:X}, copy {copy:X}: host={ct.dialogue('')}, guest={ct.dialogue('client')}")
+            raise
+        topic = next(o["topic"] for o in ct.dialogue(game)["options"] if "sale" in o.get("text", "").lower())
+        ct.pick_with_keys(game, topic)
+        ct.wait_for("the picker opens barter", lambda: menu in ct.menus(game), 15)
+        if menu in ct.menus(other):
+            raise ct.TestFailure("the non-trader opened barter")
+        ct.wait_for("the merchant's categories take input", lambda:
+                    ct.menu_var(game, menu, lists + "currentState") == 1, 10)
+        ct.tap_key(game, ct.MENU_RIGHT_KEY)  # D: categories -> items
+        ct.wait_for("the merchant's item list takes input", lambda:
+                    ct.menu_var(game, menu, lists + "currentState") == 2, 10)
+        ct.wait_for("the purchase has a price", lambda:
+                    (ct.menu_var(game, menu, root + "ItemCard_mc.itemInfo.value") or 0) > 0, 10)
+        ct.tap_key(game, ct.ACTIVATE_KEY)
+        # A stack opens the native quantity slider; one item is enough for this trade.
+        if ct.menu_var(game, menu, root + "ItemCard_mc.QuantityMenu_mc._visible"):
+            ct.tap_key(game, 0x1C)
+        ct.wait_for("the trader's native Speech gains the purchase", lambda:
+                    ct.skill(game, ct.SPEECH_SKILL) > before[game], 15)
+        if ct.skill(other, ct.SPEECH_SKILL) != before[other]:
+            raise ct.TestFailure("the other player's Speech gained the trade")
+    finally:
+        close(game, menu)
+        ct.close_dialogues()
+        ct.remove_host_npc(npc)
+        ct.set_party_gold(gold)
+        ct.both_go(ct.HOME_CELL)
+
+
 def register(scenarios, tags):
+    for role, game in (("host", ""), ("guest", "client")):
+        name = f"dialogue-{role}-barter-earns-speech"
+        scenarios[name] = functools.partial(barter_speech, game)
+        tags[name] = {"dialogue", "barter", "inventory", "menus", "spawn"}
     for menu, run in {"map": map_runs, "journal": journal_runs, "lockpicking": lock_runs,
                       "training": training_runs, "book": book_runs, "crafting": crafting_runs,
                       "barter": barter_runs}.items():

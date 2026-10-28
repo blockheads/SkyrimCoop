@@ -12,6 +12,7 @@ struct TransportService;
 struct UpdateEvent;
 struct ProjectileLaunchedEvent;
 struct HitEvent;
+struct MeleeStaggerEvent;
 
 /**
  * @brief Responsible for projectiles, combat agro, etc.
@@ -30,6 +31,8 @@ protected:
     void OnProjectileLaunchedEvent(const ProjectileLaunchedEvent& acEvent) const noexcept;
     void OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMessage) const noexcept;
     void OnHitEvent(const HitEvent& acEvent) noexcept;
+    void OnMeleeStagger(const MeleeStaggerEvent& acEvent) noexcept;
+    void OnNotifyMeleeStagger(const NotifyMeleeStagger& acMessage) noexcept;
     void RunHitFeedback() noexcept;
 
 private:

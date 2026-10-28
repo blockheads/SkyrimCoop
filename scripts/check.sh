@@ -80,6 +80,8 @@ for target in ClientTests HostAuthorityTests TPTests GameTests; do
         step "run $target" "build/linux/x86_64/debug/$target"
     fi
 done
+step "check harness comparisons" python3 -m unittest discover -s scripts -p test_world_diff.py
+step "check ragdoll comparisons" python3 -m unittest discover -s scripts -p test_ragdoll_trace.py
 step "build UiWorkbench" scripts/xmake-linux.sh build -j8 UiWorkbench
 if [[ " ${FAILED[*]-} " != *" build UiWorkbench "* ]]; then
     step "check UI fixtures" build/linux/x86_64/debug/UiWorkbench --check

@@ -17,6 +17,7 @@
 #include <Games/Overrides.h>
 #include <Games/ReferenceStates.h>
 #include <FormIds.h>
+#include <SessionIds.h>
 
 #include <ExtraData/ExtraContainerChanges.h>
 #include <Forms/BGSLocation.h>
@@ -257,7 +258,10 @@ void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
     // Running or starting first, without this game's own start: no alias rolls, no start-up stage of its own.
     if (acQuest.Flags & kStartedQuestFlags)
         SetQuestFlags(quest, kStartedQuestFlags, acQuest.Flags);
-    ApplyFills(quest, acQuest);
+    if (ApplyFills(quest, acQuest))
+        m_pendingAliases.erase(quest.formID);
+    else
+        m_pendingAliases[quest.formID] = acQuest;
     ApplyStages(quest, acQuest, aAsLoad);
     ApplyObjectives(quest, acQuest, aAsLoad);
 
@@ -290,14 +294,17 @@ std::optional<ObjectChange> GuestEngine::ReadContainerItems(uint32_t aObjectForm
 
 TESObjectREFR* GuestEngine::FindFillReference(TESQuest& aQuest, const QuestAliasFill& acFill) const noexcept
 {
+    if (acFill.ActorId)
+        return Cast<Actor>(TESForm::GetById(Utils::GetFormIdBySessionId(acFill.ActorId)));
     if (TESObjectREFR* pRef = FindReference(acFill.Ref))
         return pRef;
     const uint32_t cCellId = acFill.Cell.BaseId ? ToGame(acFill.Cell) : 0;
     return cCellId ? TESObjectREFR::LoadFromPlugin(ToGame(acFill.Ref), cCellId, acFill.GridX, acFill.GridY, &aQuest) : nullptr;
 }
 
-void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const noexcept
+bool GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const noexcept
 {
+    bool ready = true;
     // A stopped quest's roles are empty on the host, so none come.
     if (!(acQuest.Flags & kStartedQuestFlags))
         ClearFills(aQuest);
@@ -306,11 +313,10 @@ void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const 
         BGSBaseAlias* pAlias = aQuest.GetRefAlias(cFill.AliasId);
         if (!pAlias || cFill.HostOnly)
             continue;
-        TESObjectREFR* pRef = cFill.Ref.BaseId ? FindFillReference(aQuest, cFill) : nullptr;
-        if (cFill.Ref.BaseId && !pRef)
+        TESObjectREFR* pRef = cFill.Ref.BaseId || cFill.ActorId ? FindFillReference(aQuest, cFill) : nullptr;
+        if ((cFill.Ref.BaseId || cFill.ActorId) && !pRef)
         {
-            spdlog::warn("GuestEngine: quest {:X} alias {}: {:X} is not in this game", acQuest.Id.LogFormat(), cFill.AliasId,
-                         cFill.Ref.LogFormat());
+            ready &= !cFill.ActorId;
             continue;
         }
         if (aQuest.GetAliasedRef(cFill.AliasId) == pRef)
@@ -330,6 +336,19 @@ void GuestEngine::ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const 
             aQuest.ForceLocationIntoAlias(cFill.AliasId, pLocation);
         else
             aQuest.ClearLocationAlias(pAlias);
+    }
+    return ready;
+}
+
+void GuestEngine::RetryQuestAliases() noexcept
+{
+    for (auto it = m_pendingAliases.begin(); it != m_pendingAliases.end();)
+    {
+        auto* pQuest = Cast<TESQuest>(TESForm::GetById(it->first));
+        if (!pQuest || ApplyFills(*pQuest, it->second))
+            it = m_pendingAliases.erase(it);
+        else
+            ++it;
     }
 }
 

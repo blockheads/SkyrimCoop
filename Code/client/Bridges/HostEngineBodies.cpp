@@ -29,6 +29,6 @@ HostBodies HostEngine::TakeBodies(const std::function<uint32_t(uint32_t aFormId)
     for (const auto& cRested : cUpdate.Rested)
         if (const auto cKey = cOwner(cRested))
             for (const BodyFrame& cRead : cRested.Read)
-                bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position, .Rotation = cRead.Rotation});
+                bodies.Rested.push_back({.Key = {cKey->Object, cKey->Actor, cRead.Key.Index}, .Position = cRead.Position, .Rotation = cRead.Rotation, .Knocked = cRead.Knocked});
     return bodies;
 }

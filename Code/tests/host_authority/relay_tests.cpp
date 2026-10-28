@@ -576,3 +576,25 @@ TEST_CASE("AI state: the owner's reaches everyone else; nobody else's counts", "
     CHECK(session.SentTo<NotifyAiState>(kHost).empty());
 }
 
+
+TEST_CASE("Melee staggers come from the attacker's owner and go to the victim alone", "[HostAuthority][Combat][melee-stagger]")
+{
+    Session session;
+    MeleeStaggerRequest stagger;
+    stagger.HitterId = session.Character(kPeer);
+    stagger.HitteeId = session.Character(kOtherPeer);
+    stagger.Magnitude = 0.75f;
+    session.Outbox.clear();
+    session.Receive(kHost, stagger);
+    CHECK(session.Outbox.empty());
+    session.Receive(kPeer, stagger);
+    const auto cSent = session.SentTo<NotifyMeleeStagger>(kOtherPeer);
+    REQUIRE(cSent.size() == 1);
+    CHECK(cSent[0]->Magnitude == stagger.Magnitude);
+    CHECK(session.SentTo<NotifyMeleeStagger>(kHost).empty());
+    CHECK(session.SentTo<NotifyMeleeStagger>(kPeer).empty());
+    session.Outbox.clear();
+    stagger.Magnitude = 0.f;
+    session.Receive(kPeer, stagger);
+    CHECK(session.Outbox.empty());
+}

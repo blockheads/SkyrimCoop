@@ -22,6 +22,7 @@
 #include <Components/WaitingFor3D.h>
 #include <Services/ActorValueService.h>
 #include <Services/AiStateService.h>
+#include <Services/PerkService.h>
 #include <Services/EffectVisualsService.h>
 #include <Services/CharacterService.h>
 #include <Services/CombatService.h>
@@ -81,6 +82,7 @@ World::World()
       m_pWaitBridge(std::make_unique<FakeWait>(ctx().at<FakeEngine&>())),
       m_pCrimeBridge(std::make_unique<FakeCrime>()), m_runner(m_dispatcher), m_transport(*this, m_dispatcher)
 {
+    m_lastFrameTime = std::chrono::high_resolution_clock::now();
     m_dispatcher.sink<UpdateEvent>().connect<&RunnerService::OnUpdate>(m_runner);
     // In the real World's order: TravelService before CharacterService.
     ctx().emplace<TravelService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>(),
@@ -99,6 +101,7 @@ World::World()
     ctx().emplace<InventoryService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<MagicService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>(), ctx().at<IFormBridge&>());
     ctx().emplace<EffectVisualsService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
+    ctx().emplace<PerkService>(m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<AiStateService>(*this, m_dispatcher, m_transport, ctx().at<IActorBridge&>());
     ctx().emplace<CutsceneService>(*this, m_dispatcher, m_transport);
     ctx().emplace<FakeDialogue&>(static_cast<FakeDialogue&>(*m_pDialogueBridge));
@@ -132,6 +135,7 @@ World::~World()
     ctx().erase<PlayerService>();
     ctx().erase<DialogueService>();
     ctx().erase<CutsceneService>();
+    ctx().erase<PerkService>();
     ctx().erase<AiStateService>();
     ctx().erase<EffectVisualsService>();
     ctx().erase<MagicService>();
@@ -159,7 +163,11 @@ void World::Update() noexcept
     MainLoopTasks::Run();
     mainEngine.AtMainLoop = false;
     ctx().at<FakeEngine&>().RunMainLoop();
-    m_dispatcher.trigger(UpdateEvent(1.0 / 60));
+    const auto cNow = std::chrono::high_resolution_clock::now();
+    const double cDelta = std::chrono::duration<double>(cNow - m_lastFrameTime).count();
+    m_lastFrameTime = cNow;
+    // A delayed line delivers in wall time: recovery must use that clock too.
+    m_dispatcher.trigger(UpdateEvent(std::getenv("COOP_NET") ? cDelta : 1.0 / 60));
     // The real AnimationSystem replays a dying owner's action 300 ms behind its tick.
     auto& engine = ctx().at<FakeEngine&>();
     const uint64_t cTick = GetTransport().GetTick();

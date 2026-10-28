@@ -52,7 +52,8 @@ Porting Skyrim Together's server to the host's game (`docs/design/host-authority
 ### Experience: wiring up
 
 The rule and why: `docs/design/party-model.md` ("Experience"); engine path and the mods:
-`docs/re/systems/experience.md`. Each step with its scenario.
+`docs/re/systems/experience.md`. Each step with its scenario. V1.0.0 uses the native game test setup;
+installed-mod kill XP and multiplier compatibility are later work (`docs/ideas.md`, "Experience mods").
 
 1. **Drop upstream's shared combat XP**: done 2026-10-27 with quest rewards. No measured gains leave a game;
    the relay and receiver, LastUsedCombatSkill and ScopedExperienceOverride/27244 are removed. Reserved legacy
@@ -62,17 +63,15 @@ The rule and why: `docs/design/party-model.md` ("Experience"); engine path and t
 3. **Speech from a picked line to the picker**: done 2026-10-22 by rule 2 (the line runs for its picker, whose game
    runs its `Game.AdvanceSkill`; `dialogue-picker-gets-speech-experience`), replacing the 2026-10-19 reroute. A
    script's skill gain outside a picked line (a quest's reward) is the party's (step 6).
-4. **Barter Speech to the trader**, with barter on the picker's game.
+4. **Barter Speech to the trader**: done 2026-10-27, with barter on the picker's game. Host/guest real purchases
+   raise only the trader's Speech; dialogue closes before the barter menu takes input. Fast routing/flow tests and
+   native evidence: `design/native-bugs.md`.
 5. **Training to whoever pays**: done (2026-10-19; by rule 2 since 2026-10-22, `Game.ShowTrainingMenu` running on
    the picker's game): the cost, the skill and the trainings this level are the picker's (`dialogue-picker-trains`).
 6. **Quest rewards to everyone**: built 2026-10-27 (`design/quest-rewards.md`), as the party's calls. Skill input,
    explicit skill levels, perk points, perks and permanent stat grants reach every present player's own engine.
    Real host/guest quest turn-ins check skills, perks, picker-only gold and native guest completion/stage events.
    Experience DLL itself is not installed/tested; its game's native event delivery is measured.
-7. **Kills**: the killer's game records its own player's kill. Scenario with Experience (17751) installed:
-   a peer's kill of a host NPC, who gets its kill experience.
-8. **Mods once**: Skill Uncapper AE and Experience installed, a routed gain (step 3) gets the receiver's
-   multiplier once.
 
 ### World sync: finishing it (plan 2026-10-21)
 
@@ -1071,6 +1070,13 @@ Copies are puppets: they run no engine AI and replay what the owner did (`docs/d
 
 ## Loose ends
 
+Native bug pass and audit (2026-10-28): 11 of the 16 reports addressed, including two fixture corrections.
+The three remaining ragdoll/get-up reports are accepted for v1.0.0; the AI/quest lock report is deferred.
+Plugin quest start/stop compatibility is deferred with mod work. The audit removed unsuccessful pose
+reconstruction and the additional plugin event relay. Barter Speech is implemented and tested for both players.
+Mod-dependent Experience work is outside v1.0.0. Evidence:
+[native-bugs.md](design/native-bugs.md); accepted reports: [bugs.md](bugs.md).
+
 - **Any added hook breaks `guest-brings-character-into-hosts-world` (found 2026-10-24, physics-sync).** With one more
   `HOOK_ID` (physics-sync's `PlayerHands` 79133, a `StartGrabObject` 40552 hook, or a test hook on 40557, which the
   join never calls) the scenario's own steps pass, but the baseline finds the host's player ~40 units off its spot
@@ -1542,7 +1548,7 @@ What the first playtest build has besides what works today (the table above):
     `relief-takes-client-relics`). Rule 3 built: a quest's question about the player asks the party (yes/no: any
     player; else the player nearest what it names; `timer-asks-party-position`). Next: rule 4 (a guest's story
     events), then features 8 and 9 (plan: `build/prompts/party-scripts.md`, design in party-calls.md).
-13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); available for review on dev (uncommitted): guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass; remaining jail cleanup, intermittent lock reports and death/physics failures under packet loss are deferred known issues in `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
+13. **Party travel gaps:** ready for v1.0.0 testing (user accepted 2026-10-27); available for review on dev (uncommitted): guest fast-travel time advances HostClock; native guest MoveTo leads the party; queued destinations are announced before loading. Menu, dialogue, dead/mounted follower and three-player coverage added. Full gate and both scoped non-death travel/mount network profiles pass. Jail cleanup and the physics release lock now have fixes; native bug regression evidence and the remaining AI/quest lock report are in [native-bugs.md](design/native-bugs.md) and `docs/bugs.md`. Native measurements, validation and remaining limits: [party-travel.md](design/party-travel.md).
 14. **Small visible bugs** (built 2026-10-27, merged into dev uncommitted): the same resurrected NPC
     copy draws and attacks again; a brought character gets checked placement beside the host; a copy's base level
     follows its owner; instant FX Persist effects flash; looks update the existing actor and base. Fast tests were

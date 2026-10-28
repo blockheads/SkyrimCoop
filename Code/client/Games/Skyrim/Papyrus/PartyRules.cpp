@@ -64,7 +64,8 @@ Routing RouteOf(const CallFacts& acFacts) noexcept
     }
     // On the player, or its screen (a message box, an image-space modifier), in a script a guest's action ran: that
     // guest's game runs it (rule 2; cutscenes.md, a player's moment).
-    if (acFacts.GuestCause && (acFacts.PlayerNative || cKind == Call::kControls || cKind == Call::kScreen))
+    if (acFacts.GuestCause && (acFacts.PlayerNative || cKind == Call::kControls || cKind == Call::kScreen ||
+                              cKind == Call::kPlayerMenu))
         return {.To = Destination::kCauseGame, .Original = false};
     return {};
 }

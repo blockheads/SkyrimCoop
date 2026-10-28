@@ -6,6 +6,7 @@
 #include <Services/Host/HostPlayers.h>
 
 #include <Messages/JoinMessages.h>
+#include <Messages/Relayed.h>
 
 HostRecords::HostRecords(HostAuthority& aAuthority, const HostPlayers& acPlayers, const HostCharacters& acCharacters, const HostGame& acGame) noexcept
     : m_players(acPlayers)
@@ -13,6 +14,21 @@ HostRecords::HostRecords(HostAuthority& aAuthority, const HostPlayers& acPlayers
     , m_game(acGame)
 {
     aAuthority.On(*this, &HostRecords::OnPlayerRecord);
+    aAuthority.Watch(*this, &HostRecords::OnPartyCall);
+}
+
+void HostRecords::OnPartyCall(const RoutedCallRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    if (aSender != m_players.Host() || acRequest.To != CallTo::kOthers || !m_game.StoreStorySpell)
+        return;
+    const auto& cCall = acRequest.Call;
+    const auto* cpSelf = std::get_if<ScriptForm>(&cCall.Self);
+    if (cCall.Class != "Actor" || !cpSelf || cpSelf->SessionId || cpSelf->Form != GameId(0, 0x14) ||
+        cCall.Arguments.empty() || (cCall.Function != "AddSpell" && cCall.Function != "RemoveSpell"))
+        return;
+    const auto* cpSpell = std::get_if<ScriptForm>(&cCall.Arguments[0]);
+    if (cpSpell && !cpSpell->SessionId && cpSpell->Form)
+        m_game.StoreStorySpell(cpSpell->Form, cCall.Function == "AddSpell");
 }
 
 void HostRecords::OnPlayerRecord(const PlayerRecordRequest& acRequest, ConnectionId_t aSender) const noexcept

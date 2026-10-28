@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <Structs/Perks.h>
 #include <Structs/ActorAiState.h>
 #include <Structs/GameId.h>
 #include <Structs/GridCellCoords.h>
@@ -29,7 +30,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     bool operator==(const AnnounceCharacterRequest& acRhs) const noexcept
     {
         return GetOpcode() == acRhs.GetOpcode() && SessionId == acRhs.SessionId && ReferenceId == acRhs.ReferenceId && FormId == acRhs.FormId && CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags &&
-               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
+               AppearanceBuffer == acRhs.AppearanceBuffer && FactionsContent == acRhs.FactionsContent && LatestAction == acRhs.LatestAction && GraphState == acRhs.GraphState && AiState == acRhs.AiState && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && IsDragon == acRhs.IsDragon && IsMount == acRhs.IsMount && IsPlayerSummon == acRhs.IsPlayerSummon;
     }
 
     // The id the host gave it: the player's from the join answer, the host's actors' from HostCharacters.
@@ -48,6 +49,7 @@ struct AnnounceCharacterRequest final : RequestMessage
     std::string GraphState{};
     // What its AI is doing, for the copy to hold from the start (AiStateService).
     ActorAiState AiState{};
+    Perks PerksContent;
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
     Tints FaceTints{};

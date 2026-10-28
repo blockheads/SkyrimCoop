@@ -758,3 +758,33 @@ TEST_CASE("Characters: a player's effects go into its record, for the spawns mad
     REQUIRE(cPeer != cSpawns.end());
     CHECK((*cPeer)->EffectIds == effects.EffectIds);
 }
+
+TEST_CASE("Characters: only a player's owner changes its copies' perk ranks, including later spawns", "[HostAuthority][Characters][perks]")
+{
+    Session session;
+    ActorPerksRequest perks;
+    perks.SessionId = session.Character(kPeer);
+    perks.Content.Ranks = {{GameId(0, 0xCC799), 2}};
+    session.Outbox.clear();
+    session.Receive(kOtherPeer, perks);
+    CHECK(session.Outbox.empty());
+    session.Receive(kPeer, perks);
+    for (const auto cTo : {kHost, kOtherPeer})
+    {
+        const auto cSent = session.SentTo<NotifyActorPerks>(cTo);
+        REQUIRE(cSent.size() == 1);
+        CHECK(cSent[0]->Content == perks.Content);
+    }
+    CHECK(session.SentTo<NotifyActorPerks>(kPeer).empty());
+
+    constexpr ConnectionId_t cLate = 4;
+    session.Join(cLate, JoinRequest("Serana"));
+    AnnounceCharacterRequest late;
+    late.SessionId = session.CharacterId(cLate);
+    late.ReferenceId = GameId(0, 0x14);
+    session.Receive(cLate, late);
+    const auto cSpawns = session.SentTo<NotifyCharacterSpawn>(cLate);
+    const auto cPeer = std::ranges::find_if(cSpawns, [&](const auto* apSpawn) { return apSpawn->SessionId == perks.SessionId; });
+    REQUIRE(cPeer != cSpawns.end());
+    CHECK((*cPeer)->PerksContent == perks.Content);
+}

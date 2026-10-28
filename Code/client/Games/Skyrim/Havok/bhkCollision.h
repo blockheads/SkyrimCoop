@@ -137,11 +137,11 @@ struct BodyRead
 };
 [[nodiscard]] bool ReadBody(const bhkWorldObject& acBody, BodyRead& aRead) noexcept;
 
-// Put there exactly, keyframed (bhkRigidBody::SetMotionType 78077), moving so (still by default): its own
+// Put there exactly, keyframed unless aSimulated (a ragdoll keeps its dynamic motion), moving so: its own
 // SetPositionAndRotation (78082, which takes the lock), then 78089, 78090. Each frame for a body played back: a
 // keyframe toward a pose over the frame's time (applyHardKeyFrame) overshoots when Havok's step is longer.
 bool PlaceBody(bhkWorldObject& aBody, const glm::vec3& acPosition, const glm::quat& acRotation, const glm::vec3& acLinearVelocity = {},
-               const glm::vec3& acAngularVelocity = {}) noexcept;
+               const glm::vec3& acAngularVelocity = {}, bool aSimulated = false) noexcept;
 // Moving so, simulated as it is: woken, its velocities set (78089, 78090 take the world's write lock). A copy's ragdoll
 // body is steered so each update, which its ragdoll driver keeps (Find in BodyBridge).
 bool SteerBody(bhkWorldObject& aBody, const glm::vec3& acLinearVelocity, const glm::vec3& acAngularVelocity) noexcept;

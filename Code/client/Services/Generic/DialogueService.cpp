@@ -3,6 +3,7 @@
 #include <Components.h>
 #include <Events/DisconnectedEvent.h>
 #include <Events/UpdateEvent.h>
+#include <Events/MenuEvent.h>
 #include <Messages/SharedDialogue.h>
 #include <Services/TransportService.h>
 #include <SessionIds.h>
@@ -15,6 +16,7 @@ DialogueService::DialogueService(World& aWorld, entt::dispatcher& aDispatcher, T
     , m_transport(aTransport)
     , m_bridge(aBridge)
 {
+    Listen<MenuEvent, &DialogueService::OnMenu>(m_connections, aDispatcher, this);
     Listen<UpdateEvent, &DialogueService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &DialogueService::OnDisconnected>(m_connections, aDispatcher, this);
     Listen<NotifyDialogueOpen, &DialogueService::OnOpen>(m_connections, aDispatcher, this);
@@ -76,6 +78,23 @@ std::optional<uint32_t> DialogueService::CopySessionId(uint32_t aFormId) const n
     return std::nullopt;
 }
 
+void DialogueService::OnMenu(const MenuEvent& acEvent) noexcept
+{
+    if (acEvent.Menu != "BarterMenu" || !m_pRole || !m_joined || !m_conversation)
+        return;
+    m_bartering = acEvent.Opening;
+    if (m_bartering)
+    {
+        m_bridge.SetMenuCloseEnds(false);
+        CloseMenu();
+    }
+    else if (m_bridge.GetSpeaker())
+    {
+        m_bridge.ShowMenu();
+        Opening();
+    }
+}
+
 void DialogueService::OnUpdate(const UpdateEvent&) noexcept
 {
     if (!m_transport.IsOnline() || !m_pRole)
@@ -90,11 +109,11 @@ void DialogueService::OnUpdate(const UpdateEvent&) noexcept
     }
 
     const bool cOpen = m_bridge.IsMenuOpen();
-    const uint32_t cSpeaker = cOpen || m_pRole->RunsWithoutMenu() ? m_bridge.GetSpeaker() : 0;
+    const uint32_t cSpeaker = cOpen || m_bartering || m_pRole->RunsWithoutMenu() ? m_bridge.GetSpeaker() : 0;
 
     // In it while this game's menu is open on its NPC; the one who asked, from the open until its menu shows (or its
     // start came to nothing).
-    const bool cIn = cOpen && m_conversation && Utils::GetSessionIdByFormId(cSpeaker) == m_npcSessionId;
+    const bool cIn = (cOpen || m_bartering) && m_conversation && Utils::GetSessionIdByFormId(cSpeaker) == m_npcSessionId;
     if (m_opening && (cOpen || m_bridge.GetSpeaker() != Utils::GetFormIdBySessionId(m_npcSessionId)))
         m_opening = false;
     // A menu the UI never opened (its show dropped): the copy never ends its conversation, so this game leaves.
@@ -111,13 +130,13 @@ void DialogueService::OnUpdate(const UpdateEvent&) noexcept
         join.Conversation = m_conversation;
         m_transport.Send(join);
     }
-    else if (!cOpen && !m_opening && m_joined && m_conversation)
+    else if (!cOpen && !m_bartering && !m_opening && m_joined && m_conversation)
     {
         DialogueCloseRequest close;
         close.Conversation = m_conversation;
         m_transport.Send(close);
     }
-    m_joined = cIn || (m_joined && (cOpen || m_opening));
+    m_joined = cIn || (m_joined && (cOpen || m_bartering || m_opening));
 
     m_menuOpen = cOpen;
     m_closing = m_closing && cOpen;
@@ -133,6 +152,7 @@ void DialogueService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_opening = false;
     m_menuOpen = false;
     m_closing = false;
+    m_bartering = false;
 }
 
 void DialogueService::OnOpen(const NotifyDialogueOpen& acMessage) noexcept
@@ -189,6 +209,7 @@ void DialogueService::OnClosed(const NotifyDialogueClosed& acMessage) noexcept
         return;
     m_conversation = 0;
     m_joined = false;
+    m_bartering = false;
     m_opening = false;
     if (m_pRole)
         m_pRole->OnClosed();

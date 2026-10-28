@@ -173,6 +173,8 @@ Built 2026-10-27: [quest-rewards.md](quest-rewards.md). Explicit script skill-le
 attribute grants share through the Dragonborn path; a body's effects and equipment remain personal. Rewards are
 for players present, with no retroactive grant on rejoining. Character records preserve already-earned progress.
 Native guest stage/completion events are measured; Experience itself is not installed/tested.
+Installed-mod kill XP and multiplier compatibility are after v1.0.0 (`../ideas.md`, "Experience mods");
+they are not release acceptance requirements.
 
 Engine path and how the mods hook it: `docs/re/systems/experience.md`.
 

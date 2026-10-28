@@ -5,6 +5,30 @@ using Wire::Serialization;
 
 namespace Payloads
 {
+void MeleeStagger::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, HitteeId);
+    Serialization::WriteVarInt(aWriter, HitterId);
+    Serialization::WriteFloat(aWriter, Magnitude);
+}
+void MeleeStagger::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    HitteeId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    HitterId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Magnitude = Serialization::ReadFloat(aReader);
+}
+
+void ActorPerks::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
+{
+    Serialization::WriteVarInt(aWriter, SessionId);
+    Content.Serialize(aWriter);
+}
+void ActorPerks::DeserializePayload(Wire::Buffer::Reader& aReader) noexcept
+{
+    SessionId = Serialization::ReadVarInt(aReader) & 0xFFFFFFFF;
+    Content.Deserialize(aReader);
+}
+
 void EquipmentSnapshot::SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept
 {
     Serialization::WriteVarInt(aWriter, SessionId);

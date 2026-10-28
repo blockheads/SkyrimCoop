@@ -111,6 +111,7 @@ Reach FakeReachOf(const LocalCall& acCall)
         {"Game", "ShakeCamera", {Call::kScreen}},
         {"Debug", "Notification", {Call::kScreen}},  {"Debug", "MessageBox", {Call::kScreen}}, {"Message", "Show", {Call::kScreen}},
         {"Actor", "EquipItem", {Call::kItem}},     {"Actor", "UnequipItem", {Call::kItem}},
+        {"Actor", "ShowBarterMenu", {Call::kPlayerMenu}},
         {"ObjectReference", "GetDistance", {Call::kQuestion}}, {"Actor", "HasLOS", {Call::kQuestion}},
         {"Game", "DisablePlayerControls", {Call::kControls}}, {"Game", "EnablePlayerControls", {Call::kControls}},
     };
@@ -158,7 +159,7 @@ void FakeEngine::RunScript(const LocalCall& acCall, uint32_t aCause, bool aStory
     if (m_openedBox && IsMirrored(aCause))
         if (const auto cEnded = Copies.Started(PlayerOf(aCause), m_openedBox))
             AnswerBox(m_openedBox, std::get<int32_t>(*cEnded));
-    if (InSession && cReach.Kind == Call::kProgress && IsMirrored(aCause))
+    if (InSession && cReach.Kind == Call::kProgress)
         World::Get().GetRunner().Trigger(PlayerProgressEvent{});
     if (cRouting.To == Destination::kCauseGame)
         World::Get().GetRunner().Trigger(RoutedCallEvent{.To = CallTo::kOwner, .GuestFormId = aCause, .Call = acCall});
@@ -236,6 +237,7 @@ uint32_t FakeEngine::Perform(const LocalCall& acCall, Call aKind, uint32_t aSelf
 {
     switch (aKind)
     {
+    case Call::kPlayerMenu: BarterMerchant = aSelf; return 0;
     case Call::kProgress: TakeProgress(acCall, aSelf); return 0;
     case Call::kShow:
     {
@@ -312,6 +314,21 @@ void FakeEngine::Frame()
             continue;
         if (actor.KnockIn && !--actor.KnockIn)
             actor.KnockedDown = true;
+        for (const auto& cDrive : m_pendingRagdolls.Take(cId))
+        {
+            if (!actor.Dead && !actor.KnockedDown)
+                continue;
+            const auto it = Bodies.find(cDrive.Frame.Key);
+            if (it == Bodies.end())
+                continue;
+            auto& body = it->second;
+            body.Held = true;
+            body.Awake = false;
+            body.RagdollOf = cId;
+            body.Flight.Body.Position = cDrive.Frame.Position;
+            body.Flight.Body.Rotation = cDrive.Frame.Rotation;
+            ++body.Drives;
+        }
         // Drawn: moved since its graph update while its ragdoll poses it, its old pose shows at the new place.
         const float cTurn = std::abs(std::remainder(actor.Rotation[2] - actor.GraphPlace[3], 6.28318531f));
         const float cSnap = glm::distance(glm::vec3(actor.Position[0], actor.Position[1], actor.Position[2]),
@@ -1737,9 +1754,17 @@ void FakeEngine::TakeProgress(const LocalCall& acCall, uint32_t aActor)
         else if (cIs("AddPerkPoints"))
             RewardPoints += ArgumentOf<int32_t>(acCall, 0);
         else if (cIs("AddPerk"))
+        {
             RewardPerks.insert(cForm);
+            const auto cId = SessionIdOf(cForm);
+            if (std::ranges::none_of(Player.Perks, [&](const auto& cPerk) { return cPerk.Id == cId; }))
+                Player.Perks.push_back({cId, 1});
+        }
         else if (cIs("RemovePerk"))
+        {
             RewardPerks.erase(cForm);
+            std::erase_if(Player.Perks, [&](const auto& cPerk) { return cPerk.Id == SessionIdOf(cForm); });
+        }
         else if (cIs("ModActorValue"))
             for (const auto& [cName, cValue] : kStats)
                 if (SameName(ArgumentOf<std::string>(acCall, 0), cName))
@@ -1803,6 +1828,10 @@ PlayerRecord FakeEngine::ReadPlayer() const noexcept
     record.Words.clear();
     for (const uint32_t cWord : WordsUnlocked)
         record.Words.push_back(GameId(0, cWord));
+    if (const auto cSpells = AddedSpells.find(kPlayer); cSpells != AddedSpells.end())
+        for (const uint32_t cSpell : cSpells->second)
+            if (std::ranges::find(record.Spells, GameId(0, cSpell)) == record.Spells.end())
+                record.Spells.push_back(GameId(0, cSpell));
     return record;
 }
 
@@ -1813,10 +1842,14 @@ void FakeEngine::ApplyPlayer(const PlayerRecord& acRecord) noexcept
     Player.Key.clear();
     Player.Items = {};
     cPlayer.Items = acRecord.Items;
-    // As JoinBridge: its own souls, set with no HUD; the words it unlocked on top of the save's.
+    AddedSpells[kPlayer].clear();
+    for (const auto& cSpell : acRecord.Spells)
+        AddedSpells[kPlayer].insert(cSpell.BaseId);
+    // As JoinBridge: its own souls and unlocked words, replacing the save's purchased flags with no HUD.
     for (const PlayerRecord::Value& cValue : acRecord.Values)
         if (cValue.Index == 133)
             Souls[kPlayer] = cValue.Base;
+    WordsUnlocked.clear();
     for (const GameId& cWord : acRecord.Words)
         WordsUnlocked.insert(cWord.BaseId);
     RewardStats.clear();
@@ -2129,6 +2162,8 @@ float FakeEngine::HeadingOf(const glm::quat& acRotation) noexcept
 void FakeEngine::Knock(const BodyKey& acKey, const glm::vec3& acVelocity, const glm::vec3& acSpin)
 {
     Body& body = Bodies.at(acKey);
+    if (body.RagdollOf && Actors.contains(body.RagdollOf) && !IsActorDead(body.RagdollOf))
+        Actors.at(body.RagdollOf).KnockedDown = true;
     body.Flight.Resting = false;
     body.Flight.Body.LinearVelocity = acVelocity;
     body.Flight.Body.AngularVelocity = acSpin;
@@ -2171,6 +2206,13 @@ bool FakeEngine::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
             return true;
         }
     }
+    if (it->second.NeedsKnock && !Actors.at(aCopyFormId).KnockedDown)
+        return true;
+    if (acFrame.Key.Actor)
+    {
+        m_pendingRagdolls.Put(aCopyFormId, acFrame, false);
+        return true;
+    }
     Body& body = it->second;
     body.Held = true;
     body.Awake = false;
@@ -2185,12 +2227,17 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
     const auto it = Bodies.find(acPose.Key);
     if (it == Bodies.end() || (acPose.Key.Actor && !Actors.contains(aCopyFormId)))
         return false;
-    // A living copy's: only while it lies with its owner (its getting up is its graph's, not modelled), and not placed:
-    // its own ragdoll gets up from where it was steered (BodyBridge::Rest).
-    if (acPose.Key.Actor && !IsActorDead(aCopyFormId))
+    ++it->second.RestAttempts;
+    if (it->second.RestBusy)
+        return false;
+    if (acPose.Key.Actor)
     {
-        if (Actors.at(aCopyFormId).KnockedDown)
+        if (IsActorDead(aCopyFormId) || Actors.at(aCopyFormId).KnockedDown)
+        {
             ++it->second.Rests;
+            m_pendingRagdolls.Put(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
+                                               .Knocked = acPose.Knocked}, true);
+        }
         return true;
     }
     Body& body = it->second;
@@ -2207,7 +2254,7 @@ bool FakeEngine::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 bool FakeEngine::Free(const BodyFrame& acFrame) noexcept
 {
     const auto it = Bodies.find(acFrame.Key);
-    if (it == Bodies.end() || !it->second.Held)
+    if (it == Bodies.end())
         return false;
     Body& body = it->second;
     body.Held = false;
@@ -2244,7 +2291,7 @@ HostBodies FakeEngine::TakeBodies(uint64_t aTick, const std::function<bool(const
         if (body.Flight.Resting)
         {
             body.Awake = false;
-            bodies.Rested.push_back({cKey, frame.Position, frame.Rotation});
+            bodies.Rested.push_back({cKey, frame.Position, frame.Rotation, frame.Knocked});
         }
         else
             bodies.Awake.push_back(frame);

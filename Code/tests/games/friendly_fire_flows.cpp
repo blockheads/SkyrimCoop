@@ -3,6 +3,7 @@
 #include "Party.h"
 
 #include <Events/SessionNoticeEvent.h>
+#include <Events/MeleeStaggerEvent.h>
 #include <Services/DeathService.h>
 #include <SessionIds.h>
 
@@ -139,4 +140,30 @@ SCENARIO("A guest killed by another guest: a real death, spectating, and every c
                 out += std::format("copy {:X} dead {} 3d {}; ", cId, victim.Actors.at(cId).Dead, victim.ActorHas3D(cId));
         return out;
     });
+}
+
+SCENARIO("A player's melee stagger reaches the victim's owner once", "[friendly-fire][melee-stagger]")
+{
+    Party party(2, Plugins);
+    party.Agree("all players and copies are present");
+    auto& attacker = Party::Engine(party.Guest());
+    const bool cOtherGuest = GENERATE(false, true);
+    World& victimGame = cOtherGuest ? party.Guest(1) : party.Host();
+    auto& victim = Party::Engine(victimGame);
+    uint32_t targetSession = 0, targetCopy = 0;
+    party.As(victimGame, [&] { targetSession = *Utils::GetSessionIdByFormId(FakeEngine::kPlayer); });
+    party.As(party.Guest(), [&] { targetCopy = Utils::GetFormIdBySessionId(targetSession); });
+    REQUIRE(targetCopy);
+    party.As(party.Guest(), [&] {
+        party.Guest().GetDispatcher().trigger(MeleeStaggerEvent{targetCopy, FakeEngine::kPlayer, 0.75f});
+    });
+    party.Until([&] { return victim.Staggers.size() == 1; }, "the victim's own game staggers it");
+    CHECK(std::get<0>(victim.Staggers[0]) == FakeEngine::kPlayer);
+    CHECK(std::get<2>(victim.Staggers[0]) == Approx(0.75f));
+    CHECK(attacker.Staggers.empty());
+    const auto cHealth = victim.GetActorValue(FakeEngine::kPlayer, 24);
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK(victim.Staggers.size() == 1);
+    CHECK(victim.GetActorValue(FakeEngine::kPlayer, 24) == cHealth);
 }

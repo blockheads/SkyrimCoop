@@ -8,6 +8,7 @@
 
 #include <map>
 #include <optional>
+#include <unordered_set>
 
 struct TESObjectREFR;
 
@@ -78,6 +79,7 @@ private:
     // deletions for the guests: a script's Delete() of one often records no change (it is never saved).
     void TakeDeletedCreated(std::vector<ObjectChange>& aChanges) noexcept;
 
+    mutable std::unordered_set<uint32_t> m_pendingActorAliases;
     IBodyBridge& m_bodyBridge;
     PhysicsBodies m_bodies;
     std::vector<ObjectChange> m_events; // the scripts' events since the last TakeObjectChanges

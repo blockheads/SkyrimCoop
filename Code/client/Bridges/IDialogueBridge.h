@@ -78,7 +78,7 @@ public:
 
     /// The list becomes these options (topic and line each, as another game's engine built them; no conditions are
     /// tested), and an open menu not showing them already shows them and takes a pick (aChoices: slid in as a line's
-    /// choices). False: no conversation.
+    /// choices). False: no conversation, or a personal menu defers the refresh.
     virtual bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept = 0;
     /// Says the list's option with this topic and line, as clicking it does; the list built again since (random
     /// lines), the topic's option (false: no conversation, or no option for the topic).

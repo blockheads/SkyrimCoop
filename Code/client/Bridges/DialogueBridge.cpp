@@ -66,6 +66,12 @@ MenuTopicManager* Conversation() noexcept
     return pManager && TESObjectREFR::GetByHandle(pManager->speaker) ? pManager : nullptr;
 }
 
+bool IsBartering() noexcept
+{
+    const UI* pUI = UI::Get();
+    return pUI && pUI->GetMenuOpen("BarterMenu");
+}
+
 bool IsMenuShown() noexcept
 {
     const UI* pUI = UI::Get();
@@ -196,6 +202,8 @@ void HookShowList(bool aNewList)
 {
     MenuTopicManager* pManager = MenuTopicManager::Get();
     const auto cList = s_filters.List ? s_filters.List() : std::nullopt;
+    if (cList && IsBartering())
+        return;
     if (!cList)
         s_shownElsewhere.clear();
     // The open menu shows these already: filled again, it would take no pick for 750 ms.
@@ -370,6 +378,9 @@ bool DialogueBridge::ClearOrphaned() noexcept
 
 bool DialogueBridge::ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept
 {
+    // A refresh raises dialogue above the trader's menu and takes its input.
+    if (IsBartering())
+        return false;
     MenuTopicManager* pManager = Conversation();
     if (!pManager)
         return false;

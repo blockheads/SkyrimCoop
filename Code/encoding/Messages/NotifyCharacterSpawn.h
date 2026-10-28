@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Message.h"
+#include <Structs/Perks.h>
 #include <Structs/ActorAiState.h>
 #include <Structs/GameId.h>
 #include <Structs/ActionEvent.h>
@@ -33,7 +34,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     {
         return SessionId == acRhs.SessionId && FormId == acRhs.FormId && BaseId == acRhs.BaseId && CellId == acRhs.CellId && Position == acRhs.Position && Rotation == acRhs.Rotation && ChangeFlags == acRhs.ChangeFlags && AppearanceBuffer == acRhs.AppearanceBuffer &&
                InventoryContent == acRhs.InventoryContent && FactionsContent == acRhs.FactionsContent && FaceTints == acRhs.FaceTints && Weight == acRhs.Weight && PlayerId == acRhs.PlayerId && IsDead == acRhs.IsDead && IsPlayer == acRhs.IsPlayer && IsWeaponDrawn == acRhs.IsWeaponDrawn &&
-               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && AiState == acRhs.AiState && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
+               IsPlayerSummon == acRhs.IsPlayerSummon && GraphState == acRhs.GraphState && AiState == acRhs.AiState && PerksContent == acRhs.PerksContent && EffectIds == acRhs.EffectIds && GetOpcode() == acRhs.GetOpcode();
     }
 
     uint32_t SessionId{};
@@ -51,6 +52,7 @@ struct NotifyCharacterSpawn final : NotifyMessage
     std::string GraphState{};
     // What its AI is doing, for the copy to hold from the start (AiStateService).
     ActorAiState AiState{};
+    Perks PerksContent;
     // The effects showing on it, for the copy to play from the start (EffectVisualsService).
     std::vector<GameId> EffectIds{};
     Tints FaceTints{};

@@ -25,7 +25,7 @@
 #include <Events/DismountEvent.h>
 #include <Events/DialogueEvent.h>
 #include <Events/HitEvent.h>
-#include <Games/Skyrim/HitRules.h>
+#include <Combat/HitOwnership.h>
 #include <Events/RemoveSpellEvent.h>
 
 #include <Games/TES.h>
@@ -1046,22 +1046,6 @@ static TDamageActor* RealDamageActor = nullptr;
 // effect this game owns, never from a replayed melee swing.
 static thread_local bool s_applyingEffect = false;
 
-namespace
-{
-HitRules::Party PartyOf(Actor* apActor) noexcept
-{
-    using enum HitRules::Party;
-    if (!apActor)
-        return None;
-    const auto* pEx = apActor->GetExtension();
-    if (pEx->IsLocalPlayer())
-        return LocalPlayer;
-    if (pEx->IsOtherPlayer())
-        return OtherPlayer;
-    return pEx->IsLocal() ? Local : Copy;
-}
-} // namespace
-
 bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMove)
 {
     if (apHitter)
@@ -1074,7 +1058,7 @@ bool HookDamageActor(Actor* apThis, float aDamage, Actor* apHitter, bool aKillMo
 
     // Direct authority: the hittee's owner applies a hit; our player's hit on another game's actor (a host NPC, another
     // player) is a request to that owner, and the copy mirrors the owner's health instead.
-    switch (HitRules::Of(PartyOf(apThis), PartyOf(apHitter), s_applyingEffect))
+    switch (HitRules::Of(HitRules::PartyOf(apThis), HitRules::PartyOf(apHitter), s_applyingEffect))
     {
     case HitRules::Route::Apply:
         World::Get().GetRunner().Trigger(HealthChangeEvent(apThis->formID, -realDamage));

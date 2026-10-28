@@ -64,6 +64,12 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         std::scoped_lock _(s_movedLock);
         moved.swap(s_moved);
     }
+    // A revived player's next ragdoll need not mark the reference as moved again.
+    const PlayerCharacter* pPlayer = PlayerCharacter::Get();
+    const bool cPlayerRagdoll = pPlayer && (pPlayer->IsDead() || pPlayer->actorState.IsKnockedDown());
+    if (cPlayerRagdoll && !m_playerRagdoll)
+        moved.insert(pPlayer->formID);
+    m_playerRagdoll = cPlayerRagdoll;
     for (const uint32_t cFormId : moved)
         if (const auto* pObject = Cast<TESObjectREFR>(TESForm::GetById(cFormId)); pObject && (m_allActors || !Cast<Actor>(pObject) || pObject == PlayerCharacter::Get()))
             m_awake.try_emplace(cFormId, Moving{Pose::Of(*pObject)});
@@ -119,6 +125,11 @@ PhysicsBodies::Update PhysicsBodies::Take() noexcept
         {
             it->second.Ragdoll |= cActor;
             update.Awake.push_back(std::move(awake));
+            ++it;
+            continue;
+        }
+        if (cActor && !cUp && all.Read.empty())
+        {
             ++it;
             continue;
         }

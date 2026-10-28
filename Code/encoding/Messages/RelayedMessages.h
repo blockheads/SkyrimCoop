@@ -7,6 +7,8 @@
 namespace Payloads
 {
 struct EquipmentSnapshot;
+struct ActorPerks;
+struct MeleeStagger;
 struct DrawWeapon;
 struct ActorValueChanges;
 struct ActorMaxValueChanges;
@@ -85,3 +87,9 @@ using BodyReleaseRequest = Relayed<Payloads::BodyFrames, kBodyReleaseRequest>;
 using BodyPoseRequest = Relayed<Payloads::BodyRests, kBodyPoseRequest>;
 using BodyRestsRequest = Relayed<Payloads::BodyRests, kBodyRestsRequest>;
 using NotifyPartyGold = Relayed<Payloads::PartyGold, kNotifyPartyGold>;
+
+using ActorPerksRequest = Relayed<Payloads::ActorPerks, kActorPerksRequest>;
+using NotifyActorPerks = Relayed<Payloads::ActorPerks, kNotifyActorPerks>;
+
+using MeleeStaggerRequest = Relayed<Payloads::MeleeStagger, kMeleeStaggerRequest>;
+using NotifyMeleeStagger = Relayed<Payloads::MeleeStagger, kNotifyMeleeStagger>;

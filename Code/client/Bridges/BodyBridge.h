@@ -3,7 +3,6 @@
 #include <Bridges/IBodyBridge.h>
 
 #include <map>
-#include <set>
 
 struct Actor;
 struct bhkWorldObject;
@@ -22,9 +21,6 @@ public:
     bool Settle(const BodyKey& acKey) noexcept override;
 
 private:
-    // Units between a copy's ragdoll body and its frame past which it is placed there rather than steered.
-    static constexpr float kSteerDistance = 64.f;
-
     // A body here: a reference's by its 3D's order (with its collision object, whose node shows it), a copy's
     // ragdoll's by the ragdoll's; none for a copy's body its animation still drives (Waiting).
     struct Found
@@ -32,6 +28,7 @@ private:
         bhkWorldObject* pBody{};
         bhkNiCollisionObject* pCollision{};
         bool Waiting{};
+        bool First{};
     };
     // aKnock: a knocked down owner's frame, which knocks a living copy down (a dead owner's, a rest do not).
     [[nodiscard]] Found Find(const BodyKey& acKey, uint32_t aCopyFormId, bool aKnock) noexcept;
@@ -44,6 +41,6 @@ private:
 
     std::function<uint32_t(const GameId& acId)> m_formIdOf;
     std::map<BodyKey, uint8_t> m_motions; // the reference bodies held here: their own motion type
-    std::set<BodyKey> m_ragdolls;         // copies' ragdoll bodies taken from their own ragdoll
+    std::map<BodyKey, std::pair<uint32_t, bhkWorldObject*>> m_ragdolls; // copy and body generation initialized here
     std::map<uint32_t, bool> m_knocked;   // living copies knocked down with their owners: lying yet
 };

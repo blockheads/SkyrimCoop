@@ -29,6 +29,13 @@ AiStateService::AiStateService(World& aWorld, entt::dispatcher& aDispatcher, Tra
     Listen<NotifyCharacterSpawn, &AiStateService::OnCharacterSpawn>(m_connections, aDispatcher, this);
     Listen<NotifyRemoveCharacter, &AiStateService::OnRemoveCharacter>(m_connections, aDispatcher, this);
     Listen<DisconnectedEvent, &AiStateService::OnDisconnected>(m_connections, aDispatcher, this);
+    Listen<&AiStateService::OnLocalRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
+}
+
+void AiStateService::OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept
+{
+    // A later ownership term publishes its state again, even when it matches this game's last term.
+    m_sent.erase(aRegistry.get<LocalComponent>(aEntity).Id);
 }
 
 ActorAiState AiStateService::ReadState(uint32_t aFormId) const noexcept

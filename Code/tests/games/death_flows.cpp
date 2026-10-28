@@ -70,9 +70,12 @@ SCENARIO("A host NPC dies: its copy dies with it", "[death]")
 
     WHEN("the host's player kills the guard")
     {
+        const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+        party.As(party.Guest(), [&] { guest.Hit(cCopy, 200.f); });
+        REQUIRE(guest.GetActorValue(cCopy, FakeEngine::kHealth) <= 0.f);
+        CHECK_FALSE(guest.IsActorDead(cCopy));
         party.As(party.Host(), [&] { host.Hit(guard, 200.f); });
         REQUIRE(host.IsActorDead(guard));
-        const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
         party.Until([&] { return guest.GetActorValue(cCopy, FakeEngine::kHealth) <= 0.f; },
                     "the copy shows the guard's health",
                     [&] {
@@ -82,7 +85,6 @@ SCENARIO("A host NPC dies: its copy dies with it", "[death]")
                     });
         THEN("it is not dead by its own health (deferred kill), but by the guard's death")
         {
-            CHECK(!guest.IsActorDead(cCopy));
             party.Until([&] { return guest.IsActorDead(cCopy); }, "the guest's copy dies");
             party.Agree("the games agree on the dead guard");
         }

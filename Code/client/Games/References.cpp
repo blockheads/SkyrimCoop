@@ -92,7 +92,7 @@ bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
             if (pPackage != pOwnerPackage)
                 apActor->PutOwnerPackage(pOwnerPackage);
         }
-        else if (pProcess && !(pPackage && pPackage->packType == TESPackage::kDoNothing))
+        else if (pProcess && (!(pPackage && pPackage->packType == TESPackage::kDoNothing) || apActor->GetCurrentPackage()))
             apActor->InitiateDoNothingPackage();
         return false;
     }
@@ -102,20 +102,16 @@ bool HookCheckForNewPackage(void* apThis, Actor* apActor, uint64_t aUnk1)
 
 // Packages the engine creates on the fly (movement blocked, flee, a ridden mount's DoNothing, ...) all arrive here,
 // with no TESPackageEvent: an owned actor's AI state goes out again.
-using TPutCreatedPackage = void(Actor*, TESPackage* apPackage, bool aRunOnce, bool aUnk);
+using TPutCreatedPackage = void(Actor*, TESPackage* apPackage, bool aRunOnce, bool aCreated, bool aAllowFromFurniture);
 static TPutCreatedPackage* RealPutCreatedPackage = nullptr;
 
-// Set while Actor::InitiateDoNothingPackage gives a copy its package.
-static thread_local bool s_copyPackage = false;
-
-void HookPutCreatedPackage(Actor* apThis, TESPackage* apPackage, bool aRunOnce, bool aUnk)
+void HookPutCreatedPackage(Actor* apThis, TESPackage* apPackage, bool aRunOnce, bool aCreated, bool aAllowFromFurniture)
 {
-    if (apThis->GetExtension()->IsCopy() && !s_copyPackage)
+    if (apThis->GetExtension()->IsCopy())
         return;
 
-    RealPutCreatedPackage(apThis, apPackage, aRunOnce, aUnk);
-    if (!apThis->GetExtension()->IsCopy())
-        World::Get().GetRunner().Trigger(AiStateChangeEvent{apThis->formID});
+    RealPutCreatedPackage(apThis, apPackage, aRunOnce, aCreated, aAllowFromFurniture);
+    World::Get().GetRunner().Trigger(AiStateChangeEvent{apThis->formID});
 }
 
 // Actor::GetCurrentPackage (37399): what GetIsCurrentPackage (21529) and Papyrus read.
@@ -141,9 +137,26 @@ void Actor::InitiateDoNothingPackage() noexcept
     using TInitiateDoNothingPackage = void(Actor*);
     POINTER_SKYRIMSE(TInitiateDoNothingPackage, s_initiateDoNothingPackage, 37402);
 
-    s_copyPackage = true;
-    s_initiateDoNothingPackage(this);
-    s_copyPackage = false;
+    const TESPackage* pRunning = currentProcess ? currentProcess->currentPackage.package : nullptr;
+    if (!(pRunning && pRunning->packType == TESPackage::kDoNothing))
+    {
+        if (GetExtension()->IsCopy() && currentProcess)
+        {
+            // PutCreatedPackage refuses a mount still in its paired transition; copies hold, never run, this package.
+            using TCreatePackage = TESPackage*(uint8_t);
+            POINTER_SKYRIMSE(TCreatePackage, s_createPackage, 29496);
+            if (TESPackage* pPackage = s_createPackage(TESPackage::kDoNothing))
+            {
+                pPackage->packFlags |= 4; // native InitiateDoNothingPackage's delete-when-done flag
+                PutOwnerPackage(pPackage);
+            }
+        }
+        else
+            s_initiateDoNothingPackage(this);
+    }
+    // GetCurrentPackage (37399) reads ExtraPackage beneath DoNothing; a copy's old fill is not its owner's.
+    if (GetExtension()->IsCopy() && !GetExtension()->OwnerPackageId)
+        extraData.RemoveByType(ExtraDataType::Package);
 }
 
 using TSetCurrentPickREFR = void(Console*, BSPointerHandle<TESObjectREFR>* apRefr);

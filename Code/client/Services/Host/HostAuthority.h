@@ -129,6 +129,7 @@ private:
     // Anyone may change an actor's items (a peer handing its follower a sword); the owner's game
     // applies it like every other copy.
     void OnInventoryChanges(const RequestInventoryChanges& acRequest, ConnectionId_t aSender) const noexcept;
+    void OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept;
     void OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept;
     // Each actor's factions from its owner (one message carries many actors).
     void OnFactionsChanges(const RequestFactionsChanges& acRequest, ConnectionId_t aSender) const noexcept;

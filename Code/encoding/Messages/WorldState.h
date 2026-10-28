@@ -62,6 +62,7 @@ struct QuestAliasFill
     GameId Cell{};
     int16_t GridX{};
     int16_t GridY{};
+    uint32_t ActorId{}; // a created actor's session id, resolved to its existing copy
 
     bool operator==(const QuestAliasFill&) const noexcept = default;
 };

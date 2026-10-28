@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <Structs/Perks.h>
 #include <string>
 #include <vector>
 #include <Structs/ActorValues.h>
@@ -74,6 +75,8 @@ public:
     virtual bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept = 0;
     virtual void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
+    // Alive and in knock states 1-4.
+    [[nodiscard]] virtual bool IsKnockedDown(uint32_t aFormId) const noexcept = 0;
     // It lies in its ragdoll, dead or knocked down: the engine keeps it on the ragdoll (Actor::LiesInRagdoll).
     [[nodiscard]] virtual bool IsLyingInRagdoll(uint32_t aFormId) const noexcept = 0;
     virtual void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept = 0;
@@ -197,6 +200,9 @@ public:
     // One of this game's own actors, as its AI runs it.
     virtual ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept = 0;
     // A copy: holds its owner's AI state.
+    virtual void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept = 0;
+    [[nodiscard]] virtual Perks GetPlayerPerks() const noexcept = 0;
+    virtual void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept = 0;
     virtual void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept = 0;
     // The copies fighting this game's player: it counts as in combat from them.
     virtual void SetCopiesFightingPlayer(uint32_t aCount) noexcept = 0;

@@ -10,9 +10,11 @@
 #include <AI/FollowerTargets.h>
 #include <Breadcrumbs.h>
 #include <MainLoopTasks.h>
+#include <FormIds.h>
 
 // SKSE / game headers (allowed only here)
 #include <Actor.h>
+#include <Havok/Ragdoll.h>
 #include <PlayerCharacter.h>
 #include <Forms/TESForm.h>
 #include <Forms/TESGlobal.h>
@@ -21,6 +23,8 @@
 #include <Forms/TESWorldSpace.h>
 #include <Forms/TESObjectCELL.h>
 #include <Forms/TESNPC.h>
+#include <Forms/BGSPerk.h>
+#include <Games/Memory.h>
 #include <Forms/ActorValueInfo.h>
 #include <Forms/SpellItem.h>
 #include <Games/ActorExtension.h>
@@ -295,6 +299,12 @@ void SkyrimBridge::GetActorPosition(uint32_t aFormId, float& aX, float& aY, floa
         aY = pActor->position.y;
         aZ = pActor->position.z;
     }
+}
+
+bool SkyrimBridge::IsKnockedDown(uint32_t aFormId) const noexcept
+{
+    const Actor* pActor = GetActor(aFormId);
+    return pActor && !pActor->IsDead() && pActor->actorState.IsKnockedDown();
 }
 
 bool SkyrimBridge::IsLyingInRagdoll(uint32_t aFormId) const noexcept
@@ -1766,6 +1776,56 @@ ActorAiFields SkyrimBridge::GetActorAiFields(uint32_t aFormId) const noexcept
     return fields;
 }
 
+void SkyrimBridge::StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept
+{
+    Actor* pActor = GetActor(aFormId);
+    if (!pActor || pActor->GetExtension()->IsCopy())
+        return;
+    // Actor::Stagger (37710): native perks, direction and the stagger action, without applying damage again.
+    using TStagger = void(Actor*, float, Actor*);
+    POINTER_SKYRIMSE(TStagger, s_stagger, 37710);
+    s_stagger(pActor, aMagnitude, GetActor(aHitterId));
+}
+
+Perks SkyrimBridge::GetPlayerPerks() const noexcept
+{
+    Perks perks;
+    if (const auto* pPlayer = PlayerCharacter::Get())
+        for (const PlayerCharacter::PerkRank* pRank : pPlayer->perkRanks)
+            if (pRank && pRank->perk && pRank->rank)
+                if (const auto cId = ToSession(pRank->perk->formID))
+                {
+                    auto it = std::ranges::find(perks.Ranks, *cId, &PlayerRecord::Perk::Id);
+                    if (it == perks.Ranks.end())
+                        perks.Ranks.push_back({*cId, pRank->rank});
+                    else
+                        it->Rank = std::max(it->Rank, pRank->rank);
+                }
+    std::ranges::sort(perks.Ranks, {}, [](const auto& acRank) { return std::pair(acRank.Id.ModId, acRank.Id.BaseId); });
+    return perks;
+}
+
+void SkyrimBridge::SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept
+{
+    MainLoopTasks::Queue([aFormId, acPerks] {
+        Actor* pActor = GetActor(aFormId);
+        auto* pBase = pActor ? Cast<TESNPC>(pActor->baseForm) : nullptr;
+        if (!pActor || !pActor->GetExtension()->IsOtherPlayer() || !pBase || !pBase->IsTemporary())
+            return;
+        std::vector<PerkRankData> ranks;
+        for (const auto& cRank : acPerks.Ranks)
+            if (auto* pPerk = Cast<BGSPerk>(TESForm::GetById(ToGame(cRank.Id))); pPerk && cRank.Rank)
+                ranks.push_back({pPerk, cRank.Rank});
+        // TESNPC::CopyPerkRankArray (CommonLib): replace the copy's unique base, between engine frames.
+        auto* pRanks = ranks.empty() ? nullptr : static_cast<PerkRankData*>(Memory::Allocate(ranks.size() * sizeof(PerkRankData)));
+        if (pRanks)
+            std::ranges::copy(ranks, pRanks);
+        Memory::Free(pBase->perkRanks.perkRanks);
+        pBase->perkRanks.perkRanks = pRanks;
+        pBase->perkRanks.count = static_cast<uint32_t>(ranks.size());
+    });
+}
+
 void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept
 {
     Actor* pActor = GetActor(aFormId);
@@ -1790,7 +1850,7 @@ void SkyrimBridge::SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFiel
         Breadcrumbs::Record("PutOwnerPackage", aFormId, acFields.PackageId);
         pActor->PutOwnerPackage(pPackage);
     }
-    else if (!pPackage && !(cRunning.package && cRunning.package->packType == TESPackage::kDoNothing))
+    else if (!pPackage)
         pActor->InitiateDoNothingPackage();
 }
 

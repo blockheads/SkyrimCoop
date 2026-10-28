@@ -6,7 +6,7 @@ using Wire::Serialization;
 bool Movement::operator==(const Movement& acRhs) const noexcept
 {
     return CellId == acRhs.CellId && WorldSpaceId == acRhs.WorldSpaceId && Position == acRhs.Position && Rotation == acRhs.Rotation && Variables == acRhs.Variables && Direction == acRhs.Direction &&
-           Teleported == acRhs.Teleported && Lying == acRhs.Lying;
+           Teleported == acRhs.Teleported && Lying == acRhs.Lying && Knocked == acRhs.Knocked;
 }
 
 bool Movement::operator!=(const Movement& acRhs) const noexcept
@@ -24,6 +24,7 @@ void Movement::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     aWriter.WriteBits(*reinterpret_cast<const uint32_t*>(&Direction), 32);
     Serialization::WriteBool(aWriter, Teleported);
     Serialization::WriteBool(aWriter, Lying);
+    Serialization::WriteBool(aWriter, Knocked);
 }
 
 void Movement::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -41,4 +42,5 @@ void Movement::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Direction = *reinterpret_cast<float*>(&tmp32);
     Teleported = Serialization::ReadBool(aReader);
     Lying = Serialization::ReadBool(aReader);
+    Knocked = Serialization::ReadBool(aReader);
 }

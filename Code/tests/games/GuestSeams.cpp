@@ -20,6 +20,9 @@
 #include <Services/Guest/GuestWait.h>
 #include <Services/HostService.h>
 #include <World.h>
+#include <ScriptValues.h>
+#include <Messages/Relayed.h>
+#include <SessionIds.h>
 
 GuestEngine::GuestEngine(IBodyBridge& aBodies) noexcept
     : m_bodyBridge(aBodies)
@@ -58,9 +61,39 @@ bool GuestEngine::SetGlobal(const GlobalValue& acGlobal) noexcept
     return true;
 }
 
-void GuestEngine::ApplyQuest(const QuestState& acQuest, bool) noexcept
+void GuestEngine::ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept
 {
-    FakeEngine::Current().Quests[FormIdOf(acQuest.Id)] = acQuest;
+    auto& engine = FakeEngine::Current();
+    const uint32_t cId = FormIdOf(acQuest.Id);
+    engine.Quests[cId] = acQuest;
+    m_pendingAliases[cId] = acQuest;
+    RetryQuestAliases();
+}
+
+void GuestEngine::RetryQuestAliases() noexcept
+{
+    auto& engine = FakeEngine::Current();
+    for (auto it = m_pendingAliases.begin(); it != m_pendingAliases.end();)
+    {
+        bool ready = true;
+        auto& aliases = engine.QuestAliasReferences[it->first];
+        if (!(it->second.Flags & 0x81))
+            aliases.clear();
+        else
+            for (const auto& cFill : it->second.Aliases)
+            {
+                if (cFill.HostOnly)
+                    continue;
+                const uint32_t cRef = cFill.ActorId ? Utils::GetFormIdBySessionId(cFill.ActorId) : FormIdOf(cFill.Ref);
+                if (cFill.ActorId && !cRef)
+                {
+                    ready = false;
+                    continue;
+                }
+                aliases[cFill.AliasId] = cRef;
+            }
+        it = ready ? m_pendingAliases.erase(it) : std::next(it);
+    }
 }
 
 bool GuestEngine::ApplyObjectChange(const ObjectChange& acChange, bool aLoad) noexcept
@@ -276,6 +309,16 @@ GuestSeam::GuestSeam(World& aWorld) noexcept : m_world(aWorld)
     auto& dispatcher = aWorld.GetDispatcher();
     m_connected = dispatcher.sink<ConnectedEvent>().connect<&GuestSeam::OnConnected>(this);
     m_disconnected = dispatcher.sink<DisconnectedEvent>().connect<&GuestSeam::OnDisconnected>(this);
+    m_playerNative = dispatcher.sink<NotifyRoutedCall>().connect<&GuestSeam::OnPlayerNative>(this);
+}
+
+void GuestSeam::OnPlayerNative(const NotifyRoutedCall& acMessage) noexcept
+{
+    if (!m_pGuest || acMessage.To != CallTo::kOwner)
+        return;
+    // GuestService::OnPlayerNative -> GuestEngine::RunPlayerNative -> GlobalCall::QueueCall.
+    if (const auto cCall = Utils::ToLocalCall(acMessage.Call))
+        FakeEngine::Current().Queue(*cCall, FakeEngine::kPlayer);
 }
 
 GuestSeam::~GuestSeam() noexcept = default;

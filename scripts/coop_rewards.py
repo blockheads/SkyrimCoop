@@ -1,5 +1,6 @@
 """Quest rewards: real vanilla dialogue turn-ins, on the host and on a guest."""
 import functools
+import re
 
 import coop_test as ct
 
@@ -12,6 +13,30 @@ CLAW_QUEST, LUCAN, CLAW_TOPIC, CLAW = 0x39645, 0x13487, 0x3961A, 0x39647
 
 def record(game):
     return ct.player_command(game, {"cmd": "player_record"})["record"]
+
+
+def has_perk(game, actor, perk):
+    output = ct.console_on(game, f"{actor:X}.hasperk {perk:X}")
+    found = re.search(r">>\s*([0-9.]+)", " ".join(output or []))
+    return bool(float(found[1])) if found else None
+
+
+def copy_perks_follow_native_removal():
+    owned = {g: f"0:{MARA_PERK:X}" in record(g)["perks"] for g in GAMES}
+    try:
+        for owner in GAMES:
+            observer = "" if owner else "client"
+            copy = ct.player_copy(observer)
+            for command, expected in (("addperk", True), ("removeperk", False)):
+                ct.console_on(owner, f"player.{command} {MARA_PERK:X}")
+                ct.wait_for(f"[{owner or 'host'}] native {command} completes", lambda:
+                            (f"0:{MARA_PERK:X}" in record(owner)["perks"]) == expected, 10)
+                ct.wait_for(f"[{observer or 'host'}] the owner's copy follows {command}", lambda:
+                            has_perk(observer, copy, MARA_PERK) is expected, 10)
+    finally:
+        for game in GAMES:
+            command = "addperk" if owned[game] else "removeperk"
+            ct.console_on(game, f"player.{command} {MARA_PERK:X}")
 
 
 def events(game, quest):
@@ -130,6 +155,10 @@ def mara_turn_in(game):
         for g in GAMES:
             ct.wait_for(f"[{g or 'host'}] its own player has Agent of Mara", lambda g=g:
                         f"0:{MARA_PERK:X}" in record(g)["perks"], 15)
+        for g in GAMES:
+            body = ct.player_copy(g)
+            ct.wait_for(f"[{g or 'host'}] the other player's copy carries Agent of Mara", lambda g=g, body=body:
+                        has_perk(g, body, MARA_PERK) is True, 10)
         completed(MARA_QUEST)
     finally:
         ct.close_dialogues()
@@ -281,7 +310,81 @@ def reward_record_rejoin():
                         ct.distance(ct.my_position(g), ct.load_home(g)["position"]) < 15, 10)
 
 
+def created_actor_alias():
+    """A quest alias filled with a created actor names that actor's existing copy on the guest."""
+    npc, _, copy = ct.spawn_host_npc(ct.AMREN, restrained=True)
+    try:
+        prepare(LUTE_QUEST, 40)
+        fill(LUTE_QUEST, 17, npc)
+        ct.wait_for("the guest's quest role names the created actor's copy", lambda:
+                    ct.quest_snapshot("client", LUTE_QUEST)["aliases"].get(17, (0,))[0] == copy, 10)
+    finally:
+        ct.console_on("", f"resetquest {LUTE_QUEST:X}")
+        ct.remove_host_npc(npc)
+
+
+def offline_story_character():
+    """A returning character takes story spell changes and keeps only its own purchased word unlocks."""
+    spell, personal = ct.BEAST_FORM, 0x12FD0
+    words = (ct.WORD_FUS, ct.WORD_RO)
+    before_words = {(g, w): ct.word_state(g, w) for g in GAMES for w in words}
+    before_spells = {(g, s): f"0:{s:X}" in record(g)["spells"] for g in GAMES for s in (spell, personal)}
+    key = record("client")["key"]
+    try:
+        for word in words:
+            ct.script_call("", "Game", "TeachWord", [{"form": word}])
+        ct.wait_for("both players learn both story words", lambda:
+                    all(ct.word_state(g, w)[0] for g in GAMES for w in words), 10)
+        for g in GAMES:
+            if f"0:{spell:X}" in record(g)["spells"]:
+                ct.console_on(g, f"player.removespell {spell:X}")
+            for word in words:
+                ct.player_command(g, {"cmd": "form_known", "form": word, "known": True,
+                                      "unlocked": g == "client" and word == ct.WORD_FUS})
+        ct.console_on("client", f"player.addspell {personal:X}")
+        ct.wait_for("the host keeps the guest's personal spell and purchased Fus", lambda:
+                    (kept := ct.kept_records("").get(key)) and f"0:{personal:X}" in kept["spells"] and
+                    f"0:{ct.WORD_FUS:X}" in kept["words"] and f"0:{ct.WORD_RO:X}" not in kept["words"], 15)
+        ct.disconnect_client()
+        ct.script_call("", "Actor", "AddSpell", [{"form": spell}, False], on=0x14)
+        ct.player_command("", {"cmd": "form_known", "form": ct.WORD_RO, "known": True, "unlocked": True})
+        ct.wait_for("the story gives the host Beast Form while the guest is away", lambda:
+                    f"0:{spell:X}" in record("")["spells"], 10)
+        ct.joins_with_world("after the story grants Beast Form")
+        if f"0:{spell:X}" not in record("client")["spells"] or f"0:{personal:X}" not in record("client")["spells"]:
+            raise ct.TestFailure("the returning character lost its story or personal spell")
+        if ct.word_state("client", ct.WORD_FUS) != (True, True) or ct.word_state("client", ct.WORD_RO) != (True, False):
+            raise ct.TestFailure("the returning character did not keep exactly its own purchased words")
+        ct.disconnect_client()
+        ct.script_call("", "Actor", "RemoveSpell", [{"form": spell}], on=0x14)
+        ct.wait_for("the story takes Beast Form back while the guest is away", lambda:
+                    f"0:{spell:X}" not in record("")["spells"], 10)
+        ct.joins_with_world("after the story takes Beast Form back")
+        if f"0:{spell:X}" in record("client")["spells"] or f"0:{personal:X}" not in record("client")["spells"]:
+            raise ct.TestFailure("the returning character did not take the story's spell removal")
+    finally:
+        if not ct.game_state("client").get("online") and not ct.join_status("client").get("joining"):
+            ct.rejoin_client()
+        ct.script_call("", "Actor", "AddSpell" if before_spells[("", spell)] else "RemoveSpell",
+                       [{"form": spell}], on=0x14)
+        for (g, s), had in before_spells.items():
+            if had != (f"0:{s:X}" in record(g)["spells"]):
+                ct.console_on(g, f"player.{'addspell' if had else 'removespell'} {s:X}")
+        for (g, word), (known, unlocked) in before_words.items():
+            ct.player_command(g, {"cmd": "form_known", "form": word, "known": known, "unlocked": unlocked})
+        for g in ("client", ""):
+            ct.reset_player(g, ct.load_home(g))
+            ct.wait_for(f"[{g or 'host'}] the returning character settles at home",
+                        ct.comes_to_rest(lambda g=g: ct.my_position(g), still=1), 10)
+
+
 def register(scenarios, tags):
+    scenarios["copy-perks-follow-native-removal"] = copy_perks_follow_native_removal
+    tags["copy-perks-follow-native-removal"] = {"scripts", "rewards"}
+    scenarios["offline-story-spells-and-personal-words"] = offline_story_character
+    tags["offline-story-spells-and-personal-words"] = {"scripts", "session", "rewards"}
+    scenarios["quest-created-actor-alias-reaches-guest"] = created_actor_alias
+    tags["quest-created-actor-alias-reaches-guest"] = {"scripts", "quest", "spawn", "rewards"}
     for stem, function in (("quest-skills", lute_turn_in), ("quest-perk", mara_turn_in), ("quest-gold", gold_turn_in)):
         for game, suffix in (("", "host"), ("client", "guest")):
             name = f"{stem}-turn-in-{suffix}"

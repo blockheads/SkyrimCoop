@@ -11,6 +11,7 @@ enum class ExtraDataType : uint32_t
     ContainerChanges = 0x15,
     Worn = 0x16,
     WornLeft = 0x17,
+    Package = 0x19, // CommonLibSSE-NG ExtraPackage: the form package beneath a runtime procedure
     ReferenceHandle = 0x1C,
     Ownership = 0x21,
     Count = 0x24,

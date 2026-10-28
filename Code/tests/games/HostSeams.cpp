@@ -170,8 +170,8 @@ void HostService::MakeAuthority() noexcept
         return bodies;
     };
     game.PushBody = [&engine](const BodyPush& acPush) { return engine.Push(acPush); };
-    game.FreeBody = [&engine, this](const BodyFrame& acFrame) {
-        m_world.ctx().at<BodyService>().Forget(acFrame.Key);
+    game.FreeBody = [&engine, this](const BodyFrame& acFrame, uint64_t aReleasedAt) {
+        m_world.ctx().at<BodyService>().Forget(acFrame.Key, aReleasedAt);
         return engine.Free(acFrame);
     };
     game.ReadBodies = [&engine](const std::vector<BodyKey>& acKeys) {
@@ -183,6 +183,9 @@ void HostService::MakeAuthority() noexcept
     };
     game.ReadDifficulty = [&engine] { return engine.GetDifficulty(); };
     game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
+    game.StoreStorySpell = [this](const GameId& acSpell, bool aAdded) {
+        m_world.ctx().at<SaveService>().GetRecords().SetStorySpell(acSpell, aAdded);
+    };
     game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };
     game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
         auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);
@@ -302,4 +305,3 @@ void FaceGenSystem::Setup(World& aWorld, entt::entity aEntity, const Tints& acTi
     if (!acTints.Entries.empty())
         aWorld.emplace_or_replace<FaceGenComponent>(aEntity).FaceTints = acTints;
 }
-

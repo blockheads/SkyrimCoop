@@ -79,7 +79,10 @@ bool HostHands::TakeHeld(const BodyFrame& acFrame, uint64_t aTick, ConnectionId_
         return false;
     if (cNew)
         spdlog::info("HostHands: {:x} holds {}", aSender, WorldStateLog::DescribeBody(acFrame.Key));
+    if (!cNew && aTick < it->second.Tick)
+        return false;
     it->second.Last = acFrame;
+    it->second.Tick = aTick;
     it->second.At = m_tick;
     return true;
 }
@@ -107,19 +110,21 @@ void HostHands::OnReleased(const BodyReleaseRequest& acMessage, ConnectionId_t a
     for (const auto& cFrame : acMessage.Frames)
     {
         const auto it = m_holds.find(cFrame.Key);
-        if (it == m_holds.end() || it->second.Holder != aSender)
+        if (cFrame.Key.Actor || (it != m_holds.end() && (it->second.Holder != aSender || acMessage.Tick < it->second.Tick)))
+            continue;
+        if (const auto cLast = m_released.find(cFrame.Key); cLast != m_released.end() && acMessage.Tick <= cLast->second)
             continue;
         spdlog::info("HostHands: {:x} let go of {} at ({:.0f}, {:.0f}, {:.0f}), moving {:.0f}", aSender, WorldStateLog::DescribeBody(cFrame.Key),
                      cFrame.Position.x, cFrame.Position.y, cFrame.Position.z, glm::length(cFrame.LinearVelocity));
         m_released[cFrame.Key] = acMessage.Tick;
-        Free(cFrame);
+        Free(cFrame, acMessage.Tick);
     }
 }
 
-void HostHands::Free(const BodyFrame& acFrame) noexcept
+void HostHands::Free(const BodyFrame& acFrame, uint64_t aReleasedAt) noexcept
 {
     m_holds.erase(acFrame.Key);
-    if (m_game.FreeBody && !m_game.FreeBody(acFrame))
+    if (m_game.FreeBody && !m_game.FreeBody(acFrame, aReleasedAt ? aReleasedAt : m_tick))
         spdlog::warn("HostHands: {} is not here to let go of", WorldStateLog::DescribeBody(acFrame.Key));
 }
 

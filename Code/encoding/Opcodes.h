@@ -64,7 +64,9 @@
     X(PickUpRequest)                \
     X(TravelTimeRequest)            \
     X(PartyTravelRequest)            \
-    X(FollowerTradeClosedRequest)
+    X(FollowerTradeClosedRequest)   \
+    X(ActorPerksRequest)            \
+    X(MeleeStaggerRequest)
 
 #define COOP_NOTIFICATIONS(X)      \
     X(AuthenticationResponse)      \
@@ -132,7 +134,9 @@
     X(NotifyItemDropped)           \
     X(NotifyPickUp)                \
     X(NotifyPartyGold)             \
-    X(NotifyFollowerTrade)
+    X(NotifyFollowerTrade)          \
+    X(NotifyActorPerks)             \
+    X(NotifyMeleeStagger)
 
 #define COOP_OPCODE(aName) k##aName,
 

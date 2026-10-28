@@ -10,6 +10,7 @@
 
 #include <Bridges/IJoinBridge.h>
 #include <Bridges/IBodyBridge.h>
+#include <Physics/RagdollPending.h>
 
 #include <Games/QuestChanges.h>
 #include <Games/HitVisualsRules.h>
@@ -207,6 +208,9 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     // and so does a host body far from the host's player, so PhysicsBodies writes it too (guest-cast-moves-host).
     struct Body
     {
+        bool NeedsKnock{};
+        bool RestBusy{};
+        size_t RestAttempts{};
         FakeFlight Flight;
         bool Awake = false;
         bool Held = false;    // keyframed by the host's frames (a guest's; a reference's freed at its rest), or by a guest's hold (the host's)
@@ -417,6 +421,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::map<uint32_t, float> Souls;                          // DragonSouls (133) by actor
     std::map<uint32_t, std::map<uint32_t, int32_t>> Factions; // by actor: each faction it is in, at its rank
     std::map<uint32_t, std::set<uint32_t>> AddedSpells;       // by actor (Actor::AddSpell)
+    std::map<uint32_t, std::map<uint32_t, uint32_t>> QuestAliasReferences;
     std::set<uint32_t> BodyQuests;                            // started by a player's body here (a beast form's)
     uint32_t WordsLearnedShown = 0; // "Word of power learned" (51648): Game.TeachWord's HUD
     uint32_t SoulsAbsorbedShown = 0; // "Dragon soul absorbed" (51649): the soul sink, this game's player's gains
@@ -424,8 +429,18 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     std::map<int32_t, float> RewardExperience, RewardStats; // by actor value: skill experience, permanent stats
     std::map<int32_t, uint32_t> RewardLevels;
     int32_t RewardPoints = 0;
+    bool IsKnockedDown(uint32_t aFormId) const noexcept override { return Actors.contains(aFormId) && Actors.at(aFormId).KnockedDown; }
+    Perks GetPlayerPerks() const noexcept override { return {Player.Perks}; }
+    void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override { ActorPerks[aFormId] = acPerks.Ranks; }
+    void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override
+    {
+        Staggers.emplace_back(aFormId, aHitterId, aMagnitude);
+    }
+    std::vector<std::tuple<uint32_t, uint32_t, float>> Staggers;
+    std::map<uint32_t, std::vector<PlayerRecord::Perk>> ActorPerks;
     std::set<uint32_t> RewardPerks;
     std::vector<LocalCall> RewardCalls; // the skill, perk and stat natives this game's player took
+    uint32_t BarterMerchant{};
     // A script's call of them (RunScript), its stack's cause aCause (0: no player's action) and story; aQuest: the
     // script's quest (a body's, when in BodyQuests).
     void TeachesWord(uint32_t aWord, uint32_t aCause = 0);  // Game.TeachWord
@@ -498,7 +513,12 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override
     {
         const auto it = Actors.find(aFormId);
-        return it != Actors.end() ? it->second.Ai : ActorAiFields{};
+        ActorAiFields fields = it != Actors.end() ? it->second.Ai : ActorAiFields{};
+        // The rider's native horse has no current package, including when an older copy snapshot just arrived.
+        if (it != Actors.end() && !it->second.Copy)
+            if (const auto cMount = Mounts.find(kPlayer); cMount != Mounts.end() && cMount->second == aFormId)
+                fields.PackageId = 0;
+        return fields;
     }
     void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override
     {
@@ -806,6 +826,7 @@ struct FakeEngine : StillBridges, IJoinBridge, IBodyBridge
     void RecordCreated(uint32_t aObject);
 
     std::deque<std::pair<LocalCall, uint32_t>> m_queued;
+    RagdollPending m_pendingRagdolls;
     std::chrono::steady_clock::time_point m_lastFrame;
     // The cells loaded around the player at aCell and acPosition (an interior, or outdoors its grid); the others its
     // last place loaded unload.

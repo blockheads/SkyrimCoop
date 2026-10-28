@@ -53,6 +53,7 @@ struct BodyPose
     BodyKey Key{};
     glm::vec3 Position{};
     glm::quat Rotation{1.f, 0.f, 0.f, 0.f};
+    bool Knocked{}; // a living owner still down: keep steering here until its movement says it gets up
 
     bool operator==(const BodyPose& acRhs) const noexcept = default;
 

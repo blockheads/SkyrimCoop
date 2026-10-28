@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Structs/Perks.h>
+
 // What a request and its notification carry when a relay passes the request on unchanged (the
 // host's authority, Code/client/Services/Host/HostAuthority.cpp). Both messages inherit the payload, so its
 // fields and their bytes are written once.
@@ -15,6 +17,25 @@
 
 namespace Payloads
 {
+struct MeleeStagger
+{
+    uint32_t HitteeId{};
+    uint32_t HitterId{};
+    float Magnitude{};
+    bool operator==(const MeleeStagger&) const noexcept = default;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+};
+
+struct ActorPerks
+{
+    uint32_t SessionId{};
+    Perks Content;
+    bool operator==(const ActorPerks&) const noexcept = default;
+    void SerializePayload(Wire::Buffer::Writer& aWriter) const noexcept;
+    void DeserializePayload(Wire::Buffer::Reader& aReader) noexcept;
+};
+
 // The owner's full worn equipment for one actor, re-sent periodically so a copy that drifted
 // (missed or undone change) converges back to the owner's state.
 struct EquipmentSnapshot

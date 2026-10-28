@@ -3,8 +3,24 @@
 #include <Wire/Serialization.h>
 
 #include <spdlog/spdlog.h>
+#include <limits>
 
 using Wire::Serialization;
+
+void CharacterRecords::SetStorySpell(const GameId& acSpell, bool aAdded) noexcept
+{
+    m_storySpells[acSpell] = aAdded;
+}
+
+void CharacterRecords::ApplyStorySpells(PlayerRecord& aRecord) const noexcept
+{
+    for (const auto& [cSpell, cAdded] : m_storySpells)
+    {
+        std::erase(aRecord.Spells, cSpell);
+        if (cAdded)
+            aRecord.Spells.push_back(cSpell);
+    }
+}
 
 void CharacterRecords::Put(PlayerRecord aRecord) noexcept
 {
@@ -51,35 +67,69 @@ std::string CharacterRecords::Encode() const noexcept
         Serialization::WriteVarInt(writer, recordWriter.Size());
         writer.WriteBytes(std::span(one.GetData(), recordWriter.Size()));
     }
+    Serialization::WriteVarInt(writer, m_storySpells.size());
+    for (const auto& [cSpell, cAdded] : m_storySpells)
+    {
+        cSpell.Serialize(writer);
+        Serialization::WriteBool(writer, cAdded);
+    }
     return {reinterpret_cast<const char*>(buffer.GetData()), writer.Size()};
 }
 
 bool CharacterRecords::Decode(std::string_view aData, uint32_t aVersion) noexcept
 {
-    m_records.clear();
+    Clear();
     if (aVersion != kVersion)
     {
         spdlog::warn("CharacterRecords: version {} in the co-save, this build reads {}", aVersion, kVersion);
         return false;
     }
     Wire::Buffer::Reader reader(std::span(reinterpret_cast<const uint8_t*>(aData.data()), aData.size()));
-    const uint64_t cCount = Serialization::ReadVarInt(reader);
-    for (uint64_t i = 0; i < cCount; ++i)
+    uint64_t count = 0;
+    if (!Serialization::TryReadVarInt(reader, count) || count > aData.size())
+        return false;
+    for (uint64_t i = 0; i < count; ++i)
     {
-        const uint64_t cSize = Serialization::ReadVarInt(reader);
-        const size_t cStart = reader.GetBytePosition();
-        if (reader.GetBitPosition() % 8 != 0 || cStart + cSize > aData.size())
+        uint64_t size = 0;
+        if (!Serialization::TryReadVarInt(reader, size))
         {
-            spdlog::warn("CharacterRecords: record {} of {} runs past the co-save's {} bytes", i + 1, cCount, aData.size());
-            m_records.clear();
+            Clear();
             return false;
         }
-        Wire::Buffer::Reader recordReader(std::span(reinterpret_cast<const uint8_t*>(aData.data()) + cStart, cSize));
+        const size_t cStart = reader.GetBytePosition();
+        if (reader.GetBitPosition() % 8 != 0 || cStart > aData.size() || size > aData.size() - cStart)
+        {
+            spdlog::warn("CharacterRecords: record {} of {} runs past the co-save's {} bytes", i + 1, count, aData.size());
+            Clear();
+            return false;
+        }
+        Wire::Buffer::Reader recordReader(std::span(reinterpret_cast<const uint8_t*>(aData.data()) + cStart, size));
         PlayerRecord record;
         record.Deserialize(recordReader);
         Put(std::move(record));
-        std::vector<uint8_t> skipped(cSize);
+        std::vector<uint8_t> skipped(size);
         reader.ReadBytes(skipped);
+    }
+    // Older version-3 co-saves end after the character list.
+    if (reader.GetBytePosition() < aData.size())
+    {
+        uint64_t spells = 0;
+        if (!Serialization::TryReadVarInt(reader, spells) || spells > (aData.size() * 8 - reader.GetBitPosition()) / 17)
+        {
+            Clear();
+            return false;
+        }
+        for (uint64_t i = 0; i < spells; ++i)
+        {
+            uint64_t base = 0, mod = 0, added = 0;
+            if (!Serialization::TryReadVarInt(reader, base) || base > std::numeric_limits<uint32_t>::max() ||
+                !Serialization::TryReadVarInt(reader, mod) || mod > std::numeric_limits<uint32_t>::max() || !reader.ReadBits(added, 1))
+            {
+                Clear();
+                return false;
+            }
+            m_storySpells[GameId(static_cast<uint32_t>(mod), static_cast<uint32_t>(base))] = added != 0;
+        }
     }
     return true;
 }

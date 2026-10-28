@@ -238,6 +238,7 @@ struct BSReadWriteLock
     void LockForRead();
     void UnlockForRead();
     void LockForWrite();
+    bool TryLockForWrite();
     void UnlockForWrite();
 };
 

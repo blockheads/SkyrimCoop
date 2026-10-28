@@ -48,7 +48,7 @@ private:
     // An actor's ragdoll body the sender's game owns.
     [[nodiscard]] bool OwnsRagdoll(const BodyKey& acKey, ConnectionId_t aSender) const noexcept;
     // Simulated again where the holder left it.
-    void Free(const BodyFrame& acFrame) noexcept;
+    void Free(const BodyFrame& acFrame, uint64_t aReleasedAt = 0) noexcept;
 
     const HostPlayers& m_players;
     const HostCharacters& m_characters;
@@ -57,6 +57,7 @@ private:
     {
         ConnectionId_t Holder{};
         BodyFrame Last{}; // its last frame
+        uint64_t Tick{};  // the holder's latest frame, to reject an older release
         uint64_t At{};    // when that came
     };
     std::map<BodyKey, uint64_t> m_pushed;   // a guest's last push of each (logged once a run)

@@ -206,7 +206,9 @@ void JoinService::Arrive() noexcept
         return Fail("no_character");
     spdlog::info("JoinService: {} plays {} (level {}), {}", cKey, cpCharacter->Name, cpCharacter->Level,
                  cpKept ? "kept in the host's save" : "brought from its own game");
-    m_bridge.ApplyPlayer(*cpCharacter);
+    PlayerRecord character = *cpCharacter;
+    m_world.ctx().at<SaveService>().GetRecords().ApplyStorySpells(character);
+    m_bridge.ApplyPlayer(character);
     m_brought.reset();
     if (!cpKept)
     {

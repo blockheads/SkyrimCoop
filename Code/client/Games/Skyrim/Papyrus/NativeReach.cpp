@@ -101,6 +101,7 @@ const Sinks& EngineSinks() noexcept
     // An actor's items.
     POINTER_SKYRIMSE(void, s_equipObject, 38894);      // ActorEquipManager::EquipObject
     POINTER_SKYRIMSE(void, s_unequipObject, 38901);    // ActorEquipManager::UnequipObject
+    POINTER_SKYRIMSE(void, s_openBarter, 50955);       // BarterMenu::OpenMenu (CommonLibSSE-NG; papyrus Actor 54765)
     // Where a reference is (rule 3's questions).
     POINTER_SKYRIMSE(void, s_getDistance, 19823);         // TESObjectREFR::GetDistance
     POINTER_SKYRIMSE(void, s_getCurrentLocation, 19812);  // TESObjectREFR::GetCurrentLocation
@@ -135,6 +136,7 @@ const Sinks& EngineSinks() noexcept
             cAdd(*pFunction, {Call::kScreen});
         cAdd(s_equipObject, {Call::kItem});
         cAdd(s_unequipObject, {Call::kItem});
+        cAdd(s_openBarter, {Call::kPlayerMenu});
         constexpr Reach cReward{Call::kProgress, {.AnyScript = true}};
         constexpr Reach cStory{Call::kProgress, {}};
         constexpr Reach cStoryOnCopy{Call::kProgress, {.OnCopy = true}};
@@ -341,7 +343,7 @@ Reach CallOf(BSScript::IFunction* apFunction) noexcept
     }
     if (call.Kind == Call::kQuestion && apFunction->GetReturnType().type == BSScript::Variable::kEmpty)
         call = {}; // an action reading a place (a move), no question
-    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question"};
+    static constexpr const char* cNames[] = {"", "controls", "screen", "world", "show", "progression", "items", "question", "player menu"};
     if (call.Kind != Call::kNone)
         spdlog::debug("NativeReach: {}.{} calls the {}", apFunction->GetObjectTypeName().AsAscii(), apFunction->GetName().AsAscii(),
                       cNames[static_cast<size_t>(call.Kind)]);

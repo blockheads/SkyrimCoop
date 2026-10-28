@@ -127,9 +127,10 @@ struct FakeDialogue final : IDialogueBridge
     {
         return false;
     }
+    bool PlayerMenuOpen = false;
     bool ShowList(const std::vector<Option>& acOptions, bool aChoices) noexcept override
     {
-        if (!Speaker)
+        if (!Speaker || PlayerMenuOpen)
             return false;
         Options = acOptions;
         Choices = aChoices;

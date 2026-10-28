@@ -45,8 +45,10 @@ public:
     // Sets it as Papyrus' GlobalVariable.SetValue (55923) does; false for none or a constant.
     bool SetGlobal(const GlobalValue& acGlobal) noexcept;
     // Makes the quest so, each stage without its fragment (docs/re/systems/quest-apply.md); aAsLoad: as a save
-    // load does, the fields only. Fills of references the host's game created are left as they are.
+    // load does, the fields only. Created actors use their session mapping; a missing copy is retried.
     void ApplyQuest(const QuestState& acQuest, bool aAsLoad) noexcept;
+    // An actor's alias can arrive before its spawn: retry just those fills, without replaying stages.
+    void RetryQuestAliases() noexcept;
     // Off while a guest, the host's game deciding instead: its story manager starts no quest, its world's
     // scripts do not react to its player (activations, triggers), and it rolls no leveled container or placed
     // leveled item.
@@ -107,7 +109,7 @@ private:
     // read from the plugin as the host's quest read it (kept for aQuest).
     [[nodiscard]] TESObjectREFR* FindFillReference(TESQuest& aQuest, const QuestAliasFill& acFill) const noexcept;
     // The host's role fills, references and locations, on this game's quest.
-    void ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const noexcept;
+    bool ApplyFills(TESQuest& aQuest, const QuestState& acQuest) const noexcept;
     // Makes this game's own of a reference the host's game created, once.
     bool Create(const ObjectChange& acChange) noexcept;
     // The host's rest of a physics object: put there and held (its bodies keyframed).
@@ -125,6 +127,7 @@ private:
     std::vector<BodyKey> m_adopted;
     // The host's created ids this game's player picked up: their deletion has nothing left to delete.
     std::unordered_set<uint32_t> m_taken;
+    std::map<uint32_t, QuestState> m_pendingAliases;
     // Whether the reference is a loose item the host decides: a twin of the host's, or an own drop.
     [[nodiscard]] bool IsPartyItem(const TESObjectREFR& acObject) const noexcept;
 };

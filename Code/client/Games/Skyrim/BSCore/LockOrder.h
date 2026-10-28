@@ -16,6 +16,9 @@ namespace LockOrder
 using TDescribeLock = bool (*)(const void* apLock, char* apBuffer, size_t aSize);
 void SetLockDescriber(TDescribeLock apDescribe) noexcept;
 
+// A successful nonblocking write: track it for later waits and its normal unlock, without a waiting edge.
+void AcquiredWithoutWaiting(const void* apLock, const void* apCaller) noexcept;
+
 // A hook of ours that only passes a frame's engine work through (the main loop's): its frame on a stack does not make
 // a report ours. aBytes: the function's code size, or more.
 void IgnoreFrames(const void* apFunction, size_t aBytes) noexcept;

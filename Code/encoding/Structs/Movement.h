@@ -31,4 +31,6 @@ struct Movement
     // Lying in its ragdoll, its place its ragdoll's (the engine puts it there, feet to pelvis): a copy lies by its own
     // ragdoll, never placed here.
     bool Lying{};
+    // Alive and in knock states 1-4: ends resting-body correction on the owner's delayed timeline.
+    bool Knocked{};
 };

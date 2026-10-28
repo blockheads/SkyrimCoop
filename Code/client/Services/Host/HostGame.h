@@ -73,7 +73,7 @@ struct HostGame
     // A guest's player's hand on the host's body: pushed as the guest's character pushed it there; let go (its holder's
     // frames the host's game played, BodyService), simulated again from that frame. False: no such body here.
     std::function<bool(const BodyPush& acPush)> PushBody;
-    std::function<bool(const BodyFrame& acFrame)> FreeBody;
+    std::function<bool(const BodyFrame& acFrame, uint64_t aReleasedAt)> FreeBody;
     // The host's bodies where they are now; none for one not here.
     std::function<std::vector<BodyPose>(const std::vector<BodyKey>& acKeys)> ReadBodies;
     // A guest's lock change, accepted into the host's world (it then goes out as the host's change).
@@ -92,6 +92,7 @@ struct HostGame
     std::function<std::optional<std::vector<NotifySaveChunk>>()> SaveWorld;
     // The guests' characters for the host's save (CharacterRecords): a guest's record, and its place at a save.
     std::function<void(const PlayerRecord& acRecord)> StoreRecord;
+    std::function<void(const GameId& acSpell, bool aAdded)> StoreStorySpell;
     std::function<bool(const std::string& acKey)> HasRecord;
     std::function<void(const std::string& acKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition)> StorePlace;
     // The host's difficulty (0 Novice to 5 Legendary): the session's.

@@ -529,6 +529,23 @@ static Hooks::Initializer s_lockOrderHooks([]() {
 
 namespace LockOrder
 {
+void AcquiredWithoutWaiting(const void* apLock, const void* apCaller) noexcept
+{
+    if (!s_enabled || t_reporting)
+        return;
+    ThreadSlot* pSlot = CurrentSlot(GetCurrentThreadId());
+    if (!pSlot)
+        return;
+    const uint32_t cDepth = pSlot->Depth.load(std::memory_order_relaxed);
+    pSlot->Depth.store(cDepth + 1, std::memory_order_release);
+    if (cDepth >= std::size(pSlot->Entries))
+    {
+        s_tooDeep.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    pSlot->Entries[cDepth] = {apLock, reinterpret_cast<uint64_t>(apCaller), GetTickCount(), cWrite, true};
+}
+
 void SetLockDescriber(TDescribeLock apDescribe) noexcept
 {
     s_describe.store(apDescribe, std::memory_order_release);

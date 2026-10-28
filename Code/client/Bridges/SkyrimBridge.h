@@ -46,6 +46,7 @@ public:
     bool ApplyRemoteMovement(uint32_t aFormId, const float aPosition[3],
         const float aRotation[3], float aDirection, const AnimationVariables& aVariables, bool aPlace) noexcept override;
     void GetActorPosition(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
+    bool IsKnockedDown(uint32_t aFormId) const noexcept override;
     bool IsLyingInRagdoll(uint32_t aFormId) const noexcept override;
     void GetActorRotation(uint32_t aFormId, float& aX, float& aY, float& aZ) const noexcept override;
     float GetActorValue(uint32_t aFormId, int32_t aIndex) const noexcept override;
@@ -105,6 +106,9 @@ public:
     void SetActorCommandingActor(uint32_t aFormId, uint32_t aCommanderFormId) noexcept override;
     uint32_t GetActorCommandingActorFormId(uint32_t aFormId) const noexcept override;
     ActorAiFields GetActorAiFields(uint32_t aFormId) const noexcept override;
+    void StaggerActor(uint32_t aFormId, float aMagnitude, uint32_t aHitterId) noexcept override;
+    Perks GetPlayerPerks() const noexcept override;
+    void SetCopyPerks(uint32_t aFormId, const Perks& acPerks) noexcept override;
     void SetCopyAiFields(uint32_t aFormId, const ActorAiFields& acFields) noexcept override;
     void SetCopiesFightingPlayer(uint32_t aCount) noexcept override;
     void ActorLoadAnimationVariables(uint32_t aFormId, const AnimationVariables& acVars) noexcept override;

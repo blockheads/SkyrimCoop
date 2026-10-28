@@ -36,6 +36,7 @@ HostCharacters::HostCharacters(HostAuthority& aAuthority, HostNetwork& aNetwork,
     aAuthority.On(*this, &HostCharacters::OnMount);
     aAuthority.On(*this, &HostCharacters::OnDismount);
     aAuthority.On(*this, &HostCharacters::OnActiveEffects);
+    aAuthority.On(*this, &HostCharacters::OnPerks);
     aAuthority.Watch(*this, &HostCharacters::OnValues);
     aAuthority.Watch(*this, &HostCharacters::OnMaxValues);
     aAuthority.On(*this, &HostCharacters::OnMovement);
@@ -65,7 +66,10 @@ void HostCharacters::OnMovement(const ReferencesMoveRequest& acRequest, Connecti
         }
     }
     if (!notify.Updates.empty())
-        m_players.SendToOthers(notify, aSender, Net::kUnreliable);
+    {
+        const bool cActions = std::ranges::any_of(notify.Updates, [](const auto& acUpdate) { return !acUpdate.second.ActionEvents.empty(); });
+        m_players.SendToOthers(notify, aSender, cActions ? Net::kReliable : Net::kUnreliable);
+    }
 }
 
 void HostCharacters::OnAnnounceCharacter(const AnnounceCharacterRequest& acRequest, ConnectionId_t aSender) noexcept
@@ -220,6 +224,17 @@ void HostCharacters::GiveBack(uint32_t aMountId, uint32_t aRiderId, const ActorW
     notify.MountId = aMountId;
     notify.Whereabouts = acWhereabouts;
     m_players.SendToAll(notify);
+}
+
+void HostCharacters::OnPerks(const ActorPerksRequest& acRequest, ConnectionId_t aSender) noexcept
+{
+    const auto it = m_characters.find(acRequest.SessionId);
+    if (it == m_characters.end() || it->second.Owner != aSender || !it->second.PlayerRecord)
+        return;
+    it->second.PlayerRecord->PerksContent = acRequest.Content;
+    NotifyActorPerks notify;
+    static_cast<Payloads::ActorPerks&>(notify) = acRequest;
+    m_players.SendToOthers(notify, aSender);
 }
 
 void HostCharacters::OnActiveEffects(const RequestActiveEffects& acRequest, ConnectionId_t aSender) noexcept

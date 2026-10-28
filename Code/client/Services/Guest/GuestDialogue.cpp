@@ -128,8 +128,8 @@ void GuestDialogue::ShowList() noexcept
 {
     if (!m_step || m_step != m_dialogue.Step() || m_shownStep == m_step)
         return;
-    m_shownStep = m_step;
-    m_dialogue.Bridge().ShowList(m_options, m_choices);
+    if (m_dialogue.Bridge().ShowList(m_options, m_choices))
+        m_shownStep = m_step;
 }
 
 void GuestDialogue::OnLine(const NotifyDialogue& acMessage) noexcept

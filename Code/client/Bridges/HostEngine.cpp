@@ -47,13 +47,22 @@ namespace
 {
 // A role's fill as a guest can make it (QuestAliasFill): acCreated, the created references that went out.
 QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef,
-                             const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
+                             const std::unordered_map<uint32_t, uint32_t>& acCreated, std::unordered_set<uint32_t>& aPendingActors) noexcept
 {
     QuestAliasFill fill{aAliasId};
     if (!apRef)
         return fill;
     if (apRef->IsTemporary())
     {
+        if (Cast<Actor>(const_cast<TESObjectREFR*>(apRef)))
+        {
+            if (const auto cActor = Utils::GetSessionIdByFormId(apRef->formID))
+            {
+                fill.ActorId = *cActor;
+                return fill;
+            }
+            aPendingActors.insert(apRef->formID);
+        }
         fill.HostOnly = !acCreated.count(apRef->formID);
         fill.Ref = CreatedId(apRef->formID);
         return fill;
@@ -74,7 +83,7 @@ QuestAliasFill ReadAliasFill(uint32_t aAliasId, const TESObjectREFR* apRef,
     return fill;
 }
 
-QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const std::unordered_map<uint32_t, uint32_t>& acCreated) noexcept
+QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const std::unordered_map<uint32_t, uint32_t>& acCreated, std::unordered_set<uint32_t>& aPendingActors) noexcept
 {
     QuestState quest{acId, static_cast<uint16_t>(aQuest.flags & QuestState::kFlags), aQuest.currentStage};
     for (const TESQuest::Stage* pStage : aQuest.stages)
@@ -100,7 +109,7 @@ QuestState ReadQuest(TESQuest& aQuest, const GameId& acId, const std::unordered_
             const auto* pRef = aQuest.GetAliasedRef(pAlias->aliasId);
             if (pRef)
                 references.insert(pRef->formID);
-            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, pRef, acCreated));
+            quest.Aliases.push_back(ReadAliasFill(pAlias->aliasId, pRef, acCreated, aPendingActors));
             continue;
         }
         QuestLocationFill& fill = quest.Locations.emplace_back(QuestLocationFill{pAlias->aliasId});
@@ -280,18 +289,26 @@ std::vector<QuestState> HostEngine::ReadQuests() const noexcept
     for (TESQuest* pQuest : pData->quests)
     {
         if (const auto cId = pQuest ? ToSession(pQuest->formID) : std::nullopt)
-            quests.push_back(ReadQuest(*pQuest, *cId, m_created));
+            quests.push_back(ReadQuest(*pQuest, *cId, m_created, m_pendingActorAliases));
     }
     return quests;
 }
 
 std::vector<QuestState> HostEngine::TakeQuestChanges() const noexcept
 {
+    std::erase_if(m_pendingActorAliases, [](uint32_t aRef) {
+        if (Utils::GetSessionIdByFormId(aRef))
+        {
+            QuestEvents::Changes().Reference(aRef);
+            return true;
+        }
+        return TESForm::GetById(aRef) == nullptr;
+    });
     std::vector<QuestState> quests;
     for (const uint32_t cId : QuestEvents::Changes().Take())
         if (auto* pQuest = Cast<TESQuest>(TESForm::GetById(cId)))
             if (const auto cSessionId = ToSession(cId))
-                quests.push_back(ReadQuest(*pQuest, *cSessionId, m_created));
+                quests.push_back(ReadQuest(*pQuest, *cSessionId, m_created, m_pendingActorAliases));
     return quests;
 }
 

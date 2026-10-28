@@ -7,7 +7,6 @@
 #include <Actor.h>
 #include <FormIds.h>
 #include <Messages/WorldState.h>
-#include <Physics/BodyPrediction.h>
 #include <TESObjectREFR.h>
 
 #include <RTTI.h>
@@ -49,25 +48,36 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
     if (acKey.Actor)
     {
         auto* pCopy = Cast<Actor>(TESForm::GetById(aCopyFormId));
-        const auto cBodies = pCopy && !pCopy->IsDeleted() ? RagdollBodiesOf(*pCopy) : std::vector<bhkWorldObject*>{};
-        bhkWorldObject* pBody = acKey.Index < cBodies.size() ? cBodies[acKey.Index] : nullptr;
-        if (!pBody || !pBody->referencedObject)
+        if (!pCopy || pCopy->IsDeleted())
             return {};
+        if (!pCopy->IsDead() && !m_knocked.contains(pCopy->formID))
+            std::erase_if(m_ragdolls, [&](const auto& acBody) { return acBody.first.Actor == acKey.Actor; });
         // Its animation's while the copy stands (a creature's powered ragdoll is dynamic then, a revived one's again).
         if (!pCopy->IsDead() && !KnockedDown(*pCopy, aKnock))
         {
             m_ragdolls.erase(acKey);
             return {.Waiting = true};
         }
+        if (!pCopy->IsDead() && !pCopy->actorState.IsKnockedDown())
+            return {.Waiting = true};
+        // The knock creates a new copy's physics wrappers; they need not exist before it is requested.
+        const auto cBodies = RagdollBodiesOf(*pCopy);
+        bhkWorldObject* pBody = acKey.Index < cBodies.size() ? cBodies[acKey.Index] : nullptr;
+        if (!pBody || !pBody->referencedObject)
+            return {.Waiting = true};
         // Dead by its owner's action here, or knocked down: left until its own ragdoll has it; kept then (a corpse
         // kicked again).
-        if (!m_ragdolls.contains(acKey))
+        bool first = false;
+        const auto cGeneration = std::make_pair(aCopyFormId, pBody);
+        if (const auto it = m_ragdolls.find(acKey); it == m_ragdolls.end() || it->second != cGeneration)
         {
-            if (!pBody->referencedObject->IsDynamic())
+            BodyRead read;
+            if (!ReadBody(*pBody, read) || !read.Dynamic)
                 return {.Waiting = true};
-            m_ragdolls.insert(acKey);
+            m_ragdolls[acKey] = cGeneration;
+            first = true;
         }
-        return {.pBody = pBody};
+        return {.pBody = pBody, .First = first};
     }
     const uint32_t cFormId = m_formIdOf ? m_formIdOf(acKey.Object) : (acKey.Object.ModId == ObjectChange::kCreatedModId ? 0 : ToGame(acKey.Object));
     const auto cFound = ReferenceBodies::At(cFormId ? Cast<TESObjectREFR>(TESForm::GetById(cFormId)) : nullptr, acKey.Index);
@@ -76,7 +86,7 @@ BodyBridge::Found BodyBridge::Find(const BodyKey& acKey, uint32_t aCopyFormId, b
 
 void BodyBridge::RememberMotion(const BodyKey& acKey, const Found& acBody) noexcept
 {
-    if (acBody.pCollision && acBody.pBody->referencedObject && acBody.pBody->referencedObject->IsDynamic())
+    if (acBody.pCollision && acBody.pBody && acBody.pBody->referencedObject && acBody.pBody->referencedObject->IsDynamic())
         m_motions.try_emplace(acKey, acBody.pBody->referencedObject->motionType);
 }
 
@@ -95,12 +105,10 @@ bool BodyBridge::Drive(const BodyFrame& acFrame, uint32_t aCopyFormId) noexcept
         return true;
     if (!cFound.pBody)
         return false;
-    // A ragdoll's body steered onto the frame, not placed: its ragdoll driver makes a placed (keyframed) body simulated
-    // again each update, so the two would fight (physics-sync.md, "A copy's ragdoll, steered"). Placed when far off.
-    if (BodyRead read; acFrame.Key.Actor && ReadBody(*cFound.pBody, read) && glm::distance(read.Position, acFrame.Position) < kSteerDistance)
+    if (acFrame.Key.Actor)
     {
-        const auto cSteer = BodyPrediction::Steer(read.Position, read.Rotation, acFrame);
-        return SteerBody(*cFound.pBody, cSteer.Linear, cSteer.Angular);
+        QueueCopyBodyFrame(aCopyFormId, acFrame, cFound.First);
+        return true;
     }
     RememberMotion(acFrame.Key, cFound);
     if (!PlaceBody(*cFound.pBody, acFrame.Position, acFrame.Rotation, acFrame.LinearVelocity, acFrame.AngularVelocity))
@@ -118,11 +126,13 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
         return true;
     if (!cFound.pBody)
         return false;
-    // A living copy's rest is its owner's getting up: its own ragdoll, steered there, gets up as the owner's does. Held
-    // there instead, its bodies stay at the rest while it stands, and its next knock flings them from it.
+    // Keep the exact rest without keyframing: the ragdoll driver's bone mapping needs its dynamic bodies.
     if (acPose.Key.Actor)
-        if (const auto* pCopy = Cast<Actor>(TESForm::GetById(aCopyFormId)); pCopy && !pCopy->IsDead())
-            return true;
+    {
+        QueueCopyBodyFrame(aCopyFormId, {.Key = acPose.Key, .Position = acPose.Position, .Rotation = acPose.Rotation,
+                                      .Knocked = acPose.Knocked}, true);
+        return true;
+    }
     // A reference's body not held and already there (the owner's settle in place): moving it would record a move
     // here the owner's game has not.
     if (BodyRead read; cFound.pCollision && !m_motions.contains(acPose.Key) && ReadBody(*cFound.pBody, read) && read.Dynamic &&
@@ -135,7 +145,8 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
     if (cFound.pCollision)
     {
         FollowBody(*cFound.pCollision);
-        SettleFound(acPose.Key, cFound);
+        if (m_motions.contains(acPose.Key) && !SettleFound(acPose.Key, cFound))
+            return false;
     }
     return true;
 }
@@ -143,6 +154,8 @@ bool BodyBridge::Rest(const BodyPose& acPose, uint32_t aCopyFormId) noexcept
 bool BodyBridge::Free(const BodyFrame& acFrame) noexcept
 {
     const Found cFound = Find(acFrame.Key, 0, false);
+    // The reliable release may be the first frame heard of this hold.
+    RememberMotion(acFrame.Key, cFound);
     const auto it = m_motions.find(acFrame.Key);
     if (!cFound.pCollision || it == m_motions.end())
         return false;
@@ -168,7 +181,13 @@ bool BodyBridge::KeepMotion(const BodyKey& acKey) noexcept
 
 bool BodyBridge::Settle(const BodyKey& acKey) noexcept
 {
-    return SettleFound(acKey, Find(acKey, 0, false));
+    const Found cFound = Find(acKey, 0, false);
+    if (!cFound.pCollision)
+    {
+        m_motions.erase(acKey);
+        return true;
+    }
+    return !m_motions.contains(acKey) || SettleFound(acKey, cFound);
 }
 
 bool BodyBridge::SettleFound(const BodyKey& acKey, const Found& acBody) noexcept
@@ -177,7 +196,9 @@ bool BodyBridge::SettleFound(const BodyKey& acKey, const Found& acBody) noexcept
     if (it == m_motions.end() || !acBody.pCollision)
         return false;
     const auto cMotion = static_cast<hkpRigidBody::MotionType>(it->second);
-    m_motions.erase(it);
     // Asleep: a rest at a teetering pose would roll off again.
-    return ::FreeBody(*acBody.pCollision, cMotion, {}, {}, true);
+    if (!::FreeBody(*acBody.pCollision, cMotion, {}, {}, true))
+        return false;
+    m_motions.erase(it);
+    return true;
 }

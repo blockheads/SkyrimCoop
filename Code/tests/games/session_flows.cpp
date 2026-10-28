@@ -65,7 +65,9 @@ SCENARIO("The host's session drops for good: after its tries the guest's panel s
     party.As(party.Host(), [&] { party.Host().GetHostService().StopHosting(); });
     party.Until([&] { return PanelOf(party.Guest()).Current == JoinStatus::State::kEnded; },
                 "the guest's tries run out: its panel says the session ended",
-                [&] { return std::format("its panel: {}", ToString(PanelOf(party.Guest()).Current)); });
+                [&] { return std::format("its panel: {}", ToString(PanelOf(party.Guest()).Current)); }, nullptr,
+                std::chrono::seconds{static_cast<int64_t>(JoinService::kReconnectTries *
+                    (JoinService::kReconnectSeconds + JoinService::kRetrySeconds) + 5)});
     CHECK(PanelOf(party.Guest()).Reason == "lost_connection");
     CHECK_FALSE(party.Guest().GetTransport().IsConnected());
 }

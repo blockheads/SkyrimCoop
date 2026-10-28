@@ -82,7 +82,9 @@ SCENARIO("A friend accepts the host's Steam invite: its game joins the lobby and
         // Its tunnel gone, the host's game drops the friend's session connection at once, not at enet's timeout.
         party.Until([&] { return cPlayerCopies() == 0; }, "the host's game drops the friend's player copy");
         party.Until([&] { return guest.ctx().at<JoinService>().GetStatus().Current == JoinStatus::State::kEnded; },
-                    "the friend's game tries the lobby again until its tries run out");
+                    "the friend's game tries the lobby again until its tries run out", {}, nullptr,
+                    std::chrono::seconds{static_cast<int64_t>(JoinService::kReconnectTries *
+                        (JoinService::kReconnectSeconds + JoinService::kRetrySeconds) + 5)});
         CHECK(guest.ctx().at<JoinService>().GetStatus().Reason == "lost_connection");
         CHECK(!guest.GetTransport().IsOnline());
         CHECK(State(guest).State == "idle");
@@ -164,7 +166,9 @@ SCENARIO("Each player loads a save and hosts; a friend accepts the host's invite
         party.Until([&] { return guestNotices.Has("Lost connection to the host. Reconnecting..."); },
                     "the friend's player is told it lost the host");
         party.Until([&] { return guestNotices.Has("Couldn't reconnect to the host."); },
-                    "the friend's player is told reconnecting failed (the lobby is gone)");
+                    "the friend's player is told reconnecting failed (the lobby is gone)", {}, nullptr,
+                    std::chrono::seconds{static_cast<int64_t>(JoinService::kReconnectTries *
+                        (JoinService::kReconnectSeconds + JoinService::kRetrySeconds) + 5)});
     }
 }
 

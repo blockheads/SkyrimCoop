@@ -1,5 +1,6 @@
 #include <Games/Primitives.h>
 #include <VersionDb.h>
+#include <BSCore/LockOrder.h>
 
 void NiRefObject::IncRef()
 {
@@ -90,4 +91,21 @@ void BSReadWriteLock::UnlockForWrite()
 {
     POINTER_SKYRIMSE(TReadWriteLockFunction, s_unlockForWrite, 68240);
     s_unlockForWrite.Get()(this);
+}
+
+bool BSReadWriteLock::TryLockForWrite()
+{
+    // The acquisition in 68234, without its wait loop; 68240 releases it normally.
+    const DWORD cThread = GetCurrentThreadId();
+    if (m_writerThread == cThread)
+        InterlockedIncrement(&m_lockCount);
+    else
+    {
+        if (InterlockedCompareExchange(&m_lockCount, static_cast<LONG>(0x80000001u), 0) != 0)
+            return false;
+        m_writerThread = cThread;
+        MemoryBarrier();
+    }
+    LockOrder::AcquiredWithoutWaiting(this, _ReturnAddress());
+    return true;
 }

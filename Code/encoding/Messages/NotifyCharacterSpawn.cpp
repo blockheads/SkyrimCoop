@@ -25,6 +25,7 @@ NotifyCharacterSpawn NotifyCharacterSpawn::FromAnnouncement(const AnnounceCharac
     spawn.LatestAction = acAnnouncement.LatestAction;
     spawn.GraphState = acAnnouncement.GraphState;
     spawn.AiState = acAnnouncement.AiState;
+    spawn.PerksContent = acAnnouncement.PerksContent;
     spawn.EffectIds = acAnnouncement.EffectIds;
     spawn.FaceTints = acAnnouncement.FaceTints;
     spawn.Weight = acAnnouncement.Weight;
@@ -60,6 +61,7 @@ void NotifyCharacterSpawn::SerializeRaw(Wire::Buffer::Writer& aWriter) const noe
     Serialization::WriteBool(aWriter, IsPlayerSummon);
     Serialization::WriteString(aWriter, GraphState);
     AiState.Serialize(aWriter);
+    PerksContent.Serialize(aWriter);
     Serialization::WriteVarInt(aWriter, EffectIds.size());
     for (const auto& cEffectId : EffectIds)
         cEffectId.Serialize(aWriter);
@@ -101,6 +103,7 @@ void NotifyCharacterSpawn::DeserializeRaw(Wire::Buffer::Reader& aReader) noexcep
     IsPlayerSummon = Serialization::ReadBool(aReader);
     GraphState = Serialization::ReadString(aReader);
     AiState.Deserialize(aReader);
+    PerksContent.Deserialize(aReader);
     EffectIds.clear();
     const auto cEffects = Serialization::ReadVarInt(aReader);
     for (uint64_t i = 0; i < cEffects && i < 256; ++i)

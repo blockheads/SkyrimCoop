@@ -321,7 +321,7 @@ AnimationGraphDescriptor_Master_Behavior::AnimationGraphDescriptor_Master_Behavi
             {kTurnDelta, kDirection, kSpeedSampled, kweapAdj, kSpeed,
              // TODO: this was added extra for spell cast sync
              kCastBlend, kPitchOffset, kSpeedDamped, kPitch, kVelocityZ, k1stPRot, k1stPRotDamped, kCastBlendDamped},
-            {kiRightHandEquipped, kiLeftHandEquipped, ki1HMState, kiState, kiLeftHandType, kiRightHandType, kiSyncIdleLocomotion, kiSyncForwardState, kiSyncTurnState, kiIsInSneak, kiWantBlock, kiRegularAttack,
+            {kiRightHandEquipped, kiLeftHandEquipped, ki1HMState, kiState, kiLeftHandType, kiRightHandType, kiSyncIdleLocomotion, kiSyncForwardState, kiSyncTurnState, kiIsInSneak, kiWantBlock, kiRegularAttack, kiGetUpType,
              // Not synced: currentDefaultState, the graph's own state id (forced, it overrides the copy's).
              ktestint}));
 }

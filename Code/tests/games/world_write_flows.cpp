@@ -94,6 +94,36 @@ SCENARIO("A reference alias clear alone reaches the guest", "[world][write-event
     ClearAlias(false);
 }
 
+SCENARIO("A created actor's quest role waits for its copy, then clears when the host clears it", "[world][actor-alias]")
+{
+    Party party(1, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    uint32_t actor = 0;
+    party.As(party.Host(), [&] { actor = host.LoadNpc(0x1A67C, kSmoke); });
+    party.Step(party.Host());
+    uint32_t session = 0;
+    for (auto&& [cEntity, form, own] : party.Host().view<FormIdComponent, LocalComponent>().each())
+        if (form.Id == actor)
+            session = own.Id;
+    REQUIRE(session);
+    NotifyQuests update;
+    auto& quest = update.Quests.emplace_back();
+    quest.Id = GameId(0, kQuest);
+    quest.Flags = 1;
+    quest.Aliases = {{.AliasId = 17, .ActorId = session}};
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(update); });
+    CHECK(guest.QuestAliasReferences[kQuest][17] == 0);
+    party.Until([&] {
+        return guest.CopiesOf(0x1A67C).size() == 1 &&
+               guest.QuestAliasReferences[kQuest][17] == guest.CopiesOf(0x1A67C)[0];
+    }, "the quest's role is filled after the actor's copy arrives");
+    quest.Aliases = {{17}};
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(update); });
+    party.Frame();
+    CHECK(guest.QuestAliasReferences[kQuest][17] == 0);
+}
+
 SCENARIO("A location alias clear alone reaches the guest", "[world][write-events][alias-clear]")
 {
     ClearAlias(true);

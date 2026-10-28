@@ -20,10 +20,22 @@ BodyService::BodyService(World& aWorld, entt::dispatcher& aDispatcher, IBodyBrid
     Listen<DisconnectedEvent, &BodyService::OnDisconnected>(m_connections, aDispatcher, this);
 }
 
-void BodyService::Forget(const BodyKey& acKey) noexcept
+void BodyService::Forget(const BodyKey& acKey, uint64_t aReleasedAt) noexcept
 {
-    PlaybackOf(acKey).Forget(acKey);
+    if (aReleasedAt)
+        PlaybackOf(acKey).ForgetUntil(acKey, aReleasedAt);
+    else
+        PlaybackOf(acKey).Forget(acKey);
+    m_ragdollRests.erase(acKey);
+    m_pendingRests.erase(acKey);
     m_following.erase(acKey);
+}
+
+void BodyService::EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept
+{
+    std::erase_if(m_ragdollRests, [aSessionId, aTick](const auto& acRest) {
+        return acRest.first.Actor == aSessionId && acRest.second.first <= aTick;
+    });
 }
 
 void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
@@ -33,8 +45,10 @@ void BodyService::OnFrames(const NotifyBodyFrames& acMessage) noexcept
     {
         if (m_pKeeper && !m_pKeeper->TakesFrame(cFrame.Key))
             continue;
+        if (const auto it = m_pendingRests.find(cFrame.Key); it != m_pendingRests.end() && acMessage.Tick > it->second.first)
+            m_pendingRests.erase(it);
         // This game's own physics may have moved it first (its copy of the blast): from there into the owner's.
-        if (!m_playback.Has(cFrame.Key))
+        if (!cFrame.Key.Actor && !m_playback.Has(cFrame.Key))
             if (const auto cShown = m_bridge.ReadPose(cFrame.Key))
                 m_playback.StartFrom(*cShown);
         (cFrame.Key.Actor ? ragdolls : frames).push_back(cFrame);
@@ -58,6 +72,8 @@ void BodyService::OnDisconnected(const DisconnectedEvent&) noexcept
     m_playback = {};
     m_ragdolls = {};
     m_following.clear();
+    m_ragdollRests.clear();
+    m_pendingRests.clear();
     m_missing.clear();
 }
 
@@ -78,6 +94,27 @@ void BodyService::OnUpdate(const UpdateEvent&) noexcept
             Forget(cKey);
     Show(m_playback, cTick > kDelayMs ? cTick - kDelayMs : 0);
     Show(m_ragdolls, cTick > kCopyDelayMs ? cTick - kCopyDelayMs : 0);
+    for (auto it = m_pendingRests.begin(); it != m_pendingRests.end();)
+    {
+        if ((!m_pKeeper || !m_pKeeper->KeepsRest(it->first)) && m_bridge.Rest(it->second.second, 0))
+        {
+            if (m_pKeeper)
+                m_pKeeper->OnRest(it->second.second);
+            it = m_pendingRests.erase(it);
+        }
+        else
+            ++it;
+    }
+    for (auto it = m_ragdollRests.begin(); it != m_ragdollRests.end();)
+    {
+        const auto& cRest = it->second.second;
+        const uint32_t cCopy = CopyOf(cRest.Key.Actor);
+        const BodyFrame cFrame{.Key = cRest.Key, .Position = cRest.Position, .Rotation = cRest.Rotation, .Knocked = cRest.Knocked};
+        if (!cCopy || !m_bridge.Rest(cRest, cCopy) || !m_bridge.Drive(cFrame, cCopy))
+            it = m_ragdollRests.erase(it);
+        else
+            ++it;
+    }
 }
 
 void BodyService::Show(BodyPlayback& aPlayback, uint64_t aTick) noexcept
@@ -88,8 +125,19 @@ void BodyService::Show(BodyPlayback& aPlayback, uint64_t aTick) noexcept
     {
         const BodyKey& cKey = cPose.Body.Key;
         const uint32_t cCopy = cKey.Actor ? CopyOf(cKey.Actor) : 0;
-        const BodyPose cAt{.Key = cKey, .Position = cPose.Body.Position, .Rotation = cPose.Body.Rotation};
+        const BodyPose cAt{.Key = cKey, .Position = cPose.Body.Position, .Rotation = cPose.Body.Rotation, .Knocked = cPose.Body.Knocked};
+        if (cPose.Rest && cKey.Actor)
+            m_ragdollRests[cKey] = {cPose.Tick, cAt};
+        else
+            m_ragdollRests.erase(cKey);
         const bool cDone = cPose.Rest ? m_bridge.Rest(cAt, cCopy) : m_bridge.Drive(cPose.Body, cCopy);
+        if (cPose.Rest && !cKey.Actor && !cDone)
+        {
+            m_pendingRests[cKey] = {cPose.Tick, cAt};
+            m_following.erase(cKey);
+            continue;
+        }
+        m_pendingRests.erase(cKey);
         // Not loaded here (its cell, or its 3D): nothing to show; its cell's load gets the owner's rest.
         if (!cDone)
         {

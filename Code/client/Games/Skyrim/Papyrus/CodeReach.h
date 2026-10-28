@@ -26,6 +26,7 @@ enum class Call : uint8_t
     kProgress, // a player's progression (docs/design/dragonborn.md, "The party's calls")
     kItem,     // an actor's items: each player's own, never the party's (docs/design/party-model.md, "Items")
     kQuestion, // where a reference is: asked of the party with no player's action behind it (party-model.md rule 3)
+    kPlayerMenu, // a menu on another actor (barter): opened on the game of the player whose action asked for it
 };
 
 // How the party shares a change to a player's progression (docs/design/dragonborn.md, "The party's calls"): it runs
@@ -137,13 +138,14 @@ inline constexpr uintptr_t kLeafBytes = 0x400;
 template <class TResolve>
 [[nodiscard]] Reach ClassifyCall(const Facts& acFacts, const Sinks& acSinks, TResolve&& aResolve) noexcept
 {
-    Reach progress, world, item, controls, screen, show, question;
+    Reach progress, world, item, playerMenu, controls, screen, show, question;
     if (acFacts.ReadsScreen)
         screen.Kind = Call::kScreen;
     const auto cNote = [&](const Sink& acSink) {
         (acSink.Is.Kind == Call::kProgress ? progress
          : acSink.Is.Kind == Call::kWorld  ? world
          : acSink.Is.Kind == Call::kItem   ? item
+         : acSink.Is.Kind == Call::kPlayerMenu ? playerMenu
          : acSink.Is.Kind == Call::kControls ? controls
          : acSink.Is.Kind == Call::kShow   ? show
          : acSink.Is.Kind == Call::kQuestion ? question
@@ -164,7 +166,7 @@ template <class TResolve>
         for (const uint32_t cField : acFacts.SelfReads)
             if (const auto it = acSinks.SelfFields.find(cField); it != acSinks.SelfFields.end())
                 cNote(it->second);
-    for (const Reach* cpReach : {&progress, &world, &item, &controls, &screen, &show, &question})
+    for (const Reach* cpReach : {&progress, &world, &item, &playerMenu, &controls, &screen, &show, &question})
         if (cpReach->Kind != Call::kNone)
             return *cpReach;
     return {};

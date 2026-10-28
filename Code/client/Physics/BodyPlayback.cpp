@@ -7,6 +7,8 @@ void BodyPlayback::Add(uint64_t aTick, const std::vector<BodyFrame>& acFrames) n
 {
     for (const auto& cFrame : acFrames)
     {
+        if (const auto it = m_ended.find(cFrame.Key); it != m_ended.end() && aTick <= it->second)
+            continue;
         Track& track = m_tracks[cFrame.Key];
         // Older than its rest, or than a frame already here (unreliable: out of order): the newer one stands.
         if ((track.Rest && aTick <= track.Rest->first) || (!track.Frames.empty() && aTick <= track.Frames.back().first))
@@ -27,6 +29,10 @@ void BodyPlayback::Rest(uint64_t aTick, const std::vector<BodyPose>& acRests) no
 {
     for (const auto& cRest : acRests)
     {
+        if (const auto it = m_ended.find(cRest.Key); it != m_ended.end() && aTick <= it->second)
+            continue;
+        if (const auto it = m_tracks.find(cRest.Key); it != m_tracks.end() && it->second.Rest && it->second.Rest->first > aTick)
+            continue;
         // The frames before it play on into it (At).
         m_tracks[cRest.Key].Rest = {aTick, cRest};
     }
@@ -47,7 +53,7 @@ BodyFrame Blend(const BodyFrame& acA, const BodyFrame& acB, float aWeight) noexc
 
 float Seconds(uint64_t aFrom, uint64_t aTo) noexcept
 {
-    return (static_cast<float>(aTo) - static_cast<float>(aFrom)) / 1000.f;
+    return aTo >= aFrom ? static_cast<float>(aTo - aFrom) / 1000.f : -static_cast<float>(aFrom - aTo) / 1000.f;
 }
 } // namespace
 
@@ -60,7 +66,7 @@ std::optional<BodyPlayback::Pose> BodyPlayback::Track::TakeRest(uint64_t aTick) 
     Rest.reset();
     Started = false;
     Toward = 0;
-    return Pose{{.Key = cRest.Key, .Position = cRest.Position, .Rotation = cRest.Rotation}, true, std::exchange(Received, 0)};
+    return Pose{{.Key = cRest.Key, .Position = cRest.Position, .Rotation = cRest.Rotation, .Knocked = cRest.Knocked}, true, std::exchange(Received, 0), cRestTick};
 }
 
 void BodyPlayback::Track::Advance(uint64_t aTick, float aGravity) noexcept
@@ -124,8 +130,12 @@ std::vector<BodyPlayback::Pose> BodyPlayback::At(uint64_t aTick, float aGravity)
     for (auto it = m_tracks.begin(); it != m_tracks.end();)
     {
         Track& track = it->second;
+        const uint64_t cRestTick = track.Rest ? track.Rest->first : 0;
         if (auto rest = track.TakeRest(aTick))
+        {
+            m_ended[it->first] = std::max(m_ended[it->first], cRestTick);
             poses.push_back(*rest);
+        }
         track.Advance(aTick, aGravity);
         if (!track.Showing(aTick))
         {
@@ -153,4 +163,10 @@ void BodyPlayback::Forget(const BodyKey& acKey) noexcept
 std::vector<BodyPlayback::Lost> BodyPlayback::TakeLost() noexcept
 {
     return std::exchange(m_lost, {});
+}
+
+void BodyPlayback::ForgetUntil(const BodyKey& acKey, uint64_t aTick) noexcept
+{
+    Forget(acKey);
+    m_ended[acKey] = std::max(m_ended[acKey], aTick);
 }

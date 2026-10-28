@@ -1,6 +1,7 @@
 #include <Events/GameLoadFailedEvent.h>
 #include <World.h>
 #include <Bridges/JoinBridge.h>
+#include <Bridges/IActorBridge.h>
 
 #include <Breadcrumbs.h>
 #include <FormIds.h>
@@ -219,16 +220,7 @@ PlayerRecord JoinBridge::ReadPlayer() const noexcept
         }
     }
     record.PerkPoints = pPlayer->perkPoints;
-    // Once each (the engine's list can hold a perk twice, from earlier records added on top).
-    for (const PlayerCharacter::PerkRank* cpPerk : pPlayer->perkRanks)
-        if (cpPerk && cpPerk->perk)
-            if (const auto cId = ToSession(cpPerk->perk->formID))
-            {
-                if (auto it = std::ranges::find(record.Perks, *cId, &PlayerRecord::Perk::Id); it != record.Perks.end())
-                    it->Rank = std::max(it->Rank, cpPerk->rank);
-                else
-                    record.Perks.push_back({*cId, cpPerk->rank});
-            }
+    record.Perks = World::Get().GetActorBridge().GetPlayerPerks().Ranks;
     for (uint32_t i = 0; i < pPlayer->addedSpells.size; ++i)
         if (const SpellItem* cpSpell = pPlayer->addedSpells.Get(i))
             if (const auto cId = ToSession(cpSpell->formID))
@@ -307,6 +299,14 @@ void JoinBridge::ApplyPlayer(const PlayerRecord& acRecord) noexcept
         for (const PlayerRecord::Value& cValue : acRecord.Values)
             if (cValue.Index == kDragonSouls)
                 pPlayer->ForceActorValue(ActorValueOwner::ForceMode::PERMANENT, kDragonSouls, cValue.Base);
+        // TESForm::SetUnlocked (14640): the host's purchased flags came with its save, not this character.
+        for (TESShout* pShout : cPartyShouts)
+            for (const TESShout::Variation& cVariation : pShout->variations)
+                if (cVariation.word && (cVariation.word->flags & TESForm::UNLOCKED))
+                {
+                    cVariation.word->flags &= ~TESForm::UNLOCKED;
+                    cVariation.word->MarkChanged(1);
+                }
         for (const GameId& cWord : acRecord.Words)
             if (TESForm* pWord = TESForm::GetById(ToGame(cWord)); pWord && pWord->formType == FormType::WordOfPower)
                 pPlayer->UnlockWord(pWord);

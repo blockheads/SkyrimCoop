@@ -158,6 +158,7 @@ void GuestWorldState::OnPickUpNotify(const NotifyPickUp& acMessage) noexcept
 
 void GuestWorldState::OnUpdate(const UpdateEvent&) noexcept
 {
+    m_engine.RetryQuestAliases();
     auto cells = m_engine.AttachedCells();
     for (const uint32_t cCell : cells)
         if (std::ranges::find(m_cells, cCell) == m_cells.end())

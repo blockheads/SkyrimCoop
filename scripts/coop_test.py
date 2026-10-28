@@ -5326,6 +5326,7 @@ def death_spectate_respawn(victim, travel_down=False):
         console_on(instance, "player.restoreav health 10000")
     give_sword(survivor)
     give_sword(victim)
+    sheathe(survivor)
     # The host's enemy picks its own target among those it detects, and the host's player stands beside the stage: it
     # stays unseen (Invisibility) from before the enemy comes until its turn, or the enemy never reaches the guest.
     hidden_host = survivor == ""
@@ -5339,10 +5340,13 @@ def death_spectate_respawn(victim, travel_down=False):
     hands = (player_snapshot(victim).get("state") or {}).get("hands")
     try:
         console_on("", "set KillMoveRandom to 0")
+        place_before(victim, npc if victim == "" else copy, MELEE_GAP)
+        if victim:
+            wait_for("the host sees the victim beside the staged enemy", lambda:
+                     distance((actor_snapshot("", target).get("placement") or {}).get("position"), my_position(victim)) < 4, 10)
         health = (player_snapshot(victim).get("values") or {}).get("health", 100)
         if health > 5:
             console_on(victim, f"player.damageav health {health - 5:.6f}")
-        place_before(victim, npc if victim == "" else copy, MELEE_GAP)
         console_on("", f"{npc:X}.startcombat {target:X}")
         def fight():
             wolf = actor_snapshot("", npc)
@@ -7769,6 +7773,9 @@ def reference_differences(host, guest, host_again=(), guest_again=()):
         if field == "flags" and a is not None and b is not None:
             a, b = a & ~FORM_NOT_SYNCED, b & ~FORM_NOT_SYNCED
         if field == "changes":
+            # INVENTORY records deltas from each game's rolled base; the actual contents are compared above.
+            if "items" in host and "items" in guest and host["items"] == guest["items"]:
+                a, b = (a or 0) & ~0x20, (b or 0) & ~0x20
             a, b = (a or 0) & ~CHANGES_OWN or None, (b or 0) & ~CHANGES_OWN or None
             # A form-flags record for a flag each game keeps itself (a look-at target): equal flags otherwise.
             if ((host.get("flags") or 0) ^ (guest.get("flags") or 0)) & ~FORM_NOT_SYNCED == 0:
@@ -8222,7 +8229,7 @@ class FlightTrace:
     def path(self, game, ref):
         """[(seconds, 3D position, first body's motion, awake)] of that game's reference, in order."""
         return [(e["t"] / 1e6, e["position_3d"], (e["bodies"] or [{}])[0].get("motion"), (e["bodies"] or [{}])[0].get("awake"))
-                for e in self.samples[game] if e["id"] == ref]
+                for e in self.samples[game] if e["id"] == ref and not e.get("rendered")]
 
     @staticmethod
     def at(path, when):
@@ -8321,7 +8328,7 @@ class RagdollTrace:
         (self.folder / "ragdoll.json").write_text(json.dumps(self.samples))
 
     def frames(self, game, actor):
-        return [e for e in self.samples[game] if e["id"] == actor]
+        return [e for e in self.samples[game] if e["id"] == actor and not e.get("rendered")]
 
     def series(self, frames):
         """{name: [(seconds, position or None)]}: each ragdoll body, then the pelvis and head nodes."""
@@ -8516,6 +8523,34 @@ class RagdollTrace:
                     problems.append(self.describe(game, actor, label))
         if problems:
             raise TestFailure("bodies did not move as bodies do: " + " | ".join(problems) + f" (samples: {self.folder.name})")
+
+    def check_copy_skeleton(self, owner_game, owner, copy_game, copy):
+        """Compare visible bones; getting-up animation can depart from rigid bodies on the owner too."""
+        own = self.frames(owner_game, owner)
+        cop = self.frames(copy_game, copy)
+        times = [f["t"] for f in own]
+        worst, compared = 0.0, 0
+        for frame in cop:
+            if not 1 <= frame["knock"] <= 6:
+                continue
+            target = frame["t"] - 300_000
+            candidates = own[bisect.bisect_left(times, target - 60_000):bisect.bisect_right(times, target + 60_000)]
+            gaps = []
+            for source in candidates:
+                if not 1 <= source["knock"] <= 6:
+                    continue
+                bones = [math.dist(a["bone"], b["bone"]) for a, b in zip(frame["bodies"], source["bodies"])
+                         if a and b and a.get("bone") and b.get("bone")]
+                if bones:
+                    gaps.append(max(bones))
+            if gaps:
+                worst = max(worst, min(gaps))
+                compared += 1
+        measured = self.measure(copy_game, copy)
+        jitter = measured and any(v["worst"] > self.MAX_SHAKE or v["flickers"] for v in measured["series"].values())
+        if not compared or worst > self.MAX_STRAY or jitter:
+            raise TestFailure(f"the copy's visible skeleton differs from its owner by up to {worst:.1f} units; "
+                              f"{compared} frames compared; jitter={bool(jitter)} (samples: {self.folder.name})")
 
 
 def knock_clutter_with_fireball(caster):
@@ -8821,12 +8856,13 @@ def scenario_knockdown_smoke():
     npc, _, copy = spawn_host_npc(LYDIA)
     def knock(instance, form):
         return (actor_snapshot(instance, form).get("state") or {}).get("knock", 0)
-    trace = RagdollTrace("knockdown-smoke", {"": {npc: "the host's Lydia"}, "client": {copy: "the client's copy"}})
+    name = "knockdown-smoke"
+    trace = RagdollTrace(name, {"": {npc: "the host's Lydia"}, "client": {copy: "the client's copy"}})
     try:
         place_before("", npc, 250, bearing=0)
         place_before("client", copy, 300, bearing=90)
         trace.__enter__()
-        anims = AnimTrace("knockdown-smoke", {"": {npc: "lydia"}, "client": {copy: "lydia"}}, video=False).__enter__()
+        anims = AnimTrace(name, {"": {npc: "lydia"}, "client": {copy: "lydia"}}, video=False).__enter__()
         for round in range(3):
             face("", npc)
             face("client", copy)
@@ -8845,6 +8881,33 @@ def scenario_knockdown_smoke():
     if trace.copy_snaps("", npc, "client", copy):
         raise TestFailure("the copy snaps where its owner does not: " + trace.snaps_report("", npc, "client", copy) +
                           f" (samples: {trace.folder.name})")
+
+
+
+def scenario_knockdown_front_and_back():
+    """Push a living NPC from the front and behind; each whole fall and get-up follows its owner."""
+    npc, _, copy = spawn_host_npc(LYDIA)
+    try:
+        for index, offset in enumerate((math.pi, 0, math.pi)):
+            place_before("", npc, 250, bearing=0)
+            place_before("client", copy, 300, bearing=90)
+            yaw = local_player("")["rotation"][2] + offset
+            console_on("", f"{npc:X}.setangle z {math.degrees(yaw) % 360:.3f}")
+            wait_for("the copy faces the same way before the push",
+                     lambda: abs((actor_snapshot("client", copy)["placement"]["rotation"][2] - yaw + math.pi)
+                                 % (2 * math.pi) - math.pi) < 0.1, 5)
+            name = f"knockdown-front-and-back-{index + 1}"
+            trace = RagdollTrace(name, {"": {npc: "the host's Lydia"}, "client": {copy: "the copy"}})
+            with trace, AnimTrace(name, {"": {npc: "lydia"}, "client": {copy: "lydia"}}, video=False):
+                knocked_down_together("", npc, "client", copy, lambda: console_on("", f"player.pushactoraway {npc:X} 5"))
+            log("ragdoll: " + trace.report())
+            log("copy vs owner: " + trace.compare_report("", npc, "client", copy))
+            trace.check_copy("", npc, "client", copy)
+            trace.check_copy_skeleton("", npc, "client", copy)
+            if trace.copy_snaps("", npc, "client", copy):
+                raise TestFailure(trace.snaps_report("", npc, "client", copy) + f" (samples: {trace.folder.name})")
+    finally:
+        remove_host_npc(npc)
 
 
 def scenario_guest_knockdown_lies_on_host():
@@ -10247,6 +10310,7 @@ SCENARIOS = {
     "knockdown-lies-as-host": scenario_knockdown_lies_as_host,
     "guest-knockdown-lies-on-host": scenario_guest_knockdown_lies_on_host,
     "knockdown-smoke": scenario_knockdown_smoke,
+    "knockdown-front-and-back": scenario_knockdown_front_and_back,
     "late-join-gets-cell-state": scenario_late_join_gets_cell_state,
     "guest-opens-hosts-roll": scenario_guest_opens_hosts_roll,
     "placed-leveled-items-are-hosts": scenario_placed_leveled_items_are_hosts,
@@ -10442,6 +10506,7 @@ TAGS = {
     "knockdown-lies-as-host": {'physics'},
     "guest-knockdown-lies-on-host": {'physics'},
     "knockdown-smoke": {'physics'},
+    "knockdown-front-and-back": {'physics'},
     "late-join-gets-cell-state": {'world', 'objects', 'session'},
     "guest-opens-hosts-roll": {'world', 'objects', 'inventory', 'cells'},
     "placed-leveled-items-are-hosts": {'world', 'objects', 'cells'},
@@ -10643,6 +10708,8 @@ SOURCE_TAGS = [
     ("Code/client/Events/SubtitleEvent.h", {'dialogue'}),
     ("Code/client/Events/HealthChangeEvent.h", {'values'}),
     ("Code/client/Events/HitEvent.h", {'combat'}),
+    ("Code/client/Events/MeleeStaggerEvent.h", {'combat'}),
+    ("scripts/coop_combat.py", {'combat'}),
     ("Code/client/Events/PlayerProgressEvent.h", {'combat', 'join', 'rewards'}),
     ("Code/client/Events/ProjectileLaunchedEvent.h", {'combat', 'magic'}),
     ("Code/client/Events/*Spell*Event.h", {'magic'}),
@@ -12103,6 +12170,8 @@ def main():
     register_crime(SCENARIOS, TAGS)
     from coop_menus import register as register_menus
     register_menus(SCENARIOS, TAGS)
+    from coop_combat import register as register_combat
+    register_combat(SCENARIOS, TAGS)
     from coop_rewards import register as register_rewards
     register_rewards(SCENARIOS, TAGS)
     for name in ("spec:cutscene-controls-reach-party", "spec:leaver-cutscene-gives-back"):

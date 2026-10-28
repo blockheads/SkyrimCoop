@@ -52,7 +52,9 @@ struct BodyService
 
     void SetKeeper(Keeper* apKeeper) noexcept { m_pKeeper = apKeeper; }
     // This game's own physics has the body again (a guest let go of the host's): its playback ends.
-    void Forget(const BodyKey& acKey) noexcept;
+    void Forget(const BodyKey& acKey, uint64_t aReleasedAt = 0) noexcept;
+    // An owner leaves its ragdoll on the delayed movement timeline: stop steering its resting bones.
+    void EndRagdoll(uint32_t aSessionId, uint64_t aTick) noexcept;
 
 private:
     void OnFrames(const NotifyBodyFrames& acMessage) noexcept;
@@ -69,6 +71,8 @@ private:
     Keeper* m_pKeeper{};
     BodyPlayback m_playback; // references
     BodyPlayback m_ragdolls; // copies' ragdolls
+    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_ragdollRests;
+    std::map<BodyKey, std::pair<uint64_t, BodyPose>> m_pendingRests;
     std::set<BodyKey> m_following; // played from an owner's frames (logged once)
     std::set<BodyKey> m_missing;   // not in this game (logged once)
     std::vector<entt::scoped_connection> m_connections;

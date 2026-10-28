@@ -4,6 +4,7 @@
 #include <Services/Host/HostNetwork.h>
 
 #include <algorithm>
+#include <cmath>
 #include <string_view>
 #include <type_traits>
 
@@ -159,6 +160,7 @@ HostAuthority::HostAuthority(HostNetwork& aNetwork, HostGame aGame) noexcept
 
     // Objects (doors, containers, levers): whoever's game saw it, everyone else replays it.
     On(*this, &HostAuthority::OnActivate);
+    On(*this, &HostAuthority::OnMeleeStagger);
     On(*this, &HostAuthority::OnLockChange);
     On(*this, &HostAuthority::OnContainerChange);
 
@@ -256,6 +258,16 @@ void HostAuthority::OnInventoryChanges(const RequestInventoryChanges& acRequest,
         return;
     if (acRequest.UpdateClients)
         Deliver(ToNotify(acRequest), Delivery::FromAnyone, 0, aSender);
+}
+
+void HostAuthority::OnMeleeStagger(const MeleeStaggerRequest& acRequest, ConnectionId_t aSender) const noexcept
+{
+    if (m_characters.OwnerOf(acRequest.HitterId) != aSender || !m_characters.IsPlayerCharacter(acRequest.HitterId) ||
+        !std::isfinite(acRequest.Magnitude) || acRequest.Magnitude <= 0.f)
+        return;
+    NotifyMeleeStagger notify;
+    static_cast<Payloads::MeleeStagger&>(notify) = acRequest;
+    Deliver(notify, Delivery::ToOwner, acRequest.HitteeId, aSender);
 }
 
 void HostAuthority::OnActivate(const ActivateRequest& acRequest, ConnectionId_t aSender) const noexcept

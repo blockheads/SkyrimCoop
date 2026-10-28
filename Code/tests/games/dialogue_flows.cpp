@@ -3,6 +3,7 @@
 // host's game's list, its pick is said by the host's game, and the conversation ends for everyone.
 #include "FakeDialogue.h"
 #include <Services/DialogueService.h>
+#include <Events/MenuEvent.h>
 #include "Party.h"
 
 namespace
@@ -64,6 +65,91 @@ SCENARIO("A guest talks to a host NPC: the host's game runs the conversation, th
 
     party.As(party.Guest(), [&] { guestTalk.PlayerPicks(1); });
     party.Until([&] { return !hostTalk.Speaker && !guestTalk.MenuOpen; }, "the goodbye ends it on both games");
+}
+
+SCENARIO("Barter keeps a guest in the conversation with dialogue suspended", "[dialogue][barter]")
+{
+    Party party(1, Plugins);
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& talk = Dialogue(party.Guest());
+    auto& service = party.Guest().ctx().at<DialogueService>();
+    uint32_t merchant = 0;
+    party.As(party.Host(), [&] { merchant = host.LoadNpc(kGuard, kSmoke); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the merchant arrives");
+    party.As(party.Guest(), [&] { talk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return talk.MenuOpen && talk.Options.size() == 2 && service.Joined(); }, "dialogue is joined");
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(MenuEvent{"BarterMenu", true}); });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK_FALSE(talk.MenuOpen);
+    CHECK(service.Joined());
+    CHECK(talk.Speaker != 0);
+    party.As(party.Guest(), [&] { party.Guest().GetDispatcher().trigger(MenuEvent{"BarterMenu", false}); });
+    party.Until([&] { return talk.MenuOpen && service.Joined(); }, "closing barter returns to dialogue");
+}
+
+SCENARIO("A guest defers the next dialogue list until its personal menu closes", "[dialogue][barter]")
+{
+    Party party(1, Plugins);
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& talk = Dialogue(party.Guest());
+    uint32_t merchant = 0;
+    party.As(party.Host(), [&] { merchant = host.LoadNpc(kGuard, kSmoke); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the merchant's copy arrives");
+    party.As(party.Guest(), [&] { talk.PlayerTalksTo(guest.CopiesOf(kGuard)[0]); });
+    party.Until([&] { return talk.MenuOpen && talk.Options.size() == 2; }, "dialogue opens");
+    talk.PlayerMenuOpen = true;
+    party.As(party.Guest(), [&] { talk.PlayerPicks(0); });
+    party.Until([&] { return Dialogue(party.Host()).Said.size() == 1; }, "the host says the picked line");
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK(talk.Options == std::vector{kNews, kGoodbye});
+    talk.PlayerMenuOpen = false;
+    party.Until([&] { return talk.Options == std::vector{kMore, kGoodbye}; }, "closing barter restores the pending dialogue list");
+}
+
+SCENARIO("A picked barter line opens only the trader's game and its Speech stays personal", "[dialogue][barter]")
+{
+    Party party(2, Plugins);
+    auto& host = Party::Engine(party.Host());
+    auto& guest = Party::Engine(party.Guest());
+    auto& other = Party::Engine(party.Guest(1));
+    Topics(party.Host());
+    Topics(party.Guest());
+    auto& hostTalk = Dialogue(party.Host());
+    uint32_t merchant = 0;
+    party.As(party.Host(), [&] { merchant = host.LoadNpc(kGuard, kSmoke, {30.f, 40.f, 0.f}); });
+    party.Until([&] { return guest.CopiesOf(kGuard).size() == 1; }, "the guest has the merchant");
+    const uint32_t cCopy = guest.CopiesOf(kGuard)[0];
+    const bool cGuest = GENERATE(false, true);
+    World& picker = cGuest ? party.Guest() : party.Host();
+    FakeEngine& trader = Party::Engine(picker);
+    FakeDialogue& talk = Dialogue(picker);
+    const uint32_t cMerchant = cGuest ? cCopy : merchant;
+    party.As(picker, [&] { talk.PlayerTalksTo(cMerchant); });
+    party.Until([&] { return talk.MenuOpen && talk.Options.size() == 2; }, "the trader's dialogue opens");
+    hostTalk.OnSaid = [&](const auto&) {
+        host.RunScript({.Class = "Actor", .Function = "ShowBarterMenu", .Self = LocalForm{merchant}}, hostTalk.LastLineFor);
+    };
+    party.As(picker, [&] { talk.PlayerPicks(0); });
+    party.Until([&] { return trader.BarterMerchant == cMerchant; }, "only the picker opens its local barter menu");
+    party.As(picker, [&] {
+        trader.RunScript({.Class = "Game", .Function = "AdvanceSkill", .Arguments = {std::string("Speechcraft"), 12.f}},
+                         FakeEngine::kPlayer);
+    });
+    for (int i = 0; i < 10; ++i)
+        party.Frame();
+    CHECK(trader.RewardExperience[17] == 12.f);
+    CHECK((cGuest ? host : guest).BarterMerchant == 0);
+    CHECK((cGuest ? host : guest).RewardExperience[17] == 0.f);
+    CHECK(other.BarterMerchant == 0);
+    CHECK(other.RewardExperience[17] == 0.f);
 }
 
 SCENARIO("The host's begin fragment knows its picker before the picked notification returns", "[dialogue][rewards]")

@@ -434,12 +434,13 @@ def guard_arrest(outcome="jail", offender="client"):
         crime(action="reset_alarm")
         if copy := ct.player_copy(""):
             crime(action="reset_alarm", actor=copy)
+        # The guard belongs to the fixture cell; jail release leaves that cell unloaded.
+        if ct.player_cell("") != old_cell:
+            ct.both_go(ct.HOME_CELL)
         for actor in spawned:
             crime(action="reset_alarm", actor=actor)
             ct.console_on("", f"{actor:X}.disable")
             ct.console_on("", f"{actor:X}.markfordelete")
-        if ct.player_cell("") != old_cell:
-            ct.both_go(ct.HOME_CELL)
         crime(action="set_owner", target=ct.SMALL_CHEST, owner=owner)
         restore(before, hostile)
         ct.console_on("", f"player.setav invisibility {invisible}")

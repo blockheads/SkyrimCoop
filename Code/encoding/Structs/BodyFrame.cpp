@@ -154,6 +154,8 @@ void BodyPose::Serialize(Wire::Buffer::Writer& aWriter) const noexcept
     Serialization::WriteFloat(aWriter, Rotation.y);
     Serialization::WriteFloat(aWriter, Rotation.z);
     Serialization::WriteFloat(aWriter, Rotation.w);
+    if (Key.Actor)
+        Serialization::WriteBool(aWriter, Knocked);
 }
 
 void BodyPose::Deserialize(Wire::Buffer::Reader& aReader) noexcept
@@ -165,6 +167,7 @@ void BodyPose::Deserialize(Wire::Buffer::Reader& aReader) noexcept
     Rotation.y = Serialization::ReadFloat(aReader);
     Rotation.z = Serialization::ReadFloat(aReader);
     Rotation.w = Serialization::ReadFloat(aReader);
+    Knocked = Key.Actor && Serialization::ReadBool(aReader);
 }
 
 void BodyPush::Serialize(Wire::Buffer::Writer& aWriter) const noexcept

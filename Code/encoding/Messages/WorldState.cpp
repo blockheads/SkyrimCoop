@@ -33,6 +33,7 @@ void Write(Wire::Buffer::Writer& aWriter, const QuestState& acQuest) noexcept
         cFill.Cell.Serialize(aWriter);
         Serialization::WriteVarInt(aWriter, static_cast<uint16_t>(cFill.GridX));
         Serialization::WriteVarInt(aWriter, static_cast<uint16_t>(cFill.GridY));
+        Serialization::WriteVarInt(aWriter, cFill.ActorId);
     }
     Serialization::WriteVarInt(aWriter, acQuest.Locations.size());
     for (const auto& cFill : acQuest.Locations)
@@ -74,6 +75,7 @@ bool Read(Wire::Buffer::Reader& aReader, QuestState& aQuest) noexcept
         fill.Cell.Deserialize(aReader);
         fill.GridX = static_cast<int16_t>(static_cast<uint16_t>(Serialization::ReadVarInt(aReader)));
         fill.GridY = static_cast<int16_t>(static_cast<uint16_t>(Serialization::ReadVarInt(aReader)));
+        fill.ActorId = static_cast<uint32_t>(Serialization::ReadVarInt(aReader));
     }
     count = Serialization::ReadVarInt(aReader);
     if (count > kMaxPerQuest)

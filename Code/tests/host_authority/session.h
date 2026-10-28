@@ -281,7 +281,7 @@ private:
             return item;
         };
         game.PushBody = [this](const BodyPush& acPush) { Pushed.push_back(acPush); return true; };
-        game.FreeBody = [this](const BodyFrame& acFrame) { Freed.push_back(acFrame); return true; };
+        game.FreeBody = [this](const BodyFrame& acFrame, uint64_t) { Freed.push_back(acFrame); return true; };
         game.TakeBodies = [this] { return std::exchange(Moving, {}); };
         game.ReadPlayerPosition = [this](uint32_t aPlayerId) -> std::optional<glm::vec3> {
             const auto it = PlayerPositions.find(aPlayerId);

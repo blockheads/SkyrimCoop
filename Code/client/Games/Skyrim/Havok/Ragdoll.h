@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Havok/bhkCollision.h>
+#include <Structs/BodyFrame.h>
 
 #include <vector>
 
@@ -18,7 +19,8 @@ struct hkaRagdollInstance
 
 struct hkbRagdollDriver
 {
-    uint8_t pad0[0x88];
+    uint8_t pad0[0x80];
+    struct hkbCharacter* character; // 80 (CommonLib-NG): its graph owns the actor
     hkaRagdollInstance* ragdoll; // 88
 };
 
@@ -30,3 +32,7 @@ bool RemoveRagdollFromWorld(TESObjectREFR& aActor) noexcept;
 static_assert(offsetof(hkaRagdollInstance, rigidBodies) == 0x10);
 static_assert(offsetof(hkaRagdollInstance, rigidBodyCount) == 0x18);
 static_assert(offsetof(hkbRagdollDriver, ragdoll) == 0x88);
+
+static_assert(offsetof(hkbRagdollDriver, character) == 0x80);
+
+void QueueCopyBodyFrame(uint32_t aFormId, const BodyFrame& acFrame, bool aPlace) noexcept;

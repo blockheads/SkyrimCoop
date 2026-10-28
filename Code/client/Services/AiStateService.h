@@ -41,6 +41,7 @@ protected:
     void OnDisconnected(const DisconnectedEvent& acEvent) noexcept;
 
 private:
+    void OnLocalRemoved(entt::registry& aRegistry, entt::entity aEntity) noexcept;
     // One of this game's actors: its state goes out when it differs from the last sent.
     void SendOwned(uint32_t aFormId, uint32_t aSessionId) noexcept;
     // The copy of that session id, if this game has it, takes its owner's state.

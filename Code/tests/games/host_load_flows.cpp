@@ -74,7 +74,8 @@ SCENARIO("A host load restores the chosen save and every guest at its saved plac
                     return false;
             }
             return true;
-        }, "the whole party loads the chosen save and rejoins");
+        }, "the whole party loads the chosen save and rejoins", {}, nullptr,
+            std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
         CHECK(party.Host().GetHostService().GetNetwork() == cpListener);
         CHECK(host.Saves.size() == cSaves);
         CHECK(host.References.at(0xECA).Locked);
@@ -157,7 +158,8 @@ SCENARIO("A guest reconnecting after a failed host load is refused instead of jo
     Save(party, "BeforeLoad");
     party.As(party.Host(), [&] { (void)host.PlayerLoads("BeforeLoad"); });
     party.Until([&] { return host.PendingLoad.has_value() && guest.Loaded.size() == 1; },
-                "the guest loads while the host's engine is about to load");
+                "the guest loads while the host's engine is about to load", {}, nullptr,
+                std::chrono::seconds{static_cast<int64_t>(JoinService::kLoadSeconds)});
     party.As(party.Host(), [&] {
         host.PendingLoad.reset();
         party.Host().GetDispatcher().trigger(GameLoadFailedEvent{"SkyrimCoopWipe"});

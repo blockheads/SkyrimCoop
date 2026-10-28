@@ -175,9 +175,9 @@ void HostService::MakeAuthority() noexcept
         return std::nullopt;
     };
     game.PushBody = [this](const BodyPush& acPush) { return m_world.ctx().at<IBodyBridge&>().Push(acPush); };
-    game.FreeBody = [this](const BodyFrame& acFrame) {
+    game.FreeBody = [this](const BodyFrame& acFrame, uint64_t aReleasedAt) {
         // The holder's frames this game played end here (BodyService); its own physics has the body again.
-        m_world.ctx().at<BodyService>().Forget(acFrame.Key);
+        m_world.ctx().at<BodyService>().Forget(acFrame.Key, aReleasedAt);
         return m_world.ctx().at<IBodyBridge&>().Free(acFrame);
     };
     game.ReadBodies = [this](const std::vector<BodyKey>& acKeys) {
@@ -198,6 +198,9 @@ void HostService::MakeAuthority() noexcept
     game.TakeItem = [this](const GameId& acObject) { return m_pEngine->TakeItem(acObject); };
     game.ReadDifficulty = [this] { return m_world.GetPlayerBridge().GetDifficulty(); };
     game.StoreRecord = [this](const PlayerRecord& acRecord) { m_world.ctx().at<SaveService>().GetRecords().Put(acRecord); };
+    game.StoreStorySpell = [this](const GameId& acSpell, bool aAdded) {
+        m_world.ctx().at<SaveService>().GetRecords().SetStorySpell(acSpell, aAdded);
+    };
     game.HasRecord = [this](const std::string& acKey) { return m_world.ctx().at<SaveService>().GetRecords().Find(acKey) != nullptr; };
     game.SaveWorld = [this]() -> std::optional<std::vector<NotifySaveChunk>> {
         auto files = m_world.ctx().at<IJoinBridge&>().SaveNow(JoinService::kTransferSave);

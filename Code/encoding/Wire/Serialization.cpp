@@ -24,20 +24,22 @@ namespace Wire
     uint64_t Serialization::ReadVarInt(Buffer::Reader& aReader)
     {
         uint64_t value = 0;
-        uint32_t shift = 0;
+        return TryReadVarInt(aReader, value) ? value : 0;
+    }
 
-        do
+    bool Serialization::TryReadVarInt(Buffer::Reader& aReader, uint64_t& aValue) noexcept
+    {
+        aValue = 0;
+        for (uint32_t shift = 0; shift < 64; shift += 7)
         {
-            uint64_t tmp = 0;
-            aReader.ReadBits(tmp, 7);
-
-            value |= (tmp << shift);
-
-            shift += 7;
-            
-        } while (ReadBool(aReader));
-
-        return value;
+            uint64_t bits = 0, more = 0;
+            if (!aReader.ReadBits(bits, 7) || !aReader.ReadBits(more, 1) || (shift == 63 && bits > 1))
+                return false;
+            aValue |= bits << shift;
+            if (!more)
+                return true;
+        }
+        return false;
     }
 
     void Serialization::WriteVarInt(Buffer::Writer& aWriter, uint64_t aValue)

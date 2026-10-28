@@ -57,7 +57,7 @@ class Scope
     std::optional<RoutedCallEvent> m_event;
     std::optional<LocalCall> m_onThisPlayer;
     std::optional<BSScript::CallResult> m_result;
-    bool m_progressed = false; // another game's progression call runs here: this player's record changes
+    bool m_progressed = false; // a progression call runs here: this player's record changes
     std::vector<uint32_t> m_asks;
 
     [[nodiscard]] PartyRules::CallFacts FactsOf(BSScript::IFunction* apFunction, const BSScript::Stack& acStack) const noexcept;

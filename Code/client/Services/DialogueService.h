@@ -8,6 +8,7 @@
 
 struct World;
 struct UpdateEvent;
+struct MenuEvent;
 struct DisconnectedEvent;
 struct TransportService;
 struct NotifyDialogueOpen;
@@ -74,6 +75,7 @@ struct DialogueService
 
 private:
     void OnUpdate(const UpdateEvent&) noexcept;
+    void OnMenu(const MenuEvent& acEvent) noexcept;
     void OnDisconnected(const DisconnectedEvent&) noexcept;
     void OnOpen(const NotifyDialogueOpen& acMessage) noexcept;
     void OnPicked(const NotifyDialoguePicked& acMessage) noexcept;
@@ -93,6 +95,7 @@ private:
     bool m_opening{};
     uint32_t m_openingFrames{};
     bool m_menuOpen{};
+    bool m_bartering{};
     bool m_closing{}; // its close asked for, the menu still fading out
 
     std::vector<entt::scoped_connection> m_connections;

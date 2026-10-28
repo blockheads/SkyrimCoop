@@ -39,6 +39,7 @@
 #include <Events/PlayerArrivedEvent.h>
 #include <Services/TravelService.h>
 #include <Services/AiStateService.h>
+#include <Services/BodyService.h>
 #include <Services/EffectVisualsService.h>
 
 #include <Bridges/IActorBridge.h>
@@ -539,7 +540,7 @@ void CharacterService::OnReferencesMoveRequest(const NotifyReferencesMove& acMes
         point.Variables = movement.Variables;
         point.Direction = movement.Direction;
         point.Lying = movement.Lying;
-
+        point.Knocked = movement.Knocked;
         // Put there at once, or into another interior or worldspace: the copy starts there (RunPresence), never
         // sweeps across.
         bool teleported = movement.Teleported;
@@ -1150,6 +1151,8 @@ std::optional<AnnounceCharacterRequest> CharacterService::BuildAnnouncement(cons
     message.Position = cState.Position;
     message.Rotation = cState.Rotation;
     message.CurrentActorData = cState.Data;
+    if (formIdComponent.Id == 0x14)
+        message.PerksContent = m_actorBridge.GetPlayerPerks();
     message.LatestAction = cState.LatestAction;
     message.GraphState = cState.GraphState;
     if (const auto* pAiState = m_world.ctx().find<AiStateService>())
@@ -1361,7 +1364,10 @@ void CharacterService::RunLocalUpdates() noexcept
         if (m_jumped.erase(formIdComponent.Id) && it != message.Updates.end())
             it->second.UpdatedMovement.Teleported = true;
         if (it != message.Updates.end())
+        {
             it->second.UpdatedMovement.Lying = m_actorBridge.IsLyingInRagdoll(formIdComponent.Id);
+            it->second.UpdatedMovement.Knocked = m_actorBridge.IsKnockedDown(formIdComponent.Id);
+        }
     }
     m_jumped.clear(); // jumps of actors that are not ours
 
@@ -1419,6 +1425,10 @@ void CharacterService::RunRemoteUpdates() noexcept
             // engine stood it onto its owner's place (physics-sync.md, "A copy's ragdoll, steered").
             auto& ease = interpolationComponent.Ease;
             const bool cOwnerLies = tick >= second.Tick ? second.Lying : first.Lying;
+            const bool cOwnerKnocked = tick >= second.Tick ? second.Knocked : first.Knocked;
+            if (!cOwnerKnocked && !cOwnerLies)
+                m_world.ctx().at<BodyService>().EndRagdoll(m_world.get<RemoteComponent>(entity).Id,
+                                                      tick >= second.Tick ? second.Tick : first.Tick);
             const bool cPlace = !cOwnerLies && !m_actorBridge.IsLyingInRagdoll(pFormIdComponent->Id);
             if (!cPlace)
                 ease.Held = true;

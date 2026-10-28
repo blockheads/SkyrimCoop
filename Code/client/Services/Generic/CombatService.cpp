@@ -5,6 +5,8 @@
 #include <Games/ActorUpkeep.h>
 #include <Events/ProjectileLaunchedEvent.h>
 #include <Events/HitEvent.h>
+#include <Events/MeleeStaggerEvent.h>
+#include <SessionIds.h>
 
 #include <Messages/Relayed.h>
 
@@ -26,6 +28,8 @@ CombatService::CombatService(World& aWorld, TransportService& aTransport, entt::
 {
     Listen<UpdateEvent, &CombatService::OnUpdate>(m_connections, aDispatcher, this);
     Listen<HitEvent, &CombatService::OnHitEvent>(m_connections, aDispatcher, this);
+    Listen<MeleeStaggerEvent, &CombatService::OnMeleeStagger>(m_connections, aDispatcher, this);
+    Listen<NotifyMeleeStagger, &CombatService::OnNotifyMeleeStagger>(m_connections, aDispatcher, this);
     Listen<&CombatService::OnLocalComponentRemoved>(m_connections, m_world.on_destroy<LocalComponent>(), this);
     Listen<ProjectileLaunchedEvent, &CombatService::OnProjectileLaunchedEvent>(m_connections, aDispatcher, this);
     Listen<NotifyProjectileLaunch, &CombatService::OnNotifyProjectileLaunch>(m_connections, aDispatcher, this);
@@ -135,6 +139,28 @@ void CombatService::OnNotifyProjectileLaunch(const NotifyProjectileLaunch& acMes
         acMessage.AlwaysHit, acMessage.NoDamageOutsideCombat, acMessage.AutoAim,
         false /* DeferInitialization */, acMessage.ForceConeOfFire,
         acMessage.UnkBool1, acMessage.UnkBool2);
+}
+
+void CombatService::OnMeleeStagger(const MeleeStaggerEvent& acEvent) noexcept
+{
+    if (!m_transport.IsOnline() || acEvent.HitterId != m_playerBridge.GetPlayerFormId())
+        return;
+    const auto cHittee = Utils::GetSessionIdByFormId(acEvent.HitteeId);
+    const auto cHitter = Utils::GetSessionIdByFormId(acEvent.HitterId);
+    if (!cHittee || !cHitter || !m_actorBridge.IsActorCopy(acEvent.HitteeId))
+        return;
+    MeleeStaggerRequest request;
+    request.HitteeId = *cHittee;
+    request.HitterId = *cHitter;
+    request.Magnitude = acEvent.Magnitude;
+    m_transport.Send(request);
+}
+
+void CombatService::OnNotifyMeleeStagger(const NotifyMeleeStagger& acMessage) noexcept
+{
+    const uint32_t cHittee = Utils::GetFormIdBySessionId(acMessage.HitteeId);
+    if (cHittee && m_actorBridge.ActorExists(cHittee) && !m_actorBridge.IsActorCopy(cHittee))
+        m_actorBridge.StaggerActor(cHittee, acMessage.Magnitude, Utils::GetFormIdBySessionId(acMessage.HitterId));
 }
 
 void CombatService::OnHitEvent(const HitEvent& acEvent) noexcept

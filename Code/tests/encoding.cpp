@@ -28,6 +28,36 @@
 #include <Messages/NotifyActivate.h>
 
 #include <numbers>
+#include <limits>
+#include <array>
+
+TEST_CASE("Variable integers reject truncated and overflowing input", "[encoding.varint]")
+{
+    for (const uint64_t cValue : {uint64_t(0), uint64_t(127), uint64_t(128), std::numeric_limits<uint64_t>::max()})
+    {
+        Wire::Buffer buffer;
+        Wire::Buffer::Writer writer(&buffer);
+        Wire::Serialization::WriteVarInt(writer, cValue);
+        Wire::Buffer::Reader reader(std::span(buffer.GetData(), writer.Size()));
+        uint64_t value = 0;
+        REQUIRE(Wire::Serialization::TryReadVarInt(reader, value));
+        CHECK(value == cValue);
+        for (size_t size = 0; size < writer.Size(); ++size)
+        {
+            Wire::Buffer::Reader truncated(std::span(buffer.GetData(), size));
+            CHECK_FALSE(Wire::Serialization::TryReadVarInt(truncated, value));
+        }
+    }
+    for (const uint8_t cLast : {uint8_t(2), uint8_t(0x80)})
+    {
+        std::array<uint8_t, 10> bytes;
+        bytes.fill(0x80);
+        bytes.back() = cLast;
+        Wire::Buffer::Reader reader{std::span(bytes)};
+        uint64_t value = 0;
+        CHECK_FALSE(Wire::Serialization::TryReadVarInt(reader, value));
+    }
+}
 
 TEST_CASE("NPC activations carry the target's session id", "[encoding.followers]")
 {
@@ -1105,6 +1135,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         quest.Aliases = {{4, GameId(0, 0x1A677), false}, {9, GameId(), true}, {11, GameId(), false},
                          {5, GameId(0, 0x10A7CC), false, GameId(0, 0xB6BE6)}, {6, GameId(0, 0x1D4F0), false, GameId(0, 0x3C), -12, 7}};
         quest.Locations = {{2, GameId(0, 0x18A56)}, {3, GameId()}};
+        quest.Aliases.push_back({.AliasId = 17, .ActorId = 37});
         sendMessage.Quests.emplace_back().Id = GameId(2, 0x801);
 
         Buffer buff(1000);
@@ -1124,6 +1155,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         ReferencesMoveRequest sendMessage, recvMessage;
         auto& update = sendMessage.Updates[1];
         auto& move = update.UpdatedMovement;
+        move.Knocked = true;
 
         AnimationVariables vars;
         vars.Booleans.resize(76);
@@ -1147,6 +1179,7 @@ TEST_CASE("Packets", "[encoding.packets]")
         move.Variables = vars;
         move.Teleported = true;
         move.Lying = true;
+        move.Knocked = true;
 
         Buffer buff(1000);
         Buffer::Writer writer(&buff);
@@ -1623,4 +1656,46 @@ TEST_CASE("Follower trade grants and releases retain the NPC session id", "[enco
     REQUIRE(received);
     REQUIRE(received->GetOpcode() == FollowerTradeClosedRequest::Opcode);
     CHECK(static_cast<const FollowerTradeClosedRequest&>(*received).NpcId == close.NpcId);
+}
+
+TEST_CASE("Player perk snapshots retain ranks through messages and spawns", "[encoding.perks]")
+{
+    ActorPerksRequest request;
+    request.SessionId = 37;
+    request.Content.Ranks = {{GameId(0, 0xCC799), 2}, {GameId(3, 0x812), 1}};
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    const auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(static_cast<const ActorPerksRequest&>(*decoded) == request);
+
+    AnnounceCharacterRequest announcement;
+    announcement.ReferenceId = GameId(0, 0x14);
+    announcement.PerksContent = request.Content;
+    auto spawn = NotifyCharacterSpawn::FromAnnouncement(announcement, request.SessionId, 3);
+    CHECK(spawn.PerksContent == request.Content);
+    Buffer result;
+    Buffer::Writer resultWriter(&result);
+    spawn.Serialize(resultWriter);
+    Buffer::Reader resultReader(&result);
+    const auto received = NotifyMessageFactory{}.Extract(resultReader);
+    REQUIRE(received);
+    CHECK(static_cast<const NotifyCharacterSpawn&>(*received) == spawn);
+}
+
+TEST_CASE("Melee stagger messages retain the hitter, victim and native magnitude", "[encoding.stagger]")
+{
+    MeleeStaggerRequest request;
+    request.HitterId = 37;
+    request.HitteeId = 98;
+    request.Magnitude = 0.75f;
+    Buffer buffer;
+    Buffer::Writer writer(&buffer);
+    request.Serialize(writer);
+    Buffer::Reader reader(&buffer);
+    const auto decoded = RequestMessageFactory{}.Extract(reader);
+    REQUIRE(decoded);
+    CHECK(static_cast<const MeleeStaggerRequest&>(*decoded) == request);
 }

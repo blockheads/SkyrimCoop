@@ -3,6 +3,7 @@
 #include <Structs/PlayerRecord.h>
 
 #include <map>
+#include <unordered_map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -21,7 +22,10 @@ struct CharacterRecords
     [[nodiscard]] const std::map<std::string, PlayerRecord, std::less<>>& All() const noexcept { return m_records; }
     // A loaded record's place, from where the host's game shows that player now.
     void SetPlace(std::string_view aKey, const GameId& acWorldSpace, const GameId& acCell, const std::array<float, 3>& acPosition) noexcept;
-    void Clear() noexcept { m_records.clear(); }
+    void Clear() noexcept { m_records.clear(); m_storySpells.clear(); }
+    // Story spell grants/removals persist independently of which players were present.
+    void SetStorySpell(const GameId& acSpell, bool aAdded) noexcept;
+    void ApplyStorySpells(PlayerRecord& aRecord) const noexcept;
     // A player whose character the save no longer keeps.
     void Remove(std::string_view aKey) noexcept;
 
@@ -32,4 +36,5 @@ struct CharacterRecords
 
 private:
     std::map<std::string, PlayerRecord, std::less<>> m_records;
+    std::unordered_map<GameId, bool> m_storySpells;
 };

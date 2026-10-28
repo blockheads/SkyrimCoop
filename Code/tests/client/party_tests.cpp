@@ -6,6 +6,21 @@
 
 using namespace Routes;
 
+TEST_CASE("Barter on another actor opens on the picker's game", "[party][route][barter]")
+{
+    CallFacts barter{.Reach = {Call::kPlayerMenu}, .Cause = 0xFF000801, .GuestCause = true, .Hosting = true};
+    CHECK(RouteOf(barter) == Routing{.To = Destination::kCauseGame, .Original = false});
+    barter.Story = true;
+    CHECK(RouteOf(barter) == Routing{.To = Destination::kCauseGame, .Original = false});
+    barter.GuestCause = false;
+    barter.Cause = 0x14;
+    CHECK(RouteOf(barter) == Routing{});
+    barter.Cause = 0;
+    CHECK(RouteOf(barter) == Routing{});
+    barter.Cause = MirroredTag(1);
+    CHECK(RouteOf(barter) == Routing{});
+}
+
 namespace
 {
 constexpr uint32_t kThisPlayer = 0x14;  // GuestScripts' cause for this game's own player

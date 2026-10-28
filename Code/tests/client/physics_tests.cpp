@@ -1,15 +1,46 @@
 // Physics sync's pure halves (docs/design/physics-sync.md): the guess every game makes, the host's send rule, the
 // guest's playback.
 #include <catch2/catch.hpp>
+#include <Games/KnockReplay.h>
+#include <Structs/AnimationGraphDescriptorManager.h>
+#include <Structs/Skyrim/AnimationGraphDescriptor_Master_Behavior.h>
 
 #include "../FakeFlight.h"
 
 #include <Physics/BodyPlayback.h>
+#include <Physics/RagdollPending.h>
 #include <Physics/BodyRelevance.h>
 #include <Physics/BodySends.h>
 #include <Systems/CopyEase.h>
 
 using namespace BodyPrediction;
+
+TEST_CASE("A pending ragdoll bootstrap keeps the newest pose and stays a placement", "[physics][ragdoll-pending]")
+{
+    RagdollPending pending;
+    BodyFrame frame{.Key = {.Actor = 7, .Index = 3}, .Position = {1.f, 2.f, 3.f}};
+    pending.Put(0xFF000800, frame, true);
+    frame.Position.x = 20.f;
+    pending.Put(0xFF000800, frame, false);
+    frame.Position.x = 30.f;
+    pending.Put(0xFF000801, frame, false);
+    const auto cFirst = pending.Take(0xFF000800);
+    REQUIRE(cFirst.size() == 1);
+    CHECK(cFirst[0].Frame.Position.x == 20.f);
+    CHECK(cFirst[0].Place);
+    CHECK(pending.Take(0xFF000800).empty());
+    const auto cRemade = pending.Take(0xFF000801);
+    REQUIRE(cRemade.size() == 1);
+    CHECK(cRemade[0].Frame.Position.x == 30.f);
+    CHECK_FALSE(cRemade[0].Place);
+}
+
+TEST_CASE("A humanoid copy receives the owner's get-up animation choice", "[physics][knock-replay]")
+{
+    const auto* cpDescriptor = AnimationGraphDescriptorManager::Get().GetDescriptor(AnimationGraphDescriptor_Master_Behavior::m_key);
+    REQUIRE(cpDescriptor);
+    CHECK(cpDescriptor->IsSynced(187)); // iGetUpType, set by Actor::BeginGetUp (40150)
+}
 
 namespace
 {
@@ -302,4 +333,63 @@ TEST_CASE("A guest gets the frames of the bodies near its character", "[physics]
     CHECK(cKept[0].Key == cNear.Key);
     // No copy shown yet (joining, travelling): every frame, as before relevance.
     CHECK(BodyRelevance::Near({cNear, cFar}, std::nullopt).size() == 2);
+}
+
+TEST_CASE("Physics playback keeps millisecond precision at the network's epoch ticks", "[physics][epoch]")
+{
+    constexpr uint64_t cEpoch = 1793145055000;
+    const BodyKey cKey{.Object = GameId(0, 7)};
+    BodyPlayback playback;
+    playback.Add(cEpoch, {{.Key = cKey, .LinearVelocity = {150.f, 0.f, 0.f}}});
+    auto shown = playback.At(cEpoch + 400);
+    REQUIRE(shown.size() == 1);
+    CHECK(shown[0].Body.Position.x == Approx(60.f));
+
+    // The next frame already here: predict it backwards, then blend toward its due time.
+    playback.Add(cEpoch + 500, {{.Key = cKey, .Position = {75.f, 0.f, 0.f}, .LinearVelocity = {150.f, 0.f, 0.f}}});
+    shown = playback.At(cEpoch + 450);
+    REQUIRE(shown.size() == 1);
+    CHECK(shown[0].Body.Position.x == Approx(67.5f));
+    shown = playback.At(cEpoch + 600);
+    REQUIRE(shown.size() == 1);
+    CHECK(shown[0].Body.Position.x == Approx(90.f));
+}
+
+TEST_CASE("A reliable ragdoll rest carries a living knockdown even when all moving frames were lost", "[physics][knock-rest]")
+{
+    BodyPlayback playback;
+    const BodyKey cKey{.Actor = 37};
+    playback.Rest(1000, {{.Key = cKey, .Position = {1.f, 2.f, 3.f}, .Knocked = true}});
+    const auto cShown = playback.At(1000);
+    REQUIRE(cShown.size() == 1);
+    CHECK(cShown[0].Rest);
+    CHECK(cShown[0].Body.Knocked);
+}
+
+TEST_CASE("A body rest rejects held frames that arrive after that rest was played", "[physics][release-barrier]")
+{
+    BodyPlayback playback;
+    const BodyKey cKey{.Object = GameId(0, 7)};
+    playback.Add(1000, {{.Key = cKey, .Position = {1.f, 0.f, 0.f}}});
+    playback.Rest(1100, {{.Key = cKey, .Position = {2.f, 0.f, 0.f}}});
+    REQUIRE(playback.At(1100).size() == 1);
+    playback.Add(1050, {{.Key = cKey, .Position = {100.f, 0.f, 0.f}}});
+    CHECK(playback.At(1200).empty());
+    playback.Add(1250, {{.Key = cKey, .Position = {3.f, 0.f, 0.f}}});
+    const auto cNew = playback.At(1250);
+    REQUIRE(cNew.size() == 1);
+    CHECK(cNew[0].Body.Position.x == Approx(3.f));
+    playback.ForgetUntil(cKey, 1300);
+    playback.Add(1290, {{.Key = cKey, .Position = {100.f, 0.f, 0.f}}});
+    CHECK(playback.At(1400).empty());
+}
+
+TEST_CASE("A copy with a ragdoll finishes a get-up action with the native knock-state transition", "[physics][knock-replay]")
+{
+    CHECK(KnockReplay::AfterAction(1, true, true) == 5);
+    CHECK(KnockReplay::AfterAction(3, true, true) == 5);
+    CHECK(KnockReplay::AfterAction(0, false, true) == 0);
+    CHECK(KnockReplay::AfterAction(0, true, true) == 0);
+    CHECK(KnockReplay::AfterAction(1, true, false) == 1);
+    CHECK(KnockReplay::AfterAction(6, true, true) == 6);
 }

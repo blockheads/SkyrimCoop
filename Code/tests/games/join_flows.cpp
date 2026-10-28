@@ -328,6 +328,81 @@ SCENARIO("A character joining again keeps its own souls and the words it unlocke
             CHECK(guestEngine.SoulsAbsorbedShown == 1); // the dragon's, not the join's
         }
     }
+
+    WHEN("the host spends a soul while the friend is away")
+    {
+        ToMainMenu(party, guest);
+        party.As(host, [&] {
+            hostEngine.TeachesWord(kRo);
+            hostEngine.SpendsSoul(kRo);
+        });
+        REQUIRE(hostEngine.WordsUnlocked.contains(kRo));
+        JoinsWithWorld(party, host, guest, "the friend joins without inheriting the host's purchased unlock");
+        CHECK(guestEngine.WordsKnown.contains(kRo));
+        CHECK(guestEngine.WordsUnlocked.contains(kFus));
+        CHECK_FALSE(guestEngine.WordsUnlocked.contains(kRo));
+        CHECK(hostEngine.WordsUnlocked.contains(kRo));
+        CHECK(guestEngine.Souls[FakeEngine::kPlayer] == 0.f);
+    }
+}
+
+SCENARIO("A returning character gets story spells granted and removed while it was away", "[join][dragonborn][story-spells]")
+{
+    constexpr uint32_t kBeastForm = 0x92C48;
+    Party party(1, Plugins, false);
+    World& host = party.Host();
+    World& guest = party.Guest();
+    auto& hostEngine = Party::Engine(host);
+    auto& guestEngine = Party::Engine(guest);
+    Plays(host, HostsCharacter());
+    Plays(guest, LydiasCharacter());
+    JoinsWithWorld(party, host, guest, "the friend joins with its own character");
+    party.Until([&] { return Records(host).Find(KeyOf(guest)) != nullptr; }, "the host keeps the friend's character");
+    ToMainMenu(party, guest);
+    party.As(host, [&] { hostEngine.AddsSpell(FakeEngine::kPlayer, kBeastForm, true); });
+    party.Frame();
+    JoinsWithWorld(party, host, guest, "the friend returns after the story gave Beast Form");
+    CHECK(guestEngine.AddedSpells[FakeEngine::kPlayer].contains(kBeastForm));
+    CHECK(guestEngine.ReadPlayer().Spells == std::vector<GameId>{GameId(0, 0x12FCD), GameId(0, kBeastForm)});
+    ToMainMenu(party, guest);
+    party.As(host, [&] { hostEngine.AddsSpell(FakeEngine::kPlayer, kBeastForm, false); });
+    party.Frame();
+    JoinsWithWorld(party, host, guest, "the friend returns after the story removed Beast Form");
+    CHECK_FALSE(guestEngine.AddedSpells[FakeEngine::kPlayer].contains(kBeastForm));
+    CHECK(guestEngine.ReadPlayer().Spells == LydiasCharacter().Spells);
+}
+
+TEST_CASE("Story spell state survives the co-save and older character-only saves still load", "[records][story-spells]")
+{
+    CharacterRecords records;
+    records.SetStorySpell(GameId(0, 0x92C48), true);
+    records.SetStorySpell(GameId(0, 0x12FCD), false);
+    CharacterRecords loaded;
+    REQUIRE(loaded.Decode(records.Encode(), CharacterRecords::kVersion));
+    auto character = LydiasCharacter();
+    loaded.ApplyStorySpells(character);
+    CHECK(character.Spells == std::vector<GameId>{GameId(0, 0x92C48)});
+    CHECK(character.Skills == LydiasCharacter().Skills);
+    CHECK(character.Perks == LydiasCharacter().Perks);
+    REQUIRE(loaded.Decode(std::string(1, '\0'), CharacterRecords::kVersion));
+    character = LydiasCharacter();
+    loaded.ApplyStorySpells(character);
+    CHECK(character == LydiasCharacter());
+    const std::string truncated("\0\1", 2); // no records, one spell, no spell bytes
+    CHECK_FALSE(loaded.Decode(truncated, CharacterRecords::kVersion));
+    character = LydiasCharacter();
+    loaded.ApplyStorySpells(character);
+    CHECK(character == LydiasCharacter());
+    const auto cEncoded = records.Encode();
+    for (size_t size = 2; size < cEncoded.size(); ++size)
+    {
+        INFO("truncated to " << size << " of " << cEncoded.size() << " bytes");
+        CHECK_FALSE(loaded.Decode(std::string_view(cEncoded).substr(0, size), CharacterRecords::kVersion));
+        character = LydiasCharacter();
+        loaded.ApplyStorySpells(character);
+        CHECK(character == LydiasCharacter());
+    }
+    CHECK_FALSE(loaded.Decode(std::string("\0\x80", 2), CharacterRecords::kVersion));
 }
 
 SCENARIO("A join that cannot finish says why", "[join]")
